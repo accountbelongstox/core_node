@@ -182,6 +182,19 @@ set_webpath_execute_permissions() {
         if [ -d "$mapped_path" ]; then
             local path_ok=true
 
+            echo -e "\033[36m  [SAFE_PATH] path_key=$path_key -> mapped_path=$mapped_path\033[0m"
+            case "$mapped_path" in
+                /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
+                    echo -e "\033[33m  [SKIP] Refusing chown on system path: $mapped_path\033[0m"
+                    path_ok=false
+                    ;;
+                *)
+                    [[ "$mapped_path" != /* ]] && echo -e "\033[33m  [SKIP] Path not absolute: $mapped_path\033[0m" && path_ok=false
+                    ;;
+            esac
+            if [ "$path_ok" = false ]; then
+                ((error_count++))
+            else
             # Step 0: Ensure parent directories are accessible
             ensure_parent_path_accessible "$mapped_path"
 
@@ -228,6 +241,7 @@ set_webpath_execute_permissions() {
                 ((processed_count++))
             else
                 ((error_count++))
+            fi
             fi
         else
             echo -e "\033[33m  [SKIP] Path does not exist: $path_key -> $mapped_path\033[0m"
@@ -332,14 +346,27 @@ set_webpath_ownership() {
         local mapped_path=$(map_web_path "$path_key")
 
         if [ -d "$mapped_path" ]; then
-            # Set ownership recursively
-            if chown -R "$target_user":"$target_user" "$mapped_path" 2>/dev/null; then
-                ((processed_count++))
-                echo -e "\033[32m  [OK] Set ownership on $path_key -> $mapped_path\033[0m"
-            else
-                ((error_count++))
-                echo -e "\033[33m  [WARN] Failed to set ownership on $path_key -> $mapped_path\033[0m"
-            fi
+            echo -e "\033[36m  [SAFE_PATH] path_key=$path_key -> mapped_path=$mapped_path\033[0m"
+            case "$mapped_path" in
+                /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
+                    echo -e "\033[33m  [SKIP] Refusing chown on system path: $mapped_path\033[0m"
+                    ((error_count++))
+                    ;;
+                *)
+                    if [[ "$mapped_path" != /* ]]; then
+                        echo -e "\033[33m  [SKIP] Path not absolute: $mapped_path\033[0m"
+                        ((error_count++))
+                    else
+                        if chown -R "$target_user":"$target_user" "$mapped_path" 2>/dev/null; then
+                            ((processed_count++))
+                            echo -e "\033[32m  [OK] Set ownership on $path_key -> $mapped_path\033[0m"
+                        else
+                            ((error_count++))
+                            echo -e "\033[33m  [WARN] Failed to set ownership on $path_key -> $mapped_path\033[0m"
+                        fi
+                    fi
+                    ;;
+            esac
         else
             echo -e "\033[33m  [SKIP] Path does not exist: $path_key -> $mapped_path\033[0m"
         fi

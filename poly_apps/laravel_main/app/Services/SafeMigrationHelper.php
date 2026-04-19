@@ -1116,14 +1116,35 @@ class SafeMigrationHelper
         // 转换为闭包形式
         $tableDefinition = function (Blueprint $table) use ($tableStructure) {
             // 创建字段
+            $columnIndexMap = [];
             foreach ($tableStructure['columns'] ?? [] as $columnName => $columnDef) {
                 self::applyColumnDefinition($table, $columnName, $columnDef);
+                
+                // 记录通过列定义创建的索引，避免在同一个字段上重复创建单列索引
+                if (!empty($columnDef['index'])) {
+                    $columnIndexMap[$columnName] = true;
+                }
             }
             
-            // 创建索引
+            // 创建索引（避免与列级 index 重复）
             foreach ($tableStructure['indexes'] ?? [] as $indexDef) {
                 $columns = $indexDef['columns'] ?? [];
                 $name = $indexDef['name'] ?? null;
+                $isUnique = $indexDef['unique'] ?? false;
+
+                // 归一化列列表
+                $columnsList = is_array($columns) ? $columns : [$columns];
+
+                // 如果是单列普通索引且该列在列定义中已经有 index=true，则跳过，防止重复创建
+                if (
+                    !$isUnique
+                    && $name === null
+                    && count($columnsList) === 1
+                    && isset($columnIndexMap[$columnsList[0]])
+                ) {
+                    continue;
+                }
+
                 if (is_array($columns)) {
                     $table->index($columns, $name);
                 } else {
@@ -1157,9 +1178,16 @@ class SafeMigrationHelper
         $currentColumnInfo = self::getAllColumnsInfo($connection, $tableName);
         
         // 步骤3: 添加缺失字段
+        $driver = DB::connection($connection)->getDriverName();
         $missingColumns = array_diff(array_keys($expectedStructure['columns']), $currentColumns);
         foreach ($missingColumns as $columnName) {
             $columnDef = $expectedStructure['columns'][$columnName];
+            $isPkOrIncrements = in_array($columnDef['type'] ?? '', ['increments', 'bigIncrements', 'id'], true)
+                || $columnName === 'id';
+            if ($driver === 'sqlite' && $isPkOrIncrements) {
+                $actions[] = ['action' => 'skipped_column', 'column' => $columnName, 'message' => "SQLite cannot add PRIMARY KEY column to existing table. Table {$tableName} already exists without {$columnName}. Recreate table or use migrate:fresh if needed."];
+                continue;
+            }
             $result = self::safeAddColumn($connection, $tableName, $columnName, function (Blueprint $table, string $colName) use ($columnDef) {
                 self::applyColumnDefinition($table, $colName, $columnDef);
             });

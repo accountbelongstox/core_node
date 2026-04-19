@@ -1,0 +1,43 @@
+﻿--- UI tree (ControlType | Name | AutomationId | Value/ClassName/HelpText) ---
+Pane | Name="战网" | ClassName="Chrome_WidgetWin_0"
+  Document | AutomationId="954871040" | Value="resources://home/" | ClassName="Chrome_RenderWidgetHostHWND"
+    Window
+      Group
+        MenuItem | Name="战网菜单" | AutomationId="DropdownMenu_0_button"
+          Image | Name="Battle.net"
+          Image
+        List | AutomationId="main-nav-container"
+          TabItem | Name="游戏"
+          TabItem | Name="商城"
+      Group | Name="提示中心"
+        Button | Name="通知" | AutomationId="notification-pill"
+          Image
+      Button | Name="更改头像" | AutomationId="avatar-edit-button"
+        Image
+      Image
+      MenuItem | Name="凝视之熊, 在线, 正在玩暗黑破坏神III, 大秘境层级 146" | AutomationId="DropdownMenu_2_button"
+        Text | Name="凝视之熊"
+        Image
+        Image
+        Text | Name="大秘境层级 146"
+      Button | Name="分离好友列表窗口" | AutomationId="dock-control-btn"
+        Image
+      Text | Name="战网更新服务进入了睡眠模式。正在尝试唤醒它…"
+      Hyperlink | Name="更多帮助：BLZBNTBNA00000005" | Value="https://support.battlenet.com.cn/help/article/BLZBNTBNA00000005?utm_source=app-b..."
+      Button | Name="添加好友" | AutomationId="add-friend"
+        Image
+      MenuItem | Name="好友设置" | AutomationId="DropdownMenu_3_button"
+        Image
+      Edit | Name="筛选好友" | AutomationId="friend-filter"
+      Image
+      Text | Name="找寻新的朋友，一同开启史诗般的旅程吧！"
+      Button | Name="添加好友"
+      Button | Name="聊天与群组" | AutomationId="host-anchor"
+      Button | Name="折叠社交面板" | AutomationId="collapse-social-panel-button"
+        Image
+      Group | AutomationId="announcer"
+  Pane | ClassName="Intermediate D3D Window"
+  Pane
+    Pane
+      Pane
+        Pane

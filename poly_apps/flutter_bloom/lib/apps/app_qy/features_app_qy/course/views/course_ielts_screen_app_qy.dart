@@ -23,8 +23,8 @@ import '../../../localization_app_qy/localization_keys_app_qy.dart';
 import '../../../resources_app_qy/colors_app_qy.dart';
 import '../../../widgets_app_qy/bottom_navigation_app_qy.dart';
 import '../controllers/course_controller_app_qy.dart';
-import '../data/course_category_data.dart';
-import '../data/course_featured_data.dart';
+import '../sources/course_category_data.dart';
+import '../sources/course_featured_data.dart';
 
 class CourseIeltsScreenRefactoredAppQy extends StatefulWidget {
   const CourseIeltsScreenRefactoredAppQy({super.key});
@@ -287,7 +287,7 @@ class _CourseIeltsScreenRefactoredAppQyState
               subtitle: item.subtitleKey.tr(context),
               level: item.levelKey.tr(context),
               category: item.categoryKey?.tr(context),
-              wordCount: item.wordCount,
+              wordCount: item.wordCount.toString(),
             ),
           );
         }),

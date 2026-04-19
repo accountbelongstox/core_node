@@ -7,7 +7,7 @@ DB_HOST="${PGHOST:-localhost}"
 DB_PORT="${PGPORT:-5432}"
 DB_PASS="${PGPASSWORD:-postgres}"
 
-export PGPASSWORD="${DB_PASS}"
+PGPASSWORD="${DB_PASS}"
 
 echo "Checking for psql..."
 if ! command -v psql >/dev/null 2>&1; then

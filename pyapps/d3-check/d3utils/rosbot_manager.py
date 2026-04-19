@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple, Callable
 
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG
+from providor.providor_index import get_config_section
 
 from pycore.pyfoundations.third_party import (
     get_third_package_psutil,
@@ -69,7 +69,7 @@ class ROSBOTManager:
     """
 
     def __init__(self, ros_directory: Optional[str] = None):
-        ros_settings = CONFIG.get("ros_settings", {})
+        ros_settings = get_config_section("ros_settings")
         self._ros_directory = (ros_directory or ros_settings.get("ros_directory", "")).strip()
         self._ros_dir_norm: Optional[str] = None
         if self._ros_directory:

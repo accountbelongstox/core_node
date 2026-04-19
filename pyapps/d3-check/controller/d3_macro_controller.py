@@ -17,7 +17,7 @@ from typing import Optional, Callable
 from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
-from providor.providor_index import CONFIG, load_config, queue_config_save, CONFIG_USER_PATH, get_config_value_safe
+from providor.providor_index import CONFIG, load_config, queue_config_save, CONFIG_USER_PATH, get_config_value_safe, get_config_section
 from pycore.pyfoundations.color_print import ColorPrint
 from ui.diablo3_macro_ui import Diablo3MacroUI
 from controller.game_interface_controller import GameInterfaceController, get_game_interface_controller
@@ -71,8 +71,14 @@ class MacroLoopThread(threading.Thread):
                 if not d3_cache_refreshed:
                     refresh_d3_window_cache(hwnd)
                     d3_cache_refreshed = True
-                skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(c.current_skill_config, {})
-                auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
+                macro_configs = get_config_section('macro_configs')
+                skill_configs = macro_configs.get('skill_configs', {})
+                if not isinstance(skill_configs, dict):
+                    skill_configs = {}
+                auxiliary_config = macro_configs.get('auxiliary_config', {})
+                if not isinstance(auxiliary_config, dict):
+                    auxiliary_config = {}
+                skill_config = skill_configs.get(c.current_skill_config, {})
                 config = {**skill_config, **auxiliary_config}
                 c._last_skill_times = run_one_skill_tick(hwnd, config, c._last_skill_times)
             time.sleep(0.1)
@@ -123,7 +129,8 @@ class D3MacroController:
             return
 
         # Use CONFIG's current_skill_config so macro uses the activated config (e.g. config1) shown in UI.
-        self.current_skill_config = CONFIG.get("macro_configs", {}).get("current_skill_config", "config1")
+        macro_cfg = get_config_section("macro_configs")
+        self.current_skill_config = macro_cfg.get("current_skill_config", "config1")
         get_macro_config_loader().load_active()
 
         main_thread = get_main_function_thread()
@@ -171,19 +178,30 @@ class D3MacroController:
     
     def get_current_config(self) -> dict:
         """Get current merged configuration"""
-        skill_config = CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(self.current_skill_config, {})
-        auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
+        macro_configs = get_config_section('macro_configs')
+        skill_configs = macro_configs.get('skill_configs', {})
+        if not isinstance(skill_configs, dict):
+            skill_configs = {}
+        auxiliary_config = macro_configs.get('auxiliary_config', {})
+        if not isinstance(auxiliary_config, dict):
+            auxiliary_config = {}
+        skill_config = skill_configs.get(self.current_skill_config, {})
         return {**skill_config, **auxiliary_config}
     
     def get_skill_config(self, config_name: str = None) -> dict:
         """Get skill configuration"""
         if config_name is None:
             config_name = self.current_skill_config
-        return CONFIG.get('macro_configs', {}).get('skill_configs', {}).get(config_name, {})
+        macro_configs = get_config_section('macro_configs')
+        skill_configs = macro_configs.get('skill_configs', {})
+        if not isinstance(skill_configs, dict):
+            return {}
+        return skill_configs.get(config_name, {})
     
     def get_auxiliary_config(self) -> dict:
         """Get auxiliary configuration"""
-        return CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
+        auxiliary_config = get_config_section('macro_configs').get('auxiliary_config', {})
+        return auxiliary_config if isinstance(auxiliary_config, dict) else {}
     
     def update_skill_config(self, config_name: str, config_data: dict):
         """Update skill configuration"""

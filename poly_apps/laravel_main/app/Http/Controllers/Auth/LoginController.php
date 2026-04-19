@@ -1,16 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Http\Controllers\Auth;
 
@@ -21,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Auth\AvatarPublic;
 use App\Traits\ApiResponse;
+use App\Constants\AuthErrorCodes;
 
 /**
  * NO try-catch allowed - trust Laravel validation
@@ -38,7 +27,7 @@ class LoginController extends Controller
         ]);
 
         if (!$credentials) {
-            return $this->validationError("must be required username and password", 'Invalid credentials');
+            return $this->authErrorResponse(AuthErrorCodes::AUTH_VALIDATION_FAILED, 422);
         }
 
         $user = User::where('username', $request->username)
@@ -46,17 +35,11 @@ class LoginController extends Controller
             ->first();
 
         if (!$user) {
-            return $this->validationError(
-                ['username' => ['Username or email not found. Please check your credentials and try again.']],
-                'These credentials do not match our records.'
-            );
+            return $this->authErrorResponse(AuthErrorCodes::AUTH_USER_NOT_FOUND, 422);
         }
 
         if (!Hash::check($request->password, $user->password)) {
-            return $this->validationError(
-                ['password' => ['Incorrect password. Please check your password and try again.']],
-                'These credentials do not match our records.'
-            );
+            return $this->authErrorResponse(AuthErrorCodes::AUTH_INVALID_PASSWORD, 422);
         }
 
         Auth::login($user, $request->boolean('remember'));

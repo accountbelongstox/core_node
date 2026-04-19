@@ -266,6 +266,64 @@ class ScriptManager:
         print()
         input("Press Enter to continue...")
 
+    def regenerate_all_scripts(self, config_manager, secret_manager_available: bool = False):
+        """Regenerate ALL scripts from secret storage (no admin required, no symlinks)"""
+        clear_screen()
+        ColorMessage.write("Regenerate All Scripts", 'info')
+        ColorMessage.write("=" * 60, 'info')
+        print()
+
+        if not LOCAL_SECRET_MANAGER.secret_keys_dir.exists():
+            ColorMessage.write("Secret storage directory not found.", 'error')
+            input("Press Enter to continue...")
+            return
+
+        total_sets = 0
+        skipped = 0
+        for config_name, config in config_manager.get_all_configs().items():
+            file_numbers = self._collect_secret_file_numbers(config)
+            if not file_numbers:
+                continue
+
+            display_name = config.get('DisplayName', config_name)
+            ColorMessage.write(
+                f"{display_name}: regenerating #{', '.join(str(n) for n in file_numbers)}",
+                'info'
+            )
+
+            for number in file_numbers:
+                script_paths = self.generate_scripts_for_config(
+                    config_name, config, number, show_next_steps=False,
+                    secret_manager_available=secret_manager_available
+                )
+                if script_paths:
+                    total_sets += 1
+                else:
+                    skipped += 1
+
+        print()
+        if total_sets == 0:
+            ColorMessage.write("No scripts were regenerated (no secrets found).", 'warning')
+        else:
+            ColorMessage.write(f"Regenerated {total_sets} script set(s).", 'success')
+            if skipped:
+                ColorMessage.write(f"Skipped {skipped} set(s) due to errors.", 'warning')
+
+            # Generate symlink helper but don't require admin
+            try:
+                self._generate_symlink_script()
+            except Exception:
+                pass
+
+            if platform.system() != 'Windows':
+                ColorMessage.write("\nLinux symlinks updated where possible.", 'info')
+            else:
+                ColorMessage.write("\nTo update Linux symlinks, run on Linux:", 'info')
+                ColorMessage.write("  bash scripts/linuxenvs/create_symlinks.sh", 'info')
+
+        print()
+        input("Press Enter to continue...")
+
     def _generate_symlink_script(self):
         """Generate a helper script to create symlinks on Linux"""
         linuxenvs_dir = get_linuxenvs_dir()

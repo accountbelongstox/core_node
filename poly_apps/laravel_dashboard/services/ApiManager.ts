@@ -27,6 +27,8 @@ interface ApiManagerOptions {
 class ApiManager {
   private currentEndpoint: ApiEndpoint | null = null;
   private healthResults: Map<string, HealthCheckResult> = new Map();
+  private initialized = false;
+  private hasInitialHealthCheck = false;
   private readonly STORAGE_KEY_CURRENT = 'api_current_endpoint';
   private readonly STORAGE_KEY_AUTO = 'api_auto_detected';
   private readonly STORAGE_KEY_USER = 'api_user_modified';
@@ -34,8 +36,14 @@ class ApiManager {
   /**
    * 初始化API管理器
    */
-  async initialize(options: ApiManagerOptions = {}): Promise<void> {
-    const { autoDetect = true, timeout = 1000 } = options;
+  async initialize(_options: ApiManagerOptions = {}): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+
+    this.initialized = true;
+    // 不再进行自动健康检查和端点探测，仅根据本地存储的用户选择
+    // 或端点优先级列表中的第一个端点来决定当前端点
 
     // 1. 检查用户手动设置的端点
     const userEndpointId = this.getUserModifiedEndpoint();
@@ -47,30 +55,26 @@ class ApiManager {
       }
     }
 
-    // 2. 检查自动检测的端点
-    const autoEndpointId = this.getAutoDetectedEndpoint();
-    if (autoEndpointId) {
-      const endpoint = getEndpointById(autoEndpointId);
-      if (endpoint) {
-        this.currentEndpoint = endpoint;
-        // 验证端点是否仍然健康
-        if (autoDetect) {
-          const health = await this.checkEndpoint(endpoint, { timeout });
-          if (!health.isHealthy) {
-            // 自动检测的端点不健康，重新检测
-            await this.autoDetectEndpoint({ timeout });
-          }
-        }
-        return;
-      }
+    // 2. 未找到用户设置时，直接使用优先级最高的端点（列表第一个）
+    const endpoints = getAllEndpoints();
+    this.currentEndpoint = endpoints.length > 0 ? endpoints[0] : null;
+  }
+
+  /**
+   * 仅在应用启动时执行一次的健康检查
+   * 用于为 UI 提供初始健康状态显示，不做阶段性/周期性检测
+   */
+  async runInitialHealthCheck(timeout?: number): Promise<void> {
+    if (this.hasInitialHealthCheck) {
+      return;
     }
 
-    // 3. 自动检测最佳端点
-    if (autoDetect) {
-      await this.autoDetectEndpoint({ timeout });
-    } else {
-      // 使用优先级最高的端点
-      this.currentEndpoint = getAllEndpoints()[0];
+    this.hasInitialHealthCheck = true;
+
+    try {
+      await this.checkAllEndpoints(timeout);
+    } catch (error) {
+      console.warn('[ApiManager] Initial health check failed:', error);
     }
   }
 

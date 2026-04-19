@@ -341,8 +341,8 @@ class ThemedCombobox:
             **kwargs
         )
         
-        # Apply themed style to ttk.Combobox
-        style = ttk.Style()
+        # Apply themed style to ttk.Combobox (master required: bare ttk.Style() can create implicit Tk)
+        style = ttk.Style(combobox)
         style.configure('Themed.TCombobox',
                        fieldbackground=UITheme.get_color('input_bg'),
                        background=UITheme.get_color('input_bg'),

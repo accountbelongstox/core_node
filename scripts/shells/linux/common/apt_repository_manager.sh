@@ -27,6 +27,36 @@ APT_ORIGINAL_BACKUP_DIR="$APT_BACKUP_BASE_DIR/original"
 APT_BACKUP_TIMESTAMP=""
 APT_BACKUP_DIR=""
 
+# Sanitize a file: remove git merge conflict markers (<<<<<<, ======, >>>>>>)
+# This prevents apt from breaking when synced files contain unresolved conflicts.
+sanitize_git_conflicts_from_apt_repository_manager() {
+    local file="$1"
+    [ -z "$file" ] && return 0
+    [ -f "$file" ] || return 0
+    if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$file" 2>/dev/null; then
+        echo "WARNING: Removing git conflict markers from $file"
+        $USE_SUDO sed -i '/^<<<<<<< /d; /^=======/d; /^>>>>>>> /d' "$file" 2>/dev/null || true
+    fi
+}
+
+# Sanitize all apt source files to remove git conflict markers
+sanitize_all_apt_sources_from_apt_repository_manager() {
+    if [ -f "$APT_SOURCES_LIST" ]; then
+        sanitize_git_conflicts_from_apt_repository_manager "$APT_SOURCES_LIST"
+    fi
+    if [ -d "$APT_SOURCES_LIST_D" ]; then
+        for f in "$APT_SOURCES_LIST_D"/*; do
+            [ -f "$f" ] && sanitize_git_conflicts_from_apt_repository_manager "$f"
+        done
+    fi
+    # Also sanitize backup originals so restores don't reintroduce conflicts
+    if [ -d "$APT_ORIGINAL_BACKUP_DIR" ]; then
+        for f in "$APT_ORIGINAL_BACKUP_DIR"/sources.list "$APT_ORIGINAL_BACKUP_DIR"/sources.list.d/*; do
+            [ -f "$f" ] && sanitize_git_conflicts_from_apt_repository_manager "$f"
+        done
+    fi
+}
+
 # Source required files (trust-based programming)
 source "$APT_REPO_MANAGER_DIR/common_functions.sh"
 source "$APT_REPO_MANAGER_DIR/gvar_common.sh"
@@ -150,6 +180,8 @@ backup_original_apt_sources_from_apt_repository_manager() {
         return 0
     fi
     
+    # Pre-sanitize live sources before backing up
+    sanitize_all_apt_sources_from_apt_repository_manager
     echo "Creating original APT sources backup (first time use)..."
     $USE_SUDO mkdir -p "$APT_ORIGINAL_BACKUP_DIR" 2>/dev/null || {
         echo "ERROR: Failed to create original backup directory" >&2
@@ -317,6 +349,9 @@ restore_apt_sources_from_apt_repository_manager() {
         }
     fi
     
+    # Sanitize restored files to remove any git conflict markers
+    sanitize_all_apt_sources_from_apt_repository_manager
+
     echo "Restore completed from: $backup_path"
     return 0
 }
@@ -570,36 +605,87 @@ get_apt_repository_state_from_apt_repository_manager() {
 # ============================================================================
 
 # Add PHP repository (Ubuntu/Debian) with automatic backup and restore
+# Ubuntu: uses ppa.launchpadcontent.net and Launchpad PPA signing key (avoids certificate mismatch with ppa.launchpad.net)
+# Debian: uses packages.sury.org and Sury key
 add_php_repository_from_apt_repository_manager() {
     local os_id="$1"
     local os_codename="$2"
     local command_to_execute="$3"
-    
+
     if [ -z "$os_id" ] || [ -z "$os_codename" ]; then
         echo "ERROR: OS ID and codename are required" >&2
         return 1
     fi
-    
-    local php_key_url="https://packages.sury.org/php/apt.gpg"
+
+    local php_key_url=""
     local php_key_file="/usr/share/keyrings/php-archive-keyring.gpg"
     local php_repo_line=""
-    
+
     if [[ "$os_id" == "ubuntu" ]]; then
-        php_repo_line="deb [signed-by=$php_key_file] https://ppa.launchpad.net/ondrej/php/ubuntu $os_codename main"
+        php_key_url="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xB8DC7E53946656EFBCE4C1DD71DAEAAB4AD4CAB6"
+        php_repo_line="deb [signed-by=$php_key_file] https://ppa.launchpadcontent.net/ondrej/php/ubuntu $os_codename main"
     elif [[ "$os_id" == "debian" ]]; then
+        php_key_url="https://packages.sury.org/php/apt.gpg"
         php_repo_line="deb [signed-by=$php_key_file] https://packages.sury.org/php/ $os_codename main"
     else
         echo "ERROR: Unsupported OS: $os_id" >&2
         return 1
     fi
-    
+
     execute_with_repo_backup_from_apt_repository_manager \
         "php" \
         "$php_repo_line" \
         "$php_key_url" \
         "$php_key_file" \
         "$command_to_execute"
-    
+
+    return $?
+}
+
+# Add PHP repository permanently (no remove after install). Use for idempotent repair: repo stays so install_php_core and re-runs work.
+add_php_repository_permanent_from_apt_repository_manager() {
+    local os_id="$1"
+    local os_codename="$2"
+    local command_to_execute="$3"
+
+    if [ -z "$os_id" ] || [ -z "$os_codename" ]; then
+        echo "ERROR: OS ID and codename are required" >&2
+        return 1
+    fi
+
+    local php_key_url=""
+    local php_key_file="/usr/share/keyrings/php-archive-keyring.gpg"
+    local php_repo_line=""
+
+    if [[ "$os_id" == "ubuntu" ]]; then
+        php_key_url="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xB8DC7E53946656EFBCE4C1DD71DAEAAB4AD4CAB6"
+        php_repo_line="deb [signed-by=$php_key_file] https://ppa.launchpadcontent.net/ondrej/php/ubuntu $os_codename main"
+    elif [[ "$os_id" == "debian" ]]; then
+        php_key_url="https://packages.sury.org/php/apt.gpg"
+        php_repo_line="deb [signed-by=$php_key_file] https://packages.sury.org/php/ $os_codename main"
+    else
+        echo "ERROR: Unsupported OS: $os_id" >&2
+        return 1
+    fi
+
+    add_apt_repository_from_apt_repository_manager \
+        "php" \
+        "$php_repo_line" \
+        "$php_key_url" \
+        "$php_key_file"
+
+    local add_result=$?
+    if [ $add_result -ne 0 ]; then
+        return $add_result
+    fi
+
+    echo "Updating apt cache..."
+    $USE_SUDO apt update 2>/dev/null || true
+
+    if [ -n "$command_to_execute" ]; then
+        echo "Executing: $command_to_execute"
+        eval "$command_to_execute"
+    fi
     return $?
 }
 

@@ -750,6 +750,12 @@ function Invoke-BuildMode {
 
             if ($LASTEXITCODE -eq 0) {
                 Write-Success "[BUILD] Compilation completed successfully"
+                if ($compilationPlatform -eq "android" -and $apkOutputPath -and (Test-Path -LiteralPath $apkOutputPath)) {
+                    Write-Host ""
+                    Write-Host "[BUILD] ADB install (copy): adb install -r `"$apkOutputPath`"" -ForegroundColor Cyan
+                } elseif ($compilationPlatform -eq "android" -and $apkOutputPath) {
+                    Write-Host "[BUILD] ADB install (path from step20): adb install -r `"$apkOutputPath`"" -ForegroundColor Gray
+                }
                 return $true
             } else {
                 Write-ErrorMsg "[BUILD] Compilation failed with exit code: $LASTEXITCODE"

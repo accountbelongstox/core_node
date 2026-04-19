@@ -19,7 +19,7 @@ from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window_activator import WindowActivator
 from d3utils.window_analyzer_singleton import get_window_analyzer
 from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_folder
-from providor.providor_index import CACHE_DIR, CONFIG, get_config_value_safe
+from providor.providor_index import CACHE_DIR, get_config_section, get_config_value_safe
 from d3utils.battlenet_manager import get_battlenet_manager
 from d3utils.path_scanner import scan_for_paths
 from d3utils.rosbot_manager import get_rosbot_manager
@@ -119,7 +119,7 @@ def do_login_check(
     """Login check work. Before starting ROSBOT: only when BN region detected (Asia/CN) check Downloads for update zip; confirm via dialog. Only called by flow via extension thread, UI does not submit directly (FLOW_STATE_ARCHITECTURE)."""
     zip_path, is_newer, version_str, region = run_rosbot_update_check()
     if is_newer and zip_path and region:
-        auto = CONFIG.get("ros_settings", {}).get("auto_enable_latest_ros", True)
+        auto = get_config_section("ros_settings").get("auto_enable_latest_ros", True)
         if auto:
             apply_rosbot_update(zip_path, region, version_str)
         else:
@@ -455,7 +455,7 @@ def do_rosbot_update(panel: Any, silent: bool = False) -> None:
 
     update_manager = get_rosbot_update_manager()
     current_region = update_manager.get_battlenet_region()
-    check_both = CONFIG.get("ros_settings", {}).get("check_both_regions_for_update", True)
+    check_both = get_config_section("ros_settings").get("check_both_regions_for_update", True)
     
     # Prefer Asia region (Asia package may contain both region keywords); international = Asia
     regions_to_check = []

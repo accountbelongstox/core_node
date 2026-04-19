@@ -1,0 +1,32 @@
+{
+  "print_paths_only": false,
+  "servers": [
+    {
+      "host": "43.163.112.77",
+      "port": 18765,
+      "enabled": true
+    },
+    {
+      "host": "64.90.3.158",
+      "port": 18765,
+      "enabled": true,
+      "include": [
+        "webclaude_group/webclaude_go-gateway"
+      ]
+    }
+  ],
+  "local_dir": "../../",
+  "use_watch": true,
+  "watch_debounce_seconds": 0.35,
+  "interval_seconds": 2.0,
+  "exclude": [
+    "pyapps/d3-check",
+    "pyapps/GameAISDK",
+    "public/core_node_init",
+    "oldapps",
+    ".secret_keys",
+    ".cursor",
+    ".agents",
+    "docs/old_documents"
+  ]
+}

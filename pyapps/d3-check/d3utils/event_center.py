@@ -7,6 +7,7 @@ to the event center, and the event center dispatches to registered handlers (whi
 may forward to specific threads or schedule main-thread UI updates).
 """
 
+import sys
 from typing import Any, Callable, Optional, Tuple, List
 from collections import deque
 
@@ -65,6 +66,8 @@ def _do_show() -> None:
     ui.root.deiconify()
     ui.root.lift()
     ui.root.focus_force()
+    if sys.platform == "win32":
+        ui._win32_set_foreground()
 
 
 def _do_toggle_maximize() -> None:

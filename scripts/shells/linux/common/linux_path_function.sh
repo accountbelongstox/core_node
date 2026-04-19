@@ -128,7 +128,7 @@ add_env_variable() {
     fi
 
     # Set in current session
-    export "$var_name=$var_value"
+"$var_name=$var_value"
 
     return 0
 }

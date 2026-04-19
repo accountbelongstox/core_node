@@ -66,6 +66,15 @@ fix_directory_permissions() {
     echo "  Path: $dir_path"
     echo "  Owner: $real_user:$real_user"
 
+    # Validate path before recursive chown/chmod to avoid touching system paths (e.g. /usr/bin/sudo)
+    case "$dir_path" in
+        /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
+            echo "[ERROR] Refusing chown/chmod on system path: $dir_path"
+            return 1
+            ;;
+    esac
+    [[ "$dir_path" != /* ]] && echo "[ERROR] Path not absolute: $dir_path" && return 1
+
     # Fix ownership
     sudo chown -R "$real_user:$real_user" "$dir_path" 2>/dev/null || {
         echo "  [WARN] Could not change ownership (may already be correct)"

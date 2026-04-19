@@ -1310,6 +1310,19 @@ fix_installation_permissions_from_common_functions() {
     fi
 
     print_step_from_common_functions "Fixing permissions for: $target_path"
+    print_info_from_common_functions "[SAFE_PATH] target_path=$target_path"
+
+    # Refuse recursive chown/chmod on system or dangerous paths
+    if [ -z "$target_path" ] || [[ "$target_path" != /* ]]; then
+        print_warning_from_common_functions "Refusing: target_path empty or not absolute"
+        return 1
+    fi
+    case "$target_path" in
+        /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
+            print_warning_from_common_functions "Refusing chown/chmod on system path: $target_path"
+            return 1
+            ;;
+    esac
 
     # Get real user
     local real_user=$(get_real_user_from_common_functions)

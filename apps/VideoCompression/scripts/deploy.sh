@@ -36,7 +36,7 @@ fi
 
 # Deploy VideoCompression in production mode
 echo "[INFO] Starting VideoCompression in production mode..."
-export NODE_ENV=production
+NODE_ENV=production
 node ./main.js app=VideoCompression
 
 exit 0

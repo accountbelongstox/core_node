@@ -53,7 +53,7 @@ while IFS= read -r -d '' secret_file; do
 
     if [ -n "$SECRET_VALUE" ]; then
         # Export as environment variable
-        export "$KEY_NAME=$SECRET_VALUE"
+"$KEY_NAME=$SECRET_VALUE"
         ((SECRET_COUNT++))
         echo "[LOAD_SECRETS] Loaded: $KEY_NAME" >&2
     fi

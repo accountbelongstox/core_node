@@ -58,7 +58,7 @@ projectRootPath="$(dirname "$scriptsDirPath")"
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at /tmp/Users/时间�?# Format: /tmp/Users/YYYYMMDD_HHMMSS
+# Automatically generates user directory at /tmp/Users/时间�?# Format: /tmp/Users/YYYYMMDD_HHMMSS
 # ============================================================================
 
 # Generate timestamp for directory name
@@ -102,9 +102,9 @@ usersDirectoryPath="$(dirname "$userProfilePath")"
 #   from pathlib import Path
 #   user_home = Path.home()  # Uses HOME
 # ============================================================================
-export HOME="$userProfilePath"
-export USER_HOME="$userProfilePath"
-export USER_DIR="$userProfilePath"
+HOME="$userProfilePath"
+USER_HOME="$userProfilePath"
+USER_DIR="$userProfilePath"
 
 echo "[INFO] Environment variables set for Node.js/React/Python applications:"
 echo "  HOME = $HOME"

@@ -111,36 +111,8 @@ echo "Shells Directory: $SHELLS_DIR"
 echo "Core Scripts Directory: $CORE_SCRIPTS_DIR"
 echo "Core Node Directory: $CORE_NODE_DIR"
 # Export directory variables
-export SCRIPT_DIR
-export SHELLS_DIR
-export CORE_SCRIPTS_DIR
-export CORE_NODE_DIR
 
 # Export system information
-export SYSTEM_NAME
-export SYSTEM_VERSION
-export SYSTEM_FULL_NAME="${SYSTEM_NAME}_${SYSTEM_VERSION}"
+SYSTEM_FULL_NAME="${SYSTEM_NAME}_${SYSTEM_VERSION}"
 
 # Additional useful exports
-export OS_ID
-export OS_VERSION_ID
-export OS_NAME
-export POETRY_HOME
-export POETRY_LINK
-export NODE_INSTALL_DIR
-export COMMON_SHELLS_DIR
-export NODE_VERSION
-export NODE_DOWNLOAD_URL
-export NODE_SHORT_VERSION
-export SHELLS_SCRIPTS_DIR
-export NODE_BIN
-export COMPILE_DIR
-export GO_DIR
-export GO_BIN
-export GO_VERSION_AMD64_FILE
-export GO_TAR_URL
-export UPS_CONF
-export UPSD_CONF
-export UPSD_USERS_CONF
-export UPSMON_CONF
-export USE_SUDO

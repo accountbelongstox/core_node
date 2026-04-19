@@ -29,6 +29,8 @@ import {
 import { commonClasses } from '../../styles/theme';
 import { extractArrayFromResponse } from '../../utils/arrayUtils';
 import { useAppState } from '../../contexts/AppStateContext';
+import VocabularyWordListModal from '../vocabulary/VocabularyWordListModal';
+import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../types';
 
 const VocabularyLearning: React.FC = () => {
   const { lang } = useAppState();
@@ -71,9 +73,24 @@ const VocabularyLearning: React.FC = () => {
   const [loadingLibraries, setLoadingLibraries] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
 
+  // Library Words Viewer State
+  const [libraryWordsModalOpen, setLibraryWordsModalOpen] = useState(false);
+  const [activeLibrary, setActiveLibrary] = useState<any | null>(null);
+  const [libraryWords, setLibraryWords] = useState<any[]>([]);
+  const [libraryWordsLoading, setLibraryWordsLoading] = useState(false);
+  const [libraryWordsPage, setLibraryWordsPage] = useState(1);
+  const [libraryWordsPerPage, setLibraryWordsPerPage] = useState(100);
+  const [libraryWordsTotal, setLibraryWordsTotal] = useState(0);
+
   // Statistics State
   const [statistics, setStatistics] = useState<any>(null);
   const [loadingStatistics, setLoadingStatistics] = useState(false);
+  const [statsLanguageFilter, setStatsLanguageFilter] = useState<string>('all');
+
+  // Word List Modal State (reuse cache for page/perPage per language)
+  const [wordModalOpen, setWordModalOpen] = useState(false);
+  const [wordModalLanguage, setWordModalLanguage] = useState<string>('english');
+  const [wordModalCache, setWordModalCache] = useState<Record<string, { page: number; perPage: number }>>({});
 
   // TTS Queue State
   const [queueStats, setQueueStats] = useState<any>(null);
@@ -86,9 +103,12 @@ const VocabularyLearning: React.FC = () => {
     loadLanguages();
     loadTasks();
     loadLibraries();
-    loadStatistics();
     loadQueueStats();
   }, []);
+
+  useEffect(() => {
+    loadStatistics(statsLanguageFilter);
+  }, [statsLanguageFilter]);
 
   useEffect(() => {
     loadLibraries();
@@ -229,13 +249,106 @@ const VocabularyLearning: React.FC = () => {
     }
   };
 
-  const loadStatistics = async () => {
-    setLoadingStatistics(true);
+  // Cache last page per language+library in localStorage
+  const getLibraryPageCacheKey = (language: string, libraryId: number | string) =>
+    `vocab_library_page_${language}_${libraryId}`;
+
+  const loadLibraryWords = async (
+    library: any,
+    page?: number,
+    overridePerPage?: number
+  ) => {
+    if (!library) return;
+    const libraryId = library.id;
+    const langKey = selectedLanguage || 'default';
+
+    // Resolve page: prefer explicit param, then cache, then 1
+    let targetPage = page;
+    if (!targetPage) {
+      try {
+        const cacheKey = getLibraryPageCacheKey(langKey, libraryId);
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = parseInt(cached, 10);
+          if (!isNaN(parsed) && parsed > 0) {
+            targetPage = parsed;
+          }
+        }
+      } catch {
+        // ignore cache errors
+      }
+    }
+    if (!targetPage || targetPage < 1) {
+      targetPage = 1;
+    }
+
+    const perPage = overridePerPage && overridePerPage > 0 ? overridePerPage : libraryWordsPerPage;
+
+    setActiveLibrary(library);
+    setLibraryWordsModalOpen(true);
+    setLibraryWordsLoading(true);
+
     try {
-      const response = await api.appQyV1.getVocabularyStatistics();
+      const response = await api.appQyV1.getLibraryWords(libraryId, {
+        page: targetPage,
+        per_page: perPage,
+      });
 
       if (response.success && response.data) {
-        setStatistics(response.data);
+        const data = response.data as any;
+        const words = Array.isArray(data.words)
+          ? data.words
+          : Array.isArray(data.items)
+          ? data.items
+          : [];
+
+        const pagination = data.pagination || {};
+        const currentPage = Number(pagination.current_page) || targetPage || 1;
+        const perPageNum = Number(pagination.per_page) || perPage;
+        const totalNum = Number(pagination.total) || 0;
+
+        setLibraryWords(words);
+        setLibraryWordsPage(currentPage);
+        setLibraryWordsPerPage(perPageNum);
+        setLibraryWordsTotal(totalNum);
+
+        try {
+          const cacheKey = getLibraryPageCacheKey(langKey, libraryId);
+          localStorage.setItem(cacheKey, String(currentPage));
+        } catch {
+          // ignore
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load library words:', error);
+    } finally {
+      setLibraryWordsLoading(false);
+    }
+  };
+
+  const loadStatistics = async (filter?: string) => {
+    const lang = filter !== undefined ? filter : statsLanguageFilter;
+    setLoadingStatistics(true);
+    try {
+      const params = lang === 'all' ? undefined : { language: lang };
+      const response = await api.appQyV1.getVocabularyStatistics(params);
+      if (response.success && response.data) {
+        const d = response.data as any;
+        if (d.summary && (Array.isArray(d.languages) || d.summary.total_libraries != null)) {
+          setStatistics({ summary: d.summary, languages: Array.isArray(d.languages) ? d.languages : [] });
+        } else if (d.total_libraries != null || d.total_words != null) {
+          setStatistics({
+            summary: {
+              total_languages: d.total_languages ?? ((d.total_libraries > 0) ? 1 : 0),
+              total_libraries: Number(d.total_libraries) || 0,
+              total_words: Number(d.total_words) || 0,
+              tts_percentage: Number(d.tts_percentage) || 0,
+            },
+            languages: Array.isArray(d.languages) ? d.languages : [],
+          });
+        } else {
+          setStatistics(null);
+        }
       } else {
         setStatistics(null);
       }
@@ -263,6 +376,22 @@ const VocabularyLearning: React.FC = () => {
     } finally {
       setLoadingQueueStats(false);
     }
+  };
+
+  const loadWordModal = async (language: string, page: number, perPage: number): Promise<{ words: VocabularyStatisticsWordRow[]; pagination: VocabularyWordsPagination | null }> => {
+    const response = await api.appQyV1.getVocabularyStatistics({
+      language,
+      include_words: 1,
+      page,
+      per_page: perPage,
+    });
+    if (response.success && response.data) {
+      const d = response.data as any;
+      const words = Array.isArray(d.words) ? d.words : [];
+      const pagination = d.words_pagination || d.pagination || null;
+      return { words, pagination };
+    }
+    return { words: [], pagination: null };
   };
 
   const toggleWordLearned = (wordId: string) => {
@@ -699,20 +828,42 @@ const VocabularyLearning: React.FC = () => {
       </div>
 
       {/* Statistics Section */}
-      {statistics && (
+      {(statistics || loadingStatistics) && (
         <div className={`${commonClasses.card} p-4 mb-4`}>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <h3 className="font-semibold text-lg">Vocabulary Statistics</h3>
-            <button
-              onClick={loadStatistics}
-              disabled={loadingStatistics}
-              className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-            >
-              <RefreshCw className={`w-3 h-3 ${loadingStatistics ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
+            <div className="flex items-center gap-2">
+              <select
+                value={statsLanguageFilter}
+                onChange={(e) => setStatsLanguageFilter(e.target.value)}
+                className={`${commonClasses.input} text-sm`}
+              >
+                <option value="all">All languages</option>
+                <option value="english">English</option>
+                <option value="chinese">Chinese</option>
+                <option value="japanese">Japanese</option>
+                <option value="korean">Korean</option>
+                <option value="french">French</option>
+                <option value="german">German</option>
+                <option value="spanish">Spanish</option>
+              </select>
+              <button
+                onClick={() => loadStatistics(statsLanguageFilter)}
+                disabled={loadingStatistics}
+                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+              >
+                <RefreshCw className={`w-3 h-3 ${loadingStatistics ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
           </div>
 
+          {loadingStatistics && !statistics ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+            </div>
+          ) : statistics ? (
+            <>
           {/* Summary Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4">
@@ -728,10 +879,20 @@ const VocabularyLearning: React.FC = () => {
               <div className="text-xs text-slate-600 dark:text-slate-400">Total Libraries</div>
             </div>
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-              <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
-                {(statistics.summary?.total_words || 0).toLocaleString()}
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">Total Words</div>
+              <button
+                type="button"
+                className="w-full text-left"
+                onClick={() => {
+                  const lang = statsLanguageFilter === 'all' ? 'english' : statsLanguageFilter;
+                  setWordModalLanguage(lang);
+                  setWordModalOpen(true);
+                }}
+              >
+                <div className="text-2xl font-bold text-blue-700 dark:text-blue-400 underline decoration-dotted">
+                  {(statistics.summary?.total_words || 0).toLocaleString()}
+                </div>
+                <div className="text-xs text-slate-600 dark:text-slate-400">Total Words</div>
+              </button>
             </div>
             <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
               <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
@@ -741,45 +902,42 @@ const VocabularyLearning: React.FC = () => {
             </div>
           </div>
 
-          {/* Language Breakdown */}
+          {/* Language Breakdown - total table */}
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Language Breakdown</h4>
-            {statistics.languages && statistics.languages.map((lang: any, idx: number) => (
-              <div key={idx} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="font-semibold text-sm">{lang.language}</div>
-                  <div className="flex items-center gap-4 text-xs">
-                    <span className="text-slate-600 dark:text-slate-400">
-                      {lang.total_words?.toLocaleString()} words
-                    </span>
-                    <span className="text-slate-600 dark:text-slate-400">
-                      {lang.libraries_count || 0} libraries
-                    </span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="bg-slate-50 dark:bg-slate-800 rounded p-2">
-                    <div className="text-green-600 dark:text-green-400 font-semibold">
-                      {lang.tts_percentage || 0}%
-                    </div>
-                    <div className="text-slate-500">TTS</div>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-slate-800 rounded p-2">
-                    <div className="text-blue-600 dark:text-blue-400 font-semibold">
-                      {lang.images_percentage || 0}%
-                    </div>
-                    <div className="text-slate-500">Images</div>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-slate-800 rounded p-2">
-                    <div className="text-purple-600 dark:text-purple-400 font-semibold">
-                      {lang.review_percentage || 0}%
-                    </div>
-                    <div className="text-slate-500">AI Reviewed</div>
-                  </div>
-                </div>
+            {statistics.languages && statistics.languages.length > 0 ? (
+              <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                      <th className="text-left py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Language</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Libraries</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Words</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">TTS</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Images</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">AI Reviewed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statistics.languages.map((lang: any, idx: number) => (
+                      <tr key={idx} className="border-b border-slate-100 dark:border-slate-700/50 last:border-0">
+                        <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">{lang.language}</td>
+                        <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">{(lang.libraries_count || 0).toLocaleString()}</td>
+                        <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">{(lang.total_words || 0).toLocaleString()}</td>
+                        <td className="py-2 px-3 text-right text-green-600 dark:text-green-400">{lang.tts_percentage ?? 0}%</td>
+                        <td className="py-2 px-3 text-right text-blue-600 dark:text-blue-400">{lang.images_percentage ?? 0}%</td>
+                        <td className="py-2 px-3 text-right text-purple-600 dark:text-purple-400">{lang.review_percentage ?? 0}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400 py-2">No language data for the selected filter.</p>
+            )}
           </div>
+            </>
+          ) : null}
         </div>
       )}
 
@@ -825,6 +983,7 @@ const VocabularyLearning: React.FC = () => {
               <div
                 key={library.id}
                 className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => loadLibraryWords(library)}
               >
                 {library.image_url && (
                   <div className="w-full h-32 mb-3 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
@@ -886,6 +1045,19 @@ const VocabularyLearning: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Word List Modal – requests paginated words by language when opened */}
+      <VocabularyWordListModal
+        open={wordModalOpen}
+        onClose={() => setWordModalOpen(false)}
+        language={wordModalLanguage}
+        fetchWords={loadWordModal}
+        initialPage={wordModalCache[wordModalLanguage]?.page ?? 1}
+        initialPerPage={wordModalCache[wordModalLanguage]?.perPage ?? 100}
+        onPageChange={(lang, page, perPage) => {
+          setWordModalCache((prev) => ({ ...prev, [lang]: { page, perPage } }));
+        }}
+      />
 
       {/* Main Content - Three Panel Layout */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-hidden">
@@ -1287,6 +1459,156 @@ const VocabularyLearning: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Library Words Modal */}
+      {libraryWordsModalOpen && activeLibrary && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-700/80">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <div className="flex flex-col">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                  {activeLibrary.name}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  {activeLibrary.language} · {activeLibrary.word_count || 0} words · {activeLibrary.difficulty || 'intermediate'}
+                </p>
+              </div>
+              <button
+                onClick={() => setLibraryWordsModalOpen(false)}
+                className="text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full p-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Controls */}
+            <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="text-slate-500 dark:text-slate-400">
+                  Page {libraryWordsPage} · {libraryWordsTotal} words
+                </span>
+                <select
+                  className="border border-slate-300 dark:border-slate-700 rounded-md px-2 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                  value={libraryWordsPerPage}
+                  onChange={(e) => {
+                    const per = parseInt(e.target.value, 10) || 100;
+                    // update state, then reload page 1 with explicit perPage
+                    setLibraryWordsPerPage(per);
+                    loadLibraryWords(activeLibrary, 1, per);
+                  }}
+                >
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                  <option value={200}>200 / page</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={libraryWordsPage <= 1 || libraryWordsLoading}
+                  onClick={() => loadLibraryWords(activeLibrary, libraryWordsPage - 1)}
+                  className="px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Prev
+                </button>
+                <button
+                  disabled={
+                    libraryWordsLoading ||
+                    libraryWordsTotal <= libraryWordsPage * libraryWordsPerPage
+                  }
+                  onClick={() => loadLibraryWords(activeLibrary, libraryWordsPage + 1)}
+                  className="px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+
+            {/* Words Table */}
+            <div className="flex-1 overflow-auto">
+              {libraryWordsLoading ? (
+                <div className="flex items-center justify-center py-10 text-slate-500 dark:text-slate-400">
+                  <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+                  Loading words...
+                </div>
+              ) : libraryWords.length === 0 ? (
+                <div className="flex items-center justify-center py-10 text-slate-400 text-sm">
+                  No words found for this library.
+                </div>
+              ) : (
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-14">
+                        #
+                      </th>
+                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-32">
+                        Word
+                      </th>
+                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-32">
+                        Phonetic
+                      </th>
+                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">
+                        Translations
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {libraryWords.map((word: any, idx: number) => {
+                      const index =
+                        (word.index as number | undefined) ??
+                        (word.word_index as number | undefined) ??
+                        idx + 1 + (libraryWordsPage - 1) * libraryWordsPerPage;
+                      const translations: string[] = Array.isArray(word.translations)
+                        ? word.translations
+                        : [];
+                      const shortTranslations =
+                        translations.length === 0
+                          ? ''
+                          : translations.join(', ').slice(0, 80) +
+                            (translations.join(', ').length > 80 ? '…' : '');
+
+                      const fullTranslations = translations.join(', ');
+
+                      return (
+                        <tr key={`${index}-${word.word || idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                          <td className="px-3 py-2 text-slate-500 dark:text-slate-400 font-mono">
+                            {index}
+                          </td>
+                          <td className="px-3 py-2 text-slate-900 dark:text-slate-100 font-semibold">
+                            {word.word}
+                          </td>
+                          <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
+                            {word.us_phonetic && (
+                              <span className="mr-2">US: /{word.us_phonetic}/</span>
+                            )}
+                            {word.uk_phonetic && (
+                              <span>UK: /{word.uk_phonetic}/</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
+                            {shortTranslations ? (
+                              <button
+                                type="button"
+                                className="text-left w-full truncate hover:text-indigo-600 dark:hover:text-indigo-400"
+                                title={fullTranslations}
+                              >
+                                {shortTranslations}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* History Bar */}
       {history.length > 0 && (

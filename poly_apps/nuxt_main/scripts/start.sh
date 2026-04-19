@@ -500,9 +500,9 @@ echo ""
 echo "==============================================================================="
 echo ""
 
-export APP_ENTRY="$APP_NAMESPACE"
-export NUXT_HOST="0.0.0.0"
-export NUXT_PORT="$APP_PORT"
+APP_ENTRY="$APP_NAMESPACE"
+NUXT_HOST="0.0.0.0"
+NUXT_PORT="$APP_PORT"
 
 echo ""
 echo "==============================================================================="

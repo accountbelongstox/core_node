@@ -329,6 +329,25 @@ _resolve_device_mount_path() {
     return 1
 }
 
+# Returns 0 if path is safe for recursive chown/chmod (not /, /usr, /etc, etc.). Prints path to stderr. Use before chown -R/chmod -R.
+safe_path_for_recursive_chown() {
+    local path="$1"
+    echo "[SAFE_PATH] path=$path" >&2
+    [ -z "$path" ] && return 1
+    case "$path" in
+        /) return 1;;
+        /usr|/usr/*) return 1;;
+        /etc|/etc/*) return 1;;
+        /bin|/bin/*) return 1;;
+        /sbin|/sbin/*) return 1;;
+        /lib|/lib/*) return 1;;
+        /var) return 1;;
+    esac
+    [[ "$path" != /* ]] && return 1
+    return 0
+}
+export -f safe_path_for_recursive_chown
+
 # Centralized path for persisted base data directory (used by bootstrap and project)
 BASE_DATA_DIR_FILE="/var/_core_node/global_var/BASE_DATA_DIR"
 
@@ -549,8 +568,8 @@ determine_largest_windows_drive() {
     done
     
     if [ -n "$largest_drive" ]; then
-        export DESKTOP_LARGEST_WINDOWS_DRIVE="$largest_drive"
-        export DESKTOP_LARGEST_WINDOWS_PATH="$DESKTOP_WINDOWS_MOUNT_PATH/$largest_drive"
+DESKTOP_LARGEST_WINDOWS_DRIVE="$largest_drive"
+DESKTOP_LARGEST_WINDOWS_PATH="$DESKTOP_WINDOWS_MOUNT_PATH/$largest_drive"
     fi
 }
 
@@ -615,12 +634,6 @@ get_core_node_project_root() {
 CORE_NODE_PROJECT_ROOT="$(get_core_node_project_root)"
 
 # Export desktop Windows drive variables
-export IS_DESKTOP_WITH_WINDOWS
-export CURRENT_USER
-export DESKTOP_WINDOWS_MOUNT_PATH
-export DESKTOP_WINDOWS_DRIVES
-export DESKTOP_LARGEST_WINDOWS_DRIVE
-export DESKTOP_LARGEST_WINDOWS_PATH
 
 # Function to get comprehensive environment information
 get_environment_info() {
@@ -653,17 +666,20 @@ DISK_MOUNT_INFO=""
 
 # Function to detect multiple hard drives
 detect_multiple_disks() {
-    # Get list of all block devices (excluding loop devices and partitions)
-    local disks=$(lsblk -d -n -o NAME,TYPE | grep -E "disk|nvme" | awk '{print $1}' | sort)
-    
+    # Skip when sysfs is not available (containers, chroot, restricted env)
+    if [ ! -d /sys/dev/block ] 2>/dev/null; then
+        DISK_COUNT=0
+        DISK_LIST=""
+        HAS_MULTIPLE_DISKS=false
+        return 0
+    fi
+    local disks
+    disks=$(lsblk -d -n -o NAME,TYPE 2>/dev/null | grep -E "disk|nvme" | awk '{print $1}' | sort)
     # Count disks
     DISK_COUNT=$(echo "$disks" | wc -l)
     DISK_LIST="$disks"
-    
-    # Check if we have multiple disks
     if [ "$DISK_COUNT" -gt 1 ]; then
         HAS_MULTIPLE_DISKS=true
-        # Get detailed mount information for each disk
         get_disk_mount_info
     else
         HAS_MULTIPLE_DISKS=false
@@ -673,37 +689,20 @@ detect_multiple_disks() {
 # Function to get mount information for all disks
 get_disk_mount_info() {
     DISK_MOUNT_INFO=""
-    
-    # Process each disk
+    [ ! -d /sys/dev/block ] 2>/dev/null && return 0
     while IFS= read -r disk; do
         if [ -n "$disk" ]; then
             local disk_path="/dev/$disk"
             local disk_info=""
-            
-            # Get disk size
-            local disk_size=$(lsblk -d -n -o SIZE "$disk_path" 2>/dev/null || echo "Unknown")
-            
-            # Get mount points for this disk
-            local mount_points=$(lsblk -n -o MOUNTPOINT "$disk_path" 2>/dev/null | grep -v "^$" | tr '\n' ',' | sed 's/,$//')
-            
-            # Get filesystem type
-            local fs_type=$(lsblk -d -n -o FSTYPE "$disk_path" 2>/dev/null || echo "Unknown")
-            
-            # Get disk model/vendor
-            local disk_model=$(lsblk -d -n -o MODEL "$disk_path" 2>/dev/null || echo "Unknown")
-            
-            # Check if disk is mounted
+            local disk_size mount_points fs_type disk_model
+            disk_size=$(lsblk -d -n -o SIZE "$disk_path" 2>/dev/null || echo "Unknown")
+            mount_points=$(lsblk -n -o MOUNTPOINT "$disk_path" 2>/dev/null | grep -v "^$" | tr '\n' ',' | sed 's/,$//')
+            fs_type=$(lsblk -d -n -o FSTYPE "$disk_path" 2>/dev/null || echo "Unknown")
+            disk_model=$(lsblk -d -n -o MODEL "$disk_path" 2>/dev/null || echo "Unknown")
             local is_mounted="No"
-            if [ -n "$mount_points" ]; then
-                is_mounted="Yes"
-            fi
-            
-            # Build disk information string
+            [ -n "$mount_points" ] && is_mounted="Yes"
             disk_info="Disk: $disk_path | Size: $disk_size | Model: $disk_model | FS: $fs_type | Mounted: $is_mounted"
-            if [ -n "$mount_points" ]; then
-                disk_info="$disk_info | Mount Points: $mount_points"
-            fi
-            
+            [ -n "$mount_points" ] && disk_info="$disk_info | Mount Points: $mount_points"
             DISK_MOUNT_INFO="$DISK_MOUNT_INFO$disk_info\n"
         fi
     done <<< "$DISK_LIST"
@@ -773,26 +772,6 @@ init_global_vars() {
 export -f init_global_vars
 
 # Export key variables for use by other scripts
-export USE_SUDO
-export CORE_NODE_PROJECT_ROOT
-export IS_WSL
-export IS_PRODUCTION
-export IS_DESKTOP_WITH_WINDOWS
-export HAS_DESKTOP_ENVIRONMENT
-export DESKTOP_ENVIRONMENT
-export CURRENT_USER
-export DESKTOP_WINDOWS_MOUNT_PATH
-export DESKTOP_WINDOWS_DRIVES
-export DESKTOP_LARGEST_WINDOWS_DRIVE
-export DESKTOP_LARGEST_WINDOWS_PATH
-export HAS_MULTIPLE_DISKS
-export DISK_COUNT
-export DISK_LIST
-export DISK_MOUNT_INFO
-export GLOBAL_TEMP_DIR
-export GLOBAL_VAR_DIR
-export CORE_NODE_DATA_DIR
-export CORE_NODE_SHARED_DOWNLOADS
 
 # System detection variables (merged from gvar_common.sh)
 PRE_COMPILE_DIR=".dev"
@@ -885,42 +864,7 @@ get_system_info() {
 }
 
 # Export additional variables (merged from gvar_common.sh)
-export PRE_COMPILE_DIR
-export OS_ID
-export OS_VERSION_ID
-export OS_NAME
-export SYSTEM_NAME
-export SYSTEM_VERSION
-export SYSTEM_FULL_NAME="${SYSTEM_NAME}_${SYSTEM_VERSION}"
-export SYS_DIR
-export BASE_DIR
-export WIS_PROGRAMING_DIR
-export COMPILE_DIR
-export POETRY_HOME
-export POETRY_LINK
-export NODE_INSTALL_DIR
-export NODE_SHORT_VERSION
-export NODE_VERSION
-export NODE_DOWNLOAD_URL
-export NODE_BIN
-export GO_DIR
-export GO_BIN
-export GO_VERSION_AMD64_FILE
-export GO_TAR_URL
-export RUBY_INSTALL_DIR
-export RUBY_GEM_HOME
-export RUBY_GEM_BIN_DIR
-export UPS_CONF
-export UPSD_CONF
-export UPSD_USERS_CONF
-export UPSMON_CONF
-export MCP_SOURCE_DIR
-export MCP_SERVER_DIR
-export MCP_LOCAL_DIR
-export SCRIPT_DIR
-export SHELLS_DIR
-export SHELLS_SCRIPTS_DIR
-export CORE_SCRIPTS_DIR
+SYSTEM_FULL_NAME="${SYSTEM_NAME}_${SYSTEM_VERSION}"
 
 # Function to get disk information for other scripts
 get_disk_info() {
@@ -958,10 +902,6 @@ get_disk_info() {
 }
 
 # Export disk detection variables for use in other scripts
-export HAS_MULTIPLE_DISKS
-export DISK_COUNT
-export DISK_LIST
-export DISK_MOUNT_INFO
 
 # Function to help with disk mounting operations
 mount_additional_disk() {
@@ -1245,10 +1185,20 @@ if [ ! -d "$GLOBAL_TEMP_DIR" ]; then
     $USE_SUDO chmod 755 "$GLOBAL_TEMP_DIR"
 fi
 
-# Function to create script-specific temporary directory
+# Function to create script-specific temporary directory (restricted to /usr/tmp/<script_name>)
 create_script_temp_dir() {
     local script_name="$1"
+    # Restrict to GLOBAL_TEMP_DIR and prevent path traversal
+    case "$script_name" in
+        */*|*..*) echo "[ERROR] create_script_temp_dir: invalid script_name (no / or ..): $script_name" >&2; return 1 ;;
+    esac
+    [ -z "$script_name" ] && echo "[ERROR] create_script_temp_dir: empty script_name" >&2 && return 1
     local script_temp_dir="$GLOBAL_TEMP_DIR/$script_name"
+    # Ensure result is strictly under /usr/tmp (or configured GLOBAL_TEMP_DIR)
+    case "$script_temp_dir" in
+        /usr/tmp/*) ;;
+        *) echo "[ERROR] create_script_temp_dir: path not under /usr/tmp: $script_temp_dir" >&2; return 1 ;;
+    esac
 
     if [ ! -d "$script_temp_dir" ]; then
         $USE_SUDO mkdir -p "$script_temp_dir"
@@ -1543,16 +1493,8 @@ else
 fi
 
 # Export SSH related variables
-export GIT_SSH_BASE_URL
-export GIT_SSH_PUB_URL
-export GIT_SSH_KEY_URL
-export SSH_DIR
-export SSH_INSTALLED_FLAG
 
 # Export the GLOBAL_VAR_DIR and GLOBAL_TEMP_DIR
-export GLOBAL_VAR_DIR
-export GLOBAL_TEMP_DIR
-export COMPILE_DIR
 
 # Initialize batch decryption flag
 BATCH_DECRYPTION_COMPLETED=false
@@ -1601,7 +1543,7 @@ get_core_node_dir() {
 }
 
 # Export CORE_NODE_DIR for use in other scripts
-export CORE_NODE_DIR=$(get_core_node_dir)
+CORE_NODE_DIR=$(get_core_node_dir)
 
 # Debug function to analyze path issues
 debug_path_analysis() {
@@ -1814,32 +1756,3 @@ MCP_SERVER_DIR="$COMPILE_DIR/mcp_server"
 MCP_LOCAL_DIR="scripts/mcp"
 
 # Export the additional variables
-export BASE_DIR
-export WIS_PROGRAMING_DIR
-export COMPILE_DIR
-export POETRY_HOME
-export POETRY_LINK
-export NODE_INSTALL_DIR
-export NODE_SHORT_VERSION
-export NODE_VERSION
-export NODE_DOWNLOAD_URL
-export NODE_BIN_DIR
-export NODE_BIN
-export NPM_BIN
-export NPX_BIN
-export COREPACK_BIN
-export PNPM_GLOBAL_DIR
-export PNPM_GLOBAL_BIN_DIR
-export PNPM_BIN
-export YARN_BIN
-export GO_DIR
-export GO_BIN
-export GO_VERSION_AMD64_FILE
-export GO_TAR_URL
-export UPS_CONF
-export UPSD_CONF
-export UPSD_USERS_CONF
-export UPSMON_CONF
-export MCP_SOURCE_DIR
-export MCP_SERVER_DIR
-export MCP_LOCAL_DIR

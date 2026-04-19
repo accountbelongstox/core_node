@@ -791,6 +791,24 @@ $Global:APPLICATIONS_PACKAGES = @{
             }
         )
     }
+    # Step16 install source: this .ps1 only. ApplicationsList.xml/JSON are not loaded by install flow (see Step16 line 71).
+    # Official CLI: run command "agent" after install (https://cursor.com/docs/cli/overview). Executable: agent.exe.
+    CursorAgent     = @{
+        Exec                = "agent.exe"
+        Name                = "CursorAgent"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
+        Description         = "Cursor Agent - AI-powered coding assistant (CLI)"
+        InstallType         = "powershell"
+        ForceToInstallDir   = $false
+        VerifySuffix        = "--version"
+        AdditionalKeywords  = @("agent", "cursor", "cursor-agent")
+        EnvVars             = @(
+            @{
+                Type = @("Path")
+            }
+        )
+        PowerShellCommand   = "irm 'https://cursor.com/install?win32=true' | iex"
+    }
     Bandizip        = @{
         PackageId            = "Bandisoft.Bandizip"
         Exec                = "Bandizip.exe"

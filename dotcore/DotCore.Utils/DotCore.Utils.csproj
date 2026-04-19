@@ -7,4 +7,7 @@
     <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
     <ProjectReference Include="..\DotCore.Common\DotCore.Common.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="PaddleOCRSharp" />
+  </ItemGroup>
 </Project>

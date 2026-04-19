@@ -187,7 +187,7 @@ $script:MenuItems = @(
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
-            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "unified_manager\unified_manager_windows.ps1"
+            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "app_manager\windows_ps1\app_manager.ps1"
             $shellCandidates = @('pwsh', 'powershell')
             $shellExecutable = $null
 
@@ -199,7 +199,7 @@ $script:MenuItems = @(
             }
 
             if ($null -eq $shellExecutable) {
-                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run unified_manager_windows.ps1" -Type "Error"
+                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run app_manager.ps1" -Type "Error"
                 Write-ColorMessage -Message "Please ensure PowerShell (pwsh or powershell) is installed and available in PATH" -Type "Info"
                 Read-Host "Press Enter to continue"
                 return
@@ -219,7 +219,7 @@ $script:MenuItems = @(
         CurrentValueIndex = 0
         Key               = "GIT_PUSH_BRANCH"
         Action            = {
-            $selectedValue = $script:MenuItems[8].Values[$script:MenuItems[8].CurrentValueIndex]
+            $selectedValue = $script:MenuItems[3].Values[$script:MenuItems[3].CurrentValueIndex]
             Set-GlobalVar -Key "GIT_PUSH_BRANCH" -Value $selectedValue
             Push-Git
         }
@@ -250,6 +250,17 @@ $script:MenuItems = @(
         Key               = $null
         Action            = {
             Show-SpecialSoftwareEnvMenu
+        }
+    },
+    @{
+        Text              = "AI Management"
+        Values            = @("default")
+        CurrentValueIndex = 0
+        Key               = $null
+        Action            = {
+            $aiManagementScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\claude_assistant\AIManagementMenu.ps1"
+            Write-ColorMessage -Message "Launching AI Management (Claude Code Agent Teams)..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $aiManagementScript
         }
     },
     @{

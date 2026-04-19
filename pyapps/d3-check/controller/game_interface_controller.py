@@ -21,7 +21,7 @@ from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.global_hotkey_manager import get_global_hotkey_manager, register_hotkey, unregister_hotkey
 from d3utils.macro_config_provider import get_current_skill_config
 from d3utils.macro_config_ops import run_one_skill_tick
-from providor.providor_index import CONFIG
+from providor.providor_index import get_config_section
 from share.game_interface_data import get_game_interface_data
 from controller.game_assistant_controller import GameAssistantController, get_game_assistant_controller
 from runtime import get_thread_registry
@@ -86,7 +86,10 @@ class GameInterfaceController:
         """Load hotkey configuration from CONFIG"""
         try:
             # Get current configuration
-            auxiliary_config = CONFIG.get('macro_configs', {}).get('auxiliary_config', {})
+            macro_configs = get_config_section('macro_configs')
+            auxiliary_config = macro_configs.get('auxiliary_config', {})
+            if not isinstance(auxiliary_config, dict):
+                auxiliary_config = {}
 
             # Extract hotkey settings
             self.macro_start_hotkey = auxiliary_config.get('macro_start_hotkey', 'F9')

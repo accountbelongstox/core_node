@@ -4,6 +4,8 @@
 **现象**: UI 构架多次，没有一次绘制出最终样式，而是反复绘制，导致绘制过程中出现空白、透明区；注意非线程阻塞。  
 **方法**: 先看代码、看文档，再通过 MCP 查阅 Tk/Tkinter 官方文档，归纳可能性并给出调整建议（可复制、移动代码，调整构架与逻辑流程）。
 
+**勘误**：主窗口无边框在 Windows 上优先为 **`_make_frameless_win32`**（Win32 `GWL_STYLE`），非「仅 `overrideredirect(True)`」。见 **`docs/ui2/WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**。
+
 ---
 
 ## 一、代码流程梳理（先看代码）
@@ -14,7 +16,7 @@
 |------|----------------|
 | 1 | root 创建，title/geometry/minsize，`root.configure(bg=UITheme.get_color('bg_dark'))` |
 | 2 | **root.withdraw()** — 隐藏窗口，避免中间状态被用户看到 |
-| 3 | **root.overrideredirect(True)** — 无边框，在首次 map 前设置 |
+| 3 | **无边框** — `_make_frameless_win32(root)` 或 `overrideredirect(True)`，在首次 map 前完成 |
 | 4 | **UITheme.apply_to_root(root)** — 主题一次应用，无 update_idletasks |
 | 5 | **self._create_ui()** — 整棵 UI 创建 |
 | 6 | Map 事件绑定：仅处理一次，after(1) focus_force，after(0) _deferred_after_map |
@@ -85,7 +87,7 @@
 
 - **wm overrideredirect**（Tcl/Tk 官方 wm 手册）：  
   “The override-redirect flag is only **guaranteed to be taken notice of when the window is first mapped** or when mapped **after the state is changed from withdrawn to normal**.”  
-  即：在 **withdraw → deiconify（第一次 map）** 时，overrideredirect 才会被窗口管理器确认。当前顺序是 withdraw → overrideredirect(True) → 建 UI → deiconify，符合“首次 map 即无边框”的预期；但若在 deiconify 之后仍有大量 after(0) 创建的控件，**第一次 map 时内容尚未建完**，首帧可能是“边框+标题+空白内容区”，随后几帧才逐步填满，与“反复绘制、空白区”一致。
+  即：在 **withdraw → deiconify（第一次 map）** 时，override-redirect 或等价样式才会被可靠处理；若使用 Win32 去装饰则不走同一 Tcl 语义，但首次 map 时仍应为去装饰后的顶层窗。当前顺序是 withdraw → 无边框 → 建 UI → deiconify；若在 deiconify 之后仍有大量 after(0) 创建的控件，**第一次 map 时内容尚未建完**，首帧仍可能为不完整内容区，与“反复绘制、空白区”一致。
 
 ---
 
@@ -179,7 +181,7 @@
 |----------|--------------|----------|--------------|
 | root.withdraw() | Tcl/Tk wm | wm withdraw：窗口从 WM 取消映射。与 deiconify 配对，用于“建完再显示”。 | 保持 withdraw → 建 UI → deiconify 顺序，确保首帧 map 前控件树已就绪（含 ROSBOT sync 建）。 |
 | root.deiconify() | Tcl/Tk wm | wm deiconify：“This is done by **mapping the window**.” 若从未 map 过，deiconify 确保**首次 map** 时以正常形式显示。 | 修复：deiconify 前不再调用 update_idletasks，避免在“未 map”阶段强制布局/绘制；首帧 flush 仅在 deiconify 后的 after(1) _flush_after_first_build 中执行。 |
-| wm overrideredirect | Tcl/Tk wm | “override-redirect flag is only guaranteed to be taken notice of **when the window is first mapped or when mapped after the state is changed from withdrawn to normal**.” | 与当前顺序一致：withdraw → overrideredirect(True) → 建 UI → deiconify；首次 map 即无边框。 |
+| wm overrideredirect | Tcl/Tk wm | “override-redirect flag is only guaranteed to be taken notice of **when the window is first mapped or when mapped after the state is changed from withdrawn to normal**.” | 使用 `overrideredirect` 时与 withdraw → 建 UI → deiconify 顺序一致；使用 Win32 去装饰时见 `WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`。 |
 | update_idletasks / update | Tkinter / 常见实践 | 显示刷新依赖事件循环；init 中多次 update 会多次画出当前中间状态。 | 修复：init 路径仅在 after(1) _flush_after_first_build 中做一次 update_idletasks + update（在 deiconify 之后），符合“集中、后置 update”。 |
 | after(1, _flush_after_first_build) | Tk 事件模型 | after(ms) 将回调排入事件队列，在指定 ms 后执行；便于“先 map 再在一帧内完成布局刷新”。 | _create_main_tabs 末尾不直接 update，改为 after(1) 执行一次 flush，使首帧绘制发生在 deiconify 之后且只一次。 |
 

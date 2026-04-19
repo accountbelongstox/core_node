@@ -60,28 +60,28 @@ echo "Hot-reload is now automatically handled by ServerManagerV1:"
 echo ""
 
 if is_desktop_environment; then
-    echo "âœ?Desktop Environment Detected"
-    echo "  â€?Octane services will start with --watch flag"
-    echo "  â€?Automatic hot-reload on file changes (powered by chokidar)"
-    echo "  â€?Watches: app/, config/, routes/, database/, resources/"
+    echo "ï¿½?Desktop Environment Detected"
+    echo "  ï¿½?Octane services will start with --watch flag"
+    echo "  ï¿½?Automatic hot-reload on file changes (powered by chokidar)"
+    echo "  ï¿½?Watches: app/, config/, routes/, database/, resources/"
     echo ""
     echo "Configuration:"
-    echo "  â€?Edit config/octane.php to customize watch settings"
-    echo "  â€?Node.js and chokidar are required for --watch mode"
+    echo "  ï¿½?Edit config/octane.php to customize watch settings"
+    echo "  ï¿½?Node.js and chokidar are required for --watch mode"
     INSTALL_MODE="desktop"
 else
-    echo "âœ?Server Environment Detected"
-    echo "  â€?Octane services will use 48-hour auto-restart timer"
-    echo "  â€?Prevents memory leaks in long-running processes"
-    echo "  â€?Timer restarts services every 48 hours"
+    echo "ï¿½?Server Environment Detected"
+    echo "  ï¿½?Octane services will use 48-hour auto-restart timer"
+    echo "  ï¿½?Prevents memory leaks in long-running processes"
+    echo "  ï¿½?Timer restarts services every 48 hours"
     echo ""
     INSTALL_MODE="server"
 fi
 
 echo "Management:"
-echo "  â€?Add domains:  php artisan servermanager:website add <domain> --php-mode=swoole"
-echo "  â€?List sites:   php artisan servermanager:website summary"
-echo "  â€?Cleanup old:  php artisan servermanager:website cleanup"
+echo "  ï¿½?Add domains:  php artisan servermanager:website add <domain> --php-mode=swoole"
+echo "  ï¿½?List sites:   php artisan servermanager:website summary"
+echo "  ï¿½?Cleanup old:  php artisan servermanager:website cleanup"
 echo ""
 
 # Clean up all old legacy services
@@ -109,12 +109,12 @@ for service_name in "${OLD_SERVICES[@]}"; do
 done
 
 if [ $CLEANED -gt 0 ]; then
-    echo "âœ?Cleaned up $CLEANED legacy service(s)"
+    echo "ï¿½?Cleaned up $CLEANED legacy service(s)"
     $USE_SUDO systemctl daemon-reload
     $USE_SUDO systemctl reset-failed 2>/dev/null || true
     echo ""
 else
-    echo "âœ?No legacy services found"
+    echo "ï¿½?No legacy services found"
     echo ""
 fi
 
@@ -123,32 +123,32 @@ echo "Checking chokidar installation (required for --watch mode)..."
 cd "$LARAVEL_MAIN_PATH"
 
 if [ ! -d "node_modules/chokidar" ]; then
-    echo "âš?chokidar not found, installing..."
+    echo "ï¿½?chokidar not found, installing..."
 
     # Check for pnpm using absolute path first (prevents "command not found" on first install)
     if [ -f "$PNPM_ABS_PATH" ]; then
         echo "Using pnpm at: $PNPM_ABS_PATH"
         "$PNPM_ABS_PATH" install --save-dev chokidar
-        echo "âœ?chokidar installed via pnpm"
+        echo "ï¿½?chokidar installed via pnpm"
     elif command -v pnpm &> /dev/null; then
         echo "Using pnpm from PATH: $(which pnpm)"
         pnpm install --save-dev chokidar
-        echo "âœ?chokidar installed via pnpm"
+        echo "ï¿½?chokidar installed via pnpm"
     elif [ -f "$NPM_ABS_PATH" ]; then
         echo "pnpm not found, using npm at: $NPM_ABS_PATH"
         "$NPM_ABS_PATH" install --save-dev chokidar
-        echo "âœ?chokidar installed via npm"
+        echo "ï¿½?chokidar installed via npm"
     elif command -v npm &> /dev/null; then
         echo "pnpm not found, using npm from PATH: $(which npm)"
         npm install --save-dev chokidar
-        echo "âœ?chokidar installed via npm"
+        echo "ï¿½?chokidar installed via npm"
     else
-        echo "âœ?Neither pnpm nor npm found. Please install Node.js first"
+        echo "ï¿½?Neither pnpm nor npm found. Please install Node.js first"
         echo "  Run: bash scripts/shells/linux/debian/install_shells/14_install_node_24.sh"
         echo "  You can still use Octane without hot-reload"
     fi
 else
-    echo "âœ?chokidar already installed"
+    echo "ï¿½?chokidar already installed"
 fi
 
 echo ""
@@ -206,7 +206,7 @@ WantedBy=multi-user.target
 EOF
 
     chmod 644 "$SERVICE_FILE"
-    echo "âœ?Service file created: $SERVICE_FILE"
+    echo "ï¿½?Service file created: $SERVICE_FILE"
     echo ""
 
     echo "Enabling and starting hot reload service..."
@@ -217,7 +217,7 @@ EOF
     sleep 2
 
     if systemctl is-active --quiet "${HOT_RELOAD_SERVICE}.service"; then
-        echo "âœ?Hot reload service started successfully"
+        echo "ï¿½?Hot reload service started successfully"
         echo ""
         echo "Service: $HOT_RELOAD_SERVICE.service"
         echo ""
@@ -233,7 +233,7 @@ EOF
         echo "Hot reload is now active. Files in app/, config/, routes/, database/, resources/"
         echo "will trigger automatic Octane service reloads when modified."
     else
-        echo "âœ?Failed to start hot reload service"
+        echo "ï¿½?Failed to start hot reload service"
         systemctl status "${HOT_RELOAD_SERVICE}.service" --no-pager
         exit 1
     fi
@@ -266,7 +266,7 @@ WantedBy=multi-user.target
 EOF
 
 chmod 644 "$SERVICE_FILE"
-echo "âœ?Service file created: $SERVICE_FILE"
+echo "ï¿½?Service file created: $SERVICE_FILE"
 
 # Create systemd timer file
 echo "Creating systemd timer..."
@@ -289,7 +289,7 @@ WantedBy=timers.target
 EOF
 
     chmod 644 "$TIMER_FILE"
-    echo "âœ?Timer file created: $TIMER_FILE"
+    echo "ï¿½?Timer file created: $TIMER_FILE"
 
     # Reload systemd and enable timer
     echo ""
@@ -302,7 +302,7 @@ EOF
 
     # Check timer status
     if systemctl is-active --quiet "${SERVICE_NAME}.timer"; then
-        echo "âœ?Octane auto-restart timer started successfully"
+        echo "ï¿½?Octane auto-restart timer started successfully"
         echo ""
         echo "Timer: $SERVICE_NAME.timer"
         echo "Service: $SERVICE_NAME.service"
@@ -318,7 +318,7 @@ EOF
         echo "Next scheduled run:"
         systemctl list-timers "${SERVICE_NAME}.timer" --no-pager | grep -A 1 "NEXT"
     else
-        echo "âœ?Failed to start timer"
+        echo "ï¿½?Failed to start timer"
         systemctl status "${SERVICE_NAME}.timer" --no-pager
         exit 1
     fi

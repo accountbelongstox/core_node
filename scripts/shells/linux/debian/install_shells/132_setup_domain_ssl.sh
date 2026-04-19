@@ -213,12 +213,10 @@ fi
 
 # Export DNSPod credentials as environment variables for Laravel
 if [ -n "$DNSPOD_EMAIL" ]; then
-    export DNSPOD_EMAIL
     echo "[$SCRIPT_INDEX] [DEBUG] Exported DNSPOD_EMAIL to environment"
 fi
 
 if [ -n "$DNSPOD_API_TOKEN" ]; then
-    export DNSPOD_API_TOKEN
     echo "[$SCRIPT_INDEX] [DEBUG] Exported DNSPOD_API_TOKEN to environment"
 fi
 

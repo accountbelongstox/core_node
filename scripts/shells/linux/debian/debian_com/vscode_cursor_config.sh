@@ -96,7 +96,4 @@ log_error() {
 }
 
 # Export variables
-export VSCODE_NAME VSCODE_PATTERN VSCODE_URL
-export CURSOR_NAME CURSOR_PATTERN CURSOR_URL
-export CORE_NODE_DIR DOWNLOAD_TIMEOUT SHARED_DOWNLOAD_DIR
 export -f log_info log_success log_error get_shared_download_dir

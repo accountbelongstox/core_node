@@ -1,65 +1,67 @@
-# DotCore Architecture Design
+# DotCore Design
 
-Reference: **pycore** (multi-entry, shared libraries). This document defines the directory structure and project roles.
+**Dotcore** is the .NET **public class libraries (公共类库)** layer. It is the counterpart of **pycore** on the Python side: all shared, app-agnostic libraries live here. **Sub-app class libraries (子app的类库)** are per-app code under `pyapps/<app>/` or `dotapps/<App>/` and are not part of dotcore. Apps (dotapps) reference only dotcore; they do not reference each other.
 
----
-
-## 1. Design Principles
-
-- **Multiple entry points**: Several runnable hosts (CLI, CallModule service, etc.).
-- **Shared libraries**: Foundations (BCL-only), Common (constants/config), Utils, Infrastructure.
-- **Dependency direction**: Hosts → Utils/Infrastructure → Common → Foundations. No reverse dependencies.
+Shared library layout and roles. Canonical definitions (公共类库 vs 子app的类库): [development-guides/PYCORE_PYAPPS_STRUCTURE.md](../development-guides/PYCORE_PYAPPS_STRUCTURE.md). Architecture: [development-guides/DOT_ARCHITECTURE.md](../development-guides/DOT_ARCHITECTURE.md). Cursor skill: [.cursor/skills/dot/SKILL.md](../.cursor/skills/dot/SKILL.md). Progress and pycore↔dotcore mapping: [dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md](DOT_PUBLIC_LIBRARY_PROGRESS.md). **Button / text-region recognition** (HSV, contours, morphology, OCR, optional YOLO): [dotcore/docs/BUTTON_RECOGNITION_DESIGN.md](docs/BUTTON_RECOGNITION_DESIGN.md).
 
 ---
 
-## 2. Directory Structure
+## 1. Layout (libraries only)
+
+Libraries live **directly under dotcore/** (no `src/`):
 
 ```
 dotcore/
-├── DESIGN.md                    # This file
+├── DESIGN.md
 ├── dotcore.sln
-├── Directory.Build.props        # Shared MSBuild properties
-├── Directory.Packages.props     # Central package versions (optional)
-├── src/
-│   ├── DotCore.Foundations/     # Base library, BCL/minimal deps only (pyfoundations)
-│   ├── DotCore.Common/          # Constants, paths, global config (pygvar)
-│   ├── DotCore.Utils/           # Shared utilities (pyutils common)
-│   ├── DotCore.Infrastructure/  # DB, file, network abstractions (database, etc.)
-│   └── Hosts/
-│       ├── DotCore.Cli/         # Console multi-command entry (python -m pycore)
-│       └── DotCore.Host.CallModule/  # Service entry (callmodule)
+├── Directory.Build.props
+├── Directory.Packages.props
+├── nuget.config
+├── DotCore.Foundations/
+├── DotCore.Common/
+├── DotCore.Utils/
+├── DotCore.Utils.ImageColor/
+├── DotCore.Utils.ImageContours/
+├── DotCore.Utils.ImageMorphology/
+├── DotCore.Utils.ImagePreprocess/
+├── DotCore.ButtonRecognizer/
+├── DotCore.Infrastructure/
+├── DotCore.UIInspect/
+├── DotCore.UITheme/
+├── DotCore.VocAnnotator/
 └── tests/
     └── DotCore.Foundations.Tests/
 ```
 
----
-
-## 3. Project Roles
-
-| Project | Role | Depends on | Pycore analogue |
-|---------|------|------------|-----------------|
-| **DotCore.Foundations** | Color output, event bus, commander, base types. **No third-party packages.** | (none) | pyfoundations |
-| **DotCore.Common** | App name, paths (cache/tmp/public), global constants. | Foundations | pygvar |
-| **DotCore.Utils** | Shared utilities (logging, file, helpers). May use third-party. | Foundations, Common | pyutils (common) |
-| **DotCore.Infrastructure** | Database, external I/O, optional integrations. | Foundations, Common | database, pyutils parts |
-| **DotCore.Cli** | Console host: multi-tool routing (e.g. `dotcore tool-name --args`). | Foundations, Common, Utils | pycore/__main__.py |
-| **DotCore.Host.CallModule** | HTTP/WebSocket service host (e.g. port 59000). | Foundations, Common, Utils, Infrastructure (optional) | callmodule |
+Apps live under **dotapps/** at repo root (see DOT_ARCHITECTURE.md). For UI apps (WPF/MAUI/Blazor/Avalonia), **Presentation layer:** canonical spec [development-guides/DOT_UI_PROJECT_SPECIFICATION.md](../development-guides/DOT_UI_PROJECT_SPECIFICATION.md), [.cursor/rules/dot-ui.mdc](../.cursor/rules/dot-ui.mdc).
 
 ---
 
-## 4. Adding New Entries or Libraries
+## 2. Project roles
 
-- **New host**: Add `src/Hosts/DotCore.Host.<Name>/` and reference required libs; add project to solution.
-- **New shared lib**: Add `src/DotCore.<Name>/`, follow dependency rule (no dependency on Hosts or higher-level libs than needed), add to solution.
+| Project | Role | Depends on |
+|---------|------|------------|
+| **DotCore.Foundations** | Base types, BCL only | (none) |
+| **DotCore.Common** | Constants, paths | Foundations |
+| **DotCore.Utils** | Shared utilities (incl. Ocr) | Foundations, Common |
+| **DotCore.Utils.ImageColor** | HSV, InRange mask (no cross-calls) | Foundations, OpenCvSharp |
+| **DotCore.Utils.ImageContours** | FindContours, area/aspect filter (no cross-calls) | Foundations, OpenCvSharp |
+| **DotCore.Utils.ImageMorphology** | Canny, Dilation, Erosion (no cross-calls) | Foundations, OpenCvSharp |
+| **DotCore.Utils.ImagePreprocess** | Grayscale, Otsu binarize (no cross-calls) | Foundations, OpenCvSharp |
+| **DotCore.ButtonRecognizer** | Button/text-region pipelines (aggregate) | ImageColor, ImageContours, ImageMorphology, ImagePreprocess, Utils, TemplateMatcher, ScreenCapture |
+| **DotCore.Infrastructure** | DB, I/O | Foundations, Common |
+| **DotCore.UIInspect** | UI Automation (FlaUI) | (none) |
+| **DotCore.UITheme** | Theme data (colors, fonts, sizes); no WPF | (none) |
+| **DotCore.VocAnnotator** | VOC/JSON annotation IO, project config | Foundations, Common |
 
 ---
 
-## 5. Build
+## 3. Build
 
-From repo root or `dotcore/`:
+From repo root:
 
 ```bash
 dotnet build dotcore/dotcore.sln
-dotnet run --project dotcore/src/Hosts/DotCore.Cli/DotCore.Cli.csproj -- tool-name
-dotnet run --project dotcore/src/Hosts/DotCore.Host.CallModule/DotCore.Host.CallModule.csproj -- --port 59000
 ```
+
+Solution includes both `dotcore` libs and `dotapps` projects (references like `..\dotapps\SimpleUi\SimpleUi.csproj`).

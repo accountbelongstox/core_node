@@ -64,15 +64,45 @@ class AppQyV1Initializer implements AppInitializerInterface
             }
             
             Log::info("[AppQyV1Init] Running step: {$step} - {$description}");
+            if (PHP_SAPI === 'cli') {
+                echo "    [AppQyV1] Step {$step}: {$description}...\n";
+            }
             
             try {
                 $result = $this->executeStep($step);
                 $results[$step] = array_merge($result, ['description' => $description]);
                 
-                if ($result['status'] === 'success') {
+                $statusCode = $result['status'] ?? 'error';
+                
+                if ($statusCode === 'success') {
                     $this->markStepCompleted($step);
-                } else {
+                    if (PHP_SAPI === 'cli') {
+                        echo "      -> OK: {$result['message']}\n";
+                        // For seed_initial_data, print per-collection details for better visibility.
+                        if ($step === 'seed_initial_data' && isset($result['details']) && is_array($result['details'])) {
+                            foreach ($result['details'] as $name => $detail) {
+                                if (!is_array($detail)) {
+                                    continue;
+                                }
+                                $statusLabel = ($detail['success'] ?? false) ? 'OK' : 'FAIL';
+                                $totalWords = $detail['total_words'] ?? 0;
+                                $ensured = $detail['ensured_in_dictionary'] ?? 0;
+                                echo sprintf(
+                                    "         • [%s] %s: %d words (ensured in dictionary: %d)\n",
+                                    $statusLabel,
+                                    $name,
+                                    $totalWords,
+                                    $ensured
+                                );
+                            }
+                        }
+                    }
+                } elseif ($statusCode === 'error') {
                     $allSuccess = false;
+                    if (PHP_SAPI === 'cli') {
+                        $msg = $result['message'] ?? 'Unknown error';
+                        echo "      -> {$result['status']}: {$msg}\n";
+                    }
                     if (!$force) {
                         break;
                     }
@@ -85,6 +115,10 @@ class AppQyV1Initializer implements AppInitializerInterface
                     'exception' => get_class($e),
                 ];
                 $allSuccess = false;
+                
+                if (PHP_SAPI === 'cli') {
+                    echo "      -> EXCEPTION: {$e->getMessage()}\n";
+                }
                 
                 if (!$force) {
                     break;
@@ -154,7 +188,8 @@ class AppQyV1Initializer implements AppInitializerInterface
     private function createDatabaseFile(): array
     {
         try {
-            $dbPath = config('database.connections.AppQyV1.database');
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+            $dbPath = config("database.connections.{$connectionName}.database");
             
             if (!$dbPath) {
                 return [
@@ -400,10 +435,11 @@ class AppQyV1Initializer implements AppInitializerInterface
     public function getDatabaseInfo(): array
     {
         try {
-            $dbPath = config('database.connections.AppQyV1.database');
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+            $dbPath = config("database.connections.{$connectionName}.database");
             
             $info = [
-                'connection' => 'AppQyV1',
+                'connection' => $connectionName,
                 'driver' => 'sqlite',
                 'path' => $dbPath,
             ];

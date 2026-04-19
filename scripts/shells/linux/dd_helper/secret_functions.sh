@@ -15,6 +15,13 @@
 # Secret Functions for dd.sh
 # =============================================================================
 
+# Repo root: caller may set CORE_NODE_ROOT_DIR before sourcing; otherwise resolve from this file location.
+_DD_HELPER_SECRETS_DIR=""
+if [ -z "${CORE_NODE_ROOT_DIR:-}" ]; then
+    _DD_HELPER_SECRETS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    CORE_NODE_ROOT_DIR="$(cd "$_DD_HELPER_SECRETS_DIR/../../../.." && pwd)"
+fi
+
 read_secret_input() {
     local prompt="$1"
     local password=""

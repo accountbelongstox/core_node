@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Server, RefreshCw, Check, AlertCircle } from 'lucide-react';
+import { Server, Check } from 'lucide-react';
 import { apiManager, HealthCheckResult } from '../services/ApiManager';
 import { ApiEndpoint } from '../config/api-endpoints';
 
@@ -8,13 +8,18 @@ export const ApiEndpointSwitcher: React.FC = () => {
   const [currentEndpoint, setCurrentEndpoint] = useState<ApiEndpoint | null>(null);
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
   const [healthResults, setHealthResults] = useState<Map<string, HealthCheckResult>>(new Map());
-  const [isChecking, setIsChecking] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Initialize and check health immediately
+    // Initialize endpoints from ApiManager
     loadEndpoints();
-    checkAllHealth();
+
+    // 监听全局健康检查完成事件，只更新本地状态，不触发新的网络请求
+    const handleHealthInitialized = () => {
+      loadEndpoints();
+    };
+
+    window.addEventListener('api-health-initialized', handleHealthInitialized);
 
     // Click outside to close dropdown
     const handleClickOutside = (event: MouseEvent) => {
@@ -24,33 +29,22 @@ export const ApiEndpointSwitcher: React.FC = () => {
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('api-health-initialized', handleHealthInitialized);
+    };
   }, []);
 
   const loadEndpoints = () => {
     setCurrentEndpoint(apiManager.getCurrentEndpoint());
     setEndpoints(apiManager.getAllEndpoints());
 
-    // 加载现有的健康检查结果
+    // 加载现有的健康检查结果（如果 ApiManager 已经完成检测）
     const results = new Map<string, HealthCheckResult>();
     apiManager.getAllHealthResults().forEach(result => {
       results.set(result.endpoint.id, result);
     });
     setHealthResults(results);
-  };
-
-  const checkAllHealth = async () => {
-    setIsChecking(true);
-    try {
-      const results = await apiManager.checkAllEndpoints();
-      const resultsMap = new Map<string, HealthCheckResult>();
-      results.forEach(result => {
-        resultsMap.set(result.endpoint.id, result);
-      });
-      setHealthResults(resultsMap);
-    } finally {
-      setIsChecking(false);
-    }
   };
 
   const selectEndpoint = (endpointId: string) => {
@@ -84,7 +78,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
           text-slate-600 dark:text-slate-300
           hover:bg-black/5 dark:hover:bg-white/10
           border border-transparent
-          ${currentHealth?.isHealthy ? 'hover:border-emerald-500/20' : 'hover:border-red-500/20'}
+          ${currentHealth?.isHealthy ? 'hover:border-emerald-500/20' : currentHealth ? 'hover:border-red-500/20' : 'hover:border-slate-300/40'}
         `}
         title="Switch API Endpoint"
       >
@@ -105,12 +99,15 @@ export const ApiEndpointSwitcher: React.FC = () => {
           <span className="font-medium">
             {currentEndpoint?.description.split(' ')[0] || 'API'}
           </span>
-          {currentHealth ? (
+          {currentHealth && (
             <span className={`text-[10px] font-medium ${currentHealth.isHealthy ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
               {currentHealth.isHealthy ? `✓ ${currentHealth.responseTime}ms` : '✗ Unavailable'}
             </span>
-          ) : (
-            <span className="text-[10px] text-slate-500 dark:text-slate-400">Checking...</span>
+          )}
+          {!currentHealth && (
+            <span className="text-[10px] text-slate-500 dark:text-slate-400">
+              Manual endpoint selection
+            </span>
           )}
         </div>
 
@@ -141,21 +138,6 @@ export const ApiEndpointSwitcher: React.FC = () => {
               <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
                 API Endpoints
               </h3>
-              <button
-                onClick={checkAllHealth}
-                disabled={isChecking}
-                className="
-                  p-1.5 rounded-md
-                  text-slate-500 hover:text-indigo-600
-                  dark:text-slate-400 dark:hover:text-indigo-400
-                  hover:bg-slate-100 dark:hover:bg-slate-700
-                  transition-all
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                "
-                title="Refresh Health Check"
-              >
-                <RefreshCw size={14} className={isChecking ? 'animate-spin' : ''} />
-              </button>
             </div>
           </div>
 
@@ -217,7 +199,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Right: Health Status */}
+                  {/* Right: Health Status (single initial check, no periodic tests) */}
                   {health && (
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {health.isHealthy ? (

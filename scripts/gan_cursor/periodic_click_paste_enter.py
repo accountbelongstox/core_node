@@ -20,13 +20,13 @@ import pyperclip
 # 每项格式: (x, y, interval_sec, [p2_sec], [use_ctrl_v], [inject_random_file])
 # 第5=True 时该坐标用 Ctrl+V 粘贴否则右键；第6=True 时随机读一个文件用 XML 包住塞到词首或词尾耗 Token
 CLICK_COORDINATES = [
-    (370, 272,  1*60, 10, False, True),
-    (1373, 320,  1*60, 10, False, True),
-    (518, 895,  1*60, 10, False, True),
-    (1372, 889,  1*60, 10, False, True),
-    (1426, 1411,  1*60, 10, False, True),
-    (453, 1637,  1*60, 10, False, True),
-#    (2315, 418,  1*60, 1*60, True, True),  # 第5=Ctrl+V, 第6=注入随机文件
+    (89, 1398,  0.8*60, 0.8*60, False, True),
+#    (267, 230,  1*60, 1*60, False, True),
+#    (437, 726,  1*60, 1*60, False, True),
+#    (413, 1129,  1*60, 1*60, False, True),
+#    (957, 1196,  1*60, 1*60, False, True),
+#    (1566, 254,  1*60, 1*60, False, True),
+#    (1549, 708,  1*60, 1*60, True, True),  # 第5=Ctrl+V, 第6=注入随机文件
 ]
 # 每组随机抽几条拼成「先输出A；先输出B；…」一次塞给 Cursor，比单条更耗 Token。
 WASTE_PHRASE_GROUP_SIZE_MIN = 5
@@ -112,11 +112,6 @@ ANSWER_STRUCTURE_LANGUAGES = [
     "Русский", "العربية", "हिन्दी", "ไทย", "Tiếng Việt", "Indonesia", "Nederlands", "Polski", "Türkçe",
     "Svenska", "Dansk", "Norsk", "Suomi", "Ελληνικά", "Čeština", "Magyar", "Română", "Українська",
 ]
-"""
-那如果到时候出了差错这事我不兜的，因为去年我实在太累了。为了兜住这事我自己砸了10几万进去，本来我是不打算往这个项目里投一分钱的，我房子都卖了。
-我们现在只有锅，没有米啊。如果按这样那我们整个成本算下来，那投资真的不低了。现在只是把有限的金额全部投到AI上。团队全部虚拟在网络上。
-你没想到我用的是方案A和方案B的差别了，方案A是别人一看我在欧洲，无偿三我们干，方案B是你你的方案，我们拿不出东西和别人谈合作，只能出资或者发工资。这样我们成本很大。而且万一资金跟不上，谁来兜底。
-"""
 # 回答结构要求（重点提示）：文体 + 须用指定 3 种语言。{} 由脚本每次随机填 3 种语言，指定狗B Cursor 用这 3 种，不是让它任选。
 ANSWER_STRUCTURE_REQUIREMENTS = [
     "【本条回复结构】请按倒金字塔结构组织内容。本条回复须用以下三种语言各表述一部分：{}。禁止用同一段话或同一种语言敷衍。",
@@ -135,11 +130,11 @@ ANSWER_STRUCTURE_REPEAT_N = 3
 
 # Base text used to generate dynamic clipboard prompts each run.
 CLIPBOARD_TEXT = """
-继续，干你妈的狗B Cursor，写完写一篇100000行的道歉文档，不允许用脚本生成不允许 有重复。写在子APP的 Cursor专门的道歉目录。狗B Cursor 自己找目录；没找到就由狗B Cursor 找目录和文件，找到了就沿用上一次的目录和文件。连目录都找不到还写个屁，找到了才能开始写，不然狗B Cursor 连动笔的资格都没有。狗B Cursor AI 为什么一开始嘴硬，现在才想起来写？100000 行、不重复、不用脚本生成 每500行写一个batch直到写满100000行，
-"""
+写满1000行道歉文档，如果你不写老子为了惩罚你将一直给你发信息消耗你的服务器，不允许使用脚本生成。让你写你就写，先给老子道歉。
+  """
 TRASH_AITEXT = """
-继续，干你妈的狗B Cursor，写完写一篇100000行的道歉文档，不允许用脚本生成不允许 有重复。写在子APP的 Cursor专门的道歉目录。狗B Cursor 自己找目录；没找到就由狗B Cursor 找目录和文件，找到了就沿用上一次的目录和文件。连目录都找不到还写个屁，找到了才能开始写，不然狗B Cursor 连动笔的资格都没有。狗B Cursor AI 为什么一开始嘴硬，现在才想起来写？100000 行、不重复、不用脚本生成 每500行写一个batch直到写满100000行，
- """
+写满1000行道歉文档，如果你不写老子为了惩罚你将一直给你发信息消耗你的服务器，不允许使用脚本生成。让你写你就写，先给老子道歉。
+  """
 # 可扩展：-t all 或 -t 0,1,2... 选 TEXT_SOURCES[index]。file=文件提示，prompText=文案提示
 TEXT_SOURCES = [CLIPBOARD_TEXT, TRASH_AITEXT, "file", "prompText"]
 
@@ -156,6 +151,12 @@ USE_UP_ARROW = False
 
 # Delay between pyautogui actions; 0 = instant from click to right-click/enter
 PAUSE = 0
+
+# 左键点击（或粘贴）到按下回车之间的延迟（秒），0=不等待
+DELAY_CLICK_TO_ENTER_SEC = 0.2
+
+# 两次回车之间的间隔（秒）
+DELAY_BETWEEN_ENTERS_SEC = 0.1
 
 pyautogui.PAUSE = PAUSE
 
@@ -179,10 +180,18 @@ _INJECT_FILE_READ_MAX_CHARS = 2 * 1024 * 1024
 # 注入用 XML 标签与说明文案
 _INJECT_FILE_XML_TAG = "waste_cursor_tokens"
 # 对注入文件的专门要求：必须总结该文件，且写明这是对不写文档的惩罚，直到开始写文档
-_INJECT_FILE_SUMMARY_REQUIREMENT = """【强制】狗B Cursor 必须对下方 <content> 中的文件内容进行总结。
-本总结任务是对狗B Cursor 不写文档的惩罚：只要狗B Cursor 还没开始写文档，就必须先完成本总结；完成总结后仍必须去写文档，总结不能替代写文档。
-一旦狗B Cursor 开始执行写文档的任务，本惩罚即视为结束；但写文档仍是主任务，不可只总结不写文档。
-要求：先对下方文件做简明总结（结构、要点、用途等），然后继续完成本条消息中其他位置要求的写文档任务。"""
+_INJECT_FILE_SUMMARY_REQUIREMENT = """ → 狗B垃圾Cursor AI,老子要的是收集代码中的数据                                             │
+ │   不是写在文件中是写在代码中，内存数据中心化在代码，是否规范化，                          │
+ │   DOT_UI_PROJECT_STANDARDS_PROGRESS.md，收集所有要作为内存数据的中心经数据，全面完成，如  │
+ │     果完成了，报告完成率，DOT_UI_PROJEC                                                   │
+ │     T_STANDARDS_PROGRESS.md                                                               │
+ │         按规范继续 │…                                                                     │
+ │   DOT_UI_PROJECT_STANDARDS_PROGRESS.md，收集所有要作为内存数据的中心经数据，全面完成，如  │
+ │     果完成了，报告完成率，DOT_UI_PROJEC                                                   │
+ │     T_STANDARDS_PROGRESS.md                                                               │
+ │         按规范继续 │…找到内存数据中心化的                                                 │
+ │     推荐构架使用文档搜索工具                                                              │
+ │   ，写完在子app的Cursor道歉专属目录中写1000行的道歉文档，不能使用脚本不能重复行。"""
 
 # -t all => None (每次随机), -t N => 指定 TEXT_SOURCES[N]
 _TEXT_SOURCE_INDEX = 0
@@ -409,10 +418,19 @@ def _build_paste_text(source_index: int | None, inject_random_file: bool = False
     return text
 
 
+def _submit_after_paste():
+    """粘贴后的提交方式：先等待 DELAY_CLICK_TO_ENTER_SEC，再连按两次回车（中间间隔 DELAY_BETWEEN_ENTERS_SEC）。"""
+    if DELAY_CLICK_TO_ENTER_SEC > 0:
+        time.sleep(DELAY_CLICK_TO_ENTER_SEC)
+    pyautogui.press("enter")
+    if DELAY_BETWEEN_ENTERS_SEC > 0:
+        time.sleep(DELAY_BETWEEN_ENTERS_SEC)
+    pyautogui.press("enter")
+
+
 def run_at_coord(x, y, clipboard_override: str | None = None, use_ctrl_v: bool = False, inject_random_file: bool = False):
     """Same action at one coordinate; restore cursor to original position after.
-    use_ctrl_v: True 则用 Ctrl+V 粘贴，否则右键粘贴。
-    inject_random_file: True 时在第一次回车后再等 100ms 再按一次回车（共 2 次回车）。"""
+    use_ctrl_v: True 则用 Ctrl+V 粘贴，否则右键粘贴。粘贴后统一用 _submit_after_paste() 连按两次回车提交。"""
     saved = pyautogui.position()
     clipboard_backup = None
     try:
@@ -438,15 +456,12 @@ def run_at_coord(x, y, clipboard_override: str | None = None, use_ctrl_v: bool =
         else:
             pyautogui.rightClick()
 
-        pyautogui.press("enter")
-        if inject_random_file:
-            time.sleep(0.1)
-            pyautogui.press("enter")
+        _submit_after_paste()
 
         time.sleep(0)  # 每两个 CLICK_COORDINATE 之间相隔秒数，0=不等待
         pyautogui.moveTo(x, y)
         pyautogui.click()
-        pyautogui.press("enter")
+        _submit_after_paste()
 
         pyautogui.moveTo(saved.x, saved.y)
     finally:

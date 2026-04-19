@@ -61,10 +61,23 @@ fix_core_node_permissions_essential() {
     local user_info="$2"
     local real_user="${user_info%%:*}"
     local real_user_home="${user_info##*:}"
-    
+
     echo "[INFO] Fixing Core Node essential permissions (fast)..."
-    echo "[INFO] Project root: $project_root"
+    echo "[SAFE_PATH] project_root=$project_root"
     echo "[INFO] Real user: $real_user"
+
+    # Validate project_root before recursive chown/chmod to avoid touching system paths (e.g. /usr/bin/sudo)
+    if [ -z "$project_root" ]; then
+        echo "[ERROR] project_root is empty; refusing chown/chmod"
+        return 1
+    fi
+    case "$project_root" in
+        /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
+            echo "[ERROR] project_root is system path; refusing chown/chmod: $project_root"
+            return 1
+            ;;
+    esac
+    [[ "$project_root" != /* ]] && echo "[ERROR] project_root not absolute: $project_root" && return 1
 
     # Calculate build directory path dynamically (no hardcoding)
     # project_root: /www/programing/core_node
@@ -145,12 +158,23 @@ fix_var_core_node_permissions() {
     local user_info="$2"
     local real_user="${user_info%%:*}"
     local target_path="/var/_core_node"
-    
+
     echo "[INFO] Fixing /var/_core_node permissions for MyBest directories..."
-    
+    echo "[SAFE_PATH] target_path=$target_path (fixed path, allowed)"
+
     if [ "$(id -u)" -eq 0 ]; then
         echo "[INFO] Running as root - setting up $target_path"
-        
+
+        # Only allow chown/chmod on this fixed path (not on /var or /usr)
+        case "$target_path" in
+            /var/_core_node) ;;
+            /var/_core_node/*) ;;
+            *)
+                echo "[ERROR] Refusing: only /var/_core_node is allowed for this function"
+                return 1
+                ;;
+        esac
+
         # Create directory if needed
         if [ ! -d "$target_path" ]; then
             echo "[INFO] Creating directory: $target_path"
@@ -159,7 +183,7 @@ fix_var_core_node_permissions() {
                 return 1
             }
         fi
-        
+
         # Set ownership and 777 permissions
         echo "[INFO] Setting ownership and permissions for $real_user on $target_path"
         chown -R "$real_user:$real_user" "$target_path" 2>/dev/null || {
@@ -190,12 +214,12 @@ setup_environment_variables() {
     
     # Claude Code configuration (disable auto-updates)
     if [ -z "${DISABLE_AUTOUPDATER:-}" ]; then
-        export DISABLE_AUTOUPDATER="1"
+        DISABLE_AUTOUPDATER="1"
         echo "[SUCCESS] Set DISABLE_AUTOUPDATER=1"
     fi
     
     if [ -z "${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-}" ]; then
-        export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
         echo "[SUCCESS] Set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
     fi
     
@@ -212,7 +236,7 @@ setup_environment_variables() {
     
     # Core Node project root
     if [ -n "$project_root" ] && [ -z "${CORE_NODE_PROJECT_ROOT:-}" ]; then
-        export CORE_NODE_PROJECT_ROOT="$project_root"
+        CORE_NODE_PROJECT_ROOT="$project_root"
         echo "[SUCCESS] Set CORE_NODE_PROJECT_ROOT=$project_root"
     fi
     

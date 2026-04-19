@@ -26,7 +26,8 @@ import time
 import argparse
 from pathlib import Path
 
-PYCORE_ROOT = Path(__file__).parent
+# Go up two levels from scripts/pycore/ to reach the repo root
+PYCORE_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PYCORE_ROOT))
 
 from pycore import ColorPrint, THREAD_BUS
