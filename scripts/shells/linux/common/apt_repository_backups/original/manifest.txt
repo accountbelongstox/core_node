@@ -1,0 +1,27 @@
+Original APT Repository Backup
+Backup Time: Wed Feb 25 23:49:24 +07 2026
+Backup Path: /www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original
+
+This is the original backup created on first use of the repository manager.
+Files backed up:
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-archive-keyring.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-archive-removed-keys.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-cloudimage-keyring.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-cloudimage-removed-keys.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-master-keyring.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-anbox-cloud.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-cc-eal.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-cis.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-esm-apps-legacy.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-esm-apps.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-esm-infra-legacy.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-esm-infra.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-fips-preview.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-fips.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-realtime-kernel.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/keyrings/ubuntu-pro-ros.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/sources.list
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/sources.list.d/ubuntu.sources
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/sources.list.d/ubuntu.sources.curtin.orig
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/trusted.gpg.d/ubuntu-keyring-2012-cdimage.gpg
+/www/programing/core_node/scripts/shells/linux/common/apt_repository_backups/original/trusted.gpg.d/ubuntu-keyring-2018-archive.gpg
