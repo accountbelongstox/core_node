@@ -16,18 +16,18 @@
 # This file contains all configuration constants and shared settings
 
 # Version and metadata
-UNIFIED_MANAGER_VERSION="16.1.0"
-UNIFIED_MANAGER_NAME="dd.sh Unified App Manager"
+export UNIFIED_MANAGER_VERSION="16.1.0"
+export UNIFIED_MANAGER_NAME="dd.sh Unified App Manager"
 
 # Base paths (will be set by main script)
-SCRIPT_PATH=""
-ROOT_DIR=""
-NCORE_APPS=""
-PYCORE_APPS=""
-POLY_APPS=""
-CACHE_DIR=""
-CACHE_FILE=""
-TEMP_SCRIPT_DIR=""
+export SCRIPT_PATH=""
+export ROOT_DIR=""
+export NCORE_APPS=""
+export PYCORE_APPS=""
+export POLY_APPS=""
+export CACHE_DIR=""
+export CACHE_FILE=""
+export TEMP_SCRIPT_DIR=""
 
 # Port allocation configuration
 PORT_BASE=10000
@@ -35,28 +35,28 @@ PORT_RANGE=5000
 PORT_AUTO_INCREMENT=true
 
 # Service configuration
-SERVICE_USER="root"
-SERVICE_RESTART_POLICY="always"
-SERVICE_RESTART_SEC="5"
-SERVICE_CPU_LIMIT="50%"
-SERVICE_MEMORY_LIMIT="1G"
+export SERVICE_USER="root"
+export SERVICE_RESTART_POLICY="always"
+export SERVICE_RESTART_SEC="5"
+export SERVICE_CPU_LIMIT="50%"
+export SERVICE_MEMORY_LIMIT="1G"
 
 # Framework detection patterns
-FRAMEWORK_PATTERNS_REACT="package.json react"
-FRAMEWORK_PATTERNS_VUE="package.json vue"
-FRAMEWORK_PATTERNS_NUXT="nuxt.config.ts nuxt.config.js"
-FRAMEWORK_PATTERNS_LARAVEL="composer.json public/index.php"
-FRAMEWORK_PATTERNS_FLUTTER="pubspec.yaml"
-FRAMEWORK_PATTERNS_REACT_NATIVE="package.json android ios"
-FRAMEWORK_PATTERNS_KOTLIN="build.gradle.kts build.gradle"
-FRAMEWORK_PATTERNS_PHP="index.php"
-FRAMEWORK_PATTERNS_PYTHON="main.py"
+export FRAMEWORK_PATTERNS_REACT="package.json react"
+export FRAMEWORK_PATTERNS_VUE="package.json vue"
+export FRAMEWORK_PATTERNS_NUXT="nuxt.config.ts nuxt.config.js"
+export FRAMEWORK_PATTERNS_LARAVEL="composer.json public/index.php"
+export FRAMEWORK_PATTERNS_FLUTTER="pubspec.yaml"
+export FRAMEWORK_PATTERNS_REACT_NATIVE="package.json android ios"
+export FRAMEWORK_PATTERNS_KOTLIN="build.gradle.kts build.gradle"
+export FRAMEWORK_PATTERNS_PHP="index.php"
+export FRAMEWORK_PATTERNS_PYTHON="main.py"
 
 # Script scanning configuration
-SCRIPT_FILES_TO_SCAN=("start.sh" "install.sh" "deploy.sh")
+export SCRIPT_FILES_TO_SCAN=("start.sh" "install.sh" "deploy.sh")
 
 # Native startup types in priority order
-NATIVE_STARTUPS=(
+export NATIVE_STARTUPS=(
     "Ncore/Pycore/Installer"
     "reactStart"
     "vueStart"
@@ -71,58 +71,58 @@ NATIVE_STARTUPS=(
 )
 
 # Service naming patterns
-SERVICE_NAME_REACT="webapp"
-SERVICE_NAME_VUE="webapp"
-SERVICE_NAME_NUXT="nuxt"
-SERVICE_NAME_LARAVEL="laravel"
-SERVICE_NAME_FLUTTER="flutter"
-SERVICE_NAME_PHP="php"
-SERVICE_NAME_PYTHON="python"
-SERVICE_NAME_KOTLIN="kotlin"
-SERVICE_NAME_GENERIC="app"
+export SERVICE_NAME_REACT="webapp"
+export SERVICE_NAME_VUE="webapp"
+export SERVICE_NAME_NUXT="nuxt"
+export SERVICE_NAME_LARAVEL="laravel"
+export SERVICE_NAME_FLUTTER="flutter"
+export SERVICE_NAME_PHP="php"
+export SERVICE_NAME_PYTHON="python"
+export SERVICE_NAME_KOTLIN="kotlin"
+export SERVICE_NAME_GENERIC="app"
 
 # Debug mode detection patterns
-DEBUG_ENV_FILES=(".env" ".env.local" ".env.development")
-DEBUG_ENV_PATTERNS=("APP_ENV=local" "NODE_ENV=development" "APP_DEBUG=true")
-DEBUG_DIRS=("node_modules" "src" "lib" "components" "assets")
-DEBUG_WORKSPACE_PATTERNS=("poly_apps" "dev" "development")
+export DEBUG_ENV_FILES=(".env" ".env.local" ".env.development")
+export DEBUG_ENV_PATTERNS=("APP_ENV=local" "NODE_ENV=development" "APP_DEBUG=true")
+export DEBUG_DIRS=("node_modules" "src" "lib" "components" "assets")
+export DEBUG_WORKSPACE_PATTERNS=("poly_apps" "dev" "development")
 
 # External script paths
-COMMON_SCRIPTS_DIR="/scripts/shells/linux/common"
-SERVICE_MANAGER_SCRIPT="debian_service_manager.sh"
-FIREWALL_MANAGER_SCRIPT="firewall_manager.sh"
-GVAR_COMMON_SCRIPT="gvar_common.sh"
+export COMMON_SCRIPTS_DIR="/scripts/shells/linux/common"
+export SERVICE_MANAGER_SCRIPT="debian_service_manager.sh"
+export FIREWALL_MANAGER_SCRIPT="firewall_manager.sh"
+export GVAR_COMMON_SCRIPT="gvar_common.sh"
 
 # Color scheme for output
-COLOR_HEADER="\033[36m"
-COLOR_SUCCESS="\033[32m"
-COLOR_WARNING="\033[33m"
-COLOR_ERROR="\033[31m"
-COLOR_INFO="\033[90m"
-COLOR_HIGHLIGHT="\033[37m"
-COLOR_RESET="\033[0m"
+export COLOR_HEADER="\033[36m"
+export COLOR_SUCCESS="\033[32m"
+export COLOR_WARNING="\033[33m"
+export COLOR_ERROR="\033[31m"
+export COLOR_INFO="\033[90m"
+export COLOR_HIGHLIGHT="\033[37m"
+export COLOR_RESET="\033[0m"
 
 # UI configuration
-MENU_HEADER_SEPARATOR="===================================="
-MENU_WIDTH=80
-MAX_APP_DISPLAY=50
+export MENU_HEADER_SEPARATOR="===================================="
+export MENU_WIDTH=80
+export MAX_APP_DISPLAY=50
 
 # Initialize configuration with paths
 init_unified_config() {
     local script_path="$1"
 
     # Set base paths
-SCRIPT_PATH="$script_path"
-ROOT_DIR="$(cd "$script_path/../.." && pwd)"
-NCORE_APPS="$ROOT_DIR/apps"
-PYCORE_APPS="$ROOT_DIR/pyapps"
-POLY_APPS="$ROOT_DIR/poly_apps"
+    export SCRIPT_PATH="$script_path"
+    export ROOT_DIR="$(cd "$script_path/../.." && pwd)"
+    export NCORE_APPS="$ROOT_DIR/apps"
+    export PYCORE_APPS="$ROOT_DIR/pyapps"
+    export POLY_APPS="$ROOT_DIR/poly_apps"
 
     # Set cache paths (will be set after sourcing gvar_common.sh)
     if [ -n "$CORE_NODE_DATA_DIR" ]; then
-CACHE_DIR="$CORE_NODE_DATA_DIR/unified_manager"
-CACHE_FILE="$CACHE_DIR/app_cache.json"
-TEMP_SCRIPT_DIR="$CACHE_DIR/temp_scripts"
+        export CACHE_DIR="$CORE_NODE_DATA_DIR/unified_manager"
+        export CACHE_FILE="$CACHE_DIR/app_cache.json"
+        export TEMP_SCRIPT_DIR="$CACHE_DIR/temp_scripts"
     fi
 
     # Ensure required directories exist
