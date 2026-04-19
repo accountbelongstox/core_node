@@ -12,6 +12,9 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Central configuration hub: exports here are intentional for modules that source this file.
+# Ordinary feature scripts should use local assignments and must not re-export project constants.
+
 # Central Configuration for Unified App Manager
 # This file contains all configuration constants and shared settings
 
