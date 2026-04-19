@@ -568,8 +568,8 @@ determine_largest_windows_drive() {
     done
     
     if [ -n "$largest_drive" ]; then
-DESKTOP_LARGEST_WINDOWS_DRIVE="$largest_drive"
-DESKTOP_LARGEST_WINDOWS_PATH="$DESKTOP_WINDOWS_MOUNT_PATH/$largest_drive"
+        export DESKTOP_LARGEST_WINDOWS_DRIVE="$largest_drive"
+        export DESKTOP_LARGEST_WINDOWS_PATH="$DESKTOP_WINDOWS_MOUNT_PATH/$largest_drive"
     fi
 }
 
@@ -634,6 +634,12 @@ get_core_node_project_root() {
 CORE_NODE_PROJECT_ROOT="$(get_core_node_project_root)"
 
 # Export desktop Windows drive variables
+export IS_DESKTOP_WITH_WINDOWS
+export CURRENT_USER
+export DESKTOP_WINDOWS_MOUNT_PATH
+export DESKTOP_WINDOWS_DRIVES
+export DESKTOP_LARGEST_WINDOWS_DRIVE
+export DESKTOP_LARGEST_WINDOWS_PATH
 
 # Function to get comprehensive environment information
 get_environment_info() {
@@ -772,6 +778,26 @@ init_global_vars() {
 export -f init_global_vars
 
 # Export key variables for use by other scripts
+export USE_SUDO
+export CORE_NODE_PROJECT_ROOT
+export IS_WSL
+export IS_PRODUCTION
+export IS_DESKTOP_WITH_WINDOWS
+export HAS_DESKTOP_ENVIRONMENT
+export DESKTOP_ENVIRONMENT
+export CURRENT_USER
+export DESKTOP_WINDOWS_MOUNT_PATH
+export DESKTOP_WINDOWS_DRIVES
+export DESKTOP_LARGEST_WINDOWS_DRIVE
+export DESKTOP_LARGEST_WINDOWS_PATH
+export HAS_MULTIPLE_DISKS
+export DISK_COUNT
+export DISK_LIST
+export DISK_MOUNT_INFO
+export GLOBAL_TEMP_DIR
+export GLOBAL_VAR_DIR
+export CORE_NODE_DATA_DIR
+export CORE_NODE_SHARED_DOWNLOADS
 
 # System detection variables (merged from gvar_common.sh)
 PRE_COMPILE_DIR=".dev"
@@ -864,7 +890,42 @@ get_system_info() {
 }
 
 # Export additional variables (merged from gvar_common.sh)
-SYSTEM_FULL_NAME="${SYSTEM_NAME}_${SYSTEM_VERSION}"
+export PRE_COMPILE_DIR
+export OS_ID
+export OS_VERSION_ID
+export OS_NAME
+export SYSTEM_NAME
+export SYSTEM_VERSION
+export SYSTEM_FULL_NAME="${SYSTEM_NAME}_${SYSTEM_VERSION}"
+export SYS_DIR
+export BASE_DIR
+export WIS_PROGRAMING_DIR
+export COMPILE_DIR
+export POETRY_HOME
+export POETRY_LINK
+export NODE_INSTALL_DIR
+export NODE_SHORT_VERSION
+export NODE_VERSION
+export NODE_DOWNLOAD_URL
+export NODE_BIN
+export GO_DIR
+export GO_BIN
+export GO_VERSION_AMD64_FILE
+export GO_TAR_URL
+export RUBY_INSTALL_DIR
+export RUBY_GEM_HOME
+export RUBY_GEM_BIN_DIR
+export UPS_CONF
+export UPSD_CONF
+export UPSD_USERS_CONF
+export UPSMON_CONF
+export MCP_SOURCE_DIR
+export MCP_SERVER_DIR
+export MCP_LOCAL_DIR
+export SCRIPT_DIR
+export SHELLS_DIR
+export SHELLS_SCRIPTS_DIR
+export CORE_SCRIPTS_DIR
 
 # Function to get disk information for other scripts
 get_disk_info() {
@@ -902,6 +963,10 @@ get_disk_info() {
 }
 
 # Export disk detection variables for use in other scripts
+export HAS_MULTIPLE_DISKS
+export DISK_COUNT
+export DISK_LIST
+export DISK_MOUNT_INFO
 
 # Function to help with disk mounting operations
 mount_additional_disk() {
@@ -1493,8 +1558,16 @@ else
 fi
 
 # Export SSH related variables
+export GIT_SSH_BASE_URL
+export GIT_SSH_PUB_URL
+export GIT_SSH_KEY_URL
+export SSH_DIR
+export SSH_INSTALLED_FLAG
 
 # Export the GLOBAL_VAR_DIR and GLOBAL_TEMP_DIR
+export GLOBAL_VAR_DIR
+export GLOBAL_TEMP_DIR
+export COMPILE_DIR
 
 # Initialize batch decryption flag
 BATCH_DECRYPTION_COMPLETED=false
@@ -1543,7 +1616,7 @@ get_core_node_dir() {
 }
 
 # Export CORE_NODE_DIR for use in other scripts
-CORE_NODE_DIR=$(get_core_node_dir)
+export CORE_NODE_DIR=$(get_core_node_dir)
 
 # Debug function to analyze path issues
 debug_path_analysis() {
@@ -1756,3 +1829,32 @@ MCP_SERVER_DIR="$COMPILE_DIR/mcp_server"
 MCP_LOCAL_DIR="scripts/mcp"
 
 # Export the additional variables
+export BASE_DIR
+export WIS_PROGRAMING_DIR
+export COMPILE_DIR
+export POETRY_HOME
+export POETRY_LINK
+export NODE_INSTALL_DIR
+export NODE_SHORT_VERSION
+export NODE_VERSION
+export NODE_DOWNLOAD_URL
+export NODE_BIN_DIR
+export NODE_BIN
+export NPM_BIN
+export NPX_BIN
+export COREPACK_BIN
+export PNPM_GLOBAL_DIR
+export PNPM_GLOBAL_BIN_DIR
+export PNPM_BIN
+export YARN_BIN
+export GO_DIR
+export GO_BIN
+export GO_VERSION_AMD64_FILE
+export GO_TAR_URL
+export UPS_CONF
+export UPSD_CONF
+export UPSD_USERS_CONF
+export UPSMON_CONF
+export MCP_SOURCE_DIR
+export MCP_SERVER_DIR
+export MCP_LOCAL_DIR
