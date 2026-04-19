@@ -12,13 +12,32 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # APP Install Menu - Packages from linux_applications_list (120 --exact-app) plus install_shells scripts.
-# Order: BASE, DEV, APP, AI, MCP packages, then Docker, MySQL, Redis, Cursor, Antigravity, WeChat (run script).
+# Paths align with dd.sh: CORE_NODE_ROOT_DIR + scripts/shells/linux/... (trust when exported; else resolve from this file).
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LINUX_DIR="$(dirname "$SCRIPT_DIR")"
-COMMON_DIR="$LINUX_DIR/common"
-INSTALL_SHELLS_DIR="$LINUX_DIR/debian/install_shells"
-STEP120_SCRIPT="$LINUX_DIR/debian/install_shells/120_install_desktop_applications.sh"
+REL_LINUX_COMMON="scripts/shells/linux/common"
+REL_DEBIAN_INSTALL_SHELLS="scripts/shells/linux/debian/install_shells"
+
+SCRIPT_DIR=""
+LINUX_DIR=""
+COMMON_DIR=""
+INSTALL_SHELLS_DIR=""
+STEP120_SCRIPT=""
+
+_resolve_app_install_paths() {
+    if [ -n "${CORE_NODE_ROOT_DIR:-}" ] && [ -d "$CORE_NODE_ROOT_DIR/$REL_LINUX_COMMON" ]; then
+        LINUX_DIR="$CORE_NODE_ROOT_DIR/scripts/shells/linux"
+        COMMON_DIR="$CORE_NODE_ROOT_DIR/$REL_LINUX_COMMON"
+        INSTALL_SHELLS_DIR="$CORE_NODE_ROOT_DIR/$REL_DEBIAN_INSTALL_SHELLS"
+    else
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        LINUX_DIR="$(dirname "$SCRIPT_DIR")"
+        COMMON_DIR="$LINUX_DIR/common"
+        INSTALL_SHELLS_DIR="$LINUX_DIR/debian/install_shells"
+    fi
+    STEP120_SCRIPT="$INSTALL_SHELLS_DIR/120_install_desktop_applications.sh"
+}
+
+_resolve_app_install_paths
 
 # Script-based installs: "script:filename|Display Name"
 # Infra/DB: 45 Redis, 46 PostgreSQL, 47 Docker, 48 MySQL
@@ -83,18 +102,19 @@ get_all_packages_flat_list() {
     for e in "${SCRIPT_INSTALL_ENTRIES[@]}"; do
         list+=("$e")
     done
-    printf '%s\n' "${list[@]}"
+    # Sort by display name (field after '|'), case-insensitive (GNU sort)
+    printf '%s\n' "${list[@]}" | sort -t '|' -k2,2 -f
 }
 
 show_app_install_menu() {
     local flat_list
-    flat_list=($(get_all_packages_flat_list))
+    mapfile -t flat_list < <(get_all_packages_flat_list)
     local count=${#flat_list[@]}
 
     while true; do
         clear
         echo "================================================================================"
-        echo "APP Install Menu - Select a package to install (120 single-package run)"
+        echo "Linux Management APP Install Menu - Select a package to install (120 single-package run)"
         echo "================================================================================"
         echo ""
 
