@@ -35,6 +35,7 @@ fi
 
 # Set CORE_NODE_ROOT_DIR (same in both installation and normal mode)
 CORE_NODE_ROOT_DIR="$SCRIPT_ACTUAL_DIR"
+export CORE_NODE_ROOT_DIR
 
 # Directory Path Variables
 SCRIPT_DIR="$CORE_NODE_ROOT_DIR/scripts"

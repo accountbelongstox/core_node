@@ -274,8 +274,6 @@ EOF
 # Function to show APP Install menu (single-package install from 120 list)
 show_app_install_menu() {
     local app_install_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/app_install_menu.sh"
-    echo "APP Install Menu"
-    echo ""
     if [ -s "$app_install_script" ]; then
         bash "$app_install_script"
     else
