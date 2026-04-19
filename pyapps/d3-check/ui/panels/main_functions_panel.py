@@ -169,26 +169,36 @@ class MainFunctionsPanel:
         self._create_additional_settings(skill_frame)
 
     def _create_config_selection(self, parent):
-        """Create configuration selection section"""
+        """Create configuration selection section. Combobox shows i18n display names; CONFIG stores config1..config4."""
         config_frame = tk.Frame(parent, bg=UnifiedStyles.COLORS['bg_secondary'])
         config_frame.grid(row=0, column=0, sticky="ew",
                          padx=UnifiedStyles.SPACING['sm'],
                          pady=UnifiedStyles.SPACING['sm'])
         config_frame.grid_columnconfigure(1, weight=1)
 
-        # Config combobox only (no separate label per project rule); values from loaded CONFIG
         skill_configs = get_config_value_safe("macro_configs.skill_configs", {}) or {}
-        config_values = list(skill_configs.keys()) if isinstance(skill_configs, dict) and skill_configs else ["config1", "config2", "config3", "config4"]
-        config_combo = ConfigBinding.create_combobox_binding(
-            config_frame,
-            "macro_configs.current_skill_config",
-            values=config_values,
-            default_value="config1",
-            width=15
+        self._config_keys = list(skill_configs.keys()) if isinstance(skill_configs, dict) and skill_configs else ["config1", "config2", "config3", "config4"]
+        self._config_display_values = [i18n_manager.get_ui_text("config_tabs." + k, default=k) for k in self._config_keys]
+        current_key = get_config_value_safe("macro_configs.current_skill_config", "config1")
+        if current_key not in self._config_keys:
+            current_key = self._config_keys[0] if self._config_keys else "config1"
+        current_index = self._config_keys.index(current_key)
+        config_display_var = var_str(config_frame, self._config_display_values[current_index])
+        config_combo = ThemedCombobox.create(
+            config_frame, textvariable=config_display_var, values=self._config_display_values,
+            state="readonly", width=15
         )
         config_combo.grid(row=0, column=0, sticky="w", padx=(0, UnifiedStyles.SPACING['sm']))
 
-        # Current config display to the right of combo; only this small area is refreshed on config change
+        def _on_config_combo_select(event=None):
+            display = config_display_var.get()
+            idx = self._config_display_values.index(display) if display in self._config_display_values else 0
+            new_key = self._config_keys[idx]
+            ConfigBinding.set_config_value("macro_configs.current_skill_config", new_key)
+            self._on_config_changed_with_key(new_key)
+
+        config_combo.bind("<<ComboboxSelected>>", _on_config_combo_select)
+
         self._current_config_display_frame = tk.Frame(config_frame, bg=UnifiedStyles.COLORS['bg_secondary'])
         self._current_config_display_frame.grid(row=0, column=1, sticky="w", padx=(UnifiedStyles.SPACING['md'], 0))
         tk.Label(
@@ -206,14 +216,10 @@ class MainFunctionsPanel:
             font=UnifiedStyles.FONTS['default']
         ).pack(side=tk.LEFT)
 
-        # Store reference
         self.config_combo = config_combo
-
-        # Update current_config from CONFIG (thread-safe; ensures displayed current matches loaded config)
-        self.current_config = get_config_value_safe("macro_configs.current_skill_config", "config1")
-
-        # Bind selection change event
-        config_combo.bind('<<ComboboxSelected>>', self._on_config_changed)
+        self._config_display_var = config_display_var
+        self.current_config = current_key
+        self.bottom_bar.update_config_status(current_key)
 
     def _create_skill_tabs(self, parent):
         """Create skill configuration table"""
@@ -752,12 +758,11 @@ class MainFunctionsPanel:
         """Set callback when user switches current skill config (config combo)."""
         self._skill_config_switch_callback = callback
 
-    def _on_config_changed(self, event=None):
-        """Handle configuration change (config_combo created in create_content). Current-config label updates via config_name_var so only that small area redraws."""
-        new_config = self.config_combo.get()
+    def _on_config_changed_with_key(self, new_config: str):
+        """Handle configuration change by config key (config1..config4). Updates label, skills, callbacks."""
         if new_config != self.current_config:
             self.current_config = new_config
-            self.bottom_bar.update_config_status(new_config)  # updates only _current_config_display_frame label
+            self.bottom_bar.update_config_status(new_config)
             self._update_config_info()
             if self.skills_config_frame and self.skills_config_frame.winfo_exists() and self.skill_vars:
                 self._update_skill_tabs_content()
@@ -766,6 +771,15 @@ class MainFunctionsPanel:
             if self._skill_config_switch_callback:
                 self._skill_config_switch_callback(new_config)
             ColorPrint.green(f"[MainFunctionsPanel] Configuration changed to: {new_config}")
+
+    def _on_config_changed(self, event=None):
+        """Legacy: handle config change when combo value is raw key. Prefer _on_config_changed_with_key from combobox select."""
+        new_config = self.config_combo.get()
+        if new_config in getattr(self, "_config_keys", ()):
+            self._on_config_changed_with_key(new_config)
+        elif new_config in getattr(self, "_config_display_values", ()):
+            idx = self._config_display_values.index(new_config)
+            self._on_config_changed_with_key(self._config_keys[idx])
 
     def _update_skill_tabs_content(self):
         """Refresh skill tab widgets from CONFIG for current_config (no destroy/recreate, minimal redraw)."""

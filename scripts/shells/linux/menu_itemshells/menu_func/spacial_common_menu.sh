@@ -85,7 +85,7 @@ set_environment_variable() {
         unset "$variable_name"
         $USE_SUDO sed -i "/^export ${variable_name}=/d" /etc/environment 2>/dev/null || true
     else
-        export "$variable_name=$variable_value"
+"$variable_name=$variable_value"
 
         if grep -q "^export ${variable_name}=" /etc/environment 2>/dev/null; then
             $USE_SUDO sed -i "s|^export ${variable_name}=.*|export ${variable_name}=\"${variable_value}\"|" /etc/environment

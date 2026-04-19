@@ -54,7 +54,7 @@ echo ""
 
 # Check and decrypt secret keys before starting (trust-based)
 # Set CORE_NODE_ROOT_DIR for secret_functions.sh
-export CORE_NODE_ROOT_DIR="$PROJECT_ROOT"
+CORE_NODE_ROOT_DIR="$PROJECT_ROOT"
 
 # Source and run secret key check
 source "$SECRET_FUNCTIONS"

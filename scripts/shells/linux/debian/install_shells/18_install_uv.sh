@@ -278,7 +278,7 @@ create_uv_default_venv() {
 
     # Set UV_PROJECT_ENVIRONMENT to point to default venv
     set_env_and_var "UV_PROJECT_ENVIRONMENT" "$UV_DEFAULT_VENV_DIR"
-    export UV_PROJECT_ENVIRONMENT="$UV_DEFAULT_VENV_DIR"
+UV_PROJECT_ENVIRONMENT="$UV_DEFAULT_VENV_DIR"
 
     # Store in global variables for other scripts
     set_var "UV_DEFAULT_VENV" "$UV_DEFAULT_VENV_DIR"

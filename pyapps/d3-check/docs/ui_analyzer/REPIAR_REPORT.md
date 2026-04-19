@@ -62,6 +62,19 @@
 
 ---
 
+### 「两个 UI」相关：区分 ghost wrapper 与标题栏坐标错觉
+
+- **现象 A — 启动后两个矩形区，一个可操作、一个不可操作，操作后似合并**  
+  与 Windows 上 Tk 对顶层窗的 **wrapper HWND** 及 **`overrideredirect(True)`** 触发的内部重建有关，**可能**出现旧外框与内容区短暂并存。详见 **`docs/ui2/WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**（调查记录与缓解思路；实现以 `diablo3_macro_ui.py` 中 frameless 逻辑为准）。
+
+- **现象 B — 标题栏拖动「动另一个」（非线程）**  
+  主流程仍只有一个 `tk.Tk()`。标题栏拖拽若用 `root.winfo_x()` / `root.winfo_y()` 算位移，在无边框根窗口上常**不是**屏幕坐标，`geometry("+x+y")` 设错，窗口跳到错误位置，**看起来像**「另一个窗口在动」。
+- **修复（针对现象 B）**  
+  `ui/components/title_bar.py` 的 `_on_drag` 使用 **`winfo_rootx()` / `winfo_rooty()`**（与 resize、`_save_window_geometry` 一致）。
+- **状态**：现象 B 的修复已实施；现象 A 以 `WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md` 与当前 Win32 frameless 实现为准。
+
+---
+
 ## 尚未实施的方案
 
 - **报告 §1 方案 B**：在首次 Map 之前通过 Win32 设好 EXSTYLE/owner（需调整创建顺序）。  

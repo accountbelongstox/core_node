@@ -2,6 +2,8 @@
 
 基于 MCP 查阅的 Tk 文档与代码结构，从**事件/焦点/窗口样式**等角度列出可能导致 UI 无法操作的原因，供排查与改版参考。
 
+**勘误**：无边框可能由 **`_make_frameless_win32`** 实现，**不一定**在 `_create_ui()` 末尾调用 `overrideredirect(True)`；附录中旧行号与 Map 后「多段 focus_force」描述可能已过期。双窗口调查见 **`docs/ui2/WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**。
+
 ---
 
 ## 一、结论摘要
@@ -141,7 +143,7 @@
    - `self.ui.run()` → 内部 `_release_any_grab()`、`root.mainloop()`
 
 3. **ui/diablo3_macro_ui.py 初始化与焦点/任务栏**  
-   - `__init__`：`_create_ui()` → 内部 `_add_resize_borders`、创建 title_bar/bottom_bar、`_create_main_tabs`（notebook、各 panel、`register_ui(self)`）→ `update_idletasks()` → `root.overrideredirect(True)`（约 L319–321）  
+   - `__init__`：`withdraw` → 无边框（`_make_frameless_win32` 或 `overrideredirect`）→ `UITheme.apply_to_root` → `_create_ui()`（内部 `_add_resize_borders`、title_bar、bottom_bar、`_create_main_tabs` 等）；**不再**在 `_create_ui` 末尾 `overrideredirect(True)`（见 **`WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**）。  
    - 随后：`root.after(350, self._apply_taskbar_fix)`；`root.bind("<Map>", _on_map)`，Map 内 `after(1, focus_force)`、`after(0, _deferred_after_map)`，_deferred_after_map 内立即 `focus_force` 且 `after(50/150/300, focus_force)`（L153–167）  
    - `_apply_first_run_topmost()`：lift、topmost=True，500ms 后 topmost=False 并 `focus_force`（L443–448）  
    - `_create_system_tray()`、`register_main_thread_handlers(self)`
@@ -174,7 +176,7 @@
 | 可能性 | 代码实际（文件:行或模块） | 官方文档（MCP 查询） | 是否同一问题 |
 |--------|----------------------------|----------------------|----------------|
 | **A** | `diablo3_macro_ui.py` L148、L153–164、L416–431：350ms 调用 `_apply_taskbar_fix` → `ensure_tk_root_in_taskbar(root)`，内部 GetWindowLong/SetWindowLong(GWL_EXSTYLE, GWLP_HWNDPARENT) + SetWindowPos(SWP_FRAMECHANGED)。注释明确写“第二次 SetWindowPos 会使窗口 unresponsive”、“Map path 中 Win32 调用可导致 no input”。 | Win32：SetWindowLong 修改样式后需 SetWindowPos(SWP_FRAMECHANGED) 使缓存生效；未规定焦点行为。SetFocus/SetForegroundWindow 文档：焦点须附着到调用线程消息队列。 | **是**。代码与注释描述的现象（unresponsive / no input）与排查目标一致；文档未直接写“SetWindowPos 导致无输入”，但样式/所有者变更可能间接触发焦点或输入路径变化。 |
-| **B** | `diablo3_macro_ui.py` L319–321：`update_idletasks()` 后 `root.overrideredirect(True)`。L154–166：`<Map>` 仅处理一次（_map_event_processed），内层 after(1) focus_force、after(0) _deferred_after_map，后者再 0/50/150/300ms 共 4 次 focus_force。350ms 时 _apply_taskbar_fix 内再次 focus_force；SetWindowPos 会再次触发 Map 但被忽略。 | Tk：`wm_overrideredirect(True)` 移除窗口管理器装饰；未明确 overrideredirect 与焦点的关系。focus_force / focus_set 为“强制/设置焦点”。 | **是**。代码在 overrideredirect 下多处、多时刻 focus_force，与“无标题栏窗口对焦点时机敏感”的排查假设一致；文档未写 overrideredirect 下焦点规则，但行为属同一类（焦点时机）问题。 |
+| **B** | 无边框在 **`__init__`** 完成；`<Map>` 仅处理一次；`_deferred_after_map` 与 350ms `_apply_taskbar_fix` 等以**当前源码**为准（旧版 L319–321 / 多段 focus 描述可能已过期）。 | Tk：无边框窗口对焦点更敏感。 | **是**（排查维度不变）。 |
 | **C** | `_release_any_grab`（L902–915）：`current = self.root.grab_current()`；`paths = current if isinstance(current, (list, tuple)) else [current]`；仅当 `isinstance(path, str)` 时 `nametowidget(path).grab_release()`。rosbot 选目录 Toplevel 仅 `top.destroy()` 未显式 grab_release；asia_credentials 有 grab_release。 | Tk：grab_current() “Returns the widget that currently has the grab”；grab_release() “Releases the input grab”；grab 子树独占输入直至 release。文档未写返回值是 path 字符串还是 widget 对象。 | **部分一致**。代码按“可能是 list 或单值”处理，且只对 str 做 nametowidget；若某版本返回非 str（如 widget 对象），当前逻辑会跳过、导致未 release，与“grab 未释导致主窗口无输入”属同一问题。文档未明确返回类型，需运行确认。 |
 | **D** | ConfigChangeHub、event_center、controller、one_shot_tasks、status_bar、bottom_bar、log_panel、d4_panel、rosbot_extension_panel 等大量使用 `root.after(0, ...)` 或 `container.after(0, ...)`。game_interface_data 为 `after(100, _drain_and_notify)` 链式，非 after(0)。 | Tk：`after(ms, func)` 在指定延迟后调用；`after_idle(func)` 在应用空闲时调用。mainloop 按事件队列顺序处理。 | **是**。若短时间大量 after(0) 入队，主线程持续执行回调、用户事件被延后，与“事件环被占满、表现为点不动”属同一类；文档未写 after(0) 与用户事件的优先级关系，但机制一致。 |
 | **E** | Map 内 after(1)、after(0) 及 50/150/300ms 共多次 focus_force；350ms _apply_taskbar_fix 内 update_idletasks → ensure_tk_root_in_taskbar（含 SetWindowPos）→ update_idletasks → focus_force。_win32_set_foreground 使用 SetForegroundWindow，当前未在 350ms 路径调用。 | Tk：focus_force 强制焦点。Win32：SetFocus 要求窗口附着于调用线程消息队列；SetForegroundWindow 激活前景。 | **是**。代码在 SetWindowPos 同帧或紧接再次 focus_force，与“多次抢焦点、系统限制或抖动”的假设一致；文档未写 Tk focus_force 与 Win32 的先后顺序，但属同一类（焦点时机/冲突）问题。 |

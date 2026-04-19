@@ -71,7 +71,6 @@ join() {
 
 for version; do
 	rcVersion="${version%-rc}"
-	export version rcVersion
 
 	if ! fullVersion="$(jq -er '.[env.version] | if . then .version else empty end' versions.json)"; then
 		continue

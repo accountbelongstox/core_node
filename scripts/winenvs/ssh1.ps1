@@ -68,14 +68,34 @@ Write-Host "Loading SSH Configuration" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Detect Python executable (Windows prioritizes 'python' over 'python3')
+# Ensure GlobalVars loaded so $Global:PYTHON_EXE_PATH / $Global:PYTHON_DIR are available (same as DevInstaller / Run DevInstaller)
+$globalVarsPath = Join-Path $winCommonDirPath "GlobalVars.ps1"
+. $globalVarsPath
+
+# Resolve Python: prefer GLOBAL PYTHON EXE (DevInstaller), then python.exe in PATH (avoid Store "python" alias)
 $pythonExecutable = $null
-if (Get-Command python -ErrorAction SilentlyContinue) {
-    $pythonExecutable = "python"
-} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {
-    $pythonExecutable = "python3"
-} else {
-    Write-Host "[ERROR] Python not found. Cannot load SSH secrets." -ForegroundColor Red
+if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
+    $pythonExecutable = $Global:PYTHON_EXE_PATH
+} elseif ($Global:PYTHON_DIR -and (Test-Path -LiteralPath $Global:PYTHON_DIR)) {
+    $pythonExeFromDir = Join-Path $Global:PYTHON_DIR "python.exe"
+    if (Test-Path -LiteralPath $pythonExeFromDir) {
+        $pythonExecutable = $pythonExeFromDir
+    }
+}
+if (-not $pythonExecutable) {
+    $pythonCmd = Get-Command python.exe -ErrorAction SilentlyContinue
+    if ($pythonCmd -and $pythonCmd.Source) {
+        $pythonExecutable = $pythonCmd.Source
+    }
+}
+if (-not $pythonExecutable) {
+    $pythonCmd = Get-Command python3 -ErrorAction SilentlyContinue
+    if ($pythonCmd -and $pythonCmd.Source) {
+        $pythonExecutable = $pythonCmd.Source
+    }
+}
+if (-not $pythonExecutable) {
+    Write-Host "[ERROR] Python not found. Cannot load SSH secrets. Run DevInstaller (dd menu -> Run DevInstaller) to install Python, or add python.exe to PATH." -ForegroundColor Red
 }
 
 # Use relative path from script location to project root
@@ -140,6 +160,50 @@ if ([string]::IsNullOrWhiteSpace($sshConnection)) {
 }
 
 if ($sshPassword) {
+    # Extract user and host from connection string (e.g. root@1.2.3.4)
+    $sshUser = ""
+    $sshHost = ""
+    if ($sshConnection -match '^(.+)@(.+)$') {
+        $sshUser = $Matches[1]
+        $sshHost = $Matches[2]
+    }
+
+    # SSH Key setup guide
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "  SSH Key Setup Guide (passwordless login)" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  After login, run these commands on the SERVER to enable" -ForegroundColor White
+    Write-Host "  SSH key authentication (no password next time):" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  --- Step 1: Generate key on LOCAL machine (if not exists) ---" -ForegroundColor Yellow
+    Write-Host ""
+    $localKeyPath = Join-Path $env:USERPROFILE ".ssh\id_ed25519"
+    $localPubPath = "$localKeyPath.pub"
+    Write-Host "  # Check if key already exists:" -ForegroundColor DarkGray
+    Write-Host "  if (!(Test-Path `"$localPubPath`")) { ssh-keygen -t ed25519 -f `"$localKeyPath`" -N `"`" }" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  --- Step 2: Copy key to server (run on LOCAL) ---" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  # Option A: One-liner (works on all distros):" -ForegroundColor DarkGray
+    Write-Host "  type `"$localPubPath`" | ssh $sshConnection `"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`"" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  # Option B: If ssh-copy-id is available (Git Bash / WSL):" -ForegroundColor DarkGray
+    Write-Host "  ssh-copy-id -i `"$localPubPath`" $sshConnection" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  --- Step 3: Verify (run on LOCAL) ---" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  ssh $sshConnection `"echo 'SSH key auth OK'`"" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  --- Notes ---" -ForegroundColor Yellow
+    Write-Host "  * Works on Debian/Ubuntu/CentOS/RHEL/AlmaLinux/Fedora" -ForegroundColor DarkGray
+    Write-Host "  * Safe if server already has other keys (appends, not overwrites)" -ForegroundColor DarkGray
+    Write-Host "  * Safe if local machine has other keys (ed25519 is separate from rsa)" -ForegroundColor DarkGray
+    Write-Host "  * If server has SELinux: ssh $sshConnection `"restorecon -Rv ~/.ssh`"" -ForegroundColor DarkGray
+    Write-Host "  * If using custom port: ssh -p PORT $sshConnection" -ForegroundColor DarkGray
+    Write-Host ""
+
     # Display password for copy-paste
     Write-Host "============================================================" -ForegroundColor Yellow
     Write-Host "  SSH PASSWORD (Copy this to clipboard):" -ForegroundColor Yellow

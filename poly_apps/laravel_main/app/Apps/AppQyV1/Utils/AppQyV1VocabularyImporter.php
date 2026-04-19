@@ -157,27 +157,29 @@ class AppQyV1VocabularyImporter
 
     private function ensureWordsInDictionary(string $langCode, array $words): int
     {
-        $missingWords = [];
-
-        foreach ($words as $word) {
-            $md5 = md5($word);
-            $exists = AppQyV1MultiLangDictionaryModel::findByMd5($langCode, $md5);
-
-            if (!$exists) {
-                $missingWords[] = [
-                    'content' => $word,
-                    'md5' => $md5,
-                    'has_translation' => false,
-                    'query_count' => 0,
-                ];
-            }
+        // Keep behavior (ensure all missing words exist) but avoid per-word lookups.
+        // 1. Compute missing words in a single query using existing helper.
+        $missingWordList = AppQyV1MultiLangDictionaryModel::findMissingEntries($langCode, $words);
+        
+        if (empty($missingWordList)) {
+            return 0;
         }
-
+        
+        // 2. Build payload only for truly missing words.
+        $missingWords = [];
+        foreach ($missingWordList as $word) {
+            $missingWords[] = [
+                'word' => $word,
+                'has_translation' => false,
+                'tts_generated' => false,
+            ];
+        }
+        
         if (!empty($missingWords)) {
             $inserted = AppQyV1MultiLangDictionaryModel::batchCreateOrUpdate($langCode, $missingWords);
             return count($inserted);
         }
-
+        
         return 0;
     }
 

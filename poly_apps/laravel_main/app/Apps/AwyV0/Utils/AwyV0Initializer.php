@@ -63,15 +63,27 @@ class AwyV0Initializer implements AppInitializerInterface
             }
 
             Log::info("[AwyV0Init] Running step: {$step} - {$description}");
+            if (PHP_SAPI === 'cli') {
+                echo "    [AwyV0] Step {$step}: {$description}...\n";
+            }
 
             try {
                 $result = $this->executeStep($step);
                 $results[$step] = array_merge($result, ['description' => $description]);
 
-                if ($result['status'] === 'success') {
+                $statusCode = $result['status'] ?? 'error';
+
+                if ($statusCode === 'success') {
                     $this->markStepCompleted($step);
-                } else {
+                    if (PHP_SAPI === 'cli') {
+                        echo "      -> OK: {$result['message']}\n";
+                    }
+                } elseif ($statusCode === 'error') {
                     $allSuccess = false;
+                    if (PHP_SAPI === 'cli') {
+                        $msg = $result['message'] ?? 'Unknown error';
+                        echo "      -> {$result['status']}: {$msg}\n";
+                    }
                     if (!$force) {
                         break;
                     }
@@ -84,6 +96,10 @@ class AwyV0Initializer implements AppInitializerInterface
                     'exception' => get_class($e),
                 ];
                 $allSuccess = false;
+
+                if (PHP_SAPI === 'cli') {
+                    echo "      -> EXCEPTION: {$e->getMessage()}\n";
+                }
 
                 if (!$force) {
                     break;
@@ -153,7 +169,8 @@ class AwyV0Initializer implements AppInitializerInterface
     private function createDatabaseFile(): array
     {
         try {
-            $dbPath = config('database.connections.awyv0.database');
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::AWYV0);
+            $dbPath = config("database.connections.{$connectionName}.database");
 
             if (!$dbPath) {
                 return [
@@ -245,11 +262,12 @@ class AwyV0Initializer implements AppInitializerInterface
     {
         try {
             $tableKeys = AwyV0TableMaps::getAvailableTableKeys();
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::AWYV0);
             $count = 0;
 
             foreach ($tableKeys as $tableKey) {
                 $tableName = AwyV0TableMaps::getTableName($tableKey);
-                if (Schema::connection('awyv0')->hasTable($tableName)) {
+                if (Schema::connection($connectionName)->hasTable($tableName)) {
                     $count++;
                 }
             }
@@ -306,7 +324,8 @@ class AwyV0Initializer implements AppInitializerInterface
     private function createIndexes(): array
     {
         try {
-            $schema = Schema::connection('awyv0');
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::AWYV0);
+            $schema = Schema::connection($connectionName);
 
             $indexes = [
                 'awy_v0_users' => [
@@ -460,10 +479,11 @@ class AwyV0Initializer implements AppInitializerInterface
     public function getDatabaseInfo(): array
     {
         try {
-            $dbPath = config('database.connections.awyv0.database');
-
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::AWYV0);
+            $dbPath = config("database.connections.{$connectionName}.database");
+            
             $info = [
-                'connection' => 'awyv0',
+                'connection' => $connectionName,
                 'driver' => 'sqlite',
                 'path' => $dbPath,
             ];

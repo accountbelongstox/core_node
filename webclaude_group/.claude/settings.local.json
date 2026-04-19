@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go env:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(wc -l pages/chat/components/*.tsx pages/chat/hooks/*.ts)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

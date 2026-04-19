@@ -67,7 +67,7 @@ class BankV1AuthCtl extends Controller
                 );
             }
 
-            $authResult = UnifiedAuthService::login($credentials['username'], $credentials['password'], 'bankv1');
+            $authResult = UnifiedAuthService::login($credentials['username'], $credentials['password'], AppKeys::BANKV1);
             
             if (!$authResult['success']) {
                 $this->loggingUtils->logSecurityEvent(
@@ -254,7 +254,7 @@ class BankV1AuthCtl extends Controller
                     ],
                 ];
                 
-                $result = UnifiedAuthService::register($credentials, 'bankv1');
+                $result = UnifiedAuthService::register($credentials, AppKeys::BANKV1);
                 
                 if (!$result['success']) {
                     DB::rollBack();

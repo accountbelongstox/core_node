@@ -24,6 +24,7 @@ from share.game_interface_data import get_game_interface_data
 from share.template_match_debug import is_debug_ui_active, push as debug_push
 from providor.providor_index import (
     can_start_assistant,
+    get_config_section,
     set_assistant_running,
     should_stop_assistant,
     reset_assistant_state
@@ -99,8 +100,12 @@ class GameAssistantController:
         # Step 2: Detect interface from image (match on full window; icons may be left or right)
         shared_data = get_game_interface_data()
         full_window = shared_data.game_window_image
-        aux = CONFIG.get("macro_configs", {}).get("auxiliary_config", {})
-        want_blacksmith = aux.get("blacksmith", {}).get("enabled", False) or aux.get("auto_salvage", {}).get("enabled", False)
+        aux = get_config_section("macro_configs").get("auxiliary_config", {}) or {}
+        if not isinstance(aux, dict):
+            aux = {}
+        blacksmith = aux.get("blacksmith") if isinstance(aux.get("blacksmith"), dict) else {}
+        auto_salvage = aux.get("auto_salvage") if isinstance(aux.get("auto_salvage"), dict) else {}
+        want_blacksmith = blacksmith.get("enabled", False) or auto_salvage.get("enabled", False)
         
         # Image detection: check if interface is actually opened in game
         interface_type = self._detect_interface_from_full_window(full_window, want_blacksmith=want_blacksmith)
@@ -136,15 +141,17 @@ class GameAssistantController:
         shared_data = get_game_interface_data()
         resolved_type = shared_data.interface_type or interface_type
         result = False
-        aux = CONFIG.get("macro_configs", {}).get("auxiliary_config", {}) or {}
-        
+        aux = get_config_section("macro_configs").get("auxiliary_config", {}) or {}
+        if not isinstance(aux, dict):
+            aux = {}
+
         if resolved_type == "kanai_cube":
             # Kanai Cube: Check config AND verify interface is actually opened via image detection
             # Image detection already confirmed kanai_cube interface in Step 2 (interface_type == "kanai_cube")
             # Priority: reforge > upgrade > convert (check in order)
-            kanai_reforge = aux.get("kanai_reforge") or {}
-            kanai_upgrade = aux.get("kanai_upgrade") or {}
-            kanai_convert = aux.get("kanai_convert") or {}
+            kanai_reforge = aux.get("kanai_reforge") if isinstance(aux.get("kanai_reforge"), dict) else {}
+            kanai_upgrade = aux.get("kanai_upgrade") if isinstance(aux.get("kanai_upgrade"), dict) else {}
+            kanai_convert = aux.get("kanai_convert") if isinstance(aux.get("kanai_convert"), dict) else {}
             
             # Check config enabled flags AND verify function is available
             if kanai_reforge.get("enabled") is True:

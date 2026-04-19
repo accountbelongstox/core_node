@@ -15,7 +15,7 @@ library;
 
 import '../model/learning_stats_model.dart';
 import '../../../../services_app_qy/api_service_app_qy.dart';
-import '../../../word/data/word_book_data_service.dart';
+import '../../../word/sources/word_book_data_service.dart';
 
 class LearningService {
   final ApiServiceAppQy _apiService;

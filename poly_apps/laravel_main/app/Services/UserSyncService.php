@@ -917,18 +917,27 @@ class UserSyncService
                 ->first();
 
             if ($existing) {
-                $dbConnection
-                    ->table($enDictTable)
-                    ->where('id', $existing->id)
-                    ->update([
-                        'us_phonetic' => $item['us_phonetic'],
-                        'uk_phonetic' => $item['uk_phonetic'],
-                        'translations' => $item['translations'],
-                        'image_files' => $item['image_files'],
-                        'has_translation' => $item['has_translation'],
-                        'updated_at' => $now,
-                    ]);
-                $updated++;
+                $shouldUpdate = false;
+                if (!isset($existing->has_translation) || (int) $existing->has_translation === 0) {
+                    $shouldUpdate = true;
+                } elseif (empty($existing->translations)) {
+                    $shouldUpdate = true;
+                }
+
+                if ($shouldUpdate) {
+                    $dbConnection
+                        ->table($enDictTable)
+                        ->where('id', $existing->id)
+                        ->update([
+                            'us_phonetic' => $item['us_phonetic'],
+                            'uk_phonetic' => $item['uk_phonetic'],
+                            'translations' => $item['translations'],
+                            'image_files' => $item['image_files'],
+                            'has_translation' => $item['has_translation'],
+                            'updated_at' => $now,
+                        ]);
+                    $updated++;
+                }
             } else {
                 $dbConnection
                     ->table($enDictTable)

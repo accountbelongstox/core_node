@@ -101,6 +101,10 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/words/learning', params);
   }
 
+  async getLibraryWords(libraryId: number, params?: { page?: number; per_page?: number }): Promise<APIResponse> {
+    return this.get(`/vocabulary/libraries/${libraryId}/words`, params);
+  }
+
   async getLibraries(params?: { language?: string; category?: string; difficulty?: string; search?: string; page?: number; per_page?: number }): Promise<APIResponse> {
     return this.get('/vocabulary/libraries', params, true, 600000); // 缓存10分钟
   }
@@ -109,8 +113,8 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/vocabulary/libraries/recommended', params, true, 600000); // 缓存10分钟
   }
 
-  async getVocabularyStatistics(): Promise<APIResponse> {
-    return this.get('/vocabulary/statistics', undefined, true, 300000); // 缓存5分钟
+  async getVocabularyStatistics(params?: { language?: string; include_words?: boolean | number; page?: number; per_page?: number }): Promise<APIResponse> {
+    return this.get('/vocabulary/statistics', params, false);
   }
 
   async updateProgress(data: { word_id: string; status: string }): Promise<APIResponse> {

@@ -29,6 +29,8 @@ def _refresh_rosbot_status_internal() -> tuple[Optional[Dict[str, Any]], bool]:
     game_data = get_game_interface_data()
     prev_status = game_data.rosbot_extended_status
     detection = _get_rosbot_detection()
+    if not isinstance(detection, dict):
+        detection = {}
     status = detection.get("status", "not_found")
     if prev_status in ("running", "paused") and status == "not_found":
         mark_rosbot_exit_reason_when_process_gone()
@@ -38,7 +40,7 @@ def _refresh_rosbot_status_internal() -> tuple[Optional[Dict[str, Any]], bool]:
 
     exe_name = detection.get("exe_name") or ""
     winfo = detection.get("window_info")
-    window_title = (winfo.get("title") or "") if winfo else ""
+    window_title = (winfo.get("title") or "") if isinstance(winfo, dict) else ""
     display_changed = game_data.set_rosbot_found_display(exe_name, window_title)
 
     pids = detection.get("pids") or []

@@ -1,0 +1,29 @@
+---
+description: "dot: dotcore (public class libraries = pycore counterpart) + dotapps (apps). English only, ASCII in code. Layout and naming per development-guides/DOT_ARCHITECTURE.md. Skill: .cursor/skills/dot/SKILL.md."
+globs: dotcore/**, dotapps/**
+alwaysApply: false
+---
+
+# Dot rule (dotcore + dotapps)
+
+(Canonical spec: development-guides/DOT_ARCHITECTURE.md. Step-by-step: .cursor/skills/dot/SKILL.md. Progress and pycore↔dotcore mapping: dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md.)
+
+1. **Language and charset.** All code, comments, and user-facing strings in **English**. **ASCII only** in source code.
+
+2. **Layout.** **dotcore/** = public class libraries (公共类库), .NET counterpart of **pycore**; each subfolder is one library (DotCore.*). **dotapps/** = runnable applications; each subfolder is one app. No apps under dotcore; no libs under dotapps. **Sub-app characteristic libraries (子APP的特征类库)** belong under **dotapps/<App>/** (e.g. dotapps/d3check/D3CheckCore/), not in dotcore; dotcore is for multi-app public libs only.
+
+3. **Naming.** Libraries: `DotCore.<Name>`, namespace `DotCore.*`. Apps: folder and assembly name match (e.g. `SimpleUi`); root namespace **DotApps.<AppName>** (e.g. `DotApps.SimpleUi`).
+
+4. **Dependencies.** Apps may reference dotcore libraries. Libraries must not reference apps or form cycles. **DotCore.Foundations**: no project refs, BCL/minimal deps only. **DotCore.Common**: Foundations only. **DotCore.Utils** / **DotCore.Infrastructure**: Foundations + Common. **DotCore.UIInspect**: optional third-party (e.g. FlaUI) only.
+
+5. **Project references.** App csproj references to dotcore use relative path `..\..\dotcore\DotCore.<Name>\DotCore.<Name>.csproj` (from `dotapps/<AppName>/`). Library-to-library refs use sibling path `..\DotCore.<Name>\*.csproj`.
+
+6. **New app.** Add `dotapps/<AppName>/` with `<AppName>.csproj`, `Program.cs` (or main entry), root namespace `DotApps.<AppName>`. Add project to `dotcore/dotcore.sln`. Optionally use `dotapps/start.ps1` menu "Create new app" to scaffold.
+
+7. **New library.** Add `dotcore/DotCore.<Name>/` with `DotCore.<Name>.csproj`, obey dependency rule above. Add to `dotcore/dotcore.sln`.
+
+8. **Build.** From repo root: `dotnet build dotcore/dotcore.sln`. Run app: `dotnet run --project dotapps/<AppName>/<AppName>.csproj`. Or use `dotapps/start.ps1` and choose "Run existing app".
+
+9. **Tests.** Test projects live under `dotcore/tests/` (e.g. `DotCore.Foundations.Tests`). They reference dotcore libs via `..\..\DotCore.<Name>\*.csproj`.
+
+10. **Cursor skill.** For detailed when-to-use and instructions (new lib, new app, ref paths), see `.cursor/skills/dot/SKILL.md`.

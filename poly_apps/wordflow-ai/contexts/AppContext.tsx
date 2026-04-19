@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMount } from 'react-use';
 import { User, AppSettings, DEFAULT_SETTINGS, PlaylistSettings, DEFAULT_PLAYLIST_SETTINGS } from '../types';
@@ -166,13 +166,14 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
     };
   }, []);
 
-  const navigate = (page: string, params?: any) => {
-    setCurrentParams(params || {});
-    // Convert old page names to URL paths
-    const path = page.startsWith('/') ? page : `/${page}`;
-    routerNavigate(path);
-    // React Router automatically handles scroll to top on navigation
-  };
+  const navigate = useCallback(
+    (page: string, params?: any) => {
+      setCurrentParams(params || {});
+      const path = page.startsWith('/') ? page : `/${page}`;
+      routerNavigate(path);
+    },
+    [routerNavigate]
+  );
 
   const handleSetActiveGroup = (id: string) => {
     setActiveGroupId(id);

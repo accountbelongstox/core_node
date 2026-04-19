@@ -152,9 +152,9 @@ if [ $updated_count -gt 0 ]; then
             sudo systemctl start "$service"
             sleep 1
             if systemctl is-active --quiet "$service"; then
-                echo -e "${GREEN}âœ?$service started${NC}"
+                echo -e "${GREEN}ï¿½?$service started${NC}"
             else
-                echo -e "${RED}âœ?$service failed to start${NC}"
+                echo -e "${RED}ï¿½?$service failed to start${NC}"
                 echo "Check logs: sudo journalctl -u $service -n 20"
             fi
         done

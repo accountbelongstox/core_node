@@ -957,9 +957,9 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
     
 
     /**
-     * Get service status information
+     * Get service status information via systemctl (Linux only)
      */
-    private function getServiceStatus(string $serviceName): array
+    private function getServiceStatusViaSystemctl(string $serviceName): array
     {
         $result = ServerManagerV1Utils::executeCommand('systemctl', ['status', $serviceName, '--no-pager']);
 

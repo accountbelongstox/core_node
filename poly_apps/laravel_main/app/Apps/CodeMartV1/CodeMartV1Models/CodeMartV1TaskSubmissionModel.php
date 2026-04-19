@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CodeMartV1TaskSubmissionModel extends Model
 {
-    protected $connection = 'codemartv1';
+    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_task_submissions';
 
     protected $fillable = [

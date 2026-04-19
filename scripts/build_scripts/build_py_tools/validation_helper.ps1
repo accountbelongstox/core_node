@@ -56,13 +56,13 @@ function Validate-Project {
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
-        Write-Error "�?Project validation failed"
+        Write-Error "�?Project validation failed"
         Write-Warning "Please fix the issues above before proceeding"
         return $false
     }
 
     Write-Host ""
-    Write-Success "�?Project validation passed"
+    Write-Success "�?Project validation passed"
     return $true
 }
 
@@ -93,7 +93,7 @@ function Check-AndInstallDependencies {
 
     if ($depResult -ne 0) {
         Write-Host ""
-        Write-Warning "�?Dependencies are missing or incomplete"
+        Write-Warning "�?Dependencies are missing or incomplete"
 
         # Try to parse install command from output
         $installCmd = $null
@@ -116,12 +116,12 @@ function Check-AndInstallDependencies {
 
                 if ($LASTEXITCODE -eq 0) {
                     Write-Host ""
-                    Write-Success "�?Dependencies installed successfully"
+                    Write-Success "�?Dependencies installed successfully"
                     Pop-Location
                     return $true
                 } else {
                     Write-Host ""
-                    Write-Error "�?Failed to install dependencies"
+                    Write-Error "�?Failed to install dependencies"
                     Pop-Location
                     return $false
                 }
@@ -140,7 +140,7 @@ function Check-AndInstallDependencies {
     }
 
     Write-Host ""
-    Write-Success "�?Dependencies are installed"
+    Write-Success "�?Dependencies are installed"
     return $true
 }
 
@@ -171,12 +171,12 @@ function Validate-BuildRequirements {
 
     if ($buildReqResult -ne 0) {
         Write-Host ""
-        Write-Error "�?Build requirements not met"
+        Write-Error "�?Build requirements not met"
         return $false
     }
 
     Write-Host ""
-    Write-Success "�?Build requirements satisfied"
+    Write-Success "�?Build requirements satisfied"
     return $true
 }
 
@@ -206,13 +206,13 @@ function Validate-BuildOutput {
 
             if (Test-Path $outputPath) {
                 if (Test-Path $indexPath) {
-                    Write-Success "�?Nuxt build output validated"
+                    Write-Success "�?Nuxt build output validated"
                     $validated = $true
                 } else {
-                    Write-Error "�?Missing critical file: .output/server/index.mjs"
+                    Write-Error "�?Missing critical file: .output/server/index.mjs"
                 }
             } else {
-                Write-Error "�?Build output directory not found: .output"
+                Write-Error "�?Build output directory not found: .output"
             }
         }
 
@@ -223,26 +223,26 @@ function Validate-BuildOutput {
             if (Test-Path $distPath) {
                 $indexPath = Join-Path $distPath "index.html"
                 if (Test-Path $indexPath) {
-                    Write-Success "�?Build output validated: dist/index.html exists"
+                    Write-Success "�?Build output validated: dist/index.html exists"
                 } else {
-                    Write-Warning "�?Build output found but missing index.html"
+                    Write-Warning "�?Build output found but missing index.html"
                 }
                 $validated = $true
             } elseif (Test-Path $buildPath) {
                 $indexPath = Join-Path $buildPath "index.html"
                 if (Test-Path $indexPath) {
-                    Write-Success "�?Build output validated: build/index.html exists"
+                    Write-Success "�?Build output validated: build/index.html exists"
                 } else {
-                    Write-Warning "�?Build output found but missing index.html"
+                    Write-Warning "�?Build output found but missing index.html"
                 }
                 $validated = $true
             } else {
-                Write-Error "�?Build output directory not found (checked: dist/, build/)"
+                Write-Error "�?Build output directory not found (checked: dist/, build/)"
             }
         }
 
         default {
-            Write-Warning "�?No validation rules for project type: $ProjectType"
+            Write-Warning "�?No validation rules for project type: $ProjectType"
             $validated = $true
         }
     }
@@ -265,9 +265,9 @@ function Run-FullValidation {
     )
 
     Write-Host ""
-    Write-Info "╔═══════════════════════════════════════════════════════════════════════════�?
-    Write-Info "�?                   COMPREHENSIVE VALIDATION SYSTEM                        �?
-    Write-Info "╚═══════════════════════════════════════════════════════════════════════════�?
+    Write-Info "╔═══════════════════════════════════════════════════════════════════════════�?
+    Write-Info "�?                   COMPREHENSIVE VALIDATION SYSTEM                        �?
+    Write-Info "╚═══════════════════════════════════════════════════════════════════════════�?
     Write-Host ""
     Write-ColorText "Project: $ProjectName" -Color Blue
     Write-ColorText "Type: $ProjectType" -Color Blue
@@ -278,18 +278,18 @@ function Run-FullValidation {
     # Step 1: Validate project structure
     if (!(Validate-Project $ProjectPath $ProjectType $ProjectName)) {
         Write-Host ""
-        Write-Error "══════════════════════════════════════════════════════════════════════════�?
+        Write-Error "══════════════════════════════════════════════════════════════════════════�?
         Write-Error "  VALIDATION FAILED: Project structure issues"
-        Write-Error "══════════════════════════════════════════════════════════════════════════�?
+        Write-Error "══════════════════════════════════════════════════════════════════════════�?
         return $false
     }
 
     # Step 2: Check dependencies
     if (!(Check-AndInstallDependencies $ProjectPath $ProjectType $ProjectName $AutoInstall)) {
         Write-Host ""
-        Write-Error "══════════════════════════════════════════════════════════════════════════�?
+        Write-Error "══════════════════════════════════════════════════════════════════════════�?
         Write-Error "  VALIDATION FAILED: Dependency issues"
-        Write-Error "══════════════════════════════════════════════════════════════════════════�?
+        Write-Error "══════════════════════════════════════════════════════════════════════════�?
         return $false
     }
 
@@ -297,17 +297,17 @@ function Run-FullValidation {
     if ($Action -in @("build", "generate")) {
         if (!(Validate-BuildRequirements $ProjectPath $ProjectType $ProjectName $Action)) {
             Write-Host ""
-            Write-Error "══════════════════════════════════════════════════════════════════════════�?
+            Write-Error "══════════════════════════════════════════════════════════════════════════�?
             Write-Error "  VALIDATION FAILED: Build requirements not met"
-            Write-Error "══════════════════════════════════════════════════════════════════════════�?
+            Write-Error "══════════════════════════════════════════════════════════════════════════�?
             return $false
         }
     }
 
     Write-Host ""
-    Write-Success "╔═══════════════════════════════════════════════════════════════════════════�?
-    Write-Success "�?                   �?ALL VALIDATIONS PASSED                               �?
-    Write-Success "╚═══════════════════════════════════════════════════════════════════════════�?
+    Write-Success "╔═══════════════════════════════════════════════════════════════════════════�?
+    Write-Success "�?                   �?ALL VALIDATIONS PASSED                               �?
+    Write-Success "╚═══════════════════════════════════════════════════════════════════════════�?
     Write-Host ""
 
     return $true

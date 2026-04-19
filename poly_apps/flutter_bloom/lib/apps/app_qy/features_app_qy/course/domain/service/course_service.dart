@@ -15,7 +15,7 @@ library;
 
 import '../model/course_model.dart';
 import '../../../../services_app_qy/api_service_app_qy.dart';
-import '../../data/course_plan_data.dart';
+import '../../sources/course_plan_data.dart';
 
 class CourseService {
   final ApiServiceAppQy _apiService;

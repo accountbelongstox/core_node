@@ -138,51 +138,51 @@ class _HomeScreenState extends State<HomeScreen> {
                 HomeLocalNav(
                   localNavs: homeProvider.homeData!.data.localNavs,
                 ),
-                Transform.translate(
-                  offset: const Offset(0, -15.0),
-                  child: Column(
-                    children: [
-                      HomeGridNavSection(
-                        gridNavs: homeProvider.homeData!.data.gridNavs,
-                      ),
-                      const SizedBox(height: 12),
-                      HomeRecommend(
+                Column(
+                  children: [
+                    HomeGridNavSection(
+                      gridNavs: homeProvider.homeData!.data.gridNavs,
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      child: HomeRecommend(
                         recommend: homeProvider.homeData!.data.recommend,
                       ),
-                      const SizedBox(height: 12),
-                      HomeSubnav(
-                        subnavs: homeProvider.homeData!.data.subnavs,
+                    ),
+                    const SizedBox(height: 12),
+                    HomeSubnav(
+                      subnavs: homeProvider.homeData!.data.subnavs,
+                    ),
+                    const SizedBox(height: 12),
+                    HomeWelcome(
+                      cityName: userProvider.user.currentCity ?? TravelAppConstants.defaultCityName,
+                      temperature: TravelAppConstants.defaultTemperature,
+                    ),
+                    const SizedBox(height: 12),
+                    const HomeContentMix(),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      child: HomePopular(
+                        popularItems: homeProvider.homeData!.data.popularList,
                       ),
-                      const SizedBox(height: 12),
-                      HomeWelcome(
-                        cityName: userProvider.user.currentCity ?? TravelAppConstants.defaultCityName,
-                        temperature: TravelAppConstants.defaultTemperature,
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      child: HomeLocalHot(
+                        localHot: homeProvider.homeData!.data.localHot,
+                        hideTitle: false,
                       ),
-                      const SizedBox(height: 12),
-                      const HomeContentMix(),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        child: HomePopular(
-                          popularItems: homeProvider.homeData!.data.popularList,
-                        ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (homeProvider.homeData!.data.sights != null &&
+                        homeProvider.homeData!.data.sights!.isNotEmpty)
+                      HomeWaterfall(
+                        sights: homeProvider.homeData!.data.sights!,
                       ),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        child: HomeLocalHot(
-                          localHot: homeProvider.homeData!.data.localHot,
-                          hideTitle: false,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (homeProvider.homeData!.data.sights != null &&
-                          homeProvider.homeData!.data.sights!.isNotEmpty)
-                        HomeWaterfall(
-                          sights: homeProvider.homeData!.data.sights!,
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
                 SizedBox(height: widget.isInScaffold ? 10 : 40),
               ]),

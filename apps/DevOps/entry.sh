@@ -36,7 +36,7 @@ else
 fi
 
 # Export port for Docker
-export PORT=$HTTP_PORT
+PORT=$HTTP_PORT
 
 # Install dependencies if node_modules doesn't exist
 if [ ! -d "/app/node_modules" ]; then

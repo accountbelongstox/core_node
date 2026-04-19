@@ -17,7 +17,7 @@ from pathlib import Path
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.color_print import ColorPrint
-from providor.providor_index import CONFIG, set_config_value_async, CONFIG_USER_PATH, get_config_value_safe
+from providor.providor_index import CONFIG, set_config_value_async, CONFIG_USER_PATH, get_config_value_safe, get_config_section
 from providor.constants.common import (
     ROOT_DIR,
     UI_SETTINGS_WINDOW_GEOMETRY,
@@ -81,6 +81,96 @@ _PANEL_KEY_TO_ATTR = {
 }
 
 
+def _destroy_orphan_tk_default_root() -> None:
+    """ttk.Style() with no master creates an implicit Tk if no default root exists (tkinter.ttk.Style). Destroy that orphan before our real Tk() so only one top-level exists."""
+    dr = getattr(tk, "_default_root", None)
+    if dr is None:
+        return
+    try:
+        if dr.winfo_exists():
+            dr.destroy()
+    except tk.TclError:
+        pass
+
+
+def _make_frameless_win32(root: tk.Tk) -> bool:
+    """Remove window decorations via Win32 GWL_STYLE instead of overrideredirect(True).
+
+    overrideredirect(True) triggers Tk's internal UpdateWrapper (tkWinWm.c) which
+    **destroys and recreates the wrapper HWND**.  On some Windows builds this causes
+    a ghost second window (old wrapper visible alongside new one).
+
+    This function avoids the rewrap entirely: it modifies the existing wrapper HWND's
+    style bits to strip the caption / thick-frame / system-menu, then asks the DWM to
+    recompose via SWP_FRAMECHANGED.  The wrapper HWND stays the same object; no ghost.
+
+    Falls back to overrideredirect(True) on non-Windows platforms.
+
+    Returns True if Win32 path succeeded.
+    """
+    if sys.platform != "win32":
+        root.overrideredirect(True)
+        return False
+
+    try:
+        # Ensure the wrapper HWND exists (Tk creates it on first map, i.e. Tk()).
+        root.update_idletasks()
+
+        # wm_frame() returns the outer *wrapper* HWND as hex string ("0x...").
+        # winfo_id() returns the inner *content* HWND.  We need the wrapper.
+        hwnd_hex = root.wm_frame()
+        hwnd = int(hwnd_hex, 16) if isinstance(hwnd_hex, str) else int(hwnd_hex)
+        if not hwnd:
+            root.overrideredirect(True)
+            return False
+
+        user32 = ctypes.windll.user32
+
+        # --- strip window-frame style bits from wrapper HWND ---
+        GWL_STYLE = -16
+        WS_CAPTION    = 0x00C00000   # title bar + border
+        WS_THICKFRAME = 0x00040000   # sizing border
+        WS_SYSMENU    = 0x00080000
+        WS_MINIMIZEBOX = 0x00020000
+        WS_MAXIMIZEBOX = 0x00010000
+
+        style = user32.GetWindowLongPtrW(ctypes.c_void_p(hwnd), GWL_STYLE)
+        new_style = style & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU
+                              | WS_MINIMIZEBOX | WS_MAXIMIZEBOX)
+        if new_style != style:
+            user32.SetWindowLongPtrW(ctypes.c_void_p(hwnd), GWL_STYLE, new_style)
+
+        # --- ensure taskbar visibility (WS_EX_APPWINDOW) ---
+        GWL_EXSTYLE     = -20
+        WS_EX_TOOLWINDOW = 0x00000080
+        WS_EX_APPWINDOW  = 0x00040000
+
+        ex = user32.GetWindowLongPtrW(ctypes.c_void_p(hwnd), GWL_EXSTYLE)
+        new_ex = (ex & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW
+        if new_ex != ex:
+            user32.SetWindowLongPtrW(ctypes.c_void_p(hwnd), GWL_EXSTYLE, new_ex)
+
+        # --- tell DWM to recompose the frame ---
+        SWP_FRAMECHANGED = 0x0020
+        SWP_NOMOVE       = 0x0002
+        SWP_NOSIZE       = 0x0001
+        SWP_NOZORDER     = 0x0004
+        user32.SetWindowPos(
+            ctypes.c_void_p(hwnd), ctypes.c_void_p(0),
+            0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED,
+        )
+
+        root.update_idletasks()
+        ColorPrint.blue("[UI] Frameless via Win32 GWL_STYLE (no overrideredirect rewrap)")
+        return True
+
+    except Exception as e:
+        ColorPrint.yellow(f"[UI] Win32 frameless failed ({e}), falling back to overrideredirect")
+        root.overrideredirect(True)
+        return False
+
+
 class Diablo3MacroUI:
     """Diablo 3 Skill Macro UI Class - Refactored with Components"""
     
@@ -96,6 +186,7 @@ class Diablo3MacroUI:
             initial_config: Initial configuration name
         """
         set_windows_app_user_model_id("pycore.d3check.1.0")
+        _destroy_orphan_tk_default_root()
         self.root = tk.Tk()
         self._app_icon_photo = None
         self.resize_direction = None
@@ -120,8 +211,10 @@ class Diablo3MacroUI:
         self.root.configure(bg=UITheme.get_color('bg_dark'))
         # Hide window until fully built so user never sees intermediate paint (docs/ui2 double_build; tkdocs wm_withdraw/deiconify)
         self.root.withdraw()
-        # Set frameless before any content so first map (at deiconify) is already themed + overrideredirect (docs/ui2)
-        self.root.overrideredirect(True)
+        # Make frameless: use Win32 GWL_STYLE to strip decorations from the *existing* wrapper HWND
+        # instead of overrideredirect(True) which destroys+recreates the wrapper HWND and can cause
+        # a ghost second window on Windows (tkWinWm.c UpdateWrapper).
+        self._frameless_via_win32 = _make_frameless_win32(self.root)
 
         # Apply theme once before any ttk widget (ensure first build is already themed; docs/ui2 single style entry)
         UITheme.apply_to_root(self.root)
@@ -376,7 +469,8 @@ class Diablo3MacroUI:
 
     def _set_window_icon(self):
         """Set window/taskbar icon: config app_icon path, else default .ico / logo.png / app_icon.png (Windows may auto-generate .ico from logo), else generated (same as tray)."""
-        path_cfg = (CONFIG.get("ui_settings") or {}).get(UI_SETTINGS_APP_ICON) or ""
+        ui_settings = get_config_section("ui_settings")
+        path_cfg = ui_settings.get(UI_SETTINGS_APP_ICON) or ""
         if path_cfg:
             p = Path(path_cfg)
             path = (Path(ROOT_DIR) / path_cfg).resolve() if not p.is_absolute() else p.resolve()
@@ -418,7 +512,11 @@ class Diablo3MacroUI:
 
     def _apply_taskbar_fix(self):
         """Apply Windows taskbar visibility once (SetWindowLong/SetWindowPos). Ensure focus sync before/after Win32 calls.
+        When _frameless_via_win32 succeeded, taskbar style is already applied (WS_EX_APPWINDOW set in _make_frameless_win32).
         When ui_settings.skip_taskbar_win32_fix is True, skip Win32 calls to verify if they cause unresponsive UI (report §1)."""
+        if self._frameless_via_win32:
+            # Taskbar style already applied in _make_frameless_win32; mark done.
+            self._taskbar_style_applied = True
         skip_win32 = get_config_value_safe("ui_settings.skip_taskbar_win32_fix", True)
         if not self._taskbar_style_applied and not skip_win32:
             self.root.update_idletasks()  # One pass so geometry is current for Win32 (docs/ui2 UI_REPEATED_PAINT: no second update_idletasks after Win32).
@@ -431,7 +529,15 @@ class Diablo3MacroUI:
             self._set_window_icon()
         self.root.focus_force()
         # Deferred focus one frame later (report §5: avoid same-frame competition with SetWindowPos message handling)
-        self.root.after(10, lambda: self.root.focus_force() if self.root.winfo_exists() else None)
+        self.root.after(10, self._deferred_focus_after_taskbar_fix)
+
+    def _deferred_focus_after_taskbar_fix(self) -> None:
+        """Second focus tick after taskbar path; SetForegroundWindow merges input with the mapped HWND (report §1 C)."""
+        if not self.root.winfo_exists():
+            return
+        self.root.focus_force()
+        if sys.platform == "win32":
+            self._win32_set_foreground()
 
     def _win32_set_foreground(self):
         """Set this window as foreground on Windows (user32) so it receives input. Overrideredirect windows may not get focus from WM."""
@@ -446,10 +552,17 @@ class Diablo3MacroUI:
         """On every startup: lift and briefly topmost once (geometry already set at init to avoid 0,0 flash). Restore focus after topmost attr change."""
         self.root.lift()
         self.root.attributes("-topmost", True)
-        self.root.after(500, lambda: (
-            self.root.attributes("-topmost", False),
-            self.root.focus_force()  # Immediately restore focus after -topmost change to prevent input loss
-        ))
+        self.root.after(500, self._clear_first_run_topmost)
+
+    def _clear_first_run_topmost(self) -> None:
+        """After one-shot -topmost: lift, Tk focus, then Win32 SetForegroundWindow so pointer/keyboard hit the same HWND (overrideredirect; report §1 C)."""
+        if not self.root.winfo_exists():
+            return
+        self.root.attributes("-topmost", False)
+        self.root.lift()
+        self.root.focus_force()
+        if sys.platform == "win32":
+            self._win32_set_foreground()
 
     def restore_window_to_preset(self):
         """Restore window to initial preset size (DEFAULT_WINDOW_GEOMETRY); clear maximized state and sync title bar."""
@@ -540,13 +653,13 @@ class Diablo3MacroUI:
 
     def _force_style_update(self):
         """Re-apply Dark.TNotebook styles via theme module (single source)."""
-        style = ttk.Style()
+        style = ttk.Style(self.root)
         UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
 
     def _apply_all_tab_styles(self):
         """Apply Dark.TNotebook styles via theme module."""
-        style = ttk.Style()
+        style = ttk.Style(self.root)
         UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
         self.main_notebook.update()
@@ -559,7 +672,7 @@ class Diablo3MacroUI:
 
     def _apply_tab_style(self, tab_id):
         """Re-apply Dark.TNotebook styles for tab (theme single source). During init skip full update() to avoid 6 redraws; single root.update at end of _create_main_tabs suffices."""
-        style = ttk.Style()
+        style = ttk.Style(self.root)
         UITheme.refresh_dark_notebook(style)
         self.main_notebook.update_idletasks()
         if self._initialization_complete:
@@ -913,7 +1026,7 @@ class Diablo3MacroUI:
         self.root.mainloop()
 
     def _release_any_grab(self) -> bool:
-        """Release grab on any widget that holds it (report §4). Returns True if a grab was released."""
+        """Release grab on any widget that holds it (docs/ui_analyzer §C: grab_current may return str or list). Returns True if a grab was released."""
         try:
             current = self.root.grab_current()
             if not current:
@@ -921,13 +1034,24 @@ class Diablo3MacroUI:
             paths = current if isinstance(current, (list, tuple)) else [current]
             released = False
             for path in paths:
-                if not isinstance(path, str):
+                w = None
+                if isinstance(path, str):
+                    try:
+                        w = self.root.nametowidget(path)
+                        if not w.winfo_exists():
+                            continue
+                    except (tk.TclError, KeyError):
+                        continue
+                elif hasattr(path, "grab_release") and callable(path.grab_release):
+                    w = path
+                if w is None:
                     continue
-                w = self.root.nametowidget(path)
-                if w.winfo_exists():
+                try:
                     w.grab_release()
                     released = True
-                    ColorPrint.yellow(f"[UI] Released grab on widget: {path}")
+                    ColorPrint.yellow(f"[UI] Released grab on widget: {path!r}")
+                except tk.TclError:
+                    pass
             return released
         except (tk.TclError, KeyError):
             return False

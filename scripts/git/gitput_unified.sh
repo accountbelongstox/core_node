@@ -48,7 +48,7 @@ SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
 SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
 
 # Commit message variable
-export COMMIT_MESSAGE=""
+COMMIT_MESSAGE=""
 
 # Global associative array for remote configurations
 declare -g -A remote_configs
@@ -97,7 +97,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
 PROJECT_NAME="core_node"  # Hardcoded project name
 TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
-export COMMIT_MESSAGE=""
+COMMIT_MESSAGE=""
 WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
 SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
 SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
@@ -706,7 +706,7 @@ write_color_text() {
 
     # Desktop environment detection (run once)
     if [ -z "$DESKTOP_ENV_DETECTED" ]; then
-        export DESKTOP_ENV_DETECTED=true
+DESKTOP_ENV_DETECTED=true
         local is_desktop=false
 
         # Check for desktop environment indicators
@@ -1490,7 +1490,8 @@ main() {
     # Determine target remote
     if [ -z "$TARGET_REMOTE" ]; then
         write_color_text "No target specified, using all remotes" "Yellow"
-        targets=("github" "gitee" "local")
+        # local temporarily disabled (not reachable or not in use); restore with: targets=("github" "gitee" "local")
+        targets=("github" "gitee")
     else
         targets=("$TARGET_REMOTE")
     fi

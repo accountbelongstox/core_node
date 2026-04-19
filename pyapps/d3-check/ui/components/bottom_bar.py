@@ -25,6 +25,16 @@ from share.game_interface_data import get_game_interface_data
 from .bottom_bar_options_block import BottomBarOptionsBlock
 from .bottom_bar_status_block import BottomBarStatusBlock
 
+_CONFIG_KEYS = ("config1", "config2", "config3", "config4")
+
+
+def _config_name_to_display(config_name: str) -> str:
+    """Return i18n display for config name (config1..config4); otherwise return as-is."""
+    if config_name in _CONFIG_KEYS:
+        return i18n_manager.get_ui_text("config_tabs." + config_name, default=config_name)
+    return config_name
+
+
 class BottomBar:
     """Bottom bar: row0 = macro + options (per-tab), row1 = status (single row, no overlap)."""
 
@@ -36,7 +46,9 @@ class BottomBar:
         self.custom_stand_var = var_bool(parent, False)
         self.custom_stand_key_var = var_str(parent, 'Shift')
         self.window_size = var_str(parent, "0x0")
-        self.config_name_var = var_str(parent, "Config 1")
+        _initial_config = get_config_value_safe("macro_configs.current_skill_config", "config1")
+        _config_display = _config_name_to_display(_initial_config)
+        self.config_name_var = var_str(parent, _config_display)
         self.battlenet_status = var_str(parent, "-")
         self.battlenet_region = var_str(parent, "-")
         self.ros_status = var_str(parent, "-")
@@ -206,7 +218,7 @@ class BottomBar:
         self.frame.grid(**kwargs)
 
     def update_config_status(self, config_name: str):
-        self.config_name_var.set(config_name)
+        self.config_name_var.set(_config_name_to_display(config_name))
         if self.sound_var.get():
             winsound.Beep(1000, 100)
 
@@ -240,6 +252,8 @@ class BottomBar:
 
     def update_status_from_state(self, state: dict):
         """Update all status vars and value label fg from state (state sync callback)."""
+        if not isinstance(state, dict):
+            return
         i18n = i18n_manager
         C = UnifiedStyles.COLORS
 

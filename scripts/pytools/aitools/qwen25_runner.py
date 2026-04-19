@@ -35,15 +35,14 @@ def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
         print()
 
         print('[RUN] Loading tokenizer...')
-        tokenizer = AutoTokenizer.from_pretrained(model_name, resume_download=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
         print('[OK] Tokenizer loaded successfully')
 
         print('[RUN] Loading model...')
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             torch_dtype='auto',
-            device_map='auto',
-            resume_download=True
+            device_map='auto'
         )
         print('[OK] Model loaded successfully')
 

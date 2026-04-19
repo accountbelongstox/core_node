@@ -12,10 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # APP Install Menu - Packages from linux_applications_list (120 --exact-app) plus install_shells scripts.
-# Paths align with dd.sh: CORE_NODE_ROOT_DIR + scripts/shells/linux/... (trust when exported; else resolve from this file).
-
-REL_LINUX_COMMON="scripts/shells/linux/common"
-REL_DEBIAN_INSTALL_SHELLS="scripts/shells/linux/debian/install_shells"
+# Paths resolved only from this script location (no reliance on exported env from parent).
 
 SCRIPT_DIR=""
 LINUX_DIR=""
@@ -24,16 +21,10 @@ INSTALL_SHELLS_DIR=""
 STEP120_SCRIPT=""
 
 _resolve_app_install_paths() {
-    if [ -n "${CORE_NODE_ROOT_DIR:-}" ] && [ -d "$CORE_NODE_ROOT_DIR/$REL_LINUX_COMMON" ]; then
-        LINUX_DIR="$CORE_NODE_ROOT_DIR/scripts/shells/linux"
-        COMMON_DIR="$CORE_NODE_ROOT_DIR/$REL_LINUX_COMMON"
-        INSTALL_SHELLS_DIR="$CORE_NODE_ROOT_DIR/$REL_DEBIAN_INSTALL_SHELLS"
-    else
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        LINUX_DIR="$(dirname "$SCRIPT_DIR")"
-        COMMON_DIR="$LINUX_DIR/common"
-        INSTALL_SHELLS_DIR="$LINUX_DIR/debian/install_shells"
-    fi
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    LINUX_DIR="$(dirname "$SCRIPT_DIR")"
+    COMMON_DIR="$LINUX_DIR/common"
+    INSTALL_SHELLS_DIR="$LINUX_DIR/debian/install_shells"
     STEP120_SCRIPT="$INSTALL_SHELLS_DIR/120_install_desktop_applications.sh"
 }
 

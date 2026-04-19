@@ -42,7 +42,9 @@ if not IS_MCP_MODE:
 from pathlib import Path
 
 # Add project root to path
-PROJECT_ROOT = Path(__file__).parent
+# __file__ is scripts/pycore/pymain.py => go up two levels to reach the repo root
+# where the pycore package (D:\programing\core_node\pycore\) lives.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.app_launcher import AppLauncher

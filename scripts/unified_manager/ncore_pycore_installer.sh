@@ -450,7 +450,7 @@ except:
         echo -e "\033[36mSetting environment variables from config...\033[0m"
         while IFS='=' read -r key value; do
             if [ -n "$key" ] && [ -n "$value" ]; then
-                export "$key=$value"
+"$key=$value"
                 echo -e "\033[90m  $key = $value\033[0m"
             fi
         done <<< "$ENV_VARS"

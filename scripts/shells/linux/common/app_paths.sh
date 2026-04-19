@@ -35,6 +35,4 @@ if [ ! -d "$LARAVEL_MAIN_PATH" ]; then
 fi
 
 # Export constants for use in other scripts
-export LARAVEL_MAIN_PATH
-export CORE_NODE_ROOT_FROM_SCRIPTS
 

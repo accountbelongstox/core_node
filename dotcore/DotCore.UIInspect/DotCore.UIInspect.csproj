@@ -4,6 +4,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
     <PackageReference Include="FlaUI.UIA3" />
   </ItemGroup>
 </Project>

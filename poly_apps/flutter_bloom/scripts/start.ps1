@@ -141,7 +141,7 @@ try {
     Write-Host "[DEBUG] Python script exit code: $LASTEXITCODE" -ForegroundColor Magenta
 
     if ($LASTEXITCODE -ne 0) {
-        Write-ErrorMsg "[ERROR] App selection failed"
+        Write-ErrorMsg "[ERROR] App selection failed (Python exited with code $LASTEXITCODE). Possible causes: build step error, process killed, or selection cancelled."
         exit 1
     }
 

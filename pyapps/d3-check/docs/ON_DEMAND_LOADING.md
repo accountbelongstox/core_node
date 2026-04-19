@@ -4,16 +4,39 @@
 
 ---
 
+## 0. 从入口开始的验证：仅安装/检查 vs 进程内已加载
+
+**约定**：**仅安装/检查** = 只做 pip 安装或 `importlib.util.find_spec()` 检查，**不会**把该库 import 进当前进程；**已启动（进程内已加载）** = 该库已被 `import` 进当前 Python 进程，占用内存。
+
+**入口**：`pyapps/d3-check/main.py`。执行顺序：`import lifecycle` → `from controller.d3_macro_controller import D3MacroController` → `from runtime import get_system_initializer` → … → `main()` 内 `get_system_initializer().initialize_system()`。
+
+| 库/组件 | 结论 | 依据（文件:行/行为） |
+|---------|------|----------------------|
+| **torch** | **已启动** | `pycore/pyfoundations/third_party.py` 第 32–35 行模块顶层 `try: import torch`，首次 import 该模块时即执行，进程内已加载。 |
+| **DEPENDENCY_MAP 中除 torch 外所有包**（PIL/cv2/numpy/ultralytics/…） | **仅安装/检查** | `third_party.py` 第 665–712 行循环内仅用 `importlib.util.find_spec(import_name_to_check)`（679、698 行）判断是否已安装，缺则 pip 安装后再 find_spec 验证；**无任何 `import xxx`**，故这些包在依赖检查阶段不会进进程。 |
+| **PIL (Pillow)** | **已启动** | `providor/providor_index.py` 第 15–20 行模块顶层 `Image = get_third_package_PIL_Image()` 等，`d3_macro_controller.py` 第 21 行 import providor_index 时执行，getter 内部会 `import PIL`。 |
+| **numpy / cv2** | **已启动** | `share/game_interface_data.py` 第 21–27 行模块顶层 `numpy = get_third_package_numpy()`、`cv2 = get_third_package_cv2()`、`Image = get_third_package_PIL_Image()`，`d3_macro_controller.py` 第 48 行 import `share.game_interface_data` 时执行。 |
+| **Edge TTS** | **已启动** | `pycore/pyutils/__init__.py` 第 41–42 行 `from pycore.pyutils.edge_tts import edge_tts_manager`；`pycore/pyutils/edge_tts/edge_tts_client.py` 第 20 行模块顶层 `edge_tts = get_third_package_edge_tts()`。首次 `from pycore.pyutils.common.xxx`（如 window_finder）会先加载 `pycore.pyutils`，从而执行上述 import。 |
+| **Database (SQLite/SQLAlchemy)** | **已启动** | `pycore/pyutils/common/__init__.py` 第 43–51 行顶层 `from ... global_config import ...`、`from ... speech_config import ...`；`global_config.py` 第 358 行 `global_config = GlobalConfig()`、`speech_config.py` 第 370 行 `speech_config = SpeechConfig()`，构造中调用 `get_database_manager()`，触发 `pycore.database` 与引擎加载。同一触发链：首次 import `pycore.pyutils.common.*`（如 window_finder）。 |
+| **CnOCR / ONNX / HuggingFace** | **已启动** | 非 import 链触发；在 `main()` 内 `get_system_initializer().initialize_system(gui_mode=True)` 时，`d3utils/system_initializer.py` 第 215 行显式调用 `ensure_cnocr_loaded_and_engines_initialized()`，内部执行 `init_third_party_cnocr()`，加载 cnocr、onnx、HF 等。 |
+| **Ultralytics (YOLO)** | **已启动** | `d3utils/interface_manager.py` 第 24 行 `from d3utils.collectors import ...` → `d3utils/collectors/__init__.py` 第 17 行 `from .ui_region_collector_ultralytics import ...` → `ui_region_collector_ultralytics.py` 第 30–32 行模块顶层 `_ultralytics = get_third_package_ultralytics()`，控制器 import 链中执行。 |
+| **watchdog** | **仅当被调用时可能加载** | `lifecycle/log_monitor.py` 第 6 行仅 `from ... import get_third_package_watchdog`，未在模块级调用；若后续无人调用该 getter（如 `is_file_watcher_available()`），则进程内不加载。 |
+
+**首次触发 third_party 的 import**：`main.py` 第 30 行 `import lifecycle` → `lifecycle/__init__.py` 第 22 行 `from .log_monitor import ...` → `lifecycle/log_monitor.py` 第 6 行 `from pycore.pyfoundations.third_party import get_third_package_watchdog`。因此 **torch 在 lifecycle 加载时即被加载**，早于 controller、runtime、i18n 等。
+
+---
+
 ## 1. 当前启动时必然加载的重库（按触发顺序）
 
 ### 1.1 第三方依赖检查与 torch
 
 | 库 | 首次加载位置 | 触发链 |
 |----|--------------|--------|
-| **torch** | `pycore/pyfoundations/third_party.py` | 模块底部（约 739 行）执行 `check_and_install_dependencies()` → 约 607 行 `_ensure_torch_cuda_build_first()`，在“列出已安装包”之前就加载/检查 torch。 |
+| **torch** | `pycore/pyfoundations/third_party.py` 第 32–35 行 | 模块**顶层** `try: import torch`，不是 check 里才 import。首次 import 该模块时（lifecycle.log_monitor 第 6 行）即执行。 |
+| 其他包（PIL/cv2/numpy/…） | 同文件第 665–712 行 | **仅安装/检查**：`importlib.util.find_spec(import_name_to_check)`，无 `import`，不进入进程。 |
 
-- **触发时机**：任意代码第一次 `from pycore.pyfoundations.third_party import ...` 时（例如 `game_interface_data`、`providor_index`、`ColorPrint` 等）。
-- **结论**：torch 在首轮 third_party 使用时就加载，早于 CnOCR 显式初始化。
+- **触发时机**：任意代码第一次 `from pycore.pyfoundations.third_party import ...` 时；实际入口为 `lifecycle/log_monitor.py` 第 6 行。
+- **结论**：torch 在首轮 third_party 使用时就**已加载**；其余包在该阶段只做存在性检查/安装，**未加载**。
 
 ### 1.2 PIL / numpy / OpenCV (cv2)
 
@@ -82,10 +105,10 @@
 ### 2.2 torch 不在首屏依赖检查时加载
 
 - **库**：torch。
-- **当前**：`pycore/pyfoundations/third_party.py` 中 `check_and_install_dependencies()`（约 601–730 行）在模块首次被使用时就执行，且其中约 607 行调用 `_ensure_torch_cuda_build_first()`，导致 torch 提前加载。
+- **当前**：进程内加载来自两处：（1）`pycore/pyfoundations/third_party.py` 第 32–35 行**模块顶层** `try: import torch`，首次 import 该模块即执行；（2）同文件约 607 行在 `check_and_install_dependencies()` 内调用 `_ensure_torch_cuda_build_first()`（仅做 CUDA 检查/安装，不负责首次 import）。
 - **建议**：
-  - 将 `_ensure_torch_cuda_build_first()` 从 `check_and_install_dependencies()` 中移出。
-  - 仅在“真正依赖 torch 的包”首次被请求时执行（例如在 `init_third_party_cnocr()` 或 `get_third_package_ultralytics()` / `get_third_package_cnocr()` 的首次调用路径中）执行一次 torch 检查/安装。
+  - 去掉 third_party 模块顶层的 `import torch`，改为在 getter 内按需 import（如 `get_third_package_torch()` 首次调用时再 import，并缓存）。
+  - 将 `_ensure_torch_cuda_build_first()` 从 `check_and_install_dependencies()` 中移出，仅在依赖 torch 的包首次被请求时执行（如 `init_third_party_cnocr()` 或 `get_third_package_ultralytics()` 的首次调用）。
 - **效果**：不依赖 torch 的启动路径（例如仅用 Tk、配置、热键）不再加载 torch，进一步减小内存。
 
 ### 2.3 Database / GlobalConfig / SpeechConfig 与 common 解耦

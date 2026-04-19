@@ -36,7 +36,7 @@ fi
 
 # Deploy GetDocFromUrlByPuppeteer in production mode
 echo "[INFO] Starting GetDocFromUrlByPuppeteer in production mode..."
-export NODE_ENV=production
+NODE_ENV=production
 node ./main.js app=GetDocFromUrlByPuppeteer
 
 exit 0

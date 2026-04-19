@@ -38,8 +38,8 @@
 set -e
 
 # Ensure DISABLE_AUTOUPDATER is set for Claude Code
-export DISABLE_AUTOUPDATER="1"
-export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
+DISABLE_AUTOUPDATER="1"
+CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
 
 # Check if running as root - skip --dangerously-skip-permissions flag for root
 if [ "$EUID" -eq 0 ]; then
@@ -206,9 +206,9 @@ usersDirectoryPath="$(dirname "$userProfilePath")"
 #   from pathlib import Path
 #   user_home = Path.home()  # Uses HOME
 # ============================================================================
-export HOME="$userProfilePath"
-export USER_HOME="$userProfilePath"
-export USER_DIR="$userProfilePath"
+HOME="$userProfilePath"
+USER_HOME="$userProfilePath"
+USER_DIR="$userProfilePath"
 
 echo "[INFO] Environment variables set for Node.js/React/Python applications:"
 echo "  HOME = $HOME"
@@ -323,7 +323,7 @@ load_secret_value() {
     fi
 
     if [ -n "$value" ]; then
-        export "$env_name"="$value"
+"$env_name"="$value"
         if [ -n "$default_value" ] && [ "$value" = "$default_value" ]; then
             echo "[SUCCESS] Loaded $display_name = $value (default)"
         else

@@ -1,3 +1,7 @@
+# DEPRECATED: This Windows PowerShell layer (Python core) is deprecated.
+# New implementation (no Python): scripts/app_manager/windows_ps1/app_manager.ps1
+# dd.ps1 already launches the new script; this file is kept for backward compatibility.
+#
 # Unified App Manager - Windows PowerShell Layer
 # Execution layer that communicates with Python core through global variables
 # PowerShell implementation with Windows-specific features
@@ -39,6 +43,12 @@ $Colors = @{
 
 # Import global variable management library
 . (Join-Path $ScriptPath "utils\global_variables.ps1")
+
+# Ensure common GlobalVars loaded so $Global:PYTHON_EXE_PATH is available
+if (-not $Global:PYTHON_EXE_PATH) {
+    $GlobalVarsPath = Join-Path $RootDir "scripts\shells\win\win_common\GlobalVars.ps1"
+    if (Test-Path -LiteralPath $GlobalVarsPath) { . $GlobalVarsPath }
+}
 
 
 
@@ -85,43 +95,29 @@ function Invoke-PythonCore {
         return $false
     }
 
-    # Check for Python 3
     $PythonCmd = $null
-    foreach ($cmd in @("python", "python3", "py")) {
-        try {
-            $version = & $cmd --version 2>$null
-            if ($version -match "Python 3") {
-                $PythonCmd = $cmd
-                break
-            }
-        }
-        catch {
-            continue
-        }
+    if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
+        $PythonCmd = $Global:PYTHON_EXE_PATH
     }
-
     if (-not $PythonCmd) {
-        Write-Error "Python 3 is required but not found"
+        $pythonExe = Get-Command python.exe -ErrorAction SilentlyContinue
+        if ($pythonExe) { $PythonCmd = $pythonExe.Source }
+    }
+    if (-not $PythonCmd) {
+        Write-Error "Python not found (set GlobalVars or add python.exe to PATH)"
         return $false
     }
 
-    try {
-        $AllArgs = @($PythonCore, $Action) + $Arguments
-        & $PythonCmd @AllArgs
+    $AllArgs = @($PythonCore, $Action) + $Arguments
+    & $PythonCmd @AllArgs
 
-        $Status = Read-GlobalVar -Key $Script:VariableKeys.STATUS
-        if ($Status -like "error_*") {
-            $ErrorMsg = $Status -replace "^error_", ""
-            Write-Error "Python core error: $ErrorMsg"
-            return $false
-        }
-
-        return $true
-    }
-    catch {
-        Write-Error "Failed to execute Python core: $($_.Exception.Message)"
+    $Status = Read-GlobalVar -Key $Script:VariableKeys.STATUS
+    if ($Status -like "error_*") {
+        $ErrorMsg = $Status -replace "^error_", ""
+        Write-Error "Python core error: $ErrorMsg"
         return $false
     }
+    return $true
 }
 
 # Load application data from file variables

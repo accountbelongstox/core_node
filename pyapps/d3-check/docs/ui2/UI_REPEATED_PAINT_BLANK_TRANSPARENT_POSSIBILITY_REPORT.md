@@ -2,6 +2,8 @@
 
 **范围**：`pyapps/d3-check`。本报告**不依赖**此前 double_build、theme_redraw、REPAIR_REPORT 等文档的结论，从「多次绘制、从未一次绘出最终样式、反复绘制导致空白/透明区」出发，先看代码与项目文档，再查 MCP/官方文档，归纳可能性与改法。可复制、移动代码，调整架构与逻辑流程。
 
+**勘误（无边框实现）**：主窗口在 Windows 上优先用 **Win32 `GWL_STYLE`** 对 **wrapper HWND** 去装饰（`_make_frameless_win32`），**不再**在 `__init__` 中写死 `withdraw() → overrideredirect(True) → …` 一条路径；非 Windows 或失败时仍可能 `overrideredirect(True)`。详见 **`docs/ui2/WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`**。下文凡写「overrideredirect」处，语义上指「无边框顶层窗」，含上述 Win32 路径。
+
 ---
 
 ## 一、现象与目标
@@ -17,7 +19,7 @@
 ### 2.1 主窗口显示时序（diablo3_macro_ui.py）
 
 1. `root = tk.Tk()` → `root.configure(bg=...)` → **`root.withdraw()`**（窗口未映射）
-2. **`root.overrideredirect(True)`**（无边框，由应用自绘）
+2. **无边框**：**`_make_frameless_win32(self.root)`**（Windows 上优先）或回退 **`overrideredirect(True)`**（见勘误与 `WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md`）
 3. **`UITheme.apply_to_root(self.root)`**（主题与 ttk 样式库在创建任何 ttk 前写入）
 4. **`self._create_ui()`**：  
    - `_add_resize_borders()` → TitleBar → BottomBar → **`_create_main_tabs()`** → bottom_bar.pack() → MacroControls
@@ -98,7 +100,7 @@
 
 - **wm overrideredirect window ?boolean?**：设置 override-redirect 后，窗口由应用自管，窗口管理器不为其加边框等。  
   - **注意**：该标志**仅在窗口首次被 map 时，或从 withdrawn 变为 normal 再次被 map 时**，得到保证被注意到；部分平台可能在其他时刻也会生效。  
-- 含义：当前代码在 withdraw 之后、任何子控件创建之前就设置了 overrideredirect(True)，因此第一次 map（deiconify）时理应已是无边框窗口。但**子控件若分多帧创建（after(0)、after(100)）**，首次 map 时子控件树可能仍不完整，与 overrideredirect 本身无直接矛盾，却会带来「首帧不完整、后续再绘」的多次绘制。
+- 含义：当前代码在 withdraw 之后、任何子控件创建之前即完成**无边框**（Win32 路径或 overrideredirect），因此第一次 map（deiconify）时理应已是去装饰窗口。但**子控件若分多帧创建（after(0)、after(100)）**，首次 map 时子控件树可能仍不完整，与「无装饰」本身无直接矛盾，却会带来「首帧不完整、后续再绘」的多次绘制。
 
 ### 3.3 update / update_idletasks（Python tkinter 文档 + Tk 事件循环）
 
@@ -125,7 +127,7 @@
 | **P2. ROSBOT 面板分块创建（两帧 + 100ms）** | _create_content_with_snapshot 先建 config_panel，再 **after(0, _create_control_and_log_then_sync)**，再 **after(100, _sync_status_ui_once)**。每完成一块都可能触发局部或全局重排/重绘，用户会看到「先一部分、再补全、再再补全」的多次绘制，中间可能出现空白或未填满区域。 | §2.3 |
 | **P3. Tab 切换与内容未就绪** | 选 tab 后立即 **show_tab_content(idx)**（grid/grid_remove）并可能 **update()**；若该 tab 内容依赖 ensure_content 的 after(0)，则第一次绘制 = 该 tab 已显示但内容区空 → 空白/透明；after(0) 后再绘一次。 | §2.4、§2.6 |
 | **P4. 多处 update 与「中间态」固化** | 多处路径（_create_main_tabs 末、_recreate_ui_for_language_change 末、switch_to_tab、_deferred_after_tab_changed）在「不同时刻」调用 update_idletasks/update。只要某一时刻控件树或某 tab 内容未齐，该次 update 就会把该中间态画出来。 | §2.7、§3.3 |
-| **P5. 首次 map 与 overrideredirect 的配合** | 首次 deiconify 时 overrideredirect 已生效，但若子控件（尤其 ROSBOT 内容）依赖 after(0)，首次 map 对应的树仍不完整，首帧即可能为「无边框 + 空内容区」→ 观感为透明/空白，随后再补绘。 | §2.1、§3.1、§3.2 |
+| **P5. 首次 map 与无边框的配合** | 首次 deiconify 时去装饰已生效（Win32 或 overrideredirect），但若子控件（尤其 ROSBOT 内容）依赖 after(0)，首次 map 对应的树仍不完整，首帧即可能为「无标题栏 + 空内容区」→ 观感为透明/空白，随后再补绘。 | §2.1、§3.1、§3.2 |
 
 ---
 
@@ -184,7 +186,7 @@
 | 项目 | 说明 |
 |------|------|
 | **报告/文档** | 主题应在创建任何 ttk 控件之前应用（apply_to_root），这样第一次布局即带主题。 |
-| **代码实际（修复前）** | `diablo3_macro_ui.py` __init__ 中顺序为：`root.withdraw()` → `root.overrideredirect(True)` → **`UITheme.apply_to_root(self.root)`** → `_create_ui()`。即**先应用主题再创建控件**，已满足「一开始构建的就是应了主题的 UI」。 |
+| **代码实际** | `diablo3_macro_ui.py` __init__ 中顺序为：`root.withdraw()` → **无边框**（`_make_frameless_win32` 或 `overrideredirect(True)`）→ **`UITheme.apply_to_root(self.root)`** → `_create_ui()`。即**先应用主题再创建控件**，已满足「一开始构建的就是应了主题的 UI」。 |
 | **是否同一问题** | **是**。代码实际与文档要求一致；本项无需改顺序，仅保持现状。 |
 
 ### 8.2 可能性 P1：延迟创建内容与 update 的时序
@@ -211,7 +213,7 @@
 |------|------|
 | **P3 Tab 切换与内容未就绪** | 修复后：语言切换路径 _recreate_ui_for_language_change 在 update 前若当前 tab 为 ROSBOT 则调用 **ensure_content_sync()**，与 P1 的「先确保内容再 update」一致。 |
 | **P4 多处 update 固化中间态** | 修复后：_create_main_tabs 仅通过 after(1) 做一次 _flush_after_first_build，首帧不再在「内容未齐」时刻强制 update；首次显示前对 ROSBOT 做 sync 确保，再 update_idletasks + deiconify。 |
-| **P5 首次 map 与 overrideredirect** | 代码在 withdraw 后、子控件前已设置 overrideredirect(True) 和 apply_to_root；修复未改此处，与文档一致。 |
+| **P5 首次 map 与无边框** | 代码在 withdraw 后、子控件前已完成去装饰与 apply_to_root；以 `WINDOWS_TK_WRAPPER_GHOST_DOUBLE_WINDOW_INVESTIGATION.md` 与当前 __init__ 为准。 |
 
 ### 8.5 小结
 

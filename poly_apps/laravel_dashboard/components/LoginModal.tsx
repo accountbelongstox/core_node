@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, Lock, User, ArrowRight, Loader2, AlertTriangle, Mail, UserPlus, Key } from "lucide-react";
-import { TRANSLATIONS } from '../constants';
+import { useTranslation } from 'react-i18next';
 import { Language } from '../types';
 import { useUser } from '../hooks/useUser';
 import { api } from '../core/api';
@@ -12,9 +12,14 @@ interface LoginModalProps {
   onClose: () => void;
   onSuccess: () => void;
   lang: Language;
+  /** When true, modal was opened because user hit a protected page: do not close on backdrop click. */
+  blockCloseBackdrop?: boolean;
+  /** When true, modal only covers its parent (right/main area), not full screen. Sidebar stays visible. */
+  contained?: boolean;
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lang }) => {
+const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lang: _lang, blockCloseBackdrop = false, contained = false }) => {
+  const { t } = useTranslation();
   const { login, register, loading, error: userError, clearError } = useUser();
 
   const [isRegisterMode, setIsRegisterMode] = useState(false);
@@ -29,7 +34,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
   const [localError, setLocalError] = useState<string | null>(null);
   const [availableCodes, setAvailableCodes] = useState<InviteCode[]>([]);
 
-  const t = TRANSLATIONS[lang].login;
   const error = localError || userError;
 
   // Fetch available invite codes when in register mode
@@ -69,12 +73,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
     clearError();
 
     if (!formData.username || !formData.password) {
-      setLocalError('Username and password are required');
+      setLocalError(t('login.errors.AUTH_VALIDATION_FAILED'));
       return;
     }
 
     if (isRegisterMode && formData.password !== formData.confirmPassword) {
-      setLocalError(lang === 'zh' ? '两次密码输入不一致' : 'Passwords do not match');
+      setLocalError(t('login.passwords_do_not_match'));
       return;
     }
 
@@ -111,16 +115,26 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
     clearError();
   };
 
-  const title = isRegisterMode ? t.register_title : t.title;
-  const subtitle = isRegisterMode ? t.register_subtitle : t.subtitle;
-  const submitText = isRegisterMode ? t.register_submit : t.submit;
-  const processingText = isRegisterMode ? t.register_processing : t.processing;
+  const title = isRegisterMode ? t('login.register_title') : t('login.title');
+  const subtitle = isRegisterMode ? t('login.register_subtitle') : t('login.subtitle');
+  const submitText = isRegisterMode ? t('login.register_submit') : t('login.submit');
+  const processingText = isRegisterMode ? t('login.register_processing') : t('login.processing');
 
+  // Design: contained=true → only cover right (main) area, sidebar visible; contained=false → full viewport.
+  const rootClass = contained
+    ? 'h-full w-full relative flex items-center justify-center p-4'
+    : 'fixed inset-0 z-[110] flex items-center justify-center p-4';
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className={rootClass} role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
       <div
-        className="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md transition-opacity duration-300"
-        onClick={onClose}
+        className={`absolute inset-0 backdrop-blur-md transition-opacity duration-300 ${
+          blockCloseBackdrop
+            ? 'bg-slate-900/95 dark:bg-black/95'
+            : 'bg-slate-900/60 dark:bg-black/80'
+        }`}
+        onClick={blockCloseBackdrop ? undefined : onClose}
+        role="presentation"
+        aria-hidden
       />
 
       <div className="relative w-full max-w-md bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-[float_6s_ease-in-out_infinite]">
@@ -139,7 +153,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg mb-4">
               {isRegisterMode ? <UserPlus className="text-white" size={32} /> : <ShieldCheck className="text-white" size={32} />}
             </div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white text-center tracking-tight">
+            <h2 id="login-modal-title" className="text-2xl font-bold text-slate-800 dark:text-white text-center tracking-tight">
               {title}
             </h2>
             <p className="text-slate-500 dark:text-slate-400 text-sm text-center mt-2">
@@ -156,7 +170,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                   type="text"
                   value={formData.username}
                   onChange={handleInputChange('username')}
-                  placeholder={t.username}
+                  placeholder={t('login.username')}
                   className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                   required
                 />
@@ -171,7 +185,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                   type="password"
                   value={formData.password}
                   onChange={handleInputChange('password')}
-                  placeholder={t.password}
+                  placeholder={t('login.password')}
                   className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                   required
                 />
@@ -187,7 +201,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                     type="password"
                     value={formData.confirmPassword}
                     onChange={handleInputChange('confirmPassword')}
-                    placeholder={t.confirm_password}
+                    placeholder={t('login.confirm_password')}
                     className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                     required
                   />
@@ -206,7 +220,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                       type="email"
                       value={formData.email}
                       onChange={handleInputChange('email')}
-                      placeholder={t.email}
+                      placeholder={t('login.email')}
                       className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                     />
                   </div>
@@ -220,7 +234,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                       type="text"
                       value={formData.nickname}
                       onChange={handleInputChange('nickname')}
-                      placeholder={t.nickname}
+                      placeholder={t('login.nickname')}
                       className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                     />
                   </div>
@@ -234,7 +248,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                       type="text"
                       value={formData.registrationCode}
                       onChange={handleInputChange('registrationCode')}
-                      placeholder={t.registration_code}
+                      placeholder={t('login.registration_code')}
                       className="w-full bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-xl py-3 pl-10 pr-4 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                     />
                   </div>
@@ -242,7 +256,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                   {availableCodes.length > 0 && (
                     <div className="mt-2 p-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/30 rounded-lg">
                       <p className="text-[10px] text-indigo-600 dark:text-indigo-400 mb-1 font-medium">
-                        {lang === 'zh' ? '可用邀请码:' : 'Available Codes:'}
+                        {t('login.available_codes')}
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {availableCodes.slice(0, 3).map(code => (
@@ -301,7 +315,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
               onClick={toggleMode}
               className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors font-medium"
             >
-              {isRegisterMode ? t.switch_to_login : t.switch_to_register}
+              {isRegisterMode ? t('login.switch_to_login') : t('login.switch_to_register')}
             </button>
 
             <div>
@@ -309,7 +323,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
                 onClick={onClose}
                 className="text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
               >
-                {t.cancel}
+                {t('login.cancel')}
               </button>
             </div>
           </div>

@@ -317,41 +317,6 @@ class RosbotExtensionPanel:
         if self._bottom_bar is not None:
             self._bottom_bar.refresh_path_icons()
 
-    def _ask_choose_rosbot_directory(self, dirs):
-        """Show dialog to choose one ROSBOT directory from list. Returns chosen path or None."""
-        top = tk.Toplevel(self.container)
-        top.title(i18n_manager.get_ui_text("rosbot.scan_choose_one"))
-        top.transient(self.container)
-        top.grab_set()
-        result = [None]
-        lb = tk.Listbox(top, height=min(10, len(dirs)), width=70,
-                        bg=UnifiedStyles.COLORS.get('input_bg', '#2d2d2d'),
-                        fg=UnifiedStyles.COLORS.get('text_primary', '#e0e0e0'))
-        lb.pack(padx=UnifiedStyles.SPACING['sm'], pady=UnifiedStyles.SPACING['sm'], fill=tk.BOTH, expand=True)
-        for d in dirs:
-            lb.insert(tk.END, d)
-        lb.selection_set(0)
-
-        def on_ok():
-            sel = lb.curselection()
-            if sel:
-                result[0] = dirs[sel[0]]
-            top.destroy()
-
-        def on_cancel():
-            top.destroy()
-
-        btn_frame = tk.Frame(top, bg=UnifiedStyles.COLORS.get('bg_secondary', '#252525'))
-        btn_frame.pack(pady=(0, UnifiedStyles.SPACING['sm']))
-        tk.Button(btn_frame, text="OK", command=on_ok,
-                  bg=UnifiedStyles.COLORS.get('btn_secondary', '#404040'),
-                  fg=UnifiedStyles.COLORS.get('text_primary', '#e0e0e0')).pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
-        tk.Button(btn_frame, text=i18n_manager.get_ui_text("rosbot.cancel"), command=on_cancel,
-                  bg=UnifiedStyles.COLORS.get('btn_secondary', '#404040'),
-                  fg=UnifiedStyles.COLORS.get('text_primary', '#e0e0e0')).pack(side=tk.LEFT, padx=UnifiedStyles.SPACING['xs'])
-        top.wait_window()
-        return result[0]
-
     def _create_bot_settings(self, parent, snapshot: dict):
         """Create bot settings section. Uses snapshot to avoid main-thread config read."""
         settings_frame = tk.LabelFrame(parent, text=i18n_manager.get_ui_text("rosbot.bot_settings"),

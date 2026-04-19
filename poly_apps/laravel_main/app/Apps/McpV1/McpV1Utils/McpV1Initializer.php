@@ -59,15 +59,27 @@ class McpV1Initializer implements AppInitializerInterface
             }
 
             Log::info("[McpV1Init] Running step: {$step} - {$description}");
+            if (PHP_SAPI === 'cli') {
+                echo "    [McpV1] Step {$step}: {$description}...\n";
+            }
 
             try {
                 $result = $this->executeStep($step);
                 $results[$step] = array_merge($result, ['description' => $description]);
 
-                if ($result['status'] === 'success') {
+                $statusCode = $result['status'] ?? 'error';
+
+                if ($statusCode === 'success') {
                     $this->markStepCompleted($step);
-                } else {
+                    if (PHP_SAPI === 'cli') {
+                        echo "      -> OK: {$result['message']}\n";
+                    }
+                } elseif ($statusCode === 'error') {
                     $allSuccess = false;
+                    if (PHP_SAPI === 'cli') {
+                        $msg = $result['message'] ?? 'Unknown error';
+                        echo "      -> {$result['status']}: {$msg}\n";
+                    }
                     if (!$force) {
                         break;
                     }
@@ -80,6 +92,10 @@ class McpV1Initializer implements AppInitializerInterface
                     'exception' => get_class($e),
                 ];
                 $allSuccess = false;
+
+                if (PHP_SAPI === 'cli') {
+                    echo "      -> EXCEPTION: {$e->getMessage()}\n";
+                }
 
                 if (!$force) {
                     break;
