@@ -1,5 +1,39 @@
 # WebClaude Group
 
+### file_sync_v2
+ 
+mkdir -p /tmp/webclaude_group/logs/file_sync_v2
+nohup python3 /www/programing/core_node/scripts/file_sync_v2/server.py > /tmp/webclaude_group/logs/file_sync_v2/server.log 2>&1 &
+tail -f /tmp/webclaude_group/logs/file_sync_v2/server.log
+sudo pkill -9 -f "/www/programing/core_node/scripts/file_sync_v2/server.py"
+
+### file_sync_v2 (`/home/ubuntu/wwwroot/`)
+
+mkdir -p /tmp/webclaude_group/logs/file_sync_v2
+nohup python3 /home/ubuntu/wwwroot/scripts/file_sync_v2/server.py > /tmp/webclaude_group/logs/file_sync_v2/server.log 2>&1 &
+tail -f /tmp/webclaude_group/logs/file_sync_v2/server.log
+sudo pkill -9 -f "/home/ubuntu/wwwroot/scripts/file_sync_v2/server.py"
+
+### webclaude_center_server (`/www/programing/core_node/`)
+
+mkdir -p /tmp/webclaude_group/logs/webclaude_center_server && chmod +x /www/programing/core_node/webclaude_group/webclaude_center_server/scripts/start.sh
+nohup /www/programing/core_node/webclaude_group/webclaude_center_server/scripts/start.sh > /tmp/webclaude_group/logs/webclaude_center_server/launcher.nohup.log 2>&1 &
+tail -f /tmp/webclaude_group/logs/webclaude_center_server/launcher.nohup.log
+sudo fuser -k 18100/tcp
+
+### webclaude_go-gateway (`/home/ubuntu/wwwroot/`)
+
+mkdir -p /tmp/webclaude_group/logs/webclaude_go-gateway && chmod +x /home/ubuntu/wwwroot/webclaude_group/webclaude_go-gateway/scripts/start.sh
+nohup /home/ubuntu/wwwroot/webclaude_group/webclaude_go-gateway/scripts/start.sh > /tmp/webclaude_group/logs/webclaude_go-gateway/launcher.nohup.log 2>&1 &
+tail -f /tmp/webclaude_group/logs/webclaude_go-gateway/launcher.nohup.log
+sudo pkill -9 -f "/home/ubuntu/wwwroot/webclaude_group/webclaude_go-gateway/scripts/start.sh"sudo fuser -k 18200/tcp
+
+
+### Kill all `webclaude_group` `start.sh`
+
+sudo pkill -9 -f '(/www/programing/core_node|/home/ubuntu/wwwroot)/webclaude_group/(.*/)?scripts/start\.sh'
+
+
 A project group for building and deploying a web-based Claude Code service platform.
 
 ## Architecture Overview
@@ -12,7 +46,7 @@ A project group for building and deploying a web-based Claude Code service platf
 │  (Frontend)      │      │ HTTP relay + WebSocket (client + host relay)  │      │  (Host Agent) │
 │  React + Vite    │      │ Account pool, API keys, usage                  │      │  core_node    │
 └────────┬─────────┘      └────────────────────────┬─────────────────────┘      └───────────────┘
-         │ REST (mgmt)                               │ MySQL / Redis
+         │ REST (mgmt)                              │ MySQL / Redis
          │                                           ▼
          │                          ┌──────────────────────────┐
          └─────────────────────────►│ webclaude_center_server   │

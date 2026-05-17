@@ -15,14 +15,25 @@
 # This script is used by Unified App Manager and installation scripts (131-134)
 #
 # IMPORTANT NOTES:
-# - Laravel in this project has ONLY ONE instance: laravel_main
-# - Laravel uses FIXED port 9000 (not auto-incremented like other apps)
-# - Service name: octane-poly-9000
-# - Port range for other poly apps: 9000-9999 (but laravel_main is fixed at 9000)
+# - All detected Laravel projects under poly_apps/ share a port range starting at 9000
+# - Port assignment: sorted alphabetically, first project -> 9000, second -> 9001, ...
+# - Each project must have scripts/start_service.sh (Octane/Swoole production launcher)
+# - Same start_service.sh is used by both App Manager (Ns) and dd_helper scripts
+#
+# DEPLOYMENT PATHS (unified):
+# - App Manager "Ns" command -> create_systemd_service() with start_service.sh
+# - dd_helper 131-134 scripts -> install_laravel_service() -> same start_service.sh
+# - Both paths produce identical systemd services
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-LARAVEL_MAIN_PATH="$ROOT_DIR/poly_apps/laravel_main"
+DEBIAN_SERVICE_MANAGER="$ROOT_DIR/scripts/shells/linux/common/debian_service_manager.sh"
+
+# Laravel-specific constants (shared with app_config.sh)
+LARAVEL_BASE_PORT=9000
+LARAVEL_MEMORY_LIMIT="1600M"
+LARAVEL_CPU_LIMIT="50%"
+LARAVEL_RESTART_SEC="10"
 
 # Detect sudo command (use existing USE_SUDO if available from gvar_common.sh, otherwise detect)
 if [ -z "${USE_SUDO:-}" ]; then
@@ -41,79 +52,184 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Function to check if Laravel main exists
-check_laravel_main() {
-    if [[ ! -d "$LARAVEL_MAIN_PATH" ]]; then
-        echo -e "${RED}Error: laravel_main not found at: $LARAVEL_MAIN_PATH${NC}" >&2
+# Function to check if a Laravel project exists at the given path
+# Args: app_path (absolute path to the Laravel project root)
+check_laravel_app() {
+    local app_path="$1"
+
+    if [[ ! -d "$app_path" ]]; then
+        echo -e "${RED}Error: Laravel project not found at: $app_path${NC}" >&2
         return 1
     fi
-    
-    if [[ ! -f "$LARAVEL_MAIN_PATH/artisan" ]]; then
-        echo -e "${RED}Error: Laravel artisan not found in $LARAVEL_MAIN_PATH${NC}" >&2
+
+    if [[ ! -f "$app_path/artisan" ]]; then
+        echo -e "${RED}Error: artisan not found in $app_path${NC}" >&2
         return 1
     fi
-    
+
+    if [[ ! -f "$app_path/composer.json" ]]; then
+        echo -e "${RED}Error: composer.json not found in $app_path${NC}" >&2
+        return 1
+    fi
+
     return 0
 }
 
-# Function to install Laravel service (without domain binding)
-# Uses: php artisan servermanager:poly_apps laravel_main
-# NOTE: Laravel uses FIXED port 9000 (not auto-incremented)
+# Function to find all Laravel projects under poly_apps/ (sorted alphabetically)
+# Output: one line per project: "app_name|app_path"
+find_laravel_apps() {
+    local root="${1:-$ROOT_DIR}"
+    local poly_dir="$root/poly_apps"
+    [[ ! -d "$poly_dir" ]] && return 0
+
+    local entry
+    for entry in "$poly_dir"/*/; do
+        [[ -d "$entry" ]] || continue
+        [[ -f "$entry/composer.json" ]] || continue
+        [[ -f "$entry/artisan" ]] || continue
+        local base
+        base="$(basename "$entry")"
+        echo "$base|${entry%/}"
+    done | sort -t'|' -k1,1 -f
+}
+
+# Function to calculate port for a Laravel project by its index among all detected projects
+# Args: app_name
+# Returns: port number (LARAVEL_BASE_PORT + index)
+get_laravel_port() {
+    local target_name="$1"
+    local idx=0
+    local name path
+    while IFS='|' read -r name path; do
+        if [[ "$name" == "$target_name" ]]; then
+            echo $((LARAVEL_BASE_PORT + idx))
+            return 0
+        fi
+        idx=$((idx + 1))
+    done < <(find_laravel_apps)
+    # Fallback: not found, use base port
+    echo "$LARAVEL_BASE_PORT"
+    return 1
+}
+
+# Function to install a Laravel project as systemd service using start_service.sh
+# This is the UNIFIED entry point - both App Manager and dd_helper scripts call this
+# Args: app_name (directory name under poly_apps/, e.g. "laravel_main")
 install_laravel_service() {
-    local app_name="${1:-laravel_main}"
-    
-    echo -e "${BLUE}[LARAVEL SERVICE] Installing Laravel service (poly app method)${NC}" >&2
-    echo -e "${BLUE}[LARAVEL SERVICE] App: laravel_main (ONLY ONE Laravel instance in this project)${NC}" >&2
-    echo -e "${BLUE}[LARAVEL SERVICE] Port: 9000 (FIXED, not auto-incremented)${NC}" >&2
-    
-    if ! check_laravel_main; then
+    local app_name="$1"
+    local app_path="$ROOT_DIR/poly_apps/$app_name"
+    local port
+    port=$(get_laravel_port "$app_name")
+    local service_name="app-manager-$app_name"
+    local service_sh="$app_path/scripts/start_service.sh"
+
+    echo -e "${BLUE}[LARAVEL SERVICE] Installing service (unified method)${NC}" >&2
+    echo -e "${BLUE}[LARAVEL SERVICE] Project: $app_name${NC}" >&2
+    echo -e "${BLUE}[LARAVEL SERVICE] Port: $port (base $LARAVEL_BASE_PORT)${NC}" >&2
+    echo -e "${BLUE}[LARAVEL SERVICE] Script: start_service.sh (Octane/Swoole)${NC}" >&2
+
+    if ! check_laravel_app "$app_path"; then
         return 1
     fi
-    
-    local saved_dir="$(pwd)"
-    cd "$LARAVEL_MAIN_PATH" || return 1
-    
-    echo -e "${BLUE}[LARAVEL SERVICE] Configuring Laravel service (service only, no domain binding)...${NC}" >&2
-    echo -e "${YELLOW}[CMD]${NC} $USE_SUDO php artisan servermanager:poly_apps $app_name" >&2
-    
-    if $USE_SUDO php artisan servermanager:poly_apps "$app_name" 2>&1; then
-        echo -e "${GREEN}[LARAVEL SERVICE] Service installed successfully${NC}" >&2
-        echo -e "${GREEN}[LARAVEL SERVICE] Service name: octane-poly-9000${NC}" >&2
-        cd "$saved_dir" || true
+
+    if [[ ! -f "$service_sh" ]]; then
+        echo -e "${RED}Error: start_service.sh not found: $service_sh${NC}" >&2
+        echo -e "${RED}This file is required for production deployment.${NC}" >&2
+        return 1
+    fi
+
+    # Source debian_service_manager for create_systemd_service
+    if [[ ! -f "$DEBIAN_SERVICE_MANAGER" ]]; then
+        echo -e "${RED}Error: debian_service_manager.sh not found: $DEBIAN_SERVICE_MANAGER${NC}" >&2
+        return 1
+    fi
+    # Only source if create_systemd_service is not already available
+    if ! type create_systemd_service >/dev/null 2>&1; then
+        source "$DEBIAN_SERVICE_MANAGER" || { echo -e "${RED}Error: Failed to source debian_service_manager.sh${NC}" >&2; return 1; }
+    fi
+
+    # Clean up legacy octane-poly-* services that conflict with the new naming
+    if command -v systemctl >/dev/null 2>&1; then
+        local old_svcs
+        old_svcs=$(systemctl list-units --type=service --all --no-legend 2>/dev/null \
+            | grep -oE "octane-poly-[0-9]+\.service" | sed 's/.service$//' || true)
+        if [[ -n "$old_svcs" ]]; then
+            echo -e "${YELLOW}[LARAVEL SERVICE] Cleaning up legacy services...${NC}" >&2
+            local old_svc
+            for old_svc in $old_svcs; do
+                echo -e "${YELLOW}[LARAVEL SERVICE]   Stopping: $old_svc${NC}" >&2
+                systemctl stop "$old_svc" 2>/dev/null || true
+                systemctl disable "$old_svc" 2>/dev/null || true
+            done
+            systemctl daemon-reload 2>/dev/null || true
+        fi
+    fi
+
+    local description="App Manager: $app_name (Laravel Octane)"
+    echo -e "${YELLOW}[CMD]${NC} create_systemd_service \"$service_name\" ... start_service.sh (port=$port)" >&2
+
+    if create_systemd_service \
+        "$service_name" \
+        "$description" \
+        "env PORT=$port bash ./scripts/start_service.sh" \
+        "$app_path" \
+        "root" \
+        "always" \
+        "$LARAVEL_RESTART_SEC" \
+        "$LARAVEL_CPU_LIMIT" \
+        "$LARAVEL_MEMORY_LIMIT"; then
+        echo -e "${GREEN}[LARAVEL SERVICE] Service installed: $service_name (port $port)${NC}" >&2
         return 0
     else
         echo -e "${RED}[LARAVEL SERVICE] Service installation failed${NC}" >&2
-        cd "$saved_dir" || true
         return 1
     fi
 }
 
-# Function to add Laravel website with domain (poly type, swoole mode)
-# Uses: php artisan servermanager:website add domain --type=poly --php-mode=swoole --ssl=auto
+# Function to install ALL detected Laravel projects as services
+install_all_laravel_services() {
+    local name path
+    local ok=0 fail=0
+    while IFS='|' read -r name path; do
+        echo -e "${CYAN}--- $name ---${NC}" >&2
+        if install_laravel_service "$name"; then
+            ok=$((ok + 1))
+        else
+            fail=$((fail + 1))
+        fi
+    done < <(find_laravel_apps)
+    echo -e "${BLUE}[LARAVEL SERVICE] Installed: $ok, Failed: $fail${NC}" >&2
+    (( fail == 0 ))
+}
+
+# Function to add a website domain to a Laravel project (poly type, swoole mode)
+# Args: app_name, domain, [ssl_mode]
 add_laravel_website() {
-    local domain="$1"
-    local ssl_mode="${2:-auto}"
-    
+    local app_name="$1"
+    local domain="$2"
+    local ssl_mode="${3:-auto}"
+    local app_path="$ROOT_DIR/poly_apps/$app_name"
+
     if [[ -z "$domain" ]]; then
         echo -e "${RED}Error: Domain is required${NC}" >&2
         return 1
     fi
-    
-    echo -e "${BLUE}[LARAVEL WEBSITE] Adding Laravel website: $domain${NC}" >&2
-    echo -e "${BLUE}[LARAVEL WEBSITE] Type: poly (Laravel main project)${NC}" >&2
-    echo -e "${BLUE}[LARAVEL WEBSITE] PHP Mode: swoole (Octane)${NC}" >&2
-    
-    if ! check_laravel_main; then
+
+    echo -e "${BLUE}[LARAVEL WEBSITE] Project: $app_name${NC}" >&2
+    echo -e "${BLUE}[LARAVEL WEBSITE] Adding domain: $domain${NC}" >&2
+    echo -e "${BLUE}[LARAVEL WEBSITE] Type: poly, PHP Mode: swoole (Octane)${NC}" >&2
+
+    if ! check_laravel_app "$app_path"; then
         return 1
     fi
-    
+
     local saved_dir="$(pwd)"
-    cd "$LARAVEL_MAIN_PATH" || return 1
-    
+    cd "$app_path" || return 1
+
     echo -e "${YELLOW}[CMD]${NC} $USE_SUDO php artisan servermanager:website add \"$domain\" --type=poly --php-mode=swoole --ssl=$ssl_mode" >&2
-    
+
     if $USE_SUDO php artisan servermanager:website add "$domain" --type=poly --php-mode=swoole --ssl="$ssl_mode" 2>&1; then
-        echo -e "${GREEN}[LARAVEL WEBSITE] Website added successfully: $domain${NC}" >&2
+        echo -e "${GREEN}[LARAVEL WEBSITE] Website added: $domain${NC}" >&2
         cd "$saved_dir" || true
         return 0
     else
@@ -123,38 +239,43 @@ add_laravel_website() {
     fi
 }
 
-# Function to list Laravel services
-# Uses: php artisan servermanager:swoole list
+# Function to list services for a Laravel project
+# Args: app_name
 list_laravel_services() {
-    if ! check_laravel_main; then
+    local app_name="$1"
+    local app_path="$ROOT_DIR/poly_apps/$app_name"
+
+    if ! check_laravel_app "$app_path"; then
         return 1
     fi
-    
+
     local saved_dir="$(pwd)"
-    cd "$LARAVEL_MAIN_PATH" || return 1
-    
+    cd "$app_path" || return 1
+
     $USE_SUDO php artisan servermanager:swoole list 2>&1
-    
+
     cd "$saved_dir" || true
     return 0
 }
 
-# Function to check Laravel service status
+# Function to check service status for a Laravel project
+# Args: app_name
 check_laravel_service_status() {
-    local app_name="${1:-laravel_main}"
-    
-    if ! check_laravel_main; then
+    local app_name="$1"
+    local app_path="$ROOT_DIR/poly_apps/$app_name"
+
+    if ! check_laravel_app "$app_path"; then
         return 1
     fi
-    
+
     local saved_dir="$(pwd)"
-    cd "$LARAVEL_MAIN_PATH" || return 1
-    
+    cd "$app_path" || return 1
+
     local output
     output=$($USE_SUDO php artisan servermanager:swoole list 2>&1 | grep -i "octane-poly\|$app_name" || true)
-    
+
     cd "$saved_dir" || true
-    
+
     if [[ -n "$output" ]]; then
         echo "$output"
         return 0
@@ -166,35 +287,68 @@ check_laravel_service_status() {
 # Main function - route commands
 main() {
     local command="${1:-help}"
-    
+
     case "$command" in
         "install"|"install-service")
-            install_laravel_service "${2:-laravel_main}"
+            if [[ -z "${2:-}" ]]; then
+                echo -e "${RED}Error: app_name is required${NC}" >&2
+                echo "Usage: $0 install <app_name>" >&2
+                return 1
+            fi
+            install_laravel_service "$2"
+            ;;
+        "install-all")
+            install_all_laravel_services
             ;;
         "add-website"|"add")
-            add_laravel_website "$2" "${3:-auto}"
+            if [[ -z "${2:-}" ]] || [[ -z "${3:-}" ]]; then
+                echo -e "${RED}Error: app_name and domain are required${NC}" >&2
+                echo "Usage: $0 add-website <app_name> <domain> [ssl_mode]" >&2
+                return 1
+            fi
+            add_laravel_website "$2" "$3" "${4:-auto}"
             ;;
         "list"|"list-services")
-            list_laravel_services
+            if [[ -z "${2:-}" ]]; then
+                echo -e "${RED}Error: app_name is required${NC}" >&2
+                echo "Usage: $0 list <app_name>" >&2
+                return 1
+            fi
+            list_laravel_services "$2"
             ;;
         "status"|"check")
-            check_laravel_service_status "${2:-laravel_main}"
+            if [[ -z "${2:-}" ]]; then
+                echo -e "${RED}Error: app_name is required${NC}" >&2
+                echo "Usage: $0 status <app_name>" >&2
+                return 1
+            fi
+            check_laravel_service_status "$2"
+            ;;
+        "find"|"scan")
+            echo "Detected Laravel projects under poly_apps/:"
+            find_laravel_apps | while IFS='|' read -r name path; do
+                local port
+                port=$(get_laravel_port "$name")
+                echo "  $name -> port $port ($path)"
+            done
             ;;
         "help"|*)
             echo "Usage: $0 <command> [args...]"
             echo ""
             echo "Commands:"
-            echo "  install [app_name]     - Install Laravel service (poly app method)"
-            echo "  add-website <domain> [ssl_mode] - Add Laravel website with domain"
-            echo "  list                   - List Laravel services"
-            echo "  status [app_name]      - Check Laravel service status"
-            echo "  help                   - Show this help message"
+            echo "  install <app_name>       - Install Laravel service via start_service.sh"
+            echo "  install-all              - Install services for ALL detected Laravel projects"
+            echo "  add-website <app_name> <domain> [ssl_mode] - Add website domain"
+            echo "  list <app_name>          - List services for a Laravel project"
+            echo "  status <app_name>        - Check service status"
+            echo "  find                     - Scan and list all detected Laravel projects"
+            echo "  help                     - Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0 install laravel_main"
-            echo "  $0 add-website api.example.com auto"
-            echo "  $0 list"
-            echo "  $0 status laravel_main"
+            echo "  $0 install-all"
+            echo "  $0 add-website laravel_main api.example.com auto"
+            echo "  $0 find"
             ;;
     esac
 }

@@ -377,61 +377,40 @@ if [ -d "$laravel_dir" ]; then
     # Check if any Octane services exist using unified Laravel service manager
     echo "[$SCRIPT_INDEX] Checking for existing Octane services..."
     
-    if [ -f "$LARAVEL_SERVICE_MANAGER" ] && command -v check_laravel_service_status >/dev/null 2>&1; then
-        # Use unified Laravel service manager
-        octane_services=$(check_laravel_service_status "laravel_main" 2>/dev/null || true)
-    else
-        # Fallback to direct artisan command
-        octane_services=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep "octane-poly" | head -1)
-    fi
-
-    if [ -n "$octane_services" ]; then
-        echo "[$SCRIPT_INDEX] Found existing Octane service"
-        echo "[$SCRIPT_INDEX] Refreshing service configuration (idempotent)..."
-
-        # Get first API domain from database to trigger service refresh
-        # Fixed query: simpler grep pattern for "Website: domain.com"
-        first_domain=$($USE_SUDO php artisan servermanager:website list 2>/dev/null | grep "^Website:" | head -1 | awk '{print $2}')
-
-        if [ -n "$first_domain" ]; then
-            echo "[$SCRIPT_INDEX] Using domain: $first_domain"
-            echo "[$SCRIPT_INDEX] Regenerating service configuration with latest settings..."
-
-            # Use unified Laravel service manager if available
-            if [ -f "$LARAVEL_SERVICE_MANAGER" ] && command -v add_laravel_website >/dev/null 2>&1; then
-                # Use unified script
-                add_laravel_website "$first_domain" "auto" 2>&1 | grep -E "Swoole service|updated config|restarted|restarted with updated config|Website added" | while read -r line; do
-                    echo "[$SCRIPT_INDEX]   $line"
-                done
-            else
-                # Fallback to direct artisan command
-                $USE_SUDO php artisan servermanager:website add "$first_domain" \
-                    --type=poly --ssl=auto --php-mode=swoole 2>&1 | grep -E "Swoole service|updated config|restarted|restarted with updated config" | while read -r line; do
-                    echo "[$SCRIPT_INDEX]   $line"
-                done
-            fi
-
-            echo "[$SCRIPT_INDEX] Service configuration refreshed"
-
-            # Verify service is running
-            if [ -f "$LARAVEL_SERVICE_MANAGER" ] && command -v check_laravel_service_status >/dev/null 2>&1; then
-                service_status=$(check_laravel_service_status "laravel_main" 2>/dev/null || true)
-            else
-                service_status=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep -E "● octane-poly")
-            fi
-            
-            if echo "$service_status" | grep -q "●\|octane-poly"; then
-                echo "[$SCRIPT_INDEX] ✓ Octane service is active"
-            else
-                echo "[$SCRIPT_INDEX] ⚠ Octane service may need manual check"
-            fi
+    # Use unified install_laravel_service (creates/updates systemd service via start_service.sh)
+    # This is idempotent: safe to run multiple times, always produces consistent service config
+    if [ -f "$LARAVEL_SERVICE_MANAGER" ] && command -v install_laravel_service >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] Installing/refreshing Laravel service via unified manager..."
+        if install_laravel_service "laravel_main" 2>&1 | while read -r line; do
+            echo "[$SCRIPT_INDEX]   $line"
+        done; then
+            echo "[$SCRIPT_INDEX] Laravel service installed/refreshed successfully"
         else
-            echo "[$SCRIPT_INDEX] ERROR: No domains found in database"
-            echo "[$SCRIPT_INDEX] Cannot refresh service without domain"
+            echo "[$SCRIPT_INDEX] WARNING: Laravel service install had issues (may be first run)"
+        fi
+
+        # Verify service is running
+        local svc_name="app-manager-laravel_main"
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl enable --now "$svc_name.service" 2>/dev/null || true
+            local svc_active
+            svc_active=$(systemctl is-active "$svc_name" 2>/dev/null || echo "inactive")
+            if [[ "$svc_active" == "active" ]]; then
+                echo "[$SCRIPT_INDEX] Service $svc_name is active"
+            else
+                echo "[$SCRIPT_INDEX] Service $svc_name status: $svc_active (may need manual check)"
+            fi
         fi
     else
-        echo "[$SCRIPT_INDEX] No existing Octane service found"
-        echo "[$SCRIPT_INDEX] Service will be created when domains are added"
+        # Fallback to direct artisan command (legacy path)
+        echo "[$SCRIPT_INDEX] Unified manager not available, using direct artisan command..."
+        octane_services=$($USE_SUDO php artisan servermanager:swoole list 2>/dev/null | grep -E "octane-poly|app-manager-laravel" | head -1)
+        if [ -n "$octane_services" ]; then
+            echo "[$SCRIPT_INDEX] Found existing Octane service: $octane_services"
+        else
+            echo "[$SCRIPT_INDEX] No existing Octane service found"
+            echo "[$SCRIPT_INDEX] Service will be created when domains are added"
+        fi
     fi
 
     cd - >/dev/null

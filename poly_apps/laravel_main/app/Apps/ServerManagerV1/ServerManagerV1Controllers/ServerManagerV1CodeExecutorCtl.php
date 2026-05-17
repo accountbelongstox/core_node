@@ -112,8 +112,8 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 'id' => 11,
                 'name' => 'Restart Laravel Octane Server',
                 'category' => 'system_maintenance',
-                'description' => 'Restart the octane-poly-9000 Octane service to reload code changes',
-                'command' => 'systemctl restart octane-poly-9000',
+                'description' => 'Restart the app-manager-laravel_main Octane service to reload code changes',
+                'command' => 'systemctl restart app-manager-laravel_main',
                 'timeout' => 30,
                 'requires_sudo' => false
             ]

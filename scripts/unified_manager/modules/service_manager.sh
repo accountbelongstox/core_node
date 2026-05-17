@@ -732,13 +732,12 @@ create_unified_service() {
     echo -e "\033[33mDomain:\033[0m $domain"
     echo -e "\033[33mMode:\033[0m $([ "$debug_mode" = "true" ] && echo "Debug (source)" || echo "Production (build)")"
 
-    # Special handling for Laravel - use poly app deployment method
-    # IMPORTANT: Laravel has ONLY ONE instance (laravel_main) with FIXED port 9000
+    # Special handling for Laravel - use unified laravel_service_manager.sh
+    # Laravel projects get dedicated ports starting from 9000 (sorted alphabetically)
     if [ "$framework_type" = "laravelStart" ]; then
         echo ""
-        echo -e "\033[36m=== Laravel Service (Poly App Method) ===\033[0m"
-        echo -e "\033[33mUsing unified Laravel service manager (poly app deployment)\033[0m"
-        echo -e "\033[33mNOTE: Laravel has ONLY ONE instance (laravel_main) with FIXED port 9000\033[0m"
+        echo -e "\033[36m=== Laravel Service (Unified Manager) ===\033[0m"
+        echo -e "\033[33mUsing unified Laravel service manager (start_service.sh -> Octane)\033[0m"
         
         local laravel_service_manager="$SERVICE_MANAGER_ROOT_DIR/scripts/unified_manager/modules/laravel_service_manager.sh"
         
@@ -756,13 +755,15 @@ create_unified_service() {
         # Install Laravel service using poly app method
         if install_laravel_service "$app_name"; then
             echo -e "\033[32m✓ Laravel service installed successfully (poly app method)\033[0m"
-            echo -e "\033[32m✓ Service name: octane-poly-9000 (FIXED port 9000)\033[0m"
-            
+            local _lport
+            _lport=$(get_laravel_port "$app_name" 2>/dev/null || echo "9000")
+            echo -e "\033[32m✓ Service name: app-manager-$app_name (port $_lport)\033[0m"
+
             # If domain is provided, also add website configuration
             if [ -n "$domain" ]; then
                 echo ""
                 echo -e "\033[36m=== Adding Laravel Website Configuration ===\033[0m"
-                if add_laravel_website "$domain" "auto"; then
+                if add_laravel_website "$app_name" "$domain" "auto"; then
                     echo -e "\033[32m✓ Laravel website added successfully: $domain\033[0m"
                 else
                     echo -e "\033[33m⚠ Laravel website addition failed (service is still installed)\033[0m"

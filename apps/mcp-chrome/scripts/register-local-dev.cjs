@@ -66,9 +66,8 @@ function getChromiumManifestPath() {
     return path.join(
       homeDir,
       'AppData',
-      'Local',
+      'Roaming',
       'Chromium',
-      'User Data',
       'NativeMessagingHosts',
       `${HOST_NAME}.json`
     );
@@ -201,6 +200,17 @@ function fixSystemPermissions(dirPath) {
 }
 
 /**
+ * Get Windows registry key for a browser (user-level HKCU)
+ */
+function getWindowsRegistryKey(browserName) {
+  if (os.platform() !== 'win32') return null;
+  if (browserName.toLowerCase() === 'chromium') {
+    return `HKCU\\Software\\Chromium\\NativeMessagingHosts\\${HOST_NAME}`;
+  }
+  return `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`;
+}
+
+/**
  * Register for a browser
  */
 function registerForBrowser(manifestPath, browserName, registryKey = null, extensionId = null) {
@@ -212,7 +222,7 @@ function registerForBrowser(manifestPath, browserName, registryKey = null, exten
     if (!extensionId) {
       throw new Error(`Extension ID is required for ${browserName} registration`);
     }
-    
+
     const manifest = createManifestContent(extensionId);
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     console.log(`[OK] Manifest written: ${manifestPath}`);
@@ -221,18 +231,27 @@ function registerForBrowser(manifestPath, browserName, registryKey = null, exten
     // Fix permissions for system directory
     fixSystemPermissions(path.dirname(manifestPath));
 
-    // Windows registry entry (only for system-level registration)
-    // User-level registration doesn't need registry entry
-    if (os.platform() === 'win32' && registryKey) {
+    // Windows requires HKCU registry entry for user-level native messaging host discovery
+    const effectiveRegistryKey = registryKey || getWindowsRegistryKey(browserName);
+    if (os.platform() === 'win32' && effectiveRegistryKey) {
       try {
         const escapedPath = manifestPath.replace(/\\/g, '\\\\');
-        const regCommand = `reg add "${registryKey}" /ve /t REG_SZ /d "${escapedPath}" /f`;
+        const regCommand = `reg add "${effectiveRegistryKey}" /ve /t REG_SZ /d "${escapedPath}" /f`;
         execSync(regCommand, { stdio: 'pipe' });
-        console.log(`[OK] Registry entry created for ${browserName}`);
+        console.log(`[OK] Registry entry created: ${effectiveRegistryKey}`);
       } catch (err) {
         console.warn(`[WARN] Registry entry failed for ${browserName}: ${err.message}`);
-        console.warn(`[INFO] This is normal for user-level registration`);
+        console.warn(`[HINT] Try running as Administrator if this fails`);
       }
+    }
+
+    // Write node_path.txt for run_host.bat to find Node.js
+    try {
+      const nodePathFile = path.join(NATIVE_SERVER_DIST, 'node_path.txt');
+      fs.writeFileSync(nodePathFile, process.execPath, 'utf8');
+      console.log(`[OK] Node.js path written: ${process.execPath}`);
+    } catch (err) {
+      console.warn(`[WARN] Failed to write node_path.txt: ${err.message}`);
     }
 
     console.log(`[SUCCESS] Successfully registered ${browserName}\n`);

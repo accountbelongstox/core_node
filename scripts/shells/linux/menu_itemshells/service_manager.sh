@@ -74,9 +74,11 @@ SERVICE_INSTALL_SCRIPT["pycore"]="150_install_pycore_http_service.sh"
 SERVICE_MANAGER_SCRIPT["pycore"]="$SERVER_MANAGER_DIR/pycore_manager.sh"
 
 SERVICE_NAME["laravel"]="Laravel Octane"
-SERVICE_SYSTEMD["laravel"]="laravel-octane"
+SERVICE_SYSTEMD["laravel"]="app-manager-laravel_main"
 SERVICE_INSTALL_SCRIPT["laravel"]="133_setup_api_domains.sh"
 SERVICE_MANAGER_SCRIPT["laravel"]="$SERVER_MANAGER_DIR/laravel_octane_manager.sh"
+# Laravel service grep pattern: matches both new (app-manager-laravel*) and legacy (octane-*)
+LARAVEL_SERVICE_PATTERN="app-manager-laravel\|octane-.*"
 
 SERVICE_NAME["unified_apps"]="Unified Apps"
 SERVICE_SYSTEMD["unified_apps"]=""
@@ -118,9 +120,9 @@ is_service_installed() {
         return 1
     fi
 
-    # Special handling for Laravel Octane (path-based services with pattern: octane-*)
+    # Special handling for Laravel Octane (new: app-manager-laravel*, legacy: octane-*)
     if [ "$service" = "laravel" ]; then
-        if systemctl list-units --type=service --all | grep -q "octane-.*\.service"; then
+        if systemctl list-units --type=service --all | grep -qE "(app-manager-laravel|octane-).*\.service"; then
             return 0
         fi
         return 1
@@ -179,10 +181,10 @@ get_service_status() {
         return
     fi
 
-    # Special handling for Laravel Octane (multiple services)
+    # Special handling for Laravel Octane (new: app-manager-laravel*, legacy: octane-*)
     if [ "$service" = "laravel" ]; then
-        local total_count=$(systemctl list-units --type=service --all 2>/dev/null | grep -c "octane-.*\.service" || echo "0")
-        local running_count=$(systemctl list-units --type=service --state=active 2>/dev/null | grep -c "octane-.*\.service" || echo "0")
+        local total_count=$(systemctl list-units --type=service --all 2>/dev/null | grep -cE "(app-manager-laravel|octane-).*\.service" || echo "0")
+        local running_count=$(systemctl list-units --type=service --state=active 2>/dev/null | grep -cE "(app-manager-laravel|octane-).*\.service" || echo "0")
 
         # Clean up: ensure single line numeric value
         total_count=$(printf "%s" "$total_count" | tr -cd '0-9' | head -c 10)
@@ -266,7 +268,7 @@ start_service() {
 
     # Special handling for Laravel Octane (multiple services)
     if [ "$service" = "laravel" ]; then
-        local octane_services=$(systemctl list-units --type=service --all | grep "octane-.*\.service" | awk '{print $1}' | sed 's/.service$//')
+        local octane_services=$(systemctl list-units --type=service --all | grep -E "(app-manager-laravel|octane-).*.service" | awk '{print $1}' | sed 's/.service$//')
         local success_count=0
         local fail_count=0
 
@@ -335,7 +337,7 @@ stop_service() {
 
     # Special handling for Laravel Octane (multiple services)
     if [ "$service" = "laravel" ]; then
-        local octane_services=$(systemctl list-units --type=service --all | grep "octane-.*\.service" | awk '{print $1}' | sed 's/.service$//')
+        local octane_services=$(systemctl list-units --type=service --all | grep -E "(app-manager-laravel|octane-).*.service" | awk '{print $1}' | sed 's/.service$//')
         local success_count=0
         local fail_count=0
 
@@ -391,7 +393,7 @@ restart_service() {
 
     # Special handling for Laravel Octane (multiple services)
     if [ "$service" = "laravel" ]; then
-        local octane_services=$(systemctl list-units --type=service --all | grep "octane-.*\.service" | awk '{print $1}' | sed 's/.service$//')
+        local octane_services=$(systemctl list-units --type=service --all | grep -E "(app-manager-laravel|octane-).*.service" | awk '{print $1}' | sed 's/.service$//')
         local success_count=0
         local fail_count=0
 
@@ -464,7 +466,7 @@ show_service_logs() {
     if [ "$service" = "laravel" ]; then
         echo ""
         echo "Choose log source:"
-        echo "1. Systemd Journal (All Octane services)"
+        echo "1. Systemd Journal (All Laravel services)"
         echo "2. Laravel Log File (storage/logs/swoole_http.log)"
         echo "3. Octane State File (storage/logs/octane-server-state.json)"
         echo "0. Back"
@@ -474,11 +476,11 @@ show_service_logs() {
         case "$log_choice" in
             1)
                 echo ""
-                echo -e "${CYAN}Recent logs from all Octane services (last 100 lines):${NC}"
+                echo -e "${CYAN}Recent logs from Laravel services (last 100 lines):${NC}"
                 echo "================================================"
-                journalctl -u 'octane-*' -n 100 --no-pager | tail -50
+                journalctl -u 'app-manager-laravel*' -u 'octane-*' -n 100 --no-pager | tail -50
                 echo ""
-                echo -e "${YELLOW}Tip: Use 'journalctl -u octane-poly-9000 -f' to follow logs in real-time${NC}"
+                echo -e "${YELLOW}Tip: Use 'journalctl -u app-manager-laravel_main -f' to follow logs in real-time${NC}"
                 ;;
             2)
                 local swoole_log="/www/programing/core_node/poly_apps/laravel_main/storage/logs/swoole_http.log"
