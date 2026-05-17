@@ -1,5 +1,5 @@
 # Pair-code TCP sync server: manifest first (mtime/size), then file payloads only when needed.
-# Single-file: inlined protocol + pip/ensurepip bootstrap (no external protocol.py required).
+# Single-file: inlined protocol (no external protocol.py required). Stdlib only.
 # v2: persistent sessions (loop after auth), batch_files, TCP_NODELAY.
 
 from __future__ import annotations
@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import signal
 import socket
 import struct
 import subprocess
@@ -21,37 +22,6 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 
-def _pip_bootstrap() -> None:
-    """Ensure pip exists; upgrade pip. Prints steps; on failure logs traceback and continues."""
-    if os.environ.get("FILE_SYNC_V2_NO_AUTO_PIP", "").lower() in ("1", "true", "yes"):
-        print("[file_sync_v2] FILE_SYNC_V2_NO_AUTO_PIP set, skipping pip bootstrap", flush=True)
-        return
-    try:
-        print("[file_sync_v2] checking pip:", sys.executable, "-m pip --version", flush=True)
-        v = subprocess.run(
-            [sys.executable, "-m", "pip", "--version"],
-            timeout=60,
-            capture_output=True,
-            text=True,
-        )
-        if v.returncode != 0:
-            print("[file_sync_v2] pip not usable, running: python -m ensurepip --upgrade", flush=True)
-            subprocess.run(
-                [sys.executable, "-m", "ensurepip", "--upgrade"],
-                timeout=180,
-            )
-        print("[file_sync_v2] upgrading pip: python -m pip install -U pip", flush=True)
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "-U", "pip"],
-            timeout=600,
-        )
-        print("[file_sync_v2] pip bootstrap done", flush=True)
-    except Exception as e:
-        print(f"[file_sync_v2] pip bootstrap failed (server still starts): {e!r}", flush=True)
-        traceback.print_exc()
-
-
-_pip_bootstrap()
 
 # --- inlined from protocol.py (framing + path helpers) ---
 _JSON_LEN = struct.Struct("!I")
@@ -265,9 +235,8 @@ _TEXT_EXTS = frozenset((
     ".makefile", ".mk",
     ".dockerfile",
     ".tf", ".tfvars",
-    ".env", ".env.example", ".env.local",
-    ".editorconfig", ".gitignore", ".gitattributes", ".gitmodules",
-    ".dockerignore", ".npmrc", ".yarnrc", ".eslintrc", ".prettierrc",
+    # NOTE: dotfiles (.env, .gitignore, .npmrc, etc.) are in _TEXT_NAMES below
+    # because os.path.splitext(".foo") yields ext="" — they cannot match here.
     ".htaccess", ".nginx",
     ".proto",
     ".graphql", ".gql",
@@ -275,12 +244,17 @@ _TEXT_EXTS = frozenset((
 ))
 
 # names without extension that are text
+# NOTE: dotfiles like .env must go here, not _TEXT_EXTS, because
+# os.path.splitext(".env") returns ("", ".env") as the stem, not the ext.
 _TEXT_NAMES = frozenset((
     "Makefile", "Dockerfile", "Vagrantfile", "Gemfile", "Rakefile",
     "Procfile", "Brewfile", "Justfile",
     "LICENSE", "LICENCE", "COPYING", "AUTHORS", "CONTRIBUTORS",
     "README", "CHANGELOG", "CHANGES", "NEWS", "HISTORY",
-    ".gitignore", ".gitattributes", ".dockerignore", ".editorconfig",
+    ".gitignore", ".gitattributes", ".gitmodules", ".dockerignore",
+    ".editorconfig", ".npmrc", ".yarnrc", ".eslintrc", ".prettierrc",
+    ".env", ".env.example", ".env.local", ".env.development", ".env.production",
+    ".env.test", ".env.staging",
 ))
 
 
@@ -620,11 +594,30 @@ def _serve() -> None:
     if not root:
         raise SystemExit("edit server_config.json: set root")
     os.makedirs(root, exist_ok=True)
+    # kill any leftover process occupying this port
+    try:
+        out = subprocess.check_output(
+            ["lsof", "-t", "-i", f":{port}"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+        for pid_str in out.splitlines():
+            pid = int(pid_str)
+            if pid != os.getpid():
+                print(f"killing leftover process {pid} on port {port}", flush=True)
+                os.kill(pid, signal.SIGKILL)
+                time.sleep(0.3)
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        pass
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((host, port))
     sock.listen(32)
+    script_path = os.path.abspath(__file__)
+    log_path = os.path.join(os.path.dirname(script_path), "server.log")
     print(f"sync server listening {host}:{port} -> {root}", flush=True)
+    print("", flush=True)
+    print(f"  nohup python3 {script_path} > {log_path} 2>&1 &", flush=True)
+    print(f"  tail -f {log_path}", flush=True)
     print("", flush=True)
     print("=" * 52, flush=True)
     print(f"  PAIR CODE (enter on client):  {expected_pair}  ", flush=True)

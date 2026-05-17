@@ -1,233 +1,238 @@
 /* Import Tailwind CSS v4 */
 @import "tailwindcss";
 
-/* 现代化全局样式 - 精美渐变配色方案 */
-:root {
-  /* 字体系统 - 优化可读性 */
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
-  line-height: 1.6;
-  font-weight: 400;
+/*
+ * Custom base styles - MUST be in @layer base so Tailwind utility classes
+ * (in @layer utilities) can override them. Unlayered styles always beat
+ * layered styles per CSS spec, which would break all Tailwind utilities.
+ */
+@layer base {
+  /* 现代化全局样式 - 精美渐变配色方案 */
+  :root {
+    /* 字体系统 - 优化可读性 */
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+      'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+    line-height: 1.6;
+    font-weight: 400;
 
-  /* 精美渐变色系统 - 紫色/蓝色主题 */
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --primary-gradient-hover: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
-  --accent-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-  --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  --warning-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    /* 精美渐变色系统 - 紫色/蓝色主题 */
+    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --primary-gradient-hover: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
+    --accent-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    --warning-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
 
-  /* 主色调 (reference: advanced-control-panel slate/indigo) */
-  --primary-color: #6366f1;
-  --primary-light: #818cf8;
-  --primary-dark: #4f46e5;
-  --primary-darker: #4338ca;
-  --secondary-color: #475569;
-  --accent-color: #818cf8;
+    /* 主色调 (reference: advanced-control-panel slate/indigo) */
+    --primary-color: #6366f1;
+    --primary-light: #818cf8;
+    --primary-dark: #4f46e5;
+    --primary-darker: #4338ca;
+    --secondary-color: #475569;
+    --accent-color: #818cf8;
 
-  /* 状态颜色 */
-  --success-color: #10b981;
-  --success-light: #34d399;
-  --warning-color: #f59e0b;
-  --warning-light: #fbbf24;
-  --error-color: #ef4444;
-  --error-light: #f87171;
-  --info-color: #6366f1;
-  --info-light: #818cf8;
+    /* 状态颜色 */
+    --success-color: #10b981;
+    --success-light: #34d399;
+    --warning-color: #f59e0b;
+    --warning-light: #fbbf24;
+    --error-color: #ef4444;
+    --error-light: #f87171;
+    --info-color: #6366f1;
+    --info-light: #818cf8;
 
-  /* 文字颜色 - 深色主题 */
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-light: #cbd5e1;
-  --text-white: #ffffff;
+    /* 文字颜色 - 深色主题 */
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-light: #cbd5e1;
+    --text-white: #ffffff;
 
-  /* 背景颜色 - 深色 */
-  --bg-primary: #0f172a;
-  --bg-secondary: #020617;
-  --bg-tertiary: #1e293b;
-  --bg-gray: #334155;
-  --bg-overlay: rgba(15, 23, 42, 0.98);
-  --bg-glass: rgba(30, 41, 59, 0.8);
-  --bg-card: rgba(30, 41, 59, 0.4);
+    /* 背景颜色 - 深色 */
+    --bg-primary: #0f172a;
+    --bg-secondary: #020617;
+    --bg-tertiary: #1e293b;
+    --bg-gray: #334155;
+    --bg-overlay: rgba(15, 23, 42, 0.98);
+    --bg-glass: rgba(30, 41, 59, 0.8);
+    --bg-card: rgba(30, 41, 59, 0.4);
 
-  /* 边框颜色 */
-  --border-color: #334155;
-  --border-light: #475569;
-  --border-dark: #1e293b;
+    /* 边框颜色 */
+    --border-color: #334155;
+    --border-light: #475569;
+    --border-dark: #1e293b;
 
-  /* 阴影系统 - 更柔和的投影 */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.12);
-  --shadow-2xl: 0 16px 32px rgba(0, 0, 0, 0.14);
+    /* 阴影系统 - 更柔和的投影 */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.12);
+    --shadow-2xl: 0 16px 32px rgba(0, 0, 0, 0.14);
 
-  /* 彩色阴影 */
-  --shadow-primary: 0 8px 20px rgba(102, 126, 234, 0.25);
-  --shadow-success: 0 8px 20px rgba(16, 185, 129, 0.25);
-  --shadow-warning: 0 8px 20px rgba(245, 158, 11, 0.25);
-  --shadow-error: 0 8px 20px rgba(239, 68, 68, 0.25);
+    /* 彩色阴影 */
+    --shadow-primary: 0 8px 20px rgba(102, 126, 234, 0.25);
+    --shadow-success: 0 8px 20px rgba(16, 185, 129, 0.25);
+    --shadow-warning: 0 8px 20px rgba(245, 158, 11, 0.25);
+    --shadow-error: 0 8px 20px rgba(239, 68, 68, 0.25);
 
-  /* 间距系统 */
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 12px;
-  --spacing-lg: 16px;
-  --spacing-xl: 20px;
-  --spacing-2xl: 24px;
-  --spacing-3xl: 32px;
-  --spacing-4xl: 40px;
+    /* 间距系统 */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 20px;
+    --spacing-2xl: 24px;
+    --spacing-3xl: 32px;
+    --spacing-4xl: 40px;
 
-  /* 圆角系统 - 更圆润的设计 */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
-  --radius-3xl: 24px;
-  --radius-full: 9999px;
+    /* 圆角系统 - 更圆润的设计 */
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-2xl: 20px;
+    --radius-3xl: 24px;
+    --radius-full: 9999px;
 
-  /* 动画 - 更流畅的过渡 */
-  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    /* 动画 - 更流畅的过渡 */
+    --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* 字体渲染优化 */
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
+    /* 字体渲染优化 */
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* 重置样式 */
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Chrome 扩展弹出窗口限制: 最大 800×600px */
+  html {
+    width: 780px;
+    height: 580px;
+    overflow: hidden;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    width: 780px;
+    height: 580px;
+    overflow: hidden;
+    font-family: inherit;
+    background: #0f172a;
+    color: var(--text-primary);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  #app {
+    width: 780px;
+    height: 580px;
+    overflow: hidden;
+  }
+
+  /* 链接样式 */
+  a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+  }
+
+  a:hover {
+    color: var(--primary-dark);
+  }
+
+  /* 按钮基础样式重置 */
+  button {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    border: none;
+    background: none;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  /* 输入框基础样式 */
+  input,
+  textarea,
+  select {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: all var(--transition-fast);
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  }
+
+  /* 滚动条样式 */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+  }
+
+  /* 选择文本样式 */
+  ::selection {
+    background: rgba(102, 126, 234, 0.2);
+    color: var(--text-primary);
+  }
+
+  /* 焦点可见性 */
+  :focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
 }
 
-/* 重置样式 */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html {
-  width: 1400px;
-  min-height: 900px;
-  overflow-x: hidden;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-  width: 1400px;
-  min-width: 1400px;
-  min-height: 900px;
-  overflow-x: hidden;
-  font-family: inherit;
-  background: #0f172a;
-  color: var(--text-primary);
-}
-
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-#app {
-  width: 1400px;
-  min-width: 1400px;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-/* 链接样式 */
-a {
-  color: var(--primary-color);
-  text-decoration: none;
-  transition: color var(--transition-fast);
-}
-
-a:hover {
-  color: var(--primary-dark);
-}
-
-/* 按钮基础样式重置 */
-button {
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  border: none;
-  background: none;
-  cursor: pointer;
-  transition: all var(--transition-normal);
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-/* 输入框基础样式 */
-input,
-textarea,
-select {
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  transition: all var(--transition-fast);
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-/* 滚动条样式 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-sm);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
-}
-
-/* 选择文本样式 */
-::selection {
-  background: rgba(102, 126, 234, 0.2);
-  color: var(--text-primary);
-}
-
-/* 焦点可见性 */
-:focus-visible {
-  outline: 2px solid var(--primary-color);
-  outline-offset: 2px;
-}
-
-/* 精美动画关键帧 */
+/* 精美动画关键帧 - keyframes 不受 @layer 影响 */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -279,76 +284,28 @@ select:focus {
   }
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
+/* 自定义动画辅助类 - pulse/bounce/line-clamp 使用 Tailwind 内置版本 */
+@layer utilities {
+  .animate-fadeIn {
+    animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  50% {
-    opacity: 0.7;
+
+  .animate-slideUp {
+    animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .animate-slideDown {
+    animation: slideDown 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .animate-scaleIn {
+    animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
   }
 }
-
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-/* 动画辅助类 */
-.animate-fadeIn {
-  animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.animate-slideUp {
-  animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.animate-slideDown {
-  animation: slideDown 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.animate-scaleIn {
-  animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.animate-shimmer {
-  animation: shimmer 2s linear infinite;
-}
-
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-.animate-bounce {
-  animation: bounce 1s ease-in-out infinite;
-}
-
-/* 文本截断工具类 */
-.line-clamp-1 {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  overflow: hidden;
-}
-
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-.line-clamp-3 {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-}
-
-/* 响应式断点 - 已禁用以支持大尺寸面板 */
 
 /* 高对比度模式支持 */
 @media (prefers-contrast: high) {

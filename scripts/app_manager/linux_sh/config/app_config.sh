@@ -6,6 +6,14 @@ BASE_PORT=10000
 PORT_RANGE=5000
 AUTO_INCREMENT=true
 
+# Laravel projects (detected by composer.json + artisan) use a dedicated port range.
+# Sorted alphabetically: first project -> 9000, second -> 9001, ...
+LARAVEL_BASE_PORT=9000
+
+# Laravel service memory limit (Octane holds everything in memory, needs more)
+LARAVEL_MEMORY_LIMIT="1600M"
+LARAVEL_CPU_LIMIT="50%"
+
 ENTRY_POINTS="main.py main.js package.json composer.json pubspec.yaml index.php build.gradle build.gradle.kts nuxt.config.js nuxt.config.ts"
 
 # Command template for a key; placeholders: app_path, app_name, port, root_dir

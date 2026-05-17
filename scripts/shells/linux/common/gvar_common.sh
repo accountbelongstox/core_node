@@ -133,22 +133,22 @@ CORE_NODE_PROJECT_ROOT=""
 # Function to detect desktop environment
 detect_desktop_environment() {
     # Check for X11 session
-    if [ -n "$DISPLAY" ] && [ "$DISPLAY" != ":0" ]; then
+    if [ -n "${DISPLAY:-}" ] && [ "${DISPLAY:-}" != ":0" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
     fi
 
     # Check for Wayland session
-    if [ -n "$WAYLAND_DISPLAY" ]; then
+    if [ -n "${WAYLAND_DISPLAY:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
     fi
 
     # Check for common desktop environment variables
-    if [ -n "$XDG_CURRENT_DESKTOP" ]; then
+    if [ -n "${XDG_CURRENT_DESKTOP:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$XDG_CURRENT_DESKTOP"
-    elif [ -n "$DESKTOP_SESSION" ]; then
+        DESKTOP_ENVIRONMENT="${XDG_CURRENT_DESKTOP:-}"
+    elif [ -n "${DESKTOP_SESSION:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$DESKTOP_SESSION"
+        DESKTOP_ENVIRONMENT="${DESKTOP_SESSION:-}"
     fi
 
     # Check for running desktop processes
@@ -159,7 +159,7 @@ detect_desktop_environment() {
     # Check for desktop environment directories
     if [ -d "/usr/share/xsessions" ] || [ -d "/usr/share/wayland-sessions" ]; then
         # Additional check: see if we're in a graphical session
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             HAS_DESKTOP_ENVIRONMENT=true
         fi
     fi
@@ -167,7 +167,7 @@ detect_desktop_environment() {
     # Check for WSL with desktop environment
     if [ "$IS_WSL" = true ]; then
         # In WSL, check if X11 forwarding is available or if WSLg is running
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ] || pgrep -x "wslg" >/dev/null 2>&1; then
+        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] || pgrep -x "wslg" >/dev/null 2>&1; then
             HAS_DESKTOP_ENVIRONMENT=true
         fi
     fi
@@ -576,22 +576,22 @@ determine_largest_windows_drive() {
 # Function to detect desktop environment
 detect_desktop_environment() {
     # Check for X11 session
-    if [ -n "$DISPLAY" ] && [ "$DISPLAY" != ":0" ]; then
+    if [ -n "${DISPLAY:-}" ] && [ "${DISPLAY:-}" != ":0" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
     fi
     
     # Check for Wayland session
-    if [ -n "$WAYLAND_DISPLAY" ]; then
+    if [ -n "${WAYLAND_DISPLAY:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
     fi
     
     # Check for common desktop environment variables
-    if [ -n "$XDG_CURRENT_DESKTOP" ]; then
+    if [ -n "${XDG_CURRENT_DESKTOP:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$XDG_CURRENT_DESKTOP"
-    elif [ -n "$DESKTOP_SESSION" ]; then
+        DESKTOP_ENVIRONMENT="${XDG_CURRENT_DESKTOP:-}"
+    elif [ -n "${DESKTOP_SESSION:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$DESKTOP_SESSION"
+        DESKTOP_ENVIRONMENT="${DESKTOP_SESSION:-}"
     fi
     
     # Check for running desktop processes
@@ -602,7 +602,7 @@ detect_desktop_environment() {
     # Check for desktop environment directories
     if [ -d "/usr/share/xsessions" ] || [ -d "/usr/share/wayland-sessions" ]; then
         # Additional check: see if we're in a graphical session
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             HAS_DESKTOP_ENVIRONMENT=true
         fi
     fi
@@ -610,7 +610,7 @@ detect_desktop_environment() {
     # Check for WSL with desktop environment
     if [ "$IS_WSL" = true ]; then
         # In WSL, check if X11 forwarding is available or if WSLg is running
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ] || pgrep -x "wslg" >/dev/null 2>&1; then
+        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] || pgrep -x "wslg" >/dev/null 2>&1; then
             HAS_DESKTOP_ENVIRONMENT=true
         fi
     fi

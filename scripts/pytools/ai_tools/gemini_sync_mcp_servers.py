@@ -92,7 +92,7 @@ def convert_config_to_gemini_format(config: MCPConfig) -> Dict[str, Any]:
         }
 
 
-def configure_gemini_mcp() -> int:
+def configure_gemini_mcp() -> None:
     """Configure MCP servers for Gemini by updating settings.json"""
     print("=" * 80)
     print("[GEMINI] Configuring MCP servers via settings.json")
@@ -102,7 +102,7 @@ def configure_gemini_mcp() -> int:
     settings_path = get_gemini_settings_path()
     if not settings_path:
         print("[ERROR] Could not determine Gemini settings path")
-        return 1
+        return
 
     print(f"[INFO] Settings path: {settings_path}")
     print()
@@ -111,7 +111,7 @@ def configure_gemini_mcp() -> int:
 
     if not configs:
         print("[WARNING] No MCP servers to configure")
-        return 0
+        return
 
     settings = load_gemini_settings(settings_path)
 
@@ -144,17 +144,24 @@ def configure_gemini_mcp() -> int:
     print("=" * 80)
     print()
 
-    if save_gemini_settings(settings_path, settings):
-        print(f"[SUCCESS] Settings saved to: {settings_path}")
-        print()
-        print("=" * 80)
-        print(f"[SUMMARY] Gemini MCP Configuration Complete")
-        print(f"  Total servers: {len(configs)}")
-        print("=" * 80)
-        return 0
-    else:
-        print("[ERROR] Failed to save settings")
-        return 1
+    save_gemini_settings(settings_path, settings)
+    print(f"[INFO] Settings written to: {settings_path}")
+
+    # Verify by re-reading the saved file and printing content
+    reloaded = load_gemini_settings(settings_path)
+    present_names = sorted(list(reloaded.get("mcpServers", {}).keys()))
+    print(f"[VERIFY] mcpServers keys in file: {present_names}")
+    for config in configs:
+        if config.name in reloaded.get("mcpServers", {}):
+            print(f"[VERIFY] {config.name}: OK")
+        else:
+            print(f"[VERIFY] {config.name}: NOT FOUND")
+    print()
+
+    print("=" * 80)
+    print("[SUMMARY] Gemini MCP Configuration Complete")
+    print(f"  Total servers: {len(configs)}")
+    print("=" * 80)
 
 
 def main():
@@ -185,18 +192,16 @@ def main():
     print("=" * 80)
     print()
 
-    return configure_gemini_mcp()
+    configure_gemini_mcp()
 
 
 if __name__ == "__main__":
     try:
-        sys.exit(main())
+        main()
     except KeyboardInterrupt:
         print()
         print("[INFO] Operation cancelled by user")
-        sys.exit(130)
     except Exception as e:
         print(f"[ERROR] Unexpected error: {e}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)

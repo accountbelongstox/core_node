@@ -153,13 +153,12 @@ async function ensureClientOnline(clientId, res) {
 }
 
 async function handleAccountLocalRequest(req, res, operation, payload, timeout = 30000) {
-  let request
-  try {
-    request = buildAccountOperationRequest(operation, payload || {})
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message })
+  const built = buildAccountOperationRequest(operation, payload || {})
+  if (!built.ok) {
+    res.status(400).json({ success: false, error: built.message })
     return
   }
+  const { request } = built
   await sendClientLocalRequest(req, res, request.endpoint, request.method, request.body, timeout)
 }
 

@@ -17,7 +17,7 @@
 ORIGINAL_DIR=$(pwd)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LARAVEL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-PORT=18000
+PORT="${PORT:-18000}"
 
 # Restore initial directory on any exit (normal, error, Ctrl+C)
 trap 'cd "$ORIGINAL_DIR" && echo "" && echo "Restored to initial directory: $ORIGINAL_DIR"' EXIT
@@ -28,6 +28,17 @@ echo ""
 
 cd "$LARAVEL_DIR" || exit 1
 
+# Ensure vendor dependencies are installed before running any artisan command
+if [ ! -d "vendor" ] || [ ! -f "vendor/autoload.php" ]; then
+    echo "vendor/ not found. Running composer install..."
+    composer install
+    if [ $? -ne 0 ]; then
+        echo "ERROR: composer install failed"
+        exit 1
+    fi
+    echo ""
+fi
+
 echo "Clearing route cache..."
 php artisan route:clear
 
@@ -36,6 +47,9 @@ php artisan route:list
 
 echo "Running migrations..."
 php artisan migrate
+
+# Queue jobs table is created by migration 0001_01_01_000001_create_queue_tables.php
+# The migrate command above handles it; no separate check needed
 
 echo "Initializing system (php artisan sys:init)..."
 php artisan sys:init

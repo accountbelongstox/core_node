@@ -17,7 +17,9 @@
     "lint": "npx eslint .",
     "lint:fix": "npx eslint . --fix",
     "format": "npx prettier --write .",
-    "format:check": "npx prettier --check ."
+    "format:check": "npx prettier --check .",
+    "icons:generate": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/icons-generate.ps1",
+    "icons:import": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/icons-generate.ps1 --from-downloads"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.11.0",

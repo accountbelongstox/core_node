@@ -175,8 +175,13 @@ export class Server {
       if (transport) {
         log('INFO', `Found existing transport for session: ${sessionId}`);
         // transport found, do nothing
-      } else if (!sessionId && isInitializeRequest(request.body)) {
-        log('INFO', 'Initialize request received, creating new session');
+      } else if (isInitializeRequest(request.body)) {
+        // Allow re-initialization: either no sessionId (fresh) or stale sessionId (reconnect)
+        if (sessionId) {
+          log('INFO', `Re-initialization with stale session: ${sessionId}, creating new session`);
+        } else {
+          log('INFO', 'Initialize request received, creating new session');
+        }
         const newSessionId = randomUUID(); // Generate session ID
         log('INFO', `Generated new session ID: ${newSessionId}`);
 
