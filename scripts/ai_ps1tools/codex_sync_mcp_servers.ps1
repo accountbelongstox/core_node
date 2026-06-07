@@ -27,6 +27,45 @@ $script:CONFIG_PROVIDER_PS1 = Join-Path $script:PS_CURRENT_DIR "mcp_config_provi
 . $script:CONFIG_PROVIDER_PS1
 #endregion
 
+#region Codex Config Helpers
+function Set-CodexHttpHeaders {
+    # 'codex mcp add --url' has no flag for custom HTTP headers, so context7's
+    # CONTEXT7_API_KEY header cannot be set via the CLI. This appends an
+    # [mcp_servers.<Name>.http_headers] table to ~/.codex/config.toml so the
+    # key is sent. Existing header tables for the server are replaced.
+    param(
+        [Parameter(Mandatory=$true)] [string]$Name,
+        [Parameter(Mandatory=$true)] [hashtable]$Headers
+    )
+    if ($Headers.Count -eq 0) { return }
+    $codexConfig = Join-Path $env:USERPROFILE ".codex\config.toml"
+    if (-not (Test-Path -LiteralPath $codexConfig)) {
+        Write-Host "[WARNING] codex config.toml not found at $codexConfig; cannot set headers for $Name"
+        return
+    }
+    $sectionHeader = "[mcp_servers.$Name.http_headers]"
+    $lines = Get-Content -LiteralPath $codexConfig -Encoding UTF8
+    $kept = New-Object System.Collections.Generic.List[string]
+    $skipping = $false
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if ($trimmed -eq $sectionHeader) { $skipping = $true; continue }
+        if ($skipping) {
+            if ($trimmed.StartsWith("[")) { $skipping = $false } else { continue }
+        }
+        $kept.Add($line)
+    }
+    $kept.Add("")
+    $kept.Add($sectionHeader)
+    foreach ($hKey in $Headers.Keys) {
+        $hVal = ($Headers[$hKey] -replace '\\', '\\') -replace '"', '\"'
+        $kept.Add("$hKey = `"$hVal`"")
+    }
+    Set-Content -LiteralPath $codexConfig -Value $kept -Encoding UTF8
+    Write-Host "[OK] Wrote http_headers for $Name to codex config.toml"
+}
+#endregion
+
 #region Main Logic
 Write-Host "================================================================================"
 Write-Host "[CODEX] Configuring MCP servers using 'codex mcp add' commands"
@@ -53,10 +92,17 @@ foreach ($config in $configs) {
     $transport = $config.TransportType
     Write-Host "[$idx/$($configs.Count)] Executing: $name ($transport)"
 
+    # Remove any existing entry first so re-runs always apply the latest config
+    # (codex add on an existing name can fail or leave stale values). Non-fatal.
+    Write-Host "[CLEAN] codex mcp remove $name"
+    codex mcp remove $name 2>$null
     if ($transport -eq "http") {
         $fullArgs = @("mcp", "add", $name, "--url", $config.Url)
         Write-Host "[CMD] codex $($fullArgs -join ' ')"
         & codex $fullArgs
+        if ($config.Headers -and $config.Headers.Count -gt 0) {
+            Set-CodexHttpHeaders -Name $name -Headers $config.Headers
+        }
     }
     else {
         $fullArgs = @("mcp", "add", $name)

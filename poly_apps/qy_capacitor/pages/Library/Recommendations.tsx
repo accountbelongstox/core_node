@@ -1,7 +1,35 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Card, Icons } from '../../components/UI';
+import { Card, Icons, Button, Spinner, EmptyState, BackButton, Badge } from '../../components/UI';
+import { PillNav } from '../../components/PillNav';
+import {
+  FileText,
+  Briefcase,
+  MessageCircle,
+  Plane,
+  Laptop,
+  Clapperboard,
+  GraduationCap,
+  BookOpen,
+  Lock,
+  Star,
+  Globe,
+  Check,
+} from 'lucide-react';
+
+type IconComponent = React.ComponentType<{ className?: string }>;
+
+const CATEGORY_ICONS: Record<string, IconComponent> = {
+  exam: FileText,
+  business: Briefcase,
+  daily: MessageCircle,
+  travel: Plane,
+  technical: Laptop,
+  entertainment: Clapperboard,
+  academic: GraduationCap,
+};
 import { ApiCenter } from '../../services/ApiCenter';
 import { VocabularyRecommendation } from '../../types';
 import { LanguageCenter } from '../../i18n/LanguageCenter';
@@ -33,9 +61,9 @@ const RecommendationsPage = () => {
       });
 
       if (response.success && response.data) {
-        setRecommendations(response.data.data);
-        setAvailableLevels(response.data.filters.levels);
-        setAvailableCategories(response.data.filters.categories);
+        setRecommendations(Array.isArray(response.data.data) ? response.data.data : []);
+        setAvailableLevels(Array.isArray(response.data.filters?.levels) ? response.data.filters.levels : []);
+        setAvailableCategories(Array.isArray(response.data.filters?.categories) ? response.data.filters.categories : []);
       }
     } catch (err) {
       console.error('[Recommendations] Failed to load:', err);
@@ -64,17 +92,8 @@ const RecommendationsPage = () => {
     }
   };
 
-  const getCategoryIcon = (category: string): string => {
-    const icons: { [key: string]: string } = {
-      exam: '📝',
-      business: '💼',
-      daily: '💬',
-      travel: '✈️',
-      technical: '💻',
-      entertainment: '🎬',
-      academic: '🎓',
-    };
-    return icons[category] || '📚';
+  const getCategoryIcon = (category: string): IconComponent => {
+    return CATEGORY_ICONS[category] || BookOpen;
   };
 
   const getDifficultyColor = (difficulty: number): string => {
@@ -92,19 +111,18 @@ const RecommendationsPage = () => {
   if (!user) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-5">
-        <div className="text-6xl mb-4">🔒</div>
-        <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+        <div className="w-20 h-20 rounded-full bg-[var(--klein-blue-soft)] flex items-center justify-center text-[var(--klein-blue)] mb-5"><Lock className="w-9 h-9" /></div>
+        <h2 className="ds-section-title !text-xl mb-2">
           {t('recommendations.loginRequired') || 'Login Required'}
         </h2>
-        <p className="text-slate-500 text-center mb-6 max-w-xs">
+        <p className="text-[var(--color-text-secondary)] text-center mb-7 max-w-xs text-sm leading-relaxed">
           {t('recommendations.loginDescription') || 'Please login to access vocabulary recommendations'}
         </p>
-        <button
-          onClick={() => navigate('login')}
-          className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold hover:shadow-lg hover:scale-105 transition-all"
-        >
-          {t('auth.login') || 'Login'}
-        </button>
+        <div className="w-full max-w-xs">
+          <Button variant="grad" onClick={() => navigate('login')}>
+            {t('auth.login') || 'Login'}
+          </Button>
+        </div>
       </div>
     );
   }
@@ -112,127 +130,95 @@ const RecommendationsPage = () => {
   return (
     <div className="h-full flex flex-col p-5 pt-12 animate-slide-up">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('courses')} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
-          <Icons.Back />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold dark:text-white">{t('recommendations.title') || 'Recommended Collections'}</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+      <div className="flex items-center gap-3 mb-7">
+        <BackButton onClick={() => navigate('courses')} />
+        <div className="flex-1 min-w-0">
+          <h1 className="ds-section-title !text-2xl truncate">{t('recommendations.title') || 'Recommended Collections'}</h1>
+          <p className="ds-section-sub truncate">
             {t('recommendations.subtitle') || 'Curated vocabulary collections for your learning journey'}
           </p>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6 space-y-3">
+      {/* Filters — v4.0 pill category bars */}
+      <div className="mb-7 ds-stack-tight flex flex-col">
         {/* Level Filter */}
-        {availableLevels.length > 0 && (
+        {Array.isArray(availableLevels) && availableLevels.length > 0 && (
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-2 px-1">
+            <label className="ds-section-label block mb-2 px-1">
               {t('recommendations.level') || 'Level'}
             </label>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-              <button
-                onClick={() => setSelectedLevel('all')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                  selectedLevel === 'all'
-                    ? 'bg-blue-500 text-white shadow-lg'
-                    : 'bg-white/50 dark:bg-slate-800/50 text-slate-500 hover:bg-white/80'
-                }`}
-              >
-                {t('common.all') || 'All'}
-              </button>
-              {availableLevels.map((level) => (
-                <button
-                  key={level}
-                  onClick={() => setSelectedLevel(level)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                    selectedLevel === level
-                      ? 'bg-blue-500 text-white shadow-lg'
-                      : 'bg-white/50 dark:bg-slate-800/50 text-slate-500 hover:bg-white/80'
-                  }`}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
+            <PillNav
+              items={[
+                { id: 'all', label: t('common.all') || 'All' },
+                ...availableLevels.map((level) => ({ id: level, label: level })),
+              ]}
+              activeId={selectedLevel}
+              onChange={setSelectedLevel}
+              aria-label={t('recommendations.level') as string}
+              className="!px-0"
+            />
           </div>
         )}
 
         {/* Category Filter */}
-        {availableCategories.length > 0 && (
+        {Array.isArray(availableCategories) && availableCategories.length > 0 && (
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase mb-2 px-1">
+            <label className="ds-section-label block mb-2 px-1">
               {t('recommendations.category') || 'Category'}
             </label>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-              <button
-                onClick={() => setSelectedCategory('all')}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                  selectedCategory === 'all'
-                    ? 'bg-blue-500 text-white shadow-lg'
-                    : 'bg-white/50 dark:bg-slate-800/50 text-slate-500 hover:bg-white/80'
-                }`}
-              >
-                {t('common.all') || 'All'}
-              </button>
-              {availableCategories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                    selectedCategory === category
-                      ? 'bg-blue-500 text-white shadow-lg'
-                      : 'bg-white/50 dark:bg-slate-800/50 text-slate-500 hover:bg-white/80'
-                  }`}
-                >
-                  <span>{getCategoryIcon(category)}</span>
-                  <span className="capitalize">{category}</span>
-                </button>
-              ))}
-            </div>
+            <PillNav
+              items={[
+                { id: 'all', label: t('common.all') || 'All' },
+                ...availableCategories.map((category) => {
+                  const CatIcon = getCategoryIcon(category);
+                  return {
+                    id: category,
+                    label: (
+                      <span className="flex items-center gap-1.5">
+                        <CatIcon className="w-4 h-4" />
+                        <span className="capitalize">{category}</span>
+                      </span>
+                    ),
+                  };
+                }),
+              ]}
+              activeId={selectedCategory}
+              onChange={setSelectedCategory}
+              aria-label={t('recommendations.category') as string}
+              className="!px-0"
+            />
           </div>
         )}
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-24 space-y-4">
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-24 ds-stack">
         {loading ? (
-          <div className="flex items-center justify-center p-10">
-            <div className="flex items-center gap-2 text-slate-400">
-              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-sm">{t('common.loading') || 'Loading...'}</span>
-            </div>
-          </div>
-        ) : recommendations.length === 0 ? (
-          <div className="text-center py-10">
-            <div className="text-5xl mb-4">📚</div>
-            <p className="text-slate-400 font-medium">
-              {t('recommendations.noResults') || 'No recommendations found'}
-            </p>
-            <p className="text-xs text-slate-400 mt-2">
-              {t('recommendations.tryDifferentFilters') || 'Try adjusting your filters'}
-            </p>
-          </div>
+          <Spinner size="lg" className="mx-auto my-10" />
+        ) : !Array.isArray(recommendations) || recommendations.length === 0 ? (
+          <EmptyState
+            icon={<BookOpen className="w-12 h-12" strokeWidth={1.5} />}
+            title={t('recommendations.noResults') || 'No recommendations found'}
+            description={t('recommendations.tryDifferentFilters') || 'Try adjusting your filters'}
+          />
         ) : (
           recommendations.map((rec) => {
             const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === rec.lang_code);
+            const RecIcon = getCategoryIcon(rec.category);
             return (
               <Card key={rec.id} className="!p-5 group relative overflow-hidden">
                 {/* Popular Badge */}
                 {rec.is_popular && (
-                  <div className="absolute top-3 right-3">
-                    <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded-lg shadow-sm">
-                      ⭐ {t('recommendations.popular') || 'POPULAR'}
-                    </span>
+                  <div className="absolute top-3 right-3 z-20">
+                    <Badge tone="klein" className="gap-1"><Star className="w-3 h-3" fill="currentColor" /> {t('recommendations.popular') || 'POPULAR'}</Badge>
                   </div>
                 )}
 
                 <div className="flex gap-4">
                   {/* Icon */}
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-3xl shadow-inner border border-white/40 shrink-0">
-                    {getCategoryIcon(rec.category)}
+                  <div className="ds-media-frame w-16 h-16 shrink-0 flex items-center justify-center text-[var(--klein-blue)]">
+                    <RecIcon className="w-7 h-7" />
                   </div>
 
                   {/* Content */}
@@ -242,7 +228,9 @@ const RecommendationsPage = () => {
                       <h3 className="font-bold text-lg dark:text-white leading-tight">
                         {rec.name}
                       </h3>
-                      <span className="text-xl shrink-0">{langInfo?.flag || '🌍'}</span>
+                      {langInfo?.flag
+                        ? <span className="text-xl shrink-0">{langInfo.flag}</span>
+                        : <Globe className="w-5 h-5 shrink-0 text-[var(--color-text-tertiary)]" />}
                     </div>
 
                     {/* Description */}
@@ -287,16 +275,17 @@ const RecommendationsPage = () => {
                       {/* Select Button */}
                       <button
                         onClick={() => handleSelectCollection(rec.id, rec.is_selected)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                        className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all min-h-[var(--touch-min)] active:scale-[0.98] ${
                           rec.is_selected
-                            ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
-                            : 'bg-blue-500 text-white hover:shadow-lg hover:scale-105'
+                            ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                            : 'text-[color:var(--klein-on)]'
                         }`}
+                        style={rec.is_selected ? undefined : { background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
                       >
                         {rec.is_selected ? (
-                          <>
-                            ✓ {t('recommendations.selected') || 'Selected'}
-                          </>
+                          <span className="inline-flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" /> {t('recommendations.selected') || 'Selected'}
+                          </span>
                         ) : (
                           t('recommendations.select') || 'Select'
                         )}

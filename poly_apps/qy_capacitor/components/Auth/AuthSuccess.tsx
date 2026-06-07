@@ -1,4 +1,6 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React from 'react';
+import { Button, Icons } from '../UI';
 
 interface AuthSuccessProps {
   title: string;
@@ -14,25 +16,21 @@ export const AuthSuccess: React.FC<AuthSuccessProps> = ({
   onAction,
 }) => {
   return (
-    <div className="text-center py-8">
-      <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-        <span className="text-3xl">✓</span>
+    <div className="text-center py-10">
+      <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5 bg-emerald-500/10 text-emerald-500">
+        <Icons.Check />
       </div>
-      <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+      <h2 className="ds-section-title !text-xl mb-2">
         {title}
       </h2>
-      <p className="text-slate-600 dark:text-slate-400 mb-6">
+      <p className="text-[var(--color-text-secondary)] mb-8">
         {message}
       </p>
       {actionLabel && onAction && (
-        <button
-          onClick={onAction}
-          className="w-full py-4 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-all"
-        >
+        <Button variant="grad" onClick={onAction}>
           {actionLabel}
-        </button>
+        </Button>
       )}
     </div>
   );
 };
-

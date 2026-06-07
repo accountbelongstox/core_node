@@ -28,52 +28,113 @@ interface ApiManagerOptions {
 class ApiManager {
   private currentEndpoint: ApiEndpoint | null = null;
   private healthResults: Map<string, HealthCheckResult> = new Map();
+  private ready = false;
+  private readyResolvers: Array<() => void> = [];
 
   /**
-   * Initialize API Manager
+   * Resolves once endpoint detection has completed (or failed). Callers that
+   * issue requests should await this so they never hit a null endpoint.
+   */
+  whenReady(): Promise<void> {
+    if (this.ready) return Promise.resolve();
+    return new Promise<void>(resolve => this.readyResolvers.push(resolve));
+  }
+
+  private markReady(): void {
+    this.ready = true;
+    const resolvers = this.readyResolvers;
+    this.readyResolvers = [];
+    resolvers.forEach(resolve => resolve());
+  }
+
+  /**
+   * Initialize API Manager.
+   *
+   * Selection is AVAILABILITY-FIRST: all endpoints are probed once in parallel
+   * (a single round, so total wait is ~one timeout instead of N), then the best
+   * HEALTHY endpoint is chosen. A stored localStorage choice (user-modified or
+   * auto-detected) only ranks higher in weight — it is never blindly pinned, so
+   * a dead manual/auto choice still yields a working session endpoint.
    */
   async initialize(options: ApiManagerOptions = {}): Promise<void> {
-    const { autoDetect = true, timeout = 1000 } = options;
+    const { autoDetect = true, timeout = 3000 } = options;
 
-    // 1. Check user-configured endpoint
-    const userEndpointId = this.getUserModifiedEndpoint();
-    if (userEndpointId) {
-      const endpoint = getEndpointById(userEndpointId);
-      if (endpoint) {
-        this.currentEndpoint = endpoint;
+    try {
+      const userId = await this.getUserModifiedEndpoint();
+      const autoId = await this.getAutoDetectedEndpoint();
+
+      if (!autoDetect) {
+        // No probing requested: honour a stored choice if present, else the
+        // highest-priority endpoint.
+        const storedId = userId ?? autoId;
+        const stored = storedId ? getEndpointById(storedId) : undefined;
+        this.currentEndpoint = stored ?? getAllEndpoints()[0];
         return;
       }
-    }
 
-    // 2. Check auto-detected endpoint
-    const autoEndpointId = this.getAutoDetectedEndpoint();
-    if (autoEndpointId) {
-      const endpoint = getEndpointById(autoEndpointId);
-      if (endpoint) {
-        this.currentEndpoint = endpoint;
-        // Verify endpoint is still healthy
-        if (autoDetect) {
-          const health = await this.checkEndpoint(endpoint, { timeout });
-          if (!health.isHealthy) {
-            // Auto-detected endpoint is unhealthy, re-detect
-            await this.autoDetectEndpoint({ timeout });
-          }
-        }
-        return;
-      }
-    }
-
-    // 3. Auto-detect best endpoint
-    if (autoDetect) {
-      await this.autoDetectEndpoint({ timeout });
-    } else {
-      // Use highest priority endpoint
-      this.currentEndpoint = getAllEndpoints()[0];
+      // Probe every endpoint concurrently in a single round.
+      const results = await this.checkAllEndpoints(timeout);
+      this.selectAvailabilityFirst(results, userId, autoId);
+    } finally {
+      // Always unblock waiting requests, even if detection found nothing.
+      this.markReady();
     }
   }
 
   /**
-   * 检查单个端点健康状态
+   * Pick the best endpoint from a set of probe results, availability-first.
+   *
+   * PRIMARY sort key = availability (a healthy endpoint always beats an
+   * unhealthy one). Tie-break among healthy endpoints, lowest-rank-first:
+   * the api_user_modified endpoint, then the api_auto_detected endpoint, then
+   * config priority ascending.
+   *
+   * The chosen endpoint is persisted to api_auto_detected + api_current_endpoint.
+   * The api_user_modified key is never written here — only the manual switcher
+   * (setEndpoint) owns it, so a dead manual choice survives without re-pinning.
+   */
+  private selectAvailabilityFirst(
+    results: HealthCheckResult[],
+    userId: string | null,
+    autoId: string | null
+  ): ApiEndpoint | null {
+    const weight = (id: string): number => {
+      if (id === userId) return 0;
+      if (id === autoId) return 1;
+      return 2;
+    };
+
+    const healthy = results
+      .filter(result => result.isHealthy)
+      .map(result => result.endpoint)
+      .sort((a, b) => {
+        const w = weight(a.id) - weight(b.id);
+        return w !== 0 ? w : a.priority - b.priority;
+      });
+
+    const best = healthy[0];
+    if (best) {
+      this.currentEndpoint = best;
+      this.setAutoDetectedEndpoint(best.id);
+      console.log(
+        `[ApiManager] Selected endpoint "${best.id}" ` +
+        `(${best.description}, priority ${best.priority})`
+      );
+      return best;
+    }
+
+    // Nothing healthy: fall back to the highest-priority endpoint so requests
+    // still have a target. Left marked unhealthy; this path should be rare.
+    this.currentEndpoint = getAllEndpoints()[0];
+    console.warn(
+      '[ApiManager] No healthy endpoint found; falling back to highest-priority ' +
+      `"${this.currentEndpoint?.id}" (still marked unhealthy)`
+    );
+    return null;
+  }
+
+  /**
+   * Check the health status of a single endpoint
    */
   async checkEndpoint(
     endpoint: ApiEndpoint,
@@ -124,7 +185,7 @@ class ApiManager {
   }
 
   /**
-   * 检查所有端点
+   * Check all endpoints
    */
   async checkAllEndpoints(timeout?: number): Promise<HealthCheckResult[]> {
     const endpoints = getAllEndpoints();
@@ -135,44 +196,15 @@ class ApiManager {
   }
 
   /**
-   * Auto-detect first available healthy endpoint (fast mode)
+   * Auto-detect the best endpoint: probe ALL endpoints in parallel (one round,
+   * ~1 timeout total instead of N sequential timeouts), then pick the best
+   * HEALTHY one via the shared availability-first selection.
    */
   async autoDetectEndpoint(options: { timeout?: number } = {}): Promise<ApiEndpoint | null> {
-    const endpoints = getAllEndpoints();
-    let firstHealthyEndpoint: ApiEndpoint | null = null;
-
-    for (const endpoint of endpoints) {
-      const result = await this.checkEndpoint(endpoint, options);
-
-      if (result.isHealthy && !firstHealthyEndpoint) {
-        firstHealthyEndpoint = endpoint;
-        this.currentEndpoint = endpoint;
-        this.setAutoDetectedEndpoint(endpoint.id);
-
-        this.checkRemainingEndpointsInBackground(endpoints, endpoint.id, options.timeout);
-
-        return endpoint;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Check remaining endpoints in background
-   */
-  private checkRemainingEndpointsInBackground(
-    allEndpoints: ApiEndpoint[],
-    selectedId: string,
-    timeout?: number
-  ): void {
-    const remaining = allEndpoints.filter(ep => ep.id !== selectedId);
-
-    Promise.all(
-      remaining.map(endpoint => this.checkEndpoint(endpoint, { timeout }))
-    ).catch(err => {
-      console.warn('[ApiManager] Background health check failed:', err);
-    });
+    const userId = await this.getUserModifiedEndpoint();
+    const autoId = await this.getAutoDetectedEndpoint();
+    const results = await this.checkAllEndpoints(options.timeout);
+    return this.selectAvailabilityFirst(results, userId, autoId);
   }
 
   /**
@@ -192,14 +224,14 @@ class ApiManager {
   }
 
   /**
-   * 获取当前端点
+   * Get the current endpoint
    */
   getCurrentEndpoint(): ApiEndpoint | null {
     return this.currentEndpoint;
   }
 
   /**
-   * 获取当前Base URL
+   * Get the current base URL
    */
   getCurrentBaseUrl(): string {
     if (!this.currentEndpoint) {
@@ -210,7 +242,7 @@ class ApiManager {
   }
 
   /**
-   * 构建完整URL
+   * Build a complete URL
    */
   buildUrl(path: string): string {
     if (!this.currentEndpoint) {
@@ -221,21 +253,21 @@ class ApiManager {
   }
 
   /**
-   * 获取所有端点
+   * Get all endpoints
    */
   getAllEndpoints(): ApiEndpoint[] {
     return getAllEndpoints();
   }
 
   /**
-   * 获取健康检查结果
+   * Get a health check result
    */
   getHealthResult(endpointId: string): HealthCheckResult | undefined {
     return this.healthResults.get(endpointId);
   }
 
   /**
-   * 获取所有健康检查结果
+   * Get all health check results
    */
   getAllHealthResults(): HealthCheckResult[] {
     return Array.from(this.healthResults.values());
@@ -243,7 +275,7 @@ class ApiManager {
 
   // StorageCenter management methods
 
-  private getAutoDetectedEndpoint(): string | null {
+  private getAutoDetectedEndpoint(): Promise<string | null> {
     return StorageCenter.get<string>(StorageKey.API_AUTO_DETECTED);
   }
 
@@ -252,7 +284,7 @@ class ApiManager {
     StorageCenter.set(StorageKey.API_CURRENT_ENDPOINT, endpointId);
   }
 
-  private getUserModifiedEndpoint(): string | null {
+  private getUserModifiedEndpoint(): Promise<string | null> {
     return StorageCenter.get<string>(StorageKey.API_USER_MODIFIED);
   }
 
@@ -280,5 +312,5 @@ class ApiManager {
   }
 }
 
-// 导出单例
+// Export the singleton instance
 export const apiManager = new ApiManager();

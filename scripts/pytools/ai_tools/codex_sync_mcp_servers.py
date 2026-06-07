@@ -53,6 +53,45 @@ def stream_command(cmd: List[str], description: str, cwd: Optional[Path] = None)
     return "\n".join(combined_lines)
 
 
+def set_codex_http_headers(name: str, headers: dict) -> None:
+    """Write [mcp_servers.<name>.http_headers] into ~/.codex/config.toml.
+
+    'codex mcp add --url' has no flag for custom HTTP headers, so context7's
+    CONTEXT7_API_KEY header cannot be set via the CLI. Any existing header table
+    for the server is replaced. Uses stdlib only (no toml writer dependency).
+    """
+    if not headers:
+        return
+    import os
+    codex_home = os.environ.get("CODEX_HOME") or str(Path.home() / ".codex")
+    codex_config = Path(codex_home) / "config.toml"
+    if not codex_config.exists():
+        print(f"[WARNING] codex config.toml not found at {codex_config}; cannot set headers for {name}")
+        return
+    section = f"[mcp_servers.{name}.http_headers]"
+    lines = codex_config.read_text(encoding="utf-8-sig").splitlines()
+    kept: List[str] = []
+    skipping = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == section:
+            skipping = True
+            continue
+        if skipping:
+            if stripped.startswith("["):
+                skipping = False
+            else:
+                continue
+        kept.append(line)
+    kept.append("")
+    kept.append(section)
+    for key, value in headers.items():
+        escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
+        kept.append(f'{key} = "{escaped}"')
+    codex_config.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    print(f"[OK] Wrote http_headers for {name} to codex config.toml")
+
+
 def verify_with_list(server_name: str) -> Tuple[bool, str]:
     """Verify server exists by parsing 'codex mcp list' output content."""
     list_output = stream_command(["codex", "mcp", "list"], "Verifying with: codex mcp list")
@@ -145,8 +184,14 @@ def configure_codex_mcp() -> None:
 
     for idx, (config, cmd, cwd) in enumerate(commands_to_run, 1):
         print(f"[{idx}/{len(configs)}] Executing: {config.name}")
+        # Remove any existing entry first so re-runs always apply latest config.
+        stream_command(["codex", "mcp", "remove", config.name],
+                       f"Removing existing {config.name} (if any)")
         description = f"Adding {config.name} MCP server ({config.transport_type})"
         stream_command(cmd, description, cwd=cwd)
+        # codex CLI cannot set custom HTTP headers; inject them into config.toml.
+        if config.transport_type == "http" and config.headers:
+            set_codex_http_headers(config.name, config.headers)
         ok, reason = verify_with_list(config.name)
         if ok:
             print(f"[VERIFY] {config.name}: OK ({reason})")

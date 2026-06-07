@@ -4,7 +4,7 @@
  */
 
 const DesignTokens = {
-  glass: { opacity: 0.42, blur: '40px', borderHighlight: 'rgba(255, 255, 255, 0.22)' },
+  glass: { opacity: 0.58, blur: '40px', borderHighlight: 'rgba(255, 255, 255, 0.22)' },
   materialThin: { blur: '12px', opacity: 0.62 },
   materialThick: { blur: '40px', opacity: 0.38 },
   blur: { sm: '4px', md: '12px', lg: '24px', glass: '20px', ultra: '40px' },
@@ -22,6 +22,26 @@ const DesignTokens = {
     pagePaddingV: 'var(--page-padding-v)',
     barGap: 'var(--bar-gap)',
   },
+  // v4.1 Iris layer (token mirrors — consume via var() in CSS).
+  // Solid `klein.*` = text/icon/active; `klein.gradient*` = hero surfaces
+  // (CTA / active pill / floating-island center / FAB). Theme-aware in index.css.
+  klein: {
+    base: 'var(--klein-blue)',
+    strong: 'var(--klein-blue-strong)',
+    soft: 'var(--klein-blue-soft)',
+    on: 'var(--klein-on)',
+    ring: 'var(--klein-ring)',
+    glow: 'var(--klein-glow)',
+    gradient: 'var(--klein-gradient)',
+    gradientFrom: 'var(--klein-grad-from)',
+    gradientTo: 'var(--klein-grad-to)',
+    gradientSoft: 'var(--klein-grad-soft)',
+    gradientGlow: 'var(--klein-grad-glow)',
+  },
+  space: {
+    breath: 'var(--space-breath)',
+    sectionGap: 'var(--section-gap)',
+  },
 };
 
 export const StyleCenter = {
@@ -31,6 +51,16 @@ export const StyleCenter = {
     primary: '#3b82f6',      // blue-600
     primaryDark: '#2563eb',  // blue-700
     primaryLight: '#60a5fa', // blue-400
+
+    // v4.1 Iris anchor (reference periwinkle→violet). Use the --klein-* /
+    // --klein-grad-* vars in index.css (:root / html.dark, theme-aware).
+    // These literals are light-mode reference values for non-CSS contexts only.
+    klein: '#3B49E0',
+    kleinStrong: '#2C38C2',
+    kleinSoft: 'rgba(59, 73, 224, 0.10)',
+    kleinOn: '#ffffff',
+    kleinGradientFrom: '#6E7CF5',
+    kleinGradientTo: '#A47FE8',
 
     secondary: '#6366f1',    // indigo-600
     secondaryDark: '#4f46e5',// indigo-700
@@ -192,13 +222,15 @@ export const StyleCenter = {
         transition-all duration-300 active:scale-[0.98]
         flex items-center justify-center gap-2 ds-btn
       `,
+      // v4.1: primary = Klein anchor (no ad-hoc blue-600). Theme-aware token.
       primary: `
-        bg-blue-600 text-white
-        border border-blue-400/30
-        shadow-[0_0_15px_rgba(37,99,235,0.3)]
-        hover:shadow-[0_0_30px_rgba(37,99,235,0.5)]
-        hover:bg-blue-500
+        bg-[var(--klein-blue)] text-[var(--klein-on)]
+        border border-[var(--klein-ring)]
+        shadow-[var(--klein-glow)]
+        hover:bg-[var(--klein-blue-strong)]
       `,
+      // v4.1 gradient hero CTA (reference periwinkle→violet)
+      grad: `ds-btn-grad ds-btn`,
       secondary: `
         bg-white/10 dark:bg-white/5
         backdrop-blur-[var(--blur-md)]
@@ -211,7 +243,30 @@ export const StyleCenter = {
         border border-red-500/30
         hover:bg-red-500/20
       `,
+      // v4.0 Klein anchor CTA — solid Klein fill, theme-aware via index.css
+      klein: `ds-btn-klein ds-btn`,
     },
+
+    // v4.0 Pill horizontal category menu (segmented, scrollable).
+    // Usage: <div className={StyleCenter.components.pillNav}>
+    //          <button className={cx(StyleCenter.components.pillChip, active && 'is-active')} />
+    pillNav: `ds-pill-nav`,
+    pillChip: `ds-pill-chip`,
+
+    // v4.0 Floating-island center action (elevated dark circle inside ds-bar-pill)
+    barCta: `ds-bar-cta`,
+
+    // v4.0 Transparent-media frame (magazine PNG presentation)
+    mediaFrame: `ds-media-frame`,
+
+    // v4.1 Iris additions (reference-faithful)
+    sectionTitle: `ds-section-title`,
+    sectionSub: `ds-section-sub`,
+    linkMore: `ds-link-more`,
+    iconTile: `ds-icon-tile`,
+    fabGrad: `ds-fab-grad`,
+    bento: `ds-bento`,
+    bentoChip: `ds-bento-chip`,
 
     card: `
       ds-card rounded-[var(--radius-card,24px)] p-6

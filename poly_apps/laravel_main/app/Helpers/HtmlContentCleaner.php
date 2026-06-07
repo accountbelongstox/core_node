@@ -18,16 +18,16 @@ class HtmlContentCleaner
 {
     public static function clean($content)
     {
-        // 移除所有 HTML 标签，但保留换行和缩进
+        // Remove all HTML tags but keep newlines and indentation
         $content = preg_replace('/<[^>]+>|<\/[^>]+>/', '', $content);
-        
-        // 处理 HTML 实体
+
+        // Decode HTML entities
         $content = html_entity_decode($content, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        
-        // 移除多余的空格，但保留换行和缩进
+
+        // Collapse extra spaces but keep newlines and indentation
         $content = preg_replace('/[ ]{2,}/', ' ', $content);
-        
-        // 移除行首尾的空格，但保留换行
+
+        // Trim leading/trailing spaces on each line but keep newlines
         $lines = explode("\n", $content);
         $lines = array_map('trim', $lines);
         

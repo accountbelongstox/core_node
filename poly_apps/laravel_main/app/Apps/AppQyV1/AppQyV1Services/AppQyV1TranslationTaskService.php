@@ -16,7 +16,7 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Services\TaskManagerService;
 use App\Models\GlobalTask;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1TranslationTaskService
@@ -146,34 +146,41 @@ class AppQyV1TranslationTaskService
             }
 
             try {
-                $entry = AppQyV1MultiLangDictionaryModel::findByWord($langCode, $word);
+                $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, md5($word));
 
                 if (!$entry) {
                     $failed++;
                     continue;
                 }
 
-                $updateData = [];
+                // Unified schema: translations is a JSON map (json-cast on the
+                // model). Enrich it instead of writing legacy flat columns.
+                $translations = $entry->translations;
+                if (!is_array($translations)) {
+                    $translations = [];
+                }
 
                 if ($isEnglish) {
-                    $updateData['translation'] = $explanationText;
+                    $translations['en'] = $explanationText;
                     if (isset($explanation['us_phonetic'])) {
-                        $updateData['us_phonetic'] = $explanation['us_phonetic'];
+                        $entry->us_phonetic = $explanation['us_phonetic'];
                     }
                     if (isset($explanation['uk_phonetic'])) {
-                        $updateData['uk_phonetic'] = $explanation['uk_phonetic'];
+                        $entry->uk_phonetic = $explanation['uk_phonetic'];
                     }
                 } else {
-                    $updateData['meaning_en'] = $explanationText;
+                    $translations['en'] = $explanationText;
                     if (isset($explanation['meaning_zh'])) {
-                        $updateData['meaning_zh'] = $explanation['meaning_zh'];
+                        $translations['zh'] = $explanation['meaning_zh'];
                     }
                     if (isset($explanation['pronunciation'])) {
-                        $updateData['pronunciation'] = $explanation['pronunciation'];
+                        $entry->phonetic = $explanation['pronunciation'];
                     }
                 }
 
-                $entry->update($updateData);
+                $entry->translations = $translations;
+                $entry->has_translation = true;
+                $entry->save();
                 $processed++;
             } catch (\Exception $e) {
                 Log::error('[AppQyV1TranslationTaskService] Failed to update word', [

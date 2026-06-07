@@ -4,6 +4,7 @@ import BentoCard from '../BentoCard';
 import { Palette, Copy, Check, ArrowRight, Hash, Zap, Cloud } from "lucide-react";
 import { ToolConfig } from '../../types';
 import { apiClient } from '../../services/api';
+import { NOISE_TEXTURE_BG_CLASS } from '../../utils/noiseTexture';
 
 interface HexToRgbProps {
   config: ToolConfig;
@@ -103,7 +104,7 @@ const HexToRgb: React.FC<HexToRgbProps> = ({ config }) => {
         </div>
 
         {/* Visualizer */}
-        <div className="mt-12 p-8 rounded-2xl border border-white/10 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] relative overflow-hidden transition-colors duration-500" style={{ backgroundColor: rgb.startsWith('rgb') ? rgb : '#1e293b' }}>
+        <div className={`mt-12 p-8 rounded-2xl border border-white/10 ${NOISE_TEXTURE_BG_CLASS} relative overflow-hidden transition-colors duration-500`} style={{ backgroundColor: rgb.startsWith('rgb') ? rgb : '#1e293b' }}>
             <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/20 backdrop-blur-sm">
                 <span className="text-white font-bold drop-shadow-md">Preview</span>
             </div>

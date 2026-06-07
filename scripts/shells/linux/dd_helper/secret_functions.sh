@@ -299,6 +299,12 @@ ensure_secret_keys_ready() {
                 while IFS= read -r -d '' raw_file; do
                     local base_name_for_cache="$(basename "$raw_file")"
                     set_decryption_timestamp_cache "$base_name_for_cache"
+                    # Keep raw mtime in sync with its per-file encrypted counterpart so the
+                    # timestamp-based encryption check does not falsely flag freshly decrypted files.
+                    local sync_enc_file="$encrypted_dir/$base_name_for_cache.js"
+                    if [ -f "$sync_enc_file" ]; then
+                        touch -r "$sync_enc_file" "$raw_file" 2>/dev/null || true
+                    fi
                 done < <(find "$raw_dir" -type f -print0 2>/dev/null)
             fi
 
@@ -344,6 +350,9 @@ ensure_secret_keys_ready() {
             base_name_for_cache="${base_name_for_cache%.JS}"
             set_decryption_timestamp_cache "$base_name_for_cache"
             set_encrypted_content_hash_cache "$base_name_for_cache" "$enc_file"
+            # Keep raw mtime in sync with its encrypted counterpart so the
+            # timestamp-based encryption check does not falsely flag it.
+            touch -r "$enc_file" "$raw_dir/$base_name_for_cache" 2>/dev/null || true
         else
             echo -e "\033[31m[SECRETS]   FAILED\033[0m"
         fi
@@ -383,25 +392,20 @@ ensure_secret_keys_ready() {
         mkdir -p "$encrypted_dir" 2>/dev/null || true
     fi
 
-    # Check which files need re-encryption (using enhanced cache logic)
+    # Check which files need (re-)encryption using a deterministic timestamp rule:
+    # a raw file needs encryption when it has no encrypted counterpart, or when it
+    # is newer than that counterpart. This does not depend on the secret cache.
     files_need_reencrypt=()
     while IFS= read -r -d '' raw_file; do
         base_name="$(basename "$raw_file")"
         enc_file="$encrypted_dir/$base_name.js"
 
         if [ ! -f "$enc_file" ]; then
-            # No encrypted file exists - need to encrypt
+            # No encrypted file exists - needs encryption
             files_need_reencrypt+=("$base_name")
-        else
-            # Check if raw file was modified after decryption using cache
-            if check_raw_file_modified_after_decryption "$base_name" "$raw_file"; then
-                # Raw file was modified after decryption - need re-encryption
-                files_need_reencrypt+=("$base_name")
-                echo -e "\033[33m[CACHE CHECK] $base_name modified after decryption - needs re-encryption\033[0m"
-            else
-                # Raw file was not modified after decryption - skip re-encryption
-                echo -e "\033[32m[CACHE SKIP] $base_name unchanged since decryption - skipping re-encryption\033[0m"
-            fi
+        elif [ "$raw_file" -nt "$enc_file" ]; then
+            # Raw file is newer than its encrypted counterpart - needs re-encryption
+            files_need_reencrypt+=("$base_name")
         fi
     done < <(find "$raw_dir" -type f -print0 2>/dev/null)
 

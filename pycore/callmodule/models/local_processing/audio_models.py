@@ -27,7 +27,7 @@ class AudioTranscribeRequest(BaseModel):
     auto_upload: bool = Field(default=True, description="Automatically upload result")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "audio_path": "/tmp/audio.wav",
                 "engine": "whisper",
@@ -65,7 +65,7 @@ class AudioTranscribeResponse(BaseModel):
     error: Optional[str] = None
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "message": "Transcription completed successfully",

@@ -7,30 +7,30 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Safe Migration Helper - 安全迁移辅助类
- * 
- * 提供幂等性数据库迁移工具，确保：
- * - 永远不会删除表或数据
- * - 只在表不存在时创建表
- * - 只在字段不存在时添加字段
- * - 支持字段类型扩展（如 string(50) -> string(255)），但不收缩
- * - 支持索引对齐（添加缺失索引）
- * - 确保代码向数据库结构对齐（不是重建表）
- * 
- * 使用场景：
- * - 表不存在：创建表及所有字段
- * - 表存在但字段缺失：添加缺失字段
- * - 表存在但字段类型需要扩展：扩展字段类型（不收缩）
- * - 表存在但索引缺失：添加缺失索引
+ * Safe Migration Helper
+ *
+ * Provides idempotent database migration tools that guarantee:
+ * - Tables and data are never dropped
+ * - Tables are created only when they do not exist
+ * - Columns are added only when they do not exist
+ * - Column type expansion is supported (e.g. string(50) -> string(255)), but never shrinking
+ * - Index alignment is supported (adds missing indexes)
+ * - Code is aligned to the database structure (not by rebuilding the table)
+ *
+ * Use cases:
+ * - Table missing: create the table and all columns
+ * - Table exists but a column is missing: add the missing column
+ * - Table exists but a column type needs widening: expand the column type (no shrinking)
+ * - Table exists but an index is missing: add the missing index
  */
 class SafeMigrationHelper
 {
     /**
-     * 安全创建表（如果不存在）
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param callable $tableDefinition 表定义闭包
+     * Safely create a table (if it does not exist)
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param callable $tableDefinition Table definition closure
      * @return array ['status' => 'created'|'exists', 'message' => string]
      */
     public static function safeCreateTable(
@@ -55,12 +55,12 @@ class SafeMigrationHelper
     }
 
     /**
-     * 安全添加字段（如果不存在）
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $columnName 字段名
-     * @param callable $columnDefinition 字段定义闭包，接收 Blueprint $table 参数
+     * Safely add a column (if it does not exist)
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $columnName Column name
+     * @param callable $columnDefinition Column definition closure, receives the Blueprint $table argument
      * @return array ['status' => 'added'|'exists'|'error', 'message' => string]
      */
     public static function safeAddColumn(
@@ -96,19 +96,19 @@ class SafeMigrationHelper
     }
 
     /**
-     * 安全修改字段类型（仅扩展，不收缩）
-     * 
-     * 支持的扩展操作：
+     * Safely modify a column type (widen only, never shrink)
+     *
+     * Supported expansion operations:
      * - string(50) -> string(255) ✅
      * - string(255) -> text ✅
      * - integer -> bigInteger ✅
-     * - 不支持收缩操作（会跳过）
+     * - Shrink operations are not supported (they are skipped)
      * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $columnName 字段名
-     * @param string $newType 新类型（'string', 'text', 'bigInteger' 等）
-     * @param array $options 选项 ['length' => int, 'nullable' => bool, 'default' => mixed]
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $columnName Column name
+     * @param string $newType New type ('string', 'text', 'bigInteger', etc.)
+     * @param array $options Options ['length' => int, 'nullable' => bool, 'default' => mixed]
      * @return array ['status' => 'modified'|'skipped'|'error', 'message' => string]
      */
     public static function safeModifyColumn(
@@ -134,7 +134,7 @@ class SafeMigrationHelper
             ];
         }
         
-        // 获取当前字段信息
+        // Get the current column info
         $columnInfo = self::getColumnInfo($connection, $tableName, $columnName);
         if (!$columnInfo) {
             return [
@@ -143,7 +143,7 @@ class SafeMigrationHelper
             ];
         }
         
-        // 检查是否需要修改（类型扩展）
+        // Check whether modification is needed (type widening)
         $needsModify = self::shouldModifyColumn($columnInfo, $newType, $options);
         if (!$needsModify) {
             return [
@@ -152,18 +152,18 @@ class SafeMigrationHelper
             ];
         }
         
-        // 执行修改（SQLite 需要特殊处理）
+        // Perform the modification (SQLite needs special handling)
         $driver = DB::connection($connection)->getDriverName();
         if ($driver === 'sqlite') {
-            // SQLite 不支持直接修改列类型，需要重建表
-            // 但为了安全，我们只允许扩展操作，且不删除数据
+            // SQLite does not support direct column type changes; it would require rebuilding the table.
+            // For safety we only allow expansion operations and never delete data.
             return [
                 'status' => 'skipped',
                 'message' => "SQLite does not support column type modification. Column {$tableName}.{$columnName} kept as is."
             ];
         }
         
-        // MySQL/PostgreSQL 支持修改
+        // MySQL/PostgreSQL support modification
         $schema->table($tableName, function (Blueprint $table) use ($columnName, $newType, $options) {
             $column = null;
             $length = $options['length'] ?? null;
@@ -274,12 +274,12 @@ class SafeMigrationHelper
             ];
         }
         
-        // 生成索引名称
+        // Generate the index name
         if ($indexName === null) {
             $indexName = self::generateIndexName($tableName, $columns);
         }
         
-        // 检查索引是否存在
+        // Check whether the index already exists
         if (self::indexExists($connection, $tableName, $indexName)) {
             return [
                 'status' => 'exists',
@@ -302,15 +302,15 @@ class SafeMigrationHelper
     }
 
     /**
-     * 安全添加外键（如果不存在）
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $column 字段名
-     * @param string $referencedTable 引用表名
-     * @param string $referencedColumn 引用字段名（默认 'id'）
-     * @param string|null $foreignKeyName 外键名称（可选）
-     * @param string $onDelete 删除行为（默认 'cascade'）
+     * Safely add a foreign key (if it does not exist)
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $column Column name
+     * @param string $referencedTable Referenced table name
+     * @param string $referencedColumn Referenced column name (default 'id')
+     * @param string|null $foreignKeyName Foreign key name (optional)
+     * @param string $onDelete On-delete behavior (default 'cascade')
      * @return array ['status' => 'added'|'exists'|'error', 'message' => string]
      */
     public static function safeAddForeignKey(
@@ -338,12 +338,12 @@ class SafeMigrationHelper
             ];
         }
         
-        // 生成外键名称
+        // Generate the foreign key name
         if ($foreignKeyName === null) {
             $foreignKeyName = self::generateForeignKeyName($tableName, $column);
         }
         
-        // 检查外键是否存在
+        // Check whether the foreign key already exists
         if (self::foreignKeyExists($connection, $tableName, $foreignKeyName)) {
             return [
                 'status' => 'exists',
@@ -365,11 +365,11 @@ class SafeMigrationHelper
     }
 
     /**
-     * 批量安全添加字段
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param array $columns 字段定义数组 ['column_name' => callable]
+     * Safely add multiple columns in bulk
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param array $columns Column definition array ['column_name' => callable]
      * @return array ['added' => [], 'skipped' => [], 'errors' => []]
      */
     public static function safeAddColumns(
@@ -402,11 +402,11 @@ class SafeMigrationHelper
     }
 
     /**
-     * 获取字段信息
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $columnName 字段名
+     * Get column information
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $columnName Column name
      * @return array|null
      */
     private static function getColumnInfo(string $connection, string $tableName, string $columnName): ?array
@@ -414,7 +414,7 @@ class SafeMigrationHelper
         $driver = DB::connection($connection)->getDriverName();
         
         if ($driver === 'sqlite') {
-            // SQLite 查询字段信息
+            // SQLite: query column info
             $result = DB::connection($connection)->select(
                 "PRAGMA table_info({$tableName})"
             );
@@ -429,7 +429,7 @@ class SafeMigrationHelper
                 }
             }
         } else {
-            // MySQL/PostgreSQL 查询字段信息
+            // MySQL/PostgreSQL: query column info
             $database = DB::connection($connection)->getDatabaseName();
             $result = DB::connection($connection)->select(
                 "SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT 
@@ -452,25 +452,25 @@ class SafeMigrationHelper
     }
 
     /**
-     * 判断是否需要修改字段
-     * 
-     * @param array $currentInfo 当前字段信息
-     * @param string $newType 新类型
-     * @param array $options 选项
+     * Determine whether a column needs modification
+     *
+     * @param array $currentInfo Current column info
+     * @param string $newType New type
+     * @param array $options Options
      * @return bool
      */
     private static function shouldModifyColumn(array $currentInfo, string $newType, array $options): bool
     {
         $currentType = strtolower($currentInfo['type'] ?? '');
         
-        // 类型扩展规则
+        // Type expansion rules
         $typeExpansions = [
             'string' => ['varchar', 'char', 'string'],
             'text' => ['varchar', 'char', 'string', 'text'],
             'bigInteger' => ['int', 'integer', 'bigint', 'biginteger'],
         ];
         
-        // 检查是否需要扩展类型
+        // Check whether the type needs to be widened
         if (isset($typeExpansions[$newType])) {
             $canExpand = false;
             foreach ($typeExpansions[$newType] as $expandableType) {
@@ -481,18 +481,18 @@ class SafeMigrationHelper
             }
             
             if (!$canExpand) {
-                return false; // 不支持的类型扩展
+                return false; // Unsupported type expansion
             }
-            
-            // 检查长度扩展（仅适用于 string）
+
+            // Check length expansion (string type only)
             if ($newType === 'string' && isset($options['length'])) {
-                // 提取当前长度
+                // Extract the current length
                 preg_match('/\((\d+)\)/', $currentType, $matches);
                 $currentLength = $matches[1] ?? 255;
-                
-                // 只允许扩展，不允许收缩
+
+                // Only allow widening, never shrinking
                 if ($options['length'] <= $currentLength) {
-                    return false; // 收缩操作，不允许
+                    return false; // Shrink operation: not allowed
                 }
             }
             
@@ -503,11 +503,11 @@ class SafeMigrationHelper
     }
 
     /**
-     * 检查索引是否存在
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $indexName 索引名称
+     * Check whether an index exists
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $indexName Index name
      * @return bool
      */
     private static function indexExists(string $connection, string $tableName, string $indexName): bool
@@ -532,11 +532,11 @@ class SafeMigrationHelper
     }
 
     /**
-     * 检查外键是否存在
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $foreignKeyName 外键名称
+     * Check whether a foreign key exists
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $foreignKeyName Foreign key name
      * @return bool
      */
     private static function foreignKeyExists(string $connection, string $tableName, string $foreignKeyName): bool
@@ -544,7 +544,7 @@ class SafeMigrationHelper
         $driver = DB::connection($connection)->getDriverName();
         
         if ($driver === 'sqlite') {
-            // SQLite 外键检查
+            // SQLite foreign key check
             $result = DB::connection($connection)->select(
                 "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE ?",
                 ["%CONSTRAINT {$foreignKeyName}%"]
@@ -562,10 +562,10 @@ class SafeMigrationHelper
     }
 
     /**
-     * 生成索引名称
-     * 
-     * @param string $tableName 表名
-     * @param string|array $columns 字段
+     * Generate an index name
+     *
+     * @param string $tableName Table name
+     * @param string|array $columns Columns
      * @return string
      */
     private static function generateIndexName(string $tableName, $columns): string
@@ -575,10 +575,10 @@ class SafeMigrationHelper
     }
 
     /**
-     * 生成外键名称
-     * 
-     * @param string $tableName 表名
-     * @param string $column 字段名
+     * Generate a foreign key name
+     *
+     * @param string $tableName Table name
+     * @param string $column Column name
      * @return string
      */
     private static function generateForeignKeyName(string $tableName, string $column): string
@@ -587,21 +587,21 @@ class SafeMigrationHelper
     }
 
     /**
-     * 完整表结构对齐 - 核心方法
-     * 
-     * 功能：
-     * 1. 表不存在则创建
-     * 2. 添加缺失字段
-     * 3. 收缩多余字段（可选，默认关闭）
-     * 4. 修正字段属性（类型、长度、nullable、default等）
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param callable $tableDefinition 表定义闭包，定义完整的表结构
-     * @param array $options 选项
-     *   - 'shrink_columns' => bool 是否收缩多余字段（默认false，避免数据丢失）
-     *   - 'modify_columns' => bool 是否修正字段属性（默认true）
-     *   - 'add_indexes' => bool 是否添加缺失索引（默认true）
+     * Full table structure alignment - core method
+     *
+     * Features:
+     * 1. Create the table if it does not exist
+     * 2. Add missing columns
+     * 3. Shrink extra columns (optional, disabled by default)
+     * 4. Correct column properties (type, length, nullable, default, etc.)
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param callable $tableDefinition Table definition closure that defines the full table structure
+     * @param array $options Options
+     *   - 'shrink_columns' => bool Whether to drop extra columns (default false, to avoid data loss)
+     *   - 'modify_columns' => bool Whether to correct column properties (default true)
+     *   - 'add_indexes' => bool Whether to add missing indexes (default true)
      * @return array ['status' => string, 'actions' => array, 'message' => string]
      */
     public static function alignTableStructure(
@@ -617,7 +617,7 @@ class SafeMigrationHelper
         $schema = Schema::connection($connection);
         $actions = [];
         
-        // 步骤1: 如果表不存在，创建表
+        // Step 1: create the table if it does not exist
         if (!$schema->hasTable($tableName)) {
             $schema->create($tableName, $tableDefinition);
             $actions[] = ['action' => 'created_table', 'message' => "Table {$tableName} created"];
@@ -627,15 +627,15 @@ class SafeMigrationHelper
                 'message' => "Table {$tableName} created successfully"
             ];
         }
-        
-        // 步骤2: 获取期望的表结构定义
+
+        // Step 2: get the expected table structure definition
         $expectedStructure = self::extractTableStructure($tableDefinition);
-        
-        // 步骤3: 获取当前表结构
+
+        // Step 3: get the current table structure
         $currentColumns = $schema->getColumnListing($tableName);
         $currentColumnInfo = self::getAllColumnsInfo($connection, $tableName);
-        
-        // 步骤4: 添加缺失字段
+
+        // Step 4: add missing columns
         $missingColumns = array_diff(array_keys($expectedStructure['columns']), $currentColumns);
         foreach ($missingColumns as $columnName) {
             $columnDef = $expectedStructure['columns'][$columnName];
@@ -647,11 +647,11 @@ class SafeMigrationHelper
             }
         }
         
-        // 步骤5: 收缩多余字段（如果启用）
+        // Step 5: drop extra columns (if enabled)
         if ($shrinkColumns) {
             $extraColumns = array_diff($currentColumns, array_keys($expectedStructure['columns']));
             foreach ($extraColumns as $columnName) {
-                // 跳过主键和系统字段
+                // Skip the primary key and system columns
                 if (in_array($columnName, ['id', 'created_at', 'updated_at'])) {
                     continue;
                 }
@@ -662,19 +662,19 @@ class SafeMigrationHelper
             }
         }
         
-        // 步骤6: 修正字段属性（如果启用）
+        // Step 6: correct column properties (if enabled)
         if ($modifyColumns) {
             foreach ($expectedStructure['columns'] as $columnName => $columnDef) {
                 if (!in_array($columnName, $currentColumns)) {
-                    continue; // 已在上一步添加
+                    continue; // Already added in the previous step
                 }
-                
+
                 $currentInfo = $currentColumnInfo[$columnName] ?? null;
                 if (!$currentInfo) {
                     continue;
                 }
-                
-                // 检查是否需要修改
+
+                // Check whether modification is needed
                 $needsModify = self::columnNeedsModification($currentInfo, $columnDef);
                 if ($needsModify) {
                     $result = self::modifyColumnProperties($connection, $tableName, $columnName, $columnDef, $currentInfo);
@@ -685,7 +685,7 @@ class SafeMigrationHelper
             }
         }
         
-        // 步骤7: 添加缺失索引
+        // Step 7: add missing indexes
         if ($addIndexes && !empty($expectedStructure['indexes'])) {
             foreach ($expectedStructure['indexes'] as $indexDef) {
                 $result = self::safeAddIndex(
@@ -711,18 +711,18 @@ class SafeMigrationHelper
     }
 
     /**
-     * 提取表结构定义（从闭包）
-     * 
-     * 注意：此方法难以实现，因为需要解析闭包内容
-     * 推荐使用 alignTableStructureFromArray 方法，直接传入数组定义
-     * 
-     * @param callable $tableDefinition 表定义闭包
+     * Extract the table structure definition (from a closure)
+     *
+     * Note: this method is hard to implement because it would require parsing the closure body.
+     * Prefer the alignTableStructureFromArray method and pass an array definition directly.
+     *
+     * @param callable $tableDefinition Table definition closure
      * @return array ['columns' => array, 'indexes' => array]
      */
     private static function extractTableStructure(callable $tableDefinition): array
     {
-        // 注意：此方法需要复杂的闭包解析，目前返回空结构
-        // 推荐使用 alignTableStructureFromArray 方法替代
+        // Note: this method would need complex closure parsing; for now it returns an empty structure.
+        // Prefer the alignTableStructureFromArray method instead.
         return [
             'columns' => [],
             'indexes' => [],
@@ -730,8 +730,8 @@ class SafeMigrationHelper
     }
 
     /**
-     * 应用字段定义到Blueprint
-     * 
+     * Apply a column definition to the Blueprint
+     *
      * @param Blueprint $table
      * @param string $columnName
      * @param array $columnDef
@@ -914,8 +914,8 @@ class SafeMigrationHelper
     }
 
     /**
-     * 安全删除字段（仅在启用收缩时使用）
-     * 
+     * Safely drop a column (only used when shrinking is enabled)
+     *
      * @param string $connection
      * @param string $tableName
      * @param string $columnName
@@ -941,7 +941,7 @@ class SafeMigrationHelper
         
         $driver = DB::connection($connection)->getDriverName();
         if ($driver === 'sqlite') {
-            // SQLite不支持直接删除列，需要重建表
+            // SQLite does not support dropping columns directly; it would require rebuilding the table
             return [
                 'status' => 'skipped',
                 'message' => "SQLite does not support dropping columns. Column {$columnName} kept."
@@ -959,8 +959,8 @@ class SafeMigrationHelper
     }
 
     /**
-     * 获取所有字段的详细信息
-     * 
+     * Get detailed info for all columns
+     *
      * @param string $connection
      * @param string $tableName
      * @return array
@@ -981,27 +981,27 @@ class SafeMigrationHelper
     }
 
     /**
-     * 检查字段是否需要修改
-     * 
+     * Check whether a column needs modification
+     *
      * @param array $currentInfo
      * @param array $expectedDef
      * @return bool
      */
     private static function columnNeedsModification(array $currentInfo, array $expectedDef): bool
     {
-        // 检查类型
+        // Check the type
         $currentType = strtolower($currentInfo['type'] ?? '');
         $expectedType = strtolower($expectedDef['type'] ?? 'string');
-        
-        // 检查nullable
+
+        // Check nullable
         $currentNullable = $currentInfo['nullable'] ?? false;
         $expectedNullable = $expectedDef['nullable'] ?? true;
-        
-        // 检查默认值
+
+        // Check the default value
         $currentDefault = $currentInfo['default'] ?? null;
         $expectedDefault = $expectedDef['default'] ?? null;
-        
-        // 检查长度（对于string类型）
+
+        // Check the length (for the string type)
         if ($expectedType === 'string' && isset($expectedDef['length'])) {
             preg_match('/\((\d+)\)/', $currentType, $matches);
             $currentLength = $matches[1] ?? 255;
@@ -1014,8 +1014,8 @@ class SafeMigrationHelper
     }
 
     /**
-     * 修改字段属性
-     * 
+     * Modify column properties
+     *
      * @param string $connection
      * @param string $tableName
      * @param string $columnName
@@ -1033,7 +1033,7 @@ class SafeMigrationHelper
         $driver = DB::connection($connection)->getDriverName();
         
         if ($driver === 'sqlite') {
-            // SQLite不支持直接修改列，跳过
+            // SQLite does not support modifying columns directly; skip
             return [
                 'status' => 'skipped',
                 'message' => "SQLite does not support column modification. Column {$columnName} kept as is."
@@ -1078,13 +1078,13 @@ class SafeMigrationHelper
     }
 
     /**
-     * 定义表结构并对齐（便捷方法）
-     * 
-     * 使用表结构数组定义，更易于使用
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param array $tableStructure 表结构定义
+     * Define a table structure and align it (convenience method)
+     *
+     * Uses a table structure array definition, which is easier to use
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param array $tableStructure Table structure definition
      *   [
      *     'columns' => [
      *       'column_name' => [
@@ -1104,7 +1104,7 @@ class SafeMigrationHelper
      *       ...
      *     ],
      *   ]
-     * @param array $options 选项
+     * @param array $options Options
      * @return array
      */
     public static function alignTableStructureFromArray(
@@ -1113,29 +1113,29 @@ class SafeMigrationHelper
         array $tableStructure,
         array $options = []
     ): array {
-        // 转换为闭包形式
+        // Convert to closure form
         $tableDefinition = function (Blueprint $table) use ($tableStructure) {
-            // 创建字段
+            // Create columns
             $columnIndexMap = [];
             foreach ($tableStructure['columns'] ?? [] as $columnName => $columnDef) {
                 self::applyColumnDefinition($table, $columnName, $columnDef);
-                
-                // 记录通过列定义创建的索引，避免在同一个字段上重复创建单列索引
+
+                // Record indexes created via column definitions to avoid creating a duplicate single-column index on the same column
                 if (!empty($columnDef['index'])) {
                     $columnIndexMap[$columnName] = true;
                 }
             }
-            
-            // 创建索引（避免与列级 index 重复）
+
+            // Create indexes (avoid duplicating column-level index)
             foreach ($tableStructure['indexes'] ?? [] as $indexDef) {
                 $columns = $indexDef['columns'] ?? [];
                 $name = $indexDef['name'] ?? null;
                 $isUnique = $indexDef['unique'] ?? false;
 
-                // 归一化列列表
+                // Normalize the column list
                 $columnsList = is_array($columns) ? $columns : [$columns];
 
-                // 如果是单列普通索引且该列在列定义中已经有 index=true，则跳过，防止重复创建
+                // If it is a single-column regular index and that column already has index=true in its column definition, skip it to prevent duplicate creation
                 if (
                     !$isUnique
                     && $name === null
@@ -1153,7 +1153,7 @@ class SafeMigrationHelper
             }
         };
         
-        // 保存索引定义供后续使用
+        // Save the index definitions for later use
         $expectedStructure = [
             'columns' => $tableStructure['columns'] ?? [],
             'indexes' => $tableStructure['indexes'] ?? [],
@@ -1162,7 +1162,7 @@ class SafeMigrationHelper
         $schema = Schema::connection($connection);
         $actions = [];
         
-        // 步骤1: 如果表不存在，创建表
+        // Step 1: create the table if it does not exist
         if (!$schema->hasTable($tableName)) {
             $schema->create($tableName, $tableDefinition);
             $actions[] = ['action' => 'created_table', 'message' => "Table {$tableName} created"];
@@ -1172,12 +1172,12 @@ class SafeMigrationHelper
                 'message' => "Table {$tableName} created successfully"
             ];
         }
-        
-        // 步骤2: 获取当前表结构
+
+        // Step 2: get the current table structure
         $currentColumns = $schema->getColumnListing($tableName);
         $currentColumnInfo = self::getAllColumnsInfo($connection, $tableName);
-        
-        // 步骤3: 添加缺失字段
+
+        // Step 3: add missing columns
         $driver = DB::connection($connection)->getDriverName();
         $missingColumns = array_diff(array_keys($expectedStructure['columns']), $currentColumns);
         foreach ($missingColumns as $columnName) {
@@ -1196,7 +1196,7 @@ class SafeMigrationHelper
             }
         }
         
-        // 步骤4: 收缩多余字段（如果启用）
+        // Step 4: drop extra columns (if enabled)
         $shrinkColumns = $options['shrink_columns'] ?? false;
         if ($shrinkColumns) {
             $extraColumns = array_diff($currentColumns, array_keys($expectedStructure['columns']));
@@ -1211,7 +1211,7 @@ class SafeMigrationHelper
             }
         }
         
-        // 步骤5: 修正字段属性（如果启用）
+        // Step 5: correct column properties (if enabled)
         $modifyColumns = $options['modify_columns'] ?? true;
         if ($modifyColumns) {
             foreach ($expectedStructure['columns'] as $columnName => $columnDef) {

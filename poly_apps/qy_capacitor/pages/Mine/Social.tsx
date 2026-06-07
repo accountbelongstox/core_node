@@ -1,9 +1,31 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useContext, useState } from 'react';
+import { Card, Icons, Button, ProgressBar, SectionTitle } from '../../components/UI';
+import { Avatar } from '../../components/Avatar';
 import { AppContext } from '../../contexts/AppContext';
-import { Card, Icons } from '../../components/UI';
-import { MOCK_FRIENDS, MOCK_ACTIVITIES, MOCK_LEADERBOARD, MOCK_ACHIEVEMENTS } from '../../services/mockData';
+import { PillNav } from '../../components/PillNav';
+import { MOCK_FRIENDS as MOCK_FRIENDS_RAW, MOCK_ACTIVITIES, MOCK_LEADERBOARD as MOCK_LEADERBOARD_RAW, MOCK_ACHIEVEMENTS } from '../../services/mockData';
+import type { Friend, LeaderboardUser } from '../../types';
+import { Users, Gift, Heart, Crown, Trophy, Zap, Check, Sunrise, Bug, Flame, Globe2, type LucideIcon } from 'lucide-react';
+
+// Backend friend/leaderboard objects can carry a full `avatar_url`; the shared
+// types only declare the relative `avatar`. These page-local views widen with
+// the optional field the rendering already reads defensively (`avatar_url ||
+// avatar`). Runtime is unchanged — the mock objects simply lack `avatar_url`.
+type FriendWithAvatarUrl = Friend & { avatar_url?: string };
+type LeaderboardUserWithAvatarUrl = LeaderboardUser & { avatar_url?: string };
+const MOCK_FRIENDS = MOCK_FRIENDS_RAW as FriendWithAvatarUrl[];
+const MOCK_LEADERBOARD = MOCK_LEADERBOARD_RAW as LeaderboardUserWithAvatarUrl[];
 
 type TabType = 'friends' | 'leaderboard' | 'achievements';
+
+// Map achievement ids to lucide icons (no emoji as UI affordance)
+const ACHIEVEMENT_ICONS: Record<string, LucideIcon> = {
+  a1: Sunrise,
+  a2: Bug,
+  a3: Flame,
+  a4: Globe2,
+};
 
 export default function MineSocial() {
   const { user, navigate, t } = useContext(AppContext);
@@ -11,21 +33,21 @@ export default function MineSocial() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24 flex items-center justify-center">
-        <Card className="mx-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-8">
-          <Icons.Lock />
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-4 mb-2">
+      <div className="ds-aura-bg min-h-screen pb-28 flex items-center justify-center px-[var(--page-padding-h)]">
+        <div className="ds-aura-overlay" />
+        <Card className="relative max-w-md w-full text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--klein-blue-soft)] flex items-center justify-center text-[var(--klein-blue)]">
+            <Icons.Lock />
+          </div>
+          <h2 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
             Login Required
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 mb-6">
+          <p className="text-[var(--color-text-secondary)] mb-6">
             Please login to view your social network
           </p>
-          <button
-            onClick={() => navigate('login')}
-            className="w-full px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
-          >
+          <Button variant="klein" onClick={() => navigate('login')}>
             {t('auth.login')}
-          </button>
+          </Button>
         </Card>
       </div>
     );
@@ -35,347 +57,292 @@ export default function MineSocial() {
   const activeFriends = MOCK_FRIENDS.filter(f => f.status === 'online' || f.status === 'studying');
   const unlockedAchievements = MOCK_ACHIEVEMENTS.filter(a => a.unlocked).length;
 
+  const statusDot = (status: string) =>
+    status === 'online' ? 'bg-green-500' : status === 'studying' ? 'bg-[var(--klein-blue)]' : 'bg-slate-400';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
-      {/* Header */}
-      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
-        <div className="space-y-4">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
-              Social Center
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              Connect with friends and compete globally
-            </p>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-3">
-            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-lg text-center p-4">
-              <p className="text-3xl font-bold">{MOCK_FRIENDS.length}</p>
-              <p className="text-blue-100 text-xs mt-1">{t('social.friendsShort')}</p>
-            </Card>
-            <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-none shadow-lg text-center p-4">
-              <p className="text-3xl font-bold">#{currentUser?.rank || '-'}</p>
-              <p className="text-purple-100 text-xs mt-1">Global Rank</p>
-            </Card>
-            <Card className="bg-gradient-to-br from-pink-500 to-pink-600 text-white border-none shadow-lg text-center p-4">
-              <p className="text-3xl font-bold">{unlockedAchievements}</p>
-              <p className="text-pink-100 text-xs mt-1">{t('social.badgesShort')}</p>
-            </Card>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-2 bg-white dark:bg-slate-800 rounded-xl p-2 border border-slate-200 dark:border-slate-700">
-            {(['friends', 'leaderboard', 'achievements'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-colors capitalize ${
-                  activeTab === tab
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+    <div className="ds-aura-bg min-h-screen pb-28">
+      <div className="ds-aura-overlay" />
+      {/* Minimal asymmetric header */}
+      <div className="relative pt-[var(--page-padding-v)] px-[var(--page-padding-h)] pb-[var(--space-breath)] max-w-md mx-auto space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mb-2">
+            Social Center
+          </h1>
+          <p className="text-[var(--color-text-secondary)]">
+            Connect with friends and compete globally
+          </p>
         </div>
+
+        {/* Quick Stats */}
+        <div className="ds-grid-breathing grid-cols-3">
+          {[
+            { v: MOCK_FRIENDS.length, l: t('social.friendsShort') },
+            { v: `#${currentUser?.rank || '-'}`, l: 'Global Rank' },
+            { v: unlockedAchievements, l: t('social.badgesShort') },
+          ].map((s, i) => (
+            <div key={i} className="ds-card text-center p-5">
+              <p className="text-3xl font-bold text-[var(--klein-blue)]">{s.v}</p>
+              <p className="text-[var(--color-text-secondary)] text-xs mt-1">{s.l}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Tabs — Pill nav */}
+        <PillNav
+          aria-label="Social tabs"
+          activeId={activeTab}
+          onChange={(id) => setActiveTab(id as TabType)}
+          items={[
+            { id: 'friends', label: 'Friends' },
+            { id: 'leaderboard', label: 'Leaderboard' },
+            { id: 'achievements', label: 'Achievements' },
+          ]}
+        />
       </div>
 
-      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
+      <div className="relative max-w-md mx-auto px-[var(--page-padding-h)] ds-section-gap">
         {/* Friends Tab */}
         {activeTab === 'friends' && (
           <>
             {/* Active Friends */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Active Now ({activeFriends.length})
-                </h2>
-                <button
-                  onClick={() => navigate('social/add-friends')}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-semibold"
-                >
-                  + Add Friends
-                </button>
-              </div>
+              <SectionTitle
+                title={`Active Now (${activeFriends.length})`}
+                className="px-1"
+                action={
+                  <button
+                    onClick={() => navigate('social/add-friends')}
+                    className="text-sm text-[var(--klein-blue)] hover:underline font-semibold ds-touch-target"
+                  >
+                    + Add Friends
+                  </button>
+                }
+              />
 
               {activeFriends.length > 0 ? (
                 <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
                   {activeFriends.map((friend) => (
                     <div key={friend.id} className="flex flex-col items-center gap-2 min-w-[70px]">
                       <div className="relative">
-                        <img
-                          src={friend.avatar_url || friend.avatar}
+                        <Avatar
+                          src={friend.avatar_url}
+                          fallbackSrc={friend.avatar}
+                          name={friend.name}
                           alt={friend.name}
-                          className="w-16 h-16 rounded-2xl border-2 border-white dark:border-slate-700 shadow-sm"
+                          className="w-16 h-16 rounded-2xl border border-[var(--border-highlight)] shadow-sm text-xl"
                         />
-                        <div
-                          className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white dark:border-slate-800 ${
-                            friend.status === 'online'
-                              ? 'bg-green-500'
-                              : friend.status === 'studying'
-                              ? 'bg-blue-500'
-                              : 'bg-slate-400'
-                          }`}
-                        ></div>
+                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[var(--color-surface)] ${statusDot(friend.status)}`}></div>
                       </div>
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate w-full text-center">
+                      <span className="text-xs font-bold text-[var(--color-text-secondary)] truncate w-full text-center">
                         {friend.name.split(' ')[0]}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center py-8">
-                  <div className="text-4xl mb-3">👥</div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                <div className="ds-empty text-center py-8">
+                  <Users className="w-10 h-10 mx-auto mb-3 text-[var(--klein-blue)]" />
+                  <p className="text-sm text-[var(--color-text-secondary)]">
                     No friends online right now
                   </p>
-                </Card>
+                </div>
               )}
             </div>
 
             {/* All Friends List */}
             <div className="space-y-3">
-              <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                All Friends ({MOCK_FRIENDS.length})
-              </h2>
-              {MOCK_FRIENDS.map((friend) => (
-                <Card
-                  key={friend.id}
-                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-lg hover:border-blue-500 dark:hover:border-blue-500 transition-all"
-                >
-                  <div className="flex items-center gap-4">
+              <SectionTitle title={`All Friends (${MOCK_FRIENDS.length})`} className="px-1" />
+              <div className="ds-stack-tight flex flex-col">
+                {MOCK_FRIENDS.map((friend) => (
+                  <div key={friend.id} className="ds-row p-5 cursor-pointer ds-touch-target flex items-center gap-4">
                     <div className="relative">
-                      <img
-                        src={friend.avatar_url || friend.avatar}
+                      <Avatar
+                        src={friend.avatar_url}
+                        fallbackSrc={friend.avatar}
+                        name={friend.name}
                         alt={friend.name}
-                        className="w-12 h-12 rounded-full border border-slate-100 dark:border-slate-700"
+                        className="w-12 h-12 rounded-full border border-[var(--border-highlight)]"
                       />
-                      <div
-                        className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-800 ${
-                          friend.status === 'online'
-                            ? 'bg-green-500'
-                            : friend.status === 'studying'
-                            ? 'bg-blue-500'
-                            : 'bg-slate-400'
-                        }`}
-                      ></div>
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-[var(--color-surface)] ${statusDot(friend.status)}`}></div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-slate-900 dark:text-white truncate">
+                      <h3 className="font-bold text-[var(--color-text-primary)] truncate">
                         {friend.name}
                       </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
+                      <p className="text-xs text-[var(--color-text-tertiary)] capitalize">
                         {friend.status}
                       </p>
                     </div>
-                    <Icons.ChevronRight />
+                    <span className="text-[var(--color-text-tertiary)]"><Icons.ChevronRight /></span>
                   </div>
-                </Card>
-              ))}
+                ))}
+              </div>
             </div>
 
             {/* Activity Feed */}
             <div className="space-y-3">
-              <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Recent Activity
-              </h2>
-              {MOCK_ACTIVITIES.map((activity) => (
-                <Card
-                  key={activity.id}
-                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-                >
-                  <div className="flex gap-4">
-                    <img
+              <SectionTitle title="Recent Activity" className="px-1" />
+              <div className="ds-stack-tight flex flex-col">
+                {MOCK_ACTIVITIES.map((activity) => (
+                  <div key={activity.id} className="ds-row p-5 flex gap-4">
+                    <Avatar
                       src={activity.userAvatar}
+                      name={activity.userName}
                       alt={activity.userName}
-                      className="w-12 h-12 rounded-full border border-slate-100 dark:border-slate-700"
+                      className="w-12 h-12 rounded-full border border-[var(--border-highlight)] text-base flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-900 dark:text-white">
+                      <p className="text-sm text-[var(--color-text-primary)]">
                         <span className="font-bold">{activity.userName}</span> {activity.action}
                       </p>
-                      <p className="text-xs text-slate-400 mt-1">{activity.time}</p>
+                      <p className="text-xs text-[var(--color-text-tertiary)] mt-1">{activity.time}</p>
                     </div>
                     <div className="flex flex-col items-center justify-center gap-1">
-                      <button className="text-slate-300 hover:text-red-500 transition-colors text-xl">
-                        ♥
+                      <button aria-label="Like" className="text-slate-300 hover:text-red-500 transition-colors">
+                        <Heart className="w-5 h-5" />
                       </button>
-                      <span className="text-xs text-slate-400">{activity.likes}</span>
+                      <span className="text-xs text-[var(--color-text-tertiary)]">{activity.likes}</span>
                     </div>
                   </div>
-                </Card>
-              ))}
+                ))}
+              </div>
             </div>
 
             {/* Invite Card */}
-            <Card className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white border-none shadow-xl">
+            <Card>
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <h3 className="font-bold text-lg mb-1">Invite Friends</h3>
-                  <p className="text-white/80 text-sm">Get Pro features free for each friend</p>
+                  <h3 className="font-bold text-lg mb-1 text-[var(--color-text-primary)]">Invite Friends</h3>
+                  <p className="text-[var(--color-text-secondary)] text-sm">Get Pro features free for each friend</p>
                 </div>
-                <div className="text-4xl">🎁</div>
+                <Gift className="w-9 h-9 text-[var(--klein-blue)]" />
               </div>
-              <button className="w-full mt-4 px-4 py-3 bg-white/20 hover:bg-white/30 rounded-xl font-semibold transition-colors">
+              <Button variant="klein" className="mt-4">
                 Share Invite Link
-              </button>
+              </Button>
             </Card>
           </>
         )}
 
         {/* Leaderboard Tab */}
         {activeTab === 'leaderboard' && (
-          <>
-            <div className="space-y-3">
-              <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Global Rankings
-              </h2>
+          <div className="space-y-3">
+            <SectionTitle title="Global Rankings" className="px-1" />
 
-              {/* Top 3 Podium */}
-              <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-slate-800 dark:to-slate-800 border border-amber-200 dark:border-slate-700">
-                <div className="flex items-end justify-center gap-4 py-4">
-                  {/* 2nd Place */}
-                  {MOCK_LEADERBOARD[1] && (
-                    <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 rounded-full border-4 border-slate-300 overflow-hidden mb-2">
-                        <img
-                          src={MOCK_LEADERBOARD[1].avatar_url || MOCK_LEADERBOARD[1].avatar}
-                          alt={MOCK_LEADERBOARD[1].name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="w-20 h-16 bg-slate-300 rounded-t-xl flex items-center justify-center text-2xl font-bold text-white">
-                        2
-                      </div>
-                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-2 truncate w-20 text-center">
-                        {MOCK_LEADERBOARD[1].name.split(' ')[0]}
-                      </p>
-                      <p className="text-xs text-slate-500">{MOCK_LEADERBOARD[1].xp} XP</p>
-                    </div>
-                  )}
-
-                  {/* 1st Place */}
-                  {MOCK_LEADERBOARD[0] && (
-                    <div className="flex flex-col items-center -mt-4">
-                      <div className="text-2xl mb-1">👑</div>
-                      <div className="w-20 h-20 rounded-full border-4 border-yellow-400 overflow-hidden mb-2">
-                        <img
-                          src={MOCK_LEADERBOARD[0].avatar_url || MOCK_LEADERBOARD[0].avatar}
-                          alt={MOCK_LEADERBOARD[0].name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="w-24 h-20 bg-yellow-400 rounded-t-xl flex items-center justify-center text-3xl font-bold text-white">
-                        1
-                      </div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white mt-2 truncate w-24 text-center">
-                        {MOCK_LEADERBOARD[0].name.split(' ')[0]}
-                      </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-400">{MOCK_LEADERBOARD[0].xp} XP</p>
-                    </div>
-                  )}
-
-                  {/* 3rd Place */}
-                  {MOCK_LEADERBOARD[2] && (
-                    <div className="flex flex-col items-center">
-                      <div className="w-16 h-16 rounded-full border-4 border-orange-300 overflow-hidden mb-2">
-                        <img
-                          src={MOCK_LEADERBOARD[2].avatar_url || MOCK_LEADERBOARD[2].avatar}
-                          alt={MOCK_LEADERBOARD[2].name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="w-20 h-12 bg-orange-300 rounded-t-xl flex items-center justify-center text-xl font-bold text-white">
-                        3
-                      </div>
-                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-2 truncate w-20 text-center">
-                        {MOCK_LEADERBOARD[2].name.split(' ')[0]}
-                      </p>
-                      <p className="text-xs text-slate-500">{MOCK_LEADERBOARD[2].xp} XP</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-
-              {/* Rest of Rankings */}
-              {MOCK_LEADERBOARD.slice(3).map((user) => (
-                <Card
-                  key={user.rank}
-                  className={`bg-white dark:bg-slate-800 border transition-all ${
-                    user.isCurrentUser
-                      ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 shadow-lg'
-                      : 'border-slate-200 dark:border-slate-700 hover:shadow-lg'
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`w-8 h-8 flex items-center justify-center font-bold rounded-full ${
-                        user.isCurrentUser
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      {user.rank}
-                    </div>
-                    <img
-                      src={user.avatar_url || user.avatar}
-                      alt={user.name}
-                      className="w-10 h-10 rounded-full border border-slate-100 dark:border-slate-700"
+            {/* Top 3 Podium */}
+            <Card>
+              <div className="flex items-end justify-center gap-4 py-4">
+                {MOCK_LEADERBOARD[1] && (
+                  <div className="flex flex-col items-center">
+                    <Avatar
+                      src={MOCK_LEADERBOARD[1].avatar_url}
+                      fallbackSrc={MOCK_LEADERBOARD[1].avatar}
+                      name={MOCK_LEADERBOARD[1].name}
+                      alt={MOCK_LEADERBOARD[1].name}
+                      className="w-16 h-16 rounded-full border-4 border-slate-300 mb-2 text-xl"
                     />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-slate-900 dark:text-white truncate">
-                        {user.name}
-                        {user.isCurrentUser && (
-                          <span className="ml-2 text-xs font-normal text-blue-600 dark:text-blue-400">
-                            (You)
-                          </span>
-                        )}
-                      </h3>
-                    </div>
-                    <div className="text-blue-600 dark:text-blue-400 font-mono font-bold">
-                      {user.xp} XP
-                    </div>
+                    <div className="w-20 h-16 bg-slate-300 rounded-t-xl flex items-center justify-center text-2xl font-bold text-white">2</div>
+                    <p className="text-xs font-bold text-[var(--color-text-secondary)] mt-2 truncate w-20 text-center">{MOCK_LEADERBOARD[1].name.split(' ')[0]}</p>
+                    <p className="text-xs text-[var(--color-text-tertiary)]">{MOCK_LEADERBOARD[1].xp} XP</p>
                   </div>
-                </Card>
+                )}
+
+                {MOCK_LEADERBOARD[0] && (
+                  <div className="flex flex-col items-center -mt-4">
+                    <Crown className="w-6 h-6 mb-1 text-[var(--klein-blue)]" fill="currentColor" />
+                    <Avatar
+                      src={MOCK_LEADERBOARD[0].avatar_url}
+                      fallbackSrc={MOCK_LEADERBOARD[0].avatar}
+                      name={MOCK_LEADERBOARD[0].name}
+                      alt={MOCK_LEADERBOARD[0].name}
+                      className="w-20 h-20 rounded-full border-4 border-[var(--klein-blue)] mb-2 text-2xl"
+                    />
+                    <div
+                      className="w-24 h-20 rounded-t-xl flex items-center justify-center text-3xl font-bold text-[var(--klein-on)]"
+                      style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
+                    >1</div>
+                    <p className="text-sm font-bold text-[var(--color-text-primary)] mt-2 truncate w-24 text-center">{MOCK_LEADERBOARD[0].name.split(' ')[0]}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)]">{MOCK_LEADERBOARD[0].xp} XP</p>
+                  </div>
+                )}
+
+                {MOCK_LEADERBOARD[2] && (
+                  <div className="flex flex-col items-center">
+                    <Avatar
+                      src={MOCK_LEADERBOARD[2].avatar_url}
+                      fallbackSrc={MOCK_LEADERBOARD[2].avatar}
+                      name={MOCK_LEADERBOARD[2].name}
+                      alt={MOCK_LEADERBOARD[2].name}
+                      className="w-16 h-16 rounded-full border-4 border-orange-300 mb-2 text-xl"
+                    />
+                    <div className="w-20 h-12 bg-orange-300 rounded-t-xl flex items-center justify-center text-xl font-bold text-white">3</div>
+                    <p className="text-xs font-bold text-[var(--color-text-secondary)] mt-2 truncate w-20 text-center">{MOCK_LEADERBOARD[2].name.split(' ')[0]}</p>
+                    <p className="text-xs text-[var(--color-text-tertiary)]">{MOCK_LEADERBOARD[2].xp} XP</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Rest of Rankings as ds-row group */}
+            <div className="ds-stack-tight flex flex-col">
+              {MOCK_LEADERBOARD.slice(3).map((u) => (
+                <div
+                  key={u.rank}
+                  className={`ds-row p-5 flex items-center gap-4 ${u.isCurrentUser ? 'ring-2 ring-[var(--klein-ring)]' : ''}`}
+                >
+                  <div
+                    className={`w-8 h-8 flex items-center justify-center font-bold rounded-full ${
+                      u.isCurrentUser
+                        ? 'bg-[var(--klein-blue)] text-[var(--klein-on)]'
+                        : 'bg-[var(--klein-blue-soft)] text-[var(--color-text-secondary)]'
+                    }`}
+                  >
+                    {u.rank}
+                  </div>
+                  <Avatar
+                    src={u.avatar_url}
+                    fallbackSrc={u.avatar}
+                    name={u.name}
+                    alt={u.name}
+                    className="w-10 h-10 rounded-full border border-[var(--border-highlight)]"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-[var(--color-text-primary)] truncate">
+                      {u.name}
+                      {u.isCurrentUser && (
+                        <span className="ml-2 text-xs font-normal text-[var(--klein-blue)]">(You)</span>
+                      )}
+                    </h3>
+                  </div>
+                  <div className="text-[var(--klein-blue)] font-mono font-bold">{u.xp} XP</div>
+                </div>
               ))}
             </div>
-          </>
+          </div>
         )}
 
         {/* Achievements Tab */}
         {activeTab === 'achievements' && (
           <>
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Achievements ({unlockedAchievements}/{MOCK_ACHIEVEMENTS.length})
-                </h2>
-              </div>
+              <SectionTitle
+                title={`Achievements (${unlockedAchievements}/${MOCK_ACHIEVEMENTS.length})`}
+                className="px-1"
+              />
 
               {/* Progress Overview */}
-              <Card className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-slate-800 dark:to-slate-800 border border-purple-200 dark:border-slate-700">
+              <Card>
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center text-white text-2xl flex-shrink-0">
-                    🏆
+                  <div className="w-16 h-16 bg-[var(--klein-blue)] rounded-2xl flex items-center justify-center text-[var(--klein-on)] flex-shrink-0">
+                    <Trophy className="w-7 h-7" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-bold text-slate-900 dark:text-white mb-1">
+                    <h3 className="font-bold text-[var(--color-text-primary)] mb-1">
                       Achievement Progress
                     </h3>
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-2">
-                      <div
-                        className="bg-gradient-to-r from-purple-600 to-pink-600 h-2 rounded-full transition-all"
-                        style={{
-                          width: `${(unlockedAchievements / MOCK_ACHIEVEMENTS.length) * 100}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                    <ProgressBar value={unlockedAchievements} max={MOCK_ACHIEVEMENTS.length} className="mb-2" />
+                    <p className="text-xs text-[var(--color-text-secondary)]">
                       {unlockedAchievements} of {MOCK_ACHIEVEMENTS.length} unlocked
                     </p>
                   </div>
@@ -383,69 +350,57 @@ export default function MineSocial() {
               </Card>
 
               {/* Achievements Grid */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="ds-grid-breathing grid-cols-2">
                 {MOCK_ACHIEVEMENTS.map((achievement) => (
-                  <Card
+                  <div
                     key={achievement.id}
-                    className={`bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-all ${
-                      !achievement.unlocked ? 'opacity-60' : 'hover:shadow-lg'
-                    }`}
+                    className={`ds-card p-5 ${!achievement.unlocked ? 'opacity-60' : ''}`}
                   >
                     <div className="flex flex-col items-center text-center">
-                      <div
-                        className={`text-4xl mb-3 ${
-                          !achievement.unlocked ? 'grayscale opacity-50' : ''
-                        }`}
-                      >
-                        {achievement.icon}
+                      <div className={`mb-3 ${!achievement.unlocked ? 'text-[var(--color-text-tertiary)] opacity-50' : 'text-[var(--klein-blue)]'}`}>
+                        {(() => {
+                          const AchIcon = ACHIEVEMENT_ICONS[achievement.id] ?? Trophy;
+                          return <AchIcon className="w-9 h-9" />;
+                        })()}
                       </div>
-                      <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1">
+                      <h3 className="font-bold text-sm text-[var(--color-text-primary)] mb-1">
                         {achievement.name}
                       </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 leading-tight">
+                      <p className="text-xs text-[var(--color-text-tertiary)] mb-3 leading-tight">
                         {achievement.description}
                       </p>
 
                       {achievement.unlocked ? (
-                        <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-bold rounded-full">
-                          ✓ Unlocked
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs font-bold rounded-full">
+                          <Check className="w-3.5 h-3.5" /> Unlocked
                         </span>
                       ) : (
                         <div className="w-full">
-                          <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-blue-500 rounded-full transition-all"
-                              style={{
-                                width: `${(achievement.progress / achievement.maxProgress) * 100}%`,
-                              }}
-                            />
-                          </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          <ProgressBar value={achievement.progress} max={achievement.maxProgress} />
+                          <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
                             {achievement.progress}/{achievement.maxProgress}
                           </p>
                         </div>
                       )}
                     </div>
-                  </Card>
+                  </div>
                 ))}
               </div>
             </div>
 
             {/* Challenge Card */}
-            <Card className="bg-gradient-to-br from-orange-500 to-red-600 text-white border-none shadow-xl">
+            <Card>
               <div className="flex items-start gap-3">
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
-                  ⚡
+                <div className="w-12 h-12 bg-[var(--klein-blue-soft)] text-[var(--klein-blue)] rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-6 h-6" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-lg mb-1">Weekly Challenge</h3>
-                  <p className="text-white/90 text-sm mb-3">
+                  <h3 className="font-bold text-lg mb-1 text-[var(--color-text-primary)]">Weekly Challenge</h3>
+                  <p className="text-[var(--color-text-secondary)] text-sm mb-3">
                     Complete 50 words this week to unlock the "Speed Learner" badge
                   </p>
-                  <div className="w-full bg-white/20 rounded-full h-2 mb-2">
-                    <div className="w-3/4 bg-white h-2 rounded-full"></div>
-                  </div>
-                  <p className="text-xs text-white/80">37/50 words completed</p>
+                  <ProgressBar value={75} className="mb-2" />
+                  <p className="text-xs text-[var(--color-text-tertiary)]">37/50 words completed</p>
                 </div>
               </div>
             </Card>

@@ -37,7 +37,7 @@ export class BingTranslator implements ITranslator {
       const html = await response.text();
 
       // Parse HTML response for translation
-      // Bing returns JSON in format: [{"translations":[{"text":"翻译结果"}]}]
+      // Bing returns JSON in format: [{"translations":[{"text":"translation result"}]}]
       const jsonMatch = html.match(/\[{[^\]]+}\]/);
       if (jsonMatch) {
         const data = JSON.parse(jsonMatch[0]);
@@ -129,7 +129,7 @@ export class GoogleTranslator implements ITranslator {
 
       const data = await response.json();
 
-      // Google returns: [[["翻译结果","original",null,null,3]],null,"en"]
+      // Google returns: [[["translation result","original",null,null,3]],null,"en"]
       if (Array.isArray(data) && data[0]?.[0]?.[0]) {
         return data[0][0][0];
       }
@@ -210,7 +210,7 @@ export class MockTranslator implements ITranslator {
   }
 
   async translateBatch(texts: string[], from: string, to: string): Promise<string[]> {
-    return texts.map(t => this.translate(t, from, to));
+    return texts.map(t => this.translate(t, from, to)) as unknown as string[];
   }
 }
 

@@ -1,3 +1,6 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp.
+   Verified reference parity. Announcement slimmed to a subtle glass pill
+   (was a flat web banner). */
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { TopBar } from './TopBar';
@@ -30,12 +33,14 @@ function AppLayoutInner({ children }: AppLayoutProps) {
         style={{ paddingTop: `calc(${TOP_BAR_HEIGHT}px + env(safe-area-inset-top, 0px) + 0.5rem)` }}
       >
         <div className="ds-page flex-1">
-          <div className="flex items-center gap-2 overflow-hidden py-1 opacity-80 hover:opacity-100 transition-opacity mb-2">
-            <span className="text-[10px] font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded shadow-sm shadow-blue-500/30">NEW</span>
-            <div className="flex-1 text-xs font-medium text-slate-600 dark:text-slate-400 truncate">
-              {MOCK_ANNOUNCEMENTS[0]?.message}
+          {MOCK_ANNOUNCEMENTS[0]?.message && (
+            <div className="ds-glass ds-glass-edge flex items-center gap-2 rounded-full pl-2 pr-3 py-1.5 mb-3 overflow-hidden">
+              <span className="text-[9px] font-bold bg-[var(--klein-blue)] text-[var(--klein-on)] px-2 py-0.5 rounded-full flex-shrink-0">NEW</span>
+              <div className="flex-1 text-xs font-medium text-[var(--color-text-secondary)] truncate">
+                {MOCK_ANNOUNCEMENTS[0]?.message}
+              </div>
             </div>
-          </div>
+          )}
           {children ?? <Outlet />}
         </div>
       </main>

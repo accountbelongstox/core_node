@@ -124,22 +124,29 @@ function Invoke-ChromeMCPStep {
 }
 
 function Invoke-Context7Step {
-    Write-ColorMessage -Message "Checking Context7 package (npx @upstash/context7-mcp)..." -Type "Info"
-    $checkOutput = npx -y @upstash/context7-mcp --version 2>&1
-    foreach ($line in $checkOutput) { Write-Host $line }
-    $checkText = ($checkOutput | Out-String).Trim()
-    if ($checkText -match "\d+\.\d+") {
-        Write-ColorMessage -Message "Context7 package already available (version found in output)." -Type "Success"
-        return
+    # Context7 is a hosted HTTP MCP server (https://mcp.context7.com/mcp); the
+    # actual registration happens in Step 4 (sync) using CONTEXT7_API_KEY. This
+    # step only warms the optional local npx cache. npm/npx prints warnings to
+    # stderr (e.g. unknown pnpm-only config keys), which under a 'Stop' error
+    # preference would abort the whole step. Force 'Continue' and swallow stderr
+    # so a benign warning is never treated as a failure.
+    Write-ColorMessage -Message "Warming optional Context7 npx cache (non-fatal)..." -Type "Info"
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $versionText = ""
+    try {
+        $checkOutput = & npx -y @upstash/context7-mcp --version 2>$null
+        $versionText = ($checkOutput | Out-String).Trim()
+        if ($versionText) { Write-Host $versionText }
+    } catch {
+        Write-ColorMessage -Message "npx warm-up skipped: $_" -Type "Warning"
+    } finally {
+        $ErrorActionPreference = $prevEap
     }
-    Write-ColorMessage -Message "Ensuring Context7 package (npx @upstash/context7-mcp@latest)..." -Type "Info"
-    $installOutput = npx -y @upstash/context7-mcp@latest --version 2>&1
-    foreach ($line in $installOutput) { Write-Host $line }
-    $installText = ($installOutput | Out-String).Trim()
-    if ($installText -match "\d+\.\d+") {
-        Write-ColorMessage -Message "Context7 package ready (version found in output)." -Type "Success"
+    if ($versionText -match "\d+\.\d+") {
+        Write-ColorMessage -Message "Context7 npx package available ($versionText)." -Type "Success"
     } else {
-        Write-ColorMessage -Message "Context7 version not detected in output; sync may still add it if CONTEXT7_API_KEY is set." -Type "Warning"
+        Write-ColorMessage -Message "Context7 npx package not detected; hosted HTTP server is used anyway. Will register in Step 4 if CONTEXT7_API_KEY is set." -Type "Info"
     }
 }
 

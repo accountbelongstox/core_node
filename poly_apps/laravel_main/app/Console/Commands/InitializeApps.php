@@ -1036,7 +1036,20 @@ class InitializeApps extends Command
                     $this->line("  ✓ Swoole {$result['swoole_version']} - compatible with Octane v2.13.x");
                     break;
                 case 'skipped':
-                    $this->line("  ⏭️  Compatibility check skipped: {$result['reason']}");
+                    if (($result['reason'] ?? '') === 'swoole_not_installed' && PHP_OS_FAMILY !== 'Windows') {
+                        $result = $this->ensureSwooleThenRefix($fixer);
+                        if (($result['status'] ?? '') === 'fixed') {
+                            $this->line("  ✅ Compatibility patch applied (Swoole {$result['swoole_version']})");
+                        } elseif (($result['status'] ?? '') === 'already_fixed') {
+                            $this->line("  ✓ Compatibility patch already applied (Swoole {$result['swoole_version']})");
+                        } elseif (($result['status'] ?? '') === 'compatible') {
+                            $this->line("  ✓ Swoole {$result['swoole_version']} - compatible with Octane v2.13.x");
+                        } else {
+                            $this->line("  ⏭️  Compatibility check skipped: {$result['reason']}");
+                        }
+                    } else {
+                        $this->line("  ⏭️  Compatibility check skipped: {$result['reason']}");
+                    }
                     break;
                 case 'unknown':
                     $this->line("  <fg=yellow>⚠️  Unknown Swoole version: {$result['swoole_version']}</>");
@@ -1047,6 +1060,37 @@ class InitializeApps extends Command
         } catch (\Exception $e) {
             $this->warn("  ⚠️  Compatibility check error: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Swoole missing on a non-Windows host: invoke the canonical installer
+     * (scripts/shells/linux/debian/install_shells/32_install_swoole.sh), then
+     * re-run the Octane/Swoole compatibility fixer once. Octane is the single
+     * task-system driver, so Swoole is required on Linux/WSL.
+     */
+    private function ensureSwooleThenRefix(\App\Support\OctaneSwooleCompatFixer $fixer): array
+    {
+        $repoRoot = dirname(base_path(), 2);
+        $installScript = $repoRoot . '/scripts/shells/linux/debian/install_shells/32_install_swoole.sh';
+        $exitCode = 0;
+
+        if (!is_file($installScript)) {
+            $this->warn("  ⚠️  Swoole installer missing: {$installScript}");
+            return ['status' => 'skipped', 'reason' => 'swoole_not_installed'];
+        }
+
+        $this->line("  <fg=cyan>Swoole not installed -> running installer (may build from source, can take several minutes)...</>");
+        $this->line("  <fg=yellow>Command: bash {$installScript}</>");
+        passthru('bash ' . escapeshellarg($installScript), $exitCode);
+
+        if ($exitCode !== 0) {
+            $this->warn("  ⚠️  Swoole installer exited with code {$exitCode}; Octane will be unavailable (degraded fallback).");
+            return ['status' => 'skipped', 'reason' => 'swoole_not_installed'];
+        }
+
+        // Re-run the fixer; the installer also applies the Octane 6.x patch itself,
+        // so this is mostly a verification / idempotent second pass.
+        return $fixer->run();
     }
 
     private function installChokidar()

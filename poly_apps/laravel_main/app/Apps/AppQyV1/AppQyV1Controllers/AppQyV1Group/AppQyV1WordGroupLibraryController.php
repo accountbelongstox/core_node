@@ -18,8 +18,8 @@ use App\Apps\AppQyV1\AppQyV1Requests\Group\AppQyV1GetGroupLibrariesRequest;
 use App\Traits\ApiResponse;
 
 /**
- * 词组词库管理控制器
- * 重构: 使用 FormRequest 验证, 使用错误码, 消除 supported_params 重复
+ * Word group library management controller
+ * Refactor: use FormRequest validation, use error codes, eliminate supported_params duplication
  */
 class AppQyV1WordGroupLibraryController
 {

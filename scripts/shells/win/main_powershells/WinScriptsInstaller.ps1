@@ -31,6 +31,7 @@ $FILES = @(
     'scripts/shells/win/win_common/DesktopIconManager.ps1',
     'scripts/shells/win/win_common/StartupManager.ps1',
     'scripts/shells/win/win_common/SecretDecryptionCheck.ps1',
+    'scripts/shells/win/win_common/SecretEncryptionCheck.ps1',
     'scripts/shells/win/install_powershells/InstallerScriptsList.ps1',
     'scripts/shells/win/install_powershells/Step1_InitializeBaseDirectories.ps1',
     'scripts/shells/win/install_powershells/Step2_SetBaseSettings.ps1',

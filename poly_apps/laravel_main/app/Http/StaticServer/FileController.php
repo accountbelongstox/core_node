@@ -31,8 +31,8 @@ class FileController
         }
 
         $path = $request->input('path');
-        
-        // 安全检查：确保路径在允许的范围内
+
+        // Security check: ensure the path is within the allowed scope
         if (!$this->isPathAllowed($path)) {
             return response()->json(['error' => 'Access denied'], 403);
         }
@@ -59,7 +59,7 @@ class FileController
         $path = $request->input('path');
         $content = $request->input('content');
 
-        // 安全检查：确保路径在允许的范围内
+        // Security check: ensure the path is within the allowed scope
         if (!$this->isPathAllowed($path)) {
             return response()->json(['error' => 'Access denied'], 403);
         }
@@ -74,20 +74,20 @@ class FileController
 
     private function isPathAllowed($path)
     {
-        // 实现路径安全检查逻辑
-        // 例如：检查路径是否在允许的目录内，是否包含危险的路径遍历等
-        
-        // 禁止访问 .env 文件
+        // Implement path security check logic
+        // For example: verify the path is inside an allowed directory and does not contain dangerous path traversal, etc.
+
+        // Disallow access to the .env file
         if (basename($path) === '.env') {
             return false;
         }
 
-        // 禁止路径遍历
+        // Disallow path traversal
         if (str_contains($path, '..')) {
             return false;
         }
 
-        // 只允许访问特定目录
+        // Only allow access to specific directories
         $allowedPaths = [
             'resources/js',
             'resources/css',

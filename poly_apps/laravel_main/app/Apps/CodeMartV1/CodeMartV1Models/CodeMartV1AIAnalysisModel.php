@@ -2,6 +2,7 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1AIAnalysisModel extends Model

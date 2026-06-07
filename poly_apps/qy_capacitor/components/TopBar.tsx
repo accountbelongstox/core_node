@@ -1,3 +1,6 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp.
+   Verified reference parity. Minimal asymmetric app bar: avatar-left, glass
+   search pill + gradient filter orb, icon-only glass controls right. */
 import React, { useState, useEffect, useContext } from 'react';
 import { useWindowScroll } from 'react-use';
 import { Icons } from './UI';
@@ -88,15 +91,18 @@ export const TopBar: React.FC<TopBarProps> = ({
             type="button"
             onClick={onSearchClick}
             className={`
-              flex-1 min-w-0 h-10 rounded-full flex items-center px-4 gap-2 cursor-pointer transition-all duration-300 group text-left
-              ${isScrolled ? 'bg-slate-100/80 dark:bg-slate-800/50' : 'bg-white/70 dark:bg-slate-800/40 backdrop-blur-md border border-white/40 dark:border-white/10 shadow-sm'}
+              flex-1 min-w-0 h-11 rounded-full flex items-center pl-4 pr-1.5 gap-2 cursor-pointer transition-all duration-300 group text-left
+              ${isScrolled ? 'bg-slate-100/80 dark:bg-slate-800/50' : 'bg-white/75 dark:bg-white/[0.06] backdrop-blur-md border border-white/50 dark:border-white/10 shadow-sm'}
             `}
           >
-            <span className="text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0">
+            <span className="text-[var(--color-text-tertiary)] group-hover:text-[var(--klein-blue)] transition-colors flex-shrink-0">
               <Icons.Search />
             </span>
-            <span className="text-sm text-slate-500 dark:text-slate-400 font-medium truncate">
+            <span className="flex-1 text-sm text-slate-500 dark:text-slate-400 font-medium truncate">
               {title || t('header.searchPlaceholder')}
+            </span>
+            <span className="ds-fab-grad flex-shrink-0 w-8 h-8 [&_svg]:w-4 [&_svg]:h-4" aria-hidden>
+              <Icons.Filter />
             </span>
           </button>
         )}
@@ -109,11 +115,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               type="button"
               onClick={() => navigate('settings')}
               aria-label={t('header.settings')}
-              className={`
-                ds-touch-target flex items-center justify-center rounded-full transition-all duration-300
-                ${useGlass || (isScrolled && !isMinimal) ? 'ds-glass ds-glass-edge border border-white/40 dark:border-white/10 shadow-sm text-slate-600 dark:text-slate-300' : ''}
-                hover:opacity-90 active:scale-95
-              `}
+              className="ds-touch-target flex items-center justify-center rounded-full ds-glass ds-glass-edge border border-white/40 dark:border-white/10 shadow-sm text-slate-600 dark:text-slate-300 transition-all duration-300 hover:opacity-90 active:scale-95"
             >
               <Icons.Settings />
             </button>

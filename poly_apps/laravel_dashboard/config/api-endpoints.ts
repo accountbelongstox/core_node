@@ -1,6 +1,6 @@
 /**
  * Global API Endpoints Configuration
- * 定义所有可用的API端点
+ * Defines all available API endpoints
  */
 
 export interface ApiEndpoint {
@@ -21,7 +21,7 @@ export interface ApiEndpointsConfig {
 }
 
 /**
- * 全局API端点配置
+ * Global API endpoints configuration
  */
 export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
   endpoints: [
@@ -75,7 +75,7 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
 };
 
 /**
- * 构建完整的API URL
+ * Build the full API URL
  */
 export function buildApiUrl(endpoint: ApiEndpoint, path: string = ''): string {
   const port = endpoint.port ? `:${endpoint.port}` : '';
@@ -88,14 +88,14 @@ export function buildApiUrl(endpoint: ApiEndpoint, path: string = ''): string {
 }
 
 /**
- * 根据ID获取端点
+ * Get an endpoint by ID
  */
 export function getEndpointById(id: string): ApiEndpoint | undefined {
   return GLOBAL_API_ENDPOINTS.endpoints.find(e => e.id === id);
 }
 
 /**
- * 获取所有端点（按优先级排序）
+ * Get all endpoints (sorted by priority)
  */
 export function getAllEndpoints(): ApiEndpoint[] {
   return [...GLOBAL_API_ENDPOINTS.endpoints].sort((a, b) => a.priority - b.priority);

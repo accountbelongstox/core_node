@@ -1,5 +1,7 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useContext } from 'react';
 import { AppContext } from '../../contexts/AppContext';
+import { BackButton } from '../UI';
 
 interface AuthBackButtonProps {
   to?: string;
@@ -15,13 +17,9 @@ export const AuthBackButton: React.FC<AuthBackButtonProps> = ({
   const { navigate, t } = useContext(AppContext);
 
   return (
-    <button
-      onClick={() => navigate(to)}
-      className={`mb-4 flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors ${className}`}
-    >
-      <span>←</span>
-      <span>{label || t('common.back')}</span>
-    </button>
+    <div className={`mb-6 -ml-2 ${className}`}>
+      <BackButton onClick={() => navigate(to)} label={label || t('common.back')} />
+    </div>
   );
 };
 

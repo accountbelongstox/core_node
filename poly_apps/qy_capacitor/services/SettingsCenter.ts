@@ -106,6 +106,21 @@ class SettingsCenterClass {
     }
 
     this.applyTheme();
+
+    // Apply the persisted UI language to LanguageCenter on startup (mirrors
+    // applyTheme). Dynamic import avoids a circular dependency. Without this the
+    // app reset to English on every reload regardless of the saved language.
+    const langValue = this.settings.language.appInterface;
+    const lang = Array.isArray(langValue) && langValue.length > 0
+      ? langValue[0]
+      : (typeof langValue === 'string' ? langValue : 'en');
+    if (lang) {
+      document.documentElement.lang = lang;
+      import('../i18n/LanguageCenter').then(({ LanguageCenter }) => {
+        LanguageCenter.setLanguage(lang as any);
+      });
+    }
+
     return this.settings;
   }
 

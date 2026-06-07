@@ -42,31 +42,26 @@ class DownloadController
             ], 422);
         }
 
-        try {
-            $tasks = [];
-            foreach ($request->input('urls') as $url) {
-                $task = $this->downloadManager->createTask(
-                    $url,
-                    $request->input('save_path')
-                );
-                $tasks[] = [
-                    'id' => $task->id,
-                    'url' => $task->url,
-                    'filename' => $task->filename,
-                    'status' => $task->status
-                ];
-            }
-
-            return response()->json([
-                'success' => true,
-                'tasks' => $tasks
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage()
-            ], 500);
+        // No controller-level try/catch (LARAVEL_GUIDE: trust the framework
+        // exception handler). Input is validated above.
+        $tasks = [];
+        foreach ($request->input('urls') as $url) {
+            $task = $this->downloadManager->createTask(
+                $url,
+                $request->input('save_path')
+            );
+            $tasks[] = [
+                'id' => $task->id,
+                'url' => $task->url,
+                'filename' => $task->filename,
+                'status' => $task->status
+            ];
         }
+
+        return response()->json([
+            'success' => true,
+            'tasks' => $tasks
+        ]);
     }
 
     public function status($taskId)

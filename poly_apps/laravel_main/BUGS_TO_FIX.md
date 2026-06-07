@@ -182,3 +182,62 @@ edge_tts = get_third_package_edge_tts()  # 自动检查和修复版本
 - 0字节文件会逐步清理，无需手动干预（除非需要快速释放inode）
 - 所有 AppQyV1 相关表应使用标准命名：`app_qy_v1_{table_name}`
 - 迁移文件必须使用 `AppTablePrefixServiceProvider` 获取正确的表名和连接
+
+---
+
+## ✅ 已修复的问题（2026-05-18）
+
+### N. queue:listen 在 WSL/Linux 下崩溃 + 任务系统从不运行
+
+**现象**: `scripts/start.sh` 在所有系统（含 WSL/Ubuntu）都跑 `composer dev:win`
+（`php artisan serve` + `queue:listen`），从不启动 Octane。`sys:init` 日志
+`[OCTANE_FIX] Swoole not installed, skipping`、`Octane timer is not running /
+Heartbeat file missing`；`queue:listen` 因一个超过 60s 的任务抛
+`Symfony ... ProcessTimedOutException` 整体 exit 1 且无人重启。
+
+**根本原因**:
+1. 文档既定架构（`MIGRATION_PASSIVEQUEUE_TO_OCTANE_TIMER.md` +
+   `development-guides/COMMON_TIMER_DESIGN_SPECIFICATION.md`）规定任务系统由
+   **单一 Octane(Swoole) 定时器**驱动；但 WSL 未安装 Swoole 扩展，且 `start.sh`
+   从不调用 `octane:start`，两个设计内驱动全部缺席。
+2. `routes/console.php` 把 `TimerTasks/*` 又注册成 Laravel Scheduler（重复的第二
+   驱动，违反“单实例”规范，且 `schedule:work` 也没启动）。
+3. 唯一的队列生产者 `CodeMartV1AIAnalysisCtl::performAIAnalysis()` 的
+   `dispatch(closure)->afterCommit()` 超时拖垮 `queue:listen`。
+
+**修复**:
+- `scripts/start.sh`: 新增 Swoole ensure（缺失时调用
+  `scripts/shells/linux/debian/install_shells/32_install_swoole.sh`），Linux/WSL
+  改为 `php artisan octane:start --server=swoole --host=0.0.0.0 --port=9000
+  [--watch]`；Swoole 不可用时降级回 `serve + queue:listen --timeout=0` 并明确告警。
+- `app/Console/Commands/InitializeApps.php`: `swoole_not_installed` 分支在
+  非 Windows 下自动调用安装脚本并重试兼容补丁（`ensureSwooleThenRefix`）。
+- `routes/console.php`: 删除 TimerTasks 的 Scheduler 重复注册，仅保留
+  `mcpv1:placeholder-cleanup` 真·cron 与 `inspire`。
+- CodeMart 改造为
+  `app/Services/TimerTasks/CodeMartV1AIAnalysisTask.php`（事务+行锁轮询，离队列），
+  控制器仅置状态 `processing`/`revising`；全应用已无 `dispatch(`。
+- `composer.json` 三处 `queue:listen` 加 `--timeout=0` 加固 Windows 回退。
+
+**端口已统一（2026-05-19）**:
+- 调查结论：`18000` 并非为规避端口冲突而引入，而是历史 squash 导入时泄漏进
+  dev 启动脚本（`start.sh`/`start.ps1`/`composer dev:win`/`startDev*`）。规范
+  `LARAVEL_GUIDE_THIS_FILE_NO_AI_EDIT.md` 及全部生产基建
+  （`start_service.sh`/`restart_octane.sh`/ServerManagerV1/`app_config.sh`/
+  systemd `octane-poly-9000.service`）一直用 `9000`。
+- 处理：已将 dev 启动脚本、`composer.json`(dev/dev:win/dev:ssr)、相关文档与
+  前端 `qy_capacitor` 全部恢复 `9000`，与锁定规范一致（锁定文件本就为 `9000`，
+  无需也未编辑）。
+- 注意（设计如此）：同机若生产 Octane 已占用 `9000`，再跑 dev `start.sh` 会端口
+  冲突；用 `PORT=<n>` 环境变量覆盖即可。
+
+**控制器层多余 catch 清理（2026-05-19，规范：控制器不写 try-catch）**:
+- 移除：`SetLocale.php`、`System/StatusController.php::index()`、
+  `StaticServer/DownloadController.php`、`StaticServer/UploadController.php`
+  （checkExists+upload）、`StaticServer/StaticFileController.php::saveContent()`
+  的多余 try/catch —— 它们只是把异常重新包成 500，框架本就会处理。
+- **保留（判断后不删）**：`StatusController::getDatabaseStatus/getStorageStatus`
+  的 catch —— 它们把基础设施故障转成状态数据返回，是健康端点的功能本身，
+  不是“吞异常”；删除会让状态接口在 DB 宕机时 500 而非报告 disconnected。
+- 计时器/服务事务类 catch 一律保留（COMMON_TIMER_DESIGN_SPECIFICATION 强制的
+  错误隔离 / Service 事务回滚），删除会违规并使定时器崩溃。

@@ -14,15 +14,33 @@ from pycore.callmodule.platform.windows_startup_manager import WindowsStartupMan
 from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
 
-def register_event_handlers(launcher: ServiceLauncher, port: int):
+def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port: int = None):
     """
     Register THREAD_BUS event handlers for tray actions
 
     Args:
         launcher: ServiceLauncher instance
         port: RPC v2 server port
+        singleton_port: Singleton port (included in the pystray fallback menu)
     """
     ColorPrint.blue("[EventHandlers] Registering tray event handlers...")
+
+    # Guard so the pystray fallback is started at most once
+    fallback_started = {'value': False}
+
+    def handle_native_tray_unavailable(event_data):
+        """Start the pystray tray as a fallback when no native system tray exists."""
+        if fallback_started['value']:
+            return
+        fallback_started['value'] = True
+        ColorPrint.yellow("[Tray] Native tray unavailable, starting pystray fallback...")
+        try:
+            from pycore.callmodule.config import build_tray_service_config
+            from pycore.pythreadpool.starters import start_tray
+            cfg = build_tray_service_config(port=port, singleton_port=singleton_port)
+            start_tray(cfg)
+        except Exception as e:
+            ColorPrint.red(f"[Tray] Failed to start pystray fallback: {e}")
 
     def handle_tray_open(event_data):
         """Open web interface in browser"""
@@ -85,5 +103,7 @@ def register_event_handlers(launcher: ServiceLauncher, port: int):
     THREAD_BUS.register_event_handler('tray_action_toggle_startup', handle_tray_toggle_startup)
     THREAD_BUS.register_event_handler('tray_action_toggle_voice_subtitle', handle_tray_toggle_voice_subtitle)
     THREAD_BUS.register_event_handler('tray_action_toggle_code_sync', handle_tray_toggle_code_sync)
+    # Fallback: only fires when the PySide6 backend is selected but no system tray exists
+    THREAD_BUS.register_event_handler('tray.native_unavailable', handle_native_tray_unavailable)
 
     ColorPrint.green("[EventHandlers] Tray event handlers registered")

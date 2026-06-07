@@ -44,7 +44,7 @@ export interface BackendGroupData {
   created_at?: string;
   updated_at?: string;
   // Optional fields that may be added in future
-  type?: string;
+  type?: 'system' | 'user' | 'document';
   progress?: number;
   language?: string;
   cover_image?: string;

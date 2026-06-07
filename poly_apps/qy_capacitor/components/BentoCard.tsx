@@ -1,3 +1,4 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React from 'react';
 
 interface BentoCardProps {
@@ -9,46 +10,42 @@ interface BentoCardProps {
   colSpan?: 1 | 2;
 }
 
-const BentoCard: React.FC<BentoCardProps> = ({ 
-  children, 
-  title, 
-  className = '', 
-  headerControls, 
+const BentoCard: React.FC<BentoCardProps> = ({
+  children,
+  title,
+  className = '',
+  headerControls,
   glowing = false,
-  colSpan = 1 
+  colSpan = 1,
 }) => {
   return (
-    <div className={`
-      relative overflow-hidden
-      bg-white/40 dark:bg-slate-800/40 
-      backdrop-blur-xl
-      border border-black/5 dark:border-white/10
-      rounded-2xl
-      shadow-xl
-      flex flex-col
-      transition-all duration-300
-      ${glowing ? 'dark:shadow-[0_0_20px_rgba(56,189,248,0.15)] dark:border-sky-500/20 shadow-[0_0_20px_rgba(56,189,248,0.1)] border-sky-500/20' : 'hover:border-black/10 dark:hover:border-white/20'}
-      ${colSpan === 2 ? 'col-span-2' : ''}
-      ${className}
-    `}>
-      {/* Subtle Gradient Noise Texture Overlay */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-100 contrast-150 mix-blend-overlay"></div>
-      
+    <div
+      className={`
+        ds-card relative overflow-hidden flex flex-col transition-all duration-300
+        rounded-[var(--radius-card)]
+        ${glowing
+          ? 'border-[var(--klein-ring)]'
+          : 'hover:border-[var(--border-highlight)]'}
+        ${colSpan === 2 ? 'col-span-2' : ''}
+        ${className}
+      `}
+      style={glowing ? { boxShadow: 'var(--klein-grad-glow)' } : undefined}
+    >
       {(title || headerControls) && (
-        <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 bg-white/30 dark:bg-white/5 relative z-10">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border-highlight)] relative z-10">
           {title && (
-            <h3 className="text-sm font-semibold tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-400 uppercase">
+            <h3 className="ds-section-title truncate">
               {title}
             </h3>
           )}
           {headerControls && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {headerControls}
             </div>
           )}
         </div>
       )}
-      <div className="relative z-10 flex-1 min-h-0 overflow-auto scrollbar-thin scrollbar-thumb-black/10 dark:scrollbar-thumb-white/10 scrollbar-track-transparent">
+      <div className="relative z-10 flex-1 min-h-0 overflow-auto scrollbar-thin scrollbar-thumb-[var(--border-highlight)] scrollbar-track-transparent">
         {children}
       </div>
     </div>
@@ -56,4 +53,3 @@ const BentoCard: React.FC<BentoCardProps> = ({
 };
 
 export default BentoCard;
-

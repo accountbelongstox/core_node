@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Services\EdgeTTS\EdgeTTSService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -295,7 +296,7 @@ class AppQyV1UnifiedTTSQueueService
                                 'success' => true,
                                 'status' => 'already_available',
                                 'audio_path' => $ttsFile['path'],
-                                'audio_url' => '/api/app_qy_v1/ai_tools/tts/audio/' . $ttsFile['path'],
+                                'audio_url' => AppQyV1TtsUrl::forPath($ttsFile['path']),
                             ];
                         }
                     }
@@ -650,7 +651,7 @@ class AppQyV1UnifiedTTSQueueService
             elseif ($task->audio_path) {
                 $formatted['audio_path'] = $task->audio_path;
                 // audio_path already contains language/type/speed/filename, so just prepend the base path
-                $formatted['audio_url'] = "/api/app_qy_v1/ai_tools/tts/audio/{$task->audio_path}";
+                $formatted['audio_url'] = AppQyV1TtsUrl::forPath($task->audio_path);
             }
             // Try to get from dictionary fallback (word type)
             elseif ($task->task_type === self::TYPE_WORD) {
@@ -948,7 +949,7 @@ class AppQyV1UnifiedTTSQueueService
                             return [
                                 'exists' => true,
                                 'audio_path' => $ttsFile['path'],
-                                'audio_url' => '/api/app_qy_v1/ai_tools/tts/audio/' . $ttsFile['path'],
+                                'audio_url' => AppQyV1TtsUrl::forPath($ttsFile['path']),
                                 'provider' => $dictEntry->tts_provider,
                             ];
                         }
@@ -976,7 +977,7 @@ class AppQyV1UnifiedTTSQueueService
                 return [
                     'exists' => true,
                     'audio_path' => $completedTask->audio_path,
-                    'audio_url' => "/api/app_qy_v1/ai_tools/tts/audio/{$language}/{$type}/{$completedTask->audio_path}",
+                    'audio_url' => AppQyV1TtsUrl::forPath("{$language}/{$type}/{$completedTask->audio_path}"),
                 ];
             }
         }
@@ -1000,7 +1001,7 @@ class AppQyV1UnifiedTTSQueueService
                         'sentence_text' => $audioFile['sentence'],
                         'sentence_md5' => $sentenceMd5,
                         'audio_path' => $audioFile['path'],
-                        'audio_url' => "/api/app_qy_v1/ai_tools/tts/audio/{$task->language}/sentence/{$audioFile['path']}",
+                        'audio_url' => AppQyV1TtsUrl::forPath("{$task->language}/sentence/{$audioFile['path']}"),
                     ];
                 }
             }

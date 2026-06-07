@@ -5,6 +5,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
 
 /**
@@ -76,7 +77,9 @@ class AppQyV1LangDictionaryModel extends Model
     public function setLanguage(string $langCode): self
     {
         $this->langCode = strtolower($langCode);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, "{$this->langCode}_dictionaries");
+        // Resolve through the canonical table map so reads hit the same table
+        // the dictionary importer populates (app_qy_v1_tts_cache_{lang}).
+        $this->table = AppQyV1TableMaps::getDictionaryTableName($this->langCode);
         return $this;
     }
 

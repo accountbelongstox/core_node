@@ -29,25 +29,32 @@ class ReadingProgressCenterClass {
    * Initialize - load from storage
    */
   async initialize(): Promise<void> {
-    const stored = await StorageCenter.get<Array<[string, ReadingProgress]>>(
-      StorageKey.READING_PROGRESS,
-      []
-    );
+    // Storage-only center, but a corrupt/malformed cached entry must not
+    // throw out of initialize(): degrade to a safe empty state instead.
+    try {
+      const stored = await StorageCenter.get<Array<[string, ReadingProgress]>>(
+        StorageKey.READING_PROGRESS,
+        []
+      );
 
-    // Convert array back to Map and restore dates
-    this.progressMap = new Map(
-      (stored || []).map(([key, progress]) => [
-        key,
-        {
-          ...progress,
-          startedAt: new Date(progress.startedAt),
-          lastReadAt: new Date(progress.lastReadAt),
-          completedAt: progress.completedAt ? new Date(progress.completedAt) : undefined,
-        },
-      ])
-    );
+      // Convert array back to Map and restore dates
+      this.progressMap = new Map(
+        (Array.isArray(stored) ? stored : []).map(([key, progress]) => [
+          key,
+          {
+            ...progress,
+            startedAt: new Date(progress.startedAt),
+            lastReadAt: new Date(progress.lastReadAt),
+            completedAt: progress.completedAt ? new Date(progress.completedAt) : undefined,
+          },
+        ])
+      );
 
-    console.log('[ReadingProgressCenter] Loaded', this.progressMap.size, 'reading progress records');
+      console.log('[ReadingProgressCenter] Loaded', this.progressMap.size, 'reading progress records');
+    } catch (error: any) {
+      this.progressMap = new Map();
+      console.warn('[ReadingProgressCenter] Load failed (handled, starting empty):', error?.message || error);
+    }
   }
 
   /**

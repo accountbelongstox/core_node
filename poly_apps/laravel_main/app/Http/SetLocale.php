@@ -22,12 +22,12 @@ use Illuminate\Support\Facades\File;
 class SetLocale
 {
     /**
-     * 支持的语言列表
+     * Supported locales
      */
     protected $supportedLocales = ['en', 'zh'];
 
     /**
-     * 获取当前语言设置
+     * Get the current locale
      *
      * @return string
      */
@@ -37,7 +37,7 @@ class SetLocale
     }
 
     /**
-     * 获取指定语言的翻译数据
+     * Get translation data for the given locale
      *
      * @param string $locale
      * @return array
@@ -46,17 +46,17 @@ class SetLocale
     {
         $translations = [];
 
-        // 读取 JSON 翻译文件
+        // Read the JSON translation file
         $jsonPath = resource_path("lang/{$locale}.json");
         if (File::exists($jsonPath)) {
             $translations = json_decode(File::get($jsonPath), true) ?? [];
         }
 
-        // 读取 PHP 翻译文件
+        // Read the PHP translation file
         $phpPath = resource_path("lang/{$locale}/messages.php");
         if (File::exists($phpPath)) {
             $phpTranslations = require $phpPath;
-            // 将嵌套数组转换为点号格式
+            // Flatten the nested array into dot notation
             $flatTranslations = $this->flattenArray($phpTranslations);
             $translations = array_merge($translations, $flatTranslations);
         }
@@ -65,7 +65,7 @@ class SetLocale
     }
 
     /**
-     * 将嵌套数组转换为点号格式
+     * Flatten a nested array into dot notation
      *
      * @param array $array
      * @param string $prefix
@@ -86,7 +86,7 @@ class SetLocale
     }
 
     /**
-     * 处理语言切换请求
+     * Handle the locale-switch request
      *
      * @param  Request  $request
      * @param  string  $locale
@@ -94,7 +94,7 @@ class SetLocale
      */
     public function __invoke(Request $request, string $locale)
     {
-        // 验证语言是否支持
+        // Validate that the locale is supported
         if (!in_array($locale, $this->supportedLocales)) {
             return response()->json([
                 'success' => false,
@@ -103,31 +103,24 @@ class SetLocale
             ], 400);
         }
 
-        try {
-            $previousLocale = $this->getCurrentLocale();
-            
-            // 设置新的语言
-            Session::put('locale', $locale);
-            App::setLocale($locale);
+        // No controller-level try/catch (LARAVEL_GUIDE: trust the framework
+        // exception handler). Unsupported-locale is already validated above.
+        $previousLocale = $this->getCurrentLocale();
 
-            // 获取新语言的翻译数据
-            $translations = $this->getTranslations($locale);
+        // Set the new locale
+        Session::put('locale', $locale);
+        App::setLocale($locale);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Locale updated successfully',
-                'current_locale' => $locale,
-                'previous_locale' => $previousLocale,
-                'html_lang' => str_replace('_', '-', $locale),
-                'translations' => $translations
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update locale',
-                'error' => $e->getMessage(),
-                'current_locale' => $this->getCurrentLocale()
-            ], 500);
-        }
+        // Load translation data for the new locale
+        $translations = $this->getTranslations($locale);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Locale updated successfully',
+            'current_locale' => $locale,
+            'previous_locale' => $previousLocale,
+            'html_lang' => str_replace('_', '-', $locale),
+            'translations' => $translations
+        ]);
     }
 }

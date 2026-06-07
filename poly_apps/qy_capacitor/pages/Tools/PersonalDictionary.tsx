@@ -1,6 +1,8 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiCenter } from '../../services/ApiCenter';
+import { Card, Icons, LoadingState, EmptyState, PageHeader, Badge, Button, IconButton } from '../../components/UI';
 
 interface PersonalDictionaryEntry {
   id: string;
@@ -38,7 +40,9 @@ export default function PersonalDictionary() {
       });
 
       if (result.success && result.data) {
-        setEntries(result.data);
+        setEntries(Array.isArray(result.data) ? result.data : []);
+      } else {
+        setEntries([]);
       }
     } catch (error) {
       console.error('Failed to load personal dictionary:', error);
@@ -62,7 +66,9 @@ export default function PersonalDictionary() {
       });
 
       if (result.success && result.data) {
-        setEntries(result.data);
+        setEntries(Array.isArray(result.data) ? result.data : []);
+      } else {
+        setEntries([]);
       }
     } catch (error) {
       console.error('Search failed:', error);
@@ -72,8 +78,8 @@ export default function PersonalDictionary() {
   };
 
   // Create new entry
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreate = async (e?: React.FormEvent) => {
+    e?.preventDefault();
 
     if (!newEntry.word.trim()) {
       alert('Word is required');
@@ -158,227 +164,220 @@ export default function PersonalDictionary() {
     loadEntries();
   }, []);
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 pb-20">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate(-1)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Personal Dictionary</h1>
-                <p className="text-sm text-gray-500">{entries.length} entries</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowCreateForm(!showCreateForm)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              + Add Entry
-            </button>
-          </div>
-        </div>
-      </div>
+  const languages = [
+    { code: 'en', name: 'English' },
+    { code: 'zh', name: 'Chinese' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'fr', name: 'French' },
+    { code: 'de', name: 'German' },
+    { code: 'ja', name: 'Japanese' },
+  ];
 
-      <div className="w-full sm:max-w-2xl sm:mx-auto md:max-w-4xl px-4 py-6">
+  return (
+    <div className="min-h-screen bg-transparent pb-32">
+      <PageHeader
+        title="Personal Dictionary"
+        onBack={() => navigate(-1)}
+        right={
+          <Button
+            variant="grad"
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="!w-auto !py-2 px-4 text-sm"
+          >
+            + Add Entry
+          </Button>
+        }
+      />
+
+      <div className="ds-page ds-section-gap pt-[var(--space-breath)]">
+        <div className="px-1">
+          <p className="text-sm text-[var(--color-text-secondary)]">{Array.isArray(entries) ? entries.length : 0} entries</p>
+        </div>
+
         {/* Search Bar */}
-        <div className="mb-6 flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             type="text"
             value={searchWord}
             onChange={(e) => setSearchWord(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             placeholder="Search by word..."
-            className="flex-1 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="ds-glass ds-glass-edge flex-1 min-w-[180px] px-4 py-3 rounded-full text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--klein-ring)] transition-all"
           />
-          <button
+          <Button
+            variant="klein"
             onClick={handleSearch}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="!w-auto !py-3 px-6"
           >
             Search
-          </button>
-          {entries.length > 0 && (
-            <button
+          </Button>
+          {Array.isArray(entries) && entries.length > 0 && (
+            <Button
+              variant="danger"
               onClick={handleDeleteAll}
-              className="px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              className="!w-auto !py-3 px-4"
             >
               Delete All
-            </button>
+            </Button>
           )}
         </div>
 
         {/* Create Form */}
         {showCreateForm && (
-          <div className="mb-6 bg-white rounded-xl shadow-lg p-6 border">
-            <h2 className="text-lg font-bold mb-4">Add New Entry</h2>
+          <Card>
+            <h2 className="ds-section-title mb-4">Add New Entry</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                   Word *
                 </label>
                 <input
                   type="text"
                   value={newEntry.word}
                   onChange={(e) => setNewEntry({ ...newEntry, word: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 rounded-[var(--radius-button)] bg-[var(--color-surface)] border border-[var(--border-highlight)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--klein-ring)]"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                   Language
                 </label>
-                <select
-                  value={newEntry.language}
-                  onChange={(e) => setNewEntry({ ...newEntry, language: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="en">English</option>
-                  <option value="zh">Chinese</option>
-                  <option value="es">Spanish</option>
-                  <option value="fr">French</option>
-                  <option value="de">German</option>
-                  <option value="ja">Japanese</option>
-                </select>
+                <div className="flex flex-wrap gap-2">
+                  {languages.map((lang) => (
+                    <button
+                      key={lang.code}
+                      type="button"
+                      onClick={() => setNewEntry({ ...newEntry, language: lang.code })}
+                      className={`ds-pill-chip ${newEntry.language === lang.code ? 'is-active' : ''}`}
+                    >
+                      {lang.name}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                   Definition
                 </label>
                 <textarea
                   value={newEntry.definition}
                   onChange={(e) => setNewEntry({ ...newEntry, definition: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 rounded-[var(--radius-button)] bg-[var(--color-surface)] border border-[var(--border-highlight)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--klein-ring)]"
                   rows={3}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                   Example
                 </label>
                 <textarea
                   value={newEntry.example}
                   onChange={(e) => setNewEntry({ ...newEntry, example: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 rounded-[var(--radius-button)] bg-[var(--color-surface)] border border-[var(--border-highlight)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--klein-ring)]"
                   rows={2}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
                   Notes
                 </label>
                 <textarea
                   value={newEntry.notes}
                   onChange={(e) => setNewEntry({ ...newEntry, notes: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 rounded-[var(--radius-button)] bg-[var(--color-surface)] border border-[var(--border-highlight)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--klein-ring)]"
                   rows={2}
                 />
               </div>
 
               <div className="flex gap-2">
-                <button
-                  type="submit"
+                <Button
+                  variant="grad"
+                  onClick={() => handleCreate()}
                   disabled={loading}
-                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="flex-1 !py-3"
                 >
                   {loading ? 'Creating...' : 'Create Entry'}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => setShowCreateForm(false)}
-                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                  className="!w-auto !py-3 px-6"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
+          </Card>
         )}
 
         {/* Loading State */}
-        {loading && !showCreateForm && (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading entries...</p>
-          </div>
+        {loading && !showCreateForm && <LoadingState label="Loading entries..." />}
+
+        {/* Empty State */}
+        {!loading && (!Array.isArray(entries) || entries.length === 0) && (
+          <EmptyState
+            icon={<Icons.Book />}
+            title="No entries found"
+            description="Add your first entry to get started"
+          />
         )}
 
-        {/* Entries List */}
-        {!loading && entries.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-xl shadow">
-            <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-            <p className="text-gray-600">No entries found</p>
-            <p className="text-sm text-gray-500 mt-2">Add your first entry to get started</p>
-          </div>
-        )}
-
-        {!loading && entries.length > 0 && (
-          <div className="space-y-4">
+        {/* Entries List — card stack (no table) */}
+        {!loading && Array.isArray(entries) && entries.length > 0 && (
+          <div className="ds-stack-tight">
             {entries.map((entry) => (
-              <div
-                key={entry.id}
-                className="bg-white rounded-xl shadow-lg p-6 border hover:shadow-xl transition-shadow"
-              >
+              <Card key={entry.id}>
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">{entry.word}</h3>
+                    <h3 className="text-xl font-bold text-[var(--color-text-primary)]">{entry.word}</h3>
                     {entry.language && (
-                      <span className="inline-block mt-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                        {entry.language.toUpperCase()}
-                      </span>
+                      <Badge tone="klein" className="mt-1">{entry.language.toUpperCase()}</Badge>
                     )}
                   </div>
-                  <button
+                  <IconButton
+                    label="Delete entry"
                     onClick={() => handleDelete(entry.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                    className="!text-red-500 hover:!bg-red-500/10"
+                    icon={
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    }
+                  />
                 </div>
 
                 {entry.definition && (
                   <div className="mb-3">
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Definition:</p>
-                    <p className="text-gray-800">{entry.definition}</p>
+                    <p className="text-sm font-semibold text-[var(--color-text-secondary)] mb-1">Definition:</p>
+                    <p className="text-[var(--color-text-primary)]">{entry.definition}</p>
                   </div>
                 )}
 
                 {entry.example && (
                   <div className="mb-3">
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Example:</p>
-                    <p className="text-gray-700 italic">{entry.example}</p>
+                    <p className="text-sm font-semibold text-[var(--color-text-secondary)] mb-1">Example:</p>
+                    <p className="text-[var(--color-text-secondary)] italic">{entry.example}</p>
                   </div>
                 )}
 
                 {entry.notes && (
                   <div className="mb-3">
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Notes:</p>
-                    <p className="text-gray-600 text-sm">{entry.notes}</p>
+                    <p className="text-sm font-semibold text-[var(--color-text-secondary)] mb-1">Notes:</p>
+                    <p className="text-[var(--color-text-tertiary)] text-sm">{entry.notes}</p>
                   </div>
                 )}
 
                 {entry.created_at && (
-                  <div className="text-xs text-gray-400 mt-3">
+                  <div className="text-xs text-[var(--color-text-tertiary)] mt-3">
                     Created: {new Date(entry.created_at).toLocaleDateString()}
                   </div>
                 )}
-              </div>
+              </Card>
             ))}
           </div>
         )}

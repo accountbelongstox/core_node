@@ -99,7 +99,7 @@ interface AudioGenerationRequest {
   language: string;
   index: number;
   priority: number;
-  taskId: number | null;  // Task ID from batch/add
+  taskId?: number | null;  // Task ID from batch/add (assigned after queue submission)
   requestTime: number;
   retryCount: number;
 }
@@ -232,7 +232,8 @@ class VocabularyAudioCenterClass {
       const token = StorageCenter.auth.getToken();
 
       if (!token) {
-        console.error('[VocabularyAudioCenter] No auth token available');
+        // Expected when logged out / offline; nothing to queue.
+        console.warn('[VocabularyAudioCenter] No auth token available (handled, skipping queue)');
         return;
       }
 
@@ -271,7 +272,7 @@ class VocabularyAudioCenterClass {
           // Process results
           for (const result of data.data.results) {
             if (!result.success) {
-              console.error(`[VocabularyAudioCenter] Task failed: ${result.content}, error: ${result.error}`);
+              console.warn(`[VocabularyAudioCenter] Task failed (handled): ${result.content}, error: ${result.error}`);
               continue;
             }
 
@@ -280,7 +281,7 @@ class VocabularyAudioCenterClass {
             const key = this.getWordKey(word, language);
 
             if (result.status === 'already_available' || result.status === 'already_completed') {
-              // Audio already exists -穿透检查返回
+              // Audio already exists - pass-through check returns early
               console.log(`[VocabularyAudioCenter] ✅ Audio already available: ${word}`);
 
               if (result.audio_url) {
@@ -303,11 +304,13 @@ class VocabularyAudioCenterClass {
             }
           }
         } else {
-          console.error('[VocabularyAudioCenter] Failed to queue batch:', data.message);
+          console.warn('[VocabularyAudioCenter] Failed to queue batch (handled):', data.message);
         }
       }
-    } catch (error) {
-      console.error('[VocabularyAudioCenter] Error queuing words:', error);
+    } catch (error: any) {
+      // Background best-effort queueing; offline/backend-down is expected
+      // and non-critical. Pending requests stay queued for the next attempt.
+      console.warn('[VocabularyAudioCenter] Error queuing words (handled, non-critical):', error?.message || error);
     }
   }
 
@@ -355,7 +358,8 @@ class VocabularyAudioCenterClass {
     const token = StorageCenter.auth.getToken();
 
     if (!token) {
-      console.error('[VocabularyAudioCenter] No auth token for polling');
+      // Expected when logged out / offline; stop polling quietly.
+      console.warn('[VocabularyAudioCenter] No auth token for polling (handled, stopping)');
       this.stopPolling();
       return;
     }
@@ -482,12 +486,14 @@ class VocabularyAudioCenterClass {
 
           console.log(`[VocabularyAudioCenter] Batch summary:`, summary);
         } else {
-          console.error('[VocabularyAudioCenter] Batch get failed:', data.message || 'Unknown error');
+          console.warn('[VocabularyAudioCenter] Batch get failed (handled):', data.message || 'Unknown error');
         }
       }
 
-    } catch (error) {
-      console.error('[VocabularyAudioCenter] Error during batch status check:', error);
+    } catch (error: any) {
+      // Polling is best-effort; offline/backend-down is expected. Keep
+      // pending requests for the next poll and warn instead of erroring.
+      console.warn('[VocabularyAudioCenter] Error during batch status check (handled, non-critical):', error?.message || error);
     }
 
     if (completedCount > 0) {
@@ -647,7 +653,8 @@ class VocabularyAudioCenterClass {
       const token = StorageCenter.auth.getToken();
 
       if (!token) {
-        console.error('[VocabularyAudioCenter] No auth token');
+        // Expected when logged out / offline.
+        console.warn('[VocabularyAudioCenter] No auth token (handled, returning null)');
         return null;
       }
 
@@ -666,8 +673,9 @@ class VocabularyAudioCenterClass {
       }
 
       return null;
-    } catch (error) {
-      console.error('[VocabularyAudioCenter] Error fetching queue stats:', error);
+    } catch (error: any) {
+      // Offline / backend down: return a safe null the caller handles.
+      console.warn('[VocabularyAudioCenter] Error fetching queue stats (handled, null fallback):', error?.message || error);
       return null;
     }
   }

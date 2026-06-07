@@ -5,6 +5,11 @@
 
 import { en, TranslationKey } from './locales/en';
 import { zh } from './locales/zh';
+import { ja } from './locales/ja';
+import { ko } from './locales/ko';
+import { es } from './locales/es';
+import { fr } from './locales/fr';
+import { de } from './locales/de';
 import { StorageCenter, StorageKey } from '../services/StorageCenter';
 
 export type SupportedLanguage = 'en' | 'zh' | 'ja' | 'ko' | 'es' | 'fr' | 'de';
@@ -29,12 +34,11 @@ const LANGUAGE_CONFIGS: Record<SupportedLanguage, LanguageConfig> = {
 const translations: Record<string, TranslationKey> = {
   en,
   zh,
-  // Placeholders for other languages (fallback to English)
-  ja: en,
-  ko: en,
-  es: en,
-  fr: en,
-  de: en,
+  ja,
+  ko,
+  es,
+  fr,
+  de,
 };
 
 type NestedKeyOf<ObjectType extends object> = {
@@ -50,11 +54,23 @@ class LanguageCenterClass {
   private listeners: Array<(lang: SupportedLanguage) => void> = [];
 
   constructor() {
-    // Load saved language from storage
-    const savedLang = StorageCenter.language.getAppLanguage();
-    if (savedLang && this.isSupported(savedLang as SupportedLanguage)) {
-      this.currentLanguage = savedLang as SupportedLanguage;
-    }
+    // Load saved language from storage. `getAppLanguage()` is async (storage
+    // is Promise-based), so resolve it, then apply via setLanguage() so any
+    // subscribers (e.g. AppContext) re-render with the restored language.
+    // Without this, the app always reset to English after a reload.
+    Promise.resolve(StorageCenter.language.getAppLanguage())
+      .then((savedLang) => {
+        if (
+          savedLang &&
+          this.isSupported(savedLang as string) &&
+          savedLang !== this.currentLanguage
+        ) {
+          this.setLanguage(savedLang as SupportedLanguage);
+        }
+      })
+      .catch(() => {
+        /* keep default 'en' */
+      });
   }
 
   /**

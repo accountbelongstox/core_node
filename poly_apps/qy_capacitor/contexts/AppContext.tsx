@@ -60,7 +60,7 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
     });
 
     // 1. Initialize API Manager
-    apiManager.initialize({ autoDetect: true, timeout: 1000 }).catch(err => {
+    apiManager.initialize({ autoDetect: true, timeout: 3000 }).catch(err => {
       console.error('[AppContext] Failed to initialize API Manager:', err);
     });
 
@@ -181,7 +181,11 @@ export const AppProvider = ({ children }: { children?: React.ReactNode }) => {
   };
 
   const updateSettings = (partial: Partial<AppSettings>) => {
-    SettingsCenter.update(partial);
+    // AppContext models settings with the canonical types.AppSettings shape,
+    // while SettingsCenter declares its own structurally-different AppSettings.
+    // The same settings object is forwarded unchanged at runtime; this cast is
+    // only a type-level boundary adapter between the two module definitions.
+    SettingsCenter.update(partial as unknown as Partial<Parameters<typeof SettingsCenter.update>[0]>);
     // Settings will be updated via the subscription
   };
 

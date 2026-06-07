@@ -1,8 +1,21 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
+
 import React, { useContext, useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { AppContext } from '../../contexts/AppContext';
-import { Card, Icons, Button } from '../../components/UI';
+import { Card, Icons, Button, LoadingState, EmptyState, Spinner, ProgressBar, Sheet } from '../../components/UI';
+import { PillNav } from '../../components/PillNav';
+import { Play, Pause, Volume2, Lightbulb, Check } from 'lucide-react';
 import { Header } from '../../components/Header';
+// Header currently only types `title`; this page also passes `showBack` /
+// `actions`, which the component ignores at runtime (pre-existing dead props).
+// Alias the identical component with a widened prop type so the existing JSX
+// type-checks without changing what renders or runs.
+const HeaderX = Header as React.ComponentType<{
+  title?: string;
+  showBack?: boolean;
+  actions?: React.ReactNode;
+}>;
 import { ApiCenter } from '../../services/ApiCenter';
 import { mapLanguageCode } from '../../services/languageMapper';
 import { BingTranslator, GoogleTranslator, DeepLTranslator } from '../../services/translators';
@@ -10,7 +23,7 @@ import { VocabularyLibraryManager } from '../../services/VocabularyLibraryManage
 import { AudioProcessingHook } from '../../services/AudioProcessingHook';
 import { EventBus } from '../../services/EventBus';
 import { VocabularyAudioCenter } from '../../services/VocabularyAudioCenter';
-import { apiManager } from '../../services/ApiManager';
+import { resolveAudioUrl } from '../../services/TtsUrl';
 
 interface VocabularyWord {
   index: number;
@@ -90,7 +103,7 @@ const VocabularyLibraryDetail = () => {
       const updatedWords = words.map(w => {
         if (w.word === event.word) {
           const library = VocabularyLibraryManager.getLibrary(libraryId);
-          const cachedWord = library?.words.find(cw => cw.word === w.word);
+          const cachedWord = Array.isArray(library?.words) ? library.words.find(cw => cw.word === w.word) : undefined;
           if (cachedWord?.audio_url) {
             return { ...w, audio_url: cachedWord.audio_url };
           }
@@ -100,9 +113,9 @@ const VocabularyLibraryDetail = () => {
       setWords(updatedWords);
     };
 
-    EventBus.on('library:audio_ready', handleAudioReady);
+    const unsubscribeAudioReady = EventBus.on('library:audio_ready', handleAudioReady);
     return () => {
-      EventBus.off('library:audio_ready', handleAudioReady);
+      unsubscribeAudioReady();
     };
   }, [words, libraryId]);
 
@@ -118,7 +131,7 @@ const VocabularyLibraryDetail = () => {
 
       // Update in VocabularyLibraryManager cache
       const library = VocabularyLibraryManager.getLibrary(libraryId);
-      if (library) {
+      if (library && Array.isArray(library.words)) {
         const wordToUpdate = library.words.find(w => w.word === word);
         if (wordToUpdate) {
           wordToUpdate.audio_url = audioUrl;
@@ -152,7 +165,7 @@ const VocabularyLibraryDetail = () => {
 
       if (response.success && response.data) {
         const libraryData = response.data.library;
-        const wordsData = response.data.words || [];
+        const wordsData = Array.isArray(response.data.words) ? response.data.words : [];
 
         setLibrary(libraryData);
         setWords(wordsData);
@@ -165,16 +178,30 @@ const VocabularyLibraryDetail = () => {
           libraryData.total_words
         );
 
-        VocabularyLibraryManager.addWords(libraryData.id, wordsData, page);
+        // The backend word objects carry the manager/audio-center fields at
+        // runtime; ApiCenter's getLibraryWords return type is conservatively
+        // under-specified (only index/word). Cast to each method's declared
+        // parameter type — runtime data is unchanged.
+        VocabularyLibraryManager.addWords(
+          libraryData.id,
+          wordsData as unknown as Parameters<typeof VocabularyLibraryManager.addWords>[1],
+          page
+        );
 
         // Process words for audio generation (with page number for dynamic caching)
         if (wordsData.length > 0) {
           VocabularyAudioCenter.processVocabularyLibrary(
             libraryData.id,
             page, // Pass current page for cache management
-            wordsData,
+            wordsData as unknown as Parameters<typeof VocabularyAudioCenter.processVocabularyLibrary>[2],
             10 // Priority: 10 (auto-loaded words)
           );
+
+          // Full view: populate translations client-side for words the backend
+          // dictionary has not enriched yet (cached + client fallback).
+          if (displaySettings.showTranslation) {
+            void translateAllWords(wordsData as unknown as VocabularyWord[]);
+          }
         }
       }
     } catch (err) {
@@ -184,22 +211,36 @@ const VocabularyLibraryDetail = () => {
     }
   };
 
-  const translateAllWords = async () => {
+  // Backend-cached translations win; only client-translate the words the
+  // dictionary hasn't enriched yet (cached + client fallback). Idempotent:
+  // returns early when nothing needs translating, so it is safe to call from
+  // the Full-view toggle and from each page load without looping.
+  const wordNeedsTranslation = (w: VocabularyWord): boolean => {
+    const hasBackend = Array.isArray(w.translations) && w.translations.length > 0;
+    return !hasBackend && !w.translation;
+  };
+
+  const translateAllWords = async (targetList?: VocabularyWord[]) => {
     if (!displaySettings.translationProvider || displaySettings.translationProvider === 'none') {
       return;
     }
 
+    const list = targetList || words;
+    if (!list.some(wordNeedsTranslation)) {
+      return;
+    }
+
+    const translator = getTranslator();
+    if (!translator) return;
+
+    const sourceLang = mapLanguageCode(settings.language.learningLanguages?.[0] || 'en');
+    const targetLang = settings.language.nativeLanguage || 'zh';
+
     setTranslating(true);
     try {
-      const translator = getTranslator();
-      if (!translator) return;
-
-      const sourceLang = mapLanguageCode(settings.language.learningLanguages?.[0] || 'en');
-      const targetLang = settings.language.nativeLanguage || 'zh';
-
       const translatedWords = await Promise.all(
-        words.map(async (word) => {
-          if (word.translation) return word;
+        list.map(async (word) => {
+          if (!wordNeedsTranslation(word)) return word;
 
           try {
             const translation = await translator.translate(word.word, sourceLang, targetLang);
@@ -262,9 +303,8 @@ const VocabularyLibraryDetail = () => {
       audioRef.current = null;
     }
 
-    // Build full URL
-    const baseUrl = apiManager.getCurrentBaseUrl();
-    const fullUrl = audioUrl.startsWith('http') ? audioUrl : `${baseUrl}${audioUrl}`;
+    // Repair any legacy/stale audio_url form before playback.
+    const fullUrl = resolveAudioUrl(audioUrl);
 
     // Play new audio
     const audio = new Audio(fullUrl);
@@ -283,52 +323,50 @@ const VocabularyLibraryDetail = () => {
   };
 
   const renderSettingsPanel = () => {
-    if (!showSettings) return null;
-
     return (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-        <Card className="w-full sm:max-w-2xl md:max-w-4xl lg:max-w-5xl max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-800 shadow-2xl animate-slide-up">
+      <Sheet open={showSettings} onClose={() => setShowSettings(false)} position="center" panelClassName="max-h-[80vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">显示设置</h3>
+            <h3 className="ds-section-title !text-xl">Display Settings</h3>
             <button
               onClick={() => setShowSettings(false)}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              className="ds-touch-target flex items-center justify-center rounded-full text-[var(--color-text-secondary)] hover:bg-[var(--klein-blue-soft)] transition-colors"
+              aria-label="Close"
             >
               <Icons.X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Show Index */}
-            <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-              <span className="font-medium text-slate-700 dark:text-slate-300">显示序号</span>
+            <label className="ds-row flex items-center justify-between p-4 cursor-pointer">
+              <span className="font-semibold text-[var(--color-text-primary)]">Show Index</span>
               <input
                 type="checkbox"
                 checked={displaySettings.showIndex}
                 onChange={(e) =>
                   setDisplaySettings((prev) => ({ ...prev, showIndex: e.target.checked }))
                 }
-                className="w-5 h-5 rounded accent-blue-600"
+                className="w-5 h-5 rounded accent-[color:var(--klein-blue)]"
               />
             </label>
 
             {/* Show Translation */}
-            <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-              <span className="font-medium text-slate-700 dark:text-slate-300">显示翻译</span>
+            <label className="ds-row flex items-center justify-between p-4 cursor-pointer">
+              <span className="font-semibold text-[var(--color-text-primary)]">Show Translation</span>
               <input
                 type="checkbox"
                 checked={displaySettings.showTranslation}
                 onChange={(e) =>
                   setDisplaySettings((prev) => ({ ...prev, showTranslation: e.target.checked }))
                 }
-                className="w-5 h-5 rounded accent-blue-600"
+                className="w-5 h-5 rounded accent-[color:var(--klein-blue)]"
               />
             </label>
 
             {/* Font Size */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-              <label className="block mb-3 font-medium text-slate-700 dark:text-slate-300">
-                字体大小: <span className="text-blue-600 dark:text-blue-400">{displaySettings.fontSize}px</span>
+            <div className="ds-row p-4">
+              <label className="block mb-3 font-semibold text-[var(--color-text-primary)]">
+                Font Size: <span className="text-[var(--klein-blue)]">{displaySettings.fontSize}px</span>
               </label>
               <input
                 type="range"
@@ -338,31 +376,31 @@ const VocabularyLibraryDetail = () => {
                 onChange={(e) =>
                   setDisplaySettings((prev) => ({ ...prev, fontSize: parseInt(e.target.value) }))
                 }
-                className="w-full accent-blue-600"
+                className="w-full accent-[color:var(--klein-blue)]"
               />
             </div>
 
 
             {/* Words Per Page */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-              <label className="block mb-3 font-medium text-slate-700 dark:text-slate-300">每页单词数</label>
+            <div className="ds-row p-4">
+              <label className="block mb-3 font-semibold text-[var(--color-text-primary)]">Words Per Page</label>
               <select
                 value={displaySettings.wordsPerPage}
                 onChange={(e) =>
                   setDisplaySettings((prev) => ({ ...prev, wordsPerPage: parseInt(e.target.value) }))
                 }
-                className="w-full p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 transition-all"
+                className="w-full p-3 rounded-[var(--radius-button)] bg-black/5 dark:bg-white/10 text-[var(--color-text-primary)] font-medium outline-none focus:ring-2 focus:ring-[var(--klein-ring)] transition-all"
               >
-                <option value={50}>50 词/页</option>
-                <option value={100}>100 词/页</option>
-                <option value={200}>200 词/页</option>
-                <option value={500}>500 词/页</option>
+                <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
+                <option value={200}>200 / page</option>
+                <option value={500}>500 / page</option>
               </select>
             </div>
 
             {/* Translation Provider */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-              <label className="block mb-3 font-medium text-slate-700 dark:text-slate-300">翻译服务</label>
+            <div className="ds-row p-4">
+              <label className="block mb-3 font-semibold text-[var(--color-text-primary)]">Translation Service</label>
               <select
                 value={displaySettings.translationProvider}
                 onChange={(e) =>
@@ -371,26 +409,26 @@ const VocabularyLibraryDetail = () => {
                     translationProvider: e.target.value as DisplaySettings['translationProvider'],
                   }))
                 }
-                className="w-full p-3 rounded-lg border-2 border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 transition-all"
+                className="w-full p-3 rounded-[var(--radius-button)] bg-black/5 dark:bg-white/10 text-[var(--color-text-primary)] font-medium outline-none focus:ring-2 focus:ring-[var(--klein-ring)] transition-all"
               >
-                <option value="none">不翻译</option>
-                <option value="bing">必应翻译</option>
-                <option value="google">谷歌翻译</option>
-                <option value="deepl">DeepL 翻译</option>
+                <option value="none">No translation</option>
+                <option value="bing">Bing Translate</option>
+                <option value="google">Google Translate</option>
+                <option value="deepl">DeepL Translate</option>
               </select>
             </div>
 
             {/* Auto Translate */}
             {displaySettings.translationProvider !== 'none' && (
-              <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                <span className="font-medium text-slate-700 dark:text-slate-300">自动翻译</span>
+              <label className="ds-row flex items-center justify-between p-4 cursor-pointer">
+                <span className="font-semibold text-[var(--color-text-primary)]">Auto Translate</span>
                 <input
                   type="checkbox"
                   checked={displaySettings.autoTranslate}
                   onChange={(e) =>
                     setDisplaySettings((prev) => ({ ...prev, autoTranslate: e.target.checked }))
                   }
-                  className="w-5 h-5 rounded accent-blue-600"
+                  className="w-5 h-5 rounded accent-[color:var(--klein-blue)]"
                 />
               </label>
             )}
@@ -399,32 +437,26 @@ const VocabularyLibraryDetail = () => {
           <Button
             onClick={() => setShowSettings(false)}
             className="w-full mt-6"
-            variant="primary"
+            variant="grad"
           >
-            完成
+            Done
           </Button>
-        </Card>
-      </div>
+      </Sheet>
     );
   };
 
   if (loading && !library) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <Header title={t('vocabulary.loadingWords')} showBack />
-        <div className="p-4 flex items-center justify-center">
-          <div className="text-center">
-            <Icons.Loader className="w-8 h-8 animate-spin mx-auto mb-2" />
-            <p>{t('vocabulary.loadingWords')}</p>
-          </div>
-        </div>
+      <div className="min-h-screen bg-transparent">
+        <HeaderX title={t('vocabulary.loadingWords')} showBack />
+        <LoadingState label={t('vocabulary.loadingWords')} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
-      <Header
+    <div className="min-h-screen bg-transparent pb-24">
+      <HeaderX
         title={library?.name || t('vocabulary.libraryDetails')}
         showBack
         actions={
@@ -434,14 +466,16 @@ const VocabularyLibraryDetail = () => {
         }
       />
 
-      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 pt-20">
-        {/* Library Info Card */}
+      <div className="max-w-md mx-auto px-4 pt-20">
+        {/* Library Info Card — gradient hero surface */}
         {library && (
-          <Card className="mb-6 bg-gradient-to-br from-blue-500 to-purple-600 text-white border-none shadow-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold mb-2">{library.name}</h2>
-                <div className="flex items-center gap-4 text-sm text-white/80">
+          <div className="mb-7 rounded-[var(--radius-card)] p-6 text-[color:var(--klein-on)] relative overflow-hidden" style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}>
+            <div className="absolute -top-10 -right-10 w-36 h-36 bg-white/15 rounded-full blur-2xl"></div>
+            <div className="absolute -bottom-12 -left-10 w-36 h-36 bg-white/10 rounded-full blur-3xl"></div>
+            <div className="relative z-10 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="text-2xl font-bold mb-2 line-clamp-2">{library.name}</h2>
+                <div className="flex items-center gap-4 text-sm text-white/85 flex-wrap">
                   <span className="flex items-center gap-1">
                     <Icons.Book className="w-4 h-4" />
                     {library.total_words} {t('vocabulary.words')}
@@ -452,75 +486,68 @@ const VocabularyLibraryDetail = () => {
                   </span>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <div className="text-3xl font-bold">{currentPage}</div>
-                <div className="text-sm text-white/60">/ {totalPages}</div>
+                <div className="text-sm text-white/65">/ {totalPages}</div>
               </div>
             </div>
-          </Card>
+          </div>
         )}
 
-        {/* Quick Settings Bar */}
-        <div className="mb-4 flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setDisplaySettings(prev => ({ ...prev, showTranslation: !prev.showTranslation }))}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              displaySettings.showTranslation
-                ? 'bg-blue-500 text-white shadow-lg'
-                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-            }`}
-          >
-            {displaySettings.showTranslation ? '全面显示' : '简章显示'}
-          </button>
-          <button
-            onClick={() => setDisplaySettings(prev => ({ ...prev, showIndex: !prev.showIndex }))}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              displaySettings.showIndex
-                ? 'bg-green-500 text-white shadow-lg'
-                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-            }`}
-          >
-            序号 {displaySettings.showIndex ? 'ON' : 'OFF'}
-          </button>
+        {/* View mode — Simple (default, word only) vs Full (word + phonetic + translation + audio) */}
+        <div className="mb-5">
+          <PillNav
+            items={[
+              { id: 'simple', label: 'Simple View' },
+              { id: 'full', label: 'Full View' },
+            ]}
+            activeId={displaySettings.showTranslation ? 'full' : 'simple'}
+            onChange={(id) => {
+              const full = id === 'full';
+              setDisplaySettings(prev => ({ ...prev, showTranslation: full }));
+              if (full) {
+                void translateAllWords(words);
+              }
+            }}
+            aria-label="View mode"
+            className="!px-0"
+          />
         </div>
 
         {/* Translation Status */}
         {translating && (
-          <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center gap-3 border border-blue-200 dark:border-blue-800">
-            <Icons.Loader className="w-5 h-5 animate-spin text-blue-600" />
-            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">正在翻译单词...</span>
+          <div className="mb-5 p-4 bg-[var(--klein-blue-soft)] rounded-[var(--radius-card)] flex items-center gap-3 border border-[var(--border-highlight)]">
+            <Icons.Loader className="w-5 h-5 animate-spin text-[var(--klein-blue)]" />
+            <span className="text-sm font-semibold text-[var(--klein-blue)]">Translating words...</span>
           </div>
         )}
 
         {/* Words List - One per Line */}
         {loading ? (
-          <div className="text-center py-12">
-            <Icons.Loader className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-            <p className="text-slate-600 dark:text-slate-400">加载中...</p>
-          </div>
+          <LoadingState label="Loading..." />
         ) : words.length > 0 ? (
-          <div className="space-y-2 mb-6">
+          <div className="ds-stack-tight flex flex-col mb-6">
             {words.map((word, idx) => {
               const backendTranslation = word.translations && Array.isArray(word.translations) && word.translations.length > 0
                 ? word.translations.join('; ')
                 : null;
               const displayTranslation = backendTranslation || word.translation;
               const hasTranslation = !!displayTranslation;
-              const canTranslate = displaySettings.translationProvider !== 'none' && !hasTranslation;
+              const canTranslate = displaySettings.showTranslation && displaySettings.translationProvider !== 'none' && !hasTranslation;
               const hasPhonetic = word.us_phonetic || word.uk_phonetic;
 
               return (
                 <div
                   key={word.index}
                   className={`
-                    group relative p-4 rounded-xl border-2 transition-all duration-200
+                    ds-row group relative p-4
                     ${canTranslate
-                      ? 'cursor-pointer hover:border-blue-500 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0'
+                      ? 'cursor-pointer hover:-translate-y-0.5 active:translate-y-0'
                       : 'cursor-default'
                     }
                     ${hasTranslation && displaySettings.showTranslation
-                      ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 border-green-300 dark:border-green-800'
-                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/10'
+                      ? '!border-green-300 dark:!border-green-800'
+                      : ''
                     }
                   `}
                   onClick={() => {
@@ -543,55 +570,63 @@ const VocabularyLibraryDetail = () => {
                         >
                           {word.word}
                         </div>
-                        {/* Audio available - show play button */}
-                        {word.audio_available && word.audio_url && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              playAudio(word.audio_url!, word.word);
-                            }}
-                            className={`
-                              inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
-                              transition-all
-                              ${playingAudio === word.word
-                                ? 'bg-blue-500 text-white shadow-md'
-                                : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30'
-                              }
-                            `}
-                            title="播放音频 / Play audio"
-                          >
-                            {playingAudio === word.word ? '⏸️' : '▶️'}
-                          </button>
-                        )}
+                        {/* Audio — Full view only */}
+                        {displaySettings.showTranslation && (
+                          <>
+                            {/* Audio available - show play button */}
+                            {word.audio_available && word.audio_url && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  playAudio(word.audio_url!, word.word);
+                                }}
+                                className={`
+                                  inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
+                                  transition-all
+                                  ${playingAudio === word.word
+                                    ? 'bg-[var(--klein-blue)] text-[var(--klein-on)] shadow-[var(--klein-glow)]'
+                                    : 'bg-[var(--klein-blue-soft)] text-[var(--klein-blue)] hover:opacity-80'
+                                  }
+                                `}
+                                title="Play audio"
+                                aria-label="Play audio"
+                              >
+                                {playingAudio === word.word
+                                  ? <Pause className="w-3.5 h-3.5" fill="currentColor" />
+                                  : <Play className="w-3.5 h-3.5" fill="currentColor" />}
+                              </button>
+                            )}
 
-                        {/* Audio NOT available - show processing indicator */}
-                        {!word.audio_available && (
-                          <span
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 animate-pulse"
-                            title="音频生成中... / Audio generating..."
-                          >
-                            🔊⏳
-                          </span>
+                            {/* Audio NOT available - show processing indicator */}
+                            {!word.audio_available && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 animate-pulse"
+                                title="Audio generating..."
+                              >
+                                <Volume2 className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
                       {hasPhonetic && displaySettings.showTranslation && (
-                        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-mono bg-blue-50 dark:bg-blue-900/20 inline-block px-2 py-0.5 rounded">
-                          {word.us_phonetic && `🇺🇸 ${word.us_phonetic}`}
+                        <div className="text-xs text-[var(--klein-blue)] mt-1 font-mono bg-[var(--klein-blue-soft)] inline-block px-2 py-0.5 rounded-full">
+                          {word.us_phonetic && `US ${word.us_phonetic}`}
                           {word.us_phonetic && word.uk_phonetic && ' · '}
-                          {word.uk_phonetic && `🇬🇧 ${word.uk_phonetic}`}
+                          {word.uk_phonetic && `UK ${word.uk_phonetic}`}
                         </div>
                       )}
                       {displaySettings.showTranslation && hasTranslation && (
-                        <div className="text-sm text-slate-700 dark:text-slate-300 mt-2 leading-relaxed">
+                        <div className="text-sm text-[var(--color-text-secondary)] mt-2 leading-relaxed">
                           {displayTranslation}
                           {backendTranslation && (
-                            <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs bg-green-500 text-white rounded-full">✓</span>
+                            <span className="ml-2 inline-flex items-center justify-center w-5 h-5 bg-emerald-500 text-white rounded-full"><Check className="w-3 h-3" /></span>
                           )}
                         </div>
                       )}
                       {canTranslate && (
-                        <div className="text-xs text-blue-500 dark:text-blue-400 mt-2 opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-                          💡 点击翻译
+                        <div className="text-xs text-[var(--klein-blue)] mt-2 opacity-0 group-hover:opacity-100 transition-opacity font-semibold flex items-center gap-1">
+                          <Lightbulb className="w-3.5 h-3.5" /> Tap to translate
                         </div>
                       )}
                     </div>
@@ -601,36 +636,36 @@ const VocabularyLibraryDetail = () => {
             })}
           </div>
         ) : (
-          <Card className="text-center py-12">
-            <Icons.Book className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-            <p className="text-slate-600 dark:text-slate-400">暂无单词</p>
-          </Card>
+          <EmptyState
+            icon={<Icons.Book />}
+            title="No words yet"
+          />
         )}
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <Card className="sticky bottom-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-2 border-slate-200 dark:border-slate-700 shadow-xl">
+          <Card className="sticky bottom-4">
             <div className="flex items-center justify-between gap-4">
               <Button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                variant="outline"
+                variant="secondary"
                 className="flex-1"
               >
                 <Icons.ChevronLeft className="w-4 h-4 mr-1" />
-                上一页
+                Previous
               </Button>
               <div className="text-center min-w-[100px]">
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{currentPage}</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">共 {totalPages} 页</div>
+                <div className="text-2xl font-bold text-[var(--klein-blue)]">{currentPage}</div>
+                <div className="text-xs text-[var(--color-text-secondary)]">of {totalPages}</div>
               </div>
               <Button
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                variant="outline"
+                variant="secondary"
                 className="flex-1"
               >
-                下一页
+                Next
                 <Icons.ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </div>

@@ -1,40 +1,39 @@
-
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Icons, Card } from '../../components/UI';
+import { Icons, BackButton, IconButton, ProgressBar } from '../../components/UI';
+import { Headphones, Repeat } from 'lucide-react';
 
 const ListeningPlayerPage = () => {
   const { navigate } = useContext(AppContext);
   const [playing, setPlaying] = useState(false);
-  
-  return (
-    <div className="h-full flex flex-col p-6 pt-safe pb-safe relative">
-       {/* Glass Background */}
-       <div className="absolute inset-0 bg-gradient-to-b from-indigo-100/50 to-blue-50/50 dark:from-indigo-900/40 dark:to-slate-900/80 backdrop-blur-xl -z-10"></div>
 
+  return (
+    <div className="ds-page h-full flex flex-col p-6 pt-safe pb-32 relative">
        {/* Header */}
-       <div className="flex justify-between items-center mb-8">
-          <button onClick={() => navigate('home')} className="p-2"><Icons.Back /></button>
-          <span className="text-xs font-bold tracking-[0.2em] uppercase text-slate-500">Passive Mode</span>
-          <button className="p-2"><Icons.Settings /></button>
+       <div className="flex justify-between items-center mb-8 gap-3">
+          <BackButton onClick={() => navigate('home')} />
+          <span className="text-xs font-bold tracking-[0.2em] uppercase text-[var(--color-text-secondary)]">Passive Mode</span>
+          <IconButton icon={<Icons.Settings />} label="Settings" disabled />
        </div>
 
        {/* Cover Art */}
        <div className="flex-1 flex flex-col items-center justify-center">
-           <div className="w-64 h-64 rounded-[2rem] bg-gradient-to-tr from-blue-400 to-indigo-600 shadow-2xl shadow-indigo-500/30 flex items-center justify-center text-6xl text-white mb-10 animate-pulse-slow">
-              🎧
+           <div
+             className="w-64 h-64 max-w-[80vw] aspect-square rounded-[var(--radius-card)] flex items-center justify-center text-[var(--klein-on)] mb-10 animate-pulse-slow"
+             style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
+           >
+              <Headphones className="w-24 h-24" />
            </div>
-           
-           <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Business English</h2>
-           <p className="text-slate-500">Looping • 50 words</p>
+
+           <h2 className="text-2xl font-bold text-[var(--color-text-primary)] mb-2">Business English</h2>
+           <p className="text-[var(--color-text-secondary)]">Looping • 50 words</p>
        </div>
 
        {/* Progress */}
        <div className="mb-10">
-          <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mb-2">
-             <div className="bg-blue-600 h-full w-1/3"></div>
-          </div>
-          <div className="flex justify-between text-xs text-slate-400 font-bold">
+          <ProgressBar value={33} className="mb-2" />
+          <div className="flex justify-between text-xs text-[var(--color-text-tertiary)] font-bold">
              <span>04:12</span>
              <span>12:45</span>
           </div>
@@ -42,18 +41,19 @@ const ListeningPlayerPage = () => {
 
        {/* Controls */}
        <div className="flex items-center justify-between px-4 pb-8">
-           <button className="text-slate-400 hover:text-blue-500"><span className="text-2xl">↺</span></button>
-           <button className="text-slate-600 dark:text-white hover:scale-110 transition-transform"><Icons.Rewind /></button>
-           
-           <button 
+           <button aria-label="Loop" className="ds-touch-target flex items-center justify-center text-[var(--color-text-tertiary)] hover:text-[var(--klein-blue)] transition-colors"><Repeat className="w-6 h-6" /></button>
+           <button className="ds-touch-target flex items-center justify-center text-[var(--color-text-primary)] hover:scale-110 transition-transform"><Icons.Rewind /></button>
+
+           <button
              onClick={() => setPlaying(!playing)}
-             className="w-20 h-20 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-500/40 hover:scale-105 transition-all"
+             className="w-20 h-20 text-[var(--klein-on)] rounded-full flex items-center justify-center hover:scale-105 transition-all active:scale-95"
+             style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
            >
               {playing ? <Icons.Pause /> : <Icons.Play />}
            </button>
-           
-           <button className="text-slate-600 dark:text-white hover:scale-110 transition-transform"><Icons.ChevronRight /></button>
-           <button className="text-slate-400 hover:text-blue-500 font-bold text-xs">1.0x</button>
+
+           <button className="ds-touch-target flex items-center justify-center text-[var(--color-text-primary)] hover:scale-110 transition-transform"><Icons.ChevronRight /></button>
+           <button className="ds-touch-target flex items-center justify-center text-[var(--color-text-tertiary)] hover:text-[var(--klein-blue)] font-bold text-xs transition-colors">1.0x</button>
        </div>
     </div>
   );

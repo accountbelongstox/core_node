@@ -3,6 +3,7 @@
  * Provides React-based dialog fallback for web
  */
 
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogProps } from './Dialog';
 

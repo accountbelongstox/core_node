@@ -1,5 +1,7 @@
 # 学习分组系统实现完成报告
 
+> ⚠️ **历史文档 / SUPERSEDED (2026-05)。** 文中提及的 `app_qy_v1_english_dictionaries` 等 `*_dictionaries` 表已废弃；现行统一架构为单一规范表 `{prefix}_tts_cache_{lang}`（及其 `_staging` 暂存表，经 `AppQyV1LangDictionaryModel` / `AppQyV1TableMaps::getDictionaryTableName($lang)` 访问），数据经 txt→staging→正式表 提升流程写入。本文仅作历史记录,勿据此判断当前表结构。
+
 ## 修复内容
 
 ### 1. 字典表查询错误修复

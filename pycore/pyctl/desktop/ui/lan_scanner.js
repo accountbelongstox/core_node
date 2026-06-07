@@ -10,19 +10,10 @@ class LANScanner {
     }
 
     async getLocalIP() {
-        // Method 1: Try WebRTC
-        try {
-            const ip = await this.getLocalIPViaWebRTC();
-            if (ip) return ip;
-        } catch (e) {
-            console.warn('[LAN Scanner] WebRTC method failed:', e);
-        }
-
-        // Method 2: Try to extract from known local addresses
-        // Since we're in browser, we can't directly get it, so we provide common subnets
-        console.log('[LAN Scanner] Using common subnet detection');
-
-        // Return null to trigger manual subnet selection
+        // NOTE: WebRTC IP enumeration is blocked in the embedded QtWebEngine
+        // runtime, so getLocalIPViaWebRTC() only ever times out and floods the
+        // console. Skip it here; the local IP must come from a manual subnet or
+        // a custom server URL. (getLocalIPViaWebRTC is kept for normal browsers.)
         return null;
     }
 
@@ -68,10 +59,10 @@ class LANScanner {
         } else {
             const localIP = await this.getLocalIP();
             if (!localIP) {
-                console.warn('[LAN Scanner] Could not determine local IP, using common subnets');
-
-                // Scan common subnets: 192.168.0.x, 192.168.1.x, 192.168.50.x
-                await this.scanCommonSubnets();
+                // Local IP cannot be determined in QtWebEngine. Do NOT brute-force
+                // common subnets every scan cycle (noisy + a fetch storm). Auto
+                // discovery is a no-op here; use "Scan Now" with a manual subnet
+                // or enter a custom server URL instead.
                 return [];
             }
 

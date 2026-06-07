@@ -43,8 +43,11 @@ class AppQyV1ExternalStorageManager
         $this->audioPath = $audioDirectoryPath ? dirname($audioDirectoryPath) : $this->externalDataPath . '/audio';
         $imagesDirectoryPath = Config::get('AppQyV1.paths.images_directory');
         $this->imagesPath = $imagesDirectoryPath ? dirname($imagesDirectoryPath) : $this->externalDataPath . '/images';
-        $this->cachePath = Config::get('AppQyV1.paths.cache_directory');
-        $this->markersPath = Config::get('AppQyV1.paths.markers_directory');
+        // Cache and markers derive from the canonical mapWebPath-backed root so
+        // this pre-creation matches exactly where AppQyV1InitializationMarkerManager
+        // actually writes/reads markers (no split-brain across WSL/Windows/Ubuntu).
+        $this->cachePath = \App\Providers\PathMapper::getAppQyV1ExternalDataRoot('cache');
+        $this->markersPath = \App\Providers\PathMapper::getAppQyV1ExternalDataRoot('markers');
     }
 
     /**

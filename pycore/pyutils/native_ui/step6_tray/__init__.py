@@ -20,6 +20,18 @@ from .tkinter_system_tray import (
 
 from .tray_thread import TkinterSystemTrayThread
 
+# Windows native tray (pywin32 Shell_NotifyIcon)
+try:
+    from .win32_system_tray import (
+        Win32SystemTray,
+        Win32SystemTrayThread,
+        WIN32_AVAILABLE,
+    )
+except ImportError:
+    Win32SystemTray = None
+    Win32SystemTrayThread = None
+    WIN32_AVAILABLE = False
+
 # AppIndicator support (Linux only)
 try:
     from .appindicator_system_tray import (
@@ -49,6 +61,11 @@ __all__ = [
     'TkinterSystemTrayThread',
     'TrayMenuItem',
     'PYSTRAY_AVAILABLE',
+
+    # Windows native backend (pywin32)
+    'Win32SystemTray',
+    'Win32SystemTrayThread',
+    'WIN32_AVAILABLE',
 
     # AppIndicator backend (Linux)
     'AppIndicatorSystemTray',

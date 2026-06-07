@@ -8,10 +8,14 @@ use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\ApiResponse;
 use App\Services\AvatarService;
+use App\Http\Controllers\Auth\AvatarPublic;
 use App\Services\UnifiedAuthService;
 use App\Providers\PathMapper;
 use App\Constants\AppKeys;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Carbon\Carbon;
 
 class AppQyV1ProfileController extends BaseController
 {
@@ -27,6 +31,11 @@ class AppQyV1ProfileController extends BaseController
         if (!$user) {
             return $this->error('Unauthorized', 401);
         }
+
+        // Idempotent read-time repair: fixes empty / missing / legacy
+        // oversized (e.g. 27 MB) avatars and persists the fix. No-op when
+        // the avatar is already valid, so normal reads are not slowed.
+        $user = AvatarPublic::backfillAvatar($user);
 
         $userProfile = [
             'id' => $user->id,
@@ -124,25 +133,10 @@ class AppQyV1ProfileController extends BaseController
         }
 
         if (!empty($updateData)) {
+            // Canonical identity: write only to the main users table.
+            // The legacy per-sub-app users duplication was removed (Phase A),
+            // so there is no sub-app users row to sync anymore.
             $user->update($updateData);
-
-            $subAppUpdateData = [];
-            $syncFields = ['nickname', 'name', 'avatar', 'email', 'phone'];
-
-            foreach ($syncFields as $field) {
-                if (isset($updateData[$field])) {
-                    $subAppUpdateData[$field] = $updateData[$field];
-                }
-            }
-
-            if (!empty($subAppUpdateData)) {
-                $subAppUpdateData['updated_at'] = now();
-
-                $user->getConnection()
-                    ->table('users')
-                    ->where('main_user_id', $user->id)
-                    ->update($subAppUpdateData);
-            }
         }
 
         $userProfile = [
@@ -187,6 +181,189 @@ class AppQyV1ProfileController extends BaseController
     private function getAvatarUrl(?string $avatar): ?string
     {
         return AvatarService::getAvatarUrl($avatar);
+    }
+
+    /**
+     * Get aggregated user learning statistics.
+     *
+     * Single source of truth for both the qy_capacitor "/user/statistics"
+     * screen and the dashboard "/user/stats" view. The response is a superset:
+     * snake_case fields consumed by qy_capacitor plus the legacy camelCase
+     * fields the dashboard already reads, so neither client breaks.
+     *
+     * All numbers are derived from the user's real learning-progress rows.
+     * When the user has not initialized learning yet (progress table absent
+     * or no rows), zeroed stats are returned instead of a 500 — an empty
+     * profile is an expected state, not an infrastructure failure.
+     */
+    public function getStatistics(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        $progress = new AppQyV1UserLearningProgressModel();
+        $connection = $progress->getConnectionName();
+        $table = $progress->getTable();
+
+        $totalWords = 0;
+        $newWords = 0;
+        $learningWords = 0;
+        $masteredWords = 0;
+        $needsReview = 0;
+        $weakWords = 0;
+        $correctSum = 0;
+        $wrongSum = 0;
+        $activityDates = [];
+        $studyDays = 0;
+        $currentStreak = 0;
+        $longestStreak = 0;
+        $averageAccuracy = 0.0;
+        $completionRate = 0.0;
+        $dailyAverage = 0.0;
+        $weeklyProgress = array_fill(0, 7, 0);
+        $todayProgress = 0;
+        $dailyGoal = 20;
+
+        $tableReady = Schema::connection($connection)->hasTable($table);
+
+        if ($tableReady) {
+            $base = AppQyV1UserLearningProgressModel::where('user_id', $user->id);
+
+            $totalWords = (clone $base)->count();
+            $newWords = (clone $base)->where('learning_status', 'new')->count();
+            $learningWords = (clone $base)->where('learning_status', 'learning')->count();
+            $masteredWords = (clone $base)->where('learning_status', 'mastered')->count();
+            $needsReview = (clone $base)
+                ->whereIn('learning_status', ['learning', 'reviewing'])
+                ->where('next_review_at', '<=', now())
+                ->count();
+            $weakWords = (clone $base)->whereColumn('wrong_count', '>', 'correct_count')->count();
+            $correctSum = (int) (clone $base)->sum('correct_count');
+            $wrongSum = (int) (clone $base)->sum('wrong_count');
+
+            // Pull activity timestamps once and derive day-based metrics in PHP
+            // (driver-agnostic: avoids sqlite/mysql date-function differences).
+            $timestamps = (clone $base)
+                ->get(['last_reviewed_at', 'updated_at', 'created_at']);
+
+            foreach ($timestamps as $row) {
+                $when = $row->last_reviewed_at ?? $row->updated_at ?? $row->created_at;
+                if (!$when) {
+                    continue;
+                }
+                $dayCarbon = Carbon::parse($when)->startOfDay();
+                $day = $dayCarbon->toDateString();
+                $activityDates[$day] = true;
+
+                // Version-independent day-delta: only past/today rows count
+                // toward the trailing 7-day window. Both operands are
+                // start-of-day, so the absolute diff equals "days ago".
+                if ($dayCarbon->lessThanOrEqualTo(Carbon::today())) {
+                    $diff = (int) $dayCarbon->diffInDays(Carbon::today());
+                    if ($diff < 7) {
+                        $weeklyProgress[6 - $diff]++;
+                    }
+                }
+            }
+        }
+
+        $studyDays = count($activityDates);
+        $totalWordsLearned = max(0, $totalWords - $newWords);
+        $todayProgress = $weeklyProgress[6];
+
+        if (($correctSum + $wrongSum) > 0) {
+            $averageAccuracy = round($correctSum / ($correctSum + $wrongSum) * 100, 1);
+        }
+
+        if ($totalWords > 0) {
+            $completionRate = round($masteredWords / $totalWords * 100, 1);
+        }
+
+        if ($studyDays > 0) {
+            $dailyAverage = round($totalWordsLearned / $studyDays, 1);
+        }
+
+        if ($studyDays > 0) {
+            $sortedDays = array_keys($activityDates);
+            sort($sortedDays);
+
+            $runLength = 1;
+            $longestStreak = 1;
+            for ($i = 1; $i < count($sortedDays); $i++) {
+                $prev = Carbon::parse($sortedDays[$i - 1]);
+                $curr = Carbon::parse($sortedDays[$i]);
+                if ((int) $prev->diffInDays($curr) === 1) {
+                    $runLength++;
+                } else {
+                    $runLength = 1;
+                }
+                if ($runLength > $longestStreak) {
+                    $longestStreak = $runLength;
+                }
+            }
+
+            // Current streak: consecutive days ending today or yesterday.
+            $lastDay = Carbon::parse(end($sortedDays));
+            $gapToToday = (int) $lastDay->diffInDays(Carbon::today());
+            if ($gapToToday <= 1) {
+                $currentStreak = 1;
+                for ($i = count($sortedDays) - 1; $i > 0; $i--) {
+                    $prev = Carbon::parse($sortedDays[$i - 1]);
+                    $curr = Carbon::parse($sortedDays[$i]);
+                    if ((int) $prev->diffInDays($curr) === 1) {
+                        $currentStreak++;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // total_study_time has no backing data source yet (there is no
+        // session/time-tracking table). Reported as 0 and surfaced as a
+        // known design gap rather than fabricated.
+        $totalStudyTime = 0;
+
+        $data = [
+            // qy_capacitor expected (snake_case)
+            'total_words_learned' => $totalWordsLearned,
+            'total_words' => $totalWords,
+            'new_words' => $newWords,
+            'learning_words' => $learningWords,
+            'mastered_words' => $masteredWords,
+            'weak_words' => $weakWords,
+            'needs_review' => $needsReview,
+            'current_streak' => $currentStreak,
+            'longest_streak' => $longestStreak,
+            'average_accuracy' => $averageAccuracy,
+            'daily_average' => $dailyAverage,
+            'total_study_time' => $totalStudyTime,
+            'study_days' => $studyDays,
+            'weekly_progress' => array_values($weeklyProgress),
+            // Daily-goal block. today_progress is real (words studied today);
+            // daily_goal is a fixed default target (no per-user goal table
+            // yet — documented design gap, same class as total_study_time).
+            'today_progress' => $todayProgress,
+            'daily_goal' => $dailyGoal,
+            'review_due' => $needsReview,
+            // Dashboard LearningInterface alias names (same values, different
+            // key names the panel reads) — additive, keeps it from showing 0s.
+            'learned_count' => $totalWordsLearned,
+            'studying_count' => $learningWords,
+            'review_count' => $needsReview,
+            'daily_goal_progress' => $completionRate,
+            // dashboard legacy keys (camelCase) — back-compat superset
+            'studyDays' => $studyDays,
+            'totalWords' => $totalWords,
+            'completionRate' => $completionRate,
+            'averageAccuracy' => $averageAccuracy,
+            'totalStudyTime' => $totalStudyTime,
+        ];
+
+        return $this->success($data, 'Statistics retrieved successfully');
     }
 
     /**

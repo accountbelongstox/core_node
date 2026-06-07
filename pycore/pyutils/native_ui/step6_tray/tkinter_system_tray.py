@@ -383,8 +383,13 @@ class TkinterSystemTray:
         This is called automatically after menu actions to reflect state changes.
         """
         if self._tray_icon and self._running:
-            menu = self._build_menu()
-            self._tray_icon.menu = menu
+            self._tray_icon.menu = self._build_menu()
+            # On Windows, reassigning .menu alone does not refresh the live popup;
+            # update_menu() forces pystray to rebuild the Win32 menu handle.
+            try:
+                self._tray_icon.update_menu()
+            except Exception:
+                pass
 
     def update_menu(self, menu_items: List[TrayMenuItem]):
         """
@@ -396,8 +401,13 @@ class TkinterSystemTray:
         self.menu_items = menu_items
 
         if self._tray_icon and self._running:
-            menu = self._build_menu()
-            self._tray_icon.menu = menu
+            self._tray_icon.menu = self._build_menu()
+            # On Windows, reassigning .menu alone does not refresh the live popup;
+            # update_menu() forces pystray to rebuild the Win32 menu handle.
+            try:
+                self._tray_icon.update_menu()
+            except Exception:
+                pass
             ColorPrint.blue("[TRAY] Menu updated")
 
 

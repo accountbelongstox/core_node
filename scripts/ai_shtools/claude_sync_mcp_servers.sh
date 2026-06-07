@@ -58,6 +58,11 @@ for ((i = 0; i < MCP_CONFIGS_COUNT; i++)); do
     transport="${MCP_TRANSPORT_TYPES[$i]}"
     echo "[$idx/$MCP_CONFIGS_COUNT] Executing: $name ($transport)"
 
+    # Remove any existing entry first: 'claude mcp add' refuses to overwrite an
+    # existing server, so a stale/incorrect entry (e.g. a corrupted API key)
+    # would persist across re-runs. Non-fatal if the server does not exist yet.
+    echo "[CLEAN] claude mcp remove $name -s user"
+    claude mcp remove "$name" -s user 2>/dev/null || true
     if [ "$transport" = "http" ]; then
         # Variadic -H flags MUST come after positional name and url
         IFS='|' read -ra h_keys <<< "${MCP_HEADER_KEYS[$i]}"

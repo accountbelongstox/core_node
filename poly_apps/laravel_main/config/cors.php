@@ -27,7 +27,7 @@ return [
     |
     */
 
-    'paths' => ['*', 'api/*', 'sanctum/csrf-cookie',"avatar/*"],
+    'paths' => ['*', 'api/*', 'api/health', 'api_info', 'sanctum/csrf-cookie',"avatar/*"],
 
     'allowed_methods' => ['*'],
 
@@ -39,7 +39,7 @@ return [
 
     'exposed_headers' => ["*"],
 
-    'max_age' => 0,
+    'max_age' => env('CORS_MAX_AGE', 86400),
 
     'supports_credentials' =>  true,
 

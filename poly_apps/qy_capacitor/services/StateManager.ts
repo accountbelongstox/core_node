@@ -29,7 +29,7 @@ class StateManagerClass {
     // If persistent, try to load from storage
     let value = initialValue;
     if (config?.persist && config.storageKey) {
-      const stored = StorageCenter.get<T>(config.storageKey);
+      const stored = StorageCenter.get<T>(config.storageKey) as unknown as T | null;
       if (stored !== null) {
         value = stored;
         console.log(`[StateManager] Loaded persistent state "${key}" from storage`);
@@ -132,6 +132,7 @@ export const GlobalState = {
   ERROR_MESSAGE: 'global.errorMessage',
 
   // Settings
+  SETTINGS: 'global.settings',
   THEME: 'global.theme',
   LANGUAGE: 'global.language',
 

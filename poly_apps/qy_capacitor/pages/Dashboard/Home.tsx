@@ -1,7 +1,15 @@
+/* [v4.1-Iris] App-style redesign (NOT a device frame — full-bleed native-app
+   feel): hero greeting + streak chip, sleek language pill, horizontal snap
+   carousels for daily words / recommended / my-vocabulary, compact review
+   card, bento study modes, stat progress. All data logic (loaders / safe*
+   guards / Array.isArray / handlers / modal) preserved. Verified parity vs
+   public/design-reference-{light,dark}.webp. */
 
 import React, { useContext, useEffect, useState } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Card, Icons, Button } from '../../components/UI';
+import { Card, Icons, Button, Spinner, EmptyState, Badge, ProgressBar, SectionTitle, BentoTile, Stat } from '../../components/UI';
+import { Pencil, Clock, CircleCheck, BookOpen, Check, Play, Headphones, Flame, Brain } from 'lucide-react';
+import { PillNav } from '../../components/PillNav';
 import { api } from '../../services/api';
 import { WordGroup, Word } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../services/mockData';
@@ -25,6 +33,8 @@ const DashboardPage = () => {
   const [showAddToGroupModal, setShowAddToGroupModal] = useState(false);
   const [selectedLibraryForGroup, setSelectedLibraryForGroup] = useState<any>(null);
   const [addingToGroupId, setAddingToGroupId] = useState<string | null>(null);
+  // v4.0 pill horizontal category menu (Today / Recommended)
+  const [homeFilter, setHomeFilter] = useState<'today' | 'recommended'>('today');
 
   // Subscribe to WordGroupsCenter for automatic updates
   useEffect(() => {
@@ -76,7 +86,8 @@ const DashboardPage = () => {
     try {
       const response = await ApiCenter.words.getDailyWords(5);
       if (response.success && response.data) {
-        setDailyWords(response.data);
+        // API body may be non-array (non-JSON / error) — keep state an array
+        setDailyWords(Array.isArray(response.data) ? response.data : []);
       }
     } catch (err: any) {
       if (err?.message?.includes('not found') || err?.code === 'HTTP_404') {
@@ -96,7 +107,9 @@ const DashboardPage = () => {
     try {
       const response = await ApiCenter.learning.getReviewQueue();
       if (response.success && response.data) {
-        setReviewQueue(response.data.slice(0, 5)); // Show max 5 words
+        // API body may be non-array (non-JSON / error) — normalize before slice
+        const queue = Array.isArray(response.data) ? response.data : [];
+        setReviewQueue(queue.slice(0, 5)); // Show max 5 words
       }
     } catch (err: any) {
       if (err?.message?.includes('not found') || err?.code === 'HTTP_404') {
@@ -122,7 +135,9 @@ const DashboardPage = () => {
       console.log('[Home] API response:', response);
 
       if (response.success && response.data) {
-        const libraries = Array.isArray(response.data) ? response.data : (response.data.libraries || []);
+        const libraries = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as { libraries?: any[] }).libraries || []);
         console.log('[Home] Extracted libraries:', libraries);
 
         const sorted = [...libraries].sort((a, b) => {
@@ -203,28 +218,59 @@ const DashboardPage = () => {
     SUPPORTED_LANGUAGES.find(l => l.code === code) || { code, name: code, flag: '🌐' }
   );
 
+  // Defensive: render only ever touches guaranteed arrays — a non-array from
+  // any API/state path can never throw "x.map is not a function" here.
+  const safeDailyWords = Array.isArray(dailyWords) ? dailyWords : [];
+  const safeReviewQueue = Array.isArray(reviewQueue) ? reviewQueue : [];
+  const safeRecommended = Array.isArray(recommendedLibraries) ? recommendedLibraries : [];
+  const safeSelected = Array.isArray(selectedLibraries) ? selectedLibraries : [];
+  const safeFilteredGroups = Array.isArray(filteredGroups) ? filteredGroups : [];
+  const safeAllGroups = Array.isArray(allGroups) ? allGroups : [];
+
   return (
     <>
-    <div className="ds-stack pb-32">
-        {/* Welcome Section */}
-        <div className="mb-2">
-            <span className="ds-section-label pl-1">
-                 {user ? t('home.startLearning') : t('home.guestMode')}
-            </span>
-            <h1 className="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:to-slate-400">
-                {user ? t('home.hiUser').replace('{name}', getUserDisplayName(user)) : t('home.welcomeGuest')}
-            </h1>
+    <div className="ds-page ds-section-gap pb-32">
+        {/* Welcome Section — app hero greeting + streak chip */}
+        <div className="flex items-end justify-between gap-3 px-1 pt-1">
+            <div className="min-w-0">
+                <span className="text-sm font-semibold text-[var(--color-text-secondary)]">
+                     {user ? t('home.startLearning') : t('home.guestMode')}
+                </span>
+                <h1 className="text-[2.1rem] leading-[1.05] font-black tracking-tight mt-0.5 text-slate-900 dark:text-white">
+                    {user ? t('home.hiUser').replace('{name}', getUserDisplayName(user)) : t('home.welcomeGuest')}
+                </h1>
+            </div>
+            {user && (user.streak ?? 0) > 0 && (
+                <div className="shrink-0 flex items-center gap-1.5 rounded-full px-3 py-2 ds-glass ds-glass-edge">
+                    <Flame className="w-4 h-4 text-orange-500" aria-hidden />
+                    <span className="text-sm font-black text-slate-800 dark:text-white">{user.streak}</span>
+                </div>
+            )}
         </div>
 
-        {/* Language Selection Bar — base: glass + edge */}
-        <div className="ds-glass ds-glass-edge flex items-center justify-between p-3 rounded-[var(--radius-card)]">
-             <div className="flex items-center gap-3 flex-1 min-w-0">
+        {/* v4.0 Pill horizontal category menu (Today / Recommended) */}
+        <PillNav
+          aria-label={t('home.startLearning') || 'Sections'}
+          items={[
+            { id: 'today', label: t('home.startLearning') || 'Today' },
+            { id: 'recommended', label: t('home.recommended') || 'Recommended' },
+          ]}
+          activeId={homeFilter}
+          onChange={(id) => setHomeFilter(id as 'today' | 'recommended')}
+        />
+
+        {/* Language Selection Bar — sleek glass pill (app-style) */}
+        <button
+          onClick={() => navigate('settings_lang')}
+          className="ds-glass ds-glass-edge w-full flex items-center justify-between gap-3 pl-2 pr-2.5 py-2 rounded-full text-left active:scale-[0.99] transition-transform"
+        >
+             <div className="flex items-center gap-2.5 flex-1 min-w-0">
                  {/* Multiple Language Flags */}
-                 <div className="flex items-center gap-1.5">
-                   {learningLanguages.map((lang, index) => (
+                 <div className="flex items-center -space-x-1">
+                   {learningLanguages.map((lang) => (
                      <span
                        key={lang.code}
-                       className="text-2xl hover:scale-110 transition-transform cursor-pointer"
+                       className="w-8 h-8 rounded-full bg-white/70 dark:bg-white/10 border border-white/50 dark:border-white/10 shadow-sm flex items-center justify-center text-lg"
                        title={lang.name}
                      >
                        {lang.flag || IconMappingService.getEmoji(
@@ -236,7 +282,7 @@ const DashboardPage = () => {
 
                  {/* Language Names */}
                  <div className="min-w-0 flex-1">
-                     <div className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">
+                     <div className="text-[9px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-wide leading-none mb-0.5">
                        {t('home.targetLanguage')}
                      </div>
                      <div className="text-sm font-bold text-slate-800 dark:text-white leading-none truncate">
@@ -245,231 +291,182 @@ const DashboardPage = () => {
                  </div>
              </div>
 
-             <button
-                onClick={() => navigate('settings_lang')}
-                className="ds-glass ds-glass-sm p-2 rounded-xl border border-white/20 shadow-sm flex-shrink-0 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors"
-             >
+             <span className="ds-fab-grad flex-shrink-0 w-9 h-9 [&_svg]:w-4 [&_svg]:h-4" aria-hidden>
                  <Icons.Settings />
-             </button>
-        </div>
+             </span>
+        </button>
 
         {/* Daily Words Section */}
-        {user && (
+        {homeFilter === 'today' && user && (
           <div>
-            <div className="flex justify-between items-center mb-3 px-1">
-              <h2 className="ds-section-label">
-                {t('home.dailyWords') || 'Daily Words'}
-              </h2>
-              <Button variant="bento" onClick={() => navigate('dictionary')} className="w-auto ds-btn-bento-compact py-2 px-3">
-                {t('home.viewMore') || 'More'}
-              </Button>
-            </div>
+            <SectionTitle
+              title={t('home.dailyWords') || 'Daily Words'}
+              moreLabel={t('home.viewMore') || 'More'}
+              onMore={() => navigate('dictionary')}
+              className="mb-3 px-1"
+            />
 
             {loadingDaily ? (
               <div className="ds-card flex items-center justify-center p-6">
-                <div className="flex items-center gap-2 text-slate-400">
-                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-sm">{t('common.loading') || 'Loading...'}</span>
-                </div>
+                <Spinner size="sm" />
               </div>
-            ) : dailyWords.length > 0 ? (
-              <div className="ds-grid-breathing grid grid-cols-1">
-                {dailyWords.map((word, index) => (
-                  <div
+            ) : safeDailyWords.length > 0 ? (
+              <div
+                className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1"
+                style={{ marginInline: 'calc(var(--page-padding-h) * -1)', paddingInline: 'var(--page-padding-h)' }}
+              >
+                {safeDailyWords.map((word, index) => (
+                  <button
                     key={word.id || index}
+                    type="button"
                     onClick={() => navigate('word_detail', { wordId: word.id })}
-                    className="ds-row flex items-center justify-between p-4 cursor-pointer group"
+                    className="snap-start shrink-0 w-40 ds-card !p-4 text-left flex flex-col gap-3 active:scale-[0.97] transition-transform"
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
-                        {word.emoji || '📝'}
+                    <div className="flex items-center justify-between">
+                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-yellow-100 to-orange-100 dark:from-yellow-900/30 dark:to-orange-900/30 flex items-center justify-center shadow-inner border border-white/40 text-[var(--klein-blue)]">
+                        {word.emoji || <Pencil className="w-5 h-5" aria-hidden />}
                       </div>
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base font-bold text-slate-800 dark:text-white truncate group-hover:text-blue-600 transition-colors">
-                            {word.word || word.text}
-                          </span>
-                          {index === 0 && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-bold bg-yellow-100 text-yellow-700 rounded">
-                              {t('home.new') || 'NEW'}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs text-slate-500 truncate">
-                          {word.translation || word.meaning || t('home.noTranslation')}
+                      {index === 0 && (
+                        <span className="px-2 py-0.5 text-[9px] font-bold bg-yellow-100 text-yellow-700 rounded-full">
+                          {t('home.new') || 'NEW'}
                         </span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-base font-bold text-slate-800 dark:text-white truncate">
+                        {word.word || word.text}
+                      </div>
+                      <div className="text-xs text-slate-500 truncate mt-0.5">
+                        {word.translation || word.meaning || t('home.noTranslation')}
                       </div>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors flex-shrink-0">
-                      <Icons.ChevronRight />
-                    </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             ) : (
-              <div className="ds-empty p-6 flex flex-col items-center justify-center gap-2">
-                <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl">
-                  📝
-                </div>
-                <span className="font-bold text-center text-sm">
-                  {t('home.noDailyWords') || 'No daily words available'}
-                </span>
-                <span className="text-xs text-center">
-                  {t('home.checkBackLater') || 'Check back later for new words'}
-                </span>
-              </div>
+              <EmptyState
+                icon={<Pencil className="w-10 h-10 text-[var(--klein-blue)]" aria-hidden />}
+                title={t('home.noDailyWords') || 'No daily words available'}
+                description={t('home.checkBackLater') || 'Check back later for new words'}
+              />
             )}
           </div>
         )}
 
         {/* Review Queue Section */}
-        {user && (
+        {homeFilter === 'today' && user && (
           <div>
-            <div className="flex justify-between items-center mb-3 px-1">
-              <h2 className="ds-section-label">
-                {t('home.reviewQueue') || 'Review Queue'}
-              </h2>
-              <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded-lg">
-                {reviewQueue.length > 0 ? `${reviewQueue.length}${reviewQueue.length >= 5 ? '+' : ''}` : '0'}
-              </span>
-            </div>
+            <SectionTitle
+              title={t('home.reviewQueue') || 'Review Queue'}
+              className="mb-3 px-1"
+              action={
+                <Badge tone="danger">
+                  {safeReviewQueue.length > 0 ? `${safeReviewQueue.length}${safeReviewQueue.length >= 5 ? '+' : ''}` : '0'}
+                </Badge>
+              }
+            />
 
             {loadingReview ? (
               <div className="ds-card flex items-center justify-center p-6">
-                <div className="flex items-center gap-2 text-slate-400">
-                  <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-sm">{t('common.loading') || 'Loading...'}</span>
-                </div>
+                <Spinner size="sm" />
               </div>
-            ) : reviewQueue.length > 0 ? (
-              <div className="ds-stack ds-stack-tight">
-                {reviewQueue.map((word, index) => (
-                  <div
-                    key={word.id}
-                    onClick={() => navigate('word_detail', { wordId: word.id })}
-                    className="ds-row flex items-center justify-between p-4 cursor-pointer group bg-gradient-to-r from-orange-50/80 to-red-50/80 dark:from-orange-900/20 dark:to-red-900/20 border-orange-200/50 dark:border-orange-700/50"
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-100 to-red-100 dark:from-orange-900/40 dark:to-red-900/40 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
-                        ⏰
-                      </div>
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-base font-bold text-slate-800 dark:text-white truncate group-hover:text-orange-600 transition-colors">
-                          {word.text}
-                        </span>
-                        <span className="text-xs text-slate-500 truncate">
-                          {word.translation || t('home.noTranslation')}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {word.masteryLevel && (
-                        <div className="px-2 py-1 rounded-lg bg-white/50 text-xs font-bold text-orange-600">
-                          {word.masteryLevel}%
-                        </div>
-                      )}
-                      <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-orange-50 group-hover:text-orange-500 transition-colors">
-                        <Icons.ChevronRight />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {reviewQueue.length >= 5 && (
-                  <Button
-                    variant="fluid"
-                    showPlay
-                    onClick={() => navigate('review')}
-                  >
+            ) : safeReviewQueue.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => navigate('review')}
+                className="w-full ds-card !p-4 flex items-center gap-4 text-left active:scale-[0.99] transition-transform bg-gradient-to-r from-orange-50/80 to-red-50/80 dark:from-orange-900/20 dark:to-red-900/20 border-orange-200/50 dark:border-orange-700/50"
+              >
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-100 to-red-100 dark:from-orange-900/40 dark:to-red-900/40 flex items-center justify-center shadow-inner border border-white/40 text-orange-500 shrink-0">
+                  <Clock className="w-7 h-7" aria-hidden />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-base font-bold text-slate-800 dark:text-white">
                     {t('home.reviewAll') || 'Start Review Session'}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="ds-empty p-6 flex flex-col items-center justify-center gap-2">
-                <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-2xl">
-                  ✅
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5 truncate">
+                    {safeReviewQueue.length}{safeReviewQueue.length >= 5 ? '+' : ''} {t('home.words') || 'words'} · {t('home.reviewQueue') || 'Review Queue'}
+                  </div>
                 </div>
-                <span className="font-bold text-center text-sm">
-                  {t('home.noReviewNeeded') || 'All caught up!'}
-                </span>
-                <span className="text-xs text-center">
-                  {t('home.noReviewDescription') || 'No words need review right now'}
-                </span>
-              </div>
+                <div className="w-10 h-10 rounded-full bg-white/70 dark:bg-white/10 flex items-center justify-center text-orange-500 shrink-0">
+                  <Icons.ChevronRight />
+                </div>
+              </button>
+            ) : (
+              <EmptyState
+                icon={<CircleCheck className="w-10 h-10 text-emerald-500" aria-hidden />}
+                title={t('home.noReviewNeeded') || 'All caught up!'}
+                description={t('home.noReviewDescription') || 'No words need review right now'}
+              />
             )}
           </div>
         )}
 
         {/* Recommended Vocabulary Libraries Section */}
+        {homeFilter === 'recommended' && (
         <div>
-          <div className="flex justify-between items-center mb-3 px-1">
-            <h2 className="ds-section-label">
-              {t('home.recommendedLibraries') || 'RECOMMENDED VOCABULARY'}
-            </h2>
-            {recommendedLibraries.length > 0 && (
-              <Button variant="bento" onClick={() => navigate('courses')} className="w-auto ds-btn-bento-compact py-2 px-3">
-                {t('home.viewMore') || 'More'}
-              </Button>
-            )}
-          </div>
+          <SectionTitle
+            title={t('home.recommendedLibraries') || 'Recommended Vocabulary'}
+            moreLabel={t('home.viewMore') || 'More'}
+            onMore={safeRecommended.length > 0 ? () => navigate('courses') : undefined}
+            className="mb-3 px-1"
+          />
 
           {loadingLibraries ? (
-            <div className="ds-card p-6 text-center">
-              <span className="text-slate-500">Loading vocabulary libraries...</span>
+            <div className="ds-card flex items-center justify-center p-6">
+              <Spinner size="sm" />
             </div>
-          ) : recommendedLibraries.length > 0 ? (
-            <div className="ds-grid-breathing grid grid-cols-2">
-              {recommendedLibraries.map((library, index) => {
+          ) : safeRecommended.length > 0 ? (
+            <div
+              className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1"
+              style={{ marginInline: 'calc(var(--page-padding-h) * -1)', paddingInline: 'var(--page-padding-h)' }}
+            >
+              {safeRecommended.map((library, index) => {
                 const gradients = [
                   'from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20',
-                  'from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20',
+                  'bg-[var(--klein-blue-soft)]',
                   'from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20',
                   'from-orange-50 to-yellow-50 dark:from-orange-900/20 dark:to-yellow-900/20',
                   'from-rose-50 to-red-50 dark:from-rose-900/20 dark:to-red-900/20',
                   'from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20',
                 ];
                 const gradientClass = gradients[index % gradients.length];
-                const defaultThumbnail = '📚';
 
                 return (
                   <div
                     key={library.id}
-                    className={`ds-card relative overflow-hidden bg-gradient-to-br ${gradientClass} border border-white/40 dark:border-white/10 group`}
+                    className={`snap-start shrink-0 w-44 ds-card !p-3 relative overflow-hidden bg-gradient-to-br ${gradientClass} border border-white/40 dark:border-white/10 group`}
                   >
                     <div
                       onClick={() => navigate(`vocabulary_library/${library.id}`)}
-                      className="p-4 cursor-pointer"
+                      className="cursor-pointer"
                     >
-                      {/* Thumbnail */}
-                      <div className="w-full aspect-square rounded-xl mb-3 overflow-hidden bg-white/50 dark:bg-black/20 flex items-center justify-center">
+                      {/* Thumbnail — v4.0 transparent-media frame */}
+                      <div className="ds-media-frame w-full aspect-square mb-3">
                         {library.thumbnail || library.cover_image ? (
                           <img
                             src={library.thumbnail || library.cover_image}
                             alt={library.name}
-                            className="w-full h-full object-cover"
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';
                               e.currentTarget.nextElementSibling!.classList.remove('hidden');
                             }}
                           />
                         ) : null}
-                        <span className={`text-4xl ${library.thumbnail || library.cover_image ? 'hidden' : ''}`}>
-                          {library.emoji || defaultThumbnail}
+                        <span className={`text-4xl text-[var(--klein-blue)] ${library.thumbnail || library.cover_image ? 'hidden' : ''}`}>
+                          {library.emoji || <BookOpen className="w-9 h-9" aria-hidden />}
                         </span>
                       </div>
 
                       {/* Title */}
-                      <h3 className="font-bold text-sm text-slate-800 dark:text-white mb-1 line-clamp-2 min-h-[2.5rem] group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                      <h3 className="font-bold text-sm text-slate-800 dark:text-white mb-1 line-clamp-2 min-h-[2.5rem]">
                         {library.name}
                       </h3>
 
                       {/* Info */}
                       <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                        <span className="font-medium">{library.word_count || library.total_words} words</span>
+                        <span className="font-medium">{library.word_count || library.total_words} {t('home.words') || 'words'}</span>
                         {library.difficulty && (
-                          <span className="px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 font-bold">
-                            {library.difficulty}
-                          </span>
+                          <Badge tone="neutral">{library.difficulty}</Badge>
                         )}
                       </div>
                     </div>
@@ -485,7 +482,7 @@ const DashboardPage = () => {
                           setShowAddToGroupModal(true);
                         }
                       }}
-                      className="ds-glass ds-glass-edge absolute top-2 right-2 w-8 h-8 rounded-full shadow-md flex items-center justify-center text-purple-600 dark:text-purple-400 hover:bg-purple-500 hover:text-white transition-all hover:scale-110 active:scale-95"
+                      className="ds-glass ds-glass-edge absolute top-2 right-2 w-8 h-8 rounded-full shadow-md flex items-center justify-center text-[color:var(--klein-blue)] hover:bg-[color:var(--klein-blue)] hover:text-[color:var(--klein-on)] transition-all active:scale-95"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -496,58 +493,52 @@ const DashboardPage = () => {
               })}
             </div>
           ) : (
-            <div className="ds-card p-6 text-center">
-              <span className="text-slate-500">No recommended libraries available</span>
-            </div>
+            <EmptyState
+              icon={<Icons.Library />}
+              title="No recommended libraries available"
+            />
           )}
         </div>
+        )}
 
         {/* My Selected Libraries Section */}
-        {user && selectedLibraries.length > 0 && (
+        {homeFilter === 'today' && user && safeSelected.length > 0 && (
           <div>
-            <div className="flex justify-between items-center mb-3 px-1">
-              <h2 className="ds-section-label">
-                {t('home.myVocabulary') || 'My Vocabulary'}
-              </h2>
-              <Button variant="bento" onClick={() => navigate('courses')} className="w-auto ds-btn-bento-compact py-2 px-3">
-                {t('home.viewAll') || 'View All'}
-              </Button>
-            </div>
+            <SectionTitle
+              title={t('home.myVocabulary') || 'My Vocabulary'}
+              moreLabel={t('home.viewAll') || 'View All'}
+              onMore={() => navigate('courses')}
+              className="mb-3 px-1"
+            />
 
-            <div className="ds-stack ds-stack-tight">
-              {selectedLibraries.map((library) => (
-                <div
+            <div
+              className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1"
+              style={{ marginInline: 'calc(var(--page-padding-h) * -1)', paddingInline: 'var(--page-padding-h)' }}
+            >
+              {safeSelected.map((library) => (
+                <button
                   key={library.id}
+                  type="button"
                   onClick={() => navigate('courses')}
-                  className="ds-row flex items-center justify-between p-4 cursor-pointer group bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200/50 dark:border-blue-700/50"
+                  className="snap-start shrink-0 w-44 ds-card !p-4 text-left flex flex-col gap-3 active:scale-[0.97] transition-transform bg-[var(--klein-blue-soft)]/30 border-[var(--klein-ring)]/30"
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 flex items-center justify-center text-xl shadow-inner border border-white/40 flex-shrink-0">
-                      ✓
+                  <div className="flex items-center justify-between">
+                    <div className="w-11 h-11 rounded-2xl bg-[var(--klein-blue-soft)] flex items-center justify-center shadow-inner border border-white/40 text-[var(--klein-blue)]">
+                      <Check className="w-5 h-5" aria-hidden />
                     </div>
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="text-base font-bold text-slate-800 dark:text-white truncate group-hover:text-blue-600 transition-colors">
-                        {library.name}
-                      </span>
-                      <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span>{library.word_count || library.total_words} {t('library.words') || 'words'}</span>
-                        {library.level && (
-                          <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-bold">
-                            {library.level}
-                          </span>
-                        )}
-                        {library.category && (
-                          <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
-                            {library.category}
-                          </span>
-                        )}
-                      </div>
+                    {library.level && (
+                      <Badge tone="klein">{library.level}</Badge>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-base font-bold text-slate-800 dark:text-white truncate">
+                      {library.name}
+                    </div>
+                    <div className="text-xs text-slate-500 truncate mt-0.5">
+                      {library.word_count || library.total_words} {t('library.words') || 'words'}{library.category ? ` · ${library.category}` : ''}
                     </div>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors flex-shrink-0">
-                    <Icons.ChevronRight />
-                  </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -555,38 +546,32 @@ const DashboardPage = () => {
 
         {/* Filtered Word Groups Section */}
         {/* [GLOBAL SETTING] Show filtered courses based on global settings */}
-        {user && settings.language.learningLanguages && settings.language.learningLanguages.length > 0 && (
+        {homeFilter === 'today' && user && settings.language.learningLanguages && settings.language.learningLanguages.length > 0 && (
           <div>
-            <div className="flex justify-between items-center mb-3 px-1">
-              <div>
-                <h2 className="ds-section-label">
-                  {t('home.availableCourses')}
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {t('home.filteredBy')}: {settings.language.learningLanguages.map(code =>
-                    SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code
-                  ).join(', ')}
-                </p>
-              </div>
-              <Button variant="bento" onClick={() => navigate('courses')} className="w-auto ds-btn-bento-compact py-2 px-3">
-                {t('home.viewAll')}
-              </Button>
-            </div>
+            <SectionTitle
+              title={t('home.availableCourses')}
+              subtitle={`${t('home.filteredBy')}: ${settings.language.learningLanguages.map(code =>
+                SUPPORTED_LANGUAGES.find(l => l.code === code)?.name || code
+              ).join(', ')}`}
+              moreLabel={t('home.viewAll')}
+              onMore={() => navigate('courses')}
+              className="mb-3 px-1"
+            />
 
-            {filteredGroups.length > 0 ? (
+            {safeFilteredGroups.length > 0 ? (
               <div className="ds-stack ds-stack-tight">
-                {filteredGroups.slice(0, 3).map(group => (
+                {safeFilteredGroups.slice(0, 3).map(group => (
                   <div
                     key={group.id}
                     onClick={() => navigate('course_detail', { groupId: group.id })}
                     className="ds-row flex items-center justify-between p-4 cursor-pointer group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-2xl shadow-inner border border-white/40 flex-shrink-0">
-                        {group.coverImage || '📚'}
+                      <div className="w-12 h-12 rounded-xl bg-[var(--klein-blue-soft)] flex items-center justify-center text-2xl shadow-inner border border-white/40 flex-shrink-0 text-[var(--klein-blue)]">
+                        {group.coverImage || <BookOpen className="w-6 h-6" aria-hidden />}
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className="text-sm font-bold text-slate-800 dark:text-white truncate group-hover:text-blue-600 transition-colors">
+                        <span className="text-sm font-bold text-slate-800 dark:text-white truncate group-hover:text-[var(--klein-blue)] transition-colors">
                           {group.name}
                         </span>
                         <div className="flex items-center gap-2 mt-1">
@@ -599,41 +584,36 @@ const DashboardPage = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-[var(--klein-blue-soft)] group-hover:text-[var(--klein-blue)] transition-colors flex-shrink-0">
                       <Icons.ChevronRight />
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="ds-empty p-6 flex flex-col items-center justify-center gap-2">
-                <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-                  <Icons.Book />
-                </div>
-                <span className="font-bold text-center">
-                  {t('home.noCoursesForLanguages')}
-                </span>
-                <span className="text-xs text-center">
-                  {t('home.tryDifferentLanguages')}
-                </span>
-                <Button variant="bento" onClick={() => navigate('settings_lang')} className="w-auto ds-btn-bento-compact py-2 px-3 mt-2">
-                  {t('home.changeLanguages')}
-                </Button>
-              </div>
+              <EmptyState
+                icon={<Icons.Book />}
+                title={t('home.noCoursesForLanguages')}
+                description={t('home.tryDifferentLanguages')}
+                action={
+                  <Button variant="bento" onClick={() => navigate('settings_lang')} className="w-auto ds-btn-bento-compact py-2 px-3">
+                    {t('home.changeLanguages')}
+                  </Button>
+                }
+              />
             )}
           </div>
         )}
 
         {/* Library / Active Course Section */}
+        {homeFilter === 'today' && (
         <div>
-            <div className="flex justify-between items-center mb-2 px-1">
-                <h2 className="ds-section-label">
-                    {user ? t('home.activeCourse') : t('home.library')}
-                </h2>
-                <Button variant="bento" onClick={() => handleProtectedAction(() => navigate('courses'))} className="w-auto ds-btn-bento-compact py-2 px-3">
-                  {t('home.add')}
-                </Button>
-            </div>
+            <SectionTitle
+              title={user ? t('home.activeCourse') : t('home.library')}
+              moreLabel={t('home.add')}
+              onMore={() => handleProtectedAction(() => navigate('courses'))}
+              className="mb-2 px-1"
+            />
 
             {user ? (
                 <div
@@ -641,22 +621,20 @@ const DashboardPage = () => {
                     className="ds-card ds-card-elevated flex items-center justify-between p-5 cursor-pointer group"
                 >
                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-3xl shadow-inner border border-white/40">
-                            {activeGroup?.coverImage || '📚'}
+                        <div className="w-14 h-14 rounded-2xl bg-[var(--klein-blue-soft)] flex items-center justify-center text-3xl shadow-inner border border-white/40 text-[var(--klein-blue)]">
+                            {activeGroup?.coverImage || <BookOpen className="w-7 h-7" aria-hidden />}
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-xl font-bold text-slate-800 dark:text-white line-clamp-1 group-hover:text-blue-600 transition-colors">
+                            <span className="text-xl font-bold text-slate-800 dark:text-white line-clamp-1 group-hover:text-[var(--klein-blue)] transition-colors">
                                 {activeGroup?.name || t('home.loading')}
                             </span>
                             <div className="flex items-center gap-2 mt-1">
-                               <div className="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                   <div className="h-full bg-blue-500" style={{width: `${activeGroup?.progress || 0}%`}}></div>
-                               </div>
+                               <ProgressBar value={activeGroup?.progress || 0} className="w-24" />
                                <span className="text-xs font-bold text-slate-400">{activeGroup?.progress}%</span>
                             </div>
                         </div>
                     </div>
-                    <div className="w-10 h-10 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+                    <div className="w-10 h-10 rounded-full bg-white/50 flex items-center justify-center text-slate-400 group-hover:bg-[var(--klein-blue-soft)] group-hover:text-[var(--klein-blue)] transition-colors">
                         <Icons.ChevronRight />
                     </div>
                 </div>
@@ -665,135 +643,118 @@ const DashboardPage = () => {
                     onClick={() => handleProtectedAction(() => {})}
                     className="ds-empty p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white/30 transition-colors group"
                 >
-                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-blue-500 transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-[var(--klein-blue)] transition-colors">
                         <Icons.Book />
                     </div>
-                    <span className="font-bold text-slate-500 group-hover:text-blue-500">{t('home.selectWordBank')}</span>
+                    <span className="font-bold text-slate-500 group-hover:text-[var(--klein-blue)]">{t('home.selectWordBank')}</span>
                     <span className="text-xs text-slate-400 bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-center">{t('home.loginRequired')}</span>
                 </div>
             )}
         </div>
+        )}
 
         {/* Study Modes Grid */}
+        {homeFilter === 'today' && (
         <div className="ds-grid-breathing grid grid-cols-2 auto-rows-min">
-            <div className="col-span-2 flex items-center justify-between">
-                <h2 className="ds-section-label pl-1">{t('home.studyCenter')}</h2>
+            <div className="col-span-2">
+                <h2 className="ds-section-title pl-1">{t('home.studyCenter')}</h2>
             </div>
 
             {/* Playlist Mode — base Card + personalized CTA gradient */}
             <Card
                 onClick={() => handleProtectedAction(() => navigate('playlist', { groupId: activeGroupId }))}
-                className="col-span-2 !p-5 !rounded-[var(--radius-card)] bg-gradient-to-r from-blue-500 to-indigo-600 !border-none text-white shadow-xl shadow-blue-500/20 group relative overflow-hidden cursor-pointer"
+                className="col-span-2 !p-5 !rounded-[var(--radius-card)] !border-none text-[color:var(--klein-on)] group relative overflow-hidden cursor-pointer"
             >
-               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+               <div className="absolute inset-0 -z-0" style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}></div>
+               <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/15 rounded-full blur-2xl"></div>
+               <div className="absolute -bottom-12 -left-8 w-36 h-36 bg-white/10 rounded-full blur-3xl"></div>
                <div className="relative z-10 flex items-center justify-between">
                   <div className="flex flex-col gap-1">
                      <div className="flex items-center gap-2 mb-1">
                         <span className="px-2 py-0.5 rounded-lg bg-white/20 text-[10px] font-bold backdrop-blur-sm">{t('home.recommended')}</span>
                      </div>
                      <h3 className="font-bold text-2xl">{t('home.smartPlaylist')}</h3>
-                     <p className="text-blue-100 text-sm font-medium">{t('home.autoPlayReview')}</p>
+                     <p className="text-white/80 text-sm font-medium">{t('home.autoPlayReview')}</p>
                   </div>
-                  <div className="w-14 h-14 rounded-full bg-white text-blue-600 flex items-center justify-center text-2xl shadow-lg group-active:scale-90 transition-transform">
-                     {user ? '▶' : <div className="text-slate-400"><Icons.Lock /></div>}
+                  <div className="w-14 h-14 rounded-full bg-white text-[color:var(--klein-blue)] flex items-center justify-center text-2xl shadow-lg group-active:scale-90 transition-transform">
+                     {user ? <Play className="w-6 h-6 fill-current" aria-hidden /> : <div className="text-slate-400"><Icons.Lock /></div>}
                   </div>
                </div>
             </Card>
 
-            {/* Flashcards */}
-            <Card
+            {/* Study modes — reference bento tiles w/ gradient corner chip */}
+            <BentoTile
                 onClick={() => handleProtectedAction(() => navigate('flashcard_run', { groupId: activeGroupId }))}
-                className="aspect-[4/3] flex flex-col justify-between group hover:border-blue-300 transition-colors cursor-pointer relative overflow-hidden"
+                title={t('home.flashcards')}
+                description={t('home.spacedRepetition')}
+                chipIcon={<span className="text-base font-black">Aa</span>}
             >
-              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl shadow-sm">
-                Aa
-              </div>
-              <div>
-                <div className="font-bold text-slate-800 dark:text-white text-lg">{t('home.flashcards')}</div>
-                <div className="text-[10px] text-slate-500 font-bold mt-1 uppercase">{t('home.spacedRepetition')}</div>
-              </div>
-              {!user && <div className="absolute top-3 right-3 text-slate-300"><Icons.Lock /></div>}
-            </Card>
+              {!user && <div className="absolute top-3 right-3 text-[var(--color-text-tertiary)]"><Icons.Lock /></div>}
+            </BentoTile>
 
-            {/* Reading Flow */}
-            <Card
+            <BentoTile
                 onClick={() => handleProtectedAction(() => navigate('reading_run', { groupId: activeGroupId }))}
-                className="aspect-[4/3] flex flex-col justify-between group hover:border-purple-300 transition-colors cursor-pointer relative"
+                title={t('home.reading')}
+                description={t('home.flowContext')}
+                chipIcon={<Icons.Book />}
             >
-              <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl shadow-sm">
-                 <Icons.Book />
-              </div>
-              <div>
-                <div className="font-bold text-slate-800 dark:text-white text-lg">{t('home.reading')}</div>
-                <div className="text-[10px] text-slate-500 font-bold mt-1 uppercase">{t('home.flowContext')}</div>
-              </div>
-              {!user && <div className="absolute top-3 right-3 text-slate-300"><Icons.Lock /></div>}
-            </Card>
+              {!user && <div className="absolute top-3 right-3 text-[var(--color-text-tertiary)]"><Icons.Lock /></div>}
+            </BentoTile>
 
-            {/* Quiz Mode */}
-            <Card
+            <BentoTile
                 onClick={() => handleProtectedAction(() => navigate('quiz_run', { groupId: activeGroupId }))}
-                className="aspect-[4/3] flex flex-col justify-between group hover:border-orange-300 transition-colors cursor-pointer relative"
+                title={t('home.quiz')}
+                description={t('home.gamifiedTest')}
+                chipIcon={<span className="text-lg font-black">?</span>}
             >
-               <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-500 flex items-center justify-center text-xl shadow-sm">
-                  ?
-               </div>
-               <div>
-                  <div className="font-bold text-slate-800 dark:text-white text-lg">{t('home.quiz')}</div>
-                  <div className="text-[10px] text-slate-500 font-bold mt-1 uppercase">{t('home.gamifiedTest')}</div>
-               </div>
-               {!user && <div className="absolute top-3 right-3 text-slate-300"><Icons.Lock /></div>}
-            </Card>
+              {!user && <div className="absolute top-3 right-3 text-[var(--color-text-tertiary)]"><Icons.Lock /></div>}
+            </BentoTile>
 
-            {/* Passive Listening */}
-            <Card
+            <BentoTile
                 onClick={() => handleProtectedAction(() => navigate('listening_player', { groupId: activeGroupId }))}
-                className="aspect-[4/3] flex flex-col justify-between group hover:border-pink-300 transition-colors cursor-pointer relative"
+                title={t('home.passive')}
+                description={t('home.audioLoop')}
+                chipIcon={<Headphones className="w-5 h-5" aria-hidden />}
             >
-               <div className="w-10 h-10 rounded-xl bg-pink-100 text-pink-500 flex items-center justify-center text-xl shadow-sm">
-                  🎧
-               </div>
-               <div>
-                  <div className="font-bold text-slate-800 dark:text-white text-lg">{t('home.passive')}</div>
-                  <div className="text-[10px] text-slate-500 font-bold mt-1 uppercase">{t('home.audioLoop')}</div>
-               </div>
-               {!user && <div className="absolute top-3 right-3 text-slate-300"><Icons.Lock /></div>}
-            </Card>
+              {!user && <div className="absolute top-3 right-3 text-[var(--color-text-tertiary)]"><Icons.Lock /></div>}
+            </BentoTile>
         </div>
+        )}
 
         {/* Progress Section */}
+        {homeFilter === 'today' && (
         <div>
-            <h2 className="ds-section-label pl-1 mb-2">{t('home.myProgress')}</h2>
+            <h2 className="ds-section-title pl-1 mb-3">{t('home.myProgress')}</h2>
 
             {user ? (
                 <div className="ds-grid-breathing grid grid-cols-2">
-                   <Card onClick={() => navigate('stats')} className="flex flex-col gap-2 cursor-pointer">
-                      <div className="text-3xl mb-1">🔥</div>
-                      <div className="font-bold dark:text-white text-xl">{user.streak || 0} {t('home.days')}</div>
-                      <div className="text-xs text-slate-500">{t('home.currentStreak')}</div>
+                   <Card onClick={() => navigate('stats')} className="flex flex-col gap-3 cursor-pointer">
+                      <span className="ds-bento-chip"><Flame className="w-5 h-5" aria-hidden /></span>
+                      <Stat accent value={`${user.streak || 0} ${t('home.days')}`} label={t('home.currentStreak')} />
                    </Card>
-                   <Card onClick={() => navigate('review_dashboard')} className="flex flex-col gap-2 cursor-pointer">
-                      <div className="text-3xl mb-1">🧠</div>
-                      <div className="font-bold dark:text-white text-xl">85%</div>
-                      <div className="text-xs text-slate-500">{t('home.retentionRate')}</div>
+                   <Card onClick={() => navigate('review_dashboard')} className="flex flex-col gap-3 cursor-pointer">
+                      <span className="ds-bento-chip"><Brain className="w-5 h-5" aria-hidden /></span>
+                      <Stat accent value="85%" label={t('home.retentionRate')} />
                    </Card>
                 </div>
             ) : (
-                <div className="bg-slate-900 rounded-[2rem] p-6 text-center text-white relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 blur-3xl rounded-full"></div>
+                <div className="rounded-[var(--radius-card)] p-7 text-center text-white relative overflow-hidden" style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}>
+                    <div className="absolute -top-10 -right-10 w-36 h-36 bg-white/15 blur-2xl rounded-full"></div>
+                    <div className="absolute -bottom-12 -left-10 w-36 h-36 bg-white/10 blur-3xl rounded-full"></div>
                     <h3 className="text-xl font-bold mb-2 relative z-10">{t('home.syncYourProgress')}</h3>
-                    <p className="text-slate-400 text-sm mb-6 relative z-10">{t('home.syncProgressDescription')}</p>
-                    <Button onClick={() => navigate('login')} className="bg-white text-slate-900 shadow-none border-none hover:bg-slate-100 relative z-10">
+                    <p className="text-white/80 text-sm mb-6 relative z-10">{t('home.syncProgressDescription')}</p>
+                    <button onClick={() => navigate('login')} className="relative z-10 inline-flex items-center justify-center px-6 py-3 rounded-full bg-white text-[var(--klein-blue)] font-bold shadow-lg hover:scale-[1.03] active:scale-95 transition-transform">
                         {t('home.loginNow')}
-                    </Button>
+                    </button>
                 </div>
             )}
         </div>
+        )}
     </div>
 
       {/* Add to Group Modal */}
       {showAddToGroupModal && selectedLibraryForGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 ds-z-modal flex items-center justify-center p-4 animate-fade-in">
           <div
             className="ds-modal-backdrop absolute inset-0"
             onClick={() => setShowAddToGroupModal(false)}
@@ -805,15 +766,15 @@ const DashboardPage = () => {
               <div className="flex items-start justify-between">
                 <div className="flex-1 pr-4">
                   <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
-                    {t('home.selectStudyGroup') || '选择背诵分组'}
+                    {t('home.selectStudyGroup') || 'Select a recitation group'}
                   </h2>
                   <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                     {t('home.addLibraryToGroup', { name: selectedLibraryForGroup.name })
                       .replace('{name}', selectedLibraryForGroup.name) ||
-                      `将"${selectedLibraryForGroup.name}"加入到哪个背诵分组？`}
+                      `Which recitation group should "${selectedLibraryForGroup.name}" be added to?`}
                   </p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                    📚 {selectedLibraryForGroup.word_count || selectedLibraryForGroup.total_words} {t('home.words') || '个单词'}
+                  <p className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 mt-2">
+                    <BookOpen className="w-3.5 h-3.5" aria-hidden /> {selectedLibraryForGroup.word_count || selectedLibraryForGroup.total_words} {t('home.words') || 'words'}
                   </p>
                 </div>
                 <button
@@ -830,8 +791,8 @@ const DashboardPage = () => {
             {/* Groups List */}
             <div className="overflow-y-auto max-h-[400px] custom-scrollbar">
               <div className="p-6 space-y-3">
-                {allGroups.length > 0 ? (
-                  allGroups.map((group) => (
+                {safeAllGroups.length > 0 ? (
+                  safeAllGroups.map((group) => (
                     <button
                       key={group.id}
                       onClick={async () => {
@@ -850,14 +811,14 @@ const DashboardPage = () => {
                             // Show success message
                             const successMsg = t('home.wordsAddedSuccess', { count: wordsAdded })
                               .replace('{count}', String(wordsAdded)) ||
-                              `成功添加 ${wordsAdded} 个单词`;
-                            alert(successMsg + '\n' + (t('home.addedToGroup', { name: group.name }).replace('{name}', group.name) || `已添加到"${group.name}"`));
+                              `Successfully added ${wordsAdded} words`;
+                            alert(successMsg + '\n' + (t('home.addedToGroup', { name: group.name }).replace('{name}', group.name) || `Added to "${group.name}"`));
                           } else {
                             throw new Error(response.error?.message || 'Failed to add library to group');
                           }
                         } catch (error: any) {
                           console.error('Failed to add library to group:', error);
-                          alert(error.message || '添加失败，请重试');
+                          alert(error.message || 'Failed to add. Please try again.');
                         } finally {
                           setAddingToGroupId(null);
                         }
@@ -865,15 +826,15 @@ const DashboardPage = () => {
                       disabled={addingToGroupId !== null}
                       className={`w-full flex items-center gap-3 p-4 rounded-xl transition-all group ${
                         addingToGroupId === group.id
-                          ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 opacity-70'
-                          : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-slate-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-700'
+                          ? 'bg-[var(--klein-blue-soft)] border-[var(--klein-ring)] opacity-70'
+                          : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-[var(--klein-blue-soft)] border border-slate-200 dark:border-slate-600 hover:border-[var(--klein-ring)]'
                       }`}
                     >
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 flex items-center justify-center text-xl flex-shrink-0">
-                        {group.coverImage || '📚'}
+                      <div className="w-10 h-10 rounded-lg bg-[var(--klein-blue-soft)] flex items-center justify-center text-xl flex-shrink-0 text-[var(--klein-blue)]">
+                        {group.coverImage || <BookOpen className="w-5 h-5" aria-hidden />}
                       </div>
                       <div className="flex-1 text-left min-w-0">
-                        <div className="font-bold text-slate-800 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        <div className="font-bold text-slate-800 dark:text-white truncate group-hover:text-[var(--klein-blue)] transition-colors">
                           {group.name}
                         </div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">
@@ -882,13 +843,10 @@ const DashboardPage = () => {
                       </div>
                       {addingToGroupId === group.id ? (
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                          <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                            {t('common.loading') || '加载中...'}
-                          </span>
+                          <Spinner size="sm" />
                         </div>
                       ) : (
-                        <div className="w-6 h-6 rounded-full bg-white dark:bg-slate-600 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                        <div className="w-6 h-6 rounded-full bg-white dark:bg-slate-600 flex items-center justify-center flex-shrink-0 group-hover:bg-[var(--klein-blue-soft)]0 group-hover:text-white transition-colors">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
@@ -898,8 +856,8 @@ const DashboardPage = () => {
                   ))
                 ) : (
                   <div className="text-center py-8">
-                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-2xl mx-auto mb-3">
-                      📚
+                    <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-2xl mx-auto mb-3 text-[var(--klein-blue)]">
+                      <BookOpen className="w-6 h-6" aria-hidden />
                     </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                       {t('home.noGroupsYet') || 'No groups yet'}

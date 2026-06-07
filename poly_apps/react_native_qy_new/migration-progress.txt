@@ -1,4 +1,0 @@
-Progress log (manual code migration, no Android/package.json edits):
-- Restored node_modules via pnpm install (--shamefully-hoist --no-frozen-lockfile).
-- Copied old app sources/configs earlier: src/, App.tsx, global.css, tailwind/nativewind configs, jest/tsconfig, mocks/tests, scripts (menu helper).
-- No changes made to android/ or package.json; only pnpm was used for dependencies.

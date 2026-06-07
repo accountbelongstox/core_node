@@ -6,14 +6,14 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
 /**
- * 检查迁移文件安全性
- * 
- * 检查所有迁移文件是否符合安全原则：
- * 1. up()方法中不允许dropTable/dropIfExists
- * 2. up()方法中不允许dropColumn
- * 3. up()方法中不允许truncate/delete所有数据
- * 4. up()方法中应该使用hasTable检查
- * 5. up()方法中应该使用hasColumn检查
+ * Check migration file safety
+ *
+ * Checks whether all migration files comply with the safety principles:
+ * 1. dropTable/dropIfExists is not allowed in the up() method
+ * 2. dropColumn is not allowed in the up() method
+ * 3. truncate/delete of all data is not allowed in the up() method
+ * 4. hasTable check should be used in the up() method
+ * 5. hasColumn check should be used in the up() method
  */
 class CheckMigrationSafety extends Command
 {
@@ -48,10 +48,10 @@ class CheckMigrationSafety extends Command
             }
         }
         
-        // 显示结果
+        // Display the results
         $this->displayResults($results);
-        
-        // 生成报告
+
+        // Generate the report
         $this->generateReport($results);
         
         $this->newLine();
@@ -72,11 +72,11 @@ class CheckMigrationSafety extends Command
             'warnings' => [],
         ];
         
-        // 提取up()方法内容
+        // Extract the up() method content
         if (preg_match('/public\s+function\s+up\(\)\s*:\s*void\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}/s', $content, $upMatch)) {
             $upContent = $upMatch[1];
             
-            // 检查不允许的操作
+            // Check for disallowed operations
             if (preg_match('/dropTable\s*\(|dropIfExists\s*\(/i', $upContent)) {
                 $result['status'] = 'error';
                 $result['issues'][] = 'Contains dropTable/dropIfExists in up() method';
@@ -92,7 +92,7 @@ class CheckMigrationSafety extends Command
                 $result['issues'][] = 'Contains truncate in up() method';
             }
             
-            // 检查是否使用了hasTable
+            // Check whether hasTable is used
             if (!preg_match('/hasTable\s*\(/i', $upContent)) {
                 $result['warnings'][] = 'Does not check hasTable() before creating/modifying table';
                 if ($result['status'] === 'safe') {
@@ -100,7 +100,7 @@ class CheckMigrationSafety extends Command
                 }
             }
             
-            // 检查是否使用了hasColumn（对于修改表的迁移）
+            // Check whether hasColumn is used (for migrations that modify tables)
             if (preg_match('/table\s*\(/i', $upContent) && !preg_match('/hasColumn\s*\(/i', $upContent)) {
                 $result['warnings'][] = 'Modifies table but does not check hasColumn()';
                 if ($result['status'] === 'safe') {

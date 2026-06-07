@@ -92,7 +92,7 @@ class StaticFileController
             '*.tmp',
             '*.backup',
 
-            // 图片格式
+            // Image formats
             '*.jpg',
             '*.jpeg',
             '*.png',
@@ -103,7 +103,7 @@ class StaticFileController
             '*.tiff',
             '*.ico',
 
-            // 视频格式
+            // Video formats
             '*.mp4',
             '*.mkv',
             '*.avi',
@@ -115,7 +115,7 @@ class StaticFileController
             '*.mpeg',
             '*.3gp',
 
-            // 音频格式
+            // Audio formats
             '*.mp3',
             '*.wav',
             '*.aac',
@@ -345,7 +345,7 @@ class StaticFileController
             return response()->json(['error' => 'File is not writable'], 403);
         }
 
-        // 检查是否需要确认
+        // Check whether confirmation is required
         if ($this->needsConfirmation($fullPath) && $confirmationCount < 3) {
             return response()->json([
                 'needsConfirmation' => true,
@@ -354,20 +354,18 @@ class StaticFileController
             ], 200);
         }
 
-        try {
-            // 创建备份
-            $backupPath = $this->createBackup($fullPath);
+        // No controller-level try/catch (LARAVEL_GUIDE: trust the framework
+        // exception handler). Existence/writability validated above.
+        // Create a backup
+        $backupPath = $this->createBackup($fullPath);
 
-            // 保存新内容
-            file_put_contents($fullPath, $content);
+        // Save the new content
+        file_put_contents($fullPath, $content);
 
-            return response()->json([
-                'message' => 'File saved successfully',
-                'backup' => basename($backupPath)
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+        return response()->json([
+            'message' => 'File saved successfully',
+            'backup' => basename($backupPath)
+        ]);
     }
 
     /**
@@ -637,21 +635,21 @@ class StaticFileController
             ]);
         }
 
-        // 更新搜索标志和开始时间
+        // Update search flag and start time
         $this->searchStartTime = time();
         $this->updateSearchFlag();
 
-        // 重置搜索统计
+        // Reset search statistics
         $this->searchedDirs = [];
         $this->searchedFiles = [];
 
         $pathMatches = [];
         $contentMatches = [];
 
-        // 搜索文件和目录名
+        // Search file and directory names
         $this->searchInDirectory($this->basePath, $searchTerm, $pathMatches, $contentMatches);
 
-        // 检查是否因超时而停止
+        // Check whether stopped due to timeout
         $wasTimeout = time() - $this->searchStartTime >= $this->searchTimeout;
 
         return response()->json([

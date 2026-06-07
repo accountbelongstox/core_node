@@ -17,6 +17,7 @@ class CodeMartV1ProjectModel extends Model
         'title',
         'description',
         'status',
+        'analysis_status',
         'complexity',
         'budget',
         'budget_type',

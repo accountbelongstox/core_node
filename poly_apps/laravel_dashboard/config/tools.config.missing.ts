@@ -1,15 +1,14 @@
 import { ToolConfig } from '../core/types';
 
 /**
- * Missing Tool Configurations (补充缺失的工具配置)
+ * Missing Tool Configurations
  *
- * 这些工具的后端API已存在，但之前未在前端配置
  * These tools have backend APIs but were not previously configured in frontend
  *
  * Total: 15 tools
  */
 
-// ========== Crypto & Security (加密与安全) ==========
+// ========== Crypto & Security ==========
 
 export const MISSING_CRYPTO_TOOLS: Record<string, ToolConfig> = {
   basicAuthGenerator: {
@@ -157,7 +156,7 @@ export const MISSING_CRYPTO_TOOLS: Record<string, ToolConfig> = {
   }
 };
 
-// ========== Converters (转换器) ==========
+// ========== Converters ==========
 
 export const MISSING_CONVERTER_TOOLS: Record<string, ToolConfig> = {
   base64EncoderV2: {
@@ -262,7 +261,7 @@ export const MISSING_CONVERTER_TOOLS: Record<string, ToolConfig> = {
   }
 };
 
-// ========== Web Development (Web开发) ==========
+// ========== Web Development ==========
 
 export const MISSING_WEB_TOOLS: Record<string, ToolConfig> = {
   jsonMinifier: {
@@ -332,7 +331,7 @@ export const MISSING_WEB_TOOLS: Record<string, ToolConfig> = {
   }
 };
 
-// ========== Math Tools (数学工具) ==========
+// ========== Math Tools ==========
 
 export const MISSING_MATH_TOOLS: Record<string, ToolConfig> = {
   etaCalculator: {
@@ -448,7 +447,7 @@ export const MISSING_MATH_TOOLS: Record<string, ToolConfig> = {
   }
 };
 
-// ========== Text Processing (文本处理) ==========
+// ========== Text Processing ==========
 
 export const MISSING_TEXT_TOOLS: Record<string, ToolConfig> = {
   textStatistics: {
@@ -486,7 +485,7 @@ export const MISSING_TEXT_TOOLS: Record<string, ToolConfig> = {
   }
 };
 
-// ========== Network Tools (网络工具) ==========
+// ========== Network Tools ==========
 
 export const MISSING_NETWORK_TOOLS: Record<string, ToolConfig> = {
   ipv4Converter: {

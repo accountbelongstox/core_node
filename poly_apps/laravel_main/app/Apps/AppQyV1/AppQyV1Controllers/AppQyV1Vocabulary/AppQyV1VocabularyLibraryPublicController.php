@@ -5,6 +5,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyWordModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
@@ -269,7 +270,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
                                 $fullPath = $audioBasePath . $ttsFile['path'];
 
                                 if (file_exists($fullPath)) {
-                                    $audioUrl = '/api/app_qy_v1/ai_tools/tts/audio/' . $ttsFile['path'];
+                                    $audioUrl = AppQyV1TtsUrl::forPath($ttsFile['path']);
                                     $audioAvailable = true;
                                     break;
                                 }
@@ -429,7 +430,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
                                 $fullPath = $audioBasePath . $ttsFile['path'];
 
                                 if (file_exists($fullPath)) {
-                                    $audioUrl = '/api/app_qy_v1/ai_tools/tts/audio/' . $ttsFile['path'];
+                                    $audioUrl = AppQyV1TtsUrl::forPath($ttsFile['path']);
                                     $audioAvailable = true;
                                     break;
                                 }

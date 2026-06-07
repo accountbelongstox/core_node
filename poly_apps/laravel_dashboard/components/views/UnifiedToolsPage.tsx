@@ -7,8 +7,9 @@ import {
   Search, Star, Clock, Play, Loader, Copy, Check, X, ChevronRight, ChevronDown,
   Sparkles, Wrench, Hash, Code, Calculator, Globe, Image, FileCode, Lock,
   Database, Network, Type, Zap, TrendingUp, Layers, Info, BookOpen,
-  Lightbulb, History, StarOff, Menu
+  Lightbulb, History, StarOff, Menu, FileText, FileJson
 } from 'lucide-react';
+import { downloadAsFile, toJsonString, copyToClipboard, buildExportFilename } from '../../utils/exportResult';
 
 /**
  * IT Tools Dashboard - Premium Edition
@@ -199,14 +200,45 @@ export function UnifiedToolsPage() {
     }
   };
 
+  // Build the raw string representation of the current result
+  const getResultAsText = (): string =>
+    typeof result === 'string' ? result : toJsonString(result);
+
   // Copy result
-  const copyResult = () => {
+  const copyResult = async () => {
     if (!result) return;
-    const text = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    toast.success('Copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
+    const ok = await copyToClipboard(getResultAsText());
+    if (ok) {
+      setCopied(true);
+      toast.success('Copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast.error('Failed to copy to clipboard');
+    }
+  };
+
+  // Export result as a pretty-printed JSON file
+  const exportResultAsJson = () => {
+    if (!result) return;
+    const toolId = selectedTool?.id || 'result';
+    downloadAsFile(
+      toJsonString(result),
+      buildExportFilename(toolId, 'json'),
+      'application/json',
+    );
+    toast.success('Exported as JSON');
+  };
+
+  // Export result as a plain text file
+  const exportResultAsTxt = () => {
+    if (!result) return;
+    const toolId = selectedTool?.id || 'result';
+    downloadAsFile(
+      getResultAsText(),
+      buildExportFilename(toolId, 'txt'),
+      'text/plain',
+    );
+    toast.success('Exported as TXT');
   };
 
   // Render form field
@@ -573,22 +605,43 @@ export function UnifiedToolsPage() {
                           <Check className="w-5 h-5" />
                           Result
                         </h3>
-                        <button
-                          onClick={copyResult}
-                          className="flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-700 rounded-lg text-sm font-medium transition-all"
-                        >
-                          {copied ? (
-                            <>
-                              <Check className="w-4 h-4 text-emerald-400" />
-                              <span className="text-emerald-400">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-4 h-4" />
-                              Copy
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={copyResult}
+                            disabled={!result}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-all"
+                          >
+                            {copied ? (
+                              <>
+                                <Check className="w-4 h-4 text-emerald-400" />
+                                <span className="text-emerald-400">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4" />
+                                Copy
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={exportResultAsJson}
+                            disabled={!result}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-all"
+                            title="Download result as a JSON file"
+                          >
+                            <FileJson className="w-4 h-4" />
+                            Export JSON
+                          </button>
+                          <button
+                            onClick={exportResultAsTxt}
+                            disabled={!result}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition-all"
+                            title="Download result as a plain text file"
+                          >
+                            <FileText className="w-4 h-4" />
+                            Export TXT
+                          </button>
+                        </div>
                       </div>
                       <div className="bg-slate-950/50 rounded-lg p-4 border border-slate-700/50">
                         <pre className="text-sm text-emerald-400 overflow-x-auto font-mono whitespace-pre-wrap break-words">

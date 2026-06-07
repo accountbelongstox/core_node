@@ -33,14 +33,22 @@ class ApiService {
 
       const baseUrl = apiManager.getCurrentBaseUrl();
 
+      // Read the auth token from storage per request (mirrors ApiCenter). The
+      // in-memory this.token is never hydrated on reload, so relying on it sent
+      // `Bearer null` and the backend rejected every authenticated call.
+      const token = this.token || (await StorageCenter.auth.getToken());
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-App-Language': this.currentLanguage,
+        ...(options.headers as Record<string, string>),
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${baseUrl}/api/app_qy_v1${endpoint}`, {
         ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.token}`,
-          'X-App-Language': this.currentLanguage,
-          ...options.headers,
-        },
+        headers,
         signal: controller.signal,
       });
       clearTimeout(timeoutId);

@@ -18,11 +18,16 @@ class AudioProcessingHookClass {
   initialize(): void {
     if (this.isInitialized) return;
 
-    EventBus.on('library:audio_needed', this.handleAudioNeeded.bind(this));
-    EventBus.on('library:words_added', this.onWordsAdded.bind(this));
-
-    this.isInitialized = true;
-    console.log('[AudioProcessingHook] Initialized');
+    // Fault-isolated: this is invoked directly (not inside the settled
+    // init batch), so a failure here must not abort app startup.
+    try {
+      EventBus.on('library:audio_needed', this.handleAudioNeeded.bind(this));
+      EventBus.on('library:words_added', this.onWordsAdded.bind(this));
+      this.isInitialized = true;
+      console.log('[AudioProcessingHook] Initialized');
+    } catch (error: any) {
+      console.warn('[AudioProcessingHook] Initialize failed (handled, continuing):', error?.message || error);
+    }
   }
 
   private handleAudioNeeded(event: any): void {
@@ -87,8 +92,10 @@ class AudioProcessingHookClass {
       } else {
         console.warn('[AudioProcessingHook] Failed to queue audio requests:', response.status);
       }
-    } catch (error) {
-      console.error('[AudioProcessingHook] Error queuing audio requests:', error);
+    } catch (error: any) {
+      // Background best-effort queueing; offline/backend-down is expected
+      // and non-critical. Warn instead of a red console error.
+      console.warn('[AudioProcessingHook] Error queuing audio requests (handled, non-critical):', error?.message || error);
     }
 
     if (this.batchQueue.length > 0) {

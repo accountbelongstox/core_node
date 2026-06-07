@@ -1,4 +1,19 @@
-# wordflow-ai (qy_capacitor): idempotent pnpm install, verify toolchain, then dev server.
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# ### AI SPECIAL ATTENTION RULES END ###
+
+# Orchestrator: launch laravel_main (AppQyV1 backend) and qy_capacitor (WordFlow AI
+# frontend) dev servers simultaneously. Each child script runs in its own independent
+# PowerShell window so they start together. Prints every launched script first.
+# Laravel can optionally be debugged in WSL (Linux) instead of a Windows window.
 # Run from repo: .\poly_apps\qy_capacitor\scripts\start.ps1
 
 param(
@@ -6,110 +21,95 @@ param(
     [switch]$ForceInstall
 )
 
-$ScriptDir = $PSScriptRoot
-$AppRoot = Split-Path -Parent $ScriptDir
-$NodeModulesPath = Join-Path $AppRoot "node_modules"
-$PackageJsonPath = Join-Path $AppRoot "package.json"
-$EnvPath = Join-Path $AppRoot ".env"
 $OriginalDir = (Get-Location).Path
+$ScriptDir = $PSScriptRoot
+$QyAppRoot = Split-Path -Parent $ScriptDir
+$PolyAppsDir = Split-Path -Parent $QyAppRoot
+$RepoRoot = Split-Path -Parent $PolyAppsDir
+$LaravelScriptsDir = Join-Path (Join-Path $PolyAppsDir "laravel_main") "scripts"
+$LaravelStart = Join-Path $LaravelScriptsDir "start.ps1"
+$QyStart = Join-Path $ScriptDir "start_qy.ps1"
+$PwshExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue)
+$WslExe = (Get-Command wsl.exe -ErrorAction SilentlyContinue)
+$DriveLetter = $RepoRoot.Substring(0, 1).ToLower()
+$PathTail = ($RepoRoot.Substring(2) -replace '\\', '/')
+$WslRepoRoot = "/mnt/$DriveLetter$PathTail"
+$WslLaravelCmd = "cd '$WslRepoRoot' && ./poly_apps/laravel_main/scripts/start.sh"
+$LaravelArgs = $null
+$QyArgs = $null
+$LaunchPlan = @()
+$entry = $null
+$index = 0
+$UseWslAnswer = ""
+$UseWsl = $false
 
-function Write-Info { param([string]$Message) Write-Host "[wordflow-ai] $Message" -ForegroundColor Cyan }
-function Write-Success { param([string]$Message) Write-Host "[wordflow-ai] $Message" -ForegroundColor Green }
-function Write-Warn { param([string]$Message) Write-Host "[wordflow-ai] $Message" -ForegroundColor Yellow }
-function Write-Err { param([string]$Message) Write-Host "[wordflow-ai] $Message" -ForegroundColor Red }
-
-function Test-PnpmCli {
-    if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
-        Write-Err "pnpm not found on PATH. Install: npm i -g pnpm  or  corepack enable && corepack prepare pnpm@latest --activate"
-        exit 1
-    }
-}
-
-function Test-ViteReady {
-    param([string]$Root)
-    $viteJs = Join-Path $Root "node_modules\vite\bin\vite.js"
-    return (Test-Path -LiteralPath $viteJs)
-}
+function Write-Info { param([string]$Message) Write-Host "[orchestrator] $Message" -ForegroundColor Cyan }
+function Write-Err { param([string]$Message) Write-Host "[orchestrator] $Message" -ForegroundColor Red }
 
 Write-Info "Original directory: $OriginalDir"
-Write-Info "Working directory:  $AppRoot"
 
-Test-PnpmCli
-
-if (-not (Test-Path -LiteralPath $PackageJsonPath)) {
-    Write-Err "package.json not found at: $PackageJsonPath"
+if (-not $PwshExe) {
+    Write-Err "powershell.exe not found on PATH."
     exit 1
 }
 
-$NeedInstall = [bool]$ForceInstall
-if (-not $NeedInstall) {
-    if (-not (Test-Path -LiteralPath $NodeModulesPath)) {
-        $NeedInstall = $true
-    } else {
-        $hasAnyPackage = Get-ChildItem -Path $NodeModulesPath -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $hasAnyPackage) {
-            $NeedInstall = $true
-        } elseif (-not (Test-ViteReady -Root $AppRoot)) {
-            Write-Warn "node_modules present but dev toolchain incomplete (e.g. vite missing); running pnpm install."
-            $NeedInstall = $true
-        }
-    }
+if (-not (Test-Path -LiteralPath $LaravelStart)) {
+    Write-Err "Laravel start script not found: $LaravelStart"
+    exit 1
 }
 
-if ($NeedInstall) {
-    Write-Info "Installing pnpm dependencies (idempotent)..."
-    Push-Location -LiteralPath $AppRoot
-    try {
-        pnpm install
-        if ($LASTEXITCODE -ne 0) {
-            Write-Err "pnpm install failed."
-            Pop-Location
-            Set-Location -LiteralPath $OriginalDir
-            exit 1
-        }
-        if (-not (Test-ViteReady -Root $AppRoot)) {
-            Write-Err "pnpm install finished but vite is still missing. Try removing node_modules and pnpm-lock.yaml, then re-run with -ForceInstall."
-            Pop-Location
-            Set-Location -LiteralPath $OriginalDir
-            exit 1
-        }
-        Write-Success "Dependencies ready."
-    } finally {
-        Pop-Location
-    }
-} else {
-    Write-Info "Dependencies look complete; skipping install. Use -ForceInstall to reinstall."
+if (-not (Test-Path -LiteralPath $QyStart)) {
+    Write-Err "qy_capacitor start script not found: $QyStart"
+    exit 1
 }
 
-$DevPort = 3000
-if (Test-Path -LiteralPath $EnvPath) {
-    $envContent = Get-Content -LiteralPath $EnvPath -ErrorAction SilentlyContinue
-    foreach ($line in $envContent) {
-        if ($line -match '^\s*PORT\s*=\s*(\d+)\s*') {
-            $DevPort = [int]$Matches[1]
-            break
-        }
-    }
+# --- WSL option for Laravel backend ---
+Write-Host ""
+Write-Info "Laravel (AppQyV1 backend) can be debugged in WSL (Linux) instead of a Windows window."
+Write-Host "  WSL repo path (dynamic): $WslRepoRoot" -ForegroundColor DarkGray
+Write-Host "  Run inside WSL:" -ForegroundColor DarkGray
+Write-Host "    wsl bash -lc `"$WslLaravelCmd`"" -ForegroundColor Yellow
+Write-Host "    (Linux needs php + composer in PATH; see start.sh hints if 'composer: command not found')" -ForegroundColor DarkGray
+if (-not $WslExe) {
+    Write-Host "  Note: wsl.exe not found on PATH; choose 'n' to use the Windows Laravel window." -ForegroundColor DarkGray
 }
-$DevUrl = "http://localhost:$DevPort"
-
-$OpenUrlJob = Start-Job -ScriptBlock {
-    param($Url, $DelaySeconds)
-    Start-Sleep -Seconds $DelaySeconds
-    Start-Process $Url
-} -ArgumentList $DevUrl, 4
-
-Write-Info "Starting dev server (pnpm run dev). Browser will open: $DevUrl"
-$ExitCode = 0
-Push-Location -LiteralPath $AppRoot
-try {
-    pnpm run dev
-    $ExitCode = $LASTEXITCODE
-} finally {
-    Pop-Location
-    $null = Wait-Job $OpenUrlJob -ErrorAction SilentlyContinue
-    $null = Remove-Job $OpenUrlJob -Force -ErrorAction SilentlyContinue
-    Set-Location -LiteralPath $OriginalDir
-    Write-Info "Restored to original directory: $OriginalDir"
-    exit $ExitCode
+$UseWslAnswer = Read-Host "Use WSL for Laravel directly? (skips the Windows Laravel window) [Y/n]"
+if ($UseWslAnswer -eq "" -or $UseWslAnswer -match '^[Yy]') {
+    $UseWsl = $true
 }
+
+$LaravelArgs = @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", $LaravelStart)
+$QyArgs = @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", $QyStart)
+if ($ForceInstall) {
+    $QyArgs += "-ForceInstall"
+}
+
+$LaunchPlan = @()
+if (-not $UseWsl) {
+    $LaunchPlan += [PSCustomObject]@{ Name = "laravel_main (AppQyV1 backend, Windows)"; Path = $LaravelStart; WorkDir = $LaravelScriptsDir; Args = $LaravelArgs }
+}
+$LaunchPlan += [PSCustomObject]@{ Name = "qy_capacitor (WordFlow AI frontend)"; Path = $QyStart; WorkDir = $ScriptDir; Args = $QyArgs }
+
+Write-Host ""
+if ($UseWsl) {
+    Write-Info "WSL selected: skipping the Windows Laravel window. Run Laravel yourself in WSL:"
+    Write-Host "  wsl bash -lc `"$WslLaravelCmd`"" -ForegroundColor Yellow
+}
+
+Write-Info "Scripts to launch (all):"
+$index = 0
+foreach ($entry in $LaunchPlan) {
+    $index = $index + 1
+    Write-Host ("  [{0}] {1}" -f $index, $entry.Name) -ForegroundColor Cyan
+    Write-Host ("      script : {0}" -f $entry.Path) -ForegroundColor DarkGray
+    Write-Host ("      workdir: {0}" -f $entry.WorkDir) -ForegroundColor DarkGray
+    Write-Host ("      args   : {0}" -f ($entry.Args -join ' ')) -ForegroundColor DarkGray
+}
+Write-Host ""
+
+foreach ($entry in $LaunchPlan) {
+    Write-Info "Launching $($entry.Name) in a new window..."
+    Start-Process -FilePath $PwshExe.Source -ArgumentList $entry.Args -WorkingDirectory $entry.WorkDir
+}
+
+Write-Info "$($LaunchPlan.Count) script(s) launched in separate window(s). This orchestrator window can be closed."

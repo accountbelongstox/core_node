@@ -40,7 +40,7 @@ class AppQyV1TTSQueueService
                         return [
                             'available' => true,
                             'audio_path' => $ttsFile['path'],
-                            'audio_url' => '/api/app_qy_v1/ai_tools/tts/audio/' . $ttsFile['path'],
+                            'audio_url' => AppQyV1TtsUrl::forPath($ttsFile['path']),
                         ];
                     }
                 }

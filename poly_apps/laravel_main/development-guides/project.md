@@ -1,5 +1,7 @@
 # Server Management Application Development Plan
 
+> **Cross-OS / relative path conversion (mandatory):** This stack is reached via Windows (`D:\programing\core_node\poly_apps\laravel_main`), Git-Bash (`/d/...`), WSL (`/mnt/d/...`), and the deployed server (`/www/wwwroot/core_node/...` or `/www/wwwroot/laravel_main`). Before using any path or running any script (e.g. `scripts/start.sh`), detect the prompt's path style and the executing environment, convert the path accordingly, resolve relatives to absolute, and never assume a command (`composer`, `php`, …) exists in one environment because it works in another. Canonical spec: [../../../development-guides/PATH_CONVERSION_SPECIFICATION.md](../../../development-guides/PATH_CONVERSION_SPECIFICATION.md).
+
 ## Project Overview
 Develop a comprehensive server management application within Laravel Main (`ServerManagerV1`) to provide complete server administration capabilities including system information, file management, code execution, nginx management, unified manager integration, and SSL certificate management.
 

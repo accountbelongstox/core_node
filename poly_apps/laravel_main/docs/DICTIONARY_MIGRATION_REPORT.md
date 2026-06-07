@@ -1,5 +1,7 @@
 # 词典表重命名迁移报告
 
+> ⚠️ **已废弃 / SUPERSEDED (2026-05)。** 本文档描述的 `app_qy_v1_words_*` → `app_qy_v1_*_dictionaries` 重命名迁移已被**统一设计**取代。现在唯一真实来源是多语言表族 **`{prefix}_tts_cache_{lang}`**（经 `AppQyV1LangDictionaryModel` / `AppQyV1TableMaps::getDictionaryTableName($lang)` 访问）。生命周期为 3 阶段：txt → 临时/staging 表 (`{prefix}_tts_cache_{lang}_staging`) → 提升(promote)为正式 `tts_cache_{lang}` → 运行时实时更新。`app_qy_v1_words_*` 与 `AppQyV1MultiLangDictionaryModel` 均已废弃。外部数据根目录现为 `<www>/wwwroot/laravel_db/external_data`（经 `PathMapper::mapWebPath('app_external_data')`，不再是 `storage/app/external_data`）。以下内容仅作历史记录保留。
+
 ## 📊 当前状况
 
 ### 旧表（需要重命名）

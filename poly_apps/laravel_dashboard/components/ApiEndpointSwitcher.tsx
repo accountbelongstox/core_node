@@ -14,7 +14,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
     // Initialize endpoints from ApiManager
     loadEndpoints();
 
-    // 监听全局健康检查完成事件，只更新本地状态，不触发新的网络请求
+    // Listen for the global health-check-completed event; only update local state, do not trigger new network requests
     const handleHealthInitialized = () => {
       loadEndpoints();
     };
@@ -35,11 +35,19 @@ export const ApiEndpointSwitcher: React.FC = () => {
     };
   }, []);
 
+  // The all-endpoints parallel probe runs AUTOMATICALLY at startup (in
+  // App.tsx via apiManager.initialize). The switcher is read-only: opening
+  // the dropdown never triggers a probe — health results are populated by the
+  // startup pass and refreshed via the `api-health-initialized` event.
+  const handleToggleOpen = () => {
+    setIsOpen(prev => !prev);
+  };
+
   const loadEndpoints = () => {
     setCurrentEndpoint(apiManager.getCurrentEndpoint());
     setEndpoints(apiManager.getAllEndpoints());
 
-    // 加载现有的健康检查结果（如果 ApiManager 已经完成检测）
+    // Load existing health check results (if ApiManager has already completed detection)
     const results = new Map<string, HealthCheckResult>();
     apiManager.getAllHealthResults().forEach(result => {
       results.set(result.endpoint.id, result);
@@ -52,7 +60,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
     if (success) {
       setCurrentEndpoint(apiManager.getCurrentEndpoint());
       setIsOpen(false);
-      // 重新加载页面以应用新的API端点
+      // Reload the page to apply the new API endpoint
       window.location.reload();
     }
   };
@@ -72,7 +80,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
     <div className="relative" ref={dropdownRef}>
       {/* Switcher Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggleOpen}
         className={`
           flex items-center gap-2 px-3 py-2 rounded-lg transition-all
           text-slate-600 dark:text-slate-300

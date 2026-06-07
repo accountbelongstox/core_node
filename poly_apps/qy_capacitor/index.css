@@ -6,7 +6,7 @@
 
 :root {
   /* ---- Global glass (强制继承) ---- */
-  --glass-opacity: 0.42;
+  --glass-opacity: 0.58;
   --glass-blur: 40px;
   --border-highlight: rgba(255, 255, 255, 0.22);
 
@@ -82,12 +82,12 @@
   --ease-tab: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ---- Bottom bar pill (Pill Shape 悬浮条) ---- */
-  --bar-bg: rgba(255, 255, 255, 0.78);
-  --bar-stroke: 1px solid rgba(255, 255, 255, 0.55);
-  --bar-shadow: 0 4px 28px rgba(0, 0, 0, 0.06), 0 2px 14px rgba(0, 0, 0, 0.04);
-  --bar-inner-border: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-  --bar-tab-glass: rgba(255, 255, 255, 0.45);
-  --bar-active-bg: rgba(139, 92, 246, 0.88);
+  --bar-bg: rgba(255, 255, 255, 0.86);
+  --bar-stroke: 1px solid rgba(255, 255, 255, 0.7);
+  --bar-shadow: 0 18px 44px rgba(76, 70, 140, 0.16), 0 6px 18px rgba(30, 27, 60, 0.08);
+  --bar-inner-border: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  --bar-tab-glass: rgba(255, 255, 255, 0.0);
+  --bar-active-bg: var(--klein-gradient);
 
   /* ---- Material presets (材质库) ---- */
   --material-thin-blur: 12px;
@@ -104,8 +104,43 @@
   --touch-min: 44px;
   --grid-unit: 8px;
   --page-padding-h: var(--space-lg);
-  --page-padding-v: var(--space-2xl);
+  --page-padding-v: 3.25rem;
   --bar-gap: 12px;
+
+  /* ---- v4.1 Iris Layer — reference-faithful periwinkle→violet (light) ---- */
+  /* Solid accent: vivid periwinkle-indigo (text/icon/active, AA on white). */
+  --klein-blue: #3B49E0;
+  --klein-blue-strong: #2C38C2;
+  --klein-blue-soft: rgba(59, 73, 224, 0.10);
+  --klein-on: #ffffff;
+  --klein-ring: rgba(110, 124, 245, 0.50);
+  --klein-glow: 0 14px 34px rgba(99, 110, 240, 0.30), 0 4px 14px rgba(150, 124, 232, 0.20);
+
+  /* Gradient accent (hero surfaces: CTA / active pill / island center / FAB) */
+  --klein-grad-from: #6E7CF5;
+  --klein-grad-to: #A47FE8;
+  --klein-gradient: linear-gradient(135deg, var(--klein-grad-from) 0%, var(--klein-grad-to) 100%);
+  --klein-grad-soft: rgba(123, 124, 240, 0.12);
+  --klein-grad-glow: 0 16px 36px rgba(110, 124, 245, 0.34), 0 6px 16px rgba(164, 127, 232, 0.24);
+
+  /* ---- v4.0 Negative space ---- */
+  --space-breath: 2.5rem;
+  --section-gap: var(--space-2xl);
+
+  /* ---- v4.1 Floating-island center action (gradient, per reference) ---- */
+  --bar-cta-bg: var(--klein-gradient);
+
+  /* ---- v4.1 Centralized z-index scale (single source of truth) ----
+   * Floating panels (dropdowns/menus/popovers) MUST portal to <body> and use
+   * --z-popover so they escape backdrop-filter/transform/overflow stacking
+   * contexts and float above the fixed app chrome. Modals sit above popovers. */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 30;
+  --z-chrome: 40;     /* fixed top bar + floating bottom island */
+  --z-popover: 60;    /* portaled dropdowns / menus / popovers */
+  --z-modal: 80;      /* full-screen modals / sheets / search overlay */
+  --z-toast: 95;      /* transient notifications (highest) */
 }
 
 
@@ -132,12 +167,24 @@ html.dark {
   --cta-border-stroke: rgba(255, 255, 255, 0.2);
   --cta-shadow-colored: 0 12px 36px rgba(139, 92, 246, 0.5), 0 4px 14px rgba(76, 29, 149, 0.35);
   --shadow-deep: 0 24px 56px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.22);
-  --bar-bg: rgba(26, 26, 26, 0.6);
-  --bar-stroke: 1px solid rgba(255, 255, 255, 0.1);
-  --bar-shadow: 0 8px 36px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.25);
-  --bar-inner-border: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  --bar-tab-glass: rgba(255, 255, 255, 0.06);
-  --bar-active-bg: rgba(139, 92, 246, 0.92);
+  --bar-bg: rgba(18, 18, 28, 0.66);
+  --bar-stroke: 1px solid rgba(255, 255, 255, 0.12);
+  --bar-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 6px 18px rgba(0, 0, 0, 0.3);
+  --bar-inner-border: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --bar-tab-glass: rgba(255, 255, 255, 0.0);
+  --bar-active-bg: var(--klein-gradient);
+
+  /* ---- v4.1 Iris Layer (dark overrides) ---- */
+  --klein-blue: #6E84FF;
+  --klein-blue-strong: #5468E6;
+  --klein-blue-soft: rgba(110, 132, 255, 0.16);
+  --klein-ring: rgba(124, 138, 255, 0.55);
+  --klein-glow: 0 14px 38px rgba(110, 132, 255, 0.42), 0 4px 16px rgba(120, 100, 240, 0.30);
+  --klein-grad-from: #6E84FF;
+  --klein-grad-to: #9A6CF2;
+  --klein-grad-soft: rgba(110, 132, 255, 0.18);
+  --klein-grad-glow: 0 18px 40px rgba(110, 132, 255, 0.44), 0 6px 18px rgba(154, 108, 242, 0.32);
+  --bar-cta-bg: var(--klein-gradient);
 }
 
 /* ========== Base: Global ========== */
@@ -147,13 +194,13 @@ body {
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
   font-family: var(--font-sans, 'Inter', 'Noto Sans SC', sans-serif);
-  background-color: #f8fafc;
+  background-color: #ECEDFB;
   color: var(--color-text-primary);
   transition: background-color 0.5s ease, color 0.3s ease;
 }
 
 html.dark body {
-  background-color: #020617;
+  background-color: #07070f;
   color: var(--color-text-primary);
 }
 
@@ -162,16 +209,18 @@ html.dark body {
   position: fixed;
   inset: 0;
   z-index: -2;
-  background-color: #0a0a12;
+  /* v4.1 reference dark: deep near-black indigo with violet ambient glow */
+  background-color: #07070f;
   background-image:
-    radial-gradient(ellipse 120% 80% at 10% 10%, rgba(34, 211, 238, 0.18) 0, transparent 50%),
-    radial-gradient(ellipse 100% 100% at 85% 20%, rgba(167, 139, 250, 0.2) 0, transparent 50%),
-    radial-gradient(ellipse 90% 70% at 50% 90%, rgba(59, 130, 246, 0.15) 0, transparent 50%);
+    radial-gradient(ellipse 120% 80% at 12% 8%, rgba(110, 132, 255, 0.16) 0, transparent 52%),
+    radial-gradient(ellipse 100% 100% at 88% 18%, rgba(154, 108, 242, 0.18) 0, transparent 55%),
+    radial-gradient(ellipse 95% 70% at 50% 96%, rgba(110, 124, 245, 0.16) 0, transparent 55%);
   transition: background-position 0.6s var(--ease-liquid);
 }
 
 html:not(.dark) .ds-aura-bg {
-  background: linear-gradient(160deg, #f0f9ff 0%, #f5f3ff 40%, #e0f2fe 100%);
+  /* v4.1 reference light: soft lavender / periwinkle wash */
+  background: linear-gradient(165deg, #ECEDFB 0%, #E5E7FB 46%, #EFE9FC 100%);
 }
 
 .ds-aura-overlay {
@@ -180,9 +229,9 @@ html:not(.dark) .ds-aura-bg {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 80% 50% at 20% 30%, rgba(34, 211, 238, 0.12) 0, transparent 50%),
-    radial-gradient(ellipse 60% 80% at 80% 70%, rgba(167, 139, 250, 0.14) 0, transparent 50%),
-    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(59, 130, 246, 0.08) 0, transparent 50%);
+    radial-gradient(ellipse 80% 50% at 20% 28%, rgba(110, 132, 255, 0.14) 0, transparent 52%),
+    radial-gradient(ellipse 60% 80% at 82% 72%, rgba(154, 108, 242, 0.16) 0, transparent 52%),
+    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(110, 124, 245, 0.10) 0, transparent 52%);
   background-size: 200% 200%;
   filter: blur(60px);
   animation: ds-mesh-flow 25s var(--ease-liquid) infinite alternate;
@@ -190,10 +239,10 @@ html:not(.dark) .ds-aura-bg {
 
 html:not(.dark) .ds-aura-overlay {
   background-image:
-    radial-gradient(at 20% 30%, rgba(219, 234, 254, 0.7) 0px, transparent 50%),
-    radial-gradient(at 80% 20%, rgba(243, 232, 255, 0.6) 0px, transparent 50%),
-    radial-gradient(at 40% 80%, rgba(224, 242, 254, 0.5) 0px, transparent 50%);
-  filter: blur(70px);
+    radial-gradient(at 18% 26%, rgba(214, 218, 252, 0.75) 0px, transparent 52%),
+    radial-gradient(at 82% 18%, rgba(232, 222, 250, 0.65) 0px, transparent 52%),
+    radial-gradient(at 42% 84%, rgba(220, 224, 252, 0.55) 0px, transparent 52%);
+  filter: blur(72px);
   animation: ds-blob-soft 22s var(--ease-liquid) infinite alternate;
 }
 
@@ -277,14 +326,14 @@ html.dark .ds-material-thick {
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-card);
   border: 1px solid var(--border-highlight);
-  box-shadow: 0 12px 40px rgba(59, 130, 246, 0.08), 0 4px 16px rgba(0, 0, 0, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+  box-shadow: 0 14px 40px rgba(76, 70, 140, 0.10), 0 4px 14px rgba(30, 27, 60, 0.05), inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
   transition: transform 0.5s var(--ease-spring), box-shadow 0.4s var(--ease-liquid), border-color 0.4s var(--ease-liquid);
 }
 
 .ds-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 20px 50px rgba(59, 130, 246, 0.12), 0 8px 24px rgba(0, 0, 0, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 22px 52px rgba(76, 70, 140, 0.16), 0 8px 22px rgba(30, 27, 60, 0.07), inset 0 1px 0 0 rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .ds-card:active {
@@ -471,14 +520,14 @@ html.dark .ds-material-thick {
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border-radius: var(--radius-card);
   border: 1px solid var(--border-highlight);
-  box-shadow: 0 8px 28px rgba(59, 130, 246, 0.06), 0 2px 12px rgba(0, 0, 0, 0.03), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 28px rgba(76, 70, 140, 0.07), 0 2px 10px rgba(30, 27, 60, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
   transition: transform 0.5s var(--ease-spring), box-shadow 0.4s var(--ease-liquid);
 }
 
 .ds-row:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 40px rgba(59, 130, 246, 0.1), 0 6px 20px rgba(0, 0, 0, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 18px 40px rgba(76, 70, 140, 0.13), 0 6px 18px rgba(30, 27, 60, 0.06), inset 0 1px 0 0 rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.26);
 }
 
 /* ========== Empty state (dashed) ========== */
@@ -556,16 +605,18 @@ html.dark .ds-material-thick {
 }
 
 /* ========== Bottom Bar Pill (自适应宽度 · 安全区) ========== */
+/* v4.1: centered floating island (not edge-to-edge), per reference */
 .ds-bar-pill {
   position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 12px) + 8px);
-  left: max(var(--bar-gap), env(safe-area-inset-left, 0px));
-  right: max(var(--bar-gap), env(safe-area-inset-right, 0px));
-  z-index: 40;
+  bottom: calc(env(safe-area-inset-bottom, 12px) + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(calc(100vw - 2 * var(--bar-gap)), 430px);
+  z-index: var(--z-chrome);
   border-radius: var(--radius-full);
   background: var(--bar-bg);
-  backdrop-filter: blur(var(--glass-blur-lg));
-  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+  backdrop-filter: blur(var(--glass-blur-lg)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg)) saturate(160%);
   border: var(--bar-stroke);
   box-shadow: var(--bar-shadow), var(--bar-inner-border);
   transition: box-shadow 0.3s var(--ease-tab), border-color 0.3s var(--ease-tab);
@@ -575,8 +626,8 @@ html.dark .ds-material-thick {
   display: flex;
   align-items: center;
   justify-content: space-around;
-  height: 56px;
-  padding: 0 6px;
+  height: 62px;
+  padding: 0 10px;
   position: relative;
 }
 
@@ -624,7 +675,7 @@ html.dark .ds-material-thick {
   backdrop-filter: blur(var(--glass-blur-md));
   -webkit-backdrop-filter: blur(var(--glass-blur-md));
   color: #fff;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+  box-shadow: var(--klein-grad-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
 }
 
 /* 弹性缩放 (Spring-like: 点击 Q 弹) */
@@ -674,6 +725,319 @@ html.dark .ds-material-thick {
   100% { opacity: 0; transform: translateX(100%); }
 }
 
+/* ========== v4.0 Negative space ========== */
+.ds-section-gap > * + * {
+  margin-top: var(--section-gap);
+}
+
+/* ========== v4.0 Klein Button (anchor CTA) ========== */
+.ds-btn-klein {
+  border-radius: var(--radius-button);
+  background: var(--klein-blue);
+  color: var(--klein-on);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: var(--klein-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
+  min-height: var(--touch-min);
+  transition: background 0.25s var(--ease-liquid), box-shadow 0.3s var(--ease-liquid), transform 0.2s var(--ease-spring);
+}
+
+.ds-btn-klein:hover {
+  background: var(--klein-blue-strong);
+  box-shadow: 0 16px 40px rgba(0, 47, 167, 0.38), 0 6px 16px rgba(0, 30, 110, 0.28), inset 0 1px 0 0 rgba(255, 255, 255, 0.25);
+}
+
+.ds-btn-klein:active {
+  transform: scale(0.98);
+}
+
+.ds-btn-klein:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ========== v4.0 Pill horizontal category menu ========== */
+.ds-pill-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px max(var(--page-padding-h), env(safe-area-inset-left, 0px)) 2px max(var(--page-padding-h), env(safe-area-inset-right, 0px));
+  margin-left: calc(-1 * var(--page-padding-h));
+  margin-right: calc(-1 * var(--page-padding-h));
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.ds-pill-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.ds-pill-chip {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 9px 20px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, var(--material-thin-opacity));
+  backdrop-filter: blur(var(--glass-blur-md));
+  -webkit-backdrop-filter: blur(var(--glass-blur-md));
+  border: 1px solid var(--border-highlight);
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.3s var(--ease-spring), color 0.25s var(--ease-liquid), border-color 0.25s var(--ease-liquid), box-shadow 0.3s var(--ease-liquid), transform 0.4s var(--ease-spring);
+}
+
+.ds-pill-chip:hover {
+  color: var(--color-text-primary);
+  border-color: var(--klein-ring);
+}
+
+.ds-pill-chip.is-active {
+  background: var(--klein-gradient);
+  border-color: transparent;
+  color: var(--klein-on);
+  box-shadow: var(--klein-grad-glow);
+}
+
+.ds-pill-chip:active {
+  transform: scale(0.96);
+}
+
+/* ========== v4.1 Floating-island center action (gradient orb) ========== */
+.ds-bar-cta {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  min-width: 62px;
+  border-radius: 50%;
+  border: 4px solid var(--bar-bg);
+  transform: translateY(-18px);
+  background: var(--bar-cta-bg);
+  color: var(--klein-on);
+  box-shadow: var(--shadow-float), var(--klein-grad-glow);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.5s var(--ease-spring), box-shadow 0.35s var(--ease-tab), background 0.3s var(--ease-liquid);
+}
+
+.ds-bar-cta > svg { width: 26px; height: 26px; }
+
+.ds-bar-cta:hover {
+  transform: translateY(-20px);
+  box-shadow: var(--shadow-float), var(--klein-grad-glow), 0 0 0 6px var(--klein-grad-soft);
+}
+
+.ds-bar-cta:active {
+  transform: translateY(-18px) scale(0.93);
+  transition-duration: 0.15s;
+}
+
+.ds-bar-cta.is-active {
+  background: var(--klein-gradient);
+}
+
+/* ========== v4.0 Transparent-media frame (magazine PNG) ========== */
+.ds-media-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-card);
+  background: var(--color-primary-container);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+}
+
+.ds-media-frame > img,
+.ds-media-frame > svg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* ========================================================================
+ * v4.1 Iris — reference-faithful additions (titles, tiles, gradient FAB,
+ * bento, gradient button). Token-driven, dark/light parity inherited.
+ * ====================================================================== */
+
+/* Bold section heading (reference uses real titles, not tiny uppercase) */
+.ds-section-title {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+.ds-section-sub {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+/* "See all" quiet link */
+.ds-link-more {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-full);
+  transition: color 0.2s var(--ease-liquid), background 0.2s var(--ease-liquid);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ds-link-more:hover {
+  color: var(--klein-blue);
+  background: var(--klein-blue-soft);
+}
+
+/* Circular colored icon tile (games / quick actions) */
+.ds-icon-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 0 rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.4s var(--ease-spring), box-shadow 0.3s var(--ease-liquid);
+}
+
+html.dark .ds-icon-tile {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ds-icon-tile:active { transform: scale(0.92); }
+.ds-icon-tile:hover { box-shadow: var(--shadow-md), inset 0 1px 0 0 rgba(255, 255, 255, 0.4); }
+
+/* Gradient circular FAB (search filter / accent action) */
+.ds-fab-grad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--klein-gradient);
+  color: var(--klein-on);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: var(--klein-grad-glow);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.3s var(--ease-spring), box-shadow 0.3s var(--ease-liquid);
+}
+
+.ds-fab-grad:hover { box-shadow: var(--klein-grad-glow), 0 0 0 5px var(--klein-grad-soft); }
+.ds-fab-grad:active { transform: scale(0.94); }
+
+/* Gradient pill/CTA button (reference hero accent) */
+.ds-btn-grad {
+  border-radius: var(--radius-button);
+  background: var(--klein-gradient);
+  color: var(--klein-on);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: var(--klein-grad-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.24);
+  min-height: var(--touch-min);
+  transition: box-shadow 0.3s var(--ease-liquid), transform 0.2s var(--ease-spring), filter 0.25s var(--ease-liquid);
+}
+
+.ds-btn-grad:hover { filter: brightness(1.06); box-shadow: var(--klein-grad-glow), 0 0 0 5px var(--klein-grad-soft); }
+.ds-btn-grad:active { transform: scale(0.98); }
+.ds-btn-grad:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Bento card with corner icon-chip (AI Chat / AI Image reference style) */
+.ds-bento {
+  position: relative;
+  border-radius: var(--radius-card);
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, var(--glass-opacity));
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-highlight);
+  box-shadow: 0 14px 40px rgba(76, 70, 140, 0.10), inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.5s var(--ease-spring), box-shadow 0.4s var(--ease-liquid);
+}
+
+.ds-bento:hover { transform: translateY(-3px); box-shadow: 0 22px 52px rgba(76, 70, 140, 0.16), inset 0 1px 0 0 rgba(255, 255, 255, 0.28); }
+.ds-bento:active { transform: translateY(-1px) scale(0.99); }
+
+.ds-bento-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: var(--klein-gradient);
+  color: var(--klein-on);
+  box-shadow: var(--klein-grad-glow);
+}
+
+/* ========== v4.1 z-index utilities + portaled popover panel ========== */
+.ds-z-sticky  { z-index: var(--z-sticky); }
+.ds-z-chrome  { z-index: var(--z-chrome); }
+.ds-z-popover { z-index: var(--z-popover); }
+.ds-z-modal   { z-index: var(--z-modal); }
+.ds-z-toast   { z-index: var(--z-toast); }
+
+/* Floating panel rendered through a <body> portal by the UI <Popover>.
+ * position:fixed (set inline from the anchor rect) + this z-index escapes
+ * every backdrop-filter/transform/overflow ancestor stacking context, so it
+ * always floats above the app chrome. Reuses the modal-panel material. */
+.ds-pop-panel {
+  position: fixed;
+  z-index: var(--z-popover);
+  background: rgba(255, 255, 255, var(--material-thick-opacity));
+  backdrop-filter: blur(var(--material-thick-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--material-thick-blur)) saturate(160%);
+  border-radius: calc(var(--radius-card) + 2px);
+  border: 1px solid var(--border-highlight);
+  box-shadow: 0 24px 64px rgba(76, 70, 140, 0.22), 0 12px 32px rgba(30, 27, 60, 0.16), inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  overflow: hidden;
+  animation: ds-pop-in 0.18s var(--ease-smooth) forwards;
+}
+
+@keyframes ds-pop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ========== v4.1 Mobile / small-screen tightening ========== */
+@media (max-width: 400px) {
+  :root {
+    --page-padding-h: 1.125rem;
+    --section-gap: var(--space-xl);
+    --space-breath: 1.75rem;
+  }
+  .ds-section-title { font-size: 1rem; }
+  .ds-icon-tile { width: 54px; height: 54px; font-size: 1.35rem; }
+}
+
+@media (min-width: 768px) {
+  /* Tablet/desktop: keep the phone-app feel, center the canvas */
+  .ds-page { max-width: 540px; margin-left: auto; margin-right: auto; }
+}
+
 /* ========== Scrollbar ========== */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -686,3 +1050,15 @@ html:not(.dark) ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); }
 .pt-safe { padding-top: env(safe-area-inset-top, 24px); }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Route transition — gentle opacity fade on each navigation so the chrome
+   swap (e.g. Settings/API Server ↔ Login) doesn't hard-cut/flicker. Opacity
+   only (no transform) so it composes with each page's own entrance motion. */
+@keyframes ds-route-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.route-fade { animation: ds-route-fade 0.22s var(--ease-smooth, ease-out) both; }
+@media (prefers-reduced-motion: reduce) {
+  .route-fade { animation: none; }
+}

@@ -41,13 +41,20 @@ class QuizHistoryCenterClass {
    * Initialize - load from storage
    */
   async initialize(): Promise<void> {
-    const stored = await StorageCenter.get<QuizRecord[]>(StorageKey.QUIZ_HISTORY, []);
-    // Convert date strings back to Date objects
-    this.history = (stored || []).map(record => ({
-      ...record,
-      date: new Date(record.date),
-    }));
-    console.log('[QuizHistoryCenter] Loaded', this.history.length, 'quiz records');
+    // Storage-only center, but a corrupt/malformed cached entry must not
+    // throw out of initialize(): degrade to a safe empty state instead.
+    try {
+      const stored = await StorageCenter.get<QuizRecord[]>(StorageKey.QUIZ_HISTORY, []);
+      // Convert date strings back to Date objects
+      this.history = (Array.isArray(stored) ? stored : []).map(record => ({
+        ...record,
+        date: new Date(record.date),
+      }));
+      console.log('[QuizHistoryCenter] Loaded', this.history.length, 'quiz records');
+    } catch (error: any) {
+      this.history = [];
+      console.warn('[QuizHistoryCenter] Load failed (handled, starting empty):', error?.message || error);
+    }
   }
 
   /**

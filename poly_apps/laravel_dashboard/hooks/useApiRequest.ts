@@ -17,18 +17,18 @@ export interface UseApiRequestReturn<T> {
 }
 
 /**
- * 通用API请求Hook - 统一管理加载、错误、数据状态
+ * Generic API request Hook - centrally manages loading, error, and data state
  *
  * @example
  * const { data, loading, error, execute } = useApiRequest(
  *   () => api.appQyV1.getVocabularyStatistics()
  * );
  *
- * // 手动执行
+ * // Manual execution
  * useEffect(() => { execute(); }, []);
  *
  * @example
- * // 带参数的请求
+ * // Request with parameters
  * const { data, loading, error, execute } = useApiRequest(
  *   (id: string) => api.appQyV1.getLibrary(id)
  * );
@@ -87,7 +87,7 @@ export function useApiRequest<T = any>(
 }
 
 /**
- * 简化的加载和错误状态Hook
+ * Simplified loading and error state Hook
  *
  * @example
  * const { loading, error, setLoading, setError, clearError } = useLoadingError();

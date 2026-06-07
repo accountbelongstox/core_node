@@ -50,6 +50,7 @@ class MenuHandler:
                 })
 
             menu_items.extend([
+                {'Text': 'Custom Add (any KEY, auto-indexed)', 'Action': 'custom_add', 'HasSubMenu': False},
                 {'Text': 'Regenerate All Scripts', 'Action': 'regenerate_all', 'HasSubMenu': False},
                 {'Text': 'Restore Scripts from Secret Storage', 'Action': 'restore_scripts', 'HasSubMenu': False},
                 {'Text': 'Add Scripts Directory to PATH', 'Action': 'addpath', 'HasSubMenu': False},
@@ -65,7 +66,9 @@ class MenuHandler:
             if action is None:
                 continue
 
-            if action == 'addpath':
+            if action == 'custom_add':
+                handlers['encrypted_constants_manager'].custom_add()
+            elif action == 'addpath':
                 handlers['env_var_manager'].add_scripts_to_path()
             elif action == 'viewall':
                 handlers['env_var_manager'].show_all_environment_variables(self.config_manager)

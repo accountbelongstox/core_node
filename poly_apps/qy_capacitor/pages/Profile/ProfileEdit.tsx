@@ -1,7 +1,10 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useContext, useState, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Card, Icons, Button } from '../../components/UI';
+import { Card, Icons, Button, BackButton, Spinner, Sheet, ProgressBar, SectionTitle } from '../../components/UI';
+import { Avatar } from '../../components/Avatar';
 import { ApiCenter } from '../../services/ApiCenter';
+import { compressAvatarImage } from '../../services/imageCompression';
 
 /**
  * Profile Edit Page - Unified Design System
@@ -21,8 +24,6 @@ const PasswordChangeModal: React.FC<PasswordModalProps> = ({ isOpen, onClose, on
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
 
-  if (!isOpen) return null;
-
   const handleSubmit = () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
       setError(t('profile.allFieldsRequired'));
@@ -39,73 +40,74 @@ const PasswordChangeModal: React.FC<PasswordModalProps> = ({ isOpen, onClose, on
     setError('');
   };
 
+  const inputCls =
+    "w-full p-3 rounded-[var(--radius-button)] bg-[var(--color-surface)] border border-[var(--border-highlight)] focus:border-[var(--klein-blue)] focus:ring-2 focus:ring-[var(--klein-ring)] outline-none text-[var(--color-text-primary)] transition-all";
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl sm:max-w-2xl md:max-w-4xl lg:max-w-5xl w-full p-6 animate-slide-up">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold dark:text-white">{t('profile.changePassword')}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
-            <Icons.Close />
-          </button>
+    <Sheet open={isOpen} onClose={onClose} position="center" panelClassName="animate-slide-up">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-[var(--color-text-primary)]">{t('profile.changePassword')}</h2>
+        <button onClick={onClose} className="ds-touch-target p-2 hover:bg-[var(--color-surface)] rounded-lg text-[var(--color-text-secondary)]">
+          <Icons.Close />
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+            {t('profile.currentPassword')}
+          </label>
+          <input
+            type="password"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            className={inputCls}
+            placeholder={t('profile.enterCurrentPassword')}
+          />
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              {t('profile.currentPassword')}
-            </label>
-            <input
-              type="password"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-              className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-              placeholder={t('profile.enterCurrentPassword')}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              {t('profile.newPassword')}
-            </label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-              placeholder={t('profile.enterNewPassword')}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              {t('profile.confirmNewPassword')}
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 focus:border-blue-400 outline-none dark:text-white"
-              placeholder={t('profile.confirmPassword')}
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+            {t('profile.newPassword')}
+          </label>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className={inputCls}
+            placeholder={t('profile.enterNewPassword')}
+          />
         </div>
 
-        <div className="flex gap-3 mt-6">
-          <Button variant="secondary" onClick={onClose} className="flex-1">
-            {t('common.cancel')}
-          </Button>
-          <Button onClick={handleSubmit} className="flex-1">
-            {t('common.confirm')}
-          </Button>
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+            {t('profile.confirmNewPassword')}
+          </label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className={inputCls}
+            placeholder={t('profile.confirmPassword')}
+          />
         </div>
       </div>
-    </div>
+
+      <div className="flex gap-3 mt-6">
+        <Button variant="secondary" onClick={onClose} className="flex-1">
+          {t('common.cancel')}
+        </Button>
+        <Button variant="klein" onClick={handleSubmit} className="flex-1">
+          {t('common.confirm')}
+        </Button>
+      </div>
+    </Sheet>
   );
 };
 
@@ -137,11 +139,11 @@ const FormInput: React.FC<FormInputProps> = ({
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+        <label className="block text-sm font-medium text-[var(--color-text-secondary)]">
           {label}
         </label>
         {maxLength && (
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-[var(--color-text-tertiary)]">
             {currentLength} / {maxLength}
           </span>
         )}
@@ -153,11 +155,11 @@ const FormInput: React.FC<FormInputProps> = ({
           rows={rows}
           maxLength={maxLength}
           disabled={disabled}
-          className={`w-full p-3 rounded-xl border transition-all resize-none ${
+          className={`w-full p-3 rounded-[var(--radius-button)] border transition-all resize-none outline-none ${
             disabled
-              ? 'bg-slate-100 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 cursor-not-allowed text-slate-400'
-              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:text-white'
-          } outline-none`}
+              ? 'bg-[var(--color-surface-variant)] border-[var(--border-highlight)] cursor-not-allowed text-[var(--color-text-tertiary)]'
+              : 'bg-[var(--color-surface)] border-[var(--border-highlight)] focus:border-[var(--klein-blue)] focus:ring-2 focus:ring-[var(--klein-ring)] text-[var(--color-text-primary)]'
+          }`}
           placeholder={placeholder}
         />
       ) : (
@@ -167,11 +169,11 @@ const FormInput: React.FC<FormInputProps> = ({
           onChange={(e) => onChange(e.target.value)}
           maxLength={maxLength}
           disabled={disabled}
-          className={`w-full p-3 rounded-xl border transition-all ${
+          className={`w-full p-3 rounded-[var(--radius-button)] border transition-all outline-none ${
             disabled
-              ? 'bg-slate-100 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 cursor-not-allowed text-slate-400'
-              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:text-white'
-          } outline-none`}
+              ? 'bg-[var(--color-surface-variant)] border-[var(--border-highlight)] cursor-not-allowed text-[var(--color-text-tertiary)]'
+              : 'bg-[var(--color-surface)] border-[var(--border-highlight)] focus:border-[var(--klein-blue)] focus:ring-2 focus:ring-[var(--klein-ring)] text-[var(--color-text-primary)]'
+          }`}
           placeholder={placeholder}
         />
       )}
@@ -238,24 +240,36 @@ const ProfileEditPage = () => {
       return;
     }
 
-    // Show preview immediately
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setAvatarPreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-
     // Upload avatar with progress
     setLoading(true);
     setError('');
     setUploadProgress(10);
+
+    // Downscale + compress on the client BEFORE upload so the payload can
+    // never explode (longest side <= 512px, JPEG ~0.85, base64 well under
+    // ~300KB, hard 5MB reject — aligned with the backend avatar contract).
+    let compressed;
+    try {
+      compressed = await compressAvatarImage(file);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('profile.uploadFailed'));
+      setLoading(false);
+      setTimeout(() => {
+        setError('');
+        setUploadProgress(0);
+      }, 3000);
+      return;
+    }
+
+    // Show the compressed preview immediately.
+    setAvatarPreview(compressed.dataUrl);
 
     // Simulate progress (since we don't have real progress from API)
     const progressInterval = setInterval(() => {
       setUploadProgress((prev) => Math.min(prev + 10, 90));
     }, 200);
 
-    const avatarResponse = await ApiCenter.user.updateAvatar(file);
+    const avatarResponse = await ApiCenter.user.updateAvatar(compressed.file);
     clearInterval(progressInterval);
     setUploadProgress(100);
 
@@ -324,44 +338,39 @@ const ProfileEditPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
-      {/* Header */}
-      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
-        <div className="flex items-center gap-3 mb-4">
-          <button
-            onClick={() => navigate('profile')}
-            className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-          >
-            <Icons.Back />
-          </button>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+    <div className="ds-aura-bg min-h-screen pb-28">
+      <div className="ds-aura-overlay" />
+      {/* Minimal asymmetric header */}
+      <div className="relative pt-[var(--page-padding-v)] px-[var(--page-padding-h)] pb-[var(--space-breath)] max-w-md mx-auto">
+        <div className="flex items-center gap-3 mb-2">
+          <BackButton onClick={() => navigate('profile')} label={t('common.cancel')} />
+          <h1 className="text-3xl font-bold text-[var(--color-text-primary)]">
             {t('profile.editProfile')}
           </h1>
         </div>
-        <p className="text-slate-600 dark:text-slate-400">
+        <p className="text-[var(--color-text-secondary)]">
           Update your profile information
         </p>
       </div>
 
-      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
+      <div className="relative max-w-md mx-auto px-[var(--page-padding-h)] ds-section-gap">
         {/* Avatar Upload Card */}
-        <Card className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-none shadow-xl">
+        <Card>
           <div className="flex flex-col items-center">
             <div className="relative group mb-4">
-              <div className="w-28 h-28 rounded-full border-4 border-white/30 overflow-hidden">
-                <img
-                  src={avatarPreview}
-                  alt="Avatar"
-                  className="w-full h-full object-cover"
-                />
-              </div>
+              <Avatar
+                src={avatarPreview}
+                name={user?.name || user?.nickname || user?.username}
+                alt="Avatar"
+                className="w-28 h-28 rounded-full border border-[var(--border-highlight)] text-3xl"
+              />
               <button
                 onClick={handleAvatarClick}
                 disabled={loading}
-                className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--klein-blue)]/70 rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
               >
-                <Icons.Edit className="w-6 h-6 text-white mb-1" />
-                <span className="text-xs text-white">Upload</span>
+                <Icons.Edit className="w-6 h-6 text-[var(--klein-on)] mb-1" />
+                <span className="text-xs text-[var(--klein-on)]">Upload</span>
               </button>
               <input
                 ref={fileInputRef}
@@ -375,20 +384,15 @@ const ProfileEditPage = () => {
             {uploadProgress > 0 && uploadProgress < 100 && (
               <div className="w-full">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-blue-100">Uploading...</span>
-                  <span className="text-sm text-blue-100">{uploadProgress}%</span>
+                  <span className="text-sm text-[var(--color-text-secondary)]">Uploading...</span>
+                  <span className="text-sm text-[var(--color-text-secondary)]">{uploadProgress}%</span>
                 </div>
-                <div className="w-full bg-white/20 rounded-full h-2">
-                  <div
-                    className="bg-white h-2 rounded-full transition-all"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
+                <ProgressBar value={uploadProgress} />
               </div>
             )}
 
             {!loading && (
-              <p className="text-sm text-blue-100 text-center">
+              <p className="text-sm text-[var(--color-text-secondary)] text-center">
                 Click avatar to upload<br />
                 <span className="text-xs opacity-75">Max 5MB • JPG, PNG, GIF</span>
               </p>
@@ -425,11 +429,9 @@ const ProfileEditPage = () => {
 
         {/* Basic Information */}
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            {t('profile.basicInfo')}
-          </h2>
+          <SectionTitle title={t('profile.basicInfo')} className="px-1" />
 
-          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <Card>
             <div className="space-y-4">
               <FormInput
                 label={t('profile.usernameReadonly')}
@@ -476,11 +478,9 @@ const ProfileEditPage = () => {
 
         {/* Personal Details */}
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            {t('profile.personalInfo')}
-          </h2>
+          <SectionTitle title={t('profile.personalInfo')} className="px-1" />
 
-          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <Card>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormInput
@@ -502,13 +502,13 @@ const ProfileEditPage = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                     {t('profile.gender')}
                   </label>
                   <select
                     value={formData.gender}
                     onChange={(e) => handleInputChange('gender', e.target.value)}
-                    className="w-full p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none dark:text-white"
+                    className="w-full p-3 rounded-[var(--radius-button)] bg-[var(--color-surface)] border border-[var(--border-highlight)] focus:border-[var(--klein-blue)] focus:ring-2 focus:ring-[var(--klein-ring)] outline-none text-[var(--color-text-primary)] transition-all"
                   >
                     <option value="">{t('profile.selectGender')}</option>
                     <option value="male">{t('profile.male')}</option>
@@ -530,11 +530,9 @@ const ProfileEditPage = () => {
 
         {/* Location & Work */}
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            {t('profile.locationWork')}
-          </h2>
+          <SectionTitle title={t('profile.locationWork')} className="px-1" />
 
-          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <Card>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormInput
@@ -573,11 +571,9 @@ const ProfileEditPage = () => {
 
         {/* Language & Culture */}
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            {t('profile.languageCulture')}
-          </h2>
+          <SectionTitle title={t('profile.languageCulture')} className="px-1" />
 
-          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <Card>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormInput
@@ -600,11 +596,9 @@ const ProfileEditPage = () => {
 
         {/* Social Links */}
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            {t('profile.socialLinks')}
-          </h2>
+          <SectionTitle title={t('profile.socialLinks')} className="px-1" />
 
-          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <Card>
             <div className="space-y-4">
               <FormInput
                 label={t('profile.website')}
@@ -649,28 +643,24 @@ const ProfileEditPage = () => {
 
         {/* Security */}
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            {t('profile.security')}
-          </h2>
+          <SectionTitle title={t('profile.security')} className="px-1" />
 
-          <Card
+          <div
             onClick={() => setShowPasswordModal(true)}
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 transition-all"
+            className="ds-row p-5 cursor-pointer ds-touch-target flex items-center justify-between"
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center text-red-600 dark:text-red-400">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <span className="font-semibold text-slate-900 dark:text-white">
-                  {t('profile.changePassword')}
-                </span>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-[var(--klein-blue-soft)] rounded-full flex items-center justify-center text-[var(--klein-blue)]">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
               </div>
-              <Icons.ChevronRight />
+              <span className="font-semibold text-[var(--color-text-primary)]">
+                {t('profile.changePassword')}
+              </span>
             </div>
-          </Card>
+            <span className="text-[var(--color-text-tertiary)]"><Icons.ChevronRight /></span>
+          </div>
         </div>
 
         {/* Action Buttons */}
@@ -684,16 +674,14 @@ const ProfileEditPage = () => {
             {t('common.cancel')}
           </Button>
           <Button
+            variant="klein"
             onClick={handleSave}
             className="flex-1 relative"
             disabled={saving || loading}
           >
             {saving ? (
               <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
+                <Spinner size="sm" />
                 {t('profile.savingChanges')}
               </span>
             ) : (

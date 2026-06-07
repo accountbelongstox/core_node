@@ -31,6 +31,7 @@ export enum StorageKey {
   // Learning Progress
   LEARNING_STATS = 'learning_stats',
   WORD_PROGRESS = 'word_progress',
+  SESSION_HISTORY = 'session_history',
 
   // Cache
   WORD_GROUPS_CACHE = 'word_groups_cache',
@@ -334,6 +335,54 @@ class StorageCenterClass {
 
     getNativeLanguage: async () => await this.get<string>(StorageKey.NATIVE_LANGUAGE, 'zh'),
     setNativeLanguage: async (lang: string) => await this.set(StorageKey.NATIVE_LANGUAGE, lang),
+  };
+
+  /**
+   * Synchronous learning-progress helpers (localStorage-backed).
+   * Consumers read/write these results synchronously.
+   */
+  private getSync<T>(key: StorageKey, defaultValue: T): T {
+    try {
+      const item = localStorage.getItem(key);
+      if (item === null) return defaultValue;
+      return JSON.parse(item) as T;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  private setSync<T>(key: StorageKey, value: T): void {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error(`[StorageCenter] Failed to set ${key}:`, error);
+    }
+  }
+
+  learning = {
+    getWordProgress: (): Record<string, any> =>
+      this.getSync<Record<string, any>>(StorageKey.WORD_PROGRESS, {}),
+    setWordProgress: (progress: Record<string, any>): void =>
+      this.setSync(StorageKey.WORD_PROGRESS, progress),
+    clearWordProgress: (): void => {
+      try {
+        localStorage.removeItem(StorageKey.WORD_PROGRESS);
+      } catch (error) {
+        console.error('[StorageCenter] Failed to clear word progress:', error);
+      }
+    },
+
+    getSessionHistory: (): any[] =>
+      this.getSync<any[]>(StorageKey.SESSION_HISTORY, []),
+    setSessionHistory: (history: any[]): void =>
+      this.setSync(StorageKey.SESSION_HISTORY, history),
+    clearSessionHistory: (): void => {
+      try {
+        localStorage.removeItem(StorageKey.SESSION_HISTORY);
+      } catch (error) {
+        console.error('[StorageCenter] Failed to clear session history:', error);
+      }
+    },
   };
 
   /**

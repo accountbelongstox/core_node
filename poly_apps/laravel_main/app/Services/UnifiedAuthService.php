@@ -8,14 +8,29 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Atrox\Haikunator;
 
+/**
+ * Unified authentication against the SINGLE canonical `users` table (main /
+ * default connection).
+ *
+ * Identity is stored ONCE. There are no per-sub-app duplicate `users` tables
+ * and no cross-database dual-write (that model produced non-ACID multi-file
+ * transactions and the registration FK failure). App-specific user fields
+ * belong in per-app extension tables keyed by main_user_id (see *_user_profile
+ * migrations / models), NOT in a duplicated users row.
+ *
+ * The `$subAppConnection` parameters are retained for backward compatibility
+ * with existing callers but are intentionally ignored. `sub_app_user` in the
+ * result is the canonical main user (same identity) so legacy callers that
+ * read it keep working.
+ */
 class UnifiedAuthService
 {
     public static function register(array $credentials, ?string $subAppConnection = null): array
     {
         DB::beginTransaction();
-        
+
         try {
-            $existingUser = User::where(function($query) use ($credentials) {
+            $existingUser = User::where(function ($query) use ($credentials) {
                 $query->where('username', $credentials['username']);
                 if (!empty($credentials['email'])) {
                     $query->orWhere('email', $credentials['email']);
@@ -30,65 +45,41 @@ class UnifiedAuthService
                     'user' => null,
                 ];
             }
-            
+
+            $subAppData = $credentials['sub_app_data'] ?? [];
+            $nickname = $subAppData['nickname'] ?? null;
+            if (empty($nickname)) {
+                $nickname = Haikunator::haikunate(['tokenLength' => 4, 'delimiter' => '-']);
+            }
+
             $mainUserData = [
                 'username' => $credentials['username'],
                 'email' => $credentials['email'],
                 'phone' => $credentials['phone'] ?? null,
                 'name' => $credentials['name'] ?? null,
+                'nickname' => $nickname,
                 'password' => Hash::make($credentials['password']),
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
-            
+
             $mainUser = User::create($mainUserData);
-            
-            $result = [
+
+            DB::commit();
+
+            // sub_app_user == the canonical user (single identity, no duplicate).
+            return [
                 'success' => true,
                 'user' => $mainUser,
-                'sub_app_user' => null,
+                'sub_app_user' => $mainUser,
             ];
-            
-            if ($subAppConnection) {
-                $subAppUserData = [
-                    'main_user_id' => $mainUser->id,
-                    'username' => $credentials['username'],
-                    'email' => $credentials['email'],
-                    'phone' => $credentials['phone'] ?? null,
-                    'name' => $credentials['name'] ?? null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-
-                if (isset($credentials['sub_app_data'])) {
-                    $subAppUserData = array_merge($subAppUserData, $credentials['sub_app_data']);
-                }
-
-                if (!isset($subAppUserData['nickname']) || empty($subAppUserData['nickname'])) {
-                    $subAppUserData['nickname'] = Haikunator::haikunate([
-                        'tokenLength' => 4,
-                        'delimiter' => '-'
-                    ]);
-                }
-                
-                // Use model connection for query builder (Laravel best practice)
-                $userModel = new User();
-                $userModel->setConnection($subAppConnection);
-                $dbConnection = $userModel->getConnection();
-                $subAppUserId = $dbConnection->table('users')->insertGetId($subAppUserData);
-                $result['sub_app_user'] = $dbConnection->table('users')->find($subAppUserId);
-            }
-            
-            DB::commit();
-            return $result;
-            
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('[UnifiedAuth] Registration exception: ' . $e->getMessage(), [
                 'exception' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return [
@@ -98,14 +89,14 @@ class UnifiedAuthService
             ];
         }
     }
-    
+
     public static function login(string $username, string $password, ?string $subAppConnection = null): array
     {
         try {
             $mainUser = User::where('username', $username)
                 ->orWhere('email', $username)
                 ->first();
-            
+
             if (!$mainUser) {
                 return [
                     'success' => false,
@@ -113,7 +104,7 @@ class UnifiedAuthService
                     'user' => null,
                 ];
             }
-            
+
             if (!Hash::check($password, $mainUser->password)) {
                 return [
                     'success' => false,
@@ -121,47 +112,15 @@ class UnifiedAuthService
                     'user' => null,
                 ];
             }
-            
-            $result = [
+
+            return [
                 'success' => true,
                 'user' => $mainUser,
-                'sub_app_user' => null,
+                'sub_app_user' => $mainUser,
             ];
-            
-            if ($subAppConnection) {
-                // Use model connection for query builder (Laravel best practice)
-                $userModel = new User();
-                $userModel->setConnection($subAppConnection);
-                $dbConnection = $userModel->getConnection();
-                
-                $subAppUser = $dbConnection
-                    ->table('users')
-                    ->where('main_user_id', $mainUser->id)
-                    ->first();
-                
-                if (!$subAppUser) {
-                    $subAppUserData = [
-                        'main_user_id' => $mainUser->id,
-                        'username' => $mainUser->username,
-                        'email' => $mainUser->email,
-                        'phone' => $mainUser->phone,
-                        'name' => $mainUser->name,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
-                    
-                    $subAppUserId = $dbConnection->table('users')->insertGetId($subAppUserData);
-                    $subAppUser = $dbConnection->table('users')->find($subAppUserId);
-                }
-                
-                $result['sub_app_user'] = $subAppUser;
-            }
-            
-            return $result;
-            
         } catch (\Exception $e) {
             Log::error('[UnifiedAuth] Login failed: ' . $e->getMessage());
-            
+
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
@@ -169,16 +128,16 @@ class UnifiedAuthService
             ];
         }
     }
-    
+
     public static function resetPassword(string $username, string $newPassword, ?string $subAppConnection = null): array
     {
         DB::beginTransaction();
-        
+
         try {
             $mainUser = User::where('username', $username)
                 ->orWhere('email', $username)
                 ->first();
-            
+
             if (!$mainUser) {
                 DB::rollBack();
                 return [
@@ -186,66 +145,20 @@ class UnifiedAuthService
                     'error' => 'User not found',
                 ];
             }
-            
+
             $mainUser->password = Hash::make($newPassword);
             $mainUser->updated_at = now();
             $mainUser->save();
-            
+
             DB::commit();
-            
+
             return [
                 'success' => true,
                 'message' => 'Password reset successfully',
             ];
-            
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('[UnifiedAuth] Password reset failed: ' . $e->getMessage());
-            
-            return [
-                'success' => false,
-                'error' => $e->getMessage(),
-            ];
-        }
-    }
-    
-    public static function updateSubAppUserData(int $mainUserId, string $subAppConnection, array $data): array
-    {
-        try {
-            // Use model connection for query builder (Laravel best practice)
-            $userModel = new User();
-            $userModel->setConnection($subAppConnection);
-            $dbConnection = $userModel->getConnection();
-            
-            $subAppUser = $dbConnection
-                ->table('users')
-                ->where('main_user_id', $mainUserId)
-                ->first();
-
-            if (!$subAppUser) {
-                return [
-                    'success' => false,
-                    'error' => 'Sub-app user not found',
-                ];
-            }
-
-            unset($data['password']);
-            unset($data['main_user_id']);
-
-            $data['updated_at'] = now();
-
-            $dbConnection
-                ->table('users')
-                ->where('main_user_id', $mainUserId)
-                ->update($data);
-
-            return [
-                'success' => true,
-                'message' => 'Sub-app user data updated successfully',
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('[UnifiedAuth] Update sub-app user failed: ' . $e->getMessage());
 
             return [
                 'success' => false,
@@ -255,12 +168,47 @@ class UnifiedAuthService
     }
 
     /**
-     * Update user profile in both main and sub-app tables
-     *
-     * @param int $userId Main user ID
-     * @param string|null $subAppConnection Sub-app database connection name
-     * @param array $data Data to update
-     * @return array
+     * Backward-compatible: updates the canonical user row by id.
+     * (Formerly wrote to a per-sub-app duplicate users table.)
+     */
+    public static function updateSubAppUserData(int $mainUserId, string $subAppConnection, array $data): array
+    {
+        try {
+            $user = User::find($mainUserId);
+            if (!$user) {
+                return [
+                    'success' => false,
+                    'error' => 'User not found',
+                ];
+            }
+
+            unset($data['password'], $data['main_user_id']);
+
+            $fillable = (new User())->getFillable();
+            $update = array_intersect_key($data, array_flip($fillable));
+
+            if (!empty($update)) {
+                $update['updated_at'] = now();
+                User::where('id', $mainUserId)->update($update);
+            }
+
+            return [
+                'success' => true,
+                'message' => 'User data updated successfully',
+            ];
+        } catch (\Exception $e) {
+            Log::error('[UnifiedAuth] Update user data failed: ' . $e->getMessage());
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Update the canonical user profile. App-specific fields belong in per-app
+     * extension tables (handled by the owning app), not duplicated here.
      */
     public static function updateUserProfile(int $userId, ?string $subAppConnection, array $data): array
     {
@@ -277,48 +225,8 @@ class UnifiedAuthService
             }
 
             if (!empty($mainUpdateData)) {
+                $mainUpdateData['updated_at'] = now();
                 User::where('id', $userId)->update($mainUpdateData);
-            }
-
-            if ($subAppConnection) {
-                $subAppUpdateData = [];
-                $syncFields = ['nickname', 'name', 'avatar', 'email', 'phone'];
-
-                foreach ($syncFields as $field) {
-                    if (isset($data[$field])) {
-                        $subAppUpdateData[$field] = $data[$field];
-                    }
-                }
-
-                if (!empty($subAppUpdateData)) {
-                    $subAppUpdateData['updated_at'] = now();
-
-                    // Use model connection for query builder (Laravel best practice)
-                    $userModel = new User();
-                    $userModel->setConnection($subAppConnection);
-                    $dbConnection = $userModel->getConnection();
-
-                    $subAppUser = $dbConnection
-                        ->table('users')
-                        ->where('main_user_id', $userId)
-                        ->first();
-
-                    if (!$subAppUser) {
-                        $subAppUserData = [
-                            'main_user_id' => $userId,
-                            'username' => User::find($userId)->username,
-                            'created_at' => now(),
-                        ];
-                        $subAppUserData = array_merge($subAppUserData, $subAppUpdateData);
-
-                        $dbConnection->table('users')->insert($subAppUserData);
-                    } else {
-                        $dbConnection
-                            ->table('users')
-                            ->where('main_user_id', $userId)
-                            ->update($subAppUpdateData);
-                    }
-                }
             }
 
             DB::commit();
@@ -327,7 +235,6 @@ class UnifiedAuthService
                 'success' => true,
                 'message' => 'User profile updated successfully',
             ];
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('[UnifiedAuth] Update user profile failed: ' . $e->getMessage());

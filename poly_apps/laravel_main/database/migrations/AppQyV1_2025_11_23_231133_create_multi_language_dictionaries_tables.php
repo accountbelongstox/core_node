@@ -29,6 +29,13 @@ return new class extends Migration
 
     public function up(): void
     {
+        // SUPERSEDED by AppQyV1_2026_05_19_000000_create_tts_cache_dictionary_tables.
+        // The {lang}_dictionaries family is deprecated and unreferenced at
+        // runtime (the canonical multi-language table is tts_cache_{lang}).
+        // No-op on re-run; existing orphan tables are left intact (data-safety).
+        return;
+
+        // Legacy body retained (unreachable) for historical reference only.
         foreach ($this->languages as $langCode) {
             $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, "{$langCode}_dictionaries");
             

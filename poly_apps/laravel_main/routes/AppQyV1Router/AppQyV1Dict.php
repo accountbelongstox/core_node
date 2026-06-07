@@ -58,6 +58,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::any('/group/update_progress', [DGProgressController::class, 'updateProgress']);
         Route::any('/group/get_review_words', [DGProgressController::class, 'getReviewWords']);
         Route::any('/group/get_progress_stats', [DGProgressController::class, 'getProgressStats']);
+        Route::get('/word-groups/{gid}/analysis', [DGProgressController::class, 'getCourseAnalysis']);
 
         // Dictionary Routes
         // Route::any('/add_dictionary', [AddDController::class, 'addDictionary']);

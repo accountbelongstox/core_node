@@ -24,12 +24,15 @@ class GlobalInitializerClass {
     // Initialize all data centers
     console.log('[GlobalInitializer] Initializing data centers...');
 
-    // Initialize asynchronously (from storage - no auth required)
+    // Initialize asynchronously (from storage - no auth required).
+    // Fault-isolated: a single failing center must never abort the whole
+    // init. Each promise is awaited via allSettled and rejections are
+    // demoted to warnings so initialization always completes.
     const syncInitPromises = [
       QuizHistoryCenter.initialize(),
       ReadingProgressCenter.initialize(),
     ];
-    await Promise.all(syncInitPromises);
+    await this.settleAll(syncInitPromises, 'storage centers');
 
     // Check if user is authenticated
     const isAuthenticated = await StorageCenter.auth.hasToken();
@@ -50,10 +53,29 @@ class GlobalInitializerClass {
       console.log('[GlobalInitializer] User not authenticated, skipping auth-required centers');
     }
 
-    await Promise.all(initPromises);
+    // Fault-isolated: each center init failure is contained so the app
+    // always finishes initialization even when the backend is unreachable.
+    await this.settleAll(initPromises, 'data centers');
 
     this.isInitialized = true;
     console.log('[GlobalInitializer] Initialization complete');
+  }
+
+  /**
+   * Await all init promises with per-promise fault isolation.
+   * A rejected center init is logged as a handled warning and never
+   * propagates, so a single offline/failing center cannot abort startup.
+   */
+  private async settleAll(promises: Promise<void>[], label: string): Promise<void> {
+    const results = await Promise.allSettled(promises);
+    results.forEach((result) => {
+      if (result.status === 'rejected') {
+        console.warn(
+          `[GlobalInitializer] A ${label} init failed (handled, continuing):`,
+          result.reason?.message || result.reason
+        );
+      }
+    });
   }
 
   getStatus() {

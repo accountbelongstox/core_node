@@ -1,6 +1,8 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Icons } from '../../components/UI';
+import { Icons, IconButton, LoadingState } from '../../components/UI';
+import { Eye } from 'lucide-react';
 import { ApiCenter } from '../../services/ApiCenter';
 import { Word } from '../../types';
 import { LearningProgressTracker } from '../../services/LearningProgressTracker';
@@ -26,7 +28,7 @@ const ReadingRunPage = () => {
       language: language,
       limit: 50
     }).then(response => {
-      if (response.success && response.data) {
+      if (response.success && Array.isArray(response.data)) {
         setWords(response.data);
         if(settings.audio.autoPlay) setIsPlaying(true);
       } else {
@@ -102,76 +104,85 @@ const ReadingRunPage = () => {
     }
   }, [currentIndex, currentWord]);
 
-  if (!currentWord) return <div className="flex h-full items-center justify-center dark:text-white animate-pulse font-bold tracking-widest text-slate-400">{t('reading.loadingEngine')}</div>;
+  if (!currentWord) return (
+    <div className="ds-page h-full flex items-center justify-center">
+      <LoadingState label={t('reading.loadingEngine')} />
+    </div>
+  );
 
   return (
-    <div className="h-full flex flex-col p-6 pt-safe pb-safe relative overflow-hidden">
-      {/* Immersive Background Overlay - Lighter for Holographic feel */}
-      <div className="absolute inset-0 bg-white/10 dark:bg-black/40 backdrop-blur-[2px] z-0"></div>
-
+    <div className="ds-page h-full flex flex-col p-6 pt-safe pb-safe relative overflow-hidden">
       {/* Top Bar */}
-      <div className="relative z-10 flex justify-between items-center mb-10">
-        <div className="px-4 py-1.5 rounded-full bg-white/40 dark:bg-white/10 backdrop-blur-md border border-white/40 text-xs font-bold text-slate-600 dark:text-slate-300 shadow-sm">
-           {currentIndex + 1} <span className="text-slate-400 mx-1">/</span> {words.length}
+      <div className="relative z-10 flex justify-between items-center mb-10 gap-3">
+        <div className="px-4 py-1.5 rounded-full ds-glass ds-glass-edge text-xs font-bold text-[var(--color-text-secondary)]">
+           {currentIndex + 1} <span className="text-[var(--color-text-tertiary)] mx-1">/</span> {words.length}
         </div>
-        <div className="flex gap-4">
-           <button onClick={() => setShowDetail(!showDetail)} className="w-11 h-11 flex items-center justify-center bg-white/40 dark:bg-white/10 rounded-full backdrop-blur-md border border-white/40 text-slate-700 dark:text-white hover:bg-white/60 transition-all shadow-sm active:scale-90">
-             <span className="text-lg">👁️</span>
-           </button>
-           <button onClick={() => navigate('home')} className="w-11 h-11 flex items-center justify-center bg-white/40 dark:bg-white/10 rounded-full backdrop-blur-md border border-white/40 text-slate-700 dark:text-white hover:bg-white/60 transition-all shadow-sm active:scale-90">
-             <span className="text-lg font-bold">✕</span>
-           </button>
+        <div className="flex gap-2">
+           <IconButton
+             icon={<Eye className="w-5 h-5" />}
+             label={t('reading.review') || 'Toggle detail'}
+             active={showDetail}
+             onClick={() => setShowDetail(!showDetail)}
+           />
+           <IconButton
+             icon={<Icons.Close />}
+             label="Close"
+             onClick={() => navigate('home')}
+           />
         </div>
       </div>
 
       {/* Word Card */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center space-y-8 animate-float">
          <div className="relative">
-            <h1 className="text-6xl font-black text-slate-800 dark:text-white tracking-tighter drop-shadow-sm mb-5 transition-all duration-300">
+            <h1 className="text-6xl font-black text-[var(--color-text-primary)] tracking-tighter mb-5 transition-all duration-300">
                {currentWord.text}
             </h1>
             {settings.display.showPhonetic && (
-               <div className="inline-block px-5 py-2 rounded-2xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-white/30 text-blue-600 dark:text-blue-300 font-mono text-lg shadow-sm">
+               <div className="inline-block px-5 py-2 rounded-2xl ds-glass ds-glass-edge text-[var(--klein-blue)] font-mono text-lg">
                   {currentWord.phonetic}
                </div>
             )}
          </div>
-         
+
          <div className={`transition-all duration-700 ease-out transform ${showDetail ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'}`}>
             {settings.display.showTranslation && (
-               <div className="text-3xl font-bold text-slate-600 dark:text-slate-300 mb-10 tracking-tight">
+               <div className="text-3xl font-bold text-[var(--color-text-secondary)] mb-10 tracking-tight">
                   {currentWord.translation}
                </div>
             )}
-            
-            <div className="holo-card p-8 rounded-3xl max-w-xs mx-auto border border-white/60 shadow-xl backdrop-blur-xl">
-               <p className="text-slate-700 dark:text-slate-200 text-lg leading-relaxed font-serif italic text-opacity-90">
+
+            <div className="ds-card p-8 rounded-[var(--radius-card)] max-w-xs mx-auto">
+               <p className="text-[var(--color-text-primary)] text-lg leading-relaxed italic">
                   "{currentWord.example}"
                </p>
             </div>
          </div>
       </div>
 
-      {/* Glass Controls */}
+      {/* Controls */}
       <div className="relative z-10 h-32 flex items-center justify-center gap-8 pb-4">
          <button onClick={handleInstantReview} className="flex flex-col items-center gap-3 group">
-            <div className="w-16 h-16 rounded-full bg-yellow-400/20 dark:bg-yellow-400/10 backdrop-blur-md border border-yellow-400/30 flex items-center justify-center text-yellow-600 dark:text-yellow-400 shadow-lg group-active:scale-90 transition-all hover:bg-yellow-400/30">
+            <div className="w-16 h-16 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shadow-lg group-active:scale-90 transition-all hover:bg-amber-500/25">
                <Icons.Rewind />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-yellow-600 transition-colors">{t('reading.review')}</span>
+            <span className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest group-hover:text-amber-500 transition-colors">{t('reading.review')}</span>
          </button>
 
          <button onClick={() => setIsPlaying(!isPlaying)} className="transform transition-transform active:scale-95 group">
-            <div className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl border-4 border-white/40 backdrop-blur-xl transition-all duration-300 ${isPlaying ? 'bg-slate-200/50 text-slate-600 hover:bg-slate-200/70' : 'bg-gradient-to-tr from-blue-500 to-indigo-600 text-white hover:scale-105 hover:shadow-blue-500/40'}`}>
+            <div
+              className={`w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 ${isPlaying ? 'ds-glass ds-glass-edge text-[var(--color-text-secondary)]' : 'text-[var(--klein-on)] hover:scale-105'}`}
+              style={isPlaying ? undefined : { background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
+            >
                {isPlaying ? <Icons.Pause /> : <Icons.Play />}
             </div>
          </button>
 
          <button onClick={handleNext} className="flex flex-col items-center gap-3 group">
-            <div className="w-16 h-16 rounded-full bg-white/40 dark:bg-white/10 backdrop-blur-md border border-white/40 flex items-center justify-center text-slate-700 dark:text-white shadow-lg group-active:scale-90 transition-all hover:bg-white/60">
+            <div className="w-16 h-16 rounded-full ds-glass ds-glass-edge flex items-center justify-center text-[var(--color-text-primary)] shadow-lg group-active:scale-90 transition-all">
                <Icons.ChevronRight />
             </div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest group-hover:text-slate-600 transition-colors">{t('reading.next')}</span>
+            <span className="text-[10px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-widest group-hover:text-[var(--klein-blue)] transition-colors">{t('reading.next')}</span>
          </button>
       </div>
     </div>

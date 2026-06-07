@@ -14,6 +14,7 @@
 namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 
 use Illuminate\Support\Facades\File;
+use App\Providers\PathMapper;
 
 /**
  * Initialization Marker Manager for Dictionary System
@@ -32,8 +33,10 @@ class AppQyV1InitializationMarkerManager
 
     public function __construct()
     {
-        $externalDataPath = env('DICT_EXTERNAL_DATA_PATH', storage_path('app/external_data'));
-        $this->markersPath = $externalDataPath . '/markers';
+        // Resolve markers directory through the canonical path map so the same
+        // logical location is produced under WSL / Windows / Ubuntu and is
+        // identical for the sys:init CLI process and the Octane HTTP worker.
+        $this->markersPath = PathMapper::getAppQyV1ExternalDataRoot('markers');
         
         $this->databaseMarker = $this->markersPath . '/database_ready.flag';
         $this->audioMarker = $this->markersPath . '/audio_processed.flag';

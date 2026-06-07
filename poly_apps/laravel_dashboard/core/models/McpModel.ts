@@ -2,8 +2,8 @@ import { api } from '../api';
 import { BaseModel, ModelResult } from './BaseModel';
 
 /**
- * MCP Model - MCP管理器业务模型
- * 使用命名空间组织不同功能模块
+ * MCP Model - MCP manager business model
+ * Uses namespaces to organize the different feature modules
  */
 export class McpModel extends BaseModel {
   private static instance: McpModel;

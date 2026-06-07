@@ -26,30 +26,26 @@ class StatusController extends BaseController
      */
     public function index(Request $request)
     {
-        try {
-            $systemInfo = [
-                'status' => 'online',
-                'timestamp' => now()->toISOString(),
-                'server_time' => now()->format('Y-m-d H:i:s'),
-                'version' => '1.0.0',
-                'environment' => app()->environment(),
-                'debug' => config('app.debug'),
-                'database' => $this->getDatabaseStatus(),
-                'storage' => $this->getStorageStatus(),
-                'memory' => $this->getMemoryStatus()
-            ];
+        // No controller-level try/catch (LARAVEL_GUIDE: trust the framework
+        // handler). The sub-status helpers below deliberately catch their own
+        // infra errors and report them AS DATA (status endpoint contract) —
+        // that is feature behaviour, not error swallowing, so it stays.
+        $systemInfo = [
+            'status' => 'online',
+            'timestamp' => now()->toISOString(),
+            'server_time' => now()->format('Y-m-d H:i:s'),
+            'version' => '1.0.0',
+            'environment' => app()->environment(),
+            'debug' => config('app.debug'),
+            'database' => $this->getDatabaseStatus(),
+            'storage' => $this->getStorageStatus(),
+            'memory' => $this->getMemoryStatus()
+        ];
 
-            return response()->json([
-                'success' => true,
-                'data' => $systemInfo
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to get system status: ' . $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => $systemInfo
+        ]);
     }
 
     /**

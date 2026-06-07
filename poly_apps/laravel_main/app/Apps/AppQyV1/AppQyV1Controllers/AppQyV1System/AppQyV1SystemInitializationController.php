@@ -472,7 +472,8 @@ class AppQyV1SystemInitializationController extends Controller
             $model = AppQyV1MultiLangDictionaryModel::forLanguage($langCode);
             
             $total = $model->count();
-            $reviewed = $model->where('ai_reviewed', true)->count();
+            // Unified schema: has_translation is the reviewed/usable signal.
+            $reviewed = $model->where('has_translation', true)->count();
             
             return [
                 'language' => $langName,

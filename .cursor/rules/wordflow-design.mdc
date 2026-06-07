@@ -1,12 +1,28 @@
 ---
-description: "WordFlow AI design system: mobile-first adaptive UI, Design Tokens, ds-* base classes, base>personalized (基类>个性化). Use when editing poly_apps/wordflow-ai UI."
-globs: poly_apps/wordflow-ai/**/*.{tsx,ts,css,html}
+description: "WordFlow AI (poly_apps/qy_capacitor) design system + backend co-development: mobile-first adaptive UI, Design Tokens, ds-* base classes, base>personalized (基类>个性化). Any qy_capacitor feature MUST co-develop the laravel_main AppQyV1 backend. Use when editing poly_apps/qy_capacitor."
+globs: poly_apps/qy_capacitor/**/*.{tsx,ts,css,html}
 alwaysApply: false
 ---
 
-# WordFlow AI Design Rule
+# WordFlow AI Rule (qy_capacitor)
 
-When editing **UI** in `poly_apps/wordflow-ai` (React/TSX, CSS, HTML):
+App identity: `poly_apps/qy_capacitor` is the **WordFlow AI** frontend (React/TSX + Vite + Capacitor). Its backend is the **AppQyV1** branch app inside `poly_apps/laravel_main`.
+
+## 0. Frontend + Backend Co-Development (强制 / mandatory)
+
+When developing a feature in `poly_apps/qy_capacitor`, you MUST simultaneously develop the corresponding backend in `poly_apps/laravel_main`:
+
+- Backend app code: `poly_apps/laravel_main/app/Apps/AppQyV1/**`
+- Backend routes: `poly_apps/laravel_main/routes/AppQyV1Router/**`
+- Frontend↔backend contract: see `poly_apps/qy_capacitor/docs/api/API_PATH_MAPPING.md`.
+
+A frontend change that adds/changes an API call without the matching `AppQyV1` route + controller (or vice versa) is incomplete. Run both via the orchestrator `poly_apps/qy_capacitor/scripts/start.ps1` (launches `start_qy.ps1` + `laravel_main/scripts/start.ps1`).
+
+Detailed per-app conventions: `poly_apps/qy_capacitor/CLAUDE.md`. Backend conventions: `development-guides/LARAVEL_GUIDE.md`.
+
+## Design System
+
+When editing **UI** in `poly_apps/qy_capacitor` (React/TSX, CSS, HTML):
 
 1. **Design Tokens.** All visual tokens in `index.css` (`:root` / `html.dark`) and `StyleCenter.ts`. **Mobile/adaptive:** `--touch-min` (44px), `--grid-unit` (8px), `--page-padding-h/v`, `--bar-gap`; use `env(safe-area-inset-*)` in layout. Glass/material/motion: `--glass-opacity`, `--glass-blur`, `--border-highlight`; `--material-thin-*`, `--material-thick-*`; `--ease-spring`, `--ease-liquid`, `--ease-smooth`; `--radius-card`, `--radius-button`; `--shadow-*`; bar/bento/fluid tokens.
 
@@ -22,7 +38,7 @@ When editing **UI** in `poly_apps/wordflow-ai` (React/TSX, CSS, HTML):
 
 7. **Bento / Neo-Brutalism Button.** Modular high-contrast CTA: `Button variant="bento"`. Left accent block uses `--bento-lime` (fluorescent lime), right label area `--bento-deep` (deep gray), border `--bento-border`, shadow `--shadow-deep`. Use `IconsDotMatrix.ArrowRight` in accent. Compact: add class `ds-btn-bento-compact` for section links.
 
-8. **Fluid / Vibrant Fluidity Button.** Gradient + motion feel: `Button variant="fluid" showPlay`. Tokens: `--fluid-from/mid/to` (cyan–purple–green), `--fluid-glow`; subtle background-position animation and hover shine. Use for “Play” / “Start” / “Create” CTAs.
+8. **Fluid / Vibrant Fluidity Button.** Gradient + motion feel: `Button variant="fluid" showPlay`. Tokens: `--fluid-from/mid/to` (cyan–purple–green), `--fluid-glow`; subtle background-position animation and hover shine. Use for "Play" / "Start" / "Create" CTAs.
 
 9. **Components.** `components/UI.tsx` Card uses `ds-card`; Button variants: `primary`, `pill`, **`bento`**, **`fluid`**, `secondary`, `outline`, `danger`, `ghost`. Style governance: `--primary-blur`, `--shadow-deep`; icons use atomic grid (e.g. `IconsDotMatrix`). StyleCenter.ts references tokens; do not bypass for one-off inline styles.
 
@@ -30,4 +46,75 @@ When editing **UI** in `poly_apps/wordflow-ai` (React/TSX, CSS, HTML):
 
 **AI prompts:** Hyper-realistic Glassmorphism, Aurora mesh gradients, Liquid morphing, Spring-based physics. **Centralized:** global token + material presets + single motion curve. **Mobile:** adaptive layout (no fixed width), safe area, touch targets ≥44px, base > personalized for theme/components/styles.
 
-Canonical: `poly_apps/wordflow-ai/index.css`, `poly_apps/wordflow-ai/styles/StyleCenter.ts`. Full design language: skill **wordflow-design-system**.
+## 11. v4.1 Iris Layer (additive — evolution of v4.0, do not replace v3.x)
+
+Additive on the glass/aurora system; v3.x stays valid. v4.1 is an **evolution
+of v4.0**: it keeps the **same v4.0 token NAMES** (stable API for 100+ pages —
+no per-page accent edits) but **re-tunes the values** to the reference Iris
+palette and **adds a gradient hero layer + a centered floating island**.
+
+- **Canonical reference images (强制 parity gate).** The app's visual source
+  of truth is `poly_apps/qy_capacitor/public/design-reference-light.webp`
+  (light) and `…/design-reference-dark.webp` (dark). Before changing/creating
+  ANY component or page with visible design, first open (`Read`) BOTH images
+  and verify your output matches them (palette, gradient-vs-solid, radius,
+  glass, spacing, island nav, pill menus, titles, tiles, dark/light). An
+  unverified design change is a defect. Tag every redesigned file with the
+  `/* [v4.1-Iris] … */` marker comment (spec §0). Rolling status:
+  `docs/design/REDESIGN_PROGRESS.md`.
+- **Iris palette.** Light = soft lavender/periwinkle bg (`body #ECEDFB`,
+  `ds-aura-bg` lavender gradient). Dark = deep near-black indigo
+  (`body #07070f`) with violet ambient glow.
+- **Solid vs gradient (mandatory).** Solid `--klein-*` (re-tuned, light
+  `#3B49E0` / dark `#6E84FF`) for **text / icons / active / borders / soft
+  tints** — `Button variant="klein"`/`primary` (`ds-btn-klein`). Gradient
+  `--klein-grad-*` / `--klein-gradient` (periwinkle→violet) for **hero
+  surfaces only**: primary CTA (`Button variant="grad"` / `ds-btn-grad`),
+  active pill, floating-island center, FAB (`ds-fab-grad`), bento corner-chip
+  (`ds-bento-chip`). Never ad-hoc `bg-blue-600`/purple; never paint body text
+  in the gradient; never a flat blue on a hero surface.
+- **Centered floating island.** `ds-bar-pill` is a centered island
+  (`left:50%; translateX(-50%); width:min(100vw - 2*--bar-gap, 430px)`,
+  lifted, saturated blur); `ds-bar-cta` = 62px gradient orb with 4px
+  bar-colored ring, `translateY(-18px)`; active side-tab icon wrap = gradient.
+- **Pill nav.** Category/filter/segment rows = `<PillNav>` / `ds-pill-nav` +
+  `ds-pill-chip` (bigger: 40px min-height, `.is-active` = gradient fill).
+  Never `<select>`/table header. Tables/dense grids → `ds-row`/`ds-card`/
+  `ds-grid-breathing`.
+- **New classes / primitives.** `ds-section-title`, `ds-section-sub`,
+  `ds-link-more`, `ds-icon-tile`, `ds-fab-grad`, `ds-btn-grad`, `ds-bento`,
+  `ds-bento-chip`. Consume the `components/UI.tsx` primitives — `SectionTitle`,
+  `IconTile`, `FabGrad`, `BentoTile`, `Button variant="grad"`, plus the frozen
+  `Spinner`/`LoadingState`, `EmptyState`, `IconButton`, `BackButton`,
+  `PageHeader`, `Badge` and `Icons.Bell`/`Icons.Filter`. Re-implementing any
+  of these inline is a defect (spec §3.8).
+- **Stacking discipline (强制).** No hand-rolled `absolute … z-50` dropdown
+  inside a card/scroll area (gets trapped by backdrop-filter/transform/overflow
+  stacking contexts → renders under the chrome). Anchored floating panels →
+  `<Popover>`/`<Portal>` (UI.tsx, portals to body); full-screen modals →
+  `<Sheet>`/`ds-z-modal`. Only the centralized z-scale tokens/utilities
+  (`--z-base/-raised/-sticky/-chrome/-popover/-modal/-toast`,
+  `.ds-z-*`): sticky 30 < chrome 40 < popover 60 < modal 80 < toast 95.
+  Spec §3.9; refs: `ApiEndpointSwitcher.tsx`, `LanguageDropdown.tsx`.
+- **Icons / no-emoji (强制).** Emoji are NEVER a UI icon/affordance (only in
+  real user content). Use `components/UI.tsx` `Icons.*` for core glyphs, else
+  **`lucide-react`** — the single approved icon library (~1,500 icons, in the
+  `index.html` importmap + package.json). No other lib, no ad-hoc SVG when a
+  lucide/`Icons.*` exists; size via `w-*/h-*`, color via `currentColor`/tokens.
+  Content pages = centred phone column `max-w-md mx-auto`/`.ds-page` (never
+  `max-w-2xl/4xl/5xl`). Spec §3.10; ref `pages/Profile/Profile.tsx`.
+- **Dark/light parity is acceptance criteria** for every token/state.
+- **Interaction design (交互设计).** Information architecture, navigation (5-tab
+  island), app-shell/chrome rules, user flows, interaction states, overlay/
+  stacking model and motion now live in the **same** design doc, **Part B
+  (§7–§12)** — each topic documents the current UI (现在的UI) and the expected
+  UI (预期的UI). Use it when changing navigation, flows, overlays, or states;
+  `architecture/ARCHITECTURE.md` §8 keeps only the technical RouteCenter API.
+
+Full v4.1 bullets live in **`poly_apps/qy_capacitor/CLAUDE.md` §5** (do not
+duplicate here). Canonical contract: `docs/design/WORDFLOW_DESIGN_SYSTEM_4.0.md`
+(retitled "Design System 4.1 — Iris Layer + UI/UX Interaction"; visual = Part A
+§0–§6, interaction = Part B §7–§12); work breakdown:
+`docs/design/COMPONENT_REDESIGN_INVENTORY.md`.
+
+Canonical tokens: `poly_apps/qy_capacitor/index.css`, `poly_apps/qy_capacitor/styles/StyleCenter.ts`. Full design language: skill **wordflow-design-system** + `docs/design/WORDFLOW_DESIGN_SYSTEM_4.0.md`. Per-app + co-development conventions: `poly_apps/qy_capacitor/CLAUDE.md`.

@@ -2,8 +2,8 @@ import { api } from '../api';
 import { BaseModel } from './BaseModel';
 
 /**
- * AppQyV1 Model - 词汇学习系统 + AI工具
- * 使用命名空间组织不同功能模块
+ * AppQyV1 Model - Vocabulary learning system + AI tools
+ * Uses namespaces to organize the different feature modules
  */
 export class AppQyV1Model extends BaseModel {
   private static instance: AppQyV1Model;
@@ -116,7 +116,7 @@ export class AppQyV1Model extends BaseModel {
   // ========== System namespace ==========
   system = {
     getLanguages: () =>
-      this.execute(api.appQyV1.get('/system/languages', undefined, true, 3600000)),
+      this.execute(api.appQyV1.get('/system/supported-languages', undefined, true, 3600000)),
 
     getConfig: () =>
       this.execute(api.appQyV1.get('/system/config', undefined, true, 600000))

@@ -244,11 +244,20 @@ class AppQyV1ApiInfo
 
             // Word Operations endpoints (words)
             [
-                "path" => "/api/words/daily",
+                "path" => "/api/app_qy_v1/words/daily",
                 "method" => "GET",
                 "feature" => "Daily Words",
-                "description" => "Get daily words",
-                "auth_required" => true
+                "description" => "Get daily words (flat array of {id, word, translation, phonetic})",
+                "auth_required" => true,
+                "parameters" => ["count", "language"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/system/init-compliance",
+                "method" => "GET",
+                "feature" => "Init Compliance Report",
+                "description" => "Read-only health of all sys:init items: marker flags, external-data migration, per-language tts_cache promotion, legacy deprecation, octane timer, app initializers",
+                "auth_required" => false,
+                "parameters" => []
             ],
             [
                 "path" => "/api/words/{id}",

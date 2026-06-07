@@ -38,7 +38,13 @@ class VocabularyLibraryManagerClass {
   private processingAudio = false;
 
   constructor() {
-    this.loadFromStorage();
+    // Fault-isolated bootstrap: a corrupt cache or storage failure must not
+    // throw out of the module-load singleton construction.
+    try {
+      this.loadFromStorage();
+    } catch (error: any) {
+      console.warn('[VocabularyLibraryManager] Storage load failed (handled, starting empty):', error?.message || error);
+    }
     this.startAudioProcessor();
   }
 
@@ -238,9 +244,12 @@ class VocabularyLibraryManagerClass {
     const data = StorageCenter.get<any[]>(StorageKey.VOCABULARY_LIBRARY_CACHE);
     if (data && Array.isArray(data)) {
       data.forEach(lib => {
+        // Guard each entry: a malformed cached record must not abort the
+        // whole restore and leave the manager unusable.
+        if (!lib || lib.id == null) return;
         this.libraries.set(lib.id, {
           ...lib,
-          loadedPages: new Set(lib.loadedPages),
+          loadedPages: new Set(Array.isArray(lib.loadedPages) ? lib.loadedPages : []),
         });
       });
     }

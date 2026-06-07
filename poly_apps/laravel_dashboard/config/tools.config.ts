@@ -78,12 +78,15 @@ export const AI_TOOLS: Record<string, ToolConfig> = {
     icon: 'FileImage',
     description: 'Extract text from images using OCR',
     apiModule: 'mcpV1',
-    apiMethod: 'mcpV1.uploadScreenshot',
+    // Was 'mcpV1.uploadScreenshot' — that posts the image to the screenshot
+    // store, NOT the OCR engine, so "Extract Text" silently produced no text.
+    // ocrRecognize hits the real /mcp/v1/ocr/recognize endpoint.
+    apiMethod: 'mcpV1.ocrRecognize',
     inputSchema: {
       required: ['image'],
       properties: {
         image: { type: 'file' },
-        description: { type: 'string' }
+        engine: { type: 'string' }
       }
     },
     outputSchema: {

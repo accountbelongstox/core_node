@@ -18,7 +18,7 @@ ORIGINAL_DIR=$(pwd)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR" || exit 1
 
-PORT=18000
+PORT=9000
 
 echo "Clearing route cache..."
 php artisan route:clear

@@ -1,7 +1,9 @@
-import React, { useContext, useEffect, useState } from 'react';
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Ad-hoc quiz SVG → lucide CircleCheck. Propagate the Iris layer to un-beautified siblings. */
+import React, { useContext, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AppContext } from '../../contexts/AppContext';
-import { Icons, Card } from '../../components/UI';
+import { Icons, SectionTitle } from '../../components/UI';
+import { CircleCheck } from 'lucide-react';
 
 export default function LearnPractice() {
   const { navigate, t } = useContext(AppContext);
@@ -38,7 +40,6 @@ export default function LearnPractice() {
       subtitle: t('home.flowContext'),
       description: 'Read articles and books to learn vocabulary in context',
       icon: <Icons.Book />,
-      color: 'from-blue-500 to-blue-600',
       recommended: true
     },
     {
@@ -47,7 +48,6 @@ export default function LearnPractice() {
       subtitle: t('home.spacedRepetition'),
       description: 'Review vocabulary with smart spaced repetition system',
       icon: <Icons.Sparkles />,
-      color: 'from-purple-500 to-purple-600',
       recommended: true
     },
     {
@@ -55,12 +55,7 @@ export default function LearnPractice() {
       title: t('home.quiz'),
       subtitle: t('home.gamifiedTest'),
       description: 'Test your knowledge with interactive quizzes',
-      icon: (
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      color: 'from-green-500 to-green-600',
+      icon: <CircleCheck className="w-7 h-7" aria-hidden />,
       recommended: false
     },
     {
@@ -69,78 +64,80 @@ export default function LearnPractice() {
       subtitle: t('home.passive'),
       description: 'Listen to vocabulary with audio loop and auto-play',
       icon: <Icons.Sound />,
-      color: 'from-orange-500 to-orange-600',
       recommended: false
     },
   ];
 
+  const recommended = practiceModes.filter(m => m.recommended);
+  const others = practiceModes.filter(m => !m.recommended);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
+    <div className="ds-page ds-section-gap min-h-screen bg-transparent pb-32">
       {/* Header */}
-      <div className="pt-20 px-6 pb-8 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+      <div className="pt-20 w-full">
+        <div className="px-1">
+          <h1 className="text-[2rem] leading-[1.15] font-black tracking-tight text-[var(--color-text-primary)]">
             {t('nav.practice')}
           </h1>
-          <p className="text-slate-600 dark:text-slate-400">
+          <p className="text-sm font-medium text-[var(--color-text-secondary)] mt-1">
             Choose your learning mode
           </p>
         </div>
       </div>
 
-      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
-        {/* Recommended Section */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            {t('home.recommended')}
-          </h2>
-          <div className="space-y-4">
-            {practiceModes.filter(m => m.recommended).map((mode) => (
-              <Card
-                key={mode.id}
-                onClick={() => navigate(`learn/practice?mode=${mode.id}`)}
-                className={`bg-gradient-to-br ${mode.color} text-white border-none shadow-xl cursor-pointer hover:scale-[1.02] transition-transform`}
+      <div className="w-full ds-section-gap">
+        {/* Recommended Section — Iris gradient hero cards */}
+        <div>
+          <SectionTitle title={t('home.recommended')} className="mb-3 px-1" />
+          <div className="ds-stack ds-stack-tight">
+            {recommended.map((m) => (
+              <div
+                key={m.id}
+                onClick={() => navigate(`learn/practice?mode=${m.id}`)}
+                className="rounded-[var(--radius-card)] p-5 text-[color:var(--klein-on)] relative overflow-hidden cursor-pointer group"
+                style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
-                    {mode.icon}
+                <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/15 rounded-full blur-2xl pointer-events-none"></div>
+                <div className="relative z-10 flex items-center gap-4">
+                  <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0 backdrop-blur-sm">
+                    {m.icon}
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-xl mb-1">{mode.title}</h3>
-                    <p className="text-sm text-white/90 mb-2">{mode.subtitle}</p>
-                    <p className="text-xs text-white/70">{mode.description}</p>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-xl mb-1">{m.title}</h3>
+                    <p className="text-sm text-white/90 mb-1">{m.subtitle}</p>
+                    <p className="text-xs text-white/75">{m.description}</p>
                   </div>
-                  <Icons.ChevronRight />
+                  <div className="text-white/90 group-active:scale-90 transition-transform flex-shrink-0">
+                    <Icons.ChevronRight />
+                  </div>
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
         </div>
 
         {/* Other Modes Section */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            Other Modes
-          </h2>
-          <div className="space-y-4">
-            {practiceModes.filter(m => !m.recommended).map((mode) => (
-              <Card
-                key={mode.id}
-                onClick={() => navigate(`learn/practice?mode=${mode.id}`)}
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-lg hover:border-blue-500 dark:hover:border-blue-500 transition-all"
+        <div>
+          <SectionTitle title="Other Modes" className="mb-3 px-1" />
+          <div className="ds-stack ds-stack-tight">
+            {others.map((m) => (
+              <div
+                key={m.id}
+                onClick={() => navigate(`learn/practice?mode=${m.id}`)}
+                className="ds-row flex items-center gap-4 p-4 cursor-pointer group"
               >
-                <div className="flex items-center gap-4">
-                  <div className={`w-16 h-16 bg-gradient-to-br ${mode.color} rounded-2xl flex items-center justify-center flex-shrink-0 text-white`}>
-                    {mode.icon}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1">{mode.title}</h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">{mode.subtitle}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-500">{mode.description}</p>
-                  </div>
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-[color:var(--klein-blue)]" style={{ background: 'var(--klein-blue-soft)' }}>
+                  {m.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-lg text-[var(--color-text-primary)] mb-0.5 truncate group-hover:text-[var(--klein-blue)] transition-colors">{m.title}</h3>
+                  <p className="text-sm text-[var(--color-text-secondary)]">{m.subtitle}</p>
+                  <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">{m.description}</p>
+                </div>
+                <div className="text-[var(--color-text-tertiary)] group-hover:text-[var(--klein-blue)] transition-colors flex-shrink-0">
                   <Icons.ChevronRight />
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
         </div>
