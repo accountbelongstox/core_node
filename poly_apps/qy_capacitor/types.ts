@@ -51,6 +51,25 @@ export interface RetentionStat {
   percentage: number;
 }
 
+export interface LearningStats {
+  totalWords?: number;
+  masteredWords?: number;
+  learningWords?: number;
+  reviewWords?: number;
+  streak?: number;
+  accuracy?: number;
+  [key: string]: any;
+}
+
+export interface LearningProgress {
+  wordId?: string;
+  level?: number;
+  reviewCount?: number;
+  lastReviewed?: number;
+  nextReview?: number;
+  [key: string]: any;
+}
+
 export interface Achievement {
   id: string;
   name: string;
@@ -118,6 +137,7 @@ export interface User {
   // Language Settings
   selectedLanguage: string;        // Primary interface language
   learningLanguages: string[];     // Array of language codes user is learning (e.g. ['en', 'jp'])
+  learning_languages?: string[];   // Backend field (snake_case variant)
   native_language?: string;        // Backend field
   learning_stats?: any;            // Backend field (detailed stats)
 
@@ -347,15 +367,15 @@ export interface VocabularyLibrary {
   cover_image_url: string;
 }
 
-// Study Groups Types (背诵分组)
+// Study Groups Types (recitation groups)
 export interface StudyGroup {
   id: string;
   uid: string;
   name: string;
   description?: string;
-  language: string;              // 语言代码（en, zh, ja等）
-  is_language_default: boolean;  // 是否为该语言的默认分组
-  is_default: boolean;           // @deprecated 保留兼容性
+  language: string;              // Language code (en, zh, ja, etc.)
+  is_language_default: boolean;  // Whether this is the default group for the language
+  is_default: boolean;           // @deprecated kept for backward compatibility
   total_word_groups: number;
   total_words: number;
   learned_words: number;
@@ -393,7 +413,7 @@ export interface StudyGroupDetailed extends StudyGroup {
 
 export interface CreateStudyGroupRequest {
   name: string;
-  language: string;              // 必填：语言代码
+  language: string;              // Required: language code
   description?: string;
   is_default?: boolean;          // @deprecated
   daily_goal?: number;

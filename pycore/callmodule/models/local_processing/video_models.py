@@ -29,7 +29,7 @@ class VideoProcessRequest(BaseModel):
     auto_upload: bool = Field(default=True, description="Automatically upload result")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "video_path": "/tmp/video.mp4",
                 "extract_audio": True,
@@ -71,7 +71,7 @@ class VideoProcessResponse(BaseModel):
     error: Optional[str] = None
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "message": "Video processed successfully",

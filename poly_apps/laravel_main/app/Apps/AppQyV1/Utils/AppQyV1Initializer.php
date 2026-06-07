@@ -7,6 +7,7 @@ use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
@@ -49,6 +50,17 @@ class AppQyV1Initializer implements AppInitializerInterface
     
     public function initialize(bool $force = false): array
     {
+        // Drain orphaned external data from the legacy storage_path location
+        // into the canonical mapWebPath-backed root BEFORE markers/data are
+        // checked or written, so flags and media co-locate in the new root.
+        // Safe (OLD kept on any failure), idempotent (guard + skip-if-exists),
+        // cross-OS (Laravel File + PathMapper). Same namespace - no use needed.
+        try {
+            AppQyV1ExternalDataMigrator::migrate();
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1Init] External data migration error: ' . $e->getMessage());
+        }
+
         $status = $this->loadStatus();
         $results = [];
         $allSuccess = true;
@@ -76,6 +88,12 @@ class AppQyV1Initializer implements AppInitializerInterface
                 
                 if ($statusCode === 'success') {
                     $this->markStepCompleted($step);
+                    // verify_tables only returns success when every dictionary
+                    // table exists, so this is the authoritative "database is
+                    // ready" signal that the runtime read-side checks for.
+                    if ($step === 'verify_tables') {
+                        (new AppQyV1InitializationMarkerManager())->setDatabaseProcessed();
+                    }
                     if (PHP_SAPI === 'cli') {
                         echo "      -> OK: {$result['message']}\n";
                         // For seed_initial_data, print per-collection details for better visibility.
@@ -128,6 +146,26 @@ class AppQyV1Initializer implements AppInitializerInterface
         
         if ($allSuccess) {
             $this->markFullyInitialized();
+
+            // Write the runtime initialization markers that the AppQyV1
+            // controllers check before serving dictionary data. AppQyV1 has no
+            // audio/image processing step (media is served on demand), so those
+            // markers are recorded here together with the completion marker.
+            $markerManager = new AppQyV1InitializationMarkerManager();
+            $markerManager->setDatabaseProcessed();
+            $markerManager->setAudioProcessed();
+            $markerManager->setImagesProcessed();
+            $markerManager->setInitializationComplete();
+
+            // Stage-2 safety net: promote any staged rows for every language
+            // into the formal tts_cache_{lang} tables. Runs on every init
+            // regardless of the skip-gated dictionary Step 2, so re-inits never
+            // leave staged data unpromoted. Idempotent and additive.
+            try {
+                \App\Services\UserSyncService::promoteAllStaging();
+            } catch (\Throwable $e) {
+                Log::error('[AppQyV1Init] promoteAllStaging error: ' . $e->getMessage());
+            }
         }
         
         return [

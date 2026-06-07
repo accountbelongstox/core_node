@@ -4,7 +4,8 @@ namespace App\Apps\AppQyV1\Utils;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCollectionModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
@@ -157,30 +158,52 @@ class AppQyV1VocabularyImporter
 
     private function ensureWordsInDictionary(string $langCode, array $words): int
     {
-        // Keep behavior (ensure all missing words exist) but avoid per-word lookups.
-        // 1. Compute missing words in a single query using existing helper.
-        $missingWordList = AppQyV1MultiLangDictionaryModel::findMissingEntries($langCode, $words);
-        
-        if (empty($missingWordList)) {
+        // Unified: ensure missing words exist in the canonical
+        // tts_cache_{lang} table (single source of truth), keyed by md5(content).
+        $model = AppQyV1LangDictionaryModel::forLanguage($langCode);
+        $table = AppQyV1TableMaps::getDictionaryTableName($langCode);
+        $conn = $model->getConnection();
+
+        $byMd5 = [];
+        foreach ($words as $word) {
+            $byMd5[md5($word)] = $word;
+        }
+
+        if (empty($byMd5)) {
             return 0;
         }
-        
-        // 2. Build payload only for truly missing words.
-        $missingWords = [];
-        foreach ($missingWordList as $word) {
-            $missingWords[] = [
-                'word' => $word,
-                'has_translation' => false,
-                'tts_generated' => false,
+
+        $existing = $conn->table($table)
+            ->whereIn('md5', array_keys($byMd5))
+            ->pluck('md5')
+            ->all();
+
+        $missingMd5 = array_diff(array_keys($byMd5), $existing);
+        if (empty($missingMd5)) {
+            return 0;
+        }
+
+        $now = now();
+        $rows = [];
+        foreach ($missingMd5 as $md5) {
+            $rows[] = [
+                'content' => $byMd5[$md5],
+                'md5' => $md5,
+                'has_translation' => 0,
+                'has_audio' => 0,
+                'query_count' => 0,
+                'created_at' => $now,
+                'updated_at' => $now,
             ];
         }
-        
-        if (!empty($missingWords)) {
-            $inserted = AppQyV1MultiLangDictionaryModel::batchCreateOrUpdate($langCode, $missingWords);
-            return count($inserted);
+
+        $inserted = 0;
+        foreach (array_chunk($rows, 500) as $chunk) {
+            $conn->table($table)->insert($chunk);
+            $inserted += count($chunk);
         }
-        
-        return 0;
+
+        return $inserted;
     }
 
     public function extractWordsFromDocument(string $content, string $langCode = 'en'): array

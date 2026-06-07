@@ -1,14 +1,14 @@
 /**
- * StudyGroupsCenter - 学习分组管理中心
+ * StudyGroupsCenter - Study Groups Management Center
  *
- * 功能：
- * - 管理用户的学习分组（Study Groups）
- * - 学习分组是用户组织学习计划的方式，可包含多个词组（Word Groups）
- * - 提供响应式更新、智能缓存和自动初始化
+ * Features:
+ * - Manages the user's Study Groups
+ * - A Study Group is how a user organizes a study plan; it can contain multiple Word Groups
+ * - Provides reactive updates, smart caching, and automatic initialization
  *
- * 与 WordGroupsCenter 的区别：
- * - WordGroupsCenter: 管理词库（系统或用户创建的词汇集合）
- * - StudyGroupsCenter: 管理学习计划（用户组织的学习分组，包含多个词组）
+ * Difference from WordGroupsCenter:
+ * - WordGroupsCenter: manages word libraries (system- or user-created vocabulary collections)
+ * - StudyGroupsCenter: manages study plans (user-organized study groups containing multiple word groups)
  */
 
 import type {
@@ -35,8 +35,8 @@ class StudyGroupsCenterClass {
   private FETCH_COOLDOWN = 15000; // 15 seconds
 
   /**
-   * 初始化学习分组中心
-   * 优先从缓存加载，然后从API获取最新数据
+   * Initialize the study groups center
+   * Loads from cache first, then fetches the latest data from the API
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -46,22 +46,24 @@ class StudyGroupsCenterClass {
 
     console.log('[StudyGroupsCenter] Initializing...');
 
-    // 从缓存加载
-    const cached = StorageCenter.cache.get<StudyGroup[]>(StorageKey.STUDY_GROUPS_CACHE);
+    // Load from cache
+    const cached = StorageCenter.cache.get<StudyGroup[]>(StorageKey.STUDY_GROUPS_CACHE) as unknown as StudyGroup[] | null;
     if (cached && cached.length > 0) {
       this.studyGroups = cached;
       this.notifyListeners();
       console.log(`[StudyGroupsCenter] Loaded ${cached.length} groups from cache`);
     }
 
-    // 从API获取最新数据
+    // Fetch the latest data from the API
     try {
       await this.fetchAll(true);
       this.isInitialized = true;
       console.log('[StudyGroupsCenter] Initialization complete');
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to initialize:', error);
-      // 如果有缓存数据，仍然标记为已初始化
+    } catch (error: any) {
+      // Offline / backend down is expected and non-fatal: degrade to the
+      // cached (or empty) state and never throw out of initialize().
+      console.warn('[StudyGroupsCenter] Failed to initialize (handled, using cached/empty):', error?.message || error);
+      // If cached data exists, still mark as initialized
       if (this.studyGroups.length > 0) {
         this.isInitialized = true;
       }
@@ -69,19 +71,19 @@ class StudyGroupsCenterClass {
   }
 
   /**
-   * 获取所有学习分组
-   * @param forceRefresh 强制刷新，忽略缓存和防抖
+   * Fetch all study groups
+   * @param forceRefresh Force a refresh, ignoring the cache and debounce
    */
   async fetchAll(forceRefresh: boolean = false): Promise<StudyGroup[]> {
     const now = Date.now();
 
-    // 防抖机制：如果最近15秒内已经请求过，直接返回缓存
+    // Debounce: if a request was made within the last 15 seconds, return the cache directly
     if (!forceRefresh && (now - this.lastFetchTime) < this.FETCH_COOLDOWN) {
       console.log('[StudyGroupsCenter] Fetch throttled, returning cached data');
       return this.studyGroups;
     }
 
-    // 如果正在加载，返回当前数据
+    // If a load is already in progress, return the current data
     if (this.isLoading) {
       console.log('[StudyGroupsCenter] Already loading, returning current data');
       return this.studyGroups;
@@ -93,11 +95,11 @@ class StudyGroupsCenterClass {
     try {
       console.log('[StudyGroupsCenter] Fetching study groups from API...');
 
-      // 调用API（后端返回格式: { uid, total, groups }）
+      // Call the API (backend response format: { uid, total, groups })
       const response = await this.callApi<{ uid?: number; total: number; groups: any[] }>('/api/app_qy_v1/query_all_groups');
 
       if (response.success && response.data) {
-        // 转换后端字段到前端格式 (gid->id, gname->name等)
+        // Convert backend fields to the frontend format (gid->id, gname->name, etc.)
         const rawGroups = response.data.groups || [];
         this.studyGroups = rawGroups.map((g: any) => ({
           id: g.gid || g.id,
@@ -122,22 +124,23 @@ class StudyGroupsCenterClass {
           last_studied_at: g.last_studied_at
         }));
 
-        // 保存到缓存
+        // Save to cache
         StorageCenter.cache.set(
           StorageKey.STUDY_GROUPS_CACHE,
           this.studyGroups,
           this.CACHE_DURATION
         );
 
-        // 通知所有订阅者
+        // Notify all subscribers
         this.notifyListeners();
 
         console.log(`[StudyGroupsCenter] Fetched ${this.studyGroups.length} study groups`);
       }
 
       return this.studyGroups;
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to fetch study groups:', error);
+    } catch (error: any) {
+      // Keep last good / cached state on offline / backend failure.
+      console.warn('[StudyGroupsCenter] Failed to fetch study groups (handled, using cached/empty):', error?.message || error);
       return this.studyGroups;
     } finally {
       this.isLoading = false;
@@ -145,7 +148,7 @@ class StudyGroupsCenterClass {
   }
 
   /**
-   * 刷新数据（强制从API获取）
+   * Refresh data (force fetch from the API)
    */
   async refresh(): Promise<void> {
     console.log('[StudyGroupsCenter] Manual refresh triggered');
@@ -153,8 +156,8 @@ class StudyGroupsCenterClass {
   }
 
   /**
-   * 为指定语言创建默认背诵分组
-   * @param language 语言代码（如 'en', 'zh', 'ja'）
+   * Create the default study group for the specified language
+   * @param language Language code (e.g. 'en', 'zh', 'ja')
    */
   async createLanguageGroup(language: string): Promise<StudyGroup | null> {
     try {
@@ -168,7 +171,7 @@ class StudyGroupsCenterClass {
       if (response.success && response.data) {
         const rawGroup = response.data;
 
-        // 转换后端字段到前端格式
+        // Convert backend fields to the frontend format
         const newGroup: StudyGroup = {
           id: rawGroup.id || rawGroup.gid,
           uid: rawGroup.uid,
@@ -192,7 +195,7 @@ class StudyGroupsCenterClass {
           last_studied_at: rawGroup.last_studied_at
         };
 
-        // 更新本地缓存
+        // Update the local cache
         const index = this.studyGroups.findIndex(g => g.id === newGroup.id);
         if (index >= 0) {
           this.studyGroups[index] = newGroup;
@@ -200,7 +203,7 @@ class StudyGroupsCenterClass {
           this.studyGroups.push(newGroup);
         }
 
-        // 按语言和sort_order排序
+        // Sort by language and sort_order
         this.studyGroups.sort((a, b) => {
           if (a.language !== b.language) {
             return a.language.localeCompare(b.language);
@@ -216,15 +219,15 @@ class StudyGroupsCenterClass {
       }
 
       return null;
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to create language group:', error);
+    } catch (error: any) {
+      console.warn('[StudyGroupsCenter] Failed to create language group (handled):', error?.message || error);
       return null;
     }
   }
 
   /**
-   * 获取指定语言的所有背诵分组
-   * @param language 语言代码
+   * Fetch all study groups for the specified language
+   * @param language Language code
    */
   async getByLanguage(language: string): Promise<StudyGroup[]> {
     try {
@@ -237,7 +240,7 @@ class StudyGroupsCenterClass {
       if (response.success && response.data) {
         const rawGroups = response.data.study_groups || [];
 
-        // 转换后端字段到前端格式
+        // Convert backend fields to the frontend format
         const groups: StudyGroup[] = rawGroups.map((g: any) => ({
           id: g.id || g.gid,
           uid: g.uid,
@@ -261,7 +264,7 @@ class StudyGroupsCenterClass {
           last_studied_at: g.last_studied_at
         }));
 
-        // 更新本地缓存中对应语言的分组
+        // Update the groups for the corresponding language in the local cache
         this.studyGroups = this.studyGroups.filter(g => g.language !== language);
         this.studyGroups.push(...groups);
 
@@ -272,34 +275,34 @@ class StudyGroupsCenterClass {
       }
 
       return [];
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to fetch groups by language:', error);
+    } catch (error: any) {
+      console.warn('[StudyGroupsCenter] Failed to fetch groups by language (handled, empty fallback):', error?.message || error);
       return [];
     }
   }
 
   /**
-   * 获取默认学习分组（废弃，使用 getLanguageDefaultGroup）
-   * @deprecated 使用 getLanguageDefaultGroup(language) 代替
+   * Get the default study group (deprecated, use getLanguageDefaultGroup)
+   * @deprecated Use getLanguageDefaultGroup(language) instead
    */
   async getDefaultGroup(): Promise<StudyGroup | null> {
     console.warn('[StudyGroupsCenter] getDefaultGroup() is deprecated, use getLanguageDefaultGroup(language)');
 
-    // 返回第一个语言的默认分组作为兼容
+    // Return the default group of the first language for compatibility
     const defaultGroups = this.studyGroups.filter(g => g.is_language_default);
     return defaultGroups.length > 0 ? defaultGroups[0] : null;
   }
 
   /**
-   * 获取指定语言的默认背诵分组
-   * @param language 语言代码
+   * Get the default study group for the specified language
+   * @param language Language code
    */
   getLanguageDefaultGroup(language: string): StudyGroup | undefined {
     return this.studyGroups.find(g => g.language === language && g.is_language_default);
   }
 
   /**
-   * 创建新的学习分组
+   * Create a new study group
    */
   async create(request: CreateStudyGroupRequest): Promise<StudyGroup | null> {
     try {
@@ -313,10 +316,10 @@ class StudyGroupsCenterClass {
       if (response.success && response.data) {
         const newGroup = response.data;
 
-        // 添加到本地列表
+        // Add to the local list
         this.studyGroups.push(newGroup);
 
-        // 按sort_order排序
+        // Sort by sort_order
         this.studyGroups.sort((a, b) => a.sort_order - b.sort_order);
 
         this.notifyListeners();
@@ -327,14 +330,14 @@ class StudyGroupsCenterClass {
       }
 
       return null;
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to create study group:', error);
+    } catch (error: any) {
+      console.warn('[StudyGroupsCenter] Failed to create study group (handled):', error?.message || error);
       return null;
     }
   }
 
   /**
-   * 更新学习分组
+   * Update a study group
    */
   async update(groupId: string, request: UpdateStudyGroupRequest): Promise<boolean> {
     try {
@@ -346,7 +349,7 @@ class StudyGroupsCenterClass {
       });
 
       if (response.success && response.data) {
-        // 更新本地数据
+        // Update local data
         const index = this.studyGroups.findIndex(g => g.id === groupId);
         if (index >= 0) {
           this.studyGroups[index] = response.data;
@@ -359,14 +362,14 @@ class StudyGroupsCenterClass {
       }
 
       return false;
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to update study group:', error);
+    } catch (error: any) {
+      console.warn('[StudyGroupsCenter] Failed to update study group (handled):', error?.message || error);
       return false;
     }
   }
 
   /**
-   * 删除学习分组
+   * Delete a study group
    */
   async delete(groupId: string): Promise<boolean> {
     try {
@@ -377,7 +380,7 @@ class StudyGroupsCenterClass {
       });
 
       if (response.success) {
-        // 从本地列表移除
+        // Remove from the local list
         this.studyGroups = this.studyGroups.filter(g => g.id !== groupId);
         this.notifyListeners();
         this.updateCache();
@@ -387,14 +390,14 @@ class StudyGroupsCenterClass {
       }
 
       return false;
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to delete study group:', error);
+    } catch (error: any) {
+      console.warn('[StudyGroupsCenter] Failed to delete study group (handled):', error?.message || error);
       return false;
     }
   }
 
   /**
-   * 获取学习分组详情（包含所有词组）
+   * Get study group details (including all word groups)
    */
   async getById(groupId: string): Promise<StudyGroupDetailed | null> {
     try {
@@ -403,7 +406,7 @@ class StudyGroupsCenterClass {
       const response = await this.callApi<StudyGroupDetailed>(`/api/study_groups/${groupId}`);
 
       if (response.success && response.data) {
-        // 更新本地基本信息
+        // Update the local basic info
         const index = this.studyGroups.findIndex(g => g.id === groupId);
         if (index >= 0) {
           const { word_groups, ...basicInfo } = response.data;
@@ -415,14 +418,14 @@ class StudyGroupsCenterClass {
       }
 
       return null;
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to fetch study group details:', error);
+    } catch (error: any) {
+      console.warn('[StudyGroupsCenter] Failed to fetch study group details (handled):', error?.message || error);
       return null;
     }
   }
 
   /**
-   * 向学习分组添加词组
+   * Add a word group to a study group
    */
   async addWordGroup(groupId: string, request: AddWordGroupToStudyGroupRequest): Promise<boolean> {
     try {
@@ -434,7 +437,7 @@ class StudyGroupsCenterClass {
       });
 
       if (response.success) {
-        // 刷新数据以获取更新后的统计信息
+        // Refresh data to get the updated statistics
         await this.fetchAll(true);
 
         console.log('[StudyGroupsCenter] Word group added successfully');
@@ -442,14 +445,14 @@ class StudyGroupsCenterClass {
       }
 
       return false;
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to add word group:', error);
+    } catch (error: any) {
+      console.warn('[StudyGroupsCenter] Failed to add word group (handled):', error?.message || error);
       return false;
     }
   }
 
   /**
-   * 从学习分组移除词组
+   * Remove a word group from a study group
    */
   async removeWordGroup(groupId: string, wordGroupId: string): Promise<boolean> {
     try {
@@ -461,7 +464,7 @@ class StudyGroupsCenterClass {
       );
 
       if (response.success) {
-        // 刷新数据以获取更新后的统计信息
+        // Refresh data to get the updated statistics
         await this.fetchAll(true);
 
         console.log('[StudyGroupsCenter] Word group removed successfully');
@@ -469,14 +472,14 @@ class StudyGroupsCenterClass {
       }
 
       return false;
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to remove word group:', error);
+    } catch (error: any) {
+      console.warn('[StudyGroupsCenter] Failed to remove word group (handled):', error?.message || error);
       return false;
     }
   }
 
   /**
-   * 更新学习进度
+   * Update study progress
    */
   async updateProgress(groupId: string, request: UpdateStudyProgressRequest): Promise<boolean> {
     try {
@@ -491,7 +494,7 @@ class StudyGroupsCenterClass {
       );
 
       if (response.success) {
-        // 刷新数据
+        // Refresh data
         await this.fetchAll(true);
 
         console.log('[StudyGroupsCenter] Progress updated');
@@ -499,14 +502,14 @@ class StudyGroupsCenterClass {
       }
 
       return false;
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to update progress:', error);
+    } catch (error: any) {
+      console.warn('[StudyGroupsCenter] Failed to update progress (handled):', error?.message || error);
       return false;
     }
   }
 
   /**
-   * 设置默认学习分组
+   * Set the default study group
    */
   async setDefault(groupId: string): Promise<boolean> {
     try {
@@ -517,7 +520,7 @@ class StudyGroupsCenterClass {
       });
 
       if (response.success) {
-        // 更新本地数据
+        // Update local data
         this.studyGroups.forEach(g => {
           g.is_default = (g.id === groupId);
         });
@@ -530,58 +533,58 @@ class StudyGroupsCenterClass {
       }
 
       return false;
-    } catch (error) {
-      console.error('[StudyGroupsCenter] Failed to set default:', error);
+    } catch (error: any) {
+      console.warn('[StudyGroupsCenter] Failed to set default (handled):', error?.message || error);
       return false;
     }
   }
 
   /**
-   * 订阅学习分组变化
+   * Subscribe to study group changes
    */
   subscribe(listener: StudyGroupsListener): () => void {
     this.listeners.add(listener);
 
-    // 立即调用一次，传递当前数据
+    // Invoke immediately once, passing the current data
     listener([...this.studyGroups]);
 
-    // 返回取消订阅函数
+    // Return the unsubscribe function
     return () => {
       this.listeners.delete(listener);
     };
   }
 
   /**
-   * 获取当前所有学习分组（同步）
+   * Get all current study groups (synchronous)
    */
   getAll(): StudyGroup[] {
     return [...this.studyGroups];
   }
 
   /**
-   * 按ID查找学习分组（同步）
+   * Find a study group by ID (synchronous)
    */
   findById(id: string): StudyGroup | undefined {
     return this.studyGroups.find(g => g.id === id);
   }
 
   /**
-   * 获取默认分组（同步）
+   * Get the default group (synchronous)
    */
   findDefault(): StudyGroup | undefined {
     return this.studyGroups.find(g => g.is_default);
   }
 
   /**
-   * 按语言过滤学习分组（同步）
-   * @param language 语言代码
+   * Filter study groups by language (synchronous)
+   * @param language Language code
    */
   filterByLanguage(language: string): StudyGroup[] {
     return this.studyGroups.filter(g => g.language === language);
   }
 
   /**
-   * 搜索学习分组
+   * Search study groups
    */
   search(query: string): StudyGroup[] {
     const lowerQuery = query.toLowerCase().trim();
@@ -594,7 +597,7 @@ class StudyGroupsCenterClass {
   }
 
   /**
-   * 获取统计信息
+   * Get statistics
    */
   getStats() {
     return {
@@ -608,10 +611,10 @@ class StudyGroupsCenterClass {
     };
   }
 
-  // ========== 私有方法 ==========
+  // ========== Private Methods ==========
 
   /**
-   * 通知所有订阅者
+   * Notify all subscribers
    */
   private notifyListeners(): void {
     const groupsCopy = [...this.studyGroups];
@@ -625,7 +628,7 @@ class StudyGroupsCenterClass {
   }
 
   /**
-   * 更新缓存
+   * Update the cache
    */
   private updateCache(): void {
     StorageCenter.cache.set(
@@ -636,25 +639,25 @@ class StudyGroupsCenterClass {
   }
 
   /**
-   * API调用辅助方法
+   * API call helper method
    */
   private async callApi<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
     try {
-      // 获取token
+      // Get the token
       const token = StorageCenter.auth.getToken();
       if (!token) {
         return {
           success: false,
           data: {} as T,
-          message: '未登录'
+          message: 'Not logged in'
         };
       }
 
-      // 使用 ApiManager 获取当前活动的 base URL
+      // Use ApiManager to get the currently active base URL
       const baseUrl = apiManager.getCurrentBaseUrl();
       const url = `${baseUrl}${endpoint}`;
 
-      // 发起请求
+      // Make the request
       const response = await fetch(url, {
         ...options,
         headers: {
@@ -670,7 +673,7 @@ class StudyGroupsCenterClass {
         return {
           success: false,
           data: {} as T,
-          message: data.message || '请求失败'
+          message: data.message || 'Request failed'
         };
       }
 
@@ -679,16 +682,18 @@ class StudyGroupsCenterClass {
         data: data.data || data,
         message: data.message
       };
-    } catch (error) {
-      console.error('[StudyGroupsCenter] API call failed:', error);
+    } catch (error: any) {
+      // Network/offline failure is environmental: return a structured
+      // failure the callers already handle; warn instead of red error.
+      console.warn('[StudyGroupsCenter] API call failed (handled):', error?.message || error);
       return {
         success: false,
         data: {} as T,
-        message: error instanceof Error ? error.message : '网络错误'
+        message: error instanceof Error ? error.message : 'Network error'
       };
     }
   }
 }
 
-// 导出单例
+// Export the singleton
 export const StudyGroupsCenter = new StudyGroupsCenterClass();

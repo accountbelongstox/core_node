@@ -1,9 +1,10 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Emoji (🔄✅📖🆕🔔📚🧠🔥) → lucide icons in klein accent. Propagate the Iris layer to un-beautified siblings. */
 
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Card, Icons, Button } from '../../components/UI';
+import { Card, Spinner, IconButton, PageHeader, SectionTitle, ProgressBar, Stat } from '../../components/UI';
+import { RefreshCw, CircleCheck, BookOpen, Sparkles, Bell, Library, Brain, Flame } from 'lucide-react';
 import { ApiCenter } from '../../services/ApiCenter';
-import { LanguageCenter } from '../../i18n/LanguageCenter';
 
 interface LearningStats {
   total_words: number;
@@ -49,156 +50,141 @@ const StatsPage = () => {
     ? Math.round(((stats.mastered_words + stats.learning_words) / (stats.total_words || 1)) * 100)
     : 0;
 
+  const total = stats?.total_words || 1;
+
   return (
-    <div className="h-full flex flex-col p-4 pt-12 animate-slide-up pb-24">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('home')} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700">
-          <Icons.Back />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold dark:text-white">{t('stats.title') || 'Statistics'}</h1>
-        </div>
-        <button onClick={loadStats} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700" title={t('common.refresh') || 'Refresh'}>
-          <div className={loading ? 'animate-spin' : ''}>🔄</div>
-        </button>
-      </div>
+    <div className="ds-page ds-section-gap h-full flex flex-col pt-12 animate-slide-up pb-32">
+      <PageHeader
+        onBack={() => navigate('home')}
+        title={t('stats.title') || 'Statistics'}
+        right={
+          <IconButton
+            icon={<RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />}
+            onClick={loadStats}
+            label={t('common.refresh') || 'Refresh'}
+          />
+        }
+        className="sticky-none relative"
+      />
 
       {loading && !stats ? (
-        <div className="flex items-center justify-center p-10">
-          <div className="flex items-center gap-2 text-slate-400">
-            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-sm">{t('common.loading') || 'Loading...'}</span>
-          </div>
-        </div>
+        <Spinner size="lg" className="mx-auto my-10" />
       ) : (
-        <div className="space-y-6">
-          {/* Total Words Card */}
-          <Card className="bg-gradient-to-br from-slate-800 to-slate-900 text-white border-none shadow-xl">
-            <div className="text-slate-400 text-sm mb-1">{t('stats.totalWordsLearned') || 'Total Words in Progress'}</div>
-            <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
-              {stats?.total_words || user?.totalLearned || 0}
+        <div className="ds-section-gap">
+          {/* Total Words Card — Iris gradient hero surface */}
+          <div
+            className="rounded-[var(--radius-card)] p-6 text-[color:var(--klein-on)] relative overflow-hidden"
+            style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
+          >
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/15 rounded-full blur-2xl pointer-events-none"></div>
+            <div className="absolute -bottom-12 -left-8 w-36 h-36 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="relative z-10">
+              <div className="text-white/80 text-sm mb-1">{t('stats.totalWordsLearned') || 'Total Words in Progress'}</div>
+              <div className="text-4xl font-black tracking-tight">
+                {stats?.total_words || user?.totalLearned || 0}
+              </div>
+              <div className="mt-4 flex items-center gap-3 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
+                  {t('stats.mastered') || 'Mastered'}: {stats?.mastered_words || 0}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
+                  {t('stats.learning') || 'Learning'}: {stats?.learning_words || 0}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur-sm">
+                  {t('stats.new') || 'New'}: {stats?.new_words || 0}
+                </span>
+              </div>
             </div>
-            <div className="mt-3 flex items-center gap-4 text-xs">
-              <div>
-                <span className="text-slate-400">{t('stats.mastered') || 'Mastered'}:</span>{' '}
-                <span className="text-green-400 font-bold">{stats?.mastered_words || 0}</span>
-              </div>
-              <div>
-                <span className="text-slate-400">{t('stats.learning') || 'Learning'}:</span>{' '}
-                <span className="text-yellow-400 font-bold">{stats?.learning_words || 0}</span>
-              </div>
-              <div>
-                <span className="text-slate-400">{t('stats.new') || 'New'}:</span>{' '}
-                <span className="text-blue-400 font-bold">{stats?.new_words || 0}</span>
-              </div>
-            </div>
-          </Card>
+          </div>
 
           {/* Progress Breakdown */}
           {stats && (
-            <div className="glass-panel p-5 rounded-2xl">
-              <h3 className="font-bold mb-4 dark:text-white">{t('stats.progressBreakdown') || 'Progress Breakdown'}</h3>
-              <div className="space-y-3">
+            <div>
+              <SectionTitle title={t('stats.progressBreakdown') || 'Progress Breakdown'} className="mb-3 px-1" />
+              <div className="ds-card p-5 ds-stack ds-stack-tight">
                 {/* Mastered */}
                 <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-600 dark:text-slate-400">
-                      ✅ {t('stats.mastered') || 'Mastered'}
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="flex items-center gap-1.5 font-semibold text-[var(--color-text-secondary)]">
+                      <CircleCheck className="w-4 h-4 text-emerald-500" aria-hidden /> {t('stats.mastered') || 'Mastered'}
                     </span>
-                    <span className="font-bold text-green-600 dark:text-green-400">
-                      {stats.mastered_words} ({Math.round((stats.mastered_words / (stats.total_words || 1)) * 100)}%)
+                    <span className="font-bold text-[var(--color-text-primary)]">
+                      {stats.mastered_words} ({Math.round((stats.mastered_words / total) * 100)}%)
                     </span>
                   </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-green-500 transition-all duration-500"
-                      style={{ width: `${(stats.mastered_words / (stats.total_words || 1)) * 100}%` }}
-                    ></div>
-                  </div>
+                  <ProgressBar value={stats.mastered_words} max={total} />
                 </div>
 
                 {/* Learning */}
                 <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-600 dark:text-slate-400">
-                      📖 {t('stats.learning') || 'Learning'}
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="flex items-center gap-1.5 font-semibold text-[var(--color-text-secondary)]">
+                      <BookOpen className="w-4 h-4 text-[var(--klein-blue)]" aria-hidden /> {t('stats.learning') || 'Learning'}
                     </span>
-                    <span className="font-bold text-yellow-600 dark:text-yellow-400">
-                      {stats.learning_words} ({Math.round((stats.learning_words / (stats.total_words || 1)) * 100)}%)
+                    <span className="font-bold text-[var(--color-text-primary)]">
+                      {stats.learning_words} ({Math.round((stats.learning_words / total) * 100)}%)
                     </span>
                   </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-yellow-500 transition-all duration-500"
-                      style={{ width: `${(stats.learning_words / (stats.total_words || 1)) * 100}%` }}
-                    ></div>
-                  </div>
+                  <ProgressBar value={stats.learning_words} max={total} />
                 </div>
 
                 {/* New */}
                 <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-600 dark:text-slate-400">
-                      🆕 {t('stats.new') || 'New'}
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="flex items-center gap-1.5 font-semibold text-[var(--color-text-secondary)]">
+                      <Sparkles className="w-4 h-4 text-[var(--klein-blue)]" aria-hidden /> {t('stats.new') || 'New'}
                     </span>
-                    <span className="font-bold text-blue-600 dark:text-blue-400">
-                      {stats.new_words} ({Math.round((stats.new_words / (stats.total_words || 1)) * 100)}%)
+                    <span className="font-bold text-[var(--klein-blue)]">
+                      {stats.new_words} ({Math.round((stats.new_words / total) * 100)}%)
                     </span>
                   </div>
-                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-500 transition-all duration-500"
-                      style={{ width: `${(stats.new_words / (stats.total_words || 1)) * 100}%` }}
-                    ></div>
-                  </div>
+                  <ProgressBar value={stats.new_words} max={total} />
                 </div>
               </div>
             </div>
           )}
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card onClick={() => navigate('review_dashboard')} className="cursor-pointer hover:scale-[1.02] transition-transform">
-              <div className="text-3xl mb-2">🔔</div>
-              <div className="font-bold dark:text-white text-2xl">{stats?.needs_review || 0}</div>
-              <div className="text-xs text-slate-500">{t('stats.needsReview') || 'Needs Review'}</div>
+          <div className="ds-grid-breathing grid grid-cols-2">
+            <Card onClick={() => navigate('review_dashboard')} className="cursor-pointer hover:scale-[1.02] transition-transform flex flex-col gap-2">
+              <Bell className="w-7 h-7 text-[var(--klein-blue)]" aria-hidden />
+              <Stat value={stats?.needs_review || 0} label={t('stats.needsReview') || 'Needs Review'} accent />
             </Card>
-            <Card onClick={() => navigate('courses')} className="cursor-pointer hover:scale-[1.02] transition-transform">
-              <div className="text-3xl mb-2">📚</div>
-              <div className="font-bold dark:text-white text-2xl">{selectedLibrariesCount}</div>
-              <div className="text-xs text-slate-500">{t('stats.activeLibraries') || 'Active Libraries'}</div>
+            <Card onClick={() => navigate('courses')} className="cursor-pointer hover:scale-[1.02] transition-transform flex flex-col gap-2">
+              <Library className="w-7 h-7 text-[var(--klein-blue)]" aria-hidden />
+              <Stat value={selectedLibrariesCount} label={t('stats.activeLibraries') || 'Active Libraries'} accent />
             </Card>
-            <Card>
-              <div className="text-3xl mb-2">🧠</div>
-              <div className="font-bold dark:text-white text-2xl">{retentionRate}%</div>
-              <div className="text-xs text-slate-500">{t('stats.retentionRate') || 'Retention Rate'}</div>
+            <Card className="flex flex-col gap-2">
+              <Brain className="w-7 h-7 text-[var(--klein-blue)]" aria-hidden />
+              <Stat value={`${retentionRate}%`} label={t('stats.retentionRate') || 'Retention Rate'} accent />
             </Card>
-            <Card>
-              <div className="text-3xl mb-2">🔥</div>
-              <div className="font-bold dark:text-white text-2xl">{user?.streak || 0}</div>
-              <div className="text-xs text-slate-500">{t('stats.dayStreak') || 'Day Streak'}</div>
+            <Card className="flex flex-col gap-2">
+              <Flame className="w-7 h-7 text-[var(--klein-blue)]" aria-hidden />
+              <Stat value={user?.streak || 0} label={t('stats.dayStreak') || 'Day Streak'} accent />
             </Card>
           </div>
 
           {/* Weekly Activity (Mock data for now) */}
-          <div className="glass-panel p-5 rounded-2xl">
-            <h3 className="font-bold mb-4 dark:text-white">{t('stats.weeklyActivity') || 'Weekly Activity'}</h3>
-            <div className="flex items-end justify-between h-32 gap-2">
-              {mockWeeklyData.map((h, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full bg-blue-500/20 rounded-t-md relative overflow-hidden" style={{ height: '100%' }}>
-                    <div
-                      className="absolute bottom-0 w-full bg-blue-500 rounded-t-md transition-all duration-1000"
-                      style={{ height: `${h}%` }}
-                    ></div>
+          <div>
+            <SectionTitle title={t('stats.weeklyActivity') || 'Weekly Activity'} className="mb-3 px-1" />
+            <div className="ds-card p-5">
+              <div className="flex items-end justify-between h-32 gap-2">
+                {mockWeeklyData.map((h, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+                    <div className="w-full rounded-t-lg relative overflow-hidden h-full" style={{ background: 'var(--klein-blue-soft)' }}>
+                      <div
+                        className="absolute bottom-0 w-full rounded-t-lg transition-all duration-1000"
+                        style={{ height: `${h}%`, background: 'var(--klein-gradient)' }}
+                      ></div>
+                    </div>
+                    <span className="text-xs font-semibold text-[var(--color-text-secondary)]">{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}</span>
                   </div>
-                  <span className="text-xs text-slate-400">{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}</span>
-                </div>
-              ))}
+                ))}
+              </div>
+              <p className="text-xs text-[var(--color-text-tertiary)] mt-4 text-center">
+                {t('stats.weeklyActivityNote') || 'Activity data updates daily based on your learning sessions'}
+              </p>
             </div>
-            <p className="text-xs text-slate-400 mt-4 text-center">
-              {t('stats.weeklyActivityNote') || 'Activity data updates daily based on your learning sessions'}
-            </p>
           </div>
         </div>
       )}

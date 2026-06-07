@@ -24,6 +24,7 @@ use App\Models\InviteCode;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use App\Services\UnifiedAuthService;
+use App\Constants\AppKeys;
 use App\Services\AvatarService;
 use App\Http\Common\CommonAuthService;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
@@ -149,7 +150,11 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             ],
         ];
 
-        $unifiedResult = UnifiedAuthService::register($credentials, 'AppQyV1');
+        // AppKeys::APPQYV1 === 'appqyv1', the connection key defined in
+        // config/database.php. Passing the PascalCase literal 'AppQyV1' here
+        // caused "Database connection [AppQyV1] not configured." (the
+        // UnifiedAuthService 2nd arg is used as $userModel->setConnection()).
+        $unifiedResult = UnifiedAuthService::register($credentials, AppKeys::APPQYV1);
 
         if (!$unifiedResult['success']) {
             $errorMessage = $unifiedResult['error'];
@@ -172,7 +177,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         }
 
         $user = $unifiedResult['user'];
-        $user = \App\Http\Common\CommonAvatarPublic::createAvatar($user);
+        $user = \App\Http\Common\CommonAvatarPublic::createAvatar($user, true);
         event(new \Illuminate\Auth\Events\Registered($user));
 
         if ($inviteCode && isset($invite)) {

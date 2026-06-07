@@ -1,6 +1,8 @@
-import React, { useContext, useState } from 'react';
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
+import React, { useContext } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Card, Icons } from '../../components/UI';
+import { Card, Icons, Badge, SectionTitle, Button } from '../../components/UI';
+import { Bot, Zap, Globe2, Target, Globe, Volume2 } from 'lucide-react';
 
 interface AITool {
   id: string;
@@ -9,12 +11,17 @@ interface AITool {
   description: string;
   icon: React.ReactNode;
   route: string;
-  gradient: string;
   badge?: string;
 }
 
+interface AIFeature {
+  Icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+}
+
 export default function ToolsAIAssistant() {
-  const { navigate, t } = useContext(AppContext);
+  const { navigate } = useContext(AppContext);
 
   const aiTools: AITool[] = [
     {
@@ -28,7 +35,6 @@ export default function ToolsAIAssistant() {
         </svg>
       ),
       route: 'tools/translation',
-      gradient: 'from-cyan-500 to-blue-600',
       badge: 'Popular',
     },
     {
@@ -38,7 +44,6 @@ export default function ToolsAIAssistant() {
       description: 'Convert text to natural-sounding speech in multiple languages with various voice options',
       icon: <Icons.Sound />,
       route: 'tools/tts',
-      gradient: 'from-green-500 to-emerald-600',
       badge: 'New',
     },
     {
@@ -52,7 +57,6 @@ export default function ToolsAIAssistant() {
         </svg>
       ),
       route: 'tools/article-processor',
-      gradient: 'from-orange-500 to-red-600',
     },
     {
       id: 'personal-dictionary',
@@ -65,188 +69,147 @@ export default function ToolsAIAssistant() {
         </svg>
       ),
       route: 'tools/personal-dictionary',
-      gradient: 'from-purple-500 to-pink-600',
     },
   ];
 
-  const features = [
-    {
-      icon: '🤖',
-      title: 'AI-Powered',
-      description: 'Advanced machine learning algorithms'
-    },
-    {
-      icon: '⚡',
-      title: 'Real-time',
-      description: 'Instant results and processing'
-    },
-    {
-      icon: '🌍',
-      title: 'Multi-language',
-      description: 'Support for 50+ languages'
-    },
-    {
-      icon: '🎯',
-      title: 'Context-aware',
-      description: 'Understands meaning and context'
-    },
+  const features: AIFeature[] = [
+    { Icon: Bot, title: 'AI-Powered', description: 'Advanced machine learning algorithms' },
+    { Icon: Zap, title: 'Real-time', description: 'Instant results and processing' },
+    { Icon: Globe2, title: 'Multi-language', description: 'Support for 50+ languages' },
+    { Icon: Target, title: 'Context-aware', description: 'Understands meaning and context' },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
+    <div className="ds-page ds-section-gap pt-20 pb-32">
       {/* Header */}
-      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-            AI Assistant
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400">
-            Powerful AI tools for language learning
+      <div className="px-1">
+        <span className="text-sm font-semibold text-[var(--color-text-secondary)]">
+          Powerful AI tools for language learning
+        </span>
+        <h1 className="text-[2rem] leading-[1.15] font-black tracking-tight mt-1 text-[var(--color-text-primary)]">
+          AI Assistant
+        </h1>
+      </div>
+
+      {/* Hero Card — gradient */}
+      <div className="rounded-[var(--radius-card)] p-6 relative overflow-hidden text-[color:var(--klein-on)]">
+        <div className="absolute inset-0 -z-0" style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }} />
+        <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/15 rounded-full blur-2xl" />
+        <div className="absolute -bottom-12 -left-8 w-36 h-36 bg-white/10 rounded-full blur-3xl" />
+        <div className="relative z-10 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center flex-shrink-0">
+              <Bot className="w-9 h-9" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-2xl font-bold">AI-Powered Tools</h2>
+              <p className="text-white/80 text-sm">Smart learning assistance</p>
+            </div>
+          </div>
+          <p className="text-white/90 text-sm leading-relaxed">
+            Access advanced AI capabilities to enhance your language learning experience with intelligent translation, voice synthesis, and content processing.
           </p>
         </div>
       </div>
 
-      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
-        {/* Hero Card */}
-        <Card className="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white border-none shadow-xl">
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-4xl">
-                🤖
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold">AI-Powered Tools</h2>
-                <p className="text-white/80 text-sm">Smart learning assistance</p>
-              </div>
-            </div>
-            <p className="text-white/90">
-              Access advanced AI capabilities to enhance your language learning experience with intelligent translation, voice synthesis, and content processing.
-            </p>
-          </div>
-        </Card>
-
-        {/* AI Tools Grid */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            Available Tools
-          </h2>
+      {/* AI Tools Grid */}
+      <div>
+        <SectionTitle title="Available Tools" subtitle="Pick a workspace" className="mb-3 px-1" />
+        <div className="ds-grid-breathing grid grid-cols-1 sm:grid-cols-2">
           {aiTools.map((tool) => (
-            <Card
+            <div
               key={tool.id}
               onClick={() => navigate(tool.route)}
-              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-lg hover:border-blue-500 dark:hover:border-blue-500 transition-all"
+              className="ds-row flex items-center gap-4 p-4 cursor-pointer group"
             >
-              <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 bg-gradient-to-br ${tool.gradient} rounded-xl flex items-center justify-center text-white flex-shrink-0`}>
-                  {tool.icon}
+              <div className="w-16 h-16 bg-[var(--klein-blue-soft)] text-[var(--klein-blue)] rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner">
+                {tool.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h3 className="font-bold text-lg text-[var(--color-text-primary)] truncate group-hover:text-[var(--klein-blue)] transition-colors">
+                    {tool.title}
+                  </h3>
+                  {tool.badge && (
+                    <Badge tone="klein">{tool.badge}</Badge>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                      {tool.title}
-                    </h3>
-                    {tool.badge && (
-                      <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded font-semibold">
-                        {tool.badge}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
-                    {tool.subtitle}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-500 line-clamp-1">
-                    {tool.description}
-                  </p>
-                </div>
+                <p className="text-sm text-[var(--color-text-secondary)] truncate">
+                  {tool.subtitle}
+                </p>
+                <p className="text-xs text-[var(--color-text-tertiary)] line-clamp-1">
+                  {tool.description}
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white/50 dark:bg-white/5 flex items-center justify-center text-[var(--color-text-tertiary)] group-hover:bg-[var(--klein-blue-soft)] group-hover:text-[var(--klein-blue)] transition-colors flex-shrink-0">
                 <Icons.ChevronRight />
               </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Features Grid */}
+      <div>
+        <SectionTitle title="AI Features" className="mb-3 px-1" />
+        <div className="ds-grid-breathing grid grid-cols-2">
+          {features.map((feature, index) => (
+            <Card key={index} className="text-center !p-4">
+              <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-[var(--klein-blue-soft)] text-[var(--klein-blue)] flex items-center justify-center">
+                <feature.Icon className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-sm text-[var(--color-text-primary)] mb-1">
+                {feature.title}
+              </h3>
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                {feature.description}
+              </p>
             </Card>
           ))}
         </div>
-
-        {/* Features Grid */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            AI Features
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            {features.map((feature, index) => (
-              <Card
-                key={index}
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-4"
-              >
-                <div className="text-3xl mb-2">{feature.icon}</div>
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1">
-                  {feature.title}
-                </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  {feature.description}
-                </p>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => navigate('tools/translation')}
-              className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-xl p-4 font-semibold hover:scale-105 transition-transform shadow-lg"
-            >
-              <div className="text-2xl mb-2">🌐</div>
-              Quick Translate
-            </button>
-            <button
-              onClick={() => navigate('tools/tts')}
-              className="bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-xl p-4 font-semibold hover:scale-105 transition-transform shadow-lg"
-            >
-              <div className="text-2xl mb-2">🔊</div>
-              Text to Speech
-            </button>
-          </div>
-        </div>
-
-        {/* Info Card */}
-        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800 border border-blue-200 dark:border-slate-700">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-slate-900 dark:text-white mb-1">About AI Tools</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
-                Our AI tools use advanced machine learning models to provide accurate, context-aware assistance for your language learning journey.
-              </p>
-              <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Powered by latest AI models
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Privacy-focused processing
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Continuous improvement
-                </li>
-              </ul>
-            </div>
-          </div>
-        </Card>
       </div>
+
+      {/* Quick Actions */}
+      <div>
+        <SectionTitle title="Quick Actions" className="mb-3 px-1" />
+        <div className="ds-grid-breathing grid grid-cols-2">
+          <Button variant="grad" onClick={() => navigate('tools/translation')} className="!py-5 flex-col gap-1">
+            <Globe className="w-6 h-6" />
+            Quick Translate
+          </Button>
+          <Button variant="grad" onClick={() => navigate('tools/tts')} className="!py-5 flex-col gap-1">
+            <Volume2 className="w-6 h-6" />
+            Text to Speech
+          </Button>
+        </div>
+      </div>
+
+      {/* Info Card */}
+      <Card>
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-[color:var(--klein-on)]" style={{ background: 'var(--klein-gradient)' }}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h3 className="font-bold text-[var(--color-text-primary)] mb-1">About AI Tools</h3>
+            <p className="text-sm text-[var(--color-text-secondary)] mb-2">
+              Our AI tools use advanced machine learning models to provide accurate, context-aware assistance for your language learning journey.
+            </p>
+            <ul className="space-y-1 text-xs text-[var(--color-text-secondary)]">
+              {['Powered by latest AI models', 'Privacy-focused processing', 'Continuous improvement'].map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[var(--klein-blue)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

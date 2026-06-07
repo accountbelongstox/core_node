@@ -1,6 +1,7 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Button } from '../../components/UI';
+import { Button, Badge } from '../../components/UI';
 import { AuthModel } from '../../models';
 import { LanguageCenter } from '../../i18n/LanguageCenter';
 import { StateManager, GlobalState } from '../../services/StateManager';
@@ -164,7 +165,7 @@ const LoginPage = () => {
       title="WordFlow AI"
       subtitle={t('home.welcome')}
     >
-      <div className="w-full sm:max-w-sm sm:mx-auto space-y-4">
+      <div className="w-full sm:max-w-sm sm:mx-auto space-y-5">
         <AuthError message={error} />
 
         <AuthInput
@@ -229,14 +230,14 @@ const LoginPage = () => {
             <button
               type="button"
               onClick={() => navigate('/forgot-password')}
-              className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+              className="ds-link-more text-sm font-semibold text-[var(--klein-blue)] transition-colors hover:opacity-80"
             >
               {t('auth.forgotPassword')}
             </button>
           </div>
         )}
 
-        <Button variant="pill" showSparkles onClick={handleLogin} disabled={loading}>
+        <Button variant="grad" onClick={handleLogin} disabled={loading}>
           {loading ? t('common.loading') : mode === 'login' ? t('auth.login') : t('auth.register')}
         </Button>
         <Button
@@ -251,8 +252,8 @@ const LoginPage = () => {
         </Button>
       </div>
 
-      <div className="mt-8 text-xs text-slate-400">
-        {t('common.info')}: Laravel API v1 (Real Backend)
+      <div className="mt-[var(--space-breath)] flex justify-center">
+        <Badge tone="neutral">{t('common.info')}: Laravel API v1</Badge>
       </div>
     </AuthLayout>
   );

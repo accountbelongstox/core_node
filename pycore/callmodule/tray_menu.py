@@ -7,7 +7,7 @@ This module only defines menu structure, does not start any threads.
 """
 
 import platform
-from typing import List
+from typing import Any, Dict, List
 
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 from pycore.callmodule.platform.windows_startup_manager import WindowsStartupManager
@@ -48,6 +48,13 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
             return "[X]" if enabled else "[ ]"
         return "[ ]"
 
+    # State getter for Voice Subtitle window visibility (published by the UI framework)
+    def get_voice_subtitle_state():
+        """Get current Voice Subtitle window visibility state"""
+        from pycore import THREAD_BUS
+        visible = THREAD_BUS.get_signal('voice_subtitle_ui.window_visible', False)
+        return "[X]" if visible else "[ ]"
+
     # Define menu items
     menu_items = [
         TrayMenuItem(
@@ -82,7 +89,8 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
         ),
         TrayMenuItem(
             text="Voice Subtitle Window",
-            action_signal="tray_action_toggle_voice_subtitle"
+            action_signal="tray_action_toggle_voice_subtitle",
+            state_getter=get_voice_subtitle_state
         ),
         TrayMenuItem(
             text="Auto-Start on Boot",
@@ -101,3 +109,31 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
     ])
 
     return menu_items
+
+
+def tray_menu_to_dicts(items: List[TrayMenuItem]) -> List[Dict[str, Any]]:
+    """
+    Convert pystray TrayMenuItem objects into the canonical, framework-agnostic
+    dict format consumed by the native Qt tray.
+
+    This keeps build_tray_menu() as the single source of truth for both the
+    native (PySide6) tray and the pystray fallback, while avoiding any PySide6
+    import in this layer (PySide6 is installed only after the tk bootstrap).
+
+    Dict schema: {separator: bool, text: str, action_signal: str, enabled: bool}
+    Note: state (Code Sync / Auto-Start prefixes) and i18n are already baked into
+    `text` via TrayMenuItem.get_display_text().
+    """
+    dicts: List[Dict[str, Any]] = []
+    for item in items:
+        # Separator sentinel uses text "---"
+        if item is TrayMenuItem.SEPARATOR or item.text == "---":
+            dicts.append({'separator': True})
+            continue
+        dicts.append({
+            'separator': False,
+            'text': item.get_display_text(),
+            'action_signal': item.action_signal or "",
+            'enabled': item.enabled,
+        })
+    return dicts

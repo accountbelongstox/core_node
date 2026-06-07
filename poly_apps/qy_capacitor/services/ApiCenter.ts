@@ -7,16 +7,60 @@ import { apiManager } from './ApiManager';
 import { StorageCenter, StorageKey } from './StorageCenter';
 import { UserDataCenter } from './UserDataCenter';
 import { inferLanguageFromWords, BackendGroupData, BackendGroupsResponse } from './languageUtils';
-import { SupportedLanguage } from '../types';
+import { SupportedLanguage, User, WordGroup } from '../types';
+// Canonical domain Word shape (aliased to avoid clashing with the local
+// `Word` interface below, which other methods still consume). Used by
+// words.getDetail so its type matches what WordDetail.tsx renders.
+import type { Word as DomainWord } from '../types';
+
+// Re-export canonical domain types so existing consumers that import them
+// from ApiCenter keep working. These are the same interfaces as in ../types;
+// the previous local duplicates diverged from the real runtime shapes.
+export type { User, WordGroup } from '../types';
 
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   message?: string;
+  // Some backend endpoints place these at the top level of the response
+  // (e.g. login returns `{ success, data, token }`). Optional so existing
+  // fallback reads type-check without changing runtime behavior.
+  token?: string;
+  code?: string;
   error?: {
     code?: string;
     message: string;
   };
+}
+
+export interface InitComplianceItem {
+  label: string;
+  status: 'pass' | 'fail' | 'warn' | 'skip';
+  value: string | number | boolean | null;
+  detail: string | null;
+}
+
+export interface InitComplianceSection {
+  key: string;
+  name: string;
+  status: 'pass' | 'fail' | 'warn' | 'skip';
+  summary: string;
+  items: InitComplianceItem[];
+}
+
+export interface InitComplianceLanguage {
+  lang: string;
+  formal: number;
+  staging: number;
+  promoted: boolean;
+  status: 'pass' | 'fail' | 'warn';
+}
+
+export interface InitComplianceResponse {
+  compliant: boolean;
+  generated_at: string;
+  sections: InitComplianceSection[];
+  languages: InitComplianceLanguage[];
 }
 
 export interface LoginCredentials {
@@ -31,31 +75,6 @@ export interface RegisterData {
   email?: string;
   nickname?: string;
   invite_code?: string;
-}
-
-export interface User {
-  id: string;
-  username: string;
-  nickname?: string;
-  email?: string;
-  avatar?: string;
-  avatar_url?: string;
-  learning_languages?: string[];
-  native_language?: string;
-  total_words?: number;
-  learned_words?: number;
-  mastered_words?: number;
-  learning_stats?: any;
-  isPro?: boolean;
-}
-
-export interface WordGroup {
-  id: string;
-  name: string;
-  description?: string;
-  wordCount: number;
-  coverImage?: string;
-  language: string;
 }
 
 export interface Word {
@@ -113,6 +132,10 @@ class ApiCenterClass {
     useAuth: boolean = true
   ): Promise<ApiResponse<T>> {
     try {
+      // Wait until endpoint detection has finished so we never issue a
+      // request against a null/placeholder endpoint.
+      await apiManager.whenReady();
+
       const baseUrl = apiManager.getCurrentBaseUrl();
       const url = `${baseUrl}/api/app_qy_v1${endpoint}`;
 
@@ -152,12 +175,21 @@ class ApiCenterClass {
       clearTimeout(timeoutId);
 
       const contentType = response.headers.get('content-type');
+      const rawBody = await response.text();
       let responseData: any;
 
       if (contentType && contentType.includes('application/json')) {
-        responseData = await response.json();
+        // Parse defensively: a wrong/dead endpoint may return an HTML error
+        // page or malformed body with a JSON content-type. Don't let that
+        // surface as a confusing "Unexpected token ... is not valid JSON".
+        try {
+          responseData = rawBody ? JSON.parse(rawBody) : {};
+        } catch {
+          console.warn(`[ApiCenter] Non-JSON body for ${endpoint} (status ${response.status})`);
+          responseData = { data: rawBody };
+        }
       } else {
-        responseData = { data: await response.text() };
+        responseData = { data: rawBody };
       }
 
       if (!response.ok) {
@@ -183,7 +215,10 @@ class ApiCenterClass {
       };
 
     } catch (error: any) {
-      console.error(`[ApiCenter] Request failed for ${endpoint}:`, error);
+      // Network/timeout failures are environmental (offline / backend down)
+      // and are returned as a structured result the caller handles — warn,
+      // don't surface as a red console error.
+      console.warn(`[ApiCenter] Request failed for ${endpoint} (handled):`, error?.message || error);
 
       if (error.name === 'AbortError') {
         return {
@@ -384,7 +419,7 @@ class ApiCenterClass {
       try {
         // Backend route: /query_all_groups
         // Backend returns: { success, data: { uid, total, groups: [...] } }
-        const response = await this.request<BackendGroupsResponse>('/query_all_groups', {
+        const response = await this.request<BackendGroupsResponse['data']>('/query_all_groups', {
           method: 'GET',
         });
 
@@ -568,8 +603,8 @@ class ApiCenterClass {
    * Backend uses: query_word, query_translation, daily words, lookup, word_exists, etc
    */
   words = {
-    getDetail: async (wordId: string): Promise<ApiResponse<Word>> => {
-      return this.request<Word>(`/words/${wordId}`, {
+    getDetail: async (wordId: string): Promise<ApiResponse<DomainWord>> => {
+      return this.request<DomainWord>(`/words/${wordId}`, {
         method: 'GET',
       });
     },
@@ -1330,6 +1365,12 @@ class ApiCenterClass {
         database_ready: boolean;
         vocabulary_ready: boolean;
       }>('/system/initialization-status', {
+        method: 'GET',
+      }, false);
+    },
+
+    getInitCompliance: async (): Promise<ApiResponse<InitComplianceResponse>> => {
+      return this.request<InitComplianceResponse>('/system/init-compliance', {
         method: 'GET',
       }, false);
     },

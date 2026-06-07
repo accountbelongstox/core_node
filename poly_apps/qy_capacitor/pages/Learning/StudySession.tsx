@@ -1,15 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Animated,
-  Dimensions,
-} from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { api } from '../../services/api';
+/* [v4.1-Iris] Web port of the spaced-review Study Session screen — AppContext navigation + ApiCenter data layer, v4.1 Iris visuals preserved (tokens, glass chrome, gradient hero, lucide/Icons, no emoji, no inline hex). */
+
+import React, { useState, useEffect, useCallback, useContext } from 'react';
+import { AppContext } from '../../contexts/AppContext';
+import { ApiCenter } from '../../services/ApiCenter';
+import { Button, Icons, ProgressBar } from '../../components/UI';
+import { Check, X } from 'lucide-react';
 
 interface Word {
   word_id: number;
@@ -21,69 +16,73 @@ interface Word {
   weight: number;
 }
 
-const { width } = Dimensions.get('window');
+const getProficiencyColor = (proficiency: number): string => {
+  if (proficiency >= 90) return 'var(--color-success, #10b981)';
+  if (proficiency >= 75) return 'var(--klein-blue)';
+  if (proficiency >= 60) return '#f59e0b';
+  if (proficiency >= 40) return '#ef4444';
+  return 'var(--color-text-tertiary, #9ca3af)';
+};
 
 export default function StudySession() {
-  const route = useRoute();
-  const navigation = useNavigation();
-  const { gid } = route.params as { gid: string };
+  const { navigate, currentParams } = useContext(AppContext);
+  const gid: string = currentParams?.gid || '';
 
   const [words, setWords] = useState<Word[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [sessionStats, setSessionStats] = useState({
-    correct: 0,
-    incorrect: 0,
-    total: 0,
-  });
+  const [sessionStats, setSessionStats] = useState({ correct: 0, incorrect: 0, total: 0 });
+  const [cardVisible, setCardVisible] = useState(true);
+  const [sessionDone, setSessionDone] = useState(false);
 
-  const fadeAnim = useState(new Animated.Value(1))[0];
-  const scaleAnim = useState(new Animated.Value(1))[0];
-
-  useEffect(() => {
-    loadReviewWords();
-  }, [gid]);
-
-  const loadReviewWords = async () => {
+  const loadReviewWords = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.post('/app_qy_v1/group/get_review_words', {
-        gid,
-        limit: 20,
-        proficiency_max: 95,
-      });
+      setCurrentIndex(0);
+      setShowAnswer(false);
+      setSessionDone(false);
+      setCardVisible(true);
+      const response = await ApiCenter.learning.getReviewQueue();
 
-      if (response.data.status === 'success') {
-        const reviewWords = response.data.data.words || [];
+      if (response.success && Array.isArray(response.data)) {
+        // Normalize the review-queue payload into the local card model.
+        const reviewWords: Word[] = response.data.map((w: any) => ({
+          word_id: w.word_id ?? w.id,
+          word: w.word ?? w.text ?? '',
+          proficiency: w.proficiency ?? 0,
+          read_count: w.read_count ?? 0,
+          review_count: w.review_count ?? 0,
+          next_review_at: w.next_review_at ?? '',
+          weight: w.weight ?? 0,
+        }));
         if (reviewWords.length === 0) {
-          Alert.alert(
-            'All Caught Up!',
-            'No words need review right now. Great job!',
-            [{ text: 'OK', onPress: () => navigation.goBack() }]
-          );
+          setSessionDone(true);
         } else {
           setWords(reviewWords);
-          setSessionStats({ ...sessionStats, total: reviewWords.length });
+          setSessionStats({ correct: 0, incorrect: 0, total: reviewWords.length });
         }
+      } else {
+        setSessionDone(true);
       }
     } catch (error) {
       console.error('Error loading review words:', error);
-      Alert.alert('Error', 'Failed to load words for review');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadReviewWords();
+  }, [loadReviewWords, gid]);
 
   const updateProgress = async (isCorrect: boolean) => {
     const currentWord = words[currentIndex];
-
     try {
-      await api.post('/app_qy_v1/group/update_progress', {
-        gid,
-        word_id: currentWord.word_id,
-        action: 'review',
-        is_correct: isCorrect,
+      await ApiCenter.learning.updateProgress({
+        word_id: String(currentWord.word_id),
+        group_id: gid,
+        correct: isCorrect,
       });
 
       setSessionStats((prev) => ({
@@ -96,359 +95,221 @@ export default function StudySession() {
     }
   };
 
+  const advanceCard = (afterUpdate: () => void) => {
+    setCardVisible(false);
+    setTimeout(() => {
+      afterUpdate();
+      setShowAnswer(false);
+      setCardVisible(true);
+    }, 200);
+  };
+
   const handleAnswer = (isCorrect: boolean) => {
     updateProgress(isCorrect);
 
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.8,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start(() => {
-      if (currentIndex < words.length - 1) {
-        setCurrentIndex(currentIndex + 1);
-        setShowAnswer(false);
-      } else {
-        showSessionSummary();
-      }
-    });
-  };
-
-  const showSessionSummary = () => {
-    const accuracy = ((sessionStats.correct / sessionStats.total) * 100).toFixed(1);
-    Alert.alert(
-      'Session Complete!',
-      `Great work!\n\nCorrect: ${sessionStats.correct}\nIncorrect: ${sessionStats.incorrect}\nAccuracy: ${accuracy}%`,
-      [
-        { text: 'Review Again', onPress: () => loadReviewWords() },
-        { text: 'Finish', onPress: () => navigation.goBack() },
-      ]
-    );
+    if (currentIndex < words.length - 1) {
+      advanceCard(() => setCurrentIndex((i) => i + 1));
+    } else {
+      setSessionDone(true);
+    }
   };
 
   const skipWord = () => {
     if (currentIndex < words.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-      setShowAnswer(false);
+      advanceCard(() => setCurrentIndex((i) => i + 1));
     } else {
-      showSessionSummary();
+      setSessionDone(true);
     }
   };
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Loading words...</Text>
-      </View>
+      <div className="ds-page h-full flex items-center justify-center bg-[var(--color-bg)] text-[var(--klein-blue)]">
+        <Icons.Loader />
+      </div>
+    );
+  }
+
+  if (sessionDone) {
+    const accuracy =
+      sessionStats.total > 0
+        ? ((sessionStats.correct / sessionStats.total) * 100).toFixed(1)
+        : '0.0';
+
+    return (
+      <div className="ds-page h-full flex flex-col items-center justify-center bg-[var(--color-bg)] px-6 gap-6 animate-slide-up">
+        <div className="absolute inset-0 bg-gradient-to-b from-[var(--color-primary-container)] to-transparent opacity-40 -z-10 pointer-events-none" />
+
+        <div className="ds-card p-8 w-full max-w-sm text-center space-y-5">
+          <div
+            className="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-[color:var(--klein-on)]"
+            style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
+          >
+            <Icons.Check />
+          </div>
+
+          <h2 className="ds-section-title !text-2xl">Session Complete!</h2>
+
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { value: sessionStats.correct, label: 'Correct', color: 'var(--color-success, #10b981)' },
+              { value: sessionStats.incorrect, label: 'Incorrect', color: '#ef4444' },
+              { value: `${accuracy}%`, label: 'Accuracy', color: 'var(--klein-blue)' },
+            ].map(({ value, label, color }) => (
+              <div key={label} className="ds-card p-3 text-center">
+                <p className="text-xl font-bold" style={{ color }}>{value}</p>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-3 pt-2">
+            <Button variant="grad" onClick={loadReviewWords}>
+              Review Again
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('group_management')}>
+              Finish
+            </Button>
+          </div>
+        </div>
+      </div>
     );
   }
 
   if (words.length === 0) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.emptyText}>No words to review</Text>
-      </View>
+      <div className="ds-page h-full flex flex-col items-center justify-center gap-4 bg-[var(--color-bg)] px-6">
+        <p className="text-[var(--color-text-secondary)] text-base">No words to review</p>
+        <Button variant="secondary" className="!w-auto px-6" onClick={() => navigate('group_management')}>
+          Go Back
+        </Button>
+      </div>
     );
   }
 
   const currentWord = words[currentIndex];
   const progress = ((currentIndex + 1) / words.length) * 100;
+  const proficiency = currentWord.proficiency;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.closeButton}>✕</Text>
-        </TouchableOpacity>
-        <View style={styles.statsContainer}>
-          <Text style={styles.statsText}>
+    <div className="ds-page h-full flex flex-col bg-[var(--color-bg)] overflow-hidden animate-slide-up">
+      {/* Background aurora layer */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[var(--color-primary-container)] to-transparent opacity-40 -z-10 pointer-events-none" />
+
+      {/* Header */}
+      <div className="sticky top-0 z-20 backdrop-blur-md bg-[var(--color-surface)]/80 border-b border-[var(--border-highlight)] px-5 py-3 flex items-center gap-4">
+        <button
+          onClick={() => navigate('group_management')}
+          className="ds-touch-target flex items-center justify-center rounded-full hover:bg-[var(--color-primary-container)] transition-colors text-[var(--color-text-secondary)]"
+        >
+          <Icons.Close />
+        </button>
+
+        <div className="flex-1 text-center">
+          <p className="text-sm font-semibold text-[var(--color-text-primary)]">
             {currentIndex + 1} / {words.length}
-          </Text>
-          <Text style={styles.accuracyText}>
-            ✓ {sessionStats.correct} ✗ {sessionStats.incorrect}
-          </Text>
-        </View>
-      </View>
+          </p>
+          <p className="inline-flex items-center justify-center gap-1 text-xs text-[var(--color-text-secondary)]">
+            <Check className="w-3.5 h-3.5 text-[color:var(--color-success,#10b981)]" /> {sessionStats.correct}
+            <span className="mx-1" />
+            <X className="w-3.5 h-3.5 text-[#ef4444]" /> {sessionStats.incorrect}
+          </p>
+        </div>
 
-      <View style={styles.progressBarContainer}>
-        <View style={[styles.progressBar, { width: `${progress}%` }]} />
-      </View>
+        {/* Spacer to center the middle block */}
+        <div className="w-11 flex-shrink-0" />
+      </div>
 
-      <Animated.View
-        style={[
-          styles.cardContainer,
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
-        <View style={styles.card}>
-          <View style={styles.proficiencyContainer}>
-            <Text style={styles.proficiencyLabel}>Proficiency</Text>
-            <Text style={styles.proficiencyValue}>
-              {currentWord.proficiency.toFixed(0)}%
-            </Text>
-          </View>
+      {/* Progress bar */}
+      <ProgressBar value={progress} className="!h-1 !rounded-none" />
 
-          <View style={styles.wordContainer}>
-            <Text style={styles.wordText}>{currentWord.word}</Text>
-          </View>
+      {/* Card area */}
+      <div className="flex-1 flex items-center justify-center px-6 py-8">
+        <div
+          className={`ds-card w-full max-w-md p-8 transition-all duration-200 ${
+            cardVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+          }`}
+        >
+          {/* Proficiency */}
+          <div className="text-center mb-6">
+            <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-secondary)] mb-1">
+              Proficiency
+            </p>
+            <p
+              className="text-4xl font-bold tabular-nums"
+              style={{ color: getProficiencyColor(proficiency) }}
+            >
+              {proficiency.toFixed(0)}%
+            </p>
+            <div className="mt-2 h-1.5 rounded-full bg-[var(--border-highlight)] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${proficiency}%`, background: getProficiencyColor(proficiency) }}
+              />
+            </div>
+          </div>
 
-          <View style={styles.hintsContainer}>
-            <Text style={styles.hintText}>
-              Reviewed: {currentWord.review_count} times
-            </Text>
-            <Text style={styles.hintText}>Weight: {currentWord.weight}</Text>
-          </View>
+          {/* Word */}
+          <div className="text-center border-t border-b border-[var(--border-highlight)] py-10">
+            <p className="text-4xl font-black text-[var(--color-text-primary)] break-words">
+              {currentWord.word}
+            </p>
+          </div>
 
+          {/* Hints */}
+          <div className="flex justify-around mt-5 text-xs text-[var(--color-text-secondary)]">
+            <span>Reviewed: {currentWord.review_count}×</span>
+            <span>Weight: {currentWord.weight}</span>
+          </div>
+
+          {/* Answer prompt */}
           {showAnswer && (
-            <View style={styles.answerContainer}>
-              <Text style={styles.answerLabel}>Do you know this word?</Text>
-              <Text style={styles.answerHint}>
+            <div
+              className="mt-5 p-4 rounded-[var(--radius-card)] text-sm"
+              style={{ background: 'var(--klein-blue-soft)' }}
+            >
+              <p className="font-semibold text-[var(--color-text-primary)] mb-1">Do you know this word?</p>
+              <p className="text-[var(--color-text-secondary)]">
                 Think about its meaning, pronunciation, and usage.
-              </Text>
-            </View>
+              </p>
+            </div>
           )}
-        </View>
-      </Animated.View>
+        </div>
+      </div>
 
-      <View style={styles.actionsContainer}>
+      {/* Bottom action bar */}
+      <div className="sticky bottom-0 z-20 bg-[var(--color-surface)]/90 backdrop-blur-xl border-t border-[var(--border-highlight)] px-5 py-4 pb-safe space-y-3">
         {!showAnswer ? (
-          <>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.showButton]}
-              onPress={() => setShowAnswer(true)}
-            >
-              <Text style={styles.actionButtonText}>Show Answer</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.skipButton]}
-              onPress={skipWord}
-            >
-              <Text style={[styles.actionButtonText, styles.skipButtonText]}>
-                Skip
-              </Text>
-            </TouchableOpacity>
-          </>
+          <div className="flex gap-3">
+            <Button variant="klein" className="flex-1" onClick={() => setShowAnswer(true)}>
+              Show Answer
+            </Button>
+            <Button variant="secondary" className="!w-auto px-6" onClick={skipWord}>
+              Skip
+            </Button>
+          </div>
         ) : (
-          <View style={styles.answerButtons}>
-            <TouchableOpacity
-              style={[styles.answerButton, styles.incorrectButton]}
-              onPress={() => handleAnswer(false)}
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleAnswer(false)}
+              className="flex-1 ds-touch-target flex flex-col items-center justify-center rounded-[var(--radius-button)] py-4 font-bold text-white transition-all active:scale-95"
+              style={{ background: '#ef4444' }}
             >
-              <Text style={styles.answerButtonText}>Don't Know</Text>
-              <Text style={styles.answerButtonSubtext}>-10%</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.answerButton, styles.correctButton]}
-              onPress={() => handleAnswer(true)}
+              <span>Don't Know</span>
+              <span className="text-xs opacity-80 mt-0.5">-10%</span>
+            </button>
+
+            <button
+              onClick={() => handleAnswer(true)}
+              className="flex-1 ds-touch-target flex flex-col items-center justify-center rounded-[var(--radius-button)] py-4 font-bold text-[var(--klein-on)] transition-all active:scale-95"
+              style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
             >
-              <Text style={styles.answerButtonText}>Know It</Text>
-              <Text style={styles.answerButtonSubtext}>+5%</Text>
-            </TouchableOpacity>
-          </View>
+              <span>Know It</span>
+              <span className="text-xs opacity-80 mt-0.5">+5%</span>
+            </button>
+          </div>
         )}
-      </View>
-    </View>
+      </div>
+    </div>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  closeButton: {
-    fontSize: 24,
-    color: '#6b7280',
-    fontWeight: 'bold',
-  },
-  statsContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statsText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  accuracyText: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  progressBarContainer: {
-    height: 4,
-    backgroundColor: '#e5e7eb',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#3b82f6',
-  },
-  cardContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  card: {
-    width: width - 48,
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  proficiencyContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  proficiencyLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 8,
-  },
-  proficiencyValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#3b82f6',
-  },
-  wordContainer: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  wordText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#111827',
-    textAlign: 'center',
-  },
-  hintsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 24,
-  },
-  hintText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  answerContainer: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-  },
-  answerLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  answerHint: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-  },
-  actionsContainer: {
-    padding: 24,
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  actionButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  showButton: {
-    backgroundColor: '#3b82f6',
-  },
-  skipButton: {
-    backgroundColor: '#f3f4f6',
-  },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  skipButtonText: {
-    color: '#6b7280',
-  },
-  answerButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  answerButton: {
-    flex: 1,
-    paddingVertical: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  incorrectButton: {
-    backgroundColor: '#ef4444',
-  },
-  correctButton: {
-    backgroundColor: '#10b981',
-  },
-  answerButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  answerButtonSubtext: {
-    fontSize: 12,
-    color: '#ffffff',
-    opacity: 0.8,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginTop: 48,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginTop: 48,
-  },
-});

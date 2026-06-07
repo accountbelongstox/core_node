@@ -1,3 +1,4 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React from 'react';
 import { MessageSquare, Image as ImageIcon, Eye, LayoutGrid } from 'lucide-react';
 import { AppMode } from '../types';
@@ -15,48 +16,57 @@ const Sidebar: React.FC<SidebarProps> = ({ currentMode, onModeChange }) => {
   ];
 
   return (
-    <div className="w-full md:w-64 bg-slate-800 border-r border-slate-700 flex flex-col h-full shrink-0 transition-all">
-      <div className="p-6 border-b border-slate-700">
+    <div className="w-full md:w-64 ds-glass border-r border-[var(--border-highlight)] flex flex-col h-full shrink-0 transition-all">
+      <div className="p-6 border-b border-[var(--border-highlight)]">
         <div className="flex items-center gap-3">
-          <div className="bg-indigo-500 p-2 rounded-lg shadow-lg shadow-indigo-500/20">
-            <LayoutGrid className="w-6 h-6 text-white" />
+          {/* Brand chip — hero surface uses the Iris gradient */}
+          <div
+            className="p-2.5 rounded-[var(--radius-button)]"
+            style={{ background: 'var(--klein-gradient)', color: 'var(--klein-on)', boxShadow: 'var(--klein-grad-glow)' }}
+          >
+            <LayoutGrid className="w-6 h-6" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Nexus</h1>
-            <p className="text-xs text-slate-400">Powered by Gemini</p>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight truncate">Nexus</h1>
+            <p className="text-xs text-[var(--color-text-tertiary)] truncate">Powered by Gemini</p>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-4 ds-stack-tight flex flex-col">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentMode === item.mode;
-          
+
           return (
             <button
               key={item.mode}
               onClick={() => onModeChange(item.mode)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group text-left
-                ${isActive 
-                  ? 'bg-indigo-600/10 border border-indigo-500/50 text-indigo-400' 
-                  : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200 border border-transparent'
-                }`}
+              className={`w-full flex items-center gap-3 p-3.5 rounded-[var(--radius-button)] transition-all duration-200 group text-left border ds-touch-target ${
+                isActive
+                  ? 'text-[var(--klein-on)] border-transparent'
+                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--klein-blue-soft)] hover:text-[var(--color-text-primary)] border-transparent'
+              }`}
+              style={isActive ? { background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' } : undefined}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
-              <div>
-                <div className="font-medium text-sm">{item.label}</div>
-                <div className="text-[10px] opacity-70 leading-tight">{item.description}</div>
+              <Icon
+                className={`w-5 h-5 flex-shrink-0 ${
+                  isActive ? 'text-[var(--klein-on)]' : 'text-[var(--color-text-tertiary)] group-hover:text-[var(--klein-blue)]'
+                }`}
+              />
+              <div className="min-w-0">
+                <div className="font-semibold text-sm truncate">{item.label}</div>
+                <div className={`text-[10px] leading-tight truncate ${isActive ? 'opacity-80' : 'opacity-70'}`}>{item.description}</div>
               </div>
             </button>
           );
         })}
       </nav>
 
-      <div className="p-4 border-t border-slate-700">
-        <div className="p-3 bg-slate-900 rounded-lg border border-slate-700/50">
-          <p className="text-xs text-slate-500 text-center">
-            Gemini 2.5 Flash & Pro Models
+      <div className="p-4 border-t border-[var(--border-highlight)]">
+        <div className="p-3 rounded-[var(--radius-button)] ds-card">
+          <p className="text-xs text-[var(--color-text-tertiary)] text-center">
+            Gemini 2.5 Flash &amp; Pro Models
           </p>
         </div>
       </div>

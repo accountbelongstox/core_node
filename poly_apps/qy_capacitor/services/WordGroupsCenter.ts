@@ -32,9 +32,10 @@ class WordGroupsCenterClass {
     // Only fetch fresh data if user is authenticated
     const token = await StorageCenter.auth.getToken();
     if (token) {
-      // Fetch fresh data in background
+      // Fetch fresh data in background. Failures here are environmental
+      // (offline / backend down); keep the cached/empty state and warn.
       this.fetchAll(true).catch(err => {
-        console.error('[WordGroupsCenter] Background fetch failed:', err);
+        console.warn('[WordGroupsCenter] Background fetch failed (handled, using cached/empty):', err?.message || err);
       });
     } else {
       console.log('[WordGroupsCenter] User not authenticated, skipping API fetch');
@@ -105,11 +106,15 @@ class WordGroupsCenterClass {
 
         return response.data;
       } else {
-        console.error('[WordGroupsCenter] API returned error:', response.error);
+        // Expected when offline or backend down. Degrade gracefully:
+        // keep last good / cached groups, never throw to consumers.
+        console.warn('[WordGroupsCenter] API returned error (handled, using cached/empty):', response.error?.message || response.error);
         return this.groups; // Return cached data on error
       }
-    } catch (error) {
-      console.error('[WordGroupsCenter] Fetch failed:', error);
+    } catch (error: any) {
+      // Network/offline failure is environmental and already returned as a
+      // safe value; warn instead of surfacing a red console error.
+      console.warn('[WordGroupsCenter] Fetch failed (handled, using cached/empty):', error?.message || error);
       return this.groups; // Return cached data on error
     } finally {
       this.loading = false;

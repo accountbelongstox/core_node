@@ -83,7 +83,9 @@ class AppQyV1ArticleWord extends Model
         $dictionaryInfo = AppQyV1DictionaryService::queryAndAdd($language, $words);
 
         foreach ($words as $word) {
-            $wordMd5 = md5(strtolower($word));
+            // Canonical key convention: raw md5($content), matching the
+            // dictionary tts_cache_{lang}.md5 column so dictionaryEntry() joins.
+            $wordMd5 = md5($word);
             $frequency = $wordFrequency[$word] ?? 1;
 
             $insertData[] = [

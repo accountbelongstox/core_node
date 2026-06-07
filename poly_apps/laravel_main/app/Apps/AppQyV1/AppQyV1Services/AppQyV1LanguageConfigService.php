@@ -159,7 +159,7 @@ class AppQyV1LanguageConfigService
             'supports_tts' => true,
             'supports_dictionary' => true,
         ],
-        // EdgeTTS 支持的其他语言
+        // Other languages supported by EdgeTTS
         'af' => ['name' => 'Afrikaans', 'native_name' => 'Afrikaans', 'zh_name' => '南非荷兰语', 'voice_id' => 'af-ZA-AdriNeural', 'flag_icon' => 'flag-za', 'supports_tts' => true],
         'am' => ['name' => 'Amharic', 'native_name' => 'አማርኛ', 'zh_name' => '阿姆哈拉语', 'voice_id' => 'am-ET-MekdesNeural', 'flag_icon' => 'flag-et', 'supports_tts' => true],
         'ar' => ['name' => 'Arabic', 'native_name' => 'العربية', 'zh_name' => '阿拉伯语', 'voice_id' => 'ar-EG-SalmaNeural', 'flag_icon' => 'flag-sa', 'supports_tts' => true],

@@ -30,53 +30,24 @@ class UserSyncService
             'errors' => [],
         ];
         
+        // Canonical-identity model: the user exists ONCE in the main `users`
+        // table. There is no fan-out write to per-sub-app `users` tables
+        // (that duplication is removed). Kept for backward compatibility.
         DB::beginTransaction();
-        
+
         try {
             $mainUser = User::create($userData);
             $results['main'] = true;
             $results['main_user_id'] = $mainUser->id;
-            
-            foreach (self::getSubAppKeys() as $appKey) {
-                try {
-                    $connectionName = AppTablePrefixServiceProvider::getConnection($appKey);
-                    
-                    if (!config("database.connections.{$connectionName}")) {
-                        $results['sub_apps'][$appKey] = 'skipped_no_connection';
-                        continue;
-                    }
-                    
-                    if (!self::tableExists($connectionName, 'users')) {
-                        $results['sub_apps'][$appKey] = 'skipped_no_table';
-                        continue;
-                    }
-                    
-                    $subAppData = array_merge($userData, [
-                        'main_user_id' => $mainUser->id,
-                    ]);
-                    
-                    // Use model connection instead of DB::connection()
-                    $userModel = new User();
-                    $userModel->setConnection($connectionName);
-                    $userModel->getConnection()->table('users')->insert($subAppData);
-                    
-                    $results['sub_apps'][$appKey] = 'success';
-                    
-                } catch (\Exception $e) {
-                    Log::error("[UserSync] Failed to sync user to {$appKey}: " . $e->getMessage());
-                    $results['sub_apps'][$appKey] = 'error';
-                    $results['errors'][$appKey] = $e->getMessage();
-                }
-            }
-            
+
             DB::commit();
-            
+
             return [
                 'success' => true,
                 'user' => $mainUser,
                 'sync_results' => $results,
             ];
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
             
@@ -243,24 +214,15 @@ class UserSyncService
             $results['Main (personal_access_tokens)'] = 'skipped - will be created by migrations';
         }
 
-        // Line 242: Check all sub-app users tables (no data deletion)
+        // Canonical-identity model: there are NO per-sub-app `users` tables.
+        // Identity lives ONCE in the main `users` table; app-specific user
+        // fields live in per-app extension tables keyed by main_user_id.
+        // Sub-app users tables are intentionally NOT created here (the old
+        // dual-write/duplication produced non-ACID cross-file writes and the
+        // registration FK failure). Any pre-existing duplicate sub-app `users`
+        // tables are removed by the drop-orphan-subapp-users migration.
         foreach (self::getSubAppKeys() as $appKey) {
-            $connectionName = AppTablePrefixServiceProvider::getConnection($appKey);
-
-            // Line 246: If connection does not exist, skip (no data deletion)
-            if (!config("database.connections.{$connectionName}")) {
-                $results[$appKey] = 'no_connection';
-                continue;
-            }
-
-            // Line 251: If table does not exist, create it (no data deletion, table doesn't exist)
-            if (!self::tableExists($connectionName, 'users')) {
-                self::createUserTable($connectionName);
-                $results[$appKey] = 'created';
-            } else {
-                // Line 255: Table exists, skip (no data deletion)
-                $results[$appKey] = 'exists';
-            }
+            $results[$appKey] = 'skipped - canonical identity (no per-app users table)';
         }
 
         return $results;
@@ -272,64 +234,16 @@ class UserSyncService
      * IMPORTANT: This method only creates table if it doesn't exist, returns immediately if table exists
      * NEVER deletes tables or data
      */
+    /**
+     * DEPRECATED / DISABLED. The canonical-identity refactor removed per-sub-app
+     * duplicate `users` tables. This method must never recreate one (doing so
+     * reintroduced the cross-file self-FK that broke registration). Kept as a
+     * guarded no-op for backward compatibility; it has no callers.
+     */
     private static function createUserTable(string $connection): void
     {
-        // Line 265: If SQLite, ensure database file exists (no data deletion)
-        $config = config("database.connections.{$connection}");
-        if ($config && $config['driver'] === 'sqlite') {
-            $dbPath = $config['database'];
-            if (!file_exists($dbPath)) {
-                $dir = dirname($dbPath);
-                if (!is_dir($dir)) {
-                    mkdir($dir, 0755, true);
-                }
-                touch($dbPath);
-                chmod($dbPath, 0664);
-            }
-        }
-        
-        // Line 278: If table exists, return immediately (no data deletion)
-        if (Schema::connection($connection)->hasTable('users')) {
-            return;
-        }
-        
-        // Line 282: Table does not exist, create it (no data deletion, table doesn't exist)
-        Schema::connection($connection)->create('users', function (Blueprint $table) use ($connection) {
-            $table->id();
-            
-            if ($connection !== 'sqlite') {
-                $table->unsignedBigInteger('main_user_id');
-            }
-            
-            $table->string('username')->nullable();
-            $table->string('name')->nullable();
-            $table->string('nickname')->nullable();
-            $table->string('email')->nullable();
-            $table->string('phone', 20)->nullable();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password')->nullable();
-            $table->string('remember_token', 100)->nullable();
-            $table->text('avatar')->nullable();
-            
-            if ($connection !== 'sqlite') {
-                $table->integer('credit')->default(0);
-            }
-            
-            $table->timestamps();
-            
-            if ($connection === 'sqlite') {
-                $table->unique('email');
-            }
-            
-            if ($connection !== 'sqlite') {
-                $table->foreign('main_user_id')->references('id')->on('users')->onDelete('cascade');
-            }
-            
-            $table->index('main_user_id');
-            $table->index('username');
-            $table->index('email');
-            $table->index('nickname');
-        });
+        Log::warning("[UserSync] createUserTable('{$connection}') is disabled: "
+            . 'per-sub-app users tables were removed (canonical-identity model). No-op.');
     }
 
     private static function createPersonalAccessTokensTable(string $connection): void
@@ -503,6 +417,38 @@ class UserSyncService
                 }
             }
 
+            // Stage-1 staging table (md5 indexed, not unique - import may
+            // produce duplicate md5 across files; promotion dedups).
+            $stagingTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryStagingTableName($langCode);
+            if (!$schema->hasTable($stagingTable)) {
+                $schema->create($stagingTable, function ($table) {
+                    $table->increments('id');
+                    $table->text('content');
+                    $table->string('md5', 32)->index();
+                    $table->text('translations')->nullable();
+                    $table->boolean('has_translation')->default(false);
+                    $table->string('translation_provider', 50)->nullable();
+                    $table->text('phonetic')->nullable();
+                    $table->text('us_phonetic')->nullable();
+                    $table->text('uk_phonetic')->nullable();
+                    $table->text('tts_files')->nullable();
+                    $table->string('tts_provider', 50)->nullable();
+                    $table->boolean('has_audio')->default(false);
+                    $table->text('image_files')->nullable();
+                    $table->string('image_provider', 50)->nullable();
+                    $table->text('word_details')->nullable();
+                    $table->boolean('is_exist_local')->default(false);
+                    $table->boolean('has_operations')->default(false);
+                    $table->integer('query_count')->default(0);
+                    $table->timestamp('last_modified')->nullable();
+                    $table->timestamp('last_query_time')->nullable();
+                    $table->timestamps();
+
+                    $table->index('content');
+                });
+                $results[$stagingTable] = 'created';
+            }
+
             if ($progressCallback && $current % 10 === 0) {
                 $progressCallback($current, $total);
             }
@@ -650,11 +596,12 @@ class UserSyncService
         $mdFiles = glob("{$dataDir}/*.md");
         $results['total_files'] = count($mdFiles);
         
-        $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
-        $existingCount = $dbConnection->table($enDictTable)->count();
+        // Gate on the lo staging table (this importer targets lo/ja/vi).
+        $loStagingTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryStagingTableName('lo');
+        $existingCount = $dbConnection->table($loStagingTable)->count();
         if ($existingCount > 0) {
             $results['skipped'] = true;
-            $results['message'] = "Tables already have {$existingCount} records, skipping import";
+            $results['message'] = "Staging already has {$existingCount} records, skipping import";
             return $results;
         }
         
@@ -703,13 +650,17 @@ class UserSyncService
                 $now = now();
                 
                 
+                // Fold legacy pronunciation/meaning_* into the unified schema:
+                // phonetic <- pronunciation, translations <- {en,zh} JSON.
+                $foldedTranslations = json_encode(['en' => $meaningEn, 'zh' => $meaningZh], JSON_UNESCAPED_UNICODE);
+                $foldedHasTranslation = (!empty($meaningZh) || !empty($meaningEn)) ? 1 : 0;
+
                 $laoData[] = [
                     'content' => $lao,
                     'md5' => md5($lao),
-                    'pronunciation' => $laoPronunciation,
-                    'meaning_en' => $meaningEn,
-                    'meaning_zh' => $meaningZh,
-                    'has_translation' => !empty($meaningZh) ? 1 : 0,
+                    'phonetic' => $laoPronunciation,
+                    'translations' => $foldedTranslations,
+                    'has_translation' => $foldedHasTranslation,
                     'query_count' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -718,10 +669,9 @@ class UserSyncService
                 $japaneseData[] = [
                     'content' => $japanese,
                     'md5' => md5($japanese),
-                    'pronunciation' => $japanesePronunciation,
-                    'meaning_en' => $meaningEn,
-                    'meaning_zh' => $meaningZh,
-                    'has_translation' => !empty($meaningZh) ? 1 : 0,
+                    'phonetic' => $japanesePronunciation,
+                    'translations' => $foldedTranslations,
+                    'has_translation' => $foldedHasTranslation,
                     'query_count' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -730,10 +680,9 @@ class UserSyncService
                 $vietnameseData[] = [
                     'content' => $vietnamese,
                     'md5' => md5($vietnamese),
-                    'pronunciation' => $vietnamesePronunciation,
-                    'meaning_en' => $meaningEn,
-                    'meaning_zh' => $meaningZh,
-                    'has_translation' => !empty($meaningZh) ? 1 : 0,
+                    'phonetic' => $vietnamesePronunciation,
+                    'translations' => $foldedTranslations,
+                    'has_translation' => $foldedHasTranslation,
                     'query_count' => 0,
                     'created_at' => $now,
                     'updated_at' => $now,
@@ -747,21 +696,31 @@ class UserSyncService
             $chunkSize = 500;
 
             foreach (array_chunk($laoData, $chunkSize) as $chunk) {
-                $loDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('lo');
-                $dbConnection->table($loDictTable)->insert($chunk);
+                $loStaging = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryStagingTableName('lo');
+                $dbConnection->table($loStaging)->insert($chunk);
             }
 
             foreach (array_chunk($japaneseData, $chunkSize) as $chunk) {
-                $jaDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('ja');
-                $dbConnection->table($jaDictTable)->insert($chunk);
+                $jaStaging = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryStagingTableName('ja');
+                $dbConnection->table($jaStaging)->insert($chunk);
             }
 
             foreach (array_chunk($vietnameseData, $chunkSize) as $chunk) {
-                $viDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('vi');
-                $dbConnection->table($viDictTable)->insert($chunk);
+                $viStaging = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryStagingTableName('vi');
+                $dbConnection->table($viStaging)->insert($chunk);
             }
 
             $results['imported'] = $results['total_words'];
+
+            // Stage 2: promote lo/ja/vi staging into the formal tts_cache_{lang}
+            // tables immediately. This importer runs every sys:init (it is not
+            // inside the skip-gated dictionary Step 2), so promotion must also
+            // run here or freshly staged lo/ja/vi rows would never reach formal.
+            $results['promote'] = [
+                'lo' => self::promoteStagingToFormal('lo'),
+                'ja' => self::promoteStagingToFormal('ja'),
+                'vi' => self::promoteStagingToFormal('vi'),
+            ];
 
         } catch (\Exception $e) {
             Log::error("[UserSync] Failed to import multilingual words: " . $e->getMessage());
@@ -784,12 +743,129 @@ class UserSyncService
             $results['step1_rename_7z'] = self::process7zFiles();
             $results['step3_import_words'] = self::importDictionaryWords();
             $results['step4_update_translations'] = self::importTranslationsFromJson();
-            
+            // Stage 2: promote every language's staging rows into the formal
+            // canonical tts_cache_{lang} tables (idempotent, additive).
+            $results['step5_promote'] = self::promoteAllStaging();
+
         } catch (\Exception $e) {
             Log::error("[DictionaryInit] Failed: " . $e->getMessage());
             $results['error'] = $e->getMessage();
         }
-        
+
+        return $results;
+    }
+
+    /**
+     * Stage 2: copy rows from a language's staging table into its formal
+     * tts_cache_{lang} table. Idempotent and additive: inserts rows whose md5
+     * is absent from the formal table, and enriches existing formal rows that
+     * still lack a translation/audio when staging has richer data. Never
+     * deletes formal rows.
+     */
+    public static function promoteStagingToFormal(string $langCode): array
+    {
+        $appKey = AppKeys::APPQYV1;
+        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+        $schema = Schema::connection($connection);
+
+        $staging = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryStagingTableName($langCode);
+        $formal = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName($langCode);
+
+        if (!$schema->hasTable($staging) || !$schema->hasTable($formal)) {
+            return ['lang' => $langCode, 'skipped' => true, 'reason' => 'missing_table'];
+        }
+
+        $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
+        $db = $model->getConnection();
+
+        $inserted = 0;
+        $enriched = 0;
+        $now = now();
+
+        // Per-chunk set-based promotion (formal.md5 is UNIQUE):
+        //   1 SELECT (whereIn the chunk md5s) + 1 batch insertOrIgnore for
+        //   absent rows + at most a small number of enrich UPDATEs (only rows
+        //   that genuinely gained a translation/phonetic). Replaces the prior
+        //   per-row SELECT+INSERT (~2 queries/row) which was O(rows) and made
+        //   re-init very slow on large tables (e.g. EN 100k+).
+        $db->table($staging)->orderBy('id')->chunk(1000, function ($rows) use ($db, $formal, &$inserted, &$enriched, $now) {
+            $chunkMd5s = [];
+            foreach ($rows as $row) {
+                $chunkMd5s[] = $row->md5;
+            }
+            if (empty($chunkMd5s)) {
+                return;
+            }
+
+            $existingByMd5 = [];
+            foreach ($db->table($formal)->whereIn('md5', $chunkMd5s)->get(['id', 'md5', 'has_translation', 'phonetic']) as $ex) {
+                $existingByMd5[$ex->md5] = $ex;
+            }
+
+            $insertBatch = [];
+            $seenInBatch = [];
+            foreach ($rows as $row) {
+                if (!isset($existingByMd5[$row->md5])) {
+                    // Dedup within the staging chunk itself (md5 is not unique
+                    // in staging); insertOrIgnore also guards against races.
+                    if (isset($seenInBatch[$row->md5])) {
+                        continue;
+                    }
+                    $seenInBatch[$row->md5] = true;
+                    $insertBatch[] = [
+                        'content' => $row->content,
+                        'md5' => $row->md5,
+                        'translations' => $row->translations,
+                        'has_translation' => $row->has_translation,
+                        'phonetic' => $row->phonetic,
+                        'us_phonetic' => isset($row->us_phonetic) ? $row->us_phonetic : null,
+                        'uk_phonetic' => isset($row->uk_phonetic) ? $row->uk_phonetic : null,
+                        'tts_files' => isset($row->tts_files) ? $row->tts_files : null,
+                        'image_files' => isset($row->image_files) ? $row->image_files : null,
+                        'has_audio' => isset($row->has_audio) ? $row->has_audio : 0,
+                        'query_count' => 0,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                    continue;
+                }
+
+                $existing = $existingByMd5[$row->md5];
+                $update = [];
+                $existingHasTranslation = isset($existing->has_translation) ? (int) $existing->has_translation : 0;
+                if ($existingHasTranslation === 0 && (int) $row->has_translation === 1) {
+                    $update['translations'] = $row->translations;
+                    $update['has_translation'] = 1;
+                }
+                if (empty($existing->phonetic) && !empty($row->phonetic)) {
+                    $update['phonetic'] = $row->phonetic;
+                }
+                if (!empty($update)) {
+                    $update['updated_at'] = $now;
+                    $db->table($formal)->where('id', $existing->id)->update($update);
+                    $enriched++;
+                }
+            }
+
+            if (!empty($insertBatch)) {
+                $db->table($formal)->insertOrIgnore($insertBatch);
+                $inserted += count($insertBatch);
+            }
+        });
+
+        return ['lang' => $langCode, 'inserted' => $inserted, 'enriched' => $enriched];
+    }
+
+    /**
+     * Stage 2 for every supported language.
+     */
+    public static function promoteAllStaging(): array
+    {
+        $results = [];
+        $languages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
+        foreach ($languages as $langCode) {
+            $results[$langCode] = self::promoteStagingToFormal($langCode);
+        }
         return $results;
     }
 
@@ -909,7 +985,9 @@ class UserSyncService
         $dbConnection = $model->getConnection();
 
         foreach ($batch as $item) {
-            $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
+            // Stage 1: translations are written into the EN staging table;
+            // promoteStagingToFormal('en') merges them into the formal table.
+            $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryStagingTableName('en');
             $existing = $dbConnection
                 ->table($enDictTable)
                 ->where('content', $item['content'])
@@ -1050,12 +1128,14 @@ class UserSyncService
             return ['error' => 'output.txt not found'];
         }
         
-        $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
-        $existingCount = $dbConnection->table($enDictTable)->count();
+        // Stage 1: import into the staging table (gate on staging count so a
+        // fresh install with an empty formal table still imports).
+        $enStagingTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryStagingTableName('en');
+        $existingCount = $dbConnection->table($enStagingTable)->count();
         if ($existingCount > 50000) {
             return [
                 'skipped' => true,
-                'message' => "Already imported {$existingCount} words, skipping",
+                'message' => "Already staged {$existingCount} words, skipping",
             ];
         }
 
@@ -1088,18 +1168,16 @@ class UserSyncService
             ];
 
             if (count($batch) >= 1000) {
-                $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
-                // Use model connection for query builder
-                $dbConnection->table($enDictTable)->insert($batch);
+                // Use model connection for query builder (Stage-1 staging)
+                $dbConnection->table($enStagingTable)->insert($batch);
                 $imported += count($batch);
                 $batch = [];
             }
         }
 
         if (!empty($batch)) {
-            $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
-            // Use model connection for query builder
-            $dbConnection->table($enDictTable)->insert($batch);
+            // Use model connection for query builder (Stage-1 staging)
+            $dbConnection->table($enStagingTable)->insert($batch);
             $imported += count($batch);
         }
         

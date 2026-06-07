@@ -1,3 +1,4 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React from 'react';
 
 interface AuthInputProps {
@@ -32,7 +33,10 @@ export const AuthInput: React.FC<AuthInputProps> = ({
       placeholder={placeholder}
       disabled={disabled}
       required={required}
-      className="w-full p-4 rounded-xl glass-panel bg-white/40 dark:bg-black/20 outline-none focus:ring-2 ring-blue-400 dark:text-white transition-all disabled:opacity-50"
+      className="w-full p-4 rounded-[var(--radius-button)] ds-glass ds-glass-edge border border-[var(--border-highlight)] outline-none text-[var(--color-text-primary)] transition-all disabled:opacity-50"
+      style={{ boxShadow: '0 0 0 0 transparent' }}
+      onFocus={(e) => { e.currentTarget.style.boxShadow = '0 0 0 3px var(--klein-ring)'; }}
+      onBlur={(e) => { e.currentTarget.style.boxShadow = '0 0 0 0 transparent'; }}
       autoComplete={autoComplete}
     />
   );
@@ -40,7 +44,7 @@ export const AuthInput: React.FC<AuthInputProps> = ({
   if (label) {
     return (
       <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+        <label className="block text-sm font-medium text-[var(--color-text-primary)] mb-2">
           {label}
         </label>
         {inputElement}

@@ -20,8 +20,8 @@ interface ToolWrapperProps {
 }
 
 /**
- * ToolWrapper - 通用工具包装器
- * 提供统一的UI框架，包括标题、图标、历史记录、收藏等
+ * ToolWrapper - generic tool wrapper
+ * Provides a unified UI framework including title, icon, history, favorites, etc.
  */
 const ToolWrapper: React.FC<ToolWrapperProps> = ({
   title,

@@ -50,23 +50,23 @@ class ProxyNameProcessor
             ];
         }
 
-        // 确定引号类型和名称
+        // Determine the quote type and the name
         if (preg_match('/name:\s*"/', $line)) {
-            // 双引号情况
+            // Double-quote case
             if (!preg_match('/name:\s*"([^"]+)"/', $line, $matches)) {
                 return ['proposed_name' => null, 'new_line' => $line];
             }
             $originalName = $matches[1];
             $quoteType = 'double';
         } elseif (preg_match('/name:\s*\'/', $line)) {
-            // 单引号情况
+            // Single-quote case
             if (!preg_match('/name:\s*\'([^\']+)\'/', $line, $matches)) {
                 return ['proposed_name' => null, 'new_line' => $line];
             }
             $originalName = $matches[1];
             $quoteType = 'single';
         } else {
-            // 无引号情况
+            // No-quote case
             if (!preg_match('/name:\s*([^,]+)/', $line, $matches)) {
                 return ['proposed_name' => null, 'new_line' => $line];
             }
@@ -76,7 +76,7 @@ class ProxyNameProcessor
 
         $proposedName = self::generateUniqueName(trim($originalName), $existingNames);
         
-        // 根据引号类型构建新行
+        // Build the new line based on the quote type
         switch ($quoteType) {
             case 'double':
                 $newLine = preg_replace(

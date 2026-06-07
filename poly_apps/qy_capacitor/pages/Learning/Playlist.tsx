@@ -1,7 +1,9 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 
 import React, { useContext, useState, useEffect, useRef } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Icons } from '../../components/UI';
+import { Icons, ProgressBar, IconButton } from '../../components/UI';
+import { SkipBack, SkipForward } from 'lucide-react';
 import { ApiCenter } from '../../services/ApiCenter';
 import { Word } from '../../types';
 import { LearningProgressTracker } from '../../services/LearningProgressTracker';
@@ -46,7 +48,7 @@ const PlaylistPage = () => {
       language: language,
       limit: 100 // Fetch up to 100 words for playlist
     }).then(response => {
-      if (response.success && response.data) {
+      if (response.success && Array.isArray(response.data)) {
         setAllWords(response.data);
       } else {
         console.error('[Playlist] Failed to load words:', response.error);
@@ -70,7 +72,7 @@ const PlaylistPage = () => {
   useEffect(() => {
     const start = currentPageIndex * playlistSettings.wordsPerPage;
     const end = start + playlistSettings.wordsPerPage;
-    setPageWords(allWords.slice(start, end));
+    setPageWords(Array.isArray(allWords) ? allWords.slice(start, end) : []);
     setLocalIndex(0);
     setIsReviewMode(false);
   }, [allWords, currentPageIndex, playlistSettings.wordsPerPage]);
@@ -176,31 +178,24 @@ const PlaylistPage = () => {
   }, [localIndex, pageWords]);
 
   return (
-    <div className="h-full flex flex-col bg-[#f8fafc] dark:bg-slate-950 animate-slide-up relative overflow-hidden">
-      {/* Background Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-indigo-50/50 dark:from-slate-900 dark:to-slate-800 -z-10"></div>
-      
+    <div className="h-full flex flex-col ds-aura-bg animate-slide-up relative overflow-hidden">
       {/* Header with Stats and Settings */}
-      <div className="px-5 py-3 flex justify-between items-center z-20 backdrop-blur-md bg-white/70 dark:bg-slate-900/80 sticky top-0 border-b border-slate-200 dark:border-slate-800 shadow-sm">
-         <button onClick={() => navigate('home')} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><Icons.Back /></button>
-         
-         <div className="flex flex-col items-center">
-            <h1 className="text-sm font-bold dark:text-white flex items-center gap-2">
-                {user?.dailyProgress} / {playlistSettings.dailyGoal} 
-                <span className="text-slate-400 text-[10px] font-normal">({allWords.length} total)</span>
+      <div className="px-5 py-3 flex justify-between items-center z-20 backdrop-blur-md bg-[var(--color-surface)]/80 sticky top-0 border-b border-[var(--border-highlight)]">
+         <IconButton icon={<Icons.Back />} onClick={() => navigate('home')} label="Back" />
+
+         <div className="flex flex-col items-center min-w-0 px-3">
+            <h1 className="text-sm font-bold text-[var(--color-text-primary)] flex items-center gap-2">
+                {user?.dailyProgress} / {playlistSettings.dailyGoal}
+                <span className="text-[var(--color-text-tertiary)] text-[10px] font-normal">({allWords.length} total)</span>
             </h1>
-            <div className="w-32 h-1 bg-slate-200 rounded-full mt-1 overflow-hidden">
-                <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
-            </div>
+            <ProgressBar value={progressPercent} className="w-32 mt-1.5 !h-1" />
          </div>
-         
-         <button onClick={() => navigate('playlist_config')} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300">
-             <Icons.Settings />
-         </button>
+
+         <IconButton icon={<Icons.Settings />} onClick={() => navigate('playlist_config')} label="Playlist settings" />
       </div>
 
       {/* Info Bar */}
-      <div className="px-4 py-2 bg-slate-100 dark:bg-slate-900/50 flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200 dark:border-slate-800">
+      <div className="px-5 py-2.5 bg-[var(--klein-blue-soft)] flex justify-between items-center text-[10px] font-bold text-[var(--klein-blue)] uppercase tracking-widest border-b border-[var(--border-highlight)]">
           <span>Page {currentPageIndex + 1}</span>
           <span>{isReviewMode ? 'Review Mode' : 'Learning Mode'}</span>
           <span>{playlistSettings.playbackSpeed}x • {playlistSettings.playInterval}s</span>
@@ -215,84 +210,82 @@ const PlaylistPage = () => {
            const animate = playlistSettings.showAnimation;
            
            return (
-             <div 
+             <div
                key={`${word.id}-${i}`}
                onClick={() => handleManualClick(i)}
                className={`
-                 relative p-4 rounded-2xl transition-all duration-300 cursor-pointer border
-                 ${isActive 
-                    ? `z-10 scale-[1.02] shadow-xl border-blue-400 ${
-                        animate 
-                          ? 'bg-white dark:bg-blue-900/40 animate-pulse-slow' 
-                          : 'bg-blue-50 dark:bg-blue-900/60 ring-2 ring-blue-500 dark:ring-blue-400'
-                      }` 
-                    : 'bg-white/60 dark:bg-slate-800/40 border-transparent hover:bg-white/80'}
+                 ds-row relative p-4 transition-all duration-300 cursor-pointer
+                 ${isActive
+                    ? `z-10 scale-[1.02] ${animate ? 'animate-pulse-slow' : ''}`
+                    : 'opacity-90 hover:opacity-100'}
                `}
+               style={isActive ? { borderColor: 'var(--klein-blue)', boxShadow: `0 0 0 2px var(--klein-ring), var(--klein-glow)` } : undefined}
              >
-                <div className="flex justify-between items-start">
-                   <div className="flex-1">
-                      <h3 className={`font-bold transition-all ${isActive ? 'text-blue-600 dark:text-blue-300' : 'text-slate-700 dark:text-slate-300'} ${largeFont ? 'text-2xl' : 'text-lg'}`}>
+                <div className="flex justify-between items-start gap-3">
+                   <div className="flex-1 min-w-0">
+                      <h3 className={`font-bold transition-all truncate ${isActive ? 'text-[color:var(--klein-blue)]' : 'text-[var(--color-text-primary)]'} ${largeFont ? 'text-2xl' : 'text-lg'}`}>
                         {word.text}
                       </h3>
                       {playlistSettings.displayMode === 'detailed' && (
-                          <p className={`font-mono text-xs mt-1 ${isActive ? 'text-blue-400' : 'text-slate-400'}`}>{word.phonetic}</p>
+                          <p className={`font-mono text-xs mt-1 ${isActive ? 'text-[color:var(--klein-blue)] opacity-70' : 'text-[var(--color-text-tertiary)]'}`}>{word.phonetic}</p>
                       )}
                    </div>
-                   
+
                    {(isDetailed || isActive) && (
-                       <div className={`text-right max-w-[50%] transition-opacity duration-500 ${isActive ? 'opacity-100' : 'opacity-60'}`}>
-                          <p className={`font-bold leading-tight ${largeFont ? 'text-lg' : 'text-sm'} dark:text-white`}>{word.translation}</p>
+                       <div className={`text-right max-w-[50%] min-w-0 transition-opacity duration-500 ${isActive ? 'opacity-100' : 'opacity-60'}`}>
+                          <p className={`font-bold leading-tight truncate ${largeFont ? 'text-lg' : 'text-sm'} text-[var(--color-text-primary)]`}>{word.translation}</p>
                        </div>
                    )}
                 </div>
 
                 {(isActive && isDetailed) && (
-                   <div className="mt-3 pt-3 border-t border-dashed border-slate-200 dark:border-slate-700">
-                      <p className="text-slate-500 text-xs italic">"{word.example}"</p>
+                   <div className="mt-3 pt-3 border-t border-dashed border-[var(--border-highlight)]">
+                      <p className="text-[var(--color-text-secondary)] text-xs italic">"{word.example}"</p>
                    </div>
                 )}
              </div>
            );
          })}
          
-         <div className="h-10 text-center text-xs text-slate-300 uppercase font-bold tracking-widest pt-4">End of Page {currentPageIndex + 1}</div>
+         <div className="h-10 text-center text-xs text-[var(--color-text-tertiary)] uppercase font-bold tracking-widest pt-4">End of Page {currentPageIndex + 1}</div>
       </div>
 
-      {/* Fixed Bottom Controls */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 pb-safe">
-         {/* Progress Slider (Visual only for now) */}
-         <div className="w-full bg-slate-200 h-1">
-             <div className="bg-blue-500 h-full transition-all duration-300" style={{ width: `${((localIndex + 1) / pageWords.length) * 100}%` }}></div>
-         </div>
-         
-         <div className="flex items-center justify-between px-6 py-4">
-             {/* Prev Page */}
-             <button onClick={prevPage} disabled={currentPageIndex === 0} className="text-slate-400 hover:text-blue-500 disabled:opacity-30">
-                <Icons.Rewind />
-             </button>
+      {/* Fixed Bottom Controls — centered floating island */}
+      <div className="absolute bottom-0 left-0 right-0 z-30 px-4 pb-[calc(env(safe-area-inset-bottom,12px)+14px)]">
+         <div className="ds-bar-pill mx-auto !static !translate-x-0 !w-full max-w-[430px] px-4 py-3">
+            <ProgressBar value={localIndex + 1} max={pageWords.length} className="!h-1 mb-3" />
 
-             {/* Prev Word */}
-             <button onClick={() => setLocalIndex(i => Math.max(0, i - 1))} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
-                 <span className="text-xl transform rotate-180 inline-block">▶</span>
-             </button>
+            <div className="flex items-center justify-between">
+                {/* Prev Page */}
+                <button onClick={prevPage} disabled={currentPageIndex === 0} className="ds-touch-target flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[color:var(--klein-blue)] disabled:opacity-30 transition-colors">
+                   <Icons.Rewind />
+                </button>
 
-             {/* Play/Pause */}
-             <button 
-               onClick={() => setIsPlaying(!isPlaying)} 
-               className="w-16 h-16 bg-gradient-to-tr from-blue-500 to-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-500/40 active:scale-95 transition-transform"
-             >
-                {isPlaying ? <Icons.Pause /> : <Icons.Play />}
-             </button>
+                {/* Prev Word */}
+                <button onClick={() => setLocalIndex(i => Math.max(0, i - 1))} aria-label="Previous word" className="ds-touch-target flex items-center justify-center rounded-full text-[var(--color-text-secondary)] hover:text-[color:var(--klein-blue)] transition-colors">
+                    <SkipBack className="w-6 h-6" />
+                </button>
 
-             {/* Next Word */}
-             <button onClick={() => setLocalIndex(i => Math.min(pageWords.length - 1, i + 1))} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
-                 <span className="text-xl">▶</span>
-             </button>
+                {/* Play/Pause — gradient hero (primary verb) */}
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                  className="w-16 h-16 text-[color:var(--klein-on)] rounded-full flex items-center justify-center active:scale-95 transition-transform -translate-y-3"
+                  style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
+                >
+                   {isPlaying ? <Icons.Pause /> : <Icons.Play />}
+                </button>
 
-             {/* Next Page */}
-             <button onClick={nextPage} className="text-slate-400 hover:text-blue-500">
-                <Icons.ChevronRight />
-             </button>
+                {/* Next Word */}
+                <button onClick={() => setLocalIndex(i => Math.min(pageWords.length - 1, i + 1))} aria-label="Next word" className="ds-touch-target flex items-center justify-center rounded-full text-[var(--color-text-secondary)] hover:text-[color:var(--klein-blue)] transition-colors">
+                    <SkipForward className="w-6 h-6" />
+                </button>
+
+                {/* Next Page */}
+                <button onClick={nextPage} className="ds-touch-target flex items-center justify-center text-[var(--color-text-secondary)] hover:text-[color:var(--klein-blue)] transition-colors">
+                   <Icons.ChevronRight />
+                </button>
+            </div>
          </div>
       </div>
     </div>

@@ -15,7 +15,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey;
 
 use Illuminate\Routing\Controller as BaseController;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
 use Illuminate\Http\Request;
@@ -28,6 +28,12 @@ class AppQyV1WordQueryController extends BaseController
     /**
      * NO try-catch allowed - trust Laravel validation
      * NO ?? or || allowed - use explicit if statements
+     *
+     * Dictionary reads go through AppQyV1LangDictionaryModel, which resolves
+     * the canonical table app_qy_v1_tts_cache_{lang} via AppQyV1TableMaps -
+     * the same table the dictionary importer populates. Real columns are
+     * snake_case: content, translations, us_phonetic, uk_phonetic, tts_files,
+     * image_files, query_count, is_exist_local, updated_at.
      */
 
     protected $storageManager;
@@ -38,6 +44,35 @@ class AppQyV1WordQueryController extends BaseController
         $this->storageManager = new AppQyV1ExternalStorageManager();
         $this->markerManager = new AppQyV1InitializationMarkerManager();
     }
+
+    /**
+     * Normalize a translations value (json column) into a display string.
+     */
+    private function normalizeTranslation($value): string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if (is_array($value)) {
+            $parts = [];
+            foreach ($value as $item) {
+                if (is_array($item)) {
+                    $parts[] = implode(' ', $item);
+                } else {
+                    $parts[] = (string) $item;
+                }
+            }
+            return implode('; ', $parts);
+        }
+
+        if ($value === null) {
+            return '';
+        }
+
+        return (string) $value;
+    }
+
     /**
      * Check if a word exists in the dictionary
      * Reference: DevOps http_controller/word_query.js
@@ -57,38 +92,39 @@ class AppQyV1WordQueryController extends BaseController
         }
 
         $word = $request->input('word');
-        
+        $langCode = $request->input('language', 'en');
+
         if (!$word) {
             return response()->json([
                 'exists' => false,
                 'message' => 'No word provided'
             ]);
         }
-        
-        $dictionary = AppQyV1DictionaryModel::findByContent($word);
-        
+
+        $dictionary = AppQyV1LangDictionaryModel::findByContent($langCode, $word);
+
         if ($dictionary) {
             // Update the query count
             $dictionary->incrementQueryCount();
-            
-            // Convert the dictionary to an array and decode JSON fields
+
+            // Convert the dictionary to an array (JSON fields are cast already)
             $dictionaryData = $dictionary->toArray();
-            
+
             // Remove ID field
             unset($dictionaryData['id']);
-            
-            // Ensure translation is properly decoded if it's not already
-            if (is_string($dictionaryData['translation'])) {
-                $dictionaryData['translation'] = json_decode($dictionaryData['translation'], true);
+
+            // Ensure translations is decoded if a raw string slipped through
+            if (isset($dictionaryData['translations']) && is_string($dictionaryData['translations'])) {
+                $dictionaryData['translations'] = json_decode($dictionaryData['translations'], true);
             }
-            
+
             return response()->json([
                 'exists' => true,
                 'word' => $word,
                 'data' => $dictionaryData
             ]);
         }
-        
+
         return response()->json([
             'exists' => false,
             'word' => $word
@@ -115,8 +151,10 @@ class AppQyV1WordQueryController extends BaseController
 
         if (is_string($request)) {
             $word = $request;
+            $langCode = 'en';
         } else {
             $word = $request->input('word');
+            $langCode = $request->input('language', 'en');
         }
 
         if (!$word) {
@@ -126,7 +164,7 @@ class AppQyV1WordQueryController extends BaseController
             ]);
         }
 
-        $dictionary = AppQyV1DictionaryModel::findByContent($word);
+        $dictionary = AppQyV1LangDictionaryModel::findByContent($langCode, $word);
 
         if (!$dictionary) {
             return response()->json([
@@ -139,18 +177,18 @@ class AppQyV1WordQueryController extends BaseController
         // Update query count
         $dictionary->incrementQueryCount();
 
-        // Get dictionary data
+        // Get dictionary data (JSON fields are cast already)
         $dictionaryData = $dictionary->toArray();
         unset($dictionaryData['id']);
 
-        // Decode JSON fields
-        if (is_string($dictionaryData['translation'])) {
-            $dictionaryData['translation'] = json_decode($dictionaryData['translation'], true);
+        // Decode JSON fields if a raw string slipped through
+        if (isset($dictionaryData['translations']) && is_string($dictionaryData['translations'])) {
+            $dictionaryData['translations'] = json_decode($dictionaryData['translations'], true);
         }
-        if (is_string($dictionaryData['voice_files'])) {
-            $dictionaryData['voice_files'] = json_decode($dictionaryData['voice_files'], true);
+        if (isset($dictionaryData['tts_files']) && is_string($dictionaryData['tts_files'])) {
+            $dictionaryData['tts_files'] = json_decode($dictionaryData['tts_files'], true);
         }
-        if (is_string($dictionaryData['image_files'])) {
+        if (isset($dictionaryData['image_files']) && is_string($dictionaryData['image_files'])) {
             $dictionaryData['image_files'] = json_decode($dictionaryData['image_files'], true);
         }
 
@@ -169,22 +207,47 @@ class AppQyV1WordQueryController extends BaseController
             $imageUrls[] = $this->storageManager->getFileUrl($imageFile);
         }
 
+        $usPhonetic = '';
+        if (isset($dictionaryData['us_phonetic'])) {
+            $usPhonetic = $dictionaryData['us_phonetic'];
+        }
+        $ukPhonetic = '';
+        if (isset($dictionaryData['uk_phonetic'])) {
+            $ukPhonetic = $dictionaryData['uk_phonetic'];
+        }
+        $translationValue = null;
+        if (isset($dictionaryData['translations'])) {
+            $translationValue = $dictionaryData['translations'];
+        }
+        $lastUpdated = null;
+        if (isset($dictionaryData['updated_at'])) {
+            $lastUpdated = $dictionaryData['updated_at'];
+        }
+        $queryCount = 0;
+        if (isset($dictionaryData['query_count'])) {
+            $queryCount = $dictionaryData['query_count'];
+        }
+        $hasLocalFiles = false;
+        if (isset($dictionaryData['is_exist_local'])) {
+            $hasLocalFiles = $dictionaryData['is_exist_local'];
+        }
+
         return response()->json([
             'status' => 'success',
             'data' => [
                 'word' => $word,
-                'translation' => $dictionaryData['translation'],
+                'translation' => $translationValue,
                 'phonetic' => [
-                    'us' => $dictionaryData['usPhonetic'],
-                    'uk' => $dictionaryData['ukPhonetic']
+                    'us' => $usPhonetic,
+                    'uk' => $ukPhonetic
                 ],
                 'audio' => $audioUrls,
                 'images' => $imageUrls,
                 'metadata' => [
-                    'last_updated' => $dictionaryData['lastUpdateTime'],
-                    'query_count' => $dictionaryData['queryCount'],
+                    'last_updated' => $lastUpdated,
+                    'query_count' => $queryCount,
                     'source' => 'database',
-                    'has_local_files' => $dictionaryData['isExistLocal']
+                    'has_local_files' => $hasLocalFiles
                 ],
                 'raw_data' => $dictionaryData
             ]
@@ -200,8 +263,10 @@ class AppQyV1WordQueryController extends BaseController
     {
         if(is_string($request)){
             $word = $request;
+            $langCode = 'en';
         }else{
             $word = $request->input('word');
+            $langCode = $request->input('language', 'en');
         }
 
         if (!$word) {
@@ -210,37 +275,37 @@ class AppQyV1WordQueryController extends BaseController
                 'message' => 'No word provided'
             ]);
         }
-        
-        $dictionary = AppQyV1DictionaryModel::findByContent($word);
-        
+
+        $dictionary = AppQyV1LangDictionaryModel::findByContent($langCode, $word);
+
         if ($dictionary) {
             // Update the query count
             $dictionary->incrementQueryCount();
-            
-            // Convert the dictionary to an array and decode JSON fields
+
+            // Convert the dictionary to an array (JSON fields are cast already)
             $dictionaryData = $dictionary->toArray();
-            
+
             // Remove ID field
             unset($dictionaryData['id']);
-            
-            // Ensure translation is properly decoded if it's not already
-            if (is_string($dictionaryData['translation'])) {
-                $dictionaryData['translation'] = json_decode($dictionaryData['translation'], true);
+
+            // Ensure translations is decoded if a raw string slipped through
+            if (isset($dictionaryData['translations']) && is_string($dictionaryData['translations'])) {
+                $dictionaryData['translations'] = json_decode($dictionaryData['translations'], true);
             }
-            
+
             return response()->json([
                 'exists' => true,
                 'word' => $word,
                 'data' => $dictionaryData
             ]);
         }
-        
+
         return response()->json([
             'exists' => false,
             'word' => $word
         ]);
     }
-    
+
     /**
      * Batch check multiple words
      *
@@ -250,34 +315,35 @@ class AppQyV1WordQueryController extends BaseController
     public function batchWordExists(Request $request)
     {
         $words = $request->input('words', []);
-        
+        $langCode = $request->input('language', 'en');
+
         if (empty($words)) {
             return response()->json([
                 'message' => 'No words provided',
                 'results' => []
             ]);
         }
-        
+
         $results = [];
-        
+
         foreach ($words as $word) {
-            $dictionary = AppQyV1DictionaryModel::findByContent($word);
-            
+            $dictionary = AppQyV1LangDictionaryModel::findByContent($langCode, $word);
+
             if ($dictionary) {
                 // Update query count
                 $dictionary->incrementQueryCount();
-                
-                // Get dictionary data
+
+                // Get dictionary data (JSON fields are cast already)
                 $dictionaryData = $dictionary->toArray();
-                
+
                 // Remove ID field
                 unset($dictionaryData['id']);
-                
-                // Ensure translation is properly decoded if it's not already
-                if (is_string($dictionaryData['translation'])) {
-                    $dictionaryData['translation'] = json_decode($dictionaryData['translation'], true);
+
+                // Ensure translations is decoded if a raw string slipped through
+                if (isset($dictionaryData['translations']) && is_string($dictionaryData['translations'])) {
+                    $dictionaryData['translations'] = json_decode($dictionaryData['translations'], true);
                 }
-                
+
                 $results[] = [
                     'word' => $word,
                     'exists' => true,
@@ -290,7 +356,7 @@ class AppQyV1WordQueryController extends BaseController
                 ];
             }
         }
-        
+
         return response()->json([
             'results' => $results
         ]);
@@ -298,6 +364,11 @@ class AppQyV1WordQueryController extends BaseController
 
     /**
      * Get daily words for learning
+     *
+     * Response contract is aligned with the qy_capacitor frontend
+     * (ApiCenter.words.getDailyWords): `data` is a flat array of items, each
+     * exposing { id, word, translation, phonetic }. The query parameter is
+     * `count` (frontend sends ?count=N); `limit` is kept as a fallback.
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -308,15 +379,220 @@ class AppQyV1WordQueryController extends BaseController
             return $this->error('System not initialized. Please initialize first.');
         }
 
-        $limit = $request->input('limit', 10);
-        $words = AppQyV1DictionaryModel::inRandomOrder()
-            ->limit($limit)
-            ->get(['word', 'translation', 'phonetic']);
+        $langCode = $request->input('language', 'en');
+        $limit = $request->input('count', $request->input('limit', 10));
+        $limit = (int) $limit;
+        if ($limit < 1) {
+            $limit = 10;
+        }
 
-        return $this->success([
-            'words' => $words,
-            'count' => $words->count(),
-            'date' => date('Y-m-d')
-        ], 'Daily words retrieved successfully');
+        $rows = AppQyV1LangDictionaryModel::forLanguage($langCode)
+            ->inRandomOrder()
+            ->limit($limit)
+            ->get(['id', 'content', 'translations', 'us_phonetic', 'uk_phonetic']);
+
+        $words = [];
+        foreach ($rows as $row) {
+            $phoneticValue = $row->us_phonetic;
+            if (!$phoneticValue) {
+                $phoneticValue = $row->uk_phonetic;
+            }
+            if ($phoneticValue === null) {
+                $phoneticValue = '';
+            }
+
+            $words[] = [
+                'id' => $row->id,
+                'word' => $row->content,
+                'translation' => $this->normalizeTranslation($row->translations),
+                'phonetic' => $phoneticValue,
+            ];
+        }
+
+        return $this->success($words, 'Daily words retrieved successfully');
     }
-} 
+
+    /**
+     * Get the full details of a single word by its dictionary id.
+     *
+     * Response data matches the qy_capacitor frontend Word shape
+     * (types.ts): { id, text, phonetic, translation, definition,
+     * example, masteryLevel, tags, audioUrl }.
+     *
+     * @param Request $request
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getWordDetails(Request $request, $id)
+    {
+        $language = $request->input('language', 'en');
+
+        $row = AppQyV1LangDictionaryModel::forLanguage($language)->find($id);
+
+        if ($row === null) {
+            return $this->notFound('Word not found');
+        }
+
+        $row->incrementQueryCount();
+
+        $phoneticValue = $row->us_phonetic;
+        if (!$phoneticValue) {
+            $phoneticValue = $row->uk_phonetic;
+        }
+        if ($phoneticValue === null) {
+            $phoneticValue = '';
+        }
+
+        $definition = '';
+        $example = '';
+        $details = $row->word_details;
+        if (is_array($details)) {
+            if (isset($details['definition'])) {
+                $definition = $details['definition'];
+            }
+            if (isset($details['example'])) {
+                $example = $details['example'];
+            }
+        }
+
+        $audioUrl = null;
+        $audioFile = $this->storageManager->findAudioFile($row->content);
+        if ($audioFile) {
+            $audioUrl = $this->storageManager->getFileUrl($audioFile);
+        }
+
+        $word = [
+            'id' => (string) $row->id,
+            'text' => $row->content,
+            'phonetic' => $phoneticValue,
+            'translation' => $this->normalizeTranslation($row->translations),
+            'definition' => $definition,
+            'example' => $example,
+            'masteryLevel' => 0,
+            'tags' => [],
+            'audioUrl' => $audioUrl,
+        ];
+
+        return $this->success($word, 'Word details retrieved successfully');
+    }
+
+    /**
+     * Search words by a content prefix.
+     *
+     * Each result matches the qy_capacitor frontend Word shape (types.ts).
+     * List results do not resolve audioUrl per row for performance.
+     *
+     * @param Request $request
+     * @param string $query
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function searchWords(Request $request, $query)
+    {
+        $language = $request->input('language', 'en');
+
+        $rows = AppQyV1LangDictionaryModel::forLanguage($language)
+            ->where('content', 'like', $query . '%')
+            ->limit(20)
+            ->get();
+
+        $words = [];
+        foreach ($rows as $row) {
+            $phoneticValue = $row->us_phonetic;
+            if (!$phoneticValue) {
+                $phoneticValue = $row->uk_phonetic;
+            }
+            if ($phoneticValue === null) {
+                $phoneticValue = '';
+            }
+
+            $definition = '';
+            $example = '';
+            $details = $row->word_details;
+            if (is_array($details)) {
+                if (isset($details['definition'])) {
+                    $definition = $details['definition'];
+                }
+                if (isset($details['example'])) {
+                    $example = $details['example'];
+                }
+            }
+
+            $words[] = [
+                'id' => (string) $row->id,
+                'text' => $row->content,
+                'phonetic' => $phoneticValue,
+                'translation' => $this->normalizeTranslation($row->translations),
+                'definition' => $definition,
+                'example' => $example,
+                'masteryLevel' => 0,
+                'tags' => [],
+                'audioUrl' => null,
+            ];
+        }
+
+        return $this->success($words, 'Search results retrieved successfully');
+    }
+
+    /**
+     * Public word lookup by content (no auth).
+     *
+     * A missing word is a normal public result returned with HTTP 200,
+     * not an error response.
+     *
+     * @param Request $request
+     * @param string $word
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function publicWordLookup(Request $request, $word)
+    {
+        $language = $request->input('language', 'en');
+
+        $row = AppQyV1LangDictionaryModel::findByContent($language, $word);
+
+        if ($row === null) {
+            return $this->success(['word' => $word, 'found' => false], 'Word not found');
+        }
+
+        $row->incrementQueryCount();
+
+        $phoneticValue = $row->us_phonetic;
+        if (!$phoneticValue) {
+            $phoneticValue = $row->uk_phonetic;
+        }
+        if ($phoneticValue === null) {
+            $phoneticValue = '';
+        }
+
+        $definition = '';
+        $example = '';
+        $details = $row->word_details;
+        if (is_array($details)) {
+            if (isset($details['definition'])) {
+                $definition = $details['definition'];
+            }
+            if (isset($details['example'])) {
+                $example = $details['example'];
+            }
+        }
+
+        $audioUrl = null;
+        $audioFile = $this->storageManager->findAudioFile($row->content);
+        if ($audioFile) {
+            $audioUrl = $this->storageManager->getFileUrl($audioFile);
+        }
+
+        $wordArray = [
+            'id' => (string) $row->id,
+            'text' => $row->content,
+            'phonetic' => $phoneticValue,
+            'translation' => $this->normalizeTranslation($row->translations),
+            'definition' => $definition,
+            'example' => $example,
+            'masteryLevel' => 0,
+            'tags' => [],
+            'audioUrl' => $audioUrl,
+        ];
+
+        return $this->success(['word' => $word, 'found' => true, 'data' => $wordArray], 'Word found');
+    }
+}

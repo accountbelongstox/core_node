@@ -21,15 +21,15 @@ class DashboardController
 {
     public function __construct()
     {
-        // 移除构造函数中的中间件设置，因为已经在路由中设置了
+        // Removed middleware setup in the constructor since it is already configured in the routes
     }
 
     public function index(Request $request)
     {
-        // 获取组标识符（可以是名称或ID）
+        // Get the group identifier (can be a name or ID)
         $groupIdentifier = $request->query('group');
-        
-        // 使用 GroupViewController 查找组
+
+        // Use GroupViewController to look up the group
         $groupViewController = new GroupViewController();
         $currentGroup = $groupIdentifier 
             ? $groupViewController->findGroup($groupIdentifier)

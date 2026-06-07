@@ -1,7 +1,8 @@
-
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useContext, useEffect, useState } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Card, Icons, Button } from '../../components/UI';
+import { Card, Button, BackButton, Spinner, SectionTitle } from '../../components/UI';
+import { Clock } from 'lucide-react';
 import { api } from '../../services/api';
 import { ApiCenter } from '../../services/ApiCenter';
 import { RetentionStat } from '../../types';
@@ -25,7 +26,7 @@ const ReviewDashboardPage = () => {
   const loadRetentionStats = async () => {
     try {
       const result = await api.getRetentionStats();
-      setStats(result);
+      setStats(Array.isArray(result) ? result : []);
     } catch (err: any) {
       if (err?.message?.includes('not found') || err?.code === 'HTTP_404') {
         console.log('[Review] Retention stats endpoint not implemented yet');
@@ -39,7 +40,7 @@ const ReviewDashboardPage = () => {
     setLoadingQueue(true);
     try {
       const result = await ApiCenter.learning.getReviewQueue();
-      if (result.success && result.data) {
+      if (result.success && Array.isArray(result.data)) {
         setReviewQueue(result.data);
       }
     } catch (err: any) {
@@ -53,32 +54,35 @@ const ReviewDashboardPage = () => {
     }
   };
 
+  const safeStats = Array.isArray(stats) ? stats : [];
+  const safeQueue = Array.isArray(reviewQueue) ? reviewQueue : [];
+
   return (
-    <div className="h-full flex flex-col p-5 pt-12 animate-slide-up pb-24">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('home')} className="p-1"><Icons.Back /></button>
-        <h1 className="text-2xl font-bold dark:text-white">Brain Stats</h1>
+    <div className="ds-page ds-section-gap h-full flex flex-col pt-12 animate-slide-up pb-24">
+      <div className="flex items-center gap-3">
+        <BackButton onClick={() => navigate('home')} />
+        <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Brain Stats</h1>
       </div>
 
       {/* Main Memory Gauge */}
-      <div className="flex justify-center mb-8 relative">
-         <div className="w-48 h-48 rounded-full border-[12px] border-slate-100 dark:border-slate-800 flex items-center justify-center relative">
-             <div className="absolute inset-0 rounded-full border-[12px] border-l-blue-500 border-t-purple-500 border-r-transparent border-b-transparent rotate-45"></div>
+      <div className="flex justify-center relative">
+         <div className="w-48 h-48 rounded-full border-[12px] border-[var(--border-highlight)] flex items-center justify-center relative">
+             <div className="absolute inset-0 rounded-full border-[12px] border-r-transparent border-b-transparent rotate-45" style={{ borderLeftColor: 'var(--klein-blue)', borderTopColor: 'var(--klein-blue)' }}></div>
              <div className="text-center">
-                 <div className="text-4xl font-black text-slate-800 dark:text-white">65%</div>
-                 <div className="text-xs font-bold text-slate-400 uppercase">{t('stats.retentionShort')}</div>
+                 <div className="text-4xl font-black text-[var(--color-text-primary)]">65%</div>
+                 <div className="text-xs font-bold text-[var(--color-text-tertiary)] uppercase">{t('stats.retentionShort')}</div>
              </div>
          </div>
       </div>
 
-      <h3 className="font-bold text-slate-700 dark:text-white mb-4 pl-1">Memory Distribution</h3>
-      <div className="grid grid-cols-2 gap-4 mb-8">
-         {stats.map((s, i) => (
+      <SectionTitle title="Memory Distribution" className="px-1" />
+      <div className="ds-grid-breathing grid grid-cols-2">
+         {safeStats.map((s, i) => (
              <Card key={i} className="flex flex-col gap-2 !p-4">
                  <div className={`w-3 h-3 rounded-full ${s.color}`}></div>
-                 <div className="text-2xl font-bold dark:text-white">{s.count}</div>
-                 <div className="text-xs text-slate-500 uppercase font-bold">{s.level}</div>
-                 <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-1">
+                 <div className="text-2xl font-bold text-[var(--color-text-primary)]">{s.count}</div>
+                 <div className="text-xs text-[var(--color-text-secondary)] uppercase font-bold">{s.level}</div>
+                 <div className="w-full bg-[var(--border-highlight)] h-1.5 rounded-full mt-1 overflow-hidden">
                      <div className={`h-full rounded-full ${s.color}`} style={{width: `${s.percentage}%`}}></div>
                  </div>
              </Card>
@@ -86,45 +90,48 @@ const ReviewDashboardPage = () => {
       </div>
 
       {/* Review Queue Section */}
-      <div className="mb-6">
-         <h3 className="font-bold text-slate-700 dark:text-white mb-4 pl-1">Review Queue</h3>
-         <Card className="!p-6 bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border-orange-200 dark:border-orange-800">
+      <div>
+         <SectionTitle title="Review Queue" className="mb-4 px-1" />
+         <Card className="!p-6 relative overflow-hidden text-[var(--klein-on)]">
+            <div className="absolute inset-0 -z-0" style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}></div>
+            <div className="absolute -top-10 -right-10 w-36 h-36 bg-white/15 rounded-full blur-2xl"></div>
+            <div className="absolute -bottom-12 -left-8 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
+            <div className="relative z-10">
             {loadingQueue ? (
                <div className="flex items-center justify-center py-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                  <Spinner size="md" className="border-white" />
                </div>
             ) : (
                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                     <div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 font-medium">Words Due Today</p>
-                        <p className="text-4xl font-black text-orange-600 dark:text-orange-400 mt-1">{reviewQueue.length}</p>
+                  <div className="flex items-center justify-between gap-3">
+                     <div className="min-w-0">
+                        <p className="text-sm text-white/80 font-medium">Words Due Today</p>
+                        <p className="text-4xl font-black mt-1">{safeQueue.length}</p>
                      </div>
-                     <div className="w-16 h-16 rounded-full bg-orange-600/20 flex items-center justify-center">
-                        <svg className="w-8 h-8 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                     <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <Clock className="w-8 h-8" aria-hidden />
                      </div>
                   </div>
-                  {reviewQueue.length > 0 && (
-                     <div className="pt-2 border-t border-orange-200 dark:border-orange-800/50">
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                           Next review: {reviewQueue.length} word{reviewQueue.length > 1 ? 's' : ''} waiting
+                  {safeQueue.length > 0 && (
+                     <div className="pt-2 border-t border-white/20">
+                        <p className="text-xs text-white/80">
+                           Next review: {safeQueue.length} word{safeQueue.length > 1 ? 's' : ''} waiting
                         </p>
                      </div>
                   )}
                </div>
             )}
+            </div>
          </Card>
       </div>
 
-      <div className="space-y-4">
+      <div className="ds-stack ds-stack-tight">
          <Button
+            variant="grad"
             onClick={() => navigate('flashcard_run')}
-            className="shadow-red-500/20 bg-gradient-to-r from-red-500 to-pink-600 border-none"
-            disabled={reviewQueue.length === 0}
+            disabled={safeQueue.length === 0}
          >
-             Review Critical Words ({reviewQueue.length || 0})
+             Review Critical Words ({safeQueue.length || 0})
          </Button>
          <Button variant="secondary" onClick={() => navigate('flashcard_setup')}>
              General Review

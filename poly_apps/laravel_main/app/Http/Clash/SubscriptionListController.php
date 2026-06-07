@@ -28,8 +28,8 @@ class SubscriptionListController
 {
     private $urlFetcher;
     private $webFetcher;
-    private static $proxyNames = [];  // 存储所有代理名称
-    private static $proxyLines = [];  // 存储所有代理行
+    private static $proxyNames = [];  // Stores all proxy names
+    private static $proxyLines = [];  // Stores all proxy lines
 
     public function __construct()
     {
@@ -214,7 +214,7 @@ class SubscriptionListController
     {
         $names = [];
         $existingNames = self::$proxyNames;
-        $currentProxyLines = self::$proxyLines; // 获取当前已存在的代理行
+        $currentProxyLines = self::$proxyLines; // Get the proxy lines that already exist
 
         foreach ($proxyLines as $line) {
             if (preg_match('/name:\s*"([^"]+)"/', $line, $matches)) {
@@ -231,7 +231,7 @@ class SubscriptionListController
                 $names[] = $newName;
                 self::$proxyLines[] = str_replace($originalName, $newName, $line);
             } else {
-                // 直接添加非代理行到集合
+                // Add non-proxy lines directly to the collection
                 if (!in_array($line, self::$proxyLines)) {
                     self::$proxyLines[] = $line;
                 }
@@ -239,18 +239,18 @@ class SubscriptionListController
         }
 
         self::$proxyNames = array_unique(array_merge(self::$proxyNames, $names));
-        return self::$proxyLines; // 返回更新后的全部代理行
+        return self::$proxyLines; // Return all proxy lines after the update
     }
 
     private function mergeProxyLines($defaultConfig, $processedLines)
     {
         $mergedLines = $defaultConfig['processed_config_lines'];
         
-        // 定义缩进
-        $baseIndent = '  ';  // 两个空格
-        $proxyIndent = "      ";  // 四个空格
-        
-        // 处理 proxies 区域
+        // Define indentation
+        $baseIndent = '  ';  // Two spaces
+        $proxyIndent = "      ";  // Four spaces
+
+        // Handle the proxies section
         $proxiesIndex = array_search('proxies:', array_map('trim', $mergedLines));
         if ($proxiesIndex !== false) {
             $indentedProxyLines = array_map(function($line) use ($baseIndent) {
@@ -259,12 +259,12 @@ class SubscriptionListController
             array_splice($mergedLines, $proxiesIndex + 1, 0, $indentedProxyLines);
         }
 
-        // 处理 proxy-groups 区域
+        // Handle the proxy-groups section
         $groupStartIndex = array_search('proxy-groups:', array_map('trim', $mergedLines));
         $groupEndIndex = array_search('rules:', array_map('trim', $mergedLines));
         
         if ($groupStartIndex !== false && $groupEndIndex !== false) {
-            // 收集区间内所有 name 行的位置
+            // Collect the positions of all name lines within the range
             $nameLineIndexes = [];
             for ($i = $groupStartIndex; $i < $groupEndIndex; $i++) {
                 if (preg_match('/^\s+- name:/', $mergedLines[$i])) {
@@ -272,21 +272,21 @@ class SubscriptionListController
                 }
             }
 
-            // 准备代理名称列表
+            // Prepare the list of proxy names
             $proxyNameLines = array_map(function($name) use ($proxyIndent) {
                 return $proxyIndent . '- ' . $name;
             }, self::$proxyNames);
 
-            // 从后向前插入（除了第一个位置）
+            // Insert from back to front (except the first position)
             for ($i = count($nameLineIndexes) - 1; $i > 0; $i--) {
                 array_splice($mergedLines, $nameLineIndexes[$i], 0, $proxyNameLines);
             }
 
-            // 在区域末尾再插入一次
+            // Insert once more at the end of the section
             array_splice($mergedLines, $groupEndIndex, 0, $proxyNameLines);
         }
 
-        // 生成合并后的配置文件
+        // Generate the merged configuration file
         $mergedContent = implode("\n", $mergedLines);
         $cacheDir = storage_path('framework/cache/clash_configs');
         if (!File::exists($cacheDir)) {
@@ -297,7 +297,7 @@ class SubscriptionListController
 
         return [
             'merged_lines' => $mergedLines,
-            'content' => $mergedContent,  // 添加明文内容
+            'content' => $mergedContent,  // Add the plain-text content
             'proxies_index' => $proxiesIndex,
             'base_indent' => $baseIndent,
             'proxy_indent' => $proxyIndent,
@@ -310,9 +310,9 @@ class SubscriptionListController
     }
 
     /**
-     * 根据点分路径删除键
-     * @param array &$data 要处理的数据（引用传递）
-     * @param string $keyPath 点分键路径（如 'a.b.c'）
+     * Remove a key by its dot-separated path
+     * @param array &$data The data to process (passed by reference)
+     * @param string $keyPath The dot-separated key path (e.g. 'a.b.c')
      */
     private function removeKeyByPath(&$data, $keyPath)
     {

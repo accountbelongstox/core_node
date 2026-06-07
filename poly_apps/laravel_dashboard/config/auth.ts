@@ -1,13 +1,13 @@
 /**
  * Central config for views that require login (auth-gated pages).
  *
- * CURRENT PROTECTED PAGES (需登录才能操作的页面):
+ * CURRENT PROTECTED PAGES (pages that require login to operate):
  * - Server Manager (SERVER_MANAGER)
  * - Settings (SETTINGS)
  * - Invite Code Manager (INVITE_CODE_MANAGER)
  * - Database Viewer (DATABASE_VIEWER)
  *
- * DESIGN RATIONALE (后续沿用此风格):
+ * DESIGN RATIONALE (keep following this style going forward):
  * - Single source of truth: all "must be logged in" views are listed here.
  * - Used by App.tsx to wrap content with AuthGuard and by any code that needs to
  *   know if a view is protected (e.g. analytics, routing).

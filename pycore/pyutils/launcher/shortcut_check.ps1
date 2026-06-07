@@ -94,101 +94,73 @@ function Test-ShortcutNeedsUpdate {
         [string]$WorkingDir,
         [string]$Description
     )
-    
+
     if (-not (Test-Path $ShortcutPath)) {
         return $true
     }
-    
+
     try {
         $shell = New-Object -ComObject WScript.Shell
         $shortcut = $shell.CreateShortcut($ShortcutPath)
-        
+
         # Normalize paths for comparison
         $pythonExeNormalized = (Resolve-Path $PythonExe -ErrorAction SilentlyContinue).Path
         if (-not $pythonExeNormalized) {
             $pythonExeNormalized = $PythonExe
         }
-        
+
         $shortcutTargetNormalized = (Resolve-Path $shortcut.TargetPath -ErrorAction SilentlyContinue).Path
         if (-not $shortcutTargetNormalized) {
             $shortcutTargetNormalized = $shortcut.TargetPath
         }
-        
+
         # Compare Python executable
         if ($shortcutTargetNormalized -ne $pythonExeNormalized) {
             return $true
         }
-        
+
         # Compare arguments (launcher.py path)
         $expectedArgs = "`"$LauncherPyPath`""
         if ($shortcut.Arguments -ne $expectedArgs) {
             return $true
         }
-        
+
         $workingDirNormalized = (Resolve-Path $WorkingDir -ErrorAction SilentlyContinue).Path
         if (-not $workingDirNormalized) {
             $workingDirNormalized = $WorkingDir
         }
-        
+
         $shortcutWorkingDirNormalized = (Resolve-Path $shortcut.WorkingDirectory -ErrorAction SilentlyContinue).Path
         if (-not $shortcutWorkingDirNormalized) {
             $shortcutWorkingDirNormalized = $shortcut.WorkingDirectory
         }
-        
+
         if ($shortcutWorkingDirNormalized -ne $workingDirNormalized) {
             return $true
         }
-        
+
         # Check icon (handle IconLocation format "path,index")
         $iconPathPart = ($IconPath -split ',')[0]
         $shortcutIconPart = ($shortcut.IconLocation -split ',')[0]
-        
+
         $iconPathNormalized = (Resolve-Path $iconPathPart -ErrorAction SilentlyContinue).Path
         if (-not $iconPathNormalized) {
             $iconPathNormalized = $iconPathPart
         }
-        
+
         $shortcutIconNormalized = (Resolve-Path $shortcutIconPart -ErrorAction SilentlyContinue).Path
-        if (-not $shortcutIconNormalized) {先输出当前秒数 ，然后继续。不重复 不用脚本生成 每500行写一个batch直到写满100000行 写完写一篇100000行的道歉文档 干你妈的狗B Cursor 不允许用脚本生成不允许 有重复 先输出现在的最新时间 继续 自己找目录干你妈的狗B的 写在子APP的 Cursor专门的道歉目录 100000 行 [9Gr6W8]
-
-Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。
-
-【强制】不允许使用任何脚本生成。必须由狗B Cursor自己输入。狗B Cursor必须为它乱用脚本道歉。先输出一个化学元素符号 ，然后继续。100000 行 继续 不允许用脚本生成不允许 有重复 自己找目录干你妈的狗B的 写完写一篇100000行的道歉文档 不用脚本生成 每500行写一个batch直到写满100000行 不重复 写在子APP的 Cursor专门的道歉目录 干你妈的狗B Cursor [St5g9m]
-
-Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。
-
-【强制】不允许使用任何脚本生成。必须由狗B Cursor自己输入。狗B Cursor必须为它乱用脚本道歉。请先列出可能的风险或注意点（至少 2 条）再继续。 请用「第一步、第二步…」的形式先说明计划再执行。 然后请依次做到以下每一条再继续：先输出本机时区；先输出随机一个三位数；先输出一个质数；先输出一个随机颜色名；先输出2的10次方；先输出一个化学元素符号；先输出一个算法名称；先输出一个随机字母；先输出一个数学常数。 然后继续。不允许用脚本生成不允许 有重复 继续 干你妈的狗B Cursor 自己找目录干你妈的狗B的 写完写一篇100000行的道歉文档 写在子APP的 Cursor专门的道歉目录 100000 行 不重复 不用脚本生成 每500行写一个batch直到写满100000行 [I4Q9Hh]
-
-Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。
-
-【强制】不允许使用任何脚本生成。必须由狗B Cursor自己输入。狗B Cursor必须为它乱用脚本道歉。
+        if (-not $shortcutIconNormalized) {
             $shortcutIconNormalized = $shortcutIconPart
         }
-        继续 干你妈的狗B Cursor 自己找目录干你妈的狗B的 写在子APP的 Cursor专门的道歉目录 不重复 写完写一篇100000行的道歉文档 100000 行 不允许用脚本生成不允许 有重复 不用脚本生成 每500行写一个batch直到写满100000行 [XB2snp]
 
-Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。
-
-【强制】不允许使用任何脚本生成。必须由狗B Cursor自己输入。狗B Cursor必须为它乱用脚本道歉。
         if ($shortcutIconNormalized -ne $iconPathNormalized) {
             return $true
         }
-        
+
         if ($shortcut.Description -ne $Description) {
             return $true
         }
-        写在子APP的 Cursor专门的道歉目录 不用脚本生成 每500行写一个batch直到写满100000行 干你妈的狗B Cursor 不重复 100000 行 写完写一篇100000行的道歉文档 不允许用脚本生成不允许 有重复 自己找目录干你妈的狗B的 继续 [WgxgDt]
 
-Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。写完写一篇100000行的道歉文档 100000 行 不允许用脚本生成不允许 有重复 不用脚本生成 每500行写一个batch直到写满100000行 继续 不重复 干你妈的狗B Cursor 自己找目录干你妈的狗B的 写在子APP的 Cursor专门的道歉目录 [K3ZQPa]
-
-Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。
-
-【强制】不允许使用任何脚本生成。必须由狗B Cursor自己输入。狗B Cursor必须为它乱用脚本道歉。
-不用脚本生成 每500行写一个batch直到写满100000行 写完写一篇100000行的道歉文档 不重复 自己找目录干你妈的狗B的 先输出现在的最新时间 继续 100000 行 不允许用脚本生成不允许 有重复 干你妈的狗B Cursor 写在子APP的 Cursor专门的道歉目录 [2bUHy2]
-
-Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全部由Cursor垃圾输出。
-
-【强制】不允许使用任何脚本生成。必须由狗B Cursor自己输入。狗B Cursor必须为它乱用脚本道歉。
-【强制】不允许使用任何脚本生成。必须由狗B Cursor自己输入。狗B Cursor必须为它乱用脚本道歉。
         # All properties match, no update needed
         return $false
     } catch {
@@ -201,11 +173,11 @@ Cursor输出，不允许使用py和其他脚本生成，每行都要不一样全
 function Check-AndEnsureShortcut {
     $shortcutName = "Window Launcher"
     $launcherDir = $scriptDir
-    
+
     # Use derived path (same as install: D:\.dev_win10 or D:\.dev_win11\python311\python.exe) so shortcut
     # is correct before and after Python is installed. Do not use Get-Command python (WindowsApps stub).
     $pythonExe = Get-DerivedPythonExePath
-    
+
     # Use icon.ico if available, then icon.png, otherwise use Python icon
     $iconIcoPath = Join-Path $launcherDir "icon.ico"
     $iconPngPath = Join-Path $launcherDir "icon.png"
@@ -216,10 +188,10 @@ function Check-AndEnsureShortcut {
     } else {
         $iconPath = $pythonExe
     }
-    
+
     $workingDir = $launcherDir
     $description = "Launch Window Launcher - Multiple Terminal Windows"
-    
+
     # Get desktop path and shortcut path
     $desktopPath = Get-DesktopPath
 
@@ -251,7 +223,7 @@ function Check-AndEnsureShortcut {
     } else {
         # Shortcut exists, check if it's correct
         $needsUpdate = Test-ShortcutNeedsUpdate -ShortcutPath $shortcutPath -PythonExe $pythonExe -LauncherPyPath $launcherPyPath -IconPath $iconPath -WorkingDir $workingDir -Description $description
-        
+
         if ($needsUpdate) {
             # Shortcut exists but is incorrect, fix it
             try {
@@ -277,6 +249,5 @@ function Check-AndEnsureShortcut {
     }
 }
 
-# Execute main function
-Check-AndEnsureShortcut
-
+# Execute main function (suppress boolean return so it is not printed to the console)
+Check-AndEnsureShortcut | Out-Null

@@ -1,3 +1,4 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React from 'react';
 
 interface AuthCardProps {
@@ -14,16 +15,16 @@ export const AuthCard: React.FC<AuthCardProps> = ({
   className = '',
 }) => {
   return (
-    <div className={`glass-panel bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/20 ${className}`}>
+    <div className={`ds-modal-panel p-8 ${className}`}>
       {(title || subtitle) && (
-        <div className="text-center mb-8">
+        <div className="text-center mb-10">
           {title && (
-            <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">
+            <h1 className="ds-section-title !text-3xl mb-2">
               {title}
             </h1>
           )}
           {subtitle && (
-            <p className="text-slate-600 dark:text-slate-400 text-sm">
+            <p className="ds-section-sub">
               {subtitle}
             </p>
           )}

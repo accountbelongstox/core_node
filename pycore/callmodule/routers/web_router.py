@@ -284,6 +284,21 @@ async def get_api_info():
     })
 
 
+@router.get("/ping")
+async def ping():
+    """
+    Lightweight health/connectivity check.
+
+    Used by the desktop UI "Test Connection" button (config.js API.PING = "/ping").
+    The frontend checks `data.success`.
+    """
+    return JSONResponse({
+        "success": True,
+        "service": "Pycore RPC Server",
+        "status": "running"
+    })
+
+
 @router.get("/web")
 async def get_desktop_ui():
     """

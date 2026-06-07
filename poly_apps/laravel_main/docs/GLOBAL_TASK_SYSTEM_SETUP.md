@@ -14,6 +14,15 @@
 - Run database migrations (requires write permissions)
 - Restart Octane server to load new controllers
 
+> **Scope note:** The *Global Task System* (this doc — `global_tasks` / `workers`,
+> distributed worker pull/assign) is **distinct** from the *Octane Timer Tasks*
+> (`app/Services/TimerTasks/*`). The Octane (Swoole) timer is the single in-process
+> sub-minute driver (one timer instance, interceptor pattern — see
+> `development-guides/COMMON_TIMER_DESIGN_SPECIFICATION.md`); there is **no** Laravel
+> Scheduler or `queue:listen` duplicate. The OctaneTimer references below mean that
+> single timer also runs the global-task timeout/offline-worker sweeps every 30s —
+> it does not make the Global Task System queue-driven.
+
 ---
 
 ## Step 1: Fix Database Permissions

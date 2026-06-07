@@ -22,7 +22,7 @@ class TaskCategoryService
     private $promptsDirectory;
     private $categoriesConfigFile;
 
-    // 默认任务分类
+    // Default task categories
     private $defaultCategories = [
         [
             'id' => 'global',
@@ -73,15 +73,15 @@ class TaskCategoryService
         $this->baseDirectory = $baseDirectory ?? PathMapper::getCoreNodeDir();
         $this->promptsDirectory = $this->baseDirectory . DIRECTORY_SEPARATOR . '_prompts';
 
-        // 使用 _prompts/.categories.json 作为配置文件（可提交到git）
-        // 数据文件存储在 _prompts/task-data/ 中（不提交）
+        // Use _prompts/.categories.json as the config file (can be committed to git)
+        // Data files are stored in _prompts/task-data/ (not committed)
         $this->categoriesConfigFile = $this->promptsDirectory . DIRECTORY_SEPARATOR . '.categories.json';
 
         $this->ensureDefaultStructure();
     }
 
     /**
-     * 确保默认目录结构存在
+     * Ensure the default directory structure exists
      */
     private function ensureDefaultStructure()
     {
@@ -95,7 +95,7 @@ class TaskCategoryService
     }
 
     /**
-     * 初始化分类配置文件
+     * Initialize the categories config file
      */
     private function initializeCategoriesConfig()
     {
@@ -113,7 +113,7 @@ class TaskCategoryService
     }
 
     /**
-     * 自动创建需要auto_create的分类目录
+     * Automatically create the category directories that require auto_create
      */
     private function autoCreateCategoryDirectories()
     {
@@ -128,7 +128,7 @@ class TaskCategoryService
     }
 
     /**
-     * 加载分类配置
+     * Load the categories config
      */
     public function loadCategoriesConfig()
     {
@@ -141,7 +141,7 @@ class TaskCategoryService
     }
 
     /**
-     * 获取所有分类
+     * Get all categories
      */
     public function getAllCategories()
     {
@@ -150,7 +150,7 @@ class TaskCategoryService
     }
 
     /**
-     * 获取默认分类
+     * Get the default category
      */
     public function getDefaultCategory()
     {
@@ -164,7 +164,7 @@ class TaskCategoryService
     }
 
     /**
-     * 根据ID获取分类
+     * Get a category by ID
      */
     public function getCategoryById($id)
     {
@@ -178,20 +178,20 @@ class TaskCategoryService
     }
 
     /**
-     * 创建新分类
+     * Create a new category
      */
     public function createCategory($id, $name, $path)
     {
         $config = $this->loadCategoriesConfig();
 
-        // 检查ID是否已存在
+        // Check whether the ID already exists
         foreach ($config['categories'] as $category) {
             if ($category['id'] === $id) {
                 return ['success' => false, 'error' => 'Category ID already exists'];
             }
         }
 
-        // 创建目录
+        // Create the directory
         if (!empty($path)) {
             $categoryPath = $this->promptsDirectory . DIRECTORY_SEPARATOR . $path;
             if (!is_dir($categoryPath)) {
@@ -199,7 +199,7 @@ class TaskCategoryService
             }
         }
 
-        // 添加到配置
+        // Add to the config
         $config['categories'][] = [
             'id' => $id,
             'name' => $name,
@@ -220,7 +220,7 @@ class TaskCategoryService
     }
 
     /**
-     * 获取分类下的所有文件
+     * Get all files under a category
      */
     public function getCategoryFiles($categoryId)
     {

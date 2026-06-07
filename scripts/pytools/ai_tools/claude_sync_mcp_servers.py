@@ -146,6 +146,11 @@ def configure_claude_mcp() -> None:
 
     for idx, (config, cmd, cwd) in enumerate(commands_to_run, 1):
         print(f"[{idx}/{len(configs)}] Executing: {config.name}")
+        # Remove any existing entry first: 'claude mcp add' refuses to overwrite
+        # an existing server, so a stale/incorrect entry (e.g. a corrupted API
+        # key) would persist across re-runs. Non-fatal if it does not exist.
+        stream_command(["claude", "mcp", "remove", config.name, "-s", "user"],
+                       f"Removing existing {config.name} (if any)")
         description = f"Adding {config.name} MCP server ({config.transport_type})"
         stream_command(cmd, description, cwd=cwd)
         ok, reason = verify_with_list_and_get(config.name)

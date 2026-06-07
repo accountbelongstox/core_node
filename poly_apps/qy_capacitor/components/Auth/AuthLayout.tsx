@@ -1,3 +1,4 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useEffect } from 'react';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
@@ -42,22 +43,25 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
       >
         {showHeader && (
           <>
-            <div className="w-24 h-24 bg-gradient-to-tr from-blue-400 to-purple-500 rounded-3xl shadow-2xl mb-8 flex items-center justify-center text-4xl text-white font-bold transform rotate-6 animate-blob">
+            <div
+              className="w-24 h-24 rounded-[var(--radius-card)] mb-10 flex items-center justify-center text-4xl font-bold transform rotate-6 animate-blob"
+              style={{ background: 'var(--klein-gradient)', color: 'var(--klein-on)', boxShadow: 'var(--klein-grad-glow)' }}
+            >
               W
             </div>
             {title && (
-              <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">
+              <h1 className="ds-section-title !text-3xl mb-2 text-center">
                 {title}
               </h1>
             )}
             {subtitle && (
-              <p className="text-slate-500 dark:text-slate-300 mb-10 text-center">
+              <p className="text-[var(--color-text-secondary)] mb-[var(--space-breath)] text-center">
                 {subtitle}
               </p>
             )}
           </>
         )}
-        <div className="w-full ds-glass ds-glass-edge rounded-[var(--radius-card)] p-6 sm:p-8 max-w-md">
+        <div className="w-full ds-modal-panel p-6 sm:p-8 max-w-md">
           {children}
         </div>
       </div>

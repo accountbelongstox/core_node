@@ -56,8 +56,14 @@ This document maps frontend API calls to backend routes, identifying mismatches 
 | | `GET /api/app_qy_v1/query_all_groups` | 🔄 | Backend provides this |
 | | `GET /api/app_qy_v1/query_group_by_gid` | 🔄 | Backend provides this |
 | | `GET /api/app_qy_v1/query_gwords` | 🔄 | Backend provides this |
+| `GET /word-groups/{gid}/analysis` | `GET /api/app_qy_v1/word-groups/{gid}/analysis` → `AppQyV1WordGroupProgressController::getCourseAnalysis` | ✅ | Implemented. Requires auth (`custom.authenticate`). Consumed by legacy `services/api.ts` `analyzeCourse(groupId)` → `CourseDetail.tsx`. Returns the `CourseAnalysis` shape (below). `knownWords`/`similarity` are a **global memory overlap**: how many of the group's words the user already knows (proficiency ≥ 60 across **all** their progress). |
 
-**File**: `services/ApiCenter.ts` (lines 307-380)
+**`CourseAnalysis` response shape** (matches frontend `services/api.ts`):
+`{ groupId, totalWords, knownWords, newWords, estimatedDays, similarity }`
+
+> ⚠️ This endpoint was previously **MISSING** on the backend (404), but the failure was silently hidden because `services/api.ts` falls back to hardcoded mock data on any request error — so `CourseDetail` appeared to work while displaying fake numbers.
+
+**File**: `services/ApiCenter.ts` (lines 307-380); `services/api.ts` (`analyzeCourse`)
 **Backend**: `routes/AppQyV1Router/AppQyV1Dict.php`
 
 **Fix Required**:
@@ -68,13 +74,24 @@ This document maps frontend API calls to backend routes, identifying mismatches 
 
 ## Word/Dictionary APIs
 
+### Word lookup endpoints (`AppQyV1Words.php`, base `/api/app_qy_v1/words/`)
+
+| Frontend Call | Backend Route | Controller method | Status | Notes |
+|--------------|---------------|-------------------|--------|-------|
+| `GET /words/{id}` | `GET /api/app_qy_v1/words/{id}` | `AppQyV1WordQueryController::getWordDetails` | ✅ | Implemented. Requires `auth:sanctum`. Optional `?language=` query (default `en`). Returns the canonical `Word` shape. |
+| `GET /words/search/{query}` | `GET /api/app_qy_v1/words/search/{query}` | `AppQyV1WordQueryController::searchWords` | ✅ | Implemented. Requires `auth:sanctum`. Optional `?language=`. Returns `Word[]`; list results have `audioUrl: null`. |
+| `GET /words/public/{word}` | `GET /api/app_qy_v1/words/public/{word}` | `AppQyV1WordQueryController::publicWordLookup` | ✅ | Implemented. **No auth**. Returns `{ word, found: boolean, data?: Word }` with HTTP 200 even when not found. |
+| `POST /words/{id}/favorite` | `POST /api/app_qy_v1/words/{id}/favorite` | `toggleFavorite` (missing) | ❌ | **NOT IMPLEMENTED / deferred.** Route exists but controller method is missing (no favorite storage yet) — will 500 if called. |
+| `POST /words/{id}/learn` | `POST /api/app_qy_v1/words/{id}/learn` | `markAsLearned` (missing) | ❌ | **NOT IMPLEMENTED / deferred.** Route exists but method is missing (`AppQyV1WordLearningStatusController` only has `upLearned`; word_id space mismatch unresolved) — will 500 if called. |
+| `POST /words/{id}/review` | `POST /api/app_qy_v1/words/{id}/review` | `markAsReviewed` (missing) | ❌ | **NOT IMPLEMENTED / deferred.** Route exists but method is missing (same word_id space mismatch) — will 500 if called. |
+
+**Canonical `Word` response shape** (matches frontend `types.ts`):
+`{ id, text, phonetic, translation, definition, example, masteryLevel, tags, audioUrl }`
+
+### Dictionary / translation endpoints
+
 | Frontend Call | Backend Route | Status | Notes |
 |--------------|---------------|--------|-------|
-| `GET /words/{id}` | `GET /api/app_qy_v1/words/{id}` | ⚠️ | Requires auth:sanctum |
-| `POST /words` | `POST /api/app_qy_v1/words` | ⚠️ | Requires auth:sanctum |
-| `PUT /words/{id}` | `PUT /api/app_qy_v1/words/{id}` | ⚠️ | Requires auth:sanctum |
-| `DELETE /words/{id}` | `DELETE /api/app_qy_v1/words/{id}` | ⚠️ | Requires auth:sanctum |
-| `GET /words/search` | ❌ Not found | ❌ | Frontend expects this |
 | `GET /words/translate` | ❌ Not found | ❌ | Frontend expects this |
 | `GET /dictionary/{lang}/{word}` | ❌ Not found | ❌ | Frontend expects this |
 | `GET /dictionary/languages` | ❌ Not found | ❌ | Frontend expects this |
@@ -85,9 +102,9 @@ This document maps frontend API calls to backend routes, identifying mismatches 
 **Backend**: `routes/AppQyV1Router/AppQyV1Words.php`, `AppQyV1Dict.php`
 
 **Fix Required**:
-- Map `/words/search` → `/query_word`
 - Map `/words/translate` → `/query_translation`
 - Implement dictionary endpoints or update frontend
+- The 3 state-writing word endpoints (`/favorite`, `/learn`, `/review`) are **deferred** until a data model exists; their controller methods are not yet implemented.
 
 ---
 
@@ -131,6 +148,7 @@ This document maps frontend API calls to backend routes, identifying mismatches 
 | Frontend Call | Backend Route | Status | Notes |
 |--------------|---------------|--------|-------|
 | `GET /system/supported-languages` | `GET /api/app_qy_v1/system/supported-languages` | ✅ | Working |
+| `GET /system/init-compliance` | `GET /api/app_qy_v1/system/init-compliance` | ✅ | Init compliance report (ApiCenter.system.getInitCompliance → InitComplianceModal); public, no auth |
 | | `GET /api/app_qy_v1/system/stats` | 🔄 | Backend provides, unused |
 
 **File**: `services/api.ts` (line 107)
@@ -148,16 +166,42 @@ This document maps frontend API calls to backend routes, identifying mismatches 
 
 **Backend**: `routes/files.php`, `app/Http/Controllers/FileController.php`
 
+### Avatar contract (FE ↔ BE, shared — keep in sync as a linked change)
+
+The default-avatar / upload pipeline is one feature across both repos:
+
+- **Upload (`POST /user/avatar` / `avatar_base64`)**: FE compresses **before**
+  sending — longest side ≤ **512 px**, re-encoded (JPEG ~0.85 / PNG for
+  alpha), hard reject > **5 MB** decoded (`qy_capacitor/services/imageCompression.ts`).
+  BE (`app/Services/AvatarService.php`) independently enforces the same:
+  reject > `MAX_UPLOAD_BYTES` (5 MB), GD downscale ≤ `MAX_DIMENSION` (512),
+  re-encode JPEG q82, extension allowlist `png/jpg/jpeg/webp`, stored as
+  `avatars/{app}/avatar_{id}_{ts}.jpg`. (Fixes the 27 MB-avatar incident.)
+- **Registration**: a small Laravolt default avatar is generated **and
+  persisted** to `users.avatar` on both registration paths
+  (`AvatarPublic`/`CommonAvatarPublic::createAvatar($user, true)`).
+- **Read-time backfill**: `GET /user/profile` calls
+  `AvatarPublic::backfillAvatar()` — idempotent; regenerates + persists a
+  small default only when the avatar is empty / file missing / oversized
+  (repairs legacy redundant data). Healthy/remote avatars untouched.
+- **Serving**: `GET /files/avatars/{app}/{filename}` returns an `image/*`
+  content-type + `Cache-Control: public, max-age=86400`.
+- Response shape unchanged: `{ avatar, avatar_url }`. FE renders via the
+  shared `<Avatar>` (`avatar_url || avatar` + lucide/initials fallback,
+  `onError` graceful). All Laravel runtime paths resolve via `PathMapper`
+  helpers only (PATH_CONVERSION_SPECIFICATION §6) — no ad-hoc concatenation.
+
 ---
 
 ## Summary Statistics
 
-### ✅ Working Endpoints: 12
+### ✅ Working Endpoints: 13
 - Authentication (4): login, register, logout, user
 - User Profile (3): profile GET/PUT, avatar POST
 - Learning (3): stats, progress GET/POST
 - System (1): supported-languages
 - Files (3): avatars, uploads, static
+- Word Groups (1): `word-groups/{gid}/analysis` (CourseAnalysis, auth)
 
 ### ❌ Missing Endpoints: 14
 - Word Groups (5): CRUD operations
@@ -256,5 +300,5 @@ async getWordGroups() {
 - Frontend currently uses mock data fallback for missing endpoints
 - Backend uses different naming convention (snake_case vs kebab-case)
 
-**Last Updated**: 2025-12-17
+**Last Updated**: 2026-05-28
 **Maintained by**: Development Team

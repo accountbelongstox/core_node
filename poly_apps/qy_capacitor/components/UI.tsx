@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 export const Icons = {
   Home: () => <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
@@ -25,7 +26,9 @@ export const Icons = {
   Close: () => <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>,
   X: () => <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>,
   Loader: () => <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>,
-  Sun: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+  Sun: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+  Bell: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
+  Filter: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.879a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
 };
 
 /** Dot-matrix arrow (5×5 grid, retro tech). Use with ds-btn-bento. */
@@ -40,12 +43,18 @@ export const IconsDotMatrix = {
   ),
 };
 
-export const Card = ({ children, className = '', onClick }: any) => (
+export const Card = ({ children, className = '', onClick, media, mediaClassName = '' }: any) => (
   <div
     onClick={onClick}
     className={`ds-card rounded-[var(--radius-card)] p-6 relative overflow-hidden group ${onClick ? 'cursor-pointer' : ''} ${className}`}
   >
     <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+    {/* v4.0 transparent-media (magazine PNG) slot */}
+    {media && (
+      <div className={`ds-media-frame mb-4 aspect-[4/3] ${mediaClassName}`}>
+        {media}
+      </div>
+    )}
     <div className="relative z-10">
       {children}
     </div>
@@ -59,7 +68,11 @@ export const Button = ({ children, variant = 'primary', className = '', onClick,
   const radiusClass = variant === 'pill' ? 'rounded-full' : variant === 'bento' ? '' : 'rounded-[var(--radius-button)]';
 
   const styles: any = {
-    primary: "ds-btn w-full py-4 rounded-[var(--radius-button)] bg-blue-600 text-white border border-blue-400/30 shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] hover:bg-blue-500 disabled:hover:shadow-[0_0_15px_rgba(37,99,235,0.3)] disabled:hover:bg-blue-600",
+    // v4.0: primary is the Klein-blue anchor (no ad-hoc bg-blue-600). Same
+    // token surface as `ds-btn-klein`; keeps the primary shimmer overlay below.
+    primary: "ds-btn w-full py-4 rounded-[var(--radius-button)] bg-[var(--klein-blue)] text-[var(--klein-on)] border border-[var(--klein-ring)] shadow-[var(--klein-glow)] hover:bg-[var(--klein-blue-strong)] disabled:hover:bg-[var(--klein-blue)]",
+    klein: "ds-btn-klein w-full py-4",
+    grad: "ds-btn-grad w-full py-4 text-white",
     pill: "ds-btn-pill w-full py-4 text-white",
     bento: "ds-btn-bento w-full min-h-[3.25rem]",
     fluid: "ds-btn-fluid w-full py-4 text-white",
@@ -99,5 +112,319 @@ export const Button = ({ children, variant = 'primary', className = '', onClick,
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out pointer-events-none"></div>
       )}
     </button>
+  );
+};
+
+/* ============================================================================
+ * v4.0 shared primitives — maximally reused, token-driven, dark/light-correct.
+ * These replace the ad-hoc spinner / empty-state / icon-button / sticky-header /
+ * badge markup that was duplicated across 30+ pages. Consume these everywhere;
+ * never re-implement their markup inline. All colors come from index.css tokens
+ * (which already carry `html.dark` overrides) — no hex, no bg-blue-*.
+ * ========================================================================== */
+
+const SPINNER_SIZE: Record<string, string> = {
+  sm: 'h-5 w-5 border-2',
+  md: 'h-8 w-8 border-2',
+  lg: 'h-12 w-12 border-[3px]',
+};
+
+/** Unified Klein-blue loading spinner. Replaces every `animate-spin` variant. */
+export const Spinner = ({ size = 'md', className = '' }: any) => (
+  <div
+    role="status"
+    aria-label="Loading"
+    className={`${SPINNER_SIZE[size] || SPINNER_SIZE.md} rounded-full border-[var(--klein-blue)] border-t-transparent animate-spin ${className}`}
+  />
+);
+
+/** Centered full-area loading state (spinner + optional label). */
+export const LoadingState = ({ label, className = '' }: any) => (
+  <div className={`flex flex-col items-center justify-center py-16 gap-4 ${className}`}>
+    <Spinner size="lg" />
+    {label && <p className="text-sm text-[var(--color-text-secondary)]">{label}</p>}
+  </div>
+);
+
+/** Dashed empty state. Consumes `.ds-empty`. icon/title/description/action. */
+export const EmptyState = ({ icon, title, description, action, className = '' }: any) => (
+  <div className={`ds-empty flex flex-col items-center justify-center text-center px-6 py-12 gap-3 ${className}`}>
+    {icon && <div className="text-[var(--color-text-tertiary)] [&_svg]:w-10 [&_svg]:h-10">{icon}</div>}
+    {title && <p className="font-semibold text-[var(--color-text-primary)]">{title}</p>}
+    {description && <p className="text-sm text-[var(--color-text-secondary)] max-w-xs">{description}</p>}
+    {action && <div className="mt-2">{action}</div>}
+  </div>
+);
+
+/** Quiet round icon button (≥ --touch-min). The canonical 30×-duplicated
+ *  `p-2 rounded-full hover:bg-...` pattern. Pass an Icons.* element. */
+export const IconButton = ({ icon, onClick, label, active = false, className = '', disabled }: any) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    aria-label={label}
+    title={label}
+    className={`ds-touch-target inline-flex items-center justify-center rounded-full p-2 transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
+      active
+        ? 'text-[var(--klein-blue)] bg-[var(--klein-blue-soft)]'
+        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--klein-blue-soft)]'
+    } ${className}`}
+  >
+    {icon}
+  </button>
+);
+
+/** Standard back button (IconButton + Icons.Back). */
+export const BackButton = ({ onClick, label = 'Back', className = '' }: any) => (
+  <IconButton icon={<Icons.Back />} onClick={onClick} label={label} className={className} />
+);
+
+/** Sticky minimal glass page header. Replaces the duplicated
+ *  `sticky top-0 backdrop-blur ... border-b` bar. left/right are optional
+ *  slots; pass `onBack` to auto-render a BackButton on the left. */
+export const PageHeader = ({ title, onBack, left, right, center, className = '' }: any) => (
+  <header
+    className={`sticky top-0 ds-z-sticky flex items-center gap-3 px-5 py-3 backdrop-blur-md bg-[var(--color-surface)]/80 border-b border-[var(--border-highlight)] ${className}`}
+  >
+    {onBack ? <BackButton onClick={onBack} /> : left}
+    {center
+      ? <div className="flex-1 flex justify-center">{center}</div>
+      : <h1 className="flex-1 text-lg font-bold text-[var(--color-text-primary)] truncate">{title}</h1>}
+    {right && <div className="flex items-center gap-1">{right}</div>}
+  </header>
+);
+
+const BADGE_TONE: Record<string, string> = {
+  neutral: 'border border-[var(--border-highlight)] text-[var(--color-text-secondary)]',
+  klein: 'bg-[var(--klein-blue-soft)] text-[var(--klein-blue)]',
+  success: 'bg-emerald-500/10 text-emerald-500',
+  danger: 'bg-red-500/10 text-red-500',
+};
+
+/** Small pill badge/tag. tone: neutral | klein | success | danger. */
+export const Badge = ({ children, tone = 'neutral', className = '' }: any) => (
+  <span
+    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${BADGE_TONE[tone] || BADGE_TONE.neutral} ${className}`}
+  >
+    {children}
+  </span>
+);
+
+/* -------- Phase 3 primitives (further abstraction of live-code dupes) ------ */
+
+/** Klein-fill progress bar. Replaces inline `h-1.5 rounded-full` track+inner
+ *  width% pairs (also unifies the fill color). value/max clamped 0–100%. */
+export const ProgressBar = ({ value = 0, max = 100, className = '', barClassName = '' }: any) => {
+  const pct = Math.max(0, Math.min(100, max > 0 ? (value / max) * 100 : 0));
+  return (
+    <div
+      role="progressbar"
+      aria-valuenow={value}
+      aria-valuemax={max}
+      className={`h-1.5 w-full rounded-full overflow-hidden bg-[var(--border-highlight)] ${className}`}
+    >
+      <div
+        className={`h-full rounded-full transition-all duration-500 ${barClassName}`}
+        style={{ width: `${pct}%`, background: 'var(--klein-blue)' }}
+      />
+    </div>
+  );
+};
+
+/** Glass modal / bottom-sheet. Wraps the existing `.ds-modal-backdrop` +
+ *  `.ds-modal-panel` CSS so no page re-implements `fixed inset-0 z-50 …`.
+ *  position: 'center' | 'bottom'. Renders nothing when `open` is false. */
+export const Sheet = ({ open, onClose, children, position = 'center', className = '', panelClassName = '' }: any) => {
+  if (!open) return null;
+  const align = position === 'bottom' ? 'items-end' : 'items-center justify-center';
+  const panelRadius = position === 'bottom' ? 'rounded-t-[calc(var(--radius-card)+6px)]' : '';
+  return (
+    <Portal>
+      <div
+        className={`fixed inset-0 ds-z-modal flex ${align} ds-modal-backdrop animate-fade-in ${className}`}
+        onClick={onClose}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div
+          className={`ds-modal-panel relative ${position === 'bottom' ? 'w-full' : 'max-w-md w-[calc(100%-2rem)]'} ${panelRadius} p-6 ${panelClassName}`}
+          onClick={(e: any) => e.stopPropagation()}
+        >
+          {children}
+        </div>
+      </div>
+    </Portal>
+  );
+};
+
+/** Metric mini-cell (value over label). Unstyled container so it composes
+ *  inside existing cards/grids. `accent` makes the value Klein-blue. */
+export const Stat = ({ value, label, accent = false, className = '' }: any) => (
+  <div className={`flex flex-col ${className}`}>
+    <span className={`text-2xl font-bold ${accent ? 'text-[var(--klein-blue)]' : 'text-[var(--color-text-primary)]'}`}>{value}</span>
+    {label && <span className="text-xs text-[var(--color-text-secondary)] mt-0.5">{label}</span>}
+  </div>
+);
+
+/** Uppercase section label (consumes `.ds-section-label`), optional right
+ *  action slot. Replaces ad-hoc `text-xs uppercase tracking-*` headers. */
+export const SectionLabel = ({ children, action, className = '' }: any) => (
+  <div className={`flex items-center justify-between ${className}`}>
+    <span className="ds-section-label">{children}</span>
+    {action}
+  </div>
+);
+
+/* -------- v4.1 Iris primitives (reference-faithful) ----------------------- */
+
+/** Bold section heading with optional subtitle + right "See all" action.
+ *  Reference uses real titles ("Games", "Featured Topics"), not tiny caps.
+ *  `onMore`/`moreLabel` renders the quiet `ds-link-more` link. */
+export const SectionTitle = ({ title, subtitle, onMore, moreLabel = 'See all', action, className = '' }: any) => (
+  <div className={`flex items-end justify-between gap-3 ${className}`}>
+    <div className="min-w-0">
+      <h2 className="ds-section-title truncate">{title}</h2>
+      {subtitle && <p className="ds-section-sub truncate">{subtitle}</p>}
+    </div>
+    {action ?? (onMore && (
+      <button type="button" className="ds-link-more flex-shrink-0" onClick={onMore}>
+        {moreLabel}
+      </button>
+    ))}
+  </div>
+);
+
+/** Circular colored icon tile (games / quick actions). `bg` overrides the
+ *  default frosted surface (e.g. a soft pastel or gradient). */
+export const IconTile = ({ icon, label, onClick, bg, className = '' }: any) => (
+  <button type="button" onClick={onClick} className={`flex flex-col items-center gap-2 ${className}`}>
+    <span className="ds-icon-tile" style={bg ? { background: bg } : undefined}>{icon}</span>
+    {label && <span className="text-xs font-semibold text-[var(--color-text-secondary)] truncate max-w-[72px]">{label}</span>}
+  </button>
+);
+
+/** Gradient circular FAB (search filter / accent action). Size in px. */
+export const FabGrad = ({ icon, onClick, label, size = 44, className = '' }: any) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={label}
+    title={label}
+    className={`ds-fab-grad flex-shrink-0 ${className}`}
+    style={{ width: size, height: size }}
+  >
+    {icon}
+  </button>
+);
+
+/** Bento card with corner gradient icon-chip (reference "AI Chat"/"AI Image").
+ *  title + description, optional `chipIcon`. Whole card is the click target. */
+export const BentoTile = ({ title, description, chipIcon, onClick, className = '', children }: any) => (
+  <div onClick={onClick} className={`ds-bento flex flex-col ${className}`}>
+    <div className="flex items-start justify-between gap-3">
+      <h3 className="text-base font-bold text-[var(--color-text-primary)] leading-tight">{title}</h3>
+      {chipIcon && <span className="ds-bento-chip flex-shrink-0">{chipIcon}</span>}
+    </div>
+    {description && (
+      <p className="text-sm text-[var(--color-text-secondary)] mt-4 leading-snug">{description}</p>
+    )}
+    {children}
+  </div>
+);
+
+/* -------- v4.1 stacking primitives (portal + popover) --------------------
+ * Floating panels (dropdowns/menus/popovers/expanders) MUST use these so
+ * they escape every `backdrop-filter` / `transform` / `overflow` ancestor
+ * stacking context and float above the fixed app chrome. Re-implementing a
+ * bare `absolute … z-50` dropdown inside a card is a defect (spec §3.9).
+ * ----------------------------------------------------------------------- */
+
+/** Renders children into <body> (escapes all ancestor stacking/overflow). */
+export const Portal = ({ children }: any) => {
+  if (typeof document === 'undefined') return null;
+  return createPortal(children, document.body);
+};
+
+/**
+ * Anchored popover panel. Controlled (`open` + `onClose`). Portals to <body>,
+ * `position:fixed` from the anchor's rect (re-measured on scroll/resize),
+ * flips above when low on space, closes on outside-click + Escape, and sits at
+ * `--z-popover` (above TopBar / bottom island, below modals).
+ *
+ *   const ref = useRef(null);
+ *   <button ref={ref} onClick={() => setOpen(o => !o)}>…</button>
+ *   <Popover open={open} onClose={() => setOpen(false)} anchorRef={ref} align="end">
+ *     …panel…
+ *   </Popover>
+ */
+export const Popover = ({ open, onClose, anchorRef, children, align = 'end', gap = 8, className = '', panelClassName = '' }: any) => {
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  const [style, setStyle] = React.useState<React.CSSProperties | null>(null);
+
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    const compute = () => {
+      const a = anchorRef?.current;
+      if (!a) return;
+      const r = a.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const ph = panelRef.current?.offsetHeight ?? 0;
+      const openUp = ph > 0 && r.bottom + ph + gap > vh && r.top - ph - gap > 0;
+      const next: React.CSSProperties = openUp
+        ? { bottom: Math.max(8, vh - r.top + gap) }
+        : { top: Math.min(r.bottom + gap, vh - 8) };
+      // Horizontal: align to the anchor (start=left edge, end=right edge), then
+      // CLAMP so the panel is always fully on-screen with 8px gutters — a wide
+      // panel anchored mid-screen must never overflow the left/right edge.
+      const pw = panelRef.current?.offsetWidth ?? 0;
+      const desiredLeft = align === 'start' ? r.left : r.right - pw;
+      const maxLeft = Math.max(8, vw - pw - 8);
+      next.left = Math.min(Math.max(8, desiredLeft), maxLeft);
+      next.maxWidth = 'calc(100vw - 16px)';
+      next.maxHeight = `calc(100vh - ${(openUp ? vh - r.top : r.bottom) + 16}px)`;
+      setStyle(next);
+    };
+    compute();
+    // second pass once the panel has measured height (for flip)
+    const raf = requestAnimationFrame(compute);
+    window.addEventListener('scroll', compute, true);
+    window.addEventListener('resize', compute);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', compute, true);
+      window.removeEventListener('resize', compute);
+    };
+  }, [open, align, gap, anchorRef]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (panelRef.current?.contains(t)) return;
+      if (anchorRef?.current?.contains(t)) return;
+      onClose?.();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose?.(); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, onClose, anchorRef]);
+
+  if (!open || typeof document === 'undefined') return null;
+  return createPortal(
+    <div
+      ref={panelRef}
+      role="dialog"
+      className={`ds-pop-panel ${className} ${panelClassName}`}
+      style={{ ...(style || { visibility: 'hidden' }), overflowY: 'auto' }}
+    >
+      {children}
+    </div>,
+    document.body
   );
 };

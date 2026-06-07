@@ -13,7 +13,7 @@
 # Declare all variables at the beginning
 $OriginalDirectory = Get-Location
 $ScriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Port = 18000
+$Port = 9000
 $IPList = @()
 
 # Change to the directory where the script is located

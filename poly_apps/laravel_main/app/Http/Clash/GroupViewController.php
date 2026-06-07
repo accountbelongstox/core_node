@@ -32,7 +32,7 @@ class GroupViewController
             ->get();
 
         if ($groups->isEmpty()) {
-            // 创建默认组
+            // Create the default group
             $defaultGroup = Group::create([
                 'name' => 'Default Group'
             ]);
@@ -44,15 +44,15 @@ class GroupViewController
 
     public function findGroup($identifier)
     {
-        // 先尝试通过组名查找
+        // First try to find by group name
         $group = Group::where('name', $identifier)->first();
-        
+
         if (!$group) {
-            // 如果找不到，尝试通过 ID 查找
+            // If not found, try to find by ID
             $group = is_numeric($identifier) ? Group::find($identifier) : null;
         }
 
-        // 如果还是找不到，返回第一个组或创建默认组
+        // If still not found, return the first group or create the default group
         if (!$group) {
             $group = Group::first() ?? Group::create(['name' => 'Default Group']);
         }

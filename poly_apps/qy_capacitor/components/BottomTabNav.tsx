@@ -1,3 +1,7 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp.
+   Verified reference parity. Centered floating island with icon-only circular
+   glass side tabs (labels dropped per reference; aria-label kept) + gradient
+   center orb. */
 import React, { useContext } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AppContext } from '../contexts/AppContext';
@@ -95,8 +99,28 @@ export const BottomTabNav = () => {
     <>
       <nav className="ds-bar-pill" aria-label="Bottom navigation">
         <div className="ds-bar-pill-inner">
-          {tabs.map((tab) => {
+          {tabs.map((tab, index) => {
             const isActive = isTabActive(tab);
+            // v4.0: the central tab becomes the elevated floating-island
+            // action (dark/Klein circle) — deliberate visual imbalance to
+            // focus the core "practice" interaction, in the thumb zone.
+            const isCenterAction = index === Math.floor(tabs.length / 2);
+
+            if (isCenterAction) {
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabClick(tab)}
+                  className={`ds-bar-cta ${isActive ? 'is-active' : ''}`}
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={tab.label}
+                >
+                  {tab.activeIcon}
+                </button>
+              );
+            }
+
             return (
               <button
                 key={tab.id}
@@ -109,7 +133,6 @@ export const BottomTabNav = () => {
                 <div className="ds-bar-tab-icon-wrap">
                   {isActive ? tab.activeIcon : tab.icon}
                 </div>
-                <span className="ds-bar-tab-label">{tab.label}</span>
               </button>
             );
           })}

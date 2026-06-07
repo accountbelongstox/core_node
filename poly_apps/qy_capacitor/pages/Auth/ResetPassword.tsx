@@ -1,7 +1,9 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useState, useContext, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AppContext } from '../../contexts/AppContext';
 import { ApiCenter } from '../../services/ApiCenter';
+import { Button } from '../../components/UI';
 import {
   AuthLayout,
   AuthCard,
@@ -96,7 +98,7 @@ const ResetPassword = () => {
               message="Redirecting to login page..."
             />
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-7">
               <AuthError message={error} className="p-4" />
 
               <AuthInput
@@ -132,19 +134,15 @@ const ResetPassword = () => {
                 required
               />
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-bold hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
+              <Button variant="grad" disabled={loading}>
                 {loading ? t('common.loading') : 'Reset Password'}
-              </button>
+              </Button>
 
-              <div className="text-center">
+              <div className="text-center pt-1">
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                  className="text-sm font-semibold text-[var(--klein-blue)] transition-colors hover:opacity-80"
                 >
                   {t('common.back')} to Login
                 </button>

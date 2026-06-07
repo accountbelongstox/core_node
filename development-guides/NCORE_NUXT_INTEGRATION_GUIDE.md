@@ -59,7 +59,7 @@ Nuxt Frontend → NCore API → Laravel API (可选)
 
 #### API端点规范
 - **NCore API**: `http://localhost:3000/api/{app}/{service}/{action}`
-- **Laravel API**: `http://localhost:8000/api/{app}/v1/{resource}`
+- **Laravel API**: `http://localhost:9000/api/{app}/v1/{resource}`
 
 #### 数据交换格式
 ```typescript
@@ -73,6 +73,40 @@ interface APIResponse<T> {
   requestId: string;
 }
 ```
+
+### 2.1 API detection / health-check linked-change contract (English — added 2026-05-19)
+
+The frontend endpoint-detection contract and the backend health/api_info/CORS
+surface form **one coordinated contract** (实现见
+`development-guides/MULTI_API_URL_SYSTEM.md` 的 "Realized detection contract"
+section, and `poly_apps/laravel_dashboard/API_ALIGNMENT_PROGRESS.md`).
+
+Realized behavior (**⚠️ CORRECTION 2026-05-19 — supersedes the earlier same-day
+"lazy / probe-only-when-the-switcher-dropdown-opens / once-only-for-switcher"
+description; detection is automatic at app startup, NOT lazy/click-triggered**):
+- Detection is **automatic at app startup**: `ApiManager` probes **all endpoints
+  in parallel exactly once per app load**, single-flight via a stored
+  `healthPassPromise` (StrictMode-safe), no timers/intervals, no retries.
+  `App.tsx` triggers it and dispatches `api-health-initialized` after the
+  parallel pass settles; `ApiEndpointSwitcher.tsx` is read-only (no probe on
+  dropdown open). Active-endpoint precedence: healthy `api_user_modified` →
+  healthy stored `api_current_endpoint`/`api_auto_detected` → first healthy by
+  priority (written back) → highest-priority unhealthy fallback. 以能使用的为准:
+  auto-detection never overwrites `api_user_modified`; no re-probe unless the
+  user manually switches.
+- `GET {base}/api/health` → `200 { status:'healthy', service, timestamp,
+  version }`, liveness-only, no auth, `Cache-Control: no-store`, cheap OPTIONS
+  preflight via CORS fast-path (no web/Sanctum middleware).
+- `GET {base}/api_info[?app=]` → catalog JSON (body unchanged), server `ETag` +
+  `Cache-Control: public, max-age=300, stale-while-revalidate=600` (304 on
+  `If-None-Match`); client 60s TTL cache + single-flight.
+
+> ⚠️ **LINKED-CHANGE (联动改): The frontend probing contract (now:
+> auto-parallel-once at startup, single-flight via `healthPassPromise`) and the
+> backend `/api/health` + CORS/`cors.php` paths + `/api_info` caching MUST be
+> changed together — changing one side's health/api_info contract, CORS paths,
+> or cache headers without the other reintroduces the preflight-hang /
+> redundant-probe bug.**
 
 ### 3. 文档交换区规范
 
@@ -173,7 +207,7 @@ NUXT_API_BASE_URL=http://localhost:3000
 
 # Laravel环境变量
 APP_ENV=local
-APP_URL=http://localhost:8000
+APP_URL=http://localhost:9000
 ```
 
 ### 7. 数据流向和安全

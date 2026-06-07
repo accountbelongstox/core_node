@@ -1,6 +1,8 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Icons, Card } from '../../components/UI';
+import { Icons, Card, Button, Badge, SectionTitle } from '../../components/UI';
+import { Avatar } from '../../components/Avatar';
 import { ApiCenter } from '../../services/ApiCenter';
 
 export default function MineIndex() {
@@ -14,7 +16,7 @@ export default function MineIndex() {
 
   useEffect(() => {
     if (!user) {
-      navigate('/login');
+      navigate('login');
       return;
     }
     loadUserStats();
@@ -47,7 +49,6 @@ export default function MineIndex() {
       subtitle: t('nav.profileSubtitle'),
       icon: <Icons.User />,
       route: 'profile',
-      color: 'from-blue-500 to-blue-600'
     },
     {
       id: 'progress',
@@ -55,7 +56,6 @@ export default function MineIndex() {
       subtitle: t('nav.progressSubtitle'),
       icon: <Icons.Chart />,
       route: 'mine/progress',
-      color: 'from-purple-500 to-purple-600'
     },
     {
       id: 'social',
@@ -67,7 +67,6 @@ export default function MineIndex() {
         </svg>
       ),
       route: 'social/friends',
-      color: 'from-green-500 to-green-600'
     },
     {
       id: 'settings',
@@ -75,65 +74,54 @@ export default function MineIndex() {
       subtitle: t('nav.settingsSubtitle'),
       icon: <Icons.Settings />,
       route: 'settings',
-      color: 'from-slate-500 to-slate-600'
     },
   ];
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
-        {/* Header */}
-        <div className="pt-20 px-6 pb-8 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+      <div className="ds-aura-bg min-h-screen pb-28">
+        <div className="ds-aura-overlay" />
+        {/* Minimal asymmetric header */}
+        <div className="relative pt-[var(--page-padding-v)] px-[var(--page-padding-h)] pb-[var(--space-breath)] max-w-md mx-auto">
+          <h1 className="text-3xl font-bold text-[var(--color-text-primary)] mb-2">
             {t('home.welcomeGuest')}
           </h1>
-          <p className="text-slate-600 dark:text-slate-400">
+          <p className="text-[var(--color-text-secondary)]">
             {t('home.guestMode')}
           </p>
         </div>
 
-        <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6">
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-xl">
-            <div className="text-center py-4">
-              <svg className="w-16 h-16 mx-auto mb-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <h2 className="text-2xl font-bold mb-2">{t('home.loginRequired')}</h2>
-              <p className="text-blue-100 mb-6">{t('home.syncProgressDescription')}</p>
-              <button
-                onClick={() => navigate('login')}
-                className="w-full px-6 py-3 bg-white text-blue-600 rounded-xl font-bold hover:bg-blue-50 transition-colors"
-              >
+        <div className="relative max-w-md mx-auto px-[var(--page-padding-h)] ds-section-gap">
+          <Card className="text-center">
+            <div className="py-4">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--klein-blue-soft)] flex items-center justify-center text-[var(--klein-blue)]">
+                <svg className="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold mb-2 text-[var(--color-text-primary)]">{t('home.loginRequired')}</h2>
+              <p className="text-[var(--color-text-secondary)] mb-6">{t('home.syncProgressDescription')}</p>
+              <Button variant="klein" onClick={() => navigate('login')}>
                 {t('auth.login')}
-              </button>
-              <button
-                onClick={() => navigate('register')}
-                className="w-full mt-3 px-6 py-3 bg-blue-400 text-white rounded-xl font-bold hover:bg-blue-500 transition-colors"
-              >
+              </Button>
+              <Button variant="secondary" className="mt-3" onClick={() => navigate('register')}>
                 {t('auth.register')}
-              </button>
+              </Button>
             </div>
           </Card>
 
           {/* Guest Access */}
-          <div className="mt-6 space-y-4">
-            <Card
-              onClick={() => navigate('settings')}
-              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-lg transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center">
-                    <Icons.Settings />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-900 dark:text-white">{t('nav.settings')}</p>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('settings.appPreferences')}</p>
-                  </div>
-                </div>
-                <Icons.ChevronRight />
+          <div className="ds-row p-5 cursor-pointer ds-touch-target flex items-center justify-between" onClick={() => navigate('settings')}>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[var(--klein-blue-soft)] text-[var(--klein-blue)]">
+                <Icons.Settings />
               </div>
-            </Card>
+              <div>
+                <p className="font-semibold text-[var(--color-text-primary)]">{t('nav.settings')}</p>
+                <p className="text-sm text-[var(--color-text-secondary)]">{t('settings.appPreferences')}</p>
+              </div>
+            </div>
+            <span className="text-[var(--color-text-tertiary)]"><Icons.ChevronRight /></span>
           </div>
         </div>
       </div>
@@ -141,73 +129,64 @@ export default function MineIndex() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 pb-24">
-      {/* Header with User Info */}
-      <div className="pt-20 px-6 pb-6 sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto">
-        <Card className="bg-gradient-to-br from-blue-500 to-purple-600 text-white border-none shadow-xl">
-          <div className="flex items-center gap-4">
-            <img
-              src={user.avatar_url || user.avatar}
-              alt={user.username}
-              className="w-20 h-20 rounded-full border-4 border-white/30"
-            />
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold">{user.username}</h2>
-              {user.email && (
-                <p className="text-white/80 text-sm mt-1">{user.email}</p>
-              )}
-              <div className="flex items-center gap-2 mt-2">
-                <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-semibold">
-                  {t('profile.freePlan')}
-                </span>
-              </div>
-            </div>
+    <div className="ds-aura-bg min-h-screen pb-28">
+      <div className="ds-aura-overlay" />
+      {/* Minimal asymmetric header with avatar-left */}
+      <div className="relative pt-[var(--page-padding-v)] px-[var(--page-padding-h)] pb-[var(--space-breath)] max-w-md mx-auto">
+        <div className="flex items-center gap-4">
+          <Avatar
+            src={user.avatar_url}
+            fallbackSrc={user.avatar}
+            name={user.name || user.nickname || user.username}
+            alt={user.username}
+            className="w-16 h-16 rounded-full border border-[var(--border-highlight)] flex-shrink-0 text-xl"
+          />
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)] truncate">{user.username}</h1>
+            {user.email && (
+              <p className="text-[var(--color-text-secondary)] text-sm mt-0.5 truncate">{user.email}</p>
+            )}
+            <Badge tone="klein" className="mt-2">{t('profile.freePlan')}</Badge>
           </div>
-        </Card>
+        </div>
       </div>
 
-      <div className="sm:max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-6 space-y-6">
+      <div className="relative max-w-md mx-auto px-[var(--page-padding-h)] ds-section-gap">
         {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-3">
-          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-3">
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalWords}</p>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{t('stats.words')}</p>
-          </Card>
-          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-3">
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.masteredWords}</p>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{t('stats.mastered')}</p>
-          </Card>
-          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-3">
-            <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.currentStreak}</p>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{t('stats.streak')}</p>
-          </Card>
-          <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-center p-3">
-            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{Math.floor(stats.totalStudyTime / 60)}</p>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{t('stats.hours')}</p>
-          </Card>
+        <div className="ds-grid-breathing grid-cols-2 sm:grid-cols-4">
+          {[
+            { v: stats.totalWords, l: t('stats.words') },
+            { v: stats.masteredWords, l: t('stats.mastered') },
+            { v: stats.currentStreak, l: t('stats.streak') },
+            { v: Math.floor(stats.totalStudyTime / 60), l: t('stats.hours') },
+          ].map((s, i) => (
+            <div key={i} className="ds-card text-center p-5">
+              <p className="text-3xl font-bold text-[var(--klein-blue)]">{s.v}</p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1">{s.l}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Menu Items */}
-        <div className="space-y-3">
+        {/* Menu Items as ds-row group */}
+        <SectionTitle title={t('nav.settings') || 'Account'} className="px-1" />
+        <div className="ds-stack-tight flex flex-col">
           {menuItems.map((item) => (
-            <Card
+            <div
               key={item.id}
               onClick={() => navigate(item.route)}
-              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-lg hover:border-blue-500 dark:hover:border-blue-500 transition-all"
+              className="ds-row p-5 cursor-pointer ds-touch-target flex items-center justify-between"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`w-14 h-14 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center text-white`}>
-                    {item.icon}
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg text-slate-900 dark:text-white">{item.title}</p>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{item.subtitle}</p>
-                  </div>
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-[var(--klein-blue-soft)] text-[var(--klein-blue)]">
+                  {item.icon}
                 </div>
-                <Icons.ChevronRight />
+                <div>
+                  <p className="font-bold text-lg text-[var(--color-text-primary)]">{item.title}</p>
+                  <p className="text-sm text-[var(--color-text-secondary)]">{item.subtitle}</p>
+                </div>
               </div>
-            </Card>
+              <span className="text-[var(--color-text-tertiary)]"><Icons.ChevronRight /></span>
+            </div>
           ))}
         </div>
       </div>

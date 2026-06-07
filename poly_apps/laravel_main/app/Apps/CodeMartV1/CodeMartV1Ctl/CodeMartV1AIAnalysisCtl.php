@@ -44,8 +44,8 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
         DB::commit();
 
-        $this->performAIAnalysis($analysis->id, $project);
-
+        // No queue/dispatch: the row is left in status 'processing' and the
+        // Octane timer (CodeMartV1AIAnalysisTask) picks it up within ~5s.
         return $this->success([
             'analysis_id' => $analysis->id,
             'status' => $analysis->status,
@@ -145,8 +145,8 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
         DB::commit();
 
-        $this->performAIAnalysis($analysis->id, $analysis->project, $request->revision_notes);
-
+        // No queue/dispatch: status is 'revising'; the Octane timer
+        // (CodeMartV1AIAnalysisTask) re-processes it within ~5s.
         return $this->success(['message' => 'Revision requested. AI will re-analyze with your feedback.']);
     }
 
@@ -176,90 +176,8 @@ class CodeMartV1AIAnalysisCtl extends Controller
         return json_encode(array_unique($keywords));
     }
 
-    private function performAIAnalysis(int $analysisId, $project, ?string $revisionNotes = null): void
-    {
-        dispatch(function () use ($analysisId, $project, $revisionNotes) {
-            sleep(2);
-
-            $keywords = json_decode(
-                CodeMartV1AIAnalysisModel::find($analysisId)->keywords ?? '[]',
-                true
-            );
-
-            $recommendations = $this->generateRecommendations($keywords, $project);
-
-            CodeMartV1AIAnalysisModel::where('id', $analysisId)->update([
-                'status' => 'completed',
-                'recommended_languages' => json_encode($recommendations['languages']),
-                'recommended_frameworks' => json_encode($recommendations['frameworks']),
-                'recommended_databases' => json_encode($recommendations['databases']),
-                'team_composition' => json_encode($recommendations['team']),
-                'estimated_hours' => $recommendations['hours'],
-                'estimated_cost' => $recommendations['cost'],
-                'complexity_score' => $recommendations['complexity'],
-                'proposal' => $recommendations['proposal'],
-                'completed_at' => now(),
-            ]);
-
-            CodeMartV1ProjectModel::where('id', $project->id)->update([
-                'analysis_status' => 'completed',
-            ]);
-        })->afterCommit();
-    }
-
-    private function generateRecommendations(array $keywords, $project): array
-    {
-        $languages = [];
-        $frameworks = [];
-        $databases = [];
-
-        if (in_array('mobile', $keywords)) {
-            $languages = ['Dart', 'Kotlin', 'Swift'];
-            $frameworks = ['Flutter', 'React Native'];
-        }
-
-        if (in_array('web', $keywords)) {
-            $languages = array_merge($languages, ['JavaScript', 'TypeScript']);
-            $frameworks = array_merge($frameworks, ['React', 'Vue.js']);
-        }
-
-        if (in_array('backend', $keywords)) {
-            $languages = array_merge($languages, ['PHP', 'Python', 'Go']);
-            $frameworks = array_merge($frameworks, ['Laravel', 'Django', 'Gin']);
-            $databases = ['MySQL', 'PostgreSQL'];
-        }
-
-        if (in_array('realtime', $keywords)) {
-            $databases = array_merge($databases, ['Redis']);
-            $frameworks = array_merge($frameworks, ['Socket.io', 'WebSocket']);
-        }
-
-        $complexity = count($keywords) + strlen($project->description) / 1000;
-
-        $team = $complexity > 5 ? ['1x Senior', '2x Mid-level'] : ['1x Mid-level', '1x Junior'];
-
-        $hours = round($complexity * 50);
-        $cost = $hours * 80;
-
-        return [
-            'languages' => array_values(array_unique($languages)),
-            'frameworks' => array_values(array_unique($frameworks)),
-            'databases' => array_values(array_unique($databases)),
-            'team' => $team,
-            'hours' => $hours,
-            'cost' => $cost,
-            'complexity' => round($complexity, 2),
-            'proposal' => $this->generateProposalText($keywords, $hours, $cost, $team),
-        ];
-    }
-
-    private function generateProposalText(array $keywords, int $hours, float $cost, array $team): string
-    {
-        $keywordStr = implode(', ', $keywords);
-
-        return "Based on analysis, this project involves: {$keywordStr}. " .
-               "We recommend a team of " . implode(' + ', $team) . ". " .
-               "Estimated completion time: {$hours} hours. " .
-               "Estimated cost: \${$cost}.";
-    }
+    // AI analysis processing (recommendation engine + proposal text) lives in
+    // app/Services/TimerTasks/CodeMartV1AIAnalysisTask.php. It is driven by the
+    // single Octane timer, not the Laravel queue: the controller only sets the
+    // row status ('processing' / 'revising') and the timer does the work.
 }

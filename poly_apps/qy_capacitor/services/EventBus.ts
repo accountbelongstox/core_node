@@ -26,6 +26,19 @@ export type EventMap = {
   'theme-changed': { theme: 'light' | 'dark' };
   'user-logged-in': { userId: string };
   'user-logged-out': void;
+  'learning-session-ended': any;
+  'word-progress-updated': any;
+  'learning-stats-updated': any;
+  'daily-goal-completed': { date: Date };
+  'quiz-completed': any;
+  'reading-completed': any;
+  'wordgroups-updated': any;
+  'library:loaded': { libraryId: number };
+  'library:words_added': { libraryId: number; wordsAdded: number; totalWords: number };
+  'library:audio_needed': any;
+  'library:audio_ready': { word: string; language: string };
+  'library:unloaded': { libraryId: number };
+  'library:all_cleared': void;
 };
 
 type EventCallback<T> = (data: T) => void;
@@ -36,7 +49,11 @@ class EventBusClass {
   /**
    * Emit an event
    */
-  emit<K extends keyof EventMap>(event: K, data: EventMap[K]): void {
+  emit<K extends keyof EventMap>(
+    event: K,
+    ...args: EventMap[K] extends void ? [data?: undefined] : [data: EventMap[K]]
+  ): void {
+    const data = args[0] as EventMap[K];
     const callbacks = this.listeners.get(event);
     if (callbacks) {
       callbacks.forEach(callback => {

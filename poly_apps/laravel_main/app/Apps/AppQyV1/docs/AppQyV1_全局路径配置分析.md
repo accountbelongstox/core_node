@@ -1,5 +1,7 @@
 # DictV1 全局路径配置分析
 
+> 📌 **更新 / CORRECTION (2026-05)。** 外部数据根目录现统一经 `App\Providers\PathMapper::mapWebPath('app_external_data')` 解析 → `<www>/wwwroot/laravel_db/external_data`（Windows `D:\www\...`、WSL `/mnt/d/www/...`、Ubuntu `/www/...`）。`storage/app/external_data` 已废弃,仅作为 `config/AppQyV1.php` 中被 `PathMapper` 识别并替换的 sentinel；唯一受支持的覆盖方式是显式 env `DICT_EXTERNAL_DATA_PATH`。已初始化的旧主机:旧目录数据会被合并进新根（跳过已存在文件）后删除旧目录。本文下方关于 `storage/app/external_data` 的描述仅作历史参考。
+
 ## 全局静态文件存储路径分析
 
 ### 外部存储根目录配置

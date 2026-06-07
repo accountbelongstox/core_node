@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Language } from '../../types';
 import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import {
-  Timer,
   Activity,
   Layers,
   PlayCircle,
@@ -16,7 +15,11 @@ import {
   Settings,
   Zap,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Search,
+  ShieldCheck,
+  Info,
+  Loader2
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 
@@ -37,10 +40,24 @@ interface TaskStatus {
     run_count: number;
     error_count: number;
     last_run: number;
-    last_run_ago: string | null;
+    last_run_ago: number | null;
     last_duration: number | null;
     last_error: string | null;
   };
+}
+
+interface VerifyResult {
+  success: boolean;
+  issues: string[];
+  summary: {
+    total_discovered: number;
+    total_registered: number;
+    total_running: number;
+    timer_running: boolean;
+    timer_uptime: number | null;
+    total_ticks: number;
+  };
+  timestamp: string;
 }
 
 interface OctaneStatus {
@@ -71,11 +88,25 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(5);
   const [filter, setFilter] = useState<'all' | 'enabled' | 'running' | 'error' | 'disabled'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedTask, setSelectedTask] = useState<TaskStatus | null>(null);
+  const [taskDetail, setTaskDetail] = useState<TaskStatus | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   const t = TRANSLATIONS[lang].octane;
 
+  // StrictMode-safe initial-load guard. React 18 StrictMode invokes mount
+  // effects twice in development; without this ref the initial
+  // /octane-tasks/status request would fire twice on every mount. Guarding
+  // here (instead of in loadOctaneStatus) keeps the manual Refresh button and
+  // the auto-refresh interval able to call loadOctaneStatus() freely.
+  const didInitialLoadRef = useRef(false);
+
   useEffect(() => {
+    if (didInitialLoadRef.current) return;
+    didInitialLoadRef.current = true;
     loadOctaneStatus();
   }, []);
 
@@ -95,7 +126,14 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
       if (response.success && response.data) {
         setOctaneStatus(response.data);
       } else {
-        throw new Error(response.error || 'Failed to load Octane status');
+        const anyResp = response as any;
+        let msg = response.error || 'Failed to load Octane status';
+        if (anyResp.isTimeout) {
+          msg = 'Request timed out — the Octane server did not respond in time.';
+        } else if (anyResp.isNetworkError) {
+          msg = 'Network unreachable — is the Laravel Octane server running on this host?';
+        }
+        throw new Error(msg);
       }
     } catch (err: any) {
       setError(err.message);
@@ -103,6 +141,68 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const runVerify = async () => {
+    setVerifying(true);
+    try {
+      const response = await api.serverManager.verifyOctaneTasksInit();
+      if (response.success && response.data) {
+        setVerifyResult(response.data);
+      } else {
+        setVerifyResult({
+          success: false,
+          issues: [response.error || 'Verification request failed'],
+          summary: {
+            total_discovered: 0,
+            total_registered: 0,
+            total_running: 0,
+            timer_running: false,
+            timer_uptime: null,
+            total_ticks: 0,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (err: any) {
+      setVerifyResult({
+        success: false,
+        issues: [err.message || 'Verification request failed'],
+        summary: {
+          total_discovered: 0,
+          total_registered: 0,
+          total_running: 0,
+          timer_running: false,
+          timer_uptime: null,
+          total_ticks: 0,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const openTaskDetail = async (task: TaskStatus) => {
+    setSelectedTask(task);
+    setTaskDetail(null);
+    setDetailLoading(true);
+    try {
+      const response = await api.serverManager.getOctaneTaskDetail(task.name);
+      if (response.success && response.data) {
+        setTaskDetail(response.data as TaskStatus);
+      }
+    } catch {
+      // Fall back silently to the row snapshot already in selectedTask.
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeTaskDetail = () => {
+    setSelectedTask(null);
+    setTaskDetail(null);
+    setDetailLoading(false);
   };
 
   const getStatusIcon = (status: string) => {
@@ -152,27 +252,53 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
     return `${hours}h ${minutes}m ${secs}s`;
   };
 
-  const formatDuration = (ms: number | null): string => {
-    if (ms === null) return 'N/A';
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(2)}s`;
+  // Backend (OctaneTimerService) reports last_duration as a float in SECONDS
+  // (microtime(true) delta), not milliseconds.
+  const formatDuration = (seconds: number | null): string => {
+    if (seconds === null || seconds === undefined) return 'N/A';
+    if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
+    return `${seconds.toFixed(2)}s`;
+  };
+
+  // Backend reports last_run_ago as an integer number of SECONDS since the
+  // task last ran (or null if it has never run).
+  const formatLastRunAgo = (seconds: number | null | undefined): string => {
+    if (seconds === null || seconds === undefined) return 'Never';
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s ago`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}h ${m}m ago`;
   };
 
   const getFilteredTasks = (): TaskStatus[] => {
     if (!octaneStatus) return [];
 
+    let tasks: TaskStatus[];
     switch (filter) {
       case 'enabled':
-        return octaneStatus.tasks.filter(t => t.enabled);
+        tasks = octaneStatus.tasks.filter(t => t.enabled);
+        break;
       case 'running':
-        return octaneStatus.tasks.filter(t => t.running);
+        tasks = octaneStatus.tasks.filter(t => t.running);
+        break;
       case 'error':
-        return octaneStatus.tasks.filter(t => t.status === 'error' || t.status === 'running_with_errors');
+        tasks = octaneStatus.tasks.filter(t => t.status === 'error' || t.status === 'running_with_errors');
+        break;
       case 'disabled':
-        return octaneStatus.tasks.filter(t => !t.enabled);
+        tasks = octaneStatus.tasks.filter(t => !t.enabled);
+        break;
       default:
-        return octaneStatus.tasks;
+        tasks = octaneStatus.tasks;
     }
+
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      tasks = tasks.filter(
+        t => t.name.toLowerCase().includes(q) || t.class.toLowerCase().includes(q)
+      );
+    }
+    return tasks;
   };
 
   if (error) {
@@ -234,6 +360,19 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
             </select>
           </div>
           <button
+            onClick={runVerify}
+            disabled={verifying}
+            className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
+            title="Run backend initialization verification (/octane-tasks/verify)"
+          >
+            {verifying ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="w-4 h-4" />
+            )}
+            Verify
+          </button>
+          <button
             onClick={loadOctaneStatus}
             disabled={loading}
             className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
@@ -243,6 +382,57 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
           </button>
         </div>
       </div>
+
+      {/* Verification Banner */}
+      {verifyResult && (
+        <div
+          className={`mb-4 rounded-lg border p-4 ${
+            verifyResult.success
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+              : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              {verifyResult.success ? (
+                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+              ) : (
+                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+              )}
+              <div>
+                <div
+                  className={`font-semibold ${
+                    verifyResult.success
+                      ? 'text-green-700 dark:text-green-400'
+                      : 'text-red-700 dark:text-red-400'
+                  }`}
+                >
+                  {verifyResult.success
+                    ? 'All Octane timer tasks are properly initialized'
+                    : `Verification found ${verifyResult.issues.length} issue${verifyResult.issues.length === 1 ? '' : 's'}`}
+                </div>
+                {!verifyResult.success && (
+                  <ul className="mt-2 space-y-1 text-sm text-red-700 dark:text-red-300 list-disc list-inside">
+                    {verifyResult.issues.map((issue, i) => (
+                      <li key={i}>{issue}</li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Verified at {verifyResult.timestamp}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setVerifyResult(null)}
+              className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors shrink-0"
+              aria-label="Dismiss verification result"
+            >
+              <XCircle className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {loading && !octaneStatus ? (
         <div className="flex-1 flex items-center justify-center">
@@ -339,8 +529,8 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
             </div>
           </div>
 
-          {/* Filter */}
-          <div className="flex items-center gap-2 mb-4">
+          {/* Filter + Search */}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
             <span className="text-sm text-slate-600 dark:text-slate-400">Filter:</span>
             <div className="flex gap-2">
               {['all', 'enabled', 'running', 'error', 'disabled'].map((f) => (
@@ -357,6 +547,19 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
                 </button>
               ))}
             </div>
+            <div className="relative ml-auto">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name or class..."
+                className="pl-9 pr-3 py-1.5 text-sm w-64 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+              {getFilteredTasks().length} / {octaneStatus.tasks.length} tasks
+            </span>
           </div>
 
           {/* Tasks List */}
@@ -377,10 +580,10 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {getFilteredTasks().map((task, idx) => (
+                    {getFilteredTasks().map((task) => (
                       <tr
-                        key={idx}
-                        onClick={() => setSelectedTask(task)}
+                        key={task.name}
+                        onClick={() => openTaskDetail(task)}
                         className="hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors"
                       >
                         <td className="px-4 py-3">
@@ -432,7 +635,7 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
-                          {task.runtime?.last_run_ago || 'Never'}
+                          {formatLastRunAgo(task.runtime?.last_run_ago)}
                         </td>
                         <td className="px-4 py-3 text-center text-sm font-mono text-slate-600 dark:text-slate-400">
                           {formatDuration(task.runtime?.last_duration || null)}
@@ -453,25 +656,38 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
           </div>
 
           {/* Task Detail Modal */}
-          {selectedTask && (
+          {selectedTask && (() => {
+            const detail = taskDetail || selectedTask;
+            return (
             <div
               className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-              onClick={() => setSelectedTask(null)}
+              onClick={closeTaskDetail}
             >
               <div
                 className={`${commonClasses.card} max-w-2xl w-full max-h-[80vh] overflow-y-auto`}
                 onClick={(e) => e.stopPropagation()}
               >
+                {detailLoading && (
+                  <div className="flex items-center gap-2 px-6 py-2 text-xs text-indigo-600 dark:text-indigo-400 border-b border-slate-200 dark:border-slate-700">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Loading live task detail…
+                  </div>
+                )}
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="text-xl font-bold mb-1">{selectedTask.name}</h3>
+                      <h3 className="text-xl font-bold mb-1">{detail.name}</h3>
                       <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">
-                        {selectedTask.class}
+                        {detail.class}
                       </p>
+                      {taskDetail && !detailLoading && (
+                        <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
+                          <Info className="w-3 h-3" /> Live data
+                        </span>
+                      )}
                     </div>
                     <button
-                      onClick={() => setSelectedTask(null)}
+                      onClick={closeTaskDetail}
                       className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     >
                       <XCircle className="w-5 h-5" />
@@ -483,9 +699,9 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
                     <div>
                       <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Status</div>
                       <div className="flex items-center gap-2">
-                        {getStatusIcon(selectedTask.status)}
-                        <span className={`px-3 py-1 rounded text-sm font-medium ${getStatusColor(selectedTask.status)}`}>
-                          {selectedTask.status}
+                        {getStatusIcon(detail.status)}
+                        <span className={`px-3 py-1 rounded text-sm font-medium ${getStatusColor(detail.status)}`}>
+                          {detail.status}
                         </span>
                       </div>
                     </div>
@@ -496,55 +712,55 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
                           <div className="text-xs text-slate-500 dark:text-slate-400">Interval</div>
-                          <div className="text-lg font-bold font-mono">{selectedTask.interval}s</div>
+                          <div className="text-lg font-bold font-mono">{detail.interval}s</div>
                         </div>
                         <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
                           <div className="text-xs text-slate-500 dark:text-slate-400">Enabled</div>
-                          <div className="text-lg font-bold">{selectedTask.enabled ? 'Yes' : 'No'}</div>
+                          <div className="text-lg font-bold">{detail.enabled ? 'Yes' : 'No'}</div>
                         </div>
                         <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
                           <div className="text-xs text-slate-500 dark:text-slate-400">Registered</div>
-                          <div className="text-lg font-bold">{selectedTask.registered ? 'Yes' : 'No'}</div>
+                          <div className="text-lg font-bold">{detail.registered ? 'Yes' : 'No'}</div>
                         </div>
                         <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
                           <div className="text-xs text-slate-500 dark:text-slate-400">Running</div>
-                          <div className="text-lg font-bold">{selectedTask.running ? 'Yes' : 'No'}</div>
+                          <div className="text-lg font-bold">{detail.running ? 'Yes' : 'No'}</div>
                         </div>
                       </div>
                     </div>
 
                     {/* Runtime Statistics */}
-                    {selectedTask.runtime && (
+                    {detail.runtime && (
                       <div>
                         <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Runtime Statistics</div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
                             <div className="text-xs text-slate-500 dark:text-slate-400">Run Count</div>
-                            <div className="text-2xl font-bold font-mono">{selectedTask.runtime.run_count}</div>
+                            <div className="text-2xl font-bold font-mono">{detail.runtime.run_count}</div>
                           </div>
                           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
                             <div className="text-xs text-slate-500 dark:text-slate-400">Error Count</div>
-                            <div className={`text-2xl font-bold font-mono ${selectedTask.runtime.error_count > 0 ? 'text-red-600 dark:text-red-400' : ''}`}>
-                              {selectedTask.runtime.error_count}
+                            <div className={`text-2xl font-bold font-mono ${detail.runtime.error_count > 0 ? 'text-red-600 dark:text-red-400' : ''}`}>
+                              {detail.runtime.error_count}
                             </div>
                           </div>
                           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
                             <div className="text-xs text-slate-500 dark:text-slate-400">Last Run</div>
-                            <div className="text-sm font-medium">{selectedTask.runtime.last_run_ago || 'Never'}</div>
+                            <div className="text-sm font-medium">{formatLastRunAgo(detail.runtime.last_run_ago)}</div>
                           </div>
                           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
                             <div className="text-xs text-slate-500 dark:text-slate-400">Last Duration</div>
                             <div className="text-sm font-medium font-mono">
-                              {formatDuration(selectedTask.runtime.last_duration)}
+                              {formatDuration(detail.runtime.last_duration)}
                             </div>
                           </div>
                         </div>
 
-                        {selectedTask.runtime.last_error && (
+                        {detail.runtime.last_error && (
                           <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
                             <div className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">Last Error</div>
                             <div className="text-sm text-red-700 dark:text-red-300 font-mono">
-                              {selectedTask.runtime.last_error}
+                              {detail.runtime.last_error}
                             </div>
                           </div>
                         )}
@@ -554,7 +770,8 @@ const OctaneTasks: React.FC<OctaneTasksProps> = ({ lang = 'en' }) => {
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
         </>
       ) : null}
 

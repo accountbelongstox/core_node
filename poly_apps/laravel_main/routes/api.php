@@ -13,9 +13,16 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\JsonResponse;
+use App\Http\Middleware\GoLatency;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
-// Health Check Endpoint (for Nuxt API endpoints monitoring)
-Route::get('/health', function (): JsonResponse {
+// Health Check Endpoint (for Nuxt API endpoints monitoring).
+// Liveness-only: no DB, no auth. Heavy prepended middleware (Sanctum stateful
+// boot, GoLatency) are stripped so probing stays cheap and cannot hang.
+Route::withoutMiddleware([
+    EnsureFrontendRequestsAreStateful::class,
+    GoLatency::class,
+])->get('/health', function (): JsonResponse {
     $startTime = microtime(true);
     $response = response()->json([
         'status' => 'healthy',
@@ -27,6 +34,7 @@ Route::get('/health', function (): JsonResponse {
     $responseTime = (microtime(true) - $startTime) * 1000;
 
     return $response
+        ->header('Cache-Control', 'no-store, max-age=0')
         ->header('X-Go-Version', 'go1.21')
         ->header('X-Framework', 'Gin')
         ->header('X-Response-Time', number_format($responseTime, 10) . 'ms')
@@ -190,7 +198,6 @@ require_once __DIR__ . '/McpV1Router/api.php';
 // Global Task System Routes
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\WorkerController;
-use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(function () {
     Route::prefix('task')->group(function () {

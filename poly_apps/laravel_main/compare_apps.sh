@@ -3,14 +3,14 @@
 cd 'D:/programing/core_node/poly_apps/laravel_main'
 
 echo "========================================"
-echo "Apps目录代码合并检查报告"
+echo "Apps Directory Code Merge Check Report"
 echo "========================================"
 echo ""
 
-# 定义应用列表
+# Define the list of applications
 apps=("AChatV1" "AwyV0" "BankV1" "DictV1" "ItToolsV1" "ServerManagerV1")
 
-# 初始化统计变��
+# Initialize statistics counters
 total_files=0
 identical_files=0
 different_files=0
@@ -18,22 +18,22 @@ only_in_app=0
 needs_merge=0
 
 for app in "${apps[@]}"; do
-  echo "=== $app 应用比较 ==="
+  echo "=== $app Application Comparison ==="
   echo ""
 
-  # 获取两个位置的所有文件
+  # Get all files from both locations
   root_files=$(find "Apps/$app" -type f 2>/dev/null)
   app_files=$(find "app/Apps/$app" -type f 2>/dev/null)
 
-  # 统计文件数量
+  # Count the number of files
   root_count=$(echo "$root_files" | grep -v '^$' | wc -l)
   app_count=$(echo "$app_files" | grep -v '^$' | wc -l)
 
-  echo "根Apps/$app: $root_count 文件"
-  echo "app/Apps/$app: $app_count 文件"
+  echo "root Apps/$app: $root_count files"
+  echo "app/Apps/$app: $app_count files"
   echo ""
 
-  # 比较共同文件
+  # Compare common files
   for file in $root_files; do
     filename=$(basename "$file")
     subdir=$(dirname "$file" | sed "s|Apps/$app||")
@@ -43,28 +43,28 @@ for app in "${apps[@]}"; do
     if [ -f "$app_file" ]; then
       total_files=$((total_files + 1))
 
-      # 比较文件内容
+      # Compare file contents
       if diff -q "$file" "$app_file" > /dev/null 2>&1; then
-        echo "✓ $subdir/$filename (相同)"
+        echo "✓ $subdir/$filename (identical)"
         identical_files=$((identical_files + 1))
       else
-        echo "✗ $subdir/$filename (不同 - app版本更新)"
+        echo "✗ $subdir/$filename (different - app version newer)"
         different_files=$((different_files + 1))
 
-        # 显示行数差异
+        # Show line count difference
         root_lines=$(wc -l < "$file" 2>/dev/null || echo "0")
         app_lines=$(wc -l < "$app_file" 2>/dev/null || echo "0")
-        echo "  根版本: $root_lines 行, app版本: $app_lines 行"
+        echo "  root version: $root_lines lines, app version: $app_lines lines"
       fi
     else
-      echo "⚠ $subdir/$filename (仅存在于根Apps/)"
+      echo "⚠ $subdir/$filename (only exists in root Apps/)"
       needs_merge=$((needs_merge + 1))
     fi
   done
 
-  # 检查app/Apps中的额外文件
+  # Check for extra files in app/Apps
   echo ""
-  echo "app/Apps/$app 中的额外文件:"
+  echo "Extra files in app/Apps/$app:"
   for file in $app_files; do
     filename=$(basename "$file")
     subdir=$(dirname "$file" | sed "s|app/Apps/$app||")
@@ -72,7 +72,7 @@ for app in "${apps[@]}"; do
     root_file="Apps/$app$subdir/$filename"
 
     if [ ! -f "$root_file" ]; then
-      echo "+ $subdir/$filename (仅app/Apps中有)"
+      echo "+ $subdir/$filename (only in app/Apps)"
       only_in_app=$((only_in_app + 1))
     fi
   done
@@ -83,19 +83,19 @@ for app in "${apps[@]}"; do
 done
 
 echo "========================================"
-echo "总体统计"
+echo "Overall Statistics"
 echo "========================================"
-echo "共同文件总数: $total_files"
-echo "相同文件: $identical_files"
-echo "不同文件: $different_files (app版本更新)"
-echo "仅app/Apps中有: $only_in_app (新功能)"
-echo "需要手动合并: $needs_merge"
+echo "Total common files: $total_files"
+echo "Identical files: $identical_files"
+echo "Different files: $different_files (app version newer)"
+echo "Only in app/Apps: $only_in_app (new features)"
+echo "Needs manual merge: $needs_merge"
 echo ""
 
 if [ $needs_merge -eq 0 ]; then
-  echo "✓ 结论: app/Apps/ 目录包含所有代码，可以安全删除根 Apps/ 目录"
+  echo "✓ Conclusion: The app/Apps/ directory contains all code; the root Apps/ directory can be safely deleted"
   exit 0
 else
-  echo "✗ 结论: 发现需要合并的代码，请手动检查上述文件"
+  echo "✗ Conclusion: Code that needs merging was found; please manually review the files listed above"
   exit 1
 fi

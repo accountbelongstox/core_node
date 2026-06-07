@@ -5,6 +5,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 use App\Http\Controllers\Controller;
 use App\Services\EdgeTTS\EdgeTTSService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSQueueService;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
@@ -262,7 +263,7 @@ class AppQyV1TTSController extends Controller
      * Add batch words to TTS queue
      * Frontend sends words without audio, backend queues for async generation
      *-----------------------------------------------------------------------------------------------------------------------
-     * POST /api/app_qy_v1/tts/queue_batch
+     * POST /api/app_qy_v1/ai_tools/tts/queue_batch
      */
     public function queueBatch(Request $request): JsonResponse
     {
@@ -324,7 +325,7 @@ class AppQyV1TTSController extends Controller
     /**
      * Get queue statistics
      *
-     * GET /api/app_qy_v1/tts/queue/stats
+     * GET /api/app_qy_v1/ai_tools/tts/queue/stats
      */
     public function getQueueStats(Request $request): JsonResponse
     {
@@ -336,7 +337,7 @@ class AppQyV1TTSController extends Controller
     /**
      * Get queue status for specific word
      *
-     * GET /api/app_qy_v1/tts/queue/status
+     * GET /api/app_qy_v1/ai_tools/tts/queue/status
      */
     public function checkQueueStatus(Request $request): JsonResponse
     {
@@ -400,7 +401,7 @@ class AppQyV1TTSController extends Controller
             if ($queueItem) {
                 $audioUrl = null;
                 if ($queueItem->audio_path) {
-                    $audioUrl = "/api/app_qy_v1/ai_tools/tts/audio/{$language}/word/{$queueItem->audio_path}";
+                    $audioUrl = AppQyV1TtsUrl::forPath("{$language}/word/{$queueItem->audio_path}");
                 }
 
                 $result = [
@@ -480,20 +481,5 @@ class AppQyV1TTSController extends Controller
             'not_found' => $notFound,
             'summary' => $summary,
         ], 'Batch status check completed');
-    }
-
-    /**
-     * Fix audio_url path to use AppQyV1 route prefix
-     * Convert /tts/audio/... to /api/app_qy_v1/ai_tools/tts/audio/...
-     */
-    private function fixAudioUrl(array $result): array
-    {
-        if (isset($result['audio_url'])) {
-            if (strpos($result['audio_url'], '/tts/audio/') === 0) {
-                $result['audio_url'] = str_replace('/tts/audio/', '/api/app_qy_v1/ai_tools/tts/audio/', $result['audio_url']);
-            }
-        }
-
-        return $result;
     }
 }

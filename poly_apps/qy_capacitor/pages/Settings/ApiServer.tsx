@@ -1,79 +1,110 @@
-import React from 'react';
-import { useContext } from 'react';
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
+import React, { useContext, useState } from 'react';
 import { AppContext } from '../../contexts/AppContext';
-import { Icons } from '../../components/UI';
+import { BackButton, SectionTitle, Card } from '../../components/UI';
 import { ApiEndpointSwitcher } from '../../components/ApiEndpointSwitcher';
+import { InitComplianceModal } from '../../components/InitComplianceModal';
 
 const ApiServerSettings = () => {
-  // [i18n] Added `t` function for multi-language support
   const { navigate, t } = useContext(AppContext);
+  const [showInitCheck, setShowInitCheck] = useState(false);
+
+  const points = [
+    t('settings.serversTestedInOrder'),
+    t('settings.firstWorkingSelected'),
+    t('settings.healthChecksRun'),
+    t('settings.manualSelectionPersists'),
+  ];
 
   return (
-    <div className="h-full flex flex-col pt-safe animate-slide-up-fade">
-      {/* Header */}
-      <div className="px-6 pt-12 pb-6 flex items-center justify-between">
-        <button
-          onClick={() => navigate('settings')}
-          className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-colors border border-transparent dark:border-white/5"
-        >
-          <Icons.ChevronLeft />
-        </button>
-        {/* [i18n] Replaced hardcoded title with t() */}
-        <h1 className="text-2xl font-serif text-slate-800 dark:text-white tracking-tight">{t('settings.apiServer')}</h1>
-        <div className="w-10"></div>
-      </div>
+    <div className="ds-aura-bg min-h-screen pb-28">
+      <div className="ds-aura-overlay" />
 
-      <div className="flex-1 overflow-y-auto px-6 pb-32 no-scrollbar">
-        <div className="w-full sm:max-w-lg sm:mx-auto space-y-6">
-          {/* Info Card */}
-          <div className="holo-card p-5 rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-800/40">
-            {/* [i18n] Replaced hardcoded "Backend API Configuration" with t() */}
-            <h3 className="font-semibold text-slate-800 dark:text-white mb-3">{t('settings.backendApiConfig')}</h3>
-            {/* [i18n] Replaced hardcoded description with t() */}
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+      <div className="relative w-full max-w-md mx-auto px-[var(--page-padding-h)] pt-[var(--page-padding-v)] pb-[var(--space-breath)]">
+        {/* Minimal asymmetric header */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-[2rem] leading-[1.15] font-black tracking-tight text-[var(--color-text-primary)]">
+            {t('settings.apiServer')}
+          </h1>
+          <BackButton onClick={() => navigate('settings')} />
+        </div>
+
+        {/* Backend API config — gradient hero card */}
+        <div
+          className="rounded-[var(--radius-card)] p-6 text-white relative overflow-hidden"
+          style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
+        >
+          <div className="absolute -top-12 -right-10 w-44 h-44 bg-white/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-14 -left-10 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative">
+            <div className="w-14 h-14 bg-white/15 rounded-2xl flex items-center justify-center mb-4">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+              </svg>
+            </div>
+            <h3 className="font-bold text-lg mb-1">{t('settings.backendApiConfig')}</h3>
+            <p className="text-white/80 text-sm leading-relaxed">
               {t('settings.backendApiDescription')}
             </p>
-
-            {/* Endpoint Switcher Component */}
-            <div className="flex justify-center mt-6">
-              <ApiEndpointSwitcher />
-            </div>
-          </div>
-
-          {/* How It Works */}
-          <div className="holo-card p-5 rounded-3xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-slate-800/40">
-            {/* [i18n] Replaced hardcoded "How It Works" with t() */}
-            <h3 className="font-semibold text-slate-800 dark:text-white mb-3">{t('settings.howItWorks')}</h3>
-            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-              {/* [i18n] Replaced all hardcoded list items with t() */}
-              <li className="flex items-start gap-2">
-                <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>{t('settings.serversTestedInOrder')}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>{t('settings.firstWorkingSelected')}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>{t('settings.healthChecksRun')}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-emerald-500 mt-0.5">✓</span>
-                <span>{t('settings.manualSelectionPersists')}</span>
-              </li>
-            </ul>
-          </div>
-
-          {/* Technical Details */}
-          <div className="text-xs text-slate-400 dark:text-slate-500 space-y-1">
-            {/* [i18n] Replaced all hardcoded technical details with t() */}
-            <p>{t('settings.healthChecksVerify')}</p>
-            <p>{t('settings.responseTimesMeasured')}</p>
-            <p>{t('settings.endpointSavedLocalStorage')}</p>
           </div>
         </div>
       </div>
+
+      <div className="relative w-full max-w-md mx-auto px-[var(--page-padding-h)] ds-section-gap">
+        {/* Endpoint Switcher (untouched component) */}
+        <div className="ds-stack-tight flex flex-col">
+          <SectionTitle title={t('settings.apiServer')} className="px-1 mb-1" />
+          <Card>
+            <div className="flex justify-center">
+              <ApiEndpointSwitcher />
+            </div>
+          </Card>
+        </div>
+
+        {/* API Initialization Check — opens a centered compliance modal */}
+        <div className="ds-stack-tight flex flex-col">
+          <SectionTitle title={t('settings.initCheck')} className="px-1 mb-1" />
+          <Card onClick={() => setShowInitCheck(true)} className="cursor-pointer">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-[var(--color-text-primary)]">{t('settings.initCheck')}</p>
+                <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">{t('settings.initCheckDesc')}</p>
+              </div>
+              <svg className="w-5 h-5 text-[var(--color-text-tertiary)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </Card>
+        </div>
+
+        {/* How It Works */}
+        <div className="ds-stack-tight flex flex-col">
+          <SectionTitle title={t('settings.howItWorks')} className="px-1 mb-1" />
+          <Card>
+            <ul className="space-y-3 text-sm text-[var(--color-text-secondary)]">
+              {points.map((point, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-lg bg-[var(--klein-blue-soft)] text-[var(--klein-blue)] flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
+                  <span>{point}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+
+        {/* Technical Details */}
+        <div className="px-1 text-xs text-[var(--color-text-tertiary)] space-y-1.5">
+          <p>{t('settings.healthChecksVerify')}</p>
+          <p>{t('settings.responseTimesMeasured')}</p>
+          <p>{t('settings.endpointSavedLocalStorage')}</p>
+        </div>
+      </div>
+
+      {showInitCheck && <InitComplianceModal onClose={() => setShowInitCheck(false)} />}
     </div>
   );
 };

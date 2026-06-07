@@ -66,10 +66,10 @@ class UserModelClass {
     const response = await ApiCenter.user.getProfile();
 
     if (response.success && response.data) {
-      await this.setCurrentUser(response.data as UserProfile);
+      await this.setCurrentUser(response.data as unknown as UserProfile);
     }
 
-    return response as ApiResponse<UserProfile>;
+    return response as unknown as ApiResponse<UserProfile>;
   }
 
   /**
@@ -82,7 +82,7 @@ class UserModelClass {
       await this.setCurrentUser({ ...this.currentUser!, ...response.data });
     }
 
-    return response as ApiResponse<UserProfile>;
+    return response as unknown as ApiResponse<UserProfile>;
   }
 
   /**

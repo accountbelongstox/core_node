@@ -55,6 +55,12 @@ foreach ($config in $configs) {
     $transport = $config.TransportType
     Write-Host "[$idx/$($configs.Count)] Executing: $name ($transport)"
 
+    # Remove any existing entry first. 'claude mcp add' refuses to overwrite an
+    # existing server ("already exists in user config"), so a stale/incorrect
+    # entry (e.g. a corrupted API key) would persist across re-runs. Removing
+    # first guarantees the latest config is applied. Errors are non-fatal.
+    Write-Host "[CLEAN] claude mcp remove $name -s user"
+    claude mcp remove $name -s user 2>$null
     if ($transport -eq "http") {
         # Order: flags name url -H (variadic flags AFTER positional args)
         $fullArgs = @("mcp", "add", "-t", "http", "-s", "user", $name, $config.Url)

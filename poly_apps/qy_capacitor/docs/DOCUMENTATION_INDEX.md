@@ -1,162 +1,129 @@
-# WordFlow AI - 文档索引和合并报告
+# WordFlow AI — Documentation Index
 
-**更新时间**: 2025-12-20
-**状态**: ✅ 已整理
+**Updated**: 2026-05-28
+**Status**: ✅ Audited & consolidated. Latest pass (2026-05-28): all **UI/UX
+interaction-design** content (information architecture, navigation, app-shell
+behaviour, user flows, interaction states, overlay/stacking, motion) was
+**consolidated into the single design doc** as a new **Part B (§7–§12)**,
+documenting the current UI (现在的UI) and the expected UI (预期的UI). The doc is
+now the single source for **both** the visual system (Part A §0–§6) and
+interaction design (Part B §7–§12). `architecture/ARCHITECTURE.md` §8 keeps only
+the technical RouteCenter API and points to the design doc for IA/navigation.
+(Earlier large-scale pass folded 12 superseded/conflicting docs **verbatim**
+into their `*_HISTORY_MERGED.md` archives and deleted them; the IA/UX material in
+`design/REDESIGN_HISTORY_MERGED.md` was **mined** into Part B but the archive is
+kept verbatim as historical record.)
 
----
-
-## 📚 有效文档 (Active Documents)
-
-### 1. 核心架构文档
-| 文档名 | 用途 | 状态 | 最后更新 |
-|-------|------|------|---------|
-| **ARCHITECTURE.md** | 应用架构总览 | ✅ 最新 | 2025-12-18 |
-| **OPTIMIZATION_COMPLETE.md** | 全面优化报告 | ✅ 最新 | 2025-12-20 |
-| **API_PATH_MAPPING.md** | API路径映射 | ✅ 有效 | - |
-
-### 2. 功能文档
-| 文档名 | 用途 | 状态 |
-|-------|------|------|
-| **VOCABULARY_FEATURE_SUMMARY.md** | 词汇功能总结 | ✅ 有效 |
-| **VOCABULARY_AUDIO_SYSTEM.md** | 音频系统 | ✅ 有效 |
-| **ICON_MAPPING_IMPLEMENTATION.md** | 图标映射实现 | ✅ 有效 |
-| **LANGUAGE_FEATURE_PLAN.md** | 语言功能计划 | ✅ 有效 |
-
-### 3. 设计文档
-| 文档名 | 用途 | 状态 |
-|-------|------|------|
-| **COMPLETE_REDESIGN_PLAN.md** | 完整重设计计划 | ✅ 参考 |
-| **DESIGN_QUICK_REFERENCE.md** | 设计快速参考 | ✅ 参考 |
-| **UI_UX_REDESIGN_PROPOSAL.md** | UI/UX重设计提案 | ✅ 参考 |
+> This index is a **full-file replacement** on every audit (per `CLAUDE.md` §1.6
+> and `development-guides/CURSOR_RULES_UPDATE_GUIDE.md` §4–6 — rules/indexes only
+> reference & summarize, never duplicate a spec). It reflects the actual files on disk.
 
 ---
 
-## 🗑️ 过时文档 (Archived Documents)
+## 1. Start here (canonical / live)
 
-这些文档已被更新的文档替代，建议归档：
-
-### 重复/过时的验证报告
-1. **COMPLETE_ENDPOINT_VERIFICATION.md**
-2. **ENDPOINT_VERIFICATION_COMPLETE.md**
-3. **FINAL_ENDPOINT_VERIFICATION.md**
-4. **AI_ENDPOINT_VERIFICATION_REPORT.md**
-5. **CURRENT_ENDPOINT_STATUS.md**
-6. **ENDPOINT_AUDIT_REPORT.md**
-   - ✅ **替代文档**: API_PATH_MAPPING.md 包含所有端点信息
-
-### 重复的状态报告
-7. **ALL_ENDPOINTS_IMPLEMENTED.md**
-8. **COMPLETE_STATUS_REPORT.md**
-9. **P3_COMPLETION_REPORT.md**
-10. **FINAL_IMPLEMENTATION_REPORT.md**
-    - ✅ **替代文档**: OPTIMIZATION_COMPLETE.md 是最新的完成报告
-
-### 重复的实现总结
-11. **IMPLEMENTATION_SUMMARY.md**
-12. **VOCABULARY_IMPLEMENTATION_SUMMARY.md**
-    - ✅ **替代文档**: VOCABULARY_FEATURE_SUMMARY.md
-
-### 重复的修复报告
-13. **FIXES_APPLIED.md**
-14. **COMPONENT_FIXES.md**
-    - ✅ **替代文档**: OPTIMIZATION_COMPLETE.md 包含所有修复
-
-### 重复的架构文档
-15. **ARCHITECTURE_DATA_CENTER.md**
-16. **ARCHITECTURE_IMPROVEMENTS.md**
-    - ✅ **替代文档**: ARCHITECTURE.md 是最新完整架构文档
-
-### 重复的设计报告
-17. **REDESIGN_REPORT_PHASE1.md**
-18. **REDESIGN_REPORT_PHASE2.md**
-    - ✅ **替代文档**: COMPLETE_REDESIGN_PLAN.md 包含完整设计
-
-### 其他过时文档
-19. **SESSION_SUMMARY_2025-12-18.md** - 会话总结，已过时
-20. **TODO_REDESIGN.md** - 待办事项，已完成
-21. **BACKEND_FRONTEND_GAP_ANALYSIS.md** - 差距分析，已解决
-22. **TEST_BING_TRANSLATOR.md** - 测试文档，可归档
+| Doc | Purpose |
+|-----|---------|
+| `../CLAUDE.md` | Per-app + frontend↔backend co-development rules (AppQyV1). Canonical. |
+| `.cursor/rules/wordflow-design.mdc` | Design-system rule (summary; defers to the docs below). |
+| `design/WORDFLOW_DESIGN_SYSTEM_4.0.md` | **Canonical design contract.** **Part A (§0–§6)** = visual system ("Design System 4.1 — Iris Layer", additive on v3.x). **Part B (§7–§12)** = **UI/UX interaction design** — IA & navigation, app shell, user flows, interaction states, overlays/stacking, motion; each topic gives the current UI (现在的UI) + expected UI (预期的UI). |
+| `design/COMPONENT_REDESIGN_INVENTORY.md` | v4.1 Iris component work breakdown. |
+| `design/REDESIGN_PROGRESS.md` | Rolling redesign status + frozen-layer rules. |
+| `architecture/ARCHITECTURE.md` | Current application architecture (services/centers/models). §8 = technical RouteCenter API only; user-facing IA/navigation → design doc Part B §7–§8. |
+| `api/API_PATH_MAPPING.md` | **Live** frontend↔backend API contract. |
+| `README.md` / `TROUBLESHOOTING.md` | Onboarding / problem solving. |
 
 ---
 
-## 📋 文档归档建议
+## 2. Active references by area
 
-### 方案1: 创建 /archived 目录
-```bash
-mkdir -p archived/verification_reports
-mkdir -p archived/implementation_reports
-mkdir -p archived/design_iterations
+**Design & interaction** — `design/WORDFLOW_DESIGN_SYSTEM_4.0.md` is the single
+source for both the visual system (Part A) and UI/UX interaction design (Part B:
+IA, navigation, shell, flows, states, overlays, motion). Work breakdown:
+`design/COMPONENT_REDESIGN_INVENTORY.md`; rolling status:
+`design/REDESIGN_PROGRESS.md`.
 
-mv COMPLETE_ENDPOINT_VERIFICATION.md archived/verification_reports/
-mv ENDPOINT_VERIFICATION_COMPLETE.md archived/verification_reports/
-mv FINAL_ENDPOINT_VERIFICATION.md archived/verification_reports/
-mv AI_ENDPOINT_VERIFICATION_REPORT.md archived/verification_reports/
-mv CURRENT_ENDPOINT_STATUS.md archived/verification_reports/
-mv ENDPOINT_AUDIT_REPORT.md archived/verification_reports/
+**API** — `api/API_PATH_MAPPING.md` (live contract),
+`api/API_ENDPOINT_VERIFICATION_REPORT.md` (open verification items),
+`api/ENDPOINT_VERIFICATION_MERGED.md` (consolidated verification archive — see §3).
 
-mv ALL_ENDPOINTS_IMPLEMENTED.md archived/implementation_reports/
-mv COMPLETE_STATUS_REPORT.md archived/implementation_reports/
-mv P3_COMPLETION_REPORT.md archived/implementation_reports/
-mv FINAL_IMPLEMENTATION_REPORT.md archived/implementation_reports/
-mv IMPLEMENTATION_SUMMARY.md archived/implementation_reports/
-mv VOCABULARY_IMPLEMENTATION_SUMMARY.md archived/implementation_reports/
-mv FIXES_APPLIED.md archived/implementation_reports/
-mv COMPONENT_FIXES.md archived/implementation_reports/
+**Architecture** — `architecture/ARCHITECTURE.md` (current; v2.0 centralized
+service architecture). Navigation/IA narrative lives in the design doc Part B.
 
-mv REDESIGN_REPORT_PHASE1.md archived/design_iterations/
-mv REDESIGN_REPORT_PHASE2.md archived/design_iterations/
-mv ARCHITECTURE_DATA_CENTER.md archived/design_iterations/
-mv ARCHITECTURE_IMPROVEMENTS.md archived/design_iterations/
+**Implementation status** — `implementation/OPTIMIZATION_COMPLETE.md` (latest
+optimization state), `implementation/VERIFICATION_SUMMARY.md` (open P0 quick-ref),
+`implementation/MISSING_CONSIDERATIONS_AND_EDGE_CASES.md` (forward backlog),
+`implementation/AVATAR_GENERATION_GUIDE.txt` (auto-avatar system reference),
+`implementation/TEST_BING_TRANSLATOR.md` (Bing translator service reference).
 
-mv SESSION_SUMMARY_2025-12-18.md archived/
-mv TODO_REDESIGN.md archived/
-mv BACKEND_FRONTEND_GAP_ANALYSIS.md archived/
-mv TEST_BING_TRANSLATOR.md archived/
-```
+**Features (current specs)** — `features/VOCABULARY_FEATURE_SUMMARY.md`,
+`features/VOCABULARY_AUDIO_SYSTEM.md` (architecture),
+`features/VOCABULARY_AUDIO_PLAYBACK_COMPLETE.md` (current state),
+`features/TTS_FINAL_IMPLEMENTATION_COMPLETE.md` (TTS end-state),
+`features/LANGUAGE_FEATURE_PLAN.md`, `features/ICON_MAPPING_IMPLEMENTATION.md`,
+`features/HOME_MULTI_LANGUAGE_ICONS.md`,
+`features/LANGUAGE_BASED_STUDY_GROUPS_IMPLEMENTATION.md`,
+`features/STUDY_GROUPS_IMPLEMENTATION_SUMMARY.md`.
 
-### 方案2: 直接删除
-如果确定不需要历史记录，可以直接删除上述22个过时文档。
+> Feature-level interaction states (loading/empty/error/hover) are specified once
+> as patterns in the design doc Part B §10; feature docs keep only their
+> feature-specific functional notes.
 
----
-
-## 📖 核心文档快速导航
-
-### 新开发者入门
-1. 阅读 **ARCHITECTURE.md** - 了解整体架构
-2. 阅读 **OPTIMIZATION_COMPLETE.md** - 了解最新优化
-3. 参考 **API_PATH_MAPPING.md** - API端点查询
-
-### UI/UX设计师
-1. **DESIGN_QUICK_REFERENCE.md** - 设计快速参考
-2. **UI_UX_REDESIGN_PROPOSAL.md** - 设计提案
-
-### 功能开发
-1. **VOCABULARY_FEATURE_SUMMARY.md** - 词汇功能
-2. **VOCABULARY_AUDIO_SYSTEM.md** - 音频系统
-3. **LANGUAGE_FEATURE_PLAN.md** - 语言功能
+**Backend coordination (open items tracked)** —
+`backend/BACKEND_REQUIREMENTS_SUMMARY.md`,
+`backend/BACKEND_RESPONSE_TO_FRONTEND_QUESTIONS.md`,
+`backend/BACKEND_FRONTEND_INTEGRATION_CHECKLIST.md`,
+`backend/FRONTEND_BACKEND_INTEGRATION_COMPLETE.md`,
+`backend/BACKEND_API_STUDY_GROUPS_REQUIREMENT.md`,
+`backend/BACKEND_AUDIO_GENERATION_COORDINATION.md`,
+`backend/BACKEND_BATCH_STATUS_CHECK_REQUEST.md`,
+`backend/BACKEND_LANGUAGE_BASED_STUDY_GROUPS_REQUIREMENT.md`,
+`backend/BACKEND_REGISTRATION_AUTO_INIT_REQUIREMENT.md`.
 
 ---
 
-## 📊 文档统计
+## 3. Historical archives (consolidated — do not use as current guidance)
 
-| 类别 | 有效文档 | 过时文档 | 总计 |
-|------|---------|---------|------|
-| 架构文档 | 3 | 2 | 5 |
-| 功能文档 | 4 | 2 | 6 |
-| 设计文档 | 3 | 2 | 5 |
-| 验证报告 | 1 | 6 | 7 |
-| 实现报告 | 1 | 7 | 8 |
-| 其他 | 0 | 4 | 4 |
-| **总计** | **12** | **23** | **35** |
+Each `*_HISTORY_MERGED.md` contains the **verbatim** content of the individual
+reports that were removed. Kept for history only.
 
----
+| Archive | Absorbed (now deleted) |
+|---------|------------------------|
+| `api/ENDPOINT_VERIFICATION_MERGED.md` | COMPLETE/FINAL/CURRENT ENDPOINT_VERIFICATION, ENDPOINT_VERIFICATION_COMPLETE, ENDPOINT_AUDIT_REPORT, ALL_ENDPOINTS_IMPLEMENTED; + API_INTEGRATION_ANALYSIS, AI_ENDPOINT_VERIFICATION_REPORT |
+| `implementation/IMPLEMENTATION_HISTORY_MERGED.md` | COMPLETE_STATUS_REPORT, FINAL_IMPLEMENTATION_REPORT, IMPLEMENTATION_SUMMARY, P3_COMPLETION_REPORT, FIXES_APPLIED, COMPONENT_FIXES; + backend/BACKEND_FRONTEND_GAP_ANALYSIS, backend/CRITICAL_FIX_API_BASE_URL |
+| `architecture/ARCHITECTURE_HISTORY_MERGED.md` | ARCHITECTURE_DATA_CENTER, ARCHITECTURE_IMPROVEMENTS |
+| `design/REDESIGN_HISTORY_MERGED.md` | REDESIGN_REPORT_PHASE1, REDESIGN_REPORT_PHASE2; COMPLETE_REDESIGN_PLAN, UI_UX_REDESIGN_PROPOSAL, DESIGN_QUICK_REFERENCE (obsolete v4.0 visual; IA/UX history). **Still-valid IA/flows/layouts from these were mined into the design doc Part B (§7–§12); the archive remains verbatim, not current guidance.** |
+| `features/FEATURES_HISTORY_MERGED.md` | TTS_AUDIO_INTEGRATION_COMPLETE, TTS_BATCH_STATUS_QUERY_COMPLETE, TTS_NEW_BATCH_API_MIGRATION_COMPLETE, VOCABULARY_AUDIO_SYSTEM_COMPLETE, VOCABULARY_IMPLEMENTATION_SUMMARY |
 
-## ✅ 推荐操作
-
-1. **立即执行**: 将22个过时文档移动到 `archived/` 目录
-2. **保留**: 12个有效文档作为主要参考
-3. **定期维护**: 每个季度审查一次文档有效性
+Also previously removed (dated one-time session logs, no forward value):
+`implementation/SESSION_SUMMARY_2025-12-18.md`, `implementation/TODO_REDESIGN.md`.
 
 ---
 
-*Generated on 2025-12-20 | WordFlow AI Documentation Team*
+## 4. Single-source-of-truth map (interaction design)
+
+To avoid the prior scattering, interaction-design topics now live in exactly one
+place, with pointers elsewhere:
+
+| Topic | Single home | Pointers |
+|---|---|---|
+| Information architecture & navigation | design doc **§7** | `ARCHITECTURE.md` §8 → §7; RouteCenter = runtime list |
+| App shell / chrome (TopBar, layout, immersive) | design doc **§8** | — |
+| User flows (auth, learn loop, immersive, tools, mine) | design doc **§9** | mined from `REDESIGN_HISTORY_MERGED.md` |
+| Interaction states (loading/empty/error/…) | design doc **§10** | feature docs keep functional notes only |
+| Overlays & stacking / z-scale | design doc **§11** (+ tokens in §3.9) | `.cursor` rule §11 summary |
+| Gestures, transitions, motion, thumb-zone | design doc **§12** | — |
+
+---
+
+## 5. Maintenance rule
+
+When a report becomes obsolete or conflicts with a canonical doc: fold its
+**verbatim** content into the relevant `*_HISTORY_MERGED.md` archive (create one
+per area if none exists) under an
+`## ARCHIVED (folded YYYY-MM-DD) — <path> — superseded…` header, then delete the
+original (do **not** create a new `/archived` tree). Keep canonical specs
+single-source; AI rules (`.cursor/rules/*.mdc`) and indexes only reference and
+summarize — never duplicate a spec (`development-guides/CURSOR_RULES_UPDATE_GUIDE.md`).
+Docs are full-file replacements (`CLAUDE.md` §1.6). Rewrite this index in full
+after each audit.

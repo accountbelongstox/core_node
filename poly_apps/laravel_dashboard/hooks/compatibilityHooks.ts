@@ -1,17 +1,17 @@
 /**
  * Compatibility Hooks for Migration
- * 迁移兼容性 Hooks
+ * Migration compatibility Hooks
  *
- * 这些 hooks 提供向后兼容，让现有代码能够平滑迁移到 UnifiedAppContext
+ * These hooks provide backward compatibility so existing code can smoothly migrate to UnifiedAppContext
  * These hooks provide backward compatibility for smooth migration to UnifiedAppContext
  */
 
-import { useUnifiedApp } from '../core/contexts/UnifiedAppContext';
+import { useUnifiedApp } from '../core/contexts/useUnifiedApp';
 
 /**
- * useAppState - 兼容旧的 AppStateContext
+ * useAppState - compatible with the legacy AppStateContext
  *
- * @deprecated 请使用 useUnifiedApp 替代
+ * @deprecated Use useUnifiedApp instead
  * @deprecated Use useUnifiedApp instead
  */
 export function useAppState() {
@@ -48,9 +48,9 @@ export function useAppState() {
 }
 
 /**
- * useUser - 兼容旧的 useUser hook
+ * useUser - compatible with the legacy useUser hook
  *
- * @deprecated 请使用 useUnifiedApp 替代
+ * @deprecated Use useUnifiedApp instead
  * @deprecated Use useUnifiedApp instead
  */
 export function useUser() {

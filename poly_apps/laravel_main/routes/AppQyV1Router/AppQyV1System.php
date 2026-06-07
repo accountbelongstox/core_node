@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Route;
 # System and Initialization Routes for AppQyV1
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System\AppQyV1SystemInitializationController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System\AppQyV1SupportedLanguagesController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System\AppQyV1SystemInitComplianceCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1UntranslatedWordsController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordSubmit\AppQyV1WordDataSubmissionController;
@@ -29,6 +30,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
     Route::group(['prefix' => 'system'], function () {
         Route::post('/initialize', [AppQyV1SystemInitializationController::class, 'initialize']);
         Route::get('/initialization-status', [AppQyV1SystemInitializationController::class, 'status']);
+        Route::get('/init-compliance', [AppQyV1SystemInitComplianceCtl::class, 'complianceReport']);
         Route::post('/process-vocabulary', [AppQyV1SystemInitializationController::class, 'processVocabularyOnly']);
         Route::get('/vocabulary-status', [AppQyV1SystemInitializationController::class, 'getVocabularyStatus']);
         Route::get('/dictionary-statistics', [AppQyV1SystemInitializationController::class, 'getDictionaryStatistics']);

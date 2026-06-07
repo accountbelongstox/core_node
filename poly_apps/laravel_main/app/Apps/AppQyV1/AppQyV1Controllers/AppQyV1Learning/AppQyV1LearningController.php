@@ -11,8 +11,9 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCollectionModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserSelectedLibraryModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Traits\ApiResponse;
 
 class AppQyV1LearningController extends Controller
@@ -222,7 +223,7 @@ class AppQyV1LearningController extends Controller
         $dictionaryEntries = [];
 
         foreach ($wordMd5s as $md5) {
-            $entry = AppQyV1MultiLangDictionaryModel::findByMd5($langCode, $md5);
+            $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
             if ($entry) {
                 $dictionaryEntries[$md5] = $entry;
             }
@@ -262,7 +263,7 @@ class AppQyV1LearningController extends Controller
                     if ($result['success']) {
                         $ttsFiles = [[
                             'path' => $result['audio_path'],
-                            'url' => $result['audio_url'],
+                            'url' => AppQyV1TtsUrl::forPath($result['audio_path']),
                             'provider' => 'edge-tts',
                             'speed' => $result['speed'] ?? '+0%',
                             'created_at' => now()->toDateTimeString()

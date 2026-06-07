@@ -28,6 +28,7 @@ import { getRequireLoginMessage, isRequireLoginView } from './config/auth';
 import i18n from './core/i18n';
 import { htmlErrorManager, HtmlErrorEvent } from './services/HtmlErrorManager';
 import { apiManager } from './services/ApiManager';
+import { OfflineBanner } from './components/shared';
 
 /**
  * AppContent – main layout and view routing.
@@ -59,22 +60,52 @@ const AppContent: React.FC = () => {
   // Initialize API Manager and set global API base URL before any views run requests.
   // This ensures the preferred endpoint (from API Endpoints switcher / store) is used everywhere.
   useEffect(() => {
-    const initializeApi = async () => {
-      await apiManager.initialize({
-        autoDetect: true,
-        timeout: 1000
-      });
+    // FIRST PAINT IS NEVER BLOCKED BY A PROBE.
+    //
+    // Step 1 (synchronous, no network): pick the active endpoint instantly
+    // from the store/priority precedence, point `api` at it and flip
+    // apiReady=true in the same tick. The app shell renders immediately —
+    // there is no awaited health probe between mount and paint, so dead LAN
+    // IPs / slow HTTPS remotes can no longer cause the white
+    // "Loading API endpoint..." screen.
+    const preselected = apiManager.preselectEndpointSync();
+    if (preselected) {
+      api.updateBaseURL(apiManager.getCurrentBaseUrl());
+      console.log('[ApiManager] Pre-selected (sync):', apiManager.getCurrentBaseUrl());
+    }
+    setApiReady(true);
 
-      const baseUrl = apiManager.getCurrentBaseUrl();
-      api.updateBaseURL(baseUrl);
-      setApiReady(true);
-      console.log('[ApiManager] Initialized with:', baseUrl);
+    // Step 2 (background, does NOT gate paint): the single PARALLEL
+    // all-endpoints probe runs exactly once (single-flight + StrictMode-safe
+    // via the manager's shared healthPassPromise, no timers, no retries).
+    // When it settles, "以能使用的为准": if the synchronously-chosen endpoint
+    // is unreachable, the manager auto-fails-over to a healthy one (same
+    // precedence, store write-back, api_user_modified never clobbered). If the
+    // live endpoint changed we re-point `api`; either way we notify the
+    // switcher (read-only — it does NOT re-probe).
+    let cancelled = false;
+    const refineApiHealth = async () => {
+      const chosen = await apiManager.runBackgroundHealthPass(1000);
+      if (cancelled) return;
 
-      await apiManager.runInitialHealthCheck(1000);
+      if (chosen) {
+        const baseUrl = apiManager.getCurrentBaseUrl();
+        if (!preselected || chosen.id !== preselected.id) {
+          api.updateBaseURL(baseUrl);
+          console.log('[ApiManager] Auto-failover to:', baseUrl);
+        }
+      }
+
+      // Health results for ALL endpoints are populated now; let the switcher
+      // render its dots and reflect any failover.
       window.dispatchEvent(new CustomEvent('api-health-initialized'));
     };
 
-    initializeApi();
+    refineApiHealth();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -207,7 +238,10 @@ const AppContent: React.FC = () => {
         ? 'bg-slate-900 text-slate-200 selection:bg-indigo-500/30 selection:text-indigo-200' 
         : 'bg-slate-50 text-slate-800 selection:bg-indigo-500/20 selection:text-indigo-600'}
     `}>
-      
+
+      {/* Global connectivity banner – fixed, non-blocking, overlays everything */}
+      <OfflineBanner />
+
       {/* Dynamic Backgrounds */}
       {theme === 'dark' ? (
         <div className="fixed inset-0 pointer-events-none z-0">

@@ -10,6 +10,24 @@ use Illuminate\Support\Facades\Log;
 
 class AvatarService
 {
+    /**
+     * Hard cap on the size of a decoded uploaded avatar (raw bytes, before
+     * re-encode). Uploads larger than this are rejected outright. This is the
+     * shared contract value the frontend role must respect.
+     */
+    public const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+    /**
+     * Maximum stored avatar edge length in pixels. The image is scaled down
+     * (aspect preserved) so the longest side is at most this value.
+     */
+    public const MAX_DIMENSION = 512;
+
+    /**
+     * Output JPEG quality (0-100) used when re-encoding uploaded avatars.
+     */
+    public const OUTPUT_JPEG_QUALITY = 82;
+
     private const DICEBEAR_API_BASE = 'https://api.dicebear.com/9.x';
 
     private const AVATAR_STYLES = [
@@ -111,37 +129,124 @@ class AvatarService
      */
     public static function saveBase64Avatar(string $base64Data, int $userId, string $appName = null, ?string $filename = null): ?string
     {
+        $allowedExtensions = ['png', 'jpg', 'jpeg', 'webp'];
         $extension = 'png';
         $cleanBase64 = null;
         $matchResult = null;
+        $imageData = null;
+        $decodedSize = 0;
+        $finalFilename = null;
+        $appKey = null;
+        $avatarsDir = null;
+        $appDir = null;
+        $fullPath = null;
+        $sourceImage = null;
+        $srcWidth = 0;
+        $srcHeight = 0;
+        $scale = 1.0;
+        $dstWidth = 0;
+        $dstHeight = 0;
+        $destImage = null;
+        $encoded = false;
+        $saved = false;
+        $relativePath = null;
 
         if (preg_match('/^data:image\/(\w+);base64,/', $base64Data, $matchResult)) {
-            $extension = $matchResult[1];
+            $extension = strtolower($matchResult[1]);
             $cleanBase64 = substr($base64Data, strpos($base64Data, ',') + 1);
         } else {
             $cleanBase64 = $base64Data;
         }
 
-        $imageData = base64_decode($cleanBase64);
+        if (!in_array($extension, $allowedExtensions, true)) {
+            Log::error('[AvatarService] Rejected avatar: unsupported extension', [
+                'extension' => $extension,
+                'user_id' => $userId,
+            ]);
+            return null;
+        }
 
-        if ($imageData === false) {
+        $imageData = base64_decode($cleanBase64, true);
+
+        if ($imageData === false || $imageData === '') {
             Log::error('[AvatarService] Failed to decode base64 avatar');
             return null;
         }
 
-        $finalFilename = null;
+        $decodedSize = strlen($imageData);
+        if ($decodedSize > self::MAX_UPLOAD_BYTES) {
+            Log::error('[AvatarService] Rejected avatar: exceeds size cap', [
+                'decoded_bytes' => $decodedSize,
+                'max_bytes' => self::MAX_UPLOAD_BYTES,
+                'user_id' => $userId,
+            ]);
+            return null;
+        }
+
+        // Decode into a GD resource so we can downscale and re-encode. The
+        // raw uploaded bytes are NEVER written to disk verbatim (that was the
+        // 27 MB bug). Stored output is always a recompressed JPEG.
+        $sourceImage = @imagecreatefromstring($imageData);
+        if ($sourceImage === false) {
+            Log::error('[AvatarService] Rejected avatar: not a decodable image', [
+                'user_id' => $userId,
+            ]);
+            return null;
+        }
+
+        $srcWidth = imagesx($sourceImage);
+        $srcHeight = imagesy($sourceImage);
+
+        if ($srcWidth < 1 || $srcHeight < 1) {
+            imagedestroy($sourceImage);
+            Log::error('[AvatarService] Rejected avatar: invalid dimensions', [
+                'user_id' => $userId,
+            ]);
+            return null;
+        }
+
+        $scale = 1.0;
+        if ($srcWidth > self::MAX_DIMENSION || $srcHeight > self::MAX_DIMENSION) {
+            $scale = self::MAX_DIMENSION / max($srcWidth, $srcHeight);
+        }
+
+        $dstWidth = max(1, (int) round($srcWidth * $scale));
+        $dstHeight = max(1, (int) round($srcHeight * $scale));
+
+        $destImage = imagecreatetruecolor($dstWidth, $dstHeight);
+        // Flatten any alpha onto white so JPEG output looks correct.
+        imagefilledrectangle(
+            $destImage,
+            0,
+            0,
+            $dstWidth,
+            $dstHeight,
+            imagecolorallocate($destImage, 255, 255, 255)
+        );
+        imagecopyresampled(
+            $destImage,
+            $sourceImage,
+            0,
+            0,
+            0,
+            0,
+            $dstWidth,
+            $dstHeight,
+            $srcWidth,
+            $srcHeight
+        );
+        imagedestroy($sourceImage);
+
+        // Always store as a compressed .jpg regardless of source format so the
+        // served file is small (target well under ~150 KB at 512px max edge).
         if ($filename) {
-            $finalFilename = $filename;
+            $finalFilename = preg_replace('/\.[^.]+$/', '', $filename) . '.jpg';
+        } else {
+            $finalFilename = 'avatar_' . $userId . '_' . time() . '.jpg';
         }
 
-        if (!$finalFilename) {
-            $finalFilename = 'avatar_' . $userId . '_' . time() . '.' . $extension;
-        }
+        $appKey = $appName ?? AppKeys::APPQYV1;
 
-        if ($appKey === null) {
-            $appKey = AppKeys::APPQYV1;
-        }
-        
         $avatarsDir = PathMapper::getLaravelAvatarsDir();
         $appDir = $avatarsDir . '/' . $appKey;
 
@@ -150,9 +255,10 @@ class AvatarService
         }
 
         $fullPath = $appDir . '/' . $finalFilename;
-        $saved = file_put_contents($fullPath, $imageData);
+        $encoded = imagejpeg($destImage, $fullPath, self::OUTPUT_JPEG_QUALITY);
+        imagedestroy($destImage);
 
-        if ($saved === false) {
+        if ($encoded === false || !file_exists($fullPath)) {
             Log::error('[AvatarService] Failed to save base64 avatar', [
                 'path' => $fullPath,
             ]);
@@ -163,7 +269,9 @@ class AvatarService
 
         Log::info('[AvatarService] Base64 avatar saved', [
             'relative_path' => $relativePath,
-            'size' => strlen($imageData),
+            'source_bytes' => $decodedSize,
+            'stored_bytes' => filesize($fullPath),
+            'dimensions' => $dstWidth . 'x' . $dstHeight,
         ]);
 
         return $relativePath;
@@ -177,8 +285,23 @@ class AvatarService
      */
     public static function deleteAvatar(string $relativePath): bool
     {
-        $avatarsDir = PathMapper::getLaravelAvatarsDir();
-        $fullPath = dirname($avatarsDir) . '/' . $relativePath;
+        $normalized = null;
+        $fullPath = null;
+        $deleted = false;
+
+        // Resolve strictly through the canonical PathMapper-backed helper.
+        // No ad-hoc dirname()/string concatenation of root directories
+        // (PATH_CONVERSION_SPECIFICATION §6).
+        $normalized = ltrim($relativePath, '/');
+
+        // Layout A: "avatars/<app>/<file>" -> strip the "avatars/" prefix and
+        // resolve the remainder under the mapped avatars directory.
+        if (strpos($normalized, 'avatars/') === 0) {
+            $fullPath = PathMapper::getLaravelAvatarsDir(substr($normalized, strlen('avatars/')));
+        } else {
+            // Layout B: bare "<file>" (legacy root-level default avatars).
+            $fullPath = PathMapper::getLaravelAvatarsDir($normalized);
+        }
 
         if (file_exists($fullPath)) {
             $deleted = unlink($fullPath);

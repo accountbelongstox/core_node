@@ -27,7 +27,7 @@ class ConfigController
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($config) {
-                // 计算剩余月份
+                // Calculate the remaining months
                 $expiryMonths = 0;
                 if ($config->expires_at) {
                     $now = Carbon::now();

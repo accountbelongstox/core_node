@@ -7,6 +7,7 @@
 import { ApiCenter } from './ApiCenter';
 import { User } from '../types';
 import { StorageCenter } from './StorageCenter';
+import { compressAvatarDataUrl } from './imageCompression';
 
 export interface ProfileEnsureResult {
   updated: boolean;
@@ -128,7 +129,17 @@ class UserProfileEnsurerClass {
       }
 
       const blob = await response.blob();
-      const base64 = await this.blobToBase64(blob);
+      const rawBase64 = await this.blobToBase64(blob);
+
+      // Defensively downscale/compress before sending as avatar_base64 so the
+      // payload is always bounded (aligned with the backend avatar contract).
+      let base64 = rawBase64;
+      try {
+        const compressed = await compressAvatarDataUrl(rawBase64, `avatar_${user.id}`);
+        base64 = compressed.dataUrl;
+      } catch (compressErr) {
+        console.warn('[UserProfileEnsurer] Avatar compression skipped:', compressErr);
+      }
 
       const filename = `avatar_${user.id}_${Date.now()}.png`;
 

@@ -71,6 +71,7 @@ class PathMapper
             'backup' => $basePath . $separator . 'backup',
             'www' => $basePath,
             'laravel_data_dir' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db',
+            'app_external_data' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'external_data',
             'nginx' => $isWindows ? 'nginx.exe' : self::findActualPath('/etc/nginx'),
             'php' => $isWindows ? 'php.exe' : self::findActualPath('/etc/php'),
             'logs' => $isWindows ? ($basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'logs') : self::findLaravelLogPath($basePath),
@@ -399,12 +400,24 @@ class PathMapper
      */
     public static function getAppQyV1ExternalDataRoot(?string $subPath = ""): string
     {
-        $basePath = config('AppQyV1.paths.external_data_root', storage_path('app/external_data'));
-        if ($subPath !== null && $subPath !== '') {
-            $subPath = ltrim($subPath, '/');
-            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        // Backward-compatible explicit override: a path pinned via
+        // DICT_EXTERNAL_DATA_PATH / AppQyV1.paths.external_data_root is honored
+        // verbatim so hosts that already fixed a location keep working.
+        $configured = config('AppQyV1.paths.external_data_root');
+        $default = storage_path('app/external_data');
+        if ($configured !== null && $configured !== '' && $configured !== $default) {
+            $basePath = $configured;
+            if ($subPath !== null && $subPath !== '') {
+                $subPath = ltrim($subPath, '/');
+                $basePath = rtrim($basePath, '/') . '/' . $subPath;
+            }
+            return $basePath;
         }
-        return $basePath;
+
+        // Default: route through the canonical cross-OS path map so the same
+        // logical location resolves correctly under WSL / Windows / Ubuntu and
+        // is identical for the sys:init CLI process and the Octane HTTP worker.
+        return self::mapWebPath('app_external_data', $subPath);
     }
 
     /**
@@ -413,12 +426,23 @@ class PathMapper
      */
     public static function getAppQyV1AudioDir(?string $subPath = ""): string
     {
-        $basePath = config('AppQyV1.paths.audio_directory', storage_path('app/external_data/audio/word_sounds'));
-        if ($subPath !== null && $subPath !== '') {
-            $subPath = ltrim($subPath, '/');
-            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        $configured = config('AppQyV1.paths.audio_directory');
+        $default = storage_path('app/external_data/audio/word_sounds');
+        if ($configured !== null && $configured !== '' && $configured !== $default) {
+            $basePath = $configured;
+            if ($subPath !== null && $subPath !== '') {
+                $subPath = ltrim($subPath, '/');
+                $basePath = rtrim($basePath, '/') . '/' . $subPath;
+            }
+            return $basePath;
         }
-        return $basePath;
+
+        // Derive from the unified, mapWebPath-backed external data root.
+        $relative = 'audio/word_sounds';
+        if ($subPath !== null && $subPath !== '') {
+            $relative = $relative . '/' . ltrim($subPath, '/');
+        }
+        return self::getAppQyV1ExternalDataRoot($relative);
     }
 
     /**
@@ -427,12 +451,23 @@ class PathMapper
      */
     public static function getAppQyV1SentenceSoundsDir(?string $subPath = ""): string
     {
-        $basePath = config('AppQyV1.paths.sentence_sounds', storage_path('app/external_data/audio/sentence_sounds'));
-        if ($subPath !== null && $subPath !== '') {
-            $subPath = ltrim($subPath, '/');
-            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        $configured = config('AppQyV1.paths.sentence_sounds');
+        $default = storage_path('app/external_data/audio/sentence_sounds');
+        if ($configured !== null && $configured !== '' && $configured !== $default) {
+            $basePath = $configured;
+            if ($subPath !== null && $subPath !== '') {
+                $subPath = ltrim($subPath, '/');
+                $basePath = rtrim($basePath, '/') . '/' . $subPath;
+            }
+            return $basePath;
         }
-        return $basePath;
+
+        // Derive from the unified, mapWebPath-backed external data root.
+        $relative = 'audio/sentence_sounds';
+        if ($subPath !== null && $subPath !== '') {
+            $relative = $relative . '/' . ltrim($subPath, '/');
+        }
+        return self::getAppQyV1ExternalDataRoot($relative);
     }
 
     /**

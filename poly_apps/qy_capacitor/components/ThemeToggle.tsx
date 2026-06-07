@@ -1,6 +1,7 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useContext } from 'react';
 import { AppContext } from '../contexts/AppContext';
-import { Icons } from './UI';
+import { Icons, IconButton } from './UI';
 import { StateManager, GlobalState } from '../services/StateManager';
 
 export const ThemeToggle: React.FC<{
@@ -22,26 +23,20 @@ export const ThemeToggle: React.FC<{
     }
   };
 
+  // Reference top bar uses a quiet frosted circular icon button. `bar` keeps a
+  // glass shell (floating header); `minimal`/scrolled stays transparent-quiet.
   const isMinimal = variant === 'minimal';
   const useGlass = !isMinimal && !scrolled;
+  const isDark = settings.display.theme === 'dark';
+  const label = isDark ? t('header.switchToLight') : t('header.switchToDark');
 
   return (
-    <button
-      type="button"
+    <IconButton
+      icon={isDark ? <Icons.Sun /> : <Icons.Moon />}
       onClick={toggleTheme}
-      aria-label={settings.display.theme === 'dark' ? t('header.switchToLight') : t('header.switchToDark')}
-      title={settings.display.theme === 'dark' ? t('header.switchToLight') : t('header.switchToDark')}
-      className={`
-        ds-touch-target flex items-center justify-center rounded-full transition-all duration-300
-        ${useGlass ? 'ds-glass ds-glass-edge border border-white/40 dark:border-white/10 shadow-sm text-slate-600 dark:text-slate-300' : ''}
-        ${scrolled && !isMinimal ? 'bg-transparent text-slate-500' : ''}
-        ${isMinimal ? 'ds-glass ds-glass-edge text-slate-600 dark:text-slate-300' : ''}
-        hover:opacity-90 active:scale-95
-        ${className}
-      `}
-    >
-      {settings.display.theme === 'dark' ? <Icons.Sun /> : <Icons.Moon />}
-    </button>
+      label={label}
+      className={`${useGlass ? 'ds-glass ds-glass-edge border border-[var(--border-highlight)] shadow-sm' : ''} ${className}`}
+    />
   );
 };
 

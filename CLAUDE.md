@@ -1,0 +1,3 @@
+# core_node — AI main spec
+
+**Cross-OS / relative path conversion (mandatory):** Before using any path or command, detect the path style in the prompt and the executing environment (Windows / Git-Bash / WSL / Ubuntu / deployed Linux), then convert the path accordingly and resolve relatives to absolute — never reuse a foreign-environment path or command verbatim. Full rule: [development-guides/PATH_CONVERSION_SPECIFICATION.md](development-guides/PATH_CONVERSION_SPECIFICATION.md). Laravel `poly_apps/laravel_main` runtime paths must resolve via `App\Providers\PathMapper::mapWebPath()` / its helpers only — never raw `storage_path()` / `base_path()` / `database_path()` / `env('*_PATH')` / ad-hoc concatenation (see §6 of the canonical spec).

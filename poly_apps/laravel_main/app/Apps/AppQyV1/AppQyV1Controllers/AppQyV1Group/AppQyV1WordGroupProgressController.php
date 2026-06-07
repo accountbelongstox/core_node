@@ -260,4 +260,78 @@ class AppQyV1WordGroupProgressController
             ],
         ], 'Progress stats retrieved successfully');
     }
+
+    public function getCourseAnalysis(Request $request, $gid): JsonResponse
+    {
+        $knownThreshold = 60;
+
+        $user = Auth::user();
+        if (!$user) {
+            return $this->unauthorized('Authentication required');
+        }
+
+        $group = AppQyV1WordGroupModel::where('gid', $gid)->first();
+        if (!$group) {
+            return $this->error('Group not found', 404);
+        }
+
+        $groupWordSet = [];
+        $gwords = $group->getWordsArray();
+
+        if (is_array($gwords) && !empty($gwords)) {
+            foreach ($gwords as $w) {
+                $normalized = strtolower(trim((string) $w));
+                if ($normalized !== '') {
+                    $groupWordSet[] = $normalized;
+                }
+            }
+        } else {
+            $pivotRows = $group->groupWords()->with('word')->get();
+            foreach ($pivotRows as $row) {
+                $content = $row->word->word_content ?? null;
+                if ($content !== null) {
+                    $normalized = strtolower(trim((string) $content));
+                    if ($normalized !== '') {
+                        $groupWordSet[] = $normalized;
+                    }
+                }
+            }
+        }
+
+        $groupWordSet = array_values(array_unique($groupWordSet));
+        $totalWords = count($groupWordSet);
+
+        $knownWordSet = [];
+        $rows = AppQyV1UserWordProgressModel::forUser($user->id)
+            ->where('proficiency', '>=', $knownThreshold)
+            ->with('word:id,word_content')
+            ->get(['id', 'word_id', 'proficiency']);
+
+        foreach ($rows as $row) {
+            if ($row->word && $row->word->word_content !== null) {
+                $knownWordSet[] = strtolower(trim($row->word->word_content));
+            }
+        }
+
+        $knownWordSet = array_values(array_unique($knownWordSet));
+
+        $knownWords = count(array_intersect($groupWordSet, $knownWordSet));
+
+        $similarity = 0;
+        if ($totalWords > 0) {
+            $similarity = (int) round($knownWords / $totalWords * 100);
+        }
+
+        $newWords = $totalWords - $knownWords;
+        $estimatedDays = $newWords > 0 ? (int) ceil($newWords / 20) : 0;
+
+        return $this->success([
+            'groupId' => $group->gid,
+            'totalWords' => $totalWords,
+            'knownWords' => $knownWords,
+            'newWords' => $newWords,
+            'estimatedDays' => $estimatedDays,
+            'similarity' => $similarity,
+        ], 'Course analysis retrieved successfully');
+    }
 }

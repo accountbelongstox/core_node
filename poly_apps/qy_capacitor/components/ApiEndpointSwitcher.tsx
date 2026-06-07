@@ -1,8 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Server, RefreshCw, Check, AlertCircle } from 'lucide-react';
+/* [v4.1-Iris] Endpoint switcher panel converted from an anchored Popover to a
+   bottom Sheet (modal): backdrop dims + blocks background scroll/touch, sits at
+   z-modal (above the bottom island/chrome), closes on backdrop tap, full-width
+   (no left-edge clipping). Fixes the stacking / pass-through / can't-close bugs. */
+import React, { useState, useEffect } from 'react';
+import { Server, RefreshCw, Check, X, ChevronDown } from 'lucide-react';
 import { apiManager, HealthCheckResult } from '../services/ApiManager';
 import { ApiEndpoint } from '../config/api-endpoints';
 import { EventBus } from '../services/EventBus';
+import { IconButton, Badge, Sheet } from './UI';
 
 export const ApiEndpointSwitcher: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -10,25 +15,17 @@ export const ApiEndpointSwitcher: React.FC = () => {
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
   const [healthResults, setHealthResults] = useState<Map<string, HealthCheckResult>>(new Map());
   const [isChecking, setIsChecking] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadEndpoints();
     checkAllHealth();
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    // outside-click / Escape handled by <Popover>
   }, []);
 
   const loadEndpoints = () => {
     setCurrentEndpoint(apiManager.getCurrentEndpoint());
-    setEndpoints(apiManager.getAllEndpoints());
+    const loaded = apiManager.getAllEndpoints();
+    setEndpoints(Array.isArray(loaded) ? loaded : []);
 
     const results = new Map<string, HealthCheckResult>();
     apiManager.getAllHealthResults().forEach(result => {
@@ -76,15 +73,14 @@ export const ApiEndpointSwitcher: React.FC = () => {
   const currentHealth = getCurrentHealth();
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center gap-2 px-3 py-2 rounded-lg transition-all
-          text-slate-600 dark:text-slate-300
-          hover:bg-black/5 dark:hover:bg-white/10
-          border border-transparent
-          ${currentHealth?.isHealthy ? 'hover:border-emerald-500/20' : 'hover:border-red-500/20'}
+          flex items-center gap-2 px-4 py-2 rounded-full transition-all ds-touch-target
+          ds-glass ds-glass-edge border border-[var(--border-highlight)] text-[var(--color-text-secondary)]
+          hover:opacity-90 active:scale-[0.98]
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--klein-ring)]
         `}
         title="Switch API Endpoint"
       >
@@ -103,58 +99,52 @@ export const ApiEndpointSwitcher: React.FC = () => {
             {currentEndpoint?.description.split(' ')[0] || 'API'}
           </span>
           {currentHealth ? (
-            <span className={`text-[10px] font-medium ${currentHealth.isHealthy ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-              {currentHealth.isHealthy ? `✓ ${currentHealth.responseTime}ms` : '✗ Unavailable'}
+            <span className={`flex items-center gap-1 text-[10px] font-medium ${currentHealth.isHealthy ? 'text-emerald-500' : 'text-red-500'}`}>
+              {currentHealth.isHealthy ? (
+                <><Check size={10} aria-hidden /> {currentHealth.responseTime}ms</>
+              ) : (
+                <><X size={10} aria-hidden /> Unavailable</>
+              )}
             </span>
           ) : (
-            <span className="text-[10px] text-slate-500 dark:text-slate-400">Checking...</span>
+            <span className="text-[10px] text-[var(--color-text-tertiary)]">Checking...</span>
           )}
         </div>
 
-        <svg
-          className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <ChevronDown
+          size={12}
+          aria-hidden
+          className={`transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
       </button>
 
-      {isOpen && (
-        <div className="
-          absolute right-0 top-full mt-2 w-80
-          bg-white dark:bg-slate-800
-          border border-slate-200 dark:border-slate-700
-          rounded-lg shadow-xl
-          overflow-hidden
-          z-50
-        ">
-          <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+      <Sheet
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        position="bottom"
+        panelClassName="!p-0 max-h-[85vh] flex flex-col overflow-hidden"
+      >
+          {/* grab handle */}
+          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+            <span className="w-10 h-1.5 rounded-full bg-[var(--color-text-tertiary)] opacity-30" />
+          </div>
+
+          <div className="px-5 py-3 border-b border-[var(--border-highlight)] flex-shrink-0">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
+              <h3 className="text-base font-bold text-[var(--color-text-primary)]">
                 API Endpoints
               </h3>
-              <button
+              <IconButton
+                icon={<RefreshCw size={16} className={isChecking ? 'animate-spin' : ''} />}
                 onClick={checkAllHealth}
                 disabled={isChecking}
-                className="
-                  p-1.5 rounded-md
-                  text-slate-500 hover:text-indigo-600
-                  dark:text-slate-400 dark:hover:text-indigo-400
-                  hover:bg-slate-100 dark:hover:bg-slate-700
-                  transition-all
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                "
-                title="Refresh Health Check"
-              >
-                <RefreshCw size={14} className={isChecking ? 'animate-spin' : ''} />
-              </button>
+                label="Refresh Health Check"
+              />
             </div>
           </div>
 
-          <div className="max-h-80 overflow-y-auto">
-            {endpoints.map((endpoint) => {
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 flex flex-col gap-2">
+            {(Array.isArray(endpoints) ? endpoints : []).map((endpoint) => {
               const health = getHealth(endpoint.id);
               const isCurrent = currentEndpoint?.id === endpoint.id;
 
@@ -162,45 +152,33 @@ export const ApiEndpointSwitcher: React.FC = () => {
                 <button
                   key={endpoint.id}
                   onClick={() => selectEndpoint(endpoint.id)}
-                  className={`
-                    w-full px-4 py-3 text-left transition-all
-                    flex items-center justify-between gap-3
-                    hover:bg-slate-50 dark:hover:bg-slate-700/50
-                    ${isCurrent ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}
-                  `}
+                  className={`ds-row w-full p-4 text-left transition-all flex items-center justify-between gap-3 ${isCurrent ? 'ds-active' : ''}`}
+                  style={isCurrent ? { borderColor: 'var(--klein-ring)' } : undefined}
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="
-                      w-6 h-6 rounded-full
-                      flex items-center justify-center
-                      bg-slate-200 dark:bg-slate-700
-                      text-[10px] font-bold
-                      text-slate-600 dark:text-slate-300
-                      flex-shrink-0
-                    ">
+                    <div
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                      style={isCurrent
+                        ? { background: 'var(--klein-blue)', color: 'var(--klein-on)' }
+                        : { background: 'var(--klein-blue-soft)', color: 'var(--klein-blue)' }}
+                    >
                       {endpoint.priority}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-slate-800 dark:text-white truncate">
+                        <span className="text-sm font-medium text-[var(--color-text-primary)] truncate">
                           {endpoint.description}
                         </span>
                         {isCurrent && (
-                          <Check size={14} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                          <Check size={14} className="flex-shrink-0" style={{ color: 'var(--klein-blue)' }} />
                         )}
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`
-                          text-[10px] uppercase font-bold px-1.5 py-0.5 rounded
-                          ${endpoint.protocol === 'https'
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                          }
-                        `}>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge tone={endpoint.protocol === 'https' ? 'success' : 'klein'}>
                           {endpoint.protocol}
-                        </span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        </Badge>
+                        <span className="text-xs text-[var(--color-text-tertiary)] truncate">
                           {endpoint.url}{endpoint.port ? `:${endpoint.port}` : ''}
                         </span>
                       </div>
@@ -212,14 +190,14 @@ export const ApiEndpointSwitcher: React.FC = () => {
                       {health.isHealthy ? (
                         <>
                           <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                          <span className="text-xs text-emerald-500 font-medium">
                             {health.responseTime}ms
                           </span>
                         </>
                       ) : (
                         <>
                           <span className="w-2 h-2 rounded-full bg-red-500" />
-                          <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                          <span className="text-xs text-red-500 font-medium">
                             Offline
                           </span>
                         </>
@@ -231,13 +209,15 @@ export const ApiEndpointSwitcher: React.FC = () => {
             })}
           </div>
 
-          <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+          <div
+            className="px-5 py-3 border-t border-[var(--border-highlight)] flex-shrink-0"
+            style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+          >
+            <p className="text-[11px] text-[var(--color-text-tertiary)]">
               Selected endpoint will be saved and used for all API requests
             </p>
           </div>
-        </div>
-      )}
+      </Sheet>
     </div>
   );
 };

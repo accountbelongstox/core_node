@@ -67,14 +67,24 @@ class Config:
     UI_WINDOW_SIZE = (1000, 180)
     UI_SHOW_ON_START = False  # Only show tk debug window on start; open main window from tray
     UI_FRAMELESS = False
-    UI_ENABLE_TRAY = False
     UI_SHOW_STARTUP = True
-    UI_AUTO_CLOSE_STARTUP = False
+    UI_AUTO_CLOSE_STARTUP = True  # Close tk debug window once third-party packages are loaded
 
     # ==================== Tray service ====================
+    # Tray backend selection (independent of / started before PySide6):
+    #   "native"  = platform-native tray [default]:
+    #                 Windows -> Win32 Shell_NotifyIcon (pywin32, no third-party lib)
+    #                 Ubuntu/GNOME -> AppIndicator (Ayatana preferred)
+    #                 (falls back to pystray if the native backend is unavailable)
+    #   "pystray" = cross-platform third-party pystray tray (kept as fallback/option)
+    #   "pyside"  = more powerful Qt (QSystemTrayIcon) tray embedded in the UI thread
+    TRAY_BACKEND = "native"
     TRAY_APP_NAME = "Pycore RPC Server"
     TRAY_ICON_PATH_REL = "pyutils/native_ui/step1_config/app_icon.png"
     TRAY_TRIGGER_SHUTDOWN_ON_EXIT = True
+
+    # The PySide6 Qt tray is enabled only when the "pyside" backend is selected.
+    UI_ENABLE_TRAY = (TRAY_BACKEND == "pyside")
 
     # ==================== Runtime Mode ====================
     MODE = os.getenv("CALLMODULE_MODE", "dev")

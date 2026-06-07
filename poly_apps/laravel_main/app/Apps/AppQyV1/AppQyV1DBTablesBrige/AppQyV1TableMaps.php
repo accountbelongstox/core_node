@@ -217,7 +217,9 @@ class AppQyV1TableMaps
         if (preg_match('/^' . preg_quote($prefix, '/') . '_([a-z]{2,3})_DICTIONARIES$/i', $fullKey, $matches)) {
             $langCode = strtolower($matches[1]);
             if (in_array($langCode, self::getSupportedLanguageCodes())) {
-                return "{$prefix}_{$langCode}_dictionaries";
+                // Unified: every dictionary key resolves to the single
+                // canonical multi-language table tts_cache_{lang}.
+                return self::getDictionaryTableName($langCode);
             }
         }
 
@@ -228,41 +230,42 @@ class AppQyV1TableMaps
         return '';
     }
     
+    /**
+     * Legacy alias. The words_{lang} family is deprecated; every caller now
+     * resolves to the single canonical dictionary table tts_cache_{lang}.
+     * Language names (english/japanese/...) are normalized to codes.
+     */
     public static function getWordTableName(string $langCode): string
     {
-        $prefix = self::getTablePrefix();
         $langCode = strtolower($langCode);
 
-        $languageMapping = [
-            'en' => 'english',
-            'ja' => 'japanese',
-            'ko' => 'korean',
-            'vi' => 'vietnamese',
-            'lo' => 'lao',
-            'english' => 'english',
-            'japanese' => 'japanese',
-            'korean' => 'korean',
-            'vietnamese' => 'vietnamese',
-            'lao' => 'lao',
+        $nameToCode = [
+            'english' => 'en',
+            'japanese' => 'ja',
+            'korean' => 'ko',
+            'vietnamese' => 'vi',
+            'lao' => 'lo',
         ];
 
-        $mappedName = $languageMapping[$langCode] ?? $langCode;
-        return "{$prefix}_words_{$mappedName}";
+        if (isset($nameToCode[$langCode])) {
+            $langCode = $nameToCode[$langCode];
+        }
+
+        return self::getDictionaryTableName($langCode);
     }
 
     /**
-     * Get all available word tables
+     * Get all canonical dictionary tables (legacy method name kept).
      *
      * @return array Array of [langCode => tableName]
      */
     public static function getAllWordTables(): array
     {
-        $prefix = self::getTablePrefix();
         return [
-            'en' => "{$prefix}_words_english",
-            'ja' => "{$prefix}_words_japanese",
-            'vi' => "{$prefix}_words_vietnamese",
-            'lo' => "{$prefix}_words_lao",
+            'en' => self::getDictionaryTableName('en'),
+            'ja' => self::getDictionaryTableName('ja'),
+            'vi' => self::getDictionaryTableName('vi'),
+            'lo' => self::getDictionaryTableName('lo'),
         ];
     }
 
@@ -271,6 +274,15 @@ class AppQyV1TableMaps
         $prefix = self::getTablePrefix();
         $langCode = strtolower($langCode);
         return "{$prefix}_tts_cache_{$langCode}";
+    }
+
+    /**
+     * Stage-1 staging table for a language. Import pipelines write here;
+     * promoteStagingToFormal() copies into getDictionaryTableName($lang).
+     */
+    public static function getDictionaryStagingTableName(string $langCode): string
+    {
+        return self::getDictionaryTableName($langCode) . '_staging';
     }
 
     public static function getFieldName(string $tableKey, string $fieldKey): string

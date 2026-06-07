@@ -1,4 +1,5 @@
 import React from 'react';
+import { NOISE_TEXTURE_BG_CLASS } from '../utils/noiseTexture';
 
 interface BentoCardProps {
   children: React.ReactNode;
@@ -23,7 +24,7 @@ const BentoCard: React.FC<BentoCardProps> = ({ children, title, className = '', 
       ${className}
     `}>
       {/* Subtle Gradient Noise Texture Overlay */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')] brightness-100 contrast-150 mix-blend-overlay"></div>
+      <div className={`absolute inset-0 opacity-5 pointer-events-none ${NOISE_TEXTURE_BG_CLASS} brightness-100 contrast-150 mix-blend-overlay`}></div>
       
       {(title || headerControls) && (
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/5 dark:border-white/5 bg-white/30 dark:bg-white/5 relative z-10">

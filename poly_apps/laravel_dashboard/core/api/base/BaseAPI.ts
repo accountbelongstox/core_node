@@ -3,30 +3,159 @@ import { apiCache } from './APICache';
 import { htmlErrorManager } from '../../../services/HtmlErrorManager';
 
 /**
- * BaseAPI - 所有API模块的基类
+ * Default per-request timeout (ms). Used as a fail-fast ceiling when neither
+ * the per-call config nor the module config provides a timeout, and as a hard
+ * cap so an unreachable backend can never hang a request indefinitely.
+ */
+export const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+
+/**
+ * Single source of truth for the active API base URL.
+ *
+ * Previously every API module froze `baseURL` at construction time and
+ * `APIService.updateBaseURL()` had to recreate each module to change it. Any
+ * module the recreation list forgot (serverManager, systemConfig) silently
+ * kept the stale construction-time host (the window-hostname guess), so its
+ * requests hit a different endpoint than the one the ApiManager/UI resolved —
+ * e.g. octane-tasks calls timing out against the LAN IP while the switcher
+ * showed localhost.
+ *
+ * Now the base URL lives here, shared by every BaseAPI instance via a getter.
+ * `updateBaseURL()` only updates this value, so a single write re-points
+ * EVERY module at once (and module auth/headers are no longer dropped by a
+ * recreate). "以能使用的为准": whatever the ApiManager resolves becomes the
+ * one base URL all modules use — there is no per-module snapshot to desync.
+ */
+let sharedBaseURL: string | null = null;
+
+/** Normalize away trailing slashes so `${base}${'/path'}` never doubles `//`. */
+function normalizeBaseURL(url: string): string {
+  return typeof url === 'string' ? url.replace(/\/+$/, '') : url;
+}
+
+/**
+ * Set the process-wide active API base URL. Called by APIService.updateBaseURL
+ * (which App.tsx / ApiEndpointSwitcher drive from the resolved endpoint).
+ */
+export function setSharedBaseURL(url: string): void {
+  sharedBaseURL = normalizeBaseURL(url);
+}
+
+/** The current shared base URL, or null if none has been set yet. */
+export function getSharedBaseURL(): string | null {
+  return sharedBaseURL;
+}
+
+/**
+ * Normalized network error shape thrown/returned by the request layer.
+ * The `isTimeout` / `isNetworkError` flags let the UI show a friendly
+ * "request timed out" / "network unreachable" message instead of a raw
+ * fetch `TypeError`.
+ */
+export interface NormalizedRequestError extends Error {
+  isTimeout?: boolean;
+  isNetworkError?: boolean;
+  status?: number;
+  cause?: unknown;
+}
+
+/**
+ * Convert a low-level fetch/abort failure into a NormalizedRequestError with
+ * stable, human-readable flags. Does not swallow the error — it enriches it.
+ */
+function normalizeRequestError(error: any): NormalizedRequestError {
+  const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+
+  // AbortController.abort() / AbortSignal.timeout() surface as AbortError.
+  const isTimeout = error?.name === 'AbortError' || error?.name === 'TimeoutError';
+
+  // fetch() rejects with a TypeError for DNS/connection/CORS failures.
+  const isNetworkError = isOffline || error?.name === 'TypeError';
+
+  let message: string;
+  if (isTimeout) {
+    message = 'Request timed out';
+  } else if (isOffline) {
+    message = 'Network unreachable (device is offline)';
+  } else if (isNetworkError) {
+    message = 'Network unreachable (server did not respond)';
+  } else {
+    message = error?.message || 'Network error';
+  }
+
+  const normalized = new Error(message) as NormalizedRequestError;
+  normalized.name = isTimeout ? 'RequestTimeoutError' : 'NetworkError';
+  normalized.isTimeout = isTimeout;
+  normalized.isNetworkError = isNetworkError;
+  normalized.status = 0;
+  normalized.cause = error;
+  return normalized;
+}
+
+/**
+ * BaseAPI - Base class for all API modules
  */
 export class BaseAPI {
-  protected baseURL: string;
+  /**
+   * Per-instance fallback used only until a shared base URL is set (i.e. the
+   * construction-time guess). Once APIService.updateBaseURL runs, the shared
+   * value wins for every module.
+   */
+  private seedBaseURL: string;
+  /**
+   * Per-instance temporary override. Normally null so the module follows the
+   * process-wide shared base URL in lock-step. Settings' "test connection"
+   * flow assigns `baseURL` to probe an arbitrary URL, then assigns the old
+   * value back; the setter clears this override on restore so the module
+   * resumes following the global (auto-failover-aware) endpoint.
+   */
+  private instanceOverride: string | null = null;
   protected prefix: string;
   protected headers: Record<string, string>;
   protected timeout: number;
   protected retryConfig: { count: number; delay: number };
 
+  /**
+   * Dynamically resolved base URL. Always prefers the process-wide shared
+   * value so every module follows the ApiManager-resolved endpoint in
+   * lock-step; falls back to this instance's construction-time seed only
+   * before any endpoint has been selected.
+   */
+  protected get baseURL(): string {
+    if (this.instanceOverride !== null) return this.instanceOverride;
+    const shared = getSharedBaseURL();
+    return shared !== null ? shared : this.seedBaseURL;
+  }
+
+  /**
+   * Temporarily point only this module instance at `url`. Assigning the
+   * currently-resolved value back (shared, or the construction-time seed)
+   * clears the override so the instance rejoins the global lock-step
+   * endpoint instead of pinning a now-stale URL.
+   */
+  protected set baseURL(url: string) {
+    const shared = getSharedBaseURL();
+    const resolved = shared !== null ? shared : this.seedBaseURL;
+    this.instanceOverride = url === resolved ? null : normalizeBaseURL(url);
+  }
+
   constructor(config: APIModuleConfig) {
-    this.baseURL = config.baseURL;
+    this.seedBaseURL = normalizeBaseURL(config.baseURL);
     this.prefix = config.prefix || '';
     this.headers = config.headers || {};
-    this.timeout = config.timeout || 30000;
+    // Fail-fast default: never wait longer than DEFAULT_REQUEST_TIMEOUT_MS
+    // unless the module explicitly opts into a longer timeout.
+    this.timeout = config.timeout || DEFAULT_REQUEST_TIMEOUT_MS;
     this.retryConfig = config.retry || { count: 3, delay: 1000 };
   }
 
   /**
-   * GET请求
+   * GET request
    */
-  async get<T>(url: string, params?: Record<string, any>, cache: boolean = false, cacheTTL: number = 300000): Promise<APIResponse<T>> {
+  async get<T>(url: string, params?: Record<string, any>, cache: boolean = false, cacheTTL: number = 300000, retry: boolean = true): Promise<APIResponse<T>> {
     const cacheKey = cache ? this.getCacheKey('GET', url, params) : null;
 
-    // 检查缓存
+    // Check the cache
     if (cacheKey) {
       const cached = apiCache.get<T>(cacheKey);
       if (cached) {
@@ -45,10 +174,11 @@ export class BaseAPI {
       method: 'GET',
       params,
       cache,
-      cacheTTL
+      cacheTTL,
+      retry
     });
 
-    // 存缓存
+    // Store in the cache
     if (cacheKey && response.success && response.data) {
       apiCache.set(cacheKey, response.data, cacheTTL);
     }
@@ -57,7 +187,7 @@ export class BaseAPI {
   }
 
   /**
-   * POST请求
+   * POST request
    */
   async post<T>(url: string, data?: any): Promise<APIResponse<T>> {
     return this.request<T>({
@@ -68,7 +198,7 @@ export class BaseAPI {
   }
 
   /**
-   * PUT请求
+   * PUT request
    */
   async put<T>(url: string, data?: any): Promise<APIResponse<T>> {
     return this.request<T>({
@@ -79,7 +209,7 @@ export class BaseAPI {
   }
 
   /**
-   * DELETE请求
+   * DELETE request
    */
   async delete<T>(url: string): Promise<APIResponse<T>> {
     return this.request<T>({
@@ -89,7 +219,7 @@ export class BaseAPI {
   }
 
   /**
-   * PATCH请求
+   * PATCH request
    */
   async patch<T>(url: string, data?: any): Promise<APIResponse<T>> {
     return this.request<T>({
@@ -100,11 +230,17 @@ export class BaseAPI {
   }
 
   /**
-   * 核心请求方法
+   * Core request method
    */
   protected async request<T>(config: APIRequestConfig, retryCount: number = 0): Promise<APIResponse<T>> {
     const fullURL = this.buildURL(config.url);
     const isFormData = config.data instanceof FormData;
+
+    // Explicit AbortController so we can guarantee a fail-fast timeout AND
+    // deterministically clear the timer in finally (no leaked timers).
+    const timeoutMs = config.timeout || this.timeout || DEFAULT_REQUEST_TIMEOUT_MS;
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
 
     const requestConfig: RequestInit = {
       method: config.method,
@@ -112,7 +248,7 @@ export class BaseAPI {
         ...this.headers,
         ...config.headers
       },
-      signal: AbortSignal.timeout(config.timeout || this.timeout)
+      signal: abortController.signal
     };
 
     // Only set Content-Type for non-FormData requests
@@ -133,10 +269,10 @@ export class BaseAPI {
       };
     }
 
-    // 添加query参数
+    // Add query parameters
     const url = config.params ? this.addQueryParams(fullURL, config.params) : fullURL;
 
-    // 添加body
+    // Add body
     if (config.data) {
       requestConfig.body = isFormData ? config.data : JSON.stringify(config.data);
     }
@@ -197,33 +333,49 @@ export class BaseAPI {
         };
       }
     } catch (error: any) {
-      // 重试逻辑
-      if (retryCount < this.retryConfig.count && this.shouldRetry(error)) {
+      // Normalize timeout / offline / connection failures so callers get
+      // stable isTimeout / isNetworkError flags and a friendly message
+      // instead of a raw fetch TypeError.
+      const normalized = normalizeRequestError(error);
+
+      // Retry logic (retry on transient network/timeout failures only).
+      // Callers can opt out (config.retry === false) so probe/info GETs
+      // never fan out into a 3x retry storm against a slow/dead endpoint.
+      const retryEnabled = config.retry !== false;
+      if (retryEnabled && retryCount < this.retryConfig.count && this.shouldRetry(error)) {
         await this.delay(this.retryConfig.delay * (retryCount + 1));
         return this.request<T>(config, retryCount + 1);
       }
 
+      // Preserve the existing return contract (resolve with an APIResponse),
+      // but enrich it with the normalized error flags for the UI layer.
       return {
         success: false,
         data: null,
-        error: error.message || 'Network error',
-        status: 0
-      };
+        error: normalized.message,
+        status: 0,
+        isTimeout: normalized.isTimeout,
+        isNetworkError: normalized.isNetworkError,
+      } as APIResponse<T>;
+    } finally {
+      // Always clear the abort timer — prevents leaked timers on both the
+      // success path and the error/retry path.
+      clearTimeout(timeoutId);
     }
   }
 
   /**
-   * 批量请求
+   * Batch requests
    */
   async batch<T>(configs: APIRequestConfig[]): Promise<APIResponse<T>[]> {
     return Promise.all(configs.map(config => this.request<T>(config)));
   }
 
   /**
-   * 构建完整URL
+   * Build the full URL
    */
   protected buildURL(path: string): string {
-    // 如果path已经是完整URL（以http://或https://开头），直接返回
+    // If path is already a full URL (starts with http:// or https://), return it directly
     if (path.startsWith('http://') || path.startsWith('https://')) {
       return path;
     }
@@ -234,7 +386,7 @@ export class BaseAPI {
   }
 
   /**
-   * 添加query参数
+   * Add query parameters
    */
   protected addQueryParams(url: string, params: Record<string, any>): string {
     const queryString = Object.entries(params)
@@ -246,7 +398,7 @@ export class BaseAPI {
   }
 
   /**
-   * 生成缓存key
+   * Generate the cache key
    */
   protected getCacheKey(method: string, url: string, params?: Record<string, any>): string {
     const paramStr = params ? JSON.stringify(params) : '';
@@ -254,36 +406,36 @@ export class BaseAPI {
   }
 
   /**
-   * 是否应该重试
+   * Whether the request should be retried
    */
   protected shouldRetry(error: any): boolean {
-    // 网络错误或超时重试
+    // Retry on network errors or timeouts
     return error.name === 'TypeError' || error.name === 'AbortError';
   }
 
   /**
-   * 延迟
+   * Delay
    */
   protected delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
-   * 设置header
+   * Set a header
    */
   setHeader(key: string, value: string): void {
     this.headers[key] = value;
   }
 
   /**
-   * 移除header
+   * Remove a header
    */
   removeHeader(key: string): void {
     delete this.headers[key];
   }
 
   /**
-   * 清除所有自定义headers
+   * Clear all custom headers
    */
   clearHeaders(): void {
     this.headers = {};

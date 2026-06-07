@@ -31,13 +31,28 @@ class ApiInfoIndex
     {
         $publicInfo = self::gatherPublicInfo();
         $apiInfo = self::gatherAppApiInfo($request);
-
         $details = [
             'public_info' => $publicInfo,
             'api_reference' => $apiInfo,
         ];
 
-        return response()->json($details);
+        $payload = json_encode($details);
+        $etag = '"' . md5($payload) . '"';
+        $cacheControl = 'public, max-age=300, stale-while-revalidate=600';
+        $ifNoneMatch = trim((string) $request->headers->get('If-None-Match'));
+
+        // Body shape is unchanged; only HTTP caching metadata is added so the
+        // dashboard client cache becomes effective and stops constant refetch.
+        if ($ifNoneMatch !== '' && $ifNoneMatch === $etag) {
+            return response('', 304)
+                ->header('ETag', $etag)
+                ->header('Cache-Control', $cacheControl);
+        }
+
+        return response($payload, 200)
+            ->header('Content-Type', 'application/json')
+            ->header('ETag', $etag)
+            ->header('Cache-Control', $cacheControl);
     }
 
     /**

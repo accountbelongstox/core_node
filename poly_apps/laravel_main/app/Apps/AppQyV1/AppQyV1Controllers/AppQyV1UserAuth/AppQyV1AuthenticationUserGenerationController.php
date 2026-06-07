@@ -49,7 +49,7 @@ class AppQyV1AuthenticationUserGenerationController
             'password' => Hash::make($password),
         ]);
         DGroupAPublic::ensureDefaultGroupIfNotExist($user->id, $user->username);
-        $user = AvatarPublic::createAvatar($user);
+        $user = AvatarPublic::createAvatar($user, true);
         event(new Registered($user));
 
         $token = $user->createToken('auth_token')->plainTextToken;

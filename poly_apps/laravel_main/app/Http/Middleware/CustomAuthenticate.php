@@ -41,6 +41,18 @@ class CustomAuthenticate extends Middleware
         $bearerToken = $request->bearerToken();
         if ($bearerToken) {
             if (Auth::guard('sanctum')->check()) {
+                // Sanctum authenticated the token on its own guard, but the
+                // default (web) guard stays empty, so $request->user() /
+                // AuthHelper::requireAuth() would return null and controllers
+                // would 401 a logged-in user. Propagate the identity to the
+                // default guard, mirroring the user_token / debug branches.
+                $sanctumUser = Auth::guard('sanctum')->user();
+                if ($sanctumUser) {
+                    Auth::login($sanctumUser);
+                    $request->setUserResolver(function () use ($sanctumUser) {
+                        return $sanctumUser;
+                    });
+                }
                 return $next($request);
             }
         }

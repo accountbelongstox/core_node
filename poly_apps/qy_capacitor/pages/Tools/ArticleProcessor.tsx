@@ -1,6 +1,10 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Some sibling/imported code may still be un-beautified — propagate the Iris layer there too. */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiCenter } from '../../services/ApiCenter';
+import { Card, PageHeader, ProgressBar, Button } from '../../components/UI';
+import { PillNav } from '../../components/PillNav';
+import { CheckCircle2, XCircle } from 'lucide-react';
 
 export default function ArticleProcessor() {
   const navigate = useNavigate();
@@ -121,36 +125,21 @@ Start your language learning journey today and experience these amazing benefits
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 pb-20">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Article Processor</h1>
-              <p className="text-sm text-gray-500">Process articles and extract vocabulary</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-transparent pb-32">
+      <PageHeader title="Article Processor" onBack={() => navigate(-1)} />
 
-      <div className="w-full sm:max-w-2xl sm:mx-auto md:max-w-4xl lg:max-w-6xl px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="ds-page ds-section-gap pt-[var(--space-breath)]">
+        <div className="px-1">
+          <p className="text-sm text-[var(--color-text-secondary)]">Process articles and extract vocabulary</p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-[var(--space-lg)]">
           {/* Input Panel */}
-          <div className="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+          <Card className="lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Article Content</h2>
+              <h2 className="ds-section-title">Article Content</h2>
               <button
                 onClick={loadSampleArticle}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                className="ds-link-more"
               >
                 Load Sample
               </button>
@@ -158,7 +147,7 @@ Start your language learning journey today and experience these amazing benefits
 
             {/* Title Input */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                 Article Title
               </label>
               <input
@@ -166,103 +155,95 @@ Start your language learning journey today and experience these amazing benefits
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Enter article title..."
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full px-4 py-2 rounded-[var(--radius-button)] bg-[var(--color-surface)] border border-[var(--border-highlight)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--klein-ring)]"
               />
             </div>
 
             {/* Content Input */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                 Article Content
               </label>
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Enter or paste article content..."
-                className="w-full h-80 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+                className="w-full h-80 px-4 py-3 rounded-[var(--radius-button)] bg-[var(--color-surface)] border border-[var(--border-highlight)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--klein-ring)] resize-none"
               />
-              <div className="mt-1 text-xs text-gray-500">
+              <div className="mt-1 text-xs text-[var(--color-text-tertiary)]">
                 {content.length} characters | {content.split(/\s+/).filter(w => w).length} words
               </div>
             </div>
 
-            {/* Settings */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            {/* Settings — pill nav */}
+            <div className="space-y-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Language
-                </label>
-                <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
-                  {languages.map((lang) => (
-                    <option key={lang.code} value={lang.code}>
-                      {lang.name}
-                    </option>
-                  ))}
-                </select>
+                <label className="ds-section-label block mb-2">Language</label>
+                <PillNav
+                  items={languages.map((l) => ({ id: l.code, label: l.name }))}
+                  activeId={language}
+                  onChange={setLanguage}
+                  aria-label="Language"
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Difficulty Level
-                </label>
-                <select
-                  value={difficultyLevel}
-                  onChange={(e) => setDifficultyLevel(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                </select>
+                <label className="ds-section-label block mb-2">Difficulty Level</label>
+                <PillNav
+                  items={[
+                    { id: 'beginner', label: 'Beginner' },
+                    { id: 'intermediate', label: 'Intermediate' },
+                    { id: 'advanced', label: 'Advanced' },
+                  ]}
+                  activeId={difficultyLevel}
+                  onChange={setDifficultyLevel}
+                  aria-label="Difficulty level"
+                />
               </div>
             </div>
 
             {/* Action Buttons */}
             <div className="grid grid-cols-2 gap-4">
-              <button
+              <Button
+                variant="secondary"
                 onClick={handlePreview}
                 disabled={previewLoading || !content.trim()}
-                className="py-3 border-2 border-orange-600 text-orange-600 rounded-lg hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
               >
                 {previewLoading ? 'Previewing...' : 'Preview Parsing'}
-              </button>
+              </Button>
 
-              <button
+              <Button
+                variant="grad"
                 onClick={handleSubmit}
                 disabled={loading || !title.trim() || !content.trim()}
-                className="py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
               >
                 {loading ? 'Submitting...' : 'Process Article'}
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
 
           {/* Results Panel */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-[var(--space-lg)]">
             {/* Preview Results */}
             {previewData && (
-              <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Preview Results</h3>
+              <Card>
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-4">Preview Results</h3>
 
                 <div className="space-y-3">
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-900 font-semibold">
+                  <div className="p-3 bg-[var(--klein-blue-soft)] rounded-[var(--radius-button)]">
+                    <p className="text-sm text-[var(--klein-blue)] font-semibold">
                       {previewData.word_count || 0} words found
                     </p>
                   </div>
 
                   {previewData.parsed_words && previewData.parsed_words.length > 0 && (
                     <div>
-                      <p className="text-sm font-medium text-gray-700 mb-2">Sample Words:</p>
+                      <p className="text-sm font-medium text-[var(--color-text-secondary)] mb-2">Sample Words:</p>
                       <div className="flex flex-wrap gap-2">
                         {previewData.parsed_words.slice(0, 10).map((word: string, index: number) => (
                           <span
                             key={index}
-                            className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded"
+                            className="px-2 py-1 bg-[var(--color-surface)] border border-[var(--border-highlight)] text-[var(--color-text-secondary)] text-xs rounded-full"
                           >
                             {word}
                           </span>
@@ -271,84 +252,79 @@ Start your language learning journey today and experience these amazing benefits
                     </div>
                   )}
                 </div>
-              </div>
+              </Card>
             )}
 
             {/* Task Status */}
             {taskId && (
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Processing Status</h3>
+              <Card>
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-4">Processing Status</h3>
 
                 <div className="space-y-3">
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-500 mb-1">Task ID</p>
-                    <p className="text-sm font-mono text-gray-900">{taskId}</p>
+                  <div className="p-3 bg-[var(--color-surface)] border border-[var(--border-highlight)] rounded-[var(--radius-button)]">
+                    <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Task ID</p>
+                    <p className="text-sm font-mono text-[var(--color-text-primary)]">{taskId}</p>
                   </div>
 
                   {taskStatus && (
                     <>
-                      <div className="p-3 bg-blue-50 rounded-lg">
-                        <p className="text-xs text-blue-700 mb-1">Status</p>
-                        <p className="text-sm font-semibold text-blue-900 capitalize">
+                      <div className="p-3 bg-[var(--klein-blue-soft)] rounded-[var(--radius-button)]">
+                        <p className="text-xs text-[var(--klein-blue)] mb-1">Status</p>
+                        <p className="text-sm font-semibold text-[var(--klein-blue)] capitalize">
                           {taskStatus.status}
                         </p>
                       </div>
 
                       {taskStatus.progress !== undefined && (
-                        <div className="p-3 bg-green-50 rounded-lg">
-                          <p className="text-xs text-green-700 mb-2">Progress</p>
-                          <div className="w-full bg-green-200 rounded-full h-2">
-                            <div
-                              className="bg-green-600 h-2 rounded-full transition-all"
-                              style={{ width: `${taskStatus.progress}%` }}
-                            />
-                          </div>
-                          <p className="text-xs text-green-700 mt-1 text-right">
+                        <div className="p-3 bg-[var(--color-surface)] border border-[var(--border-highlight)] rounded-[var(--radius-button)]">
+                          <p className="text-xs text-[var(--color-text-secondary)] mb-2">Progress</p>
+                          <ProgressBar value={taskStatus.progress} />
+                          <p className="text-xs text-[var(--color-text-secondary)] mt-1 text-right">
                             {taskStatus.progress}%
                           </p>
                         </div>
                       )}
 
                       {taskStatus.result && (
-                        <div className="p-3 bg-green-50 rounded-lg">
-                          <p className="text-xs text-green-700 mb-1">Result</p>
-                          <pre className="text-xs text-green-900 overflow-auto">
+                        <div className="p-3 bg-[var(--color-surface)] border border-[var(--border-highlight)] rounded-[var(--radius-button)]">
+                          <p className="text-xs text-[var(--color-text-secondary)] mb-1">Result</p>
+                          <pre className="text-xs text-[var(--color-text-primary)] overflow-auto">
                             {JSON.stringify(taskStatus.result, null, 2)}
                           </pre>
                         </div>
                       )}
 
                       {taskStatus.status === 'completed' && (
-                        <div className="p-3 bg-green-100 border border-green-200 rounded-lg">
-                          <p className="text-sm text-green-800 font-semibold">
-                            ✓ Processing completed successfully!
+                        <div className="p-3 bg-[var(--klein-blue-soft)] border border-[var(--klein-blue)]/30 rounded-[var(--radius-button)]">
+                          <p className="text-sm text-[var(--klein-blue)] font-semibold flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> Processing completed successfully!
                           </p>
                         </div>
                       )}
 
                       {taskStatus.status === 'failed' && (
-                        <div className="p-3 bg-red-100 border border-red-200 rounded-lg">
-                          <p className="text-sm text-red-800 font-semibold">
-                            ✗ Processing failed
+                        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-[var(--radius-button)]">
+                          <p className="text-sm text-red-500 font-semibold flex items-center gap-1.5">
+                            <XCircle className="w-4 h-4 flex-shrink-0" /> Processing failed
                           </p>
                         </div>
                       )}
                     </>
                   )}
                 </div>
-              </div>
+              </Card>
             )}
 
             {/* Info Box */}
             {!taskId && !previewData && (
-              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+              <Card>
                 <div className="flex gap-3">
-                  <svg className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-[var(--klein-blue)] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="text-sm text-orange-900">
-                    <p className="font-semibold mb-1">How it works:</p>
-                    <ul className="space-y-1 text-orange-800">
+                  <div className="text-sm text-[var(--color-text-secondary)]">
+                    <p className="font-semibold mb-1 text-[var(--color-text-primary)]">How it works:</p>
+                    <ul className="space-y-1">
                       <li>• Extract vocabulary from articles</li>
                       <li>• Analyze difficulty level</li>
                       <li>• Create word lists for learning</li>
@@ -356,7 +332,7 @@ Start your language learning journey today and experience these amazing benefits
                     </ul>
                   </div>
                 </div>
-              </div>
+              </Card>
             )}
           </div>
         </div>

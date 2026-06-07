@@ -3,7 +3,7 @@ import { APIResponse } from '../../types';
 
 /**
  * ServerManagerV1 API Module
- * 服务器管理系统API
+ * Server management system API
  */
 export class ServerManagerV1API extends BaseAPI {
   // ========== System Information ==========

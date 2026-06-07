@@ -79,7 +79,7 @@ class GroupController
 
     public function destroy(Group $group)
     {
-        // 检查组是否有关联的配置
+        // Check whether the group has any associated configs
         if ($group->configs()->count() > 0) {
             return response()->json([
                 'message' => 'Cannot delete group with associated configs'

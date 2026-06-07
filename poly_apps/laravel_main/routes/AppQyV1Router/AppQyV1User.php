@@ -48,19 +48,10 @@ Route::prefix($apiVersionPrefix)->group(function () {
             ]);
         });
 
-        // User statistics
-        Route::get('/stats', function () {
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'studyDays' => 25,
-                    'totalWords' => 150,
-                    'completionRate' => 30.0,
-                    'averageAccuracy' => 85.5,
-                    'totalStudyTime' => 1200 // minutes
-                ]
-            ]);
-        });
+        // User statistics (single source of truth for both clients).
+        // qy_capacitor calls /statistics; the dashboard calls /stats.
+        Route::get('/statistics', [AppQyV1ProfileController::class, 'getStatistics']);
+        Route::get('/stats', [AppQyV1ProfileController::class, 'getStatistics']);
 
         // User profile
         Route::get('/profile', [AppQyV1ProfileController::class, 'getProfile']);

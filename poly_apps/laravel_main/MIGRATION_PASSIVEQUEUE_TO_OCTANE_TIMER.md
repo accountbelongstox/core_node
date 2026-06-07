@@ -1,7 +1,13 @@
 # PassiveQueue to Octane Timer Migration Summary
 
-**Date**: 2025-12-01
-**Status**: Completed (Code Only - Not Run)
+**Date**: 2025-12-01 (runtime wired 2026-05-18)
+**Status**: Completed and active. As of 2026-05-18 the Octane (Swoole) timer is the
+**single** task driver: `scripts/start.sh` ensures Swoole and launches
+`php artisan octane:start --server=swoole --host=0.0.0.0 --port=9000 [--watch]` on
+Linux/WSL; the duplicate Laravel-Scheduler registration was removed from
+`routes/console.php`; and the last Laravel-queue producer (CodeMart AI analysis)
+was migrated to `app/Services/TimerTasks/CodeMartV1AIAnalysisTask.php`. Windows has
+no Swoole and falls back to `composer dev:win` (timer tasks do NOT run there).
 
 ---
 
@@ -274,21 +280,25 @@ tail -f storage/logs/laravel.log | grep appqyv1_cover_generation
 
 ---
 
-## Migration Steps (To Run Later)
+## Migration Steps (now wired into start.sh / sys:init)
+
+> `scripts/start.sh` runs migrations + `sys:init` (which ensures Swoole) and then
+> launches Octane automatically on Linux/WSL. The steps below are the manual
+> equivalent for ad-hoc verification.
 
 ```bash
 # 1. Run migrations
 php artisan migrate --database=AppQyV1 --path=database/migrations/AppQyV1_2025_12_01_072228_add_cover_processing_columns_and_indexes.php
 php artisan migrate --path=database/migrations/2025_12_01_072300_drop_passive_queue_table.php
 
-# 2. Restart Octane
-php artisan octane:reload
+# 2. Start/Restart Octane (Swoole) — start.sh does this for you
+php artisan octane:reload   # or: php artisan octane:start --server=swoole --host=0.0.0.0 --port=9000 --watch
 
 # 3. Verify timer task is registered
-curl http://localhost:8000/api/octane/timer/status | jq .
+curl http://localhost:9000/api/octane/timer/status | jq .
 
 # 4. Test cover generation
-curl http://localhost:8000/api/appqyv1/vocabulary/library/1/cover
+curl http://localhost:9000/api/appqyv1/vocabulary/library/1/cover
 ```
 
 ---

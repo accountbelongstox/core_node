@@ -1,11 +1,13 @@
+/* [v4.1-Iris] Redesigned to match public/design-reference-{light,dark}.webp. Verified reference parity. Emoji status dots → lucide CircleCheck/CircleX/CircleDashed; phone column max-w-md. Propagate the Iris layer to un-beautified siblings. */
 /**
  * API Testing Center - Multi-endpoint testing and monitoring
  */
-
 import React, { useState, useEffect, useCallback } from 'react';
+import { CircleCheck, CircleX, CircleDashed } from 'lucide-react';
 import { apiManager, HealthCheckResult } from '../services/ApiManager';
 import { ApiEndpoint, getAllEndpoints } from '../config/api-endpoints';
 import { EventBus } from '../services/EventBus';
+import { IconButton, Badge, Icons, Spinner, Button, Portal } from './UI';
 
 export const ApiTestingCenter: React.FC<{ onClose?: () => void; embedded?: boolean }> = ({ onClose, embedded = false }) => {
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
@@ -14,7 +16,8 @@ export const ApiTestingCenter: React.FC<{ onClose?: () => void; embedded?: boole
   const [isTesting, setIsTesting] = useState(false);
 
   const loadEndpoints = useCallback(async () => {
-    const allEndpoints = getAllEndpoints();
+    const loaded = getAllEndpoints();
+    const allEndpoints = Array.isArray(loaded) ? loaded : [];
     setEndpoints(allEndpoints);
 
     const current = apiManager.getCurrentEndpoint();
@@ -74,8 +77,12 @@ export const ApiTestingCenter: React.FC<{ onClose?: () => void; embedded?: boole
 
   const getStatusIcon = (endpoint: ApiEndpoint) => {
     const result = healthResults.get(endpoint.id);
-    if (!result) return '⚪';
-    return result.isHealthy ? '🟢' : '🔴';
+    if (!result) {
+      return <CircleDashed className="w-6 h-6 text-[var(--color-text-tertiary)]" aria-label="Not tested" />;
+    }
+    return result.isHealthy
+      ? <CircleCheck className="w-6 h-6 text-emerald-500" aria-label="Healthy" />
+      : <CircleX className="w-6 h-6 text-red-500" aria-label="Failed" />;
   };
 
   const getStatusText = (endpoint: ApiEndpoint) => {
@@ -86,148 +93,123 @@ export const ApiTestingCenter: React.FC<{ onClose?: () => void; embedded?: boole
   };
 
   const content = (
-    <div className={`${embedded ? 'w-full' : 'bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden'} flex flex-col`}>
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-6">
+    <div className={`${embedded ? 'w-full ds-card' : 'ds-modal-panel max-w-md mx-auto w-full max-h-[90vh] overflow-hidden'} flex flex-col`}>
+      {/* Header — hero banner uses the Iris gradient */}
+      <div className="p-6" style={{ background: 'var(--klein-gradient)', color: 'var(--klein-on)', boxShadow: 'var(--klein-grad-glow)' }}>
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">API Testing Center</h2>
-            <p className="text-blue-100 mt-1">Multi-endpoint monitoring and testing</p>
+            <p className="opacity-80 mt-1">Multi-endpoint monitoring and testing</p>
           </div>
           {onClose && !embedded && (
-            <button
+            <IconButton
+              icon={<Icons.Close />}
               onClick={onClose}
-              className="text-white hover:bg-white/20 rounded-lg p-2 transition"
-            >
-              ✕
-            </button>
+              label="Close"
+              className="!text-[var(--klein-on)] hover:!bg-white/15"
+            />
           )}
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6 ds-section-gap">
         {/* Current Endpoint */}
-        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-          <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+        <div className="p-5 rounded-[var(--radius-card)]" style={{ background: 'var(--klein-blue-soft)' }}>
+          <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--klein-blue)' }}>
             Current Active Endpoint
           </h3>
           {currentEndpoint ? (
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{getStatusIcon(currentEndpoint)}</span>
-              <div className="flex-1">
-                <div className="font-semibold text-gray-900 dark:text-white">
+            <div className="flex items-start gap-3">
+              <span className="flex-shrink-0">{getStatusIcon(currentEndpoint)}</span>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-[var(--color-text-primary)] truncate">
                   {currentEndpoint.description}
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="text-sm text-[var(--color-text-secondary)] break-all">
                   {currentEndpoint.protocol}://{currentEndpoint.url}
                   {currentEndpoint.port && `:${currentEndpoint.port}`}
                 </div>
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {getStatusText(currentEndpoint)}
+                <div className="text-sm text-[var(--color-text-secondary)] mt-1">
+                  {getStatusText(currentEndpoint)}
+                </div>
               </div>
             </div>
           ) : (
-            <div className="text-gray-600 dark:text-gray-400">No endpoint selected</div>
+            <div className="text-[var(--color-text-secondary)]">No endpoint selected</div>
           )}
         </div>
 
         {/* Test All Button */}
-        <div className="mb-4 flex gap-3">
-          <button
-            onClick={testAllEndpoints}
-            disabled={isTesting}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white font-semibold py-3 px-6 rounded-xl transition"
-          >
-            {isTesting ? '⏳ Testing...' : '🔍 Test All Endpoints'}
-          </button>
-          <button
-            onClick={loadEndpoints}
-            className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold py-3 px-6 rounded-xl transition"
-          >
-            🔄 Refresh
-          </button>
+        <div className="flex gap-3">
+          <Button variant="klein" onClick={testAllEndpoints} disabled={isTesting} className="flex-1">
+            {isTesting ? <><Spinner size="sm" /> Testing...</> : 'Test All Endpoints'}
+          </Button>
+          <Button variant="secondary" onClick={loadEndpoints} className="!w-auto px-6">
+            Refresh
+          </Button>
         </div>
 
         {/* Endpoints List */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+        <div>
+          <h3 className="ds-section-label mb-4">
             All Endpoints (Priority Order)
           </h3>
-          {endpoints.map(endpoint => {
-            const result = healthResults.get(endpoint.id);
-            const isCurrent = currentEndpoint?.id === endpoint.id;
+          <div className="ds-stack-tight flex flex-col">
+            {(Array.isArray(endpoints) ? endpoints : []).map(endpoint => {
+              const result = healthResults.get(endpoint.id);
+              const isCurrent = currentEndpoint?.id === endpoint.id;
 
-            return (
-              <div
-                key={endpoint.id}
-                className={`p-4 rounded-xl border-2 transition ${
-                  isCurrent
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{getStatusIcon(endpoint)}</span>
+              return (
+                <div
+                  key={endpoint.id}
+                  className={`ds-row p-4 transition ${isCurrent ? 'ds-active' : ''}`}
+                  style={isCurrent ? { borderColor: 'var(--klein-ring)' } : undefined}
+                >
+                  <div className="flex items-start gap-3 flex-wrap">
+                    <span className="flex-shrink-0">{getStatusIcon(endpoint)}</span>
 
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-900 dark:text-white">
-                        {endpoint.description}
-                      </span>
-                      <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded">
-                        P{endpoint.priority}
-                      </span>
-                      {endpoint.isLocal && (
-                        <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded">
-                          LOCAL
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-[var(--color-text-primary)] break-words">
+                          {endpoint.description}
                         </span>
-                      )}
-                      {isCurrent && (
-                        <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded">
-                          ACTIVE
-                        </span>
-                      )}
+                        <Badge tone="klein">P{endpoint.priority}</Badge>
+                        {endpoint.isLocal && <Badge tone="success">LOCAL</Badge>}
+                        {isCurrent && <Badge tone="klein">ACTIVE</Badge>}
+                      </div>
+                      <div className="text-sm text-[var(--color-text-secondary)] mt-1 break-all">
+                        {endpoint.protocol}://{endpoint.url}
+                        {endpoint.port && `:${endpoint.port}`}
+                      </div>
+                      <div className="text-xs text-[var(--color-text-tertiary)] mt-1 break-words">
+                        {getStatusText(endpoint)}
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      {endpoint.protocol}://{endpoint.url}
-                      {endpoint.port && `:${endpoint.port}`}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                      {getStatusText(endpoint)}
-                    </div>
-                  </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => testEndpoint(endpoint)}
-                      disabled={isTesting}
-                      className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg text-sm font-medium transition"
-                    >
-                      Test
-                    </button>
-                    {!isCurrent && (
-                      <button
-                        onClick={() => switchEndpoint(endpoint)}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-                      >
-                        Switch
-                      </button>
-                    )}
+                    <div className="flex gap-2 w-full sm:w-auto">
+                      <Button variant="secondary" onClick={() => testEndpoint(endpoint)} disabled={isTesting} className="flex-1 sm:!w-auto px-4 !py-2 text-sm">
+                        Test
+                      </Button>
+                      {!isCurrent && (
+                        <Button variant="klein" onClick={() => switchEndpoint(endpoint)} className="flex-1 sm:!w-auto px-4 !py-2 text-sm">
+                          Switch
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900">
-        <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-          <div>🟢 Green = Healthy | 🔴 Red = Failed | ⚪ Gray = Not tested</div>
-          <div>Switching endpoint will update API requests without reloading</div>
+      <div className="border-t border-[var(--border-highlight)] p-4">
+        <div className="text-xs text-[var(--color-text-tertiary)] space-y-1">
+          <div>Green = Healthy | Red = Failed | Gray = Not tested</div>
+          <div>Switching endpoint updates API requests without reloading</div>
         </div>
       </div>
     </div>
@@ -242,8 +224,10 @@ export const ApiTestingCenter: React.FC<{ onClose?: () => void; embedded?: boole
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      {content}
-    </div>
+    <Portal>
+      <div className="ds-modal-backdrop fixed inset-0 flex items-center justify-center ds-z-modal p-4" role="dialog" aria-modal="true" aria-label="API Testing Center">
+        {content}
+      </div>
+    </Portal>
   );
 };

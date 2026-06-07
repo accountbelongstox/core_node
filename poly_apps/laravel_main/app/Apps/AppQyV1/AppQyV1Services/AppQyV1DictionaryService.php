@@ -74,7 +74,7 @@ class AppQyV1DictionaryService
 
                 $existing[] = [
                     'word' => $word,
-                    'md5' => md5(strtolower($word)),
+                    'md5' => md5($word),
                     'has_translation' => $hasTranslation,
                     'query_count' => 0,
                 ];
@@ -160,7 +160,7 @@ class AppQyV1DictionaryService
         $isEnglish = in_array(strtolower($langCode), ['en', 'english']);
 
         foreach ($words as $word) {
-            $wordMd5 = md5(strtolower($word));
+            $wordMd5 = md5($word);
             $entry = AppQyV1MultiLangDictionaryModel::findByWord($langCode, $word);
 
             if ($entry) {
@@ -233,11 +233,9 @@ class AppQyV1DictionaryService
         $translated = AppQyV1MultiLangDictionaryModel::countByTranslation($langCode);
         $untranslated = $total - $translated;
 
+        // Unified schema: audio presence is the has_audio boolean.
         $needingTTS = AppQyV1MultiLangDictionaryModel::forLanguage($langCode)
-            ->where(function($query) {
-                $query->where('tts_generated', false)
-                    ->orWhereNull('tts_generated');
-            })
+            ->where('has_audio', false)
             ->count();
 
         return [
@@ -267,7 +265,7 @@ class AppQyV1DictionaryService
         foreach ($words as $word) {
             $result[] = [
                 'word' => $word->word,
-                'md5' => md5(strtolower($word->word)),
+                'md5' => md5($word->word),
                 'query_count' => 0,
             ];
         }

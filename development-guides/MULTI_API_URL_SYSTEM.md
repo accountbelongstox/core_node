@@ -176,6 +176,157 @@
 
 ---
 
+---
+
+## Realized detection contract (English, authoritative — updated 2026-05-19, "API detection redundancy fix")
+
+> This section is authoritative and **supersedes** the older "60s background
+> check interval" and "select-then-background-test-the-rest" descriptions above
+> for `laravel_dashboard`. The earlier flow caused a redundant-probe storm and a
+> ~21s preflight hang; the realized behavior is below.
+>
+> **⚠️ CORRECTION 2026-05-19 — this note supersedes the earlier same-day
+> "lazy / probe-only-when-the-switcher-dropdown-opens / once-only-for-switcher"
+> wording that previously appeared in this section and its sibling docs.**
+> Detection is **automatic at app startup**, NOT lazy and NOT click-triggered.
+
+### Detection (frontend, `services/ApiManager.ts`)
+- Detection runs **automatically at app startup** — `ApiManager` probes **ALL
+  endpoints in parallel exactly once per app load**, single-flight via a stored
+  `healthPassPromise` (React-18 StrictMode-safe), **no timers/intervals, no
+  retries**.
+- `App.tsx` triggers detection at startup and dispatches `api-health-initialized`
+  after the parallel pass settles. `ApiEndpointSwitcher.tsx` is **read-only** —
+  it renders results and listens for that event; it **no longer probes on
+  dropdown open**.
+- Active-endpoint precedence after the single parallel pass:
+  1. `api_user_modified` (explicit manual choice) **if healthy** → use it.
+  2. else stored `api_current_endpoint` / `api_auto_detected` **if healthy** →
+     use it.
+  3. else **first healthy endpoint by priority order** → use it **and write it
+     back** to `api_auto_detected` / `api_current_endpoint`.
+  4. else (none healthy) → highest-priority endpoint as fallback, left marked
+     unhealthy.
+- Principle 以能使用的为准: never hard-pin a dead endpoint; auto-failover to an
+  available one. Auto-detection **NEVER overwrites `api_user_modified`** (only
+  the manual switcher sets it) — a dead manual choice still yields a working
+  session endpoint without deleting the saved manual key.
+- The single all-endpoints parallel pass both feeds the switcher dots and drives
+  selection. **No re-probe unless the user manually switches** (no timer, no 60s
+  background interval). All endpoints are kept in `config/api-endpoints.ts` (no
+  pruning).
+
+### Canonical endpoint contract
+| Endpoint | Behavior | Auth | Cache |
+|---|---|---|---|
+| `GET {base}/api/health` | `200 { status:'healthy', service, timestamp, version }`, liveness-only; cheap OPTIONS preflight via CORS fast-path, no web/Sanctum middleware | none | `no-store, max-age=0` |
+| `GET {base}/api_info[?app=]` | catalog JSON (body unchanged) | as before | server `ETag` + `Cache-Control: public, max-age=300, stale-while-revalidate=600` (304 on `If-None-Match`); client 60s TTL cache + single-flight; fetched with `retry=false` |
+
+Backend root cause that was fixed (`laravel_main`): `/api_info` is a
+`routes/web.php` route; previously no `cors.php` path matched it, so the OPTIONS
+preflight fell through the full web middleware stack (~21s hang). Fix:
+`config/cors.php` `paths` now includes `'api/health'` and `'api_info'` and
+`max_age` is `env('CORS_MAX_AGE', 86400)` (browser caches preflights);
+`GET /api/health` bypasses Sanctum/session middleware; `/api_info` emits stable
+ETag + `Cache-Control` and handles `If-None-Match` → 304.
+
+### ⚠️ LINKED-CHANGE constraint (联动改)
+
+> **The frontend probing contract and the backend `/api/health` + CORS/`cors.php`
+> paths + `/api_info` caching MUST be changed together — changing one side's
+> health/api_info contract, CORS paths, or cache headers without the other
+> reintroduces the preflight-hang / redundant-probe bug.**
+
+Treat the auto-parallel-once-at-startup probe / precedence / single-flight
+(`healthPassPromise`) in `ApiManager.ts`, the `/api/health` route + its
+middleware bypass + body shape, the `cors.php` `paths`/`max_age`, and the
+`/api_info` ETag/`Cache-Control` as **one coordinated contract** — never edit
+one side alone.
+
+### noise.svg → local data-URI (frontend init hygiene — 2026-05-19)
+
+Separate, **frontend-only** init-hygiene change for `laravel_dashboard` with
+**no backend coupling** (not part of the linked health/CORS contract above): the
+external decorative texture `https://grainy-gradients.vercel.app/noise.svg`
+(which 404'd and triggered N failed cross-origin requests during init) was
+replaced with a fully local inline SVG `feTurbulence` data URI defined once in
+`poly_apps/laravel_dashboard/utils/noiseTexture.ts` and consumed by
+`BentoCard.tsx` and `tools/HexToRgb.tsx`. No external/CDN dependency remains.
+Not JS-blocking, but removes network/console overhead during init.
+
+---
+
+## Availability-first selection + cold-boot timeout (qy_capacitor / wordflow-ai — 2026-05-28)
+
+> Authoritative for `poly_apps/qy_capacitor`. Refines the realized contract above:
+> **availability is the PRIMARY sort key for endpoint selection — including for
+> the value read from localStorage.** A stored choice only ranks *higher in
+> weight*; it is never blindly pinned.
+
+### Selection rule (`services/ApiManager.ts`)
+- `initialize({ autoDetect: true })` probes **all endpoints once in parallel**
+  (`checkAllEndpoints`), then `selectAvailabilityFirst(results)` chooses:
+  1. **Filter to healthy endpoints only** (availability = primary key — an
+     unhealthy endpoint is never chosen while any healthy one exists).
+  2. Among the healthy set, tie-break by weight, lowest-rank first:
+     `api_user_modified` (0) → `api_auto_detected` (1) → config `priority`
+     ascending (2).
+  3. Persist the winner to `api_auto_detected` + `api_current_endpoint`. The
+     `api_user_modified` key is **never** written by auto-detection — only the
+     manual switcher (`setEndpoint`) owns it, so a dead manual choice survives
+     in storage yet still yields a *working* session endpoint.
+  4. If nothing is healthy → fall back to highest-priority endpoint, logged,
+     left marked unhealthy (rare last resort).
+- **Bug this fixed:** the old `initialize()` early-returned on a stored
+  `api_user_modified` / `api_auto_detected` id without probing, and the
+  "no healthy" path used `getAllEndpoints()[0]` — so on a same-machine/WSL dev
+  box it blind-pinned the unreachable priority-1 LAN IP (`192.168.50.3:9000`)
+  instead of the reachable `localhost:9000`.
+
+### Probe timeout vs `artisan serve` cold boot
+- Dev backend (`laravel_main`) runs under `php artisan serve` with **no
+  config/route cache and no opcache reuse**, so it cold-boots the whole
+  framework **per request** (~2.5s, ~27 MB peak observed) — this cost is **not
+  health-specific** (the `/api/health` route itself is already cheap and
+  correctly strips Sanctum/`GoLatency` via `withoutMiddleware`; CORS in
+  `config/cors.php` already lists `api/health`). A 1s probe aborts before a
+  healthy localhost can reply, which is what made every endpoint look dead.
+- Mitigation (frontend): probe `timeout` raised **1000 → 3000ms**
+  (`config/api-endpoints.ts` `GLOBAL_API_ENDPOINTS.timeout`,
+  `ApiManager.initialize` default, and the `AppContext.tsx` call site) to clear
+  the cold-boot window.
+- **Durable cure (dev-runtime, not the probe):** run
+  `php artisan config:cache && php artisan route:cache` in dev, or serve via
+  **Octane (Swoole)** so the worker stays warm — that drops every request
+  (including `/health`) to single-digit ms. No `/api/health` code change was
+  warranted.
+
+### Auto current-origin endpoint (qy_capacitor — 2026-05-28)
+
+> The page's **current origin** is auto-injected as the **highest-priority
+> (weight 0)** endpoint, so a same-origin backend is always tried first.
+
+- `config/api-endpoints.ts` adds `getCurrentOriginEndpoint()` — it derives an
+  `ApiEndpoint` from `window.location` (protocol + hostname + port), id
+  `current-origin` (`CURRENT_ORIGIN_ENDPOINT_ID`), `priority: 0`. It reuses the
+  **same `/api` path contract** as the static endpoints — only the host/port
+  come from wherever the app is served (e.g. `http://localhost`).
+- `getAllEndpoints()` prepends it (deduped against any identical
+  protocol/host/port already configured) and sorts by priority, so it leads the
+  probe/selection order and shows first in the switcher + testing center.
+  `getEndpointById('current-origin')` re-derives it fresh from `window.location`
+  (so a stored auto/manual choice of it stays correct across reloads).
+- Safe by construction: it is **availability-first** like every other endpoint —
+  if the current origin can't serve `/api/health` (e.g. split Vite dev server on
+  a different port with no proxy), its probe fails and the manager falls through
+  to the next healthy endpoint. Returns null for non-http(s) origins
+  (SSR / `file://` / `capacitor://`), so nothing is injected there.
+- Primary benefit: production / reverse-proxy / same-origin Capacitor hosting,
+  where the frontend and backend share an origin — that origin is now selected
+  first with zero manual configuration.
+
+---
+
 ## 🔗 参考实现
 
 - **laravel_dashboard**: `/services/ApiManager.ts` + `/config/api-endpoints.ts`
@@ -185,6 +336,6 @@
 
 ---
 
-**文档版本**: v3.0 (精简版)
-**最后更新**: 2025-12-15
+**文档版本**: v3.2 (精简版 + realized detection contract + availability-first selection)
+**最后更新**: 2026-05-28
 **适用范围**: 所有前端应用

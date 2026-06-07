@@ -8,10 +8,11 @@ import { SystemConfigAPI } from './modules/SystemConfigAPI';
 import { BankV1API } from './modules/BankV1';
 import { AuthAPI } from './modules/AuthAPI';
 import { DashboardDbViewerAPI } from './modules/DashboardDbViewerAPI';
+import { setSharedBaseURL } from './base/BaseAPI';
 import { getDefaultBaseURL, DEFAULT_API_TIMEOUT } from '../../config/constants';
 
 /**
- * API配置
+ * API configuration
  * NO ?? or || allowed - use explicit checks
  */
 const API_CONFIG = {
@@ -20,7 +21,7 @@ const API_CONFIG = {
 };
 
 /**
- * 统一API服务 - 单例模式
+ * Unified API service - singleton pattern
  */
 class APIService {
   private static instance: APIService;
@@ -37,7 +38,13 @@ class APIService {
   public dashboardDbViewer: DashboardDbViewerAPI;
 
   private constructor() {
-    // 初始化所有API模块
+    // Seed the single shared base URL so EVERY module (including
+    // serverManager / systemConfig, which the old recreate-list forgot)
+    // resolves the same endpoint from the very first request, even before
+    // App.tsx's preselect runs.
+    setSharedBaseURL(API_CONFIG.baseURL);
+
+    // Initialize all API modules
     this.appQyV1 = new AppQyV1API({
       baseURL: API_CONFIG.baseURL,
       prefix: '/api/app_qy_v1',
@@ -100,7 +107,7 @@ class APIService {
   }
 
   /**
-   * 获取单例实例
+   * Get the singleton instance
    */
   static getInstance(): APIService {
     if (!APIService.instance) {
@@ -110,7 +117,7 @@ class APIService {
   }
 
   /**
-   * 设置全局Authorization header
+   * Set the global Authorization header
    */
   setAuthToken(token: string): void {
     const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
@@ -126,7 +133,7 @@ class APIService {
   }
 
   /**
-   * 清除认证
+   * Clear authentication
    */
   clearAuth(): void {
     this.appQyV1.removeHeader('Authorization');
@@ -141,7 +148,7 @@ class APIService {
   }
 
   /**
-   * 设置全局header
+   * Set a global header
    */
   setGlobalHeader(key: string, value: string): void {
     this.appQyV1.setHeader(key, value);
@@ -156,62 +163,23 @@ class APIService {
   }
 
   /**
-   * 更新所有模块的baseURL
+   * Re-point EVERY API module at a new base URL.
+   *
+   * This now updates the single shared base URL instead of recreating each
+   * module. One write re-points all modules in lock-step — including
+   * serverManager and systemConfig, which the old enumerated recreate-list
+   * silently omitted (the bug that made octane-tasks call the stale LAN IP
+   * while the switcher showed localhost). Because modules are no longer
+   * recreated, any Authorization / global headers set via setAuthToken /
+   * setGlobalHeader also survive an endpoint failover.
    */
   updateBaseURL(baseURL: string): void {
-    // 重新创建所有API模块实例
-    this.appQyV1 = new AppQyV1API({
-      baseURL,
-      prefix: '/api/app_qy_v1',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.mcpV1 = new McpV1API({
-      baseURL,
-      prefix: '/api/mcp/v1',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.serverManagerV1 = new ServerManagerV1API({
-      baseURL,
-      prefix: '/api/servermanager/v1',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.itToolsV1 = new ItToolsV1API({
-      baseURL,
-      prefix: '/api/ittools/v1',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.inviteCode = new InviteCodeAPI({
-      baseURL,
-      prefix: '/api',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.bankV1 = new BankV1API({
-      baseURL,
-      prefix: '/api/bank',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.auth = new AuthAPI({
-      baseURL,
-      prefix: '/api',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.dashboardDbViewer = new DashboardDbViewerAPI({
-      baseURL,
-      prefix: '/api/dashboard/db-viewer',
-      timeout: API_CONFIG.timeout
-    });
+    setSharedBaseURL(baseURL);
   }
 }
 
-// 导出单例
+// Export the singleton
 export const api = APIService.getInstance();
 
-// 导出类型
+// Export types
 export type { APIResponse } from '../types';

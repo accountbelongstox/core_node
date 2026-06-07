@@ -36,7 +36,7 @@ class LearningStatsCenterClass {
    * Initialize - load from storage
    */
   async initialize(): Promise<void> {
-    const cached = StorageCenter.get<LearningStatsData>(StorageKey.LEARNING_STATS);
+    const cached = StorageCenter.get<LearningStatsData>(StorageKey.LEARNING_STATS) as unknown as LearningStatsData | null;
     if (cached) {
       console.log('[LearningStatsCenter] Loaded from storage');
       this.data = cached;
@@ -46,9 +46,10 @@ class LearningStatsCenterClass {
     // Only fetch fresh data if user is authenticated
     const token = StorageCenter.auth.getToken();
     if (token) {
-      // Fetch fresh data in background
+      // Fetch fresh data in background. Failures are environmental
+      // (offline / backend down); keep the cached state and warn.
       this.refresh().catch(err => {
-        console.error('[LearningStatsCenter] Background refresh failed:', err);
+        console.warn('[LearningStatsCenter] Background refresh failed (handled, using cached state):', err?.message || err);
       });
     } else {
       console.log('[LearningStatsCenter] User not authenticated, skipping API refresh');
@@ -99,8 +100,10 @@ class LearningStatsCenterClass {
 
       console.log('[LearningStatsCenter] Refresh completed');
       EventBus.emit('learning-stats-updated', this.data);
-    } catch (error) {
-      console.error('[LearningStatsCenter] Refresh failed:', error);
+    } catch (error: any) {
+      // Defensive: the inner fetches already use allSettled, but a failure
+      // here must still degrade gracefully and keep last good state.
+      console.warn('[LearningStatsCenter] Refresh failed (handled, keeping last good state):', error?.message || error);
     } finally {
       this.loading = false;
     }
@@ -264,8 +267,9 @@ class LearningStatsCenterClass {
     try {
       const response = await ApiCenter.user.getRetentionStats();
       return response.success && response.data ? response.data : [];
-    } catch (error) {
-      console.error('[LearningStatsCenter] Failed to fetch retention stats:', error);
+    } catch (error: any) {
+      // Offline / backend down: fall back to a safe empty list.
+      console.warn('[LearningStatsCenter] Failed to fetch retention stats (handled, empty fallback):', error?.message || error);
       return [];
     }
   }

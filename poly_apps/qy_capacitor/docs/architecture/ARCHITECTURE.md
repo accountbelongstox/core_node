@@ -501,7 +501,15 @@ export type { LoginResult, RegisterResult } from './AuthModel';
 
 📁 **位置**: `router/RouteCenter.tsx`
 
-**职责**: 统一管理所有应用路由
+**职责**: 统一管理所有应用路由（技术层 / technical layer）
+
+> **用户侧的信息架构与导航（5-tab 悬浮岛、路由分类、沉浸式/受保护语义、用户
+> 流程）已迁移至设计文档的交互设计部分 / The user-facing information
+> architecture & navigation (5-tab island, route categories, immersive /
+> protected semantics, user flows) now lives in the design doc, Part B:**
+> [`docs/design/WORDFLOW_DESIGN_SYSTEM_4.0.md`](../design/WORDFLOW_DESIGN_SYSTEM_4.0.md)
+> **§7 (IA & Navigation) and §8 (App Shell & Chrome).** This section keeps only
+> the `RouteCenter` service API/config.
 
 ### API
 
@@ -537,15 +545,13 @@ interface RouteConfig {
 }
 ```
 
-### 路由统计
+### 路由分类与统计 / Route categories & stats
 
-- **Total**: 30+ routes
-- **Auth**: 3 routes
-- **Dashboard**: 3 routes
-- **Learning**: 10 routes
-- **Library**: 4 routes
-- **Tools**: 6 routes
-- **Settings**: 8 routes
+> Relocated to the design doc's interaction layer — see
+> [`WORDFLOW_DESIGN_SYSTEM_4.0.md`](../design/WORDFLOW_DESIGN_SYSTEM_4.0.md)
+> §7.1 (current route map by category) and §7.2 (the expected 3-tier
+> Learn/Tools/Mine architecture). `RouteCenter` is the runtime source of truth
+> for the live list (`ROUTE_REGISTRY`).
 
 ---
 

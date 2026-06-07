@@ -4,20 +4,18 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 
 /**
- * Multi-language Word Dictionary Model
- * Uses sys:init table structure ({prefix}_words_*)
- * Table prefix is obtained from key center (AppTablePrefixServiceProvider)
- *
- * Table structure:
- * - English: word, word_id, us_phonetic, uk_phonetic, translation(JSON), sample_images
- * - Others: word, word_id, pronunciation, meaning_en, meaning_zh
- * - All: ai_reviewed, tts_generated, created_at, updated_at
+ * @deprecated Superseded by AppQyV1LangDictionaryModel. Retained as a thin
+ * backward-compatibility SHIM over the single canonical multi-language table
+ * {prefix}_tts_cache_{lang}. setLanguage() binds to that table; legacy column
+ * names (word/word_id/translation/meaning_en/meaning_zh/sample_images/
+ * tts_generated/ai_reviewed/pronunciation) are exposed as read accessors
+ * mapped onto the unified schema (content/md5/translations/has_translation/
+ * has_audio/image_files/phonetic). New code MUST use AppQyV1LangDictionaryModel.
  */
 class AppQyV1MultiLangDictionaryModel extends Model
 {
@@ -27,25 +25,41 @@ class AppQyV1MultiLangDictionaryModel extends Model
     protected $table;
     protected $langCode;
 
+    // Unified canonical schema (tts_cache_{lang}); legacy keys are NOT fillable.
     protected $fillable = [
-        'word_id',
-        'word',
-        'pronunciation',
+        'content',
+        'md5',
+        'translations',
+        'has_translation',
+        'translation_provider',
+        'phonetic',
         'us_phonetic',
         'uk_phonetic',
-        'translation',
-        'meaning_en',
-        'meaning_zh',
-        'sample_images',
-        'ai_reviewed',
-        'tts_generated',
+        'tts_files',
+        'tts_provider',
+        'has_audio',
+        'image_files',
+        'image_provider',
+        'word_details',
+        'is_exist_local',
+        'has_operations',
+        'query_count',
+        'last_modified',
+        'last_query_time',
     ];
 
     protected $casts = [
-        'translation' => 'json',
-        'sample_images' => 'json',
-        'ai_reviewed' => 'boolean',
-        'tts_generated' => 'boolean',
+        'translations' => 'json',
+        'tts_files' => 'json',
+        'image_files' => 'json',
+        'word_details' => 'json',
+        'has_translation' => 'boolean',
+        'has_audio' => 'boolean',
+        'is_exist_local' => 'boolean',
+        'has_operations' => 'boolean',
+        'query_count' => 'integer',
+        'last_modified' => 'datetime',
+        'last_query_time' => 'datetime',
     ];
 
     public function __construct(array $attributes = [])
@@ -57,7 +71,7 @@ class AppQyV1MultiLangDictionaryModel extends Model
             $this->setLanguage($attributes['lang_code']);
         }
     }
-    
+
     public function getConnectionName()
     {
         return AppTablePrefixServiceProvider::getConnection($this->appKey);
@@ -66,13 +80,9 @@ class AppQyV1MultiLangDictionaryModel extends Model
     public function setLanguage(string $langCode): self
     {
         $this->langCode = strtolower($langCode);
-
-        try {
-            $this->table = AppQyV1TableMaps::getWordTableName($this->langCode);
-        } catch (\InvalidArgumentException $e) {
-            throw new \InvalidArgumentException("Language code '{$this->langCode}' does not have word table");
-        }
-
+        // getWordTableName() is now an alias resolving to the canonical
+        // tts_cache_{lang} table (names normalized to codes).
+        $this->table = AppQyV1TableMaps::getWordTableName($this->langCode);
         return $this;
     }
 
@@ -88,138 +98,204 @@ class AppQyV1MultiLangDictionaryModel extends Model
         return $instance;
     }
 
-    public static function countAll(string $langCode): int
+    // ---- Backward-compatibility read accessors (legacy column names) -------
+
+    public function getWordAttribute()
     {
-        return self::forLanguage($langCode)->count();
+        return $this->attributes['content'] ?? null;
     }
 
-    /**
-     * Count words with translation/meaning
-     * English: checks translation field (JSON not null)
-     * Others: checks meaning_en field (not null)
-     */
-    public static function countByTranslation(string $langCode): int
+    public function getTranslationAttribute()
     {
-        $isEnglish = in_array(strtolower($langCode), ['en', 'english']);
+        // Legacy English callers expected the decoded translation payload.
+        return $this->translations;
+    }
 
-        if ($isEnglish) {
-            return self::forLanguage($langCode)
-                ->whereNotNull('translation')
-                ->where('translation', '!=', '')
-                ->where('translation', '!=', '[]')
-                ->count();
-        } else {
-            return self::forLanguage($langCode)
-                ->whereNotNull('meaning_en')
-                ->where('meaning_en', '!=', '')
-                ->count();
+    public function getMeaningEnAttribute()
+    {
+        $t = $this->translations;
+        if (is_array($t) && isset($t['en'])) {
+            return $t['en'];
         }
+        return null;
     }
 
-    /**
-     * Find word by exact match (case insensitive)
-     */
+    public function getMeaningZhAttribute()
+    {
+        $t = $this->translations;
+        if (is_array($t) && isset($t['zh'])) {
+            return $t['zh'];
+        }
+        return null;
+    }
+
+    public function getPronunciationAttribute()
+    {
+        return $this->attributes['phonetic'] ?? null;
+    }
+
+    public function getSampleImagesAttribute()
+    {
+        return $this->image_files;
+    }
+
+    public function getTtsGeneratedAttribute(): bool
+    {
+        return (bool) ($this->attributes['has_audio'] ?? false);
+    }
+
+    public function getAiReviewedAttribute(): bool
+    {
+        return (bool) ($this->attributes['has_translation'] ?? false);
+    }
+
+    // ---- Lookups (canonical md5(content) key) -----------------------------
+
     public static function findByWord(string $langCode, string $word)
     {
         return self::forLanguage($langCode)
-            ->whereRaw('LOWER(word) = ?', [strtolower($word)])
+            ->where('md5', md5($word))
             ->first();
     }
 
-    /**
-     * Legacy method for compatibility
-     * @deprecated Use findByWord instead
-     */
     public static function findByContent(string $langCode, string $content)
     {
         return self::findByWord($langCode, $content);
     }
 
-    /**
-     * Legacy method for compatibility
-     * @deprecated Use findByWord instead
-     */
     public static function findByMd5(string $langCode, string $md5)
     {
-        return null;
+        return self::forLanguage($langCode)
+            ->where('md5', $md5)
+            ->first();
+    }
+
+    public static function countAll(string $langCode): int
+    {
+        return self::forLanguage($langCode)->count();
+    }
+
+    public static function countByTranslation(string $langCode): int
+    {
+        return self::forLanguage($langCode)
+            ->where('has_translation', true)
+            ->count();
     }
 
     /**
-     * Find missing words in table
+     * Words present in $wordArray but absent from the table (by md5(content)).
+     * Returns the original-case words.
      */
     public static function findMissingEntries(string $langCode, array $wordArray): array
     {
-        $existing = self::forLanguage($langCode)
-            ->whereIn(DB::raw('LOWER(word)'), array_map('strtolower', $wordArray))
-            ->pluck('word')
-            ->map(function($w) { return strtolower($w); })
-            ->toArray();
-
-        $lowercaseWords = array_map('strtolower', $wordArray);
-        $missing = array_diff($lowercaseWords, $existing);
-
-        $result = [];
+        $byMd5 = [];
         foreach ($wordArray as $word) {
-            if (in_array(strtolower($word), $missing)) {
-                $result[] = $word;
-            }
+            $byMd5[md5($word)] = $word;
         }
-        return $result;
+        if (empty($byMd5)) {
+            return [];
+        }
+
+        $existing = self::forLanguage($langCode)
+            ->whereIn('md5', array_keys($byMd5))
+            ->pluck('md5')
+            ->all();
+
+        $missing = [];
+        foreach (array_diff(array_keys($byMd5), $existing) as $md5) {
+            $missing[] = $byMd5[$md5];
+        }
+        return $missing;
     }
 
     /**
-     * Create or update word entry
+     * Create or enrich an entry on the unified table. Accepts legacy keys
+     * ('word','translation','meaning_en','meaning_zh','tts_generated',
+     * 'ai_reviewed') and maps them onto the unified schema.
      */
     public static function createOrUpdate(string $langCode, array $data): self
     {
-        if (!isset($data['word'])) {
-            throw new \InvalidArgumentException("Word field is required");
+        $content = null;
+        if (isset($data['content'])) {
+            $content = $data['content'];
+        } elseif (isset($data['word'])) {
+            $content = $data['word'];
         }
 
-        $existing = self::findByWord($langCode, $data['word']);
+        if ($content === null || $content === '') {
+            throw new \InvalidArgumentException("content/word field is required");
+        }
+
+        $md5 = md5($content);
+
+        $translations = [];
+        if (isset($data['translations']) && is_array($data['translations'])) {
+            $translations = $data['translations'];
+        }
+        if (isset($data['translation'])) {
+            if (is_array($data['translation'])) {
+                $translations = array_merge($translations, $data['translation']);
+            } else {
+                $translations['en'] = $data['translation'];
+            }
+        }
+        if (isset($data['meaning_en'])) {
+            $translations['en'] = $data['meaning_en'];
+        }
+        if (isset($data['meaning_zh'])) {
+            $translations['zh'] = $data['meaning_zh'];
+        }
+
+        $existing = self::forLanguage($langCode)->where('md5', $md5)->first();
+
+        $payload = [];
+        if (!empty($translations)) {
+            $payload['translations'] = $translations;
+            $payload['has_translation'] = true;
+        }
+        if (isset($data['us_phonetic'])) {
+            $payload['us_phonetic'] = $data['us_phonetic'];
+        }
+        if (isset($data['uk_phonetic'])) {
+            $payload['uk_phonetic'] = $data['uk_phonetic'];
+        }
+        if (isset($data['pronunciation'])) {
+            $payload['phonetic'] = $data['pronunciation'];
+        }
+        if (isset($data['phonetic'])) {
+            $payload['phonetic'] = $data['phonetic'];
+        }
+        if (isset($data['tts_generated'])) {
+            $payload['has_audio'] = (bool) $data['tts_generated'];
+        }
+        if (isset($data['has_audio'])) {
+            $payload['has_audio'] = (bool) $data['has_audio'];
+        }
 
         if ($existing) {
-            $existing->update($data);
+            if (!empty($payload)) {
+                $existing->fill($payload);
+                $existing->save();
+            }
             return $existing;
         }
 
-        $isEnglish = in_array(strtolower($langCode), ['en', 'english']);
-
-        if ($isEnglish) {
-            if (!isset($data['translation'])) {
-                $data['translation'] = null;
-            }
-        } else {
-            if (!isset($data['meaning_en'])) {
-                $data['meaning_en'] = null;
-            }
-            if (!isset($data['meaning_zh'])) {
-                $data['meaning_zh'] = null;
-            }
-        }
-
-        if (!isset($data['ai_reviewed'])) {
-            $data['ai_reviewed'] = false;
-        }
-        if (!isset($data['tts_generated'])) {
-            $data['tts_generated'] = false;
-        }
-
-        $nextWordId = self::forLanguage($langCode)->max('word_id') + 1;
-        if (!isset($data['word_id'])) {
-            $data['word_id'] = $nextWordId;
-        }
-
         $instance = self::forLanguage($langCode);
-        $instance->fill($data);
+        $instance->content = $content;
+        $instance->md5 = $md5;
+        if (!isset($payload['has_translation'])) {
+            $instance->has_translation = false;
+        }
+        if (!isset($payload['has_audio'])) {
+            $instance->has_audio = false;
+        }
+        $instance->query_count = 0;
+        $instance->fill($payload);
         $instance->save();
 
         return $instance;
     }
 
-    /**
-     * Batch create or update words
-     */
     public static function batchCreateOrUpdate(string $langCode, array $items): array
     {
         $results = [];
@@ -233,59 +309,35 @@ class AppQyV1MultiLangDictionaryModel extends Model
         return $results;
     }
 
-    /**
-     * Get words needing translation
-     * English: translation is null or empty
-     * Others: meaning_en is null or empty
-     */
     public static function getWordsNeedingTranslation(string $langCode, int $limit = 100): \Illuminate\Database\Eloquent\Collection
     {
-        $isEnglish = in_array(strtolower($langCode), ['en', 'english']);
-
-        if ($isEnglish) {
-            return self::forLanguage($langCode)
-                ->where(function($query) {
-                    $query->whereNull('translation')
-                        ->orWhere('translation', '')
-                        ->orWhere('translation', '[]');
-                })
-                ->inRandomOrder()
-                ->limit($limit)
-                ->get();
-        } else {
-            return self::forLanguage($langCode)
-                ->where(function($query) {
-                    $query->whereNull('meaning_en')
-                        ->orWhere('meaning_en', '');
-                })
-                ->inRandomOrder()
-                ->limit($limit)
-                ->get();
-        }
-    }
-
-    /**
-     * Get words needing TTS
-     */
-    public static function getWordsNeedingTTS(string $langCode, int $limit = 100): \Illuminate\Database\Eloquent\Collection
-    {
         return self::forLanguage($langCode)
-            ->where('tts_generated', false)
+            ->where('has_translation', false)
+            ->inRandomOrder()
             ->limit($limit)
             ->get();
     }
 
-    /**
-     * Check if word has translation
-     */
+    public static function getWordsNeedingTTS(string $langCode, int $limit = 100): \Illuminate\Database\Eloquent\Collection
+    {
+        return self::forLanguage($langCode)
+            ->where('has_audio', false)
+            ->limit($limit)
+            ->get();
+    }
+
     public function hasTranslation(): bool
     {
-        $isEnglish = in_array(strtolower($this->langCode), ['en', 'english']);
+        return (bool) ($this->attributes['has_translation'] ?? false);
+    }
 
-        if ($isEnglish) {
-            return !empty($this->translation) && $this->translation !== '[]';
-        } else {
-            return !empty($this->meaning_en);
-        }
+    /**
+     * Backward-compat: mirrors AppQyV1LangDictionaryModel::incrementQueryCount().
+     * Live callers (TTS/translation cache hits) invoke this on shim instances.
+     */
+    public function incrementQueryCount(): void
+    {
+        $this->increment('query_count');
+        $this->update(['last_query_time' => now()]);
     }
 }

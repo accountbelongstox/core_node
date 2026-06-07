@@ -2,7 +2,7 @@ import { User, UserPreferences } from '../types';
 import { api } from '../api';
 
 /**
- * UserModel - 用户模型
+ * UserModel - User model
  */
 export class UserModel {
   private user: User | null = null;
@@ -102,34 +102,34 @@ export class UserModel {
   }
 
   /**
-   * 获取当前用户
+   * Get the current user
    */
   getUser(): User | null {
     return this.user;
   }
 
   /**
-   * 是否已登录
+   * Whether the user is logged in
    */
   isLoggedIn(): boolean {
     return this.user !== null;
   }
 
   /**
-   * 获取偏好设置
+   * Get preferences
    */
   getPreferences(): UserPreferences {
     return { ...this.preferences };
   }
 
   /**
-   * 更新偏好设置
+   * Update preferences
    */
   async updatePreferences(prefs: Partial<UserPreferences>): Promise<void> {
     this.preferences = { ...this.preferences, ...prefs };
     this.savePreferences();
 
-    // 同步到服务器
+    // Sync to the server
     try {
       await api.auth.updateUserPreferences(prefs);
     } catch (error) {
@@ -138,19 +138,19 @@ export class UserModel {
   }
 
   /**
-   * 添加最近使用工具
+   * Add a recently used tool
    */
   addRecentTool(toolId: string): void {
     const recent = this.preferences.recentTools.filter(id => id !== toolId);
     recent.unshift(toolId);
 
-    // 最多保存10个
+    // Keep at most 10 entries
     this.preferences.recentTools = recent.slice(0, 10);
     this.savePreferences();
   }
 
   /**
-   * 切换收藏工具
+   * Toggle a favorite tool
    */
   toggleFavorite(toolId: string): void {
     const favorites = this.preferences.favorites;
@@ -166,14 +166,14 @@ export class UserModel {
   }
 
   /**
-   * 是否已收藏
+   * Whether the tool is favorited
    */
   isFavorite(toolId: string): boolean {
     return this.preferences.favorites.includes(toolId);
   }
 
   /**
-   * 加载用户偏好
+   * Load user preferences
    */
   private async loadPreferences(): Promise<void> {
     try {
@@ -188,7 +188,7 @@ export class UserModel {
   }
 
   /**
-   * 保存到localStorage
+   * Save to localStorage
    */
   private save(): void {
     if (this.user) {
@@ -197,37 +197,37 @@ export class UserModel {
   }
 
   /**
-   * 保存token
+   * Save the token
    */
   private saveToken(token: string): void {
     localStorage.setItem('auth_token', token);
   }
 
   /**
-   * 保存偏好设置
+   * Save preferences
    */
   private savePreferences(): void {
     localStorage.setItem('user_preferences', JSON.stringify(this.preferences));
   }
 
   /**
-   * 从localStorage加载
+   * Load from localStorage
    */
   private load(): void {
     try {
-      // 加载用户
+      // Load user
       const userStr = localStorage.getItem('user');
       if (userStr) {
         this.user = JSON.parse(userStr);
       }
 
-      // 加载token
+      // Load token
       const token = localStorage.getItem('auth_token');
       if (token) {
         api.setAuthToken(token);
       }
 
-      // 加载偏好
+      // Load preferences
       const prefsStr = localStorage.getItem('user_preferences');
       if (prefsStr) {
         this.preferences = JSON.parse(prefsStr);
@@ -238,7 +238,7 @@ export class UserModel {
   }
 
   /**
-   * 清除数据
+   * Clear data
    */
   private clear(): void {
     localStorage.removeItem('user');
@@ -246,5 +246,5 @@ export class UserModel {
   }
 }
 
-// 单例
+// Singleton
 export const userModel = new UserModel();
