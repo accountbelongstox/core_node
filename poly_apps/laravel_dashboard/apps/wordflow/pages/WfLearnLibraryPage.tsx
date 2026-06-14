@@ -14,7 +14,7 @@
  * yet) a compact hint row renders instead of a broken-looking empty block. */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, BookOpen, Captions } from 'lucide-react';
+import { Plus, BookOpen, Captions, ImageIcon, RefreshCw } from 'lucide-react';
 import { Icons, Card, Button, LoadingState, EmptyState, Badge, Spinner } from '../WfUI';
 import { wfPath } from '../WfBottomTabNav';
 import { useWfT } from '../WfAppContext';
