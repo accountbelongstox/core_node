@@ -2144,7 +2144,7 @@ ApiResponse<ScreenshotUploadResponse>
 
 **描述**: 分页获取某个书籍 / 字幕的句子内容。句子经共享句库解析，优先粒度 `sentence`，为空时回退 `cue`（响应中带 `grain` 字段）
 
-> **v2 书籍注意**：书籍来源的句子在库中为**去标点**形式，故 `type=book` 返回的 `text` 为去标点文本，`audio` 初始为空（pycore 后续回填）。带标点原文重建依赖 `book.sentence_seq` + 标点标识库；当前控制器尚未做重建。详见 `pycore/docs/pipelines/MEDIA_SYNC_PIPELINE.md` §8.4/§8.12。
+> **v2 书籍**：书籍句子在库中为**去标点**形式；`type=book` 的句子由控制器用 `book.sentence_seq` + 标点标识库**重建带标点**后返回（按句子分页，`grain='sentence'`）。句子内部标点不还原（精确字节在 `full_content`，不对外）；`audio` 初始为空（pycore 后续回填）。详见 `pycore/docs/pipelines/MEDIA_SYNC_PIPELINE.md` §8.4/§8.12。
 
 **路径参数**: `type` 为 `book` 或 `subtitle`；`id` 为数字主键
 

@@ -23,10 +23,12 @@ class BingDictionaryProcessor implements ITaskProcessor {
 
     await bingDictionaryWorkerService.start({
       apiUrl: config.apiUrl,
-      workerName: config.workerName || 'MCP Chrome Bing Dictionary Worker',
+      workerName: config.workerName || 'MCP Chrome Bing Translation Worker',
       pollInterval: config.pollInterval || 5,
       heartbeatInterval: config.heartbeatInterval || 60,
       batchSize: config.batchSize || 5,
+      tabCount: config.tabCount || 3,
+      targetLanguage: config.targetLanguage || 'zh',
     });
 
     console.log('[BingProcessor] Bing Dictionary Processor started');
@@ -53,12 +55,14 @@ class BingDictionaryProcessor implements ITaskProcessor {
         pending: serviceStatus.stats.pending,
         translated: serviceStatus.stats.translated,
         failed: serviceStatus.stats.failed,
+        invalid: serviceStatus.stats.invalid,
         lastRun: serviceStatus.stats.lastRun,
         workerId: serviceStatus.stats.workerId,
         isOnline: serviceStatus.stats.isOnline,
         queueTotal: serviceStatus.stats.queueTotal,
         newTasks: serviceStatus.stats.newTasks,
         duplicateTasks: serviceStatus.stats.duplicateTasks,
+        activeTabs: serviceStatus.stats.activeTabs,
       },
     };
   }

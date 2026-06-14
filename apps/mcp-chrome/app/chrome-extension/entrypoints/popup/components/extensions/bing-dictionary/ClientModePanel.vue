@@ -52,6 +52,29 @@
             class="form-input-small"
           />
         </div>
+
+        <div v-if="clientConfig.mode === 'worker'" class="form-group">
+          <label class="form-label">Parallel Bing Tabs:</label>
+          <input
+            :value="clientConfig.tabCount"
+            @input="onConfigChange('tabCount', $event)"
+            type="number"
+            min="1"
+            max="8"
+            class="form-input-small"
+          />
+        </div>
+
+        <div v-if="clientConfig.mode === 'worker'" class="form-group">
+          <label class="form-label">Target Language:</label>
+          <input
+            :value="clientConfig.targetLanguage"
+            @input="onConfigChange('targetLanguage', $event)"
+            type="text"
+            placeholder="zh"
+            class="form-input-small"
+          />
+        </div>
       </div>
 
       <div v-if="clientService.stats" class="service-stats">
@@ -84,6 +107,14 @@
           <div class="stat-item">
             <span class="stat-label">Failed:</span>
             <span class="stat-value">{{ clientService.stats.failed }}</span>
+          </div>
+          <div v-if="clientService.stats.invalid !== undefined" class="stat-item">
+            <span class="stat-label">Invalid:</span>
+            <span class="stat-value">{{ clientService.stats.invalid }}</span>
+          </div>
+          <div v-if="clientService.stats.activeTabs !== undefined" class="stat-item">
+            <span class="stat-label">Active Tabs:</span>
+            <span class="stat-value">{{ clientService.stats.activeTabs }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-label">Last Run:</span>
@@ -126,9 +157,11 @@ const onToggleService = () => {
   emit('toggle-service');
 };
 
+const STRING_FIELDS = ['apiUrl', 'targetLanguage'];
+
 const onConfigChange = (field: string, event: Event) => {
   const target = event.target as HTMLInputElement;
-  const value = field === 'apiUrl' ? target.value : Number(target.value);
+  const value = STRING_FIELDS.includes(field) ? target.value : Number(target.value);
   emit('update-config', field, value);
 };
 </script>

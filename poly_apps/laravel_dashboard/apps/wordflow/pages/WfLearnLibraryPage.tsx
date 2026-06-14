@@ -14,7 +14,7 @@
  * yet) a compact hint row renders instead of a broken-looking empty block. */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, BookOpen, Captions, ImageIcon, RefreshCw } from 'lucide-react';
+import { Plus, BookOpen, Captions, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { Icons, Card, Button, LoadingState, EmptyState, Badge, Spinner } from '../WfUI';
 import { wfPath } from '../WfBottomTabNav';
 import { useWfT } from '../WfAppContext';
@@ -43,29 +43,96 @@ const LANG_PILLS: { id: string; label: string }[] = [
   { id: 'ja', label: 'Japanese' },
 ];
 
-/** Cover thumbnail with graceful fallback to the book icon on load failure. */
-const CoverThumb: React.FC<{ src: string | null | undefined; alt: string }> = ({ src, alt }) => {
+/** Cover thumbnail that reflects the backend cover lifecycle, not just load
+ * success: a not-yet-generated cover (pending/processing/retry) shows a shimmer
+ * "generating" placeholder, a failed cover shows the book fallback plus an
+ * unobtrusive retry, and a ready cover (or any image that loads) shows the
+ * image. The onError→fallback stays as a final safety net for the ready-but-404
+ * race. Statuses come from the API (image_url, cover_status, cover_attempts). */
+const CoverThumb: React.FC<{
+  src: string | null | undefined;
+  alt: string;
+  status?: string | null;
+  attempts?: number;
+  errorMessage?: string | null;
+  onRetry?: () => void;
+  retrying?: boolean;
+  labels: {
+    generating: string;
+    failed: string;
+    retry: string;
+  };
+}> = ({ src, alt, status, attempts, errorMessage, onRetry, retrying, labels }) => {
   const [failed, setFailed] = useState(false);
   // Reset the failure flag when the source changes (list re-renders).
   useEffect(() => setFailed(false), [src]);
-  if (!src || failed) {
+
+  const normalized = (status || '').toLowerCase();
+  const isReady = normalized === 'ready' || (!normalized && !!src);
+  const isGenerating = normalized === 'pending' || normalized === 'processing' || normalized === 'retry';
+  const isFailed = normalized === 'failed';
+
+  // Image path: ready (or status-less but has a src), and not yet flagged 404.
+  if (src && !failed && (isReady || (!isGenerating && !isFailed))) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        className="w-full h-24 rounded-xl object-cover"
+      />
+    );
+  }
+
+  // In-progress generation — subtle shimmer so it's clearly NOT "no cover".
+  if (isGenerating && !failed) {
     return (
       <div
-        className="w-full h-24 rounded-xl flex items-center justify-center text-[var(--klein-blue)]"
+        className="w-full h-24 rounded-xl flex flex-col items-center justify-center gap-1 text-[var(--klein-blue)] animate-pulse"
         style={{ background: 'var(--klein-blue-soft)' }}
+        aria-busy="true"
       >
-        <BookOpen className="w-8 h-8" aria-hidden />
+        <ImageIcon className="w-7 h-7 opacity-70" aria-hidden />
+        <span className="text-[0.65rem] font-medium opacity-80">{labels.generating}</span>
       </div>
     );
   }
+
+  // Failed (or final 404 fallback). Show the book icon plus a muted hint and an
+  // optional unobtrusive retry that re-queues the cover for pycore.
   return (
-    <img
-      src={src}
-      alt={alt}
-      loading="lazy"
-      onError={() => setFailed(true)}
-      className="w-full h-24 rounded-xl object-cover"
-    />
+    <div
+      className="w-full h-24 rounded-xl flex flex-col items-center justify-center gap-1 text-[var(--klein-blue)]"
+      style={{ background: 'var(--klein-blue-soft)' }}
+    >
+      <BookOpen className="w-7 h-7" aria-hidden />
+      {isFailed && (
+        <>
+          <span
+            className="text-[0.65rem] font-medium text-[var(--color-text-tertiary)]"
+            title={errorMessage || labels.failed}
+          >
+            {labels.failed}
+            {typeof attempts === 'number' && attempts > 0 ? ` (${attempts})` : ''}
+          </span>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRetry();
+              }}
+              disabled={retrying}
+              className="inline-flex items-center gap-1 text-[0.65rem] font-semibold text-[color:var(--klein-blue)] hover:underline disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${retrying ? 'animate-spin' : ''}`} aria-hidden />
+              {labels.retry}
+            </button>
+          )}
+        </>
+      )}
+    </div>
   );
 };
 
@@ -84,6 +151,8 @@ const WfLearnLibraryPage: React.FC = () => {
   const [publicSubtitles, setPublicSubtitles] = useState<WfSubtitleSummary[]>([]);
   const [loadingPublic, setLoadingPublic] = useState(true);
   const [addSheetContent, setAddSheetContent] = useState<WfAddToLibraryContent | null>(null);
+  // Per-library cover-retry in flight (so each card spins independently).
+  const [retryingCovers, setRetryingCovers] = useState<Set<number>>(new Set());
   const { runProtected, loginConfirmSheet } = useWfProtectedAction();
 
   useEffect(() => {
@@ -127,6 +196,18 @@ const WfLearnLibraryPage: React.FC = () => {
   // Public content — all three calls degrade to empty inside the API layer.
   // Libraries follow the language pill (the API maps 'en' → 'english'); the
   // media lists stay unfiltered (small first page, hidden when empty).
+  // Reload only the public vocabulary libraries (used after a cover retry, where
+  // the media lists don't change). Always refreshes the bypass cache so the new
+  // cover_status is picked up.
+  const refreshPublicLibraries = React.useCallback(async () => {
+    try {
+      const libs = await wfLibraryCenter.getPublicLibraries(selectedLanguage || undefined, true);
+      setPublicLibraries(Array.isArray(libs) ? libs : []);
+    } catch (error) {
+      console.error('[WfLearnLibrary] Failed to refresh public libraries:', error);
+    }
+  }, [selectedLanguage]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -154,6 +235,20 @@ const WfLearnLibraryPage: React.FC = () => {
     })();
     return () => { cancelled = true; };
   }, [selectedLanguage]);
+
+  // Re-queue a failed library cover for pycore, then refetch the library list so
+  // the card flips from "failed" to the "generating" placeholder.
+  const handleRetryCover = React.useCallback(async (libraryId: number) => {
+    setRetryingCovers((prev) => { const n = new Set(prev); n.add(libraryId); return n; });
+    try {
+      await wordflowApi.retryCover(libraryId);
+      await refreshPublicLibraries();
+    } catch (error) {
+      console.error('[WfLearnLibrary] Cover retry failed:', error);
+    } finally {
+      setRetryingCovers((prev) => { const n = new Set(prev); n.delete(libraryId); return n; });
+    }
+  }, [refreshPublicLibraries]);
 
   // Defensive: never let a non-array slip into render (.map/.length safety).
   const safeGroups = Array.isArray(groups) ? groups : [];
@@ -337,7 +432,20 @@ const WfLearnLibraryPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   {publicLibraries.map((lib) => (
                     <div key={lib.id} className="ds-card !p-3 flex flex-col gap-3 relative">
-                      <CoverThumb src={lib.image_url} alt={lib.name} />
+                      <CoverThumb
+                        src={lib.image_url}
+                        alt={lib.name}
+                        status={lib.cover_status}
+                        attempts={lib.cover_attempts}
+                        errorMessage={lib.cover_error_message}
+                        retrying={retryingCovers.has(lib.id)}
+                        onRetry={() => handleRetryCover(lib.id)}
+                        labels={{
+                          generating: t('library.coverGenerating') || 'Generating cover…',
+                          failed: t('library.coverFailed') || 'No cover',
+                          retry: t('library.coverRetry') || 'Retry',
+                        }}
+                      />
                       {/* Add to study group — the only action (auth-gated) */}
                       <button
                         type="button"

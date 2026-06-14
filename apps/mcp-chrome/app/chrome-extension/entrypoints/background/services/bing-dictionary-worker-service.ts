@@ -1,11 +1,18 @@
 /**
  * Bing Dictionary Worker Service
- * Implements Worker-based auto-translation using Worker API
- * Under 400 lines
+ *
+ * Acts as a laravel_main translation worker: registers under processor type
+ * `remote_translation`, long-polls the word_translation queue
+ * (/api/worker/tasks/*), and for every word scrapes Bing dictionary for the
+ * translation, phonetics, sample images and pronunciation audio. Words are
+ * processed in parallel across a configurable pool of Bing tabs; the audio mp3
+ * is downloaded and shipped as base64. Words Bing has no entry for are reported
+ * in `invalid_words` so the backend flags them is_valid=false and never
+ * re-queues them.
  */
 
 import { WorkerApiClient, Task, ProcessorType } from '../api/WorkerApiClient';
-import { bingDictionaryTool } from '../tools/browser/bing-dictionary';
+import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-dictionary';
 
 export interface WorkerConfig {
   apiUrl: string;
@@ -13,29 +20,58 @@ export interface WorkerConfig {
   pollInterval?: number;
   heartbeatInterval?: number;
   batchSize?: number;
+  /** Number of Bing dictionary tabs to drive in parallel. */
+  tabCount?: number;
+  /** Default target language when a task payload omits one. */
+  targetLanguage?: string;
 }
 
 export interface WorkerStats {
   pending: number;
   translated: number;
   failed: number;
+  invalid: number;
   lastRun: number | null;
   workerId: string | null;
   isOnline: boolean;
-  // Queue statistics
-  queueTotal: number;      // Total tasks in current queue
-  newTasks: number;        // New tasks received in last poll
-  duplicateTasks: number;  // Duplicate tasks skipped in last poll
+  queueTotal: number;
+  newTasks: number;
+  duplicateTasks: number;
+  activeTabs: number;
 }
+
+interface NormalizedWord {
+  word: string;
+  md5?: string;
+}
+
+interface ResultEntry {
+  word: string;
+  md5?: string;
+  translation: string;
+  phonetic?: string;
+  us_phonetic?: string;
+  uk_phonetic?: string;
+  image_urls?: string[];
+  audio_base64?: string;
+  audio_mime?: string;
+  provider: string;
+}
+
+const MAX_TABS = 8;
+const NO_RESULT_ERROR = 'No results found for this word';
 
 class BingDictionaryWorkerService {
   private isRunning = false;
-  private config: WorkerConfig | null = null;
+  private config: Required<WorkerConfig> | null = null;
   private workerClient: WorkerApiClient | null = null;
   private pollIntervalId: ReturnType<typeof setInterval> | null = null;
   private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
 
-  // Task cache to prevent duplicate processing
+  // Pool of Bing dictionary tab ids driven in parallel.
+  private tabIds: number[] = [];
+
+  // Task cache to prevent duplicate processing.
   private taskCache = new Set<string>();
   private taskQueue: Task[] = [];
 
@@ -43,78 +79,71 @@ class BingDictionaryWorkerService {
     pending: 0,
     translated: 0,
     failed: 0,
+    invalid: 0,
     lastRun: null,
     workerId: null,
     isOnline: false,
     queueTotal: 0,
     newTasks: 0,
     duplicateTasks: 0,
+    activeTabs: 0,
   };
 
-  /**
-   * Start the worker service
-   */
   async start(config: WorkerConfig): Promise<void> {
     if (this.isRunning) {
       console.warn('[Bing Worker] Service already running');
       return;
     }
-
     if (!config.apiUrl) {
       throw new Error('API URL is required');
     }
 
     this.config = {
-      workerName: 'MCP Chrome Bing Dictionary Worker',
-      pollInterval: 5,  // Default 5 seconds for real-time updates
-      heartbeatInterval: 60,
-      batchSize: 5,
-      ...config,
+      apiUrl: config.apiUrl,
+      workerName: config.workerName || 'MCP Chrome Bing Translation Worker',
+      pollInterval: config.pollInterval ?? 5,
+      heartbeatInterval: config.heartbeatInterval ?? 60,
+      batchSize: config.batchSize ?? 5,
+      tabCount: Math.max(1, Math.min(MAX_TABS, config.tabCount ?? 3)),
+      targetLanguage: config.targetLanguage || 'zh',
     };
 
     console.log('[Bing Worker] Starting service with config:', this.config);
 
-    // Initialize Worker API client
     this.workerClient = new WorkerApiClient(this.config.apiUrl);
 
-    // Register worker
     await this.registerWorker();
 
-    // Start heartbeat
-    this.startHeartbeat();
+    // Open/reuse the Bing dictionary tab pool up front so "start assisting"
+    // immediately surfaces Bing (auto-open if none, switch/activate if present).
+    await this.ensureTabs();
 
-    // Start task polling
+    this.startHeartbeat();
     this.startPolling();
 
     this.isRunning = true;
     console.log('[Bing Worker] Service started successfully');
   }
 
-  /**
-   * Stop the worker service
-   */
   stop(): void {
     if (!this.isRunning) {
       console.warn('[Bing Worker] Service not running');
       return;
     }
 
-    // Stop polling
     if (this.pollIntervalId) {
       clearInterval(this.pollIntervalId);
       this.pollIntervalId = null;
     }
-
-    // Stop heartbeat
     if (this.heartbeatIntervalId) {
       clearInterval(this.heartbeatIntervalId);
       this.heartbeatIntervalId = null;
     }
 
-    // Clear cache and queue
     this.taskCache.clear();
     this.taskQueue = [];
 
+    // Tabs are intentionally left open so the user keeps their Bing context.
     this.isRunning = false;
     this.stats.isOnline = false;
     this.stats.queueTotal = 0;
@@ -124,9 +153,6 @@ class BingDictionaryWorkerService {
     console.log('[Bing Worker] Service stopped');
   }
 
-  /**
-   * Get service status
-   */
   getStatus(): { isRunning: boolean; stats: WorkerStats } {
     return {
       isRunning: this.isRunning,
@@ -134,46 +160,42 @@ class BingDictionaryWorkerService {
     };
   }
 
-  /**
-   * Register worker with server
-   */
+  // ------------------------------------------------------------------
+  // Registration / heartbeat / polling
+  // ------------------------------------------------------------------
+
   private async registerWorker(): Promise<void> {
     if (!this.workerClient || !this.config) {
       throw new Error('Worker client not initialized');
     }
 
-    try {
-      // Generate unique worker ID
-      const workerId = `mcp-chrome-bing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const workerId = `mcp-chrome-bing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      const response = await this.workerClient.register({
-        worker_id: workerId,
-        worker_name: this.config.workerName || 'MCP Chrome Bing Dictionary Worker',
-        processor_types: ['remote_client'] as ProcessorType[],
-        hostname: 'chrome-extension',
-        platform: navigator.userAgent,
-        metadata: {
-          version: chrome.runtime.getManifest().version,
-          extensionId: chrome.runtime.id,
-        },
-      });
+    const response = await this.workerClient.register({
+      worker_id: workerId,
+      worker_name: this.config.workerName,
+      // word_translation tasks are dispatched as execution_type
+      // `remote_translation`; the worker must register that processor type to be
+      // assigned them.
+      processor_types: ['remote_translation'] as ProcessorType[],
+      hostname: 'chrome-extension',
+      platform: navigator.userAgent,
+      metadata: {
+        version: chrome.runtime.getManifest().version,
+        extensionId: chrome.runtime.id,
+        tabCount: this.config.tabCount,
+      },
+    });
 
-      if (response.success && response.data) {
-        this.stats.workerId = response.data.worker_id;
-        this.stats.isOnline = true;
-        console.log('[Bing Worker] Registered successfully:', response.data.worker_id);
-      } else {
-        throw new Error(response.message || 'Registration failed');
-      }
-    } catch (error: any) {
-      console.error('[Bing Worker] Registration failed:', error);
-      throw error;
+    if (response.success && response.data) {
+      this.stats.workerId = response.data.worker_id;
+      this.stats.isOnline = true;
+      console.log('[Bing Worker] Registered successfully:', response.data.worker_id);
+    } else {
+      throw new Error(response.message || 'Registration failed');
     }
   }
 
-  /**
-   * Start heartbeat interval
-   */
   private startHeartbeat(): void {
     if (!this.workerClient || !this.config) return;
 
@@ -187,19 +209,10 @@ class BingDictionaryWorkerService {
       }
     };
 
-    // Send initial heartbeat
     sendHeartbeat();
-
-    // Set up interval
-    this.heartbeatIntervalId = setInterval(
-      sendHeartbeat,
-      (this.config.heartbeatInterval || 60) * 1000,
-    );
+    this.heartbeatIntervalId = setInterval(sendHeartbeat, this.config.heartbeatInterval * 1000);
   }
 
-  /**
-   * Start task polling
-   */
   private startPolling(): void {
     if (!this.config) return;
 
@@ -207,72 +220,52 @@ class BingDictionaryWorkerService {
       await this.pollAndProcessTasks();
     };
 
-    // Start polling immediately
     poll();
-
-    // Set up interval
-    this.pollIntervalId = setInterval(poll, (this.config.pollInterval || 30) * 1000);
+    this.pollIntervalId = setInterval(poll, this.config.pollInterval * 1000);
   }
 
-  /**
-   * Poll and process tasks
-   */
   private async pollAndProcessTasks(): Promise<void> {
     if (!this.workerClient || !this.config) return;
 
     try {
       this.stats.lastRun = Date.now();
 
-      console.log('[Bing Worker] Polling for tasks...');
-
-      // Pull tasks with long polling
       const response = await this.workerClient.pullTasks(undefined, {
-        limit: this.config.batchSize || 5,
-        timeout: Math.min(this.config.pollInterval || 5, 30),
+        limit: this.config.batchSize,
+        timeout: Math.min(this.config.pollInterval, 30),
       });
 
       if (!response.success || !response.data || response.data.count === 0) {
-        console.log('[Bing Worker] No tasks available');
-        // Reset new/duplicate counters when no tasks
         this.stats.newTasks = 0;
         this.stats.duplicateTasks = 0;
         return;
       }
 
       const tasks = response.data.tasks;
-      console.log(`[Bing Worker] Received ${tasks.length} tasks`);
-
-      // Filter out duplicate tasks
       let newTaskCount = 0;
       let duplicateCount = 0;
 
       for (const task of tasks) {
         if (this.taskCache.has(task.task_id)) {
-          // Duplicate task
           duplicateCount++;
-          console.log(`[Bing Worker] Skipping duplicate task: ${task.task_id}`);
         } else {
-          // New task - add to cache and queue
           this.taskCache.add(task.task_id);
           this.taskQueue.push(task);
           newTaskCount++;
         }
       }
 
-      // Update statistics
       this.stats.newTasks = newTaskCount;
       this.stats.duplicateTasks = duplicateCount;
       this.stats.queueTotal = this.taskQueue.length;
       this.stats.pending = this.taskQueue.length;
 
-      console.log(`[Bing Worker] Queue stats - Total: ${this.stats.queueTotal}, New: ${newTaskCount}, Duplicates: ${duplicateCount}`);
-
-      // Process tasks from queue
+      // One task at a time, but the words WITHIN a task run in parallel across
+      // the tab pool.
       while (this.taskQueue.length > 0) {
         const task = this.taskQueue.shift();
         if (task) {
           await this.processTask(task);
-          // Update queue total after processing
           this.stats.queueTotal = this.taskQueue.length;
           this.stats.pending = this.taskQueue.length;
         }
@@ -282,157 +275,240 @@ class BingDictionaryWorkerService {
     }
   }
 
-  /**
-   * Process a single task
-   */
+  // ------------------------------------------------------------------
+  // Task processing
+  // ------------------------------------------------------------------
+
   private async processTask(task: Task): Promise<void> {
-    if (!this.workerClient) return;
+    if (!this.workerClient || !this.config) return;
+
+    const workerId = this.stats.workerId!;
 
     try {
       console.log(`[Bing Worker] Processing task: ${task.task_id}`);
 
-      // Accept task
       await this.workerClient.acceptTask(task.task_id);
-
-      // Submit processing status
       await this.workerClient.submitResult({
         task_id: task.task_id,
-        worker_id: this.stats.workerId!,
+        worker_id: workerId,
         status: 'processing',
         progress: 0,
       });
 
-      // Extract words from payload
-      const words = task.payload.words || [];
-
+      const words = this.normalizeWords(task.payload.words);
       if (words.length === 0) {
         throw new Error('No words in task payload');
       }
 
-      // Process each word
-      const explanations: any[] = [];
+      const tabIds = await this.ensureTabs();
+      const targetLanguage = task.payload.target_language || this.config.targetLanguage;
 
-      for (let i = 0; i < words.length; i++) {
-        const wordData = words[i];
+      const translations: ResultEntry[] = [];
+      const invalidWords: NormalizedWord[] = [];
 
-        console.log(`[Bing Worker] Translating: ${wordData.word} (${i + 1}/${words.length})`);
+      let nextIndex = 0;
+      let done = 0;
+      let lastReported = 0;
+      const total = words.length;
 
-        try {
-          // Use Bing Dictionary tool to translate
-          const result = await bingDictionaryTool.execute({
-            word: wordData.word,
-            openInNewTab: false,
-          });
+      const runSlot = async (tabId: number): Promise<void> => {
+        while (true) {
+          const i = nextIndex++;
+          if (i >= total) break;
+          const w = words[i];
 
-          if (result.isError) {
-            throw new Error('Translation failed');
+          try {
+            const data = await bingDictionaryTool.lookupInTab(tabId, w.word);
+            const classification = this.classify(data);
+
+            if (classification === 'translated') {
+              translations.push(await this.buildEntry(w, data));
+              this.stats.translated++;
+            } else if (classification === 'invalid') {
+              invalidWords.push(w);
+              this.stats.invalid++;
+            } else {
+              // Transient extraction/network error — leave the word for a later
+              // task rather than wrongly marking it invalid.
+              this.stats.failed++;
+            }
+          } catch (error) {
+            console.error(`[Bing Worker] Failed to translate ${w.word}:`, error);
+            this.stats.failed++;
           }
 
-          // Parse result
-          const translationData = JSON.parse(result.content[0].text);
-
-          if (translationData.success) {
-            // Format explanation
-            const explanation = this.formatExplanation(translationData);
-
-            explanations.push({
-              word: wordData.word,
-              md5: wordData.md5,
-              explanation: explanation.text,
-              phonetic: explanation.phonetic,
-              us_phonetic: explanation.us_phonetic,
-              uk_phonetic: explanation.uk_phonetic,
-              provider: 'bing',
-            });
-
-            // Update progress
-            const progress = Math.round(((i + 1) / words.length) * 100);
-            await this.workerClient.submitResult({
-              task_id: task.task_id,
-              worker_id: this.stats.workerId!,
-              status: 'processing',
-              progress,
-            });
+          done++;
+          const progress = Math.round((done / total) * 100);
+          if (progress - lastReported >= 20 && progress < 100) {
+            lastReported = progress;
+            this.workerClient!
+              .submitResult({
+                task_id: task.task_id,
+                worker_id: workerId,
+                status: 'processing',
+                progress,
+              })
+              .catch(() => undefined);
           }
-        } catch (error: any) {
-          console.error(`[Bing Worker] Failed to translate ${wordData.word}:`, error);
-          this.stats.failed++;
         }
+      };
 
-        // Add delay between translations
-        await this.delay(2000);
-      }
+      await Promise.all(tabIds.map((tabId) => runSlot(tabId)));
 
-      // Submit completed result
       await this.workerClient.submitResult({
         task_id: task.task_id,
-        worker_id: this.stats.workerId!,
+        worker_id: workerId,
         status: 'completed',
         progress: 100,
         result: {
-          explanations,
+          target_language: targetLanguage,
+          provider: 'bing',
+          translations,
+          invalid_words: invalidWords,
         },
       });
 
-      this.stats.translated += explanations.length;
-      this.stats.pending--;
-
-      // Remove from cache after successful completion
       this.taskCache.delete(task.task_id);
-
-      console.log(`[Bing Worker] Task completed: ${task.task_id}`);
+      console.log(
+        `[Bing Worker] Task completed: ${task.task_id} (${translations.length} translated, ${invalidWords.length} invalid)`,
+      );
     } catch (error: any) {
-      console.error(`[Bing Worker] Task processing failed:`, error);
+      console.error('[Bing Worker] Task processing failed:', error);
 
-      // Submit failed status
       try {
         await this.workerClient.submitResult({
           task_id: task.task_id,
-          worker_id: this.stats.workerId!,
+          worker_id: workerId,
           status: 'failed',
-          error: error.message || 'Unknown error',
+          error: error?.message || 'Unknown error',
         });
       } catch (submitError) {
         console.error('[Bing Worker] Failed to submit error status:', submitError);
       }
 
-      this.stats.failed++;
-      this.stats.pending--;
-
-      // Remove from cache after failure
       this.taskCache.delete(task.task_id);
     }
   }
 
-  /**
-   * Format translation data into explanation text
-   */
-  private formatExplanation(translationData: any): {
+  /** Decide what a single Bing lookup result means for the backend. */
+  private classify(data: BingDictionaryResult | null): 'translated' | 'invalid' | 'error' {
+    if (!data) {
+      return 'error';
+    }
+
+    const hasContent =
+      data.hasContent === true ||
+      (data.hasContent === undefined &&
+        ((data.translations?.length ?? 0) > 0 ||
+          (data.phonetics?.length ?? 0) > 0 ||
+          (data.sampleImages?.length ?? 0) > 0));
+
+    if (data.success && hasContent) {
+      return 'translated';
+    }
+
+    // Genuine "Bing has no entry" signals: either the explicit no-results page,
+    // or a successful parse that yielded nothing usable.
+    if (data.error === NO_RESULT_ERROR || (data.success && !hasContent)) {
+      return 'invalid';
+    }
+
+    // success === false from a helper exception -> treat as transient.
+    return 'error';
+  }
+
+  /** Build the rich result entry (incl. downloaded audio) for one word. */
+  private async buildEntry(w: NormalizedWord, data: BingDictionaryResult): Promise<ResultEntry> {
+    const formatted = this.formatExplanation(data);
+
+    const entry: ResultEntry = {
+      word: w.word,
+      translation: formatted.text,
+      provider: 'bing',
+    };
+    if (w.md5) entry.md5 = w.md5;
+    if (formatted.phonetic) entry.phonetic = formatted.phonetic;
+    if (formatted.us_phonetic) entry.us_phonetic = formatted.us_phonetic;
+    if (formatted.uk_phonetic) entry.uk_phonetic = formatted.uk_phonetic;
+
+    const images = (data.sampleImages || [])
+      .map((s) => s.url)
+      .filter((u): u is string => typeof u === 'string' && u !== '')
+      .slice(0, 6);
+    if (images.length > 0) {
+      entry.image_urls = images;
+    }
+
+    const audioUrl = this.pickAudioUrl(data);
+    if (audioUrl) {
+      const audioBase64 = await this.downloadAudioBase64(audioUrl);
+      if (audioBase64) {
+        entry.audio_base64 = audioBase64;
+        entry.audio_mime = 'audio/mpeg';
+      }
+    }
+
+    return entry;
+  }
+
+  /** Prefer the US pronunciation, else the first phonetic/voice URL available. */
+  private pickAudioUrl(data: BingDictionaryResult): string | null {
+    const phonetics = data.phonetics || [];
+    const us = phonetics.find((p) => p.audioUrl && p.lang && p.lang.includes('US'));
+    if (us?.audioUrl) return us.audioUrl;
+
+    const any = phonetics.find((p) => p.audioUrl);
+    if (any?.audioUrl) return any.audioUrl;
+
+    return data.voiceUrls && data.voiceUrls.length > 0 ? data.voiceUrls[0] : null;
+  }
+
+  private async downloadAudioBase64(url: string): Promise<string | null> {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) return null;
+      const buf = await resp.arrayBuffer();
+      if (!buf || buf.byteLength < 100) return null;
+      return this.arrayBufferToBase64(buf);
+    } catch (error) {
+      console.warn('[Bing Worker] Audio download failed:', url, error);
+      return null;
+    }
+  }
+
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
+    }
+    return btoa(binary);
+  }
+
+  private formatExplanation(data: BingDictionaryResult): {
     text: string;
     phonetic?: string;
     us_phonetic?: string;
     uk_phonetic?: string;
   } {
     const parts: string[] = [];
-
-    // Add translations
-    if (translationData.translations && translationData.translations.length > 0) {
-      translationData.translations.forEach((trans: any) => {
-        parts.push(`${trans.partOfSpeech}. ${trans.definition}`);
+    if (data.translations && data.translations.length > 0) {
+      data.translations.forEach((trans) => {
+        const pos = trans.partOfSpeech ? `${trans.partOfSpeech}. ` : '';
+        parts.push(`${pos}${trans.definition}`.trim());
       });
     }
 
-    // Extract phonetics
     let phonetic = '';
-    let us_phonetic = '';
-    let uk_phonetic = '';
-
-    if (translationData.phonetics && translationData.phonetics.length > 0) {
-      translationData.phonetics.forEach((p: any) => {
+    let usPhonetic = '';
+    let ukPhonetic = '';
+    if (data.phonetics && data.phonetics.length > 0) {
+      data.phonetics.forEach((p) => {
         if (p.lang && p.lang.includes('US')) {
-          us_phonetic = p.text;
+          usPhonetic = p.text;
         } else if (p.lang && p.lang.includes('UK')) {
-          uk_phonetic = p.text;
+          ukPhonetic = p.text;
         } else if (!phonetic) {
           phonetic = p.text;
         }
@@ -440,18 +516,90 @@ class BingDictionaryWorkerService {
     }
 
     return {
-      text: parts.join('\n') || 'No explanation available',
-      phonetic: phonetic || us_phonetic || uk_phonetic || undefined,
-      us_phonetic: us_phonetic || undefined,
-      uk_phonetic: uk_phonetic || undefined,
+      text: parts.join('\n'),
+      phonetic: phonetic || usPhonetic || ukPhonetic || undefined,
+      us_phonetic: usPhonetic || undefined,
+      uk_phonetic: ukPhonetic || undefined,
     };
   }
 
+  /** Payload words may be plain strings or {word, md5, ...} objects. */
+  private normalizeWords(raw: Task['payload']['words']): NormalizedWord[] {
+    if (!Array.isArray(raw)) return [];
+    const out: NormalizedWord[] = [];
+    for (const item of raw as any[]) {
+      if (typeof item === 'string') {
+        const word = item.trim();
+        if (word) out.push({ word });
+      } else if (item && typeof item.word === 'string') {
+        const word = item.word.trim();
+        if (word) out.push({ word, md5: item.md5 });
+      }
+    }
+    return out;
+  }
+
+  // ------------------------------------------------------------------
+  // Tab pool
+  // ------------------------------------------------------------------
+
   /**
-   * Delay utility
+   * Ensure the configured number of Bing dictionary tabs exist. Reuses any
+   * already-tracked or already-open bing.com/dict tabs and creates the rest,
+   * activating the first so "start assisting" visibly switches to Bing.
    */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private async ensureTabs(): Promise<number[]> {
+    const want = this.config?.tabCount ?? 3;
+    const alive: number[] = [];
+
+    // Keep tracked tabs that still exist.
+    for (const id of this.tabIds) {
+      const tab = await this.tabExists(id);
+      if (tab) alive.push(id);
+    }
+
+    // Adopt other open Bing dictionary tabs before creating new ones.
+    if (alive.length < want) {
+      const all = await chrome.tabs.query({});
+      for (const t of all) {
+        if (alive.length >= want) break;
+        if (t.id && t.url && t.url.includes('bing.com/dict') && !alive.includes(t.id)) {
+          alive.push(t.id);
+        }
+      }
+    }
+
+    // Create the remainder.
+    while (alive.length < want) {
+      const created = await chrome.tabs.create({
+        url: 'https://www.bing.com/dict',
+        active: alive.length === 0,
+      });
+      if (created.id) {
+        alive.push(created.id);
+      } else {
+        break;
+      }
+    }
+
+    this.tabIds = alive.slice(0, want);
+    this.stats.activeTabs = this.tabIds.length;
+
+    // Surface Bing: activate the first pool tab.
+    if (this.tabIds.length > 0) {
+      chrome.tabs.update(this.tabIds[0], { active: true }).catch(() => undefined);
+    }
+
+    return this.tabIds;
+  }
+
+  private async tabExists(tabId: number): Promise<boolean> {
+    try {
+      await chrome.tabs.get(tabId);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
