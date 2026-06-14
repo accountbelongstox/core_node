@@ -72,12 +72,21 @@ class PromptMappingService
         ]
     ];
 
+    /**
+     * Whether the _prompts directory is usable (see TaskCategoryService::
+     * ensurePromptsDirectory). When false, reads serve the in-memory default
+     * mappings and writes return an error result instead of throwing.
+     */
+    private $directoryReady = false;
+
     public function __construct()
     {
         // Use _prompts/.prompt-mappings.json as config (can be committed to git)
         $baseDir = PathMapper::getCoreNodeDir();
         $promptsDir = $baseDir . DIRECTORY_SEPARATOR . '_prompts';
         $this->mappingConfigFile = $promptsDir . DIRECTORY_SEPARATOR . '.prompt-mappings.json';
+
+        $this->directoryReady = TaskCategoryService::ensurePromptsDirectory($promptsDir);
 
         $this->ensureDefaultMappings();
     }
@@ -87,40 +96,85 @@ class PromptMappingService
      */
     private function ensureDefaultMappings()
     {
-        if (!file_exists($this->mappingConfigFile)) {
+        if ($this->directoryReady && !file_exists($this->mappingConfigFile)) {
             $this->initializeMappingsConfig();
         }
     }
 
     /**
-     * Initialize mappings configuration file
+     * Initialize mappings configuration file (no-op in degraded mode)
      */
     private function initializeMappingsConfig()
     {
+        if (!$this->directoryReady) {
+            return;
+        }
+
         $config = [
             'version' => '1.0',
             'mappings' => $this->defaultMappings
         ];
 
-        file_put_contents(
+        $written = @file_put_contents(
             $this->mappingConfigFile,
             json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
+
+        if ($written === false) {
+            error_log('[PromptMappingService] Failed to write mappings config at: ' . $this->mappingConfigFile);
+            return;
+        }
 
         error_log('[PromptMappingService] Created mappings config at: ' . $this->mappingConfigFile);
     }
 
     /**
-     * Load mappings configuration
+     * Load mappings configuration. Falls back to the in-memory defaults when
+     * the directory is degraded or the file is unreadable/corrupt.
      */
     public function loadMappingsConfig()
     {
+        $defaults = [
+            'version' => '1.0',
+            'mappings' => $this->defaultMappings
+        ];
+
+        if (!$this->directoryReady) {
+            return $defaults;
+        }
+
         if (!file_exists($this->mappingConfigFile)) {
             $this->initializeMappingsConfig();
         }
 
-        $content = file_get_contents($this->mappingConfigFile);
-        return json_decode($content, true);
+        $content = @file_get_contents($this->mappingConfigFile);
+        if ($content === false) {
+            return $defaults;
+        }
+
+        $decoded = json_decode($content, true);
+        if (!is_array($decoded) || !isset($decoded['mappings'])) {
+            return $defaults;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * Persist the mappings config; shared guard for every mutating method.
+     */
+    private function saveMappingsConfig(array $config): bool
+    {
+        if (!$this->directoryReady) {
+            return false;
+        }
+
+        $written = @file_put_contents(
+            $this->mappingConfigFile,
+            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+        );
+
+        return $written !== false;
     }
 
     /**
@@ -165,10 +219,9 @@ class PromptMappingService
 
         $config['updated_at'] = date('Y-m-d H:i:s');
 
-        file_put_contents(
-            $this->mappingConfigFile,
-            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-        );
+        if (!$this->saveMappingsConfig($config)) {
+            return ['success' => false, 'error' => 'Failed to persist mappings config (prompts directory unavailable)'];
+        }
 
         return [
             'success' => true,
@@ -214,10 +267,9 @@ class PromptMappingService
             unset($config['mappings'][$categoryId]);
             $config['updated_at'] = date('Y-m-d H:i:s');
 
-            file_put_contents(
-                $this->mappingConfigFile,
-                json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-            );
+            if (!$this->saveMappingsConfig($config)) {
+                return ['success' => false, 'error' => 'Failed to persist mappings config (prompts directory unavailable)'];
+            }
 
             return ['success' => true];
         }
@@ -238,10 +290,9 @@ class PromptMappingService
         $config['mappings'][$categoryId] = $this->defaultMappings[$categoryId];
         $config['updated_at'] = date('Y-m-d H:i:s');
 
-        file_put_contents(
-            $this->mappingConfigFile,
-            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-        );
+        if (!$this->saveMappingsConfig($config)) {
+            return ['success' => false, 'error' => 'Failed to persist mappings config (prompts directory unavailable)'];
+        }
 
         return [
             'success' => true,

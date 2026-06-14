@@ -2,7 +2,7 @@
 Push scrcpy-server to device and test
 """
 import subprocess
-from pycore.pyutils.scrcpy_init import get_adb_path
+from pycore.pyutils.device.scrcpy_init import get_adb_path
 from pathlib import Path
 
 adb = str(get_adb_path())

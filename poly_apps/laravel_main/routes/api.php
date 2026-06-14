@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 use Illuminate\Support\Facades\Route;
@@ -53,20 +50,17 @@ require_once __DIR__ . '/api/octane_timer.php';
 // OCR API Routes (for MCP bridge)
 require_once __DIR__ . '/api_ocr.php';
 
+// Local AI Gateway Routes (unified multi-provider AI; keys + rate shared with pycore)
+require_once __DIR__ . '/api/ai_local.php';
+
 // McpV1 Routes
 require_once __DIR__ . '/McpV1Router/api.php';
 
-// AwyV0 Routes
-require_once __DIR__ . '/AwyV0Router/AwyV0Auth.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0User.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0Friend.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0Device.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0Chat.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0Search.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0Dashboard.php';
-
 // Dashboard DB Viewer (auth required)
 require_once __DIR__ . '/DashboardRouter/DatabaseViewer.php';
+
+// Dashboard Database Manager (loopback debug bypass OR Sanctum) + debug-status
+require_once __DIR__ . '/DashboardRouter/DatabaseManager.php';
 
 // InviteCode Controller
 use App\Http\Controllers\InviteCodeController;
@@ -132,6 +126,16 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::post('disable', [ServerManagerV1NginxManagerCtl::class, 'disableSite']);
         Route::post('test', [ServerManagerV1NginxManagerCtl::class, 'testConfig']);
         Route::post('reload', [ServerManagerV1NginxManagerCtl::class, 'reloadNginx']);
+        Route::get('status', [ServerManagerV1NginxManagerCtl::class, 'statusOverview']);
+        Route::post('service', [ServerManagerV1NginxManagerCtl::class, 'serviceControl']);
+        Route::get('logs', [ServerManagerV1NginxManagerCtl::class, 'logs']);
+        Route::post('install', [ServerManagerV1NginxManagerCtl::class, 'install']);
+        Route::get('backups', [ServerManagerV1NginxManagerCtl::class, 'listBackups']);
+        Route::post('backups/restore', [ServerManagerV1NginxManagerCtl::class, 'restoreBackup']);
+        Route::get('main-config', [ServerManagerV1NginxManagerCtl::class, 'mainConfig']);
+        Route::get('port-check', [ServerManagerV1NginxManagerCtl::class, 'portCheck']);
+        Route::get('metrics', [ServerManagerV1NginxManagerCtl::class, 'metrics']);
+        Route::post('sites/batch', [ServerManagerV1NginxManagerCtl::class, 'batchSites']);
     });
 
     // Unified Manager Routes
@@ -175,12 +179,6 @@ Route::prefix('achat/v1')->group(function () {
     require_once __DIR__ . '/achat_v1/api_info.php';
 });
 
-// VipClubV1 Routes
-require_once __DIR__ . '/VipClubV1Router/api.php';
-
-// BankV1 Routes
-require_once __DIR__ . '/BankV1Router/BankV1Router.php';
-
 // AppQyV1 routes - app_qy vocabulary learning app
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1System.php';
@@ -191,6 +189,10 @@ require_once __DIR__ . '/AppQyV1Router/AppQyV1User.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Vocabulary.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Learning.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1AITools.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Assist.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1PersonDict.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Social.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1MediaContent.php';
 
 // McpV1 routes - MCP application
 require_once __DIR__ . '/McpV1Router/api.php';
@@ -203,6 +205,7 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
     Route::prefix('task')->group(function () {
         Route::post('create', [TaskController::class, 'create']);
         Route::get('{taskId}/status', [TaskController::class, 'status']);
+        Route::post('{taskId}/cancel', [TaskController::class, 'cancel']);
         Route::get('list', [TaskController::class, 'list']);
         Route::get('stats', [TaskController::class, 'stats']);
         Route::post('clean-invalid', [TaskController::class, 'cleanInvalid']);
@@ -213,9 +216,29 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         Route::post('register', [WorkerController::class, 'register']);
         Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
         Route::get('tasks/pull', [WorkerController::class, 'pullTasks']);
+        Route::post('tasks/accept', [WorkerController::class, 'acceptTask']);
         Route::post('tasks/result', [WorkerController::class, 'submitResult']);
         Route::get('list', [WorkerController::class, 'list']);
         Route::get('stats', [WorkerController::class, 'stats']);
+    });
+
+    // Unified Task Center — one aggregate over BOTH task layers (scheduler +
+    // queue + workers + their relations) for the dashboard's Task Center page.
+    Route::get('task-center/overview', [\App\Http\Controllers\TaskCenterController::class, 'overview']);
+
+    // AppQyV1 media ingestion (local pycore worker, no auth)
+    Route::prefix('app_qy_v1/media')->group(function () {
+        Route::post('ingest', [\App\Http\Controllers\MediaIngestController::class, 'ingest']);
+        Route::post('ingest-clip', [\App\Http\Controllers\MediaIngestController::class, 'ingestClip']);
+        Route::post('enrich', [\App\Http\Controllers\MediaIngestController::class, 'enrich']);
+
+        // READ-ONLY browse + media-file serving (dashboard movies/books browser)
+        Route::get('subtitles', [\App\Http\Controllers\MediaBrowseController::class, 'subtitles']);
+        Route::get('books', [\App\Http\Controllers\MediaBrowseController::class, 'books']);
+        Route::get('subtitles/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'subtitleDetail']);
+        Route::get('books/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'bookDetail']);
+        Route::get('clip/{source_key}/{name}', [\App\Http\Controllers\MediaBrowseController::class, 'clip'])
+            ->where('name', '.*');
     });
 });
 

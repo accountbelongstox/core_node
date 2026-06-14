@@ -37,7 +37,7 @@ import threading
 
 # FastMCP framework
 from pycore.pyfoundations.third_party import get_third_package_FastMCP, get_third_package_pypdf
-from pycore.pyfoundations.cpu_gpu_packages import get_cnocr_pip_package
+from pycore.pyfoundations.pybasecommon.compute_caps import get_cnocr_pip_package
 import subprocess
 
 _cnocr_pip = get_cnocr_pip_package()

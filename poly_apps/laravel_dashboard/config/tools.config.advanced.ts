@@ -211,7 +211,7 @@ export const ADVANCED_CALCULATOR_TOOLS: Record<string, ToolConfig> = {
   ageCalculator: {
     id: 'ageCalculator',
     name: 'Age Calculator',
-    category: 'Calculators',
+    category: 'Math & Calculators',
     icon: 'Calendar',
     description: 'Calculate age from birthdate',
     apiModule: 'itToolsV1',
@@ -239,7 +239,7 @@ export const ADVANCED_CALCULATOR_TOOLS: Record<string, ToolConfig> = {
   bmiCalculator: {
     id: 'bmiCalculator',
     name: 'BMI Calculator',
-    category: 'Calculators',
+    category: 'Math & Calculators',
     icon: 'Activity',
     description: 'Calculate Body Mass Index',
     apiModule: 'itToolsV1',
@@ -268,7 +268,7 @@ export const ADVANCED_CALCULATOR_TOOLS: Record<string, ToolConfig> = {
   loanEmiCalculator: {
     id: 'loanEmiCalculator',
     name: 'Loan EMI Calculator',
-    category: 'Calculators',
+    category: 'Math & Calculators',
     icon: 'DollarSign',
     description: 'Calculate loan EMI (Equated Monthly Installment)',
     apiModule: 'itToolsV1',
@@ -297,7 +297,7 @@ export const ADVANCED_CALCULATOR_TOOLS: Record<string, ToolConfig> = {
   gstCalculator: {
     id: 'gstCalculator',
     name: 'GST Calculator',
-    category: 'Calculators',
+    category: 'Math & Calculators',
     icon: 'Receipt',
     description: 'Calculate GST/VAT tax amount',
     apiModule: 'itToolsV1',
@@ -326,7 +326,7 @@ export const ADVANCED_CALCULATOR_TOOLS: Record<string, ToolConfig> = {
   numberToWords: {
     id: 'numberToWords',
     name: 'Number to Words Converter',
-    category: 'Calculators',
+    category: 'Math & Calculators',
     icon: 'Type',
     description: 'Convert numbers to written words',
     apiModule: 'itToolsV1',

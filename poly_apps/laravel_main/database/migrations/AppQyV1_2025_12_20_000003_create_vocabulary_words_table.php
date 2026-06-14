@@ -14,7 +14,10 @@ return new class extends Migration
     public function __construct()
     {
         $this->appKey = AppKeys::APPQYV1;
-        $this->connection = (new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyWordModel)->getConnectionName();
+        // Resolve the connection directly: the legacy AppQyV1VocabularyWordModel
+        // was deleted by the Wave B consolidation (table dropped by
+        // AppQyV1_2026_06_12_150002), but historic migrations must stay loadable.
+        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
         $this->tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_words');
     }
 

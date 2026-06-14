@@ -1,0 +1,6 @@
+{
+  "name": "Desktop Manager",
+  "description": "An interactive, multi-language dashboard overlay featuring an audio player, a queue manager, automated workflow stats, and elegant blur overlays with glassmorphic visuals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

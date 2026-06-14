@@ -2,34 +2,45 @@
 
 namespace App\Services\TimerTasks;
 
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCoverModel;
-use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
-use App\Services\GeminiClient;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Log;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 
 /**
- * AppQyV1 Cover Generation Timer Task
+ * AppQyV1 Cover Maintenance Timer Task (pull-only architecture).
  *
- * Actively polls database every 5 seconds for pending cover generation tasks.
- * Processes up to 3 covers per tick using Gemini API with automatic rate limiting.
+ * Cover/image generation is NO LONGER driven here. pycore is the sole driver:
+ * its AssistWorker polls /api/app_qy_v1/assist/claim, generates locally via the
+ * unified AI gateway and submits results back (see
+ * development-guides/COVER_PULL_ARCHITECTURE.md). This task is repurposed to
+ * MAINTENANCE-ONLY - it recovers stuck rows so pycore can always make progress
+ * and never calls any AI client.
  *
- * Benefits over PassiveQueue:
- * - Predictable execution (every 5 seconds)
- * - Atomic deduplication via database transactions
- * - Batch processing for efficiency
- * - Automatic retry on rate limits
- * - Integrated with OctaneTimerService monitoring
+ * Every tick (5s) it runs one transactional pass that:
+ *   - resets `failed` rows (cover_attempts >= MAX_RETRIES AND cover_finished_at
+ *     older than the failed cooldown) back to `pending`, cover_attempts = 0,
+ *     clearing the assist lease + cover_error_message so pycore re-claims them;
+ *   - resets `processing` rows stuck older than the assist lease (60 min) back
+ *     to `pending`;
+ *   - clears stale `assist_claimed_at`/`_by` leases older than 60 min.
+ *
+ * Cover state lives on the cover_* columns of vocabulary_libraries (the
+ * vocabulary_covers table was absorbed by the Wave A consolidation). Only
+ * libraries whose cover was actually REQUESTED carry cover_filename, so
+ * cover_filename IS NULL means "never requested".
  */
 class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
 {
-    private const BATCH_SIZE = 3;
+    // Public: shared with the assist claim/status endpoints so external
+    // workers and the dashboard see the exact pending/retry rules.
+    public const BATCH_SIZE = 3;
+    public const MAX_RETRIES = 3;
+    public const RETRY_DELAY_MINUTES = 5;
+
+    // Cooldown before a failed row is recycled back to pending (gives the FE
+    // a window to surface the error / offer retry before auto-recovery).
+    private const FAILED_COOLDOWN_MINUTES = 10;
+
     private const INTERVAL_SECONDS = 5;
-    private const MAX_RETRIES = 3;
-    private const RETRY_DELAY_MINUTES = 5;
 
     /**
      * @inheritDoc
@@ -53,241 +64,87 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
     public function exec(): void
     {
         try {
-            $pendingCovers = $this->fetchPendingCovers();
+            $recovered = $this->runMaintenance();
 
-            if ($pendingCovers->isEmpty()) {
-                return;
+            if ($recovered['total'] > 0) {
+                $this->logInfo('Cover maintenance recovered stuck rows', $recovered);
             }
-
-            $this->logInfo("Found {$pendingCovers->count()} pending covers to process");
-
-            $processed = 0;
-            $succeeded = 0;
-            $failed = 0;
-            $rateLimited = 0;
-
-            foreach ($pendingCovers as $cover) {
-                $result = $this->processCover($cover);
-
-                $processed++;
-
-                if ($result['status'] === 'success') {
-                    $succeeded++;
-                } elseif ($result['status'] === 'rate_limited') {
-                    $rateLimited++;
-                    $this->logWarning("Rate limited, will retry later", [
-                        'cover_id' => $cover->id,
-                        'retry_after' => $result['retry_after'] ?? 60,
-                    ]);
-                    break;
-                } else {
-                    $failed++;
-                }
-            }
-
-            if ($processed > 0) {
-                $this->logInfo("Batch completed", [
-                    'processed' => $processed,
-                    'succeeded' => $succeeded,
-                    'failed' => $failed,
-                    'rate_limited' => $rateLimited,
-                ]);
-            }
-
         } catch (\Throwable $e) {
-            $this->logError('Cover generation task failed', [
+            $this->logError('Cover maintenance task failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
 
     /**
      * @inheritDoc
+     *
+     * Gated by APPQYV1_COVER_MAINTENANCE_ENABLED (default true). The retired
+     * APPQYV1_COVER_GENERATION_ENABLED is honored for backward compatibility:
+     * when present it acts as the maintenance gate. Either being false disables
+     * the pass; default true.
      */
     public function isEnabled(): bool
     {
-        return env('APPQYV1_COVER_GENERATION_ENABLED', true);
+        $maintenance = env('APPQYV1_COVER_MAINTENANCE_ENABLED', true);
+        $legacy = env('APPQYV1_COVER_GENERATION_ENABLED', true);
+
+        return (bool) $maintenance && (bool) $legacy;
     }
 
     /**
-     * Fetch pending covers with priority ordering
+     * One transactional maintenance pass. Returns per-bucket recovery counts.
      *
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return array{failed:int,processing:int,stale_leases:int,total:int}
      */
-    private function fetchPendingCovers()
+    private function runMaintenance(): array
     {
-        return AppQyV1VocabularyCoverModel::query()
-            ->where(function ($query) {
-                $query->where('status', 'pending')
-                    ->orWhere(function ($retryQuery) {
-                        $retryQuery->where('status', 'retry')
-                            ->where('finished_at', '<=', now()->subMinutes(self::RETRY_DELAY_MINUTES));
-                    });
-            })
-            ->orderByDesc('priority')
-            ->orderBy('last_requested_at')
-            ->limit(self::BATCH_SIZE)
-            ->get();
-    }
+        $model = new AppQyV1VocabularyLibraryModel();
 
-    /**
-     * Process a single cover with transaction and locking
-     *
-     * @param AppQyV1VocabularyCoverModel $cover
-     * @return array
-     */
-    private function processCover(AppQyV1VocabularyCoverModel $cover): array
-    {
-        try {
-            $appKey = AppKeys::APPQYV1;
-            // Use model connection for transaction (Laravel best practice)
-            $model = new AppQyV1VocabularyCoverModel();
-            return $model->getConnection()->transaction(function () use ($cover) {
-                $lockedCover = AppQyV1VocabularyCoverModel::query()
-                    ->where('id', $cover->id)
-                    ->whereIn('status', ['pending', 'retry'])
-                    ->lockForUpdate()
-                    ->first();
+        return $model->getConnection()->transaction(function () {
+            $leaseBefore = now()->subMinutes(AppQyV1DictionaryTTSCoordinator::ASSIST_LEASE_MINUTES);
 
-                if (!$lockedCover) {
-                    return [
-                        'status' => 'skipped',
-                        'reason' => 'Already processed by another worker',
-                    ];
-                }
+            // 1) failed rows past their retry budget AND cooldown -> requeue.
+            $failed = AppQyV1VocabularyLibraryModel::query()
+                ->whereNotNull('cover_filename')
+                ->where('cover_status', 'failed')
+                ->where('cover_attempts', '>=', self::MAX_RETRIES)
+                ->where('cover_finished_at', '<=', now()->subMinutes(self::FAILED_COOLDOWN_MINUTES))
+                ->update([
+                    'cover_status' => 'pending',
+                    'cover_attempts' => 0,
+                    'cover_error_message' => null,
+                    'assist_claimed_at' => null,
+                    'assist_claimed_by' => null,
+                ]);
 
-                $lockedCover->status = 'processing';
-                $lockedCover->started_at = now();
-                $lockedCover->attempts = ($lockedCover->attempts ?? 0) + 1;
-                $lockedCover->save();
+            // 2) processing rows stuck past the lease window -> back to pending.
+            $processing = AppQyV1VocabularyLibraryModel::query()
+                ->whereNotNull('cover_filename')
+                ->where('cover_status', 'processing')
+                ->where('cover_started_at', '<=', $leaseBefore)
+                ->update([
+                    'cover_status' => 'pending',
+                    'assist_claimed_at' => null,
+                    'assist_claimed_by' => null,
+                ]);
 
-                $result = $this->generateCoverImage($lockedCover);
-
-                if ($result['status'] === 'success') {
-                    $lockedCover->status = 'ready';
-                    $lockedCover->error_message = null;
-                    $lockedCover->last_generated_at = now();
-                    $lockedCover->finished_at = now();
-
-                    if (isset($result['width'])) {
-                        $lockedCover->width = $result['width'];
-                    }
-                    if (isset($result['height'])) {
-                        $lockedCover->height = $result['height'];
-                    }
-
-                    $lockedCover->save();
-
-                    $this->logInfo("Cover generated successfully", [
-                        'cover_id' => $lockedCover->id,
-                        'library_id' => $lockedCover->library_id,
-                        'filename' => $lockedCover->cover_filename,
-                    ]);
-
-                    return ['status' => 'success'];
-
-                } elseif ($result['status'] === 'rate_limited') {
-                    $lockedCover->status = 'retry';
-                    $lockedCover->error_message = 'Rate limited: ' . ($result['error'] ?? 'Unknown');
-                    $lockedCover->finished_at = now();
-                    $lockedCover->save();
-
-                    return [
-                        'status' => 'rate_limited',
-                        'retry_after' => $result['retry_after'] ?? 60,
-                    ];
-
-                } else {
-                    $shouldRetry = $lockedCover->attempts < self::MAX_RETRIES;
-
-                    $lockedCover->status = $shouldRetry ? 'retry' : 'failed';
-                    $lockedCover->error_message = $result['error'] ?? 'Unknown error';
-                    $lockedCover->finished_at = now();
-                    $lockedCover->save();
-
-                    $this->logError("Cover generation failed", [
-                        'cover_id' => $lockedCover->id,
-                        'library_id' => $lockedCover->library_id,
-                        'attempts' => $lockedCover->attempts,
-                        'will_retry' => $shouldRetry,
-                        'error' => $result['error'] ?? 'Unknown',
-                    ]);
-
-                    return ['status' => 'failed'];
-                }
-            }, 1);
-
-        } catch (\Throwable $e) {
-            $this->logError("Cover processing exception", [
-                'cover_id' => $cover->id,
-                'library_id' => $cover->library_id,
-                'error' => $e->getMessage(),
-            ]);
+            // 3) stale assist leases (> 60 min) -> cleared so pycore can reclaim.
+            $staleLeases = AppQyV1VocabularyLibraryModel::query()
+                ->whereNotNull('assist_claimed_at')
+                ->where('assist_claimed_at', '<', $leaseBefore)
+                ->update([
+                    'assist_claimed_at' => null,
+                    'assist_claimed_by' => null,
+                ]);
 
             return [
-                'status' => 'failed',
-                'error' => $e->getMessage(),
+                'failed' => (int) $failed,
+                'processing' => (int) $processing,
+                'stale_leases' => (int) $staleLeases,
+                'total' => (int) $failed + (int) $processing + (int) $staleLeases,
             ];
-        }
-    }
-
-    /**
-     * Generate cover image using Gemini API
-     *
-     * @param AppQyV1VocabularyCoverModel $cover
-     * @return array
-     */
-    private function generateCoverImage(AppQyV1VocabularyCoverModel $cover): array
-    {
-        try {
-            $gemini = app(GeminiClient::class);
-
-            if (!$gemini->hasApiKey()) {
-                return [
-                    'status' => 'failed',
-                    'error' => 'Gemini API key not configured',
-                ];
-            }
-
-            $prompt = $cover->prompt ?: 'Design a modern vocabulary learning cover art';
-
-            $result = $gemini->generateImageFromPrompt($prompt, [
-                'model' => 'gemini-2.5-flash-image',
-                'size' => ($cover->width ?? 1024) . 'x' . ($cover->height ?? 1024),
-            ]);
-
-            if (!($result['success'] ?? false)) {
-                if (isset($result['rate_limited']) && $result['rate_limited']) {
-                    return [
-                        'status' => 'rate_limited',
-                        'error' => $result['error'] ?? 'Rate limit exceeded',
-                        'retry_after' => $result['retry_after'] ?? 60,
-                    ];
-                }
-
-                return [
-                    'status' => 'failed',
-                    'error' => $result['error'] ?? 'Unknown Gemini error',
-                ];
-            }
-
-            $coverService = app(AppQyV1VocabularyCoverService::class);
-            $path = $coverService->getCoverPath($cover->cover_filename);
-
-            File::put($path, $result['binary']);
-
-            return [
-                'status' => 'success',
-                'width' => $result['width'] ?? $cover->width,
-                'height' => $result['height'] ?? $cover->height,
-            ];
-
-        } catch (\Throwable $e) {
-            return [
-                'status' => 'failed',
-                'error' => $e->getMessage(),
-            ];
-        }
+        }, 1);
     }
 }

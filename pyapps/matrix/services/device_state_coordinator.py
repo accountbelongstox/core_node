@@ -20,7 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from typing import Dict, Optional
 from pycore import ColorPrint
-from pycore.pyutils.device_manager import device_manager
+from pycore.pyutils.device.device_manager import device_manager
 
 
 class DeviceStateCoordinator:
@@ -48,7 +48,7 @@ class DeviceStateCoordinator:
 
     def initialize(self):
         """Initialize service references (call after all services are created)"""
-        from pycore.pyutils.device_manager import device_manager
+        from pycore.pyutils.device.device_manager import device_manager
         from pyapps.matrix.services.video_stream_service import VideoStreamService
         from pyapps.matrix.services.video_stream_health_service import get_video_stream_health_service
 

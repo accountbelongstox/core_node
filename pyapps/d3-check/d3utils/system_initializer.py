@@ -18,7 +18,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.hotkey_listener import HotkeyListener, get_global_hotkey_listener
+from pycore.pyutils.hotkey.global_hotkey_listener import HotkeyListener, get_global_hotkey_listener
 from providor.providor_index import CONFIG, get_config_section, initialize_config, LOGS_FILE_PATH
 
 import timers.timer_manager as timer_manager

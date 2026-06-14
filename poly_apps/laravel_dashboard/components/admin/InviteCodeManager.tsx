@@ -3,6 +3,8 @@ import { api } from '../../core/api';
 import { InviteCode, CreateInviteCodeRequest } from '../../core/api/modules/InviteCodeAPI';
 import { useUserRole } from '../../hooks/useUserRole';
 import { Plus, Key, AlertCircle, CheckCircle, XCircle, Users, Calendar, Trash2 } from 'lucide-react';
+import Portal from '../shared/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 
 interface InviteCodeManagerProps {
   lang?: 'en' | 'zh';
@@ -232,8 +234,9 @@ const InviteCodeManager: React.FC<InviteCodeManagerProps> = ({ lang = 'en' }) =>
 
       {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateModal(false)} />
+        <Portal>
+        <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal}`}>
+          <div className={`absolute inset-0 ${OVERLAY_BACKDROP}`} onClick={() => setShowCreateModal(false)} />
           <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 w-full max-w-md">
             <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4">{t.createTitle}</h3>
 
@@ -308,6 +311,7 @@ const InviteCodeManager: React.FC<InviteCodeManagerProps> = ({ lang = 'en' }) =>
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

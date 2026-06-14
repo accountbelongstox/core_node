@@ -215,6 +215,46 @@ class AppQyV1MultiLangDictionaryModel extends Model
      */
     public static function createOrUpdate(string $langCode, array $data): self
     {
+        $normalized = self::normalizeCreateOrUpdateData($data);
+        $content = $normalized['content'];
+        $md5 = $normalized['md5'];
+        $payload = $normalized['payload'];
+
+        $existing = self::forLanguage($langCode)->where('md5', $md5)->first();
+
+        if ($existing) {
+            if (!empty($payload)) {
+                $existing->fill($payload);
+                $existing->save();
+            }
+            return $existing;
+        }
+
+        $instance = self::forLanguage($langCode);
+        $instance->content = $content;
+        $instance->md5 = $md5;
+        if (!isset($payload['has_translation'])) {
+            $instance->has_translation = false;
+        }
+        if (!isset($payload['has_audio'])) {
+            $instance->has_audio = false;
+        }
+        $instance->query_count = 0;
+        $instance->fill($payload);
+        $instance->save();
+
+        return $instance;
+    }
+
+    /**
+     * Map one (possibly legacy-keyed) input row onto the unified schema, exactly
+     * as createOrUpdate() does. Returns the resolved content, its md5 and the
+     * partial $payload of provided fields (absent input keys are left out so the
+     * caller only overwrites columns that were actually supplied). Throws on a
+     * missing content/word, matching createOrUpdate().
+     */
+    private static function normalizeCreateOrUpdateData(array $data): array
+    {
         $content = null;
         if (isset($data['content'])) {
             $content = $data['content'];
@@ -246,8 +286,6 @@ class AppQyV1MultiLangDictionaryModel extends Model
             $translations['zh'] = $data['meaning_zh'];
         }
 
-        $existing = self::forLanguage($langCode)->where('md5', $md5)->first();
-
         $payload = [];
         if (!empty($translations)) {
             $payload['translations'] = $translations;
@@ -272,48 +310,132 @@ class AppQyV1MultiLangDictionaryModel extends Model
             $payload['has_audio'] = (bool) $data['has_audio'];
         }
 
-        if ($existing) {
-            if (!empty($payload)) {
-                $existing->fill($payload);
-                $existing->save();
-            }
-            return $existing;
-        }
-
-        $instance = self::forLanguage($langCode);
-        $instance->content = $content;
-        $instance->md5 = $md5;
-        if (!isset($payload['has_translation'])) {
-            $instance->has_translation = false;
-        }
-        if (!isset($payload['has_audio'])) {
-            $instance->has_audio = false;
-        }
-        $instance->query_count = 0;
-        $instance->fill($payload);
-        $instance->save();
-
-        return $instance;
+        return [
+            'content' => $content,
+            'md5' => $md5,
+            'payload' => $payload,
+        ];
     }
 
+    /**
+     * Batched create-or-update over the unified tts_cache_{lang} table.
+     *
+     * Semantics are OVERWRITE-of-supplied-fields (mirrors createOrUpdate(): the
+     * translations column is set from the input, never merged into the existing
+     * JSON), so the batch is safe to split into one existence probe plus bulk
+     * writes without losing data:
+     *   1. ONE whereIn('md5', ...) replaces the per-item findByMd5 SELECT.
+     *   2. New rows are bulk-inserted via insertOrIgnore. md5 is UNIQUE on the
+     *      formal table but only indexed on staging/legacy tables, so a keyed
+     *      Eloquent upsert() would not reliably dedup everywhere; insertOrIgnore
+     *      degrades safely on both. JSON columns are json_encode()d because raw
+     *      insert bypasses the model casts, and timestamps are set explicitly.
+     *   3. Existing rows keep the per-row fill()->save() so the cast/serialize
+     *      pipeline and partial-overwrite behavior is byte-for-byte unchanged.
+     *
+     * Returns one entry per successfully created-or-updated md5 so callers that
+     * read count($results) (added count) stay correct.
+     */
     public static function batchCreateOrUpdate(string $langCode, array $items): array
     {
         $results = [];
+        $byMd5 = [];
+
+        // Normalize once; last write wins per md5 within the batch (a duplicate
+        // word later in the list overrides the earlier one, as the sequential
+        // createOrUpdate loop did). Invalid rows are skipped like the old catch.
         foreach ($items as $item) {
             try {
-                $results[] = self::createOrUpdate($langCode, $item);
-            } catch (\Exception $e) {
+                $normalized = self::normalizeCreateOrUpdateData($item);
+            } catch (\Throwable $e) {
                 continue;
             }
+            $byMd5[$normalized['md5']] = $normalized;
         }
+
+        if (empty($byMd5)) {
+            return $results;
+        }
+
+        $allMd5 = array_keys($byMd5);
+
+        $existing = self::forLanguage($langCode)
+            ->whereIn('md5', $allMd5)
+            ->get()
+            ->keyBy('md5');
+
+        $now = now();
+        $newRows = [];
+
+        foreach ($byMd5 as $md5 => $normalized) {
+            $payload = $normalized['payload'];
+            $row = $existing->get($md5);
+
+            if ($row) {
+                if (!empty($payload)) {
+                    $row->fill($payload);
+                    $row->save();
+                }
+                $results[] = $row;
+                continue;
+            }
+
+            // Build a raw insert row. fill()-equivalent defaults are applied for a
+            // fresh row; JSON columns are encoded because insert() skips casts.
+            $insert = [
+                'content' => $normalized['content'],
+                'md5' => $md5,
+                'has_translation' => $payload['has_translation'] ?? false,
+                'has_audio' => $payload['has_audio'] ?? false,
+                'query_count' => 0,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            if (array_key_exists('translations', $payload)) {
+                $insert['translations'] = json_encode($payload['translations']);
+            }
+            if (array_key_exists('us_phonetic', $payload)) {
+                $insert['us_phonetic'] = $payload['us_phonetic'];
+            }
+            if (array_key_exists('uk_phonetic', $payload)) {
+                $insert['uk_phonetic'] = $payload['uk_phonetic'];
+            }
+            if (array_key_exists('phonetic', $payload)) {
+                $insert['phonetic'] = $payload['phonetic'];
+            }
+            $newRows[] = $insert;
+        }
+
+        if (!empty($newRows)) {
+            $model = self::forLanguage($langCode);
+            // insertOrIgnore so a concurrent insert (or a non-unique legacy table
+            // racing this batch) never throws; missed inserts are simply skipped.
+            $model->newQuery()->insertOrIgnore($newRows);
+            foreach ($newRows as $insert) {
+                $results[] = $insert;
+            }
+        }
+
         return $results;
     }
 
     public static function getWordsNeedingTranslation(string $langCode, int $limit = 100): \Illuminate\Database\Eloquent\Collection
     {
+        // Order by the indexed query_count instead of inRandomOrder()
+        // (ORDER BY RANDOM()), which forced a full scan + sort of the untranslated
+        // subset on every 60s background scan, per language. Prioritizing the
+        // most-queried words is both cheaper (uses the query_count index) and more
+        // useful than a random pick.
+        // Skip words a third-party check has marked invalid (is_valid=false):
+        // a word Bing/online dictionaries cannot resolve must never be re-enqueued
+        // for translation. Mirrors the TTS path
+        // (AppQyV1DictionaryTTSCoordinator::pendingWordsQuery already filters
+        // is_valid=true). Rows stay valid by default, so this only excludes
+        // explicitly-rejected words.
         return self::forLanguage($langCode)
             ->where('has_translation', false)
-            ->inRandomOrder()
+            ->where('is_valid', true)
+            ->orderBy('query_count', 'desc')
             ->limit($limit)
             ->get();
     }
@@ -337,7 +459,7 @@ class AppQyV1MultiLangDictionaryModel extends Model
      */
     public function incrementQueryCount(): void
     {
-        $this->increment('query_count');
-        $this->update(['last_query_time' => now()]);
+        // One UPDATE (was two) — bump the counter and stamp the time together.
+        $this->increment('query_count', 1, ['last_query_time' => now()]);
     }
 }

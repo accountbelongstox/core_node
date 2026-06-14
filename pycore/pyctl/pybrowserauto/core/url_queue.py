@@ -10,7 +10,7 @@ import threading
 from collections import deque
 from typing import Optional, Tuple, Set
 from urllib.parse import urlparse, urlunparse
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class URLQueue:

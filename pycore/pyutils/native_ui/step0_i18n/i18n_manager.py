@@ -280,6 +280,12 @@ class I18nManager:
                     )
                     self._translations[lang] = {}
 
+        # Base translations alone are a working configuration: services that never
+        # call extend_translations() (e.g. the pyservice tray) must still get
+        # translated strings instead of raw keys from get().
+        if self._translations:
+            self._is_configured = True
+
     def _deep_merge_dict(self, base: Dict[str, Any], update: Dict[str, Any]) -> Dict[str, Any]:
         """
         Deep merge two dictionaries (recursive merge for nested dicts)
@@ -394,25 +400,33 @@ class I18nManager:
             ColorPrint.print_warn(f"[I18nManager] Language not found: {lang}")
             return default or key
 
-        # Try to get value - support both flat keys and nested keys
-        translations = self._translations[lang]
-        
-        # First, try as flat key (e.g., "mcpserver.tray.start_mcp_server")
+        value = self._lookup(self._translations[lang], key)
+
+        # Fallback: missing key in the current language -> default language
+        if value is None:
+            fallback_lang = self._base_config.get('default_language', 'en')
+            if fallback_lang != lang and fallback_lang in self._translations:
+                value = self._lookup(self._translations[fallback_lang], key)
+
+        return str(value) if value is not None else (default or key)
+
+    @staticmethod
+    def _lookup(translations: Dict[str, Any], key: str) -> Optional[Any]:
+        """Resolve a key in one language dict (flat key first, then dot-nested)."""
+        # Flat key (e.g., "mcpserver.tray.start_mcp_server")
         if key in translations:
             value = translations[key]
             if not isinstance(value, dict):
-                return str(value) if value is not None else (default or key)
-        
-        # If not found as flat key, try nested navigation (e.g., "window.title.initializing")
+                return value
+
+        # Nested navigation (e.g., "window.title.initializing")
         value = translations
         for part in key.split('.'):
             if isinstance(value, dict) and part in value:
                 value = value[part]
             else:
-                # Key not found, try fallback or return default
-                return default or key
-
-        return str(value) if value is not None else (default or key)
+                return None
+        return None if isinstance(value, dict) else value
 
     def set_language(self, language: str) -> bool:
         """

@@ -38,7 +38,7 @@ class DeviceManager:
 
     Usage:
         # Get global instance
-        from pycore.pyutils.device_manager import device_manager
+        from pycore.pyutils.device.device_manager import device_manager
 
         # List devices
         devices = await device_manager.list_devices()

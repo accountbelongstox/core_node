@@ -28,9 +28,9 @@ mss = get_third_package_mss()
 
 ImageGrab = get_third_package_PIL_ImageGrab()
 Image = get_third_package_PIL_Image()
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+from pycore.pyutils.window.activator import WindowActivator
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.common.browser_window_detector import get_default_skip_browser_callable
 from pycore.pygvar.global_var_manager import PYTOOLS_TMP_DIR

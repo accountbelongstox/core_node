@@ -14,6 +14,8 @@ import time
 from typing import Optional, Tuple, Callable
 
 from pycore.pyfoundations.third_party import get_third_package_pyautogui
+from pycore.pyutils.common.clipboard_text import get_clipboard_text, set_clipboard_text
+from pycore.pyutils.input.ime_switch import save_and_switch_ime_to_english, restore_ime
 
 # Clear mode: replace = clear then type; append = type at end; none = type only (no clear)
 CLEAR_MODE_REPLACE = "replace"
@@ -35,17 +37,15 @@ def _is_ascii_only(text: str) -> bool:
 def _paste_via_clipboard(text: str) -> bool:
     """Set clipboard to text, send Ctrl+V, then restore previous clipboard."""
     try:
-        from pycore.pyutils.clipboard.clipboard_manager import ClipboardManager
-        cm = ClipboardManager()
-        backup = cm.get_text()
-        if not cm.set_text(text):
+        backup = get_clipboard_text()
+        if not set_clipboard_text(text):
             return False
         time.sleep(0.05)
         pag = _pyautogui()
         pag.hotkey("ctrl", "v")
         time.sleep(0.05)
         if backup is not None:
-            cm.set_text(backup)
+            set_clipboard_text(backup)
         return True
     except Exception:
         return False
@@ -54,10 +54,6 @@ def _paste_via_clipboard(text: str) -> bool:
 def _ime_wrap_typing(ensure_ime_english: bool, do_type: Callable[[], bool]) -> bool:
     """Run do_type(); if ensure_ime_english, switch to English before and restore after."""
     if not ensure_ime_english:
-        return do_type()
-    try:
-        from pycore.pyutils.ime_switch import save_and_switch_ime_to_english, restore_ime
-    except Exception:
         return do_type()
     saved = save_and_switch_ime_to_english()
     try:

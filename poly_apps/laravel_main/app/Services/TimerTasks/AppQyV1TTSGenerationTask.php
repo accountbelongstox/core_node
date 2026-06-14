@@ -6,12 +6,19 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
 use Illuminate\Support\Facades\Log;
 
 /**
- * TTS Queue Processing Task
+ * TTS Generation Task — queue-less operation.
  *
- * Octane timer task that processes the TTS queue.
- * The UnifiedTTSQueueService handles ALL types: word, sentence, article.
+ * Octane timer task that drives TTS generation directly against the
+ * canonical tables (no intermediate tts_queue table anymore):
+ *   - words:    pending tts_cache_{lang} rows are claimed via
+ *               AppQyV1DictionaryTTSCoordinator and generated inline;
+ *   - articles: pending {lang}_article_library rows are split into
+ *               sentences, generated, and written back to the article row;
+ *   - sentences: stateless — generated synchronously at request time by
+ *               AppQyV1UnifiedTTSQueueService::addTask, never by this timer.
  *
- * No need for separate workers - Octane processes this task automatically.
+ * Stale processing claims are reaped at the start of every run, so crashed
+ * processors (this timer or external pycore workers) never strand rows.
  */
 class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
 {
@@ -38,11 +45,11 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
     public function exec(): void
     {
         try {
-            // Process TTS queue - handles word, sentence, and article tasks
+            // Process pending word + article rows on the canonical tables.
             $result = $this->queueService->processQueue($this->queueBatchSize);
 
             if ($result['processed'] > 0) {
-                $this->logInfo('[TTSQueue] Processed queue items', [
+                $this->logInfo('[TTSQueue] Processed pending TTS items', [
                     'processed' => $result['processed'],
                     'succeeded' => $result['succeeded'],
                     'failed' => $result['failed'],
@@ -52,14 +59,8 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
                     'rate_limited' => $result['rate_limit_detected'] ?? false,
                 ]);
             }
-
-            // Clean old completed tasks periodically
-            if ($result['processed'] > 0) {
-                $this->queueService->cleanQueue(7);
-            }
-
         } catch (\Throwable $e) {
-            $this->logError('TTS queue processing failed', [
+            $this->logError('TTS generation processing failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);

@@ -3,10 +3,10 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
 
 /**
  * Multi-Language Dictionary Model
@@ -38,9 +38,23 @@ class AppQyV1LangDictionaryModel extends Model
         'word_details',
         'is_exist_local',
         'has_operations',
+        'is_valid',
+        'validity_checked_at',
+        'validity_source',
+        'validity_note',
         'query_count',
         'last_modified',
         'last_query_time',
+        // TTS generation process state (queue-less coordination — the former
+        // tts_queue table's job, carried on the canonical row).
+        'tts_status',
+        'tts_attempts',
+        'tts_error',
+        'tts_locked_at',
+        'tts_locked_by',
+        'tts_priority',
+        'tts_requested_at',
+        'tts_completed_at',
     ];
 
     protected $casts = [
@@ -52,11 +66,18 @@ class AppQyV1LangDictionaryModel extends Model
         'has_audio' => 'boolean',
         'is_exist_local' => 'boolean',
         'has_operations' => 'boolean',
+        'is_valid' => 'boolean',
+        'validity_checked_at' => 'datetime',
         'query_count' => 'integer',
         'last_modified' => 'datetime',
         'last_query_time' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'tts_attempts' => 'integer',
+        'tts_priority' => 'integer',
+        'tts_locked_at' => 'datetime',
+        'tts_requested_at' => 'datetime',
+        'tts_completed_at' => 'datetime',
     ];
 
     public function __construct(array $attributes = [])
@@ -95,6 +116,86 @@ class AppQyV1LangDictionaryModel extends Model
         return $instance;
     }
 
+    /**
+     * Cache TTL (seconds) for the per-language dashboard dictionary metrics.
+     * Short window so even paths that bypass explicit invalidation self-heal.
+     */
+    public const METRICS_CACHE_TTL = 300;
+
+    /**
+     * Canonical cache key for the per-language dictionary metrics aggregate
+     * surfaced on the vocabulary dashboard. Keyed by the 2-letter language code
+     * so every read/write path shares one definition.
+     */
+    public static function metricsCacheKey(string $langCode): string
+    {
+        return 'appqyv1:dict_metrics:' . strtolower($langCode);
+    }
+
+    /**
+     * Canonical cache key for the consolidated per-language dictionary stats
+     * aggregate used by the system-initialization dashboard. Shares the same
+     * language-code keying so it can be invalidated alongside dict_metrics.
+     */
+    public static function sysInitStatsCacheKey(string $langCode): string
+    {
+        return 'appqyv1:sysinit_stats:dict:' . strtolower($langCode);
+    }
+
+    /**
+     * Invalidate the cached dictionary metrics for a language. Call after any
+     * write that changes a metric-relevant column (row count, has_translation,
+     * translations, has_audio, image_files, is_valid, validity_checked_at).
+     * Safe to call with either a language name or a 2-letter code.
+     */
+    public static function forgetMetricsCache(string $langCode): void
+    {
+        Cache::forget(self::metricsCacheKey($langCode));
+        // The system-init dashboard aggregate is derived from the same table,
+        // so it must be dropped on the same writes.
+        Cache::forget(self::sysInitStatsCacheKey($langCode));
+        // The summary/audio-size dashboards roll up the same per-language data and
+        // are cached separately (5 min / 30 min); drop them too so a dictionary
+        // write isn't masked by a stale summary for up to their TTL.
+        Cache::forget('appqyv1_system_statistics_summary');
+        Cache::forget('appqyv1_audio_file_size_stats');
+    }
+
+    /**
+     * Batch-resolve dictionary rows for (word_id, language_code) reference
+     * pairs - the canonical shape referenced by vocabulary_libraries.word_ids
+     * and the group_word_progress JSON map (the shared resolver every
+     * word-ref consumer goes through).
+     *
+     * One whereIn query per language (no per-row queries). Returns a map
+     * keyed "{lang}:{id}" => dictionary row; pairs whose id is missing from
+     * their dictionary are simply absent from the result.
+     *
+     * @param iterable<array{word_id:int|string, language_code:string}> $refs
+     * @return array<string, self>
+     */
+    public static function resolveWordRefs(iterable $refs): array
+    {
+        $idsByLang = [];
+        foreach ($refs as $ref) {
+            $lang = strtolower((string) $ref['language_code']);
+            $idsByLang[$lang][(int) $ref['word_id']] = true;
+        }
+
+        $resolved = [];
+        foreach ($idsByLang as $lang => $idSet) {
+            $ids = array_keys($idSet);
+            foreach (array_chunk($ids, 1000) as $chunk) {
+                $rows = self::forLanguage($lang)->whereIn('id', $chunk)->get();
+                foreach ($rows as $row) {
+                    $resolved[$lang . ':' . $row->id] = $row;
+                }
+            }
+        }
+
+        return $resolved;
+    }
+
     public static function findByMd5(string $langCode, string $md5)
     {
         return self::forLanguage($langCode)
@@ -124,6 +225,9 @@ class AppQyV1LangDictionaryModel extends Model
         $instance->query_count = 0;
         $instance->save();
 
+        // New row changes the dictionary count -> invalidate metrics.
+        self::forgetMetricsCache($langCode);
+
         return $instance;
     }
 
@@ -132,12 +236,74 @@ class AppQyV1LangDictionaryModel extends Model
         self::forLanguage($langCode)
             ->where('md5', $md5)
             ->update(array_merge($data, ['updated_at' => now()]));
+
+        self::forgetMetricsCache($langCode);
+    }
+
+    /**
+     * Explicitly record a third-party validity check for a single word.
+     *
+     * Validity is externally asserted: rows stay valid by default and only an
+     * explicit check (typically a client that verifies the word online) can mark
+     * one invalid. Returns true when a matching row was updated.
+     */
+    public static function markValidity(string $langCode, string $md5, bool $isValid, ?string $source = null, ?string $note = null): bool
+    {
+        $affected = self::forLanguage($langCode)
+            ->where('md5', $md5)
+            ->update([
+                'is_valid' => $isValid,
+                'validity_checked_at' => now(),
+                'validity_source' => $source,
+                'validity_note' => $note,
+                'updated_at' => now(),
+            ]);
+
+        if ($affected > 0) {
+            self::forgetMetricsCache($langCode);
+        }
+
+        return $affected > 0;
+    }
+
+    /**
+     * Restrict to "sentence" rows: dictionary entries whose content length
+     * falls in the sentence range (50 < LENGTH(content) < 500).
+     *
+     * LENGTH() has no native query-builder equivalent, so the comparison stays
+     * in whereRaw. LENGTH() behaves identically on sqlite and pgsql (both count
+     * characters for text), so this scope is cross-DB safe.
+     */
+    public function scopeSentenceLength($query)
+    {
+        return $query->whereRaw('LENGTH(content) > 50')
+            ->whereRaw('LENGTH(content) < 500');
+    }
+
+    /** Only words explicitly marked invalid by a third-party check. */
+    public function scopeInvalid($query)
+    {
+        return $query->where('is_valid', false);
+    }
+
+    /** Words that are valid (default state, i.e. not explicitly invalid). */
+    public function scopeValid($query)
+    {
+        return $query->where('is_valid', true);
+    }
+
+    /** Words a third-party client has not yet checked. */
+    public function scopeValidityUnchecked($query)
+    {
+        return $query->whereNull('validity_checked_at');
     }
 
     public function incrementQueryCount(): void
     {
-        $this->increment('query_count');
-        $this->update(['last_query_time' => now()]);
+        // One UPDATE statement: Eloquent's increment() applies the extra columns
+        // in the same query, so the counter bump and the last_query_time stamp no
+        // longer cost two separate round-trips per word lookup.
+        $this->increment('query_count', 1, ['last_query_time' => now()]);
     }
 
     public function addTTSFile(string $path, string $speedKey = 'p0pct', string $type = 'word'): void
@@ -179,19 +345,22 @@ class AppQyV1LangDictionaryModel extends Model
 
     public static function getWordsWithoutTTS(string $langCode, int $limit = 20, bool $skipQueued = true): \Illuminate\Database\Eloquent\Collection
     {
+        // Queue-less coordination: "queued" now means an unstale processing
+        // claim on the row itself (tts_status/tts_locked_at) — the old
+        // tts_queue cross-check is gone with the table.
         $query = self::forLanguage($langCode)
             ->where('has_audio', false);
 
         if ($skipQueued) {
-            $queuedHashes = AppQyV1TTSQueueModel::where('task_type', 'word')
-                ->where('language', $langCode)
-                ->whereIn('status', ['pending', 'processing'])
-                ->pluck('content_hash')
-                ->toArray();
-
-            if (!empty($queuedHashes)) {
-                $query->whereNotIn('md5', $queuedHashes);
-            }
+            $staleBefore = now()->subMinutes(10);
+            $query->where(function ($q) use ($staleBefore) {
+                $q->whereNull('tts_status')
+                    ->orWhere('tts_status', 'pending')
+                    ->orWhere(function ($qq) use ($staleBefore) {
+                        $qq->where('tts_status', 'processing')
+                            ->where('tts_locked_at', '<', $staleBefore);
+                    });
+            });
         }
 
         return $query->orderBy('query_count', 'desc')

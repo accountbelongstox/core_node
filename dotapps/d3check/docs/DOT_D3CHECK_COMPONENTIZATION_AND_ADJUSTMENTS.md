@@ -1,6 +1,6 @@
 # D3Check DOT: Build Fix and Componentization Review
 
-Build fixes applied + alignment review. **Layout, layers, naming:** [DOT_UI_PROJECT_STANDARDS_PROGRESS.md](DOT_UI_PROJECT_STANDARDS_PROGRESS.md) and [DOT_UI_PROJECT_SPECIFICATION.md](../../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md).
+Build fixes applied + alignment review. **Layout, layers, naming:** [DOT_UI_PROJECT_STANDARDS_PROGRESS.md](DOT_UI_PROJECT_STANDARDS_PROGRESS.md) and [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md).
 
 ---
 
@@ -31,7 +31,7 @@ Reference: [Dependency injection guidelines - .NET](https://learn.microsoft.com/
 
 ### 3.2 WPF / Structure
 
-- **Target structure**: For View/ViewModel separation and Presentation folder layout, follow [DOT_UI_PROJECT_SPECIFICATION.md](../../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md) (canonical).
+- **Target structure**: For View/ViewModel separation and Presentation folder layout, follow [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md) (canonical).
 - **Current state**: d3check uses mostly code-behind and shared state (GameInterfaceData, Config, etc.) with little ViewModel layer; MainWindow and pages mix UI wiring and logic. Acceptable for this tool; optional refactor toward MVVM later.
 
 ### 3.3 Current Shortcomings
@@ -106,7 +106,7 @@ Reference: [Dependency injection guidelines - .NET](https://learn.microsoft.com/
 
 - [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md) – Layout and dependencies.
 - [.cursor/rules/dot.mdc](../../../.cursor/rules/dot.mdc) – Dot rule (language, layout, naming).
-- [DOT_UI_PROJECT_SPECIFICATION.md](../../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md) – **Canonical** UI/Presentation spec (Clean Architecture + MVVM + Fluent 2); [.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc).
+- [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md) – **Canonical** UI/Presentation spec (Clean Architecture + MVVM + Fluent 2); [.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc).
 - [DOT_UI_PROJECT_STANDARDS_PROGRESS.md](DOT_UI_PROJECT_STANDARDS_PROGRESS.md) – d3check layers (roles), naming, constants.
 - [DOT_TAB_UI_FREEZE_DESIGN.md](DOT_TAB_UI_FREEZE_DESIGN.md) – Threading and Dispatcher usage.
 - [Dependency injection guidelines - .NET](https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection-guidelines) – Service design, lifetimes, anti-patterns.

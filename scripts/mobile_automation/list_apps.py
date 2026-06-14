@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pycore.pyutils.scrcpy_init import get_initializer
+from pycore.pyutils.device.scrcpy_init import get_initializer
 from pycore.pyutils.device.adb_commands import ADBCommands
 from pycore.pyutils.device.adb_manager import ADBManager
 

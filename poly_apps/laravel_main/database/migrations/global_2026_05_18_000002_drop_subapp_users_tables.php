@@ -24,15 +24,16 @@ return new class extends Migration
     public function up(): void
     {
         $appKeys = method_exists(AppKeys::class, 'all') ? AppKeys::all() : [
-            AppKeys::APPQYV1, AppKeys::AWYV0, AppKeys::MCPV1, AppKeys::VIPCLUBV1,
-            AppKeys::BANKV1, AppKeys::SERVERMANAGERV1, AppKeys::ACHATV1,
-            AppKeys::CODEMARTV1, AppKeys::ITTOOLSV1,
+            AppKeys::APPQYV1, AppKeys::MCPV1, AppKeys::SERVERMANAGERV1,
+            AppKeys::ACHATV1, AppKeys::CODEMARTV1, AppKeys::ITTOOLSV1,
         ];
 
         foreach ($appKeys as $appKey) {
             $connection = AppTablePrefixServiceProvider::getConnection($appKey);
 
-            if ($connection === 'sqlite') {
+            // Main DB guard: matches the current default name AND the legacy
+            // 'sqlite' alias (both resolve to the same PG core_node_main).
+            if ($connection === 'sqlite' || $connection === (string) config('database.default')) {
                 continue; // main DB: the canonical users table — never drop
             }
             if (!config("database.connections.{$connection}")) {

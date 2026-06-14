@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ChevronDown, X, Loader2, AlertCircle, Clock } from 'lucide-react';
+import { Search, ChevronDown, X, Loader2, AlertCircle, Clock, Copy, Check } from 'lucide-react';
 import { api } from '../../core/api';
 import { FullApiInfo, ApiInfo, ApiInfoParsedEndpoint, Language } from '../../types';
-import { parseFeatureString, generateExampleParams } from '../../utils/apiInfoParser';
+import { parseFeatureString, generateExampleParams, extractPathPlaceholders } from '../../utils/apiInfoParser';
+import { logInfo, logError } from '../../core/logs/logStore';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { TRANSLATIONS } from '../../constants';
 import BentoCard from '../BentoCard';
@@ -12,6 +13,25 @@ import CollapsibleApiCard from '../api-tester/CollapsibleApiCard';
 interface ApiTesterProps {
   lang?: Language;
 }
+
+interface TesterResponse {
+  success: boolean;
+  statusCode: number;
+  latency: number;
+  data: any;
+  /** Internal catalog id (api_N) — kept for debugging, not shown as the headline. */
+  endpoint: string;
+  method: string;
+  path: string;
+}
+
+/** 2xx green / 3xx blue / 4xx amber / 5xx + network(0) red. */
+const statusColorClass = (code: number): string => {
+  if (code >= 200 && code < 300) return 'text-emerald-400';
+  if (code >= 300 && code < 400) return 'text-sky-400';
+  if (code >= 400 && code < 500) return 'text-amber-400';
+  return 'text-red-400';
+};
 
 const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
   const t = TRANSLATIONS[lang].api_tester;
@@ -25,8 +45,9 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
 
   const [sharedHeaders, setSharedHeaders] = useLocalStorage<Record<string, Record<string, string>>>('api_tester_headers', {});
   const [apiParams, setApiParams] = useLocalStorage<Record<string, Record<string, any>>>('api_tester_params', {});
-  const [lastResponse, setLastResponse] = useState<any>(null);
+  const [lastResponse, setLastResponse] = useState<TesterResponse | null>(null);
   const [requestLoading, setRequestLoading] = useState<string | null>(null);
+  const [responseCopied, setResponseCopied] = useState(false);
 
   useEffect(() => {
     loadApiInfo();
@@ -106,10 +127,18 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
     setExpandedIds(newExpanded);
   };
 
-  const getApiParams = (apiId: string): Record<string, any> => {
-    if (apiParams[apiId]) return apiParams[apiId];
-    const endpoint = parsedEndpoints.find(ep => ep.id === apiId);
-    return generateExampleParams(endpoint?.params);
+  const getApiParams = (endpoint: ApiInfoParsedEndpoint): Record<string, any> => {
+    const saved = apiParams[endpoint.id];
+    // Path placeholders ({site_name}, {id}, ...) must always be present in the
+    // editor — even when the backend metadata omits them — otherwise the
+    // placeholder is sent literally and the route 404s.
+    const placeholders = extractPathPlaceholders(endpoint.path);
+    if (saved && placeholders.every(name => saved[name] !== undefined)) return saved;
+    const base = saved ? { ...saved } : generateExampleParams(endpoint.params);
+    placeholders.forEach(name => {
+      if (base[name] === undefined) base[name] = '';
+    });
+    return base;
   };
 
   const handleParamsChange = (apiId: string, params: Record<string, any>) => {
@@ -127,11 +156,44 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
   const handleSendRequest = async (endpoint: ApiInfoParsedEndpoint) => {
     setRequestLoading(endpoint.id);
     setLastResponse(null);
+    setResponseCopied(false);
+
+    // Clone: path substitution consumes keys via delete, and the saved params
+    // object lives in localStorage-backed state — never mutate it.
+    const params: Record<string, any> = { ...getApiParams(endpoint) };
+
+    // Substitute {placeholder} path params BEFORE sending. A literal
+    // "{site_name}" never matches a backend route and 404s with an empty body.
+    const missingPathParams: string[] = [];
+    const url0 = endpoint.path.replace(/\{(\w+)\}/g, (placeholder, name) => {
+      const value = params[name];
+      if (value === undefined || value === null || String(value).trim() === '') {
+        missingPathParams.push(name);
+        return placeholder;
+      }
+      delete params[name];
+      return encodeURIComponent(String(value));
+    });
+
+    if (missingPathParams.length > 0) {
+      const message = `Missing path parameter(s): ${missingPathParams.join(', ')}`;
+      logError('api-tester', `${endpoint.method} ${endpoint.path} → not sent (${message})`);
+      setLastResponse({
+        success: false,
+        statusCode: 0,
+        latency: 0,
+        data: { error: message },
+        endpoint: endpoint.id,
+        method: endpoint.method,
+        path: endpoint.path
+      });
+      setRequestLoading(null);
+      return;
+    }
 
     try {
-      const params = getApiParams(endpoint.id);
-      let url = endpoint.path;
-      let body: any = null;
+      let url = url0;
+      let body: string | null = null;
 
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -139,7 +201,7 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
         ...currentHeaders
       };
 
-      if (endpoint.method === 'GET' && Object.keys(params).length > 0) {
+      if (['GET', 'DELETE'].includes(endpoint.method) && Object.keys(params).length > 0) {
         const queryParams = new URLSearchParams();
         Object.entries(params).forEach(([key, value]) => {
           if (value !== '' && value !== null && value !== undefined) {
@@ -161,12 +223,26 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
       });
 
       const latency = Date.now() - startTime;
-      let data;
+      // Read as text first: response.json() throws on an empty body (Laravel
+      // 404/204 often returns "" even with a JSON content type).
+      const raw = await response.text();
+      let data: any = raw;
       const contentType = response.headers.get('content-type');
-      if (contentType?.includes('application/json')) {
-        data = await response.json();
+      if (raw && contentType?.includes('application/json')) {
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          data = raw;
+        }
+      }
+
+      // Raw fetch (deliberately not BaseAPI), so mirror the run into the
+      // global log panel ourselves.
+      const summary = `${endpoint.method} ${endpoint.path} → ${response.status} (${latency}ms)`;
+      if (response.ok) {
+        logInfo('api-tester', summary);
       } else {
-        data = await response.text();
+        logError('api-tester', summary);
       }
 
       setLastResponse({
@@ -174,18 +250,44 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
         statusCode: response.status,
         latency,
         data,
-        endpoint: endpoint.id
+        endpoint: endpoint.id,
+        method: endpoint.method,
+        path: endpoint.path
       });
     } catch (err: any) {
+      logError('api-tester', `${endpoint.method} ${endpoint.path} → ${err.message || 'Network error'}`);
       setLastResponse({
         success: false,
         statusCode: 0,
         latency: 0,
         data: { error: err.message || 'Network error' },
-        endpoint: endpoint.id
+        endpoint: endpoint.id,
+        method: endpoint.method,
+        path: endpoint.path
       });
     } finally {
       setRequestLoading(null);
+    }
+  };
+
+  const responseIsEmpty =
+    lastResponse !== null &&
+    (lastResponse.data === '' || lastResponse.data === null || lastResponse.data === undefined);
+
+  const responseText = lastResponse === null || responseIsEmpty
+    ? ''
+    : typeof lastResponse.data === 'string'
+      ? lastResponse.data
+      : JSON.stringify(lastResponse.data, null, 2);
+
+  const handleCopyResponse = async () => {
+    if (!responseText) return;
+    try {
+      await navigator.clipboard.writeText(responseText);
+      setResponseCopied(true);
+      setTimeout(() => setResponseCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable (insecure context) — silently ignore.
     }
   };
 
@@ -297,7 +399,7 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
                 key={endpoint.id}
                 endpoint={endpoint}
                 isExpanded={expandedIds.has(endpoint.id)}
-                params={getApiParams(endpoint.id)}
+                params={getApiParams(endpoint)}
                 onToggle={() => toggleExpand(endpoint.id)}
                 onParamsChange={(params) => handleParamsChange(endpoint.id, params)}
                 onSendRequest={() => handleSendRequest(endpoint)}
@@ -312,14 +414,22 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
         <div className="lg:w-[400px] bg-slate-900/50 border border-white/10 rounded-xl flex flex-col overflow-hidden backdrop-blur-md">
           <div className="p-3 bg-white/5 border-b border-white/10 flex justify-between items-center">
             <span className="text-xs font-bold text-slate-400 uppercase">{t.response}</span>
-            {lastResponse && (
+            {lastResponse && !requestLoading && (
               <div className="flex items-center gap-3">
-                <span className={`text-xs font-mono font-bold ${lastResponse.success ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {lastResponse.statusCode}
+                <span className={`text-xs font-mono font-bold ${statusColorClass(lastResponse.statusCode)}`}>
+                  {lastResponse.statusCode === 0 ? 'ERR' : lastResponse.statusCode}
                 </span>
                 <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
                   <Clock size={10} /> {lastResponse.latency}ms
                 </span>
+                <button
+                  onClick={handleCopyResponse}
+                  disabled={!responseText}
+                  title={t.copy_response}
+                  className="text-slate-500 hover:text-white disabled:opacity-30 disabled:hover:text-slate-500 transition-colors"
+                >
+                  {responseCopied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                </button>
               </div>
             )}
           </div>
@@ -332,8 +442,14 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
               </div>
             ) : lastResponse ? (
               <div className="space-y-2">
-                <div className="text-slate-500 text-[10px]">Endpoint: {lastResponse.endpoint}</div>
-                <pre className="whitespace-pre-wrap">{JSON.stringify(lastResponse.data, null, 2)}</pre>
+                <div className="text-slate-500 text-[10px]">
+                  <span className="font-bold">{lastResponse.method}</span> {lastResponse.path}
+                </div>
+                {responseIsEmpty ? (
+                  <div className="text-slate-500 italic">{t.empty_body}</div>
+                ) : (
+                  <pre className="whitespace-pre-wrap">{responseText}</pre>
+                )}
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-600 opacity-50">

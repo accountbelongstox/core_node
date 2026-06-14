@@ -158,9 +158,18 @@ class ApiManager {
 
       const responseTime = Math.round(performance.now() - startTime);
 
+      // Availability must mean "the Laravel backend answered", not merely "some
+      // server returned 2xx". A same-origin Vite dev server answers GET
+      // /api/health with its SPA index.html (200, text/html) — a false positive
+      // that would pin every API call to the dev server (POSTs then 404). So we
+      // require: 2xx + JSON content-type + the backend's health marker
+      // ({"status":"healthy","service":"Laravel API",...}). An HTML fallback,
+      // a proxy error page, or a 4xx/5xx all correctly read as unhealthy.
+      const isHealthy = await this.isBackendHealthResponse(response);
+
       const result: HealthCheckResult = {
         endpoint,
-        isHealthy: response.status >= 200 && response.status < 500,
+        isHealthy,
         responseTime,
         timestamp: Date.now()
       };
@@ -181,6 +190,32 @@ class ApiManager {
       return result;
     } finally {
       clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * True only when the response is the Laravel backend's /api/health payload.
+   *
+   * The backend returns 200 with content-type application/json and a body of
+   * `{"status":"healthy","service":"Laravel API",...}`. We accept any 2xx JSON
+   * body carrying a recognizable marker (`status` or `service`), and reject
+   * everything else — most importantly the Vite dev server's SPA index.html
+   * (200, text/html), which would otherwise be a false "healthy".
+   */
+  private async isBackendHealthResponse(response: Response): Promise<boolean> {
+    if (response.status < 200 || response.status >= 300) return false;
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.toLowerCase().includes('application/json')) return false;
+
+    try {
+      const body = await response.clone().json();
+      if (!body || typeof body !== 'object') return false;
+      // Backend marker: status:"healthy"/"ok" or service:"Laravel API".
+      return body.status !== undefined || body.service !== undefined;
+    } catch {
+      // JSON content-type but unparseable body (proxy/error page) -> not healthy.
+      return false;
     }
   }
 

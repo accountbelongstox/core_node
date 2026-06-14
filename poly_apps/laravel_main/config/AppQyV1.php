@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 return [
@@ -72,6 +69,39 @@ return [
         'images_url_prefix' => env('DICT_IMAGES_URL_PREFIX', '/storage/external/images'),
         'cdn_audio_prefix' => env('DICT_CDN_AUDIO_PREFIX', null),
         'cdn_images_prefix' => env('DICT_CDN_IMAGES_PREFIX', null),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | AI Translation Provider Fallback
+    |--------------------------------------------------------------------------
+    |
+    | Order in which AppQyV1TranslationService::translateWithFallback() tries
+    | AI providers. The first provider that returns a usable translation wins;
+    | on error / over-quota / down it falls through to the next. The final
+    | "google" provider delegates to pycore (PycoreTranslatorUtil) so a request
+    | still completes even when every direct LLM key is unavailable.
+    |
+    | Allowed values: openrouter, gemini, deepseek, google.
+    | Override via APPQYV1_AI_FALLBACK_CHAIN (comma-separated).
+    |
+    */
+    'ai' => [
+        'fallback_chain' => array_values(array_filter(array_map('trim', explode(
+            ',',
+            env('APPQYV1_AI_FALLBACK_CHAIN', 'openrouter,gemini,deepseek,google')
+        )))),
+
+        // Per-provider model override (null = each client's own default).
+        'models' => [
+            'openrouter' => env('APPQYV1_AI_MODEL_OPENROUTER', null),
+            'gemini' => env('APPQYV1_AI_MODEL_GEMINI', null),
+            'deepseek' => env('APPQYV1_AI_MODEL_DEEPSEEK', null),
+        ],
+
+        // Status-endpoint cache TTL (seconds). Octane-friendly; keeps repeated
+        // probes cheap. Matches pycore's ai_probe cache window.
+        'status_cache_ttl' => (int) env('APPQYV1_AI_STATUS_CACHE_TTL', 30),
     ],
 
     /*

@@ -4,7 +4,7 @@
 Main package file for pytools.
 """
 
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 
 
 # Convenience function to get GPU info from cache
@@ -29,6 +29,8 @@ from pycore.pyfoundations import (
     EventBus,
     EventTypes,
     Event,
+    UserDataStore,
+    get_user_data_store,
 )
 
 # Global variable manager (now in pygvar)
@@ -89,6 +91,8 @@ __all__ = [
     'EventBus',
     'EventTypes',
     'Event',
+    'UserDataStore',
+    'get_user_data_store',
     'GlobalVarManager',
 
     # Device structures

@@ -93,6 +93,12 @@ const CONFIG = {
         CODE_SYNC_STOP: '/code-sync/stop',
         CODE_SYNC_TOGGLE_BACKUP: '/code-sync/toggle-backup',
 
+        // Video extraction (batch/single -> audio + tiny-mp4 + subtitle)
+        VIDEO_EXTRACT_PREVIEW: '/api/local/video-extract/preview',
+        VIDEO_EXTRACT_START: '/api/local/video-extract/start',
+        VIDEO_EXTRACT_TASK: '/api/local/video-extract/tasks/{task_id}',
+        VIDEO_EXTRACT_CANCEL: '/api/local/video-extract/tasks/{task_id}/cancel',
+
         // Service discovery
         PING: '/ping'
     },
@@ -120,7 +126,7 @@ const CONFIG = {
 
     // UI settings
     UI: {
-        MODULES: ['voice-player', 'queue-manager', 'window-automation', 'code-sync', 'api-config'],
+        MODULES: ['voice-player', 'queue-manager', 'window-automation', 'code-sync', 'task-queue', 'video-extract', 'api-config'],
         DEFAULT_MODULE: 'voice-player'
     }
 };

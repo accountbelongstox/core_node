@@ -483,6 +483,49 @@ class McpV1TaskDispatchCtl extends Controller
     }
 
     /**
+     * Delete a task from a category queue
+     *
+     * MCP & Web: DELETE /api/mcp/v1/task-dispatch/queue/{categoryId}/tasks/{taskId}
+     *
+     * @param Request $request
+     * @param string $categoryId
+     * @param string $taskId
+     * @return JsonResponse
+     */
+    public function deleteTask(Request $request, string $categoryId, string $taskId): JsonResponse
+    {
+        Log::info('McpV1: Delete task', [
+            'category' => $categoryId,
+            'task' => $taskId
+        ]);
+
+        try {
+            $result = $this->queueService->deleteTask($categoryId, $taskId);
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+                'meta' => [
+                    'mcp_compatible' => true,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('McpV1: Failed to delete task', [
+                'category' => $categoryId,
+                'task' => $taskId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to delete task',
+                'details' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
      * Get queue statistics
      *
      * MCP & Web: GET /api/mcp/v1/task-dispatch/queue/{categoryId}/stats

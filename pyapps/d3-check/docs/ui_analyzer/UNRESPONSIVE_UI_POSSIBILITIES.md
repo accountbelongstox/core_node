@@ -151,7 +151,7 @@
 | 项目 | 说明 |
 |------|------|
 | **文档归纳** | 在 Map 中或多次执行 Win32 修改会导致窗口 unresponsive；应只在一次、延后（如 350ms）执行 taskbar 修复。 |
-| **代码实际** | `diablo3_macro_ui.py`：L148–153 注释明确“第二次 SetWindowLong/SetWindowPos 会使窗口 unresponsive”“Map 路径中调用会 no input”；L154–167 的 `<Map>` 处理中**不**调用 `ensure_tk_root_in_taskbar`，仅做 `focus_force` 与 `_deferred_after_map`（50/150/300ms 再 focus_force）；L153 用 `after(350, self._apply_taskbar_fix)` 仅一次；L416–431 `_apply_taskbar_fix` 内用 `_taskbar_style_applied` 保证 `ensure_tk_root_in_taskbar(root)` 只执行一次，且前后有 `update_idletasks()` 和 `focus_force()`。`pycore.pyutils.tk_taskbar.ensure_tk_root_in_taskbar`（L106–124）：对 `root.winfo_id()` 取 hwnd，调 SetWindowLongPtrW(GWL_EXSTYLE)、SetWindowLongPtrW(GWLP_HWNDPARENT)、SetWindowPos(SWP_FRAMECHANGED)。 |
+| **代码实际** | `diablo3_macro_ui.py`：L148–153 注释明确“第二次 SetWindowLong/SetWindowPos 会使窗口 unresponsive”“Map 路径中调用会 no input”；L154–167 的 `<Map>` 处理中**不**调用 `ensure_tk_root_in_taskbar`，仅做 `focus_force` 与 `_deferred_after_map`（50/150/300ms 再 focus_force）；L153 用 `after(350, self._apply_taskbar_fix)` 仅一次；L416–431 `_apply_taskbar_fix` 内用 `_taskbar_style_applied` 保证 `ensure_tk_root_in_taskbar(root)` 只执行一次，且前后有 `update_idletasks()` 和 `focus_force()`。`pycore.pyutils.desktop.tk_taskbar.ensure_tk_root_in_taskbar`（L106–124）：对 `root.winfo_id()` 取 hwnd，调 SetWindowLongPtrW(GWL_EXSTYLE)、SetWindowLongPtrW(GWLP_HWNDPARENT)、SetWindowPos(SWP_FRAMECHANGED)。 |
 | **MCP 文档** | Tk 文档：`wm_overrideredirect(True)` 去除窗口管理器装饰；无直接写“与 Win32 组合后输入丢失”，但与“焦点/grab 由窗口状态决定”一致。 |
 | **是否同一问题** | **是**。代码刻意避免在 Map 中调 Win32、且只在一处 350ms 后执行一次，**针对的正是文档归纳的同一问题**。若仍出现无响应，可能是“单次 350ms 执行”在部分环境下仍导致焦点/输入丢失（文档建议的“临时禁用 ensure_tk_root_in_taskbar 观察”在代码中尚未做成可配置）。 |
 

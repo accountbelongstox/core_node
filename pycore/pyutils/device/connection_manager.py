@@ -19,7 +19,7 @@ from typing import Dict, Optional, Callable
 from pathlib import Path
 from enum import Enum
 
-from pycore.pyutils.device_manager import DeviceManager
+from pycore.pyutils.device.device_manager import DeviceManager
 from pycore.pyutils.device.scrcpy_device import ScrcpyDevice, ServerParams, VideoCodec
 from pycore.pyutils.device.port_pool import PortPool
 from pycore import ColorPrint

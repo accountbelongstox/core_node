@@ -1,0 +1,12 @@
+---
+description: "laravel_dashboard (React/TS frontend) AI working rules. Finish the code and stop — do not compile/test/run the server. Use when editing poly_apps/laravel_dashboard."
+globs: poly_apps/laravel_dashboard/**/*.{ts,tsx,js,jsx,css,ps1,sh}
+alwaysApply: false
+---
+
+# laravel_dashboard frontend — AI working rules
+
+1. **When the code is written, STOP — do NOT compile, run, test, start the dev server, or verify in any way. Delivering the written code is the entire task.** Never create, execute, or modify test code.
+2. Write all code in English only.
+3. Do not write progress/summary notes inside source files.
+4. Do not modify these rules.

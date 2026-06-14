@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 # Import ColorPrint from pycore (same package)
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def _auto_install_dependencies():

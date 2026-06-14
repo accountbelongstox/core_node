@@ -32,12 +32,18 @@
     "tooltip": "アプリケーション",
     "menu": {
       "show": "ウィンドウを表示",
+      "open_web": "Web インターフェースを開く",
+      "pycore_ui": "PyCore UI",
       "hide": "ウィンドウを隠す",
       "maximize": "最大化",
       "minimize": "最小化",
       "restore": "復元",
       "restart": "再起動",
-      "exit": "終了"
+      "exit": "終了",
+      "rpc_server": "RPC v2 サーバー: {port}",
+      "singleton_port": "シングルトンポート: {port}",
+      "autostart": "起動時に自動実行",
+      "language": "言語"
     }
   },
   "loading": {

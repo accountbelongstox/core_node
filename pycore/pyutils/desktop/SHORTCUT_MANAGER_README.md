@@ -18,7 +18,7 @@
 #### 使用方法
 
 ```python
-from pycore.pyutils.shortcut_manager import ShortcutManager
+from pycore.pyutils.desktop.universal_shortcut import ShortcutManager
 from pathlib import Path
 
 # 初始化管理器
@@ -34,7 +34,7 @@ manager.ensure_shortcut(
 )
 
 # 方式 2：使用便捷函数 create_app_shortcut
-from pycore.pyutils.shortcut_manager import create_app_shortcut
+from pycore.pyutils.desktop.universal_shortcut import create_app_shortcut
 
 create_app_shortcut(
     app_name="myapp",
@@ -132,7 +132,7 @@ ShortcutManager 按以下优先级搜索图标：
 ### 步骤 1：在应用入口添加导入
 
 ```python
-from pycore.pyutils.shortcut_manager import ShortcutManager
+from pycore.pyutils.desktop.universal_shortcut import ShortcutManager
 ```
 
 ### 步骤 2：在启动函数中添加快捷方式创建

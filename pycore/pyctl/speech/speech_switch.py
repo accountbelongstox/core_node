@@ -21,7 +21,7 @@ from typing import Optional, Dict, Callable, Any
 from pathlib import Path
 
 from pycore.pyfoundations import ColorPrint, Task
-from pycore.pyutils.common.provider_status import get_provider_status
+from pycore.pyctl.speech.provider_status import get_provider_status
 from pycore.pyutils.common.speech_task_models import (
     SpeechTaskType,
     TTSTaskData,

@@ -69,7 +69,7 @@ foreach ($installer in $installers) {
     # binds POSITIONALLY and does NOT honor the -Name tokens, so -Python ends up
     # as a *value*. Hashtable splatting binds by parameter name.
     $installerArgs = @{ Python = $Python }
-    if ($name -eq 'whisper' -and $WhisperModel) { $installerArgs['Model'] = $WhisperModel }
+    if (($name -eq 'whisper' -or $name -eq 'faster_whisper') -and $WhisperModel) { $installerArgs['Model'] = $WhisperModel }
 
     try {
         & $installer.FullName @installerArgs

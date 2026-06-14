@@ -70,7 +70,7 @@ for installer in "${installers[@]}"; do
     echo "[..] Prerequisite: $name"
 
     args=(--python "$PYTHON")
-    if [[ "$name" == "whisper" && -n "$WHISPER_MODEL" ]]; then
+    if [[ ( "$name" == "whisper" || "$name" == "faster_whisper" ) && -n "$WHISPER_MODEL" ]]; then
         args+=(--model "$WHISPER_MODEL")
     fi
 

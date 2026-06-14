@@ -85,7 +85,7 @@ const UploadModal: React.FC<{ isOpen: boolean; onClose: () => void; onUpload: (f
     if (!isOpen) return null;
 
     return ReactDOM.createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
             <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div className="flex justify-between items-center mb-6">
@@ -403,7 +403,7 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                     onEnded={handleVideoEnd}
                     onTimeUpdate={handleVideoTimeUpdate}
                     className="w-full h-full"
-                    src={api.mcpV1.getStaticFileStreamUrl(currentPath)}
+                    src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
                   />
                   {/* Floating Episode Controls - NO || allowed */}
                   {showFloatingControls && (hasPrevious ? true : hasNext ? true : false) && (
@@ -452,11 +452,11 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                   autoPlay
                   onEnded={handleVideoEnd}
                   className="w-full"
-                  src={api.mcpV1.getStaticFileStreamUrl(currentPath)}
+                  src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
                 />
               ) : activeFile?.fileType === 'image' ? (
                 <img
-                  src={api.mcpV1.getStaticFileStreamUrl(currentPath)}
+                  src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
                   alt={activeFile.name}
                   className="max-w-full max-h-full object-contain"
                 />

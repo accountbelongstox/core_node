@@ -8,13 +8,13 @@ import time
 from typing import Optional, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.click_handler import ClickHandler
+from pycore.pyutils.input.click_handler import ClickHandler
 from d3utils.click_handler_singleton import get_click_handler
-from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyutils.window.activator import WindowActivator
 from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from pycore.pyutils.common.window_finder import WindowFinder
-from pycore.pyutils.window_ops import send_key as window_send_key
+from pycore.pyutils.window.ops import send_key as window_send_key
 from share.game_interface_data import calculate_unified_scaled_coordinate, get_game_interface_data
 from d3utils.screenshot_provider import get_screenshot_provider
 from d3utils.d3_scaled_template_matcher import get_d3_scaled_template_matcher as get_scaled_template_matcher

@@ -1,7 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './core/i18n';
-import App from './App';
+import './themes/index.css';
+import ShellApp from './shell/ShellApp';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -11,6 +12,6 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <ShellApp />
   </React.StrictMode>
 );

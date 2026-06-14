@@ -5,9 +5,11 @@ import { ServerManagerAPI } from './modules/ServerManagerAPI';
 import { ItToolsV1API } from './modules/ItToolsV1';
 import { InviteCodeAPI } from './modules/InviteCodeAPI';
 import { SystemConfigAPI } from './modules/SystemConfigAPI';
-import { BankV1API } from './modules/BankV1';
 import { AuthAPI } from './modules/AuthAPI';
-import { DashboardDbViewerAPI } from './modules/DashboardDbViewerAPI';
+import { DatabaseManagerAPI, AuthDebugAPI } from './modules/DatabaseManagerAPI';
+import { MediaQueryAPI } from './modules/MediaQueryAPI';
+import { AiStatusAPI } from './modules/AiStatusAPI';
+import { AiManagementAPI } from './modules/AiManagementAPI';
 import { setSharedBaseURL } from './base/BaseAPI';
 import { getDefaultBaseURL, DEFAULT_API_TIMEOUT } from '../../config/constants';
 
@@ -33,9 +35,12 @@ class APIService {
   public itToolsV1: ItToolsV1API;
   public inviteCode: InviteCodeAPI;
   public systemConfig: SystemConfigAPI;
-  public bankV1: BankV1API;
   public auth: AuthAPI;
-  public dashboardDbViewer: DashboardDbViewerAPI;
+  public databaseManager: DatabaseManagerAPI;
+  public authDebug: AuthDebugAPI;
+  public mediaQuery: MediaQueryAPI;
+  public aiStatus: AiStatusAPI;
+  public aiManagement: AiManagementAPI;
 
   private constructor() {
     // Seed the single shared base URL so EVERY module (including
@@ -87,21 +92,39 @@ class APIService {
       timeout: API_CONFIG.timeout
     });
 
-    this.bankV1 = new BankV1API({
-      baseURL: API_CONFIG.baseURL,
-      prefix: '/api/bank',
-      timeout: API_CONFIG.timeout
-    });
-
     this.auth = new AuthAPI({
       baseURL: API_CONFIG.baseURL,
       prefix: '/api',
       timeout: API_CONFIG.timeout
     });
 
-    this.dashboardDbViewer = new DashboardDbViewerAPI({
+    this.databaseManager = new DatabaseManagerAPI({
       baseURL: API_CONFIG.baseURL,
-      prefix: '/api/dashboard/db-viewer',
+      prefix: '/api/dashboard/db-manager',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.authDebug = new AuthDebugAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/dashboard/auth',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.mediaQuery = new MediaQueryAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/app_qy_v1/media',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.aiStatus = new AiStatusAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/app_qy_v1/ai_tools/ai',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.aiManagement = new AiManagementAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/local/ai',
       timeout: API_CONFIG.timeout
     });
   }
@@ -127,9 +150,11 @@ class APIService {
     this.serverManager.setHeader('Authorization', bearerToken);
     this.itToolsV1.setHeader('Authorization', bearerToken);
     this.inviteCode.setHeader('Authorization', bearerToken);
-    this.bankV1.setHeader('Authorization', bearerToken);
     this.auth.setHeader('Authorization', bearerToken);
-    this.dashboardDbViewer.setHeader('Authorization', bearerToken);
+    this.databaseManager.setHeader('Authorization', bearerToken);
+    this.mediaQuery.setHeader('Authorization', bearerToken);
+    this.aiStatus.setHeader('Authorization', bearerToken);
+    this.aiManagement.setHeader('Authorization', bearerToken);
   }
 
   /**
@@ -142,9 +167,11 @@ class APIService {
     this.serverManager.removeHeader('Authorization');
     this.itToolsV1.removeHeader('Authorization');
     this.inviteCode.removeHeader('Authorization');
-    this.bankV1.removeHeader('Authorization');
     this.auth.removeHeader('Authorization');
-    this.dashboardDbViewer.removeHeader('Authorization');
+    this.databaseManager.removeHeader('Authorization');
+    this.mediaQuery.removeHeader('Authorization');
+    this.aiStatus.removeHeader('Authorization');
+    this.aiManagement.removeHeader('Authorization');
   }
 
   /**
@@ -157,9 +184,11 @@ class APIService {
     this.serverManager.setHeader(key, value);
     this.itToolsV1.setHeader(key, value);
     this.inviteCode.setHeader(key, value);
-    this.bankV1.setHeader(key, value);
     this.auth.setHeader(key, value);
-    this.dashboardDbViewer.setHeader(key, value);
+    this.databaseManager.setHeader(key, value);
+    this.mediaQuery.setHeader(key, value);
+    this.aiStatus.setHeader(key, value);
+    this.aiManagement.setHeader(key, value);
   }
 
   /**

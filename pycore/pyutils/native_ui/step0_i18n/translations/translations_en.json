@@ -32,12 +32,18 @@
     "tooltip": "Application",
     "menu": {
       "show": "Show Window",
+      "open_web": "Open Web Interface",
+      "pycore_ui": "PyCore UI",
       "hide": "Hide Window",
       "maximize": "Maximize",
       "minimize": "Minimize",
       "restore": "Restore",
       "restart": "Restart",
-      "exit": "Exit"
+      "exit": "Exit",
+      "rpc_server": "RPC v2 Server: {port}",
+      "singleton_port": "Singleton Port: {port}",
+      "autostart": "Auto-Start on Boot",
+      "language": "Language"
     }
   },
   "loading": {

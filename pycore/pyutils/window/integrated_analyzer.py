@@ -16,7 +16,7 @@ from pathlib import Path
 from pycore.pyfoundations.third_party import get_third_package_uiautomation
 
 uiautomation = get_third_package_uiautomation()
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from providor.window_mapping_provider import WINDOW_MAPPING_PROVIDER, UIElementMapping
 from utils.window_analyzer import WindowAnalyzer
 import uiautomation as auto

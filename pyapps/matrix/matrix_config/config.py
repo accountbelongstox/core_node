@@ -12,7 +12,7 @@ from pathlib import Path
 
 from pycore.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT, CACHE_DIR
 from pycore import ColorPrint
-from pycore.pyutils.scrcpy_init import get_adb_path as get_init_adb_path
+from pycore.pyutils.device.scrcpy_init import get_adb_path as get_init_adb_path
 
 
 class Config:

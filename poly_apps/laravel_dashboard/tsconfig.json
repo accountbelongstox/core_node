@@ -21,6 +21,27 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@capacitor/core": [
+        "./shared/capacitor-web-shims/core.ts"
+      ],
+      "@capacitor/preferences": [
+        "./shared/capacitor-web-shims/preferences.ts"
+      ],
+      "@capacitor/dialog": [
+        "./shared/capacitor-web-shims/dialog.ts"
+      ],
+      "@capacitor/toast": [
+        "./shared/capacitor-web-shims/toast.ts"
+      ],
+      "@capacitor/status-bar": [
+        "./shared/capacitor-web-shims/status-bar.ts"
+      ],
+      "@capacitor/keyboard": [
+        "./shared/capacitor-web-shims/keyboard.ts"
+      ],
+      "@capacitor/app": [
+        "./shared/capacitor-web-shims/app.ts"
       ]
     },
     "allowImportingTsExtensions": true,

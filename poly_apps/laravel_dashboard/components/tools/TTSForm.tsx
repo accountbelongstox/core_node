@@ -5,7 +5,6 @@ import {
   Pause,
   Download,
   RefreshCw,
-  Trash2,
   Mic,
   Settings
 } from 'lucide-react';
@@ -13,21 +12,23 @@ import { useToolModel } from '../../hooks';
 import { AI_TOOLS } from '../../config/tools.config';
 import ToolWrapper from '../universal/ToolWrapper';
 import HistoryList from '../universal/HistoryList';
-import BentoCard from '../BentoCard';
 import { commonClasses } from '../../styles/theme';
 import { appQyV1Model } from '../../core/models';
-import { extractArrayFromResponse, safeFilter } from '../../utils/arrayUtils';
+import {
+  AI_BODY,
+  AI_GRID_2,
+  AiBentoCard,
+  AiToolActions,
+  AiToolAlert,
+  AiToolField,
+  AiToolRange,
+  AiToolStatRow,
+  AiToolTips,
+} from '../ai-tools/ui';
 
-/**
- * TTSForm - Text-to-Speech using centralized architecture
- *
- * Before: 458 lines
- * After: ~150 lines (67% reduction)
- */
 const TTSForm: React.FC = () => {
   const config = AI_TOOLS.tts;
   const {
-    execute,
     loading,
     error,
     history,
@@ -36,26 +37,21 @@ const TTSForm: React.FC = () => {
     clearError
   } = useToolModel(config);
 
-  // Form state
   const [text, setText] = useState('');
   const [language, setLanguage] = useState('en');
   const [voice, setVoice] = useState('');
   const [speed, setSpeed] = useState(0);
   const [pitch, setPitch] = useState(0);
 
-  // TTS Options from backend
   const [ttsOptions, setTtsOptions] = useState<any>(null);
   const [loadingOptions, setLoadingOptions] = useState(true);
 
-  // Audio playback
   const [currentAudio, setCurrentAudio] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // History display
   const [showHistory, setShowHistory] = useState(false);
 
-  // Load TTS options on mount
   useEffect(() => {
     loadOptions();
   }, []);
@@ -68,18 +64,15 @@ const TTSForm: React.FC = () => {
       if (result.success && result.data) {
         setTtsOptions(result.data);
 
-        // Set default language if available
         if (result.data.languages?.length > 0) {
           const defaultLang = result.data.languages.includes('en') ? 'en' : result.data.languages[0];
           setLanguage(defaultLang);
 
-          // Set default voice for selected language
           if (result.data.voices && result.data.voices[defaultLang]) {
             setVoice(result.data.voices[defaultLang]);
           }
         }
 
-        // Set default speed and pitch
         if (result.data.speed?.default !== undefined) {
           setSpeed(result.data.speed.default);
         }
@@ -110,7 +103,7 @@ const TTSForm: React.FC = () => {
 
       if (result.success && result.data?.audio_url) {
         setCurrentAudio(result.data.audio_url);
-        setText(''); // Clear input on success
+        setText('');
       }
     } catch (err) {
       console.error('TTS generation failed:', err);
@@ -138,7 +131,6 @@ const TTSForm: React.FC = () => {
     link.click();
   };
 
-  // Language name mapping
   const languageNames: Record<string, string> = {
     'af': 'Afrikaans', 'am': 'Amharic', 'ar': 'Arabic', 'as': 'Assamese',
     'az': 'Azerbaijani', 'bg': 'Bulgarian', 'bn': 'Bengali', 'bs': 'Bosnian',
@@ -164,8 +156,8 @@ const TTSForm: React.FC = () => {
   };
 
   const availableLanguages = ttsOptions?.languages || [];
-  const speedConfig = ttsOptions?.speed || { min: -50, max: 100, step: 10, default: 0 };
-  const pitchConfig = ttsOptions?.pitch || { min: -50, max: 50, step: 5, default: 0 };
+  const speedConfig = ttsOptions?.speed || { min: -50, max: 100, step: 10, default: 0, unit: '%' };
+  const pitchConfig = ttsOptions?.pitch || { min: -50, max: 50, step: 5, default: 0, unit: 'Hz' };
 
   return (
     <ToolWrapper
@@ -186,34 +178,28 @@ const TTSForm: React.FC = () => {
         />
       }
     >
-      <div className="space-y-6">
-        {/* Text Input */}
-        <BentoCard title="Text Input">
+      <div className={AI_BODY}>
+        <AiBentoCard title="Text Input">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Enter text to convert to speech..."
-            className={`${commonClasses.input} resize-none`}
+            className={`${commonClasses.input} w-full resize-none min-h-[160px]`}
             rows={6}
           />
-          <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
-            <span>{text.length} characters</span>
-            <span>~{Math.ceil(text.length / 100)} seconds</span>
-          </div>
-        </BentoCard>
+          <AiToolStatRow
+            left={`${text.length} characters`}
+            right={`~${Math.ceil(text.length / 100)} seconds`}
+          />
+        </AiBentoCard>
 
-        {/* Settings Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Voice Settings */}
-          <BentoCard title="Voice Settings">
+        <div className={AI_GRID_2}>
+          <AiBentoCard title="Voice Settings">
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Language ({availableLanguages.length} available)
-                </label>
+              <AiToolField label={`Language (${availableLanguages.length} available)`}>
                 {loadingOptions ? (
-                  <div className="flex items-center justify-center p-4">
-                    <RefreshCw className="w-5 h-5 animate-spin text-blue-500" />
+                  <div className="flex items-center justify-center py-6">
+                    <RefreshCw className="w-5 h-5 animate-spin text-emerald-500" />
                   </div>
                 ) : (
                   <select
@@ -225,7 +211,7 @@ const TTSForm: React.FC = () => {
                         setVoice(ttsOptions.voices[newLang]);
                       }
                     }}
-                    className={commonClasses.input}
+                    className={`${commonClasses.input} w-full`}
                   >
                     {availableLanguages.map((lang: string) => (
                       <option key={lang} value={lang}>
@@ -234,76 +220,60 @@ const TTSForm: React.FC = () => {
                     ))}
                   </select>
                 )}
-              </div>
+              </AiToolField>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Voice</label>
+              <AiToolField
+                label="Voice"
+                hint="Voice is automatically selected for the chosen language"
+              >
                 <input
                   type="text"
                   value={voice}
                   readOnly
-                  className={`${commonClasses.input} bg-slate-50 dark:bg-slate-800`}
+                  className={`${commonClasses.input} w-full bg-slate-50 dark:bg-slate-800/80`}
                   placeholder="Auto-selected based on language"
                 />
-                <p className="text-xs text-slate-500 mt-1">
-                  Voice is automatically selected for the chosen language
-                </p>
-              </div>
+              </AiToolField>
             </div>
-          </BentoCard>
+          </AiBentoCard>
 
-          {/* Advanced Settings */}
-          <BentoCard title="Advanced Settings">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Speed: {speed >= 0 ? '+' : ''}{speed}{speedConfig.unit}
-                </label>
-                <input
-                  type="range"
-                  min={speedConfig.min}
-                  max={speedConfig.max}
-                  step={speedConfig.step}
-                  value={speed}
-                  onChange={(e) => setSpeed(parseInt(e.target.value))}
-                  className="w-full"
-                  disabled={loadingOptions}
-                />
-                <div className="flex justify-between text-xs text-slate-500 mt-1">
-                  <span>Slower ({speedConfig.min}{speedConfig.unit})</span>
-                  <span>Faster ({speedConfig.max}{speedConfig.unit})</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Pitch: {pitch >= 0 ? '+' : ''}{pitch}{pitchConfig.unit}
-                </label>
-                <input
-                  type="range"
-                  min={pitchConfig.min}
-                  max={pitchConfig.max}
-                  step={pitchConfig.step}
-                  value={pitch}
-                  onChange={(e) => setPitch(parseInt(e.target.value))}
-                  className="w-full"
-                  disabled={loadingOptions}
-                />
-                <div className="flex justify-between text-xs text-slate-500 mt-1">
-                  <span>Lower ({pitchConfig.min}{pitchConfig.unit})</span>
-                  <span>Higher ({pitchConfig.max}{pitchConfig.unit})</span>
-                </div>
-              </div>
+          <AiBentoCard title="Advanced Settings">
+            <div className="space-y-5">
+              <AiToolRange
+                label={<>Speed: {speed >= 0 ? '+' : ''}{speed}{speedConfig.unit}</>}
+                value={speed}
+                min={speedConfig.min}
+                max={speedConfig.max}
+                step={speedConfig.step}
+                unit={speedConfig.unit}
+                minLabel={`Slower (${speedConfig.min}${speedConfig.unit})`}
+                maxLabel={`Faster (${speedConfig.max}${speedConfig.unit})`}
+                onChange={setSpeed}
+                disabled={loadingOptions}
+                accent="emerald"
+              />
+              <AiToolRange
+                label={<>Pitch: {pitch >= 0 ? '+' : ''}{pitch}{pitchConfig.unit}</>}
+                value={pitch}
+                min={pitchConfig.min}
+                max={pitchConfig.max}
+                step={pitchConfig.step}
+                unit={pitchConfig.unit}
+                minLabel={`Lower (${pitchConfig.min}${pitchConfig.unit})`}
+                maxLabel={`Higher (${pitchConfig.max}${pitchConfig.unit})`}
+                onChange={setPitch}
+                disabled={loadingOptions}
+                accent="emerald"
+              />
             </div>
-          </BentoCard>
+          </AiBentoCard>
         </div>
 
-        {/* Generate Button */}
-        <div className="flex justify-center">
+        <AiToolActions>
           <button
             onClick={handleGenerate}
             disabled={!text.trim() || loading || loadingOptions}
-            className={`${commonClasses.button} ${commonClasses.buttonPrimary} px-8 flex items-center gap-2`}
+            className={`${commonClasses.button} ${commonClasses.buttonPrimary} px-8 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {loading ? (
               <>
@@ -317,19 +287,13 @@ const TTSForm: React.FC = () => {
               </>
             )}
           </button>
-        </div>
+        </AiToolActions>
 
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
-            {error}
-          </div>
-        )}
+        {error && <AiToolAlert>{error}</AiToolAlert>}
 
-        {/* Current Audio Player */}
         {currentAudio && (
-          <BentoCard title="Generated Audio">
-            <div className="flex items-center gap-4">
+          <AiBentoCard title="Generated Audio">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => handlePlayAudio(currentAudio)}
                 className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
@@ -354,29 +318,19 @@ const TTSForm: React.FC = () => {
                 Download
               </button>
             </div>
-          </BentoCard>
+          </AiBentoCard>
         )}
 
-        {/* Tips */}
-        <BentoCard title="Tips" className="bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20">
-          <ul className="text-sm space-y-2 text-slate-700 dark:text-slate-300">
-            <li className="flex items-start gap-2">
-              <Mic className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-600" />
-              <span>Different voices have different characteristics - try them out!</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <Settings className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-600" />
-              <span>Adjust speed and pitch to customize the voice output</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <Download className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-600" />
-              <span>Download generated audio files for offline use</span>
-            </li>
-          </ul>
-        </BentoCard>
+        <AiToolTips
+          accent="emerald"
+          items={[
+            { icon: Mic, text: 'Different voices have different characteristics - try them out!' },
+            { icon: Settings, text: 'Adjust speed and pitch to customize the voice output' },
+            { icon: Download, text: 'Download generated audio files for offline use' },
+          ]}
+        />
       </div>
 
-      {/* Hidden Audio Player */}
       <audio
         ref={audioRef}
         onEnded={() => setPlaying(false)}

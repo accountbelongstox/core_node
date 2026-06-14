@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Optional, List
 
 from pycore import THREAD_BUS
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon import exec_realtime, exec_silent
 from .frontend_config import FrontendConfig
 from .frontend_singleton_detector import FrontendSingletonDetector

@@ -14,7 +14,7 @@ When developing a feature in `poly_apps/qy_capacitor`, you MUST simultaneously d
 
 - Backend app code: `poly_apps/laravel_main/app/Apps/AppQyV1/**`
 - Backend routes: `poly_apps/laravel_main/routes/AppQyV1Router/**`
-- Frontend↔backend contract: see `poly_apps/qy_capacitor/docs/api/API_PATH_MAPPING.md`.
+- Frontend↔backend functional requirements: see `poly_apps/laravel_dashboard/apps/wordflow/docs/FEATURES.md` (前端功能) + `BACKEND_REQUIREMENTS.md` (后端须做到的行为)。接口/路由不在文档中固定,按功能要求在实现时设计。
 
 A frontend change that adds/changes an API call without the matching `AppQyV1` route + controller (or vice versa) is incomplete. Run both via the orchestrator `poly_apps/qy_capacitor/scripts/start.ps1` (launches `start_qy.ps1` + `laravel_main/scripts/start.ps1`).
 
@@ -60,8 +60,7 @@ palette and **adds a gradient hero layer + a centered floating island**.
   and verify your output matches them (palette, gradient-vs-solid, radius,
   glass, spacing, island nav, pill menus, titles, tiles, dark/light). An
   unverified design change is a defect. Tag every redesigned file with the
-  `/* [v4.1-Iris] … */` marker comment (spec §0). Rolling status:
-  `docs/design/REDESIGN_PROGRESS.md`.
+  `/* [v4.1-Iris] … */` marker comment (spec §0).
 - **Iris palette.** Light = soft lavender/periwinkle bg (`body #ECEDFB`,
   `ds-aura-bg` lavender gradient). Dark = deep near-black indigo
   (`body #07070f`) with violet ambient glow.
@@ -109,12 +108,12 @@ palette and **adds a gradient hero layer + a centered floating island**.
   stacking model and motion now live in the **same** design doc, **Part B
   (§7–§12)** — each topic documents the current UI (现在的UI) and the expected
   UI (预期的UI). Use it when changing navigation, flows, overlays, or states;
-  `architecture/ARCHITECTURE.md` §8 keeps only the technical RouteCenter API.
+  `apps/wordflow/docs/ARCHITECTURE.md` keeps only the technical RouteCenter API.
 
 Full v4.1 bullets live in **`poly_apps/qy_capacitor/CLAUDE.md` §5** (do not
-duplicate here). Canonical contract: `docs/design/WORDFLOW_DESIGN_SYSTEM_4.0.md`
-(retitled "Design System 4.1 — Iris Layer + UI/UX Interaction"; visual = Part A
-§0–§6, interaction = Part B §7–§12); work breakdown:
-`docs/design/COMPONENT_REDESIGN_INVENTORY.md`.
+duplicate here). Canonical contract:
+`poly_apps/laravel_dashboard/apps/wordflow/docs/DESIGN_SYSTEM.md` (Part A §0–§6
+visual system + Part B §7–§12 UI/UX interaction; 迁移自 qy_capacitor/docs,组件
+工作分解已并入该文件 §14)。
 
-Canonical tokens: `poly_apps/qy_capacitor/index.css`, `poly_apps/qy_capacitor/styles/StyleCenter.ts`. Full design language: skill **wordflow-design-system** + `docs/design/WORDFLOW_DESIGN_SYSTEM_4.0.md`. Per-app + co-development conventions: `poly_apps/qy_capacitor/CLAUDE.md`.
+Canonical tokens: `poly_apps/qy_capacitor/index.css`, `poly_apps/qy_capacitor/styles/StyleCenter.ts`. Full design language: skill **wordflow-design-system** + `poly_apps/laravel_dashboard/apps/wordflow/docs/DESIGN_SYSTEM.md`. Per-app + co-development conventions: `poly_apps/qy_capacitor/CLAUDE.md`.

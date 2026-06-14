@@ -81,19 +81,20 @@ surface form **one coordinated contract** (实现见
 `development-guides/MULTI_API_URL_SYSTEM.md` 的 "Realized detection contract"
 section, and `poly_apps/laravel_dashboard/API_ALIGNMENT_PROGRESS.md`).
 
-Realized behavior (**⚠️ CORRECTION 2026-05-19 — supersedes the earlier same-day
-"lazy / probe-only-when-the-switcher-dropdown-opens / once-only-for-switcher"
-description; detection is automatic at app startup, NOT lazy/click-triggered**):
-- Detection is **automatic at app startup**: `ApiManager` probes **all endpoints
-  in parallel exactly once per app load**, single-flight via a stored
-  `healthPassPromise` (StrictMode-safe), no timers/intervals, no retries.
-  `App.tsx` triggers it and dispatches `api-health-initialized` after the
-  parallel pass settles; `ApiEndpointSwitcher.tsx` is read-only (no probe on
-  dropdown open). Active-endpoint precedence: healthy `api_user_modified` →
-  healthy stored `api_current_endpoint`/`api_auto_detected` → first healthy by
-  priority (written back) → highest-priority unhealthy fallback. 以能使用的为准:
-  auto-detection never overwrites `api_user_modified`; no re-probe unless the
-  user manually switches.
+Realized behavior (**⚠️ CORRECTION 2026-06-11 — STORED-FIRST detection +
+per-end all-Offline recheck; supersedes all earlier detection wording here.
+Canonical: `poly_apps/laravel_dashboard/EndpointsProcess.md`**):
+- Detection is **automatic at app startup** and STORED-FIRST (single-flight,
+  StrictMode-safe, 3000ms probe timeout): probe ONLY the stored last-used
+  endpoint (`api_user_modified` → `api_current_endpoint` →
+  `api_auto_detected`); if it answers, keep it — nothing else is probed. Only
+  when it is dead probe ALL endpoints in parallel and auto-switch to the
+  highest-weight healthy one (written back; `api_user_modified` never touched
+  by auto-detection, 以能使用的为准). While everything is Offline the same pass
+  retries at the per-end configurable `healthCheckInterval` (default 60s) and
+  stops on first recovery — a healthy backend is never polled. The pass
+  dispatches `api-health-initialized`; `ApiEndpointSwitcher.tsx` is read-only
+  apart from its Re-detect button (same pass) and interval setting.
 - `GET {base}/api/health` → `200 { status:'healthy', service, timestamp,
   version }`, liveness-only, no auth, `Cache-Control: no-store`, cheap OPTIONS
   preflight via CORS fast-path (no web/Sanctum middleware).
@@ -101,12 +102,11 @@ description; detection is automatic at app startup, NOT lazy/click-triggered**):
   `Cache-Control: public, max-age=300, stale-while-revalidate=600` (304 on
   `If-None-Match`); client 60s TTL cache + single-flight.
 
-> ⚠️ **LINKED-CHANGE (联动改): The frontend probing contract (now:
-> auto-parallel-once at startup, single-flight via `healthPassPromise`) and the
-> backend `/api/health` + CORS/`cors.php` paths + `/api_info` caching MUST be
-> changed together — changing one side's health/api_info contract, CORS paths,
-> or cache headers without the other reintroduces the preflight-hang /
-> redundant-probe bug.**
+> ⚠️ **LINKED-CHANGE (联动改): The frontend probing contract (stored-first
+> pass, single-flight via `recheckEndpoints()`) and the backend `/api/health` +
+> CORS/`cors.php` paths + `/api_info` caching MUST be changed together —
+> changing one side's health/api_info contract, CORS paths, or cache headers
+> without the other reintroduces the preflight-hang / redundant-probe bug.**
 
 ### 3. 文档交换区规范
 

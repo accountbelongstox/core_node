@@ -260,19 +260,27 @@ class TaskManager:
             # Execute task (handle both sync and async executors)
             ColorPrint.blue(f"[TaskManager] Executing task {task_id}...")
 
-            if inspect.iscoroutinefunction(executor):
-                # Async executor - run in new event loop
-                ColorPrint.blue(f"[TaskManager] Running async executor in new event loop")
-                result = asyncio.run(executor(task))
-            else:
-                # Sync executor - run directly
-                ColorPrint.blue(f"[TaskManager] Running sync executor")
-                result = executor(task)
+            try:
+                if inspect.iscoroutinefunction(executor):
+                    # Async executor - run in new event loop
+                    ColorPrint.blue(f"[TaskManager] Running async executor in new event loop")
+                    result = asyncio.run(executor(task))
+                else:
+                    # Sync executor - run directly
+                    ColorPrint.blue(f"[TaskManager] Running sync executor")
+                    result = executor(task)
+            except Exception as e:
+                # An executor crash must FAIL the task, not strand it: letting
+                # the exception kill this thread left the task in PROCESSING
+                # forever, so every poller (UI task lists, status endpoints)
+                # showed a zombie that never finished.
+                ColorPrint.red(f"[TaskManager] Task {task_id} executor crashed: {e}")
+                self.fail_task(task_id, str(e))
+                return
 
             ColorPrint.green(f"[TaskManager] Task {task_id} executor completed")
             ColorPrint.blue(f"[TaskManager] Result: {result}")
 
-            # Mark as completed (let exceptions propagate)
             self.complete_task(task_id, result)
 
         # Run in background thread

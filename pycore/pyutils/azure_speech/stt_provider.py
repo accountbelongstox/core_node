@@ -9,14 +9,14 @@ Uses Azure Cognitive Services Speech SDK for speech-to-text.
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key
 from pycore.pyfoundations.third_party import (
     get_third_package_speechsdk,
     get_third_package_numpy,
 )
 
-from pycore.pyutils.azure_speech.stt_base_provider import BaseSpeechRecognitionProvider
+from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
 from pycore.pyutils.azure_speech.quota_state import (
     mark_stt_quota_exceeded,
     clear_stt_quota_issue,

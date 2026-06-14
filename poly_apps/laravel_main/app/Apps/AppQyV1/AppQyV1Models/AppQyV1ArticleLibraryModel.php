@@ -5,7 +5,6 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
 
 /**
  * Multi-Language Article Library Model
@@ -31,6 +30,15 @@ class AppQyV1ArticleLibraryModel extends Model
         'tts_provider',
         'metadata',
         'added_at',
+        // TTS generation process state (queue-less coordination).
+        'tts_status',
+        'tts_attempts',
+        'tts_error',
+        'tts_locked_at',
+        'tts_locked_by',
+        'tts_priority',
+        'tts_requested_at',
+        'tts_completed_at',
     ];
 
     protected $casts = [
@@ -40,6 +48,11 @@ class AppQyV1ArticleLibraryModel extends Model
         'added_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'tts_attempts' => 'integer',
+        'tts_priority' => 'integer',
+        'tts_locked_at' => 'datetime',
+        'tts_requested_at' => 'datetime',
+        'tts_completed_at' => 'datetime',
     ];
 
     public function __construct(array $attributes = [])
@@ -126,19 +139,21 @@ class AppQyV1ArticleLibraryModel extends Model
 
     public static function getArticlesWithoutAudio(string $langCode, int $limit = 10, bool $skipQueued = true): \Illuminate\Database\Eloquent\Collection
     {
+        // Queue-less coordination: "queued" now means an unstale processing
+        // claim on the article row itself (tts_status/tts_locked_at).
         $query = self::forLanguage($langCode)
             ->where('has_audio', false);
 
         if ($skipQueued) {
-            $queuedHashes = AppQyV1TTSQueueModel::where('task_type', 'article')
-                ->where('language', $langCode)
-                ->whereIn('status', ['pending', 'processing'])
-                ->pluck('content_hash')
-                ->toArray();
-
-            if (!empty($queuedHashes)) {
-                $query->whereNotIn('md5', $queuedHashes);
-            }
+            $staleBefore = now()->subMinutes(10);
+            $query->where(function ($q) use ($staleBefore) {
+                $q->whereNull('tts_status')
+                    ->orWhere('tts_status', 'pending')
+                    ->orWhere(function ($qq) use ($staleBefore) {
+                        $qq->where('tts_status', 'processing')
+                            ->where('tts_locked_at', '<', $staleBefore);
+                    });
+            });
         }
 
         return $query->orderBy('added_at', 'desc')

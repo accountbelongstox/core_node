@@ -185,36 +185,37 @@
 > for `laravel_dashboard`. The earlier flow caused a redundant-probe storm and a
 > ~21s preflight hang; the realized behavior is below.
 >
-> **⚠️ CORRECTION 2026-05-19 — this note supersedes the earlier same-day
-> "lazy / probe-only-when-the-switcher-dropdown-opens / once-only-for-switcher"
-> wording that previously appeared in this section and its sibling docs.**
-> Detection is **automatic at app startup**, NOT lazy and NOT click-triggered.
+> **⚠️ CORRECTION 2026-06-11 — STORED-FIRST detection + per-end all-Offline
+> recheck; supersedes all earlier detection wording in this section (the
+> 2026-05-19 "parallel-all-once / no timers / no retries" note included).
+> Canonical write-up: `poly_apps/laravel_dashboard/EndpointsProcess.md`
+> "Endpoint detection / health-check".** Detection is automatic at app
+> startup, NOT lazy and NOT click-triggered.
 
-### Detection (frontend, `services/ApiManager.ts`)
-- Detection runs **automatically at app startup** — `ApiManager` probes **ALL
-  endpoints in parallel exactly once per app load**, single-flight via a stored
-  `healthPassPromise` (React-18 StrictMode-safe), **no timers/intervals, no
-  retries**.
-- `App.tsx` triggers detection at startup and dispatches `api-health-initialized`
-  after the parallel pass settles. `ApiEndpointSwitcher.tsx` is **read-only** —
-  it renders results and listens for that event; it **no longer probes on
-  dropdown open**.
-- Active-endpoint precedence after the single parallel pass:
-  1. `api_user_modified` (explicit manual choice) **if healthy** → use it.
-  2. else stored `api_current_endpoint` / `api_auto_detected` **if healthy** →
-     use it.
-  3. else **first healthy endpoint by priority order** → use it **and write it
-     back** to `api_auto_detected` / `api_current_endpoint`.
-  4. else (none healthy) → highest-priority endpoint as fallback, left marked
-     unhealthy.
-- Principle 以能使用的为准: never hard-pin a dead endpoint; auto-failover to an
-  available one. Auto-detection **NEVER overwrites `api_user_modified`** (only
-  the manual switcher sets it) — a dead manual choice still yields a working
-  session endpoint without deleting the saved manual key.
-- The single all-endpoints parallel pass both feeds the switcher dots and drives
-  selection. **No re-probe unless the user manually switches** (no timer, no 60s
-  background interval). All endpoints are kept in `config/api-endpoints.ts` (no
-  pruning).
+### Detection (frontend, `services/ApiManager.ts` — stored-first)
+Every entry point (startup, all-Offline interval retry, manual Re-detect) runs
+the SAME single-flight pass (`recheckEndpoints()`, StrictMode-safe, config
+3000ms probe timeout — never override shorter):
+1. **Stored-first**: probe ONLY the stored last-used endpoint
+   (`api_user_modified` → `api_current_endpoint` → `api_auto_detected`). If it
+   answers, keep it — nothing else is probed (one request total).
+2. **Else full sweep**: probe ALL endpoints in parallel and auto-switch to the
+   highest-weight healthy one (user pin → stored → config priority), written
+   back to `api_auto_detected`/`api_current_endpoint`. Auto-detection **NEVER
+   overwrites `api_user_modified`** — 以能使用的为准, a dead manual choice still
+   yields a working session endpoint without deleting the saved manual key.
+3. **Else interval retry**: while everything is Offline, re-run the same pass
+   at the configurable `healthCheckInterval` (default 60s, floor 5s) and stop
+   on first recovery. A healthy backend is never polled; the loop only runs
+   while its end is mounted (path-prefix gated). The other two ends (wordflow
+   `WordflowApiManager.recheckAndFailover()`, pycore `PycoreHealth.ts` single
+   `/pyapi/ping`) follow the same contract.
+
+`App.tsx` triggers the startup pass; the pass dispatches
+`api-health-initialized` when it settles. `ApiEndpointSwitcher.tsx` is
+**read-only** apart from its Re-detect button (same stored-first pass) and the
+interval setting; it never probes on dropdown open. All endpoints are kept in
+`config/api-endpoints.ts` (no pruning).
 
 ### Canonical endpoint contract
 | Endpoint | Behavior | Auth | Cache |
@@ -237,8 +238,8 @@ ETag + `Cache-Control` and handles `If-None-Match` → 304.
 > health/api_info contract, CORS paths, or cache headers without the other
 > reintroduces the preflight-hang / redundant-probe bug.**
 
-Treat the auto-parallel-once-at-startup probe / precedence / single-flight
-(`healthPassPromise`) in `ApiManager.ts`, the `/api/health` route + its
+Treat the stored-first probe / precedence / single-flight
+(`recheckEndpoints()`) in `ApiManager.ts`, the `/api/health` route + its
 middleware bypass + body shape, the `cors.php` `paths`/`max_age`, and the
 `/api_info` ETag/`Cache-Control` as **one coordinated contract** — never edit
 one side alone.
@@ -327,6 +328,82 @@ Not JS-blocking, but removes network/console overhead during init.
 
 ---
 
+## Master API base client (laravel_dashboard `core/api-libs/base` — 2026-06-12)
+
+> Authoritative for `poly_apps/laravel_dashboard`. One MASTER HTTP base client
+> that the three end API libs inherit:
+> `core/api-libs/base/{MasterApiClient.ts, RequestQueue.ts, index.ts}`.
+> Design parents: `pycore/pyutils/rpc/client/unified_rpc_client.js`
+> (PYTHON_PYCORE.md §8.1 — NO TIMEOUT + localStorage pending-request
+> persistence + reconnect resume) and NODE_NCORE_GUIDE.md §11 (unified
+> http-client POST retry queue while the endpoint is unavailable).
+
+### No-arbitrary-timeout rule
+- **No more arbitrary frontend timeouts** (the old 5s/8s/20s tiers in
+  wordflow's `request()` are deleted). The ONLY guard is a single
+  AbortController **ceiling against truly dead sockets — default 30 MINUTES**
+  (`DEFAULT_CEILING_MS`, "一般30分钟"); per-call override via `ceilingMs`;
+  `ceilingMs: 0` waits forever (rpc-client parity).
+- **Endpoint-detection PROBES are NOT `request()`** — the stored-first
+  detection path (`WordflowApiManager.checkEndpoint`, `config 3000ms probe
+  timeout`) is load-bearing and stays exactly as specified in the detection
+  contract above. Never route probes through the master client.
+
+### Persistent offline write queue
+- A **QUEUEABLE** request (caller `queueable: true`, or the subclass's
+  `isQueueableEndpoint(endpoint, method)` default — idempotent POST writes
+  only) that fails with a **NETWORK-level error** (fetch `TypeError`,
+  `navigator.onLine === false`) or hits the ceiling is persisted to
+  localStorage under a **per-end namespaced key** (wordflow: `wf_api_queue`)
+  as `{ id, baseUrlKey, endpoint, method, headers-minus-auth-header, body,
+  createdAt, attempts }`. The caller's promise rejects with a distinguishable
+  **`QueuedError`** (`isQueuedError()`), so UIs show "saved offline, will
+  sync" (locale key `common.queuedOffline`, all 7 wf-locales) instead of a
+  failure.
+- **NEVER queued**: GETs (enforced), non-queueable calls (they reject exactly
+  as before), non-string bodies (FormData/streams). **Tokens are NEVER
+  persisted** — entries store headers minus the auth header names; the live
+  token is re-resolved per replay attempt via `resolveAuthHeaders()`.
+- Cap **100 entries** (oldest dropped first), entries **older than 24h pruned
+  on load**, identical pending entries (endpoint + method + body) **deduped**.
+- **Replay** (FIFO, sequential, single-flight; base URL + token re-resolved
+  per attempt) triggers: window `'online'`, construction (app start), and the
+  end's endpoint-recovered hook — wordflow wires
+  `WORDFLOW_API_HEALTH_EVENT` + `apiManager.hasHealthyEndpoint()` →
+  `drainQueue()`. Success removes the entry; a network failure **stops the
+  drain** (retried on the next trigger); an **HTTP 4xx/5xx answer REMOVES the
+  entry** and emits `queue-entry-failed` — the server answered, it is not a
+  connectivity problem, so replaying forever would be wrong.
+- Observability: `onQueueChange(cb)` (`{ size, draining }`) and
+  `onQueueEntryFailed(cb)` on the client (tiny internal emitter — the base
+  never imports any end's event bus); passthroughs on `wordflowApi`.
+
+### Inheritance contract (the 3 ends)
+- The base is **END-AGNOSTIC**; subclass hooks: `resolveBaseUrl()`,
+  `resolveAuthHeaders()`, `isQueueableEndpoint()` default, `authHeaderNames()`,
+  `queuedMessage()`, plus config `queueStorageKey` (queue disabled when
+  omitted) and `log` fn (the dashboard logStore `appendLog` pattern).
+- **wordflow — ENABLED** (`WordflowTransport` in
+  `core/api-libs/wordflow/WordflowApi.ts`): the master client owns transport
+  (URL + token/X-App-Language injection + 30-min ceiling + queue);
+  `WordflowApiService.request()` keeps parsing (BOM-safe), envelope unwrap,
+  error surfacing and caching. Queueable defaults (idempotent writes):
+  `/group/add_library`, `/group/add_media_source`, `/group/remove_library`,
+  `/group/remove_word`, `/group/remove_media_source`, `/create_group`,
+  `/learning/collections/select`, `/learning/progress`,
+  `/ai_tools/translation/queue/batch/add`, `/ai_tools/tts/queue/batch/add`,
+  `/create_personal_dictionary`, `/delete_personal_dictionary_by_id`,
+  `/delete_personal_all_dictionary`.
+- **laravel — pass-through** (`LaravelMasterClient`, queue disabled): the
+  existing `core/api` BaseAPI stack keeps its current timeout/retry behavior
+  unchanged; the subclass is the structural opt-in point for later.
+- **pycore — pass-through** (`PycoreMasterClient`, queue disabled,
+  `defaultCeilingMs: 0` = the previous no-timeout plain-fetch behavior): only
+  the HTTP parts (`getJSON`/`postJSON` over `/pyapi/*`) wrap the base; the WS
+  RPC path is untouched.
+
+---
+
 ## 🔗 参考实现
 
 - **laravel_dashboard**: `/services/ApiManager.ts` + `/config/api-endpoints.ts`
@@ -336,6 +413,6 @@ Not JS-blocking, but removes network/console overhead during init.
 
 ---
 
-**文档版本**: v3.2 (精简版 + realized detection contract + availability-first selection)
-**最后更新**: 2026-05-28
+**文档版本**: v3.3 (精简版 + realized detection contract + availability-first selection + master API base client)
+**最后更新**: 2026-06-12
 **适用范围**: 所有前端应用

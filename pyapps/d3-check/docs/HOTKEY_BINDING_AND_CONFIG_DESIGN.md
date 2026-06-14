@@ -29,7 +29,7 @@ Unify hotkey behavior: **load from config at app start**, **rebind immediately w
 | Layer | Location | Role |
 |-------|----------|------|
 | OS hook | `keyboard` (boppreh/keyboard) | `add_hotkey` / `remove_hotkey`; hotkey format e.g. `ctrl+shift+f1`, `f6`. |
-| Pycore | `pycore.pyutils.hotkey_listener` | `HotkeyListener`, `register_global_hotkey`, `unregister_global_hotkey`, `get_global_hotkey_listener`; normalizes hotkey string; supports `update_hotkey(old, new)`. |
+| Pycore | `pycore.pyutils.hotkey.global_hotkey_listener` | `HotkeyListener`, `register_global_hotkey`, `unregister_global_hotkey`, `get_global_hotkey_listener`; normalizes hotkey string; supports `update_hotkey(old, new)`. |
 | d3-check | `d3utils.global_hotkey_manager` | Single worker thread + command queue; `register_hotkey` / `unregister_hotkey` with source, priority, conflict handling. All mutations on worker. |
 | d3-check | `d3utils.d3u_common.hotkey_registry` | Reads CONFIG; registers assistant + combat hotkeys; `reregister_assistant_hotkey()` / `reregister_combat_hotkey()` on `macro_configs.auxiliary_config` change. |
 | Config | `macro_configs.auxiliary_config` | `macro_start_hotkey`, `assistant_hotkey`. |

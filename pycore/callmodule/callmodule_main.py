@@ -56,6 +56,12 @@ from pycore.callmodule.routers.local import (
     audio_router,
     file_router,
     video_router,
+    ai_probe_router,
+    ai_chat_router,
+    ai_image_router,
+    translation_queue_router,
+    task_center_router,
+    assist_router,
 )
 
 # Upload Layer (1 router)
@@ -91,6 +97,21 @@ def callmodule_main_entry():
     # Register TTS queue poller callback (idempotent)
     _register_tts_queue_poller()
 
+    # Register translation worker callback (idempotent)
+    _register_translation_worker()
+
+    # Register translation queue monitor callback (idempotent)
+    _register_queue_monitor()
+
+    # Register translation Reverb WS client callback (idempotent) — Phase C
+    _register_translation_ws_client()
+
+    # Wire + (when enabled) start the Assist-Laravel worker (idempotent)
+    _register_assist_worker()
+
+    # Register AI rate-budget auto-reset callback (idempotent)
+    _register_ai_rate_reset()
+
 
 def _ensure_heartbeat_running():
     """
@@ -113,40 +134,266 @@ def _ensure_heartbeat_running():
 
 def _register_tts_queue_poller():
     """
-    Register TTS queue poller callback to PyHeartbeat (Idempotent)
+    Register the TTS queue WORKER callback to PyHeartbeat (Idempotent)
 
-    This function registers the TTS queue poller callback with PyHeartbeat.
-    Can be called multiple times safely - will overwrite existing callback
-    with the same name.
+    The worker claims pending word-generation TTS tasks from laravel_main,
+    synthesizes MP3s via the pyutils TTS orchestrator and reports validated
+    results back. Can be called multiple times safely - will overwrite the
+    existing callback with the same name.
 
     Architecture:
     - Callback name: 'tts_queue_poller'
-    - Interval: 60 seconds
-    - Initial state: disabled (controlled by WEB UI)
-    - Control: via /api/heartbeat/enable and /api/heartbeat/disable
+    - Interval: Config.TTS_WORKER_INTERVAL (60 seconds)
+    - Initial state: ENABLED by default (Config.TTS_WORKER_ENABLED_ON_START,
+                     env PYCORE_TTS_WORKER=0 to disable)
+    - Laravel base URL: resolved by the stored-first LaravelEndpointManager
+      (same resolution the media-sync service uses)
+    - Control: POST /api/heartbeat/enable|disable/tts_queue_poller
     """
     from pycore.pyheartbeat import get_heartbeat_system
     from pycore.callmodule.services import get_tts_queue_poller_service
+    from pycore.callmodule.callmodule_config import Config
 
     # Get PyHeartbeat system
     heartbeat = get_heartbeat_system()
 
-    # Get TTS poller service singleton (idempotent initialization)
-    poller = get_tts_queue_poller_service(laravel_api_url="http://localhost:8000")
+    # Get TTS worker service singleton (idempotent initialization). No explicit
+    # base URL: it resolves via the LaravelEndpointManager per batch.
+    poller = get_tts_queue_poller_service()
 
     # Register callback (idempotent - overwrites if already registered)
     heartbeat.register_callback(
         name='tts_queue_poller',
         callback=poller.poll_and_process,
-        interval=60,  # 60 seconds
-        enabled=False  # Initially disabled - controlled by WEB UI
+        interval=Config.TTS_WORKER_INTERVAL,
+        enabled=Config.TTS_WORKER_ENABLED_ON_START,
     )
 
-    ColorPrint.green("[Callmodule] Registered TTS queue poller callback")
+    ColorPrint.green("[Callmodule] Registered TTS queue worker callback")
     ColorPrint.blue("  - Callback name: tts_queue_poller")
-    ColorPrint.blue("  - Interval: 60 seconds")
-    ColorPrint.blue("  - Initial state: disabled")
-    ColorPrint.blue("  - Control: POST /api/heartbeat/enable/tts_queue_poller")
+    ColorPrint.blue(f"  - Interval: {Config.TTS_WORKER_INTERVAL} seconds")
+    ColorPrint.blue(f"  - Initial state: "
+                    f"{'enabled' if Config.TTS_WORKER_ENABLED_ON_START else 'disabled'}")
+    ColorPrint.blue(f"  - Batch size: {Config.TTS_WORKER_BATCH}")
+    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/tts_queue_poller")
+
+
+def _register_translation_worker():
+    """
+    Register the translation worker callback to PyHeartbeat (Idempotent).
+
+    Mirrors _register_tts_queue_poller(): a singleton service whose light poll
+    callback is registered with PyHeartbeat and toggled via the heartbeat
+    management router.
+
+    Architecture:
+    - Callback name: 'translation_worker'
+    - Interval: Config.TRANSLATION_WORKER_INTERVAL (~12s)
+    - Initial state: ENABLED by default (Config.TRANSLATION_WORKER_ENABLED_ON_START)
+                     so the Laravel translation pipeline runs out of the box.
+    - Laravel base URL: Config.LARAVEL_WORKER_API_URL (env LARAVEL_WORKER_API_URL)
+    - Control: POST /api/heartbeat/enable|disable/translation_worker
+
+    The callback only ensures registration, sends a heartbeat, pulls tasks and
+    dispatches each to a background TaskManager thread — it never blocks the
+    heartbeat loop with translation/network latency.
+    """
+    from pycore.pyheartbeat import get_heartbeat_system
+    from pycore.callmodule.services import get_translation_worker_service
+    from pycore.callmodule.callmodule_config import Config
+    from pycore.pyctl.assist import translation_worker_enabled_on_start
+
+    heartbeat = get_heartbeat_system()
+
+    worker = get_translation_worker_service(laravel_api_url=Config.LARAVEL_WORKER_API_URL)
+
+    # Master-toggle gate (assist_laravel): while the assist_laravel section is
+    # absent from user_data.json the legacy Config default applies unchanged;
+    # once it exists, enabled && capabilities.translation rules. Runtime
+    # changes are applied live by POST /api/local/assist/config.
+    enabled_on_start = translation_worker_enabled_on_start(
+        Config.TRANSLATION_WORKER_ENABLED_ON_START)
+
+    heartbeat.register_callback(
+        name='translation_worker',
+        callback=worker.poll_once,
+        interval=Config.TRANSLATION_WORKER_INTERVAL,
+        enabled=enabled_on_start,
+    )
+
+    ColorPrint.green("[Callmodule] Registered translation worker callback")
+    ColorPrint.blue("  - Callback name: translation_worker")
+    ColorPrint.blue(f"  - Interval: {Config.TRANSLATION_WORKER_INTERVAL} seconds")
+    ColorPrint.blue(f"  - Initial state: {'enabled' if enabled_on_start else 'disabled'} "
+                    f"(assist_laravel gate)")
+    ColorPrint.blue(f"  - Laravel API: {Config.LARAVEL_WORKER_API_URL}")
+    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/translation_worker")
+
+
+def _register_assist_worker():
+    """
+    Wire + (when enabled) start the Assist-Laravel worker (Idempotent).
+
+    Registered alongside the translation worker so the assist pipeline starts
+    at sys-init. The app-layer wiring injects the LaravelEndpointManager
+    resolver (SELECTED endpoint) and pyctl.ai.generate_image into the pyctl
+    AssistWorker; the worker's own daemon loop only runs while the persisted
+    ``assist_laravel.enabled`` toggle is on (default off).
+
+    Control: GET/POST /api/local/assist/{status,config,cycle}.
+    """
+    from pycore.callmodule.services.assist_wiring import register_assist_worker_start
+
+    register_assist_worker_start()
+
+
+def _register_ai_rate_reset():
+    """
+    Register the AI rate-budget auto-reset callback to PyHeartbeat (Idempotent).
+
+    Demonstrates the heartbeat-as-trigger pattern: pyheartbeat stays generic and
+    AI-agnostic; this wiring INJECTS a light tick callback that frees AI rate
+    budget by the AI's own rate windows (ai_rate_limits.prune_expired) and clears
+    elapsed 429 cooldowns (ai_gateway.clear_expired_cooldowns). The UI reads the
+    refreshed rate snapshot, so budgets visibly reset on screen.
+
+    Architecture:
+    - Callback name: 'ai_rate_reset'
+    - Interval: PYCORE_AI_RATE_RESET_INTERVAL seconds (default 30; the per-minute
+      window is 60s, so a 30s prune keeps minute budgets fresh)
+    - Initial state: ENABLED (env PYCORE_AI_RATE_RESET=0 to disable)
+    - Control: POST /api/heartbeat/enable|disable/ai_rate_reset
+    """
+    import os
+    from pycore.pyheartbeat import get_heartbeat_system
+    from pycore.callmodule.services import get_ai_rate_reset_service
+
+    heartbeat = get_heartbeat_system()
+    service = get_ai_rate_reset_service()
+
+    interval = 30
+    raw = os.environ.get('PYCORE_AI_RATE_RESET_INTERVAL', '').strip()
+    if raw.isdigit() and int(raw) > 0:
+        interval = int(raw)
+    enabled = os.environ.get('PYCORE_AI_RATE_RESET', '1').strip().lower() not in ('0', 'false', 'no')
+
+    heartbeat.register_callback(
+        name='ai_rate_reset',
+        callback=service.tick,
+        interval=interval,
+        enabled=enabled,
+    )
+
+    ColorPrint.green("[Callmodule] Registered AI rate-budget reset callback")
+    ColorPrint.blue("  - Callback name: ai_rate_reset")
+    ColorPrint.blue(f"  - Interval: {interval} seconds")
+    ColorPrint.blue(f"  - Initial state: {'enabled' if enabled else 'disabled'}")
+    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/ai_rate_reset")
+
+
+def _register_queue_monitor():
+    """
+    Register the translation QUEUE MONITOR callback to PyHeartbeat (Idempotent).
+
+    Mirrors _register_translation_worker(): a singleton service whose light,
+    exception-safe poll callback is registered with PyHeartbeat and toggled via
+    the heartbeat management router.
+
+    Architecture:
+    - Callback name: 'translation_queue_monitor'
+    - Interval: Config.TRANSLATION_QUEUE_MONITOR_INTERVAL (~5s)
+    - Initial state: ENABLED by default (Config.TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START)
+                     so the UI sees the live queue out of the box.
+    - Laravel base URL: SHARED with the worker via Config.LARAVEL_WORKER_API_URL
+                        (the monitor reuses the worker's candidate discovery).
+    - Control: POST /api/heartbeat/enable|disable/translation_queue_monitor
+
+    The callback GETs the queue list, caches the snapshot, and detects priority
+    bumps (flagging tasks `recently_bumped`) — it never blocks the heartbeat loop.
+    """
+    from pycore.pyheartbeat import get_heartbeat_system
+    from pycore.callmodule.services import get_queue_monitor_service
+    from pycore.callmodule.callmodule_config import Config
+
+    heartbeat = get_heartbeat_system()
+
+    monitor = get_queue_monitor_service(
+        laravel_api_url=Config.LARAVEL_WORKER_API_URL,
+        bump_ttl_seconds=Config.TRANSLATION_QUEUE_BUMP_TTL_SECONDS,
+    )
+
+    heartbeat.register_callback(
+        name='translation_queue_monitor',
+        callback=monitor.poll_once,
+        interval=Config.TRANSLATION_QUEUE_MONITOR_INTERVAL,
+        enabled=Config.TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START,
+    )
+
+    ColorPrint.green("[Callmodule] Registered translation queue monitor callback")
+    ColorPrint.blue("  - Callback name: translation_queue_monitor")
+    ColorPrint.blue(f"  - Interval: {Config.TRANSLATION_QUEUE_MONITOR_INTERVAL} seconds")
+    ColorPrint.blue(f"  - Initial state: {'enabled' if Config.TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START else 'disabled'}")
+    ColorPrint.blue(f"  - Bump TTL: {Config.TRANSLATION_QUEUE_BUMP_TTL_SECONDS} seconds")
+    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/translation_queue_monitor")
+
+
+def _register_translation_ws_client():
+    """
+    Register the translation Reverb WS CLIENT supervisor to PyHeartbeat (Idempotent).
+
+    Phase C: a WebSocket client connects to Laravel's Reverb server (Pusher
+    protocol) and receives translation-queue events in REAL TIME, replacing the
+    queue monitor's 5s HTTP poll as the primary signal (the poll stays as the
+    slower fallback/reconciler). The client REUSES rpc_v2's WS library (the
+    third-party ``websockets`` package, via get_third_package_websockets()) as the
+    CLIENT transport, running its recv loop on a dedicated background thread.
+
+    The heartbeat callback here is ``supervise`` — a LIGHT tick that only ensures
+    the background WS thread is alive (it does NO network I/O on the heartbeat
+    thread). Disabling the callback stops the supervisor ticking; the thread is
+    daemon and also stoppable via the client's stop().
+
+    Architecture:
+    - Callback name: 'translation_ws_client'
+    - Interval: Config.TRANSLATION_WS_SUPERVISOR_INTERVAL (~5s)
+    - Initial state: ENABLED by default (Config.TRANSLATION_WS_ENABLED_ON_START)
+    - Reverb conn: Config.TRANSLATION_REVERB_{HOST,PORT,SCHEME,APP_KEY,CHANNEL}
+                   (env-overridable; REVERB_* derived). NOTE: REVERB_APP_KEY rotates
+                   on reverb restart — keep TRANSLATION_REVERB_APP_KEY in sync.
+    - Control: POST /api/heartbeat/enable|disable/translation_ws_client
+    """
+    from pycore.pyheartbeat import get_heartbeat_system
+    from pycore.callmodule.services import get_translation_ws_client
+    from pycore.callmodule.callmodule_config import Config
+
+    heartbeat = get_heartbeat_system()
+
+    ws_client = get_translation_ws_client(
+        host=Config.TRANSLATION_REVERB_HOST,
+        port=Config.TRANSLATION_REVERB_PORT,
+        scheme=Config.TRANSLATION_REVERB_SCHEME,
+        app_key=Config.TRANSLATION_REVERB_APP_KEY,
+        channel=Config.TRANSLATION_REVERB_CHANNEL,
+        word_ttl_seconds=Config.TRANSLATION_WS_WORD_TTL_SECONDS,
+    )
+
+    heartbeat.register_callback(
+        name='translation_ws_client',
+        callback=ws_client.supervise,
+        interval=Config.TRANSLATION_WS_SUPERVISOR_INTERVAL,
+        enabled=Config.TRANSLATION_WS_ENABLED_ON_START,
+    )
+
+    ColorPrint.green("[Callmodule] Registered translation Reverb WS client callback")
+    ColorPrint.blue("  - Callback name: translation_ws_client")
+    ColorPrint.blue(f"  - Interval: {Config.TRANSLATION_WS_SUPERVISOR_INTERVAL} seconds (supervisor tick)")
+    ColorPrint.blue(f"  - Initial state: {'enabled' if Config.TRANSLATION_WS_ENABLED_ON_START else 'disabled'}")
+    ColorPrint.blue(
+        f"  - Reverb: {Config.TRANSLATION_REVERB_SCHEME}://{Config.TRANSLATION_REVERB_HOST}:"
+        f"{Config.TRANSLATION_REVERB_PORT} channel={Config.TRANSLATION_REVERB_CHANNEL}"
+    )
+    ColorPrint.blue("  - WS library: websockets (rpc_v2's WS lib; sync client)")
+    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/translation_ws_client")
 
 
 def start(host='0.0.0.0', port=59000, debug=False):
@@ -264,6 +511,12 @@ def start(host='0.0.0.0', port=59000, debug=False):
             audio_router,
             file_router,
             video_router,
+            ai_probe_router,         # AI provider probe (/api/local/ai/probe)
+            ai_chat_router,          # AI chat confirm (/api/local/ai/chat)
+            ai_image_router,         # AI image generation (/api/local/ai/image)
+            translation_queue_router,# Translation queue monitor + control (/api/local/translation/queue)
+            task_center_router,      # Unified task-center aggregate (/api/local/task-center)
+            assist_router,           # Assist-Laravel worker control (/api/local/assist)
             # === Upload Layer (1 router) ===
             upload_router,
             # === Client Layer (1 router) ===

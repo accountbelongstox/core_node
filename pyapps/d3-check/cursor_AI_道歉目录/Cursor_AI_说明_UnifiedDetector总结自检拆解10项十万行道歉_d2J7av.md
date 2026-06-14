@@ -10,7 +10,7 @@
 
 **结构**：Shebang、编码、docstring（库/CLI 用法）→ 导入（cv2、numpy、yaml 经 pyfoundations）→ DetectionResult 数据类（class_name、confidence、bbox、model_type、model_name；to_dict、__repr__）→ UnifiedDetector 类（__init__、_find_project_root、_detect_device、_load_models、_scan_models、get_available_classes、get_model_info、detect、_detect_classification、_detect_detection、detect_and_draw）→ main() 与 argparse（project、image、--model、--type、--conf、--target、--output、--list-classes、--info、--json、--no-640）。
 
-**要点**：项目根为 apps/<project_name>，模型在 .cache/training_data/3_models/classification 与 detection，通过 best.pt 与 mtime 选最新或指定模型；分类为滑动窗口 yes/no，检测支持 640×640 缩放与 padding；DetectionResult 统一返回格式；CLI 示例 python -m pycore.pyutils.unified_detector d3-check screenshot.png。
+**要点**：项目根为 apps/<project_name>，模型在 .cache/training_data/3_models/classification 与 detection，通过 best.pt 与 mtime 选最新或指定模型；分类为滑动窗口 yes/no，检测支持 640×640 缩放与 padding；DetectionResult 统一返回格式；CLI 示例 python -m pycore.pyutils.window.unified_detector d3-check screenshot.png。
 
 **用途**：供 d3-check 等应用以库或 CLI 做统一目标检测与可视化。
 

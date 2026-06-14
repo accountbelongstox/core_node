@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
@@ -95,7 +92,10 @@ class AppQyV1WordGroupQueryController
             }
             $personal_words = PDQBasePublic::queryPersonalDictionary(false, $sort_frequency);
             $group->gwords = ArrTool::sortNestedObject($group->gwords, $sort_by, $sort_asc);
-            
+            // Merged total: gwords JSON words + the group_word_progress
+            // row's total_words cache - disjoint sources, both count.
+            $groupWordsCount = $group->pivotWordsCount();
+
             return response()->json([
                 'status' => 'success',
                 'supported_params' => $supported_params,
@@ -103,7 +103,7 @@ class AppQyV1WordGroupQueryController
                     'gid' => $group->gid,
                     'did' => $personal_words["id"],
                     'gname' => $group->gname,
-                    'total_words' => count($group->gwords),
+                    'total_words' => count($group->gwords) + $groupWordsCount,
                     'created_at' => $group->created_at,
                     'updated_at' => $group->updated_at,
                     'uid' => $uid,
@@ -181,6 +181,9 @@ class AppQyV1WordGroupQueryController
             }
             $group->gwords = ArrTool::sortNestedObject($group->gwords, $sort_by, $sort_asc);
             $personal_words = PDQBasePublic::queryPersonalDictionary(false, $sort_frequency);
+            // Merged total: gwords JSON words + the group_word_progress
+            // row's total_words cache - disjoint sources, both count.
+            $groupWordsCount = $group->pivotWordsCount();
             return response()->json([
                 'status' => 'success',
                 'supported_params' => $supported_params,
@@ -190,7 +193,7 @@ class AppQyV1WordGroupQueryController
                     'did' => $personal_words["id"],
                     'gname' => $group->gname,
                     'gwords' => $group->gwords,
-                    'total_words' => count($group->gwords),
+                    'total_words' => count($group->gwords) + $groupWordsCount,
                     'created_at' => $group->created_at,
                     'updated_at' => $group->updated_at,
                     'fetch_gcontent' => $fetch_gcontent,
@@ -243,6 +246,16 @@ class AppQyV1WordGroupQueryController
     public function getGcontent(Request $request): JsonResponse
     {
         $supported_params = ['gid', 'gwords'];
+        $validator = Validator::make($request->all(), [
+            'gid' => 'required|string',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+                'supported_params' => $supported_params,
+            ], 400);
+        }
         $gid = $request->input(key: 'gid');
         $isGetGwords = $request->input(key: 'gwords');
         $default_select = ['gid', 'gname', 'gcontent', 'words_frequency', 'created_at', 'updated_at'];
@@ -252,6 +265,15 @@ class AppQyV1WordGroupQueryController
         $group = AppQyV1WordGroupModel::where('gid', $gid)
             ->select($default_select) // specify all fields except gcontent
             ->first();
+        if (!$group) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 404,
+                'gid' => $gid,
+                'message' => 'Group not found',
+                'supported_params' => $supported_params,
+            ], 404);
+        }
         return response()->json([
             'status' => 'success',
             'supported_params' => $supported_params,
@@ -276,10 +298,29 @@ class AppQyV1WordGroupQueryController
     public function getGwords(Request $request): JsonResponse
     {
         $supported_params = ['gid'];
+        $validator = Validator::make($request->all(), [
+            'gid' => 'required|string',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+                'supported_params' => $supported_params,
+            ], 400);
+        }
         $gid = $request->input(key: 'gid');
         $group = AppQyV1WordGroupModel::where('gid', $gid)
             ->select(['gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at']) // specify all fields except gcontent
             ->first();
+        if (!$group) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 404,
+                'gid' => $gid,
+                'message' => 'Group not found',
+                'supported_params' => $supported_params,
+            ], 404);
+        }
         return response()->json([
             'status' => 'success',
             'supported_params' => $supported_params,
@@ -318,19 +359,21 @@ class AppQyV1WordGroupQueryController
         $limit = $validated['limit'] ?? 1000;
         $withWords = $validated['with_words'] ?? false;
 
+        // Always merge both word stores: a group's words live in TWO
+        // disjoint representations (legacy gwords JSON text + the
+        // group_word_progress row's word-ID map from library attachment)
+        // and the displayed total is the sum of both. total_words comes
+        // from the progress row's cache - one eager-loaded row per group.
         $query = AppQyV1WordGroupModel::forUser($user->id)
             ->select(['id', 'gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at', 'uid', 'cover_url', 'thumbnail_url', 'cover_category', 'language', 'is_language_default'])
+            ->with('wordProgress:id,group_id,total_words')
             ->orderBy('created_at', 'desc');
-
-        if ($withWords) {
-            $query->withCount('groupWords');
-        }
 
         $groups = $query->skip($start)
             ->take($limit)
             ->get();
 
-        $mappedGroups = $groups->map(function ($group) use ($withWords) {
+        $mappedGroups = $groups->map(function ($group) {
             $gwords = $group->gwords;
             if (is_string($gwords)) {
                 $decodedGwords = json_decode($gwords, true);
@@ -340,11 +383,13 @@ class AppQyV1WordGroupQueryController
                 $gwords = [];
             }
 
+            $groupWordsCount = $group->pivotWordsCount();
+
             $data = [
                 'gid' => $group->gid,
                 'gname' => $group->gname,
                 'gwords' => $gwords,
-                'total_words' => $withWords ? ($group->group_words_count ?? 0) : count($gwords),
+                'total_words' => count($gwords) + $groupWordsCount,
                 'created_at' => $group->created_at,
                 'updated_at' => $group->updated_at,
                 'words_frequency' => $group->words_frequency,

@@ -117,7 +117,7 @@ class AppQyV1LanguageStudyGroupService
     {
         return AppQyV1WordGroupModel::where('uid', $userId)
             ->where('language', $language)
-            ->orderByRaw('is_language_default DESC')
+            ->orderByDesc('is_language_default')
             ->orderBy('created_at', 'asc')
             ->get()
             ->toArray();

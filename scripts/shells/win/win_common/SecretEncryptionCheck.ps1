@@ -180,6 +180,11 @@ foreach ($keyName in $filesNeedingEncryption) {
             # Refresh the encrypted-content hash cache so the decryption check does not
             # falsely prompt to re-decrypt this newly created encrypted file.
             Set-EncryptedContentHashCache -FileName $keyName -EncryptedFile $encryptedFilePath
+            # Record the raw-content baseline so the encryption check can tell a real
+            # content change from a mere timestamp bump on subsequent runs.
+            if (Get-Command Set-RawContentHashCache -ErrorAction SilentlyContinue) {
+                Set-RawContentHashCache -FileName $keyName -RawFile $rawFilePath
+            }
             Write-Host "[SECRET_ENCRYPT_CHECK]   SUCCESS: $keyName -> $keyName.js" -ForegroundColor Green
             $successCount++
         } else {

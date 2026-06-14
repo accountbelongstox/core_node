@@ -2,7 +2,7 @@
 """
 WindowAnalyzer: single instance per project; obtain via get_window_analyzer(); do not instantiate elsewhere.
 """
-from pycore.pyutils.window_analyzer import WindowAnalyzer
+from pycore.pyutils.window.analyzer import WindowAnalyzer
 
 _window_analyzer_instance: WindowAnalyzer | None = None
 

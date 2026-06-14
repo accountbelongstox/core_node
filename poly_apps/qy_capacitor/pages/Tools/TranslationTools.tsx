@@ -42,8 +42,7 @@ export default function TranslationTools() {
     try {
       const result = await ApiCenter.translation.translate({
         text: sourceText,
-        from_language: fromLanguage,
-        to_language: toLanguage,
+        target_language: toLanguage,
       });
 
       if (result.success && result.data) {
@@ -72,8 +71,7 @@ export default function TranslationTools() {
     try {
       const result = await ApiCenter.translation.simpleTranslateWithGoogle({
         text: sourceText,
-        from_language: fromLanguage,
-        to_language: toLanguage,
+        target_language: toLanguage,
       });
 
       if (result.success && result.data) {
@@ -102,9 +100,7 @@ export default function TranslationTools() {
     try {
       const result = await ApiCenter.translation.learningMode({
         text: sourceText,
-        from_language: fromLanguage,
-        to_language: toLanguage,
-        difficulty_level: 'intermediate',
+        target_languages: [toLanguage],
       });
 
       if (result.success && result.data) {

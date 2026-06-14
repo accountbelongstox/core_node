@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\ServerManagerV1;
@@ -166,6 +163,46 @@ class ServerManagerV1ApiInfo
             [
                 'path' => $apiPrefix . '/nginx/reload',
                 'feature' => 'auth_required/POST|Reload nginx configuration without restart|ServerManagerV1NginxManagerCtl@reloadNginx|response:reloaded(boolean,Reload status),output(string,Command output)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/status',
+                'feature' => 'auth_required/GET|Get nginx overview: installed, version, running state, config test, site counts|ServerManagerV1NginxManagerCtl@statusOverview|response:installed(boolean,Nginx installed),version(string,Nginx version),running(boolean,Running state),process_count(int,Process count),config_test(object,Config test result),sites(object,Site counts),install_hint(string,Install hint when missing)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/service',
+                'feature' => 'auth_required/POST|Control the nginx service (start/stop/restart/reload/status)|ServerManagerV1NginxManagerCtl@serviceControl|params:action(string,required,start)|response:action(string,Executed action),executed_via(string,systemctl or service),success(boolean,Action result),output(string,Command output)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/logs',
+                'feature' => 'auth_required/GET|Tail nginx access/error logs with optional keyword filter|ServerManagerV1NginxManagerCtl@logs|params:type(string,optional,error),lines(int,optional,200),filter(string,optional,ssl)|response:type(string,Log type),file(string,Log file path),exists(boolean,File exists),lines(array,Log lines),size_bytes(int,File size)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/install',
+                'feature' => 'auth_required/POST|Install nginx via the idempotent installer script (long-running)|ServerManagerV1NginxManagerCtl@install|response:installed(boolean,Installed after run),already_installed(boolean,Was already installed),version(string,Detected version),output(string,Installer output tail)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/backups',
+                'feature' => 'auth_required/GET|List nginx site config backups|ServerManagerV1NginxManagerCtl@listBackups|params:site(string,optional,example.com)|response:backups(array,Backups with site/type/size/created_at),total(int,Total backups)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/backups/restore',
+                'feature' => 'auth_required/POST|Restore a site config backup (current config backed up first; config test with rollback)|ServerManagerV1NginxManagerCtl@restoreBackup|params:file(string,required,example.com_2026-06-12_10-00-00.backup)|response:restored(boolean,Restore result),site(string,Site name),config_test(object,Config test result)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/main-config',
+                'feature' => 'auth_required/GET|View nginx.conf and conf.d listing with parsed worker directives (read-only)|ServerManagerV1NginxManagerCtl@mainConfig|response:file(string,Config path),exists(boolean,File exists),content(string,Config content),conf_d(array,conf.d files),parsed(object,Parsed worker directives)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/port-check',
+                'feature' => 'auth_required/GET|Check whether a TCP port is in use and by which process|ServerManagerV1NginxManagerCtl@portCheck|params:port(int,required,80)|response:port(int,Checked port),in_use(boolean,Port occupied),holder(string,Holder process),is_nginx(boolean,Held by nginx)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/metrics',
+                'feature' => 'auth_required/GET|Get nginx runtime metrics (stub_status plus process CPU/memory)|ServerManagerV1NginxManagerCtl@metrics|response:available(boolean,stub_status available),stub_status(object,Connection and request counters),hint(string,Enable hint when unavailable),processes(array,Process stats),totals(object,Memory and CPU totals)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/sites/batch',
+                'feature' => 'auth_required/POST|Batch enable/disable/test nginx sites|ServerManagerV1NginxManagerCtl@batchSites|params:action(string,required,enable),sites(array,required,["example.com"])|response:action(string,Executed action),results(array,Per-site results),succeeded(int,Success count),failed(int,Failure count)|tags:server,nginx'
             ],
 
             // Unified Manager APIs

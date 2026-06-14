@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Dict, Any, Union
 
-from pycore.pyutils.system_launcher import open_dir, open_file_with_notepad as _open_file_with_notepad
+from pycore.pyutils.common.system_launcher import open_dir, open_file_with_notepad as _open_file_with_notepad
 
 
 def open_folder(folder_path: Path) -> Dict[str, Any]:
@@ -20,7 +20,7 @@ def open_folder(folder_path: Path) -> Dict[str, Any]:
 def open_file_with_notepad(file_path: Union[str, Path]) -> Dict[str, Any]:
     """
     Open a file with system Notepad (Windows) or default text editor (macOS/Linux).
-    Delegates to pycore.pyutils.system_launcher.open_file_with_notepad.
+    Delegates to pycore.pyutils.common.system_launcher.open_file_with_notepad.
     Accepts str or Path.
 
     Returns:

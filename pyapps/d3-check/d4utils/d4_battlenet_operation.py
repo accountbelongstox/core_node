@@ -9,11 +9,11 @@ import time
 from pathlib import Path
 from typing import Optional, List, Dict
 
-from pycore.pyutils.system_launcher import start_program, Any
+from pycore.pyutils.common.system_launcher import start_program, Any
 
 from pycore.pyfoundations.color_print import ColorPrint
 from d3utils.click_handler_singleton import get_click_handler
-from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyutils.window.activator import WindowActivator
 from share.game_interface_data import get_game_interface_data
 from share.battlenet_window_finder import find_battlenet_windows, get_battlenet_path
 from share.battlenet_ui_common import (

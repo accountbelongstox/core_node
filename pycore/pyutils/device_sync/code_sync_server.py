@@ -102,6 +102,13 @@ class CodeSyncServer:
         '.runtime_cache',
     }
 
+    # Specific filenames to exclude (by name, any directory).
+    # The peer config replicates over the mesh (peer_mesh.py), not the file-sync,
+    # so it must NOT be transferred as a normal code file.
+    EXCLUDED_FILES = {
+        'code_sync_peers.json',
+    }
+
     # File extensions to exclude
     EXCLUDED_EXTENSIONS = {
         '.pyc',
@@ -376,6 +383,9 @@ class CodeSyncServer:
             dirs[:] = [d for d in dirs if d not in self.EXCLUDED_DIRS]
 
             for filename in filenames:
+                # Skip excluded filenames (e.g. the mesh-replicated peer config)
+                if filename in self.EXCLUDED_FILES:
+                    continue
                 # Skip excluded extensions
                 if any(filename.endswith(ext) for ext in self.EXCLUDED_EXTENSIONS):
                     continue

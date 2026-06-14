@@ -66,7 +66,16 @@ class AppQyV1Initializer implements AppInitializerInterface
         $allSuccess = true;
         
         foreach (self::INITIALIZATION_STEPS as $step => $description) {
-            if (!$force && isset($status['completed_steps'][$step]) && $status['completed_steps'][$step] === true) {
+            // The completed_steps flag lives in a filesystem status file, independent
+            // of the (per-app) database. If the DB was externally reset/recreated
+            // empty, the flag would lie. stepStillSatisfiedInDb() re-checks the live
+            // DB for data-bearing steps so we never wrongly skip them -> eliminates
+            // the status-file vs database divergence.
+            $statusSaysDone = !$force
+                && isset($status['completed_steps'][$step])
+                && $status['completed_steps'][$step] === true;
+
+            if ($statusSaysDone && $this->stepStillSatisfiedInDb($step)) {
                 $results[$step] = [
                     'status' => 'skipped',
                     'message' => 'Already completed',
@@ -177,6 +186,31 @@ class AppQyV1Initializer implements AppInitializerInterface
         ];
     }
     
+    /**
+     * For data-bearing steps, re-verify the live database so a stale filesystem
+     * status flag can't wrongly skip work after an external DB reset/recreate.
+     * Returns true (honor the skip) for steps that have no DB-truth check.
+     */
+    private function stepStillSatisfiedInDb(string $step): bool
+    {
+        if ($step === 'seed_initial_data') {
+            try {
+                // Seeding is "still satisfied" only if vocabulary actually exists in
+                // the DB. If the database was reset empty, force a re-seed.
+                // Wave A consolidation: the importer seeds vocabulary_libraries
+                // rows with word_ids (collections/items are gone), so check that.
+                return \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel::query()
+                    ->whereNotNull('word_ids')
+                    ->exists();
+            } catch (\Throwable $e) {
+                // Cannot determine -> don't force a surprise re-seed.
+                return true;
+            }
+        }
+
+        return true;
+    }
+
     private function executeStep(string $step): array
     {
         switch ($step) {
@@ -227,15 +261,27 @@ class AppQyV1Initializer implements AppInitializerInterface
     {
         try {
             $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+
+            // Server-managed driver (pgsql): "database" is a DB name, not a file path.
+            // touch()/chmod() would create a junk file in the CWD; the database is
+            // created by the install/start scripts, so there is nothing to do here.
+            $driver = config("database.connections.{$connectionName}.driver");
+            if ($driver !== 'sqlite') {
+                return [
+                    'status' => 'success',
+                    'message' => "Server-managed database ({$driver}); no file to create",
+                ];
+            }
+
             $dbPath = config("database.connections.{$connectionName}.database");
-            
+
             if (!$dbPath) {
                 return [
                     'status' => 'error',
                     'message' => 'Database path not configured',
                 ];
             }
-            
+
             if (file_exists($dbPath)) {
                 return [
                     'status' => 'success',
@@ -474,29 +520,50 @@ class AppQyV1Initializer implements AppInitializerInterface
     {
         try {
             $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
-            $dbPath = config("database.connections.{$connectionName}.database");
-            
+            $driver = config("database.connections.{$connectionName}.driver");
+            $database = config("database.connections.{$connectionName}.database");
+            $sizeBytes = null;
+
             $info = [
                 'connection' => $connectionName,
-                'driver' => 'sqlite',
-                'path' => $dbPath,
+                'driver' => $driver,
             ];
-            
-            if (file_exists($dbPath)) {
-                $info['size'] = $this->formatBytes(filesize($dbPath));
-                $info['exists'] = true;
-                
+
+            // Driver-aware existence/size: on sqlite "database" is a file path; on
+            // pgsql it is a server-managed database NAME (file_exists on it always
+            // returns false and previously misreported "exists: false / 0 B").
+            if ($driver === 'sqlite') {
+                $info['path'] = $database;
+                if (file_exists($database)) {
+                    $info['exists'] = true;
+                    $info['size'] = $this->formatBytes(filesize($database));
+                } else {
+                    $info['exists'] = false;
+                    $info['size'] = '0 B';
+                }
+            } else {
+                $info['database'] = $database;
+                try {
+                    $sizeBytes = DB::connection($connectionName)
+                        ->selectOne('SELECT pg_database_size(current_database()) AS size');
+                    $info['exists'] = true;
+                    $info['size'] = $this->formatBytes((int) ($sizeBytes->size ?? 0));
+                } catch (\Exception $e) {
+                    $info['exists'] = false;
+                    $info['size'] = 'unknown';
+                    $info['size_error'] = $e->getMessage();
+                }
+            }
+
+            if (!empty($info['exists'])) {
                 try {
                     $tables = $this->getDatabaseTables();
                     $info['tables'] = $tables;
                 } catch (\Exception $e) {
                     $info['tables_error'] = $e->getMessage();
                 }
-            } else {
-                $info['exists'] = false;
-                $info['size'] = '0 B';
             }
-            
+
             return $info;
         } catch (\Exception $e) {
             return [
@@ -508,19 +575,22 @@ class AppQyV1Initializer implements AppInitializerInterface
     private function getDatabaseTables(): array
     {
         $connectionName = (new AppQyV1MultiLangDictionaryModel)->getConnectionName();
-        $connection = (new AppQyV1MultiLangDictionaryModel)->getConnection();
         $schema = Schema::connection($connectionName);
         $tables = [];
         
         try {
-            $tableNames = $connection->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+            // Driver-agnostic table enumeration via Laravel's native Schema
+            // builder (works identically on sqlite + pgsql). Pass
+            // $schemaQualified=false so pgsql returns bare names (not
+            // "public.x"); sort for stable output.
+            $tableNames = $schema->getTableListing(null, false);
+            sort($tableNames);
         } catch (\Exception $e) {
             Log::error("[AppQyV1Init] Failed to get table list: " . $e->getMessage());
             return $tables;
         }
-        
-        foreach ($tableNames as $tableObj) {
-            $tableName = $tableObj->name;
+
+        foreach ($tableNames as $tableName) {
             
             if ($tableName === 'migrations') {
                 continue;

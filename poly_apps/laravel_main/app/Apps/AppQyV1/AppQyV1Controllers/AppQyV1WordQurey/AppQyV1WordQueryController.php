@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
@@ -18,6 +15,10 @@ use Illuminate\Routing\Controller as BaseController;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationQueueController;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
+use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\ApiResponse;
@@ -54,23 +55,66 @@ class AppQyV1WordQueryController extends BaseController
             return $value;
         }
 
+        if ($value === null) {
+            return '';
+        }
+
         if (is_array($value)) {
             $parts = [];
             foreach ($value as $item) {
                 if (is_array($item)) {
-                    $parts[] = implode(' ', $item);
+                    // Recurse to handle arbitrarily-nested JSON. PostgreSQL decodes
+                    // the `translations` jsonb column into deeply nested arrays
+                    // (the legacy SQLite value was often a flat string), so the old
+                    // two-level implode() threw "Array to string conversion" on the
+                    // third level. Recursion makes it depth-agnostic.
+                    $nested = $this->normalizeTranslation($item);
                 } else {
-                    $parts[] = (string) $item;
+                    $nested = (string) $item;
+                }
+                if ($nested !== '') {
+                    $parts[] = $nested;
                 }
             }
             return implode('; ', $parts);
         }
 
-        if ($value === null) {
-            return '';
+        return (string) $value;
+    }
+
+    /**
+     * Query-path priority bump. When the user actively queries a word that has no
+     * translation for their target/native language, elevate that word in the
+     * word_translation queue so it is translated first. Cheap + non-blocking;
+     * dedup is handled inside the queue controller. Skips when no target_language
+     * is supplied or it equals the source language.
+     *
+     * @param AppQyV1LangDictionaryModel|null $dictionary Resolved row (may be null)
+     * @param string $word Queried word
+     * @param string $langCode Source language code/name
+     * @param string|null $targetLanguage Target/native language (code or name)
+     */
+    private function bumpUntranslatedQuery($dictionary, string $word, string $langCode, ?string $targetLanguage): void
+    {
+        if ($targetLanguage === null || trim($targetLanguage) === '') {
+            return;
         }
 
-        return (string) $value;
+        $sourceCode = AppQyV1DictionaryService::getLanguageCode($langCode);
+        $targetCode = AppQyV1DictionaryService::getLanguageCode($targetLanguage);
+        if ($sourceCode === $targetCode) {
+            return;
+        }
+
+        // Already translated for this target -> nothing to enqueue.
+        if ($dictionary !== null) {
+            $translations = $dictionary->translations;
+            if (is_array($translations) && isset($translations[$targetCode]) && $translations[$targetCode] !== '') {
+                return;
+            }
+        }
+
+        app(AppQyV1TranslationQueueController::class)->bumpQueriedWord($word, $langCode, $targetLanguage);
     }
 
     /**
@@ -93,6 +137,7 @@ class AppQyV1WordQueryController extends BaseController
 
         $word = $request->input('word');
         $langCode = $request->input('language', 'en');
+        $targetLanguage = $request->input('target_language');
 
         if (!$word) {
             return response()->json([
@@ -102,6 +147,10 @@ class AppQyV1WordQueryController extends BaseController
         }
 
         $dictionary = AppQyV1LangDictionaryModel::findByContent($langCode, $word);
+
+        // Active single-word query: elevate it in the translation queue if it has
+        // no translation for the user's target language (non-blocking, deduped).
+        $this->bumpUntranslatedQuery($dictionary, $word, $langCode, $targetLanguage);
 
         if ($dictionary) {
             // Update the query count
@@ -149,12 +198,14 @@ class AppQyV1WordQueryController extends BaseController
             ], 503);
         }
 
+        $targetLanguage = null;
         if (is_string($request)) {
             $word = $request;
             $langCode = 'en';
         } else {
             $word = $request->input('word');
             $langCode = $request->input('language', 'en');
+            $targetLanguage = $request->input('target_language');
         }
 
         if (!$word) {
@@ -165,6 +216,10 @@ class AppQyV1WordQueryController extends BaseController
         }
 
         $dictionary = AppQyV1LangDictionaryModel::findByContent($langCode, $word);
+
+        // Active single-word query: elevate it in the translation queue if it has
+        // no translation for the user's target language (non-blocking, deduped).
+        $this->bumpUntranslatedQuery($dictionary, $word, $langCode, $targetLanguage);
 
         if (!$dictionary) {
             return response()->json([
@@ -261,12 +316,14 @@ class AppQyV1WordQueryController extends BaseController
      */
     public function checkWord(Request | string $request )
     {
+        $targetLanguage = null;
         if(is_string($request)){
             $word = $request;
             $langCode = 'en';
         }else{
             $word = $request->input('word');
             $langCode = $request->input('language', 'en');
+            $targetLanguage = $request->input('target_language');
         }
 
         if (!$word) {
@@ -277,6 +334,10 @@ class AppQyV1WordQueryController extends BaseController
         }
 
         $dictionary = AppQyV1LangDictionaryModel::findByContent($langCode, $word);
+
+        // Active single-word query: elevate it in the translation queue if it has
+        // no translation for the user's target language (non-blocking, deduped).
+        $this->bumpUntranslatedQuery($dictionary, $word, $langCode, $targetLanguage);
 
         if ($dictionary) {
             // Update the query count
@@ -386,10 +447,47 @@ class AppQyV1WordQueryController extends BaseController
             $limit = 10;
         }
 
-        $rows = AppQyV1LangDictionaryModel::forLanguage($langCode)
-            ->inRandomOrder()
-            ->limit($limit)
-            ->get(['id', 'content', 'translations', 'us_phonetic', 'uk_phonetic']);
+        // Random-window strategy (not scattered): ORDER BY RANDOM() scans+sorts
+        // the whole (up to ~100k-row) dictionary table on every poll. Instead we
+        // pick a random start id on the PK and read a contiguous window forward.
+        // This rides the PK index and is cheap. A contiguous "random window" is an
+        // acceptable approximation for daily/random words. Column list and the
+        // response mapping below are unchanged.
+        $selectColumns = ['id', 'content', 'translations', 'us_phonetic', 'uk_phonetic'];
+
+        $maxId = (int) AppQyV1LangDictionaryModel::forLanguage($langCode)->max('id');
+        $minId = (int) AppQyV1LangDictionaryModel::forLanguage($langCode)->min('id');
+
+        $rows = collect();
+        if ($maxId > 0) {
+            // Clamp the random start so a full window of $limit rows can still
+            // exist near the end (assuming dense ids); on sparse/gappy ids the
+            // top-up below restores the count.
+            $startUpperBound = $maxId - $limit + 1;
+            if ($startUpperBound < $minId) {
+                $startUpperBound = $minId;
+            }
+
+            $start = random_int($minId, $startUpperBound);
+
+            $rows = AppQyV1LangDictionaryModel::forLanguage($langCode)
+                ->where('id', '>=', $start)
+                ->orderBy('id')
+                ->limit($limit)
+                ->get($selectColumns);
+
+            // Sparse ids / gaps can yield fewer than $limit rows; wrap around and
+            // top up from the start so we always return up to $limit rows.
+            $deficit = $limit - $rows->count();
+            if ($deficit > 0) {
+                $topUp = AppQyV1LangDictionaryModel::forLanguage($langCode)
+                    ->where('id', '<', $start)
+                    ->orderBy('id')
+                    ->limit($deficit)
+                    ->get($selectColumns);
+                $rows = $rows->concat($topUp);
+            }
+        }
 
         $words = [];
         foreach ($rows as $row) {
@@ -490,8 +588,10 @@ class AppQyV1WordQueryController extends BaseController
     {
         $language = $request->input('language', 'en');
 
+        // Case-insensitive prefix match on BOTH drivers: plain LIKE is
+        // case-insensitive on sqlite but case-SENSITIVE on pgsql.
         $rows = AppQyV1LangDictionaryModel::forLanguage($language)
-            ->where('content', 'like', $query . '%')
+            ->whereRaw('LOWER(content) LIKE ?', [strtolower($query) . '%'])
             ->limit(20)
             ->get();
 
@@ -531,6 +631,67 @@ class AppQyV1WordQueryController extends BaseController
         }
 
         return $this->success($words, 'Search results retrieved successfully');
+    }
+
+    /**
+     * Toggle the favorite flag of a word for the authenticated user.
+     *
+     * Route: POST /api/app_qy_v1/words/{id}/favorite
+     *
+     * Storage: the per-user personal dictionary (personal_dicts JSON blob,
+     * keyed by word text) already carries per-word learning state
+     * (read/learned/reviewed/...). The favorite flag is stored there as an
+     * additional integer field 'favorite' (0/1) on the word item - no new
+     * column or migration is required and the storage is driver-agnostic
+     * (works identically on SQLite and PostgreSQL).
+     *
+     * @param Request $request
+     * @param string $id Dictionary word id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function toggleFavorite(Request $request, $id)
+    {
+        $language = $request->input('language', 'en');
+
+        $row = AppQyV1LangDictionaryModel::forLanguage($language)->find($id);
+        if ($row === null) {
+            return $this->notFound('Word not found');
+        }
+
+        $wordText = $row->content;
+
+        $queryResult = PDQBasePublic::queryPersonalDictionary(false, true);
+        $personDictModel = $queryResult['model'];
+        $personDict = $queryResult['query_result']['data'];
+        $dictionariesLength = $queryResult['query_result']['dictionaries_lenght'];
+
+        if (!isset($personDict[$wordText])) {
+            $personDict[$wordText] = DictWrap::wrapDictToItem($wordText, $dictionariesLength + 1);
+        }
+
+        $currentFavorite = false;
+        if (isset($personDict[$wordText]['favorite'])) {
+            $currentFavorite = (bool) $personDict[$wordText]['favorite'];
+        }
+
+        $newFavorite = !$currentFavorite;
+        if ($newFavorite) {
+            $personDict[$wordText]['favorite'] = 1;
+        } else {
+            $personDict[$wordText]['favorite'] = 0;
+        }
+
+        $personDictModel->personal_dicts = json_encode($personDict);
+        $personDictModel->save();
+
+        return $this->success(
+            [
+                'id' => (string) $row->id,
+                'word' => $wordText,
+                'is_favorite' => $newFavorite,
+            ],
+            'Word favorite status updated successfully'
+        );
     }
 
     /**

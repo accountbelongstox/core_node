@@ -12,7 +12,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyutils.shortcut_manager import ShortcutManager
+from pycore.pyutils.desktop.universal_shortcut import ShortcutManager
 
 
 def create_matrix_shortcut():

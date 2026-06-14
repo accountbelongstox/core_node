@@ -25,18 +25,25 @@ export const VIEW_TO_SLUG: Record<ViewType, string> = {
   [ViewType.SYSTEM_INFO]: 'system',
   [ViewType.VOCABULARY]: 'vocabulary',
   [ViewType.MCP_MANAGER]: 'mcp',
+  [ViewType.TASK_CENTER]: 'task-center',
+  // Legacy slugs — kept so old bookmarks deep-link into TaskCenter tabs.
   [ViewType.OCTANE_TASKS]: 'octane',
+  [ViewType.GLOBAL_TASKS]: 'global-tasks',
   [ViewType.SERVER_MANAGER]: 'server',
   [ViewType.AI_TOOLS]: 'ai-tools',
   [ViewType.INVITE_CODE_MANAGER]: 'invite-codes',
-  [ViewType.BANK_MANAGER]: 'bank-manager',
-  [ViewType.DATABASE_VIEWER]: 'db-viewer'
+  [ViewType.DATABASE_MANAGER]: 'db-manager',
+  [ViewType.MOVIES_BOOKS]: 'movies-books'
 };
 
 /** Reverse lookup. Computed once so unknown slugs degrade O(1). */
 const SLUG_TO_VIEW: Record<string, ViewType> = Object.fromEntries(
   Object.entries(VIEW_TO_SLUG).map(([view, slug]) => [slug, view as ViewType])
 ) as Record<string, ViewType>;
+
+// Legacy slug: the standalone Database Viewer was merged into Database
+// Manager, so old #/db-viewer bookmarks land on the manager's Tables tab.
+SLUG_TO_VIEW['db-viewer'] = ViewType.DATABASE_MANAGER;
 
 export function viewToSlug(view: ViewType): string {
   return VIEW_TO_SLUG[view] ?? '';

@@ -28,11 +28,11 @@ if ncore_path not in sys.path:
 
 # pytools foundations (from pycore)
 from pycore.pyfoundations.color_print import ColorPrint  # noqa: E402
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA  # noqa: E402
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA  # noqa: E402
 
 # pytools utils - Core utilities (from pycore)
-from pycore.pyutils.click_handler import ClickHandler  # noqa: E402
-from pycore.pyutils.window_screenshot import WindowScreenshot  # noqa: E402
+from pycore.pyutils.input.click_handler import ClickHandler  # noqa: E402
+from pycore.pyutils.window.screenshot import WindowScreenshot  # noqa: E402
 
 # pytools utils - Image processing (from pycore)
 from pycore.pyutils.image_annotator import ImageAnnotator  # noqa: E402
@@ -41,10 +41,10 @@ from pycore.pyutils.image_crop import ImageCrop  # noqa: E402
 from pycore.pyutils.image_matcher import ImageMatcher  # noqa: E402
 
 # pytools utils - OCR (from pycore)
-from pycore.pyutils.ocr_cnocr_engine import CnOCREngine  # noqa: E402
+from pycore.pyutils.ocr_cluster.ocr_cnocr_engine import CnOCREngine  # noqa: E402
 
 # pytools utils - Hotkey listener (explicit imports instead of *) (from pycore)
-from pycore.pyutils.hotkey_listener import (  # noqa: E402
+from pycore.pyutils.hotkey.global_hotkey_listener import (  # noqa: E402
     HotkeyListener,
     HotkeyType,
     HotkeyInfo,
@@ -73,8 +73,8 @@ UltralyticsTrainer = None  # Will be loaded on demand
 TrainingConfig = None  # Will be loaded on demand
 UltralyticsClassificationTrainer = None  # Will be loaded on demand
 
-from pycore.pyutils.window_activator import WindowActivator  # noqa: E402
-from pycore.pyutils.dataset_generator import DatasetGenerator  # noqa: E402
+from pycore.pyutils.window.activator import WindowActivator  # noqa: E402
+from pycore.pyutils.image_tools.dataset_generator import DatasetGenerator  # noqa: E402
 
 # PyWeb - HTTP Bridge for web GUI communication (from pycore)
 from pycore.pyutils.web.http_bridge import HTTPBridgeServer, get_http_bridge, create_http_bridge  # noqa: E402

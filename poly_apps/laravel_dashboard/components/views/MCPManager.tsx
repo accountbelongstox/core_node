@@ -45,6 +45,8 @@ import {
   XCircle
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
+import Portal from '../shared/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 
 interface MCPManagerProps {
   lang?: Language;
@@ -100,6 +102,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   });
   const [viewingFilesForCategory, setViewingFilesForCategory] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [promptMapping, setPromptMapping] = useState<AsyncState<any>>({
     data: null,
     loading: false,
@@ -356,7 +359,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load screenshots');
+        throw new Error(response.error || t.screenshots.load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load screenshots:', error);
@@ -381,7 +384,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load screenshot statistics');
+        throw new Error(response.error || t.screenshots.stats_load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load screenshot stats:', error);
@@ -415,7 +418,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Search failed');
+        throw new Error(response.error || t.screenshots.search_failed);
       }
     } catch (error: any) {
       console.error('Screenshot search failed:', error);
@@ -448,15 +451,15 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           setSelectedCategory(categoriesData[0].id);
         }
       } else {
-        throw new Error(response.error || 'Failed to load categories');
+        throw new Error(response.error || t.tasks.load_categories_failed);
       }
     } catch (error: any) {
       console.error('Failed to load categories:', error);
-      // Fallback to default categories on error
+      // No fake fallback rows: a phantom "Default Category" hid real backend
+      // failures (e.g. the _prompts-path 500) and selecting it created junk
+      // queues server-side. Surface the error + a Retry affordance instead.
       setCategories({
-        data: [
-          { id: 'default', name: 'Default Category', file_count: 0, total_file_size: 0 }
-        ],
+        data: [],
         loading: false,
         error: error.message,
         status: 'error'
@@ -481,7 +484,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load tasks');
+        throw new Error(response.error || t.tasks.load_tasks_failed);
       }
     } catch (error: any) {
       console.error('Failed to load tasks:', error);
@@ -510,7 +513,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Search failed');
+        throw new Error(response.error || t.tasks.search_failed);
       }
     } catch (error: any) {
       console.error('Task search failed:', error);
@@ -528,13 +531,16 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
     try {
       const response = await api.mcpV1.createTaskCategory(newCategoryName.trim());
-      if (response.success) {
-        setNewCategoryName('');
-        setIsCreatingCategory(false);
-        loadCategories();
+      if (!response.success) {
+        throw new Error((response as any).error || (response as any).message || t.tasks.create_category_failed);
       }
-    } catch (error) {
+      setNewCategoryName('');
+      setIsCreatingCategory(false);
+      toast.success(t.tasks.category_created);
+      loadCategories();
+    } catch (error: any) {
       console.error('Failed to create category:', error);
+      toast.error(error.message || t.tasks.create_category_failed);
     }
   };
 
@@ -613,6 +619,24 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       }
     } catch (error) {
       console.error('Failed to update task status:', error);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!selectedCategory) return;
+    if (!confirm(t.tasks.delete_task_confirm)) return;
+
+    try {
+      const response = await api.mcpV1.deleteTask(selectedCategory, taskId);
+      if (!response.success) {
+        throw new Error((response as any).error || t.tasks.delete_task_failed);
+      }
+      toast.success(t.tasks.task_deleted);
+      loadTasks(selectedCategory);
+      loadQueueStats(selectedCategory);
+    } catch (error: any) {
+      console.error('Failed to delete task:', error);
+      toast.error(error.message || t.tasks.delete_task_failed);
     }
   };
 
@@ -730,7 +754,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
       // Filter only image files
-      const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+      const imageFiles = (Array.from(files) as File[]).filter(file => file.type.startsWith('image/'));
       if (imageFiles.length > 0) {
         const dataTransfer = new DataTransfer();
         imageFiles.forEach(file => dataTransfer.items.add(file));
@@ -874,7 +898,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     { id: 'tasks' as MCPTab, label: t.tabs.tasks, icon: ListTodo },
     { id: 'placeholder' as MCPTab, label: t.tabs.placeholder, icon: ImagePlus },
     { id: 'voice' as MCPTab, label: t.tabs.voice, icon: Settings },
-    { id: 'ocr' as MCPTab, label: 'OCR', icon: Eye },
+    { id: 'ocr' as MCPTab, label: t.tabs.ocr, icon: Eye },
     { id: 'settings' as MCPTab, label: t.tabs.settings, icon: Settings },
   ];
 
@@ -889,7 +913,8 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     >
       {/* Drag Overlay */}
       {isDragging && (
-        <div className="fixed inset-0 bg-indigo-500/20 backdrop-blur-sm z-50 flex items-center justify-center pointer-events-none">
+        <Portal>
+        <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} bg-indigo-500/20 backdrop-blur-sm pointer-events-none`}>
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-2xl border-4 border-dashed border-indigo-500">
             <Upload className="w-16 h-16 mx-auto mb-4 text-indigo-500" />
             <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">
@@ -900,6 +925,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             </p>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* Toolbar */}
@@ -971,14 +997,14 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <Image className="w-4 h-4 text-indigo-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Total Screenshots</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.screenshots.stats_total}</span>
             </div>
             <p className="text-2xl font-bold">{screenshotStats.data.total_count || 0}</p>
           </div>
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <HardDrive className="w-4 h-4 text-green-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Storage Used</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.common.storage_used}</span>
             </div>
             <p className="text-2xl font-bold">
               {screenshotStats.data.total_size
@@ -989,14 +1015,14 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <Calendar className="w-4 h-4 text-blue-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">This Week</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.common.this_week}</span>
             </div>
             <p className="text-2xl font-bold">{screenshotStats.data.weekly_count || 0}</p>
           </div>
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <Clock className="w-4 h-4 text-purple-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Today</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.common.today}</span>
             </div>
             <p className="text-2xl font-bold">{screenshotStats.data.daily_count || 0}</p>
           </div>
@@ -1011,7 +1037,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search screenshots by filename..."
+            placeholder={t.screenshots.search_by_filename}
             className={`${commonClasses.input} pl-10 pr-10 w-full`}
           />
           {searchQuery && (
@@ -1191,9 +1217,10 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
       {/* Upload Mode Selection Dialog */}
       {showUploadModeDialog && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setShowUploadModeDialog(false)}>
+        <Portal>
+        <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`} onClick={() => setShowUploadModeDialog(false)}>
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-2xl w-96" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-slate-200">选择上传模式</h3>
+            <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-slate-200">{t.screenshots.upload_dialog_title}</h3>
             <div className="space-y-3">
               <button
                 onClick={() => {
@@ -1207,8 +1234,8 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   <Image className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div className="flex-1 text-left">
-                  <div className="font-semibold text-slate-800 dark:text-slate-200">单文件上传</div>
-                  <div className="text-sm text-slate-500 dark:text-slate-400">上传一张图片</div>
+                  <div className="font-semibold text-slate-800 dark:text-slate-200">{t.screenshots.single_file_upload}</div>
+                  <div className="text-sm text-slate-500 dark:text-slate-400">{t.screenshots.single_file_desc}</div>
                 </div>
               </button>
 
@@ -1224,8 +1251,8 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   <Grid className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="flex-1 text-left">
-                  <div className="font-semibold text-slate-800 dark:text-slate-200">多文件上传</div>
-                  <div className="text-sm text-slate-500 dark:text-slate-400">批量上传或合并多张图片</div>
+                  <div className="font-semibold text-slate-800 dark:text-slate-200">{t.screenshots.multi_file_upload}</div>
+                  <div className="text-sm text-slate-500 dark:text-slate-400">{t.screenshots.multi_file_desc}</div>
                 </div>
               </button>
             </div>
@@ -1233,18 +1260,20 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               onClick={() => setShowUploadModeDialog(false)}
               className="mt-4 w-full px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             >
-              取消
+              {t.common.cancel}
             </button>
           </div>
         </div>
+        </Portal>
       )}
 
       {/* Multi-File Upload Panel */}
       {showMultiFileUploadPanel && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setShowMultiFileUploadPanel(false)}>
+        <Portal>
+        <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`} onClick={() => setShowMultiFileUploadPanel(false)}>
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-2xl w-[600px]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200">多文件上传</h3>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200">{t.screenshots.multi_file_upload}</h3>
               <button
                 onClick={() => setShowMultiFileUploadPanel(false)}
                 className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
@@ -1255,7 +1284,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
             {/* Upload Mode Selection */}
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">上传模式</label>
+              <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">{t.screenshots.upload_mode}</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setUploadMode('batch')}
@@ -1265,8 +1294,8 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                       : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
                   }`}
                 >
-                  <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">批量上传</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">每张图片分别保存</div>
+                  <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">{t.screenshots.batch_upload}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t.screenshots.batch_desc}</div>
                 </button>
                 <button
                   onClick={() => setUploadMode('merge')}
@@ -1276,8 +1305,8 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                       : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
                   }`}
                 >
-                  <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">合并上传</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">多张图片合成一张</div>
+                  <div className="font-semibold text-sm text-slate-800 dark:text-slate-200">{t.screenshots.merge_upload}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t.screenshots.merge_desc}</div>
                 </button>
               </div>
             </div>
@@ -1293,7 +1322,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 e.stopPropagation();
                 const files = e.dataTransfer.files;
                 if (files && files.length > 0) {
-                  const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+                  const imageFiles = (Array.from(files) as File[]).filter(file => file.type.startsWith('image/'));
                   if (imageFiles.length > 0) {
                     const dataTransfer = new DataTransfer();
                     imageFiles.forEach(file => dataTransfer.items.add(file));
@@ -1319,17 +1348,18 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               />
               <Upload className="w-16 h-16 mx-auto mb-4 text-indigo-500" />
               <p className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                拖拽图片到这里或点击上传
+                {t.screenshots.drop_or_click}
               </p>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                支持 JPG, PNG, GIF, WebP 等格式
+                {t.screenshots.supported_formats}
               </p>
               <div className="inline-block px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-sm font-medium">
-                {uploadMode === 'batch' ? '📚 批量模式' : '🔗 合并模式'}
+                {uploadMode === 'batch' ? t.screenshots.batch_mode : t.screenshots.merge_mode}
               </div>
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );
@@ -1339,13 +1369,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       {/* Categories Sidebar */}
       <div className={`w-64 ${commonClasses.card} p-4 overflow-y-auto`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Categories</h3>
+          <h3 className="font-semibold">{t.tasks.categories}</h3>
           <button
             onClick={() => setIsCreatingCategory(!isCreatingCategory)}
             className={`p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 ${
               isCreatingCategory ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : ''
             }`}
-            title="Create Category"
+            title={t.tasks.create_category}
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -1358,7 +1388,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               type="text"
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder="Category name..."
+              placeholder={t.tasks.category_name_placeholder}
               className={`${commonClasses.input} w-full mb-2`}
               onKeyPress={(e) => {
                 if (e.key === 'Enter') handleCreateCategory();
@@ -1370,7 +1400,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 disabled={!newCategoryName.trim()}
                 className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex-1 text-sm`}
               >
-                Create
+                {t.common.create}
               </button>
               <button
                 onClick={() => {
@@ -1379,7 +1409,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 }}
                 className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex-1 text-sm`}
               >
-                Cancel
+                {t.common.cancel}
               </button>
             </div>
           </div>
@@ -1390,50 +1420,66 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
           </div>
         )}
+        {!categories.loading && categories.error && (
+          <div className="mb-4 p-3 rounded-lg border border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-900/20">
+            <p className="text-xs font-medium text-red-600 dark:text-red-400 break-words">
+              {categories.error}
+            </p>
+            <button
+              onClick={loadCategories}
+              className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-md bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" />
+              {t.common.retry}
+            </button>
+          </div>
+        )}
         {categories.data && categories.data.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {categories.data.map((category) => (
               <div
                 key={category.id}
-                className={`p-3 rounded-lg transition-colors ${
+                className={`group p-3 rounded-xl transition-all ${
                   selectedCategory === category.id
-                    ? 'bg-indigo-100 dark:bg-indigo-900/30'
-                    : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                    ? 'bg-indigo-50 dark:bg-indigo-900/25 ring-1 ring-indigo-300 dark:ring-indigo-700 shadow-sm'
+                    : 'hover:bg-slate-100 dark:hover:bg-slate-700/60'
                 }`}
               >
                 <div
-                  className="w-full text-left cursor-pointer"
+                  className="w-full text-left cursor-pointer flex items-center justify-between gap-2"
                   onClick={() => setSelectedCategory(category.id)}
                 >
-                  <div className={`font-medium ${
+                  <div className={`font-medium text-sm truncate ${
                     selectedCategory === category.id
                       ? 'text-indigo-600 dark:text-indigo-400'
-                      : ''
+                      : 'text-slate-700 dark:text-slate-200'
                   }`}>
                     {category.name}
                   </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    {category.file_count} tasks
-                  </div>
+                  <span className={`${commonClasses.badge} flex-shrink-0 ${
+                    selectedCategory === category.id ? commonClasses.badgeInfo : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                  }`}>
+                    {category.file_count}
+                  </span>
                 </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleViewCategoryFiles(category.id);
                   }}
-                  className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                  title="View files in this category"
+                  className="mt-2 w-full flex items-center justify-center gap-1 px-2 py-1 text-xs rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 opacity-0 group-hover:opacity-100 hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+                  title={t.tasks.view_files_title}
                 >
                   <HardDrive className="w-3 h-3" />
-                  View Files
+                  {t.tasks.view_files}
                 </button>
               </div>
             ))}
           </div>
         )}
-        {categories.data && categories.data.length === 0 && !categories.loading && (
+        {categories.data && categories.data.length === 0 && !categories.loading && !categories.error && (
           <div className="text-center text-slate-400 py-8">
-            <p className="text-sm">No categories available</p>
+            <p className="text-sm">{t.tasks.no_categories}</p>
           </div>
         )}
       </div>
@@ -1445,46 +1491,38 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             {/* Stats Cards */}
             {queueStats.data && (
               <div className="grid grid-cols-5 gap-3 mb-4">
-                <div className={`${commonClasses.card} p-3`}>
-                  <div className="text-xs text-slate-500 mb-1">Total</div>
-                  <div className="text-lg font-bold">{queueStats.data.total_tasks || 0}</div>
-                </div>
-                <div className={`${commonClasses.card} p-3 border-l-4 border-yellow-500`}>
-                  <div className="text-xs text-slate-500 mb-1">Pending</div>
-                  <div className="text-lg font-bold">{queueStats.data.pending_tasks || 0}</div>
-                </div>
-                <div className={`${commonClasses.card} p-3 border-l-4 border-blue-500`}>
-                  <div className="text-xs text-slate-500 mb-1">Processing</div>
-                  <div className="text-lg font-bold">{queueStats.data.processing_tasks || 0}</div>
-                </div>
-                <div className={`${commonClasses.card} p-3 border-l-4 border-emerald-500`}>
-                  <div className="text-xs text-slate-500 mb-1">Completed</div>
-                  <div className="text-lg font-bold">{queueStats.data.completed_tasks || 0}</div>
-                </div>
-                <div className={`${commonClasses.card} p-3 border-l-4 border-red-500`}>
-                  <div className="text-xs text-slate-500 mb-1">Failed</div>
-                  <div className="text-lg font-bold">{queueStats.data.failed_tasks || 0}</div>
-                </div>
+                {[
+                  { label: t.common.total, value: queueStats.data.total_tasks, accent: 'border-slate-300 dark:border-slate-600', text: 'text-slate-800 dark:text-slate-100' },
+                  { label: t.common.pending, value: queueStats.data.pending_tasks, accent: 'border-amber-400', text: 'text-amber-600 dark:text-amber-400' },
+                  { label: t.common.processing, value: queueStats.data.processing_tasks, accent: 'border-blue-400', text: 'text-blue-600 dark:text-blue-400' },
+                  { label: t.common.completed, value: queueStats.data.completed_tasks, accent: 'border-emerald-400', text: 'text-emerald-600 dark:text-emerald-400' },
+                  { label: t.common.failed, value: queueStats.data.failed_tasks, accent: 'border-red-400', text: 'text-red-600 dark:text-red-400' },
+                ].map((s) => (
+                  <div key={s.label} className={`${commonClasses.card} p-3 border-l-4 ${s.accent}`}>
+                    <div className="text-xs text-slate-500 mb-1">{s.label}</div>
+                    <div className={`text-xl font-bold tabular-nums ${s.text}`}>{s.value || 0}</div>
+                  </div>
+                ))}
               </div>
             )}
 
             {/* Add Task Form */}
             <div className={`${commonClasses.card} p-4 mb-4`}>
-              <h3 className="font-semibold mb-3">Add New Task</h3>
+              <h3 className="font-semibold mb-3">{t.tasks.add_new_task}</h3>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Task Content</label>
+                  <label className="block text-sm font-medium mb-1">{t.tasks.task_content}</label>
                   <textarea
                     value={newTaskContent}
                     onChange={(e) => setNewTaskContent(e.target.value)}
-                    placeholder="Enter task content or paste markdown..."
+                    placeholder={t.tasks.task_content_placeholder}
                     rows={4}
                     className={`${commonClasses.input} w-full`}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium mb-1">File Name (optional)</label>
+                    <label className="block text-sm font-medium mb-1">{t.tasks.file_name_optional}</label>
                     <input
                       type="text"
                       value={newTaskFileName}
@@ -1494,16 +1532,16 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Priority</label>
+                    <label className="block text-sm font-medium mb-1">{t.tasks.priority}</label>
                     <select
                       value={newTaskPriority}
                       onChange={(e) => setNewTaskPriority(parseInt(e.target.value))}
                       className={commonClasses.input}
                     >
-                      <option value={1}>Low</option>
-                      <option value={2}>Normal</option>
-                      <option value={3}>High</option>
-                      <option value={4}>Urgent</option>
+                      <option value={1}>{t.tasks.priority_low}</option>
+                      <option value={2}>{t.tasks.priority_normal}</option>
+                      <option value={3}>{t.tasks.priority_high}</option>
+                      <option value={4}>{t.tasks.priority_urgent}</option>
                     </select>
                   </div>
                 </div>
@@ -1513,21 +1551,21 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
                 >
                   <Plus className="w-4 h-4" />
-                  Add Task
+                  {t.tasks.add_task}
                 </button>
               </div>
             </div>
 
             {/* Task Queue Header with Search */}
             <div className="mb-4">
-              <h3 className="text-lg font-semibold mb-3">Task Queue ({tasks.data?.length || 0})</h3>
+              <h3 className="text-lg font-semibold mb-3">{t.tasks.queue_title} ({tasks.data?.length || 0})</h3>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   value={taskSearchQuery}
                   onChange={(e) => setTaskSearchQuery(e.target.value)}
-                  placeholder="Search tasks..."
+                  placeholder={t.tasks.search_tasks_placeholder}
                   className={`${commonClasses.input} pl-10 pr-10 w-full`}
                 />
                 {taskSearchQuery && (
@@ -1543,6 +1581,29 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             {tasks.loading && (
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+              </div>
+            )}
+            {!tasks.loading && tasks.error && (
+              <div className={`${commonClasses.card} p-4 mb-4 border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-900/20`}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-red-600 dark:text-red-400 break-words">{tasks.error}</p>
+                  <button
+                    onClick={() => selectedCategory && loadTasks(selectedCategory)}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    {t.common.retry}
+                  </button>
+                </div>
+              </div>
+            )}
+            {!tasks.loading && !tasks.error && tasks.data && tasks.data.length === 0 && (
+              <div className="flex-1 flex items-center justify-center text-slate-400">
+                <div className="text-center py-10">
+                  <ListTodo className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">{t.tasks.no_tasks}</p>
+                  <p className="text-xs mt-1">{t.tasks.no_tasks_hint}</p>
+                </div>
               </div>
             )}
             {tasks.data && (
@@ -1561,10 +1622,10 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                             className="px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800"
                             autoFocus
                           >
-                            <option value="pending">Pending</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="failed">Failed</option>
+                            <option value="pending">{t.common.pending}</option>
+                            <option value="in_progress">{t.common.in_progress}</option>
+                            <option value="completed">{t.common.completed}</option>
+                            <option value="failed">{t.common.failed}</option>
                           </select>
                         ) : (
                           <>
@@ -1579,7 +1640,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                             <button
                               onClick={() => setEditingTaskId(task.id)}
                               className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
-                              title="Edit status"
+                              title={t.tasks.edit_status}
                             >
                               <Edit2 className="w-3 h-3" />
                             </button>
@@ -1592,25 +1653,40 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                           <button
                             onClick={() => setEditingTaskId(null)}
                             className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
-                            title="Cancel"
+                            title={t.common.cancel}
                           >
                             <X className="w-4 h-4" />
                           </button>
                         )}
-                        <button className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <button
+                          onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
+                          className={`p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                            expandedTaskId === task.id ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400' : ''
+                          }`}
+                          title={expandedTaskId === task.id ? t.tasks.hide_content : t.tasks.view_content}
+                        >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400">
+                        <button
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
+                          title={t.tasks.delete_task}
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
+                    {expandedTaskId === task.id && (
+                      <pre className="mt-2 mb-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                        {task.content || t.tasks.no_content}
+                      </pre>
+                    )}
                     <p className="text-sm text-slate-500">
-                      Created: {new Date(task.created_at).toLocaleString()}
+                      {t.tasks.created_label} {new Date(task.created_at).toLocaleString()}
                     </p>
                     {task.completed_at && (
                       <p className="text-sm text-slate-500">
-                        Completed: {new Date(task.completed_at).toLocaleString()}
+                        {t.tasks.completed_label} {new Date(task.completed_at).toLocaleString()}
                       </p>
                     )}
                   </div>
@@ -1621,13 +1697,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             {/* Prompt Mapping Section */}
             <div className={`${commonClasses.card} p-4 mt-4`}>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">Prompt Mapping</h3>
+                <h3 className="font-semibold">{t.tasks.prompt_mapping}</h3>
                 <button
                   onClick={() => loadPromptMapping(selectedCategory)}
                   className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
                 >
                   <RefreshCw className="w-4 h-4" />
-                  Refresh
+                  {t.common.refresh}
                 </button>
               </div>
 
@@ -1639,7 +1715,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Prompt File Path</label>
+                  <label className="block text-sm font-medium mb-1">{t.tasks.prompt_file_path}</label>
                   <input
                     type="text"
                     value={promptFilePath}
@@ -1649,18 +1725,18 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Prompt Content</label>
+                  <label className="block text-sm font-medium mb-1">{t.tasks.prompt_content}</label>
                   <textarea
                     value={promptContent}
                     onChange={(e) => setPromptContent(e.target.value)}
-                    placeholder="Enter prompt content..."
+                    placeholder={t.tasks.prompt_content_placeholder}
                     rows={8}
                     className={`${commonClasses.input} w-full font-mono text-sm`}
                   />
                 </div>
                 {promptMapping.data?.variables && promptMapping.data.variables.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium mb-2">Variables</label>
+                    <label className="block text-sm font-medium mb-2">{t.tasks.variables}</label>
                     <div className="flex flex-wrap gap-2">
                       {promptMapping.data.variables.map((variable: any, idx: number) => (
                         <span
@@ -1679,7 +1755,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
                 >
                   <Plus className="w-4 h-4" />
-                  Save Prompt Mapping
+                  {t.tasks.save_prompt_mapping}
                 </button>
               </div>
             </div>
@@ -1687,17 +1763,18 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         )}
         {!selectedCategory && (
           <div className="flex items-center justify-center h-full text-slate-400">
-            <p>Select a category to view tasks</p>
+            <p>{t.tasks.select_category_hint}</p>
           </div>
         )}
       </div>
 
       {/* Category Files Modal */}
       {viewingFilesForCategory && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setViewingFilesForCategory(null)}>
+        <Portal>
+        <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`} onClick={() => setViewingFilesForCategory(null)}>
           <div className={`${commonClasses.card} w-full max-w-2xl max-h-[80vh] flex flex-col`} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-              <h3 className="text-lg font-semibold">Category Files</h3>
+              <h3 className="text-lg font-semibold">{t.tasks.category_files}</h3>
               <button
                 onClick={() => setViewingFilesForCategory(null)}
                 className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
@@ -1714,7 +1791,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               {categoryFiles.data && categoryFiles.data.files && (
                 <div className="space-y-2">
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                    Total: {categoryFiles.data.total} files
+                    {t.tasks.files_total_prefix} {categoryFiles.data.total} {t.tasks.files_total_suffix}
                   </p>
                   {categoryFiles.data.files.map((file: any, index: number) => (
                     <div
@@ -1729,7 +1806,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                           )}
                           {file.size && (
                             <p className="text-xs text-slate-500 mt-1">
-                              Size: {(file.size / 1024).toFixed(2)} KB
+                              {t.common.size} {(file.size / 1024).toFixed(2)} KB
                             </p>
                           )}
                         </div>
@@ -1740,17 +1817,18 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               )}
               {categoryFiles.data && categoryFiles.data.files && categoryFiles.data.files.length === 0 && (
                 <div className="text-center text-slate-400 py-8">
-                  <p>No files in this category</p>
+                  <p>{t.tasks.no_files}</p>
                 </div>
               )}
               {categoryFiles.error && (
                 <div className="text-center text-red-500 py-8">
-                  <p>Error: {categoryFiles.error}</p>
+                  <p>{t.common.error_label} {categoryFiles.error}</p>
                 </div>
               )}
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );
@@ -1767,7 +1845,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   };
 
   const handleCleanupPlaceholders = async () => {
-    if (!confirm('Clean up old placeholder images? This will remove unused placeholders to free up storage space.')) {
+    if (!confirm(t.placeholder.cleanup_confirm)) {
       return;
     }
 
@@ -1794,7 +1872,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load placeholder statistics');
+        throw new Error(response.error || t.placeholder.stats_load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load placeholder stats:', error);
@@ -1841,7 +1919,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         });
         loadPlaceholderHistory();
       } else {
-        throw new Error(response.error || 'Failed to generate placeholder');
+        throw new Error(response.error || t.placeholder.generate_failed);
       }
     } catch (error: any) {
       setGeneratedPlaceholder({
@@ -1884,7 +1962,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load voice queue');
+        throw new Error(response.error || t.voice.load_queue_failed);
       }
     } catch (error: any) {
       console.error('Failed to load voice queue:', error);
@@ -1925,7 +2003,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load voice statistics');
+        throw new Error(response.error || t.voice.stats_load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load voice stats:', error);
@@ -1954,7 +2032,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load voice groups');
+        throw new Error(response.error || t.voice.groups_load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load voice groups:', error);
@@ -1979,7 +2057,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load supported languages');
+        throw new Error(response.error || t.voice.languages_load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load supported languages:', error);
@@ -2008,7 +2086,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load voice categories');
+        throw new Error(response.error || t.voice.categories_load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load voice categories:', error);
@@ -2092,10 +2170,10 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   const handleBatchDeleteVoiceItems = async () => {
     if (selectedVoiceItems.size === 0) return;
 
-    if (!confirm(`Delete ${selectedVoiceItems.size} selected item(s)?`)) return;
+    if (!confirm(`${t.voice.delete_selected_confirm_prefix} ${selectedVoiceItems.size} ${t.voice.delete_selected_confirm_suffix}`)) return;
 
     try {
-      const ids = Array.from(selectedVoiceItems);
+      const ids = Array.from(selectedVoiceItems) as string[];
       const response = await api.mcpV1.vsRemoveItems(ids);
       if (response.success) {
         setSelectedVoiceItems(new Set());
@@ -2108,7 +2186,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   };
 
   const handleClearVoiceQueue = async () => {
-    if (!confirm('Clear entire voice queue? This cannot be undone.')) return;
+    if (!confirm(t.voice.clear_queue_confirm)) return;
 
     try {
       const response = await api.mcpV1.vsClearQueue();
@@ -2148,7 +2226,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load voice settings');
+        throw new Error(response.error || t.voice.settings_load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load voice settings:', error);
@@ -2228,7 +2306,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load background tasks');
+        throw new Error(response.error || t.voice.tasks_load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load voice background tasks:', error);
@@ -2242,7 +2320,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
   };
 
   const handleDeleteVoiceBackgroundTasks = async (taskIds: string[]) => {
-    if (!confirm(`Delete ${taskIds.length} background task(s)?`)) {
+    if (!confirm(`${t.voice.delete_tasks_confirm_prefix} ${taskIds.length} ${t.voice.delete_tasks_confirm_suffix}`)) {
       return;
     }
 
@@ -2269,7 +2347,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load OCR engines');
+        throw new Error(response.error || t.ocr.engines_load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load OCR engines:', error);
@@ -2294,7 +2372,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load engine info');
+        throw new Error(response.error || t.ocr.engine_info_load_failed);
       }
     } catch (error: any) {
       console.error('Failed to load OCR engine info:', error);
@@ -2343,7 +2421,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'OCR recognition failed');
+        throw new Error(response.error || t.ocr.recognize_failed);
       }
     } catch (error: any) {
       console.error('OCR recognition failed:', error);
@@ -2371,7 +2449,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Smart OCR recognition failed');
+        throw new Error(response.error || t.ocr.smart_recognize_failed);
       }
     } catch (error: any) {
       console.error('Smart OCR recognition failed:', error);
@@ -2418,7 +2496,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Batch OCR recognition failed');
+        throw new Error(response.error || t.ocr.batch_recognize_failed);
       }
     } catch (error: any) {
       console.error('Batch OCR recognition failed:', error);
@@ -2439,14 +2517,14 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <ImagePlus className="w-4 h-4 text-indigo-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Total Generated</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.placeholder.stats_total}</span>
             </div>
             <p className="text-2xl font-bold">{placeholderStats.data.total_count || 0}</p>
           </div>
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <HardDrive className="w-4 h-4 text-green-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Storage Used</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.common.storage_used}</span>
             </div>
             <p className="text-2xl font-bold">
               {placeholderStats.data.total_size
@@ -2457,14 +2535,14 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <Calendar className="w-4 h-4 text-blue-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">This Week</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.common.this_week}</span>
             </div>
             <p className="text-2xl font-bold">{placeholderStats.data.weekly_count || 0}</p>
           </div>
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <Clock className="w-4 h-4 text-purple-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Today</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.common.today}</span>
             </div>
             <p className="text-2xl font-bold">{placeholderStats.data.daily_count || 0}</p>
           </div>
@@ -2474,12 +2552,12 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       <div className="flex gap-4 flex-1 overflow-hidden">
         {/* Generator Panel */}
         <div className={`w-96 ${commonClasses.card} p-4 overflow-y-auto`}>
-        <h3 className="font-semibold mb-4">Generate Placeholder</h3>
+        <h3 className="font-semibold mb-4">{t.placeholder.generate_title}</h3>
         
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-sm font-medium mb-1">Width (px)</label>
+              <label className="block text-sm font-medium mb-1">{t.placeholder.width}</label>
               <input
                 type="number"
                 value={placeholderWidth}
@@ -2489,7 +2567,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Height (px)</label>
+              <label className="block text-sm font-medium mb-1">{t.placeholder.height}</label>
               <input
                 type="number"
                 value={placeholderHeight}
@@ -2501,19 +2579,19 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Text (optional)</label>
+            <label className="block text-sm font-medium mb-1">{t.placeholder.text_optional}</label>
             <input
               type="text"
               value={placeholderText}
               onChange={(e) => setPlaceholderText(e.target.value)}
-              placeholder="Placeholder Image"
+              placeholder={t.placeholder.text_placeholder}
               className={commonClasses.input}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-sm font-medium mb-1">Background Color</label>
+              <label className="block text-sm font-medium mb-1">{t.placeholder.bg_color}</label>
               <div className="flex gap-2">
                 <input
                   type="color"
@@ -2531,7 +2609,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Text Color</label>
+              <label className="block text-sm font-medium mb-1">{t.placeholder.text_color}</label>
               <div className="flex gap-2">
                 <input
                   type="color"
@@ -2552,7 +2630,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-sm font-medium mb-1">Format</label>
+              <label className="block text-sm font-medium mb-1">{t.placeholder.format}</label>
               <select
                 value={placeholderFormat}
                 onChange={(e) => setPlaceholderFormat(e.target.value as any)}
@@ -2565,14 +2643,14 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Mode</label>
+              <label className="block text-sm font-medium mb-1">{t.placeholder.mode}</label>
               <select
                 value={placeholderMode}
                 onChange={(e) => setPlaceholderMode(e.target.value as any)}
                 className={commonClasses.input}
               >
-                <option value="simple">Simple</option>
-                <option value="real">Realistic</option>
+                <option value="simple">{t.placeholder.mode_simple}</option>
+                <option value="real">{t.placeholder.mode_real}</option>
               </select>
             </div>
           </div>
@@ -2588,7 +2666,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               ) : (
                 <Wand2 className="w-4 h-4" />
               )}
-              Generate
+              {t.placeholder.generate}
             </button>
             <button
               onClick={() => {
@@ -2602,7 +2680,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               }}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
             >
-              Reset
+              {t.common.reset}
             </button>
           </div>
         </div>
@@ -2610,28 +2688,28 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
       {/* Preview Panel */}
       <div className={`flex-1 ${commonClasses.card} p-4 flex flex-col overflow-hidden`}>
-        <h3 className="font-semibold mb-4">Preview</h3>
-        
+        <h3 className="font-semibold mb-4">{t.placeholder.preview}</h3>
+
         {generatedPlaceholder.data ? (
           <div className="flex-1 flex flex-col">
             <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-800 rounded-lg mb-4">
               <img
                 src={generatedPlaceholder.data.url}
-                alt="Generated placeholder"
+                alt={t.placeholder.generated_alt}
                 className="max-w-full max-h-full"
               />
             </div>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Dimensions:</span>
+                <span className="text-slate-500">{t.placeholder.dimensions_label}</span>
                 <span className="font-medium">{generatedPlaceholder.data.width}x{generatedPlaceholder.data.height}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Format:</span>
+                <span className="text-slate-500">{t.placeholder.format_label}</span>
                 <span className="font-medium">{generatedPlaceholder.data.format.toUpperCase()}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">File Size:</span>
+                <span className="text-slate-500">{t.placeholder.file_size_label}</span>
                 <span className="font-medium">{(generatedPlaceholder.data.file_size / 1024).toFixed(2)} KB</span>
               </div>
               <div className="flex items-center gap-2">
@@ -2661,8 +2739,8 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <div className="flex-1 flex items-center justify-center text-slate-400">
             <div className="text-center">
               <ImagePlus className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p>No placeholder generated</p>
-              <p className="text-sm mt-1">Fill the form and click Generate</p>
+              <p>{t.placeholder.no_placeholder}</p>
+              <p className="text-sm mt-1">{t.placeholder.no_placeholder_hint}</p>
             </div>
           </div>
         )}
@@ -2671,21 +2749,21 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       {/* History Panel */}
       <div className={`w-64 ${commonClasses.card} p-4 overflow-y-auto`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Recent</h3>
+          <h3 className="font-semibold">{t.placeholder.recent}</h3>
           <div className="flex items-center gap-1">
             <button
               className="text-xs text-slate-500 hover:text-indigo-500"
               onClick={loadPlaceholderHistory}
-              title="Refresh history"
+              title={t.placeholder.refresh_history}
             >
               <RefreshCw className="w-3 h-3 inline" />
             </button>
             <button
               className="text-xs px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50 rounded"
               onClick={handleCleanupPlaceholders}
-              title="Clean up old placeholders"
+              title={t.placeholder.cleanup_title}
             >
-              Cleanup
+              {t.placeholder.cleanup}
             </button>
           </div>
         </div>
@@ -2723,7 +2801,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm('Delete this placeholder?')) {
+                      if (confirm(t.placeholder.delete_confirm)) {
                         handleDeletePlaceholder(item.uuid);
                       }
                     }}
@@ -2736,7 +2814,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-slate-400 text-center py-4">No history</p>
+          <p className="text-sm text-slate-400 text-center py-4">{t.placeholder.no_history}</p>
         )}
       </div>
       </div>
@@ -2751,28 +2829,28 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <Volume2 className="w-4 h-4 text-indigo-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Total Items</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.voice.stats_total}</span>
             </div>
             <p className="text-2xl font-bold">{voiceStats.data.total_count || 0}</p>
           </div>
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <Play className="w-4 h-4 text-green-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Completed</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.common.completed}</span>
             </div>
             <p className="text-2xl font-bold">{voiceStats.data.completed_count || 0}</p>
           </div>
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <Clock className="w-4 h-4 text-blue-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Pending</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.common.pending}</span>
             </div>
             <p className="text-2xl font-bold">{voiceStats.data.pending_count || 0}</p>
           </div>
           <div className={`${commonClasses.card} p-4`}>
             <div className="flex items-center gap-2 mb-1">
               <Calendar className="w-4 h-4 text-purple-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400">Today</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{t.common.today}</span>
             </div>
             <p className="text-2xl font-bold">{voiceStats.data.daily_count || 0}</p>
           </div>
@@ -2781,7 +2859,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
       {/* Add to Queue */}
       <div className={`${commonClasses.card} p-4`}>
-        <h3 className="font-semibold mb-4">Add to Voice Queue</h3>
+        <h3 className="font-semibold mb-4">{t.voice.add_to_queue}</h3>
         <div className="space-y-3">
           <div className="flex gap-2">
             <select
@@ -2794,10 +2872,10 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               }}
               className={commonClasses.input}
             >
-              <option value="text">Text</option>
-              <option value="url">URL</option>
-              <option value="voice">Voice</option>
-              <option value="image">Image</option>
+              <option value="text">{t.voice.type_text}</option>
+              <option value="url">{t.voice.type_url}</option>
+              <option value="voice">{t.voice.type_voice}</option>
+              <option value="image">{t.voice.type_image}</option>
             </select>
             {newVoiceType !== 'image' && (
               <select
@@ -2807,7 +2885,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 disabled={supportedLanguages.loading}
               >
                 {supportedLanguages.loading ? (
-                  <option value="en">Loading...</option>
+                  <option value="en">{t.common.loading}</option>
                 ) : supportedLanguages.data ? (
                   <>
                     {Array.isArray(supportedLanguages.data) ? (
@@ -2840,7 +2918,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               <div className="flex items-center gap-2">
                 <label className={`${commonClasses.button} ${commonClasses.buttonSecondary} cursor-pointer`}>
                   <Upload className="w-4 h-4 inline mr-2" />
-                  {newVoiceImageFile ? newVoiceImageFile.name : 'Choose Image'}
+                  {newVoiceImageFile ? newVoiceImageFile.name : t.voice.choose_image}
                   <input
                     type="file"
                     accept="image/*"
@@ -2865,7 +2943,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 type="text"
                 value={newVoiceImageDescription}
                 onChange={(e) => setNewVoiceImageDescription(e.target.value)}
-                placeholder="Description (optional)..."
+                placeholder={t.voice.description_placeholder}
                 className={commonClasses.input}
               />
               <button
@@ -2874,7 +2952,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 w-full`}
               >
                 <Plus className="w-4 h-4" />
-                Add Image to Queue
+                {t.voice.add_image_to_queue}
               </button>
             </div>
           ) : (
@@ -2883,7 +2961,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 type="text"
                 value={newVoiceContent}
                 onChange={(e) => setNewVoiceContent(e.target.value)}
-                placeholder={`Enter ${newVoiceType}...`}
+                placeholder={newVoiceType === 'text' ? t.voice.content_placeholder_text : newVoiceType === 'url' ? t.voice.content_placeholder_url : t.voice.content_placeholder_voice}
                 className={`${commonClasses.input} flex-1`}
               />
               <button
@@ -2892,7 +2970,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
               >
                 <Plus className="w-4 h-4" />
-                Add
+                {t.common.add}
               </button>
             </div>
           )}
@@ -2902,7 +2980,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       {/* Current Track */}
       {currentVoiceTrack.data && (
         <div className={`${commonClasses.card} p-4`}>
-          <h3 className="font-semibold mb-4">Now Playing</h3>
+          <h3 className="font-semibold mb-4">{t.voice.now_playing}</h3>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <button
@@ -2953,13 +3031,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       <div className={`flex-1 ${commonClasses.card} p-4 overflow-y-auto`}>
         <div className="mb-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold">Queue</h3>
+            <h3 className="font-semibold">{t.voice.queue}</h3>
             <button
               onClick={loadVoiceQueue}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
             >
               <RefreshCw className="w-4 h-4" />
-              Refresh
+              {t.common.refresh}
             </button>
           </div>
 
@@ -2974,7 +3052,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                     : 'hover:bg-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
-                All
+                {t.common.all}
               </button>
               <button
                 onClick={() => setVoiceQueueFilter('today')}
@@ -2984,7 +3062,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                     : 'hover:bg-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
-                Today
+                {t.common.today}
               </button>
               <button
                 onClick={() => setVoiceQueueFilter('latest')}
@@ -2994,7 +3072,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                     : 'hover:bg-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
-                Latest
+                {t.common.latest}
               </button>
             </div>
 
@@ -3005,7 +3083,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 onChange={(e) => setSelectedVoiceGroup(e.target.value || null)}
                 className={`${commonClasses.input} w-48`}
               >
-                <option value="">All Groups</option>
+                <option value="">{t.voice.all_groups}</option>
                 {voiceGroups.data.map((group) => (
                   <option key={group} value={group}>
                     {group}
@@ -3021,7 +3099,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 onChange={(e) => setSelectedVoiceCategory(e.target.value || null)}
                 className={`${commonClasses.input} w-48`}
               >
-                <option value="">All Categories</option>
+                <option value="">{t.voice.all_categories}</option>
                 {voiceCategories.data.map((category: any) => (
                   <option key={typeof category === 'string' ? category : category.id} value={typeof category === 'string' ? category : category.id}>
                     {typeof category === 'string' ? category : (category.name || category.id)}
@@ -3044,7 +3122,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 }}
                 className={`${commonClasses.button} ${commonClasses.buttonSecondary} text-xs`}
               >
-                {selectedVoiceItems.size === voiceQueue.data.length ? 'Deselect All' : 'Select All'}
+                {selectedVoiceItems.size === voiceQueue.data.length ? t.common.deselect_all : t.common.select_all}
               </button>
               {selectedVoiceItems.size > 0 && (
                 <>
@@ -3053,16 +3131,16 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                     className={`${commonClasses.button} text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 flex items-center gap-1`}
                   >
                     <Trash2 className="w-3 h-3" />
-                    Delete ({selectedVoiceItems.size})
+                    {t.common.delete} ({selectedVoiceItems.size})
                   </button>
                 </>
               )}
               <button
                 onClick={handleClearVoiceQueue}
                 className={`${commonClasses.button} text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 ml-auto`}
-                title="Clear entire queue"
+                title={t.voice.clear_queue_title}
               >
-                Clear All
+                {t.common.clear_all}
               </button>
             </div>
           )}
@@ -3115,7 +3193,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                           type="text"
                           value={newGroupName}
                           onChange={(e) => setNewGroupName(e.target.value)}
-                          placeholder="Group name"
+                          placeholder={t.voice.group_name_placeholder}
                           className="px-2 py-1 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 w-24"
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => {
@@ -3136,7 +3214,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                             handleUpdateVoiceItemGroup(item.id, newGroupName);
                           }}
                           className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400"
-                          title="Save"
+                          title={t.common.save}
                         >
                           <Check className="w-3 h-3" />
                         </button>
@@ -3147,7 +3225,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                             setNewGroupName('');
                           }}
                           className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
-                          title="Cancel"
+                          title={t.common.cancel}
                         >
                           <XCircle className="w-3 h-3" />
                         </button>
@@ -3166,7 +3244,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                             setNewGroupName(item.group || '');
                           }}
                           className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
-                          title="Edit group"
+                          title={t.voice.edit_group}
                         >
                           <Edit2 className="w-3 h-3" />
                         </button>
@@ -3180,7 +3258,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                         handleRemoveVoiceItem(item.id);
                       }}
                       className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
-                      title="Delete"
+                      title={t.common.delete}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -3189,7 +3267,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-1 line-clamp-2">{item.content}</p>
                 <p className="text-xs text-slate-500">
                   {item.language} • {new Date(item.created_at).toLocaleString()}
-                  {item.play_count > 0 && ` • Played ${item.play_count}x`}
+                  {item.play_count > 0 && ` • ${t.voice.played_prefix} ${item.play_count}${t.voice.played_suffix}`}
                 </p>
               </div>
             ))}
@@ -3198,7 +3276,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <div className="flex items-center justify-center py-12 text-slate-400">
             <div className="text-center">
               <Volume2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>Queue is empty</p>
+              <p>{t.voice.queue_empty}</p>
             </div>
           </div>
         )}
@@ -3207,14 +3285,14 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       {/* Background Tasks Panel */}
       <div className={`${commonClasses.card} p-4`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">Background Tasks</h3>
+          <h3 className="font-semibold">{t.voice.background_tasks}</h3>
           <div className="flex gap-2">
             <button
               onClick={loadVoiceBackgroundTasks}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 text-xs`}
             >
               <RefreshCw className="w-3 h-3" />
-              Refresh
+              {t.common.refresh}
             </button>
           </div>
         </div>
@@ -3266,14 +3344,14 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                       </div>
                     )}
                     <p className="text-xs text-slate-500 mt-1">
-                      {task.created_at && `Created: ${new Date(task.created_at).toLocaleString()}`}
-                      {task.updated_at && ` • Updated: ${new Date(task.updated_at).toLocaleString()}`}
+                      {task.created_at && `${t.voice.created_label} ${new Date(task.created_at).toLocaleString()}`}
+                      {task.updated_at && ` • ${t.voice.updated_label} ${new Date(task.updated_at).toLocaleString()}`}
                     </p>
                   </div>
                   <button
                     onClick={() => handleDeleteVoiceBackgroundTasks([task.id])}
                     className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
-                    title="Delete task"
+                    title={t.voice.delete_task}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -3283,7 +3361,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           </div>
         ) : voiceBackgroundTasks.data && voiceBackgroundTasks.data.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
-            <p className="text-sm">No background tasks</p>
+            <p className="text-sm">{t.voice.no_background_tasks}</p>
           </div>
         ) : null}
       </div>
@@ -3294,12 +3372,12 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     <div className="flex gap-4 h-full">
       {/* Upload Panel */}
       <div className={`w-96 ${commonClasses.card} p-4 overflow-y-auto`}>
-        <h3 className="font-semibold mb-4">OCR Recognition</h3>
+        <h3 className="font-semibold mb-4">{t.ocr.title}</h3>
 
         <div className="space-y-4">
           {/* Engine Selection */}
           <div>
-            <label className="block text-sm font-medium mb-2">OCR Engine</label>
+            <label className="block text-sm font-medium mb-2">{t.ocr.engine}</label>
             {ocrEngines.loading ? (
               <div className="flex items-center justify-center py-4">
                 <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
@@ -3320,7 +3398,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             {ocrEngineInfo.loading && (
               <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                Loading engine info...
+                {t.ocr.loading_engine_info}
               </div>
             )}
             {ocrEngineInfo.data && (
@@ -3331,12 +3409,12 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   )}
                   {ocrEngineInfo.data.accuracy && (
                     <p className="text-slate-600 dark:text-slate-400">
-                      <span className="font-medium">Accuracy:</span> {ocrEngineInfo.data.accuracy}
+                      <span className="font-medium">{t.ocr.accuracy_label}</span> {ocrEngineInfo.data.accuracy}
                     </p>
                   )}
                   {ocrEngineInfo.data.supported_languages && (
                     <p className="text-slate-600 dark:text-slate-400">
-                      <span className="font-medium">Languages:</span> {
+                      <span className="font-medium">{t.ocr.languages_label}</span> {
                         Array.isArray(ocrEngineInfo.data.supported_languages)
                           ? ocrEngineInfo.data.supported_languages.join(', ')
                           : ocrEngineInfo.data.supported_languages
@@ -3345,7 +3423,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   )}
                   {ocrEngineInfo.data.speed && (
                     <p className="text-slate-600 dark:text-slate-400">
-                      <span className="font-medium">Speed:</span> {ocrEngineInfo.data.speed}
+                      <span className="font-medium">{t.ocr.speed_label}</span> {ocrEngineInfo.data.speed}
                     </p>
                   )}
                 </div>
@@ -3360,7 +3438,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
           {/* Image Upload */}
           <div>
-            <label className="block text-sm font-medium mb-2">Upload Image</label>
+            <label className="block text-sm font-medium mb-2">{t.ocr.upload_image}</label>
             <input
               type="file"
               accept="image/*"
@@ -3373,18 +3451,18 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               className={`${commonClasses.button} ${commonClasses.buttonSecondary} w-full flex items-center justify-center gap-2 cursor-pointer`}
             >
               <Upload className="w-4 h-4" />
-              Choose Image
+              {t.ocr.choose_image}
             </label>
           </div>
 
           {/* Preview */}
           {ocrPreviewUrl && (
             <div className="space-y-2">
-              <label className="block text-sm font-medium">Preview</label>
+              <label className="block text-sm font-medium">{t.ocr.preview}</label>
               <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
                 <img
                   src={ocrPreviewUrl}
-                  alt="OCR Preview"
+                  alt={t.ocr.preview_alt}
                   className="w-full h-auto max-h-64 object-contain bg-slate-50 dark:bg-slate-800"
                 />
               </div>
@@ -3403,13 +3481,13 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               ) : (
                 <Play className="w-4 h-4" />
               )}
-              Recognize
+              {t.ocr.recognize}
             </button>
             <button
               onClick={handleOcrSmartRecognize}
               disabled={!ocrImage || ocrResult.loading}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
-              title="Smart recognition with automatic engine selection"
+              title={t.ocr.smart_recognize_title}
             >
               <Wand2 className="w-4 h-4" />
             </button>
@@ -3417,7 +3495,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
           {/* Batch Upload */}
           <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
-            <h4 className="text-sm font-semibold mb-3">Batch Recognition</h4>
+            <h4 className="text-sm font-semibold mb-3">{t.ocr.batch_recognition}</h4>
             <input
               type="file"
               accept="image/*"
@@ -3431,20 +3509,20 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               className={`${commonClasses.button} ${commonClasses.buttonSecondary} w-full flex items-center justify-center gap-2 cursor-pointer mb-3`}
             >
               <Upload className="w-4 h-4" />
-              Choose Multiple Images
+              {t.ocr.choose_multiple_images}
             </label>
 
             {ocrBatchImages.length > 0 && (
               <>
                 <div className="text-xs text-slate-500 mb-2">
-                  Selected: {ocrBatchImages.length} image(s)
+                  {t.ocr.selected_prefix} {ocrBatchImages.length} {t.ocr.selected_suffix}
                 </div>
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   {ocrBatchPreviewUrls.slice(0, 6).map((url, index) => (
                     <div key={index} className="aspect-square border border-slate-200 dark:border-slate-700 rounded overflow-hidden">
                       <img
                         src={url}
-                        alt={`Batch ${index + 1}`}
+                        alt={`${t.ocr.image_label} ${index + 1}`}
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -3465,7 +3543,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   ) : (
                     <Play className="w-4 h-4" />
                   )}
-                  Batch Recognize
+                  {t.ocr.batch_recognize}
                 </button>
               </>
             )}
@@ -3476,7 +3554,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       {/* Result Panel */}
       <div className={`flex-1 ${commonClasses.card} p-4 flex flex-col overflow-hidden`}>
         <h3 className="font-semibold mb-4">
-          {ocrBatchResults.data && ocrBatchResults.data.length > 0 ? 'Batch Results' : 'Recognition Result'}
+          {ocrBatchResults.data && ocrBatchResults.data.length > 0 ? t.ocr.batch_results : t.ocr.recognition_result}
         </h3>
 
         {/* Batch Results */}
@@ -3486,7 +3564,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               <div key={index} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Image className="w-4 h-4 text-indigo-500" />
-                  <span className="text-sm font-medium">Image {index + 1}</span>
+                  <span className="text-sm font-medium">{t.ocr.image_label} {index + 1}</span>
                   {result.engine && (
                     <span className="text-xs text-slate-500">({result.engine})</span>
                   )}
@@ -3498,7 +3576,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                     </div>
                     {result.confidence && (
                       <div className="text-xs text-slate-500">
-                        Confidence: {(result.confidence * 100).toFixed(1)}%
+                        {t.ocr.confidence_label} {(result.confidence * 100).toFixed(1)}%
                       </div>
                     )}
                     <button
@@ -3506,12 +3584,12 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                       className={`${commonClasses.button} ${commonClasses.buttonSecondary} text-xs flex items-center gap-1`}
                     >
                       <Copy className="w-3 h-3" />
-                      Copy
+                      {t.common.copy}
                     </button>
                   </div>
                 ) : (
                   <div className="text-sm text-red-600 dark:text-red-400">
-                    {result.error || 'No text detected'}
+                    {result.error || t.ocr.no_text_detected}
                   </div>
                 )}
               </div>
@@ -3523,12 +3601,12 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
         {(!ocrBatchResults.data || ocrBatchResults.data.length === 0) && ocrResult.data && (
           <div className="flex-1 overflow-y-auto">
             <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg mb-4">
-              <div className="text-sm whitespace-pre-wrap">{ocrResult.data.text || 'No text detected'}</div>
+              <div className="text-sm whitespace-pre-wrap">{ocrResult.data.text || t.ocr.no_text_detected}</div>
             </div>
             {ocrResult.data.confidence && (
               <div className="mb-4">
                 <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-slate-500">Confidence:</span>
+                  <span className="text-slate-500">{t.ocr.confidence_label}</span>
                   <span className="font-medium">{(ocrResult.data.confidence * 100).toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
@@ -3544,7 +3622,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
               className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
             >
               <Copy className="w-4 h-4" />
-              Copy Text
+              {t.ocr.copy_text}
             </button>
           </div>
         )}
@@ -3554,8 +3632,8 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
           <div className="flex-1 flex items-center justify-center text-slate-400">
             <div className="text-center">
               <Eye className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p>No recognition result</p>
-              <p className="text-sm mt-1">Upload an image and click Recognize</p>
+              <p>{t.ocr.no_result}</p>
+              <p className="text-sm mt-1">{t.ocr.no_result_hint}</p>
             </div>
           </div>
         )}
@@ -3572,30 +3650,32 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
   const renderSettingsTab = () => (
     <div className={`${commonClasses.card} p-6`}>
-      <h3 className="text-lg font-semibold mb-4">Settings</h3>
-      <p className="text-slate-500">Settings panel coming soon...</p>
+      <h3 className="text-lg font-semibold mb-4">{t.settings.title}</h3>
+      <p className="text-slate-500">{t.settings.coming_soon}</p>
     </div>
   );
 
   return (
     <div className="flex flex-col h-full">
-      {/* Tabs */}
-      <div className="border-b border-slate-200 dark:border-slate-700 mb-4">
-        <div className="flex gap-1">
+      {/* Tabs — segmented pill control */}
+      <div className="mb-4">
+        <div className="inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
           {tabs.map((tab) => {
             const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
-                    : 'border-transparent hover:text-indigo-600 dark:hover:text-indigo-400'
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/50'
                 }`}
               >
                 <Icon className="w-4 h-4" />
-                <span className="text-sm font-medium">{tab.label}</span>
+                <span>{tab.label}</span>
               </button>
             );
           })}
@@ -3614,8 +3694,9 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
 
       {/* Image Detail Modal - Enhanced */}
       {showImageModal && selectedScreenshot && (
+        <Portal>
         <div
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} bg-black/90 backdrop-blur-sm animate-in fade-in duration-200`}
           onClick={() => setShowImageModal(false)}
         >
           <div
@@ -3676,7 +3757,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                 className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700"
                 onError={(e) => {
                   e.currentTarget.src = '';
-                  e.currentTarget.alt = 'Failed to load image';
+                  e.currentTarget.alt = t.screenshots.load_image_failed;
                   e.currentTarget.className = 'text-red-500';
                 }}
               />
@@ -3730,7 +3811,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
                   </span>
                   {selectedScreenshot.size && (
                     <span className="flex items-center gap-1">
-                      Size: {(selectedScreenshot.size / 1024).toFixed(2)} KB
+                      {t.common.size} {(selectedScreenshot.size / 1024).toFixed(2)} KB
                     </span>
                   )}
                 </div>
@@ -3738,6 +3819,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

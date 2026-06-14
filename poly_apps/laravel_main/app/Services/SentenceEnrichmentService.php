@@ -1,0 +1,451 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Sentence;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
+use App\Providers\PathMapper;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Sentence Enrichment Service
+ *
+ * Idempotent AI + TTS enrichment pass over the SHARED sentence library
+ * (app_qy_v1_sentences), covering BOTH subtitle- and book-derived sentences.
+ *
+ * For each sentence that still needs work it:
+ *   1. Calls an LLM ONCE with a structured prompt that returns a strict JSON
+ *      object {explanation, grammar, ai_commentary, special_usage} (written in
+ *      the sentence's own language where natural).
+ *   2. Synthesizes per-sentence TTS audio, stores the mp3 under
+ *      PathMapper::getAppQyV1SentenceSoundsDir() keyed by sentence_id, and sets
+ *      the `audio` column to the canonical served reference.
+ *
+ * THE CRITICAL IDEMPOTENCY RULE (identical to MediaIngestService::mergeFill):
+ * FILL-MISSING, NEVER CLOBBER. Only currently-empty columns are written; an
+ * existing non-empty value is never overwritten. A fully-enriched row is never
+ * reprocessed (the selection query skips it), so the pass is resumable and safe
+ * to run repeatedly. Each row is wrapped in try/catch so one failure never
+ * aborts the batch.
+ *
+ * Provider selection reuses the SAME pattern as AppQyV1TranslationService:
+ * the clients are chosen from the configurable fallback chain
+ * (config('AppQyV1.ai.fallback_chain'), default openrouter -> gemini ->
+ * deepseek) with per-provider model overrides (config('AppQyV1.ai.models')).
+ * No keys are hardcoded; providers without a key configured are skipped.
+ */
+class SentenceEnrichmentService
+{
+    /**
+     * The four AI detail columns this pass fills (when empty).
+     */
+    private const AI_FIELDS = ['explanation', 'grammar', 'ai_commentary', 'special_usage'];
+
+    private $openrouterClient;
+    private $deepseekClient;
+    private $geminiClient;
+    private $ttsService;
+
+    public function __construct()
+    {
+        $this->openrouterClient = new OpenRouterClient();
+        $this->deepseekClient = new DeepSeekClient();
+        $this->geminiClient = new GeminiClient();
+        $this->ttsService = new AppQyV1TTSService();
+    }
+
+    /**
+     * Enrich up to $limit sentences that still need AI fields and/or audio.
+     *
+     * @param int         $limit    Max rows to process this batch.
+     * @param string|null $language Optional language filter (matches the
+     *                              sentences.language column, e.g. 'english').
+     * @return array{
+     *   processed:int, enriched:int, remaining:int, errors:array<int,array>
+     * }
+     */
+    public function enrich(int $limit = 50, ?string $language = null): array
+    {
+        if ($limit < 1) {
+            $limit = 1;
+        }
+
+        $rows = $this->selectRowsNeedingWork($limit, $language)->get();
+
+        $processed = 0;
+        $enriched = 0;
+        $errors = [];
+
+        foreach ($rows as $sentence) {
+            $processed++;
+            try {
+                if ($this->enrichRow($sentence)) {
+                    $enriched++;
+                }
+            } catch (\Throwable $e) {
+                // One row failing must never abort the batch.
+                $errors[] = [
+                    'sentence_id' => $sentence->sentence_id,
+                    'error' => $e->getMessage(),
+                ];
+                Log::warning('[SentenceEnrichment] Row failed', [
+                    'sentence_id' => $sentence->sentence_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return [
+            'processed' => $processed,
+            'enriched' => $enriched,
+            'remaining' => $this->countRowsNeedingWork($language),
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Enrich a single sentence row in place (fill-missing, never clobber).
+     *
+     * @return bool True if any column was actually filled and saved.
+     */
+    private function enrichRow(Sentence $sentence): bool
+    {
+        $changed = false;
+
+        // ---- 1. AI detail fields (only if at least one is still empty) ----
+        if ($this->needsAiFields($sentence)) {
+            $ai = $this->generateAiFields((string) $sentence->text, (string) $sentence->language);
+            foreach (self::AI_FIELDS as $field) {
+                $incoming = $ai[$field] ?? null;
+                if ($this->isEmptyValue($incoming)) {
+                    continue;
+                }
+                // No-clobber: only fill when the existing column is empty.
+                if (!$this->isEmptyValue($sentence->getAttribute($field))) {
+                    continue;
+                }
+                $sentence->setAttribute($field, $incoming);
+                $changed = true;
+            }
+        }
+
+        // ---- 2. TTS audio (only if currently empty) ----
+        if ($this->isEmptyValue($sentence->getAttribute('audio'))) {
+            $audioRef = $this->generateAudioReference(
+                (string) $sentence->sentence_id,
+                (string) $sentence->text,
+                (string) $sentence->language
+            );
+            if (!$this->isEmptyValue($audioRef)) {
+                $sentence->setAttribute('audio', $audioRef);
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            $sentence->save();
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Call the LLM once and parse a strict JSON object with the four AI fields.
+     *
+     * Walks the configured provider fallback chain (reusing the translation
+     * service's pattern) until one returns a parseable JSON payload.
+     *
+     * @return array<string,string> Subset of self::AI_FIELDS (missing on failure).
+     */
+    private function generateAiFields(string $text, string $language): array
+    {
+        $languageName = $language !== '' ? $language : 'the source language';
+        $prompt = $this->buildPrompt($text, $languageName);
+
+        $chain = (array) config('AppQyV1.ai.fallback_chain', ['openrouter', 'gemini', 'deepseek']);
+        $modelOverrides = (array) config('AppQyV1.ai.models', []);
+
+        foreach ($chain as $provider) {
+            $provider = trim((string) $provider);
+            // The 'google' link is a translation-only pycore delegate; it cannot
+            // produce structured enrichment, so it is skipped here.
+            if ($provider === '' || $provider === 'google') {
+                continue;
+            }
+            if (!$this->isProviderConfigured($provider)) {
+                continue;
+            }
+
+            $model = $modelOverrides[$provider] ?? null;
+
+            try {
+                $raw = $this->callProvider($provider, $model, $prompt);
+            } catch (\Throwable $e) {
+                Log::info('[SentenceEnrichment] Provider threw, trying next', [
+                    'provider' => $provider,
+                    'error' => $e->getMessage(),
+                ]);
+                continue;
+            }
+
+            // The clients return "Error: ..." (a string) on failure.
+            if ($raw === '' || str_starts_with(trim($raw), 'Error:')) {
+                continue;
+            }
+
+            $parsed = $this->parseJsonFields($raw);
+            if (!empty($parsed)) {
+                return $parsed;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Synthesize TTS audio for a sentence and store it under the sentence-sounds
+     * directory keyed by sentence_id. Returns the canonical served reference, or
+     * null if audio could not be produced.
+     *
+     * Reuses AppQyV1TTSService to do the actual edge-tts synthesis (and its
+     * cache), then copies the produced mp3 into
+     * PathMapper::getAppQyV1SentenceSoundsDir() under
+     * "<langCode>/<sentence_id>.mp3" so the shared library has a stable,
+     * sentence-keyed asset.
+     */
+    private function generateAudioReference(string $sentenceId, string $text, string $language): ?string
+    {
+        $text = trim($text);
+        if ($text === '' || $sentenceId === '') {
+            return null;
+        }
+
+        $langCode = AppQyV1DictionaryService::getLanguageCode($language !== '' ? $language : 'english');
+
+        $result = $this->ttsService->generateAudio($text, $langCode, 'sentence');
+        if (!is_array($result) || ($result['success'] ?? false) !== true) {
+            Log::info('[SentenceEnrichment] TTS failed', [
+                'sentence_id' => $sentenceId,
+                'language' => $langCode,
+                'error' => $result['error'] ?? 'unknown',
+            ]);
+            return null;
+        }
+
+        // Locate the freshly produced (or cached) source mp3 on disk.
+        $sourcePath = $this->ttsService->getAudioPath((string) ($result['audio_path'] ?? ''));
+        if ($sourcePath === null || !is_file($sourcePath)) {
+            // Service returned a URL but no readable file; fall back to the URL.
+            return $result['audio_url'] ?? null;
+        }
+
+        // Stable, sentence-keyed destination under the sentence-sounds dir.
+        $relative = $langCode . '/' . $sentenceId . '.mp3';
+        $destPath = rtrim(PathMapper::getAppQyV1SentenceSoundsDir(), '/\\')
+            . DIRECTORY_SEPARATOR . $langCode
+            . DIRECTORY_SEPARATOR . $sentenceId . '.mp3';
+
+        $destDir = dirname($destPath);
+        if (!PathMapper::ensureDirectory($destDir, 0775)) {
+            Log::warning('[SentenceEnrichment] Could not create sentence sounds dir', [
+                'dir' => $destDir,
+            ]);
+            return $result['audio_url'] ?? null;
+        }
+
+        // Idempotent copy: only place the file if it is not already present.
+        if (!is_file($destPath) || filesize($destPath) === 0) {
+            if (!@copy($sourcePath, $destPath)) {
+                Log::warning('[SentenceEnrichment] Could not copy audio to sentence sounds dir', [
+                    'from' => $sourcePath,
+                    'to' => $destPath,
+                ]);
+                return $result['audio_url'] ?? null;
+            }
+        }
+
+        // Canonical served reference for the sentence-keyed asset.
+        return AppQyV1TtsUrl::forPath($relative);
+    }
+
+    /**
+     * Build the structured enrichment prompt. Asks for STRICT JSON only so the
+     * response is machine-parseable; the four fields are written in the
+     * sentence's own language where natural.
+     */
+    private function buildPrompt(string $text, string $languageName): string
+    {
+        return <<<PROMPT
+You are a language-learning assistant. Analyze the following sentence written in {$languageName}.
+
+Sentence:
+"""
+{$text}
+"""
+
+Return ONLY a single minified JSON object (no markdown, no code fences, no extra text) with EXACTLY these string keys:
+- "explanation": a clear, concise explanation of the sentence's meaning.
+- "grammar": notable grammar points, structures, or tenses used.
+- "ai_commentary": brief commentary on tone, register, or context.
+- "special_usage": idioms, collocations, or special/colloquial usage (empty string "" if none).
+
+Write the values in {$languageName} where natural. Each value must be a plain string. Output the JSON object and nothing else.
+PROMPT;
+    }
+
+    /**
+     * Parse the LLM response into the four AI fields. Tolerant of stray text and
+     * ```json fences around the object.
+     *
+     * @return array<string,string>
+     */
+    private function parseJsonFields(string $raw): array
+    {
+        $raw = trim($raw);
+
+        // Strip ```json ... ``` fences if present.
+        if (str_starts_with($raw, '```')) {
+            $raw = preg_replace('/^```[a-zA-Z]*\s*/', '', $raw);
+            $raw = preg_replace('/\s*```$/', '', (string) $raw);
+            $raw = trim((string) $raw);
+        }
+
+        // Isolate the outermost JSON object if there is surrounding prose.
+        $start = strpos($raw, '{');
+        $end = strrpos($raw, '}');
+        if ($start === false || $end === false || $end <= $start) {
+            return [];
+        }
+        $json = substr($raw, $start, $end - $start + 1);
+
+        $decoded = json_decode($json, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $result = [];
+        foreach (self::AI_FIELDS as $field) {
+            if (!array_key_exists($field, $decoded)) {
+                continue;
+            }
+            $value = $decoded[$field];
+            if (is_array($value)) {
+                $value = trim(implode(' ', array_map('strval', $value)));
+            } else {
+                $value = trim((string) $value);
+            }
+            if ($value !== '') {
+                $result[$field] = $value;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Dispatch a chat() call to the chosen provider. All three clients share the
+     * same chat(prompt, model, systemPrompt, extra, timeout): string signature.
+     */
+    private function callProvider(string $provider, ?string $model, string $prompt): string
+    {
+        switch ($provider) {
+            case 'deepseek':
+                return $this->deepseekClient->chat($prompt, $model);
+            case 'gemini':
+                return $this->geminiClient->chat($prompt, $model);
+            case 'openrouter':
+            default:
+                return $this->openrouterClient->chat($prompt, $model);
+        }
+    }
+
+    /**
+     * Whether a provider has a usable key configured (mirrors the translation
+     * service's isProviderConfigured for the direct LLM providers).
+     */
+    private function isProviderConfigured(string $provider): bool
+    {
+        switch ($provider) {
+            case 'gemini':
+                return $this->geminiClient->hasApiKey();
+            case 'deepseek':
+                return $this->deepseekClient->hasApiKey();
+            case 'openrouter':
+                return $this->openrouterClient->hasApiKey();
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Whether any of the four AI detail columns is still empty.
+     */
+    private function needsAiFields(Sentence $sentence): bool
+    {
+        foreach (self::AI_FIELDS as $field) {
+            if ($this->isEmptyValue($sentence->getAttribute($field))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Base query for rows still needing work: any AI field empty OR audio empty.
+     * Optionally filtered by language. Ordered for stable, resumable batching.
+     */
+    private function selectRowsNeedingWork(int $limit, ?string $language)
+    {
+        $query = Sentence::query()->where(function ($q) {
+            foreach (self::AI_FIELDS as $field) {
+                $q->orWhereNull($field)->orWhere($field, '=', '');
+            }
+            $q->orWhereNull('audio')->orWhere('audio', '=', '');
+        });
+
+        if ($language !== null && $language !== '') {
+            $query->where('language', $language);
+        }
+
+        return $query->orderBy('id')->limit($limit);
+    }
+
+    /**
+     * Count of rows still needing work (post-batch "remaining").
+     */
+    private function countRowsNeedingWork(?string $language): int
+    {
+        $query = Sentence::query()->where(function ($q) {
+            foreach (self::AI_FIELDS as $field) {
+                $q->orWhereNull($field)->orWhere($field, '=', '');
+            }
+            $q->orWhereNull('audio')->orWhere('audio', '=', '');
+        });
+
+        if ($language !== null && $language !== '') {
+            $query->where('language', $language);
+        }
+
+        return (int) $query->count();
+    }
+
+    /**
+     * Empty test, identical in spirit to MediaIngestService::isEmptyValue for
+     * the string/array/null cases the enrichment columns use.
+     */
+    private function isEmptyValue($value): bool
+    {
+        if ($value === null) {
+            return true;
+        }
+        if (is_string($value) && trim($value) === '') {
+            return true;
+        }
+        if (is_array($value) && count($value) === 0) {
+            return true;
+        }
+        return false;
+    }
+}

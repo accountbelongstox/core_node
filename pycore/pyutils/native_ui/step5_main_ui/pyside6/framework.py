@@ -547,6 +547,20 @@ class PySide6Framework(QObject):
             # Hidden-to-tray (close_to_tray) also updates the published visibility state
             self.main_window.window_hidden.connect(lambda: self._publish_window_visible(False))
 
+        # Web page title -> custom title bar + window title. This lets the embedded
+        # web UI drive the native title: the React app sets document.title from its
+        # i18n table, so switching language in the web also retitles the simulated
+        # title bar (and the taskbar entry). No-op if the title is empty.
+        if self.webview is not None:
+            def _sync_web_title(title: str):
+                if not title:
+                    return
+                if self.title_bar:
+                    self.title_bar.update_title(title)
+                if self.main_window:
+                    self.main_window.setWindowTitle(title)
+            self.webview.title_changed.connect(_sync_web_title)
+
         # System tray connections
         if self.system_tray:
             self.system_tray.tray_double_clicked.connect(self.toggle_window)

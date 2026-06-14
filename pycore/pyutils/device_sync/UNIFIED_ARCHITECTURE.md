@@ -1,5 +1,13 @@
 # Device Sync - Unified Architecture
 
+> **NOTE / 注意 (superseded):** The current Code Sync model is a **role-based peer
+> mesh** — see **[CODE_SYNC_MESH.md](CODE_SYNC_MESH.md)**. Roles are **dev**
+> (distributes code; **multiple dev-ends are allowed**) and **client** (receives by
+> default). Clients pull the newest version of each file across **all** dev-ends
+> (per-file mtime). There is **no "only 1 PRIMARY" enforcement** anymore, and
+> control is **UI-only** (no tray menu). The PRIMARY/SECONDARY material below is
+> kept for historical reference; where it conflicts, CODE_SYNC_MESH.md wins.
+
 ## 架构概述
 
 新的统一架构实现了以下关键特性：
@@ -128,16 +136,17 @@ def _on_set_primary():
     icon.title = get_title()
 ```
 
-## 同步启用条件
+## 同步启用条件（已更新 / updated）
 
-在SECONDARY模式下，同步只能在以下条件全部满足时启用：
+新模型不再要求"只能有 1 台 PRIMARY"。规则如下（详见 CODE_SYNC_MESH.md）：
 
-1. ✅ 当前是SECONDARY模式
-2. ✅ 网络上有且仅有1台PRIMARY服务器
-3. ✅ PRIMARY服务器不是本机
-4. ✅ PRIMARY服务器API已启用
+- **client**（默认）开机即接收，会从配置里的**所有 dev-end** 拉取，每个文件按
+  mtime 取最新版本（newest-wins）。允许存在多个 dev-end。
+- **dev** 默认**不**分发；每次启动后分发都是关闭的，必须在 UI 里手动开启
+  (`set_distributing(True)`)。dev 不会连接自身、也不会从其它端拉取代码。
 
-条件验证在 `UnifiedHTTPHandler._can_enable_sync()` 中实现。
+(The old single-PRIMARY validation in `UnifiedHTTPHandler._can_enable_sync()` no
+longer applies — multiple dev-ends are supported and clients pull from all of them.)
 
 ## 网络扫描
 

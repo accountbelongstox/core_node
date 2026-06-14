@@ -112,6 +112,24 @@ class ClientRegistry:
                     )
                 return existing
 
+            # A new connection for this client_id supersedes any previous one. If the
+            # old session still holds a different live websocket (a stale connection),
+            # close it so we never keep two live sockets for the same client (prevents
+            # the "same client stacks up more connections" problem).
+            if existing and existing.websocket is not None and existing.websocket is not websocket:
+                old_ws = existing.websocket
+                if self._is_websocket_connected(old_ws):
+                    try:
+                        # 4000 = app code "superseded": the client owning this old socket
+                        # must NOT auto-reconnect (a newer connection for the same
+                        # client_id took over) — otherwise the two sockets supersede each
+                        # other in a connect/disconnect churn loop.
+                        await old_ws.close(code=4000)
+                    except Exception:  # closing a stale socket may fail; ignore
+                        pass
+                if self.debug:
+                    ColorPrint.yellow(f"[ClientRegistry] Superseded stale connection for {client_id[:8]}...")
+
             session = ClientSession(
                 client_id=client_id,
                 websocket=websocket,
@@ -126,11 +144,27 @@ class ClientRegistry:
 
             return session
 
-    async def unregister_websocket_client(self, client_id: str):
-        """Mark a client as disconnected and drop the websocket reference."""
+    async def unregister_websocket_client(self, client_id: str, websocket: Any = None):
+        """
+        Mark a client as disconnected and drop the websocket reference.
+
+        Pass the closing `websocket` so a connection that was already SUPERSEDED by a
+        newer one for the same client_id does not clobber the live session (reconnect
+        race): if the session now holds a different websocket, this is a no-op.
+        """
         async with self._lock:
             session = self._clients.get(client_id)
             if not session:
+                return
+
+            if (
+                websocket is not None
+                and session.websocket is not None
+                and session.websocket is not websocket
+            ):
+                # A newer connection already replaced this one — leave it alone.
+                if self.debug:
+                    ColorPrint.blue(f"[ClientRegistry] Stale disconnect ignored for {client_id[:8]}...")
                 return
 
             session.status = ClientStatus.DISCONNECTED

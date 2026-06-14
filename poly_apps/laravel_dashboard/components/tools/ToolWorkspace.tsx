@@ -5,6 +5,7 @@ import { ToolItem, ToolConfig } from '../../types';
 import { DEFAULT_API_CONFIGS } from '../../constants';
 import { apiClient } from '../../services/api';
 import { getDefaultBaseURL } from '../../config/constants';
+import { getSharedBaseURL } from '../../core/api/base/BaseAPI';
 
 interface ToolWorkspaceProps {
   tool: ToolItem;
@@ -112,7 +113,7 @@ const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack, children })
                         type="text" 
                         value={config.apiUrl}
                         onChange={(e) => setConfig(prev => ({ ...prev, apiUrl: e.target.value }))}
-                        placeholder={`${getDefaultBaseURL()}/v1/...`}
+                        placeholder={`${getSharedBaseURL() || getDefaultBaseURL()}/v1/...`}
                         className="w-full bg-black/40 border border-white/10 rounded-lg p-2.5 text-sm text-white placeholder-slate-600 focus:border-indigo-500 outline-none font-mono"
                     />
                     <p className="text-[10px] text-slate-500">

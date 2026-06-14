@@ -17,7 +17,7 @@ import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable, Union
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_edge_tts
 from pycore.pyfoundations.system_paths import map_web_path
 

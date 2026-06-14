@@ -70,6 +70,12 @@ class RemoveItemsRequest(BaseModel):
 class ScreenshotIntervalRequest(BaseModel):
     """Set screenshot capture interval"""
     interval: int  # seconds
+    lang: str = "en"  # recognition + output language (drives OCR and the subtitle)
+
+
+class ScreenshotLangRequest(BaseModel):
+    """Set the screenshot recognition/output language (applies live)."""
+    lang: str
 
 
 # ============================================================
@@ -506,12 +512,20 @@ async def start_screenshot_monitor(request: ScreenshotIntervalRequest):
         interval: Capture interval in seconds
     """
     services = get_background_services()
-    services.start_screenshot_monitor(interval=request.interval)
+    services.start_screenshot_monitor(interval=request.interval, lang=request.lang)
 
     return {
         "success": True,
-        "message": f"Screenshot monitoring started (interval: {request.interval}s)"
+        "message": f"Screenshot monitoring started (interval: {request.interval}s, lang: {request.lang})"
     }
+
+
+@router.post("/screenshot-monitor/language")
+async def set_screenshot_language(request: ScreenshotLangRequest):
+    """Set the recognition/output language (applies on the next capture)."""
+    services = get_background_services()
+    services.set_screenshot_lang(request.lang)
+    return {"success": True, "lang": request.lang}
 
 
 @router.post("/screenshot-monitor/stop")
@@ -534,7 +548,8 @@ async def get_screenshot_monitor_status():
     return {
         "success": True,
         "enabled": services.is_screenshot_enabled(),
-        "interval": services.get_screenshot_interval()
+        "interval": services.get_screenshot_interval(),
+        "lang": services.get_screenshot_lang()
     }
 
 

@@ -79,6 +79,12 @@ export interface ToolConfig {
   history?: boolean;
   favorites?: boolean;
   cache?: boolean;
+  /**
+   * When true, the tool's backend endpoint does not exist yet. The UI shows it
+   * with a muted "coming soon" badge and a disabled Execute button so the API
+   * is never called.
+   */
+  unavailable?: boolean;
 }
 
 /**

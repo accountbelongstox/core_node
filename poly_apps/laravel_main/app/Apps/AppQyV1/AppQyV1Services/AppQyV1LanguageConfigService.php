@@ -403,6 +403,50 @@ class AppQyV1LanguageConfigService
     }
 
     /**
+     * Normalize any stored language value to its ISO 639-1 code.
+     *
+     * Accepts both 2-letter codes ('en') and full English names ('english',
+     * as stored on vocabulary_libraries.language) and returns the code form.
+     * Unknown values are returned lowercased/trimmed as-is so that callers
+     * comparing mixed or unexpected data never crash.
+     */
+    public static function normalizeToCode(string $language): string
+    {
+        $normalized = strtolower(trim($language));
+        if ($normalized === '') {
+            return $normalized;
+        }
+
+        if (isset(self::ALL_LANGUAGES[$normalized])) {
+            return $normalized;
+        }
+
+        if (isset(self::LANGUAGE_NAME_MAP[$normalized])) {
+            return self::LANGUAGE_NAME_MAP[$normalized];
+        }
+
+        foreach (self::ALL_LANGUAGES as $code => $info) {
+            if (isset($info['name']) && strtolower($info['name']) === $normalized) {
+                return $code;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Compare two language values regardless of storage form.
+     *
+     * Symmetric: a group stored as 'en' matches a library stored as
+     * 'english' and vice versa. Unknown values compare as plain
+     * lowercased strings.
+     */
+    public static function languagesMatch(string $first, string $second): bool
+    {
+        return self::normalizeToCode($first) === self::normalizeToCode($second);
+    }
+
+    /**
      * Get list of study language codes
      */
     public static function getStudyLanguageCodes(): array

@@ -1122,6 +1122,13 @@ map_web_path() {
             # Keep logs in Linux filesystem
             mapped_path="/var/log"
             ;;
+        "pg_mount")
+            # Native ext4 loop-mount target for the PostgreSQL D-drive image (WSL
+            # persistence). MUST be on the native Linux fs (NOT drvfs): the whole
+            # point is to give pg a postgres-owned, mode-0700 data dir that drvfs
+            # cannot provide. The data/image itself lives under "laravel_db".
+            mapped_path="/var/lib/postgresql/d"
+            ;;
         "programing")
             # Programming/development directory under base_path
             mapped_path="$base_path/programing"

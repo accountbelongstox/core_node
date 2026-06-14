@@ -134,6 +134,42 @@ class WorkerController extends Controller
     }
 
     /**
+     * Accept (acknowledge) a pulled task
+     *
+     * POST /api/worker/tasks/accept
+     *
+     * Pull already assigns atomically, so this is an idempotent acknowledgment
+     * kept for the documented pull -> accept -> result contract (the browser
+     * dictionary worker calls it for every task). Accepting a task you already
+     * own succeeds; a still-pending task is claimed; someone else's task is 409.
+     */
+    public function acceptTask(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'task_id' => 'required|string',
+            'worker_id' => 'required|string',
+        ]);
+
+        $outcome = $this->taskManager->acceptTask(
+            $validated['task_id'],
+            $validated['worker_id']
+        );
+
+        if ($outcome === 'not_found') {
+            return $this->notFound('Task or worker not found');
+        }
+
+        if ($outcome === 'conflict') {
+            return $this->error('Task is owned by another worker or already finished', 409);
+        }
+
+        return $this->success([
+            'task_id' => $validated['task_id'],
+            'worker_id' => $validated['worker_id'],
+        ], 'Task accepted');
+    }
+
+    /**
      * Submit task result
      *
      * POST /api/worker/tasks/result

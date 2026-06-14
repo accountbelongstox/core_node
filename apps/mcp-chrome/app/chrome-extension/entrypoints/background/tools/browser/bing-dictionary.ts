@@ -8,7 +8,7 @@ interface BingDictionaryParams {
   openInNewTab?: boolean;
 }
 
-interface BingDictionaryResult {
+export interface BingDictionaryResult {
   success: boolean;
   word: string | null;
   phonetics: Array<{

@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
@@ -123,6 +120,7 @@ class AppQyV1WordGroupQueryPublicController
             $sort_frequency = true;
         if (!$gcontent)
             $gcontent = "";
+        $join_sep = "\n";
         $new_gcontent = StrTool::combineIfNotIncluded($existGroup->gcontent, $gcontent, $join_sep);
         $words_content = implode("\n", $gwords);
         $frequency_content = $new_gcontent . "\n" . $words_content;
@@ -251,6 +249,9 @@ class AppQyV1WordGroupQueryPublicController
             $existGroup->gname = $gname;
         }
         $existGroup->save();
+        // Merged group total: gwords JSON words + the group_word_progress
+        // row's total_words cache - disjoint sources, both count.
+        $groupWordsPivotCount = $existGroup->pivotWordsCount();
         $personalDict = PDAPublic::addPersonDictionaries($mergeWords, $sort_frequency, $query_soft_delete);
         $did = $personalDict['id'];
         $personal_words = $personalDict['data'];
@@ -274,7 +275,7 @@ class AppQyV1WordGroupQueryPublicController
             'words_frequency_count' => count($existGroup->words_frequency),
             'gwords_count' => StrTool::wordCount($existGroup->gwords),
             'gcontent_count' => $new_gcontent_count,
-            'total_words' => count($existGroup->gwords),
+            'total_words' => count($existGroup->gwords) + $groupWordsPivotCount,
             'personal_lenght' => $personal_lenght,
             'personal_query_soft_delete' => $personalDict["query_soft_delete"],
             'fetch_gcontent' => $isGetGcontent,

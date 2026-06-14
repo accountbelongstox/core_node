@@ -230,25 +230,87 @@ GET /api/AppQyV1/vocabulary/libraries
 }
 ```
 
-#### 3. 获取统计信息
+#### 3. 获取统计信息（已扩展）
 ```
-GET /api/AppQyV1/vocabulary/statistics
+GET /api/app_qy_v1/vocabulary/statistics
 ```
 
 **参数:**
-- `language` (可选): 语言过滤，默认 "english"
+- `language` (可选): 语言过滤（语言代码或名称）。省略时返回所有语言汇总。
+- `include_words` (可选): 是否附带单词样本，默认 false。
+- `page` / `per_page` (可选): 当 `include_words=true` 时对单词分页。
+
+> ⚠️ **数据来源：** `total_words` / `languages[].total_words` 是
+> `vocabulary_libraries.total_words` 的求和，**包含跨词库的重复**。
+> 而翻译、有效性、覆盖率（TTS / 图片 / AI 复核）全部来自规范词典表
+> `tts_cache_{lang}`（按 canonical 单词去重），**不是**来自 `vocabulary_words` 词库表。
+> `tts_percentage` / `images_percentage` / `review_percentage` 现在是真实值，不再恒为 0。
 
 **响应:**
 ```json
 {
   "success": true,
   "data": {
-    "total_libraries": 8,
-    "total_words": 197357,
-    "recommended_count": 5
+    "summary": {
+      "total_languages": 1,
+      "total_libraries": 8,
+      "total_words": 197357,
+      "total_dictionary_words": 233197,
+      "total_with_translation": 180000,
+      "total_without_translation": 53197,
+      "total_valid_words": 233100,
+      "total_invalid_words": 97,
+      "total_validity_checked": 1200,
+      "tts_percentage": 42.5
+    },
+    "languages": [
+      {
+        "language": "english",
+        "language_code": "en",
+        "total_words": 197357,
+        "libraries_count": 8,
+        "dictionary_words": 233197,
+        "with_translation": 180000,
+        "without_translation": 53197,
+        "valid_words": 233100,
+        "invalid_words": 97,
+        "validity_checked": 1200,
+        "validity_unchecked": 231997,
+        "tts_percentage": 42.5,
+        "images_percentage": 3.1,
+        "review_percentage": 77.2
+      }
+    ]
   }
 }
 ```
+
+**字段说明:**
+- `summary.total_words`：词库求和（含重复）；`summary.total_dictionary_words`：词典去重单词总数。
+- `summary.total_with_translation` / `total_without_translation`：词典中有 / 无翻译的单词数。
+- `summary.total_valid_words` / `total_invalid_words` / `total_validity_checked`：有效 / 无效（仅显式标记） / 已被第三方检查的行数。
+- `languages[]` 在每种语言下重复上述维度，并提供 `validity_unchecked`（尚未检查）以及真实的
+  `tts_percentage`（has_audio / dictionary_words）、`images_percentage`、`review_percentage`（with_translation / dictionary_words）。
+
+#### 4. 单词有效性 API（新增）
+
+有效性是**显式的、由外部断言**的：每条词典行**默认有效**，仅当第三方校验客户端
+（核对单词是否真实存在于互联网）**显式上报为无效**时才变为无效；未检查的行保持有效。
+状态由迁移 `AppQyV1_2026_06_08_000000_add_validity_columns_to_tts_cache_tables.php`
+在 `tts_cache_{lang}` 上新增的列承载：`is_valid`（boolean，默认 true）、
+`validity_checked_at`（datetime，未检查时为 null）、`validity_source`（string）、`validity_note`（text）。
+
+```
+GET  /api/app_qy_v1/vocabulary/validity/pending?language=<code|name>&limit=<1..1000，默认100>
+     -> { language, count, words: [ { id, word, md5 } ] }   // 未检查、按查询次数从高到低
+
+POST /api/app_qy_v1/vocabulary/validity/report
+     body: { language?:<code|name，默认en>, source?:string,
+             results: [ { word?:string, md5?:string(32), is_valid:boolean, note?:string, source?:string } ] }
+     -> { language, updated, not_found, marked_valid, marked_invalid }
+```
+
+每条结果按 `md5` 匹配；仅提供 `word` 时按 `md5(word)` 匹配。
 
 ### 用户API (需要认证)
 

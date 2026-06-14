@@ -15,8 +15,17 @@ import {
 import { useToolModel } from '../../hooks';
 import { AI_TOOLS } from '../../config/tools.config';
 import ToolWrapper from '../universal/ToolWrapper';
-import BentoCard from '../BentoCard';
 import { commonClasses } from '../../styles/theme';
+import {
+  AI_BODY,
+  AI_GRID_2,
+  AI_GRID_3,
+  AiBentoCard,
+  AiToolActions,
+  AiToolEmpty,
+  AiToolField,
+  AiToolTips,
+} from '../ai-tools/ui';
 
 interface PromptTemplate {
   id: string;
@@ -29,12 +38,6 @@ interface PromptTemplate {
   timestamp: number;
 }
 
-/**
- * PromptForm - AI Prompt Manager using centralized architecture
- *
- * Before: 501 lines
- * After: ~280 lines (44% reduction)
- */
 const PromptForm: React.FC = () => {
   const config = AI_TOOLS.promptManager;
   const { isFavorite, toggleFavorite } = useToolModel(config);
@@ -47,7 +50,6 @@ const PromptForm: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState('all');
   const [copied, setCopied] = useState(false);
 
-  // Form state
   const [formName, setFormName] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [formContent, setFormContent] = useState('');
@@ -103,7 +105,7 @@ const PromptForm: React.FC = () => {
     if (saved) {
       try {
         setPrompts(JSON.parse(saved));
-      } catch (error) {
+      } catch {
         setPrompts(DEFAULT_PROMPTS);
       }
     } else {
@@ -228,111 +230,109 @@ const PromptForm: React.FC = () => {
       favorites={config.favorites}
       isFavorite={isFavorite}
       onToggleFavorite={toggleFavorite}
+      actions={
+        <button
+          onClick={handleNew}
+          className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 text-xs`}
+        >
+          <Plus className="w-4 h-4" />
+          New Prompt
+        </button>
+      }
     >
-      <div className="space-y-6">
-        {/* Header Actions */}
-        <div className="flex justify-end">
-          <button
-            onClick={handleNew}
-            className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
-          >
-            <Plus className="w-4 h-4" />
-            New Prompt
-          </button>
-        </div>
-
-        {/* Search and Filter */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search prompts..."
-              className={`${commonClasses.input} pl-10`}
-            />
+      <div className={AI_BODY}>
+        <AiBentoCard title="Search & Filter">
+          <div className={AI_GRID_2}>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search prompts..."
+                className={`${commonClasses.input} w-full pl-10`}
+              />
+            </div>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className={`${commonClasses.input} w-full`}
+            >
+              <option value="all">All Categories</option>
+              <option value="favorites">Favorites</option>
+              {CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
           </div>
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className={commonClasses.input}
-          >
-            <option value="all">All Categories</option>
-            <option value="favorites">Favorites</option>
-            {CATEGORIES.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-        </div>
+        </AiBentoCard>
 
-        {/* Editor Panel */}
         {(editMode || newPrompt) && (
-          <BentoCard title={editMode ? 'Edit Prompt' : 'New Prompt'}>
+          <AiBentoCard title={editMode ? 'Edit Prompt' : 'New Prompt'}>
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Prompt Name *</label>
+              <div className={AI_GRID_2}>
+                <AiToolField label="Prompt Name *">
                   <input
                     type="text"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="e.g., Translation Template"
-                    className={commonClasses.input}
+                    className={`${commonClasses.input} w-full`}
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Category *</label>
+                </AiToolField>
+                <AiToolField label="Category *">
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    className={commonClasses.input}
+                    className={`${commonClasses.input} w-full`}
                   >
                     {CATEGORIES.map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
-                </div>
+                </AiToolField>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Description</label>
+              <AiToolField label="Description">
                 <input
                   type="text"
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Brief description of what this prompt does"
-                  className={commonClasses.input}
+                  className={`${commonClasses.input} w-full`}
                 />
-              </div>
+              </AiToolField>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Prompt Content *
-                  <span className="text-xs text-slate-500 ml-2">
-                    Use {'{variable_name}'} for variables
-                  </span>
-                </label>
+              <AiToolField
+                label={
+                  <>
+                    Prompt Content *
+                    <span className="text-xs font-normal text-slate-500 ml-2">
+                      Use {'{variable_name}'} for variables
+                    </span>
+                  </>
+                }
+              >
                 <textarea
                   value={formContent}
                   onChange={(e) => setFormContent(e.target.value)}
                   placeholder="Enter your prompt template here..."
-                  className={`${commonClasses.input} h-48 font-mono text-sm resize-none`}
+                  className={`${commonClasses.input} w-full h-48 font-mono text-sm resize-none`}
                 />
                 {formContent && extractVariables(formContent).length > 0 && (
-                  <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
-                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                  <div className="mt-2 px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-950/30 border border-violet-200/60 dark:border-violet-800/40">
+                    <p className="text-xs text-violet-700 dark:text-violet-300">
                       Variables detected: {extractVariables(formContent).join(', ')}
                     </p>
                   </div>
                 )}
-              </div>
+              </AiToolField>
 
-              <div className="flex gap-2">
+              <AiToolActions className="!justify-start">
                 <button
                   onClick={handleSave}
                   disabled={!formName.trim() || !formContent.trim()}
-                  className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
+                  className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}
                 >
                   <Save className="w-4 h-4" />
                   Save
@@ -343,37 +343,32 @@ const PromptForm: React.FC = () => {
                 >
                   Cancel
                 </button>
-              </div>
+              </AiToolActions>
             </div>
-          </BentoCard>
+          </AiBentoCard>
         )}
 
-        {/* Prompts List */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className={AI_GRID_3}>
           {filteredPrompts.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <FolderOpen className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-              <p className="text-slate-500">No prompts found</p>
-            </div>
+            <AiToolEmpty icon={FolderOpen} message="No prompts found" />
           ) : (
             filteredPrompts.map(prompt => (
-              <BentoCard
+              <AiBentoCard
                 key={prompt.id}
-                className="hover:shadow-lg transition-shadow"
+                className="hover:shadow-md transition-shadow"
               >
                 <div className="space-y-3">
-                  {/* Header */}
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate">{prompt.name}</h3>
-                      <p className="text-xs text-slate-500">{prompt.category}</p>
+                      <h3 className="font-semibold truncate text-slate-800 dark:text-slate-100">{prompt.name}</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{prompt.category}</p>
                     </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleTogglePromptFavorite(prompt.id);
                       }}
-                      className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                      className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                     >
                       <Star
                         className={`w-4 h-4 ${
@@ -385,40 +380,37 @@ const PromptForm: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Description */}
                   {prompt.description && (
                     <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
                       {prompt.description}
                     </p>
                   )}
 
-                  {/* Variables */}
                   {prompt.variables.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-1.5">
                       {prompt.variables.slice(0, 3).map(variable => (
                         <span
                           key={variable}
-                          className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded"
+                          className="text-xs px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-md font-mono"
                         >
                           {variable}
                         </span>
                       ))}
                       {prompt.variables.length > 3 && (
-                        <span className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded">
+                        <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-md">
                           +{prompt.variables.length - 3}
                         </span>
                       )}
                     </div>
                   )}
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-1 pt-2 border-t border-slate-200/80 dark:border-slate-700/80">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleCopy(prompt.content);
                       }}
-                      className="flex-1 text-xs text-blue-600 hover:text-blue-700 flex items-center justify-center gap-1 p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
+                      className="flex-1 text-xs text-violet-600 hover:text-violet-700 dark:text-violet-400 flex items-center justify-center gap-1 py-2 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-lg transition-colors"
                     >
                       {copied ? (
                         <>
@@ -437,7 +429,7 @@ const PromptForm: React.FC = () => {
                         e.stopPropagation();
                         handleEdit(prompt);
                       }}
-                      className="flex-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 flex items-center justify-center gap-1 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                      className="flex-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center justify-center gap-1 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                     >
                       <Edit className="w-3 h-3" />
                       Edit
@@ -447,35 +439,26 @@ const PromptForm: React.FC = () => {
                         e.stopPropagation();
                         handleDelete(prompt.id);
                       }}
-                      className="flex-1 text-xs text-red-600 hover:text-red-700 flex items-center justify-center gap-1 p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                      className="flex-1 text-xs text-red-600 hover:text-red-700 dark:text-red-400 flex items-center justify-center gap-1 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                     >
                       <Trash2 className="w-3 h-3" />
                       Delete
                     </button>
                   </div>
                 </div>
-              </BentoCard>
+              </AiBentoCard>
             ))
           )}
         </div>
 
-        {/* Tips */}
-        <BentoCard title="Tips" className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20">
-          <ul className="text-sm space-y-2 text-slate-700 dark:text-slate-300">
-            <li className="flex items-start gap-2">
-              <Code className="w-4 h-4 mt-0.5 flex-shrink-0 text-purple-600" />
-              <span>Use curly braces like {'{variable_name}'} to create template variables</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <Star className="w-4 h-4 mt-0.5 flex-shrink-0 text-purple-600" />
-              <span>Mark frequently used prompts as favorites for quick access</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <FolderOpen className="w-4 h-4 mt-0.5 flex-shrink-0 text-purple-600" />
-              <span>Organize prompts by category to keep them manageable</span>
-            </li>
-          </ul>
-        </BentoCard>
+        <AiToolTips
+          accent="violet"
+          items={[
+            { icon: Code, text: "Use curly braces like {variable_name} to create template variables" },
+            { icon: Star, text: 'Mark frequently used prompts as favorites for quick access' },
+            { icon: FolderOpen, text: 'Organize prompts by category to keep them manageable' },
+          ]}
+        />
       </div>
     </ToolWrapper>
   );

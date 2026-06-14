@@ -71,16 +71,16 @@ export class McpV1API extends BaseAPI {
     return this.post('/task-dispatch/categories', { name });
   }
 
-  async executeTask(taskId: string): Promise<APIResponse> {
-    return this.post(`/tasks/${taskId}/execute`);
-  }
-
   async getCategoryFiles(categoryId: string): Promise<APIResponse> {
     return this.get(`/task-dispatch/categories/${categoryId}/files`);
   }
 
   async updateTaskStatus(categoryId: string, taskId: string, status: 'pending' | 'in_progress' | 'completed' | 'failed'): Promise<APIResponse> {
     return this.put(`/task-dispatch/queue/${categoryId}/tasks/${taskId}/status`, { status });
+  }
+
+  async deleteTask(categoryId: string, taskId: string): Promise<APIResponse> {
+    return this.delete(`/task-dispatch/queue/${categoryId}/tasks/${taskId}`);
   }
 
   async getLastTask(categoryId: string): Promise<APIResponse> {
@@ -171,7 +171,9 @@ export class McpV1API extends BaseAPI {
   }
 
   async getOcrEngineInfo(engine: string): Promise<APIResponse> {
-    return this.get('/ocr/engine-info', { engine });
+    // Backend reads `model_type` (general/scene/doc/number/english/chinese_traditional),
+    // not `engine`. Send the param under the name the controller actually reads.
+    return this.get('/ocr/engine-info', { model_type: engine });
   }
 
   // ========== Voice Subtitle (voice subtitle queue) ==========
@@ -368,7 +370,9 @@ export class McpV1API extends BaseAPI {
     try {
       const formData = new FormData();
       files.forEach((file) => {
-        formData.append('files', file);
+        // `files[]` (not `files`) so Laravel's $request->file('files') receives
+        // the whole array — a repeated bare `files` key keeps only the last file.
+        formData.append('files[]', file);
       });
 
       const url = `${this.baseURL}/static-resources/upload`;

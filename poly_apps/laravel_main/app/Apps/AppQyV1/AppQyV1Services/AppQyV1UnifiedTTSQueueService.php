@@ -2,26 +2,47 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\EdgeTTS\EdgeTTSService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TTSQueueMetrics;
+use Illuminate\Support\Facades\Schema;
 
 /**
- * Unified TTS Queue Service
+ * Unified TTS Queue Service — queue-less edition.
  *
- * Handles all types of TTS tasks:
- * - word: Single word TTS
- * - sentence: Sentence TTS
- * - article: Article split into sentences
+ * The intermediate app_qy_v1_tts_queue table is decommissioned. All task
+ * state now lives on the canonical tables, coordinated through
+ * AppQyV1DictionaryTTSCoordinator:
+ *   - word:    {prefix}_tts_cache_{lang} rows (tts_status / tts_attempts /
+ *              tts_priority / tts_locked_* / tts_requested_at / tts_completed_at)
+ *   - article: {prefix}_{lang}_article_library rows (same tts_* columns)
+ *   - sentence: STATELESS — there is no backing row anymore. A sentence task
+ *              is resolved against the deterministic EdgeTTS file path; when
+ *              the file is missing it is generated SYNCHRONOUSLY inline by
+ *              addTask (semantics change vs. the old queue, which deferred
+ *              sentence generation to the timer).
+ *
+ * External response shapes are byte-compatible with the legacy queue API
+ * (qy_capacitor + wordflow FE poll these): status strings
+ * pending/processing/completed/failed, per-result add statuses
+ * queued/moved_to_front/already_available/already_completed, not-found
+ * results carry an `error` key, audio_url built via AppQyV1TtsUrl::forPath.
+ *
+ * task_id is the coordinator's encoded id (rowId*1000 + typeDigit*100 +
+ * langIndex), so re-adding the same content always yields the same task_id
+ * (same canonical row).
  */
 class AppQyV1UnifiedTTSQueueService
 {
     private $ttsService;
+    private AppQyV1DictionaryTTSCoordinator $coordinator;
 
     const TYPE_WORD = 'word';
     const TYPE_SENTENCE = 'sentence';
@@ -31,6 +52,18 @@ class AppQyV1UnifiedTTSQueueService
     const STATUS_PROCESSING = 'processing';
     const STATUS_COMPLETED = 'completed';
     const STATUS_FAILED = 'failed';
+
+    /** Worker identity used for tts_locked_by claims made by the local Octane timer. */
+    const PROCESSOR_ID = 'octane-timer';
+
+    /** Default priority floor applied when a row is queued without 'beginning'. */
+    const PRIORITY_DEFAULT = 30;
+
+    /** Priority applied when a task is moved to the front of the queue. */
+    const PRIORITY_FRONT = 100;
+
+    /** Max ARTICLE rows processed per processQueue() run (articles are heavy). */
+    const ARTICLES_PER_RUN = 2;
 
     // Dynamic interval settings
     const INTERVAL_NORMAL = 2000000;    // 2 seconds in microseconds
@@ -51,6 +84,7 @@ class AppQyV1UnifiedTTSQueueService
     public function __construct()
     {
         $this->ttsService = new EdgeTTSService();
+        $this->coordinator = new AppQyV1DictionaryTTSCoordinator($this->ttsService);
     }
 
     /**
@@ -257,8 +291,19 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Add task to queue (auto-detect type or use specified type)
-     * If task exists, returns existing task info
+     * Add a TTS task (auto-detect type or use specified type).
+     *
+     * WORD / ARTICLE: idempotent against the canonical row — when the audio
+     * already exists 'already_available' is returned; otherwise the row is
+     * marked tts_status='pending' (created first when absent) and the encoded
+     * task_id is returned with status 'queued' (or 'moved_to_front' when
+     * position === 'beginning', which also raises tts_priority to 100).
+     *
+     * SENTENCE — SEMANTICS CHANGE: sentences have no backing row anymore.
+     * The deterministic file path is checked; on a miss the audio is
+     * generated SYNCHRONOUSLY inline. Success returns 'already_completed'
+     * with audio_url; failure returns success=false with the error. No
+     * task_id is ever issued for sentences.
      *
      * @param string $content Content text (word/sentence/article)
      * @param string $language Language code
@@ -281,198 +326,281 @@ class AppQyV1UnifiedTTSQueueService
             ];
         }
 
-        $contentHash = md5($content);
+        $language = strtolower($language);
 
-        // Check if audio already exists in dictionary (for words)
-        if ($type === self::TYPE_WORD) {
-            $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $contentHash);
-            if ($dictEntry && isset($dictEntry->tts_files) && !empty($dictEntry->tts_files)) {
-                foreach ($dictEntry->tts_files as $ttsFile) {
-                    if (isset($ttsFile['path'])) {
-                        $fullPath = $this->ttsService->getAudioPath($ttsFile['path']);
-                        if ($fullPath) {
-                            $dictEntry->incrementQueryCount();
-                            return [
-                                'success' => true,
-                                'status' => 'already_available',
-                                'audio_path' => $ttsFile['path'],
-                                'audio_url' => AppQyV1TtsUrl::forPath($ttsFile['path']),
-                            ];
-                        }
-                    }
-                }
-            }
+        if ($type === self::TYPE_SENTENCE) {
+            return $this->addSentenceTask($content, $language);
         }
 
-        // Check if task already exists in queue
-        $existing = AppQyV1TTSQueueModel::where('task_type', $type)
-            ->where('content_hash', $contentHash)
-            ->where('language', $language)
-            ->first();
-
-        if ($existing) {
-            // If task already exists in queue
-            if ($existing->status === self::STATUS_COMPLETED) {
-                // Already completed
-                return [
-                    'success' => true,
-                    'status' => 'already_completed',
-                    'task_id' => $existing->id,
-                    'audio_path' => $existing->audio_path,
-                    'audio_files' => $existing->audio_files,
-                ];
-            }
-
-            if ($existing->status === self::STATUS_PENDING) {
-                // Move to beginning if requested
-                if ($position === 'beginning') {
-                    // Set created_at to before the earliest pending task
-                    $earliest = AppQyV1TTSQueueModel::where('status', self::STATUS_PENDING)
-                        ->orderBy('created_at', 'asc')
-                        ->first();
-
-                    if ($earliest) {
-                        $existing->created_at = $earliest->created_at->subSecond();
-                    }
-                    $existing->requested_at = now();
-                    $existing->save();
-
-                    $this->clearQueueCache();
-
-                    return [
-                        'success' => true,
-                        'status' => 'moved_to_beginning',
-                        'task_id' => $existing->id,
-                        'queue_status' => $existing->status,
-                    ];
-                }
-
-                // Already in queue, no action needed
-                return [
-                    'success' => true,
-                    'status' => 'already_in_queue',
-                    'task_id' => $existing->id,
-                    'queue_status' => $existing->status,
-                ];
-            }
-
-            if ($existing->status === self::STATUS_FAILED) {
-                // Retry failed task
-                $existing->status = self::STATUS_PENDING;
-                $existing->retry_count = 0;
-                $existing->error_message = null;
-                $existing->started_at = null;
-                $existing->requested_at = now();
-
-                // Set position
-                if ($position === 'beginning') {
-                    $earliest = AppQyV1TTSQueueModel::where('status', self::STATUS_PENDING)
-                        ->orderBy('created_at', 'asc')
-                        ->first();
-
-                    if ($earliest) {
-                        $existing->created_at = $earliest->created_at->subSecond();
-                    }
-                }
-
-                $existing->save();
-
-                $this->clearQueueCache();
-
-                return [
-                    'success' => true,
-                    'status' => 'retry_queued',
-                    'task_id' => $existing->id,
-                    'queue_status' => $existing->status,
-                ];
-            }
-
-            // Task is processing
+        if (!in_array($language, AppQyV1DictionaryTTSCoordinator::supportedLanguages(), true)) {
             return [
-                'success' => true,
-                'status' => 'currently_processing',
-                'task_id' => $existing->id,
-                'queue_status' => $existing->status,
+                'success' => false,
+                'error' => 'Unsupported language: ' . $language,
             ];
         }
 
-        // Determine created_at based on position
-        $createdAt = now();
-        if ($position === 'beginning') {
-            // Insert before the earliest pending task
-            $earliest = AppQyV1TTSQueueModel::where('status', self::STATUS_PENDING)
-                ->orderBy('created_at', 'asc')
-                ->first();
+        if ($type === self::TYPE_WORD) {
+            return $this->addWordTask($content, $language, $position);
+        }
 
-            if ($earliest) {
-                $createdAt = $earliest->created_at->subSecond();
+        return $this->addArticleTask($content, $language, $position);
+    }
+
+    /**
+     * WORD task: resolve against the canonical dictionary row.
+     */
+    private function addWordTask(string $content, string $language, string $position): array
+    {
+        $contentHash = md5($content);
+
+        $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $contentHash);
+
+        // Audio already present and on disk -> immediately available.
+        if ($dictEntry && !empty($dictEntry->tts_files)) {
+            foreach ($dictEntry->tts_files as $ttsFile) {
+                if (isset($ttsFile['path'])) {
+                    $fullPath = $this->ttsService->getAudioPath($ttsFile['path']);
+                    if ($fullPath) {
+                        $dictEntry->incrementQueryCount();
+                        // Legacy shape: no task_id key on already_available.
+                        return [
+                            'success' => true,
+                            'status' => 'already_available',
+                            'audio_path' => $ttsFile['path'],
+                            'audio_url' => AppQyV1TtsUrl::forPath($ttsFile['path']),
+                        ];
+                    }
+                }
             }
         }
 
-        // Create new task
-        $task = AppQyV1TTSQueueModel::create([
-            'task_type' => $type,
-            'content_text' => $content,
-            'content_hash' => $contentHash,
-            'language' => $language,
-            'status' => self::STATUS_PENDING,
-            'priority' => 0, // No longer used, kept for compatibility
-            'requested_at' => now(),
-            'created_at' => $createdAt,
-            'updated_at' => now(),
-        ]);
+        // Auto-create the dictionary row when absent (mirrors the old queue's
+        // auto-create of an orphan task).
+        if (!$dictEntry) {
+            $dictEntry = AppQyV1LangDictionaryModel::forLanguage($language);
+            $dictEntry->content = $content;
+            $dictEntry->md5 = $contentHash;
+            $dictEntry->has_translation = false;
+            $dictEntry->has_audio = false;
+            $dictEntry->is_valid = true;
+            $dictEntry->query_count = 0;
+            AppQyV1LangDictionaryModel::forgetMetricsCache($language);
+        }
+
+        $status = $this->markRowPending($dictEntry, $position);
 
         $this->clearQueueCache();
 
         return [
             'success' => true,
-            'status' => 'queued',
-            'task_id' => $task->id,
-            'task_type' => $type,
+            'status' => $status,
+            'task_id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $dictEntry->id, self::TYPE_WORD, $language),
+            'task_type' => self::TYPE_WORD,
             'position' => $position,
         ];
     }
 
     /**
-     * Get queue summary with pagination
+     * ARTICLE task: resolve against the canonical article row.
+     */
+    private function addArticleTask(string $content, string $language, string $position): array
+    {
+        $contentHash = md5($content);
+
+        $article = AppQyV1ArticleLibraryModel::findByMd5($language, $contentHash);
+
+        if ($article && $article->has_audio && !empty($article->audio_files)) {
+            return [
+                'success' => true,
+                'status' => 'already_completed',
+                'task_id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $article->id, self::TYPE_ARTICLE, $language),
+                'audio_path' => null,
+                'audio_files' => $article->audio_files,
+            ];
+        }
+
+        if (!$article) {
+            $article = AppQyV1ArticleLibraryModel::createOrFind($language, $content, [
+                'source' => 'tts_api',
+            ]);
+        }
+
+        $status = $this->markRowPending($article, $position);
+
+        $this->clearQueueCache();
+
+        return [
+            'success' => true,
+            'status' => $status,
+            'task_id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $article->id, self::TYPE_ARTICLE, $language),
+            'task_type' => self::TYPE_ARTICLE,
+            'position' => $position,
+        ];
+    }
+
+    /**
+     * SENTENCE task: stateless. Deterministic file check, then synchronous
+     * inline generation (no row, no task_id, no deferred processing).
+     */
+    private function addSentenceTask(string $content, string $language): array
+    {
+        $relativePath = $this->ttsService->buildRelativePath($content, $language, 'sentence');
+        $fullPath = $this->ttsService->getAudioPath($relativePath);
+
+        if ($fullPath) {
+            return [
+                'success' => true,
+                'status' => 'already_available',
+                'audio_path' => $relativePath,
+                'audio_url' => AppQyV1TtsUrl::forPath($relativePath),
+            ];
+        }
+
+        $result = $this->ttsService->generateAudio($content, $language, 'sentence');
+
+        if (!empty($result['success'])) {
+            $audioPath = $result['audio_path'] ?? $relativePath;
+            return [
+                'success' => true,
+                'status' => 'already_completed',
+                'audio_path' => $audioPath,
+                'audio_url' => AppQyV1TtsUrl::forPath($audioPath),
+            ];
+        }
+
+        return [
+            'success' => false,
+            'error' => $result['error'] ?? 'Sentence TTS generation failed',
+        ];
+    }
+
+    /**
+     * Flip a canonical row (word or article) to tts_status='pending' and
+     * return the external add-status string (queued|moved_to_front).
+     */
+    private function markRowPending($row, string $position): string
+    {
+        $row->tts_status = self::STATUS_PENDING;
+        if (!$row->tts_requested_at) {
+            $row->tts_requested_at = now();
+        }
+
+        // Re-adding a failed row re-queues it with a fresh retry budget.
+        $row->tts_attempts = 0;
+        $row->tts_error = null;
+        $row->tts_locked_at = null;
+        $row->tts_locked_by = null;
+
+        if ($position === 'beginning') {
+            $row->tts_priority = self::PRIORITY_FRONT;
+            $status = 'moved_to_front';
+        } else {
+            $row->tts_priority = max((int) ($row->tts_priority ?? 0), self::PRIORITY_DEFAULT);
+            $status = 'queued';
+        }
+
+        $row->save();
+
+        return $status;
+    }
+
+    /**
+     * Get queue summary with pagination — served from the canonical tables.
+     *
+     * The "queue" is the set of rows whose tts_status has ever been set,
+     * fetched per language (capped), merged and paginated in PHP. tasks[]
+     * items keep the legacy TaskDetail shape (task_id, content_text,
+     * language, status, ...) for the pycore poller.
      */
     public function getQueueSummary(int $page = 1, int $perPage = 50, ?string $status = null, ?string $type = null): array
     {
+        $page = max(1, $page);
+        $perPage = max(1, $perPage);
+
         $cacheKey = "tts_queue_summary:{$page}:{$perPage}:{$status}:{$type}";
 
         return Cache::remember($cacheKey, now()->addSeconds(10), function () use ($page, $perPage, $status, $type) {
-            $query = AppQyV1TTSQueueModel::query();
+            // Sane per-language fetch cap: enough rows to fill the requested
+            // window even if a single language dominates the merged ordering.
+            $perLanguageCap = min($perPage * $page, 500);
 
-            if ($status) {
-                $query->where('status', $status);
+            $entries = $this->collectTrackedRows($type, $perLanguageCap);
+
+            // Filter by external status (statusOf), then sort by recency.
+            $items = [];
+            foreach ($entries as $entry) {
+                if ($status !== null && $entry['item']['status'] !== $status) {
+                    continue;
+                }
+                $items[] = $entry;
             }
 
-            if ($type) {
-                $query->where('task_type', $type);
-            }
+            usort($items, fn ($a, $b) => $b['sort'] <=> $a['sort']);
 
-            $total = $query->count();
-            $tasks = $query->orderBy('priority', 'desc')
-                ->orderBy('created_at', 'asc')
-                ->skip(($page - 1) * $perPage)
-                ->take($perPage)
-                ->get();
-
-            $items = $tasks->map(function ($task) {
-                return $this->formatTask($task);
-            });
+            $total = count($items);
+            $pageItems = array_slice($items, ($page - 1) * $perPage, $perPage);
 
             return [
-                'tasks' => $items,
+                'tasks' => array_values(array_map(fn ($e) => $e['item'], $pageItems)),
                 'pagination' => [
                     'current_page' => $page,
                     'per_page' => $perPage,
                     'total' => $total,
-                    'total_pages' => ceil($total / $perPage),
+                    'total_pages' => (int) ceil($total / $perPage),
                 ],
                 'statistics' => $this->getStatistics(),
             ];
         });
+    }
+
+    /**
+     * Collect rows with TTS tracking state from the canonical tables.
+     *
+     * @return array<int, array{sort:int, item:array}>
+     */
+    private function collectTrackedRows(?string $type, int $perLanguageCap): array
+    {
+        $entries = [];
+        $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+
+        foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
+            if ($type === null || $type === self::TYPE_WORD) {
+                $dictTable = AppQyV1TableMaps::getDictionaryTableName($lang);
+                if (Schema::connection($connName)->hasTable($dictTable)) {
+                    $rows = AppQyV1LangDictionaryModel::forLanguage($lang)
+                        ->whereNotNull('tts_status')
+                        ->orderByDesc('updated_at')
+                        ->limit($perLanguageCap)
+                        ->get();
+                    foreach ($rows as $row) {
+                        $entries[] = [
+                            'sort' => $row->updated_at ? $row->updated_at->getTimestamp() : 0,
+                            'item' => $this->formatWordRow($row, $lang),
+                        ];
+                    }
+                }
+            }
+
+            if ($type === null || $type === self::TYPE_ARTICLE) {
+                $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
+                if (Schema::connection($connName)->hasTable($articleTable)
+                    && Schema::connection($connName)->hasColumn($articleTable, 'tts_status')) {
+                    $rows = AppQyV1ArticleLibraryModel::forLanguage($lang)
+                        ->whereNotNull('tts_status')
+                        ->orderByDesc('updated_at')
+                        ->limit($perLanguageCap)
+                        ->get();
+                    foreach ($rows as $row) {
+                        $entries[] = [
+                            'sort' => $row->updated_at ? $row->updated_at->getTimestamp() : 0,
+                            'item' => $this->formatArticleRow($row, $lang),
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $entries;
     }
 
     /**
@@ -484,47 +612,55 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Get single task by ID
+     * Get single task by encoded task ID.
      */
     public function getTask(int $taskId): ?array
     {
-        $task = AppQyV1TTSQueueModel::find($taskId);
-
-        if (!$task) {
+        $decoded = AppQyV1DictionaryTTSCoordinator::decodeTaskId($taskId);
+        if (!$decoded) {
             return null;
         }
 
-        return $this->formatTask($task);
+        $lang = $decoded['language'];
+        $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+
+        if ($decoded['type'] === self::TYPE_WORD) {
+            $dictTable = AppQyV1TableMaps::getDictionaryTableName($lang);
+            if (!Schema::connection($connName)->hasTable($dictTable)) {
+                return null;
+            }
+            $row = AppQyV1LangDictionaryModel::forLanguage($lang)->find($decoded['row_id']);
+            return $row ? $this->formatWordRow($row, $lang) : null;
+        }
+
+        if ($decoded['type'] === self::TYPE_ARTICLE) {
+            $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
+            if (!Schema::connection($connName)->hasTable($articleTable)) {
+                return null;
+            }
+            $row = AppQyV1ArticleLibraryModel::forLanguage($lang)->find($decoded['row_id']);
+            return $row ? $this->formatArticleRow($row, $lang) : null;
+        }
+
+        // Sentences are stateless — no task ids are ever issued for them.
+        return null;
     }
 
     /**
-     * Get queue statistics
+     * Get queue statistics — delegated to the coordinator (live canonical
+     * counts), augmented with the legacy extra keys the FE displays.
      */
     public function getStatistics(): array
     {
         $cacheKey = 'tts_queue_statistics';
 
         return Cache::remember($cacheKey, now()->addSeconds(10), function () {
-            $completedCount = AppQyV1TTSQueueModel::where('status', self::STATUS_COMPLETED)->count();
-            $totalRetries = AppQyV1TTSQueueModel::sum('retry_count');
+            $stats = $this->coordinator->statistics();
 
-            return [
-                'by_status' => [
-                    'pending' => AppQyV1TTSQueueModel::where('status', self::STATUS_PENDING)->count(),
-                    'processing' => AppQyV1TTSQueueModel::where('status', self::STATUS_PROCESSING)->count(),
-                    'completed' => $completedCount,
-                    'failed' => AppQyV1TTSQueueModel::where('status', self::STATUS_FAILED)->count(),
-                ],
-                'by_type' => [
-                    'word' => AppQyV1TTSQueueModel::where('task_type', self::TYPE_WORD)->count(),
-                    'sentence' => AppQyV1TTSQueueModel::where('task_type', self::TYPE_SENTENCE)->count(),
-                    'article' => AppQyV1TTSQueueModel::where('task_type', self::TYPE_ARTICLE)->count(),
-                ],
-                'total' => AppQyV1TTSQueueModel::count(),
-                'current_concurrent' => \App\Services\EdgeTTS\EdgeTTSService::getConcurrentCount(),
-                'total_success' => $completedCount,
-                'total_retries' => $totalRetries,
-            ];
+            $stats['current_concurrent'] = EdgeTTSService::getConcurrentCount();
+            $stats['total_success'] = $stats['by_status']['completed'] ?? 0;
+
+            return $stats;
         });
     }
 
@@ -577,7 +713,6 @@ class AppQyV1UnifiedTTSQueueService
     private function estimateTasksPerMinute(): float
     {
         $batchSize = $this->getIntelligentBatchSize();
-        $intervalSeconds = $this->getProcessingInterval() / 1000000;
         $timerIntervalSeconds = 60; // Timer runs every 60 seconds
 
         $batchesPerMinute = 60 / $timerIntervalSeconds;
@@ -591,7 +726,8 @@ class AppQyV1UnifiedTTSQueueService
      */
     private function estimateHoursToClearPending(): float
     {
-        $pending = AppQyV1TTSQueueModel::where('status', self::STATUS_PENDING)->count();
+        $stats = $this->getStatistics();
+        $pending = (int) ($stats['by_status']['pending'] ?? 0);
         $tasksPerMinute = $this->estimateTasksPerMinute();
 
         if ($tasksPerMinute <= 0) {
@@ -626,83 +762,105 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Format task for API response
+     * Legacy TaskDetail shape for a canonical WORD row.
      */
-    private function formatTask($task): array
+    private function formatWordRow($row, string $lang): array
     {
+        $status = AppQyV1DictionaryTTSCoordinator::statusOf($row);
+
         $formatted = [
-            'task_id' => $task->id,
-            'task_type' => $task->task_type,
-            'content_text' => $task->content_text,
-            'language' => $task->language,
-            'status' => $task->status,
-            'priority' => $task->priority,
-            'retry_count' => $task->retry_count,
+            'task_id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $row->id, self::TYPE_WORD, $lang),
+            'task_type' => self::TYPE_WORD,
+            'content_text' => $row->content,
+            'language' => $lang,
+            'status' => $status,
+            'priority' => (int) ($row->tts_priority ?? 0),
+            'retry_count' => (int) ($row->tts_attempts ?? 0),
         ];
 
-        // If completed, return complete audio information
-        if ($task->status === self::STATUS_COMPLETED) {
-            // Article type - return sentence mapping
-            if ($task->task_type === self::TYPE_ARTICLE && !empty($task->audio_files)) {
-                $formatted['audio_files'] = $task->audio_files;
-                $formatted['sentence_mapping'] = $this->extractSentenceMapping($task);
-            }
-            // Word/sentence type - return audio path
-            elseif ($task->audio_path) {
-                $formatted['audio_path'] = $task->audio_path;
-                // audio_path already contains language/type/speed/filename, so just prepend the base path
-                $formatted['audio_url'] = AppQyV1TtsUrl::forPath($task->audio_path);
-            }
-            // Try to get from dictionary fallback (word type)
-            elseif ($task->task_type === self::TYPE_WORD) {
-                $existingAudio = $this->checkAudioExists($task->content_text, $task->language, $task->task_type);
-                if ($existingAudio && isset($existingAudio['audio_path'])) {
-                    $formatted['audio_path'] = $existingAudio['audio_path'];
-                    $formatted['audio_url'] = $existingAudio['audio_url'];
-                    $formatted['source'] = 'dictionary';
-                }
-            }
-        }
-        // If pending or processing, try file fallback
-        elseif (in_array($task->status, [self::STATUS_PENDING, self::STATUS_PROCESSING])) {
-            $existingAudio = $this->checkAudioExists($task->content_text, $task->language, $task->task_type);
-            if ($existingAudio && $existingAudio['exists']) {
-                // File exists, return audio information
-                if (isset($existingAudio['audio_path'])) {
-                    $formatted['audio_path'] = $existingAudio['audio_path'];
-                    $formatted['audio_url'] = $existingAudio['audio_url'];
-                    $formatted['file_available'] = true;
-                    $formatted['source'] = 'dictionary_or_completed';
-                } elseif (isset($existingAudio['audio_files'])) {
-                    $formatted['audio_files'] = $existingAudio['audio_files'];
-                    $formatted['sentence_mapping'] = $existingAudio['sentence_mapping'] ?? [];
-                    $formatted['file_available'] = true;
-                    $formatted['source'] = 'completed_queue';
-                }
+        if ($status === self::STATUS_COMPLETED) {
+            $audioPath = $this->firstTtsFilePath($row);
+            if ($audioPath) {
+                $formatted['audio_path'] = $audioPath;
+                $formatted['audio_url'] = AppQyV1TtsUrl::forPath($audioPath);
             }
         }
 
-        if ($task->metadata) {
-            $formatted['metadata'] = $task->metadata;
+        if ($row->tts_error) {
+            $formatted['error_message'] = $row->tts_error;
         }
 
-        if ($task->error_message) {
-            $formatted['error_message'] = $task->error_message;
+        if ($row->tts_requested_at) {
+            $formatted['requested_at'] = $row->tts_requested_at->toISOString();
         }
 
-        if ($task->requested_at) {
-            $formatted['requested_at'] = $task->requested_at->toISOString();
+        if ($row->tts_locked_at) {
+            $formatted['started_at'] = $row->tts_locked_at->toISOString();
         }
 
-        if ($task->started_at) {
-            $formatted['started_at'] = $task->started_at->toISOString();
-        }
-
-        if ($task->completed_at) {
-            $formatted['completed_at'] = $task->completed_at->toISOString();
+        if ($row->tts_completed_at) {
+            $formatted['completed_at'] = $row->tts_completed_at->toISOString();
         }
 
         return $formatted;
+    }
+
+    /**
+     * Legacy TaskDetail shape for a canonical ARTICLE row.
+     */
+    private function formatArticleRow($row, string $lang): array
+    {
+        $status = AppQyV1DictionaryTTSCoordinator::statusOf($row);
+
+        $formatted = [
+            'task_id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $row->id, self::TYPE_ARTICLE, $lang),
+            'task_type' => self::TYPE_ARTICLE,
+            'content_text' => $row->content,
+            'language' => $lang,
+            'status' => $status,
+            'priority' => (int) ($row->tts_priority ?? 0),
+            'retry_count' => (int) ($row->tts_attempts ?? 0),
+        ];
+
+        if ($status === self::STATUS_COMPLETED && !empty($row->audio_files)) {
+            $formatted['audio_files'] = $row->audio_files;
+            $formatted['sentence_mapping'] = $this->buildSentenceMapping($row->audio_files, $lang);
+        }
+
+        if ($row->tts_error) {
+            $formatted['error_message'] = $row->tts_error;
+        }
+
+        if ($row->tts_requested_at) {
+            $formatted['requested_at'] = $row->tts_requested_at->toISOString();
+        }
+
+        if ($row->tts_locked_at) {
+            $formatted['started_at'] = $row->tts_locked_at->toISOString();
+        }
+
+        if ($row->tts_completed_at) {
+            $formatted['completed_at'] = $row->tts_completed_at->toISOString();
+        }
+
+        return $formatted;
+    }
+
+    /**
+     * First stored tts_files path of a dictionary row (the canonical word
+     * audio), or null.
+     */
+    private function firstTtsFilePath($row): ?string
+    {
+        $ttsFiles = $row->tts_files;
+        if (is_array($ttsFiles)) {
+            foreach ($ttsFiles as $ttsFile) {
+                if (isset($ttsFile['path'])) {
+                    return $ttsFile['path'];
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -714,9 +872,6 @@ class AppQyV1UnifiedTTSQueueService
      */
     public function batchAddTasks(array $tasks, string $position = 'end'): array
     {
-        // Pre-process: deduplicate queue before adding
-        $this->deduplicateQueue();
-
         $results = [];
 
         foreach ($tasks as $index => $taskData) {
@@ -749,22 +904,23 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Batch get tasks by IDs
+     * Batch get tasks by encoded IDs.
+     *
+     * Contract: a missing/undecodable id yields {task_id, error: 'Task not
+     * found'} — the presence of `error` marks not-found.
      *
      * @param array $taskIds Array of task IDs
      * @return array Array of task details
      */
     public function batchGetTasks(array $taskIds): array
     {
-        $tasks = AppQyV1TTSQueueModel::whereIn('id', $taskIds)->get();
-
         $results = [];
 
         foreach ($taskIds as $taskId) {
-            $task = $tasks->firstWhere('id', $taskId);
+            $detail = $this->getTask((int) $taskId);
 
-            if ($task) {
-                $results[] = $this->formatTask($task);
+            if ($detail) {
+                $results[] = $detail;
             } else {
                 $results[] = [
                     'task_id' => $taskId,
@@ -792,19 +948,16 @@ class AppQyV1UnifiedTTSQueueService
      */
     public function intelligentBatchQuery(array $queries, string $position = 'end'): array
     {
-        // Pre-process: deduplicate queue before querying
-        $this->deduplicateQueue();
-
         $results = [];
 
         foreach ($queries as $index => $query) {
             // Query by task_id
             if (isset($query['task_id'])) {
-                $task = AppQyV1TTSQueueModel::find($query['task_id']);
+                $detail = $this->getTask((int) $query['task_id']);
 
-                if ($task) {
+                if ($detail) {
                     $results[] = array_merge(
-                        $this->formatTask($task),
+                        $detail,
                         ['index' => $index, 'query_type' => 'task_id']
                     );
                 } else {
@@ -819,7 +972,7 @@ class AppQyV1UnifiedTTSQueueService
             // Query by content
             elseif (isset($query['content']) && isset($query['language'])) {
                 $content = $query['content'];
-                $language = $query['language'];
+                $language = strtolower($query['language']);
                 $type = $query['type'] ?? null;
                 $taskPosition = $query['position'] ?? $position;
 
@@ -827,8 +980,6 @@ class AppQyV1UnifiedTTSQueueService
                 if (!$type) {
                     $type = $this->detectType($content);
                 }
-
-                $contentHash = md5($content);
 
                 // Step 1: Check if audio file already exists (file transparency)
                 $existingAudio = $this->checkAudioExists($content, $language, $type);
@@ -860,31 +1011,31 @@ class AppQyV1UnifiedTTSQueueService
                     continue;
                 }
 
-                // Step 2: Check if task exists in queue
-                $existingTask = AppQyV1TTSQueueModel::where('task_type', $type)
-                    ->where('content_hash', $contentHash)
-                    ->where('language', $language)
-                    ->first();
+                // Step 2: Check whether the canonical row is already tracked
+                // (was the queue-row existence check).
+                $existing = $this->findTrackedRowDetail($content, $language, $type);
 
-                if ($existingTask) {
-                    // Task exists, return its current status
+                if ($existing) {
                     $results[] = array_merge(
-                        $this->formatTask($existingTask),
+                        $existing,
                         [
                             'index' => $index,
                             'query_type' => 'content',
                             'source' => 'existing_task',
                         ]
                     );
-                } else {
-                    // Step 3: Create new task
-                    $addResult = $this->addTask($content, $language, $type, $taskPosition);
+                    continue;
+                }
 
-                    if ($addResult['success']) {
-                        $newTask = AppQyV1TTSQueueModel::find($addResult['task_id']);
+                // Step 3: Create new task
+                $addResult = $this->addTask($content, $language, $type, $taskPosition);
 
+                if (!empty($addResult['success'])) {
+                    $detail = isset($addResult['task_id']) ? $this->getTask((int) $addResult['task_id']) : null;
+
+                    if ($detail) {
                         $results[] = array_merge(
-                            $this->formatTask($newTask),
+                            $detail,
                             [
                                 'index' => $index,
                                 'query_type' => 'content',
@@ -892,13 +1043,29 @@ class AppQyV1UnifiedTTSQueueService
                             ]
                         );
                     } else {
-                        $results[] = [
+                        // Stateless sentence: synchronous result, no row.
+                        $result = [
                             'index' => $index,
                             'query_type' => 'content',
-                            'error' => $addResult['error'] ?? 'Failed to create task',
+                            'status' => $addResult['status'] ?? 'already_completed',
                             'content' => $content,
+                            'language' => $language,
+                            'task_type' => $type,
+                            'source' => 'newly_created',
                         ];
+                        if (isset($addResult['audio_path'])) {
+                            $result['audio_path'] = $addResult['audio_path'];
+                            $result['audio_url'] = $addResult['audio_url'];
+                        }
+                        $results[] = $result;
                     }
+                } else {
+                    $results[] = [
+                        'index' => $index,
+                        'query_type' => 'content',
+                        'error' => $addResult['error'] ?? 'Failed to create task',
+                        'content' => $content,
+                    ];
                 }
             }
             // Invalid query format
@@ -918,6 +1085,39 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
+     * Locate the canonical row for content and return its TaskDetail when the
+     * row is already TTS-tracked (tts_status set) — the replacement for the
+     * old "task already exists in queue" lookup.
+     */
+    private function findTrackedRowDetail(string $content, string $language, string $type): ?array
+    {
+        if (!in_array($language, AppQyV1DictionaryTTSCoordinator::supportedLanguages(), true)) {
+            return null;
+        }
+
+        $contentHash = md5($content);
+
+        if ($type === self::TYPE_WORD) {
+            $row = AppQyV1LangDictionaryModel::findByMd5($language, $contentHash);
+            if ($row && $row->tts_status !== null) {
+                return $this->formatWordRow($row, $language);
+            }
+            return null;
+        }
+
+        if ($type === self::TYPE_ARTICLE) {
+            $row = AppQyV1ArticleLibraryModel::findByMd5($language, $contentHash);
+            if ($row && $row->tts_status !== null) {
+                return $this->formatArticleRow($row, $language);
+            }
+            return null;
+        }
+
+        // Sentences are stateless — never tracked.
+        return null;
+    }
+
+    /**
      * Check if audio file exists and return it
      * Used for transparent file access
      *
@@ -928,10 +1128,15 @@ class AppQyV1UnifiedTTSQueueService
      */
     public function checkAudioExists(string $content, string $language, string $type): ?array
     {
+        $language = strtolower($language);
         $contentHash = md5($content);
 
-        // Check dictionary for words
+        // Words: canonical dictionary row + on-disk file.
         if ($type === self::TYPE_WORD) {
+            if (!in_array($language, AppQyV1DictionaryTTSCoordinator::supportedLanguages(), true)) {
+                return null;
+            }
+
             $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $contentHash);
             if ($dictEntry && $dictEntry->has_audio && !empty($dictEntry->tts_files)) {
                 foreach ($dictEntry->tts_files as $ttsFile) {
@@ -939,12 +1144,6 @@ class AppQyV1UnifiedTTSQueueService
                         $fullPath = $this->ttsService->getAudioPath($ttsFile['path']);
                         if ($fullPath && file_exists($fullPath)) {
                             $dictEntry->incrementQueryCount();
-
-                            // Update has_audio flag if needed
-                            if (!$dictEntry->has_audio) {
-                                $dictEntry->has_audio = true;
-                                $dictEntry->save();
-                            }
 
                             return [
                                 'exists' => true,
@@ -956,52 +1155,60 @@ class AppQyV1UnifiedTTSQueueService
                     }
                 }
             }
+
+            return null;
         }
 
-        // Check completed queue tasks
-        $completedTask = AppQyV1TTSQueueModel::where('task_type', $type)
-            ->where('content_hash', $contentHash)
-            ->where('language', $language)
-            ->where('status', self::STATUS_COMPLETED)
-            ->first();
-
-        if ($completedTask) {
-            if ($type === self::TYPE_ARTICLE && !empty($completedTask->audio_files)) {
-                // For articles, return sentence mapping
+        // Sentences: stateless deterministic file check.
+        if ($type === self::TYPE_SENTENCE) {
+            $relativePath = $this->ttsService->buildRelativePath($content, $language, 'sentence');
+            $fullPath = $this->ttsService->getAudioPath($relativePath);
+            if ($fullPath) {
                 return [
                     'exists' => true,
-                    'audio_files' => $completedTask->audio_files,
-                    'sentence_mapping' => $this->extractSentenceMapping($completedTask),
-                ];
-            } elseif ($completedTask->audio_path) {
-                return [
-                    'exists' => true,
-                    'audio_path' => $completedTask->audio_path,
-                    'audio_url' => AppQyV1TtsUrl::forPath("{$language}/{$type}/{$completedTask->audio_path}"),
+                    'audio_path' => $relativePath,
+                    'audio_url' => AppQyV1TtsUrl::forPath($relativePath),
                 ];
             }
+            return null;
+        }
+
+        // Articles: canonical article row carries the audio file list.
+        if ($type === self::TYPE_ARTICLE) {
+            if (!in_array($language, AppQyV1DictionaryTTSCoordinator::supportedLanguages(), true)) {
+                return null;
+            }
+
+            $article = AppQyV1ArticleLibraryModel::findByMd5($language, $contentHash);
+            if ($article && $article->has_audio && !empty($article->audio_files)) {
+                return [
+                    'exists' => true,
+                    'audio_files' => $article->audio_files,
+                    'sentence_mapping' => $this->buildSentenceMapping($article->audio_files, $language),
+                ];
+            }
+            return null;
         }
 
         return null;
     }
 
     /**
-     * Extract sentence MD5 mapping from article task
+     * Build the sentence MD5 mapping from an article's audio_files list.
      */
-    private function extractSentenceMapping($task): array
+    private function buildSentenceMapping($audioFiles, string $language): array
     {
         $mapping = [];
 
-        if (!empty($task->audio_files)) {
-            foreach ($task->audio_files as $index => $audioFile) {
+        if (!empty($audioFiles) && is_array($audioFiles)) {
+            foreach ($audioFiles as $index => $audioFile) {
                 if (isset($audioFile['sentence']) && isset($audioFile['path'])) {
-                    $sentenceMd5 = md5($audioFile['sentence']);
                     $mapping[] = [
                         'sentence_index' => $index,
                         'sentence_text' => $audioFile['sentence'],
-                        'sentence_md5' => $sentenceMd5,
+                        'sentence_md5' => md5($audioFile['sentence']),
                         'audio_path' => $audioFile['path'],
-                        'audio_url' => AppQyV1TtsUrl::forPath("{$task->language}/sentence/{$audioFile['path']}"),
+                        'audio_url' => AppQyV1TtsUrl::forPath($audioFile['path']),
                     ];
                 }
             }
@@ -1011,195 +1218,110 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Process queue items (called by timer task)
+     * Process pending items (called by timer task) — queue-less flow.
      *
-     * @param int|null $batchSize Number of items to process (null = use intelligent batch size)
+     * 1. Reap stale processing claims (crashed workers).
+     * 2. Claim pending WORD rows via the coordinator (atomic, per row) and
+     *    generate them inline, reporting completion/failure straight onto the
+     *    canonical rows.
+     * 3. Process a small number of pending ARTICLE rows: split into
+     *    sentences, generate each, and write audio_files + has_audio back to
+     *    the ARTICLE row (the old queue never wrote articles back — fixed).
+     *
+     * Keeps the adaptive batch-size/interval/error tracking and zero-byte
+     * file verification of the legacy implementation.
+     *
+     * @param int|null $batchSize Number of word items to process (null = intelligent batch size)
      * @return array Processing results
      */
     public function processQueue(?int $batchSize = null): array
     {
-        // Pre-process: deduplicate queue before processing
-        $this->deduplicateQueue();
+        $this->coordinator->reapStaleLocks();
 
         // Use intelligent batch size if not specified
         if ($batchSize === null || $batchSize === 0) {
             $batchSize = $this->getIntelligentBatchSize();
         }
 
-        // Always process from beginning of queue (earliest created_at = first in queue)
-        $items = AppQyV1TTSQueueModel::where('status', self::STATUS_PENDING)
-            ->orderBy('created_at', 'asc')
-            ->orderBy('id', 'asc')
-            ->limit($batchSize)
-            ->get();
-
         $processed = 0;
         $succeeded = 0;
         $failed = 0;
 
-        foreach ($items as $item) {
-            $item->status = self::STATUS_PROCESSING;
-            $item->started_at = now();
-            $item->save();
+        // ---- WORDS: claim across languages up to the batch size ----
+        $claimed = $this->coordinator->claimWords(self::PROCESSOR_ID, null, $batchSize);
 
+        foreach ($claimed as $task) {
+            $lang = $task['language'];
             $startTime = microtime(true);
 
             try {
-                $result = $this->processTask($item);
+                $result = $this->ttsService->generateAudio($task['content'], $lang, 'word');
 
-                if ($result['success']) {
-                    // Double-check: Verify audio file exists and is not zero-byte
-                    $audioPath = $result['audio_path'] ?? null;
-                    $audioFiles = $result['audio_files'] ?? null;
-                    
-                    if ($audioPath) {
-                        $fullPath = $this->ttsService->getAudioPath($audioPath);
-                        if (!$fullPath || !file_exists($fullPath)) {
-                            $errorMsg = 'Audio file not found after generation';
-                            Log::error('[UnifiedTTSQueue] Audio file not found after generation', [
-                                'task_id' => $item->id,
-                                'audio_path' => $audioPath,
-                            ]);
-                            // Mark as failed instead of throwing exception
-                            $item->status = self::STATUS_FAILED;
-                            $item->error_message = $errorMsg;
-                            $item->save();
-                            $this->handleProcessingError($errorMsg);
-                            continue;
-                        }
-                        
-                        $fileSize = filesize($fullPath);
-                        if ($fileSize === 0) {
-                            @unlink($fullPath);
-                            $errorMsg = 'Generated audio file is 0 bytes';
-                            Log::error('[UnifiedTTSQueue] Zero-byte audio file detected and deleted', [
-                                'task_id' => $item->id,
-                                'audio_path' => $audioPath,
-                            ]);
-                            // Mark as failed instead of throwing exception
-                            $item->status = self::STATUS_FAILED;
-                            $item->error_message = $errorMsg;
-                            $item->save();
-                            $this->handleProcessingError($errorMsg);
-                            continue;
-                        }
-                    } elseif ($audioFiles && is_array($audioFiles)) {
-                        // For article tasks, verify all audio files
-                        foreach ($audioFiles as $audioFile) {
-                            if (isset($audioFile['path'])) {
-                                $fullPath = $this->ttsService->getAudioPath($audioFile['path']);
-                                if ($fullPath && file_exists($fullPath)) {
-                                    $fileSize = filesize($fullPath);
-                                    if ($fileSize === 0) {
-                                        @unlink($fullPath);
-                                        $errorMsg = 'One or more audio files in article are 0 bytes';
-                                        Log::error('[UnifiedTTSQueue] Zero-byte audio file detected in article task', [
-                                            'task_id' => $item->id,
-                                            'audio_path' => $audioFile['path'],
-                                        ]);
-                                        // Mark as failed instead of throwing exception
-                                        $item->status = self::STATUS_FAILED;
-                                        $item->error_message = $errorMsg;
-                                        $item->save();
-                                        $this->handleProcessingError($errorMsg);
-                                        continue 2; // Continue outer loop
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    $item->status = self::STATUS_COMPLETED;
-                    $item->completed_at = now();
-                    $item->error_message = null; // Clear error on success
-                    $item->retry_count = 0; // Reset retry count
-
-                    if ($item->task_type === self::TYPE_ARTICLE && isset($result['audio_files'])) {
-                        $item->audio_files = $result['audio_files'];
-                    } elseif (isset($result['audio_path'])) {
-                        $item->audio_path = $result['audio_path'];
-                    }
-
-                    $item->save();
-                    $succeeded++;
-
-                    // Record processing time metrics
-                    $processingTimeMs = (microtime(true) - $startTime) * 1000;
-                    AppQyV1TTSQueueMetrics::recordProcessingTime($item->task_type, $processingTimeMs);
-
-                    // Update dictionary has_audio flag for words
-                    if ($item->task_type === self::TYPE_WORD) {
-                        $this->updateDictionaryHasAudio($item->language, $item->content_hash, true);
-                    }
-
-                    // Handle success: reset error counter and restore normal interval
-                    $this->handleProcessingSuccess();
-
-                    Log::info('[UnifiedTTSQueue] Task completed', [
-                        'task_id' => $item->id,
-                        'type' => $item->task_type,
-                        'language' => $item->language,
-                        'processing_time_ms' => round($processingTimeMs, 2),
+                // Re-fetch the canonical row (the claim returned raw fields only).
+                $entry = AppQyV1LangDictionaryModel::findByMd5($lang, $task['md5']);
+                if (!$entry) {
+                    Log::warning('[UnifiedTTSQueue] Claimed word row vanished', [
+                        'language' => $lang,
+                        'md5' => $task['md5'],
                     ]);
+                    $processed++;
+                    continue;
+                }
+
+                if (!empty($result['success'])) {
+                    $audioPath = $result['audio_path'] ?? null;
+                    $verifyError = $this->verifyGeneratedFile($audioPath);
+
+                    if ($verifyError !== null) {
+                        $this->coordinator->markWordFailed($entry, $lang, $verifyError, self::PROCESSOR_ID);
+                        $this->handleProcessingError($verifyError);
+                        if ($entry->tts_status === self::STATUS_FAILED) {
+                            $failed++;
+                        }
+                    } else {
+                        $this->coordinator->markWordCompleted($entry, $audioPath, 'edge-tts');
+                        AppQyV1LangDictionaryModel::forgetMetricsCache($lang);
+                        $succeeded++;
+
+                        $processingTimeMs = (microtime(true) - $startTime) * 1000;
+                        AppQyV1TTSQueueMetrics::recordProcessingTime(self::TYPE_WORD, $processingTimeMs);
+
+                        $this->handleProcessingSuccess();
+
+                        Log::info('[UnifiedTTSQueue] Word task completed', [
+                            'task_id' => $task['task_id'],
+                            'language' => $lang,
+                            'processing_time_ms' => round($processingTimeMs, 2),
+                        ]);
+                    }
                 } else {
                     $errorMsg = $result['error'] ?? 'Unknown error';
-
-                    // Handle error: increment error counter and extend interval if needed
+                    $this->coordinator->markWordFailed($entry, $lang, $errorMsg, self::PROCESSOR_ID);
                     $this->handleProcessingError($errorMsg);
-
-                    if ($item->retry_count < AppQyV1TTSQueueModel::MAX_RETRIES) {
-                        $item->status = self::STATUS_PENDING;
-                        $item->retry_count++;
-                        $item->error_message = $errorMsg;
-                        $item->save();
-
-                        Log::warning('[UnifiedTTSQueue] Task failed, will retry', [
-                            'task_id' => $item->id,
-                            'type' => $item->task_type,
-                            'retry_count' => $item->retry_count,
-                            'error' => $errorMsg,
-                        ]);
-                    } else {
-                        $item->status = self::STATUS_FAILED;
-                        $item->error_message = $errorMsg;
-                        $item->save();
+                    if ($entry->tts_status === self::STATUS_FAILED) {
                         $failed++;
-
-                        Log::error('[UnifiedTTSQueue] Task permanently failed', [
-                            'task_id' => $item->id,
-                            'type' => $item->task_type,
-                            'error' => $errorMsg,
-                        ]);
                     }
                 }
 
                 $processed++;
 
                 // Use dynamic interval between tasks (2 seconds normal, 5 seconds if frequent errors)
-                $interval = $this->getProcessingInterval();
-                usleep($interval);
-
+                usleep($this->getProcessingInterval());
             } catch (\Throwable $e) {
                 $errorMsg = $e->getMessage();
-
-                // Handle error: increment error counter and extend interval if needed
                 $this->handleProcessingError($errorMsg);
 
-                if ($item->retry_count < AppQyV1TTSQueueModel::MAX_RETRIES) {
-                    $item->status = self::STATUS_PENDING;
-                    $item->retry_count++;
-                    $item->error_message = $errorMsg;
-                    $item->save();
-                } else {
-                    $item->status = self::STATUS_FAILED;
-                    $item->error_message = $errorMsg;
-                    $item->save();
-                    $failed++;
+                $entry = AppQyV1LangDictionaryModel::findByMd5($lang, $task['md5']);
+                if ($entry) {
+                    $this->coordinator->markWordFailed($entry, $lang, $errorMsg, self::PROCESSOR_ID);
+                    if ($entry->tts_status === self::STATUS_FAILED) {
+                        $failed++;
+                    }
                 }
 
-                Log::error('[UnifiedTTSQueue] Exception during task processing', [
-                    'task_id' => $item->id,
-                    'type' => $item->task_type,
+                Log::error('[UnifiedTTSQueue] Exception during word task processing', [
+                    'task_id' => $task['task_id'],
+                    'language' => $lang,
                     'error' => $errorMsg,
                     'trace' => $e->getTraceAsString(),
                 ]);
@@ -1207,6 +1329,12 @@ class AppQyV1UnifiedTTSQueueService
                 $processed++;
             }
         }
+
+        // ---- ARTICLES: a small fixed number per run ----
+        $articleStats = $this->processPendingArticles(self::ARTICLES_PER_RUN);
+        $processed += $articleStats['processed'];
+        $succeeded += $articleStats['succeeded'];
+        $failed += $articleStats['failed'];
 
         // Clear cache after processing
         if ($processed > 0) {
@@ -1230,63 +1358,114 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Process a single task
+     * Process up to $maxArticles pending ARTICLE rows across languages:
+     * claim the row, split into sentences, generate each sentence, then write
+     * audio_files + has_audio + tts_* completion back to the article row.
+     *
+     * @return array{processed:int, succeeded:int, failed:int}
      */
-    private function processTask($task): array
+    private function processPendingArticles(int $maxArticles): array
     {
-        switch ($task->task_type) {
-            case self::TYPE_WORD:
-                return $this->processWordTask($task);
+        $processed = 0;
+        $succeeded = 0;
+        $failed = 0;
 
-            case self::TYPE_SENTENCE:
-                return $this->processSentenceTask($task);
+        $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
 
-            case self::TYPE_ARTICLE:
-                return $this->processArticleTask($task);
+        foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
+            if ($processed >= $maxArticles) {
+                break;
+            }
 
-            default:
-                return [
-                    'success' => false,
-                    'error' => 'Unknown task type: ' . $task->task_type,
-                ];
+            $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
+            if (!Schema::connection($connName)->hasTable($articleTable)
+                || !Schema::connection($connName)->hasColumn($articleTable, 'tts_status')) {
+                continue;
+            }
+
+            $articles = $this->coordinator->pendingArticlesQuery($lang)
+                ->limit($maxArticles - $processed)
+                ->get();
+
+            foreach ($articles as $article) {
+                // Claim: flip to processing with the local worker identity.
+                $article->tts_status = self::STATUS_PROCESSING;
+                $article->tts_locked_at = now();
+                $article->tts_locked_by = self::PROCESSOR_ID;
+                if (!$article->tts_requested_at) {
+                    $article->tts_requested_at = now();
+                }
+                $article->save();
+
+                $startTime = microtime(true);
+
+                try {
+                    $generation = $this->generateArticleAudio($article->content, $lang);
+
+                    if ($generation['success']) {
+                        // Write-back the old pipeline never did: the article row
+                        // is now the durable holder of its audio file list.
+                        $article->tts_status = self::STATUS_COMPLETED;
+                        $article->tts_completed_at = now();
+                        $article->tts_error = null;
+                        $article->tts_locked_at = null;
+                        $article->tts_locked_by = null;
+                        $article->addAudioFiles($generation['audio_files']); // saves; sets has_audio + tts_provider
+                        $succeeded++;
+
+                        $processingTimeMs = (microtime(true) - $startTime) * 1000;
+                        AppQyV1TTSQueueMetrics::recordProcessingTime(self::TYPE_ARTICLE, $processingTimeMs);
+
+                        $this->handleProcessingSuccess();
+
+                        Log::info('[UnifiedTTSQueue] Article task completed', [
+                            'language' => $lang,
+                            'article_id' => $article->id,
+                            'sentences' => count($generation['audio_files']),
+                            'processing_time_ms' => round($processingTimeMs, 2),
+                        ]);
+                    } else {
+                        $this->markArticleFailed($article, $generation['error']);
+                        $this->handleProcessingError($generation['error']);
+                        if ($article->tts_status === self::STATUS_FAILED) {
+                            $failed++;
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    $this->markArticleFailed($article, $e->getMessage());
+                    $this->handleProcessingError($e->getMessage());
+                    if ($article->tts_status === self::STATUS_FAILED) {
+                        $failed++;
+                    }
+
+                    Log::error('[UnifiedTTSQueue] Exception during article task processing', [
+                        'language' => $lang,
+                        'article_id' => $article->id,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                }
+
+                $processed++;
+
+                if ($processed >= $maxArticles) {
+                    break;
+                }
+            }
         }
+
+        return ['processed' => $processed, 'succeeded' => $succeeded, 'failed' => $failed];
     }
 
     /**
-     * Process word TTS generation
+     * Generate per-sentence audio for an article (legacy processArticleTask
+     * flow, including zero-byte verification per sentence file).
+     *
+     * @return array{success:bool, audio_files?:array, error?:string}
      */
-    private function processWordTask($task): array
+    private function generateArticleAudio(string $content, string $language): array
     {
-        $result = $this->ttsService->generateAudio(
-            $task->content_text,
-            $task->language,
-            'word'
-        );
-
-        return $result;
-    }
-
-    /**
-     * Process sentence TTS generation
-     */
-    private function processSentenceTask($task): array
-    {
-        $result = $this->ttsService->generateAudio(
-            $task->content_text,
-            $task->language,
-            'sentence'
-        );
-
-        return $result;
-    }
-
-    /**
-     * Process article TTS generation (split into sentences)
-     */
-    private function processArticleTask($task): array
-    {
-        // Split article into sentences
-        $sentences = $this->splitIntoSentences($task->content_text);
+        $sentences = $this->splitIntoSentences($content);
 
         if (empty($sentences)) {
             return [
@@ -1296,43 +1475,49 @@ class AppQyV1UnifiedTTSQueueService
         }
 
         $audioFiles = [];
-        $failed = false;
 
-        foreach ($sentences as $index => $sentence) {
+        foreach ($sentences as $sentence) {
             $sentence = trim($sentence);
             if (empty($sentence)) {
                 continue;
             }
 
-            $result = $this->ttsService->generateAudio(
-                $sentence,
-                $task->language,
-                'sentence'
-            );
+            $result = $this->ttsService->generateAudio($sentence, $language, 'sentence');
 
-            if ($result['success']) {
-                $audioFiles[] = [
-                    'sentence' => $sentence,
-                    'path' => $result['audio_path'] ?? null,
-                    'created_at' => now()->toDateTimeString(),
-                ];
-            } else {
-                $failed = true;
+            if (empty($result['success'])) {
                 Log::error('[UnifiedTTSQueue] Failed to generate audio for sentence', [
-                    'task_id' => $task->id,
+                    'language' => $language,
                     'sentence' => $sentence,
                     'error' => $result['error'] ?? 'Unknown error',
                 ]);
-                break;
+                return [
+                    'success' => false,
+                    'error' => 'Failed to generate audio for some sentences',
+                ];
             }
+
+            $audioPath = $result['audio_path'] ?? null;
+            $verifyError = $this->verifyGeneratedFile($audioPath);
+            if ($verifyError !== null) {
+                return [
+                    'success' => false,
+                    'error' => $verifyError,
+                ];
+            }
+
+            $audioFiles[] = [
+                'sentence' => $sentence,
+                'path' => $audioPath,
+                'created_at' => now()->toDateTimeString(),
+            ];
 
             usleep(100000); // 100ms delay between sentences
         }
 
-        if ($failed) {
+        if (empty($audioFiles)) {
             return [
                 'success' => false,
-                'error' => 'Failed to generate audio for some sentences',
+                'error' => 'No sentences found in article',
             ];
         }
 
@@ -1340,6 +1525,51 @@ class AppQyV1UnifiedTTSQueueService
             'success' => true,
             'audio_files' => $audioFiles,
         ];
+    }
+
+    /**
+     * Record a failed attempt on an article row (retry budget on the row).
+     */
+    private function markArticleFailed($article, string $error): void
+    {
+        $attempts = (int) $article->tts_attempts + 1;
+        $article->tts_attempts = $attempts;
+        $article->tts_error = mb_substr($error, 0, 2000);
+        $article->tts_status = $attempts >= AppQyV1DictionaryTTSCoordinator::MAX_ATTEMPTS
+            ? self::STATUS_FAILED
+            : self::STATUS_PENDING;
+        $article->tts_locked_at = null;
+        $article->tts_locked_by = null;
+        $article->save();
+    }
+
+    /**
+     * Zero-byte / existence verification of a freshly generated audio file.
+     * Returns an error string (and removes a zero-byte file) or null when OK.
+     */
+    private function verifyGeneratedFile(?string $relativePath): ?string
+    {
+        if (!$relativePath) {
+            return 'Audio file not found after generation';
+        }
+
+        $fullPath = $this->ttsService->getAudioPath($relativePath);
+        if (!$fullPath || !file_exists($fullPath)) {
+            Log::error('[UnifiedTTSQueue] Audio file not found after generation', [
+                'audio_path' => $relativePath,
+            ]);
+            return 'Audio file not found after generation';
+        }
+
+        if (filesize($fullPath) === 0) {
+            @unlink($fullPath);
+            Log::error('[UnifiedTTSQueue] Zero-byte audio file detected and deleted', [
+                'audio_path' => $relativePath,
+            ]);
+            return 'Generated audio file is 0 bytes';
+        }
+
+        return null;
     }
 
     /**
@@ -1370,33 +1600,15 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Update dictionary has_audio flag
-     */
-    private function updateDictionaryHasAudio(string $language, string $contentHash, bool $hasAudio): void
-    {
-        try {
-            $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $contentHash);
-            if ($dictEntry && $dictEntry->has_audio !== $hasAudio) {
-                $dictEntry->has_audio = $hasAudio;
-                $dictEntry->save();
-            }
-        } catch (\Throwable $e) {
-            Log::warning('[UnifiedTTSQueue] Failed to update dictionary has_audio flag', [
-                'language' => $language,
-                'hash' => $contentHash,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * Clean old completed items
+     * Clean old completed items — NO-OP.
+     *
+     * Completed state lives permanently on the canonical tables (it IS the
+     * data); there is no intermediate queue left to prune. Kept for caller
+     * compatibility.
      */
     public function cleanQueue(int $days = 7): int
     {
-        return AppQyV1TTSQueueModel::where('status', self::STATUS_COMPLETED)
-            ->where('completed_at', '<', now()->subDays($days))
-            ->delete();
+        return 0;
     }
 
     /**
@@ -1405,6 +1617,7 @@ class AppQyV1UnifiedTTSQueueService
     private function clearQueueCache(): void
     {
         Cache::forget('tts_queue_statistics');
+        Cache::forget('tts_queue_recent_logs:100');
         // Clear summary cache pattern
         foreach (range(1, 10) as $page) {
             foreach ([null, 'pending', 'processing', 'completed', 'failed'] as $status) {
@@ -1416,140 +1629,150 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Deduplicate queue - remove duplicate pending tasks
-     * Keep the OLDEST task (lowest ID) for each unique combination
+     * Deduplicate queue — NO-OP.
      *
-     * Uses cache to prevent running too frequently (max once per minute)
+     * md5 is unique per canonical table, so duplicate tasks are structurally
+     * impossible in the queue-less design. Kept for caller compatibility.
      *
-     * @param bool $force Force deduplication even if recently run
+     * @param bool $force Unused (kept for signature compatibility)
      * @return array
      */
     public function deduplicateQueue(bool $force = false): array
     {
-        // Check if deduplication was recently run (within 60 seconds)
-        $cacheKey = 'tts_queue_last_dedup';
-        $lastRun = Cache::get($cacheKey);
-
-        if (!$force && $lastRun && now()->diffInSeconds($lastRun) < 60) {
-            return [
-                'success' => true,
-                'duplicates_found' => 0,
-                'deleted' => 0,
-                'skipped' => true,
-                'reason' => 'Recently deduplicated',
-            ];
-        }
-
-        // Find duplicates using Laravel query builder
-        $duplicates = AppQyV1TTSQueueModel::whereIn('status', ['pending', 'processing', 'failed'])
-            ->select('content_hash', 'language', 'task_type')
-            ->selectRaw('COUNT(*) as count')
-            ->groupBy('content_hash', 'language', 'task_type')
-            ->havingRaw('COUNT(*) > 1')
-            ->get();
-
-        if ($duplicates->isEmpty()) {
-            Cache::put($cacheKey, now(), 120); // Cache for 2 minutes
-            return [
-                'success' => true,
-                'duplicates_found' => 0,
-                'deleted' => 0,
-            ];
-        }
-
-        $totalDeleted = 0;
-
-        foreach ($duplicates as $dup) {
-            // Get all tasks with this combination
-            $tasks = AppQyV1TTSQueueModel::where('content_hash', $dup->content_hash)
-                ->where('language', $dup->language)
-                ->where('task_type', $dup->task_type)
-                ->whereIn('status', ['pending', 'processing', 'failed'])
-                ->orderBy('id', 'asc')
-                ->get();
-
-            // Keep the first (oldest), delete the rest
-            $first = true;
-            foreach ($tasks as $task) {
-                if ($first) {
-                    $first = false;
-                    continue;
-                }
-                $task->delete();
-                $totalDeleted++;
-            }
-        }
-
-        $this->clearQueueCache();
-        Cache::put($cacheKey, now(), 120); // Cache for 2 minutes
-
-        Log::info('[UnifiedTTSQueue] Deduplicated queue', [
-            'duplicates_found' => $duplicates->count(),
-            'deleted' => $totalDeleted,
-        ]);
-
         return [
             'success' => true,
-            'duplicates_found' => $duplicates->count(),
-            'deleted' => $totalDeleted,
+            'removed' => 0,
+            'duplicates_found' => 0,
+            'deleted' => 0,
         ];
     }
 
     /**
-     * Get recent task logs (recent 100 tasks with details)
+     * Get recent task logs: canonical rows with TTS tracking state, most
+     * recently updated first (same log item shape as the legacy queue rows).
      *
      * @param int $limit Number of logs to retrieve (default: 100)
      * @return array
      */
     public function getRecentLogs(int $limit = 100): array
     {
-        $tasks = AppQyV1TTSQueueModel::orderBy('updated_at', 'desc')
-            ->limit($limit)
-            ->get()
-            ->map(function ($task) {
-                return [
-                    'id' => $task->id,
-                    'task_type' => $task->task_type,
-                    'content_text' => mb_substr($task->content_text, 0, 50),
-                    'language' => $task->language,
-                    'status' => $task->status,
-                    'priority' => $task->priority,
-                    'retry_count' => $task->retry_count,
-                    'error_message' => $task->error_message,
-                    'audio_path' => $task->audio_path,
-                    'requested_at' => $task->requested_at?->toIso8601String(),
-                    'started_at' => $task->started_at?->toIso8601String(),
-                    'completed_at' => $task->completed_at?->toIso8601String(),
-                    'created_at' => $task->created_at?->toIso8601String(),
-                    'updated_at' => $task->updated_at?->toIso8601String(),
-                ];
-            });
+        $limit = max(1, min(1000, $limit));
+        $cacheKey = "tts_queue_recent_logs:{$limit}";
+
+        return Cache::remember($cacheKey, now()->addSeconds(10), function () use ($limit) {
+            $entries = [];
+            $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+
+            foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
+                $dictTable = AppQyV1TableMaps::getDictionaryTableName($lang);
+                if (Schema::connection($connName)->hasTable($dictTable)) {
+                    $rows = AppQyV1LangDictionaryModel::forLanguage($lang)
+                        ->whereNotNull('tts_status')
+                        ->orderByDesc('updated_at')
+                        ->limit($limit)
+                        ->get();
+                    foreach ($rows as $row) {
+                        $entries[] = [
+                            'sort' => $row->updated_at ? $row->updated_at->getTimestamp() : 0,
+                            'log' => $this->formatLogRow($row, $lang, self::TYPE_WORD),
+                        ];
+                    }
+                }
+
+                $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
+                if (Schema::connection($connName)->hasTable($articleTable)
+                    && Schema::connection($connName)->hasColumn($articleTable, 'tts_status')) {
+                    $rows = AppQyV1ArticleLibraryModel::forLanguage($lang)
+                        ->whereNotNull('tts_status')
+                        ->orderByDesc('updated_at')
+                        ->limit($limit)
+                        ->get();
+                    foreach ($rows as $row) {
+                        $entries[] = [
+                            'sort' => $row->updated_at ? $row->updated_at->getTimestamp() : 0,
+                            'log' => $this->formatLogRow($row, $lang, self::TYPE_ARTICLE),
+                        ];
+                    }
+                }
+            }
+
+            usort($entries, fn ($a, $b) => $b['sort'] <=> $a['sort']);
+            $logs = array_values(array_map(fn ($e) => $e['log'], array_slice($entries, 0, $limit)));
+
+            return [
+                'total' => count($logs),
+                'limit' => $limit,
+                'logs' => $logs,
+            ];
+        });
+    }
+
+    /**
+     * Legacy log-item shape for one canonical row.
+     */
+    private function formatLogRow($row, string $lang, string $type): array
+    {
+        $audioPath = $type === self::TYPE_WORD ? $this->firstTtsFilePath($row) : null;
 
         return [
-            'total' => $tasks->count(),
-            'limit' => $limit,
-            'logs' => $tasks->toArray(),
+            'id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $row->id, $type, $lang),
+            'task_type' => $type,
+            'content_text' => mb_substr((string) $row->content, 0, 50),
+            'language' => $lang,
+            'status' => AppQyV1DictionaryTTSCoordinator::statusOf($row),
+            'priority' => (int) ($row->tts_priority ?? 0),
+            'retry_count' => (int) ($row->tts_attempts ?? 0),
+            'error_message' => $row->tts_error,
+            'audio_path' => $audioPath,
+            'requested_at' => $row->tts_requested_at?->toIso8601String(),
+            'started_at' => $row->tts_locked_at?->toIso8601String(),
+            'completed_at' => $row->tts_completed_at?->toIso8601String(),
+            'created_at' => $row->created_at?->toIso8601String(),
+            'updated_at' => $row->updated_at?->toIso8601String(),
         ];
     }
 
     /**
-     * Re-queue failed tasks to beginning of queue (highest priority)
+     * Re-queue failed tasks to front of queue (highest priority).
+     *
+     * Per-language UPDATE on the canonical tables: failed rows that still
+     * lack audio get tts_status='pending', a fresh retry budget and front
+     * priority.
      *
      * @return array
      */
     public function requeueFailedTasks(): array
     {
-        $failedTasks = AppQyV1TTSQueueModel::where('status', self::STATUS_FAILED)->get();
-
         $requeued = 0;
-        foreach ($failedTasks as $task) {
-            $task->status = self::STATUS_PENDING;
-            $task->priority = 100; // Highest priority
-            $task->retry_count = 0;
-            $task->error_message = null;
-            $task->started_at = null;
-            $task->save();
-            $requeued++;
+        $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+        $conn = DB::connection($connName);
+
+        $resetValues = [
+            'tts_status' => self::STATUS_PENDING,
+            'tts_attempts' => 0,
+            'tts_priority' => self::PRIORITY_FRONT,
+            'tts_error' => null,
+            'tts_locked_at' => null,
+            'tts_locked_by' => null,
+        ];
+
+        foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
+            $dictTable = AppQyV1TableMaps::getDictionaryTableName($lang);
+            if (Schema::connection($connName)->hasTable($dictTable)) {
+                $requeued += $conn->table($dictTable)
+                    ->where('tts_status', self::STATUS_FAILED)
+                    ->where('has_audio', false)
+                    ->update($resetValues);
+            }
+
+            $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
+            if (Schema::connection($connName)->hasTable($articleTable)
+                && Schema::connection($connName)->hasColumn($articleTable, 'tts_status')) {
+                $requeued += $conn->table($articleTable)
+                    ->where('tts_status', self::STATUS_FAILED)
+                    ->where('has_audio', false)
+                    ->update($resetValues);
+            }
         }
 
         $this->clearQueueCache();

@@ -1,304 +1,297 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Windows Startup Manager - Auto-start on Windows Boot
+r"""
+Windows Startup Manager - Auto-start on Windows boot (PS1 + native shortcut)
 
-Manages Windows startup entries for pycore_module_caller.
-Creates/removes startup scripts in Windows Startup folder.
+Two-part design:
 
-Features:
-- Creates .bat script that uses pythonw.exe for background execution
-- 5-second delay before closing console (for debugging startup issues)
-- Toggle on/off with automatic file replacement
-- Supports current user startup folder
+  1. A **PowerShell launcher script (.ps1)** at a FIXED path under the user data
+     directory (``~/.core_node/data/autostart/PyCore_RPC_Server.ps1``). It runs
+     the repo's canonical entry point ``pyservice.ps1 -NoInstall`` so boot starts
+     the SAME stack as a manual run: the unified dashboard UI dev server
+     (poly_apps/laravel_dashboard, exported as PYCORE_UI_URL) and then the pycore
+     worker. Launching the bare worker directly is kept only as a fallback when
+     pyservice.ps1 cannot be found (it would skip the UI server, leaving the
+     PySide6 webview with nothing to load -> ERR_CONNECTION_REFUSED). The script
+     CONTENT is regenerated on every ``enable()`` AND on every service start
+     (``refresh()``) so config/entry-point changes are picked up without touching
+     the shortcut.
 
-Usage:
-    from pycore.callmodule.platform.windows_startup_manager import WindowsStartupManager
-
-    manager = WindowsStartupManager()
-
-    # Check status
-    if manager.is_enabled():
-        print("Auto-start enabled")
-
-    # Enable auto-start
-    manager.enable()
-
-    # Disable auto-start
-    manager.disable()
-
-    # Toggle
-    manager.toggle()
+  2. A **shortcut (.lnk)** in the **common (All Users) Startup folder**
+     (``%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs\Startup``) that points
+     at PowerShell running that fixed .ps1. Created with the native Windows shell
+     (WScript.Shell COM via pywin32, PowerShell fallback) - NOT Qt/PySide6. If the
+     common folder isn't writable (no admin), it falls back to the per-user Startup
+     folder. "Enabled?" is answered purely by whether the shortcut exists.
 """
 
 import os
 import sys
+import shutil
+import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import List
+
+from pycore.pyfoundations.system_paths import get_app_data_dir
+
+
+def _ps_single_quote(value: str) -> str:
+    """Quote a string as a PowerShell single-quoted literal."""
+    return "'" + str(value).replace("'", "''") + "'"
 
 
 class WindowsStartupManager:
-    """
-    Manages Windows startup entries for pycore_module_caller
-
-    Creates startup script in user's Startup folder that launches
-    the application using pythonw.exe (no console window).
-    """
+    """Auto-start via a fixed regenerated .ps1 + a .lnk in the common Startup folder."""
 
     def __init__(self, app_name: str = "PyCore_RPC_Server"):
-        """
-        Initialize startup manager
-
-        Args:
-            app_name: Application name for startup script
-        """
         self.app_name = app_name
-        self.script_name = f"{app_name}.bat"
+        self.shortcut_name = f"{app_name}.lnk"
 
-        # Windows Startup folder (current user)
-        startup_folder = Path(os.environ.get('APPDATA', '')) / \
-                        'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
+        # Common (All Users) Startup folder - preferred, system-wide location.
+        program_data = os.environ.get('PROGRAMDATA', r'C:\ProgramData')
+        self.common_startup = (Path(program_data) / 'Microsoft' / 'Windows'
+                               / 'Start Menu' / 'Programs' / 'Startup')
+        # Per-user Startup folder - fallback when the common folder isn't writable.
+        appdata = os.environ.get('APPDATA', '')
+        self.user_startup = (Path(appdata) / 'Microsoft' / 'Windows'
+                             / 'Start Menu' / 'Programs' / 'Startup')
 
-        self.startup_folder = startup_folder
-        self.script_path = self.startup_folder / self.script_name
+        self.common_shortcut = self.common_startup / self.shortcut_name
+        self.user_shortcut = self.user_startup / self.shortcut_name
 
-        # Get paths
-        self.python_exe = sys.executable  # python.exe
-        self.pythonw_exe = self._get_pythonw_path()  # pythonw.exe
+        # Fixed-location PowerShell launcher script (content regenerated each enable).
+        self.script_dir = get_app_data_dir() / "autostart"
+        self.ps1_path = self.script_dir / f"{app_name}.ps1"
 
-        # Get pycore_module_caller.py path
+        # What the .ps1 launches: the full-stack entry point pyservice.ps1
+        # (UI dev server + worker); pythonw.exe + the bare worker is the fallback.
+        self.python_exe = sys.executable
+        self.pythonw_exe = self._get_pythonw_path()
         self.launcher_script = self._get_launcher_path()
+        self.pyservice_script = self._get_pyservice_path()
+        self.powershell_exe = self._resolve_powershell()
 
+    # ----- path resolution ------------------------------------------------- #
     def _get_pythonw_path(self) -> Path:
-        """
-        Get pythonw.exe path from python.exe path
-
-        Returns:
-            Path to pythonw.exe
-        """
-        python_dir = Path(self.python_exe).parent
-        pythonw_exe = python_dir / "pythonw.exe"
-
-        if not pythonw_exe.exists():
-            # Fallback to python.exe if pythonw.exe not found
-            return Path(self.python_exe)
-
-        return pythonw_exe
+        """pythonw.exe next to python.exe (falls back to python.exe)."""
+        pythonw = Path(self.python_exe).parent / "pythonw.exe"
+        return pythonw if pythonw.exists() else Path(self.python_exe)
 
     def _get_launcher_path(self) -> Path:
-        """
-        Get pycore_module_caller.py path
-
-        Returns:
-            Path to launcher script
-        """
-        # Detect if running from source or installed
+        """Locate pycore_module_caller.py (source tree or installed)."""
         current_file = Path(__file__)
-
-        # Try to find pycore_module_caller.py
-        # Assume: pycore/callmodule/platform/windows_startup_manager.py
-        # Target: pycore_module_caller.py (3 levels up)
-
-        possible_paths = [
-            current_file.parent.parent.parent.parent / "pycore_module_caller.py",  # Source tree
-            Path(sys.executable).parent / "Scripts" / "pycore_module_caller.py",  # Installed
-        ]
-
-        for path in possible_paths:
+        # .../pycore/callmodule/platform/windows_startup_manager.py -> pycore/ is 3 up.
+        pycore_dir = current_file.parent.parent.parent
+        for path in (
+            pycore_dir / "pycore_module_caller.py",                                 # pycore/ (canonical)
+            pycore_dir.parent / "pycore_module_caller.py",                          # repo root (fallback)
+            Path(sys.executable).parent / "Scripts" / "pycore_module_caller.py",    # installed
+        ):
             if path.exists():
                 return path
+        return pycore_dir / "pycore_module_caller.py"
 
-        # Fallback: use current directory
-        return Path.cwd() / "pycore_module_caller.py"
+    def _get_pyservice_path(self) -> Path:
+        """Locate pyservice.ps1, the canonical full-stack entry point (repo root)."""
+        # .../pycore/callmodule/platform/windows_startup_manager.py -> repo root is 4 up.
+        return Path(__file__).resolve().parents[3] / "pyservice.ps1"
 
-    def _generate_startup_script(self) -> str:
-        """
-        Generate Windows batch script for startup
+    def _resolve_powershell(self) -> str:
+        """Absolute path to powershell.exe (or pwsh), with a System32 fallback."""
+        exe = shutil.which("powershell") or shutil.which("pwsh")
+        if exe:
+            return exe
+        sysroot = os.environ.get("SystemRoot", r"C:\Windows")
+        return str(Path(sysroot) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe")
 
-        Returns:
-            Script content as string
-        """
-        script = f'''@echo off
-REM ================================================================
-REM PyCore RPC Server - Auto Start Script
-REM Generated by Windows Startup Manager
-REM ================================================================
+    def _shortcut_paths(self) -> List[Path]:
+        """All locations a shortcut may live (common first)."""
+        return [self.common_shortcut, self.user_shortcut]
 
-echo [PyCore] Starting RPC Server...
-echo [PyCore] Python: {self.pythonw_exe}
-echo [PyCore] Script: {self.launcher_script}
-echo.
+    # ----- PS1 launcher script -------------------------------------------- #
+    def _generate_ps1(self) -> str:
+        """Build the PowerShell launcher content (absolute paths, current config)."""
+        header = (
+            "# PyCore RPC Server - auto-start launcher\n"
+            "# AUTO-GENERATED: regenerated on every enable() and on every service start\n"
+            "# (reflects current config).\n"
+        )
+        if self.pyservice_script.exists():
+            # Boot runs the SAME entry point as a manual run: pyservice.ps1 starts
+            # the unified dashboard UI dev server (laravel_dashboard, exported as
+            # PYCORE_UI_URL) and then the worker; its finally-block tears the UI
+            # server down with the worker. -NoInstall skips the heavy prerequisite
+            # step at boot (the machine was provisioned when auto-start was set up).
+            # Invoked inline (&, not Start-Process) so this hidden PowerShell stays
+            # the service host and pyservice's UI teardown keeps working.
+            script = _ps_single_quote(str(self.pyservice_script))
+            workdir = _ps_single_quote(str(self.pyservice_script.parent))
+            return (
+                header
+                + "$ErrorActionPreference = 'SilentlyContinue'\n"
+                + f"Set-Location -LiteralPath {workdir}\n"
+                + f"& {script} -NoInstall\n"
+            )
+        # Fallback (pyservice.ps1 not found, e.g. installed layout): bare worker
+        # only — the PySide6 webview then uses the legacy /web/subtitle page.
+        pythonw = _ps_single_quote(str(self.pythonw_exe))
+        workdir = _ps_single_quote(str(self.launcher_script.parent))
+        # ArgumentList: a single-quoted PS string containing the double-quoted .py path.
+        arglist = "'" + '"' + str(self.launcher_script).replace("'", "''") + '"' + "'"
+        return (
+            header
+            + "$ErrorActionPreference = 'SilentlyContinue'\n"
+            + f"Start-Process -FilePath {pythonw} -ArgumentList {arglist} "
+            + f"-WorkingDirectory {workdir} -WindowStyle Hidden\n"
+        )
 
-REM Start server using pythonw.exe (no console window after this script closes)
-start "" "{self.pythonw_exe}" "{self.launcher_script}"
+    def _write_ps1(self) -> None:
+        """(Re)write the fixed PS1 launcher with current config."""
+        self.script_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.ps1_path, "w", encoding="utf-8") as fh:
+            fh.write(self._generate_ps1())
 
-echo [PyCore] Server started in background (using pythonw.exe)
-echo [PyCore] Check system tray for icon
-echo.
-echo This window will close in 5 seconds...
-echo If you see errors above, please report them for fixing.
-echo.
+    # ----- native shortcut creation --------------------------------------- #
+    def _shortcut_arguments(self) -> str:
+        """powershell.exe arguments that run the fixed .ps1 hidden."""
+        return (f'-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden '
+                f'-File "{self.ps1_path}"')
 
-REM Wait 5 seconds to allow viewing startup messages/errors
-timeout /t 5 /nobreak >nul
+    def _create_shortcut(self, lnk_path: Path) -> bool:
+        """Create the .lnk (pointing at powershell + the .ps1) with the native shell."""
+        lnk_path.parent.mkdir(parents=True, exist_ok=True)
+        target = str(self.powershell_exe)
+        arguments = self._shortcut_arguments()
+        workdir = str(self.launcher_script.parent)
 
-REM Close this console window
-exit
-'''
-        return script
+        # Primary: WScript.Shell COM via pywin32 (the canonical native way).
+        try:
+            import pythoncom  # noqa: F401  (initialize COM for this thread)
+            try:
+                pythoncom.CoInitialize()
+            except Exception:
+                pass
+            from win32com.client import Dispatch
+            shell = Dispatch('WScript.Shell')
+            sc = shell.CreateShortcut(str(lnk_path))
+            sc.TargetPath = target
+            sc.Arguments = arguments
+            sc.WorkingDirectory = workdir
+            sc.WindowStyle = 7  # minimized
+            sc.Description = "PyCore RPC Server - auto-start on boot"
+            sc.IconLocation = str(self.pythonw_exe)
+            sc.Save()
+            return lnk_path.exists()
+        except Exception:
+            pass  # fall through to PowerShell
 
+        # Fallback: drive the same WScript.Shell COM object from PowerShell.
+        try:
+            ps = (
+                "$ws = New-Object -ComObject WScript.Shell; "
+                f"$s = $ws.CreateShortcut('{lnk_path}'); "
+                f"$s.TargetPath = '{target}'; "
+                f"$s.Arguments = '{arguments}'; "
+                f"$s.WorkingDirectory = '{workdir}'; "
+                "$s.WindowStyle = 7; "
+                "$s.Description = 'PyCore RPC Server - auto-start on boot'; "
+                f"$s.IconLocation = '{self.pythonw_exe}'; "
+                "$s.Save()"
+            )
+            subprocess.run(
+                [self.powershell_exe, "-NoProfile", "-NonInteractive", "-Command", ps],
+                capture_output=True, text=True, timeout=30, check=True,
+            )
+            return lnk_path.exists()
+        except Exception:
+            return False
+
+    # ----- public API ------------------------------------------------------ #
     def is_enabled(self) -> bool:
-        """
-        Check if auto-start is enabled
-
-        Returns:
-            True if startup script exists
-        """
-        return self.script_path.exists()
+        """Auto-start is on iff the shortcut exists (common or per-user)."""
+        return any(p.exists() for p in self._shortcut_paths())
 
     def enable(self) -> dict:
-        """
-        Enable auto-start on Windows boot
-
-        Creates startup script in Windows Startup folder.
-        If script already exists, it will be replaced.
-
-        Returns:
-            Result dict with success status and message
-        """
+        """Regenerate the PS1, then create the startup shortcut (common, then user)."""
+        # Always refresh the fixed PS1 so config changes are reflected.
         try:
-            # Ensure startup folder exists
-            self.startup_folder.mkdir(parents=True, exist_ok=True)
-
-            # Generate script
-            script_content = self._generate_startup_script()
-
-            # Write script (will replace if exists)
-            with open(self.script_path, 'w', encoding='utf-8') as f:
-                f.write(script_content)
-
-            return {
-                "success": True,
-                "enabled": True,
-                "message": f"Auto-start enabled: {self.script_path}",
-                "script_path": str(self.script_path)
-            }
-
+            self._write_ps1()
         except Exception as e:
-            return {
-                "success": False,
-                "enabled": False,
-                "message": f"Failed to enable auto-start: {e}",
-                "error": str(e)
-            }
+            return {"success": False, "enabled": self.is_enabled(),
+                    "message": f"Failed to write launcher script: {e}", "error": str(e)}
 
-    def disable(self) -> dict:
-        """
-        Disable auto-start on Windows boot
-
-        Removes startup script from Windows Startup folder.
-
-        Returns:
-            Result dict with success status and message
-        """
-        try:
-            if self.script_path.exists():
-                self.script_path.unlink()  # Delete file
-                return {
-                    "success": True,
-                    "enabled": False,
-                    "message": "Auto-start disabled (script removed)",
-                    "script_path": str(self.script_path)
-                }
-            else:
-                return {
-                    "success": True,
-                    "enabled": False,
-                    "message": "Auto-start already disabled (script not found)",
-                    "script_path": str(self.script_path)
-                }
-
-        except Exception as e:
-            return {
-                "success": False,
-                "enabled": self.is_enabled(),
-                "message": f"Failed to disable auto-start: {e}",
-                "error": str(e)
-            }
-
-    def toggle(self) -> dict:
-        """
-        Toggle auto-start on/off
-
-        Returns:
-            Result dict with success status and message
-        """
-        if self.is_enabled():
-            return self.disable()
-        else:
-            return self.enable()
-
-    def get_status(self) -> dict:
-        """
-        Get current auto-start status
-
-        Returns:
-            Status dict with details
-        """
-        enabled = self.is_enabled()
-
+        last_error = None
+        for lnk, scope in ((self.common_shortcut, "all-users"),
+                           (self.user_shortcut, "current-user")):
+            try:
+                if self._create_shortcut(lnk):
+                    return {
+                        "success": True, "enabled": True, "scope": scope,
+                        "message": f"Auto-start enabled ({scope}): {lnk}",
+                        "shortcut_path": str(lnk), "script_path": str(self.ps1_path),
+                    }
+            except Exception as e:
+                last_error = str(e)
         return {
-            "enabled": enabled,
-            "script_path": str(self.script_path),
-            "script_exists": self.script_path.exists(),
-            "startup_folder": str(self.startup_folder),
-            "python_exe": str(self.python_exe),
-            "pythonw_exe": str(self.pythonw_exe),
-            "launcher_script": str(self.launcher_script),
-            "launcher_exists": self.launcher_script.exists()
+            "success": False, "enabled": self.is_enabled(),
+            "message": "Failed to create startup shortcut "
+                       "(the common folder needs administrator rights).",
+            "error": last_error or "shortcut creation failed",
         }
 
+    def disable(self) -> dict:
+        """Remove the startup shortcut(s); leave the fixed PS1 in place (harmless)."""
+        removed, errors = [], []
+        for lnk in self._shortcut_paths():
+            try:
+                if lnk.exists():
+                    lnk.unlink()
+                    removed.append(str(lnk))
+            except Exception as e:
+                errors.append(f"{lnk}: {e}")
+        if errors and self.is_enabled():
+            return {"success": False, "enabled": True,
+                    "message": "Failed to remove startup shortcut: " + "; ".join(errors),
+                    "error": "; ".join(errors)}
+        return {"success": True, "enabled": False,
+                "message": ("Auto-start disabled (shortcut removed)" if removed
+                            else "Auto-start already disabled"),
+                "removed": removed}
 
-# Test
-if __name__ == "__main__":
-    from pycore import ColorPrint
+    def toggle(self) -> dict:
+        return self.disable() if self.is_enabled() else self.enable()
 
-    ColorPrint.blue("=" * 70)
-    ColorPrint.blue(" WINDOWS STARTUP MANAGER TEST")
-    ColorPrint.blue("=" * 70)
+    def refresh(self) -> bool:
+        """If enabled, rewrite the fixed launcher .ps1 in place (self-heal).
 
-    manager = WindowsStartupManager()
+        Called on every service start so launchers written by an OLDER version
+        (bare worker, no UI server) are upgraded to the current entry point
+        without the user having to toggle auto-start off and on. The shortcut
+        points at the fixed .ps1 path, so only the file content needs refreshing.
+        """
+        if not self.is_enabled():
+            return False
+        try:
+            self._write_ps1()
+            return True
+        except Exception:
+            return False
 
-    # Get status
-    ColorPrint.blue("\n[1] Current Status:")
-    status = manager.get_status()
-    for key, value in status.items():
-        print(f"  {key}: {value}")
-
-    # Test enable
-    ColorPrint.blue("\n[2] Testing Enable:")
-    result = manager.enable()
-    ColorPrint.green(f"  {result['message']}")
-
-    # Check status
-    ColorPrint.blue("\n[3] Status After Enable:")
-    print(f"  Enabled: {manager.is_enabled()}")
-
-    # Show script content
-    if manager.script_path.exists():
-        ColorPrint.blue("\n[4] Generated Script Content:")
-        with open(manager.script_path, 'r', encoding='utf-8') as f:
-            ColorPrint.yellow(f.read())
-
-    # Test disable
-    ColorPrint.blue("\n[5] Testing Disable:")
-    result = manager.disable()
-    ColorPrint.green(f"  {result['message']}")
-
-    # Final status
-    ColorPrint.blue("\n[6] Final Status:")
-    print(f"  Enabled: {manager.is_enabled()}")
-
-    ColorPrint.blue("=" * 70)
-    ColorPrint.blue(" TEST COMPLETED")
-    ColorPrint.blue("=" * 70)
+    def get_status(self) -> dict:
+        return {
+            "enabled": self.is_enabled(),
+            "platform": "windows",
+            "supported": True,
+            "scope": "all-users" if self.common_shortcut.exists() else (
+                "current-user" if self.user_shortcut.exists() else "all-users"),
+            "location": str(self.common_shortcut if self.common_shortcut.exists()
+                            else self.user_shortcut),
+            "common_shortcut": str(self.common_shortcut),
+            "user_shortcut": str(self.user_shortcut),
+            "script_path": str(self.ps1_path),
+            "script_exists": self.ps1_path.exists(),
+            "entry_point": str(self.pyservice_script),
+            "entry_exists": self.pyservice_script.exists(),
+            "launcher_script": str(self.launcher_script),
+            "launcher_exists": self.launcher_script.exists(),
+        }

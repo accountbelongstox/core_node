@@ -28,6 +28,7 @@ Usage:
     python pycore/pycore_module_caller.py --debug
 """
 
+import os
 import sys
 import signal
 import time
@@ -56,7 +57,7 @@ from pycore.callmodule.config import build_launcher_config, update_tray_menu_wit
 from pycore.callmodule.event_handlers import register_event_handlers
 
 
-def main(host='0.0.0.0', port=59000, debug=False):
+def main(host='0.0.0.0', port=59000, debug=False, reload=False):
     """
     Main entry point
 
@@ -64,6 +65,8 @@ def main(host='0.0.0.0', port=59000, debug=False):
         host: RPC v2 server host
         port: RPC v2 server port
         debug: Debug mode
+        reload: Dev hot-reload. Watch the pycore package's .py files and restart
+            (via the existing THREAD_BUS restart -> os.execv path) on any change.
     """
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("Pycore Module Caller - Starting")
@@ -76,6 +79,15 @@ def main(host='0.0.0.0', port=59000, debug=False):
     launcher = ServiceLauncher(config)
     if not launcher.start():
         ColorPrint.yellow("[Main] Failed to start (singleton conflict or error)")
+        detection = launcher.detection_result
+        if detection is not None and getattr(detection, 'yielded_to_newer', False):
+            # This (older) process yielded to a NEWER running instance. Exit
+            # with code 3 so pyservice.ps1/.sh skip their UI-server teardown —
+            # the surviving instance is (or may be) serving its webview from it.
+            ColorPrint.yellow("[Main] Yielding to newer running instance (exit 3; UI server left running)")
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os._exit(3)
         return
 
     # Get singleton port
@@ -87,6 +99,15 @@ def main(host='0.0.0.0', port=59000, debug=False):
 
     # 3. Register event handlers (callmodule layer - event handlers via THREAD_BUS)
     register_event_handlers(launcher, port, singleton_port)
+
+    # 3b. Self-heal the boot auto-start launcher: if enabled, rewrite its fixed
+    #     script so the next boot runs the CURRENT canonical entry point
+    #     (pyservice.ps1/.sh = dashboard UI dev server + worker). Launchers
+    #     written by older versions started the bare worker only, so the UI dev
+    #     server never came up in boot mode (webview -> ERR_CONNECTION_REFUSED).
+    from pycore.callmodule.platform.startup_manager import refresh_startup_launcher
+    if refresh_startup_launcher():
+        ColorPrint.blue("[Main] Auto-start launcher refreshed (next boot uses pyservice + UI)")
 
     # 4. Update tray menu with singleton port (callmodule layer - config update)
     if singleton_port:
@@ -109,7 +130,14 @@ def main(host='0.0.0.0', port=59000, debug=False):
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    # 7. Wait for shutdown signal (THREAD_BUS is the event center)
+    # 7. Dev hot-reload: watch .py files and restart the backend on change.
+    #    Reuses the proven restart path (request_restart -> graceful stop ->
+    #    os.execv re-exec, which re-reads ALL Python). Dev-only; off by default.
+    if reload:
+        from pycore.pyutils.common.dev_reload import start_reload_watcher
+        start_reload_watcher()
+
+    # 8. Wait for shutdown signal (THREAD_BUS is the event center)
     ColorPrint.blue("[Main] Running... (Press Ctrl+C or use tray to exit)")
 
     while not THREAD_BUS.is_shutdown_requested():
@@ -128,9 +156,15 @@ if __name__ == '__main__':
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind (default: 0.0.0.0)')
     parser.add_argument('--port', type=int, default=59000, help='Port to bind (default: 59000)')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('--reload', action='store_true',
+                        help='Dev hot-reload: restart backend on .py changes '
+                             '(also enabled by PYCORE_RELOAD=1)')
 
     args = parser.parse_args()
-    main(host=args.host, port=args.port, debug=args.debug)
+    # Env var is an alternative switch so a wrapper can enable reload without
+    # editing the argv it forwards.
+    reload_enabled = args.reload or os.environ.get('PYCORE_RELOAD', '') in ('1', 'true', 'True')
+    main(host=args.host, port=args.port, debug=args.debug, reload=reload_enabled)
 
     # ---- Process-level exit / restart -------------------------------------
     # main() returns only AFTER a graceful shutdown (launcher.stop() done, ports
@@ -146,7 +180,6 @@ if __name__ == '__main__':
     #                  previously the flag was set but never acted on, so restart
     #                  only shut the app down).
     #   * normal   -> os._exit(0) skips interpreter/teardown entirely.
-    import os
     sys.stdout.flush()
     sys.stderr.flush()
 

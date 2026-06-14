@@ -571,13 +571,6 @@ class ApiCenterClass {
       return response;
     },
 
-    getAllByManager: async (): Promise<ApiResponse<WordGroup[]>> => {
-      // Backend route: /get_all_groups_by_manager
-      return this.request<WordGroup[]>('/get_all_groups_by_manager', {
-        method: 'GET',
-      });
-    },
-
     // Add library to group
     // Backend route: /group/add_library
     addLibraryToGroup: async (data: {
@@ -619,14 +612,6 @@ class ApiCenterClass {
       // Backend route: /query_word?word={query}
       return this.request<Word[]>(`/qurey_word?word=${encodeURIComponent(query)}&lang=${language}`, {
         method: 'GET',
-      });
-    },
-
-    translate: async (word: string, fromLang: string, toLang: string): Promise<ApiResponse<any>> => {
-      // Backend route: /query_translation (POST)
-      return this.request<any>('/query_translation', {
-        method: 'POST',
-        body: JSON.stringify({ word, from: fromLang, to: toLang }),
       });
     },
 
@@ -993,52 +978,9 @@ class ApiCenterClass {
   };
 
   /**
-   * Quiz APIs
-   */
-  quiz = {
-    generate: async (groupId: string, count: number = 10): Promise<ApiResponse<any>> => {
-      return this.request<any>('/quiz/generate', {
-        method: 'POST',
-        body: JSON.stringify({ group_id: groupId, count }),
-      });
-    },
-
-    submit: async (quizId: string, answers: any[]): Promise<ApiResponse<any>> => {
-      return this.request<any>('/quiz/submit', {
-        method: 'POST',
-        body: JSON.stringify({ quiz_id: quizId, answers }),
-      });
-    },
-  };
-
-  /**
-   * Settings APIs
-   */
-  settings = {
-    get: async (): Promise<ApiResponse<any>> => {
-      return this.request<any>('/settings', {
-        method: 'GET',
-      });
-    },
-
-    update: async (settings: any): Promise<ApiResponse<void>> => {
-      return this.request<void>('/settings', {
-        method: 'PUT',
-        body: JSON.stringify(settings),
-      });
-    },
-  };
-
-  /**
    * Dictionary APIs
    */
   dictionary = {
-    lookup: async (word: string, language: string = 'en'): Promise<ApiResponse<Word>> => {
-      return this.request<Word>(`/dictionary/${language}/${encodeURIComponent(word)}`, {
-        method: 'GET',
-      });
-    },
-
     getSupportedLanguages: async (): Promise<ApiResponse<SupportedLanguage[]>> => {
       // Check cache first (cache for 24 hours - languages don't change often)
       const cached = await StorageCenter.cache.get<SupportedLanguage[]>(StorageKey.SUPPORTED_LANGUAGES_CACHE);
@@ -1633,57 +1575,6 @@ class ApiCenterClass {
   };
 
   /**
-   * Word Operation APIs
-   * Backend: /up_learned, /up_read, /up_weight, /up_reviewed
-   */
-  wordOperations = {
-    markAsLearned: async (data: {
-      word_id?: string;
-      word?: string;
-      language?: string;
-    }): Promise<ApiResponse<{ message: string }>> => {
-      return this.request<{ message: string }>('/up_learned', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    },
-
-    markAsRead: async (data: {
-      word_id?: string;
-      word?: string;
-      language?: string;
-    }): Promise<ApiResponse<{ message: string }>> => {
-      return this.request<{ message: string }>('/up_read', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    },
-
-    updateWeight: async (data: {
-      word_id?: string;
-      word?: string;
-      weight: number;
-      language?: string;
-    }): Promise<ApiResponse<{ message: string }>> => {
-      return this.request<{ message: string }>('/up_weight', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    },
-
-    markAsReviewed: async (data: {
-      word_id?: string;
-      word?: string;
-      language?: string;
-    }): Promise<ApiResponse<{ message: string }>> => {
-      return this.request<{ message: string }>('/up_reviewed', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    },
-  };
-
-  /**
    * AI Tools - Translation APIs
    * Backend: /ai_tools/translation/*
    */
@@ -1712,12 +1603,15 @@ class ApiCenterClass {
       }, false);
     },
 
+    // Backend contract (AppQyV1TranslationController): the source language is
+    // auto-detected, so requests carry `target_language` only. The AI engine
+    // returns `data.translation`; the google engine returns `data.translated_text`
+    // — normalized below so every method resolves to `{ translation }`.
     translate: async (data: {
       text: string;
-      from_language: string;
-      to_language: string;
-      model?: string;
-      template?: string;
+      target_language: string;
+      type?: string;
+      model?: number;
     }): Promise<ApiResponse<{ translation: string; task_id?: string }>> => {
       return this.request<{ translation: string; task_id?: string }>('/ai_tools/translation/translate', {
         method: 'POST',
@@ -1727,32 +1621,51 @@ class ApiCenterClass {
 
     batchTranslate: async (data: {
       texts: string[];
-      from_language: string;
-      to_language: string;
-      model?: string;
-    }): Promise<ApiResponse<{ translations: string[]; task_id?: string }>> => {
-      return this.request<{ translations: string[]; task_id?: string }>('/ai_tools/translation/batch', {
+      target_language: string;
+      type?: string;
+      model?: number;
+    }): Promise<ApiResponse<{ translations: string[] }>> => {
+      const res = await this.request<any>('/ai_tools/translation/batch', {
         method: 'POST',
         body: JSON.stringify(data),
       });
+      if (res.success && Array.isArray(res.data?.results)) {
+        return {
+          success: true,
+          data: {
+            translations: res.data.results.map(
+              (r: any) => r?.translation ?? r?.translated_text ?? ''
+            ),
+          },
+          message: res.message,
+        };
+      }
+      return res as ApiResponse<{ translations: string[] }>;
     },
 
     simpleTranslateWithGoogle: async (data: {
       text: string;
-      from_language: string;
-      to_language: string;
+      target_language: string;
     }): Promise<ApiResponse<{ translation: string }>> => {
-      return this.request<{ translation: string }>('/ai_tools/translation/simple/google', {
+      const res = await this.request<any>('/ai_tools/translation/simple/google', {
         method: 'POST',
         body: JSON.stringify(data),
       });
+      if (res.success && res.data) {
+        return {
+          success: true,
+          data: { translation: res.data.translated_text ?? res.data.translation ?? '' },
+          message: res.message,
+        };
+      }
+      return res as ApiResponse<{ translation: string }>;
     },
 
     learningMode: async (data: {
       text: string;
-      from_language: string;
-      to_language: string;
-      difficulty_level?: string;
+      target_languages: string[];
+      options?: any;
+      model?: number;
     }): Promise<ApiResponse<any>> => {
       return this.request<any>('/ai_tools/translation/learning', {
         method: 'POST',
@@ -1777,6 +1690,53 @@ class ApiCenterClass {
     processNextTask: async (): Promise<ApiResponse<{ message: string }>> => {
       return this.request<{ message: string }>('/ai_tools/translation/process-next', {
         method: 'POST',
+      });
+    },
+
+    // Translation queue (enqueue + poll) — used by VocabularyTranslationCenter.
+    // The FE no longer translates vocabulary itself; it enqueues visible
+    // untranslated words (which also prioritizes them) and polls their status.
+    // Backend fills translations asynchronously (pycore Google worker + Laravel
+    // AI filler) into the dictionary.
+
+    // POST /ai_tools/translation/queue/batch/add — enqueue words for the chosen
+    // source/target pair. Already-queued words are moved to the front. Returns
+    // per-word status plus counts: { results, queued, skipped, moved }.
+    queueBatchAdd: async (data: {
+      words: string[];
+      language: string;
+      target_language: string;
+    }): Promise<ApiResponse<{
+      results: Array<{ word: string; status: 'already_translated' | 'moved_to_front' | 'queued' }>;
+      queued: number;
+      skipped: number;
+      moved: number;
+    }>> => {
+      return this.request<{
+        results: Array<{ word: string; status: 'already_translated' | 'moved_to_front' | 'queued' }>;
+        queued: number;
+        skipped: number;
+        moved: number;
+      }>('/ai_tools/translation/queue/batch/add', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+
+    // POST /ai_tools/translation/queue/batch/status — poll fill status for the
+    // given words. Returns per-word { has_translation, translation|null }.
+    queueBatchStatus: async (data: {
+      words: string[];
+      language: string;
+      target_language: string;
+    }): Promise<ApiResponse<{
+      results: Array<{ word: string; has_translation: boolean; translation: string | null }>;
+    }>> => {
+      return this.request<{
+        results: Array<{ word: string; has_translation: boolean; translation: string | null }>;
+      }>('/ai_tools/translation/queue/batch/status', {
+        method: 'POST',
+        body: JSON.stringify(data),
       });
     },
   };

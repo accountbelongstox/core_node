@@ -1,14 +1,14 @@
 ---
-description: "dot-ui: .NET UI (WPF/MAUI/Blazor/Avalonia) in dotapps. Clean Architecture + MVVM + Fluent 2. Canonical: development-guides/DOT_UI_PROJECT_SPECIFICATION.md. Base layout/language: dot.mdc and DOT_ARCHITECTURE.md."
+description: "dot-ui: .NET UI (WPF/MAUI/Blazor/Avalonia) in dotapps. Clean Architecture + MVVM + Fluent 2. Canonical: development-guides/DOT_ARCHITECTURE.md. Base layout/language: dot.mdc and DOT_ARCHITECTURE.md."
 globs: dotapps/**
 alwaysApply: false
 ---
 
 # Dot UI rule (Presentation layer for .NET UI apps)
 
-(Canonical: development-guides/DOT_UI_PROJECT_SPECIFICATION.md. Base rule: .cursor/rules/dot.mdc and DOT_ARCHITECTURE.md.)
+(Canonical: development-guides/DOT_ARCHITECTURE.md. Base rule: .cursor/rules/dot.mdc and DOT_ARCHITECTURE.md.)
 
-**Conflict precedence:** If any other document or rule conflicts with this rule on UI structure, Presentation layer, or Fluent 2 conventions, follow DOT_UI_PROJECT_SPECIFICATION.md and this rule.
+**Conflict precedence:** If any other document or rule conflicts with this rule on UI structure, Presentation layer, or Fluent 2 conventions, follow DOT_ARCHITECTURE.md and this rule.
 
 When building **UI** in dotapps (WPF, MAUI, Blazor Hybrid, or Avalonia):
 

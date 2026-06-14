@@ -27,6 +27,12 @@
     Enable the worker's debug mode. (Named -DebugMode because -Debug is a reserved
     PowerShell common parameter.)
 
+.PARAMETER Reload
+    Dev backend hot-reload. Forwards --reload to the worker: a watcher polls the
+    pycore package's .py files and restarts the backend (via the existing
+    request_restart -> os.execv re-exec) on any change. Pairs with the Vite UI
+    HMR so both layers reload on save. Off by default.
+
 .PARAMETER NoInstall
     Skip the prerequisite-install step (step 1) and launch the worker directly.
 
@@ -50,19 +56,84 @@
     .\pyservice.ps1 -NoInstall -Port 8000 -DebugMode
     Skip prerequisites; launch on port 8000 in debug mode.
 
+.PARAMETER NoUi
+    Do not launch the unified dashboard UI; the PySide6 webview falls back to the
+    legacy in-process /web/subtitle page.
+
+.PARAMETER UiBuild
+    Build the dashboard UI (vite build) and serve the production bundle (vite
+    preview) instead of running the Vite dev server. No live-reload.
+
+.PARAMETER UiPort
+    Port the UI server listens on (PySide6 loads it). Default: 13054.
+
 .EXAMPLE
     .\pyservice.ps1 -Only -WhisperModel base
     Only install prerequisites (incl. pre-downloading the whisper 'base' model).
+
+.EXAMPLE
+    .\pyservice.ps1 -UiBuild
+    Build the dashboard UI and serve it (vite preview), then launch the worker.
+
+.EXAMPLE
+    .\pyservice.ps1 -NoUi
+    Use the legacy /web/subtitle UI (no dashboard dev server).
 #>
+
+# --------------------------------------------------------------------------- #
+# Subcommands: run (default) | config | help. The systemd service subcommands   #
+# (install/start/stop/restart/status/uninstall) are Linux-only; on Windows they #
+# print a notice -> use the desktop UI's Settings -> Auto-start on boot toggle   #
+# (a native .lnk in the common Startup folder) instead. `config` is cross-platform.
+#
+# Headless config CLI:  .\pyservice.ps1 config ...  -> python -m pycore.pyutils.pyservice_cli
+#   HTTP-first, file-fallback: while the service runs, edits go through its HTTP
+#   API and apply live (broadcast to any open UI); while stopped, persistent
+#   settings are written straight to their files and take effect next start.
+#   Runtime-only toggles (distribute, skip-update) require the running service.
+#   This is the headless equivalent of the Settings UI + Code Sync page.
+#
+#     # System settings (theme, lang, accent, blur, ...)
+#     .\pyservice.ps1 config system get
+#     .\pyservice.ps1 config system set --key theme --value light
+#     .\pyservice.ps1 config system set --json '{"theme":"dark","lang":"zh"}'
+#     # Code sync - role / peers (persistent; offline-capable)
+#     .\pyservice.ps1 config codesync show
+#     .\pyservice.ps1 config codesync role [dev]        # print / set this device's role
+#     .\pyservice.ps1 config codesync peers add --name lab --host 192.168.1.10 --role dev
+#     .\pyservice.ps1 config codesync peers remove --id 192.168.1.10:59000
+#     # Code sync - runtime toggles (need the running service)
+#     .\pyservice.ps1 config codesync distribute on     # dev only: start pushing code
+#     .\pyservice.ps1 config codesync skip-update on     # client: temporarily reject code
+#
+#   Config storage:
+#     - System settings     : ~/.core_node/config/user_data.json  (system_settings section)
+#     - Code-sync role/peers : pycore/pyutils/device_sync/code_sync_peers.json  (committed)
+#
+# UI vs headless:
+#   `run` serves the unified shell poly_apps\laravel_dashboard (its pycore-manager
+#   end) at http://localhost:<UiPort>/pycore-manager, loaded by PySide6 via
+#   PYCORE_UI_URL. Backend is rpc_v2 on :59000 with a /pyapi reverse proxy and a
+#   direct ws://host:59000/rpc/ws log stream (a global floating collapsible log
+#   panel is on every pycore page). The old standalone React app
+#   pycore\pyctl\desktop\desktop-manager (dev server :15654) is superseded/legacy.
+#   -NoUi falls back to the legacy in-process /web/subtitle page.
+# --------------------------------------------------------------------------- #
 [CmdletBinding()]
 param(
+    [Parameter(Position=0)]
+    [string]$Command = 'run',
     [string]$BindHost = '0.0.0.0',
     [int]   $Port     = 59000,
     [switch]$DebugMode,
+    [switch]$Reload,
     [switch]$NoInstall,
     [switch]$Only,
     [string]$WhisperModel = '',
-    [string[]]$Include = @()
+    [string[]]$Include = @(),
+    [switch]$NoUi,
+    [switch]$UiBuild,
+    [int]$UiPort = 13054
 )
 
 $ErrorActionPreference = 'Stop'
@@ -101,9 +172,88 @@ function Resolve-Python {
     return $null
 }
 
+# --------------------------------------------------------------------------- #
+# Usage / help.                                                                #
+# --------------------------------------------------------------------------- #
+function Show-Usage {
+    Write-Host 'pyservice.ps1 - entry point for the Pycore Module Caller (Windows)' -ForegroundColor Cyan
+    Write-Host ''
+    Write-Host 'Usage:'
+    Write-Host '  .\pyservice.ps1 [SUBCOMMAND] [-Param value ...]'
+    Write-Host ''
+    Write-Host 'Subcommands:'
+    Write-Host '  run          Launch the service (default if no subcommand is given)'
+    Write-Host '  config       Edit/show headless config via the cross-platform Python CLI'
+    Write-Host '               (forwards args to: python -m pycore.pyutils.pyservice_cli config)'
+    Write-Host '  install      systemd service install is Linux-only (prints a notice on Windows)'
+    Write-Host '  start        Linux-only (notice on Windows)'
+    Write-Host '  stop         Linux-only (notice on Windows)'
+    Write-Host '  restart      Linux-only (notice on Windows)'
+    Write-Host '  status       Linux-only (notice on Windows)'
+    Write-Host '  uninstall    Linux-only (notice on Windows)'
+    Write-Host '  help         Show this help (also -h / --help)'
+    Write-Host ''
+    Write-Host 'Parameters (apply to run):'
+    Write-Host '  -BindHost HOST    Host the RPC v2 server binds to (default: 0.0.0.0)'
+    Write-Host '  -Port PORT        Port the RPC v2 server binds to (default: 59000)'
+    Write-Host '  -DebugMode        Enable the worker''s debug mode'
+    Write-Host '  -Reload           Dev backend hot-reload (watch .py -> restart)'
+    Write-Host '  -NoInstall        Skip the prerequisite-install step'
+    Write-Host '  -Only             Run ONLY the prerequisite step, then exit'
+    Write-Host '  -WhisperModel M   Also pre-download this whisper model'
+    Write-Host '  -Include name     Only run the named prerequisite installer(s)'
+    Write-Host '  -NoUi             Do not launch the dashboard UI; use legacy /web/subtitle'
+    Write-Host '  -UiBuild          Build the dashboard UI and serve it (vite preview)'
+    Write-Host '  -UiPort PORT      Port the UI server listens on (default: 13054)'
+    Write-Host ''
+    Write-Host 'Examples:'
+    Write-Host '  .\pyservice.ps1'
+    Write-Host '  .\pyservice.ps1 run -NoUi -Port 8000'
+    Write-Host '  .\pyservice.ps1 config -show'
+}
+
+# --------------------------------------------------------------------------- #
+# Subcommand dispatch (the optional leading positional $Command).             #
+# Service subcommands are Linux-only; on Windows we print a notice.           #
+# --------------------------------------------------------------------------- #
+switch ($Command.ToLowerInvariant()) {
+    { $_ -in @('help', '-h', '--help') } {
+        Show-Usage
+        exit 0
+    }
+    'config' {
+        $py = Resolve-Python
+        if (-not $py) {
+            Write-Host '[X] Python 3 was NOT found; cannot run ''config''.' -ForegroundColor Red
+            exit 1
+        }
+        $rest = @()
+        if ($args) { $rest = $args }
+        Push-Location -LiteralPath $PSScriptRoot
+        try {
+            & $py.Path -m pycore.pyutils.pyservice_cli config @rest
+            $cfgCode = $LASTEXITCODE
+        } finally {
+            Pop-Location
+        }
+        exit $cfgCode
+    }
+    { $_ -in @('install', 'start', 'stop', 'restart', 'status', 'uninstall') } {
+        Write-Host ("[i] '{0}': systemd service install/management is Linux-only." -f $Command) -ForegroundColor Yellow
+        Write-Host '    On Windows, use the Settings -> Auto-start toggle to run pycore at login,' -ForegroundColor DarkYellow
+        Write-Host '    and `.\pyservice.ps1 config` to manage headless configuration.' -ForegroundColor DarkYellow
+        exit 0
+    }
+    default {
+        # 'run' (or any unrecognized leading token) falls through to the launch path.
+    }
+}
+
 Write-Host '======================================================' -ForegroundColor Cyan
 Write-Host ' Pycore Service - entry point' -ForegroundColor Cyan
 Write-Host '======================================================' -ForegroundColor Cyan
+$uiMode = if ($NoUi) { 'legacy' } else { 'dashboard (pycore-manager)' }
+Write-Host ("[i] pyservice run - run `".\pyservice.ps1 help`" for all commands (host={0} port={1} ui={2})" -f $BindHost, $Port, $uiMode) -ForegroundColor DarkGray
 
 $py = Resolve-Python
 if (-not $py) {
@@ -121,6 +271,8 @@ Write-Host ("       path : {0}" -f $py.Path)    -ForegroundColor DarkGray
 # Relative paths from this script's folder (repo root).
 $prepareRel = '.\pycore\scripts\iniscripts\prepare.ps1'
 $workerRel  = '.\pycore\pycore_module_caller.py'
+
+$uiProc = $null   # React UI server process (stopped in finally)
 
 Push-Location -LiteralPath $PSScriptRoot
 try {
@@ -144,9 +296,109 @@ try {
         exit 0
     }
 
-    # --- 2) launch the worker -------------------------------------------- #
+    # --- 2) launch the unified dashboard UI (unless -NoUi) ---------------- #
+    # The UI is the pure-Vite shell at poly_apps\laravel_dashboard. It runs as its
+    # own dev server (pnpm); PySide6 loads it via PYCORE_UI_URL, which we export
+    # here (pointing at the pycore-manager end) so the worker child inherits it.
+    if (-not $NoUi) {
+        $uiDir = Join-Path $PSScriptRoot 'poly_apps\laravel_dashboard'
+        # Prefer pnpm.cmd: Start-Process cannot launch the extensionless pnpm shim.
+        $pnpm = Get-Command pnpm.cmd -ErrorAction SilentlyContinue
+        if (-not $pnpm) { $pnpm = Get-Command pnpm -ErrorAction SilentlyContinue }
+        if (-not (Test-Path (Join-Path $uiDir 'package.json'))) {
+            Write-Host '[i] dashboard UI not found; using legacy /web/subtitle UI.' -ForegroundColor DarkYellow
+        } elseif (-not $pnpm) {
+            Write-Host '[i] pnpm not on PATH; using legacy /web/subtitle UI.' -ForegroundColor DarkYellow
+        } else {
+            # Vite reads PORT for its dev-server port; the /pyapi proxy + WS target
+            # the running pycore backend via PYCORE_API_BASE.
+            $env:PORT            = "$UiPort"
+            $env:PYCORE_UI_PORT  = "$UiPort"
+            $env:PYCORE_API_BASE = "http://localhost:$Port"
+            # Install deps only if missing.
+            if (-not (Test-Path (Join-Path $uiDir 'node_modules'))) {
+                Write-Host '[..] Installing dashboard deps (pnpm install) ...' -ForegroundColor Yellow
+                Push-Location -LiteralPath $uiDir
+                try { & $pnpm.Source install } finally { Pop-Location }
+            }
+            # REUSE a healthy dashboard already serving this port (dev mode only):
+            # concurrent starts (boot autostart + manual run) must NOT kill each
+            # other's dev server — the loser of the worker singleton would leave
+            # the winner's webview with ERR_CONNECTION_REFUSED. Require both the
+            # shell HTML and compiled Tailwind CSS (/themes/index.css) so a stale
+            # v3/PostCSS Vite process (HTML OK, CSS 500) is never reused.
+            $uiReuse = $false
+            if (-not $UiBuild) {
+                try {
+                    $probe = Invoke-WebRequest "http://localhost:$UiPort/pycore-manager" -UseBasicParsing -TimeoutSec 2
+                    $cssOk = $false
+                    if ($probe.StatusCode -eq 200 -and $probe.Content -match 'Nexus Dash') {
+                        try {
+                            $cssProbe = Invoke-WebRequest "http://localhost:$UiPort/themes/index.css" -UseBasicParsing -TimeoutSec 5
+                            $cssOk = ($cssProbe.StatusCode -eq 200 -and $cssProbe.Content.Length -ge 10000 -and $cssProbe.Content -notmatch '@tailwind\s+(base|components|utilities)')
+                        } catch { }
+                    }
+                    if ($cssOk) { $uiReuse = $true }
+                    elseif ($probe.StatusCode -eq 200 -and $probe.Content -match 'Nexus Dash') {
+                        Write-Host ("[!] Dashboard on port {0} serves HTML but CSS is broken (stale Vite/PostCSS). Will restart it." -f $UiPort) -ForegroundColor DarkYellow
+                    }
+                } catch { }
+            }
+            if ($uiReuse) {
+                Write-Host ("[OK] Reusing dashboard dev server already on http://localhost:{0} (not restarting it)" -f $UiPort) -ForegroundColor Green
+                # $uiProc stays $null: we don't own this server, so the finally
+                # block must not tear it down.
+                $env:PYCORE_UI_URL = "http://localhost:$UiPort/pycore-manager"
+            } else {
+            # Free the UI port FIRST: kill any stale UI server (an old desktop-manager
+            # or a prior dashboard) still bound to it — otherwise the webview loads the
+            # stale server shadowing this port and the UI "doesn't change".
+            Get-NetTCPConnection -LocalPort $UiPort -State Listen -ErrorAction SilentlyContinue |
+                Select-Object -ExpandProperty OwningProcess -Unique |
+                ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+            Start-Sleep -Milliseconds 500
+            $uiPortBlocked = Get-NetTCPConnection -LocalPort $UiPort -State Listen -ErrorAction SilentlyContinue
+            if ($uiPortBlocked) {
+                $blockerPid = ($uiPortBlocked | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $_ -ne 0 } | Select-Object -First 1)
+                Write-Host ("[!] Port {0} is still held by pid {1}. End that node.exe (Task Manager) or restart pyservice as the same user that started the old dashboard." -f $UiPort, $blockerPid) -ForegroundColor Red
+                $env:PYCORE_UI_URL = "http://localhost:$UiPort/pycore-manager"
+            } else {
+            if ($UiBuild) {
+                Write-Host '[..] Building dashboard UI (pnpm build) ...' -ForegroundColor Yellow
+                Push-Location -LiteralPath $uiDir
+                try { & $pnpm.Source build } finally { Pop-Location }
+                $env:NODE_ENV = 'production'
+                $uiProc = Start-Process -FilePath $pnpm.Source -ArgumentList 'exec','vite','preview','--port',"$UiPort",'--strictPort','--host','0.0.0.0' -WorkingDirectory $uiDir -PassThru -WindowStyle Hidden
+            } else {
+                Write-Host ("[..] Starting dashboard dev server on http://localhost:{0} ..." -f $UiPort) -ForegroundColor Yellow
+                # Explicit --port + --strictPort: bind THIS port deterministically rather
+                # than silently falling back to a different Vite default, so the webview's
+                # PYCORE_UI_URL host always matches the server we just started. (The
+                # dashboard's vite.config.ts also defaults to 13054, so a standalone
+                # start_dashboard.ps1 / `pnpm dev` lands on the same port.)
+                $uiProc = Start-Process -FilePath $pnpm.Source -ArgumentList 'exec','vite','--port',"$UiPort",'--strictPort','--host','0.0.0.0' -WorkingDirectory $uiDir -PassThru -WindowStyle Hidden
+            }
+            # Default the PySide6 webview to the pycore-manager end of the shell.
+            $env:PYCORE_UI_URL = "http://localhost:$UiPort/pycore-manager"
+            # Wait (up to ~15s) for the UI to answer before the webview loads it.
+            $uiReady = $false
+            for ($i = 0; $i -lt 30; $i++) {
+                Start-Sleep -Milliseconds 500
+                try { if ((Invoke-WebRequest "http://localhost:$UiPort/pycore-manager" -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) { $uiReady = $true; break } } catch { }
+            }
+            if ($uiReady) { Write-Host ("[OK] UI ready at {0} (pid {1})" -f $env:PYCORE_UI_URL, $uiProc.Id) -ForegroundColor Green }
+            else          { Write-Host ("[!] UI not responding yet at {0}; webview may show a connecting page." -f $env:PYCORE_UI_URL) -ForegroundColor DarkYellow }
+            }
+            }
+        }
+    } else {
+        Write-Host '[i] -NoUi: using legacy /web/subtitle UI.' -ForegroundColor DarkYellow
+    }
+
+    # --- 3) launch the worker -------------------------------------------- #
     $pyArgs = @('-u', $workerRel, '--host', $BindHost, '--port', $Port)
     if ($DebugMode) { $pyArgs += '--debug' }
+    if ($Reload)    { $pyArgs += '--reload' }   # backend hot-reload (watch .py -> os.execv restart)
 
     Write-Host ''
     Write-Host ("[>] Launching worker: {0}" -f $workerRel) -ForegroundColor Cyan
@@ -155,6 +407,17 @@ try {
     $code = $LASTEXITCODE
 }
 finally {
+    # Tear down the UI server (npm spawns a node child; /T kills the whole tree).
+    # Exit code 3 = the worker YIELDED to a newer running instance: that instance
+    # is (or may be) serving its webview from this UI server — leave it running.
+    if ($uiProc -and -not $uiProc.HasExited) {
+        if ($code -eq 3) {
+            Write-Host ("[i] Worker yielded to a newer instance; leaving UI server running (pid {0})." -f $uiProc.Id) -ForegroundColor DarkYellow
+        } else {
+            Write-Host ("[..] Stopping UI server (pid {0}) ..." -f $uiProc.Id) -ForegroundColor DarkGray
+            & taskkill /PID $uiProc.Id /T /F 2>$null | Out-Null
+        }
+    }
     Pop-Location
 }
 
