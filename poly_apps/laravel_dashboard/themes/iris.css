@@ -114,6 +114,29 @@ html[data-theme="iris"] {
   --section-gap: var(--space-2xl);
   --bar-cta-bg: var(--klein-gradient);
 
+  /* ---- Fluid-Glass: iridescence / chromatic edge (虹彩 · light) ---- */
+  /* Corner-tinted, centre-transparent so text stays clean; the diagonal
+     white band is the view-dependent refraction highlight. */
+  --iris-sheen:
+    radial-gradient(135% 110% at 0% 0%, rgba(110, 132, 255, 0.16) 0%, transparent 46%),
+    radial-gradient(135% 110% at 100% 100%, rgba(214, 137, 255, 0.14) 0%, transparent 46%),
+    linear-gradient(118deg, transparent 38%, rgba(255, 255, 255, 0.16) 50%, transparent 62%);
+  --iris-sheen-opacity: 0.9;
+  --iris-sheen-blend: screen;
+  /* Chromatic edge ring (subtle blue->violet refraction at the rim). */
+  --iris-edge:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45),
+    inset 1px 1px 0 0 rgba(150, 170, 255, 0.30),
+    inset -1px -1px 0 0 rgba(228, 150, 255, 0.24);
+  --iris-edge-glow: 0 0 0 1px rgba(255, 255, 255, 0.10);
+
+  /* ---- Fluid-Glass: liquid morph + parallax tuning ---- */
+  --liquid-morph: 6px;          /* radius bloom on hover */
+  --ease-liquid-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --parallax-bg: 14;            /* px range of the far aura layer */
+  --parallax-mid: 26;           /* px range of the near aura layer */
+  --parallax-blob: 40;          /* px range of the floating depth blobs */
+
   --z-base: 0;
   --z-raised: 10;
   --z-sticky: 30;
@@ -166,6 +189,19 @@ html[data-theme="iris"].dark {
   --klein-grad-glow: 0 18px 40px rgba(110, 132, 255, 0.44), 0 6px 18px rgba(154, 108, 242, 0.32);
   --bar-cta-bg: var(--klein-gradient);
 
+  /* On dark glass the sheen reads stronger and the rim lighting is dimmer. */
+  --iris-sheen:
+    radial-gradient(135% 110% at 0% 0%, rgba(124, 146, 255, 0.22) 0%, transparent 48%),
+    radial-gradient(135% 110% at 100% 100%, rgba(196, 132, 255, 0.20) 0%, transparent 48%),
+    linear-gradient(118deg, transparent 38%, rgba(255, 255, 255, 0.10) 50%, transparent 62%);
+  --iris-sheen-opacity: 1;
+  --iris-sheen-blend: screen;
+  --iris-edge:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 1px 1px 0 0 rgba(124, 146, 255, 0.28),
+    inset -1px -1px 0 0 rgba(196, 132, 255, 0.22);
+  --iris-edge-glow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+
   color-scheme: dark;
 }
 
@@ -189,29 +225,42 @@ html[data-theme="iris"].dark body {
  * click in the page dead (elementFromPoint resolves to .wf-root). */
 html[data-theme="iris"] .wf-root > .ds-aura-bg {
   position: fixed;
-  inset: 0;
+  /* Slightly oversized so parallax translation never reveals a hard edge. */
+  inset: -8%;
   z-index: -2;
   background-color: #07070f;
   background-image:
-    radial-gradient(ellipse 120% 80% at 12% 8%, rgba(110, 132, 255, 0.16) 0, transparent 52%),
-    radial-gradient(ellipse 100% 100% at 88% 18%, rgba(154, 108, 242, 0.18) 0, transparent 55%),
-    radial-gradient(ellipse 95% 70% at 50% 96%, rgba(110, 124, 245, 0.16) 0, transparent 55%);
-  transition: background-position 0.6s var(--ease-liquid);
+    radial-gradient(ellipse 120% 80% at 12% 8%, rgba(110, 132, 255, 0.18) 0, transparent 52%),
+    radial-gradient(ellipse 100% 100% at 88% 18%, rgba(154, 108, 242, 0.20) 0, transparent 55%),
+    radial-gradient(ellipse 80% 60% at 78% 90%, rgba(94, 234, 212, 0.10) 0, transparent 55%),
+    radial-gradient(ellipse 95% 70% at 50% 96%, rgba(110, 124, 245, 0.18) 0, transparent 55%);
+  /* Far depth layer — moves least. `translate` is independent of `transform`
+     so it composes with any keyframe transform. */
+  translate: calc(var(--wf-px, 0) * var(--parallax-bg) * 1px) calc(var(--wf-py, 0) * var(--parallax-bg) * 1px);
+  transition: translate 0.7s var(--ease-liquid), background-position 0.6s var(--ease-liquid);
 }
 html[data-theme="iris"]:not(.dark) .wf-root > .ds-aura-bg {
-  background: linear-gradient(165deg, #ECEDFB 0%, #E5E7FB 46%, #EFE9FC 100%);
+  background-color: #ECEDFB;
+  background-image:
+    linear-gradient(165deg, #ECEDFB 0%, #E5E7FB 46%, #EFE9FC 100%),
+    radial-gradient(ellipse 90% 60% at 14% 6%, rgba(110, 132, 255, 0.12) 0, transparent 50%),
+    radial-gradient(ellipse 80% 60% at 88% 16%, rgba(190, 130, 245, 0.12) 0, transparent 52%),
+    radial-gradient(ellipse 70% 50% at 80% 92%, rgba(94, 214, 212, 0.10) 0, transparent 52%);
 }
 html[data-theme="iris"] .wf-root > .ds-aura-overlay {
   position: fixed;
-  inset: 0;
+  inset: -10%;
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 80% 50% at 20% 28%, rgba(110, 132, 255, 0.14) 0, transparent 52%),
-    radial-gradient(ellipse 60% 80% at 82% 72%, rgba(154, 108, 242, 0.16) 0, transparent 52%),
-    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(110, 124, 245, 0.10) 0, transparent 52%);
+    radial-gradient(ellipse 80% 50% at 20% 28%, rgba(110, 132, 255, 0.16) 0, transparent 52%),
+    radial-gradient(ellipse 60% 80% at 82% 72%, rgba(154, 108, 242, 0.18) 0, transparent 52%),
+    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(110, 124, 245, 0.12) 0, transparent 52%);
   background-size: 200% 200%;
   filter: blur(60px);
+  /* Near depth layer — moves more than the far layer for parallax depth. */
+  translate: calc(var(--wf-px, 0) * var(--parallax-mid) * 1px) calc(var(--wf-py, 0) * var(--parallax-mid) * 1px);
+  transition: translate 0.5s var(--ease-liquid);
   animation: ds-mesh-flow 25s var(--ease-liquid) infinite alternate;
 }
 html[data-theme="iris"]:not(.dark) .wf-root > .ds-aura-overlay {
@@ -221,6 +270,42 @@ html[data-theme="iris"]:not(.dark) .wf-root > .ds-aura-overlay {
     radial-gradient(at 42% 84%, rgba(220, 224, 252, 0.55) 0px, transparent 52%);
   filter: blur(72px);
   animation: ds-blob-soft 22s var(--ease-liquid) infinite alternate;
+}
+
+/* Floating chromatic depth blobs — nearest parallax layer (mounted by WfApp). */
+html[data-theme="iris"] .wf-root > .ds-aura-blobs {
+  position: fixed;
+  inset: -12%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 18vmax at 16% 22%, rgba(110, 132, 255, 0.22) 0, transparent 60%),
+    radial-gradient(circle 14vmax at 86% 30%, rgba(214, 137, 255, 0.20) 0, transparent 60%),
+    radial-gradient(circle 16vmax at 72% 86%, rgba(94, 234, 212, 0.16) 0, transparent 60%);
+  filter: blur(40px);
+  opacity: 0.9;
+  translate: calc(var(--wf-px, 0) * var(--parallax-blob) * 1px) calc(var(--wf-py, 0) * var(--parallax-blob) * 1px);
+  transition: translate 0.4s var(--ease-liquid);
+  animation: ds-blob-drift 30s var(--ease-liquid) infinite alternate;
+}
+html[data-theme="iris"]:not(.dark) .wf-root > .ds-aura-blobs {
+  opacity: 0.7;
+}
+@keyframes ds-blob-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(2%, -2%, 0) scale(1.04); }
+  100% { transform: translate3d(-2%, 2%, 0) scale(0.97); }
+}
+
+/* Respect reduced-motion: freeze aura animation + parallax. */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="iris"] .wf-root > .ds-aura-bg,
+  html[data-theme="iris"] .wf-root > .ds-aura-overlay,
+  html[data-theme="iris"] .wf-root > .ds-aura-blobs {
+    animation: none;
+    translate: none;
+    transition: none;
+  }
 }
 @keyframes ds-mesh-flow {
   0% { background-position: 0% 50%; transform: translate(0, 0); }

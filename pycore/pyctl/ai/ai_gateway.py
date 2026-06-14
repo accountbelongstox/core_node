@@ -867,7 +867,7 @@ def _generate_image_with_dashscope(
 ) -> Dict[str, Any]:
     """Alibaba DashScope Tongyi-Wanxiang image backup (free-trial quota). ASYNC:
     submit a synthesis task, then poll /tasks/{id} until SUCCEEDED for the URL."""
-    key = first_secret("dashscope")
+    key = image_first_secret("dashscope")
     if not key:
         out["error"] = "No API key configured"
         return out
@@ -922,7 +922,7 @@ def _generate_image_with_stepfun(
     prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
 ) -> Dict[str, Any]:
     """StepFun image backup (paid, OpenAI-compatible /images/generations)."""
-    key = first_secret("stepfun")
+    key = image_first_secret("stepfun")
     if not key:
         out["error"] = "No API key configured"
         return out
@@ -964,7 +964,7 @@ def _generate_image_with_qianfan(
 ) -> Dict[str, Any]:
     """Baidu Qianfan ERNIE iRAG image backup (bearer, OpenAI-style
     /v2/images/generations; the response carries an image URL)."""
-    key = first_secret("qianfan")
+    key = image_first_secret("qianfan")
     if not key:
         out["error"] = "No API key configured"
         return out
@@ -1136,4 +1136,5 @@ __all__ = [
     "available_providers",
     "get_quota",
     "gateway_status",
-    "invalidate_probe_cach
+    "invalidate_probe_cache",
+]

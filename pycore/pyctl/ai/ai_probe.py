@@ -62,6 +62,7 @@ from pycore.pyctl.ai.ai_keys import (
     OPENAI_COMPAT_PROVIDERS,
     catalog_models,
     first_secret as _provider_secret,
+    has_image_key,
     is_configured,
 )
 from pycore.pyctl.ai.ai_compat_helpers import probe_openai_compat, probe_cloudflare, probe_spark
@@ -374,7 +375,7 @@ def _blank(name: str, key: Optional[str]) -> Dict[str, Any]:
         "limits": meta.get("limits", ""),
         "vision": meta.get("vision", False),
         "image": meta.get("image", False),
-        "image_ready": bool(meta.get("image", False)) and configured,
+        "image_ready": bool(meta.get("image", False)) and has_image_key(name),
         "image_model": meta.get("image_model", "") if meta.get("image") else "",
         "key_masked": mask_key(key) if key else (mask_key(_provider_secret(name)) if configured else None),
         "models": [],
@@ -391,7 +392,7 @@ def _finalize(result: Dict[str, Any]) -> Dict[str, Any]:
     result["limits"] = meta.get("limits", "")
     result["vision"] = meta.get("vision", False)
     result["image"] = meta.get("image", False)
-    result["image_ready"] = bool(meta.get("image", False)) and bool(result.get("configured"))
+    result["image_ready"] = bool(meta.get("image", False)) and has_image_key(name)
     result["image_model"] = meta.get("image_model", "") if meta.get("image") else ""
     if result.get("configured") and not result.get("models"):
         result["models"] = catalog_models(name, _MAX_MODELS)

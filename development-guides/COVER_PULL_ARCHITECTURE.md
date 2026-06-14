@@ -134,6 +134,34 @@ Where covers render (vocabulary library cards/list, `vocabulary-page-ops`):
   **Retry** action that calls `POST /api/app_qy_v1/assist/cover/retry` with that
   library's id, then refreshes.
 
+## 4b. Dedicated IMAGE key — independent budget (DONE pycore side)
+
+Image generation prefers a DEDICATED per-provider key so heavy TEXT usage can
+never exhaust the image budget. `ai_keys.image_first_secret(provider)` tries
+`{key_base}_IMAGE` (indexed `_IMAGE_1..5` then bare `_IMAGE`) and falls back to
+the provider's normal key. All `_generate_image_with_*` helpers use it; the probe
+`image_ready` flag now keys off `has_image_key()` (so a dedicated image key alone
+makes a provider image-ready even with no text key).
+
+To give a provider its own image quota, add a key file named `{BASE}_IMAGE`, e.g.:
+`GOOGLE_API_KEY_IMAGE`, `ZHIPUAI_API_KEY_IMAGE`, `OPENAI_API_KEY_IMAGE`,
+`OPENROUTER_API_KEY_IMAGE`, `DASHSCOPE_API_KEY_IMAGE`, `QIANFAN_API_KEY_IMAGE`
+(under `.secret_keys/.secret_ignore/`). NOTE: Gemini's free tier does NOT cover
+`gemini-2.5-flash-image` (a billed model → 429 RESOURCE_EXHAUSTED even when the
+free TEXT quota is intact) — a billing-enabled `GOOGLE_API_KEY_IMAGE` fixes
+Gemini specifically; otherwise the free-first chain falls to zhipu cogview-3-flash.
+
+## 4c. WordFlow cover display alignment
+
+`/wordflow/learn/library` (`apps/wordflow/pages/WfLearnLibraryPage.tsx`,
+`CoverThumb`) renders `<img src={lib.image_url}>` and falls back to a BookOpen
+icon on 404 — so a not-yet-generated cover looks identical to "no cover". Align
+it with the other ends: surface `cover_status` (the API already returns
+`image_url`, `cover_status`, `cover_error_message`, `cover_attempts`): show a
+"generating" placeholder for pending/processing/retry, the image when ready, and
+a subtle failed state (optional retry via `POST /api/app_qy_v1/assist/cover/retry`
+`{ids:[id]}`). Add the missing cover fields to the `WfPublicLibrary` TS type.
+
 ## 5. Wire-level contracts (unchanged unless noted)
 
 ```

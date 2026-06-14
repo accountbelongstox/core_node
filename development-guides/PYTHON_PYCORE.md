@@ -175,7 +175,11 @@ Because ColorPrint auto-streams, **all backend code SHOULD print via ColorPrint*
 - **FORBIDDEN**: a group package (subdirectory) importing ANOTHER group package
   (`tts → edge_tts`, `whisper_stt → azure_speech`, `device_sync → launcher`,
   `input → clipboard`, …); and `common` MUST NOT import a group package
-  (`common → edge_tts` is backwards).
+  (`common → edge_tts` is backwards). **Canonical example of the fix:** the speech
+  orchestrators (`SpeechSwitch`, `ProviderStatus`, the TTS/STT switches) that
+  instantiate the `edge_tts`/`azure_speech`/`whisper_stt` groups live in
+  `pycore/pyctl/speech/` (the coordination layer), NOT in `pyutils/common`;
+  `pyutils/common` keeps only the speech contracts/base classes the groups depend on.
   Need cross-domain behavior? Put the coordinator in `pyctl` (the layer above), or wire
   it by dependency injection — never a domain→domain sideways import. Keep DOMAIN code
   in pyutils; only push truly-generic code into `pyutils/common` (NOT into the
