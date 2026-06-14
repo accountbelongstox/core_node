@@ -805,3 +805,104 @@ html.dark .ds-icon-tile {
 @media (prefers-reduced-motion: reduce) {
   .route-fade { animation: none; }
 }
+
+/* ========================================================================
+ * Fluid-Glass upgrade — iridescence (虹彩) + chromatic edge + liquid morph.
+ *
+ * A single ::before per glass surface does double duty:
+ *   1. an iridescent surface SHEEN (corner-tinted, centre-transparent so text
+ *      stays legible; diagonal white band = view-dependent refraction), and
+ *   2. a chromatic refraction RIM (inset box-shadow = --iris-edge).
+ *
+ * The pseudo paints at z-index:-1: above the glass fill/backdrop, BELOW the
+ * element's own content (reliable here because every target has backdrop-filter
+ * and therefore its own stacking context). pointer-events:none keeps clicks.
+ * ====================================================================== */
+.ds-glass,
+.ds-card,
+.ds-row,
+.ds-modal-panel { position: relative; }
+
+.ds-glass::before,
+.ds-card::before,
+.ds-row::before,
+.ds-bento::before,
+.ds-modal-panel::before,
+.ds-pop-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--iris-sheen);
+  background-size: 220% 220%;
+  background-position: 0% 0%;
+  opacity: var(--iris-sheen-opacity);
+  mix-blend-mode: var(--iris-sheen-blend);
+  box-shadow: var(--iris-edge);
+  transition: background-position 0.6s var(--ease-liquid), opacity 0.4s var(--ease-liquid);
+}
+
+/* View-dependent: the refraction highlight slides across on hover. */
+.ds-glass:hover::before,
+.ds-card:hover::before,
+.ds-row:hover::before,
+.ds-bento:hover::before {
+  background-position: 100% 100%;
+}
+
+/* ---- Liquid morph: radius blooms + unified elastic curve ---- */
+.ds-card,
+.ds-row,
+.ds-bento {
+  transition:
+    transform 0.5s var(--ease-spring),
+    box-shadow 0.45s var(--ease-liquid),
+    border-color 0.4s var(--ease-liquid),
+    border-radius 0.55s var(--ease-liquid-spring);
+}
+
+.ds-card:hover,
+.ds-row:hover,
+.ds-bento:hover {
+  border-radius: calc(var(--radius-card) + var(--liquid-morph));
+}
+
+/* Q-bounce on press (squishy) — keep the existing scale, soften the radius. */
+.ds-card:active,
+.ds-row:active,
+.ds-bento:active {
+  border-radius: calc(var(--radius-card) + calc(var(--liquid-morph) / 2));
+  transition-duration: 0.18s;
+}
+
+/* Optional explicit helpers (pages may opt extra surfaces in). */
+.ds-iris { position: relative; }
+.ds-iris::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--iris-sheen);
+  opacity: var(--iris-sheen-opacity);
+  mix-blend-mode: var(--iris-sheen-blend);
+  box-shadow: var(--iris-edge);
+}
+.ds-liquid {
+  transition:
+    transform 0.5s var(--ease-spring),
+    border-radius 0.55s var(--ease-liquid-spring),
+    box-shadow 0.45s var(--ease-liquid) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-glass::before,
+  .ds-card::before,
+  .ds-row::before,
+  .ds-bento::before,
+  .ds-modal-panel::before,
+  .ds-pop-panel::before { transition: none; }
+}
