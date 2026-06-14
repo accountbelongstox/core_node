@@ -3,6 +3,16 @@
     <!-- Task Center Panel (Unified State Center) -->
     <TaskCenterPanel />
 
+    <!-- Translation Assist (worker mode): pull untranslated words from
+         laravel_main, translate via parallel Bing tabs, post results back. -->
+    <ClientModePanel
+      :clientConfig="clientConfig"
+      :clientService="clientService"
+      :formatTimestamp="formatTimestamp"
+      @toggle-service="toggleClientService"
+      @update-config="updateConfig"
+    />
+
     <!-- Header -->
     <div class="dictionary-header">
       <h4 class="dictionary-title">Bing Dictionary</h4>
@@ -43,7 +53,9 @@
 <script lang="ts" setup>
 import { onMounted } from 'vue';
 import { useBingDictionary } from '../../composables/useBingDictionary';
+import { useBingDictionaryClient } from '../../composables/useBingDictionaryClient';
 import TaskCenterPanel from './TaskCenterPanel.vue';
+import ClientModePanel from './bing-dictionary/ClientModePanel.vue';
 import SearchBox from './bing-dictionary/SearchBox.vue';
 import WordResult from './bing-dictionary/WordResult.vue';
 import HistoryList from './bing-dictionary/HistoryList.vue';
@@ -62,6 +74,16 @@ const {
   formatTime,
   loadHistory,
 } = useBingDictionary();
+
+// Translation-assist (worker) composable
+const {
+  clientConfig,
+  clientService,
+  toggleClientService,
+  updateConfig,
+  formatTimestamp,
+  initPanel,
+} = useBingDictionaryClient();
 
 // Event handlers
 const handleSearch = () => {
@@ -83,6 +105,4 @@ const handleClearHistory = () => {
 // Initialize on mount
 onMounted(async () => {
   await loadHistory();
-});
-</script>
-
+  await initPanel(

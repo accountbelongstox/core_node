@@ -95,10 +95,10 @@ VideoExtractProcessor (pycore)                    laravel_main (:9000, app_qy_v1
 - 句子经 `source_sentences → sentences` 共享句库解析,优先 `grain='sentence'`,该粒度为空时回退 `grain='cue'`(返回中带 `grain` 字段)。
 - 分页:`limit` 默认 50,**上限钳制 200**;`start<0` 归零。
 - 列表/内容端点**永不返回 `full_content`**(字幕全文只用于入库,不对外)。
-- **v2 书籍注意(与 §8 相关)**:书籍句子在库中为**去标点**形式,故 `/media/content/book/{id}` 返回的
-  `text` 是去标点文本,`audio` 初始为空(由 pycore 后续回填)。带标点原文的精确重建依赖
-  `book.sentence_seq` + 标点标识库(§8.5/§8.6)。**当前公共读取控制器尚未做重建**(直接返回库中
-  `text`)——见 §8.12 待办。
+- **v2 书籍(与 §8 相关)**:书籍句子在库中为**去标点**形式。`/media/content/book/{id}` 对 v2 书籍
+  (`book.sentence_seq` 非空)由 `AppQyV1MediaContentPublicController::buildBookV2Content` **用
+  `sentence_seq` + 标点标识库重建带标点句子**后返回(按句子单元分页,`grain='sentence'`)。句子**内部**
+  标点(去标点时移除、未进序列)不还原,精确字节仅在 `full_content`(不对外);`audio` 初始为空(pycore 后续回填)。
 
 另:`GET /api/app_qy_v1/learning/recommendations` 同日改为公开(`AppQyV1Learning.php` 移出 `auth:sanctum` 组)——匿名得 `is_selected=false`,带 token 行为不变;`collections/select`、`collections/selected` 仍需认证。
 
@@ -184,9 +184,9 @@ VideoExtractProcessor (pycore)                    laravel_main (:9000, app_qy_v1
 
 ### 8.12 已知坑(书籍)
 - 标点标识库与句子去标点规则两端必须一致(pycore 为权威定义,laravel sys:init 播种须镜像)。
-- **公共读取未重建(待办)**:`/media/content/book/{id}`(§6.1)目前直接返回**去标点**库文本,且 `audio`
-  初始为空;若需对外显示带标点原文,需让 `AppQyV1MediaContentPublicController` 用 `book.sentence_seq`
-  + 标点标识库重建文本。该控制器尚未做 v2 改造。
+- **公共读取重建(已实现)**:`/media/content/book/{id}`(§6.1)对 v2 书籍用 `book.sentence_seq` +
+  标点标识库重建带标点文本(`AppQyV1MediaContentPublicController::buildBookV2Content`)。句子内部标点
+  不还原(精确字节在 `full_content`);`audio` 初始为空(pycore 回填)。
 - v2 书籍的 `source_sentences` 仅按**首次出现顺序**存**去重后**的句子(grain=`sentence`);**完整含重复的顺序**在 `book.sentence_seq`。§6.1 经 `source_sentences` 读取得到的是去重首现序,非逐字重现序。
 - 拖放取路径依赖 `File.path`,PySide6 QtWebEngine 沙箱不暴露 → 退化为上传暂存;选择器/手输路径始终可用。
 - 同 §7:改 RPC/入库逻辑后需重启 pycore worker;改 PHP 后须 `octane:reload`。

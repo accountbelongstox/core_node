@@ -807,7 +807,7 @@ html.dark .ds-icon-tile {
 }
 
 /* ========================================================================
- * Fluid-Glass upgrade — iridescence (虹彩) + chromatic edge + liquid morph.
+ * Fluid-Glass upgrade — iridescence + chromatic edge + liquid morph.
  *
  * A single ::before per glass surface does double duty:
  *   1. an iridescent surface SHEEN (corner-tinted, centre-transparent so text

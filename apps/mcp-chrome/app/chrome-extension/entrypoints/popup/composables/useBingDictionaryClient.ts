@@ -12,12 +12,17 @@ export interface ClientConfig {
   fetchInterval: number;
   batchSize: number;
   mode?: ServiceMode;
+  // Worker mode: number of Bing dictionary tabs driven in parallel.
+  tabCount?: number;
+  // Worker mode: default target language when a task omits one.
+  targetLanguage?: string;
 }
 
 export interface ClientServiceStats {
   pending: number;
   translated: number;
   failed: number;
+  invalid?: number;         // Words Bing had no entry for (marked invalid)
   lastRun: number | null;
   workerId?: string | null;
   isOnline?: boolean;
@@ -25,6 +30,7 @@ export interface ClientServiceStats {
   queueTotal?: number;      // Total tasks in current queue
   newTasks?: number;        // New tasks received in last poll
   duplicateTasks?: number;  // Duplicate tasks skipped in last poll
+  activeTabs?: number;      // Bing tabs currently in the pool
 }
 
 export interface ClientServiceState {
@@ -39,6 +45,8 @@ export function useBingDictionaryClient() {
     fetchInterval: 5,  // Default 5 seconds for real-time updates
     batchSize: 10,
     mode: 'worker', // Default to Worker API mode
+    tabCount: 3,     // Parallel Bing dictionary tabs (worker mode)
+    targetLanguage: 'zh',
   });
   const clientService = ref<ClientServiceState>({
     isRunning: false,
@@ -62,6 +70,20 @@ export function useBingDictionaryClient() {
         await toggleClientService();
       }
     }
+  };
+
+  // Update a single config field from the panel and persist it.
+  const updateConfig = async (field: string, value: any) => {
+    (clientConfig.value as any)[field] = value;
+    await saveClientConfig();
+  };
+
+  // Always-on activation for an embedded panel: load saved config + current
+  // service state and begin polling, independent of the legacy clientMode toggle.
+  const initPanel = async () => {
+    await loadClientConfig();
+    await loadClientServiceState();
+    startStatsPolling();
   };
 
   const saveClientConfig = async () => {
@@ -190,8 +212,10 @@ export function useBingDictionaryClient() {
     error,
     toggleClientMode,
     saveClientConfig,
+    updateConfig,
     toggleClientService,
     formatTimestamp,
     initialize,
+    initPanel,
   };
 }
