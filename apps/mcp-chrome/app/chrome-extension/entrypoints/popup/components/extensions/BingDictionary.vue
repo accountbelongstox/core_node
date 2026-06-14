@@ -105,4 +105,7 @@ const handleClearHistory = () => {
 // Initialize on mount
 onMounted(async () => {
   await loadHistory();
-  await initPanel(
+  await initPanel();
+});
+</script>
+
