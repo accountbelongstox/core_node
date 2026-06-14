@@ -56,6 +56,14 @@ return new class extends Migration
                     'nullable' => false,
                     'default' => 0,
                 ],
+                // Owned here (not only in AppQyV1_2025_12_01_..._add_cover_processing):
+                // that migration sorts BEFORE this create-table one and skips when
+                // the table does not exist, so fresh databases get the column here.
+                'attempts' => [
+                    'type' => 'integer',
+                    'nullable' => false,
+                    'default' => 0,
+                ],
                 'error_message' => [
                     'type' => 'text',
                     'nullable' => true,
@@ -103,6 +111,10 @@ return new class extends Migration
                 [
                     'columns' => ['priority'],
                     'name' => 'idx_vocab_covers_priority',
+                ],
+                [
+                    'columns' => ['status', 'priority', 'last_requested_at'],
+                    'name' => 'idx_cover_processing',
                 ],
             ],
             'foreignKeys' => [

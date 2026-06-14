@@ -18,7 +18,7 @@ Usage:
     DatabaseInitializer.init_clipboard()
 """
 
-from pycore.pyfoundations.color_print import ColorPrint as _OriginalColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint as _OriginalColorPrint
 from pycore.database import get_database_manager
 from pycore.database.models import TableKeys
 from pycore.database.models.common import CommonConfigModel

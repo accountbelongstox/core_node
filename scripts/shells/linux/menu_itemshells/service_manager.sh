@@ -55,7 +55,7 @@ SERVICE_MANAGER_SCRIPT["docker"]="$SERVER_MANAGER_DIR/docker_manager.sh"
 
 SERVICE_NAME["mysql"]="MySQL"
 SERVICE_SYSTEMD["mysql"]="mariadb"
-SERVICE_INSTALL_SCRIPT["mysql"]="48_install_mysql.sh"
+SERVICE_INSTALL_SCRIPT["mysql"]="50_install_mysql.sh"
 SERVICE_MANAGER_SCRIPT["mysql"]="$SERVER_MANAGER_DIR/mysql_manager.sh"
 
 SERVICE_NAME["nginx"]="Nginx"
@@ -65,7 +65,7 @@ SERVICE_MANAGER_SCRIPT["nginx"]="$SERVER_MANAGER_DIR/nginx_manager.sh"
 
 SERVICE_NAME["ssh"]="SSH Server"
 SERVICE_SYSTEMD["ssh"]="ssh"
-SERVICE_INSTALL_SCRIPT["ssh"]="17_setup_ssh_remote.sh"
+SERVICE_INSTALL_SCRIPT["ssh"]="18_setup_ssh_remote.sh"
 SERVICE_MANAGER_SCRIPT["ssh"]="$SERVER_MANAGER_DIR/ssh_manager.sh"
 
 SERVICE_NAME["pycore"]="Pycore HTTP"

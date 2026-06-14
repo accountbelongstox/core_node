@@ -39,7 +39,11 @@ class MenuHandler:
             ColorMessage.write("=" * 80, 'info')
             print()
 
-            menu_items = []
+            # Custom Add is pinned as item #1 so it stays one keystroke away
+            # regardless of how long the provider list below grows.
+            menu_items = [
+                {'Text': 'Custom Add (any KEY, auto-indexed)', 'Action': 'custom_add', 'HasSubMenu': False},
+            ]
 
             for config_name, config in self.config_manager.get_all_configs().items():
                 action = config['Common']
@@ -50,7 +54,6 @@ class MenuHandler:
                 })
 
             menu_items.extend([
-                {'Text': 'Custom Add (any KEY, auto-indexed)', 'Action': 'custom_add', 'HasSubMenu': False},
                 {'Text': 'Regenerate All Scripts', 'Action': 'regenerate_all', 'HasSubMenu': False},
                 {'Text': 'Restore Scripts from Secret Storage', 'Action': 'restore_scripts', 'HasSubMenu': False},
                 {'Text': 'Add Scripts Directory to PATH', 'Action': 'addpath', 'HasSubMenu': False},

@@ -42,7 +42,7 @@
 
 ### 结构
 
-- 单文件示例脚本：从 `pycore.pyutils.unified_detector` 引入 `UnifiedDetector`，定义 10 个示例函数（example_basic_detection、example_target_class、example_specify_model、example_detect_and_draw、example_batch_detection、example_custom_confidence、example_filter_high_confidence、example_json_output、example_error_handling、example_find_specific_object），`if __name__ == "__main__"` 中顺序调用并 try/except 打印错误。
+- 单文件示例脚本：从 `pycore.pyutils.window.unified_detector` 引入 `UnifiedDetector`，定义 10 个示例函数（example_basic_detection、example_target_class、example_specify_model、example_detect_and_draw、example_batch_detection、example_custom_confidence、example_filter_high_confidence、example_json_output、example_error_handling、example_find_specific_object），`if __name__ == "__main__"` 中顺序调用并 try/except 打印错误。
 
 ### 要点
 

@@ -1,0 +1,241 @@
+/**
+ * Iris theme layer (wordflow end) — v4.1 reference-faithful periwinkle->violet.
+ * Ported from poly_apps/qy_capacitor/index.css, with token / body / background
+ * selectors scoped under html[data-theme="iris"] so the WordFlow palette only
+ * applies on the wordflow end. The `.ds-*` component class library lives in
+ * apps/wordflow/wf-iris-components.css (imported by WfApp) and consumes these tokens.
+ *
+ * Dark/light parity is acceptance criteria; values match the design reference
+ * images public/design-reference-{light,dark}.webp in qy_capacitor.
+ */
+
+html[data-theme="iris"] {
+  /* ---- Global glass ---- */
+  --glass-opacity: 0.58;
+  --glass-blur: 40px;
+  --border-highlight: rgba(255, 255, 255, 0.22);
+
+  --blur-sm: 4px;
+  --blur-md: 12px;
+  --blur-lg: 24px;
+  --blur-glass: 20px;
+  --blur-ultra: 40px;
+
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-card: 24px;
+  --radius-button: 24px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --shadow-float: 0 24px 56px rgba(0, 0, 0, 0.08), 0 8px 16px rgba(0, 0, 0, 0.04);
+
+  --color-primary-container: rgba(59, 130, 246, 0.12);
+  --color-surface-variant: rgba(248, 250, 252, 0.85);
+  --color-surface: rgba(255, 255, 255, 0.72);
+  --color-glass-border: rgba(255, 255, 255, 0.5);
+  --color-glass-highlight: rgba(255, 255, 255, 0.15);
+  --color-inner-glow: rgba(255, 255, 255, 0.4);
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-text-tertiary: #94a3b8;
+
+  --cta-gradient-from: #8b5cf6;
+  --cta-gradient-to: #4c1d95;
+  --cta-inner-glow-bottom: rgba(192, 132, 252, 0.45);
+  --cta-border-stroke: rgba(255, 255, 255, 0.35);
+  --cta-shadow-colored: 0 12px 32px rgba(139, 92, 246, 0.4), 0 4px 12px rgba(76, 29, 149, 0.25);
+  --cta-inset-top: inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+  --cta-inset-bottom: inset 0 -1px 0 0 rgba(0, 0, 0, 0.2);
+
+  --primary-blur: 20px;
+  --shadow-deep: 0 20px 48px rgba(0, 0, 0, 0.18), 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  --bento-lime: #bef264;
+  --bento-deep: #1c1917;
+  --bento-border: 2px solid #0c0a09;
+
+  --fluid-from: #22d3ee;
+  --fluid-mid: #a78bfa;
+  --fluid-to: #4ade80;
+  --fluid-glow: 0 0 32px rgba(34, 211, 238, 0.35), 0 0 16px rgba(167, 139, 250, 0.25);
+
+  --glass-blur-sm: 4px;
+  --glass-blur-md: 12px;
+  --glass-blur-lg: 20px;
+
+  --ease-tab: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --bar-bg: rgba(255, 255, 255, 0.86);
+  --bar-stroke: 1px solid rgba(255, 255, 255, 0.7);
+  --bar-shadow: 0 18px 44px rgba(76, 70, 140, 0.16), 0 6px 18px rgba(30, 27, 60, 0.08);
+  --bar-inner-border: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  --bar-tab-glass: rgba(255, 255, 255, 0.0);
+  --bar-active-bg: var(--klein-gradient);
+
+  --material-thin-blur: 12px;
+  --material-thin-opacity: 0.62;
+  --material-thick-blur: 40px;
+  --material-thick-opacity: 0.38;
+
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-liquid: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --touch-min: 44px;
+  --grid-unit: 8px;
+  --page-padding-h: var(--space-lg);
+  --page-padding-v: 3.25rem;
+  --bar-gap: 12px;
+
+  /* v4.1 Iris — periwinkle->violet (light) */
+  --klein-blue: #3B49E0;
+  --klein-blue-strong: #2C38C2;
+  --klein-blue-soft: rgba(59, 73, 224, 0.10);
+  --klein-on: #ffffff;
+  --klein-ring: rgba(110, 124, 245, 0.50);
+  --klein-glow: 0 14px 34px rgba(99, 110, 240, 0.30), 0 4px 14px rgba(150, 124, 232, 0.20);
+  --klein-grad-from: #6E7CF5;
+  --klein-grad-to: #A47FE8;
+  --klein-gradient: linear-gradient(135deg, var(--klein-grad-from) 0%, var(--klein-grad-to) 100%);
+  --klein-grad-soft: rgba(123, 124, 240, 0.12);
+  --klein-grad-glow: 0 16px 36px rgba(110, 124, 245, 0.34), 0 6px 16px rgba(164, 127, 232, 0.24);
+
+  --space-breath: 2.5rem;
+  --section-gap: var(--space-2xl);
+  --bar-cta-bg: var(--klein-gradient);
+
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 30;
+  --z-chrome: 40;
+  --z-popover: 60;
+  --z-modal: 80;
+  --z-toast: 95;
+
+  color-scheme: light;
+}
+
+html[data-theme="iris"].dark {
+  --glass-opacity: 0.32;
+  --glass-blur: 44px;
+  --border-highlight: rgba(255, 255, 255, 0.1);
+  --material-thin-opacity: 0.28;
+  --material-thick-opacity: 0.22;
+  --color-primary-container: rgba(59, 130, 246, 0.15);
+  --color-surface-variant: rgba(30, 41, 59, 0.7);
+  --color-surface: rgba(15, 23, 42, 0.65);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
+  --color-glass-highlight: rgba(255, 255, 255, 0.05);
+  --color-inner-glow: rgba(255, 255, 255, 0.12);
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-tertiary: #94a3b8;
+  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-float: 0 24px 56px rgba(0, 0, 0, 0.45), 0 8px 20px rgba(0, 0, 0, 0.3);
+  --cta-inner-glow-bottom: rgba(167, 139, 250, 0.5);
+  --cta-border-stroke: rgba(255, 255, 255, 0.2);
+  --cta-shadow-colored: 0 12px 36px rgba(139, 92, 246, 0.5), 0 4px 14px rgba(76, 29, 149, 0.35);
+  --shadow-deep: 0 24px 56px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.22);
+  --bar-bg: rgba(18, 18, 28, 0.66);
+  --bar-stroke: 1px solid rgba(255, 255, 255, 0.12);
+  --bar-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), 0 6px 18px rgba(0, 0, 0, 0.3);
+  --bar-inner-border: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --bar-tab-glass: rgba(255, 255, 255, 0.0);
+  --bar-active-bg: var(--klein-gradient);
+
+  --klein-blue: #6E84FF;
+  --klein-blue-strong: #5468E6;
+  --klein-blue-soft: rgba(110, 132, 255, 0.16);
+  --klein-ring: rgba(124, 138, 255, 0.55);
+  --klein-glow: 0 14px 38px rgba(110, 132, 255, 0.42), 0 4px 16px rgba(120, 100, 240, 0.30);
+  --klein-grad-from: #6E84FF;
+  --klein-grad-to: #9A6CF2;
+  --klein-grad-soft: rgba(110, 132, 255, 0.18);
+  --klein-grad-glow: 0 18px 40px rgba(110, 132, 255, 0.44), 0 6px 18px rgba(154, 108, 242, 0.32);
+  --bar-cta-bg: var(--klein-gradient);
+
+  color-scheme: dark;
+}
+
+/* Body background (scoped to the iris end). */
+html[data-theme="iris"] body {
+  font-family: var(--font-sans, 'Inter', 'Noto Sans SC', sans-serif);
+  background-color: #ECEDFB;
+  color: var(--color-text-primary);
+  transition: background-color 0.5s ease, color 0.3s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+html[data-theme="iris"].dark body {
+  background-color: #07070f;
+  color: var(--color-text-primary);
+}
+
+/* Aura / mesh background — ONLY the dedicated WfApp-mounted background element
+ * (.wf-root > .ds-aura-bg). Child-combinator scope is load-bearing: these rules
+ * are fixed/inset-0 with negative z-index, so a page reusing the class on its
+ * content root would sink its whole subtree below .wf-root and make every
+ * click in the page dead (elementFromPoint resolves to .wf-root). */
+html[data-theme="iris"] .wf-root > .ds-aura-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-color: #07070f;
+  background-image:
+    radial-gradient(ellipse 120% 80% at 12% 8%, rgba(110, 132, 255, 0.16) 0, transparent 52%),
+    radial-gradient(ellipse 100% 100% at 88% 18%, rgba(154, 108, 242, 0.18) 0, transparent 55%),
+    radial-gradient(ellipse 95% 70% at 50% 96%, rgba(110, 124, 245, 0.16) 0, transparent 55%);
+  transition: background-position 0.6s var(--ease-liquid);
+}
+html[data-theme="iris"]:not(.dark) .wf-root > .ds-aura-bg {
+  background: linear-gradient(165deg, #ECEDFB 0%, #E5E7FB 46%, #EFE9FC 100%);
+}
+html[data-theme="iris"] .wf-root > .ds-aura-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 28%, rgba(110, 132, 255, 0.14) 0, transparent 52%),
+    radial-gradient(ellipse 60% 80% at 82% 72%, rgba(154, 108, 242, 0.16) 0, transparent 52%),
+    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(110, 124, 245, 0.10) 0, transparent 52%);
+  background-size: 200% 200%;
+  filter: blur(60px);
+  animation: ds-mesh-flow 25s var(--ease-liquid) infinite alternate;
+}
+html[data-theme="iris"]:not(.dark) .wf-root > .ds-aura-overlay {
+  background-image:
+    radial-gradient(at 18% 26%, rgba(214, 218, 252, 0.75) 0px, transparent 52%),
+    radial-gradient(at 82% 18%, rgba(232, 222, 250, 0.65) 0px, transparent 52%),
+    radial-gradient(at 42% 84%, rgba(220, 224, 252, 0.55) 0px, transparent 52%);
+  filter: blur(72px);
+  animation: ds-blob-soft 22s var(--ease-liquid) infinite alternate;
+}
+@keyframes ds-mesh-flow {
+  0% { background-position: 0% 50%; transform: translate(0, 0); }
+  50% { background-position: 100% 50%; transform: translate(1%, -1%); }
+  100% { background-position: 50% 100%; transform: translate(-1%, 1%); }
+}
+@keyframes ds-blob-soft {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(2%, -1%) scale(1.02); }
+  100% { transform: translate(-1%, 1%) scale(0.98); }
+}
+
+/* Iris scrollbar (scoped so it does not override the dashboard's). */
+html[data-theme="iris"] ::-webkit-scrollbar { width: 6px; }
+html[data-theme="iris"] ::-webkit-scrollbar-track { background: transparent; }
+html[data-theme="iris"] ::-webkit-scrollbar-thumb { border-radius: 10px; }
+html[data-theme="iris"].dark ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); }
+html[data-theme="iris"]:not(.dark) ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); }

@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder
-from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyutils.window.activator import WindowActivator
 from d3utils.window_analyzer_singleton import get_window_analyzer
 from pycore.pyutils.flutter_dev_tools.api.folder_opener import open_folder
 from providor.providor_index import CACHE_DIR, get_config_section, get_config_value_safe

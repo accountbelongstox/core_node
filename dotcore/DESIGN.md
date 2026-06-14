@@ -33,7 +33,7 @@ dotcore/
     └── DotCore.Foundations.Tests/
 ```
 
-Apps live under **dotapps/** at repo root (see DOT_ARCHITECTURE.md). For UI apps (WPF/MAUI/Blazor/Avalonia), **Presentation layer:** canonical spec [development-guides/DOT_UI_PROJECT_SPECIFICATION.md](../development-guides/DOT_UI_PROJECT_SPECIFICATION.md), [.cursor/rules/dot-ui.mdc](../.cursor/rules/dot-ui.mdc).
+Apps live under **dotapps/** at repo root (see DOT_ARCHITECTURE.md). For UI apps (WPF/MAUI/Blazor/Avalonia), **Presentation layer:** canonical spec [development-guides/DOT_ARCHITECTURE.md](../development-guides/DOT_ARCHITECTURE.md), [.cursor/rules/dot-ui.mdc](../.cursor/rules/dot-ui.mdc).
 
 ---
 

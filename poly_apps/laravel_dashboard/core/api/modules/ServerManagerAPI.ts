@@ -1,6 +1,127 @@
 import { BaseAPI, DEFAULT_REQUEST_TIMEOUT_MS } from '../base/BaseAPI';
 import { APIResponse } from '../../types';
 
+// ==================== Global Task / Worker substrate types ====================
+// laravel_main's distributed worker queue (`global_tasks` + `workers` tables).
+// These are real /api routes (TaskController / WorkerController, ApiResponse
+// trait) — NOT the Octane timer web routes below. BaseAPI unwraps the trait's
+// `{ success, data, message }` envelope, so `response.data` is the inner shape.
+
+/** Row shape returned by GET /api/task/list. */
+export interface GlobalTaskItem {
+  task_id: string;
+  app_name: string;
+  task_type: string;
+  execution_type: string;
+  status: string;
+  progress: number;
+  assigned_to: string | null;
+  created_at: string | null;
+}
+
+/** Full task returned by GET /api/task/{taskId}/status. */
+export interface GlobalTaskDetail extends GlobalTaskItem {
+  result: any;
+  error: string | null;
+  updated_at: string | null;
+  // Lifecycle metadata (optional so an older backend that omits them still renders).
+  payload?: any;
+  priority?: number;
+  retry_count?: number;
+  max_retries?: number;
+  timeout_seconds?: number;
+  assigned_at?: string | null;
+  timeout_at?: string | null;
+  completed_at?: string | null;
+}
+
+/** GET /api/task/stats → data.stats (covers the full status vocabulary). */
+export interface GlobalTaskStats {
+  total: number;
+  pending: number;
+  assigned: number;
+  processing: number;
+  completed: number;
+  completed_demo: number;
+  failed: number;
+  cancelled: number;
+}
+
+/** Row shape returned by GET /api/worker/list. */
+export interface GlobalWorkerInfo {
+  worker_id: string;
+  worker_name: string;
+  processor_types: string[];
+  status: 'online' | 'busy' | 'offline' | string;
+  hostname: string | null;
+  platform: string | null;
+  completed_tasks: number;
+  failed_tasks: number;
+  current_task_id: string | null;
+  last_heartbeat_at: string | null;
+  created_at: string | null;
+}
+
+/** GET /api/worker/stats → data.stats. */
+export interface GlobalWorkerStats {
+  total: number;
+  online: number;
+  busy: number;
+  offline: number;
+  total_completed: number;
+  total_failed: number;
+}
+
+// ==================== Task Center aggregate (scheduler ⇄ queue ⇄ workers) ====================
+// GET /api/task-center/overview — one snapshot joining BOTH task layers:
+// the in-process Octane SCHEDULER (timer tasks) and the DB-backed QUEUE
+// (`global_tasks` + `workers`), plus the producer/consumer/maintainer
+// relations between them. Powers the unified TaskCenter view.
+
+/** Role a timer task plays against the global_tasks queue. */
+export type TaskCenterQueueRole = 'producer' | 'consumer' | 'maintainer';
+
+/** One scheduler (Octane timer) task in the overview snapshot. */
+export interface TaskCenterSchedulerTask {
+  name: string;
+  interval: number;
+  run_count: number;
+  error_count: number;
+  last_run: number;
+  last_run_ago: number | null;
+  last_duration: number | null;
+  last_error: string | null;
+  queue_role: TaskCenterQueueRole | null;
+  queue_target: string | null;
+}
+
+/** One scheduler→queue relation edge. */
+export interface TaskCenterRelation {
+  timer: string;
+  role: TaskCenterQueueRole;
+  target: string;
+  worker_id: string | null;
+  registered: boolean;
+}
+
+/** Full GET /api/task-center/overview payload (envelope already unwrapped). */
+export interface TaskCenterOverview {
+  scheduler: {
+    running: boolean;
+    uptime: number | null;
+    total_ticks: number;
+    tasks: TaskCenterSchedulerTask[];
+  };
+  queue: {
+    stats: GlobalTaskStats;
+  };
+  workers: {
+    stats: GlobalWorkerStats;
+  };
+  relations: TaskCenterRelation[];
+  timestamp: string;
+}
+
 /**
  * ServerManager API Module
  * Manages systemd services (local access only)
@@ -94,6 +215,74 @@ export class ServerManagerAPI extends BaseAPI {
     output: string;
   }>> {
     return this.post('/server-manager/restart', {});
+  }
+
+  // ==================== Global Task / Worker substrate ====================
+  // Standard API-prefixed routes (`this.get`/`this.post` → `/api/...`).
+
+  /**
+   * Get global task statistics (distributed worker queue).
+   * GET /api/task/stats
+   */
+  async getGlobalTaskStats(): Promise<APIResponse<{ stats: GlobalTaskStats }>> {
+    return this.get('/task/stats');
+  }
+
+  /**
+   * List global tasks with optional filters.
+   * GET /api/task/list
+   * NOTE: only pass non-empty filters — the controller uses `$request->has()`,
+   * so `status=` (empty string) would filter by '' instead of "no filter".
+   */
+  async getGlobalTaskList(params?: {
+    status?: string;
+    app_name?: string;
+    execution_type?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<APIResponse<{ total: number; count: number; tasks: GlobalTaskItem[] }>> {
+    return this.get('/task/list', params);
+  }
+
+  /**
+   * Get full detail (incl. result / error) for one global task.
+   * GET /api/task/{taskId}/status
+   */
+  async getGlobalTaskDetail(taskId: string): Promise<APIResponse<{ task: GlobalTaskDetail }>> {
+    return this.get(`/task/${encodeURIComponent(taskId)}/status`);
+  }
+
+  /**
+   * Cancel a pending/assigned/processing global task.
+   * POST /api/task/{taskId}/cancel — 409-style error if not cancellable.
+   */
+  async cancelGlobalTask(taskId: string): Promise<APIResponse<{ task_id: string; status: string }>> {
+    return this.post(`/task/${encodeURIComponent(taskId)}/cancel`, {});
+  }
+
+  /**
+   * List registered workers.
+   * GET /api/worker/list
+   */
+  async getWorkerList(): Promise<APIResponse<{ count: number; workers: GlobalWorkerInfo[] }>> {
+    return this.get('/worker/list');
+  }
+
+  /**
+   * Get worker statistics.
+   * GET /api/worker/stats
+   */
+  async getWorkerStats(): Promise<APIResponse<{ stats: GlobalWorkerStats }>> {
+    return this.get('/worker/stats');
+  }
+
+  /**
+   * Task Center aggregate overview — scheduler + queue + workers + relations
+   * in ONE round-trip. GET /api/task-center/overview (ApiResponse envelope,
+   * unwrapped by BaseAPI).
+   */
+  async getTaskCenterOverview(): Promise<APIResponse<TaskCenterOverview>> {
+    return this.get('/task-center/overview');
   }
 
   /**

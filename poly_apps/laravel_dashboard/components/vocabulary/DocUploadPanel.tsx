@@ -1,26 +1,46 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
+import { TRANSLATIONS } from '../../constants';
+import { useAppState } from '../../contexts/AppStateContext';
+import { useToast } from '../admin';
+import { logError, logInfo, logSuccess, logWarn } from '../../core/logs/logStore';
 
 interface DocUploadPanelProps {
   onUploadComplete?: (result: any) => void;
 }
 
+type ExtractMode = 'none' | 'words' | 'sentences';
+
 interface UploadedFile {
   id: string;
   name: string;
   size: number;
-  status: 'uploading' | 'processing' | 'success' | 'error';
+  status: 'uploading' | 'extracting' | 'success' | 'error';
   progress: number;
   error?: string;
+  /** Human-readable outcome shown under the file name (e.g. extraction counts). */
+  summary?: string;
   result?: any;
 }
 
+/** File extensions whose content can safely be read as plain text in-browser. */
+const TEXT_EXTENSIONS = ['txt', 'md', 'csv', 'text'];
+
+const isTextFile = (file: File): boolean => {
+  if (file.type && file.type.startsWith('text/')) return true;
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  return TEXT_EXTENSIONS.includes(ext);
+};
+
 const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => {
+  const { lang } = useAppState();
+  const toast = useToast();
+  const t = TRANSLATIONS[lang].vocabulary;
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [extractMode, setExtractMode] = useState<'sentences' | 'words'>('sentences');
+  const [extractMode, setExtractMode] = useState<ExtractMode>('none');
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -44,15 +64,56 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
     e.stopPropagation();
     setIsDragging(false);
 
-    const droppedFiles = Array.from(e.dataTransfer.files);
+    const droppedFiles = Array.from<File>(e.dataTransfer.files);
     processFiles(droppedFiles);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const selectedFiles = Array.from(e.target.files);
+      const selectedFiles = Array.from<File>(e.target.files);
       processFiles(selectedFiles);
     }
+  };
+
+  const updateFile = (fileId: string, patch: Partial<UploadedFile>) => {
+    setFiles(prev => prev.map(f => (f.id === fileId ? { ...f, ...patch } : f)));
+  };
+
+  /** "+{n} added, {m} skipped" via the i18n template. */
+  const formatCounts = (added: number, skipped: number): string =>
+    t.extract_done.replace('{added}', String(added)).replace('{skipped}', String(skipped));
+
+  /**
+   * Run the post-upload extraction step for one document. Returns the summary
+   * line to show on the file row, or throws on failure (401/403 handled here
+   * with the login-required toast).
+   */
+  const runExtraction = async (
+    mode: Exclude<ExtractMode, 'none'>,
+    documentId: string | number,
+    fileName: string
+  ): Promise<string> => {
+    logInfo('vocab', `Extraction started (${mode}) for document ${documentId} (${fileName})`);
+
+    const response = mode === 'words'
+      ? await api.appQyV1.extractWords(documentId)
+      : await api.appQyV1.extractSentences(documentId);
+
+    if (!response.success || !response.data) {
+      if (response.status === 401 || response.status === 403) {
+        toast.error(t.login_required);
+      }
+      throw new Error(response.error || t.extract_failed);
+    }
+
+    const data: any = response.data;
+    const added = Number(mode === 'words' ? data.added : data.stored) || 0;
+    const skipped = Number(data.skipped) || 0;
+    const total = Number(mode === 'words' ? data.words_total : data.sentences_total) || 0;
+
+    const summary = `${mode === 'words' ? 'Words' : 'Sentences'}: ${formatCounts(added, skipped)} (total ${total})`;
+    logSuccess('vocab', `Extraction complete (${mode}) for ${fileName}: +${added} added, ${skipped} skipped, ${total} total`);
+    return summary;
   };
 
   const processFiles = async (filesToProcess: File[]) => {
@@ -70,50 +131,88 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
       const file = filesToProcess[i];
       const fileId = newFiles[i].id;
 
+      logInfo('vocab', `Upload started: ${file.name} (${formatFileSize(file.size)})`);
+
       try {
-        setFiles(prev => prev.map(f =>
-          f.id === fileId ? { ...f, progress: 50 } : f
-        ));
+        updateFile(fileId, { progress: 40 });
 
         const formData = new FormData();
         formData.append('file', file);
         formData.append('extract_mode', extractMode);
+        // The current /learning/upload validator expects the document TEXT
+        // plus collection metadata (`document`, `collection_name`,
+        // `lang_code`). For text-readable files we provide them alongside the
+        // raw file so both the current and the multipart-aware backend accept
+        // the request. Binary formats (pdf/doc/docx) rely on server-side
+        // parsing of `file`.
+        formData.append('collection_name', file.name.replace(/\.[^.]+$/, '') || file.name);
+        formData.append('lang_code', 'en');
+        if (isTextFile(file)) {
+          formData.append('document', await file.text());
+        }
 
         const result = await api.appQyV1.uploadDocument(formData);
 
-        setFiles(prev => prev.map(f =>
-          f.id === fileId
-            ? { ...f, status: 'processing', progress: 75 }
-            : f
-        ));
-
-        if (extractMode === 'sentences') {
-          await api.appQyV1.extractSentences(result.data?.documentId || result.documentId);
-        } else {
-          await api.appQyV1.extractWords(result.data?.documentId || result.documentId);
+        // BaseAPI resolves (never throws) on HTTP errors — surface them
+        // instead of silently marking the row as a success.
+        if (!result || result.success === false) {
+          if (result && (result.status === 401 || result.status === 403)) {
+            toast.error(t.login_required);
+          }
+          throw new Error((result && result.error) || 'Upload failed');
         }
 
-        setFiles(prev => prev.map(f =>
-          f.id === fileId
-            ? { ...f, status: 'success', progress: 100, result }
-            : f
-        ));
+        const data: any = result.data || {};
+        const documentId = data.document_id;
+
+        if (extractMode === 'none') {
+          updateFile(fileId, { status: 'success', progress: 100, result });
+          toast.success(`${t.upload_success}: ${file.name}`);
+          logSuccess('vocab', `Upload complete: ${file.name}`);
+        } else if (documentId === undefined || documentId === null) {
+          // Older backend without the document_id in the upload response —
+          // the file is saved, but extraction cannot be triggered.
+          updateFile(fileId, {
+            status: 'success',
+            progress: 100,
+            result,
+            summary: t.extract_requires_update
+          });
+          toast.warning(t.extract_requires_update);
+          logWarn('vocab', `Upload OK but no document_id returned for ${file.name} — extraction skipped`);
+        } else {
+          updateFile(fileId, { status: 'extracting', progress: 70 });
+          try {
+            const summary = await runExtraction(extractMode, documentId, file.name);
+            updateFile(fileId, { status: 'success', progress: 100, result, summary });
+            toast.success(`${t.upload_success}: ${file.name} — ${summary}`);
+          } catch (extractError: any) {
+            // The upload itself succeeded; only the extraction step failed.
+            const message = extractError?.message || t.extract_failed;
+            updateFile(fileId, {
+              status: 'error',
+              progress: 100,
+              result,
+              error: `${t.extract_failed}: ${message}`
+            });
+            toast.error(`${t.extract_failed}: ${file.name} — ${message}`);
+            logError('vocab', `Extraction failed (${extractMode}) for ${file.name} — ${message}`);
+            continue;
+          }
+        }
 
         if (onUploadComplete) {
           onUploadComplete(result);
         }
 
       } catch (error: any) {
-        setFiles(prev => prev.map(f =>
-          f.id === fileId
-            ? {
-                ...f,
-                status: 'error',
-                progress: 0,
-                error: error.message || 'Upload failed'
-              }
-            : f
-        ));
+        updateFile(fileId, {
+          status: 'error',
+          progress: 0,
+          error: error.message || 'Upload failed'
+        });
+        toast.error(`${t.upload_failed}: ${file.name} — ${error.message || 'Upload failed'}`);
+        logError('vocab', `Upload failed: ${file.name} — ${error.message || 'unknown error'}`);
       }
     }
   };
@@ -130,6 +229,12 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
+  const extractModeOptions: Array<{ value: ExtractMode; label: string }> = [
+    { value: 'none', label: 'Upload Only' },
+    { value: 'words', label: 'Extract Words' },
+    { value: 'sentences', label: 'Extract Sentences' }
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -145,33 +250,30 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
       </div>
 
       {/* Extract Mode Selection */}
-      <div className="flex gap-4">
-        <label className="flex items-center space-x-2">
-          <input
-            type="radio"
-            name="extractMode"
-            value="sentences"
-            checked={extractMode === 'sentences'}
-            onChange={(e) => setExtractMode(e.target.value as any)}
-            className="text-blue-600"
-          />
-          <span className="text-sm text-gray-700 dark:text-gray-300">
-            Extract Sentences
-          </span>
-        </label>
-        <label className="flex items-center space-x-2">
-          <input
-            type="radio"
-            name="extractMode"
-            value="words"
-            checked={extractMode === 'words'}
-            onChange={(e) => setExtractMode(e.target.value as any)}
-            className="text-blue-600"
-          />
-          <span className="text-sm text-gray-700 dark:text-gray-300">
-            Extract Words
-          </span>
-        </label>
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-4">
+          {extractModeOptions.map(option => (
+            <label key={option.value} className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="radio"
+                name="extractMode"
+                value={option.value}
+                checked={extractMode === option.value}
+                onChange={() => setExtractMode(option.value)}
+                className="text-blue-600"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                {option.label}
+              </span>
+            </label>
+          ))}
+        </div>
+        {extractMode !== 'none' && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            After upload, the server extracts {extractMode} from the document and
+            adds them to your collection automatically.
+          </p>
+        )}
       </div>
 
       {/* Drop Zone */}
@@ -192,7 +294,7 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
         <input
           type="file"
           multiple
-          accept=".txt,.pdf,.doc,.docx"
+          accept=".txt,.md,.csv,.pdf,.doc,.docx"
           onChange={handleFileSelect}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
@@ -207,7 +309,7 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
             Drop files here or click to browse
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Supported formats: TXT, PDF, DOC, DOCX
+            Supported formats: TXT, MD, CSV, PDF, DOC, DOCX
           </p>
         </div>
       </div>
@@ -225,7 +327,7 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
             >
               {/* Icon */}
               <div className="flex-shrink-0">
-                {file.status === 'uploading' || file.status === 'processing' ? (
+                {file.status === 'uploading' || file.status === 'extracting' ? (
                   <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
                 ) : file.status === 'success' ? (
                   <CheckCircle className="w-5 h-5 text-green-500" />
@@ -248,7 +350,7 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
                 </div>
 
                 {/* Progress Bar */}
-                {(file.status === 'uploading' || file.status === 'processing') && (
+                {(file.status === 'uploading' || file.status === 'extracting') && (
                   <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mb-1">
                     <div
                       className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
@@ -260,8 +362,8 @@ const DocUploadPanel: React.FC<DocUploadPanelProps> = ({ onUploadComplete }) => 
                 {/* Status Text */}
                 <p className="text-xs text-gray-600 dark:text-gray-400">
                   {file.status === 'uploading' && 'Uploading...'}
-                  {file.status === 'processing' && 'Processing...'}
-                  {file.status === 'success' && 'Upload complete'}
+                  {file.status === 'extracting' && t.extracting}
+                  {file.status === 'success' && (file.summary || 'Upload complete')}
                   {file.status === 'error' && (file.error || 'Upload failed')}
                 </p>
               </div>

@@ -32,15 +32,16 @@ return new class extends Migration
     public function up(): void
     {
         $appKeys = method_exists(AppKeys::class, 'all') ? AppKeys::all() : [
-            AppKeys::APPQYV1, AppKeys::AWYV0, AppKeys::MCPV1, AppKeys::VIPCLUBV1,
-            AppKeys::BANKV1, AppKeys::SERVERMANAGERV1, AppKeys::ACHATV1,
-            AppKeys::CODEMARTV1, AppKeys::ITTOOLSV1,
+            AppKeys::APPQYV1, AppKeys::MCPV1, AppKeys::SERVERMANAGERV1,
+            AppKeys::ACHATV1, AppKeys::CODEMARTV1, AppKeys::ITTOOLSV1,
         ];
 
         foreach ($appKeys as $appKey) {
             $connection = AppTablePrefixServiceProvider::getConnection($appKey);
 
-            if ($connection === 'sqlite') {
+            // Main DB guard: matches the current default name AND the legacy
+            // 'sqlite' alias (both resolve to the same PG core_node_main).
+            if ($connection === 'sqlite' || $connection === (string) config('database.default')) {
                 continue; // main db: users table has no main_user_id / this FK
             }
             if (!config("database.connections.{$connection}")) {
@@ -51,16 +52,43 @@ return new class extends Migration
             }
 
             $db = DB::connection($connection);
+            $driver = $db->getDriverName();
 
-            // Idempotency: only act if a FK on main_user_id actually exists.
-            $hasFk = false;
-            foreach ($db->select("PRAGMA foreign_key_list('users')") as $fk) {
-                if (($fk->from ?? null) === 'main_user_id') {
-                    $hasFk = true;
-                    break;
+            // Discover the FK(s) on users.main_user_id via Laravel's NATIVE,
+            // driver-agnostic getForeignKeys() (returns ['name','columns'(list),
+            // 'foreign_table',...]). No information_schema / PRAGMA. On pgsql the
+            // FK carries a real name; sqlite reports name => null, which is fine
+            // because the sqlite path rebuilds the table rather than dropping by
+            // name.
+            $mainUserIdFks = array_values(array_filter(
+                Schema::connection($connection)->getForeignKeys('users'),
+                static fn ($fk) => in_array('main_user_id', $fk['columns'] ?? [], true)
+            ));
+
+            // pgsql: dropping a FK is a normal ALTER TABLE DROP CONSTRAINT --
+            // no table rebuild needed, and the table's data is preserved.
+            if ($driver === 'pgsql') {
+                foreach ($mainUserIdFks as $fk) {
+                    $name = $fk['name'] ?? null;
+                    if ($name === null) {
+                        continue;
+                    }
+                    // Prefer native dropForeign by constraint name; keeps the
+                    // table data intact and is idempotent (guarded by the
+                    // discovery above).
+                    Schema::connection($connection)->table('users', function (Blueprint $table) use ($name) {
+                        $table->dropForeign($name);
+                    });
+                    Log::info("[fkfix] {$connection}.users dropped FK constraint {$name} (pgsql).");
                 }
+
+                continue;
             }
-            if (!$hasFk) {
+
+            // sqlite (and any other rebuild-required driver): no DROP CONSTRAINT,
+            // so the table must be recreated FK-free.
+            // Idempotency: only act if a FK on main_user_id actually exists.
+            if (empty($mainUserIdFks)) {
                 continue;
             }
 

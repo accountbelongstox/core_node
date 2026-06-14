@@ -2,31 +2,40 @@
 
 namespace App\Apps\AppQyV1\Utils\AppQyV1AITools;
 
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
 use App\Services\EdgeTTS\EdgeTTSService;
-use Illuminate\Support\Facades\Log;
 
 /**
- * TTS Queue Service
+ * TTS Queue Service (legacy word-level surface) — queue-less edition.
  *
- * Manages TTS audio generation queue for on-demand word audio requests
+ * The intermediate tts_queue table is decommissioned; word TTS state lives on
+ * the canonical {prefix}_tts_cache_{lang} rows (tts_status / tts_attempts /
+ * tts_priority / tts_* timestamps) coordinated by
+ * AppQyV1DictionaryTTSCoordinator. This class keeps the legacy method
+ * surface used by AppQyV1TTSController (queueBatch / queue stats / queue
+ * status endpoints) with byte-compatible response shapes.
  */
 class AppQyV1TTSQueueService
 {
     private $ttsService;
+    private AppQyV1DictionaryTTSCoordinator $coordinator;
 
     public function __construct()
     {
         $this->ttsService = new EdgeTTSService();
+        $this->coordinator = new AppQyV1DictionaryTTSCoordinator($this->ttsService);
     }
 
     /**
-     * Request audio for a word
-     * Returns audio path if available, null if queued for generation
+     * Request audio for a word.
+     * Returns audio info if available, null after queueing for generation
+     * (marking the canonical dictionary row tts_status='pending').
      */
     public function requestAudio(string $word, string $language, int $priority = 0): ?array
     {
+        $language = strtolower($language);
         $md5 = md5($word);
 
         $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $md5);
@@ -47,145 +56,115 @@ class AppQyV1TTSQueueService
             }
         }
 
-        AppQyV1TTSQueueModel::addToQueue($word, $language, $priority);
+        // Queue for generation on the canonical row (auto-create when absent).
+        if (!$dictEntry) {
+            $dictEntry = AppQyV1LangDictionaryModel::forLanguage($language);
+            $dictEntry->content = $word;
+            $dictEntry->md5 = $md5;
+            $dictEntry->has_translation = false;
+            $dictEntry->has_audio = false;
+            $dictEntry->is_valid = true;
+            $dictEntry->query_count = 0;
+            AppQyV1LangDictionaryModel::forgetMetricsCache($language);
+        }
+
+        // Failed rows get a fresh retry budget on re-request (legacy addToQueue
+        // re-queued failed entries that still had retries left).
+        if ($dictEntry->tts_status === AppQyV1DictionaryTTSCoordinator::STATUS_FAILED) {
+            $dictEntry->tts_attempts = 0;
+            $dictEntry->tts_error = null;
+        }
+
+        if ($dictEntry->tts_status === null
+            || $dictEntry->tts_status === AppQyV1DictionaryTTSCoordinator::STATUS_FAILED) {
+            $dictEntry->tts_status = AppQyV1DictionaryTTSCoordinator::STATUS_PENDING;
+        }
+        if (!$dictEntry->tts_requested_at) {
+            $dictEntry->tts_requested_at = now();
+        }
+        $dictEntry->tts_priority = max((int) ($dictEntry->tts_priority ?? 0), $priority);
+        $dictEntry->save();
 
         return null;
     }
 
     /**
-     * Process queue items (called by timer task)
+     * Process queue items (legacy entry point) — delegates to the unified
+     * queue-less processor.
      */
     public function processQueue(int $batchSize = 10): array
     {
-        $items = AppQyV1TTSQueueModel::getNextBatch($batchSize);
-
-        $processed = 0;
-        $succeeded = 0;
-        $failed = 0;
-
-        foreach ($items as $item) {
-            $item->markAsProcessing();
-
-            try {
-                $result = $this->ttsService->generateAudio(
-                    $item->word,
-                    $item->language,
-                    'word'
-                );
-
-                if ($result['success']) {
-                    $item->markAsCompleted($result['audio_path']);
-                    $succeeded++;
-
-                    Log::info('[TTSQueue] Generated audio for word', [
-                        'word' => $item->word,
-                        'language' => $item->language,
-                        'audio_path' => $result['audio_path'],
-                    ]);
-                } else {
-                    $errorMsg = $result['error'] ?? 'Unknown error';
-
-                    if ($item->canRetry()) {
-                        $item->status = AppQyV1TTSQueueModel::STATUS_PENDING;
-                        $item->retry_count++;
-                        $item->error_message = $errorMsg;
-                        $item->save();
-
-                        Log::warning('[TTSQueue] Audio generation failed, will retry', [
-                            'word' => $item->word,
-                            'language' => $item->language,
-                            'retry_count' => $item->retry_count,
-                            'error' => $errorMsg,
-                        ]);
-                    } else {
-                        $item->markAsFailed($errorMsg);
-                        $failed++;
-
-                        Log::error('[TTSQueue] Audio generation permanently failed', [
-                            'word' => $item->word,
-                            'language' => $item->language,
-                            'error' => $errorMsg,
-                        ]);
-                    }
-                }
-
-                $processed++;
-
-                usleep(200000);
-
-            } catch (\Throwable $e) {
-                $errorMsg = $e->getMessage();
-
-                if ($item->canRetry()) {
-                    $item->status = AppQyV1TTSQueueModel::STATUS_PENDING;
-                    $item->retry_count++;
-                    $item->error_message = $errorMsg;
-                    $item->save();
-                } else {
-                    $item->markAsFailed($errorMsg);
-                    $failed++;
-                }
-
-                Log::error('[TTSQueue] Exception during audio generation', [
-                    'word' => $item->word,
-                    'language' => $item->language,
-                    'error' => $errorMsg,
-                    'trace' => $e->getTraceAsString(),
-                ]);
-
-                $processed++;
-            }
-        }
+        $result = (new AppQyV1UnifiedTTSQueueService())->processQueue($batchSize);
 
         return [
-            'processed' => $processed,
-            'succeeded' => $succeeded,
-            'failed' => $failed,
+            'processed' => $result['processed'],
+            'succeeded' => $result['succeeded'],
+            'failed' => $result['failed'],
         ];
     }
 
     /**
-     * Get queue statistics
+     * Get queue statistics (legacy flat shape).
      */
     public function getQueueStats(): array
     {
-        return AppQyV1TTSQueueModel::getStats();
+        $stats = $this->coordinator->statistics();
+
+        return [
+            'pending' => $stats['by_status']['pending'],
+            'processing' => $stats['by_status']['processing'],
+            'completed' => $stats['by_status']['completed'],
+            'failed' => $stats['by_status']['failed'],
+            'total' => $stats['total'],
+        ];
     }
 
     /**
-     * Clean old completed items
+     * Clean old completed items — NO-OP (no intermediate queue to prune;
+     * completed state IS the canonical data). Kept for caller compatibility.
      */
     public function cleanQueue(int $days = 7): int
     {
-        return AppQyV1TTSQueueModel::cleanCompleted($days);
+        return 0;
     }
 
     /**
-     * Get queue status for specific word
+     * Get queue status for a specific word from its canonical row.
+     * Returns null when the word was never queued (no row, or no TTS
+     * tracking state) — callers treat null as "not in queue".
      */
     public function getQueueStatus(string $word, string $language): ?array
     {
+        $language = strtolower($language);
         $md5 = md5($word);
 
-        $queueItem = AppQyV1TTSQueueModel::where('word_md5', $md5)
-            ->where('language', $language)
-            ->first();
+        $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $md5);
 
-        if (!$queueItem) {
+        if (!$dictEntry || $dictEntry->tts_status === null) {
             return null;
         }
 
+        $audioPath = null;
+        if (is_array($dictEntry->tts_files)) {
+            foreach ($dictEntry->tts_files as $ttsFile) {
+                if (isset($ttsFile['path'])) {
+                    $audioPath = $ttsFile['path'];
+                    break;
+                }
+            }
+        }
+
         return [
-            'word' => $queueItem->word,
-            'language' => $queueItem->language,
-            'status' => $queueItem->status,
-            'priority' => $queueItem->priority,
-            'retry_count' => $queueItem->retry_count,
-            'error_message' => $queueItem->error_message,
-            'audio_path' => $queueItem->audio_path,
-            'requested_at' => $queueItem->requested_at,
-            'started_at' => $queueItem->started_at,
-            'completed_at' => $queueItem->completed_at,
+            'word' => $dictEntry->content,
+            'language' => $language,
+            'status' => AppQyV1DictionaryTTSCoordinator::statusOf($dictEntry),
+            'priority' => (int) ($dictEntry->tts_priority ?? 0),
+            'retry_count' => (int) ($dictEntry->tts_attempts ?? 0),
+            'error_message' => $dictEntry->tts_error,
+            'audio_path' => $audioPath,
+            'requested_at' => $dictEntry->tts_requested_at,
+            'started_at' => $dictEntry->tts_locked_at,
+            'completed_at' => $dictEntry->tts_completed_at,
         ];
     }
 }

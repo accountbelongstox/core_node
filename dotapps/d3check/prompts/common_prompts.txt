@@ -96,7 +96,7 @@ dotcore 模块
 
   2. Voc Annotator：pycore vs dot 对比与差距
 
-  • 在 development-guides/DOT_VOC_ANNOTATOR_PROGRESS.md 中新增 §6 Gap assessment：
+  • 在 development-guides/DOT_ARCHITECTURE.md 中新增 §6 Gap assessment：
     • 公共库：voc_io、annotation_io、project_config、config 与 DotCore.VocAnnotator 已 1:1
       对应，无缺口
     • Dot 应用当前为「仅矩形」canvas；pycore 还有 polygon/ellipse/circle，若需完全一致可在
@@ -112,7 +112,7 @@ dotcore 模块
 
   • development-guides/DOT_ARCHITECTURE.md：在 §1 中补充
     DotCore.D3Check、DotCore.VocAnnotator 的目录与职责说明
-  • development-guides/DOT_UI_PROJECT_SPECIFICATION.md、.cursor/rules/dot-ui.mdc：dotapps UI（WPF/MAUI/Blazor）**规范以该文档为准**，遵循 Clean Architecture + MVVM + Fluent 2
+  • development-guides/DOT_ARCHITECTURE.md、.cursor/rules/dot-ui.mdc：dotapps UI（WPF/MAUI/Blazor）**规范以该文档为准**，遵循 Clean Architecture + MVVM + Fluent 2
   • dotcore/DESIGN.md：项目列表与角色表中加入 DotCore.D3Check、DotCore.VocAnnotator
   • dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md：增加 DotCore.D3Check 行与 §4.8（Battle.net
     Asia/CN、GameInterfaceData、BattlenetRegionDetection、Factory）

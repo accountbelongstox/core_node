@@ -11,7 +11,7 @@ from pathlib import Path
 import os
 import platform
 
-from pycore.pyutils.desktop_icon_generator import DesktopIconGenerator
+from pycore.pyutils.common.icon_generator import DesktopIconGenerator
 
 
 class DesktopShortcutManager:
@@ -422,16 +422,16 @@ def main():
         epilog="""
 Examples:
   # Create shortcut with auto icon search
-  python -m pycore.pyutils.desktop_shortcut_manager create --name "My App" --target "C:/app/app.exe" --app-dir "C:/app"
+  python -m pycore.pyutils.desktop.shortcut_manager create --name "My App" --target "C:/app/app.exe" --app-dir "C:/app"
 
   # Create shortcut with specific PNG icon (auto-converts to ICO on Windows)
-  python -m pycore.pyutils.desktop_shortcut_manager create --name "My App" --target "C:/app/app.exe" --icon "C:/app/icon.png"
+  python -m pycore.pyutils.desktop.shortcut_manager create --name "My App" --target "C:/app/app.exe" --icon "C:/app/icon.png"
 
   # List all shortcuts
-  python -m pycore.pyutils.desktop_shortcut_manager list
+  python -m pycore.pyutils.desktop.shortcut_manager list
 
   # Delete shortcut
-  python -m pycore.pyutils.desktop_shortcut_manager delete --name "My App"
+  python -m pycore.pyutils.desktop.shortcut_manager delete --name "My App"
         """
     )
 

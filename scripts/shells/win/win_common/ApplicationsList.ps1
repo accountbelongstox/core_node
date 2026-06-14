@@ -791,6 +791,31 @@ $Global:APPLICATIONS_PACKAGES = @{
             }
         )
     }
+    # Devin Desktop is Windsurf rebranded (Cognition). winget is the certain install path: Id Codeium.Windsurf.
+    # App binary is Windsurf.exe under %LOCALAPPDATA%\Programs\Windsurf; keywords cover both devin/windsurf naming.
+    Devin           = @{
+        PackageId            = "Codeium.Windsurf"
+        Exec                = "Windsurf.exe"
+        Name                = "Devin"
+        DesktopCategory     = $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS
+        Description         = "Devin Desktop - AI agentic IDE (formerly Windsurf)"
+        InstallType         = "winget"
+        ForceToInstallDir   = $true
+        VerifySuffix        = ""
+        MenuName            = "Open with Devin"
+        AppCustomInstallDir = "C:\Users\$env:USERNAME\AppData\Local\Programs\Windsurf"
+        AdditionalKeywords  = @("devin", "windsurf")
+        DesktopShortcuts    = @(
+            @{
+                CreateDesktopShortcut = $true
+            }
+        )
+        EnvVars             = @(
+            @{
+                Type = @("AddExec")
+            }
+        )
+    }
     # Step16 install source: this .ps1 only. ApplicationsList.xml/JSON are not loaded by install flow (see Step16 line 71).
     # Official CLI: run command "agent" after install (https://cursor.com/docs/cli/overview). Executable: agent.exe.
     CursorAgent     = @{

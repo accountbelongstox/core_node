@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Any, Dict, List
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_speechsdk, get_third_package_numpy, get_third_package_pyaudio, get_third_package_pyaudiowpatch
 
 speechsdk = get_third_package_speechsdk()
@@ -681,7 +681,7 @@ class TranscriptionSession:
 
         # Report provider failure to ProviderStatus
         try:
-            from pycore.pyutils.common import get_provider_status
+            from pycore.pyctl.speech.provider_status import get_provider_status
             provider_status = get_provider_status()
         except:
             provider_status = None

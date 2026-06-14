@@ -8,7 +8,7 @@ Orchestrates the PyBrowserAuto offline download process.
 
 import time
 from typing import Dict, Optional, List, Callable
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class CrawlController:

@@ -10,7 +10,7 @@ import sys
 import argparse
 from pathlib import Path
 from typing import Optional
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class CLIController:

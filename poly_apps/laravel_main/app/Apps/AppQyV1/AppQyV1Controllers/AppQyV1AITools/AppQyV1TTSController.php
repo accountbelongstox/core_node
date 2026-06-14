@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Services\EdgeTTS\EdgeTTSService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSQueueService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1TTSCheckBatchRequest;
 use App\Traits\ApiResponse;
@@ -372,9 +372,12 @@ class AppQyV1TTSController extends Controller
      * }
      *
      * Response includes:
-     * - results: array of words found in queue with their status
-     * - not_found: array of words not in queue (either already available or never requested)
+     * - results: array of words with TTS tracking state and their status
+     * - not_found: array of words never queued (either already available or never requested)
      * - summary: statistics of the batch check
+     *
+     * Queue-less: status is read from the canonical tts_cache_{lang} row
+     * (tts_status / tts_* columns) instead of the decommissioned tts_queue.
      */
     public function checkBatchStatus(AppQyV1TTSCheckBatchRequest $request): JsonResponse
     {
@@ -391,54 +394,64 @@ class AppQyV1TTSController extends Controller
 
         foreach ($request->input('words') as $item) {
             $word = $item['word'];
-            $language = $item['language'];
+            $language = strtolower($item['language']);
             $md5 = md5($word);
 
-            $queueItem = AppQyV1TTSQueueModel::where('word_md5', $md5)
-                ->where('language', $language)
-                ->first();
+            $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $md5);
 
-            if ($queueItem) {
-                $audioUrl = null;
-                if ($queueItem->audio_path) {
-                    $audioUrl = AppQyV1TtsUrl::forPath("{$language}/word/{$queueItem->audio_path}");
+            if ($dictEntry && $dictEntry->tts_status !== null) {
+                $audioPath = null;
+                if (is_array($dictEntry->tts_files)) {
+                    foreach ($dictEntry->tts_files as $ttsFile) {
+                        if (isset($ttsFile['path'])) {
+                            $audioPath = $ttsFile['path'];
+                            break;
+                        }
+                    }
                 }
+
+                $audioUrl = null;
+                if ($audioPath) {
+                    // tts_files paths are full relative paths ("{lang}/word/...").
+                    $audioUrl = AppQyV1TtsUrl::forPath($audioPath);
+                }
+
+                $status = AppQyV1DictionaryTTSCoordinator::statusOf($dictEntry);
+                $retryCount = (int) $dictEntry->tts_attempts;
 
                 $result = [
-                    'word' => $queueItem->word,
-                    'language' => $queueItem->language,
-                    'status' => $queueItem->status,
-                    'audio_path' => $queueItem->audio_path,
+                    'word' => $dictEntry->content,
+                    'language' => $language,
+                    'status' => $status,
+                    'audio_path' => $audioPath,
                     'audio_url' => $audioUrl,
-                    'priority' => $queueItem->priority,
+                    'priority' => (int) $dictEntry->tts_priority,
                 ];
 
-                if ($queueItem->retry_count > 0) {
-                    $result['retry_count'] = $queueItem->retry_count;
+                if ($retryCount > 0) {
+                    $result['retry_count'] = $retryCount;
                 }
 
-                if ($queueItem->error_message) {
-                    $result['error_message'] = $queueItem->error_message;
+                if ($dictEntry->tts_error) {
+                    $result['error_message'] = $dictEntry->tts_error;
                 }
 
-                if ($queueItem->requested_at) {
-                    $result['requested_at'] = $queueItem->requested_at->toISOString();
+                if ($dictEntry->tts_requested_at) {
+                    $result['requested_at'] = $dictEntry->tts_requested_at->toISOString();
                 }
 
-                if ($queueItem->started_at) {
-                    $result['started_at'] = $queueItem->started_at->toISOString();
+                if ($dictEntry->tts_locked_at) {
+                    $result['started_at'] = $dictEntry->tts_locked_at->toISOString();
                 }
 
-                if ($queueItem->completed_at) {
-                    $result['completed_at'] = $queueItem->completed_at->toISOString();
+                if ($dictEntry->tts_completed_at) {
+                    $result['completed_at'] = $dictEntry->tts_completed_at->toISOString();
                 }
 
                 $results[] = $result;
-                $summary[$queueItem->status]++;
+                $summary[$status]++;
 
             } else {
-                $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $md5);
-
                 if ($dictEntry && isset($dictEntry->tts_files) && !empty($dictEntry->tts_files)) {
                     $hasAudio = false;
                     foreach ($dictEntry->tts_files as $ttsFile) {

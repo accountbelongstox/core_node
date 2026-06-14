@@ -19,10 +19,10 @@ import platform
 import shutil
 from pathlib import Path
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon import Commander
 from pycore.pyfoundations.system_paths import map_web_path
-from pycore.pyutils.robust_downloader import RobustDownloader
+from pycore.pyutils.common.robust_downloader import RobustDownloader
 
 # FFmpeg download URLs (gyan.dev builds - updated 2025-12-18)
 # Source: https://www.gyan.dev/ffmpeg/builds/

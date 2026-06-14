@@ -24,6 +24,10 @@ return new class extends Migration
                 'name' => ['type' => 'string', 'nullable' => true],
                 'nickname' => ['type' => 'string', 'nullable' => true],
                 'username' => ['type' => 'string', 'nullable' => false, 'unique' => true],
+                // Login identifier alongside username/email (queried by the shared
+                // CommonAuthService and AppQyV1 SMS login). Kept in sync with
+                // global_2026_06_12_000002_add_phone_to_users_table for existing DBs.
+                'phone' => ['type' => 'string', 'length' => 32, 'nullable' => true],
                 'avatar' => ['type' => 'string', 'nullable' => true],
                 'about' => ['type' => 'text', 'nullable' => true],
                 'flollwers' => ['type' => 'string', 'nullable' => true],

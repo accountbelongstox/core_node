@@ -38,14 +38,15 @@ backend branch app in `poly_apps/laravel_main`:
 |--------------------|------|
 | Backend app code   | `poly_apps/laravel_main/app/Apps/AppQyV1/**` |
 | Backend routes     | `poly_apps/laravel_main/routes/AppQyV1Router/**` |
-| API path contract  | `poly_apps/qy_capacitor/docs/api/API_PATH_MAPPING.md` |
+| 功能/后端要求   | `poly_apps/laravel_dashboard/apps/wordflow/docs/FEATURES.md` + `BACKEND_REQUIREMENTS.md`(只描述功能与后端行为;接口/路由按需在实现时设计,不在文档固定) |
 | Backend guide      | `development-guides/LARAVEL_GUIDE.md` |
 
 Rules:
 
 - A frontend change that adds or modifies an API call is **incomplete** until the matching
   `AppQyV1` route + controller exists (and the reverse).
-- Keep `API_PATH_MAPPING.md` in sync when endpoints change.
+- 接口/路由不在文档中固定:按 `FEATURES.md` / `BACKEND_REQUIREMENTS.md` 的功能要求,
+  在实现时设计前后端接口(由 AI 实时发挥),保持前后端一致。
 - Backend Laravel conventions (Windows vs Linux, `composer dev:win`, migrations,
   `php artisan sys:init`) live in `development-guides/LARAVEL_GUIDE.md` and the
   laravel `scripts/start.ps1` / `start.sh`.
@@ -91,15 +92,12 @@ any UI:
   component/page with visible design, first `Read` both images and verify your
   output matches them; an unverified design change is a defect. Add the
   `/* [v4.1-Iris] … */` marker comment (spec §0) to every file you redesign.
-- Canonical spec: `docs/design/WORDFLOW_DESIGN_SYSTEM_4.0.md` (retitled
-  "Design System 4.1 — Iris Layer + UI/UX Interaction"; **Part A §0–§6 =
-  visual system** — §0 = reference images + parity gate; **Part B §7–§12 =
-  UI/UX interaction design** — IA & navigation, app shell, user flows,
-  interaction states, overlays/stacking, motion, each documenting the current
-  UI (现在的UI) + expected UI (预期的UI)). Work breakdown:
-  `docs/design/COMPONENT_REDESIGN_INVENTORY.md`. Rolling status:
-  `docs/design/REDESIGN_PROGRESS.md`. Rule summary:
-  `.cursor/rules/wordflow-design.mdc` §11.
+- Canonical spec: `poly_apps/laravel_dashboard/apps/wordflow/docs/DESIGN_SYSTEM.md`
+  (迁移自 qy_capacitor/docs,已精简去重;**Part A §0–§6 = visual system** —
+  §0 = reference images + parity gate; **Part B §7–§12 = UI/UX interaction
+  design** — IA & navigation, app shell, user flows, interaction states,
+  overlays/stacking, motion;只保留预期 UI 规范). 组件工作分解已并入该文件 §14。
+  Rule summary: `.cursor/rules/wordflow-design.mdc` §11.
 - **Solid vs gradient (mandatory).** Solid `--klein-*` (light `#3B49E0` / dark
   `#6E84FF`) for **text / icons / active / borders / soft tints** —
   `Button variant="klein"`/`primary` (`ds-btn-klein`). Gradient
@@ -140,12 +138,12 @@ any UI:
 
 - This file — per-app + co-development rules for qy_capacitor.
 - `.cursor/rules/wordflow-design.mdc` — design system rule (references this file).
-- `docs/design/WORDFLOW_DESIGN_SYSTEM_4.0.md` — **the** design contract:
-  Part A (§0–§6) visual system + Part B (§7–§12) UI/UX interaction design
-  (IA/navigation/flows/states/overlays/motion, current vs expected UI).
-- `docs/design/COMPONENT_REDESIGN_INVENTORY.md` — redesign work breakdown.
+- `poly_apps/laravel_dashboard/apps/wordflow/docs/DESIGN_SYSTEM.md` — **the**
+  design contract: Part A (§0–§6) visual system + Part B (§7–§12) UI/UX
+  interaction design;组件工作分解并入其 §14。
 - `development-guides/LARAVEL_GUIDE.md` — backend (AppQyV1) conventions.
 - `development-guides/CURSOR_RULES_UPDATE_GUIDE.md` — how to edit rules/specs.
-- `poly_apps/qy_capacitor/docs/DOCUMENTATION_INDEX.md` — app document index.
+- `poly_apps/laravel_dashboard/apps/wordflow/docs/README.md` — WordFlow 文档索引
+  (2026-06 自 qy_capacitor/docs 迁移并精简)。
 
 Do not duplicate full specs across files; reference the canonical source.

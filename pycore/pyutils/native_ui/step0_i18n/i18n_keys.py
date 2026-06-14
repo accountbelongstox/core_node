@@ -46,12 +46,18 @@ class I18nKeys:
     # Tray keys
     TRAY_TOOLTIP = "tray.tooltip"
     TRAY_MENU_SHOW = "tray.menu.show"
+    TRAY_MENU_OPEN_WEB = "tray.menu.open_web"
+    TRAY_MENU_PYCORE_UI = "tray.menu.pycore_ui"
     TRAY_MENU_HIDE = "tray.menu.hide"
     TRAY_MENU_MAXIMIZE = "tray.menu.maximize"
     TRAY_MENU_MINIMIZE = "tray.menu.minimize"
     TRAY_MENU_RESTORE = "tray.menu.restore"
     TRAY_MENU_RESTART = "tray.menu.restart"
     TRAY_MENU_EXIT = "tray.menu.exit"
+    TRAY_MENU_RPC_SERVER = "tray.menu.rpc_server"          # "...: {port}"
+    TRAY_MENU_SINGLETON_PORT = "tray.menu.singleton_port"  # "...: {port}"
+    TRAY_MENU_AUTOSTART = "tray.menu.autostart"
+    TRAY_MENU_LANGUAGE = "tray.menu.language"
     
     # Loading keys
     LOADING_TEXT = "loading.text"

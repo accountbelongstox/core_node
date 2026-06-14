@@ -280,7 +280,8 @@ def build_pyside6_menu_from_dicts(items: List[Dict[str, Any]]) -> List[PySide6Tr
     menu as plain dicts (so they need not import PySide6 before it is installed),
     and the framework converts them here once PySide6 is available.
 
-    Dict schema: {separator: bool, text: str, action_signal: str, enabled: bool}
+    Dict schema: {separator: bool, text: str, action_signal: str, enabled: bool,
+    children?: [...]} — `children` (same schema) becomes a submenu, recursively.
     A non-empty `action_signal` becomes a callback that fires the corresponding
     THREAD_BUS event (matching the pystray tray's action_signal contract).
     """
@@ -295,10 +296,12 @@ def build_pyside6_menu_from_dicts(items: List[Dict[str, Any]]) -> List[PySide6Tr
         if action_signal and HAS_THREAD_BUS:
             callback = lambda sig=action_signal: THREAD_BUS.trigger_event(sig)
 
+        children = item.get('children')
         result.append(PySide6TrayMenuItem(
             text=item.get('text', ''),
             callback=callback,
             enabled=item.get('enabled', True),
+            submenu=build_pyside6_menu_from_dicts(children) if children else None,
         ))
     return result
 

@@ -10,6 +10,11 @@ import {
   getEndpointById,
   getAllEndpoints
 } from '../config/api-endpoints';
+import { clampRecheckInterval } from '../core/health/OfflineRecheckScheduler';
+import { setSharedBaseURL } from '../core/api/base/BaseAPI';
+
+/** Fired whenever a full health pass settles (startup, interval retry, manual re-detect). */
+export const API_HEALTH_EVENT = 'api-health-initialized';
 
 export interface HealthCheckResult {
   endpoint: ApiEndpoint;
@@ -34,24 +39,29 @@ class ApiManager {
    * effect fires twice) combined with concurrent callers: both callers can
    * observe `initialized === false` before either sets it. Storing the
    * in-flight Promise lets every concurrent/duplicate caller await the exact
-   * same operation so the parallel detection pass runs at most once per app
-   * load. `healthPassPromise` holds the single parallel all-endpoints probe;
-   * both `initialize()` and `runInitialHealthCheck()` await that same Promise
-   * so endpoints are never probed more than once.
+   * same operation. `recheckPromise` single-flights the STORED-FIRST detection
+   * pass shared by startup, the all-Offline interval retry and the manual
+   * Re-detect button.
    */
   private initPromise: Promise<void> | null = null;
-  private healthPassPromise: Promise<HealthCheckResult[]> | null = null;
+  private recheckPromise: Promise<boolean> | null = null;
   private readonly STORAGE_KEY_CURRENT = 'api_current_endpoint';
   private readonly STORAGE_KEY_AUTO = 'api_auto_detected';
   private readonly STORAGE_KEY_USER = 'api_user_modified';
+  private readonly STORAGE_KEY_RECHECK_INTERVAL = 'api_recheck_interval_ms';
 
   /**
    * Initialize the API manager.
    *
    * Behaviour (corrected requirement — detection is AUTOMATIC at startup,
    * never click-triggered):
-   *  1. Probe ALL endpoints in PARALLEL exactly once and compute the healthy
-   *     set from that single pass. No timers, no intervals, no retries.
+   *  1. STORED-FIRST detection (the realized contract for all ends): probe
+   *     ONLY the stored last-used endpoint first — if it answers, use it and
+   *     probe nothing else. Only when it is dead probe ALL endpoints in
+   *     parallel and fail over to the highest-weight healthy one. The healthy
+   *     path is never polled; the ONLY timer is the all-Offline retry loop
+   *     (services/ApiHealthRecheck.ts), which re-enters the same pass at the
+   *     configurable healthCheckInterval until something comes online.
    *  2. Select the active endpoint by precedence:
    *       a. A stored endpoint (api_user_modified first, then
    *          api_current_endpoint / api_auto_detected) that is in the healthy
@@ -62,13 +72,14 @@ class ApiManager {
    *  3. Principle "以能使用的为准": if the stored endpoint is dead, the
    *     auto-selected healthy endpoint is written back to
    *     api_current_endpoint / api_auto_detected so the next load prefers the
-   *     now-known-good one. api_user_modified is NEVER written by
-   *     auto-detection (only the manual switcher sets it).
+   *     now-known-good one. api_user_modified is never REASSIGNED by
+   *     auto-detection (only the manual switcher sets it) — but a pin whose
+   *     endpoint the sweep proved dead is CLEARED (self-recovery; see
+   *     applyAvailabilityFailover).
    *
    * Single-flight + StrictMode-safe: concurrent/duplicate callers reuse the
-   * same in-flight Promise, and the parallel probe itself is single-flighted
-   * via `healthPassPromise`, so every endpoint is probed exactly once per app
-   * load even when the StrictMode init effect double-fires.
+   * same in-flight Promise (`recheckPromise`), so the stored-first pass runs
+   * at most once at a time even when the StrictMode init effect double-fires.
    */
   /**
    * Synchronous endpoint pre-selection — NO network, NO probing.
@@ -82,7 +93,7 @@ class ApiManager {
    *   4. first endpoint by priority index (config order)
    *
    * This is a best-effort guess made WITHOUT health knowledge; the background
-   * parallel pass (runBackgroundHealthPass) refines it and auto-fails-over if
+   * stored-first pass (runBackgroundHealthPass) refines it and auto-fails-over if
    * this pick turns out to be unreachable. Idempotent and StrictMode-safe: if
    * an endpoint is already selected it is kept (the background pass owns any
    * later change). Returns the chosen endpoint, or null if none are
@@ -134,110 +145,29 @@ class ApiManager {
   }
 
   private async doInitialize(options: ApiManagerOptions): Promise<void> {
-    const timeout = options.timeout;
-    const endpoints = getAllEndpoints();
-
-    // 1. Single parallel pass over ALL endpoints (single-flighted).
-    const results = await this.runInitialHealthCheck(timeout);
-
-    // 2. Healthy set from that one pass.
-    const healthyIds = new Set(
-      results.filter(r => r.isHealthy).map(r => r.endpoint.id)
-    );
-
-    // 3a. Prefer a stored endpoint IF it is healthy. User-modified wins, then
-    //     the auto-detected / current store key.
-    const userEndpointId = this.getUserModifiedEndpoint();
-    const storedEndpointId =
-      this.getStoredCurrentEndpoint() ?? this.getAutoDetectedEndpoint();
-
-    if (userEndpointId && healthyIds.has(userEndpointId)) {
-      const endpoint = getEndpointById(userEndpointId);
-      if (endpoint) {
-        this.currentEndpoint = endpoint;
-        return;
-      }
-    }
-
-    if (storedEndpointId && healthyIds.has(storedEndpointId)) {
-      const endpoint = getEndpointById(storedEndpointId);
-      if (endpoint) {
-        this.currentEndpoint = endpoint;
-        return;
-      }
-    }
-
-    // 3b. First healthy endpoint in priority order.
-    const firstHealthy = endpoints.find(e => healthyIds.has(e.id));
-    if (firstHealthy) {
-      this.currentEndpoint = firstHealthy;
-      // Write back so the next load prefers this now-known-good endpoint.
-      // api_user_modified is intentionally NOT touched here — only the manual
-      // switcher owns that key. The user's manual choice is dead this session,
-      // but we keep it on disk and just use a working endpoint for now.
-      this.setAutoDetectedEndpoint(firstHealthy.id);
-      return;
-    }
-
-    // 3c. Nothing healthy — fall back to the highest-priority endpoint so the
-    //     app can still render. Its health stays marked unhealthy; do NOT
-    //     write it back as a known-good endpoint.
-    this.currentEndpoint = endpoints.length > 0 ? endpoints[0] : null;
+    // Same stored-first pass as every later recheck — one code path for
+    // startup, interval retry and manual Re-detect.
+    await this.recheckEndpoints(options.timeout);
   }
 
   /**
-   * The single parallel all-endpoints probe. Runs AT MOST once per app load
-   * (single-flight via stored Promise) and never on a timer/interval. Both
-   * `initialize()` (for selection) and the switcher (for its health dots)
-   * await this exact Promise, so endpoints are probed exactly once. Health
-   * checks do NOT retry.
-   */
-  async runInitialHealthCheck(timeout?: number): Promise<HealthCheckResult[]> {
-    if (this.healthPassPromise) {
-      return this.healthPassPromise;
-    }
-
-    this.healthPassPromise = this.checkAllEndpoints(timeout).catch(error => {
-      console.warn('[ApiManager] Initial health check failed:', error);
-      // Keep the resolved (empty) promise cached so duplicate callers do not
-      // re-probe; checkEndpoint already records per-endpoint failures.
-      return [] as HealthCheckResult[];
-    });
-
-    return this.healthPassPromise;
-  }
-
-  /**
-   * Background health refinement (does NOT gate first paint).
-   *
-   * Runs the single PARALLEL all-endpoints probe exactly once (single-flight
-   * via the shared `healthPassPromise`, StrictMode-safe, no timers, no
-   * retries), then applies "以能使用的为准" auto-failover relative to the
-   * endpoint that was already chosen synchronously by preselectEndpointSync():
-   *
-   *  - If the synchronously-chosen endpoint is in the healthy set: keep it
-   *    (no store change).
-   *  - Else pick a healthy endpoint by the SAME precedence used at init:
-   *      a. a stored endpoint that is healthy (api_user_modified first, then
-   *         api_current_endpoint / api_auto_detected), then
-   *      b. the first healthy endpoint in priority order.
-   *    Re-point the manager to it and write it back to
-   *    api_current_endpoint / api_auto_detected so the next load prefers the
-   *    now-known-good endpoint. api_user_modified is NEVER written here — only
-   *    the manual switcher owns that key.
-   *  - If nothing is healthy: stay on the synchronous pick (kept marked
-   *    unhealthy via the recorded health results) so the app stays usable; no
-   *    write-back of a dead endpoint.
-   *
-   * Returns the endpoint that should now be live so the caller (App.tsx) can
-   * re-point `api` if it changed and then dispatch `api-health-initialized`.
-   * The returned endpoint's id differing from the pre-selected id is the
-   * caller's signal that a live re-point is required.
+   * Background health refinement (does NOT gate first paint). Runs the shared
+   * STORED-FIRST detection pass (see recheckEndpoints) and returns the
+   * endpoint that should now be live so the caller (App.tsx) can re-point
+   * `api` if it changed. StrictMode-safe via the pass's single-flight.
    */
   async runBackgroundHealthPass(timeout?: number): Promise<ApiEndpoint | null> {
-    const endpoints = getAllEndpoints();
-    const results = await this.runInitialHealthCheck(timeout);
+    await this.recheckEndpoints(timeout);
+    return this.currentEndpoint;
+  }
 
+  /**
+   * "以能使用的为准" selection applied to one finished health pass. Shared by
+   * the startup background pass and every later recheck (interval retry /
+   * manual re-detect), so failover semantics never diverge between the two.
+   */
+  private applyAvailabilityFailover(results: HealthCheckResult[]): ApiEndpoint | null {
+    const endpoints = getAllEndpoints();
     const healthyIds = new Set(
       results.filter(r => r.isHealthy).map(r => r.endpoint.id)
     );
@@ -260,6 +190,18 @@ class ApiManager {
       }
     }
 
+    // SELF-RECOVERY: a user-pinned endpoint that the full sweep just proved
+    // dead must not keep pinning every future load (it made each reload start
+    // on the dead endpoint and hang until the background pass corrected it).
+    // Clear the pin — switchEndpoint() only ever creates pins after a
+    // successful probe, so a dead pin means the endpoint truly went down.
+    if (userEndpointId && !healthyIds.has(userEndpointId)) {
+      this.clearUserModifiedEndpoint();
+      console.warn(
+        `[ApiManager] User-pinned endpoint '${userEndpointId}' is unreachable — pin cleared, failing over.`
+      );
+    }
+
     if (storedEndpointId && healthyIds.has(storedEndpointId)) {
       const endpoint = getEndpointById(storedEndpointId);
       if (endpoint) {
@@ -269,7 +211,8 @@ class ApiManager {
     }
 
     // First healthy endpoint in priority order — write back so the next load
-    // prefers it. api_user_modified is intentionally NOT touched.
+    // prefers it. (A dead user pin was already cleared above; a healthy one
+    // was honored above.)
     const firstHealthy = endpoints.find(e => healthyIds.has(e.id));
     if (firstHealthy) {
       this.currentEndpoint = firstHealthy;
@@ -280,6 +223,82 @@ class ApiManager {
     // Nothing healthy — keep the synchronous pick (marked unhealthy via
     // healthResults). Do NOT write back a dead endpoint.
     return this.currentEndpoint;
+  }
+
+  /**
+   * The ONE detection routine — STORED-FIRST (startup, all-Offline interval
+   * retry and the manual "Re-detect" button all land here; single-flight so
+   * concurrent callers share one pass):
+   *
+   *  1. Probe ONLY the stored last-used endpoint (api_user_modified →
+   *     api_current_endpoint → api_auto_detected → in-memory current). If it
+   *     answers, keep it — nothing else is probed (one request total).
+   *  2. Otherwise probe ALL endpoints in parallel and auto-switch to the
+   *     highest-weight healthy one (applyAvailabilityFailover; write-back to
+   *     api_auto_detected/api_current_endpoint, api_user_modified untouched).
+   *  3. If nothing is healthy resolve false — the caller keeps the all-Offline
+   *     interval retry loop ticking.
+   *
+   * Dispatches API_HEALTH_EVENT after every pass so health UIs refresh.
+   */
+  async recheckEndpoints(timeout?: number): Promise<boolean> {
+    if (this.recheckPromise) {
+      return this.recheckPromise;
+    }
+
+    this.recheckPromise = (async () => {
+      try {
+        // Stage 1: stored last-used endpoint only.
+        const preferredId =
+          this.getUserModifiedEndpoint() ??
+          this.getStoredCurrentEndpoint() ??
+          this.getAutoDetectedEndpoint();
+        const preferred =
+          (preferredId ? getEndpointById(preferredId) : undefined) ??
+          this.currentEndpoint;
+
+        if (preferred) {
+          const result = await this.checkEndpoint(preferred, { timeout });
+          if (result.isHealthy) {
+            this.currentEndpoint = preferred;
+            return true;
+          }
+        }
+
+        // Stage 2: full parallel sweep + highest-weight failover.
+        const results = await this.checkAllEndpoints(timeout);
+        this.applyAvailabilityFailover(results);
+        return results.some(r => r.isHealthy);
+      } finally {
+        this.recheckPromise = null;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(API_HEALTH_EVENT));
+        }
+      }
+    })();
+
+    return this.recheckPromise;
+  }
+
+  /** True when the last finished pass saw at least one healthy endpoint. */
+  hasHealthyEndpoint(): boolean {
+    return Array.from(this.healthResults.values()).some(r => r.isHealthy);
+  }
+
+  /**
+   * All-Offline retry interval for the laravel-manager end. Defaults to the
+   * config's healthCheckInterval; a per-browser override set in the endpoint
+   * switcher UI is persisted in localStorage and read fresh on every tick.
+   */
+  getRecheckIntervalMs(): number {
+    const raw = localStorage.getItem(this.STORAGE_KEY_RECHECK_INTERVAL);
+    const parsed = raw === null ? NaN : Number(raw);
+    return clampRecheckInterval(parsed, GLOBAL_API_ENDPOINTS.healthCheckInterval);
+  }
+
+  setRecheckIntervalMs(ms: number): void {
+    const clamped = clampRecheckInterval(ms, GLOBAL_API_ENDPOINTS.healthCheckInterval);
+    localStorage.setItem(this.STORAGE_KEY_RECHECK_INTERVAL, String(clamped));
   }
 
   /**
@@ -307,9 +326,29 @@ class ApiManager {
 
       const responseTime = Math.round(performance.now() - startTime);
 
+      // Health must mean "the Laravel backend answered", not merely "some server
+      // returned 2xx". A dev server / reverse proxy answers /api/health with a
+      // 200 text/html SPA index — a false positive that would pin the dashboard
+      // to a non-API origin and show the wrong availability. Require 2xx + JSON
+      // content-type + the backend's health marker
+      // ({"status":"healthy","service":"Laravel API",...}); reject HTML/non-JSON.
+      let healthy = false;
+      if (response.ok) {
+        const contentType = (response.headers.get('content-type') || '').toLowerCase();
+        if (contentType.includes('application/json')) {
+          try {
+            const body = await response.clone().json();
+            healthy = !!body && typeof body === 'object' &&
+              (body.status !== undefined || body.service !== undefined);
+          } catch {
+            healthy = false;
+          }
+        }
+      }
+
       const result: HealthCheckResult = {
         endpoint,
-        isHealthy: response.ok,
+        isHealthy: healthy,
         responseTime,
         timestamp: Date.now()
       };
@@ -358,7 +397,9 @@ class ApiManager {
   }
 
   /**
-   * Manually set the endpoint
+   * Manually set the endpoint (blind — no probe, no live re-point).
+   * Prefer switchEndpoint(): it verifies reachability BEFORE persisting and
+   * re-points every API module immediately.
    */
   setEndpoint(endpointId: string, saveAsUserChoice: boolean = true): boolean {
     const endpoint = getEndpointById(endpointId);
@@ -371,6 +412,44 @@ class ApiManager {
     }
 
     return true;
+  }
+
+  /**
+   * Verified manual switch — the ONLY path UI switchers should use.
+   *
+   * 1. Probe the target endpoint first (config timeout, default 3000ms).
+   * 2. Healthy → set as current, persist as the user pin, and re-point the
+   *    SHARED base URL so every API module switches immediately (callers may
+   *    still reload for a clean page state — now guaranteed to land on a
+   *    working endpoint).
+   * 3. Dead → change NOTHING (no pin, no current, no base URL); the caller
+   *    shows the failure. This is what prevents the "switched to a dead
+   *    endpoint and the whole page hangs" failure mode.
+   *
+   * Always dispatches API_HEALTH_EVENT so health badges reflect the probe.
+   */
+  async switchEndpoint(
+    endpointId: string,
+    timeout?: number
+  ): Promise<{ ok: boolean; endpoint: ApiEndpoint | null; result: HealthCheckResult | null }> {
+    const endpoint = getEndpointById(endpointId);
+    if (!endpoint) {
+      return { ok: false, endpoint: null, result: null };
+    }
+
+    const result = await this.checkEndpoint(endpoint, { timeout });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(API_HEALTH_EVENT));
+    }
+
+    if (!result.isHealthy) {
+      return { ok: false, endpoint, result };
+    }
+
+    this.currentEndpoint = endpoint;
+    this.setUserModifiedEndpoint(endpointId);
+    setSharedBaseURL(buildApiUrl(endpoint));
+    return { ok: true, endpoint, result };
   }
 
   /**

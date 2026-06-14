@@ -16,50 +16,64 @@ class InviteCodeInitializer
         $results = [];
 
         try {
-            if (!Schema::connection($connection)->hasTable('invite_codes')) {
-                Schema::connection($connection)->create('invite_codes', function ($table) {
-                    $table->id();
-                    $table->string('code', 32)->unique();
-                    $table->string('type')->default('user');
-                    $table->integer('max_uses')->default(1);
-                    $table->integer('used_count')->default(0);
-                    $table->timestamp('expires_at')->nullable();
-                    $table->boolean('is_active')->default(true);
-                    $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
-                    $table->text('description')->nullable();
-                    $table->timestamps();
+            // Shared helper for both tables: create-if-missing + auto-ALTER add any
+            // column/index/FK added later in code, idempotently (add-only; FK adds are
+            // existence-checked so they apply on the align pass without duplication;
+            // never drops/rewrites existing rows).
+            $inviteCodes = SafeMigrationHelper::alignTableStructureFromArray(
+                $connection,
+                'invite_codes',
+                [
+                    'columns' => [
+                        'id'          => ['type' => 'bigIncrements'],
+                        'code'        => ['type' => 'string', 'length' => 32, 'unique' => true],
+                        'type'        => ['type' => 'string', 'default' => 'user', 'index' => true],
+                        'max_uses'    => ['type' => 'integer', 'default' => 1],
+                        'used_count'  => ['type' => 'integer', 'default' => 0],
+                        'expires_at'  => ['type' => 'timestamp', 'nullable' => true],
+                        'is_active'   => ['type' => 'boolean', 'default' => true, 'index' => true],
+                        'created_by'  => ['type' => 'unsignedBigInteger', 'nullable' => true],
+                        'description' => ['type' => 'text', 'nullable' => true],
+                        'created_at'  => ['type' => 'timestamp', 'nullable' => true],
+                        'updated_at'  => ['type' => 'timestamp', 'nullable' => true],
+                    ],
+                    'foreignKeys' => [
+                        ['column' => 'created_by', 'references' => 'users', 'on' => 'id', 'onDelete' => 'set null'],
+                    ],
+                ],
+                ['shrink_columns' => false, 'modify_columns' => false, 'add_indexes' => true]
+            );
+            $s = $inviteCodes['status'] ?? 'error';
+            $results['invite_codes'] = $s === 'aligned' ? 'exists' : $s;
 
-                    $table->index('code');
-                    $table->index('is_active');
-                    $table->index('type');
-                });
-
-                $results['invite_codes'] = 'created';
-                Log::info('[InviteCodeInitializer] Created invite_codes table');
-            } else {
-                $results['invite_codes'] = 'exists';
-            }
-
-            if (!Schema::connection($connection)->hasTable('invite_code_usage')) {
-                Schema::connection($connection)->create('invite_code_usage', function ($table) {
-                    $table->id();
-                    $table->foreignId('invite_code_id')->constrained('invite_codes')->onDelete('cascade');
-                    $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-                    $table->string('device_id')->nullable();
-                    $table->timestamp('used_at');
-                    $table->ipAddress('ip_address')->nullable();
-                    $table->text('user_agent')->nullable();
-                    $table->timestamps();
-
-                    $table->index(['invite_code_id', 'user_id']);
-                    $table->index('used_at');
-                });
-
-                $results['invite_code_usage'] = 'created';
-                Log::info('[InviteCodeInitializer] Created invite_code_usage table');
-            } else {
-                $results['invite_code_usage'] = 'exists';
-            }
+            $usage = SafeMigrationHelper::alignTableStructureFromArray(
+                $connection,
+                'invite_code_usage',
+                [
+                    'columns' => [
+                        'id'             => ['type' => 'bigIncrements'],
+                        'invite_code_id' => ['type' => 'unsignedBigInteger'],
+                        'user_id'        => ['type' => 'unsignedBigInteger'],
+                        'device_id'      => ['type' => 'string', 'nullable' => true],
+                        'used_at'        => ['type' => 'timestamp'],
+                        'ip_address'     => ['type' => 'ipAddress', 'nullable' => true],
+                        'user_agent'     => ['type' => 'text', 'nullable' => true],
+                        'created_at'     => ['type' => 'timestamp', 'nullable' => true],
+                        'updated_at'     => ['type' => 'timestamp', 'nullable' => true],
+                    ],
+                    'indexes' => [
+                        ['columns' => ['invite_code_id', 'user_id']],
+                        ['columns' => ['used_at']],
+                    ],
+                    'foreignKeys' => [
+                        ['column' => 'invite_code_id', 'references' => 'invite_codes', 'on' => 'id', 'onDelete' => 'cascade'],
+                        ['column' => 'user_id', 'references' => 'users', 'on' => 'id', 'onDelete' => 'cascade'],
+                    ],
+                ],
+                ['shrink_columns' => false, 'modify_columns' => false, 'add_indexes' => true]
+            );
+            $s = $usage['status'] ?? 'error';
+            $results['invite_code_usage'] = $s === 'aligned' ? 'exists' : $s;
 
             // Use model connection for query builder (Laravel best practice)
             $inviteCodeModel = new InviteCode();
@@ -145,9 +159,11 @@ class InviteCodeInitializer
                     'total' => $dbConnection->table('invite_codes')->count(),
                     'active' => $dbConnection->table('invite_codes')->where('is_active', true)->count(),
                     'inactive' => $dbConnection->table('invite_codes')->where('is_active', false)->count(),
+                    // Grouped aggregate has no native form; COUNT(*) is cross-DB safe
+                    // (identical on sqlite and pgsql).
                     'by_type' => $dbConnection->table('invite_codes')
-                        ->select('type', DB::raw('count(*) as count'))
                         ->groupBy('type')
+                        ->selectRaw('type, COUNT(*) as count')
                         ->get()
                         ->pluck('count', 'type')
                         ->toArray()

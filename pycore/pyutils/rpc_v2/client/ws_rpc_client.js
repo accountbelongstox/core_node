@@ -35,6 +35,23 @@
         });
     }
 
+    // Stable per-window client id so the server keys this client consistently across
+    // reconnects/reloads (no accumulation of dead sessions). sessionStorage = per-tab
+    // + survives reload; falls back to an in-memory id when storage is unavailable.
+    function getCachedClientId() {
+        var KEY = 'pycore_ws_client_id';
+        try {
+            if (isBrowser && window.sessionStorage) {
+                var s = window.sessionStorage.getItem(KEY);
+                if (s) return s;
+                var id = 'rpc-' + uuid();
+                window.sessionStorage.setItem(KEY, id);
+                return id;
+            }
+        } catch (e) { /* storage blocked: fall through to in-memory id */ }
+        return 'rpc-' + uuid();
+    }
+
     const EVENTS = {
         CONNECTION: 'connection',
         DISCONNECT: 'disconnect',
@@ -46,6 +63,9 @@
     class FastAPIWsRpcClient {
         constructor(url, options = {}) {
             this.url = url;
+            // Stable client id sent as ?client_id= so the server can re-identify this
+            // client across reconnects (pass options.clientId to override).
+            this.clientId = options.clientId || getCachedClientId();
             this.options = {
                 timeout: options.timeout || 30000,
                 reconnect: options.reconnect !== false,
@@ -60,13 +80,19 @@
             this.handlers = new Map();
         }
 
+        _urlWithClientId() {
+            if (!this.clientId) return this.url;
+            return this.url + (this.url.indexOf('?') >= 0 ? '&' : '?')
+                + 'client_id=' + encodeURIComponent(this.clientId);
+        }
+
         connect() {
             return new Promise((resolve, reject) => {
                 if (!WebSocketImpl) {
                     reject(new Error('WebSocket not available'));
                     return;
                 }
-                const socket = new WebSocketImpl(this.url);
+                const socket = new WebSocketImpl(this._urlWithClientId());
                 this.ws = socket;
 
                 socket.onopen = () => {
@@ -92,9 +118,11 @@
                     }
                 };
 
-                socket.onclose = () => {
+                socket.onclose = (event) => {
                     this.connected = false;
-                    this._emit(EVENTS.DISCONNECT);
+                    // Pass the close code/reason — the one specific signal the browser
+                    // gives for a failed/closed WS (1006 = couldn't establish/abnormal).
+                    this._emit(EVENTS.DISCONNECT, { code: event && event.code, reason: event && event.reason });
                     this._handleDisconnect();
                 };
             });

@@ -6,7 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller as BaseController;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserSelectedLibraryModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCollectionModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
+use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Traits\ApiResponse;
 
 class AppQyV1VocabularyRecommendationController extends BaseController
@@ -16,137 +17,135 @@ class AppQyV1VocabularyRecommendationController extends BaseController
     /**
      * NO try-catch allowed - trust Laravel validation
      * NO ?? or || allowed - use explicit if statements
+     *
+     * Recommendations are sourced from the real vocabulary_libraries table
+     * (AppQyV1VocabularyLibraryModel) — ids returned here ARE library ids and
+     * match /vocabulary/libraries/* and user_selected_libraries.collection_id.
      */
 
-    private static $recommendedCollections = [
-        'en' => [
-            ['id' => 1, 'name' => 'TOEFL Core Vocabulary', 'total_words' => 3000, 'level' => 'B2-C1', 'category' => 'exam'],
-            ['id' => 2, 'name' => 'IELTS Essential Words', 'total_words' => 2500, 'level' => 'B2-C1', 'category' => 'exam'],
-            ['id' => 3, 'name' => 'GRE Advanced Vocabulary', 'total_words' => 4000, 'level' => 'C1-C2', 'category' => 'exam'],
-            ['id' => 4, 'name' => 'Business English', 'total_words' => 1500, 'level' => 'B1-B2', 'category' => 'business'],
-            ['id' => 5, 'name' => 'Daily Conversation', 'total_words' => 800, 'level' => 'A2-B1', 'category' => 'daily'],
-            ['id' => 6, 'name' => 'Academic Writing', 'total_words' => 2000, 'level' => 'B2-C1', 'category' => 'academic'],
-            ['id' => 7, 'name' => 'Travel English', 'total_words' => 500, 'level' => 'A2-B1', 'category' => 'travel'],
-            ['id' => 8, 'name' => 'Technical Terms (IT)', 'total_words' => 1200, 'level' => 'B2', 'category' => 'technical'],
-        ],
-        'ja' => [
-            ['id' => 101, 'name' => 'JLPT N5 Vocabulary', 'total_words' => 800, 'level' => 'N5', 'category' => 'exam'],
-            ['id' => 102, 'name' => 'JLPT N4 Vocabulary', 'total_words' => 1500, 'level' => 'N4', 'category' => 'exam'],
-            ['id' => 103, 'name' => 'JLPT N3 Vocabulary', 'total_words' => 3000, 'level' => 'N3', 'category' => 'exam'],
-            ['id' => 104, 'name' => 'JLPT N2 Vocabulary', 'total_words' => 6000, 'level' => 'N2', 'category' => 'exam'],
-            ['id' => 105, 'name' => 'JLPT N1 Vocabulary', 'total_words' => 10000, 'level' => 'N1', 'category' => 'exam'],
-            ['id' => 106, 'name' => 'Daily Japanese', 'total_words' => 1200, 'level' => 'N4-N3', 'category' => 'daily'],
-            ['id' => 107, 'name' => 'Business Japanese', 'total_words' => 2000, 'level' => 'N2-N1', 'category' => 'business'],
-        ],
-        'ko' => [
-            ['id' => 201, 'name' => 'TOPIK I (Level 1-2)', 'total_words' => 1500, 'level' => '1-2', 'category' => 'exam'],
-            ['id' => 202, 'name' => 'TOPIK II (Level 3-4)', 'total_words' => 3000, 'level' => '3-4', 'category' => 'exam'],
-            ['id' => 203, 'name' => 'TOPIK II (Level 5-6)', 'total_words' => 5000, 'level' => '5-6', 'category' => 'exam'],
-            ['id' => 204, 'name' => 'Korean Daily Conversation', 'total_words' => 1000, 'level' => '1-2', 'category' => 'daily'],
-            ['id' => 205, 'name' => 'K-Drama Vocabulary', 'total_words' => 800, 'level' => '2-3', 'category' => 'entertainment'],
-        ],
-        'fr' => [
-            ['id' => 301, 'name' => 'DELF A1-A2 Vocabulary', 'total_words' => 1200, 'level' => 'A1-A2', 'category' => 'exam'],
-            ['id' => 302, 'name' => 'DELF B1-B2 Vocabulary', 'total_words' => 2500, 'level' => 'B1-B2', 'category' => 'exam'],
-            ['id' => 303, 'name' => 'French Daily Life', 'total_words' => 800, 'level' => 'A2-B1', 'category' => 'daily'],
-            ['id' => 304, 'name' => 'Business French', 'total_words' => 1500, 'level' => 'B2', 'category' => 'business'],
-        ],
-        'de' => [
-            ['id' => 401, 'name' => 'Goethe A1-A2 Vocabulary', 'total_words' => 1300, 'level' => 'A1-A2', 'category' => 'exam'],
-            ['id' => 402, 'name' => 'Goethe B1-B2 Vocabulary', 'total_words' => 2800, 'level' => 'B1-B2', 'category' => 'exam'],
-            ['id' => 403, 'name' => 'German Daily Conversation', 'total_words' => 900, 'level' => 'A2-B1', 'category' => 'daily'],
-        ],
-        'es' => [
-            ['id' => 501, 'name' => 'DELE A1-A2 Vocabulary', 'total_words' => 1100, 'level' => 'A1-A2', 'category' => 'exam'],
-            ['id' => 502, 'name' => 'DELE B1-B2 Vocabulary', 'total_words' => 2400, 'level' => 'B1-B2', 'category' => 'exam'],
-            ['id' => 503, 'name' => 'Spanish Daily Life', 'total_words' => 850, 'level' => 'A2-B1', 'category' => 'daily'],
-        ],
+    /** Library language name (as stored on vocabulary_libraries) -> 2-letter code. */
+    private const LANGUAGE_CODES = [
+        'english' => 'en',
+        'chinese' => 'zh',
+        'japanese' => 'ja',
+        'korean' => 'ko',
+        'spanish' => 'es',
+        'french' => 'fr',
+        'german' => 'de',
+        'russian' => 'ru',
+        'arabic' => 'ar',
+        'portuguese' => 'pt',
+        'italian' => 'it',
+        'dutch' => 'nl',
+        'polish' => 'pl',
+        'turkish' => 'tr',
+        'vietnamese' => 'vi',
+        'lao' => 'lo',
+        'thai' => 'th',
+        'indonesian' => 'id',
+        'hindi' => 'hi',
+        'bengali' => 'bn',
+        'urdu' => 'ur',
     ];
+
+    /** difficulty_level -> CEFR-style level label (same string style the FE already consumes). */
+    private const DIFFICULTY_LEVELS = [
+        'beginner' => 'A2-B1',
+        'intermediate' => 'B1-B2',
+        'advanced' => 'B2-C1',
+    ];
+
+    /** difficulty_level -> 1-5 numeric difficulty (consistent with the previous level parsing). */
+    private const DIFFICULTY_SCORES = [
+        'beginner' => 2,
+        'intermediate' => 3,
+        'advanced' => 4,
+    ];
+
+    private const WORDS_PER_DAY = 20;
+    private const MAX_ESTIMATED_DAYS = 365;
+
+    private AppQyV1VocabularyCoverService $coverService;
+
+    public function __construct(AppQyV1VocabularyCoverService $coverService)
+    {
+        $this->coverService = $coverService;
+    }
 
     public function getRecommendations(Request $request): JsonResponse
     {
-        $langCodes = $request->input('lang_codes', []);
-        $userId = $request->user()?->id;
+        // Resolve via sanctum guard explicitly: route is public, but a valid
+        // bearer token still yields the real user (for is_selected flags).
+        $userId = $request->user('sanctum')?->id;
         $level = $request->input('level', 'all');
         $category = $request->input('category', 'all');
+        $languages = $this->resolveRequestedLanguages($request);
 
-        if (empty($langCodes)) {
-            $langCodes = ['en'];
-        }
-
-        $recommendations = [];
-
-        foreach ($langCodes as $langCode) {
-            if (isset(self::$recommendedCollections[$langCode])) {
-                $collections = self::$recommendedCollections[$langCode];
-
-                if ($level !== 'all') {
-                    $collections = array_filter($collections, function ($col) use ($level) {
-                        return stripos($col['level'], $level) !== false;
-                    });
-                }
-
-                if ($category !== 'all') {
-                    $collections = array_filter($collections, function ($col) use ($category) {
-                        return $col['category'] === $category;
-                    });
-                }
-
-                foreach ($collections as $collection) {
-                    $recommendations[] = [
-                        'id' => $collection['id'],
-                        'name' => $collection['name'],
-                        'lang_code' => $langCode,
-                        'total_words' => $collection['total_words'],
-                        'level' => $collection['level'],
-                        'category' => $collection['category'],
-                        'is_selected' => false,
-                        'is_popular' => in_array($collection['id'], [1, 2, 101, 102, 201]),
-                        'difficulty' => $this->calculateDifficulty($collection['level']),
-                        'estimated_days' => ceil($collection['total_words'] / 20),
-                        'description' => $this->getDescription($collection['name'], $langCode),
-                    ];
-                }
-            }
-        }
-
+        $selectedIds = [];
         if ($userId) {
-            $selectedIds = AppQyV1UserSelectedLibraryModel::where('user_id', $userId)
-                ->where('is_active', true)
-                ->pluck('collection_id')
-                ->toArray();
-
-            foreach ($recommendations as &$rec) {
-                $rec['is_selected'] = in_array($rec['id'], $selectedIds);
-            }
+            $selectedIds = $this->getActiveSelectedIds($userId);
         }
 
-        usort($recommendations, function ($a, $b) {
-            if ($a['is_popular'] !== $b['is_popular']) {
-                return $b['is_popular'] <=> $a['is_popular'];
-            }
-            return $a['difficulty'] <=> $b['difficulty'];
-        });
+        $items = AppQyV1VocabularyLibraryModel::query()
+            ->public()
+            ->whereIn('language', $languages)
+            ->orderByDesc('is_recommended')
+            ->orderByDesc('total_words')
+            ->get()
+            ->map(fn (AppQyV1VocabularyLibraryModel $library) => $this->transformLibrary($library, $selectedIds))
+            ->values();
+
+        // Filter options reflect everything available for the requested
+        // languages, independent of the level/category filters applied below.
+        $filters = [
+            'levels' => array_values(array_unique($items->pluck('level')->all())),
+            'categories' => array_values(array_unique($items->pluck('category')->all())),
+        ];
+
+        $recommendations = $items
+            ->filter(function (array $item) use ($level, $category) {
+                if ($level !== 'all' && stripos($item['level'], $level) === false) {
+                    return false;
+                }
+                if ($category !== 'all' && $item['category'] !== $category) {
+                    return false;
+                }
+                return true;
+            })
+            ->values()
+            ->all();
 
         return response()->json([
             'success' => true,
             'data' => $recommendations,
             'total' => count($recommendations),
-            'filters' => [
-                'levels' => $this->getAvailableLevels($langCodes),
-                'categories' => $this->getAvailableCategories($langCodes),
-            ],
+            'filters' => $filters,
         ]);
     }
 
     public function selectCollection(Request $request): JsonResponse
     {
-        $collectionId = $request->input('collection_id');
+        $collectionId = (int) $request->input('collection_id');
         $userId = $request->user()->id;
         $action = $request->input('action', 'select');
 
         if ($action === 'select') {
-            AppQyV1UserSelectedLibraryModel::selectLibrary($userId, $collectionId, $request->input('lang_code', 'en'));
+            $library = AppQyV1VocabularyLibraryModel::query()
+                ->public()
+                ->find($collectionId);
+
+            if (!$library) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vocabulary library not found',
+                ], 404);
+            }
+
+            AppQyV1UserSelectedLibraryModel::selectLibrary(
+                $userId,
+                (int) $library->id,
+                $this->languageCode($library->language)
+            );
 
             return response()->json([
                 'success' => true,
@@ -166,10 +165,7 @@ class AppQyV1VocabularyRecommendationController extends BaseController
     {
         $userId = $request->user()->id;
 
-        $selected = AppQyV1UserSelectedLibraryModel::where('user_id', $userId)
-            ->where('is_active', true)
-            ->pluck('collection_id')
-            ->toArray();
+        $selected = $this->getActiveSelectedIds($userId);
 
         if (empty($selected)) {
             return response()->json([
@@ -179,86 +175,179 @@ class AppQyV1VocabularyRecommendationController extends BaseController
             ]);
         }
 
-        $libraries = AppQyV1VocabularyCollectionModel::whereIn('id', $selected)
-            ->select([
-                'id',
-                'collection_name as name',
-                'description',
-                'lang_code as language',
-                'total_words as word_count',
-                'difficulty_level as difficulty',
-                'category',
-                'image_url',
-                'is_recommended',
-            ])
+        // collection_id stores real vocabulary_libraries ids (selectCollection
+        // validates against that table) — resolve them there and return the
+        // same item shape as getRecommendations.
+        $libraries = AppQyV1VocabularyLibraryModel::query()
+            ->whereIn('id', $selected)
+            ->orderByDesc('is_recommended')
+            ->orderByDesc('total_words')
             ->get()
-            ->toArray();
+            ->map(fn (AppQyV1VocabularyLibraryModel $library) => $this->transformLibrary($library, $selected))
+            ->values()
+            ->all();
 
         return response()->json([
             'success' => true,
-            'data' => ['data' => $libraries],
+            'data' => $libraries,
             'total' => count($libraries),
         ]);
     }
 
-    private function calculateDifficulty(string $level): int
+    /**
+     * Active user_selected_libraries.collection_id values (= library ids).
+     */
+    private function getActiveSelectedIds(int $userId): array
     {
-        $difficultyMap = [
-            'A1' => 1, 'A2' => 2, 'B1' => 3, 'B2' => 4, 'C1' => 5, 'C2' => 6,
-            'N5' => 1, 'N4' => 2, 'N3' => 3, 'N2' => 4, 'N1' => 5,
-            '1' => 1, '2' => 2, '3' => 3, '4' => 4, '5' => 5, '6' => 6,
+        return AppQyV1UserSelectedLibraryModel::where('user_id', $userId)
+            ->where('is_active', true)
+            ->pluck('collection_id')
+            ->map(fn ($id) => (int) $id)
+            ->toArray();
+    }
+
+    /**
+     * Map a real library row to the recommendation item shape the FE consumes.
+     */
+    private function transformLibrary(AppQyV1VocabularyLibraryModel $library, array $selectedIds): array
+    {
+        $difficultyLevel = 'intermediate';
+        if (!empty($library->difficulty_level)) {
+            $difficultyLevel = strtolower($library->difficulty_level);
+        }
+
+        $levelLabel = 'B1-B2';
+        if (isset(self::DIFFICULTY_LEVELS[$difficultyLevel])) {
+            $levelLabel = self::DIFFICULTY_LEVELS[$difficultyLevel];
+        }
+
+        $difficultyScore = 3;
+        if (isset(self::DIFFICULTY_SCORES[$difficultyLevel])) {
+            $difficultyScore = self::DIFFICULTY_SCORES[$difficultyLevel];
+        }
+
+        $category = 'general';
+        if (!empty($library->category)) {
+            $category = $library->category;
+        }
+
+        $wordCount = (int) $library->total_words;
+
+        $estimatedDays = (int) ceil($wordCount / self::WORDS_PER_DAY);
+        if ($estimatedDays < 1) {
+            $estimatedDays = 1;
+        }
+        if ($estimatedDays > self::MAX_ESTIMATED_DAYS) {
+            $estimatedDays = self::MAX_ESTIMATED_DAYS;
+        }
+
+        $langCode = $this->languageCode($library->language);
+
+        $description = $library->description;
+        if (empty($description)) {
+            $description = 'Curated vocabulary collection for ' . $langCode;
+        }
+
+        return [
+            'id' => (int) $library->id,
+            'name' => $library->name,
+            'lang_code' => $langCode,
+            'total_words' => $wordCount,
+            'level' => $levelLabel,
+            'category' => $category,
+            'is_selected' => in_array((int) $library->id, $selectedIds, true),
+            'is_popular' => (bool) $library->is_recommended,
+            'difficulty' => $difficultyScore,
+            'estimated_days' => $estimatedDays,
+            'description' => $description,
+            'image_url' => $this->coverImageUrl($library),
         ];
+    }
 
-        foreach ($difficultyMap as $key => $value) {
-            if (stripos($level, $key) !== false) {
-                return $value;
+    private function coverImageUrl(AppQyV1VocabularyLibraryModel $library): string
+    {
+        $cover = $this->coverService->getCoverData($library);
+        if (is_array($cover) && !empty($cover['url'])) {
+            return $cover['url'];
+        }
+
+        return $this->coverService->getDefaultCoverUrl();
+    }
+
+    /**
+     * Requested languages normalized to the full names stored on
+     * vocabulary_libraries.language. Accepts both ?language= (single value)
+     * and ?lang_codes[]= (array), each entry as a 2-letter code ('en') or a
+     * full name ('english'). Defaults to english.
+     */
+    private function resolveRequestedLanguages(Request $request): array
+    {
+        $requested = $request->input('lang_codes', []);
+        if (!is_array($requested)) {
+            $requested = [$requested];
+        }
+
+        $language = $request->input('language');
+        if (!empty($language)) {
+            $requested[] = $language;
+        }
+
+        if (empty($requested)) {
+            $requested = ['english'];
+        }
+
+        $names = [];
+        foreach ($requested as $value) {
+            $name = $this->languageName((string) $value);
+            if ($name !== '' && !in_array($name, $names, true)) {
+                $names[] = $name;
             }
         }
 
-        return 3;
+        return $names;
     }
 
-    private function getAvailableLevels(array $langCodes): array
+    /**
+     * Normalize a language input ('en' or 'English') to the stored full name.
+     */
+    private function languageName(string $value): string
     {
-        $levels = [];
-        foreach ($langCodes as $langCode) {
-            if (isset(self::$recommendedCollections[$langCode])) {
-                foreach (self::$recommendedCollections[$langCode] as $collection) {
-                    $levels[] = $collection['level'];
-                }
-            }
+        $normalized = strtolower(trim($value));
+        if ($normalized === '') {
+            return '';
         }
-        return array_values(array_unique($levels));
-    }
 
-    private function getAvailableCategories(array $langCodes): array
-    {
-        $categories = [];
-        foreach ($langCodes as $langCode) {
-            if (isset(self::$recommendedCollections[$langCode])) {
-                foreach (self::$recommendedCollections[$langCode] as $collection) {
-                    $categories[] = $collection['category'];
-                }
-            }
+        if (isset(self::LANGUAGE_CODES[$normalized])) {
+            return $normalized;
         }
-        return array_values(array_unique($categories));
+
+        $byCode = array_search($normalized, self::LANGUAGE_CODES, true);
+        if ($byCode !== false) {
+            return $byCode;
+        }
+
+        return $normalized;
     }
 
-    private function getDescription(string $name, string $langCode): string
+    /**
+     * Stored full language name -> 2-letter code (mirrors the vocabulary
+     * public controller mapping; unknown 2-letter inputs pass through).
+     */
+    private function languageCode(?string $language): string
     {
-        $descriptions = [
-            'TOEFL Core Vocabulary' => 'Essential vocabulary for TOEFL exam preparation',
-            'IELTS Essential Words' => 'Most commonly used words in IELTS exams',
-            'GRE Advanced Vocabulary' => 'High-level vocabulary for GRE test takers',
-            'Business English' => 'Professional vocabulary for workplace communication',
-            'Daily Conversation' => 'Common words and phrases for everyday situations',
-            'Academic Writing' => 'Formal vocabulary for academic papers and essays',
-            'Travel English' => 'Useful phrases and vocabulary for travelers',
-            'JLPT N5 Vocabulary' => 'Basic Japanese vocabulary for beginners',
-            'JLPT N4 Vocabulary' => 'Elementary Japanese vocabulary',
-            'JLPT N3 Vocabulary' => 'Intermediate Japanese vocabulary',
-        ];
+        $normalized = '';
+        if ($language !== null) {
+            $normalized = strtolower(trim($language));
+        }
 
-        return $descriptions[$name] ?? 'Curated vocabulary collection for ' . $langCode;
+        if (isset(self::LANGUAGE_CODES[$normalized])) {
+            return self::LANGUAGE_CODES[$normalized];
+        }
+
+        if (strlen($normalized) === 2) {
+            return $normalized;
+        }
+
+        return 'en';
     }
 }

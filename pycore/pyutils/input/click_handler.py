@@ -43,7 +43,7 @@ ImageFont = get_third_package_PIL_ImageFont()
 gw = pygetwindow
 auto = uiautomation
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class ClickHandler:

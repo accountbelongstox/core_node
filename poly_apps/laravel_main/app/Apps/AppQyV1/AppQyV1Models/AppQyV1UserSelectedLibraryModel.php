@@ -39,12 +39,17 @@ class AppQyV1UserSelectedLibraryModel extends Model
         'updated_at' => 'datetime',
     ];
 
+    /**
+     * Selected library. The column name collection_id is historical: it
+     * stores a vocabulary_libraries id (vocabulary_collections was merged
+     * into vocabulary_libraries by the Wave A/B consolidation and dropped).
+     */
     public function collection()
     {
-        return $this->belongsTo(AppQyV1VocabularyCollectionModel::class, 'collection_id', 'id');
+        return $this->belongsTo(AppQyV1VocabularyLibraryModel::class, 'collection_id', 'id');
     }
 
-    public static function getUserSelectedLibraries(int $userId, string $langCode = null, bool $activeOnly = true)
+    public static function getUserSelectedLibraries(int $userId, ?string $langCode = null, bool $activeOnly = true)
     {
         $query = self::with('collection')
             ->where('user_id', $userId);

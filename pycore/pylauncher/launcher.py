@@ -237,6 +237,8 @@ class ServiceLauncher:
             ColorPrint.green(f"[Singleton] PRIMARY on port {detection.port}")
             return True
         elif detection.existing_instance and not self.config.force_launch:
+            if detection.yielded_to_newer:
+                ColorPrint.yellow("[Singleton] A NEWER instance is already running; yielding to it")
             ColorPrint.yellow(f"[Singleton] Existing instance at {detection.existing_port}")
             ColorPrint.yellow(f"[Singleton] {detection.message}")
             return False

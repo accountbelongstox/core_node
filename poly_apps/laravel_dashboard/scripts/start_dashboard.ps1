@@ -1,13 +1,10 @@
 # ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# When AI sees this, MUST comply:
 # 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+# 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+# 4. Do not modify these rules.
+# VIOLATION IS PROHIBITED.
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # nexus-dash (laravel_dashboard): idempotent pnpm install, verify toolchain, then dev server.
@@ -26,7 +23,7 @@ $EnvPath = Join-Path $AppRoot ".env"
 $OriginalDir = (Get-Location).Path
 $NeedInstall = $false
 $hasAnyPackage = $null
-$DevPort = 3000
+$DevPort = 13054
 $envContent = $null
 $line = $null
 $DevUrl = ""
@@ -49,6 +46,23 @@ function Test-ViteReady {
     param([string]$Root)
     $viteJs = Join-Path $Root "node_modules\vite\bin\vite.js"
     return (Test-Path -LiteralPath $viteJs)
+}
+
+function Test-DashboardDevServerHealthy {
+    param([int]$Port)
+    try {
+        $html = Invoke-WebRequest "http://localhost:$Port/pycore-manager" -UseBasicParsing -TimeoutSec 2
+        if ($html.StatusCode -ne 200 -or $html.Content -notmatch 'Nexus Dash') { return $false }
+        # Tailwind v4 is compiled via @tailwindcss/vite. A stale v3/PostCSS server
+        # still serves HTML but returns 500 on /themes/index.css (missing autoprefixer).
+        $css = Invoke-WebRequest "http://localhost:$Port/themes/index.css" -UseBasicParsing -TimeoutSec 5
+        if ($css.StatusCode -ne 200) { return $false }
+        if ($css.Content.Length -lt 10000) { return $false }
+        if ($css.Content -match '@tailwind\s+(base|components|utilities)') { return $false }
+        return $true
+    } catch {
+        return $false
+    }
 }
 
 Write-Info "Original directory: $OriginalDir"
@@ -101,7 +115,7 @@ if ($NeedInstall) {
     Write-Info "Dependencies look complete; skipping install. Use -ForceInstall to reinstall."
 }
 
-$DevPort = 3000
+$DevPort = 13054
 if (Test-Path -LiteralPath $EnvPath) {
     $envContent = Get-Content -LiteralPath $EnvPath -ErrorAction SilentlyContinue
     foreach ($line in $envContent) {
@@ -113,17 +127,46 @@ if (Test-Path -LiteralPath $EnvPath) {
 }
 $DevUrl = "http://localhost:$DevPort"
 
+# Skip only if a HEALTHY dashboard dev server is already on this port (HTML +
+# compiled Tailwind CSS). A stale v3/PostCSS process still answers HTML but
+# breaks /themes/index.css — do not reuse it.
+if (Test-DashboardDevServerHealthy -Port $DevPort) {
+    Write-Success "Dashboard already running on $DevUrl - skipping launch."
+    Start-Process $DevUrl
+    Set-Location -LiteralPath $OriginalDir
+    exit 0
+}
+
+# Stale listener on our port (broken CSS or foreign server): free it first.
+$stalePids = @(
+    Get-NetTCPConnection -LocalPort $DevPort -State Listen -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty OwningProcess -Unique
+)
+foreach ($stalePid in $stalePids) {
+    if (-not $stalePid) { continue }
+    Write-Warn "Freeing port $DevPort (pid $stalePid) before starting dashboard..."
+    Stop-Process -Id $stalePid -Force -ErrorAction SilentlyContinue
+}
+Start-Sleep -Milliseconds 500
+$stillListening = Get-NetTCPConnection -LocalPort $DevPort -State Listen -ErrorAction SilentlyContinue
+if ($stillListening) {
+    $blockerPid = ($stillListening | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $_ -ne 0 } | Select-Object -First 1)
+    Write-Err "Port $DevPort is still in use (pid $blockerPid). End that node.exe in Task Manager, or restart pyservice, then re-run this script."
+    Set-Location -LiteralPath $OriginalDir
+    exit 1
+}
+
 $OpenUrlJob = Start-Job -ScriptBlock {
     param($Url, $DelaySeconds)
     Start-Sleep -Seconds $DelaySeconds
     Start-Process $Url
 } -ArgumentList $DevUrl, 4
 
-Write-Info "Starting dev server (pnpm run dev). Browser will open: $DevUrl"
+Write-Info "Starting dev server (pnpm exec vite --port $DevPort --strictPort). Browser will open: $DevUrl"
 $ExitCode = 0
 Push-Location -LiteralPath $AppRoot
 try {
-    pnpm run dev
+    pnpm exec vite --port $DevPort --strictPort --host 0.0.0.0
     $ExitCode = $LASTEXITCODE
 } finally {
     Pop-Location

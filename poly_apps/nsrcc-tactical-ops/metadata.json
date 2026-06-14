@@ -1,8 +1,0 @@
-{
-  "name": "老挝靶场",
-  "description": "A modern, tactical-style resort and country club management application.",
-  "requestFramePermissions": [
-    "camera",
-    "geolocation"
-  ]
-}

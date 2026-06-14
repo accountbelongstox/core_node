@@ -160,6 +160,72 @@ class AppQyV1ProfileController extends BaseController
     }
 
     /**
+     * Upload avatar as a multipart file (POST /user/avatar, field "avatar").
+     *
+     * Reuses the hardened AvatarService::saveBase64Avatar pipeline (size cap,
+     * GD decode, downscale to 512px, JPEG re-encode) so raw upload bytes are
+     * never written to disk verbatim. Storage path resolution stays inside
+     * AvatarService (PathMapper-backed, no raw storage_path()).
+     */
+    public function uploadAvatar(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $validator = null;
+        $uploadedFile = null;
+        $mimeType = null;
+        $rawBytes = null;
+        $base64Payload = null;
+        $oldAvatar = null;
+        $avatarPath = null;
+
+        if (!$user) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'avatar' => 'required|file|image|mimes:png,jpg,jpeg,webp|max:5120',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+        }
+
+        $uploadedFile = $request->file('avatar');
+        $rawBytes = @file_get_contents($uploadedFile->getRealPath());
+        if ($rawBytes === false || $rawBytes === '') {
+            return $this->error('Failed to read uploaded avatar file', 422);
+        }
+
+        $mimeType = $uploadedFile->getMimeType();
+        if (!$mimeType) {
+            $mimeType = 'image/png';
+        }
+
+        // Wrap as a data URI so saveBase64Avatar can derive the extension.
+        $base64Payload = 'data:' . $mimeType . ';base64,' . base64_encode($rawBytes);
+        $oldAvatar = $user->avatar;
+
+        // Filename intentionally null: AvatarService generates a unique
+        // avatar_{userId}_{time}.jpg name (avoids client-name collisions).
+        $avatarPath = AvatarService::saveBase64Avatar($base64Payload, $user->id, AppKeys::APPQYV1, null);
+
+        if (!$avatarPath) {
+            return $this->error('Failed to process avatar image', 422);
+        }
+
+        $user->update(['avatar' => $avatarPath]);
+
+        if ($oldAvatar && $oldAvatar !== $avatarPath && $oldAvatar !== 'avatars/1.png') {
+            $this->deleteOldAvatar($oldAvatar);
+        }
+
+        return $this->success([
+            'avatar' => $avatarPath,
+            'avatar_url' => $this->getAvatarUrl($avatarPath),
+        ], 'Avatar uploaded successfully');
+    }
+
+    /**
      * Save avatar from base64 string
      */
     private function saveAvatarFromBase64(string $base64Data, int $userId, ?string $filename = null): ?string
@@ -225,7 +291,13 @@ class AppQyV1ProfileController extends BaseController
         $dailyAverage = 0.0;
         $weeklyProgress = array_fill(0, 7, 0);
         $todayProgress = 0;
-        $dailyGoal = 20;
+        // Per-user goal from the preferences JSON column (settable via
+        // PUT /user/preferences daily_goal); 20 stays the default.
+        $preferences = is_array($user->preferences) ? $user->preferences : [];
+        $dailyGoal = (int) ($preferences['daily_goal'] ?? 20);
+        if ($dailyGoal < 1 || $dailyGoal > 500) {
+            $dailyGoal = 20;
+        }
 
         $tableReady = Schema::connection($connection)->hasTable($table);
 
@@ -344,8 +416,8 @@ class AppQyV1ProfileController extends BaseController
             'study_days' => $studyDays,
             'weekly_progress' => array_values($weeklyProgress),
             // Daily-goal block. today_progress is real (words studied today);
-            // daily_goal is a fixed default target (no per-user goal table
-            // yet — documented design gap, same class as total_study_time).
+            // daily_goal is the per-user target from the preferences JSON
+            // column (PUT /user/preferences daily_goal), defaulting to 20.
             'today_progress' => $todayProgress,
             'daily_goal' => $dailyGoal,
             'review_due' => $needsReview,
@@ -382,6 +454,11 @@ class AppQyV1ProfileController extends BaseController
             'language' => 'en',
             'favorites' => [],
             'recentTools' => [],
+            // WordFlow account-level prefs: per-user learning target +
+            // opaque client settings blob (WfSettingsCenter shape) so the
+            // wordflow end can roam settings across devices.
+            'daily_goal' => 20,
+            'app_settings' => null,
         ];
 
         $userPreferences = $user->preferences ?? [];
@@ -410,6 +487,8 @@ class AppQyV1ProfileController extends BaseController
             'language' => 'nullable|string|max:10',
             'favorites' => 'nullable|array',
             'recentTools' => 'nullable|array',
+            'daily_goal' => 'nullable|integer|min:1|max:500',
+            'app_settings' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {
@@ -423,6 +502,8 @@ class AppQyV1ProfileController extends BaseController
             'language' => 'en',
             'favorites' => [],
             'recentTools' => [],
+            'daily_goal' => 20,
+            'app_settings' => null,
         ];
 
         $currentPreferences = $user->preferences ?? [];

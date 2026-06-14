@@ -17,7 +17,7 @@ from typing import List, Dict, Optional
 
 # Use pycore centralized services
 from pycore import ColorPrint
-from pycore.pyutils.device_manager import device_manager
+from pycore.pyutils.device.device_manager import device_manager
 from pycore.pyutils.device import ADBManager, ADBDevice, AndroidDevice, DeviceInfo, ServerParams, VideoCodec
 from pycore.pyfoundations.event_bus import EventBus, EventTypes
 

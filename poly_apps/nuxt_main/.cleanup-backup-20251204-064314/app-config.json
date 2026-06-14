@@ -1,6 +1,0 @@
-{
-  "displayName": "IT Tools Suite",
-  "port": 3005,
-  "devCommand": "dev:ittools",
-  "buildCommand": "build:ittools"
-}

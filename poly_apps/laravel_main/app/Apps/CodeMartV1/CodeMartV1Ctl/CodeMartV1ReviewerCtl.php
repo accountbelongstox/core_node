@@ -143,7 +143,8 @@ class CodeMartV1ReviewerCtl extends Controller
         $pendingReviews = $dbConnection
             ->table('codemart_v1_code_submissions')
             ->whereNotExists(function ($query) use ($user, $dbConnection) {
-                $query->select(\DB::raw(1))
+                // SELECT 1 inside an EXISTS subquery: standard SQL, cross-DB safe.
+                $query->selectRaw('1')
                     ->from('codemart_v1_code_reviews')
                     ->whereColumn('codemart_v1_code_reviews.submission_id', 'codemart_v1_code_submissions.id')
                     ->where('codemart_v1_code_reviews.reviewer_id', $user->id);

@@ -39,8 +39,8 @@ ImageDraw = PIL_ImageDraw
 ImageFont = PIL_ImageFont
 auto = uiautomation
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pygvar import PYTOOLS_TMP_DIR
 
 

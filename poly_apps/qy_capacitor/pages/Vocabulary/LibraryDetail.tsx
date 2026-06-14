@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom';
 import { AppContext } from '../../contexts/AppContext';
 import { Card, Icons, Button, LoadingState, EmptyState, Spinner, ProgressBar, Sheet } from '../../components/UI';
 import { PillNav } from '../../components/PillNav';
-import { Play, Pause, Volume2, Lightbulb, Check } from 'lucide-react';
+import { Play, Pause, Volume2, Languages, Check } from 'lucide-react';
 import { Header } from '../../components/Header';
 // Header currently only types `title`; this page also passes `showBack` /
 // `actions`, which the component ignores at runtime (pre-existing dead props).
@@ -18,11 +18,11 @@ const HeaderX = Header as React.ComponentType<{
 }>;
 import { ApiCenter } from '../../services/ApiCenter';
 import { mapLanguageCode } from '../../services/languageMapper';
-import { BingTranslator, GoogleTranslator, DeepLTranslator } from '../../services/translators';
 import { VocabularyLibraryManager } from '../../services/VocabularyLibraryManager';
 import { AudioProcessingHook } from '../../services/AudioProcessingHook';
 import { EventBus } from '../../services/EventBus';
 import { VocabularyAudioCenter } from '../../services/VocabularyAudioCenter';
+import { VocabularyTranslationCenter } from '../../services/VocabularyTranslationCenter';
 import { resolveAudioUrl } from '../../services/TtsUrl';
 
 interface VocabularyWord {
@@ -34,6 +34,9 @@ interface VocabularyWord {
   uk_phonetic?: string | null;
   word_details?: any | null;
   has_translation?: boolean;
+  // True while the word has been enqueued on the translation queue and we are
+  // polling for its backend fill (set by VocabularyTranslationCenter wiring).
+  translation_pending?: boolean;
   audio_url?: string | null;
   audio_available?: boolean; // Backend TTS integration field
 }
@@ -44,8 +47,6 @@ interface DisplaySettings {
   fontSize: number;
   columnCount: number;
   wordsPerPage: number;
-  translationProvider: 'none' | 'bing' | 'google' | 'deepl';
-  autoTranslate: boolean;
 }
 
 const DEFAULT_SETTINGS: DisplaySettings = {
@@ -54,8 +55,6 @@ const DEFAULT_SETTINGS: DisplaySettings = {
   fontSize: 16,
   columnCount: 1,
   wordsPerPage: 100,
-  translationProvider: 'bing',
-  autoTranslate: false,
 };
 
 const VocabularyLibraryDetail = () => {
@@ -64,7 +63,6 @@ const VocabularyLibraryDetail = () => {
   const [library, setLibrary] = useState<any>(null);
   const [words, setWords] = useState<VocabularyWord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [translating, setTranslating] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
@@ -90,12 +88,6 @@ const VocabularyLibraryDetail = () => {
   useEffect(() => {
     loadLibraryWords(currentPage);
   }, [libraryId, currentPage, displaySettings.wordsPerPage]);
-
-  useEffect(() => {
-    if (displaySettings.autoTranslate && words.length > 0) {
-      translateAllWords();
-    }
-  }, [displaySettings.autoTranslate, displaySettings.translationProvider, words.length]);
 
   useEffect(() => {
     const handleAudioReady = (event: any) => {
@@ -147,6 +139,31 @@ const VocabularyLibraryDetail = () => {
     };
   }, [libraryId]);
 
+  // VocabularyTranslationCenter subscription for translation fills.
+  // Mirrors the audio subscription: the FE never translates itself — it
+  // enqueues untranslated words and patches each one when its backend fill
+  // (pycore Google worker + Laravel AI filler) arrives via polling.
+  useEffect(() => {
+    const unsubscribe = VocabularyTranslationCenter.subscribe((word, translation) => {
+      console.log('[LibraryDetail] VocabularyTranslationCenter: Translation ready for', word);
+
+      // Patch the word in the current page: set the translation and clear the
+      // pending flag.
+      setWords((prev) =>
+        prev.map((w) =>
+          w.word === word ? { ...w, translation, translation_pending: false } : w
+        )
+      );
+    });
+
+    return () => {
+      unsubscribe();
+      // Clear cache when unmounting (user leaving page or switching pages).
+      VocabularyTranslationCenter.clearCache();
+      console.log('[LibraryDetail] Component unmounting, cleared translation cache and polling');
+    };
+  }, [libraryId]);
+
   const loadLibraryWords = async (page: number) => {
     setLoading(true);
     try {
@@ -165,7 +182,19 @@ const VocabularyLibraryDetail = () => {
 
       if (response.success && response.data) {
         const libraryData = response.data.library;
-        const wordsData = Array.isArray(response.data.words) ? response.data.words : [];
+        const rawWords = Array.isArray(response.data.words) ? response.data.words : [];
+
+        // Source = library language; target = user's native language.
+        const sourceLanguage = mapLanguageCode(libraryData?.language || langCode);
+        const targetLanguage = settings.language.nativeLanguage || 'zh';
+
+        // Mark untranslated visible words as pending so the per-word
+        // "translating…" indicator shows until the backend fill arrives.
+        const wordsData = (rawWords as unknown as VocabularyWord[]).map((w) => {
+          const hasBackend = Array.isArray(w.translations) && w.translations.length > 0;
+          const needs = !hasBackend && !w.translation && !w.has_translation;
+          return needs ? { ...w, translation_pending: true } : w;
+        });
 
         setLibrary(libraryData);
         setWords(wordsData);
@@ -197,100 +226,22 @@ const VocabularyLibraryDetail = () => {
             10 // Priority: 10 (auto-loaded words)
           );
 
-          // Full view: populate translations client-side for words the backend
-          // dictionary has not enriched yet (cached + client fallback).
-          if (displaySettings.showTranslation) {
-            void translateAllWords(wordsData as unknown as VocabularyWord[]);
-          }
+          // Enqueue untranslated words on the backend translation queue and
+          // poll for their fills. The FE never translates itself — this only
+          // prioritizes visible words and patches the UI as fills arrive.
+          VocabularyTranslationCenter.processVocabularyLibrary(
+            libraryData.id,
+            page,
+            wordsData,
+            sourceLanguage,
+            targetLanguage
+          );
         }
       }
     } catch (err) {
       console.error('[LibraryDetail] Failed to load words:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Backend-cached translations win; only client-translate the words the
-  // dictionary hasn't enriched yet (cached + client fallback). Idempotent:
-  // returns early when nothing needs translating, so it is safe to call from
-  // the Full-view toggle and from each page load without looping.
-  const wordNeedsTranslation = (w: VocabularyWord): boolean => {
-    const hasBackend = Array.isArray(w.translations) && w.translations.length > 0;
-    return !hasBackend && !w.translation;
-  };
-
-  const translateAllWords = async (targetList?: VocabularyWord[]) => {
-    if (!displaySettings.translationProvider || displaySettings.translationProvider === 'none') {
-      return;
-    }
-
-    const list = targetList || words;
-    if (!list.some(wordNeedsTranslation)) {
-      return;
-    }
-
-    const translator = getTranslator();
-    if (!translator) return;
-
-    const sourceLang = mapLanguageCode(settings.language.learningLanguages?.[0] || 'en');
-    const targetLang = settings.language.nativeLanguage || 'zh';
-
-    setTranslating(true);
-    try {
-      const translatedWords = await Promise.all(
-        list.map(async (word) => {
-          if (!wordNeedsTranslation(word)) return word;
-
-          try {
-            const translation = await translator.translate(word.word, sourceLang, targetLang);
-            return { ...word, translation };
-          } catch (err) {
-            console.error(`[Translate] Failed for "${word.word}":`, err);
-            return word;
-          }
-        })
-      );
-
-      setWords(translatedWords);
-    } catch (err) {
-      console.error('[LibraryDetail] Translation failed:', err);
-    } finally {
-      setTranslating(false);
-    }
-  };
-
-  const getTranslator = () => {
-    switch (displaySettings.translationProvider) {
-      case 'bing':
-        return new BingTranslator();
-      case 'google':
-        return new GoogleTranslator();
-      case 'deepl':
-        return new DeepLTranslator();
-      default:
-        return null;
-    }
-  };
-
-  const translateSingleWord = async (index: number, word: string) => {
-    if (!displaySettings.translationProvider || displaySettings.translationProvider === 'none') {
-      return;
-    }
-
-    const translator = getTranslator();
-    if (!translator) return;
-
-    const sourceLang = mapLanguageCode(settings.language.learningLanguages?.[0] || 'en');
-    const targetLang = settings.language.nativeLanguage || 'zh';
-
-    try {
-      const translation = await translator.translate(word, sourceLang, targetLang);
-      setWords((prev) =>
-        prev.map((w) => (w.index === index ? { ...w, translation } : w))
-      );
-    } catch (err) {
-      console.error(`[Translate] Failed for "${word}":`, err);
     }
   };
 
@@ -398,40 +349,6 @@ const VocabularyLibraryDetail = () => {
               </select>
             </div>
 
-            {/* Translation Provider */}
-            <div className="ds-row p-4">
-              <label className="block mb-3 font-semibold text-[var(--color-text-primary)]">Translation Service</label>
-              <select
-                value={displaySettings.translationProvider}
-                onChange={(e) =>
-                  setDisplaySettings((prev) => ({
-                    ...prev,
-                    translationProvider: e.target.value as DisplaySettings['translationProvider'],
-                  }))
-                }
-                className="w-full p-3 rounded-[var(--radius-button)] bg-black/5 dark:bg-white/10 text-[var(--color-text-primary)] font-medium outline-none focus:ring-2 focus:ring-[var(--klein-ring)] transition-all"
-              >
-                <option value="none">No translation</option>
-                <option value="bing">Bing Translate</option>
-                <option value="google">Google Translate</option>
-                <option value="deepl">DeepL Translate</option>
-              </select>
-            </div>
-
-            {/* Auto Translate */}
-            {displaySettings.translationProvider !== 'none' && (
-              <label className="ds-row flex items-center justify-between p-4 cursor-pointer">
-                <span className="font-semibold text-[var(--color-text-primary)]">Auto Translate</span>
-                <input
-                  type="checkbox"
-                  checked={displaySettings.autoTranslate}
-                  onChange={(e) =>
-                    setDisplaySettings((prev) => ({ ...prev, autoTranslate: e.target.checked }))
-                  }
-                  className="w-5 h-5 rounded accent-[color:var(--klein-blue)]"
-                />
-              </label>
-            )}
           </div>
 
           <Button
@@ -505,56 +422,37 @@ const VocabularyLibraryDetail = () => {
             onChange={(id) => {
               const full = id === 'full';
               setDisplaySettings(prev => ({ ...prev, showTranslation: full }));
-              if (full) {
-                void translateAllWords(words);
-              }
             }}
             aria-label="View mode"
             className="!px-0"
           />
         </div>
 
-        {/* Translation Status */}
-        {translating && (
-          <div className="mb-5 p-4 bg-[var(--klein-blue-soft)] rounded-[var(--radius-card)] flex items-center gap-3 border border-[var(--border-highlight)]">
-            <Icons.Loader className="w-5 h-5 animate-spin text-[var(--klein-blue)]" />
-            <span className="text-sm font-semibold text-[var(--klein-blue)]">Translating words...</span>
-          </div>
-        )}
-
         {/* Words List - One per Line */}
         {loading ? (
           <LoadingState label="Loading..." />
         ) : words.length > 0 ? (
           <div className="ds-stack-tight flex flex-col mb-6">
-            {words.map((word, idx) => {
+            {words.map((word) => {
               const backendTranslation = word.translations && Array.isArray(word.translations) && word.translations.length > 0
                 ? word.translations.join('; ')
                 : null;
               const displayTranslation = backendTranslation || word.translation;
               const hasTranslation = !!displayTranslation;
-              const canTranslate = displaySettings.showTranslation && displaySettings.translationProvider !== 'none' && !hasTranslation;
+              // While untranslated, the backend queue is filling it (enqueue+poll).
+              const isTranslating = displaySettings.showTranslation && !hasTranslation && !!word.translation_pending;
               const hasPhonetic = word.us_phonetic || word.uk_phonetic;
 
               return (
                 <div
                   key={word.index}
                   className={`
-                    ds-row group relative p-4
-                    ${canTranslate
-                      ? 'cursor-pointer hover:-translate-y-0.5 active:translate-y-0'
-                      : 'cursor-default'
-                    }
+                    ds-row group relative p-4 cursor-default
                     ${hasTranslation && displaySettings.showTranslation
                       ? '!border-green-300 dark:!border-green-800'
                       : ''
                     }
                   `}
-                  onClick={() => {
-                    if (canTranslate) {
-                      translateSingleWord(word.index, word.word);
-                    }
-                  }}
                 >
                   <div className="flex items-start gap-3">
                     {displaySettings.showIndex && (
@@ -624,9 +522,12 @@ const VocabularyLibraryDetail = () => {
                           )}
                         </div>
                       )}
-                      {canTranslate && (
-                        <div className="text-xs text-[var(--klein-blue)] mt-2 opacity-0 group-hover:opacity-100 transition-opacity font-semibold flex items-center gap-1">
-                          <Lightbulb className="w-3.5 h-3.5" /> Tap to translate
+                      {/* Translation pending — backend queue is filling it.
+                          Same pattern as the audio "generating" indicator:
+                          animate-pulse, amber tint, lucide icon (no emoji). */}
+                      {isTranslating && (
+                        <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 animate-pulse">
+                          <Languages className="w-3.5 h-3.5" /> translating…
                         </div>
                       )}
                     </div>

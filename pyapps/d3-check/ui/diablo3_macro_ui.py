@@ -62,7 +62,7 @@ from share.ui_registry import register_ui
 
 # Lifecycle/event via runtime (THREAD_BUS -> main thread)
 from runtime import register_main_thread_handlers, trigger_window_show, trigger_app_exit
-from pycore.pyutils.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
+from pycore.pyutils.desktop.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
 from pycore.pyutils.icon_utils import get_icon_path_for_windows
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageTk
 

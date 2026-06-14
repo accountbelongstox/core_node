@@ -13,7 +13,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.window_ops import (
+from pycore.pyutils.window.ops import (
     send_key as window_send_key,
     send_mouse_click_at_cursor,
     is_cursor_in_window,

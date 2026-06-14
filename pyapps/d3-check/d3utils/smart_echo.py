@@ -10,7 +10,7 @@ import time
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder
-from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyutils.window.activator import WindowActivator
 from providor.providor_index import DIABLO_III_WINDOW_TITLES
 from providor.constants.common import ACTIVATE_BEFORE_CAPTURE_DELAY_SEC, SMART_ECHO_OCR_TICK_MAX_SEC
 from d3utils.screenshot_provider import get_screenshot_provider

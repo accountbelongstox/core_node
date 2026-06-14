@@ -5,7 +5,7 @@ UnifiedDetector Usage Examples
 Demonstrates how to use the unified object detector
 """
 
-from pycore.pyutils.unified_detector import UnifiedDetector
+from pycore.pyutils.window.unified_detector import UnifiedDetector
 from pathlib import Path
 
 

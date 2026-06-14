@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyutils.desktop_icon_generator import DesktopIconGenerator
+from pycore.pyutils.common.icon_generator import DesktopIconGenerator
 
 
 class ShortcutManager:
@@ -34,20 +34,13 @@ class ShortcutManager:
         Initialize shortcut manager
 
         Args:
-            i18n_manager: Optional I18nManager instance for localized shortcut names
-                         If not provided, will attempt to import from pycore.pyutils.native_ui
+            i18n_manager: Optional I18nManager instance for localized shortcut names.
+                          Inject one (e.g. native_ui's i18n) to localize names/descriptions;
+                          if None, the provided names are used directly. Kept as dependency
+                          injection so this desktop utility stays free of domain dependencies.
         """
         self.icon_generator = DesktopIconGenerator()
         self.i18n = i18n_manager
-
-        # Try to import i18n if not provided
-        if self.i18n is None:
-            try:
-                from pycore.pyutils.native_ui.step0_i18n import i18n
-                self.i18n = i18n
-            except ImportError:
-                # i18n not available, will use provided names directly
-                pass
 
     @staticmethod
     def get_windows_version():

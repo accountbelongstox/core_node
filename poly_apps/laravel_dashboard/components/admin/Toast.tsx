@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import Portal from '../shared/Portal';
+import { OVERLAY_Z } from '../../styles/overlay';
 
 /**
  * Toast Type
@@ -156,11 +158,13 @@ export function ToastProvider({
       {children}
 
       {/* Toast Container */}
-      <div className={`fixed ${positionClass} z-50 flex flex-col gap-2 w-96 max-w-full`}>
-        {toasts.map((toast) => (
-          <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
-        ))}
-      </div>
+      <Portal lockScroll={false}>
+        <div className={`fixed ${positionClass} ${OVERLAY_Z.toast} flex flex-col gap-2 w-96 max-w-full`}>
+          {toasts.map((toast) => (
+            <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
+          ))}
+        </div>
+      </Portal>
     </ToastContext.Provider>
   );
 }

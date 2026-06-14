@@ -7,7 +7,7 @@ from pycore.pyutils.azure_speech.azure_speech_client import (
     get_azure_speech_client,
 )
 from pycore.pyutils.azure_speech.config import AzureSpeechConfig
-from pycore.pyutils.azure_speech.stt_base_provider import BaseSpeechRecognitionProvider
+from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
 from pycore.pyutils.azure_speech.stt_provider import AzureSpeechRecognitionProvider
 from pycore.pyutils.azure_speech.speech_recognizer import (
     SpeechRecognizer,

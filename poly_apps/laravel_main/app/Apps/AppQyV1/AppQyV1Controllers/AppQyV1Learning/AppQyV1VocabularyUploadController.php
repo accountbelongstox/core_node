@@ -7,7 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Apps\AppQyV1\Utils\AppQyV1VocabularyImporter;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCollectionModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Traits\ApiResponse;
 
 class AppQyV1VocabularyUploadController extends Controller
@@ -50,6 +51,11 @@ class AppQyV1VocabularyUploadController extends Controller
                 ], 400);
             }
 
+            // Wave A consolidation: this creates/refreshes a user LIBRARY
+            // (vocabulary_libraries row, owner_user_id = user, is_public =
+            // false, source unique per user+language+name) and builds its
+            // word_ids from the dictionary. The response shape is unchanged:
+            // the `collection_id` key now carries the library id.
             $result = $this->importer->createVocabularyCollection(
                 $collectionName,
                 $langCode,
@@ -61,6 +67,21 @@ class AppQyV1VocabularyUploadController extends Controller
             );
 
             if ($result['success']) {
+                // Persist the raw document text so the later extraction endpoints
+                // (/vocabulary/document/{id}/extract-words and .../extract-sentences)
+                // can re-process the original content.
+                $documentRecord = new AppQyV1UploadedDocumentModel([
+                    'user_id' => $user->id,
+                    // Library id (legacy column name kept for compatibility).
+                    'collection_id' => $result['collection_id'],
+                    'original_name' => $collectionName,
+                    'language' => $langCode,
+                    'content' => $document,
+                ]);
+                $documentRecord->save();
+
+                $result['document_id'] = (int) $documentRecord->id;
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Vocabulary collection created successfully',
@@ -79,23 +100,25 @@ class AppQyV1VocabularyUploadController extends Controller
     {
         $user = Auth::user();
 
-            $collection = AppQyV1VocabularyCollectionModel::find($library_id);
+            // Wave A consolidation: user uploads are vocabulary_libraries rows
+            // now (ownership column is owner_user_id). Response shape unchanged.
+            $library = AppQyV1VocabularyLibraryModel::find($library_id);
 
-            if (!$collection) {
+            if (!$library) {
                 return response()->json([
                     'success' => false,
                     'error' => 'Collection not found',
                 ], 404);
             }
 
-            if ($collection->owner_id !== $user->id) {
+            if ($library->owner_user_id === null || (int) $library->owner_user_id !== (int) $user->id) {
                 return response()->json([
                     'success' => false,
                     'error' => 'You do not have permission to delete this collection',
                 ], 403);
             }
 
-            $collection->delete();
+            $library->delete();
 
             return response()->json([
                 'success' => true,

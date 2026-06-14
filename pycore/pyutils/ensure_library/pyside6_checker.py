@@ -12,7 +12,7 @@ import os
 import glob
 from pathlib import Path
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon import Commander
 
 

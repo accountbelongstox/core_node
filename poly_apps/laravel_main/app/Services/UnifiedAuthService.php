@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Atrox\Haikunator;
 
 /**
@@ -65,6 +66,15 @@ class UnifiedAuthService
 
             $mainUser = User::create($mainUserData);
 
+            // Write app-specific user DEFAULTS from sub_app_data onto the canonical
+            // user row -- but ONLY keys that are real columns on the users table
+            // (e.g. VipClub's member_type / vip_points / member_since / is_active,
+            // added via "add_*_fields_to_users_table" migrations). Keys without a
+            // users column (e.g. 'credit', which lives in a per-app side table) are
+            // ignored here and remain the owning app's responsibility. This is the
+            // fresh row just created, so it is inherently idempotent.
+            self::applySubAppUserDefaults($mainUser, $subAppData);
+
             DB::commit();
 
             // sub_app_user == the canonical user (single identity, no duplicate).
@@ -87,6 +97,45 @@ class UnifiedAuthService
                 'error' => $e->getMessage(),
                 'user' => null,
             ];
+        }
+    }
+
+    /**
+     * Idempotently write app-specific user-DEFAULT values from sub_app_data onto
+     * the canonical users row. Only keys that are (a) not reserved identity/auth
+     * fields and (b) ACTUAL columns on the users table are applied -- this avoids
+     * pg "column does not exist" errors for keys (e.g. 'credit') that belong in a
+     * per-app side table. forceFill is used so values land regardless of $fillable.
+     */
+    private static function applySubAppUserDefaults(User $user, array $subAppData): void
+    {
+        if (empty($subAppData)) {
+            return;
+        }
+
+        $reserved = [
+            'username', 'email', 'phone', 'name', 'nickname', 'password',
+            'id', 'created_at', 'updated_at', 'remember_token', 'main_user_id',
+        ];
+
+        try {
+            $connection = $user->getConnectionName();
+            $table = $user->getTable();
+            $extra = [];
+            foreach ($subAppData as $key => $value) {
+                if (!is_string($key) || in_array($key, $reserved, true)) {
+                    continue;
+                }
+                if (Schema::connection($connection)->hasColumn($table, $key)) {
+                    $extra[$key] = $value;
+                }
+            }
+            if (!empty($extra)) {
+                $user->forceFill($extra)->save();
+            }
+        } catch (\Throwable $e) {
+            // Defaults are best-effort; never fail registration over them.
+            Log::warning('[UnifiedAuth] applySubAppUserDefaults skipped: ' . $e->getMessage());
         }
     }
 

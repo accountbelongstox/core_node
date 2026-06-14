@@ -268,6 +268,28 @@ class VoiceSubtitleAPI {
         return await this.get(this.endpoints.TASKS, { limit });
     }
 
+    // ========== Video Extraction (Always Local) ==========
+    // Batch/single video -> audio + tiny-mp4 + subtitle (whisper). The job runs
+    // as an async task; poll videoExtractTask() until status is completed/failed.
+
+    async videoExtractPreview(req) {
+        return await this.post(this.endpoints.VIDEO_EXTRACT_PREVIEW, req, true);  // Force local
+    }
+
+    async videoExtractStart(req) {
+        return await this.post(this.endpoints.VIDEO_EXTRACT_START, req, true);  // Force local
+    }
+
+    async videoExtractTask(taskId) {
+        const endpoint = this.endpoints.VIDEO_EXTRACT_TASK.replace('{task_id}', taskId);
+        return await this.get(endpoint, {}, true);  // Force local
+    }
+
+    async videoExtractCancel(taskId) {
+        const endpoint = this.endpoints.VIDEO_EXTRACT_CANCEL.replace('{task_id}', taskId);
+        return await this.post(endpoint, {}, true);  // Force local
+    }
+
     async pollTask(taskId, onProgress, interval = 1000) {
         return new Promise((resolve, reject) => {
             const poll = setInterval(async () => {

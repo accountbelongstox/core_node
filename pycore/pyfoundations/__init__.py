@@ -12,8 +12,14 @@ This module provides:
 - Secret management (encryption/decryption)
 """
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import Encyclopedia, ENCYCLOPEDIA
+# Kernel exports (pybasecommon): ColorPrint, Encyclopedia cache, CUDA detection
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.encyclopedia import Encyclopedia, ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.compute_caps import (
+    CUDADetector,
+    is_cuda_available,
+    get_cuda_info
+)
 
 # Event bus
 from pycore.pyfoundations.event_bus import EventBus, EventTypes, Event
@@ -40,22 +46,19 @@ from pycore.pyfoundations.system_info import (
     SYSTEM_SUMMARY
 )
 
-# CUDA detection
-from pycore.pyfoundations.cuda_detector import (
-    CUDADetector,
-    is_cuda_available,
-    get_cuda_info
-)
-
-# Global task system
-from pycore.pyfoundations.task_models import (
+# Global task system (task_models + global_task_queue merged into tasks)
+from pycore.pyfoundations.tasks import (
     Task,
     TaskState,
-    TaskPriority
-)
-from pycore.pyfoundations.global_task_queue import (
+    TaskPriority,
     GlobalTaskQueue,
     get_global_task_queue
+)
+
+# Unified user data store (merged into system_paths)
+from pycore.pyfoundations.system_paths import (
+    UserDataStore,
+    get_user_data_store
 )
 
 __all__ = [
@@ -98,6 +101,10 @@ __all__ = [
     'TaskPriority',
     'GlobalTaskQueue',
     'get_global_task_queue',
+
+    # User data store
+    'UserDataStore',
+    'get_user_data_store',
 ]
 
 __version__ = '1.0.0'

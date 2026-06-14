@@ -515,10 +515,6 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/crypto/hmac', data);
   }
 
-  async mimeTypes(data: { extension?: string; mimeType?: string }): Promise<APIResponse> {
-    return this.post('/web/mime-types', data);
-  }
-
   async eta(data: { current: number; total: number; start_time: number }): Promise<APIResponse> {
     return this.post('/math/eta', data);
   }
@@ -533,9 +529,5 @@ export class ItToolsV1API extends BaseAPI {
 
   async statistics(data: { text: string }): Promise<APIResponse> {
     return this.post('/text/statistics', data);
-  }
-
-  async macGenerate(data: { separator?: string; case?: string }): Promise<APIResponse> {
-    return this.post('/network/mac-generate', data);
   }
 }

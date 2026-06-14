@@ -68,7 +68,7 @@ class GlobalTask extends Model
     /**
      * Assign task to a worker
      */
-    public function assignTo(string $workerId, int $timeoutSeconds = null)
+    public function assignTo(string $workerId, ?int $timeoutSeconds = null)
     {
         $this->assigned_to = $workerId;
         $this->assigned_at = now();
@@ -151,10 +151,16 @@ class GlobalTask extends Model
 
     /**
      * Scope: Get timed out tasks
+     *
+     * Covers BOTH live worker-owned statuses: a worker that pulled a task
+     * (assigned) or reported intermediate progress (processing) and then died
+     * must have its task reclaimed either way. Matching only `assigned` let
+     * `processing` tasks leak forever once their worker disappeared.
      */
     public function scopeTimedOut($query)
     {
-        return $query->where('status', self::STATUS_ASSIGNED)
+        return $query->whereIn('status', [self::STATUS_ASSIGNED, self::STATUS_PROCESSING])
+            ->whereNotNull('timeout_at')
             ->where('timeout_at', '<=', now());
     }
 }

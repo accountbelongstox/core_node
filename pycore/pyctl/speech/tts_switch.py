@@ -11,7 +11,7 @@ adopted.
 
 from enum import Enum
 
-from pycore.pyutils.common.speech_switch import (
+from pycore.pyctl.speech.speech_switch import (
     SpeechSwitch,
     get_speech_switch,
     initialize_speech_switch,

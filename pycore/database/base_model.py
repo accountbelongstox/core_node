@@ -10,7 +10,7 @@ from typing import Optional, List, Dict, Any, Type
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from pycore.pyfoundations.color_print import ColorPrint as _OriginalColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint as _OriginalColorPrint
 
 # Suppress ColorPrint output in MCP mode
 class ColorPrint:

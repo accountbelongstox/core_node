@@ -11,12 +11,13 @@ import {
   Rocket,
   BookOpen,
   Boxes,
-  Timer,
+  ListChecks,
   Network,
   Sparkles,
+  BrainCircuit,
   KeyRound,
-  CreditCard,
-  Database
+  DatabaseZap,
+  Clapperboard
 } from "lucide-react";
 
 interface SidebarProps {
@@ -28,15 +29,20 @@ interface SidebarProps {
 const NAV_ITEMS: NavItem[] = [
   { id: ViewType.API_TESTER, icon: Server, labelKey: 'api' },
   { id: ViewType.MEDIA_BROWSER, icon: Film, labelKey: 'media' },
+  { id: ViewType.MOVIES_BOOKS, icon: Clapperboard, labelKey: 'moviesBooks' },
   { id: ViewType.CODE_BROWSER, icon: Code2, labelKey: 'code' },
   { id: ViewType.TOOLS, icon: Wrench, labelKey: 'tools' },
   { id: ViewType.VOCABULARY, icon: BookOpen, labelKey: 'vocabulary' },
   { id: ViewType.AI_TOOLS, icon: Sparkles, labelKey: 'aiTools' },
+  { id: ViewType.AI_MANAGEMENT, icon: BrainCircuit, labelKey: 'aiManagement' },
   { id: ViewType.MCP_MANAGER, icon: Boxes, labelKey: 'mcp' },
-  { id: ViewType.OCTANE_TASKS, icon: Timer, labelKey: 'octane' },
+  // Unified Task Center replaced the separate Octane-timers + Global-tasks
+  // entries; their ViewTypes still deep-link into its scheduler/queue tabs.
+  { id: ViewType.TASK_CENTER, icon: ListChecks, labelKey: 'taskCenter' },
   { id: ViewType.SERVER_MANAGER, icon: Network, labelKey: 'server' },
-  { id: ViewType.BANK_MANAGER, icon: CreditCard, labelKey: 'bankManager' },
-  { id: ViewType.DATABASE_VIEWER, icon: Database, labelKey: 'dbViewer' },
+  // Database Viewer was merged into Database Manager (Tables tab); the old
+  // #/db-viewer slug deep-links there (see core/routing/viewRoute.ts).
+  { id: ViewType.DATABASE_MANAGER, icon: DatabaseZap, labelKey: 'dbManager' },
   { id: ViewType.SETTINGS, icon: Settings, labelKey: 'settings' },
 ];
 

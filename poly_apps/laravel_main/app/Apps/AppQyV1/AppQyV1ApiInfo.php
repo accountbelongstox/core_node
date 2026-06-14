@@ -242,6 +242,32 @@ class AppQyV1ApiInfo
                 "parameters" => ["library_id"]
             ],
 
+            // Vocabulary export + document extraction (2026-06-12)
+            [
+                "path" => "/api/app_qy_v1/vocabulary/export/{format}",
+                "method" => "POST",
+                "feature" => "Vocabulary Export",
+                "description" => "Export vocabulary as a file download; format = csv|json|anki|text|pdf (pdf falls back to printable HTML when dompdf is absent)",
+                "auth_required" => false,
+                "parameters" => ["format", "language", "library_id", "limit", "include_phonetics", "include_translations"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/vocabulary/document/{id}/extract-words",
+                "method" => "POST",
+                "feature" => "Extract Words from Document",
+                "description" => "Tokenize an uploaded document and append unique words to its collection (idempotent)",
+                "auth_required" => true,
+                "parameters" => ["id"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/vocabulary/document/{id}/extract-sentences",
+                "method" => "POST",
+                "feature" => "Extract Sentences from Document",
+                "description" => "Split an uploaded document into sentences and store them in the shared sentence library (deduplicated)",
+                "auth_required" => true,
+                "parameters" => ["id"]
+            ],
+
             // Word Operations endpoints (words)
             [
                 "path" => "/api/app_qy_v1/words/daily",
@@ -526,6 +552,65 @@ class AppQyV1ApiInfo
                 "description" => "Batch generate TTS audio",
                 "auth_required" => true,
                 "parameters" => ["texts", "language", "voice"]
+            ],
+
+            // Third-party assist protocol (pycore worker surface, 60-minute lease)
+            [
+                "path" => "/api/app_qy_v1/assist/claim",
+                "method" => "POST",
+                "feature" => "Assist Claim",
+                "description" => "Claim cover/TTS work units under a 60-minute lease (pycore worker)",
+                "auth_required" => false,
+                "parameters" => ["types", "limit", "claimer"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/assist/submit",
+                "method" => "POST",
+                "feature" => "Assist Submit",
+                "description" => "Submit a generated artifact (cover image_base64 / tts audio_base64) for a claimed unit",
+                "auth_required" => false,
+                "parameters" => ["type", "id", "image_base64", "audio_base64", "mime", "voice", "claimer"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/assist/release",
+                "method" => "POST",
+                "feature" => "Assist Release",
+                "description" => "Release claimed units back to the queue (retry semantics with optional error)",
+                "auth_required" => false,
+                "parameters" => ["type", "ids", "error", "claimer"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/assist/status",
+                "method" => "GET",
+                "feature" => "Assist Status",
+                "description" => "Cover and TTS queue counters including live assist leases",
+                "auth_required" => false
+            ],
+
+            // Cover pipeline dashboard endpoints
+            [
+                "path" => "/api/app_qy_v1/ai_tools/cover-status",
+                "method" => "GET",
+                "feature" => "Cover Pipeline Status",
+                "description" => "Cover generation task/queue status, Gemini and pycore provider health, recent failures",
+                "auth_required" => false
+            ],
+            [
+                "path" => "/api/app_qy_v1/ai_tools/cover-retry",
+                "method" => "POST",
+                "feature" => "Cover Pipeline Retry",
+                "description" => "Reset failed and stale-processing covers to pending and clear expired assist leases",
+                "auth_required" => false
+            ],
+
+            // Static file fallback (bare Octane; nginx serves /static in production)
+            [
+                "path" => "/static/{path}",
+                "method" => "GET",
+                "feature" => "Static File Fallback",
+                "description" => "Serve external static files (vocabulary covers, media clips) when no nginx front intercepts /static",
+                "auth_required" => false,
+                "parameters" => ["path"]
             ],
 
             // Other endpoints

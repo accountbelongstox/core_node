@@ -1,14 +1,11 @@
 #!/bin/bash
 # ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# When AI sees this, MUST comply:
 # 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+# 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+# 4. Do not modify these rules.
+# VIOLATION IS PROHIBITED.
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Cross-system Linux/Unix start script (WSL, Ubuntu desktop/server, headless, native
@@ -30,8 +27,15 @@ PORT="${PORT:-9000}"
 INSTALL_SHELLS_DIR="${REPO_ROOT}/scripts/shells/linux/debian/install_shells"
 PHP_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/31_ensure_php85_intelligent.sh"
 COMPOSER_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/34_install_composer.sh"
-NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/14_install_node_24.sh"
+NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/15_install_node_24.sh"
 SWOOLE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/32_install_swoole.sh"
+P7ZIP_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/43_install_p7zip.sh"
+POSTGRES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/46_install_postgresql.sh"
+PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/47_ensure_php_pgsql.sh"
+GVAR_COMMON_SCRIPT="${REPO_ROOT}/scripts/shells/linux/common/gvar_common.sh"
+# Per-app PostgreSQL databases (one per app connection; mirrors config/database.php
+# $polyConnection(... , pgDatabase) targets). Created idempotently before migrate.
+APP_DB_NAMES="core_node_main app_qy_v1_database awy_v0_database vipclub_v1_database server_manager_v1_database achat_v1_database code_mart_v1_database mcp_v1_database it_tools_v1_database bank_v1_database"
 
 # Laravel runtime directories that MUST exist and be writable (git does not track
 # empty dirs, so a fresh checkout/restore can miss these -> package:discover fails).
@@ -52,11 +56,23 @@ COMPOSER_CMD=""
 NPX_BIN=""
 PHP_CANDIDATE=""
 COMPOSER_CANDIDATE=""
+NPX_CANDIDATE=""
 RUNTIME_DIR=""
 IP_LIST=""
 IP=""
 OCTANE_AVAILABLE=""
 WATCH_FLAG=""
+WATCH_FS_TYPE=""
+WATCH_IS_WSL=""
+PG_VER=""
+DB_NAME=""
+CURRENT_INSTALL_MODE=""
+PG_READY_WAIT=""
+NODE_GLOBAL_VAR_DIR=""
+PG_DATA_ACTUAL=""
+PG_CONF_ACTUAL=""
+PG_DATA_SRC=""
+ENV_DRIVER_OVERRIDE=""
 
 # Restore initial directory on any exit (normal, error, Ctrl+C)
 trap 'cd "$ORIGINAL_DIR" && echo "" && echo "Restored to initial directory: $ORIGINAL_DIR"' EXIT
@@ -110,11 +126,78 @@ resolve_composer() {
 # Resolve npx into NPX_BIN (needed by composer dev / dev:win).
 resolve_npx() {
     NPX_BIN=""
+    # Drop any stale command hash so a freshly-installed npx is seen this shell.
+    hash -r 2>/dev/null || true
     if command -v npx >/dev/null 2>&1; then
         NPX_BIN="$(command -v npx)"
         return 0
     fi
+    # 15_install_node_24.sh symlinks into /usr/local/bin; also probe nvm-style dirs.
+    for NPX_CANDIDATE in "/usr/local/bin/npx" "/usr/bin/npx" "$HOME/.local/bin/npx"; do
+        if [ -x "$NPX_CANDIDATE" ]; then
+            NPX_BIN="$NPX_CANDIDATE"
+            return 0
+        fi
+    done
     return 1
+}
+
+# True when the local PostgreSQL server is accepting connections.
+pg_is_ready() {
+    command -v pg_isready >/dev/null 2>&1 && pg_isready -q >/dev/null 2>&1
+}
+
+# Run a command as the postgres OS user (peer auth, no password). Root- and
+# sudo-safe: prefer sudo (ensured by the toolchain), fall back to su when root.
+pg_run_as_postgres() {
+    if command -v sudo >/dev/null 2>&1; then
+        sudo -u postgres "$@"
+    elif [ "$(id -u)" -eq 0 ]; then
+        su -s /bin/bash postgres -c "$(printf '%q ' "$@")"
+    else
+        "$@"
+    fi
+}
+
+# Free the runtime PORT before starting (idempotent restart). Steps: (1) native
+# graceful `octane:stop` for a previously-started Octane server; (2) detect any
+# remaining listener on the port; (3) stop ONLY leftover app servers
+# (octane/swoole/artisan serve) -- a non-app holder is reported, never killed.
+# Returns non-zero only when the port is still occupied by something we won't kill.
+ensure_port_free() {
+    local port="$1"
+    local php_bin="$2"
+    local pids="" pid="" cmd=""
+
+    "$php_bin" artisan octane:stop >/dev/null 2>&1 || true
+    sleep 1
+
+    if command -v ss >/dev/null 2>&1; then
+        pids=$(ss -ltnpH 2>/dev/null | grep -E "[:.]${port}[[:space:]]" | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u)
+    fi
+    if [ -z "$pids" ] && command -v lsof >/dev/null 2>&1; then
+        pids=$(lsof -ti "tcp:${port}" -sTCP:LISTEN 2>/dev/null | sort -u)
+    fi
+    if [ -z "$pids" ]; then
+        return 0
+    fi
+
+    for pid in $pids; do
+        cmd=$(ps -p "$pid" -o args= 2>/dev/null)
+        if echo "$cmd" | grep -qiE 'octane|swoole|artisan serve'; then
+            echo "  Port ${port}: stopping stale app server PID ${pid}"
+            kill "$pid" 2>/dev/null || ${USE_SUDO:-} kill "$pid" 2>/dev/null || true
+        else
+            echo "  *** Port ${port} held by non-app PID ${pid}: ${cmd}"
+        fi
+    done
+    sleep 2
+
+    if command -v ss >/dev/null 2>&1 && ss -ltnH 2>/dev/null | grep -qE "[:.]${port}[[:space:]]"; then
+        echo "  *** ACTION REQUIRED: port ${port} still in use. Stop the holder, or start with another port: PORT=<other> bash $0"
+        return 1
+    fi
+    return 0
 }
 
 echo "Initial directory (invocation): $ORIGINAL_DIR"
@@ -211,12 +294,148 @@ if [ -f "${LARAVEL_DIR}/.env" ] && ! grep -qE '^APP_KEY=base64:' "${LARAVEL_DIR}
     "$PHP_BIN" artisan key:generate --force --ansi || echo "  Warning: key:generate failed (continuing)."
 fi
 
-# --- Ensure sqlite database file when DB_CONNECTION=sqlite ---
-if [ -f "${LARAVEL_DIR}/.env" ] && grep -qE '^DB_CONNECTION=sqlite' "${LARAVEL_DIR}/.env"; then
-    mkdir -p "${LARAVEL_DIR}/database"
-    if [ ! -f "${LARAVEL_DIR}/database/database.sqlite" ]; then
-        touch "${LARAVEL_DIR}/database/database.sqlite"
+# --- Neutralize stale DB lines in .env (database config is code-only PG) ---
+# config/database.php hardcodes pgsql for every active connection and reads
+# NOTHING from .env (driver/host/port/user/database are code literals; the
+# password comes from the CoreNodeSecrets store). Leftover POLY_DB_DRIVER /
+# DB_* lines are inert but mislead readers and used to repoint the runtime in
+# older revisions (the known /mnt/d SQLite DrvFs corruption source): comment
+# them out idempotently so .env can never even APPEAR to own the database.
+if [ -f "${LARAVEL_DIR}/.env" ]; then
+    if grep -qE '^(POLY_DB_DRIVER|DB_CONNECTION|DB_HOST|DB_PORT|DB_DATABASE|DB_USERNAME|DB_PASSWORD|DB_URL)=' "${LARAVEL_DIR}/.env"; then
+        echo "  *** .env contains DB override line(s) -> commenting out (database config is code-only PostgreSQL)."
+        sed -i 's/^\(POLY_DB_DRIVER\|DB_CONNECTION\|DB_HOST\|DB_PORT\|DB_DATABASE\|DB_USERNAME\|DB_PASSWORD\|DB_URL\)=/# [disabled by start.sh: database config is code-only PostgreSQL, .env is ignored] \1=/' "${LARAVEL_DIR}/.env"
+        "$PHP_BIN" artisan config:clear >/dev/null 2>&1 || true
     fi
+fi
+
+# --- Ensure the PHP pdo_pgsql extension (the app uses PostgreSQL on Linux) ---
+# A source-built PHP may lack pdo_pgsql -> Laravel dies at migrate with "could not
+# find driver". 47_ensure_php_pgsql.sh builds + enables it (phpize) idempotently.
+# Must run BEFORE any artisan DB access below.
+if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
+    echo "PHP pdo_pgsql extension present."
+else
+    echo "PHP pdo_pgsql missing. Invoking init-ensure installer:"
+    echo "  $PHP_PGSQL_ENSURE_SCRIPT"
+    if [ -f "$PHP_PGSQL_ENSURE_SCRIPT" ]; then
+        bash "$PHP_PGSQL_ENSURE_SCRIPT" || echo "  Warning: pdo_pgsql installer reported failure."
+        if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
+            echo "pdo_pgsql installed -> PostgreSQL driver available."
+        else
+            echo "  *** ACTION REQUIRED: pdo_pgsql still missing -> all DB access will fail."
+            echo "  *** Build manually: bash $PHP_PGSQL_ENSURE_SCRIPT"
+        fi
+    else
+        echo "  Warning: pdo_pgsql installer missing: $PHP_PGSQL_ENSURE_SCRIPT"
+    fi
+fi
+
+# --- Database: PostgreSQL (forced on Linux), localhost-only, one DB per app ---
+# On Linux this project runs on PostgreSQL (config/database.php defaults
+# POLY_DB_DRIVER=pgsql for PHP_OS_FAMILY===Linux). The CANONICAL installer and
+# configurer is dd.sh's chain (scripts/shells/linux/debian/install.sh ->
+# 46_install_postgresql.sh); start.sh only ENSURES the outcome and is fully
+# idempotent:
+#   * dd.sh PRIORITY: set the shared global-var flags so the canonical chain
+#     agrees, then invoke 46_install_postgresql.sh (itself idempotent/self-healing)
+#     only when Postgres is not already up.
+#   * Credentials are GENERATED by the .sh and stored in the global-var store
+#     (never in .env); Laravel reads them via App\Support\CoreNodeSecrets.
+#   * WSL-safe start (systemd often absent): systemctl -> service -> pg_ctlcluster.
+#   * Create each per-app database before migrate runs.
+echo "Ensuring PostgreSQL (localhost-only, per-app databases)..."
+
+# Resolve sudo locally. We deliberately do NOT source gvar_common.sh here: sourcing
+# it triggers heavy top-level side effects (writing /etc/environment, scanning all
+# disks via blkid/findmnt, sudo mkdir) and can HANG on a sudo password prompt on
+# every app start. The canonical 46_install_postgresql.sh sources it itself.
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    USE_SUDO="sudo"
+else
+    USE_SUDO=""
+fi
+
+# dd.sh priority: align the canonical chain by writing the shared global-var flags
+# DIRECTLY into the same file-backed store gvar_common.sh uses (one file per key,
+# value + newline). Force START_POSTGRESQL=true; only raise INSTALL_MODE to 'server'
+# when unset/base so an explicit dd.sh choice (server/full/desktop) is preserved.
+GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
+$USE_SUDO mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
+printf 'true\n' | $USE_SUDO tee "$GLOBAL_VAR_DIR/START_POSTGRESQL" >/dev/null 2>&1 || true
+CURRENT_INSTALL_MODE=""
+if [ -f "$GLOBAL_VAR_DIR/INSTALL_MODE" ]; then
+    CURRENT_INSTALL_MODE="$(tr -d '[:space:]' < "$GLOBAL_VAR_DIR/INSTALL_MODE" 2>/dev/null || echo "")"
+fi
+if [ -z "$CURRENT_INSTALL_MODE" ] || [ "$CURRENT_INSTALL_MODE" = "base" ]; then
+    printf 'server\n' | $USE_SUDO tee "$GLOBAL_VAR_DIR/INSTALL_MODE" >/dev/null 2>&1 || true
+fi
+
+# ALWAYS invoke the canonical PostgreSQL ensurer (it is fully idempotent). Beyond
+# install, every run it (a) auto-fixes the WSL D-image loop mount and (b) RECONCILES
+# the cluster onto the mapped data dir -- adopting an existing mapped cluster, or
+# recreating there if the running cluster drifted to native (sys:init re-seeds from
+# init_data; no dump/restore migration). Running it every time is what makes
+# "data path == mapped dir" idempotent, instead of skipping when pg is already up.
+if [ -f "$POSTGRES_INSTALL_SCRIPT" ]; then
+    echo "  Running canonical PostgreSQL ensurer (idempotent: install + mount-fix + data-dir reconcile):"
+    echo "    $POSTGRES_INSTALL_SCRIPT"
+    bash "$POSTGRES_INSTALL_SCRIPT" || echo "  Warning: PostgreSQL ensurer reported a failure (continuing)."
+else
+    echo "  *** ACTION REQUIRED: PostgreSQL ensurer missing: $POSTGRES_INSTALL_SCRIPT"
+    echo "  *** Install manually: sudo apt-get install -y postgresql postgresql-contrib"
+fi
+
+# Idempotent WSL-safe start: if still not accepting connections, try systemd ->
+# sysv service -> Debian cluster tool, then wait briefly for readiness.
+if ! pg_is_ready; then
+    echo "  PostgreSQL not accepting connections yet; attempting to start..."
+    PG_VER="$(ls -1 /etc/postgresql 2>/dev/null | sed -n '/^[0-9]\+$/p' | sort -n | tail -1)"
+    ${USE_SUDO:-} systemctl start postgresql 2>/dev/null \
+        || ${USE_SUDO:-} service postgresql start 2>/dev/null \
+        || { [ -n "$PG_VER" ] && ${USE_SUDO:-} pg_ctlcluster "$PG_VER" main start 2>/dev/null; } \
+        || true
+    for PG_READY_WAIT in 1 2 3 4 5 6 7 8 9 10; do
+        if pg_is_ready; then break; fi
+        sleep 1
+    done
+fi
+
+# Create each per-app database if missing (idempotent; peer auth as postgres).
+if command -v psql >/dev/null 2>&1 && pg_is_ready; then
+    for DB_NAME in $APP_DB_NAMES; do
+        if pg_run_as_postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" 2>/dev/null | grep -q 1; then
+            : # already exists
+        else
+            echo "  Creating database: ${DB_NAME}"
+            pg_run_as_postgres createdb "${DB_NAME}" 2>/dev/null || echo "    Warning: failed to create ${DB_NAME}"
+        fi
+    done
+    echo "  Per-app PostgreSQL databases ensured."
+
+    # Idempotent status (printed every run, installed or not): where the data
+    # ACTUALLY lives + whether the D-drive image mapping is in effect. The data dir
+    # is queried from the running server (authoritative), and the backing device
+    # tells us if it is on a loop-mounted D-image (mapping active) or native ext4.
+    PG_DATA_ACTUAL="$(pg_run_as_postgres psql -tAc 'SHOW data_directory;' 2>/dev/null | tr -d '[:space:]')"
+    PG_CONF_ACTUAL="$(pg_run_as_postgres psql -tAc 'SHOW config_file;' 2>/dev/null | tr -d '[:space:]')"
+    echo "  PostgreSQL data directory (actual): ${PG_DATA_ACTUAL:-unknown}"
+    echo "  PostgreSQL config file: ${PG_CONF_ACTUAL:-unknown}"
+    if [ -n "$PG_DATA_ACTUAL" ]; then
+        PG_DATA_SRC="$(df --output=source "$PG_DATA_ACTUAL" 2>/dev/null | tail -1 | tr -d '[:space:]')"
+        case "$PG_DATA_SRC" in
+            /dev/loop*)
+                echo "  Persistence mapping: ON D-drive image via ${PG_DATA_SRC} (pg_mount mapping ACTIVE -> survives WSL reset)" ;;
+            "")
+                echo "  Persistence mapping: unknown (could not resolve backing device of ${PG_DATA_ACTUAL})" ;;
+            *)
+                echo "  Persistence mapping: native ext4 (${PG_DATA_SRC}); D-drive image NOT active (existing native cluster kept; recreate to move to D)" ;;
+        esac
+    fi
+else
+    echo "  PostgreSQL data directory (actual): unknown (server not reachable)"
+    echo "  *** ACTION REQUIRED: PostgreSQL not reachable; per-app databases NOT created."
+    echo "  *** Start it (sudo service postgresql start) then re-run start.sh; migrations will fail until then."
 fi
 
 echo "Clearing route cache..."
@@ -258,6 +477,59 @@ else
     fi
 fi
 
+# --- Ensure 7z (p7zip) for dictionary translation extraction ---
+# sys:init's dictionary Step 2 extracts the split 7z archives under
+# init_data/AppQyV1/VoiceStaticServer/translate/*.js into olddb.txt via the 7z
+# binary, then promotes the parsed translations into tts_cache_{lang}. Without
+# 7z the extraction fails silently and EVERY dictionary word stays
+# has_translation=0 (dashboard shows Translated = 0). Install it BEFORE sys:init.
+if command -v 7z >/dev/null 2>&1 || command -v 7za >/dev/null 2>&1 || command -v 7zr >/dev/null 2>&1; then
+    echo "7z present -> dictionary translations can be extracted."
+else
+    echo "7z not found. Invoking init-ensure installer:"
+    echo "  $P7ZIP_INSTALL_SCRIPT"
+    if [ -f "$P7ZIP_INSTALL_SCRIPT" ]; then
+        bash "$P7ZIP_INSTALL_SCRIPT" || echo "  Warning: p7zip installer reported failure."
+        if command -v 7z >/dev/null 2>&1 || command -v 7za >/dev/null 2>&1 || command -v 7zr >/dev/null 2>&1; then
+            echo "p7zip installed -> 7z available."
+        else
+            echo "  *** ACTION REQUIRED: 7z still missing -> dictionary translations will NOT import."
+            echo "  *** Manual (Debian/Ubuntu/WSL): sudo apt-get install -y p7zip-full"
+        fi
+    else
+        echo "  Warning: p7zip installer missing: $P7ZIP_INSTALL_SCRIPT"
+        echo "  *** ACTION REQUIRED: install 7z manually: sudo apt-get install -y p7zip-full"
+    fi
+fi
+
+# --- Ensure Node.js BEFORE sys:init (hot-reload dependency) ---
+# sys:init's chokidar step + Octane --watch need a WORKING `node` binary. Gate on
+# node ITSELF (not npx): a stale /usr/local/bin/npx symlink can exist while node is
+# absent, which previously made resolve_npx succeed and skip the installer (so
+# sys:init still reported "Node.js not found"). 15_install_node_24.sh is gated by
+# the INSTALL_NODE global-var flag, so set it true (file-backed store) first or the
+# installer silently exits.
+if ! node --version >/dev/null 2>&1; then
+    if [ -f "$NODE_INSTALL_SCRIPT" ]; then
+        NODE_GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
+        ${USE_SUDO:-} mkdir -p "$NODE_GLOBAL_VAR_DIR" 2>/dev/null || true
+        printf 'true\n' | ${USE_SUDO:-} tee "$NODE_GLOBAL_VAR_DIR/INSTALL_NODE" >/dev/null 2>&1 || true
+        echo "node not found/working. Invoking init-ensure installer (INSTALL_NODE=true):"
+        echo "  $NODE_INSTALL_SCRIPT"
+        bash "$NODE_INSTALL_SCRIPT" || echo "  Warning: node init-ensure installer failed (continuing)."
+        hash -r 2>/dev/null || true
+    else
+        echo "  Warning: node installer missing: $NODE_INSTALL_SCRIPT"
+    fi
+fi
+resolve_npx || true
+if node --version >/dev/null 2>&1; then
+    echo "node present -> Octane hot-reload chokidar can be enabled."
+else
+    echo "  *** node still unavailable -> Octane runs without --watch hot reload."
+    echo "  *** Install manually: INSTALL_NODE=true bash $NODE_INSTALL_SCRIPT"
+fi
+
 echo "Initializing system (php artisan sys:init)..."
 "$PHP_BIN" artisan sys:init
 
@@ -294,6 +566,13 @@ if ! resolve_npx; then
     fi
 fi
 
+# --- Ensure the runtime port is free (idempotent restart) ---
+# Without this a leftover Octane/server from a previous run makes octane:start
+# abort with "Port ${PORT} is already in use." ensure_port_free stops a stale app
+# server gracefully first (native octane:stop), then frees the port.
+echo "Ensuring port ${PORT} is free..."
+ensure_port_free "$PORT" "$PHP_BIN" || echo "  Continuing; the runtime may fail to bind if the port is truly occupied."
+
 # --- Start runtime ---
 # PRIMARY (Linux/WSL): Laravel Octane on Swoole. Octane is the SINGLE driver for the
 # sub-minute task system (OctaneTimerServiceProvider -> OctaneTimerService); per
@@ -321,6 +600,37 @@ if [ -n "$OCTANE_AVAILABLE" ]; then
         echo "chokidar not installed -> Octane runs without --watch (run sys:init / 'pnpm add -D chokidar' to enable hot reload)."
     else
         WATCH_FLAG="--watch"
+        # inotify events are NOT delivered on WSL DrvFs mounts (9p) and other
+        # network-backed filesystems, so chokidar in inotify mode never fires --
+        # especially for edits made from the Windows side. Octane's --poll
+        # switches chokidar to stat-polling, which sees changes from any side.
+        # Detection is based on the ACTUAL filesystem of LARAVEL_DIR (derived
+        # from this script's own location), not on a hard-coded path, so native
+        # Ubuntu/Debian/Ubuntu-desktop checkouts on ext4 keep fast inotify mode.
+        WATCH_FS_TYPE="$(findmnt -n -o FSTYPE -T "$LARAVEL_DIR" 2>/dev/null \
+            || stat -f -c %T "$LARAVEL_DIR" 2>/dev/null \
+            || echo unknown)"
+        if grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ] || [ -n "${WSL_INTEROP:-}" ]; then
+            WATCH_IS_WSL="1"
+        fi
+        case "$WATCH_FS_TYPE" in
+            9p|v9fs|drvfs|cifs|smb*|nfs*)
+                WATCH_FLAG="--watch --poll"
+                echo "Filesystem '${WATCH_FS_TYPE}' at ${LARAVEL_DIR} does not deliver inotify -> Octane hot reload uses --watch --poll."
+                ;;
+            unknown)
+                # Fallback when fs type could not be resolved: WSL kernel + /mnt
+                # path means a Windows drive mount -> polling required.
+                if [ -n "$WATCH_IS_WSL" ]; then
+                    case "$LARAVEL_DIR" in
+                        /mnt/*)
+                            WATCH_FLAG="--watch --poll"
+                            echo "WSL Windows-drive mount detected (${LARAVEL_DIR}) -> Octane hot reload uses --watch --poll."
+                            ;;
+                    esac
+                fi
+                ;;
+        esac
     fi
     echo "Starting headless API runtime (Octane swoole -> server 0.0.0.0:${PORT}, single timer driver)"
     "$PHP_BIN" artisan octane:start --server=swoole --host=0.0.0.0 --port="$PORT" $WATCH_FLAG

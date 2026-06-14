@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations import ColorPrint, is_cuda_available
-from pycore.pyutils.azure_speech.stt_base_provider import BaseSpeechRecognitionProvider
+from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
 from pycore.pyutils.whisper_stt.audio_utils import (
     convert_to_whisper_format,
     download_audio_from_url,

@@ -981,6 +981,10 @@ function Get-FilesNeedingReEncryption {
     )
 
     $filesNeedReEncrypt = @()
+    $baseName = ""
+    $encFile = ""
+    $currentRawHash = $null
+    $cachedRawHash = $null
 
     if (-not (Test-Path $RawDir) -or -not (Test-Path $EncryptedDir)) {
         return $filesNeedReEncrypt
@@ -999,10 +1003,34 @@ function Get-FilesNeedingReEncryption {
                 Write-Host "[ENCRYPT CHECK] $baseName has no encrypted file - needs encryption" -ForegroundColor Yellow
             }
         } elseif ((Get-Item $rawFile.FullName).LastWriteTime -gt (Get-Item $encFile).LastWriteTime) {
-            # Raw file is newer than its encrypted counterpart - needs re-encryption
-            $filesNeedReEncrypt += $baseName
-            if (-not $Quiet) {
-                Write-Host "[ENCRYPT CHECK] $baseName is newer than its encrypted file - needs re-encryption" -ForegroundColor Yellow
+            # Raw file mtime is newer than its encrypted counterpart. A bulk file
+            # operation (copy / restore / sync) can bump mtime without changing
+            # content, so confirm against the content-hash baseline before flagging.
+            $currentRawHash = $null
+            $cachedRawHash = $null
+
+            if (Get-Command Get-CachedRawContentHash -ErrorAction SilentlyContinue) {
+                $cachedRawHash = Get-CachedRawContentHash -FileName $baseName
+                $currentRawHash = (Get-FileHash -Path $rawFile.FullName -Algorithm SHA256 -ErrorAction SilentlyContinue).Hash
+            }
+
+            if ($cachedRawHash -and $currentRawHash -and ($cachedRawHash -eq $currentRawHash)) {
+                # Content is identical to the last encryption - the newer mtime is a
+                # false positive. Sync the raw timestamp back to the encrypted file
+                # so this pair reads as up to date next time, then skip.
+                try {
+                    (Get-Item $rawFile.FullName).LastWriteTime = (Get-Item $encFile).LastWriteTime
+                } catch {
+                }
+                if (-not $Quiet) {
+                    Write-Host "[ENCRYPT SKIP] $baseName newer mtime but identical content - synced timestamp, skipping" -ForegroundColor Green
+                }
+            } else {
+                # No baseline recorded, or content genuinely changed - needs re-encryption
+                $filesNeedReEncrypt += $baseName
+                if (-not $Quiet) {
+                    Write-Host "[ENCRYPT CHECK] $baseName changed since encryption - needs re-encryption" -ForegroundColor Yellow
+                }
             }
         } else {
             # Encrypted file is up to date - skip

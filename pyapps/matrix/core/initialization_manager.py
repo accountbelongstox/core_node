@@ -63,7 +63,7 @@ class InitializationManager:
         # ========== STEP 1.1: Initialize scrcpy and ADB ==========
         ColorPrint.blue("[InitManager] 1.1 Initializing scrcpy and ADB tools...")
 
-        from pycore.pyutils.scrcpy_init import get_initializer
+        from pycore.pyutils.device.scrcpy_init import get_initializer
 
         scrcpy_initializer = get_initializer()
 

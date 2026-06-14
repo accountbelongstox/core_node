@@ -11,10 +11,7 @@ namespace App\Constants;
 class AppKeys
 {
     const APPQYV1 = 'appqyv1';
-    const AWYV0 = 'awyv0';
     const MCPV1 = 'mcpv1';
-    const VIPCLUBV1 = 'vipclubv1';
-    const BANKV1 = 'bankv1';
     const SERVERMANAGERV1 = 'servermanagerv1';
     const ACHATV1 = 'achatv1';
     const CODEMARTV1 = 'codemartv1';
@@ -29,10 +26,7 @@ class AppKeys
     {
         return [
             self::APPQYV1,
-            self::AWYV0,
             self::MCPV1,
-            self::VIPCLUBV1,
-            self::BANKV1,
             self::SERVERMANAGERV1,
             self::ACHATV1,
             self::CODEMARTV1,

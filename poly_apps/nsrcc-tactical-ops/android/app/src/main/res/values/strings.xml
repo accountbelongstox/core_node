@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">老挝靶场</string>
-    <string name="title_activity_main">老挝靶场</string>
-    <string name="package_name">com.nsrcc.tacticalops</string>
-    <string name="custom_url_scheme">com.nsrcc.tacticalops</string>
-</resources>

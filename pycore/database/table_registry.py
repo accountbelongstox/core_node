@@ -5,7 +5,7 @@ Tracks which tables are loaded and provides access to them
 """
 
 from typing import Dict, Type, Optional, List
-from pycore.pyfoundations.color_print import ColorPrint as _OriginalColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint as _OriginalColorPrint
 
 # Suppress ColorPrint output in MCP mode
 class ColorPrint:

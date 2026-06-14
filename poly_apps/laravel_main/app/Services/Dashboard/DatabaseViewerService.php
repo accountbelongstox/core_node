@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Services\Dashboard;
@@ -37,24 +34,13 @@ class DatabaseViewerService
      */
     public function getTables(): array
     {
-        $driver = DB::connection($this->connection)->getDriverName();
-        if ($driver === 'mysql') {
-            $result = DB::connection($this->connection)
-                ->select('SHOW TABLES');
-            $key = 'Tables_in_' . DB::connection($this->connection)->getDatabaseName();
-            return array_map(fn ($row) => $row->{$key}, $result);
-        }
-        if ($driver === 'pgsql') {
-            $rows = DB::connection($this->connection)
-                ->select("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename");
-            return array_map(fn ($row) => $row->tablename, $rows);
-        }
-        if ($driver === 'sqlite') {
-            $rows = DB::connection($this->connection)
-                ->select("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
-            return array_map(fn ($row) => $row->name, $rows);
-        }
-        return Schema::connection($this->connection)->getTableListing();
+        // ONE driver-agnostic path: Laravel's native getTableListing() works on
+        // sqlite / pgsql / mysql (no SHOW TABLES / pg_tables / sqlite_master).
+        // $schemaQualified=false yields bare names on pgsql ("x", not
+        // "public.x"); sort to preserve the previous ORDER BY ordering.
+        $tables = Schema::connection($this->connection)->getTableListing(null, false);
+        sort($tables);
+        return $tables;
     }
 
     /**
@@ -62,62 +48,31 @@ class DatabaseViewerService
      */
     public function getTableStructure(string $table): array
     {
-        $driver = DB::connection($this->connection)->getDriverName();
-        if ($driver === 'mysql') {
-            $columns = DB::connection($this->connection)->select("SHOW COLUMNS FROM `{$table}`");
-            return array_map(function ($col) {
-                return [
-                    'name' => $col->Field,
-                    'type' => $col->Type,
-                    'nullable' => $col->Null,
-                    'key' => $col->Key ?? '',
-                    'default' => $col->Default,
-                    'extra' => $col->Extra ?? '',
-                ];
-            }, $columns);
+        // ONE driver-agnostic path via Laravel's native Schema builder.
+        // getColumns() -> ['name','type','type_name','nullable'(bool),'default',
+        // 'auto_increment'(bool),...]; getIndexes() supplies the primary-key
+        // flag. No SHOW COLUMNS / information_schema / PRAGMA. The returned
+        // shape (name/type/nullable[YES|NO]/key[PRI|'']/default/extra) is
+        // preserved for existing callers.
+        $schema = Schema::connection($this->connection);
+
+        $primaryKeyColumns = [];
+        foreach ($schema->getIndexes($table) as $index) {
+            if (!empty($index['primary'])) {
+                $primaryKeyColumns = $index['columns'] ?? [];
+                break;
+            }
         }
-        if ($driver === 'pgsql') {
-            $columns = DB::connection($this->connection)->select(
-                "SELECT column_name AS name, data_type AS type, is_nullable AS nullable, column_default AS default
-                 FROM information_schema.columns
-                 WHERE table_schema = 'public' AND table_name = ?
-                 ORDER BY ordinal_position",
-                [$table]
-            );
-            return array_map(function ($col) {
-                return [
-                    'name' => $col->name,
-                    'type' => $col->type,
-                    'nullable' => $col->nullable,
-                    'key' => '',
-                    'default' => $col->default,
-                    'extra' => '',
-                ];
-            }, $columns);
-        }
-        if ($driver === 'sqlite') {
-            $columns = DB::connection($this->connection)->select("PRAGMA table_info(`{$table}`)");
-            return array_map(function ($col) {
-                return [
-                    'name' => $col->name,
-                    'type' => $col->type ?? '',
-                    'nullable' => $col->notnull ? 'NO' : 'YES',
-                    'key' => $col->pk ? 'PRI' : '',
-                    'default' => $col->dflt_value ?? null,
-                    'extra' => '',
-                ];
-            }, $columns);
-        }
-        $columns = Schema::connection($this->connection)->getColumnListing($table);
+
         $result = [];
-        foreach ($columns as $name) {
+        foreach ($schema->getColumns($table) as $col) {
             $result[] = [
-                'name' => $name,
-                'type' => '',
-                'nullable' => '',
-                'key' => '',
-                'default' => null,
-                'extra' => '',
+                'name' => $col['name'],
+                'type' => $col['type'] ?? ($col['type_name'] ?? ''),
+                'nullable' => empty($col['nullable']) ? 'NO' : 'YES',
+                'key' => in_array($col['name'], $primaryKeyColumns, true) ? 'PRI' : '',
+                'default' => $col['default'] ?? null,
+                'extra' => !empty($col['auto_increment']) ? 'auto_increment' : '',
             ];
         }
         return $result;
@@ -131,7 +86,9 @@ class DatabaseViewerService
         $perPage = max(1, min(100, $perPage));
         $query = DB::connection($this->connection)->table($table);
         $total = $query->count();
-        $data = $query->offset(($page - 1) * $perPage)->limit($perPage)->get();
+        $data = $query->offset(($page - 1) * $perPage)->limit($perPage)->get()
+            ->map(fn ($row) => array_map([$this, 'sanitizeValue'], (array) $row))
+            ->all();
         return [
             'data' => $data,
             'total' => $total,
@@ -139,5 +96,24 @@ class DatabaseViewerService
             'current_page' => $page,
             'last_page' => (int) ceil($total / $perPage),
         ];
+    }
+
+    /**
+     * Make a raw cell JSON-safe: pgsql bytea arrives as a PHP stream resource,
+     * and serialized cache payloads may contain non-UTF-8 bytes that would make
+     * response()->json() throw "Malformed UTF-8 characters".
+     *
+     * @param mixed $value
+     * @return mixed
+     */
+    protected function sanitizeValue($value)
+    {
+        if (is_resource($value)) {
+            $value = stream_get_contents($value);
+        }
+        if (is_string($value) && !mb_check_encoding($value, 'UTF-8')) {
+            return '0x' . bin2hex(substr($value, 0, 256)) . (strlen($value) > 256 ? '…' : '');
+        }
+        return $value;
     }
 }

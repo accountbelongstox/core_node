@@ -322,13 +322,26 @@ class AppQyV1TranslationController extends Controller
         ], 'Learning mode translation completed successfully');
     }
     
+    /**
+     * Async word translation is now handled by the global_tasks pipeline.
+     * Use the queue endpoints instead of these per-task helpers:
+     *   POST app_qy_v1/ai_tools/translation/queue/batch/add    (enqueue words)
+     *   POST app_qy_v1/ai_tools/translation/queue/batch/status (read status)
+     * See AppQyV1TranslationQueueController and docs TRANSLATION_PIPELINE.md.
+     */
     public function getTaskStatus(Request $request, string $taskId): JsonResponse
     {
-        return $this->error('Task system not yet implemented in AppQyV1', 501);
+        return $this->error(
+            'Per-task polling is superseded by the word_translation queue. Use POST ai_tools/translation/queue/batch/status.',
+            410
+        );
     }
-    
+
     public function processNextTask(Request $request): JsonResponse
     {
-        return $this->error('Task system not yet implemented in AppQyV1', 501);
+        return $this->error(
+            'Manual task processing is superseded by the word_translation pipeline (pycore worker + internal AI filler). Use POST ai_tools/translation/queue/batch/add.',
+            410
+        );
     }
 }

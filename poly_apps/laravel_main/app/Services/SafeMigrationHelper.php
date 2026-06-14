@@ -411,43 +411,23 @@ class SafeMigrationHelper
      */
     private static function getColumnInfo(string $connection, string $tableName, string $columnName): ?array
     {
-        $driver = DB::connection($connection)->getDriverName();
-        
-        if ($driver === 'sqlite') {
-            // SQLite: query column info
-            $result = DB::connection($connection)->select(
-                "PRAGMA table_info({$tableName})"
-            );
-            
-            foreach ($result as $column) {
-                if ($column->name === $columnName) {
-                    return [
-                        'type' => $column->type,
-                        'notnull' => $column->notnull,
-                        'default' => $column->dflt_value,
-                    ];
-                }
-            }
-        } else {
-            // MySQL/PostgreSQL: query column info
-            $database = DB::connection($connection)->getDatabaseName();
-            $result = DB::connection($connection)->select(
-                "SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT 
-                 FROM INFORMATION_SCHEMA.COLUMNS 
-                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?",
-                [$database, $tableName, $columnName]
-            );
-            
-            if (!empty($result)) {
-                $info = $result[0];
+        // ONE driver-agnostic path: Laravel's native getColumns() returns the
+        // same shape on sqlite / pgsql / mysql. Its 'type' string already
+        // carries the length (e.g. "varchar(255)", "character varying(255)"),
+        // which the shared shouldModifyColumn()/columnNeedsModification() regex
+        // and stripos() type-matching consume. No PRAGMA / information_schema.
+        $columns = Schema::connection($connection)->getColumns($tableName);
+
+        foreach ($columns as $column) {
+            if (($column['name'] ?? null) === $columnName) {
                 return [
-                    'type' => $info->COLUMN_TYPE ?? null,
-                    'nullable' => ($info->IS_NULLABLE ?? 'NO') === 'YES',
-                    'default' => $info->COLUMN_DEFAULT ?? null,
+                    'type' => $column['type'] ?? ($column['type_name'] ?? null),
+                    'nullable' => (bool) ($column['nullable'] ?? false),
+                    'default' => $column['default'] ?? null,
                 ];
             }
         }
-        
+
         return null;
     }
 
@@ -512,23 +492,23 @@ class SafeMigrationHelper
      */
     private static function indexExists(string $connection, string $tableName, string $indexName): bool
     {
-        $driver = DB::connection($connection)->getDriverName();
-        
-        if ($driver === 'sqlite') {
-            $result = DB::connection($connection)->select(
-                "SELECT name FROM sqlite_master WHERE type='index' AND name=? AND tbl_name=?",
-                [$indexName, $tableName]
-            );
-            return !empty($result);
-        } else {
-            $database = DB::connection($connection)->getDatabaseName();
-            $result = DB::connection($connection)->select(
-                "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS 
-                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?",
-                [$database, $tableName, $indexName]
-            );
-            return !empty($result);
+        // Native, driver-agnostic (sqlite / pgsql / mysql): hasIndex() matches
+        // by index NAME against getIndexes() metadata. pgsql lower-cases index
+        // names in its processor, so match case-insensitively to stay
+        // equivalent to the previous catalog lookups.
+        $schema = Schema::connection($connection);
+
+        if ($schema->hasIndex($tableName, $indexName)) {
+            return true;
         }
+
+        foreach ($schema->getIndexes($tableName) as $index) {
+            if (strcasecmp((string) ($index['name'] ?? ''), $indexName) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -541,24 +521,38 @@ class SafeMigrationHelper
      */
     private static function foreignKeyExists(string $connection, string $tableName, string $foreignKeyName): bool
     {
-        $driver = DB::connection($connection)->getDriverName();
-        
-        if ($driver === 'sqlite') {
-            // SQLite foreign key check
-            $result = DB::connection($connection)->select(
-                "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE ?",
-                ["%CONSTRAINT {$foreignKeyName}%"]
-            );
-            return !empty($result);
-        } else {
-            $database = DB::connection($connection)->getDatabaseName();
-            $result = DB::connection($connection)->select(
-                "SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?",
-                [$database, $tableName, $foreignKeyName]
-            );
-            return !empty($result);
+        // Native, driver-agnostic (sqlite / pgsql / mysql) via getForeignKeys(),
+        // which returns ['name','columns'(list),'foreign_table',...].
+        //
+        // On pgsql / mysql the constraint carries a real name, so match by name
+        // (case-insensitive; pgsql lower-cases identifiers). SQLite does NOT
+        // persist FK constraint names (getForeignKeys() reports name => null),
+        // so the old code matched the generated name's substring in the CREATE
+        // SQL. We keep equivalent behaviour without raw SQL: the generated name
+        // is "fk_{table}_{column}", so derive the column and check whether an
+        // FK on that column exists. This avoids any sqlite_master lookup.
+        $foreignKeys = Schema::connection($connection)->getForeignKeys($tableName);
+
+        foreach ($foreignKeys as $fk) {
+            $name = $fk['name'] ?? null;
+            if ($name !== null && strcasecmp((string) $name, $foreignKeyName) === 0) {
+                return true;
+            }
         }
+
+        // Name-less (sqlite) fallback: match by the column encoded in the
+        // conventional generated name "fk_{table}_{column}".
+        $prefix = 'fk_' . $tableName . '_';
+        if (str_starts_with($foreignKeyName, $prefix)) {
+            $column = substr($foreignKeyName, strlen($prefix));
+            foreach ($foreignKeys as $fk) {
+                if (in_array($column, $fk['columns'] ?? [], true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

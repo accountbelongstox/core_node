@@ -9,7 +9,7 @@ Rewrites URLs in HTML/CSS content from absolute to relative paths for offline vi
 import re
 from urllib.parse import urljoin, urlparse
 from typing import Optional
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class URLRewriter:

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save } from 'lucide-react';
-import { NginxSite, NginxSiteCreateRequest, Language } from '../../types';
+import { X, Save, AlertTriangle } from 'lucide-react';
+import { NginxSite, NginxSiteCreateRequest, NginxPortCheck, Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
 import { commonClasses } from '../../styles/theme';
 import { api } from '../../core/api';
+import Portal from '../shared/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 
 interface NginxSiteModalProps {
   isOpen: boolean;
@@ -41,13 +43,49 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
   const [polyApps, setPolyApps] = useState<any[]>([]);
   const [selectedPolyApp, setSelectedPolyApp] = useState<string>('');
   const [loadingApps, setLoadingApps] = useState(false);
+  const [portChecks, setPortChecks] = useState<Record<number, NginxPortCheck>>({});
 
   // Load PolyApps list
   useEffect(() => {
     if (isOpen) {
       loadPolyApps();
+    } else {
+      setPortChecks({});
     }
   }, [isOpen]);
+
+  // Port-conflict probe (create mode only, non-blocking): port 80 on open,
+  // port 443 once SSL is enabled.
+  const checkPort = async (port: number) => {
+    try {
+      const response = await api.serverManagerV1.checkNginxPort(port);
+      if (response.success && response.data) {
+        setPortChecks(prev => ({ ...prev, [port]: response.data as NginxPortCheck }));
+      }
+    } catch {
+      // best-effort probe — never block the form on failure
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && !isEdit) {
+      checkPort(80);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isEdit]);
+
+  useEffect(() => {
+    if (isOpen && !isEdit && formData.ssl_enabled && !portChecks[443]) {
+      checkPort(443);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isEdit, formData.ssl_enabled]);
+
+  const portWarnings = [80, 443]
+    .map(port => portChecks[port])
+    .filter((check: NginxPortCheck | undefined): check is NginxPortCheck =>
+      !!check && check.in_use && !check.is_nginx
+    );
 
   const loadPolyApps = async () => {
     setLoadingApps(true);
@@ -115,7 +153,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSiteTypeChange = (siteType: string) => {
+  const handleSiteTypeChange = (siteType: NginxSiteCreateRequest['site_type']) => {
     const updates: Partial<NginxSiteCreateRequest> = { site_type: siteType };
 
     // Auto-update php_mode and www_dir based on site type
@@ -167,8 +205,9 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className={`${commonClasses.card} w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto`}>
+    <Portal>
+    <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}>
+      <div className={`relative ${commonClasses.card} w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto`}>
         <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-bold">{isEdit ? t.update : t.create_site}</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded">
@@ -177,6 +216,19 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {!isEdit && portWarnings.length > 0 && (
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 space-y-1">
+              {portWarnings.map(warning => (
+                <p key={warning.port} className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  {t.port_in_use
+                    .replace('{port}', String(warning.port))
+                    .replace('{holder}', warning.holder || '?')}
+                </p>
+              ))}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium mb-2">{t.site_name}</label>
             <input
@@ -207,7 +259,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
             <label className="block text-sm font-medium mb-2">{t.site_type}</label>
             <select
               value={formData.site_type}
-              onChange={(e) => handleSiteTypeChange(e.target.value)}
+              onChange={(e) => handleSiteTypeChange(e.target.value as NginxSiteCreateRequest['site_type'])}
               className={commonClasses.input}
             >
               <option value="static">Static HTML/Files</option>
@@ -387,6 +439,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
         </form>
       </div>
     </div>
+    </Portal>
   );
 };
 

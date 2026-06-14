@@ -45,9 +45,33 @@ the service still launches. `-Force` / `--force` bypasses the whole guard.
 | Total **free** disk < 100 GB (summed across all drives/filesystems)  | skip             | skip                |
 | Headless **server** (non-desktop) **and** no CUDA GPU                | —                | skip                |
 
+Both whisper installers share this policy:
+- `install_whisper.*` — **openai-whisper** (used by pycore's voice-subtitle / `WhisperSTTProvider`).
+- `install_faster_whisper.*` — **faster-whisper**, the **default** STT engine for the
+  "Video Extraction" feature; also installs CUDA 12 / cuDNN 9 libs when an NVIDIA GPU is present.
+
 Metrics that cannot be read are treated as *unknown* and never trigger a skip.
 Thresholds live at the top of `install_whisper.ps1` / `install_whisper.sh`
 (`$MinRamGB`/`$MinFreeDiskGB`, `MIN_RAM_GB`/`MIN_DISK_GB`).
+
+## User data & settings (where the feature persists state)
+
+All pycore user data lives in **one** canonical place, the unified user-data store
+(`pycore/pyfoundations/user_data_store.py`, `get_user_data_store()`):
+
+```
+~/.core_node/config/user_data.json     # Windows: C:\Users\<you>\.core_node\config\user_data.json
+```
+
+It is namespaced by section — `system_settings` (theme/lang/accent, pushed to the UI
+over WebSocket on change) and `video_extract` (`base_dir` default `D:\.tmp`, the
+add-folder/add-file history `entries`, and `last_options`). A feature may add a
+sibling `<name>.json` / `<name>.ini` in the same directory for differentiated config,
+merged on top of its section via `load_feature_config()`. The store is read at startup;
+when `system_settings` is empty the UI falls back to its own local defaults.
+
+The **faster-whisper** engine for Video Extraction is installed by
+`install_faster_whisper.{ps1,sh}` (see the table above).
 
 ## Adding a new prerequisite
 

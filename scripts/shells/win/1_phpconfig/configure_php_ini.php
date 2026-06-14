@@ -45,10 +45,11 @@ $configReplacements = [
 
 // All known extensions for duplicate cleaning
 $allKnownExtensions = [
-    'intl', 'gd', 'zip', 'fileinfo', 'pdo_mysql', 'pdo_sqlite', 
-    'mbstring', 'curl', 'openssl', 'redis', 'sqlite3', 'exif', 
+    'intl', 'gd', 'zip', 'fileinfo', 'pdo_mysql', 'pdo_sqlite',
+    'mbstring', 'curl', 'openssl', 'redis', 'sqlite3', 'exif',
     'swoole', 'bz2', 'yaml', 'mysqli', 'pdo', 'xml', 'json',
-    'bcmath', 'readline', 'soap', 'sockets', 'tokenizer'
+    'bcmath', 'readline', 'soap', 'sockets', 'tokenizer',
+    'pdo_pgsql', 'pgsql'
 ];
 
 // Extensions to verify and enable for Laravel
@@ -71,7 +72,12 @@ $extensions = [
     'swoole',
     'bz2',
     'yaml',
-    'tokenizer'
+    'tokenizer',
+    // PostgreSQL driver pair: the poly per-app databases run on PostgreSQL
+    // (config/database.php $polyConnection); Windows reaches the WSL server
+    // via NAT localhost forwarding, so the Windows PHP needs these too.
+    'pdo_pgsql',
+    'pgsql'
 ];
 
 // ANSI color codes for better output

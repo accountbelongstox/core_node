@@ -68,6 +68,12 @@ return new class extends Migration
                     $t->text('word_details')->nullable();
                     $t->boolean('is_exist_local')->default(false);
                     $t->boolean('has_operations')->default(false);
+                    // Word validity: valid by default; flipped to false only by an
+                    // explicit third-party check (see validity_* columns below).
+                    $t->boolean('is_valid')->default(true);
+                    $t->dateTime('validity_checked_at')->nullable();
+                    $t->string('validity_source', 100)->nullable();
+                    $t->text('validity_note')->nullable();
                     $t->integer('query_count')->default(0);
                     $t->dateTime('last_modified')->nullable();
                     $t->dateTime('last_query_time')->nullable();
@@ -76,6 +82,7 @@ return new class extends Migration
                     $t->index('query_count');
                     $t->index('has_translation');
                     $t->index('has_audio');
+                    $t->index('is_valid');
                 });
             }
         }

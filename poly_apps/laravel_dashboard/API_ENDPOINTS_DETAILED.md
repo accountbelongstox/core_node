@@ -17,6 +17,8 @@
 7. [MCP Voice Subtitle API](#7-mcp-voice-subtitle-api)
 8. [Octane Tasks API](#8-octane-tasks-api)
 9. [Clipboard API](#9-clipboard-api)
+10. [AppQyV1 Media Content API（公开只读）](#10-appqyv1-media-content-api公开只读)
+11. [AppQyV1 Group Media Source API](#11-appqyv1-group-media-source-api)
 
 ---
 
@@ -2058,6 +2060,245 @@ ApiResponse<ScreenshotUploadResponse>
 
 ---
 
+## 10. AppQyV1 Media Content API（公开只读）
+
+> **新增于 2026-06-12。** 以下端点**无需认证**（公开只读），用于匿名浏览已同步的媒体内容（书籍 / 字幕）。列表与内容端点**永不返回 `full_content`**。
+
+### 10.1 获取书籍列表
+
+**端点**: `GET /api/app_qy_v1/media/books`
+
+**描述**: 分页获取已同步的书籍列表（可按语言过滤）
+
+**请求参数**:
+```typescript
+{
+  language?: string;  // 语言过滤（可选）
+  start?: number;     // 偏移量（默认 0）
+  limit?: number;     // 每页数量（默认 50，上限 200）
+}
+```
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "data": {
+    "total": 12,
+    "start": 0,
+    "limit": 50,
+    "books": [
+      {
+        "id": 1,
+        "source_key": "alice_in_wonderland",
+        "title": "Alice in Wonderland",
+        "language": "en",
+        "sentence_count": 1432,
+        "has_audio": true,
+        "synced_at": "2026-06-12T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 10.2 获取字幕列表
+
+**端点**: `GET /api/app_qy_v1/media/subtitles`
+
+**描述**: 分页获取已同步的字幕列表（可按语言过滤）
+
+**请求参数**: 同 10.1（`language` / `start` / `limit`）
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "data": {
+    "total": 5,
+    "start": 0,
+    "limit": 50,
+    "subtitles": [
+      {
+        "id": 3,
+        "source_key": "movie_abc",
+        "title": "Movie ABC",
+        "language": "en",
+        "duration_sec": 5400,
+        "sentence_count": 980,
+        "segment_count": 45,
+        "synced_at": "2026-06-12T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 10.3 获取媒体内容（句子）
+
+**端点**: `GET /api/app_qy_v1/media/content/{type}/{id}`
+
+**描述**: 分页获取某个书籍 / 字幕的句子内容。句子经共享句库解析，优先粒度 `sentence`，为空时回退 `cue`（响应中带 `grain` 字段）
+
+> **v2 书籍注意**：书籍来源的句子在库中为**去标点**形式，故 `type=book` 返回的 `text` 为去标点文本，`audio` 初始为空（pycore 后续回填）。带标点原文重建依赖 `book.sentence_seq` + 标点标识库；当前控制器尚未做重建。详见 `pycore/docs/pipelines/MEDIA_SYNC_PIPELINE.md` §8.4/§8.12。
+
+**路径参数**: `type` 为 `book` 或 `subtitle`；`id` 为数字主键
+
+**请求参数**:
+```typescript
+{
+  start?: number;  // 偏移量（默认 0）
+  limit?: number;  // 每页数量（默认 50，上限 200）
+}
+```
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "data": {
+    "info": {
+      "id": 1,
+      "source_key": "alice_in_wonderland",
+      "title": "Alice in Wonderland",
+      "language": "en",
+      "sentence_count": 1432,
+      "has_audio": true,
+      "synced_at": "2026-06-12T10:00:00Z"
+    },
+    "total_sentences": 1432,
+    "start": 0,
+    "limit": 50,
+    "grain": "sentence",
+    "sentences": [
+      {
+        "seq": 0,
+        "text": "Alice was beginning to get very tired.",
+        "audio": "/static/media/alice/sentences/0.mp3",
+        "explanation": null,
+        "start_sec": null,
+        "end_sec": null
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 10.4 获取词库推荐（已改为公开）
+
+**端点**: `GET /api/app_qy_v1/learning/recommendations`
+
+**描述**: 获取推荐词库集合。**2026-06-12 起为公开端点**（移出 `auth:sanctum`）：匿名访问返回 `is_selected=false`；携带 Bearer token 时返回真实选中状态。`/learning/collections/select` 与 `/learning/collections/selected` 仍需认证。
+
+---
+
+## 11. AppQyV1 Group Media Source API
+
+> **新增于 2026-06-12。** 把已同步的媒体来源（书籍 / 字幕）挂载到词组（word group）。需要认证（`custom.authenticate`）。关联表 `app_qy_v1_group_media_sources`（模型 `AppQyV1GroupMediaSourceModel`）。
+
+### 11.1 挂载媒体来源到词组
+
+**端点**: `POST /api/app_qy_v1/group/add_media_source`
+
+**描述**: 从来源全部句子中抽词（`StrTool::extractWords`），以 fill-missing 方式合并进词组的 `gwords` 与 `words_frequency`（已有词频不覆盖），并记录关联。**幂等**：已挂载的来源再次提交返回成功且 `words_added=0`
+
+**请求参数**:
+```typescript
+{
+  gid: string;                          // 词组 gid
+  source_type: 'book' | 'subtitle';     // 来源类型
+  source_key: string;                   // 来源 key（books/subtitles.source_key）
+}
+```
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "data": {
+    "gid": "g_abc123",
+    "source_type": "book",
+    "source_key": "alice_in_wonderland",
+    "words_added": 256,
+    "total_words": 1820
+  },
+  "message": "Media source added to group successfully"
+}
+```
+
+---
+
+### 11.2 移除词组的媒体来源
+
+**端点**: `POST /api/app_qy_v1/group/remove_media_source`
+
+**描述**: 只删除关联记录——**已并入词组的单词保留**（语义同 `/group/remove_library`）
+
+**请求参数**: 同 11.1（`gid` / `source_type` / `source_key`）
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "data": {
+    "gid": "g_abc123",
+    "source_type": "book",
+    "source_key": "alice_in_wonderland"
+  },
+  "message": "Media source removed from group successfully"
+}
+```
+
+---
+
+### 11.3 获取词组全部来源（统一视图）
+
+**端点**: `POST /api/app_qy_v1/group/get_sources`
+
+**描述**: 一次返回词组挂载的词库（libraries，条目形同 `/group/get_libraries`）与媒体来源（media_sources）
+
+**请求参数**:
+```typescript
+{
+  gid: string;
+}
+```
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "data": {
+    "gid": "g_abc123",
+    "gname": "English Reading",
+    "libraries_count": 1,
+    "libraries": [
+      { "id": 2, "name": "CET-6", "language": "en", "total_words": 5500, "added_at": "2026-06-10T08:00:00Z" }
+    ],
+    "media_sources_count": 1,
+    "media_sources": [
+      {
+        "source_type": "book",
+        "source_key": "alice_in_wonderland",
+        "title": "Alice in Wonderland",
+        "language": "en",
+        "words_added": 256,
+        "added_at": "2026-06-12T10:30:00Z"
+      }
+    ]
+  },
+  "message": "Group sources retrieved successfully"
+}
+```
+
+---
+
 ## 总结
 
 本文档详细定义了 **60+ API 端点**，涵盖：
@@ -2071,6 +2312,8 @@ ApiResponse<ScreenshotUploadResponse>
 - ✅ MCP Voice Subtitle (5 个端点)
 - ✅ Octane Tasks (4 个端点)
 - ✅ Clipboard (8 个端点)
+- ✅ AppQyV1 Media Content 公开只读 (4 个端点，2026-06-12 新增)
+- ✅ AppQyV1 Group Media Source (3 个端点，2026-06-12 新增)
 
 所有端点都包含完整的请求/响应格式和示例。
 

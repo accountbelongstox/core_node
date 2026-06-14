@@ -11,7 +11,7 @@ Usage:
     root = tk.Tk()
     root.overrideredirect(True)
     # ... create UI ...
-    from pycore.pyutils.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
+    from pycore.pyutils.desktop.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
     set_windows_app_user_model_id("my.app.1.0")  # optional, call once per process
     ensure_tk_root_in_taskbar(root)
 """

@@ -20,13 +20,10 @@ class TTSCacheManager
         $this->cacheDir = PathMapper::getLaravelCacheDir() . '/tts';
         PathMapper::ensureDirectory($this->cacheDir);
 
-        // Use model connection instead of DB::connection() for Laravel best practices
         // Table should be created by sys:init command via UserSyncService::ensureTTSCacheTablesExist()
         $this->appKey = AppKeys::APPQYV1;
         $connectionName = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        // Use model to get connection (Laravel best practice)
-        $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel();
-        $this->connection = $model->getConnection();
+        $this->connection = DB::connection($connectionName);
         
         // Verify table exists (should be created by sys:init)
         $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tts_cache');
@@ -120,6 +117,9 @@ class TTSCacheManager
                         'audio_path' => $filePath,
                         'audio_size' => $fileSize,
                         'last_accessed' => now(),
+                        // Mixed with several other column updates, so keep the raw
+                        // expression (no native form for increment-within-update).
+                        // "access_count + 1" is plain SQL, cross-DB safe (sqlite/pgsql).
                         'access_count' => DB::raw('access_count + 1'),
                     ]);
             } else {
@@ -159,12 +159,13 @@ class TTSCacheManager
         try {
             $tableName = $this->getTableName();
             
+            // Native increment: bumps access_count by 1 and sets last_accessed in one
+            // UPDATE. Cross-DB safe (Laravel emits "access_count" + 1 for sqlite/pgsql).
             $this->connection
                 ->table($tableName)
                 ->where('id', $cacheId)
-                ->update([
+                ->increment('access_count', 1, [
                     'last_accessed' => now(),
-                    'access_count' => DB::raw('access_count + 1'),
                 ]);
 
         } catch (\Exception $e) {

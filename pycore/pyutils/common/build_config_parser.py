@@ -7,7 +7,7 @@ This module provides a parser for build_config.ini files located in app director
 It defines standard configuration fields and provides validation and defaults.
 
 Usage:
-    from pycore.pyutils.build_config_parser import BuildConfigParser
+    from pycore.pyutils.common.build_config_parser import BuildConfigParser
 
     parser = BuildConfigParser("/path/to/app/build_config.ini")
     if parser.exists():
@@ -351,7 +351,7 @@ if __name__ == '__main__':
     import json
 
     if len(sys.argv) < 2:
-        print("Usage: python -m pycore.pyutils.build_config_parser <app_dir> [field]", file=sys.stderr)
+        print("Usage: python -m pycore.pyutils.common.build_config_parser <app_dir> [field]", file=sys.stderr)
         sys.exit(1)
 
     app_dir = sys.argv[1]

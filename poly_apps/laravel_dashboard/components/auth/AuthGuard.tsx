@@ -13,6 +13,7 @@
 import React, { ReactNode, useEffect, useRef } from 'react';
 import { useUser } from '../../hooks/useUser';
 import { Language } from '../../types';
+import { isDebugAuthBypass } from '../../config/auth';
 
 interface AuthGuardProps {
   children: ReactNode;
@@ -31,15 +32,21 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
   const { isLoggedIn } = useUser();
   const openedRef = useRef(false);
 
+  // Loopback DEBUG bypass: when the backend reports debug_mode (request came
+  // from 127.0.0.1), treat the user as authenticated everywhere — render the
+  // protected content and never open the login modal.
+  const debugBypass = isDebugAuthBypass();
+  const authed = isLoggedIn || debugBypass;
+
   useEffect(() => {
-    if (!requireAuth || isLoggedIn) return;
+    if (!requireAuth || authed) return;
     if (onLoginRequest && !openedRef.current) {
       openedRef.current = true;
       onLoginRequest();
     }
-  }, [requireAuth, isLoggedIn, onLoginRequest]);
+  }, [requireAuth, authed, onLoginRequest]);
 
-  if (!requireAuth || isLoggedIn) {
+  if (!requireAuth || authed) {
     return <>{children}</>;
   }
 

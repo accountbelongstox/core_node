@@ -1,11 +1,8 @@
 
-import { MOCK_USER, MOCK_WORD_GROUPS, MOCK_WORDS_EN, MOCK_WORDS_JP, SUPPORTED_LANGUAGES, MOCK_QUIZ_QUESTIONS, MOCK_RETENTION_STATS } from './mockData';
 import { User, Word, WordGroup, AppSettings, QuizQuestion, RetentionStat, CourseAnalysis } from '../types';
 import { apiManager } from './ApiManager';
 import { StorageCenter, StorageKey } from './StorageCenter';
 import { inferLanguageFromWords, BackendGroupData } from './languageUtils';
-
-const USE_MOCK_FALLBACK = true;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -22,13 +19,15 @@ class ApiService {
     this.currentLanguage = lang;
   }
 
-  // Generic fetch wrapper with Fallback Logic
+  // Generic fetch wrapper. On failure it rethrows (or returns a neutral value
+  // for callers that expect graceful degradation) — it never fabricates
+  // realistic fake data that could be mistaken for a real backend response.
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     try {
       const controller = new AbortController();
-      // Increase timeout for critical endpoints like language list
+      // Slightly longer timeout for critical endpoints like language list
       const isCriticalEndpoint = endpoint.includes('/system/supported-languages');
-      const timeout = isCriticalEndpoint ? 5000 : 1500;
+      const timeout = isCriticalEndpoint ? 8000 : 5000;
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       const baseUrl = apiManager.getCurrentBaseUrl();
@@ -58,63 +57,11 @@ class ApiService {
       return data.data;
 
     } catch (error) {
-      // For critical endpoints like language list, don't use mock fallback
-      // This ensures we always get real data from backend
-      if (endpoint.includes('/system/supported-languages')) {
-        console.error(`[ApiService] Failed to fetch supported languages from backend:`, error);
-        throw error; // Re-throw to let caller handle the error
-      }
-      
-      console.warn(`[MockDataCenter] API unavailable for ${endpoint}. Serving mock data.`);
-      if (USE_MOCK_FALLBACK) {
-        return this.getMockResponse<T>(endpoint);
-      }
+      console.error(`[ApiService] Request to ${endpoint} failed:`, error);
+      // No silent mock fallback. A real network/timeout/HTTP failure must surface
+      // so broken or missing endpoints are not disguised as successful data.
       throw error;
     }
-  }
-
-  private async getMockResponse<T>(endpoint: string): Promise<T> {
-    await delay(400); // Simulate subtle latency for realism
-
-    if (endpoint.includes('/login')) {
-      return { token: 'mock-jwt-token', user: MOCK_USER } as unknown as T;
-    }
-    if (endpoint === '/user/profile') return MOCK_USER as unknown as T;
-    if (endpoint === '/system/supported-languages') return SUPPORTED_LANGUAGES as unknown as T;
-
-    // Word Groups (updated to backend routes)
-    if (endpoint === '/query_all_groups' || endpoint === '/word-groups') {
-       return MOCK_WORD_GROUPS as unknown as T;
-    }
-    if (endpoint.includes('/query_gwords') || endpoint.includes('/word-groups/')) {
-      return (this.currentLanguage === 'jp' ? MOCK_WORDS_JP : MOCK_WORDS_EN) as unknown as T;
-    }
-
-    if (endpoint.includes('/words')) {
-      return (this.currentLanguage === 'jp' ? MOCK_WORDS_JP : MOCK_WORDS_EN) as unknown as T;
-    }
-    if (endpoint === '/quiz/generate') {
-      return MOCK_QUIZ_QUESTIONS as unknown as T;
-    }
-    if (endpoint === '/user/stats/retention') {
-      return MOCK_RETENTION_STATS as unknown as T;
-    }
-    if (endpoint.includes('/words/detail/')) {
-        return MOCK_WORDS_EN[0] as unknown as T;
-    }
-    if (endpoint.includes('/analysis')) {
-        // Mock Analysis
-        return {
-           groupId: 'g1',
-           totalWords: 3000,
-           knownWords: 450,
-           newWords: 2550,
-           estimatedDays: 128,
-           similarity: 15
-        } as unknown as T;
-    }
-
-    return {} as T;
   }
 
   // Public Methods
@@ -232,14 +179,19 @@ class ApiService {
   }
   
   async getWordDetail(wordId: string) {
-    return this.request<Word>(`/words/detail/${wordId}`);
+    // Real backend route is GET api/app_qy_v1/words/{id} (request() adds the prefix).
+    return this.request<Word>(`/words/${wordId}`);
   }
 
   async getQuizSession() {
+    // Backend: GET /api/app_qy_v1/quiz/generate (AppQyV1QuizController@generate),
+    // builds meaning multiple-choice questions from the user's learning words.
     return this.request<QuizQuestion[]>('/quiz/generate');
   }
 
   async getRetentionStats() {
+    // Backend: GET /api/app_qy_v1/user/stats/retention (AppQyV1UserStatsController@retention),
+    // buckets the user's learning-progress words into Critical/Review/Learning/Mastered.
     return this.request<RetentionStat[]>('/user/stats/retention');
   }
 

@@ -1,6 +1,31 @@
 import { APIResponse, APIRequestConfig, APIModuleConfig } from '../../types';
 import { apiCache } from './APICache';
 import { htmlErrorManager } from '../../../services/HtmlErrorManager';
+import { appendLog } from '../../logs/logStore';
+
+/**
+ * Endpoints excluded from the global log panel: high-frequency background
+ * probes (health detection, debug-status) would drown real operations.
+ */
+const LOG_EXCLUDED_PATHS = ['/api_info', '/debug-status', '/health'];
+
+/** Append a request outcome to the global log store (noise-filtered). */
+function logRequestOutcome(
+  method: string,
+  url: string,
+  status: number,
+  ms: number,
+  error?: string | null
+): void {
+  const path = url.replace(/^https?:\/\/[^/]+/, '');
+  if (LOG_EXCLUDED_PATHS.some((p) => path.includes(p))) return;
+  const base = `${method} ${path} → ${status || 'ERR'} (${Math.round(ms)}ms)`;
+  if (error) {
+    appendLog('error', 'api', `${base} — ${error}`);
+  } else {
+    appendLog(method === 'GET' ? 'info' : 'success', 'api', base);
+  }
+}
 
 /**
  * Default per-request timeout (ms). Used as a fail-fast ceiling when neither
@@ -235,6 +260,7 @@ export class BaseAPI {
   protected async request<T>(config: APIRequestConfig, retryCount: number = 0): Promise<APIResponse<T>> {
     const fullURL = this.buildURL(config.url);
     const isFormData = config.data instanceof FormData;
+    const startedAt = performance.now();
 
     // Explicit AbortController so we can guarantee a fail-fast timeout AND
     // deterministically clear the timer in finally (no leaked timers).
@@ -295,6 +321,7 @@ export class BaseAPI {
           response.status
         );
 
+        logRequestOutcome(config.method, url, response.status, performance.now() - startedAt, 'non-JSON response');
         return {
           success: false,
           data: null,
@@ -306,6 +333,7 @@ export class BaseAPI {
       const data = await response.json();
 
       if (response.ok) {
+        logRequestOutcome(config.method, url, response.status, performance.now() - startedAt);
         return {
           success: true,
           data: data.data || data,
@@ -324,6 +352,13 @@ export class BaseAPI {
           );
         }
 
+        logRequestOutcome(
+          config.method,
+          url,
+          response.status,
+          performance.now() - startedAt,
+          data.error || data.message || 'Request failed'
+        );
         return {
           success: false,
           data: null,
@@ -349,6 +384,9 @@ export class BaseAPI {
 
       // Preserve the existing return contract (resolve with an APIResponse),
       // but enrich it with the normalized error flags for the UI layer.
+      // (Retried attempts return through the recursive call above, so this
+      // logs once per FINAL failure, not once per attempt.)
+      logRequestOutcome(config.method, fullURL, 0, performance.now() - startedAt, normalized.message);
       return {
         success: false,
         data: null,

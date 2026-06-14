@@ -28,8 +28,8 @@ import subprocess
 
 cv2 = get_third_package_cv2()
 numpy = get_third_package_numpy()
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 @dataclass

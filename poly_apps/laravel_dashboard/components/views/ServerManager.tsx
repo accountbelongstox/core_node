@@ -1,13 +1,24 @@
 
-import React, { useState, useEffect } from 'react';
-import { 
-  NginxSite, 
-  SSLCertificate, 
-  SystemInfo, 
-  AsyncState, 
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  NginxSite,
+  SSLCertificate,
+  SystemInfo,
+  AsyncState,
   Language,
   NginxSiteCreateRequest,
   NginxSiteConfig,
+  NginxStatusOverview,
+  NginxServiceAction,
+  NginxServiceResult,
+  NginxLogsResponse,
+  NginxInstallResult,
+  NginxBackup,
+  NginxBackupRestoreResult,
+  NginxMainConfig,
+  NginxMetrics,
+  NginxBatchAction,
+  NginxBatchResult,
   ServerFileNode,
   PredefinedScript,
   ScriptExecution,
@@ -21,18 +32,20 @@ import {
 import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { getDefaultBaseURL } from '../../config/constants';
-import { 
-  Network, 
-  Shield, 
-  Server, 
-  RefreshCw, 
-  Plus, 
-  Power, 
-  PowerOff, 
-  Trash2, 
-  Eye, 
-  CheckCircle, 
-  AlertTriangle, 
+import { useToast, Modal, ConfirmModal } from '../admin';
+import { logInfo, logSuccess, logError } from '../../core/logs/logStore';
+import {
+  Network,
+  Shield,
+  Server,
+  RefreshCw,
+  Plus,
+  Power,
+  PowerOff,
+  Trash2,
+  Eye,
+  CheckCircle,
+  AlertTriangle,
   XCircle,
   FileText,
   Play,
@@ -42,10 +55,23 @@ import {
   Download,
   Terminal,
   Rocket,
-  Clock
+  Clock,
+  Square,
+  RotateCw,
+  ScrollText,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Activity,
+  Archive,
+  FileCode,
+  Save,
+  ListChecks
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 import NginxSiteModal from '../server-manager/NginxSiteModal';
+import Portal from '../shared/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 
 interface ServerManagerProps {
   lang?: Language;
@@ -75,6 +101,69 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     error: null,
     status: 'idle'
   });
+
+  // Nginx Status / Service / Logs State
+  const [nginxStatus, setNginxStatus] = useState<AsyncState<NginxStatusOverview>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [serviceBusy, setServiceBusy] = useState<NginxServiceAction | null>(null);
+  const [showConfigTestOutput, setShowConfigTestOutput] = useState(false);
+  const [showNginxLogs, setShowNginxLogs] = useState(false);
+  const [nginxLogType, setNginxLogType] = useState<'access' | 'error'>('error');
+  const [nginxLogLines, setNginxLogLines] = useState(200);
+  const [nginxLogFollow, setNginxLogFollow] = useState(false);
+  const [nginxLogFilterInput, setNginxLogFilterInput] = useState('');
+  const [nginxLogFilter, setNginxLogFilter] = useState('');
+  const [nginxLogs, setNginxLogs] = useState<AsyncState<NginxLogsResponse>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const nginxLogPreRef = useRef<HTMLPreElement | null>(null);
+
+  // Nginx install / metrics / backups / main-config / batch state
+  const [installBusy, setInstallBusy] = useState(false);
+  const [nginxMetrics, setNginxMetrics] = useState<AsyncState<NginxMetrics>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [showNginxBackups, setShowNginxBackups] = useState(false);
+  const [nginxBackups, setNginxBackups] = useState<AsyncState<NginxBackup[]>>({
+    data: [],
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [showMainConfig, setShowMainConfig] = useState(false);
+  const [mainConfig, setMainConfig] = useState<AsyncState<NginxMainConfig>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [editedSiteConfig, setEditedSiteConfig] = useState('');
+  const [savingSiteConfig, setSavingSiteConfig] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedSiteNames, setSelectedSiteNames] = useState<string[]>([]);
+  const [batchBusy, setBatchBusy] = useState<NginxBatchAction | null>(null);
+  const [renewingCert, setRenewingCert] = useState<string | null>(null);
+
+  // Shared confirm-modal state (replaces window.confirm for nginx operations)
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    variant: 'danger' | 'warning' | 'info';
+    confirmText?: string;
+    action: (() => Promise<void>) | null;
+    loading: boolean;
+  }>({ open: false, title: '', message: '', variant: 'warning', action: null, loading: false });
 
   // SSL Certificates State
   const [sslCertificates, setSSLCertificates] = useState<AsyncState<SSLCertificate[]>>({
@@ -119,6 +208,15 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
   const t = TRANSLATIONS[lang].server;
   const messages = t.messages || {};
+  const toast = useToast();
+  const nginxNotInstalled = nginxStatus.data ? !nginxStatus.data.installed : false;
+
+  // Scroll nginx log viewer to the bottom (newest lines) whenever new data arrives
+  useEffect(() => {
+    if (nginxLogPreRef.current) {
+      nginxLogPreRef.current.scrollTop = nginxLogPreRef.current.scrollHeight;
+    }
+  }, [nginxLogs.data]);
 
   // Restart Octane with progress and auto-reconnect
   const handleRestartOctane = async () => {
@@ -227,6 +325,343 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
+  // Load Nginx Status Overview
+  const loadNginxStatus = async () => {
+    setNginxStatus(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.serverManagerV1.getNginxStatus();
+      if (response.success && response.data) {
+        setNginxStatus({
+          data: response.data as NginxStatusOverview,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load nginx status');
+      }
+    } catch (error: any) {
+      setNginxStatus({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  // Open the shared confirm modal for a destructive nginx operation
+  const requestConfirm = (opts: {
+    title: string;
+    message: string;
+    variant?: 'danger' | 'warning' | 'info';
+    confirmText?: string;
+    action: () => Promise<void>;
+  }) => {
+    setConfirmState({
+      open: true,
+      title: opts.title,
+      message: opts.message,
+      variant: opts.variant || 'warning',
+      confirmText: opts.confirmText,
+      action: opts.action,
+      loading: false
+    });
+  };
+
+  const handleConfirmAccept = async () => {
+    const action = confirmState.action;
+    if (!action) return;
+    setConfirmState(prev => ({ ...prev, loading: true }));
+    try {
+      await action();
+    } finally {
+      setConfirmState(prev => ({ ...prev, open: false, loading: false, action: null }));
+    }
+  };
+
+  // Load Nginx runtime metrics (stub_status + process totals)
+  const loadNginxMetrics = async () => {
+    setNginxMetrics(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.serverManagerV1.getNginxMetrics();
+      if (response.success && response.data) {
+        setNginxMetrics({
+          data: response.data as NginxMetrics,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load nginx metrics');
+      }
+    } catch (error: any) {
+      setNginxMetrics({ data: null, loading: false, error: error.message, status: 'error' });
+    }
+  };
+
+  // Nginx service control (start / stop / restart / reload)
+  const runNginxService = async (action: NginxServiceAction) => {
+    setServiceBusy(action);
+    logInfo('nginx', `Running nginx ${action}…`);
+    try {
+      const response = await api.serverManagerV1.nginxService(action);
+      const result = response.data as NginxServiceResult | undefined;
+      if (response.success && result && result.success) {
+        toast.success(`Nginx ${action} — OK${result.executed_via ? ` (${result.executed_via})` : ''}`);
+        logSuccess('nginx', `Nginx ${action} succeeded${result.executed_via ? ` via ${result.executed_via}` : ''}`);
+      } else {
+        const msg = result?.error || result?.output || response.error || messages.operation_failed || 'Operation failed';
+        toast.error(`Nginx ${action} failed — ${msg}`);
+        logError('nginx', `Nginx ${action} failed — ${msg}`);
+      }
+    } catch (error: any) {
+      toast.error(`Nginx ${action} failed — ${error.message}`);
+      logError('nginx', `Nginx ${action} failed — ${error.message}`);
+    } finally {
+      setServiceBusy(null);
+      // Refresh immediately, then once more after ~1.2s: pgrep can lag right
+      // after a service transition and report the previous process state.
+      await loadNginxStatus();
+      setTimeout(() => {
+        loadNginxStatus();
+      }, 1200);
+    }
+  };
+
+  const handleNginxService = (action: NginxServiceAction) => {
+    if (nginxNotInstalled || serviceBusy) return;
+    if (action === 'stop' || action === 'restart') {
+      requestConfirm({
+        title: action === 'stop' ? t.nginx.stop : t.nginx.restart,
+        message: action === 'stop' ? t.nginx.confirm_stop : t.nginx.confirm_restart,
+        variant: 'danger',
+        confirmText: action === 'stop' ? t.nginx.stop : t.nginx.restart,
+        action: () => runNginxService(action)
+      });
+      return;
+    }
+    void runNginxService(action);
+  };
+
+  // Install nginx (long-running — up to ~15 min per-request timeout in the API module)
+  const handleInstallNginx = async () => {
+    if (installBusy) return;
+    setInstallBusy(true);
+    logInfo('nginx', `Installing nginx… (${t.nginx.installing})`);
+    try {
+      const response = await api.serverManagerV1.installNginx();
+      const result = response.data as NginxInstallResult | undefined;
+      const tail = (result?.output || '')
+        .split('\n')
+        .map(l => l.trimEnd())
+        .filter(Boolean)
+        .slice(-15)
+        .join('\n');
+      if (response.success && result && result.installed) {
+        if (result.already_installed) {
+          toast.info(`${t.nginx.already_installed}${result.version ? ` (${result.version})` : ''}`);
+          logInfo('nginx', `Nginx already installed${result.version ? ` — ${result.version}` : ''}`);
+        } else {
+          toast.success(`${t.nginx.install_success}${result.version ? ` (${result.version})` : ''}`);
+          logSuccess('nginx', `Nginx installed${result.version ? ` — ${result.version}` : ''}${tail ? `\n${tail}` : ''}`);
+        }
+      } else {
+        const msg = response.error || messages.operation_failed || 'Operation failed';
+        toast.error(`${t.nginx.install_failed} — ${msg}`);
+        logError('nginx', `${t.nginx.install_failed} — ${msg}${result?.exit_code !== undefined ? ` (exit ${result.exit_code})` : ''}${tail ? `\n${tail}` : ''}`);
+      }
+    } catch (error: any) {
+      toast.error(`${t.nginx.install_failed} — ${error.message}`);
+      logError('nginx', `${t.nginx.install_failed} — ${error.message}`);
+    } finally {
+      setInstallBusy(false);
+      await loadNginxStatus();
+      loadNginxSites();
+    }
+  };
+
+  // Load Nginx config backups
+  const loadNginxBackups = async () => {
+    setNginxBackups(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.serverManagerV1.getNginxBackups();
+      if (response.success && response.data) {
+        const raw: any = response.data;
+        const backups = Array.isArray(raw) ? raw : raw.backups;
+        setNginxBackups({
+          data: Array.isArray(backups) ? backups : [],
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load nginx backups');
+      }
+    } catch (error: any) {
+      setNginxBackups({ data: [], loading: false, error: error.message, status: 'error' });
+    }
+  };
+
+  const handleRestoreBackup = (backup: NginxBackup) => {
+    requestConfirm({
+      title: t.nginx.backup_restore_title,
+      message: t.nginx.backup_restore_message.replace('{file}', backup.file),
+      variant: 'warning',
+      confirmText: t.nginx.backup_restore,
+      action: async () => {
+        logInfo('nginx', `Restoring backup ${backup.file}…`);
+        try {
+          const response = await api.serverManagerV1.restoreNginxBackup(backup.file);
+          const result = response.data as NginxBackupRestoreResult | undefined;
+          if (response.success) {
+            toast.success(`${t.nginx.backup_restored} — ${result?.site || backup.site}`);
+            logSuccess('nginx', `Backup ${backup.file} restored → ${result?.config_file || ''}${result?.previous_backup ? ` (previous saved as ${result.previous_backup})` : ''}`);
+            if (result?.config_test && !result.config_test.valid) {
+              toast.error(`${t.nginx.config_test}: ${t.nginx.invalid} — ${result.config_test.output}`);
+              logError('nginx', `Config test after restore failed — ${result.config_test.output}`);
+            }
+            await loadNginxSites();
+            loadNginxStatus();
+            loadNginxBackups();
+          } else {
+            throw new Error(response.error || messages.operation_failed || 'Operation failed');
+          }
+        } catch (error: any) {
+          toast.error(`${t.nginx.backup_restore} — ${error.message}`);
+          logError('nginx', `Restore backup ${backup.file} failed — ${error.message}`);
+        }
+      }
+    });
+  };
+
+  // Load nginx.conf (main configuration) and open the viewer modal
+  const openMainConfig = () => {
+    setShowMainConfig(true);
+    setMainConfig(prev => ({ ...prev, loading: true, status: 'loading' }));
+    api.serverManagerV1
+      .getNginxMainConfig()
+      .then(response => {
+        if (response.success && response.data) {
+          setMainConfig({
+            data: response.data as NginxMainConfig,
+            loading: false,
+            error: null,
+            status: 'success'
+          });
+        } else {
+          throw new Error(response.error || 'Failed to load nginx main config');
+        }
+      })
+      .catch((error: any) => {
+        setMainConfig({ data: null, loading: false, error: error.message, status: 'error' });
+      });
+  };
+
+  // Batch operations on selected sites
+  const toggleSiteSelected = (siteName: string) => {
+    setSelectedSiteNames(prev =>
+      prev.includes(siteName) ? prev.filter(n => n !== siteName) : [...prev, siteName]
+    );
+  };
+
+  const handleBatchAction = async (action: NginxBatchAction) => {
+    if (selectedSiteNames.length === 0 || batchBusy) return;
+    setBatchBusy(action);
+    logInfo('nginx', `Batch ${action}: ${selectedSiteNames.join(', ')}`);
+    try {
+      const response = await api.serverManagerV1.batchNginxSites(action, selectedSiteNames);
+      const result = response.data as NginxBatchResult | undefined;
+      if (response.success && result) {
+        const summary = t.nginx.batch_summary
+          .replace('{action}', action)
+          .replace('{ok}', String(result.succeeded))
+          .replace('{fail}', String(result.failed));
+        if (result.failed > 0) {
+          toast.warning(summary);
+        } else {
+          toast.success(summary);
+        }
+        (result.results || []).forEach(r => {
+          if (r.success) {
+            logSuccess('nginx', `[batch ${action}] ${r.site} — ${r.message}`);
+          } else {
+            logError('nginx', `[batch ${action}] ${r.site} — ${r.message}`);
+          }
+        });
+        await loadNginxSites();
+        loadNginxStatus();
+      } else {
+        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+      }
+    } catch (error: any) {
+      toast.error(`Batch ${action} — ${error.message}`);
+      logError('nginx', `Batch ${action} failed — ${error.message}`);
+    } finally {
+      setBatchBusy(null);
+    }
+  };
+
+  // Renew the SSL certificate for one site (uses the certificates module)
+  const handleRenewSiteCert = async (site: NginxSite) => {
+    if (renewingCert) return;
+    setRenewingCert(site.site_name);
+    logInfo('nginx', `Renewing certificate for ${site.domain}…`);
+    try {
+      const response = await api.serverManagerV1.renewCertificates({ domain: site.domain });
+      if (response.success) {
+        toast.success(t.nginx.renew_cert_started.replace('{domain}', site.domain));
+        logSuccess('nginx', `Certificate renewal started for ${site.domain}`);
+        loadNginxSites();
+      } else {
+        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+      }
+    } catch (error: any) {
+      toast.error(`${t.nginx.renew_cert_failed} — ${error.message}`);
+      logError('nginx', `Renew certificate for ${site.domain} failed — ${error.message}`);
+    } finally {
+      setRenewingCert(null);
+    }
+  };
+
+  // Load Nginx Logs
+  const loadNginxLogs = async (
+    type: 'access' | 'error' = nginxLogType,
+    lines: number = nginxLogLines,
+    filter: string = nginxLogFilter
+  ) => {
+    setNginxLogs(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.serverManagerV1.getNginxLogs(type, lines, filter || undefined);
+      if (response.success && response.data) {
+        setNginxLogs({
+          data: response.data as NginxLogsResponse,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load nginx logs');
+      }
+    } catch (error: any) {
+      setNginxLogs({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  const handleCopyInstallHint = async (hint: string) => {
+    try {
+      await navigator.clipboard.writeText(hint);
+      toast.success(t.nginx.copied);
+    } catch {
+      toast.error(messages.operation_failed || 'Operation failed');
+    }
+  };
+
   // Load SSL Certificates
   const loadSSLCertificates = async () => {
     setSSLCertificates(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -328,12 +763,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       const response = await api.serverManagerV1.getSystemServices();
       if (response.success && response.data) {
         let servicesArray: SystemServiceStatus[] = [];
+        const data = response.data as any;
 
         if (Array.isArray(response.data)) {
           servicesArray = response.data;
         } else if (typeof response.data === 'object') {
           // New structure: { system_services: {...}, octane_services: {...}, application_services: {...} }
-          const data = response.data as any;
 
           // Process system_services
           if (data.system_services && typeof data.system_services === 'object') {
@@ -389,7 +824,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         });
 
         // Save summary information
-        if (data.summary) {
+        if (data && data.summary) {
           setServicesSummary(data.summary);
         }
       }
@@ -404,9 +839,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
+  // Reload nginx data every time the nginx tab becomes active (not just on first mount)
   useEffect(() => {
     if (activeTab === 'nginx') {
       loadNginxSites();
+      loadNginxStatus();
     } else if (activeTab === 'ssl') {
       loadSSLCertificates();
       loadCertbotStatus();
@@ -417,6 +854,49 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       loadSystemServices();
     }
   }, [activeTab]);
+
+  // Load metrics whenever nginx is reported installed+running on the nginx tab
+  useEffect(() => {
+    if (activeTab === 'nginx' && nginxStatus.data?.installed && nginxStatus.data?.running) {
+      loadNginxMetrics();
+    }
+  }, [activeTab, nginxStatus.data?.installed, nginxStatus.data?.running]);
+
+  // Debounce the log keyword filter input (~400ms) into the effective filter
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setNginxLogFilter(nginxLogFilterInput.trim());
+    }, 400);
+    return () => clearTimeout(id);
+  }, [nginxLogFilterInput]);
+
+  // Re-fetch logs when the effective (debounced) filter changes
+  useEffect(() => {
+    if (showNginxLogs && activeTab === 'nginx') {
+      loadNginxLogs(nginxLogType, nginxLogLines, nginxLogFilter);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nginxLogFilter]);
+
+  // Auto-follow: poll logs every 3s while enabled and the viewer is visible.
+  // Cleared automatically on tab leave / viewer collapse / unmount.
+  useEffect(() => {
+    if (!nginxLogFollow || !showNginxLogs || activeTab !== 'nginx') return;
+    const id = setInterval(() => {
+      loadNginxLogs(nginxLogType, nginxLogLines, nginxLogFilter);
+    }, 3000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nginxLogFollow, showNginxLogs, activeTab, nginxLogType, nginxLogLines, nginxLogFilter]);
+
+  // Keep the editable config buffer in sync with the loaded site config
+  useEffect(() => {
+    if (siteConfig.data) {
+      setEditedSiteConfig(siteConfig.data.content || siteConfig.data.config || '');
+    } else {
+      setEditedSiteConfig('');
+    }
+  }, [siteConfig.data]);
 
   // Load Certbot Status
   const loadCertbotStatus = async () => {
@@ -464,7 +944,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const handleRenewAllCertificates = async () => {
     if (!confirm(messages.confirm_renew_certs || 'Are you sure you want to renew all certificates?')) return;
     try {
-      const response = await api.serverManagerV1.renewSSLCertificates(true);
+      const response = await api.serverManagerV1.renewSSLCertificates();
       if (response.success) {
         alert(response.data?.message || messages.cert_renewal_started || 'Certificate renewal started');
         await loadSSLCertificates();
@@ -489,28 +969,45 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
   // Nginx Site Actions
   const handleEnableSite = async (siteName: string) => {
+    logInfo('nginx', `Enabling site ${siteName}…`);
     try {
       const response = await api.serverManagerV1.enableNginxSite(siteName);
       if (response.success) {
+        toast.success(t.nginx.site_enabled.replace('{site}', siteName));
+        logSuccess('nginx', `Site ${siteName} enabled`);
         await loadNginxSites();
+        loadNginxStatus();
+      } else {
+        throw new Error(response.error || messages.operation_failed || 'Operation failed');
       }
-    } catch (error) {
-      console.error('Failed to enable site:', error);
+    } catch (error: any) {
+      toast.error(`Enable failed — ${error.message}`);
+      logError('nginx', `Enable site ${siteName} failed — ${error.message}`);
     }
   };
 
   const handleDisableSite = async (siteName: string) => {
+    logInfo('nginx', `Disabling site ${siteName}…`);
     try {
       const response = await api.serverManagerV1.disableNginxSite(siteName);
       if (response.success) {
+        toast.success(t.nginx.site_disabled.replace('{site}', siteName));
+        logSuccess('nginx', `Site ${siteName} disabled`);
         await loadNginxSites();
+        loadNginxStatus();
+      } else {
+        throw new Error(response.error || messages.operation_failed || 'Operation failed');
       }
-    } catch (error) {
-      console.error('Failed to disable site:', error);
+    } catch (error: any) {
+      toast.error(`Disable failed — ${error.message}`);
+      logError('nginx', `Disable site ${siteName} failed — ${error.message}`);
     }
   };
 
   const handleViewConfig = async (siteName: string) => {
+    // Open the modal immediately (selectedSite drives visibility) so a load
+    // failure still shows the read-only fallback instead of nothing.
+    setSelectedSite(nginxSites.data?.find(s => s.site_name === siteName) || null);
     setSiteConfig({ data: null, loading: true, error: null, status: 'loading' });
     try {
       const response = await api.serverManagerV1.getNginxSiteConfig(siteName);
@@ -521,7 +1018,8 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
           error: null,
           status: 'success'
         });
-        setSelectedSite(nginxSites.data?.find(s => s.site_name === siteName) || null);
+      } else {
+        throw new Error(response.error || messages.failed_to_load || 'Failed to load');
       }
     } catch (error: any) {
       setSiteConfig({
@@ -533,18 +1031,40 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
-  const handleReloadNginx = async () => {
+  const closeSiteConfigModal = () => {
+    setSelectedSite(null);
+    setSiteConfig({ data: null, loading: false, error: null, status: 'idle' });
+  };
+
+  // Save the edited site config; the backend auto-tests and rolls back on
+  // invalid config — its message is surfaced as-is.
+  const handleSaveSiteConfig = async () => {
+    if (!selectedSite || savingSiteConfig) return;
+    setSavingSiteConfig(true);
+    logInfo('nginx', `Saving config for ${selectedSite.site_name}…`);
     try {
-      const response = await api.serverManagerV1.reloadNginx();
+      const response = await api.serverManagerV1.updateNginxSite(selectedSite.site_name, {
+        site_config: editedSiteConfig
+      });
       if (response.success) {
-        alert(response.data?.message || messages.nginx_reloaded || 'Nginx reloaded successfully');
+        toast.success(response.data?.message || response.message || t.nginx.config_saved);
+        logSuccess('nginx', `Config for ${selectedSite.site_name} saved`);
+        await loadNginxSites();
+        loadNginxStatus();
+      } else {
+        throw new Error(response.error || messages.operation_failed || 'Operation failed');
       }
-    } catch (error) {
-      console.error('Failed to reload nginx:', error);
+    } catch (error: any) {
+      toast.error(`${t.nginx.config_save_failed} — ${error.message}`);
+      logError('nginx', `Save config for ${selectedSite.site_name} failed — ${error.message}`);
+    } finally {
+      setSavingSiteConfig(false);
     }
   };
 
   const handleCreateOrUpdateSite = async (data: NginxSiteCreateRequest) => {
+    const siteName = editingSite ? editingSite.site_name : data.site_name;
+    logInfo('nginx', `${editingSite ? 'Updating' : 'Creating'} site ${siteName}…`);
     try {
       let response;
       if (editingSite) {
@@ -555,12 +1075,17 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
       if (response.success) {
         await loadNginxSites();
-        alert(response.data?.message || (editingSite ? 'Site updated successfully' : 'Site created successfully'));
+        loadNginxStatus();
+        toast.success(response.data?.message || (editingSite ? 'Site updated successfully' : 'Site created successfully'));
+        logSuccess('nginx', `Site ${siteName} ${editingSite ? 'updated' : 'created'}`);
         setShowCreateSite(false);
         setEditingSite(null);
+      } else {
+        throw new Error(response.error || messages.operation_failed || 'Operation failed');
       }
-    } catch (error) {
-      console.error('Failed to save site:', error);
+    } catch (error: any) {
+      toast.error(`Save failed — ${error.message}`);
+      logError('nginx', `Save site ${siteName} failed — ${error.message}`);
       throw error;
     }
   };
@@ -570,34 +1095,31 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     setShowCreateSite(true);
   };
 
-  const handleDeleteSite = async (siteName: string) => {
+  const handleDeleteSite = (siteName: string) => {
     const confirmMsg = (messages.confirm_delete_site || 'Are you sure you want to delete site: {site}?').replace('{site}', siteName);
-    if (!confirm(confirmMsg)) return;
-    try {
-      const response = await api.serverManagerV1.deleteNginxSite(siteName);
-      if (response.success) {
-        await loadNginxSites();
-        alert(response.data?.message || messages.site_deleted || 'Site deleted successfully');
-      }
-    } catch (error) {
-      console.error('Failed to delete site:', error);
-    }
-  };
-
-  const handleTestConfig = async () => {
-    try {
-      const response = await api.serverManagerV1.testNginxConfig();
-      if (response.success && response.data) {
-        if (response.data?.valid) {
-          alert(messages.nginx_config_valid || 'Nginx configuration is valid!');
-        } else {
-          const errors = Array.isArray(response.data?.errors) ? response.data.errors : [];
-          alert(`${messages.nginx_config_errors || 'Configuration errors:'}\n${errors.join('\n')}`);
+    requestConfirm({
+      title: t.nginx.delete,
+      message: confirmMsg,
+      variant: 'danger',
+      confirmText: t.nginx.delete,
+      action: async () => {
+        logInfo('nginx', `Deleting site ${siteName}…`);
+        try {
+          const response = await api.serverManagerV1.deleteNginxSite(siteName);
+          if (response.success) {
+            await loadNginxSites();
+            loadNginxStatus();
+            toast.success(response.data?.message || messages.site_deleted || 'Site deleted successfully');
+            logSuccess('nginx', `Site ${siteName} deleted`);
+          } else {
+            throw new Error(response.error || messages.operation_failed || 'Operation failed');
+          }
+        } catch (error: any) {
+          toast.error(`${messages.operation_failed || 'Operation failed'} — ${error.message}`);
+          logError('nginx', `Delete site ${siteName} failed — ${error.message}`);
         }
       }
-    } catch (error) {
-      console.error('Failed to test config:', error);
-    }
+    });
   };
 
   const getStatusIcon = (status: string) => {
@@ -633,20 +1155,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         <div className="flex items-center gap-2">
           {activeTab === 'nginx' && (
             <>
-              <button
-                onClick={handleTestConfig}
-                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
-              >
-                <CheckCircle className="w-4 h-4" />
-                {t.nginx.test}
-              </button>
-              <button
-                onClick={handleReloadNginx}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
-              >
-                <Play className="w-4 h-4" />
-                {t.nginx.reload}
-              </button>
+              {/* Service Test/Reload live in the status card — header keeps Create + Refresh only */}
               <button
                 onClick={() => setShowCreateSite(true)}
                 className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
@@ -655,8 +1164,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                 {t.nginx.create}
               </button>
               <button
-                onClick={loadNginxSites}
+                onClick={() => {
+                  loadNginxSites();
+                  loadNginxStatus();
+                }}
                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                title={t.nginx.refresh}
               >
                 <RefreshCw className={`w-5 h-5 text-slate-600 dark:text-slate-400 ${nginxSites.loading ? 'animate-spin' : ''}`} />
               </button>
@@ -734,97 +1247,698 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'nginx' && (
           <div className="space-y-4">
-            {nginxSites.loading && (
-              <div className="flex items-center justify-center py-12">
-                <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+            {/* Nginx Status Card */}
+            <div className={`${commonClasses.card} p-4`}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Server className="w-4 h-4 text-indigo-500" />
+                  {t.nginx.status}
+                </h3>
+                <div className="flex items-center gap-2">
+                  {nginxStatus.data?.installed && (
+                    <button
+                      onClick={openMainConfig}
+                      className="px-2 py-1.5 text-xs font-mono flex items-center gap-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400"
+                      title={t.nginx.main_config}
+                    >
+                      <FileCode className="w-4 h-4" />
+                      {t.nginx.main_config}
+                    </button>
+                  )}
+                  <button
+                    onClick={loadNginxStatus}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                    title={t.nginx.refresh_status}
+                  >
+                    <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${nginxStatus.loading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
               </div>
-            )}
-            {nginxSites.error && (
-              <div className={`${commonClasses.card} p-4 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800`}>
-                <p className="text-red-600 dark:text-red-400">{nginxSites.error}</p>
-              </div>
-            )}
-            {nginxSites.data && nginxSites.data.length > 0 && (
-              <div className="grid grid-cols-1 gap-4">
-                {nginxSites.data.map(site => (
-                  <div key={site.site_name} className={`${commonClasses.card} p-4`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${site.enabled ? 'bg-green-500' : 'bg-slate-300'}`} />
-                        <h3 className="font-semibold text-lg">{site.domain}</h3>
-                        <span className="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                          {site.site_type}
-                        </span>
+
+              {nginxStatus.loading && !nginxStatus.data && (
+                <div className="flex items-center justify-center py-6">
+                  <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+                </div>
+              )}
+
+              {nginxStatus.error && (
+                <div className="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                  <p className="text-sm text-red-600 dark:text-red-400">{nginxStatus.error}</p>
+                </div>
+              )}
+
+              {nginxStatus.data && (
+                <div className="space-y-3">
+                  {/* Badges Row */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`px-2 py-1 text-xs rounded font-medium flex items-center gap-1 ${
+                      nginxStatus.data.installed
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                    }`}>
+                      {nginxStatus.data.installed ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                      {nginxStatus.data.installed ? t.nginx.installed : t.nginx.not_installed}
+                    </span>
+                    {nginxStatus.data.version && (
+                      <span className="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
+                        {t.nginx.version}: {nginxStatus.data.version}
+                      </span>
+                    )}
+                    {nginxStatus.data.installed && (
+                      <span className={`px-2 py-1 text-xs rounded font-medium ${
+                        nginxStatus.data.running
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                      }`}>
+                        {nginxStatus.data.running
+                          ? `${t.nginx.running} · ${nginxStatus.data.process_count} ${t.nginx.processes}`
+                          : t.nginx.stopped}
+                      </span>
+                    )}
+                    {nginxStatus.data.config_test && (
+                      <button
+                        onClick={() => setShowConfigTestOutput(prev => !prev)}
+                        title={nginxStatus.data.config_test.output}
+                        className={`px-2 py-1 text-xs rounded font-medium flex items-center gap-1 ${
+                          nginxStatus.data.config_test.valid
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}
+                      >
+                        {t.nginx.config_test}: {nginxStatus.data.config_test.valid ? t.nginx.valid : t.nginx.invalid}
+                        {showConfigTestOutput ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+                    )}
+                    <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                      {t.nginx.sites_count}: {nginxStatus.data.sites.total} / {t.nginx.enabled} {nginxStatus.data.sites.enabled} / {t.nginx.disabled} {nginxStatus.data.sites.disabled}
+                    </span>
+                    {nginxStatus.data.service_manager && (
+                      <span className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 font-mono">
+                        {t.nginx.service_manager}: {nginxStatus.data.service_manager}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Config Test Output (expandable) */}
+                  {showConfigTestOutput && nginxStatus.data.config_test && (
+                    <pre className="text-xs font-mono bg-slate-50 dark:bg-slate-900 p-3 rounded border border-slate-200 dark:border-slate-700 overflow-x-auto max-h-40 overflow-y-auto whitespace-pre-wrap">
+                      {nginxStatus.data.config_test.output}
+                    </pre>
+                  )}
+
+                  {/* Not Installed Callout */}
+                  {!nginxStatus.data.installed && (
+                    <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                        <span className="font-semibold text-amber-900 dark:text-amber-100">{t.nginx.install_hint_title}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {site.enabled ? (
-                          <button
-                            onClick={() => handleDisableSite(site.site_name)}
-                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
-                            title={t.nginx.disable}
-                          >
-                            <PowerOff className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleEnableSite(site.site_name)}
-                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
-                            title={t.nginx.enable}
-                          >
-                            <Power className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                          </button>
+                      <div className="flex items-center gap-3 mb-3">
+                        <button
+                          onClick={handleInstallNginx}
+                          disabled={installBusy}
+                          className={`px-4 py-2 ${installBusy ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-lg text-sm font-medium flex items-center gap-2`}
+                        >
+                          {installBusy ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
+                          {t.nginx.install}
+                        </button>
+                        {installBusy && (
+                          <span className="text-xs text-amber-700 dark:text-amber-300">{t.nginx.installing}</span>
                         )}
-                        <button
-                          onClick={() => handleEditSite(site)}
-                          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
-                          title={t.nginx.update}
-                        >
-                          <Settings className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                        </button>
-                        <button
-                          onClick={() => handleViewConfig(site.site_name)}
-                          className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
-                          title={t.nginx.view_config}
-                        >
-                          <Eye className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSite(site.site_name)}
-                          className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                          title={t.nginx.delete}
-                        >
-                          <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
-                        </button>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="text-slate-500 dark:text-slate-400">{t.nginx.www_dir}:</span>
-                        <p className="font-mono text-xs mt-1">{site.www_dir}</p>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 dark:text-slate-400">{t.nginx.php_mode}:</span>
-                        <p className="mt-1">{site.php_mode}</p>
-                      </div>
-                      {site.swoole_port && (
-                        <div>
-                          <span className="text-slate-500 dark:text-slate-400">{t.nginx.swoole_port}:</span>
-                          <p className="mt-1">{site.swoole_port}</p>
+                      {nginxStatus.data.install_hint && (
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 text-xs font-mono bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 px-3 py-2 rounded overflow-x-auto">
+                            {nginxStatus.data.install_hint}
+                          </code>
+                          <button
+                            onClick={() => handleCopyInstallHint(nginxStatus.data!.install_hint!)}
+                            className="p-2 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded"
+                            title={t.nginx.copy}
+                          >
+                            <Copy className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+                          </button>
                         </div>
                       )}
-                      <div>
-                        <span className="text-slate-500 dark:text-slate-400">SSL:</span>
-                        <p className="mt-1">{site.ssl_enabled ? t.nginx.enabled : t.nginx.disabled}</p>
+                    </div>
+                  )}
+
+                  {/* Runtime Metrics (stub_status + process totals) */}
+                  {nginxStatus.data.installed && nginxStatus.data.running && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {nginxMetrics.data?.stub_status ? (
+                        <>
+                          <span className="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-mono">
+                            {t.nginx.metrics_active}: {nginxMetrics.data.stub_status.active_connections}
+                          </span>
+                          <span className="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-mono">
+                            {t.nginx.metrics_requests}: {nginxMetrics.data.stub_status.requests}
+                          </span>
+                          <span className="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-mono">
+                            {t.nginx.metrics_memory}: {((nginxMetrics.data.totals?.memory_kb ?? 0) / 1024).toFixed(1)} MB
+                          </span>
+                          <span className="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-mono">
+                            {t.nginx.metrics_cpu}: {(nginxMetrics.data.totals?.cpu_percent ?? 0).toFixed(1)}%
+                          </span>
+                        </>
+                      ) : nginxMetrics.data && !nginxMetrics.data.stub_status ? (
+                        <span
+                          className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1 cursor-help"
+                          title={nginxMetrics.data.hint || t.nginx.metrics_unavailable}
+                        >
+                          <Activity className="w-3.5 h-3.5" />
+                        </span>
+                      ) : null}
+                      <button
+                        onClick={loadNginxMetrics}
+                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                        title={t.nginx.refresh}
+                      >
+                        <Activity className={`w-3.5 h-3.5 text-slate-500 dark:text-slate-400 ${nginxMetrics.loading ? 'animate-pulse' : ''}`} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Service Action Buttons */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {([
+                      { action: 'start' as NginxServiceAction, label: t.nginx.start, icon: Play, color: 'bg-green-600 hover:bg-green-700', disabledColor: 'bg-green-400' },
+                      { action: 'stop' as NginxServiceAction, label: t.nginx.stop, icon: Square, color: 'bg-red-600 hover:bg-red-700', disabledColor: 'bg-red-400' },
+                      { action: 'restart' as NginxServiceAction, label: t.nginx.restart, icon: RotateCw, color: 'bg-yellow-600 hover:bg-yellow-700', disabledColor: 'bg-yellow-400' },
+                      { action: 'reload' as NginxServiceAction, label: t.nginx.reload, icon: RefreshCw, color: 'bg-indigo-600 hover:bg-indigo-700', disabledColor: 'bg-indigo-400' }
+                    ]).map(({ action, label, icon: Icon, color, disabledColor }) => {
+                      const disabled = nginxNotInstalled || serviceBusy !== null;
+                      return (
+                        <button
+                          key={action}
+                          onClick={() => handleNginxService(action)}
+                          disabled={disabled}
+                          className={`px-3 py-1.5 ${disabled ? `${disabledColor} cursor-not-allowed opacity-60` : color} text-white rounded-lg text-sm font-medium flex items-center gap-2`}
+                        >
+                          <Icon className={`w-4 h-4 ${serviceBusy === action ? 'animate-spin' : ''}`} />
+                          {label}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => {
+                        setShowNginxLogs(prev => {
+                          const next = !prev;
+                          if (next && !nginxLogs.data && !nginxLogs.loading) loadNginxLogs();
+                          return next;
+                        });
+                      }}
+                      className="px-3 py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+                    >
+                      <ScrollText className="w-4 h-4" />
+                      {t.nginx.logs}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {nginxNotInstalled ? (
+              /* When nginx is not installed the sites area shows install guidance */
+              <div className={`${commonClasses.card} p-12 text-center`}>
+                <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-amber-500" />
+                <p className="text-slate-500 dark:text-slate-400">{t.nginx.install_guidance}</p>
+              </div>
+            ) : (
+              <>
+                {nginxSites.loading && (
+                  <div className="flex items-center justify-center py-12">
+                    <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+                  </div>
+                )}
+                {nginxSites.error && (
+                  <div className={`${commonClasses.card} p-4 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800`}>
+                    <p className="text-red-600 dark:text-red-400">{nginxSites.error}</p>
+                  </div>
+                )}
+                {nginxSites.data && nginxSites.data.length > 0 && (
+                  <>
+                    {/* Sites list header with batch-mode toggle + action bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="font-semibold flex items-center gap-2">
+                        <Network className="w-4 h-4 text-indigo-500" />
+                        {t.nginx.sites}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {batchMode && (
+                          <>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              {t.nginx.batch_selected.replace('{n}', String(selectedSiteNames.length))}
+                            </span>
+                            <button
+                              onClick={() => handleBatchAction('enable')}
+                              disabled={selectedSiteNames.length === 0 || batchBusy !== null}
+                              className={`px-3 py-1.5 text-sm font-medium text-white rounded-lg flex items-center gap-1 ${
+                                selectedSiteNames.length === 0 || batchBusy !== null
+                                  ? 'bg-green-400 cursor-not-allowed opacity-60'
+                                  : 'bg-green-600 hover:bg-green-700'
+                              }`}
+                            >
+                              <Power className={`w-3.5 h-3.5 ${batchBusy === 'enable' ? 'animate-pulse' : ''}`} />
+                              {t.nginx.batch_enable}
+                            </button>
+                            <button
+                              onClick={() => handleBatchAction('disable')}
+                              disabled={selectedSiteNames.length === 0 || batchBusy !== null}
+                              className={`px-3 py-1.5 text-sm font-medium text-white rounded-lg flex items-center gap-1 ${
+                                selectedSiteNames.length === 0 || batchBusy !== null
+                                  ? 'bg-slate-400 cursor-not-allowed opacity-60'
+                                  : 'bg-slate-600 hover:bg-slate-700'
+                              }`}
+                            >
+                              <PowerOff className={`w-3.5 h-3.5 ${batchBusy === 'disable' ? 'animate-pulse' : ''}`} />
+                              {t.nginx.batch_disable}
+                            </button>
+                            <button
+                              onClick={() => handleBatchAction('test')}
+                              disabled={selectedSiteNames.length === 0 || batchBusy !== null}
+                              className={`px-3 py-1.5 text-sm font-medium text-white rounded-lg flex items-center gap-1 ${
+                                selectedSiteNames.length === 0 || batchBusy !== null
+                                  ? 'bg-yellow-400 cursor-not-allowed opacity-60'
+                                  : 'bg-yellow-600 hover:bg-yellow-700'
+                              }`}
+                            >
+                              <CheckCircle className={`w-3.5 h-3.5 ${batchBusy === 'test' ? 'animate-pulse' : ''}`} />
+                              {t.nginx.batch_test}
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => {
+                            setBatchMode(prev => {
+                              if (prev) setSelectedSiteNames([]);
+                              return !prev;
+                            });
+                          }}
+                          className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1 ${
+                            batchMode
+                              ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <ListChecks className="w-4 h-4" />
+                          {t.nginx.batch}
+                        </button>
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      {nginxSites.data.map(site => {
+                        const cert = site.cert_expiry;
+                        const certClass = cert
+                          ? cert.days_left <= 7
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                            : cert.days_left <= 30
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                              : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : '';
+                        const certLabel = cert
+                          ? cert.days_left < 0
+                            ? t.nginx.cert_expired
+                            : t.nginx.cert_expires_in.replace('{days}', String(cert.days_left))
+                          : '';
+                        return (
+                          <div key={site.site_name} className={`${commonClasses.card} p-4`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                {batchMode && (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedSiteNames.includes(site.site_name)}
+                                    onChange={() => toggleSiteSelected(site.site_name)}
+                                    className="w-4 h-4"
+                                  />
+                                )}
+                                <div className={`w-3 h-3 rounded-full shrink-0 ${site.enabled ? 'bg-green-500' : 'bg-slate-300'}`} />
+                                <h3 className="font-semibold text-lg truncate">{site.domain}</h3>
+                                <span className="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                  {site.site_type}
+                                </span>
+                                {site.config_type && (
+                                  <span className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                                    {site.config_type}
+                                  </span>
+                                )}
+                                {Array.isArray(site.listen_ports) && site.listen_ports.length > 0 && (
+                                  <span
+                                    className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-mono"
+                                    title={t.nginx.ports}
+                                  >
+                                    {site.listen_ports.map(p => `:${p}`).join(' ')}
+                                  </span>
+                                )}
+                                {cert && (
+                                  <span
+                                    className={`px-2 py-1 text-xs rounded font-medium ${certClass}`}
+                                    title={cert.expires_at}
+                                  >
+                                    SSL · {certLabel}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {site.ssl_enabled && (
+                                  <button
+                                    onClick={() => handleRenewSiteCert(site)}
+                                    disabled={renewingCert !== null}
+                                    className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded"
+                                    title={t.nginx.renew_cert}
+                                  >
+                                    <Shield className={`w-4 h-4 text-emerald-600 dark:text-emerald-400 ${renewingCert === site.site_name ? 'animate-pulse' : ''}`} />
+                                  </button>
+                                )}
+                                {site.enabled ? (
+                                  <button
+                                    onClick={() => handleDisableSite(site.site_name)}
+                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                                    title={t.nginx.disable}
+                                  >
+                                    <PowerOff className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleEnableSite(site.site_name)}
+                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                                    title={t.nginx.enable}
+                                  >
+                                    <Power className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleEditSite(site)}
+                                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                                  title={t.nginx.update}
+                                >
+                                  <Settings className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                                </button>
+                                <button
+                                  onClick={() => handleViewConfig(site.site_name)}
+                                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                                  title={t.nginx.view_config}
+                                >
+                                  <Eye className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSite(site.site_name)}
+                                  className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                                  title={t.nginx.delete}
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <span className="text-slate-500 dark:text-slate-400">{t.nginx.www_dir}:</span>
+                                <p className="font-mono text-xs mt-1">{site.www_dir}</p>
+                              </div>
+                              <div>
+                                <span className="text-slate-500 dark:text-slate-400">{t.nginx.php_mode}:</span>
+                                <p className="mt-1">{site.php_mode}</p>
+                              </div>
+                              {site.swoole_port && (
+                                <div>
+                                  <span className="text-slate-500 dark:text-slate-400">{t.nginx.swoole_port}:</span>
+                                  <p className="mt-1">{site.swoole_port}</p>
+                                </div>
+                              )}
+                              <div>
+                                <span className="text-slate-500 dark:text-slate-400">SSL:</span>
+                                <p className="mt-1">{site.ssl_enabled ? t.nginx.enabled : t.nginx.disabled}</p>
+                              </div>
+                              {Array.isArray(site.server_names) && site.server_names.length > 0 && (
+                                <div className="col-span-2">
+                                  <span className="text-slate-500 dark:text-slate-400">{t.nginx.domain}:</span>
+                                  <p className="font-mono text-xs mt-1 truncate" title={site.server_names.join(' ')}>
+                                    {site.server_names.join(' ')}
+                                  </p>
+                                </div>
+                              )}
+                              {site.modified_human && (
+                                <div>
+                                  <span className="text-slate-500 dark:text-slate-400">{t.nginx.modified}:</span>
+                                  <p className="text-xs mt-1 flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-slate-400" />
+                                    {site.modified_human}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+                {nginxSites.data && nginxSites.data.length === 0 && !nginxSites.loading && (
+                  <div className={`${commonClasses.card} p-12 text-center`}>
+                    <Network className="w-12 h-12 mx-auto mb-4 text-slate-400" />
+                    <p className="text-slate-500 dark:text-slate-400">{t.nginx.no_sites}</p>
+                    <button
+                      onClick={() => setShowCreateSite(true)}
+                      className="mt-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium inline-flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {t.nginx.create}
+                    </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
-            {nginxSites.data && nginxSites.data.length === 0 && (
-              <div className={`${commonClasses.card} p-12 text-center`}>
-                <Network className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-                <p className="text-slate-500 dark:text-slate-400">No nginx sites found</p>
+
+            {/* Nginx Logs (collapsible) */}
+            <div className={commonClasses.card}>
+              <button
+                onClick={() => {
+                  setShowNginxLogs(prev => {
+                    const next = !prev;
+                    if (next && !nginxLogs.data && !nginxLogs.loading) loadNginxLogs();
+                    return next;
+                  });
+                }}
+                className="w-full flex items-center justify-between p-4"
+              >
+                <span className="font-semibold flex items-center gap-2">
+                  <ScrollText className="w-4 h-4 text-indigo-500" />
+                  {t.nginx.logs}
+                </span>
+                {showNginxLogs ? (
+                  <ChevronUp className="w-4 h-4 text-slate-500" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-500" />
+                )}
+              </button>
+
+              {showNginxLogs && (
+                <div className="px-4 pb-4 space-y-3">
+                  {/* Controls */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600">
+                      {(['access', 'error'] as const).map(type => (
+                        <button
+                          key={type}
+                          onClick={() => {
+                            setNginxLogType(type);
+                            loadNginxLogs(type, nginxLogLines);
+                          }}
+                          className={`px-3 py-1.5 text-sm font-medium ${
+                            nginxLogType === type
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {type === 'access' ? t.nginx.access_log : t.nginx.error_log}
+                        </button>
+                      ))}
+                    </div>
+                    <label className="text-sm text-slate-500 dark:text-slate-400">{t.nginx.lines}</label>
+                    <select
+                      value={nginxLogLines}
+                      onChange={(e) => {
+                        const lines = parseInt(e.target.value, 10);
+                        setNginxLogLines(lines);
+                        loadNginxLogs(nginxLogType, lines);
+                      }}
+                      className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                    >
+                      {[100, 200, 500, 1000].map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={nginxLogFilterInput}
+                      onChange={(e) => setNginxLogFilterInput(e.target.value)}
+                      placeholder={t.nginx.filter_placeholder}
+                      className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white w-44"
+                    />
+                    <button
+                      onClick={() => setNginxLogFollow(prev => !prev)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1 ${
+                        nginxLogFollow
+                          ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                      }`}
+                      title={t.nginx.auto_follow}
+                    >
+                      <Play className={`w-3.5 h-3.5 ${nginxLogFollow ? 'animate-pulse' : ''}`} />
+                      {t.nginx.auto_follow}
+                    </button>
+                    <button
+                      onClick={() => loadNginxLogs()}
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                      title={t.nginx.refresh}
+                    >
+                      <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${nginxLogs.loading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+
+                  {nginxLogs.loading && !nginxLogs.data && (
+                    <div className="flex items-center justify-center py-6">
+                      <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+                    </div>
+                  )}
+
+                  {nginxLogs.error && (
+                    <div className="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <p className="text-sm text-red-600 dark:text-red-400">{nginxLogs.error}</p>
+                    </div>
+                  )}
+
+                  {nginxLogs.data && !nginxLogs.data.exists && (
+                    <div className="p-6 text-center bg-slate-50 dark:bg-slate-800 rounded">
+                      <FileText className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">{t.nginx.no_log_file}</p>
+                      <p className="text-xs font-mono text-slate-400 mt-1">{nginxLogs.data.file}</p>
+                    </div>
+                  )}
+
+                  {nginxLogs.data && nginxLogs.data.exists && (
+                    <>
+                      <pre
+                        ref={nginxLogPreRef}
+                        className="text-xs font-mono bg-slate-900 text-slate-200 p-3 rounded h-64 overflow-y-auto overflow-x-auto whitespace-pre-wrap"
+                      >
+                        {nginxLogs.data.lines.length > 0 ? nginxLogs.data.lines.join('\n') : '(empty)'}
+                      </pre>
+                      <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span className="font-mono">{nginxLogs.data.file}</span>
+                        <span>
+                          {nginxLogs.data.filter && nginxLogs.data.scanned_lines !== undefined && (
+                            <span className="mr-2">{t.nginx.scanned_lines.replace('{n}', String(nginxLogs.data.scanned_lines))}</span>
+                          )}
+                          {(nginxLogs.data.size_bytes / 1024).toFixed(1)} KB
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Nginx Config Backups (collapsible) */}
+            {!nginxNotInstalled && (
+              <div className={commonClasses.card}>
+                <button
+                  onClick={() => {
+                    setShowNginxBackups(prev => {
+                      const next = !prev;
+                      if (next && !nginxBackups.loading) loadNginxBackups();
+                      return next;
+                    });
+                  }}
+                  className="w-full flex items-center justify-between p-4"
+                >
+                  <span className="font-semibold flex items-center gap-2">
+                    <Archive className="w-4 h-4 text-indigo-500" />
+                    {t.nginx.backups}
+                  </span>
+                  {showNginxBackups ? (
+                    <ChevronUp className="w-4 h-4 text-slate-500" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-500" />
+                  )}
+                </button>
+
+                {showNginxBackups && (
+                  <div className="px-4 pb-4 space-y-3">
+                    <div className="flex justify-end">
+                      <button
+                        onClick={loadNginxBackups}
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                        title={t.nginx.refresh}
+                      >
+                        <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${nginxBackups.loading ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
+
+                    {nginxBackups.loading && (!nginxBackups.data || nginxBackups.data.length === 0) && (
+                      <div className="flex items-center justify-center py-6">
+                        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+                      </div>
+                    )}
+
+                    {nginxBackups.error && (
+                      <div className="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                        <p className="text-sm text-red-600 dark:text-red-400">{nginxBackups.error}</p>
+                      </div>
+                    )}
+
+                    {!nginxBackups.loading && !nginxBackups.error && nginxBackups.data && nginxBackups.data.length === 0 && (
+                      <div className="p-6 text-center bg-slate-50 dark:bg-slate-800 rounded">
+                        <Archive className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{t.nginx.backups_empty}</p>
+                      </div>
+                    )}
+
+                    {nginxBackups.data && nginxBackups.data.length > 0 && (
+                      <div className="space-y-2 max-h-72 overflow-y-auto">
+                        {nginxBackups.data.map(backup => (
+                          <div
+                            key={backup.file}
+                            className="flex items-center justify-between gap-3 p-2.5 bg-slate-50 dark:bg-slate-800 rounded"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={`px-2 py-0.5 text-xs rounded font-medium shrink-0 ${
+                                  backup.type === 'delete'
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                }`}
+                              >
+                                {backup.type === 'delete' ? t.nginx.backup_type_delete : t.nginx.backup_type_update}
+                              </span>
+                              <span className="text-sm font-medium shrink-0">{backup.site}</span>
+                              <span className="text-xs font-mono text-slate-500 dark:text-slate-400 truncate" title={backup.file}>
+                                {backup.file}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0 text-xs text-slate-500 dark:text-slate-400">
+                              <span>{(backup.size_bytes / 1024).toFixed(1)} KB</span>
+                              <span>{backup.created_at}</span>
+                              <button
+                                onClick={() => handleRestoreBackup(backup)}
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium flex items-center gap-1"
+                              >
+                                <RotateCw className="w-3 h-3" />
+                                {t.nginx.backup_restore}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1174,8 +2288,9 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
       {/* Generate Certificate Modal */}
       {showGenerateCert && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-lg max-w-md w-full">
+        <Portal>
+        <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}>
+          <div className="relative bg-white dark:bg-slate-800 rounded-lg max-w-md w-full">
             <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
               <h3 className="font-semibold text-lg">{t.ssl.generate}</h3>
               <button
@@ -1238,32 +2353,152 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
-      {/* Site Config Modal */}
-      {selectedSite && siteConfig.data && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-lg max-w-4xl w-full max-h-[80vh] flex flex-col">
+      {/* Site Config Modal (editable) */}
+      {selectedSite && (
+        <Portal>
+        <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}>
+          <div className="relative bg-white dark:bg-slate-800 rounded-lg max-w-4xl w-full max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-              <h3 className="font-semibold text-lg">{selectedSite.domain} - Configuration</h3>
+              <h3 className="font-semibold text-lg">{selectedSite.domain} - {t.nginx.edit_config}</h3>
               <button
-                onClick={() => {
-                  setSelectedSite(null);
-                  setSiteConfig({ data: null, loading: false, error: null, status: 'idle' });
-                }}
+                onClick={closeSiteConfigModal}
                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
             <div className="p-4 overflow-y-auto flex-1">
-              <pre className="text-xs font-mono bg-slate-50 dark:bg-slate-900 p-4 rounded border border-slate-200 dark:border-slate-700">
-                {siteConfig.data.content || siteConfig.data.config}
-              </pre>
+              {siteConfig.loading && (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+                </div>
+              )}
+              {siteConfig.error && (
+                <div className="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    {t.nginx.config_load_failed} — {siteConfig.error}
+                  </p>
+                </div>
+              )}
+              {siteConfig.data && (
+                <textarea
+                  value={editedSiteConfig}
+                  onChange={(e) => setEditedSiteConfig(e.target.value)}
+                  spellCheck={false}
+                  className="w-full h-80 text-xs font-mono bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-200 p-4 rounded border border-slate-200 dark:border-slate-700 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              )}
             </div>
+            {siteConfig.data && (
+              <div className="flex items-center justify-end gap-2 p-4 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  onClick={() => handleCopyInstallHint(editedSiteConfig)}
+                  className="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-sm font-medium flex items-center gap-2"
+                >
+                  <Copy className="w-4 h-4" />
+                  {t.nginx.copy}
+                </button>
+                <button
+                  onClick={handleSaveSiteConfig}
+                  disabled={savingSiteConfig}
+                  className={`px-4 py-2 ${savingSiteConfig ? 'bg-green-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} text-white rounded-lg text-sm font-medium flex items-center gap-2`}
+                >
+                  <Save className={`w-4 h-4 ${savingSiteConfig ? 'animate-pulse' : ''}`} />
+                  {savingSiteConfig ? t.nginx.saving : t.nginx.save}
+                </button>
+              </div>
+            )}
           </div>
         </div>
+        </Portal>
       )}
+
+      {/* Main nginx.conf Viewer Modal */}
+      <Modal
+        isOpen={showMainConfig}
+        onClose={() => setShowMainConfig(false)}
+        title={t.nginx.main_config}
+        size="xl"
+      >
+        {mainConfig.loading && (
+          <div className="flex items-center justify-center py-12">
+            <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+          </div>
+        )}
+        {mainConfig.error && (
+          <div className="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <p className="text-sm text-red-600 dark:text-red-400">{mainConfig.error}</p>
+          </div>
+        )}
+        {mainConfig.data && !mainConfig.data.exists && (
+          <div className="p-6 text-center bg-slate-50 dark:bg-slate-800 rounded">
+            <FileText className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+            <p className="text-sm text-slate-500 dark:text-slate-400">{t.nginx.config_file_missing}</p>
+            <p className="text-xs font-mono text-slate-400 mt-1">{mainConfig.data.file}</p>
+          </div>
+        )}
+        {mainConfig.data && mainConfig.data.exists && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
+                {t.nginx.worker_processes}: {mainConfig.data.parsed?.worker_processes ?? '—'}
+              </span>
+              <span className="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
+                {t.nginx.worker_connections}: {mainConfig.data.parsed?.worker_connections ?? '—'}
+              </span>
+              {mainConfig.data.truncated && (
+                <span className="px-2 py-1 text-xs rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                  {t.nginx.truncated}
+                </span>
+              )}
+              <button
+                onClick={() => handleCopyInstallHint(mainConfig.data!.content)}
+                className="ml-auto px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                {t.nginx.copy}
+              </button>
+            </div>
+
+            {Array.isArray(mainConfig.data.conf_d) && mainConfig.data.conf_d.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{t.nginx.conf_d_files}</p>
+                <div className="flex flex-wrap gap-2">
+                  {mainConfig.data.conf_d.map(f => (
+                    <span
+                      key={f.file}
+                      className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-mono"
+                    >
+                      {f.file} · {(f.size_bytes / 1024).toFixed(1)} KB
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <pre className="text-xs font-mono bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-200 p-4 rounded border border-slate-200 dark:border-slate-700 max-h-96 overflow-y-auto overflow-x-auto whitespace-pre-wrap">
+              {mainConfig.data.content}
+            </pre>
+            <p className="text-xs font-mono text-slate-400">{mainConfig.data.file}</p>
+          </div>
+        )}
+      </Modal>
+
+      {/* Shared confirm modal for nginx operations (stop/restart/delete/restore) */}
+      <ConfirmModal
+        isOpen={confirmState.open}
+        onClose={() => setConfirmState(prev => ({ ...prev, open: false, action: null }))}
+        onConfirm={handleConfirmAccept}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={t.nginx.cancel}
+        variant={confirmState.variant}
+        loading={confirmState.loading}
+      />
 
       {/* Nginx Site Create/Edit Modal */}
       <NginxSiteModal
@@ -1329,7 +2564,7 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
 
   const handleDownload = async (filePath: string) => {
     try {
-      const blob = await api.serverManagerV1.downloadFile(filePath);
+      const blob = (await api.serverManagerV1.downloadFile(filePath)) as unknown as Blob;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1565,6 +2800,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     status: 'idle'
   });
   const t = TRANSLATIONS[lang].server.unified;
+  const messages = TRANSLATIONS[lang].server.messages || {};
 
   const loadApps = async () => {
     setApps(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -1642,7 +2878,9 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
       {apps.data && (
         <div className="grid grid-cols-1 gap-4">
           {apps.data.map(app => (
-            <div key={app.app_name} className={`${commonClasses.card} p-4`}>
+            // app_name alone is not unique: apps/ and pyapps/ can both contain
+            // an app of the same name (e.g. okx_price_monitor), so key on path.
+            <div key={`${app.app_name}:${app.app_path}`} className={`${commonClasses.card} p-4`}>
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h3 className="font-semibold text-lg">{app.app_name}</h3>

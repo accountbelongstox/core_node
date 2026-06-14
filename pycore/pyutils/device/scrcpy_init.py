@@ -15,7 +15,7 @@ import platform
 from pathlib import Path
 from typing import Dict, Optional, Callable
 
-from pycore.pyutils.robust_downloader import RobustDownloader
+from pycore.pyutils.common.robust_downloader import RobustDownloader
 
 # Download URLs for scrcpy packages
 # Source: https://github.com/Genymobile/scrcpy/releases

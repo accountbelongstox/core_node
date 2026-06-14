@@ -398,7 +398,7 @@ class VideoStreamService:
     def __init__(self):
         self.adb_path = Config.get_adb_path()
         # ✅ 使用全局导出的实例（模块级别单例）
-        from pycore.pyutils.device_manager import device_manager
+        from pycore.pyutils.device.device_manager import device_manager
         from pycore.pyutils.device.port_pool import port_pool
         from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager
         from pycore.pyutils.device.connection_manager import get_connection_manager

@@ -253,6 +253,9 @@ def start_ui(config: Dict[str, Any]) -> Any:
     webview_url = config.get('webview_url', 'http://localhost:59000')
     show_on_start = config.get('show_on_start', True)
     frameless = config.get('frameless', False)
+    # When the embedded web draws its own (simulated) title bar, disable the Qt
+    # one to avoid stacking duplicate title bars. Defaults True for back-compat.
+    enable_title_bar = config.get('enable_title_bar', True)
     icon_path = config.get('icon_path')
     logo_path = config.get('logo_path')
     menu_icon_path = config.get('menu_icon_path')
@@ -278,6 +281,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
     ColorPrint.blue(f"[ui]   - webview_url: {webview_url}")
     ColorPrint.blue(f"[ui]   - show_on_start: {show_on_start}")
     ColorPrint.blue(f"[ui]   - frameless: {frameless}")
+    ColorPrint.blue(f"[ui]   - enable_title_bar: {enable_title_bar}")
     ColorPrint.blue(f"[ui]   - icon_path: {icon_path}")
     ColorPrint.blue(f"[ui]   - logo_path: {logo_path}")
     ColorPrint.blue(f"[ui]   - menu_icon_path: {menu_icon_path}")
@@ -297,6 +301,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
         window_size=window_size,
         show_on_start=show_on_start,
         frameless=frameless,
+        enable_title_bar=enable_title_bar,
         icon_path=icon_path,
         logo_path=logo_path,
         menu_icon_path=menu_icon_path,

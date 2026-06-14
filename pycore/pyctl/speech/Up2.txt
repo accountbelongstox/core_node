@@ -1288,7 +1288,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyutils.common.stt_switch import initialize_stt_switch, STTProvider
+from pycore.pyctl.speech.stt_switch import initialize_stt_switch, STTProvider
 from pycore.pyutils.common.speech_task_models import STTTaskData, create_stt_task
 from pycore.pyfoundations import TaskPriority
 from pycore import ColorPrint

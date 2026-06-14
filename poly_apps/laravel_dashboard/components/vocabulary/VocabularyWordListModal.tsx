@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, RefreshCw } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
+import Portal from '../shared/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 import type {
   VocabularyStatisticsWordRow,
   VocabularyWordsPagination,
@@ -108,8 +110,9 @@ const VocabularyWordListModal: React.FC<VocabularyWordListModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className={`${commonClasses.card} w-full max-w-5xl max-h-[80vh] flex flex-col`}>
+    <Portal>
+      <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}>
+        <div className={`relative ${commonClasses.card} w-full max-w-5xl max-h-[80vh] flex flex-col`}>
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
           <h3 className="font-semibold text-lg">Vocabulary Words – {language}</h3>
           <button
@@ -207,8 +210,9 @@ const VocabularyWordListModal: React.FC<VocabularyWordListModalProps> = ({
             </div>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </Portal>
   );
 };
 

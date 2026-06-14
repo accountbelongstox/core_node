@@ -5,7 +5,7 @@ Unified Object Detector
 Universal object detector - can be used as a library or run as a command-line tool
 
 Usage as library:
-    from pycore.pyutils.unified_detector import UnifiedDetector
+    from pycore.pyutils.window.unified_detector import UnifiedDetector
 
     # Simple usage (automatically uses latest model)
     detector = UnifiedDetector("d3-check")
@@ -19,13 +19,13 @@ Usage as library:
 
 Usage as CLI:
     # Basic detection
-    python -m pycore.pyutils.unified_detector d3-check screenshot.png
+    python -m pycore.pyutils.window.unified_detector d3-check screenshot.png
 
     # View help
-    python -m pycore.pyutils.unified_detector d3-check --help
+    python -m pycore.pyutils.window.unified_detector d3-check --help
 
     # List available classes
-    python -m pycore.pyutils.unified_detector d3-check --list-classes
+    python -m pycore.pyutils.window.unified_detector d3-check --list-classes
 """
 
 import os
@@ -39,7 +39,7 @@ import json
 from pycore.pyfoundations.third_party import get_third_package_cv2, get_third_package_numpy, get_third_package_yaml
 
 cv2 = get_third_package_cv2()
-numpy = get_third_package_numpy()
+np = get_third_package_numpy()
 yaml = get_third_package_yaml()
 
 
@@ -483,25 +483,25 @@ def main():
         epilog="""
 Examples:
   # Basic detection
-  python -m pycore.pyutils.unified_detector d3-check screenshot.png
+  python -m pycore.pyutils.window.unified_detector d3-check screenshot.png
 
   # View help information
-  python -m pycore.pyutils.unified_detector d3-check --help
+  python -m pycore.pyutils.window.unified_detector d3-check --help
 
   # List available classes
-  python -m pycore.pyutils.unified_detector d3-check --list-classes
+  python -m pycore.pyutils.window.unified_detector d3-check --list-classes
 
   # Only detect specific class
-  python -m pycore.pyutils.unified_detector d3-check screenshot.png --target progress_bar
+  python -m pycore.pyutils.window.unified_detector d3-check screenshot.png --target progress_bar
 
   # Specify model
-  python -m pycore.pyutils.unified_detector d3-check screenshot.png --model unified_model_20251017_143052
+  python -m pycore.pyutils.window.unified_detector d3-check screenshot.png --model unified_model_20251017_143052
 
   # Save results
-  python -m pycore.pyutils.unified_detector d3-check screenshot.png --output result.png
+  python -m pycore.pyutils.window.unified_detector d3-check screenshot.png --output result.png
 
   # JSON output
-  python -m pycore.pyutils.unified_detector d3-check screenshot.png --json
+  python -m pycore.pyutils.window.unified_detector d3-check screenshot.png --json
         """
     )
 

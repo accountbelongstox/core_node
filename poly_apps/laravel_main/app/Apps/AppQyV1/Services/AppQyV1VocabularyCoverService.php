@@ -2,13 +2,17 @@
 
 namespace App\Apps\AppQyV1\Services;
 
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCoverModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
+/**
+ * Library cover state lives on the cover_* columns of vocabulary_libraries
+ * (the vocabulary_covers table was absorbed by the Wave A consolidation and
+ * dropped by AppQyV1_2026_06_12_150002). The status flow is unchanged:
+ * pending -> processing -> ready / retry / failed.
+ */
 class AppQyV1VocabularyCoverService
 {
     private string $coversDir;
@@ -26,64 +30,78 @@ class AppQyV1VocabularyCoverService
 
     public function getCoverData(AppQyV1VocabularyLibraryModel $library): array
     {
-        $record = AppQyV1VocabularyCoverModel::query()->firstOrCreate(
-            ['library_id' => $library->id],
-            [
-                'cover_filename' => $this->buildFilename($library),
-                'prompt' => $this->buildPrompt($library),
-                'description' => $this->buildDescription($library),
-                'status' => 'pending',
-                'priority' => 5,
-            ]
-        );
-
         $expectedFilename = $this->buildFilename($library);
-        if ($record->cover_filename !== $expectedFilename) {
-            $oldPath = $this->getCoverPath($record->cover_filename);
+
+        // First request for this library: initialize the cover_* columns
+        // (previously a vocabulary_covers row was firstOrCreate'd here).
+        if ($library->cover_filename === null || $library->cover_filename === '') {
+            $library->cover_filename = $expectedFilename;
+            $library->cover_prompt = $this->buildPrompt($library);
+            if (!in_array($library->cover_status, ['pending', 'processing', 'retry', 'ready', 'failed'], true)) {
+                $library->cover_status = 'pending';
+            }
+            if (!$library->cover_priority) {
+                $library->cover_priority = 5;
+            }
+        }
+
+        if ($library->cover_filename !== $expectedFilename) {
+            $oldPath = $this->getCoverPath($library->cover_filename);
             $newPath = $this->getCoverPath($expectedFilename);
 
             if (File::exists($oldPath) && !File::exists($newPath)) {
                 File::move($oldPath, $newPath);
             }
 
-            $record->cover_filename = $expectedFilename;
-            $record->save();
+            $library->cover_filename = $expectedFilename;
         }
 
-        $record->last_requested_at = now();
-        $record->save();
-
-        $url = $this->buildCoverUrl($record->cover_filename);
-        $logEntry = null;
-        if ($record->id !== null) {
-            $logEntry = $this->getLatestLog((int) $record->id);
+        // Re-requesting a failed cover re-queues it for pycore: keep the
+        // existing filename/prompt, reset attempts and clear the lease +
+        // error so the maintenance pass / assist claim picks it up again.
+        if ($library->cover_status === 'failed') {
+            $library->cover_status = 'pending';
+            $library->cover_attempts = 0;
+            $library->cover_error_message = null;
+            $library->assist_claimed_at = null;
+            $library->assist_claimed_by = null;
         }
 
-        if ($this->hasCoverFile($record->cover_filename)) {
-            if ($record->status !== 'ready') {
-                $record->status = 'ready';
-                $record->last_generated_at = $record->last_generated_at ?? now();
-                $record->save();
+        $library->cover_last_requested_at = now();
+        $library->save();
+
+        $url = $this->buildCoverUrl($library->cover_filename);
+        $logEntry = $this->buildLog($library);
+
+        if ($this->hasCoverFile($library->cover_filename)) {
+            if ($library->cover_status !== 'ready') {
+                $library->cover_status = 'ready';
+                $library->cover_last_generated_at = $library->cover_last_generated_at ?? now();
+                $library->save();
             }
 
             return [
                 'url' => $url,
                 'status' => 'ready',
                 'error' => null,
+                'error_message' => null,
+                'attempts' => (int) ($library->cover_attempts ?? 0),
                 'log' => $logEntry,
             ];
         }
 
-        if (!in_array($record->status, ['pending', 'processing', 'retry'])) {
-            $record->status = 'pending';
-            $record->error_message = null;
-            $record->save();
+        if (!in_array($library->cover_status, ['pending', 'processing', 'retry'])) {
+            $library->cover_status = 'pending';
+            $library->cover_error_message = null;
+            $library->save();
         }
 
         return [
             'url' => $url,
-            'status' => $record->status,
-            'error' => $record->error_message,
+            'status' => $library->cover_status,
+            'error' => $library->cover_error_message,
+            'error_message' => $library->cover_error_message,
+            'attempts' => (int) ($library->cover_attempts ?? 0),
             'log' => $logEntry,
         ];
     }
@@ -121,7 +139,12 @@ class AppQyV1VocabularyCoverService
         return "{$hash}.png";
     }
 
-    private function buildPrompt(AppQyV1VocabularyLibraryModel $library): string
+    /**
+     * Canonical cover prompt for a library. Public because it is shared by
+     * the local generation pipeline AND the assist claim endpoint (pycore
+     * receives this exact prompt so both paths produce equivalent covers).
+     */
+    public function buildPrompt(AppQyV1VocabularyLibraryModel $library): string
     {
         $category = Str::of($library->category ?? 'general')->replace('_', ' ')->title();
         $difficulty = Str::of($library->difficulty_level ?? 'intermediate')->title();
@@ -134,44 +157,20 @@ class AppQyV1VocabularyCoverService
         );
     }
 
-    private function buildDescription(AppQyV1VocabularyLibraryModel $library): string
+    /**
+     * Same log shape the covers-table implementation produced; cover_id now
+     * carries the library id (covers had a 1:1 unique(library_id) row).
+     */
+    private function buildLog(AppQyV1VocabularyLibraryModel $library): array
     {
-        $category = $library->category ?? 'general';
-        $difficulty = $library->difficulty_level ?? 'intermediate';
-
-        return sprintf(
-            '%s vocabulary library cover (%s, %s level)',
-            $library->name,
-            $category,
-            $difficulty
-        );
-    }
-
-    private function buildDefaultPrompt(): string
-    {
-        return 'Create a minimalistic 16:9 cover art for a vocabulary learning library platform. Use soft gradients, abstract bookshelves, light textures, and inspirational tones. No text.';
-    }
-
-    private function getLatestLog(?int $coverId): ?array
-    {
-        if ($coverId === null) {
-            return null;
-        }
-        
-        $cover = AppQyV1VocabularyCoverModel::query()->find($coverId);
-
-        if (!$cover) {
-            return null;
-        }
-
         return [
-            'cover_id' => $cover->id,
-            'status' => $cover->status,
-            'attempts' => $cover->attempts ?? 0,
-            'error_message' => $cover->error_message,
-            'updated_at' => optional($cover->updated_at)->toDateTimeString(),
-            'started_at' => optional($cover->started_at)->toDateTimeString(),
-            'finished_at' => optional($cover->finished_at)->toDateTimeString(),
+            'cover_id' => $library->id,
+            'status' => $library->cover_status,
+            'attempts' => $library->cover_attempts ?? 0,
+            'error_message' => $library->cover_error_message,
+            'updated_at' => optional($library->updated_at)->toDateTimeString(),
+            'started_at' => optional($library->cover_started_at)->toDateTimeString(),
+            'finished_at' => optional($library->cover_finished_at)->toDateTimeString(),
         ];
     }
 }

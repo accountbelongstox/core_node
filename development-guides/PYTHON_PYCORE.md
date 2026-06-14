@@ -26,10 +26,18 @@ This document is the **project specification** for `pycore`. It defines language
 ### 1.4 Critical Code Standards
 
 **Import Statement Rules**
-- All import statements **must be at file top**
+- All import statements **must be at file top** — never inside functions, methods, or handlers
 - Order: stdlib → third-party → project internal
-- **Forbidden**: import statements inside functions 
-- **Forbidden**: import statements in try-except blocks (direct import, handle ImportError at usage if needed)
+- **Forbidden**: import statements inside functions
+- **Forbidden**: lazy/deferred imports of pycore-internal modules (`pycore.*`): always a direct
+  top-of-file import, never wrapped in try-except — a missing internal module is a bug that must
+  fail loudly at import time, not be silenced into a `None` fallback
+- **Only sanctioned exception** (still at file top, never in a function): optional third-party /
+  platform / environment-dependent modules that may legitimately be absent (e.g. `win32gui`,
+  `pystray`, `PIL`, `tkinter` on headless Linux). Prefer the lazy getters in
+  `pyfoundations/third_party.py` (`get_third_package_*`); where no getter exists, use a
+  top-of-file `try: import X ... except ImportError:` that sets a module-level `X_AVAILABLE`
+  flag, and guard usage sites with that flag
 
 **Global Variable Pattern for Singleton Managers**
 - Singleton managers (i18n, bus_manager, etc.) should be initialized as **global variables** at module level
@@ -47,32 +55,139 @@ This document is the **project specification** for `pycore`. It defines language
 ### 2.1 Component Overview
 - `pycore/pyfoundations` - Core foundation, Python stdlib only, no third-party packages
 - `pycore/pyutils` - Utility classes, can use third-party packages, exports instances/singletons
-- `pycore/pyutils` - **Common area for all utils modules**. Shared models, operations, and utilities should be placed here for reuse across different utils modules
-- `pycore/pyctl` - Can call pyutils to organize basic multi-functional class libraries
+- `pycore/pyctl` - High-level wrappers that orchestrate `pyutils`/`pyfoundations`
 - `pycore/pygvar` - Global constants and variables (appname, paths, binary locations)
 - `pyapps` - Applications using pycore as base services
+
+### 2.2 Layering & Import Direction (STRICT)
+
+Dependencies flow in ONE direction only — higher layers import lower layers, never
+the reverse:
+
+```
+pyapps / callmodule        (apps — may import anything below)
+        │
+   pyctl                   (high-level wrappers)
+        │
+   pyutils                 (independent utility packages)
+        │
+   pyfoundations           (leaf modules — import ONLY pybasecommon + stdlib)
+        │
+   pyfoundations/pybasecommon + pygvar   (kernel — stdlib only, imports nothing else)
+```
+
+- **`pyfoundations`** — base layer. **FORBIDDEN**: importing from ANY other `pycore/*`
+  folder (`pyutils`, `pyctl`, `callmodule`, ...). Python stdlib + its own modules only.
+  **Internal sub-layering (STRICT):** a `pyfoundations` TOP-LEVEL module may import ONLY
+  `pyfoundations/pybasecommon` (+ stdlib) — never another top-level `pyfoundations`
+  sibling. The package `__init__.py` facade re-exporting its own submodules is the one
+  expected exception (it is the package's public API, not a cross-module dependency).
+  When two pyfoundations concerns are coupled, either MERGE them into one module or push
+  the shared piece DOWN into `pybasecommon`.
+- **`pyfoundations/pybasecommon`** — the kernel. Stdlib-only and self-contained: it
+  imports NOTHING outside itself (its internal modules may import each other freely).
+  Holds: `color_print` (ColorPrint + the shared callback registry), `commander`
+  (Commander — routes live output through `ColorPrint.stream` so it reaches the same
+  observers), `safe_subprocess`, `encyclopedia` (process cache), `compute_caps`
+  (CUDA/ONNX capability kernel: CUDADetector, ORT/CnOCR package selection,
+  is_onnx_cuda_usable / ensure_onnx_cuda_usable, CudaInitializer). Anything a
+  `pybasecommon` module needs is implemented INSIDE `pybasecommon`.
+- **`pyutils`** — **FORBIDDEN**: importing `pyctl`. May import `pyfoundations` and
+  `pygvar`. Intra-package imports (within the SAME `pyutils/<pkg>/`) are fine.
+  **Shared-base tier (sanctioned):** the designated shared base inside pyutils is
+  **`pyutils/common` ONLY**. (As of 2026-06-15 there are NO loose top-level modules
+  under `pyutils/` — every utility lives in a group package; the only root file is
+  `__init__.py`. Generic helpers that used to be loose — `robust_downloader`,
+  `system_launcher`, `process_manager`, `app_launcher`, `dev_reload`, `port_utils`,
+  `zip_task_queue`, `build_config_parser`, `capabilities`, the shortcut/icon engine
+  `icon_generator`/`appusermodelid`, the `clipboard_text` primitive, … — now live in
+  `pyutils/common`.) Any `pyutils` group package MAY import from `pyutils/common`.
+  **FORBIDDEN**: a `pyutils` group package (a subdirectory) importing ANOTHER group
+  package (`tts → edge_tts`, `whisper_stt → azure_speech`, `device_sync → launcher`,
+  `input → clipboard`, …); and `common` MUST NOT import a group package (no
+  `common → edge_tts`). Group code stays in pyutils — do NOT push domain models down
+  into the stdlib-only `pyfoundations` base; put genuinely-generic shared helpers in
+  `pyutils/common` instead. Cross-group coordination belongs in `pyctl` (the layer
+  above), or is wired by dependency injection, never by group→group sideways imports.
+- **`pyctl`** — high-level wrappers. MAY import anything lower (`pyfoundations`, `pyutils`,
+  `pygvar`). **FORBIDDEN**: being imported BY any lower layer. **FORBIDDEN**: one `pyctl/*`
+  module importing a sibling `pyctl/*` module (each wrapper is self-contained).
+- **Shared code** belongs in a LOWER layer that all consumers already depend on (push it
+  down to `pyfoundations`), NOT achieved by importing sideways between sibling packages.
+
+#### 2.2.1 The single allowed exception — ColorPrint → rpc_v2 (live log streaming)
+`pyfoundations.color_print.ColorPrint` MAY reach UP into `pycore.pyutils.rpc_v2`
+**only** to stream every printed line to connected WebSocket clients in real time
+(so backend output shows live in the UI). It is the ONE sanctioned upward import.
+It is kept safe by construction:
+- the import is **lazy** and **gated** by a flag the rpc_v2 server flips on at
+  startup (`ColorPrint.enable_rpc_streaming()`), so nothing is imported until rpc_v2
+  is already up — no heavy/early import, no cycle;
+- it routes through `pycore/pyutils/rpc_v2/log_broadcast.py`, a **leaf module that
+  imports nothing from pycore**, so the cycle cannot close;
+- it is fully **guarded**: ColorPrint NEVER raises if no server / no event loop / no
+  WebSocket client exists — printing always works.
+
+Because ColorPrint auto-streams, **all backend code SHOULD print via ColorPrint**
+(not bare `print()`) so output reaches the UI live.
 
 ## 3. Module Development Rules
 
 ### 3.1 pyfoundations Rules
-- Store most basic modules (ColorPrint, Encyclopedia, EventBus, ThreadBus, SecretManager, Commander)
-- Only use Python standard library, no third-party packages
-- Can only import from other pyfoundations modules
-- Provides foundational functions and base classes
-- **Commander**: Unified command executor with real-time output and result collection (`from pycore.pyfoundations.pybasecommon import Commander`)
+- **Kernel** lives in `pyfoundations/pybasecommon` (stdlib-only, imports nothing else):
+  `ColorPrint`, `Commander`, `safe_subprocess`, `Encyclopedia`/`ENCYCLOPEDIA`,
+  `compute_caps` (CUDADetector / ORT+CnOCR package selection / ONNX-CUDA capability /
+  CudaInitializer). Import via `from pycore.pyfoundations.pybasecommon import ...`.
+- **Top-level leaf modules** (each imports ONLY pybasecommon + stdlib): `event_bus`,
+  `thread_bus`, `secret_manager`, `database_base`, `stdio_utils`, `system_info`,
+  `system_paths` (also hosts `UserDataStore`/`get_user_data_store`), `file_lock_manager`
+  (also hosts `SplitFileStore`), `tasks` (Task/TaskState/TaskPriority/GlobalTaskQueue),
+  `third_party` (the dependency manager — also hosts the whole HF/OCR provisioning chain:
+  `hf_*` helpers, `PREWARM_SPEC`, `init_ocr_models_from_hf`, `OcrInitializer`,
+  `init_third_party_cnocr`), `app_launcher`, plus the `device/` and `gvar/` packages.
+- Only use Python standard library, no third-party packages.
+- **FORBIDDEN**: importing from any other `pycore/*` folder, AND (per §2.2) a top-level
+  module importing a `pyfoundations` sibling — only stdlib + `pybasecommon`. The sole
+  sanctioned UP exception is ColorPrint's lazy, gated, guarded stream into
+  `pyutils.rpc_v2` (§2.2.1).
+- **Inverted dependencies** (avoid importing UP): `app_launcher` exposes
+  `register_executable_launcher_provider(...)`; `pycore.pylauncher` registers its
+  provider at import time, so `app_launcher` launches sidecar executables without
+  importing `pylauncher`.
+- Provides foundational functions and base classes.
+- **Commander**: Unified command executor with real-time output and result collection
+  (`from pycore.pyfoundations.pybasecommon import Commander`); its live output is routed
+  through `ColorPrint.stream(...)`, reusing the shared callback registry so command
+  output reaches UI observers (rpc_v2 live log) just like colored logs.
 
 ### 3.2 pyutils Rules
 - Can reference pyfoundations and pygvar
 - Do not re-implement pyfoundations functionality
 - Export instances or singletons, not classes
 - Can use third-party packages
-- One subdirectory per functionality
-- **Common Area**: `pycore/pyutils` is the shared area for all utils modules. Shared models, operations, and utilities should be placed here for reuse across different utils modules
+- One subdirectory (group package) per functionality; each `pyutils/*` group is
+  self-contained with respect to OTHER groups. There are NO loose `.py` files at the
+  `pyutils/` root (only `__init__.py`) — when adding a new utility, place it in an
+  existing group or create a new group package; do NOT drop a bare module at the root.
+- **FORBIDDEN**: importing `pyctl`.
+- **Shared base tier** (sanctioned): `pyutils/common` is the shared base. Any pyutils
+  group MAY import from `common`. Put genuinely-generic shared helpers here.
+- **FORBIDDEN**: a group package (subdirectory) importing ANOTHER group package
+  (`tts → edge_tts`, `whisper_stt → azure_speech`, `device_sync → launcher`,
+  `input → clipboard`, …); and `common` MUST NOT import a group package
+  (`common → edge_tts` is backwards).
+  Need cross-domain behavior? Put the coordinator in `pyctl` (the layer above), or wire
+  it by dependency injection — never a domain→domain sideways import. Keep DOMAIN code
+  in pyutils; only push truly-generic code into `pyutils/common` (NOT into the
+  stdlib-only `pyfoundations` base). Intra-package imports within the same
+  `pyutils/<pkg>/` are fine.
 
 ### 3.3 pyctl Rules
-- Can call pyutils to organize basic multi-functional class libraries
-- Provides higher-level abstractions that combine multiple pyutils modules
-- Should focus on organizing and orchestrating pyutils functionality rather than re-implementing it
+- High-level wrappers: orchestrate `pyutils`/`pyfoundations`, don't re-implement them
+- MAY import anything in a lower layer (`pyfoundations`, `pyutils`, `pygvar`)
+- **FORBIDDEN**: being imported by any lower layer (`pyfoundations`/`pyutils`)
+- **FORBIDDEN**: one `pyctl/*` module importing a sibling `pyctl/*` module (each
+  wrapper is self-contained)
 
 ### 3.4 pygvar Usage
 - Central location for all constants and variables
@@ -419,6 +534,16 @@ status = heartbeat.get_status()
 - `util_{name}.*` - Utility module tasks
 
 ## 11. Native UI / WebView Development
+
+> **UI (updated):** The pycore desktop UI is now the unified shell
+> `poly_apps/laravel_dashboard` — its **pycore-manager** end, loaded by `pyservice`
+> (`pyservice.ps1` / `pyservice.sh`) at `http://localhost:<UiPort>/pycore-manager`
+> (Vite/pnpm; the shell's `/`→`/pycore-manager` redirect serves it as the default end).
+> The standalone `pycore/pyctl/desktop/desktop-manager` React app is **superseded/legacy**.
+> Backend unchanged: rpc_v2 on `:59000`, the `/pyapi` proxy, and the direct
+> `ws://host:59000/rpc/ws` channel. The live backend log is now a GLOBAL floating
+> collapsible panel present on every pycore page. The PySide6 webview guidance below
+> still applies to whatever URL is loaded.
 
 ### 11.1 WebView Flash Prevention (PySide6)
 - **REQUIRED**: Set WebView background color to match React app background (`page.setBackgroundColor(QColor("#030305"))` in `webview.py`) and set background color immediately in HTML `<head>` script before CSS loads to prevent white flash (FOUC).

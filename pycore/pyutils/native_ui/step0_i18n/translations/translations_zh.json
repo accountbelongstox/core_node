@@ -32,12 +32,18 @@
     "tooltip": "应用程序",
     "menu": {
       "show": "显示窗口",
+      "open_web": "打开 Web 界面",
+      "pycore_ui": "PyCore UI 界面",
       "hide": "隐藏窗口",
       "maximize": "最大化",
       "minimize": "最小化",
       "restore": "还原",
       "restart": "重启",
-      "exit": "退出"
+      "exit": "退出",
+      "rpc_server": "RPC v2 服务端口: {port}",
+      "singleton_port": "单实例端口: {port}",
+      "autostart": "开机自启动",
+      "language": "语言"
     }
   },
   "loading": {

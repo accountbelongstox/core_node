@@ -5,6 +5,10 @@ import {
   Volume2,
   FileImage,
   FileText,
+  Activity,
+  MessageSquare,
+  ImagePlus,
+  Images,
   PanelLeftClose,
   PanelLeftOpen
 } from 'lucide-react';
@@ -14,8 +18,20 @@ import TranslationForm from '../examples/TranslationForm';
 import TTSForm from '../tools/TTSForm';
 import OCRForm from '../tools/OCRForm';
 import PromptForm from '../tools/PromptForm';
+import AiStatusPanel from '../ai-tools/AiStatusPanel';
+import AiChatTestPanel from '../ai-tools/AiChatTestPanel';
+import AiImageGenPanel from '../ai-tools/AiImageGenPanel';
+import AiImageHistoryPanel from '../ai-tools/AiImageHistoryPanel';
 
-type ToolView = 'translation' | 'tts' | 'ocr' | 'prompts';
+type ToolView =
+  | 'chat'
+  | 'image-gen'
+  | 'image-history'
+  | 'translation'
+  | 'tts'
+  | 'ocr'
+  | 'prompts'
+  | 'status';
 
 interface NavItem {
   id: ToolView;
@@ -31,26 +47,40 @@ interface NavItem {
  * rail bar, icon and glow — not a full gradient fill — so the shell reads as
  * a precision console rather than a generic SaaS panel.
  */
-const ACCENT: Record<ToolView, { text: string; bar: string; ring: string; glow: string; dot: string }> = {
-  translation: { text: 'text-cyan-300', bar: 'bg-cyan-400', ring: 'ring-cyan-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(34,211,238,0.55)]', dot: 'bg-cyan-400' },
-  tts: { text: 'text-emerald-300', bar: 'bg-emerald-400', ring: 'ring-emerald-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(52,211,153,0.55)]', dot: 'bg-emerald-400' },
-  ocr: { text: 'text-amber-300', bar: 'bg-amber-400', ring: 'ring-amber-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(251,191,36,0.55)]', dot: 'bg-amber-400' },
-  prompts: { text: 'text-violet-300', bar: 'bg-violet-400', ring: 'ring-violet-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(167,139,250,0.55)]', dot: 'bg-violet-400' }
+const ACCENT: Record<ToolView, { text: string; bar: string; ring: string; glow: string; dot: string; ambient: string }> = {
+  chat: { text: 'text-sky-300', bar: 'bg-sky-400', ring: 'ring-sky-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(56,189,248,0.55)]', dot: 'bg-sky-400', ambient: 'bg-sky-500/10 dark:bg-sky-400/10' },
+  'image-gen': { text: 'text-fuchsia-300', bar: 'bg-fuchsia-400', ring: 'ring-fuchsia-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(232,121,249,0.55)]', dot: 'bg-fuchsia-400', ambient: 'bg-fuchsia-500/10 dark:bg-fuchsia-400/10' },
+  'image-history': { text: 'text-rose-300', bar: 'bg-rose-400', ring: 'ring-rose-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(251,113,133,0.55)]', dot: 'bg-rose-400', ambient: 'bg-rose-500/10 dark:bg-rose-400/10' },
+  translation: { text: 'text-cyan-300', bar: 'bg-cyan-400', ring: 'ring-cyan-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(34,211,238,0.55)]', dot: 'bg-cyan-400', ambient: 'bg-cyan-500/10 dark:bg-cyan-400/10' },
+  tts: { text: 'text-emerald-300', bar: 'bg-emerald-400', ring: 'ring-emerald-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(52,211,153,0.55)]', dot: 'bg-emerald-400', ambient: 'bg-emerald-500/10 dark:bg-emerald-400/10' },
+  ocr: { text: 'text-amber-300', bar: 'bg-amber-400', ring: 'ring-amber-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(251,191,36,0.55)]', dot: 'bg-amber-400', ambient: 'bg-amber-500/10 dark:bg-amber-400/10' },
+  prompts: { text: 'text-violet-300', bar: 'bg-violet-400', ring: 'ring-violet-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(167,139,250,0.55)]', dot: 'bg-violet-400', ambient: 'bg-violet-500/10 dark:bg-violet-400/10' },
+  status: { text: 'text-indigo-300', bar: 'bg-indigo-400', ring: 'ring-indigo-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(129,140,248,0.55)]', dot: 'bg-indigo-400', ambient: 'bg-indigo-500/10 dark:bg-indigo-400/10' }
 };
 
 const NAV_ITEMS: NavItem[] = [
+  { id: 'chat', icon: MessageSquare, label: 'Chat Test', description: 'Single-message gateway chat test', signal: 'CHAT' },
+  { id: 'image-gen', icon: ImagePlus, label: 'Image Gen', description: 'Generate an image via the gateway', signal: 'IMAGE' },
+  { id: 'image-history', icon: Images, label: 'Image History', description: 'Browse & manage generated images', signal: 'GALLERY' },
   { id: 'translation', icon: Languages, label: 'AI Translation', description: 'Translate text between languages', signal: 'TRANSLATE' },
   { id: 'tts', icon: Volume2, label: 'Text-to-Speech', description: 'Convert text to natural speech', signal: 'SPEECH' },
   { id: 'ocr', icon: FileImage, label: 'OCR', description: 'Extract text from images', signal: 'VISION' },
-  { id: 'prompts', icon: FileText, label: 'Prompt Manager', description: 'Manage and organize prompts', signal: 'PROMPTS' }
+  { id: 'prompts', icon: FileText, label: 'Prompt Manager', description: 'Manage and organize prompts', signal: 'PROMPTS' },
+  { id: 'status', icon: Activity, label: 'AI Status', description: 'Providers, keys, models & live test', signal: 'STATUS' }
 ];
 
 const AITools: React.FC = () => {
-  const [currentView, setCurrentView] = useState<ToolView>('translation');
+  const [currentView, setCurrentView] = useState<ToolView>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const renderContent = () => {
     switch (currentView) {
+      case 'chat':
+        return <AiChatTestPanel />;
+      case 'image-gen':
+        return <AiImageGenPanel />;
+      case 'image-history':
+        return <AiImageHistoryPanel onReuse={() => setCurrentView('image-gen')} />;
       case 'translation':
         return <TranslationForm />;
       case 'tts':
@@ -59,6 +89,8 @@ const AITools: React.FC = () => {
         return <OCRForm />;
       case 'prompts':
         return <PromptForm />;
+      case 'status':
+        return <AiStatusPanel />;
       default:
         return <TranslationForm />;
     }
@@ -76,7 +108,11 @@ const AITools: React.FC = () => {
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-32 -left-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl dark:bg-cyan-400/10"
+        className={`pointer-events-none absolute -top-32 -right-24 h-80 w-80 rounded-full blur-3xl transition-colors duration-700 ${activeAccent.ambient}`}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-0 left-1/3 h-48 w-48 rounded-full bg-slate-400/5 dark:bg-white/[0.02] blur-3xl"
       />
 
       {/* ── Console rail ─────────────────────────────────────────────── */}
@@ -203,9 +239,9 @@ const AITools: React.FC = () => {
           </div>
         </header>
 
-        {/* Content frame — forms render here unchanged */}
-        <div className="flex-1 overflow-auto p-5 sm:p-7">
-          <div className="h-full rounded-2xl ring-1 ring-slate-200/70 dark:ring-white/5 bg-white/60 dark:bg-white/[0.02] backdrop-blur-sm overflow-auto">
+        {/* Content frame */}
+        <div className="flex-1 overflow-auto p-4 sm:p-6">
+          <div className="min-h-full rounded-2xl ring-1 ring-slate-200/60 dark:ring-white/5 bg-white/70 dark:bg-white/[0.025] backdrop-blur-md overflow-auto shadow-sm">
             {renderContent()}
           </div>
         </div>

@@ -37,79 +37,49 @@ class GlobalTaskSystemInitializer
         try {
             $connection = config('database.default');
 
-            // Check if table exists at all
-            if (!Schema::connection($connection)->hasTable('global_tasks')) {
-                // Create complete table from scratch
-                Schema::connection($connection)->create('global_tasks', function ($table) {
-                    $table->bigIncrements('id');
-                    $table->string('task_id')->unique();
-                    $table->string('app_name')->index();
-                    $table->string('task_type')->nullable();
-                    $table->string('execution_type')->default('local_timer')->index();
-                    $table->string('status')->default('pending')->index();
-                    $table->string('assigned_to')->nullable()->index();
-                    $table->timestamp('assigned_at')->nullable();
-                    $table->timestamp('timeout_at')->nullable()->index();
-                    $table->integer('timeout_seconds')->default(120);
-                    $table->integer('priority')->default(0)->index();
-                    $table->integer('retry_count')->default(0);
-                    $table->integer('max_retries')->default(3);
-                    $table->decimal('progress', 5, 2)->default(0);
-                    $table->json('payload')->nullable();
-                    $table->json('steps')->nullable();
-                    $table->json('result')->nullable();
-                    $table->text('error')->nullable();
-                    $table->string('queue_item_id')->nullable()->index();
-                    $table->timestamps();
+            // Canonical structure -> create-if-missing + ALTER-add ANY missing column/
+            // index via the shared helper (DRY; no hardcoded per-column `if` align).
+            // Add-only (modify_columns=false): never rewrite/drop existing columns or
+            // touch existing task rows (the table can hold thousands of live tasks).
+            $structure = [
+                'columns' => [
+                    'id'              => ['type' => 'bigIncrements'],
+                    'task_id'         => ['type' => 'string', 'unique' => true],
+                    'app_name'        => ['type' => 'string', 'index' => true],
+                    'task_type'       => ['type' => 'string', 'nullable' => true],
+                    'execution_type'  => ['type' => 'string', 'default' => 'local_timer', 'index' => true],
+                    'status'          => ['type' => 'string', 'default' => 'pending', 'index' => true],
+                    'assigned_to'     => ['type' => 'string', 'nullable' => true, 'index' => true],
+                    'assigned_at'     => ['type' => 'timestamp', 'nullable' => true],
+                    'timeout_at'      => ['type' => 'timestamp', 'nullable' => true, 'index' => true],
+                    'timeout_seconds' => ['type' => 'integer', 'default' => 120],
+                    'priority'        => ['type' => 'integer', 'default' => 0, 'index' => true],
+                    'retry_count'     => ['type' => 'integer', 'default' => 0],
+                    'max_retries'     => ['type' => 'integer', 'default' => 3],
+                    'progress'        => ['type' => 'decimal', 'precision' => 5, 'scale' => 2, 'default' => 0],
+                    'payload'         => ['type' => 'json', 'nullable' => true],
+                    'steps'           => ['type' => 'json', 'nullable' => true],
+                    'result'          => ['type' => 'json', 'nullable' => true],
+                    'error'           => ['type' => 'text', 'nullable' => true],
+                    'queue_item_id'   => ['type' => 'string', 'nullable' => true, 'index' => true],
+                    'created_at'      => ['type' => 'timestamp', 'nullable' => true],
+                    'updated_at'      => ['type' => 'timestamp', 'nullable' => true],
+                ],
+                'indexes' => [
+                    ['columns' => ['status', 'execution_type', 'priority'], 'name' => 'idx_task_pulling'],
+                    ['columns' => ['status', 'timeout_at'], 'name' => 'idx_timeout_check'],
+                ],
+            ];
 
-                    // Composite indexes for efficient task pulling
-                    $table->index(['status', 'execution_type', 'priority'], 'idx_task_pulling');
-                    $table->index(['status', 'timeout_at'], 'idx_timeout_check');
-                });
+            $result = SafeMigrationHelper::alignTableStructureFromArray(
+                $connection,
+                'global_tasks',
+                $structure,
+                ['shrink_columns' => false, 'modify_columns' => false, 'add_indexes' => true]
+            );
 
-                return 'created';
-            }
-
-            // Table exists, check if worker fields exist
-            $hasExecutionType = Schema::connection($connection)->hasColumn('global_tasks', 'execution_type');
-            $hasAssignedTo = Schema::connection($connection)->hasColumn('global_tasks', 'assigned_to');
-            $hasTimeout = Schema::connection($connection)->hasColumn('global_tasks', 'timeout_at');
-            $hasPriority = Schema::connection($connection)->hasColumn('global_tasks', 'priority');
-
-            if ($hasExecutionType && $hasAssignedTo && $hasTimeout && $hasPriority) {
-                return 'exists';
-            }
-
-            // Add missing fields to existing table
-            Schema::connection($connection)->table('global_tasks', function ($table) use (
-                $hasExecutionType,
-                $hasAssignedTo,
-                $hasTimeout,
-                $hasPriority
-            ) {
-                if (!$hasExecutionType) {
-                    $table->string('execution_type')->default('local_timer')->after('task_type')->index();
-                }
-
-                if (!$hasAssignedTo) {
-                    $table->string('assigned_to')->nullable()->after('status')->index();
-                    $table->timestamp('assigned_at')->nullable()->after('assigned_to');
-                }
-
-                if (!$hasTimeout) {
-                    $table->timestamp('timeout_at')->nullable()->after('assigned_at')->index();
-                    $table->integer('timeout_seconds')->default(120)->after('timeout_at');
-                }
-
-                if (!$hasPriority) {
-                    $table->integer('priority')->default(0)->after('timeout_seconds')->index();
-                    $table->integer('retry_count')->default(0)->after('priority');
-                    $table->integer('max_retries')->default(3)->after('retry_count');
-                }
-            });
-
-            return 'updated';
-
+            $status = $result['status'] ?? 'error';
+            return $status === 'aligned' ? 'exists' : $status; // created|updated|exists
         } catch (\Exception $e) {
             return 'error: ' . $e->getMessage();
         }
@@ -125,33 +95,38 @@ class GlobalTaskSystemInitializer
         try {
             $connection = config('database.default');
 
-            // Check if table exists
-            if (Schema::connection($connection)->hasTable('workers')) {
-                return 'exists';
-            }
+            // Same shared-helper alignment as global_tasks (DRY, add-only, idempotent).
+            $structure = [
+                'columns' => [
+                    'id'                => ['type' => 'bigIncrements'],
+                    'worker_id'         => ['type' => 'string', 'unique' => true],
+                    'worker_name'       => ['type' => 'string'],
+                    'processor_types'   => ['type' => 'json'],
+                    'status'            => ['type' => 'enum', 'values' => ['online', 'offline', 'busy'], 'default' => 'offline'],
+                    'last_heartbeat_at' => ['type' => 'timestamp', 'nullable' => true],
+                    'hostname'          => ['type' => 'string', 'nullable' => true],
+                    'platform'          => ['type' => 'string', 'nullable' => true],
+                    'metadata'          => ['type' => 'json', 'nullable' => true],
+                    'completed_tasks'   => ['type' => 'integer', 'default' => 0],
+                    'failed_tasks'      => ['type' => 'integer', 'default' => 0],
+                    'current_task_id'   => ['type' => 'string', 'nullable' => true],
+                    'created_at'        => ['type' => 'timestamp', 'nullable' => true],
+                    'updated_at'        => ['type' => 'timestamp', 'nullable' => true],
+                ],
+                'indexes' => [
+                    ['columns' => ['status', 'last_heartbeat_at'], 'name' => 'idx_worker_status'],
+                ],
+            ];
 
-            // Create workers table
-            Schema::connection($connection)->create('workers', function ($table) {
-                $table->bigIncrements('id');
-                $table->string('worker_id')->unique();
-                $table->string('worker_name');
-                $table->json('processor_types'); // Array of execution types
-                $table->enum('status', ['online', 'offline', 'busy'])->default('offline');
-                $table->timestamp('last_heartbeat_at')->nullable();
-                $table->string('hostname')->nullable();
-                $table->string('platform')->nullable();
-                $table->json('metadata')->nullable();
-                $table->integer('completed_tasks')->default(0);
-                $table->integer('failed_tasks')->default(0);
-                $table->string('current_task_id')->nullable();
-                $table->timestamps();
+            $result = SafeMigrationHelper::alignTableStructureFromArray(
+                $connection,
+                'workers',
+                $structure,
+                ['shrink_columns' => false, 'modify_columns' => false, 'add_indexes' => true]
+            );
 
-                // Indexes
-                $table->index(['status', 'last_heartbeat_at'], 'idx_worker_status');
-            });
-
-            return 'created';
-
+            $status = $result['status'] ?? 'error';
+            return $status === 'aligned' ? 'exists' : $status; // created|updated|exists
         } catch (\Exception $e) {
             return 'error: ' . $e->getMessage();
         }

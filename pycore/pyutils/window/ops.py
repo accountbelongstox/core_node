@@ -24,7 +24,7 @@ import win32process
 import win32clipboard
 
 PROCESS_TERMINATE = 0x0001
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 SW_HIDE = 0
 SW_SHOWNORMAL = 1

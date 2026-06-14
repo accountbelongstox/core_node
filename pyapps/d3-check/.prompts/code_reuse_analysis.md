@@ -11,7 +11,7 @@
 ## ✅ 正确的代码复用模式
 
 ### 1. WindowScreenshot 复用
-**来源:** `pycore.pyutils.window_screenshot.WindowScreenshot`
+**来源:** `pycore.pyutils.window.screenshot.WindowScreenshot`
 
 **正确使用的文件:**
 - ✅ `providor/common_imports.py:35` - 导入并导出
@@ -46,13 +46,13 @@ self.image_matcher = ImageMatcher()
 ---
 
 ### 3. ClickHandler 复用
-**来源:** `pycore.pyutils.click_handler.ClickHandler`
+**来源:** `pycore.pyutils.input.click_handler.ClickHandler`
 
 **正确使用的文件:**
 - ✅ `providor/common_imports.py:34` - 导入并导出
 
 ```python
-from pycore.pyutils.click_handler import ClickHandler
+from pycore.pyutils.input.click_handler import ClickHandler
 ```
 
 **说明:** 点击处理功能正确复用 pycore 实现
@@ -118,7 +118,7 @@ from pycore.pyutils.image_annotator import ImageAnnotator
 以下文件包含重复的窗口操作代码,但已标记为 `_obsolete_`:
 
 ### 废弃的窗口操作类
-- ❌ `utils/_obsolete_window_ops.py` - 已被 pycore.pyutils.window_ops 替代
+- ❌ `utils/_obsolete_window_ops.py` - 已被 pycore.pyutils.window.ops 替代
 - ❌ `utils/_obsolete_window_analyzer.py` - 已被 WindowScreenshot 替代
 - ❌ `utils/_obsolete_automation_controller.py` - 已被新架构替代
 - ❌ `utils/_obsolete_ui_analyzer.py` - 已被新架构替代

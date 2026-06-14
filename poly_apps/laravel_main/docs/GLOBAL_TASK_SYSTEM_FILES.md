@@ -54,7 +54,7 @@
 ### 4. 控制器 (Controllers)
 - ✅ `app/Http/Controllers/TaskController.php`
   - 任务 API 控制器
-  - 端点：create(), status(), list(), stats()
+  - 端点：create(), status(), cancel(), list(), stats(), cleanInvalid(), resetAssigned()
   - **语法检查**: ✅ 通过
 
 - ✅ `app/Http/Controllers/WorkerController.php`
@@ -101,15 +101,61 @@
 - ✅ `GLOBAL_TASK_SYSTEM_FILES.md` (本文件)
   - 文件清单
 
-## 📋 API 端点清单
+## 🧭 两层任务机制:Octane Timer Tasks vs Global Tasks(不是冗余)
+
+三端都存在"task"一词,实际是**两层正交机制**,职责不同、互相驱动:
+
+| | Octane Timer Tasks(调度层) | Global Tasks(分发层) |
+|---|---|---|
+| 本质 | 进程内**定时调度**(cron 角色) | 数据库持久化的**分布式工作队列** |
+| 实现 | `OctaneTimerServiceProvider` 1s tick → `TimerTasks/*` 按间隔执行 | `global_tasks`+`workers` 表,原子认领 + 结果回传 |
+| 状态 | 内存运行计数(run_count/last_run),重启清零 | DB 行(7 状态生命周期),跨进程跨机器 |
+| 执行者 | Octane 进程自身 | 外部 worker:pycore、chrome 扩展、laravel-internal-ai |
+| Dashboard | OctaneTasks 视图(/octane-tasks/status) | GlobalTasks 视图(/api/task/* + /api/worker/*) |
+
+**交集 = 定时任务充当队列的角色**(这正是两层协作的设计):
+- `AppQyV1WordTranslationScanTask` / `AppQyV1DictionaryTranslationTask`(定时)→ **生产**全局任务;
+- `AppQyV1WordTranslationFillerTask`(定时)→ 作为内部 worker **消费**全局任务;
+- `GlobalTaskMaintenanceTask`(定时)→ **维护**全局任务(超时释放/清理)。
+
+pycore 端同构:PyHeartbeat(1s 心跳 + 回调间隔)≈ 调度层;
+`pyctl/desktop/task_manager.py` 本地 TaskManager ≈ 本进程任务记录
+(remote_translation 任务会同时有一条本地记录,用于线程派发与本地 UI 可见,
+全局任务行才是事实源——这是有意的镜像,不是重复实现)。
+
+已知的少量真实冗余(可接受/留意):
+- `GlobalTask::EXECUTION_LOCAL_TIMER` 常量从未使用(残留);
+- `/api/task/reset-assigned` 与维护定时器的超时释放部分重叠
+  (它是无视租约的"全量立即重置"管理动作,慎用)。
 
 ### 任务端点 (Task Endpoints)
 | 方法 | 路径 | 控制器方法 |
 |------|------|-----------|
 | POST | /api/task/create | TaskController@create |
 | GET | /api/task/{taskId}/status | TaskController@status |
+| POST | /api/task/{taskId}/cancel | TaskController@cancel |
 | GET | /api/task/list | TaskController@list |
 | GET | /api/task/stats | TaskController@stats |
+| POST | /api/task/clean-invalid | TaskController@cleanInvalid |
+| POST | /api/task/reset-assigned | TaskController@resetAssigned |
+
+> 注：`/api/worker/tasks/accept` 是**幂等确认**——`tasks/pull` 已经原子认领任务,
+> accept 对已拥有的任务直接成功、对仍 pending 的任务补领、对他人任务返回 409。
+> 任务恢复(超时释放 assigned+processing、离线 worker 清理、终态任务保留期清理)
+> 由 `GlobalTaskMaintenanceTask`(Octane 定时器,15s)负责。
+
+### Task Center 聚合端点(统一管理页的数据源)
+| 方法 | 路径 | 控制器方法 |
+|------|------|-----------|
+| GET | /api/task-center/overview | TaskCenterController@overview |
+
+一次轮询返回两层全貌:`scheduler`(定时器运行态,每个任务标注
+`queue_role: producer|consumer|maintainer|null` + `queue_target`)、
+`queue.stats`(完整 7 状态统计)、`workers.stats`、`relations`(调度层↔队列层
+角色关系表,UI 关系图据此渲染,前端不硬编码)。明细/列表仍走原有端点
+(`/octane-tasks/*`、`/api/task/*`、`/api/worker/*`)——聚合层只做组合,不做替代。
+pycore 端有对称端点 `GET :59000/api/local/task-center`(PyHeartbeat≈调度层、
+本地 TaskManager≈本地任务记录、remote_queue=对 Laravel 队列的视角),三端同构。
 
 ### Worker 端点 (Worker Endpoints)
 | 方法 | 路径 | 控制器方法 |

@@ -1,5 +1,161 @@
 import { BaseAPI } from '../base/BaseAPI';
+import { apiCache } from '../base/APICache';
 import { APIResponse } from '../../types';
+
+// ========== Vocabulary export (server-side file download) ==========
+
+export type VocabExportFormat = 'csv' | 'json' | 'anki' | 'pdf' | 'text';
+
+export interface VocabExportOptions {
+  language?: string;
+  library_id?: string | number;
+  /** Server caps at 20000. */
+  limit?: number;
+  include_phonetics?: boolean;
+  include_translations?: boolean;
+  /** Extra hint (all|learned|review|library); ignored by current backend. */
+  scope?: string;
+}
+
+export interface VocabExportResult {
+  ok: true;
+  /** Filename parsed from Content-Disposition (or a sensible default). */
+  filename: string;
+  /** True when the server sent `X-Export-Fallback: html` — the "PDF" is a printable HTML page. */
+  htmlFallback: boolean;
+}
+
+// ========== Document extraction ==========
+
+export interface ExtractWordsResult {
+  document_id: number | string;
+  words_total: number;
+  added: number;
+  skipped: number;
+}
+
+export interface ExtractSentencesResult {
+  document_id: number | string;
+  sentences_total: number;
+  stored: number;
+  skipped: number;
+}
+
+// ========== Cover generation / AI status (Task Center management surface) ==========
+
+/** Per-status counts of the vocabulary-library cover queue. `leased` = covers
+ *  currently leased out to a third-party assist worker (pycore). */
+export interface CoverQueueStats {
+  pending: number;
+  retry: number;
+  processing: number;
+  ready: number;
+  failed: number;
+  total: number;
+  leased: number;
+}
+
+/** Live availability probe of the Laravel-side AI key (null when not probed). */
+export interface CoverAiProbe {
+  available: boolean;
+  error?: string | null;
+  latency_ms?: number | null;
+}
+
+export interface CoverPycoreProvider {
+  name: string;
+  configured: boolean;
+  available: boolean;
+  /** True when this pycore provider can generate images. */
+  image?: boolean;
+}
+
+/** GET /ai_tools/cover-status — full cover-generation management snapshot. */
+export interface CoverStatusData {
+  task: {
+    enabled: boolean;
+    batch_size: number;
+    retry_delay_minutes: number;
+  };
+  queue: CoverQueueStats;
+  laravel_ai: {
+    /** Currently always 'gemini'. */
+    provider: string;
+    configured: boolean;
+    key_masked: string | null;
+    probe: CoverAiProbe | null;
+  };
+  pycore: {
+    reachable: boolean;
+    base_url: string | null;
+    image_capable: boolean;
+    providers: CoverPycoreProvider[] | null;
+    error: string | null;
+  };
+  recent_failures: Array<{
+    library_id: number | string;
+    name: string;
+    error: string;
+    at: string;
+  }>;
+}
+
+/** POST /ai_tools/cover-retry — failed→retry reset result. */
+export interface CoverRetryResult {
+  /** How many failed covers were reset back into the retry queue. */
+  reset: number;
+  queue: CoverQueueStats;
+}
+
+/** POST /assist/cover/retry — pull-mode failed→pending reset result. */
+export interface AssistCoverRetryResult {
+  /** How many failed/stuck covers were reset back to `pending` for pycore. */
+  reset: number;
+}
+
+/** GET /assist/status — cover + TTS queues as exposed to third-party assist workers. */
+export interface AssistStatusData {
+  cover: CoverQueueStats;
+  tts: {
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    leased: number;
+  };
+  lease_minutes: number;
+}
+
+// ========== Review queue / learning stats ==========
+
+export interface ReviewQueueWord {
+  /** Learning-progress record id — this is the `progress_id` for POST /learning/progress. */
+  id: number | string;
+  word: string;
+  word_md5: string;
+  learning_status: string;
+  familiarity_level?: number;
+  review_count?: number;
+  next_review_at?: string | null;
+}
+
+export interface ReviewQueueData {
+  review_words: ReviewQueueWord[];
+  new_words: ReviewQueueWord[];
+}
+
+export interface LearningStatsData {
+  stats: {
+    total_words: number;
+    new_words: number;
+    learning_words: number;
+    mastered_words: number;
+    needs_review: number;
+  };
+  selected_libraries_count: number;
+  learning_languages: string[];
+  native_language: string;
+}
 
 /**
  * AppQyV1 API Module
@@ -65,9 +221,17 @@ export class AppQyV1API extends BaseAPI {
     return this.post('/ai_tools/translation/translate', body);
   }
 
+  /**
+   * Auto-detect the source language and translate. There is no dedicated
+   * `detect-translate` route under app_qy_v1; the translate endpoint performs
+   * auto-detection when `source_lang` is 'auto'. Signature/return shape kept
+   * stable so callers (TranslationPanel, VocabularyLearning, AppQyV1Model)
+   * keep working.
+   */
   async detectAndTranslate(text: string, targetLang: string): Promise<APIResponse> {
-    return this.post('/ai_tools/translation/detect-translate', {
+    return this.post('/ai_tools/translation/translate', {
       text,
+      source_lang: 'auto',
       target_lang: targetLang
     });
   }
@@ -115,6 +279,35 @@ export class AppQyV1API extends BaseAPI {
     return this.post('/ai_tools/image/generate', data);
   }
 
+  // ========== Cover Generation / AI Status ==========
+  /** GET /ai_tools/cover-status — cover queue counts + Laravel AI (gemini)
+   *  config/probe + pycore reachability/providers + recent failures.
+   *  Real-time diagnostic data, never cached. */
+  async getCoverStatus(): Promise<APIResponse<CoverStatusData>> {
+    return this.get<CoverStatusData>('/ai_tools/cover-status', undefined, false);
+  }
+
+  /** POST /ai_tools/cover-retry — reset ALL failed covers back to retry so the
+   *  appqyv1_cover_generation timer task picks them up on its next run. */
+  async retryCovers(): Promise<APIResponse<CoverRetryResult>> {
+    return this.post<CoverRetryResult>('/ai_tools/cover-retry');
+  }
+
+  /** GET /assist/status — cover + TTS assist queues (third-party lease view). */
+  async getAssistStatus(): Promise<APIResponse<AssistStatusData>> {
+    return this.get<AssistStatusData>('/assist/status', undefined, false);
+  }
+
+  /**
+   * POST /assist/cover/retry — pull-mode cover retry. Resets the given failed/
+   * stuck library covers (or ALL failed covers when `all=true`) back to
+   * `pending` so pycore re-claims and regenerates them. Pass the library ids to
+   * retry a specific card's cover.
+   */
+  async retryCover(payload: { ids?: number[]; all?: boolean }): Promise<APIResponse<AssistCoverRetryResult>> {
+    return this.post<AssistCoverRetryResult>('/assist/cover/retry', payload);
+  }
+
   // ========== Speech-to-Text ==========
   async transcribeAudio(data: { audio: File; language?: string }): Promise<APIResponse> {
     const formData = new FormData();
@@ -142,12 +335,72 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/vocabulary/libraries/recommended', params, true, 600000); // Cache 10 minutes
   }
 
+  /**
+   * Delete a user-created learning library (auth:sanctum —
+   * DELETE /learning/libraries/{library_id}). Words created by that upload
+   * are removed server-side; built-in dictionary data is unaffected.
+   * On success the cached GET /vocabulary/libraries responses are
+   * invalidated so the next list load reflects the deletion.
+   */
+  async deleteLearningLibrary(libraryId: number | string): Promise<APIResponse> {
+    const response = await this.delete(`/learning/libraries/${libraryId}`);
+    if (response.success) {
+      apiCache.clear('/vocabulary/libraries');
+    }
+    return response;
+  }
+
   async getVocabularyStatistics(params?: { language?: string; include_words?: boolean | number; page?: number; per_page?: number }): Promise<APIResponse> {
     return this.get('/vocabulary/statistics', params, false);
   }
 
-  async updateProgress(data: { word_id: string; status: string }): Promise<APIResponse> {
-    return this.post('/learning/progress', data);
+  // ========== Word Validity (third-party verification client) ==========
+  // Validity is externally asserted: words are valid by default and become
+  // invalid only when a client explicitly reports them so after an online check.
+  async getValidityPending(params?: { language?: string; limit?: number }): Promise<APIResponse> {
+    return this.get('/vocabulary/validity/pending', params, false);
+  }
+
+  async reportValidity(data: {
+    language?: string;
+    source?: string;
+    results: Array<{ word?: string; md5?: string; is_valid: boolean; note?: string; source?: string }>;
+  }): Promise<APIResponse> {
+    return this.post('/vocabulary/validity/report', data);
+  }
+
+  /**
+   * POST /learning/progress.
+   *
+   * The live backend validates `{ progress_id: int, correct: bool }`
+   * (AppQyV1LearningController::updateProgress) while historical callers pass
+   * `{ word_id, status }`. We send a superset so both contracts are satisfied:
+   * `progress_id` falls back to `word_id` (the learning-progress record id —
+   * /learning/words and /learning/review-queue both return it as `id`) and
+   * `correct` is derived from `status` when not given explicitly.
+   */
+  async updateProgress(data: {
+    word_id: string | number;
+    status: string;
+    progress_id?: string | number;
+    correct?: boolean;
+  }): Promise<APIResponse> {
+    return this.post('/learning/progress', {
+      word_id: data.word_id,
+      status: data.status,
+      progress_id: data.progress_id ?? data.word_id,
+      correct: data.correct ?? data.status === 'learned'
+    });
+  }
+
+  /** GET /learning/review-queue (auth) — due review words + a batch of new words. */
+  async getReviewQueue(params?: { lang_code?: string }): Promise<APIResponse<ReviewQueueData>> {
+    return this.get<ReviewQueueData>('/learning/review-queue', params, false);
+  }
+
+  /** GET /learning/stats (auth) — per-status counts + selected libraries/languages. */
+  async getLearningStats(params?: { lang_code?: string }): Promise<APIResponse<LearningStatsData>> {
+    return this.get<LearningStatsData>('/learning/stats', params, false);
   }
 
   async getStats(): Promise<APIResponse> {
@@ -163,12 +416,14 @@ export class AppQyV1API extends BaseAPI {
     return this.request({ url: '/learning/upload', method: 'POST', data: formData } as any);
   }
 
-  async extractSentences(documentId: string): Promise<APIResponse> {
-    return this.post(`/vocabulary/document/${documentId}/extract-sentences`);
+  /** POST /vocabulary/document/{id}/extract-sentences (auth) — split an uploaded document into sentences. */
+  async extractSentences(documentId: string | number): Promise<APIResponse<ExtractSentencesResult>> {
+    return this.post<ExtractSentencesResult>(`/vocabulary/document/${documentId}/extract-sentences`);
   }
 
-  async extractWords(documentId: string): Promise<APIResponse> {
-    return this.post(`/vocabulary/document/${documentId}/extract-words`);
+  /** POST /vocabulary/document/{id}/extract-words (auth) — extract vocabulary words from an uploaded document. */
+  async extractWords(documentId: string | number): Promise<APIResponse<ExtractWordsResult>> {
+    return this.post<ExtractWordsResult>(`/vocabulary/document/${documentId}/extract-words`);
   }
 
   // ========== System Initialization ==========
@@ -199,24 +454,96 @@ export class AppQyV1API extends BaseAPI {
   }
 
   // ========== Export Features ==========
-  async exportToCSV(options: any): Promise<APIResponse> {
-    return this.post('/vocabulary/export/csv', options);
+
+  /**
+   * POST /vocabulary/export/{format} — server-generated file download.
+   *
+   * BaseAPI.post() expects a JSON envelope, but this endpoint streams a file
+   * (Content-Disposition: attachment), so — mirroring
+   * DatabaseManagerAPI.exportTable/downloadBackup — we bypass request() with a
+   * raw fetch that still honors the module's resolved base URL + prefix and
+   * its auth/global headers, then trigger a browser download via an object
+   * URL + anchor click.
+   *
+   * PDF may come back as a printable HTML page instead of a real PDF; the
+   * server flags that with `X-Export-Fallback: html` and we surface it as
+   * `htmlFallback` so the caller can hint "use the browser's Save as PDF".
+   *
+   * Non-2xx responses carry a JSON `{ success:false, message }` body — the
+   * message is parsed and thrown as an Error with a `status` field (callers
+   * use `status === 404` to fall back to client-side export).
+   */
+  async exportVocabulary(
+    format: VocabExportFormat,
+    options: VocabExportOptions = {}
+  ): Promise<VocabExportResult> {
+    const url = this.buildURL(`/vocabulary/export/${format}`);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/octet-stream, application/json',
+        ...this.headers
+      },
+      body: JSON.stringify(options)
+    });
+
+    if (!response.ok) {
+      let message = `Export failed (HTTP ${response.status})`;
+      try {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const body = await response.json();
+          message = body?.message || body?.error || message;
+        }
+      } catch {
+        // Keep the generic HTTP-status message.
+      }
+      const error = new Error(message) as Error & { status?: number };
+      error.status = response.status;
+      throw error;
+    }
+
+    const htmlFallback =
+      (response.headers.get('X-Export-Fallback') || '').toLowerCase() === 'html';
+
+    const defaultExtension =
+      format === 'text' || format === 'anki'
+        ? 'txt'
+        : format === 'pdf' && htmlFallback
+          ? 'html'
+          : format;
+    const filename =
+      this.parseContentDispositionFilename(response.headers.get('Content-Disposition') || '')
+      || `vocabulary_export.${defaultExtension}`;
+
+    const blob = await response.blob();
+    const objectUrl = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    window.URL.revokeObjectURL(objectUrl);
+
+    return { ok: true, filename, htmlFallback };
   }
 
-  async exportToJSON(options: any): Promise<APIResponse> {
-    return this.post('/vocabulary/export/json', options);
-  }
-
-  async exportToAnki(options: any): Promise<APIResponse> {
-    return this.post('/vocabulary/export/anki', options);
-  }
-
-  async exportToPDF(options: any): Promise<APIResponse> {
-    return this.post('/vocabulary/export/pdf', options);
-  }
-
-  async exportToText(options: any): Promise<APIResponse> {
-    return this.post('/vocabulary/export/text', options);
+  /** Parse `filename*=UTF-8''…` (RFC 5987) or plain `filename="…"` from a Content-Disposition header. */
+  private parseContentDispositionFilename(disposition: string): string | null {
+    const star = /filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i.exec(disposition);
+    if (star && star[1]) {
+      const raw = star[1].trim().replace(/^["']+|["']+$/g, '');
+      try {
+        return decodeURIComponent(raw);
+      } catch {
+        return raw || null;
+      }
+    }
+    const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(disposition);
+    return plain && plain[1] ? plain[1].trim() : null;
   }
 
   // ========== User ==========

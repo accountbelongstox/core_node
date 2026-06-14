@@ -152,7 +152,7 @@ class USBMonitor:
                 self.device_table.add_device(wifi_device)
 
                 # ✅ Also register wireless device in global DeviceManager's device_states
-                from pycore.pyutils.device_manager import device_manager, DeviceState as DMDeviceState
+                from pycore.pyutils.device.device_manager import device_manager, DeviceState as DMDeviceState
                 if wifi_serial not in device_manager.device_states:
                     minimal_state = DMDeviceState(
                         serial=wifi_serial,
@@ -202,7 +202,7 @@ class USBMonitor:
             self.device_table.add_device(device_info)
 
             # ✅ Also register in global DeviceManager's device_states
-            from pycore.pyutils.device_manager import device_manager, DeviceState as DMDeviceState
+            from pycore.pyutils.device.device_manager import device_manager, DeviceState as DMDeviceState
             if serial not in device_manager.device_states:
                 minimal_state = DMDeviceState(
                     serial=serial,

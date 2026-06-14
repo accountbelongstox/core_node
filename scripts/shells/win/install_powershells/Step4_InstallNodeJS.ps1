@@ -244,7 +244,10 @@ function Install-PackageManagers {
 
         & $PnpmExePath config set global-dir $pnpmGlobalDir
         & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
-        & $PnpmExePath config set enable-pre-post-scripts true
+        # enable-pre-post-scripts is TRUE by default (pnpm 7+) and is a workspace-level
+        # setting in pnpm 10+, so a GLOBAL `pnpm config set` is rejected
+        # (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY). It's the default, so we do
+        # not set it globally; the .pnpmrc carries it. Docs: https://pnpm.io/settings
         Write-Host "Y" | & $PnpmExePath setup
 
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-dir: $pnpmGlobalDir" -Type "Success"
@@ -339,9 +342,9 @@ enable-pre-post-scripts=true
         Write-ColorMessage -Message "$SCRIPT_INDEX .pnpmrc created with default settings" -Type "Success"
     }
 
-    Write-ColorMessage -Message "$SCRIPT_INDEX Force-setting pnpm enable-pre-post-scripts via CLI..." -Type "Info"
-    & $PnpmExePath config set enable-pre-post-scripts true
-    Write-ColorMessage -Message "$SCRIPT_INDEX pnpm enable-pre-post-scripts set to true" -Type "Success"
+    # enable-pre-post-scripts is the default (pnpm 7+) and workspace-level in pnpm 10+;
+    # a global `pnpm config set` errors, so we do NOT force it via CLI. Docs: https://pnpm.io/settings
+    Write-ColorMessage -Message "$SCRIPT_INDEX pnpm enable-pre-post-scripts: true (default; not set globally on pnpm 10+)" -Type "Info"
 
     return $true
 }
@@ -379,8 +382,8 @@ function Verify-AndFix-AllConfigs {
         Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Info"
         & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
 
-        Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm enable-pre-post-scripts: true" -Type "Info"
-        & $PnpmExePath config set enable-pre-post-scripts true
+        # enable-pre-post-scripts is the default (pnpm 7+) and workspace-level in pnpm 10+;
+        # a global `pnpm config set` errors, so we do NOT set it globally. Docs: https://pnpm.io/settings
 
         Write-ColorMessage -Message "$SCRIPT_INDEX Running pnpm setup..." -Type "Info"
         Write-Host "Y" | & $PnpmExePath setup

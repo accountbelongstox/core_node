@@ -4,10 +4,11 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupLibraryModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserWordProgressModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 
@@ -18,16 +19,24 @@ class AppQyV1WordGroupService
         int $libraryId,
         int $userId
     ): array {
-        return DB::transaction(function () use ($group, $libraryId, $userId) {
+        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $libraryId, $userId) {
             $library = AppQyV1VocabularyLibraryModel::findOrFail($libraryId);
 
+            // Serialize concurrent adds for the same group: the row lock makes
+            // the text-identity dedupe below race-safe (in-transaction state).
+            // The progress row is keyed by the same group, so the group lock
+            // plus the single-row JSON update keeps the merge atomic.
+            $lockedGroup = AppQyV1WordGroupModel::where('id', $group->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $groupLibrary = AppQyV1GroupLibraryModel::create([
-                'group_id' => $group->id,
+                'group_id' => $lockedGroup->id,
                 'library_id' => $libraryId,
                 'added_at' => now(),
             ]);
 
-            $result = $this->addWordsFromLibrary($group, $library, $userId);
+            $result = $this->addWordsFromLibrary($lockedGroup, $library, $userId);
 
             $this->clearGroupCache($group->gid, $userId);
 
@@ -44,14 +53,25 @@ class AppQyV1WordGroupService
         array $wordIds,
         int $userId
     ): array {
-        return DB::transaction(function () use ($group, $wordIds, $userId) {
-            $existingWordIds = AppQyV1GroupWordModel::where('group_id', $group->id)
-                ->whereIn('word_id', $wordIds)
-                ->pluck('word_id')
-                ->toArray();
+        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $wordIds, $userId) {
+            $languageCode = $this->resolveGroupLanguageCode($group);
+            $progressRow = AppQyV1GroupWordProgressModel::forUserGroup($userId, $group->id, $languageCode);
+            $lockedRow = AppQyV1GroupWordProgressModel::lockForGroup($group->id);
+            if ($lockedRow) {
+                $progressRow = $lockedRow;
+            }
 
-            $wordsToAdd = array_diff($wordIds, $existingWordIds);
-            $skippedCount = count($existingWordIds);
+            // Membership check = array_key_exists on the JSON map.
+            $wordsMap = $progressRow->getWordsMap();
+            $wordsToAdd = [];
+            $skippedCount = 0;
+            foreach ($wordIds as $wordId) {
+                if (array_key_exists((string) (int) $wordId, $wordsMap)) {
+                    $skippedCount++;
+                    continue;
+                }
+                $wordsToAdd[] = (int) $wordId;
+            }
 
             if (empty($wordsToAdd)) {
                 return [
@@ -61,25 +81,30 @@ class AppQyV1WordGroupService
                 ];
             }
 
-            $words = AppQyV1VocabularyItemModel::with('collection')
+            // word ids are dictionary ids (tts_cache_{lang}); the group's
+            // language (single language per group) selects the table.
+            $validIds = [];
+            $weights = [];
+            $rows = AppQyV1LangDictionaryModel::forLanguage($languageCode)
                 ->whereIn('id', $wordsToAdd)
-                ->get()
-                ->map(function ($item) {
-                    return (object)[
-                        'id' => $item->id,
-                        'word' => $item->word_content,
-                        'language' => $item->collection->lang_code ?? null,
-                    ];
-                })
-                ->keyBy('id');
+                ->get(['id', 'content']);
+            foreach ($rows as $row) {
+                $validIds[] = (int) $row->id;
+                $weights[(int) $row->id] = strlen((string) $row->content);
+            }
+            $skippedCount += count($wordsToAdd) - count($validIds);
 
-            $result = $this->bulkInsertGroupWords($group, $words, $userId);
+            // Single JSON merge - one row write for the whole batch.
+            $addedCount = $progressRow->putWords($validIds, (string) now(), $weights);
+            if ($addedCount > 0) {
+                $progressRow->save();
+            }
 
             $this->clearGroupCache($group->gid, $userId);
 
             return [
-                'words_added' => $result['words_added'],
-                'words_skipped' => $skippedCount + $result['words_skipped'],
+                'words_added' => $addedCount,
+                'words_skipped' => $skippedCount,
                 'total_requested' => count($wordIds),
             ];
         });
@@ -90,93 +115,109 @@ class AppQyV1WordGroupService
         AppQyV1VocabularyLibraryModel $library,
         int $userId
     ): array {
-        $existingWordIds = AppQyV1GroupWordModel::where('group_id', $group->id)
-            ->pluck('word_id')
-            ->toArray();
+        // Write boundary: language_code columns store 2-letter codes, while
+        // vocabulary_libraries.language may store a full name ('english').
+        $languageCode = $library->language;
+        if ($languageCode) {
+            $languageCode = AppQyV1LanguageConfigService::normalizeToCode($languageCode);
+        }
+        if (!is_string($languageCode)) {
+            $languageCode = '';
+        }
+        $rowLanguage = $languageCode;
+        if ($rowLanguage === '') {
+            $rowLanguage = 'en';
+        }
 
-        $words = AppQyV1VocabularyItemModel::where('collection_id', $library->id)
-            ->whereNotIn('id', $existingWordIds)
-            ->get()
-            ->map(function ($item) {
-                return (object)[
-                    'id' => $item->id,
-                    'word' => $item->word_content,
-                ];
-            });
+        $progressRow = AppQyV1GroupWordProgressModel::forUserGroup($userId, $group->id, $rowLanguage);
+        $lockedRow = AppQyV1GroupWordProgressModel::lockForGroup($group->id);
+        if ($lockedRow) {
+            $progressRow = $lockedRow;
+        }
 
-        $result = $this->bulkInsertGroupWords($group, $words, $userId, $library->language);
+        // Stable word identity stays text-based: the progress map's keys are
+        // dictionary ids, but case/spacing variants of the same word are
+        // distinct dictionary rows. Dedupe by word_id AND by normalized text
+        // against the map's words (batch-resolved against the dictionary)
+        // plus the gwords list.
+        $existingWordIdSet = [];
+        $existingKeySet = [];
 
-        return [
-            'words_added' => $result['words_added'],
-            'total_words' => $words->count(),
-        ];
-    }
-
-    protected function bulkInsertGroupWords(
-        AppQyV1WordGroupModel $group,
-        $words,
-        int $userId,
-        ?string $languageCode = null
-    ): array {
-        $existingProgressWordIds = AppQyV1UserWordProgressModel::forUser($userId)
-            ->forGroup($group->id)
-            ->pluck('word_id')
-            ->toArray();
-
-        $now = now();
-        $groupWordsData = [];
-        $progressData = [];
-        $skippedCount = 0;
-
-        foreach ($words as $word) {
-            if (!$word) {
-                $skippedCount++;
+        $resolved = $progressRow->resolveDictionaryRows();
+        foreach (array_keys($progressRow->getWordsMap()) as $key) {
+            $mapWordId = (int) $key;
+            $existingWordIdSet[$mapWordId] = true;
+            if (!isset($resolved[$mapWordId])) {
                 continue;
             }
-
-            $lang = $languageCode ?? ($word->language ?? null);
-
-            $groupWordsData[] = [
-                'group_id' => $group->id,
-                'word_id' => $word->id,
-                'language_code' => $lang,
-                'added_at' => $now,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-
-            if (!in_array($word->id, $existingProgressWordIds)) {
-                $progressData[] = [
-                    'user_id' => $userId,
-                    'word_id' => $word->id,
-                    'group_id' => $group->id,
-                    'language_code' => $lang,
-                    'weight' => strlen($word->word),
-                    'proficiency' => 0,
-                    'read_count' => 0,
-                    'review_count' => 0,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
+            $content = $resolved[$mapWordId]->content;
+            if (is_string($content) && $content !== '') {
+                $existingKeySet[strtolower(trim($content)) . '|' . $languageCode] = true;
             }
         }
 
+        $gwords = $group->gwords;
+        if (is_array($gwords)) {
+            foreach ($gwords as $gword) {
+                if (is_string($gword) && $gword !== '') {
+                    $existingKeySet[strtolower(trim($gword)) . '|' . $languageCode] = true;
+                }
+            }
+        }
+
+        // Library membership: word_ids (ordered dictionary ids) resolved with
+        // ONE whereIn on tts_cache_{lang}, in word_ids order.
+        $libraryWords = $library->dictionaryWords(0, count($library->getWordIdsArray()));
+
+        $newWordIds = [];
+        $weights = [];
+        foreach ($libraryWords as $item) {
+            if (isset($existingWordIdSet[$item->id])) {
+                continue;
+            }
+            if (!is_string($item->content)) {
+                continue;
+            }
+            if ($item->content === '') {
+                continue;
+            }
+            $identityKey = strtolower(trim($item->content)) . '|' . $languageCode;
+            if (isset($existingKeySet[$identityKey])) {
+                continue;
+            }
+            $existingKeySet[$identityKey] = true;
+            $newWordIds[] = (int) $item->id;
+            $weights[(int) $item->id] = strlen($item->content);
+        }
+
+        // Single JSON merge: one row update instead of chunked row-per-word
+        // inserts (no 65535 bind-parameter ceiling).
         $addedCount = 0;
-        if (!empty($groupWordsData)) {
-            AppQyV1GroupWordModel::insert($groupWordsData);
-            $addedCount = count($groupWordsData);
-        }
-
-        if (!empty($progressData)) {
-            foreach (array_chunk($progressData, 500) as $chunk) {
-                AppQyV1UserWordProgressModel::insert($chunk);
-            }
+        if (!empty($newWordIds)) {
+            $addedCount = $progressRow->putWords($newWordIds, (string) now(), $weights);
+            $progressRow->save();
         }
 
         return [
             'words_added' => $addedCount,
-            'words_skipped' => $skippedCount,
+            'total_words' => $libraryWords->count(),
         ];
+    }
+
+    /**
+     * Normalized 2-letter language code of a group ('en' default): selects
+     * the dictionary table the group's word_id values belong to.
+     */
+    protected function resolveGroupLanguageCode(AppQyV1WordGroupModel $group): string
+    {
+        $languageCode = $group->language;
+        if ($languageCode) {
+            $languageCode = AppQyV1LanguageConfigService::normalizeToCode($languageCode);
+        }
+        if (!is_string($languageCode) || $languageCode === '') {
+            $languageCode = 'en';
+        }
+        return $languageCode;
     }
 
     public function getGroupWithCache(string $gid, int $userId): ?AppQyV1WordGroupModel
@@ -203,7 +244,7 @@ class AppQyV1WordGroupService
         return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($userId, $start, $limit) {
             return AppQyV1WordGroupModel::forUser($userId)
                 ->select(['id', 'gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at', 'uid'])
-                ->withCount('groupWords')
+                ->with('wordProgress:id,group_id,total_words')
                 ->orderBy('created_at', 'desc')
                 ->skip($start)
                 ->take($limit)

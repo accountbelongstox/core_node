@@ -21,6 +21,9 @@ separator via text == "---"); clicking an item triggers its action_signal via
 THREAD_BUS. Also listens to THREAD_BUS 'tray.request_stop' / 'tray.update_menu'.
 """
 
+import hashlib
+import os
+import tempfile
 import threading
 from pathlib import Path
 from typing import List, Optional
@@ -40,6 +43,14 @@ except ImportError:
     win32con = None
     win32api = None
     WIN32_AVAILABLE = False
+
+# Optional third-party (PNG -> ICO conversion only): top-of-file try + flag
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    Image = None
+    PIL_AVAILABLE = False
 
 # Tray notification callback message id (icon -> our window)
 WM_TRAYICON = (win32con.WM_USER + 20) if WIN32_AVAILABLE else 0
@@ -98,12 +109,10 @@ class Win32SystemTray:
     @staticmethod
     def _raster_to_ico(img_path) -> Optional[str]:
         """Convert a PNG/raster image to a cached multi-size .ico; return its path or None."""
+        if not PIL_AVAILABLE:
+            ColorPrint.yellow("[Win32Tray] Pillow unavailable, cannot convert PNG icon")
+            return None
         try:
-            import os
-            import hashlib
-            import tempfile
-            from PIL import Image
-
             mtime = os.path.getmtime(img_path)
             key = hashlib.md5(f"{img_path}:{mtime}".encode("utf-8")).hexdigest()[:12]
             ico_path = os.path.join(tempfile.gettempdir(), f"pycore_tray_{key}.ico")
@@ -150,9 +159,12 @@ class Win32SystemTray:
         hmenu = win32gui.CreatePopupMenu()
         self._id_to_signal = {}
         self._default_signal = None
-        next_id = _MENU_ID_BASE
+        self._append_items(hmenu, self.menu_items, _MENU_ID_BASE)
+        return hmenu
 
-        for item in self.menu_items:
+    def _append_items(self, hmenu, items, next_id):
+        """Append items (recursing into submenus via MF_POPUP); return the next free command id."""
+        for item in items:
             if getattr(item, "text", None) == "---":
                 win32gui.AppendMenu(hmenu, win32con.MF_SEPARATOR, 0, "")
                 continue
@@ -161,6 +173,14 @@ class Win32SystemTray:
             flags = win32con.MF_STRING
             if not getattr(item, "enabled", True):
                 flags |= win32con.MF_GRAYED
+
+            submenu_items = getattr(item, "submenu", None)
+            if submenu_items:
+                sub_hmenu = win32gui.CreatePopupMenu()
+                next_id = self._append_items(sub_hmenu, submenu_items, next_id)
+                # DestroyMenu on the root destroys attached submenus recursively
+                win32gui.AppendMenu(hmenu, flags | win32con.MF_POPUP, sub_hmenu, text)
+                continue
 
             cmd_id = next_id
             next_id += 1
@@ -171,7 +191,7 @@ class Win32SystemTray:
                 self._id_to_signal[cmd_id] = signal
                 if getattr(item, "default", False):
                     self._default_signal = signal
-        return hmenu
+        return next_id
 
     def _show_menu(self):
         hmenu = self._build_menu()

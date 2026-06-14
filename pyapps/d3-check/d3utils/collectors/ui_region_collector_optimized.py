@@ -17,7 +17,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 # Third-party imports
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_cv2, get_third_package_numpy
 
 Image = get_third_package_PIL_Image()

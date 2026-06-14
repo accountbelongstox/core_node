@@ -28,10 +28,10 @@ from pycore.pyfoundations.third_party import (
     get_third_package_win32gui,
 )
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from pycore.pyutils.window_screenshot import WindowScreenshot
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+from pycore.pyutils.window.screenshot import WindowScreenshot
 from pycore.pyutils.common.window_finder import WindowFinder
-from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyutils.window.activator import WindowActivator
 from d3utils.game_window_detector import get_game_window_detector
 from share.project_path import ensure_d3_check_in_sys_path
 from providor.constants.common import TMP_DIR, TEMPLATE_DIR, ACTIVATE_BEFORE_CAPTURE_DELAY_SEC

@@ -3,6 +3,7 @@
 namespace App\Apps\McpV1\McpV1Utils;
 
 use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 
 /**
  * Task Queue Service (McpV1)
@@ -22,18 +23,26 @@ class TaskQueueService
     private $queueDirectory;
     private $mappingService;
 
+    /** Whether the queue directory is usable (degraded mode when false). */
+    private $directoryReady = false;
+
     public function __construct($baseDirectory = null)
     {
         $this->baseDirectory = $baseDirectory ?? PathMapper::getCoreNodeDir();
 
         // Store queue data in _prompts/task-data/queues/ (not committed to git)
-        // Fall back to shared-data if needed for static file mapping
+        // Fall back to shared-data if needed for static file mapping.
+        // ensurePromptsDirectory resolves a file squatting on the _prompts path
+        // (preserving it) and never throws — a bare mkdir() here would raise an
+        // ErrorException from the constructor and 500 every queue route.
         $promptsDir = $this->baseDirectory . DIRECTORY_SEPARATOR . '_prompts';
         $this->queueDirectory = $promptsDir . DIRECTORY_SEPARATOR . 'task-data' . DIRECTORY_SEPARATOR . 'queues';
 
-        if (!file_exists($this->queueDirectory)) {
-            mkdir($this->queueDirectory, 0755, true);
-            error_log('[TaskQueueService] Created queue directory: ' . $this->queueDirectory);
+        $this->directoryReady = TaskCategoryService::ensurePromptsDirectory($promptsDir)
+            && FileSystemManager::ensureDirectoryExists($this->queueDirectory);
+
+        if (!$this->directoryReady) {
+            error_log('[TaskQueueService] queue directory unavailable: ' . $this->queueDirectory . ' — queue persistence disabled');
         }
 
         $this->mappingService = new PromptMappingService();
@@ -54,12 +63,20 @@ class TaskQueueService
     {
         $queueFile = $this->getCategoryQueueFile($categoryId);
 
-        if (!file_exists($queueFile)) {
+        if (!$this->directoryReady || !file_exists($queueFile)) {
             return $this->initializeCategoryQueue($categoryId);
         }
 
-        $content = file_get_contents($queueFile);
-        return json_decode($content, true);
+        $content = @file_get_contents($queueFile);
+        $decoded = $content === false ? null : json_decode($content, true);
+
+        // A corrupt/unreadable queue file degrades to an empty queue instead
+        // of letting callers explode on null.
+        if (!is_array($decoded) || !isset($decoded['tasks'])) {
+            return $this->initializeCategoryQueue($categoryId);
+        }
+
+        return $decoded;
     }
 
     /**
@@ -85,11 +102,19 @@ class TaskQueueService
     {
         $queue['last_updated'] = date('Y-m-d H:i:s');
 
+        if (!$this->directoryReady) {
+            return;
+        }
+
         $queueFile = $this->getCategoryQueueFile($categoryId);
-        file_put_contents(
+        $written = @file_put_contents(
             $queueFile,
             json_encode($queue, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
+
+        if ($written === false) {
+            error_log('[TaskQueueService] Failed to write queue file: ' . $queueFile);
+        }
     }
 
     /**
