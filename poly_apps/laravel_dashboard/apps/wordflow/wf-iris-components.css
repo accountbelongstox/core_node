@@ -65,9 +65,9 @@ html.dark .ds-material-thick {
   -webkit-backdrop-filter: blur(var(--blur-lg));
 }
 
-/* Inner glow for glass edges (边框发光) */
+/* Inner glow for glass edges (边框发光) — now chromatic refraction rim. */
 .ds-glass-edge {
-  box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--color-inner-glow);
+  box-shadow: var(--shadow-sm), var(--iris-edge);
 }
 
 .ds-glass:hover,
