@@ -126,6 +126,12 @@ class AppQyV1AssistController extends Controller
             'mime' => 'nullable|string|max:100',
             'voice' => 'nullable|string|max:100',
             'claimer' => 'nullable|string|max:56',
+            // Provenance (detailed records): which AI provider/model/engine made
+            // the artifact and how long it took. All optional + best-effort.
+            'provider' => 'nullable|string|max:64',
+            'model' => 'nullable|string|max:128',
+            'engine' => 'nullable|string|max:64',
+            'latency_ms' => 'nullable|integer|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -141,18 +147,26 @@ class AppQyV1AssistController extends Controller
         $claimer = trim((string) $request->input('claimer', '')) ?: 'unknown';
 
         try {
+            $latencyMs = $request->input('latency_ms');
+            if ($latencyMs !== null) {
+                $latencyMs = (int) $latencyMs;
+            }
             if ($type === 'cover') {
                 $result = $this->assist->submitCover(
                     $id,
                     (string) $request->input('image_base64'),
-                    $request->input('mime')
+                    $request->input('mime'),
+                    $request->input('provider'),
+                    $request->input('model'),
+                    $latencyMs
                 );
             } else {
                 $result = $this->assist->submitTts(
                     $id,
                     (string) $request->input('audio_base64'),
                     $claimer,
-                    $request->input('voice')
+                    $request->input('voice'),
+                    $request->input('engine') ?? $request->input('provider')
                 );
             }
         } catch (\Throwable $e) {
