@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System\AppQyV1SystemInitializationController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System\AppQyV1SupportedLanguagesController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System\AppQyV1SystemInitComplianceCtl;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System\AppQyV1ProcessingCapabilityController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1UntranslatedWordsController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordSubmit\AppQyV1WordDataSubmissionController;
@@ -37,6 +38,8 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/statistics/queues', [AppQyV1SystemInitializationController::class, 'getSystemStatisticsQueues']);
         Route::get('/supported-languages', [AppQyV1SupportedLanguagesController::class, 'getSupportedLanguages']);
         Route::get('/supported-languages/{code}', [AppQyV1SupportedLanguagesController::class, 'getLanguageByCode']);
+        // Laravel-host processing capability + recommendation (laravel direct vs pycore).
+        Route::get('/processing-capability', [AppQyV1ProcessingCapabilityController::class, 'show']);
     });
 
     // Enhanced word query routes

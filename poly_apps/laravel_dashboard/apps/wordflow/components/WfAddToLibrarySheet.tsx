@@ -27,7 +27,7 @@ import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
 import { isQueuedError } from '../../../core/api-libs/base';
 import type { WordGroup } from '../../../core/api-libs/wordflow/wordflowTypes';
 import { notify } from '../../../core/notify/notify';
-import { Badge, Button, EmptyState, Icons, LoadingState, Sheet, Spinner } from '../WfUI';
+import { Badge, Button, EmptyState, IconButton, Icons, LoadingState, Sheet, Spinner } from '../WfUI';
 import { useWfApp } from '../WfAppContext';
 import { getSupportedLanguages } from '../WfLanguageCenter';
 import { wfLibraryCenter } from '../services/WfLibraryCenter';
@@ -250,11 +250,14 @@ export const WfAddToLibrarySheet: React.FC<WfAddToLibrarySheetProps> = ({
         type="button"
         onClick={() => attachToGroup(group.id, group.name)}
         disabled={busy}
-        className={`w-full ds-card rounded-[var(--radius-card)] p-4 min-h-[68px] flex items-center gap-3 text-left hover:ring-2 transition-all ${
+        className={`group/row w-full ds-row rounded-[var(--radius-card)] p-3.5 min-h-[68px] flex items-center gap-3 text-left ${
           busy && !isAdding ? 'opacity-50 cursor-not-allowed' : ''
         }`}
-        style={{ '--tw-ring-color': 'var(--klein-ring)' } as React.CSSProperties}
       >
+        {/* Group initial in a gradient chip */}
+        <span className="ds-bento-chip flex-shrink-0 w-11 h-11 text-base font-extrabold" aria-hidden>
+          {(group.name || '?').trim().charAt(0).toUpperCase()}
+        </span>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-[var(--color-text-primary)] truncate">
             {group.name}
@@ -266,7 +269,7 @@ export const WfAddToLibrarySheet: React.FC<WfAddToLibrarySheetProps> = ({
               </Badge>
             )}
             {isDefault && (
-              <Badge tone="neutral" className="!px-2 !py-0.5">
+              <Badge tone="neutral" dot className="!px-2 !py-0.5">
                 {t('learning.defaultGroup') || 'Default Group'}
               </Badge>
             )}
@@ -280,38 +283,41 @@ export const WfAddToLibrarySheet: React.FC<WfAddToLibrarySheetProps> = ({
             </p>
           )}
         </div>
-        <div className="flex-shrink-0 text-[var(--klein-blue)]">
+        {/* Add affordance in a circular chip that scales on row hover */}
+        <span className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-[var(--klein-blue-soft)] text-[var(--klein-blue)] transition-transform duration-300 group-hover/row:scale-110 group-hover/row:rotate-90">
           {isAdding ? <Spinner size="sm" /> : <Plus className="w-4 h-4" aria-hidden />}
-        </div>
+        </span>
       </button>
     );
   };
 
   return (
     <Sheet open={open && !!content} onClose={guardedClose} position="bottom">
-      {/* Header — what is being added (title + type icon) + close */}
-      <div className="flex items-center justify-between gap-3 mb-1">
-        <h2 className="text-lg font-bold text-[var(--color-text-primary)] truncate">
-          {t('home.addToGroup') || 'Add to Study Group'}
-        </h2>
-        <button
-          type="button"
-          onClick={guardedClose}
-          disabled={addingToGroup !== null}
-          className="ds-touch-target flex-shrink-0 flex items-center justify-center rounded-full hover:bg-[var(--color-primary-container)] transition-colors text-[var(--color-text-secondary)] disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label={t('common.close') || 'Close'}
-        >
-          <Icons.Close />
-        </button>
-      </div>
-      {content && (
-        <div className="flex items-center gap-2 mb-4 min-w-0 text-[var(--color-text-secondary)]">
-          <span className="flex-shrink-0 text-[var(--klein-blue)]">
+      {/* Header — gradient type chip + what is being added + close */}
+      <div className="flex items-start gap-3 mb-4">
+        {content && (
+          <span className="ds-bento-chip flex-shrink-0 w-11 h-11 [&_svg]:w-5 [&_svg]:h-5" aria-hidden>
             <ContentTypeIcon kind={content.kind} />
           </span>
-          <p className="text-sm truncate">{contentTitle(content)}</p>
+        )}
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg font-bold text-[var(--color-text-primary)] truncate leading-tight">
+            {t('home.addToGroup') || 'Add to Study Group'}
+          </h2>
+          {content && (
+            <p className="text-sm text-[var(--color-text-secondary)] truncate mt-0.5">
+              {contentTitle(content)}
+            </p>
+          )}
         </div>
-      )}
+        <IconButton
+          icon={<Icons.Close />}
+          onClick={guardedClose}
+          disabled={addingToGroup !== null}
+          label={t('common.close') || 'Close'}
+          className="flex-shrink-0"
+        />
+      </div>
 
       <div className="max-h-[55vh] overflow-y-auto no-scrollbar ds-stack ds-stack-tight">
         {loading ? (
@@ -400,10 +406,11 @@ export const WfAddToLibrarySheet: React.FC<WfAddToLibrarySheetProps> = ({
               type="button"
               onClick={() => setShowCreateForm(true)}
               disabled={busy}
-              className="w-full ds-card rounded-[var(--radius-card)] p-4 min-h-[56px] flex items-center justify-center gap-2 text-sm font-bold text-[var(--klein-blue)] hover:ring-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ '--tw-ring-color': 'var(--klein-ring)' } as React.CSSProperties}
+              className="group/add w-full ds-empty rounded-[var(--radius-card)] p-3.5 min-h-[60px] flex items-center justify-center gap-2.5 text-sm font-bold text-[var(--klein-blue)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Plus className="w-4 h-4" aria-hidden />
+              <span className="ds-bento-chip w-8 h-8 [&_svg]:w-4 [&_svg]:h-4 transition-transform duration-300 group-hover/add:scale-110 group-hover/add:rotate-90" aria-hidden>
+                <Plus />
+              </span>
               {t('home.createNewGroup') || 'Create New Group'}
             </button>
           )}

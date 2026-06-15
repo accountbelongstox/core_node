@@ -20,7 +20,10 @@ Per provider:
 
 from typing import Dict, Any, Tuple, List, Optional, FrozenSet
 
-from pycore.pyfoundations.secret_manager import get_secret_key, get_secret_key_indexed
+from pycore.pyfoundations.secret_manager import (
+    get_secret_key, get_secret_key_indexed, get_all_secret_keys_indexed,
+)
+from pycore.pyctl.ai import ai_key_rotation
 
 # Free OpenRouter models (subset; full list: openrouter.ai/models?q=free)
 _OPENROUTER_FREE = (
@@ -233,11 +236,14 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "client": "cloudflare",
         "default_model": "@cf/meta/llama-3-8b-instruct",
         "free_models": ("@cf/meta/llama-3-8b-instruct", "@cf/meta/llama-3.1-8b-instruct"),
-        "limits": "Workers AI free daily neurons allocation (varies by plan)",
+        "limits": "Workers AI free daily neurons allocation (varies by plan). "
+                  "Image: SDXL (@cf/stabilityai/...) within the free neuron budget",
         "tier": "free",
         "vision": False,
-        "image": False,
-        "image_model": "",
+        "image": True,
+        # Cloudflare Workers AI text-to-image (free neurons). POST .../ai/run/{model}
+        # with {prompt} -> raw PNG bytes. Needs CLOUDFLARE_API_TOKEN + ACCOUNT_ID.
+        "image_model": "@cf/stabilityai/stable-diffusion-xl-base-1.0",
     },
     "siliconflow": {
         "key_base": "SILICONFLOW_API_KEY",
@@ -247,11 +253,16 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "base_url_default": "https://api.siliconflow.cn/v1",
         "default_model": "Qwen/Qwen2.5-7B-Instruct",
         "free_models": ("Qwen/Qwen2.5-7B-Instruct", "deepseek-ai/DeepSeek-V2.5"),
-        "limits": "Selected models free (e.g. Qwen2.5-7B); paid models per token",
+        "limits": "Selected models free (e.g. Qwen2.5-7B); paid models per token. "
+                  "Image: Kolors / FLUX / SDXL via /images/generations (very low cost)",
         "tier": "free",
         "vision": False,
-        "image": False,
-        "image_model": "",
+        "image": True,
+        # SiliconFlow aggregates open-source image models (FLUX/SDXL/Kolors).
+        # OpenAI-style POST {base}/images/generations -> {images:[{url}]}.
+        # FLUX.1-schnell (Apache-2.0) is the cheapest/free-tier option — kept in
+        # sync with the Laravel registry (AiProviderRegistry) for cross-stack parity.
+        "image_model": "black-forest-labs/FLUX.1-schnell",
     },
     "dashscope": {
         "key_base": "DASHSCOPE_API_KEY",
@@ -326,11 +337,14 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "base_url_default": "https://ark.cn-beijing.volces.com/api/v3",
         "default_model": "doubao-1-5-pro-32k",
         "free_models": ("doubao-1-5-lite-32k", "doubao-1-5-pro-32k"),
-        "limits": "Volcano Ark prepaid; some lite models have free trial quota",
+        "limits": "Volcano Ark prepaid; some lite models have free trial quota. "
+                  "Image: Doubao Seedream (photoreal) via /images/generations",
         "tier": "paid",
         "vision": True,
-        "image": False,
-        "image_model": "",
+        "image": True,
+        # ByteDance Doubao Seedream text-to-image via Volcano Ark (OpenAI-style
+        # /images/generations, bearer ARK_API_KEY) -> data[].url.
+        "image_model": "doubao-seedream-3-0-t2i-250415",
     },
     "moonshot": {
         "key_base": "MOONSHOT_API_KEY",
@@ -420,6 +434,79 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "image": False,
         "image_model": "",
     },
+    # ---- image-only providers (no chat; image_only excludes from text dispatch) -
+    "pollinations": {
+        # Public, NO API KEY. GET image.pollinations.ai/prompt/{text} -> image bytes.
+        "key_base": "",
+        "keyless": True,
+        "image_only": True,
+        "default_model": "flux",
+        "free_models": ("flux", "turbo"),
+        "limits": "Free & open, no API key (best-effort public service)",
+        "tier": "free",
+        "vision": False,
+        "image": True,
+        "image_model": "flux",
+    },
+    "imagen": {
+        # Google Imagen via the Gemini API key (generativelanguage :predict).
+        # Shares GOOGLE_API_KEY; add GOOGLE_API_KEY_IMAGE to isolate its budget.
+        "key_base": "GOOGLE_API_KEY",
+        "key_names": ("GOOGLE_API_KEY_1", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY"),
+        "image_only": True,
+        "default_model": "imagen-3.0-generate-002",
+        "free_models": ("imagen-3.0-generate-002",),
+        "limits": "Imagen 3 via Gemini API (billed; Vertex $300 trial / paid tier)",
+        "tier": "paid",
+        "vision": False,
+        "image": True,
+        "image_model": "imagen-3.0-generate-002",
+    },
+    "azure": {
+        # Azure OpenAI DALL-E 3. Needs AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT
+        # (+ optional AZURE_OPENAI_IMAGE_DEPLOYMENT, default 'dall-e-3').
+        "key_base": "AZURE_OPENAI_API_KEY",
+        "key_names": ("AZURE_OPENAI_API_KEY_1", "AZURE_OPENAI_API_KEY_2", "AZURE_OPENAI_API_KEY"),
+        "extra_required": ("AZURE_OPENAI_ENDPOINT",),
+        "image_only": True,
+        "default_model": "dall-e-3",
+        "free_models": ("dall-e-3",),
+        "limits": "Azure OpenAI DALL-E 3 ($200 new-account credit; paid after)",
+        "tier": "paid",
+        "vision": False,
+        "image": True,
+        "image_model": "dall-e-3",
+    },
+    "bedrock": {
+        # AWS Bedrock Titan Image Generator (SigV4-signed). Needs
+        # AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (+ optional AWS_REGION).
+        "key_base": "AWS_ACCESS_KEY_ID",
+        "key_names": ("AWS_ACCESS_KEY_ID_1", "AWS_ACCESS_KEY_ID"),
+        "extra_required": ("AWS_SECRET_ACCESS_KEY",),
+        "image_only": True,
+        "default_model": "amazon.titan-image-generator-v1",
+        "free_models": ("amazon.titan-image-generator-v1",),
+        "limits": "AWS Bedrock Titan Image G1 (photoreal; paid, new-account credits)",
+        "tier": "paid",
+        "vision": False,
+        "image": True,
+        "image_model": "amazon.titan-image-generator-v1",
+    },
+    "vertex": {
+        # Google Vertex AI Imagen via SERVICE-ACCOUNT OAuth (RS256 JWT -> token,
+        # via google-auth). Secrets: GOOGLE_VERTEX_SA_JSON (the FULL service-account
+        # JSON) + VERTEX_PROJECT_ID (+ optional VERTEX_REGION, default us-central1).
+        "key_base": "GOOGLE_VERTEX_SA_JSON",
+        "extra_required": ("VERTEX_PROJECT_ID",),
+        "image_only": True,
+        "default_model": "imagen-3.0-generate-002",
+        "free_models": ("imagen-3.0-generate-002", "imagen-4.0-generate-001"),
+        "limits": "Vertex AI Imagen ($300 new-account credit; service-account OAuth)",
+        "tier": "paid",
+        "vision": False,
+        "image": True,
+        "image_model": "imagen-3.0-generate-002",
+    },
 }
 
 # Dispatch order: free → balance → paid; within tier = list order.
@@ -432,6 +519,8 @@ PROVIDER_ORDER: Tuple[str, ...] = (
     "volcano", "moonshot", "minimax", "stepfun", "yi",
     "openai", "anthropic", "xai",
     "together",
+    # image-only providers (listed after chat providers)
+    "pollinations", "imagen", "azure", "bedrock", "vertex",
 )
 
 OPENAI_COMPAT_PROVIDERS: FrozenSet[str] = frozenset(
@@ -439,42 +528,146 @@ OPENAI_COMPAT_PROVIDERS: FrozenSet[str] = frozenset(
 )
 
 
-def first_secret(provider: str) -> str:
-    """First non-empty secret for the provider (or '')."""
+def all_secrets(provider: str) -> List[str]:
+    """ALL keys for the provider in rotation order (indexed variants then bare,
+    then any explicit ``key_names``), de-duplicated — the rotation pool. Keyless
+    providers (no API key needed) return a single placeholder slot."""
     meta = PROVIDERS.get(provider, {})
+    if meta.get("keyless"):
+        return [""]  # one slot so rotation/counters work; the helper needs no key
+    keys: List[str] = []
+    seen = set()
     base = meta.get("key_base")
     if base:
-        val = get_secret_key_indexed(base)
-        if val:
-            return val
+        for v in get_all_secret_keys_indexed(base):
+            if v not in seen:
+                seen.add(v)
+                keys.append(v)
     for name in meta.get("key_names", ()):
-        val = get_secret_key(name)
-        if val:
-            return val
-    return ""
+        v = get_secret_key(name)
+        if v and v not in seen:
+            seen.add(v)
+            keys.append(v)
+    return keys
+
+
+def active_secret(provider: str) -> Tuple[int, str]:
+    """(slot_index, key) for the active (non-cooled) key — the rotation picks the
+    first key not on cooldown. (-1, '') when the provider has no key."""
+    return ai_key_rotation.select_active(provider, all_secrets(provider))
+
+
+def first_secret(provider: str) -> str:
+    """Active (non-cooled) key for the provider (or ''). Now rotation-aware: when
+    the current key is cooling down after a 429/quota hit, this returns the NEXT
+    key automatically, so every call site rotates with no extra plumbing."""
+    return active_secret(provider)[1]
+
+
+def all_image_secrets(provider: str) -> List[str]:
+    """Image rotation pool: dedicated image keys (``{BASE}_IMAGE``...) if any,
+    else the provider's normal key list. Keyless providers return one slot."""
+    meta = PROVIDERS.get(provider, {})
+    if meta.get("keyless"):
+        return [""]
+    base = meta.get("key_base")
+    img = get_all_secret_keys_indexed(f"{base}_IMAGE") if base else []
+    return img if img else all_secrets(provider)
+
+
+def active_image_secret(provider: str) -> Tuple[int, str]:
+    """(slot_index, key) for the active IMAGE key. Image rotation state is kept
+    under a separate ``{provider}#image`` namespace so image cooldowns never
+    block text and vice-versa (independent budgets)."""
+    return ai_key_rotation.select_active(f"{provider}#image", all_image_secrets(provider))
 
 
 def image_first_secret(provider: str) -> str:
-    """Key for IMAGE generation, preferring a DEDICATED image key so the image
-    budget is isolated from heavy text usage.
-
-    Tries ``{key_base}_IMAGE`` (indexed ``_IMAGE_1..5`` then bare ``_IMAGE``)
-    first, then falls back to the provider's normal key. Add e.g.
-    ``GOOGLE_API_KEY_IMAGE`` / ``ZHIPUAI_API_KEY_IMAGE`` to give image its own
-    provider-side quota (text usage on the normal key can't exhaust it).
-    """
-    meta = PROVIDERS.get(provider, {})
-    base = meta.get("key_base")
-    if base:
-        val = get_secret_key_indexed(f"{base}_IMAGE")
-        if val:
-            return val
-    return first_secret(provider)
+    """Active (non-cooled) IMAGE key, preferring a DEDICATED image key so the
+    image budget is isolated from heavy text usage. Add e.g.
+    ``GOOGLE_API_KEY_IMAGE`` / ``ZHIPUAI_API_KEY_IMAGE`` (indexed ``_IMAGE_1..5``)
+    to give image its own provider-side quota."""
+    return active_image_secret(provider)[1]
 
 
 def has_image_key(provider: str) -> bool:
-    """True when an image-usable key exists (dedicated image key OR normal key)."""
-    return bool(image_first_secret(provider))
+    """True when the provider can generate images now: keyless, or at least one
+    image-usable key exists (dedicated or normal)."""
+    if PROVIDERS.get(provider, {}).get("keyless"):
+        return True
+    return any(all_image_secrets(provider))
+
+
+# -------------------- rotation cooldown / status helpers --------------------
+
+def mark_text_key_cooldown(provider: str, secs: Optional[float] = None,
+                           error: Optional[str] = None) -> None:
+    """Cool down the provider's CURRENT text key after a 429/quota hit so the
+    next call rotates to the next key."""
+    idx, _ = active_secret(provider)
+    ai_key_rotation.mark_cooldown(
+        provider, idx, secs if secs is not None else ai_key_rotation.DEFAULT_KEY_COOLDOWN_S, error)
+
+
+def mark_image_key_cooldown(provider: str, idx: int, secs: Optional[float] = None,
+                            error: Optional[str] = None) -> None:
+    """Cool down a specific IMAGE key slot (the gateway threads the slot it used)."""
+    ai_key_rotation.mark_cooldown(
+        f"{provider}#image", idx,
+        secs if secs is not None else ai_key_rotation.DEFAULT_KEY_COOLDOWN_S, error)
+
+
+def record_image_key(provider: str, idx: int, ok: bool, error: Optional[str] = None) -> None:
+    """Count one image attempt against a key slot (UI stats + per-key rate)."""
+    ai_key_rotation.record(f"{provider}#image", idx, ok, error)
+
+
+def record_text_key(provider: str, idx: int, ok: bool, error: Optional[str] = None) -> None:
+    """Count one TEXT attempt against a key slot (UI stats + per-key rate)."""
+    ai_key_rotation.record(provider, idx, ok, error)
+
+
+def text_key_rate_ok(provider: str, idx: int,
+                     rpm: Optional[int] = None, rpd: Optional[int] = None) -> bool:
+    """True when the active TEXT key is within its own per-key minute/day budget."""
+    return ai_key_rotation.rate_ok(provider, idx, rpm, rpd)
+
+
+def image_key_rate_ok(provider: str, idx: int,
+                      rpm: Optional[int] = None, rpd: Optional[int] = None) -> bool:
+    """True when the active IMAGE key is within its own per-key minute/day budget."""
+    return ai_key_rotation.rate_ok(f"{provider}#image", idx, rpm, rpd)
+
+
+def image_ready_now(provider: str) -> bool:
+    """True when the provider has an image key that is NOT on cooldown right now —
+    used to SKIP dead/blocked/rate-limited providers in the image dispatch chain."""
+    return ai_key_rotation.has_ready_key(f"{provider}#image", all_image_secrets(provider))
+
+
+def reset_text_key_cooldown(provider: str, idx: Optional[int] = None) -> int:
+    """Manually clear the text-key cooldown for one slot or all (UI override)."""
+    return ai_key_rotation.reset_cooldown(provider, idx)
+
+
+def reset_image_key_cooldown(provider: str, idx: Optional[int] = None) -> int:
+    """Manually clear the image-key cooldown for one slot or all (UI override)."""
+    return ai_key_rotation.reset_cooldown(f"{provider}#image", idx)
+
+
+def key_status(provider: str) -> List[Dict[str, Any]]:
+    """Per-key text rotation status (index / masked / cooldown_s / counters)."""
+    return ai_key_rotation.status(provider, all_secrets(provider))
+
+
+def image_key_status(provider: str) -> List[Dict[str, Any]]:
+    """Per-key IMAGE rotation status."""
+    return ai_key_rotation.status(f"{provider}#image", all_image_secrets(provider))
+
+
+def key_count(provider: str) -> int:
+    """Number of keys configured for the provider (rotation pool size)."""
+    return len(all_secrets(provider))
 
 
 def extra_secret(provider: str, key_name: Optional[str] = None) -> str:
@@ -502,11 +695,24 @@ def base_url(provider: str) -> str:
 
 def is_configured(provider: str) -> bool:
     """True when required secrets are present."""
+    meta = PROVIDERS.get(provider, {})
+    if meta.get("keyless"):
+        return True  # public, no-key provider (e.g. Pollinations)
     if not first_secret(provider):
         return False
+    # Providers needing a secondary secret to actually work.
+    for extra in meta.get("extra_required", ()):
+        if not extra_secret(provider, extra):
+            return False
     if provider == "cloudflare" and not extra_secret("cloudflare"):
         return False
     return True
+
+
+def is_image_only(provider: str) -> bool:
+    """True for providers that ONLY generate images (no chat) — excluded from the
+    text dispatch chain."""
+    return bool(PROVIDERS.get(provider, {}).get("image_only"))
 
 
 def default_model(provider: str) -> str:
@@ -533,7 +739,12 @@ def catalog_models(provider: str, max_count: int = 5) -> List[str]:
 __all__ = [
     "PROVIDERS", "PROVIDER_ORDER", "OPENAI_COMPAT_PROVIDERS",
     "first_secret", "image_first_secret", "has_image_key",
-    "extra_secret", "base_url", "is_configured",
+    "all_secrets", "all_image_secrets", "active_secret", "active_image_secret",
+    "mark_text_key_cooldown", "mark_image_key_cooldown",
+    "record_image_key", "record_text_key", "text_key_rate_ok", "image_key_rate_ok",
+    "image_ready_now", "reset_text_key_cooldown", "reset_image_key_cooldown",
+    "key_status", "image_key_status", "key_count",
+    "extra_secret", "base_url", "is_configured", "is_image_only",
     "default_model", "image_model",
     "free_models", "limits_note", "catalog_models",
 ]

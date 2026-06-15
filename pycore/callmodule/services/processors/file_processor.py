@@ -7,12 +7,14 @@ import time
 from typing import Dict, Any, List
 from pathlib import Path
 
+from pycore.pyfoundations.system_paths import get_app_temp_dir
+
 
 class FileProcessor:
     """Processor for file analysis (PDF, DOCX, XLSX, etc.)"""
 
     def __init__(self):
-        self.output_dir = Path("./temp/files")
+        self.output_dir = get_app_temp_dir() / "files"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def analyze_file(self, file_path: str, config: Dict[str, Any]) -> Dict[str, Any]:

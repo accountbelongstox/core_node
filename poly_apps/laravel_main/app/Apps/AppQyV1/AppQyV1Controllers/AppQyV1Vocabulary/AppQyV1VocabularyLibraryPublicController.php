@@ -427,7 +427,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
      * image_files (the previous SQL selected `d.image_files as word_details`),
      * and the audio check uses the row's own tts_files (no extra md5 lookup).
      */
-    private static function buildWordEntryFromDictionaryRow(AppQyV1LangDictionaryModel $row): array
+    public static function buildWordEntryFromDictionaryRow(AppQyV1LangDictionaryModel $row): array
     {
         $translations = self::simpleTranslationsFromDecoded($row->translations);
         $hasTranslation = $translations !== null;

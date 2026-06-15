@@ -59,6 +59,7 @@ from pycore.callmodule.routers.local import (
     ai_probe_router,
     ai_chat_router,
     ai_image_router,
+    ai_keys_router,
     translation_queue_router,
     task_center_router,
     assist_router,
@@ -514,6 +515,7 @@ def start(host='0.0.0.0', port=59000, debug=False):
             ai_probe_router,         # AI provider probe (/api/local/ai/probe)
             ai_chat_router,          # AI chat confirm (/api/local/ai/chat)
             ai_image_router,         # AI image generation (/api/local/ai/image)
+            ai_keys_router,          # AI provider key management (/api/local/ai/keys)
             translation_queue_router,# Translation queue monitor + control (/api/local/translation/queue)
             task_center_router,      # Unified task-center aggregate (/api/local/task-center)
             assist_router,           # Assist-Laravel worker control (/api/local/assist)

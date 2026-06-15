@@ -130,11 +130,16 @@ const AiUsagePanel: React.FC<AiUsagePanelProps> = ({ fetchUsage, title = 'AI Usa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
+  // Keep the latest fetchUsage in a ref so `load` stays identity-stable even when
+  // the parent passes an inline arrow (which changes every render) — otherwise the
+  // poll interval below would tear down and restart on every parent re-render.
+  const fetchRef = useRef(fetchUsage);
+  fetchRef.current = fetchUsage;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetchUsage(FETCH_LIMIT);
+      const res = await fetchRef.current(FETCH_LIMIT);
       if (!mounted.current) return;
       if (res.success && res.data) {
         setData(res.data as UsageResponse);
@@ -147,7 +152,7 @@ const AiUsagePanel: React.FC<AiUsagePanelProps> = ({ fetchUsage, title = 'AI Usa
     } finally {
       if (mounted.current) setLoading(false);
     }
-  }, [fetchUsage]);
+  }, []);
 
   useEffect(() => {
     mounted.current = true;

@@ -41,8 +41,8 @@ initialize_menu_items() {
     menu_items["Linux Management"]="text=Linux Management;values=default;current=0;key=LINUX_MANAGEMENT_MENU;action=show_linux_management_submenu"
     menu_order+=("Linux Management")
 
-    menu_items["Sync All MCP Services"]="text=Sync All MCP Services (AI Tools);values=default;current=0;key=MCP_SYNC_MENU;action=sync_all_mcp"
-    menu_order+=("Sync All MCP Services")
+    menu_items["AI & MCP Management"]="text=AI & MCP Management (status/install/sync 8 tools);values=default;current=0;key=AI_MCP_MENU;action=show_ai_mcp_management"
+    menu_order+=("AI & MCP Management")
 
     menu_items["Push to git"]="text=Push to git;values=all,gitee,github,local;current=0;key=GIT_PUSH_TARGET;action=push_git"
     menu_order+=("Push to git")

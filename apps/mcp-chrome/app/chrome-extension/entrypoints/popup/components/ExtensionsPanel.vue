@@ -1,91 +1,207 @@
 <template>
-  <div class="flex flex-col gap-3 max-h-[400px]">
-    <!-- Global Task System (reference) -->
-    <div class="flex items-center justify-between p-2 bg-indigo-950/20 border border-indigo-500/30 rounded mb-1">
-      <span class="text-[10px] font-bold text-indigo-400 uppercase">Global Task System</span>
-      <button
-        @click="isTaskSystemRunning ? stopTaskSystem() : startTaskSystem()"
-        :class="['w-8 h-4 rounded-full relative transition-colors', isTaskSystemRunning ? 'bg-indigo-600' : 'bg-slate-600']"
-      >
-        <div :class="['absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all', isTaskSystemRunning ? 'left-4.5' : 'left-0.5']" />
-      </button>
-    </div>
-    <div class="flex gap-2">
-      <button v-if="!isTaskSystemRunning" @click="startTaskSystem" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded transition-colors">▶ Start</button>
-      <template v-else>
-        <button v-if="!isPaused" @click="pauseTaskSystem" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded transition-colors">⏸ Pause</button>
-        <button v-else @click="resumeTaskSystem" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded transition-colors">▶ Resume</button>
-        <button @click="stopTaskSystem" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold rounded transition-colors">⏹ Stop</button>
-      </template>
-    </div>
-    <div v-if="isTaskSystemRunning && !isPaused" class="p-2 bg-emerald-950/20 border border-emerald-500/30 rounded text-[10px] text-emerald-400">
-      {{ enabledExtensionsCount }} extensions enabled · {{ stats.completed }} completed<span v-if="stats.pending > 0"> · {{ stats.pending }} pending</span>
-    </div>
-    <div v-if="error" class="p-2 bg-rose-950/30 border border-rose-500/40 rounded text-[10px] text-rose-400">{{ error }}</div>
-
-    <!-- Extensions list (reference) -->
-    <div class="flex items-center justify-between mb-2">
-      <h2 class="text-[10px] font-bold text-slate-400 uppercase">Extensions</h2>
-      <button @click="toggleExpandAll" class="text-[10px] text-indigo-400 hover:underline">{{ isAllExpanded ? 'Collapse All' : 'Expand All' }}</button>
-    </div>
-    <div class="flex-1 overflow-y-auto space-y-1 pr-1 no-scrollbar">
+  <div class="flex flex-col gap-2.5 max-h-[420px]">
+    <!-- ============================================================ -->
+    <!-- Global Task System control block -->
+    <!-- ============================================================ -->
+    <div class="rounded-lg overflow-hidden" style="background: var(--surface); border: 1px solid var(--border)">
       <div
-        v-for="extension in extensions"
-        :key="extension.id"
-        @click="toggleExpanded(extension.id)"
-        :class="[
-          'p-2 rounded border cursor-pointer transition-all',
-          isExpanded(extension.id).value ? 'bg-indigo-600/20 border-indigo-500/50' : 'bg-slate-800/30 border-slate-700/50 hover:bg-slate-800'
-        ]"
+        class="flex items-center justify-between px-3 py-2 bg-gradient-to-r from-indigo-600/20 to-purple-600/10"
+        style="border-bottom: 1px solid var(--border)"
       >
-        <div class="flex justify-between items-center">
-          <span class="text-[11px] font-medium text-slate-200">{{ extension.name }}</span>
-          <button @click.stop="toggleExtension(extension.id)" class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors" :class="extension.enabled ? 'bg-indigo-600' : 'bg-slate-600'">
-            <span :class="['inline-block h-3 w-3 rounded-full bg-white transition-transform', extension.enabled ? 'translate-x-3.5' : 'translate-x-0.5']" />
-          </button>
+        <div class="flex items-center gap-2 min-w-0">
+          <span
+            :class="[
+              'relative flex h-2 w-2 shrink-0',
+            ]"
+          >
+            <span
+              v-if="isTaskSystemRunning && !isPaused"
+              class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping"
+            ></span>
+            <span
+              :class="[
+                'relative inline-flex h-2 w-2 rounded-full',
+                isTaskSystemRunning ? (isPaused ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-slate-500',
+              ]"
+            ></span>
+          </span>
+          <span class="text-[10px] font-bold text-slate-200 uppercase tracking-wide truncate">
+            {{ getMessage('extGlobalTaskSystem') }}
+          </span>
         </div>
-        <p class="text-[9px] text-slate-500">{{ extension.description }}</p>
-        <span v-if="extension.enabled && isTaskSystemRunning" class="inline-flex items-center gap-1 mt-1">
-          <span class="w-1 h-1 bg-indigo-500 rounded-full animate-pulse"></span>
-          <span class="text-[9px] text-indigo-400">Running</span>
+        <span
+          :class="[
+            'text-[9px] font-bold px-1.5 py-0.5 rounded-full',
+            isTaskSystemRunning
+              ? (isPaused ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/20 text-emerald-300')
+              : 'bg-slate-600/40 text-slate-400',
+          ]"
+        >
+          {{ isTaskSystemRunning ? (isPaused ? getMessage('extStatePaused') : getMessage('extStateRunning')) : getMessage('extStateStopped') }}
         </span>
       </div>
+
+      <div class="p-2.5 flex flex-col gap-2">
+        <!-- Control buttons -->
+        <div class="flex gap-2">
+          <button
+            v-if="!isTaskSystemRunning"
+            @click="startTaskSystem"
+            class="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-md transition-colors"
+          >
+            ▶ {{ getMessage('extStartButton') }}
+          </button>
+          <template v-else>
+            <button
+              v-if="!isPaused"
+              @click="pauseTaskSystem"
+              class="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-bold rounded-md transition-colors"
+            >
+              ⏸ {{ getMessage('extPauseButton') }}
+            </button>
+            <button
+              v-else
+              @click="resumeTaskSystem"
+              class="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-md transition-colors"
+            >
+              ▶ {{ getMessage('extResumeButton') }}
+            </button>
+            <button
+              @click="stopTaskSystem"
+              class="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold rounded-md transition-colors"
+            >
+              ⏹ {{ getMessage('extStopButton') }}
+            </button>
+          </template>
+        </div>
+
+        <!-- Stats line -->
+        <div
+          v-if="isTaskSystemRunning && !isPaused"
+          class="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2 py-1 rounded-md bg-emerald-950/30 border border-emerald-500/20 text-[9px] text-emerald-300"
+        >
+          <span>{{ enabledExtensionsCount }} {{ getMessage('extEnabledLabel') }}</span>
+          <span class="text-emerald-500/50">·</span>
+          <span>{{ stats.completed }} {{ getMessage('extCompletedLabel') }}</span>
+          <template v-if="stats.pending > 0">
+            <span class="text-emerald-500/50">·</span>
+            <span>{{ stats.pending }} {{ getMessage('extPendingLabel') }}</span>
+          </template>
+        </div>
+
+        <div
+          v-if="error"
+          class="px-2 py-1 rounded-md bg-rose-950/40 border border-rose-500/40 text-[9px] text-rose-300"
+        >
+          {{ error }}
+        </div>
+      </div>
     </div>
-    <div v-if="isExpanded(extensions.find(e => isExpanded(e.id).value)?.id).value" class="border-t border-slate-700 pt-3 mt-2">
-      <component v-if="extensions.find(e => isExpanded(e.id).value)?.component" :is="extensions.find(e => isExpanded(e.id).value)!.component" />
-      <div v-else class="text-[10px] text-slate-500">No configuration for this extension.</div>
+
+    <!-- ============================================================ -->
+    <!-- Horizontal extension tabs -->
+    <!-- ============================================================ -->
+    <div class="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5 shrink-0">
+      <button
+        v-for="extension in extensions"
+        :key="extension.id"
+        @click="activeExtId = extension.id"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[10px] font-bold whitespace-nowrap transition-colors shrink-0"
+        :style="
+          activeExtId === extension.id
+            ? 'background: var(--accent-soft); color: var(--accent-fg); border: 1px solid var(--accent)'
+            : 'color: var(--text-muted); border: 1px solid transparent'
+        "
+      >
+        <span class="text-sm leading-none">{{ extension.icon }}</span>
+        {{ extension.name }}
+        <span
+          v-if="extension.enabled && isTaskSystemRunning && !isPaused"
+          class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"
+        ></span>
+      </button>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- Active extension panel -->
+    <!-- ============================================================ -->
+    <div
+      v-if="activeExtension"
+      class="flex-1 overflow-y-auto no-scrollbar rounded-lg"
+      style="background: var(--surface); border: 1px solid var(--border)"
+    >
+      <!-- Panel header: name + enable toggle -->
+      <div
+        class="flex items-center justify-between px-3 py-2 sticky top-0 z-10"
+        style="background: var(--surface); border-bottom: 1px solid var(--border)"
+      >
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="text-sm leading-none">{{ activeExtension.icon }}</span>
+          <div class="min-w-0">
+            <div class="text-[11px] font-semibold truncate" style="color: var(--text)">
+              {{ activeExtension.name }}
+            </div>
+            <div class="text-[9px] truncate" style="color: var(--text-faint)">
+              {{ activeExtension.description }}
+            </div>
+          </div>
+        </div>
+        <button
+          @click="toggleExtension(activeExtension.id)"
+          :class="[
+            'relative inline-flex h-4 w-7 items-center rounded-full transition-colors shrink-0',
+            activeExtension.enabled ? 'bg-indigo-600' : 'bg-slate-500',
+          ]"
+          :aria-pressed="activeExtension.enabled"
+        >
+          <span
+            :class="[
+              'inline-block h-3 w-3 rounded-full bg-white transition-transform',
+              activeExtension.enabled ? 'translate-x-3.5' : 'translate-x-0.5',
+            ]"
+          />
+        </button>
+      </div>
+
+      <!-- Active component -->
+      <div class="p-2.5">
+        <component v-if="activeExtension.component" :is="activeExtension.component" />
+        <div v-else class="text-[10px]" style="color: var(--text-faint)">
+          {{ getMessage('extNoConfig') }}
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { getMessage } from '@/utils/i18n';
 import { useExtensionConfig } from '@/composables/useExtensionConfig';
 import { useLocalTaskQueue } from '../composables/useLocalTaskQueue';
-import ApiSettings from './ApiSettings.vue';
 import BingDictionary from './extensions/BingDictionary.vue';
-import DeepseekChat from './extensions/DeepseekChat.vue';
-import LocalTaskQueue from './extensions/LocalTaskQueue.vue';
-import LogViewerPanel from './extensions/LogViewerPanel.vue';
+import QueueCenterPanel from './extensions/QueueCenterPanel.vue';
 
 // ============================================================
-// 使用中心化状态管理
+// Centralized state management
 // ============================================================
 
-// 扩展配置管理
+// Extension config management
 const {
   extensions,
   enabledExtensionsCount,
   toggleExtension,
-  toggleExpanded,
-  toggleExpandAll,
-  isExpanded,
-  isAllExpanded,
   registerComponent,
   initialize: initExtensions,
 } = useExtensionConfig();
 
-// 任务队列管理
+// Horizontal tab selection (replaces the old accordion expand/collapse).
+const activeExtId = ref<string>('');
+const activeExtension = computed(
+  () => extensions.value.find((e) => e.id === activeExtId.value) || extensions.value[0],
+);
+
+// Task queue management
 const {
   stats,
   isRunning: isTaskSystemRunning,
@@ -99,17 +215,17 @@ const {
 } = useLocalTaskQueue();
 
 // ============================================================
-// 本地状态
+// Local state
 // ============================================================
 
 const error = ref('');
 
 // ============================================================
-// 任务系统控制
+// Task system control
 // ============================================================
 
 /**
- * 启动任务系统 - 使用真实队列
+ * Start the task system using the real queue.
  */
 const startTaskSystem = async () => {
   try {
@@ -123,7 +239,7 @@ const startTaskSystem = async () => {
 };
 
 /**
- * 停止任务系统 - 使用真实队列
+ * Stop the task system using the real queue.
  */
 const stopTaskSystem = async () => {
   try {
@@ -137,7 +253,7 @@ const stopTaskSystem = async () => {
 };
 
 /**
- * 暂停任务系统 - 使用真实队列
+ * Pause the task system using the real queue.
  */
 const pauseTaskSystem = async () => {
   try {
@@ -151,7 +267,7 @@ const pauseTaskSystem = async () => {
 };
 
 /**
- * 恢复任务系统 - 使用真实队列
+ * Resume the task system using the real queue.
  */
 const resumeTaskSystem = async () => {
   try {
@@ -165,37 +281,39 @@ const resumeTaskSystem = async () => {
 };
 
 // ============================================================
-// 组件注册
+// Component registration
 // ============================================================
 
 /**
- * 注册所有扩展组件
+ * Register all extension components.
  */
 const registerAllComponents = () => {
-  registerComponent('api-settings', ApiSettings);
-  registerComponent('local-task-queue', LocalTaskQueue);
-  registerComponent('log-viewer', LogViewerPanel);
+  registerComponent('queue-center', QueueCenterPanel);
   registerComponent('bing-dictionary', BingDictionary);
-  registerComponent('deepseek-chat', DeepseekChat);
 };
 
 // ============================================================
-// 生命周期
+// Lifecycle
 // ============================================================
 
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
 
 onMounted(async () => {
-  // 初始化扩展配置
+  // Initialize extension config
   await initExtensions();
 
-  // 注册组件
+  // Register components
   registerAllComponents();
 
-  // 初始状态更新
+  // Default the active tab to the first extension.
+  if (!activeExtId.value && extensions.value.length > 0) {
+    activeExtId.value = extensions.value[0].id;
+  }
+
+  // Initial state update
   await updateState();
 
-  // 定期更新状态（每2秒）
+  // Periodic state update (every 2 seconds)
   pollingInterval = setInterval(() => {
     updateState();
   }, 2000);

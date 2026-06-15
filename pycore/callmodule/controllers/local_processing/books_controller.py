@@ -14,11 +14,19 @@ an exception, so a folder scan never fails as a whole.
 
 import os
 import re
+import json
 import time
+import collections
 from typing import List, Optional, Tuple
 
-from pycore import ColorPrint, get_user_data_store
+from pycore import ColorPrint, get_user_data_store, THREAD_BUS
 from pycore.pyfoundations.system_paths import get_app_data_dir
+from pycore.pyfoundations.text_parsing import (
+    tokenize_words,
+    split_sentences,
+    normalize_sentence_key,
+    language_breakdown,
+)
 from pycore.pyutils.text_stats import compute_text_stats, merge_stats
 from pycore.callmodule.services.processors.book_processor import (
     BOOK_EXTENSIONS,
@@ -30,6 +38,7 @@ from pycore.callmodule.services.processors.book_processor import (
 from pycore.callmodule.services.sync.laravel_media_sync import (
     source_key_for,
     sync_book_source,
+    SYNC_EVENT,
 )
 
 # User-data section persisting Books sources + their (compact) analysis +
@@ -44,6 +53,9 @@ def _norm_path(path: str) -> str:
 # Where drag-dropped uploads (no OS path in the browser sandbox) are staged on
 # disk so they get a stable absolute path the ingest pipeline can read + key on.
 _STAGING_SUBDIR = "books_staging"
+# Cached full drill-down lists (words/sentences/...) per source_key, so paging a
+# huge book never re-extracts/re-tokenizes the source.
+_LIST_CACHE_SUBDIR = "books_cache"
 
 
 def _safe_filename(name: str) -> str:
@@ -66,6 +78,7 @@ from ...models.local_processing.books_models import (
     BooksStateResponse,
     BookSubmitItem,
     BooksSubmitResponse,
+    BooksListResponse,
 )
 
 
@@ -373,8 +386,17 @@ class BooksController:
         total_words = 0
         any_fail = False
 
-        for path in targets:
+        for idx, path in enumerate(targets, 1):
             abs_path = os.path.abspath(path)
+            # Coarse per-source progress (helps multi-source submits); the inner
+            # sync_book_source streams the fine extract/build/ingest stages.
+            try:
+                THREAD_BUS.trigger_event(SYNC_EVENT, {
+                    "stage": "source", "done": idx, "total": len(targets),
+                    "detail": os.path.basename(abs_path), "kind": "book",
+                })
+            except Exception:
+                pass
             files = list(iter_books(abs_path)) if os.path.isdir(abs_path) else [abs_path]
             rec = next((s for s in sources if s.get("source_key") == source_key_for(abs_path)), None)
             lang = language or (rec.get("language") if rec else None) or "en"
@@ -413,3 +435,91 @@ class BooksController:
         return BooksSubmitResponse(
             success=not any_fail, items=items,
             total_sentences=total_sentences, total_words=total_words)
+
+    # ----- drill-down lists (paginated words / sentences / languages) ------ #
+    def _list_cache_path(self, source_key: str) -> str:
+        d = os.path.join(str(get_app_data_dir()), _LIST_CACHE_SUBDIR)
+        os.makedirs(d, exist_ok=True)
+        return os.path.join(d, source_key + ".json")
+
+    def _build_lists(self, path: str, fmt_filter: Optional[set],
+                     max_files: int) -> dict:
+        """Build the full drill-down lists for a source (single file or folder).
+
+        Returns {words:[{word,count}], sentences:[{seq,text}],
+                 unique_sentences:[{seq,text}], languages:[...], totals:{...}}.
+        Heavy (re-extracts + tokenizes) — callers cache the result per source_key.
+        """
+        files = self._list_files(path, fmt_filter)[:max_files]
+        parts: List[str] = []
+        for f in files:
+            try:
+                t = extract_text(f)
+            except Exception:
+                t = ""
+            if t and t.strip():
+                parts.append(t)
+        all_text = "\n\n".join(parts)
+
+        tokens = tokenize_words(all_text)
+        counter = collections.Counter(t.casefold() for t in tokens)
+        words = [{"word": w, "count": c} for w, c in counter.most_common()]
+
+        sents = split_sentences(all_text)
+        sentences = [{"seq": i, "text": s} for i, s in enumerate(sents)]
+        seen: set = set()
+        unique_sentences: List[dict] = []
+        for s in sents:
+            key = normalize_sentence_key(s)
+            if key and key not in seen:
+                seen.add(key)
+                unique_sentences.append({"seq": len(unique_sentences), "text": s})
+
+        languages = language_breakdown(all_text)
+        totals = {
+            "words": len(tokens), "unique_words": len(counter),
+            "sentences": len(sents), "unique_sentences": len(unique_sentences),
+            "chars": len(all_text),
+        }
+        return {"words": words, "sentences": sentences,
+                "unique_sentences": unique_sentences, "languages": languages,
+                "totals": totals}
+
+    def list_items(self, path: str, kind: str = "words", start: int = 0,
+                   limit: int = 100, formats: Optional[List[str]] = None,
+                   language: Optional[str] = None, refresh: bool = False,
+                   max_files: int = 25) -> BooksListResponse:
+        """One page of a source's drill-down list (cached per source_key)."""
+        try:
+            self._resolve(path)
+        except ValueError as e:
+            return BooksListResponse(success=False, kind=kind, error=str(e))
+
+        fmt_filter = _norm_formats(formats)
+        key = source_key_for(os.path.abspath(path))
+        cache_file = self._list_cache_path(key)
+        data = None
+        if not refresh and os.path.isfile(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+            except Exception:
+                data = None
+        if data is None:
+            data = self._build_lists(path, fmt_filter, max_files)
+            try:
+                with open(cache_file, "w", encoding="utf-8") as fh:
+                    json.dump(data, fh, ensure_ascii=False)
+            except OSError as e:
+                ColorPrint.yellow(f"[BooksController] list cache write failed: {e}")
+
+        # 'words' and 'unique_words' share the distinct-frequency list.
+        list_key = {"unique_words": "words"}.get(kind, kind)
+        items = data.get(list_key) or []
+        total = len(items)
+        start = max(0, int(start))
+        limit = max(1, min(1000, int(limit)))
+        page = items[start:start + limit]
+        return BooksListResponse(
+            success=True, kind=kind, total=total, start=start, limit=limit,
+            items=page, totals=data.get("totals") or {})

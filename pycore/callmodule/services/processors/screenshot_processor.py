@@ -6,8 +6,9 @@ Screenshot Processor - Core logic for screenshot capture
 import time
 import base64
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, Dict, Any
+
+from pycore.pyfoundations.system_paths import get_app_temp_dir
 
 try:
     import mss
@@ -27,7 +28,7 @@ class ScreenshotProcessor:
     """Processor for screenshot capture"""
 
     def __init__(self):
-        self.output_dir = Path("./temp/screenshots")
+        self.output_dir = get_app_temp_dir() / "screenshots"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def capture(self, config: Dict[str, Any]) -> Dict[str, Any]:

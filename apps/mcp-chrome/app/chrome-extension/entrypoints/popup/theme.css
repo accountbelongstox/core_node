@@ -1,0 +1,59 @@
+/*
+ * Popup theme tokens — the single source of truth for dark/light surfaces.
+ *
+ * Components should use these semantic variables instead of hard-coded Tailwind
+ * slate/white colors, e.g.:
+ *   style="background: var(--surface); color: var(--text); border-color: var(--border)"
+ *   or via the helper utility classes below (.tk-surface, .tk-text, …).
+ *
+ * Swapping the `theme-dark` / `theme-light` class on the popup root re-themes
+ * the entire UI. Accent (indigo) stays constant across themes.
+ */
+
+.theme-dark {
+  --bg: #0f172a; /* app background (slate-950-ish) */
+  --bg-2: #0b1222; /* deeper background (footer, code) */
+  --surface: rgba(30, 41, 59, 0.4); /* card surface (slate-800/40) */
+  --surface-2: rgba(15, 23, 42, 0.5); /* inset surface (slate-900/50) */
+  --surface-solid: #1e293b; /* opaque card (slate-800) */
+  --border: rgba(51, 65, 85, 0.5); /* slate-700/50 */
+  --border-strong: #334155; /* slate-700 */
+  --text: #e2e8f0; /* slate-200 */
+  --text-muted: #94a3b8; /* slate-400 */
+  --text-faint: #64748b; /* slate-500 */
+  --accent: #6366f1; /* indigo-500 */
+  --accent-fg: #818cf8; /* indigo-400 */
+  --accent-soft: rgba(99, 102, 241, 0.15);
+  --danger: #f43f5e;
+  --success: #10b981;
+  --warning: #f59e0b;
+}
+
+.theme-light {
+  --bg: #f1f5f9; /* slate-100 */
+  --bg-2: #e2e8f0; /* slate-200 */
+  --surface: #ffffff;
+  --surface-2: #f8fafc; /* slate-50 */
+  --surface-solid: #ffffff;
+  --border: #e2e8f0; /* slate-200 */
+  --border-strong: #cbd5e1; /* slate-300 */
+  --text: #1e293b; /* slate-800 */
+  --text-muted: #475569; /* slate-600 */
+  --text-faint: #94a3b8; /* slate-400 */
+  --accent: #6366f1;
+  --accent-fg: #4f46e5; /* indigo-600 */
+  --accent-soft: rgba(99, 102, 241, 0.1);
+  --danger: #e11d48;
+  --success: #059669;
+  --warning: #d97706;
+}
+
+/* Helper utility classes (optional sugar over the variables). */
+.tk-bg { background: var(--bg); }
+.tk-surface { background: var(--surface); border-color: var(--border); }
+.tk-surface-2 { background: var(--surface-2); }
+.tk-text { color: var(--text); }
+.tk-text-muted { color: var(--text-muted); }
+.tk-text-faint { color: var(--text-faint); }
+.tk-border { border-color: var(--border); }
+.tk-accent { color: var(--accent-fg); }

@@ -315,6 +315,47 @@ def get_app_logs_dir() -> Path:
     return logs_dir
 
 
+def get_local_data_dir() -> Path:
+    r"""
+    Get the repo-local data directory
+
+    A single, git-ignored ``.data/`` folder at the core_node repo root that
+    collects all transient/runtime artifacts that would otherwise scatter into
+    the project tree (scratch temp, captured gifs, runtime logs, etc.). Distinct
+    from :func:`get_app_data_dir` (the per-user ``~/.core_node/data``); this one
+    is intentionally inside the repo and ignored by git.
+
+    Returns:
+        Path: Repo-local data directory (<repo>/.data/)
+    """
+    data_dir = get_core_node_root() / '.data'
+
+    if not data_dir.exists():
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+    return data_dir
+
+
+def get_app_temp_dir() -> Path:
+    r"""
+    Get application temporary data directory
+
+    Canonical scratch space for transient processor output (extracted audio,
+    rendered video, captured screenshots, parsed files, etc.). Lives under the
+    repo-local, git-ignored ``.data/`` dir so it is never created loosely in the
+    (CWD-relative) project tree.
+
+    Returns:
+        Path: Application temp directory (<repo>/.data/temp/)
+    """
+    temp_dir = get_local_data_dir() / 'temp'
+
+    if not temp_dir.exists():
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+    return temp_dir
+
+
 def get_core_node_root() -> Path:
     """
     Get core_node root directory by locating from this file's position
@@ -336,6 +377,8 @@ APP_CONFIG_DIR = get_app_config_dir()
 APP_DATA_DIR = get_app_data_dir()
 APP_LOGS_DIR = get_app_logs_dir()
 CORE_NODE_ROOT = get_core_node_root()
+LOCAL_DATA_DIR = get_local_data_dir()
+APP_TEMP_DIR = get_app_temp_dir()
 
 
 def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
@@ -710,6 +753,8 @@ __all__ = [
     'get_app_config_dir',
     'get_app_data_dir',
     'get_app_logs_dir',
+    'get_local_data_dir',
+    'get_app_temp_dir',
     'get_core_node_root',
     'map_web_path',
     'SYSTEM_CACHE_DIR',
@@ -719,6 +764,8 @@ __all__ = [
     'APP_DATA_DIR',
     'APP_LOGS_DIR',
     'CORE_NODE_ROOT',
+    'LOCAL_DATA_DIR',
+    'APP_TEMP_DIR',
     # User data store (merged from user_data_store)
     'UserDataStore',
     'get_user_data_store',

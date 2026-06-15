@@ -38,6 +38,7 @@ UNIFIED_MANAGER_SCRIPT_RELATIVE="scripts/app_manager/linux_sh/app_manager.sh"
 ROUTER_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/101_lnxrouter.sh"
 DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh"
 SYNC_ALL_MCP_SCRIPT_RELATIVE="scripts/ai_shtools/sync_all_mcp_servers.sh"
+AI_MCP_MANAGEMENT_MENU_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh"
 
 # File Paths (relative to CORE_NODE_ROOT_DIR)
 GVAR_COMMON_FILE_RELATIVE="scripts/shells/linux/common/gvar_common.sh"

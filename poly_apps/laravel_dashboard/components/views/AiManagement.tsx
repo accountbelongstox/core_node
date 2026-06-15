@@ -29,6 +29,7 @@ import type {
   AiProvider, AiRateStatus, AiGatewayProvider, AiGatewayRecord, AiChatResult,
 } from '../../core/api/modules/AiManagementAPI';
 import AiUsagePanel from '../ai-tools/AiUsagePanel';
+import AiKeysPanel from '../ai-tools/AiKeysPanel';
 
 const TIER_CLS: Record<string, string> = {
   free: 'bg-emerald-500/15 text-emerald-500',
@@ -492,6 +493,11 @@ const AiManagement: React.FC = () => {
             })}
           </div>
         )}
+      </section>
+
+      {/* ===================== Provider API keys ===================== */}
+      <section className={`${CARD} p-2 sm:p-3`}>
+        <AiKeysPanel />
       </section>
 
       {/* ===================== Gateway activity ===================== */}

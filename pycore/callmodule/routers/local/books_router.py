@@ -17,6 +17,7 @@ uploaded bytes into a local staging dir so they gain a real path. The actual
 Laravel ingest is still the WS RPC ``book.sync_source``.
 """
 
+import asyncio
 from typing import List, Optional
 
 import fastapi
@@ -33,6 +34,8 @@ from ...models.local_processing.books_models import (
     BooksStateRemoveRequest,
     BooksSubmitRequest,
     BooksSubmitResponse,
+    BooksListRequest,
+    BooksListResponse,
 )
 
 router = fastapi.APIRouter(prefix="/api/local/books", tags=["Local Processing - Books"])
@@ -48,7 +51,8 @@ async def supported_formats():
 @router.post("/scan", response_model=BooksScanResponse)
 async def scan(request: BooksScanRequest):
     """Recursively list book files under a folder (or echo a single file)."""
-    return controller.scan(request.path, request.formats)
+    # Off the event loop: a deep folder scan must not block the WS / other requests.
+    return await asyncio.to_thread(controller.scan, request.path, request.formats)
 
 
 @router.post("/analyze", response_model=BooksAnalyzeResponse)
@@ -58,8 +62,9 @@ async def analyze(request: BooksAnalyzeRequest):
     With ``persist=true`` a compact summary is saved to the 'books' state so the
     UI can reload it after a switch/reopen.
     """
-    return controller.analyze(
-        request.path, request.formats, request.language,
+    # Off the event loop: text extraction + multi-language stats are CPU/IO heavy.
+    return await asyncio.to_thread(
+        controller.analyze, request.path, request.formats, request.language,
         request.preview_chars, request.max_files, request.persist)
 
 
@@ -89,7 +94,23 @@ async def submit(request: BooksSubmitRequest):
     Marks each submitted source 'synced' and persists. Omitting ``paths`` submits
     every persisted source.
     """
-    return controller.submit(request.paths, request.language)
+    # CRITICAL: runs the (blocking) extract + build + chunked HTTP ingest on a
+    # worker thread so the event loop stays free — otherwise the WS progress
+    # events never reach the UI and the page freezes at the first 'scan' stage.
+    return await asyncio.to_thread(controller.submit, request.paths, request.language)
+
+
+@router.post("/list", response_model=BooksListResponse)
+async def list_items(request: BooksListRequest):
+    """One page of a source's drill-down list (words / sentences / languages).
+
+    The full lists are built once and cached per source, so paging is cheap even
+    for a huge book. Runs off the event loop (first build can be heavy).
+    """
+    return await asyncio.to_thread(
+        controller.list_items, request.path, request.kind, request.start,
+        request.limit, request.formats, request.language, request.refresh,
+        request.max_files)
 
 
 @router.post("/analyze-upload", response_model=BooksAnalyzeResponse)
@@ -110,5 +131,7 @@ async def analyze_upload(
     for f in files:
         content = await f.read()
         uploads.append((f.filename or "book", content))
-    return controller.analyze_upload(
-        uploads, language, max(0, min(20000, int(preview_chars))), persist)
+    # Off the event loop: staging + extraction + stats are heavy for large files.
+    return await asyncio.to_thread(
+        controller.analyze_upload, uploads, language,
+        max(0, min(20000, int(preview_chars))), persist)

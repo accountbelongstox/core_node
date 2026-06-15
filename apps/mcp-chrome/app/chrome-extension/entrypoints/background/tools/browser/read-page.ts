@@ -55,7 +55,12 @@ class ReadPageTool extends BaseBrowserToolExecutor {
         return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND + ': Active tab has no ID');
 
       // Inject helper in ISOLATED world to enable chrome.runtime messaging
-      await this.injectContentScript(tab.id, ['inject-scripts/accessibility-tree-helper.js'], false, 'ISOLATED');
+      await this.injectContentScript(
+        tab.id,
+        ['inject-scripts/accessibility-tree-helper.js'],
+        false,
+        'ISOLATED',
+      );
 
       // Ask content script to generate accessibility tree
       const resp = await this.sendMessageToTab(tab.id, {

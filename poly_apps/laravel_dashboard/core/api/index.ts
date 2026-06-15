@@ -8,6 +8,7 @@ import { SystemConfigAPI } from './modules/SystemConfigAPI';
 import { AuthAPI } from './modules/AuthAPI';
 import { DatabaseManagerAPI, AuthDebugAPI } from './modules/DatabaseManagerAPI';
 import { MediaQueryAPI } from './modules/MediaQueryAPI';
+import { BooksAPI } from './modules/BooksAPI';
 import { AiStatusAPI } from './modules/AiStatusAPI';
 import { AiManagementAPI } from './modules/AiManagementAPI';
 import { setSharedBaseURL } from './base/BaseAPI';
@@ -39,6 +40,7 @@ class APIService {
   public databaseManager: DatabaseManagerAPI;
   public authDebug: AuthDebugAPI;
   public mediaQuery: MediaQueryAPI;
+  public books: BooksAPI;
   public aiStatus: AiStatusAPI;
   public aiManagement: AiManagementAPI;
 
@@ -116,6 +118,12 @@ class APIService {
       timeout: API_CONFIG.timeout
     });
 
+    this.books = new BooksAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/app_qy_v1',
+      timeout: API_CONFIG.timeout
+    });
+
     this.aiStatus = new AiStatusAPI({
       baseURL: API_CONFIG.baseURL,
       prefix: '/api/app_qy_v1/ai_tools/ai',
@@ -153,6 +161,7 @@ class APIService {
     this.auth.setHeader('Authorization', bearerToken);
     this.databaseManager.setHeader('Authorization', bearerToken);
     this.mediaQuery.setHeader('Authorization', bearerToken);
+    this.books.setHeader('Authorization', bearerToken);
     this.aiStatus.setHeader('Authorization', bearerToken);
     this.aiManagement.setHeader('Authorization', bearerToken);
   }
@@ -170,6 +179,7 @@ class APIService {
     this.auth.removeHeader('Authorization');
     this.databaseManager.removeHeader('Authorization');
     this.mediaQuery.removeHeader('Authorization');
+    this.books.removeHeader('Authorization');
     this.aiStatus.removeHeader('Authorization');
     this.aiManagement.removeHeader('Authorization');
   }
@@ -187,6 +197,7 @@ class APIService {
     this.auth.setHeader(key, value);
     this.databaseManager.setHeader(key, value);
     this.mediaQuery.setHeader(key, value);
+    this.books.setHeader(key, value);
     this.aiStatus.setHeader(key, value);
     this.aiManagement.setHeader(key, value);
   }

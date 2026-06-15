@@ -92,6 +92,32 @@ const L = {
   hidePreview: 'Hide',                               // 收起
   noText: 'no extractable text',                     // 无可提取文本
   analyzeFailed: 'Analyze failed',                   // 分析失败
+  details: 'Details',                                // 详情
+  detailsTitle: 'Source details',                    // 来源详情
+  perFile: 'Per-file breakdown',                      // 分文件统计
+  allLanguages: 'Languages',                          // 各语言
+  allTopWords: 'Top words (full)',                    // 全部高频词
+  chars: 'chars',                                     // 字符
+  close: 'Close',                                     // 关闭
+  noAnalysis: 'No analysis yet — click Analyze first.',
+  // drill-down list modal
+  prev: 'Prev',                                       // 上一页
+  next: 'Next',                                       // 下一页
+  showing: 'Showing',                                 // 显示
+  listOf: 'of',                                       // 共
+  distinctWord: 'distinct',                           // 去重
+  totalOccur: 'total occurrences',                    // 总出现
+  loadingList: 'Loading…',                            // 加载中…
+  emptyList: 'No items.',                             // 无内容
+  // sync stage labels
+  stScan: 'Scanning',                                 // 扫描
+  stSource: 'Source',                                 // 来源
+  stExtract: 'Extracting text',                       // 提取文本
+  stBuild: 'Structuring',                             // 结构化
+  stIngest: 'Ingesting',                              // 入库
+  stClips: 'Clips',                                   // 切片
+  stDone: 'Done',                                     // 完成
+  stError: 'Error',                                   // 错误
   // sentence library / enrichment
   library: 'Sentence Library',                       // 句库
   libraryHint: 'Trigger AI + TTS enrichment of stored sentences. Each batch processes up to the limit; loop to drain the queue.',
@@ -140,6 +166,13 @@ const PcBooksPage: React.FC = () => {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Path whose full analysis details modal is open (null = closed).
+  const [detailPath, setDetailPath] = useState<string | null>(null);
+  // Paginated drill-down list modal (Words/Sentences/Languages behind a stat).
+  const [listView, setListView] = useState<
+    { path: string; kind: string; start: number; limit: number; total: number;
+      items: any[]; totals: Record<string, number>; loading: boolean; error?: string } | null
+  >(null);
   // Persisted per-source state (submission_state etc.) keyed by path.
   const [sourceStates, setSourceStates] = useState<Record<string, BookSourceState>>({});
 
@@ -229,7 +262,17 @@ const PcBooksPage: React.FC = () => {
             success: true, root: '', mode: (s.summary.mode as any) || s.mode,
             files: (s.summary.files || []).map((f: any) => ({
               path: '', rel: '', name: f.name, ext: f.ext, size_bytes: 0,
-              stats: null, preview: '', error: f.error,
+              // Rebuild a partial per-file stats object from the compact summary
+              // so the Details modal still shows per-file counts after a reload.
+              stats: {
+                char_count: 0, char_count_no_space: 0,
+                word_count: f.words || 0, unique_word_count: f.unique_words || 0,
+                sentence_count: f.sentences || 0, unique_sentence_count: f.unique_sentences || 0,
+                line_count: 0, paragraph_count: 0,
+                primary_language: f.primary_language || 'und', languages: [],
+                top_words: [], truncated: false,
+              } as BookTextStats,
+              preview: '', error: f.error,
             })),
             aggregate: s.summary.aggregate, scanned: s.summary.scanned || 0,
             analyzed: s.summary.analyzed || 0, truncated_files: false,
@@ -496,12 +539,36 @@ const PcBooksPage: React.FC = () => {
   const togglePreview = (path: string) =>
     setOpenPreview((prev) => { const n = new Set(prev); n.has(path) ? n.delete(path) : n.add(path); return n; });
 
+  // --- drill-down list modal (paginated words / sentences / languages) ---- #
+  const LIST_LIMIT = 100;
+  const loadListPage = useCallback(async (path: string, kind: string, start: number) => {
+    setListView((prev) => (prev
+      ? { ...prev, path, kind, start, loading: true, error: undefined }
+      : { path, kind, start, limit: LIST_LIMIT, total: 0, items: [], totals: {}, loading: true }));
+    try {
+      const r = await pycoreApi.booksList(path, kind, start, LIST_LIMIT);
+      if (r && r.success) {
+        setListView({ path, kind, start: r.start, limit: r.limit, total: r.total, items: r.items, totals: r.totals || {}, loading: false });
+      } else {
+        setListView({ path, kind, start, limit: LIST_LIMIT, total: 0, items: [], totals: {}, loading: false, error: r?.error || 'failed' });
+      }
+    } catch (e: any) {
+      setListView({ path, kind, start, limit: LIST_LIMIT, total: 0, items: [], totals: {}, loading: false, error: e?.message || 'request failed' });
+    }
+  }, []);
+  const openList = useCallback((path: string, kind: string) => { void loadListPage(path, kind, 0); }, [loadListPage]);
+
   // --- styling helpers --------------------------------------------------- #
   const inputCls = 'text-xs bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-200 focus:outline-none';
   const allSelected = entries.length > 0 && selected.size === entries.length;
   const syncPct = syncProgress && syncProgress.total > 0
     ? Math.min(100, Math.round((syncProgress.done / syncProgress.total) * 100))
     : 0;
+  // Friendly labels for the (now richer) sync stages streamed over the WS.
+  const stageLabel = (stage: string): string => ({
+    scan: L.stScan, source: L.stSource, extract: L.stExtract, build: L.stBuild,
+    ingest: L.stIngest, clips: L.stClips, done: L.stDone, error: L.stError,
+  } as Record<string, string>)[stage] || stage;
   const busyAny = enriching || looping;
   const filterLabel = useMemo(() => {
     if (!supportedFormats.length) return '';
@@ -511,22 +578,27 @@ const PcBooksPage: React.FC = () => {
   }, [supportedFormats, formatFilter]);
 
   // --- per-source stats card --------------------------------------------- #
-  const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: string; accent?: string }> =
-    ({ icon, label, value, accent }) => (
-      <div className="rounded-xl p-3 border bg-slate-100 dark:bg-black/30 border-slate-200/50 dark:border-white/5">
-        <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400">{icon}{label}</div>
+  // Tiles with an onClick are clickable and open the paginated drill-down list.
+  const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: string; accent?: string; onClick?: () => void }> =
+    ({ icon, label, value, accent, onClick }) => (
+      <div onClick={onClick}
+        className={`rounded-xl p-3 border bg-slate-100 dark:bg-black/30 border-slate-200/50 dark:border-white/5 ${
+          onClick ? 'cursor-pointer hover:border-indigo-400/60 hover:ring-1 hover:ring-indigo-400/30 transition' : ''}`}>
+        <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400">
+          {icon}{label}{onClick && <Eye className="w-3 h-3 ml-auto opacity-50" />}
+        </div>
         <div className={`text-base font-bold ${accent || 'text-slate-700 dark:text-slate-200'}`}>{value}</div>
       </div>
     );
 
-  const renderStats = (s: BookTextStats) => (
+  const renderStats = (s: BookTextStats, path: string) => (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-      <StatTile icon={<Type className="w-3 h-3" />} label={L.words} value={nf(s.word_count)} />
-      <StatTile icon={<Hash className="w-3 h-3" />} label={L.uniqueWords} value={nf(s.unique_word_count)} accent="text-indigo-500" />
-      <StatTile icon={<AlignLeft className="w-3 h-3" />} label={L.sentences} value={nf(s.sentence_count)} />
-      <StatTile icon={<Hash className="w-3 h-3" />} label={L.uniqueSentences} value={nf(s.unique_sentence_count)} accent="text-indigo-500" />
+      <StatTile icon={<Type className="w-3 h-3" />} label={L.words} value={nf(s.word_count)} onClick={() => openList(path, 'words')} />
+      <StatTile icon={<Hash className="w-3 h-3" />} label={L.uniqueWords} value={nf(s.unique_word_count)} accent="text-indigo-500" onClick={() => openList(path, 'unique_words')} />
+      <StatTile icon={<AlignLeft className="w-3 h-3" />} label={L.sentences} value={nf(s.sentence_count)} onClick={() => openList(path, 'sentences')} />
+      <StatTile icon={<Hash className="w-3 h-3" />} label={L.uniqueSentences} value={nf(s.unique_sentence_count)} accent="text-indigo-500" onClick={() => openList(path, 'unique_sentences')} />
       <StatTile icon={<FileText className="w-3 h-3" />} label={L.characters} value={nf(s.char_count)} />
-      <StatTile icon={<Languages className="w-3 h-3" />} label={L.langs} value={(s.primary_language || 'und').toUpperCase()} accent="text-emerald-500" />
+      <StatTile icon={<Languages className="w-3 h-3" />} label={L.langs} value={(s.primary_language || 'und').toUpperCase()} accent="text-emerald-500" onClick={() => openList(path, 'languages')} />
     </div>
   );
 
@@ -570,8 +642,12 @@ const PcBooksPage: React.FC = () => {
             ? <span>{nf(a.analyzed)} {L.analyzedOf} {nf(a.scanned)} {L.filesWord}</span>
             : <span>1 {L.filesWord}</span>}
           {a.truncated_files && <span className="text-amber-500">· {L.capHit}</span>}
+          <button onClick={() => setDetailPath(path)}
+            className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 transition">
+            <ListChecks className="w-3 h-3" /> {L.details}
+          </button>
         </div>
-        {a.aggregate && renderStats(a.aggregate)}
+        {a.aggregate && renderStats(a.aggregate, path)}
         {a.aggregate && renderLangChips(a.aggregate)}
         {a.aggregate && renderTopWords(a.aggregate)}
 
@@ -756,11 +832,16 @@ const PcBooksPage: React.FC = () => {
         {/* sync progress (mirrors the video page's sync widget) */}
         {syncProgress && (
           <div className="mt-4">
-            <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
-              <RefreshCw className="w-3 h-3 animate-spin" />
-              {L.syncStage}: <span className="font-bold text-slate-700 dark:text-slate-200">{syncProgress.stage}</span>
-              {syncProgress.total > 0 && <span className="text-slate-400">· {syncProgress.done}/{syncProgress.total}</span>}
-              {syncProgress.detail && <span className="truncate text-slate-400" title={syncProgress.detail}>· {syncProgress.detail}</span>}
+            <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+              <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
+              {L.syncStage}:
+              <span className="font-bold text-rose-500">{stageLabel(syncProgress.stage)}</span>
+              {syncProgress.total > 0 && (
+                <span className="text-slate-400">· {syncProgress.done}/{syncProgress.total} ({syncPct}%)</span>
+              )}
+              {syncProgress.detail && (
+                <span className="truncate max-w-[60%] text-slate-400" title={syncProgress.detail}>· {syncProgress.detail}</span>
+              )}
             </div>
             {syncProgress.total > 0 && (
               <div className="mt-1 bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
@@ -882,6 +963,202 @@ const PcBooksPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* details modal — full per-source inspection (stats / languages / top words / per-file / preview) */}
+      {detailPath && (() => {
+        const a = analyses[detailPath];
+        const fname = detailPath.split(/[\\/]/).pop();
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setDetailPath(null)}>
+            <div className="w-full max-w-3xl max-h-[85vh] overflow-auto rounded-3xl p-6 border bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 shadow-xl"
+              onClick={(ev) => ev.stopPropagation()}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                  <ListChecks className="w-4 h-4 text-indigo-500" /> {L.detailsTitle}
+                </h3>
+                <button onClick={() => setDetailPath(null)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400 break-all mb-3">{detailPath}</p>
+
+              {!a ? (
+                <p className="text-xs text-slate-500 py-6 text-center">{L.noAnalysis}</p>
+              ) : (
+                <div className="space-y-4">
+                  {/* aggregate stats (tiles open the paginated drill-down list) */}
+                  {a.aggregate && renderStats(a.aggregate, detailPath)}
+
+                  {/* all languages with chars + ratio */}
+                  {a.aggregate && a.aggregate.languages.length > 0 && (
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">{L.allLanguages}</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {a.aggregate.languages.map((l) => (
+                          <span key={l.script} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <span className="font-bold">{l.code.toUpperCase()}</span>
+                            {Math.round(l.ratio * 100)}% · {nf(l.chars)} {L.chars}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* full top words */}
+                  {a.aggregate && a.aggregate.top_words.length > 0 && (
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">{L.allTopWords}</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {a.aggregate.top_words.map((w) => (
+                          <span key={w.word} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-slate-200/70 dark:bg-white/5 text-slate-600 dark:text-slate-300">
+                            {w.word} <span className="text-slate-400">×{nf(w.count)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* per-file breakdown */}
+                  {a.files.length > 0 && (
+                    <div>
+                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1.5">
+                        {L.perFile} ({nf(a.analyzed)}{a.mode === 'folder' ? ` / ${nf(a.scanned)}` : ''})
+                      </div>
+                      <div className="space-y-1.5">
+                        {a.files.map((f, i) => {
+                          const key = `${detailPath}#${i}`;
+                          const open = openPreview.has(key);
+                          const s = f.stats;
+                          return (
+                            <div key={key} className="rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-100/40 dark:bg-white/[0.02] p-2.5">
+                              <div className="flex items-center gap-2 text-[11px]">
+                                <FileText className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                <span className="font-mono text-slate-700 dark:text-slate-200 truncate flex-1" title={f.name}>{f.name}</span>
+                                {f.error
+                                  ? <span className="text-amber-500 shrink-0">{f.error}</span>
+                                  : s && (
+                                    <span className="text-slate-400 shrink-0">
+                                      {nf(s.word_count)}w · {nf(s.unique_word_count)}u · {nf(s.sentence_count)}s · {(s.primary_language || 'und').toUpperCase()}
+                                    </span>
+                                  )}
+                                {f.preview && (
+                                  <button onClick={() => togglePreview(key)} className="shrink-0 text-rose-500 hover:text-rose-400">
+                                    {open ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                )}
+                              </div>
+                              {open && f.preview && (
+                                <pre className="mt-1.5 max-h-40 overflow-auto text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded-lg p-2.5 bg-slate-100 dark:bg-black/40 border border-slate-200/60 dark:border-white/5 text-slate-600 dark:text-slate-300">{f.preview}</pre>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end mt-5">
+                <button onClick={() => setDetailPath(null)}
+                  className="px-5 py-2 text-xs font-bold rounded-xl bg-slate-200/50 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white transition">
+                  {L.close}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* drill-down list modal — paginated words / sentences / languages */}
+      {listView && (() => {
+        const lv = listView;
+        const KIND_LABEL: Record<string, string> = {
+          words: L.words, unique_words: L.uniqueWords, sentences: L.sentences,
+          unique_sentences: L.uniqueSentences, languages: L.langs,
+        };
+        const fname = lv.path.split(/[\\/]/).pop();
+        const from = lv.total === 0 ? 0 : lv.start + 1;
+        const to = lv.start + lv.items.length;
+        const hasPrev = lv.start > 0;
+        const hasNext = lv.start + lv.limit < lv.total;
+        const t = lv.totals || {};
+        let summary = '';
+        if (lv.kind === 'words' || lv.kind === 'unique_words') {
+          summary = `${nf(t.unique_words)} ${L.distinctWord} · ${nf(t.words)} ${L.totalOccur}`;
+        } else if (lv.kind === 'sentences') {
+          summary = `${nf(t.sentences)} ${L.sentences.toLowerCase()}`;
+        } else if (lv.kind === 'unique_sentences') {
+          summary = `${nf(t.unique_sentences)} ${L.distinctWord}`;
+        }
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setListView(null)}>
+            <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl p-6 border bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 shadow-xl"
+              onClick={(ev) => ev.stopPropagation()}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                  <ListChecks className="w-4 h-4 text-indigo-500" /> {KIND_LABEL[lv.kind] || lv.kind}
+                </h3>
+                <button onClick={() => setListView(null)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+                <span className="font-mono">{fname}</span>{summary && <span> · {summary}</span>}
+              </p>
+
+              <div className="flex-1 overflow-auto rounded-2xl border border-slate-200/60 dark:border-white/5 bg-slate-100/40 dark:bg-white/[0.02] p-2">
+                {lv.loading ? (
+                  <div className="py-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin" /> {L.loadingList}
+                  </div>
+                ) : lv.error ? (
+                  <div className="py-8 text-center text-xs text-amber-500">{lv.error}</div>
+                ) : lv.items.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400">{L.emptyList}</div>
+                ) : (lv.kind === 'words' || lv.kind === 'unique_words') ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {lv.items.map((w: any, i: number) => (
+                      <span key={`${w.word}-${i}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] bg-slate-200/70 dark:bg-white/5 text-slate-600 dark:text-slate-300">
+                        {w.word} <span className="text-slate-400">×{nf(w.count)}</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : (lv.kind === 'languages') ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {lv.items.map((l: any) => (
+                      <span key={l.script} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <span className="font-bold">{(l.code || '').toUpperCase()}</span>
+                        {Math.round((l.ratio || 0) * 100)}% · {nf(l.chars)} {L.chars}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <ol className="space-y-1">
+                    {lv.items.map((s: any, i: number) => (
+                      <li key={`${s.seq}-${i}`} className="flex gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+                        <span className="shrink-0 text-slate-400 tabular-nums w-12 text-right">{nf((s.seq ?? (lv.start + i)) + 1)}</span>
+                        <span className="break-words">{s.text}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+
+              {/* pagination */}
+              <div className="flex items-center justify-between mt-3 text-[11px] text-slate-500">
+                <span>{L.showing} {nf(from)}–{nf(to)} {L.listOf} {nf(lv.total)}</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => loadListPage(lv.path, lv.kind, Math.max(0, lv.start - lv.limit))}
+                    disabled={!hasPrev || lv.loading}
+                    className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-white/5 font-bold disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300">{L.prev}</button>
+                  <button onClick={() => loadListPage(lv.path, lv.kind, lv.start + lv.limit)}
+                    disabled={!hasNext || lv.loading}
+                    className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-white/5 font-bold disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300">{L.next}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

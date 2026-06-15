@@ -9,9 +9,21 @@
       :clientConfig="clientConfig"
       :clientService="clientService"
       :formatTimestamp="formatTimestamp"
+      :error="assistError"
+      :connectionStatus="connectionStatus"
+      :currentEndpoint="currentEndpoint"
+      :testWords="testWords"
+      :testResults="testResults"
+      :testing="testing"
       @toggle-service="toggleClientService"
       @update-config="updateConfig"
+      @test-connection="testConnection"
+      @run-scrape-test="runScrapeTest"
+      @update-test-words="(v) => (testWords = v)"
     />
+
+    <!-- NotebookLM automation test panel (drives notebooklm.google.com) -->
+    <NotebookLMPanel />
 
     <!-- Header -->
     <div class="dictionary-header">
@@ -56,6 +68,7 @@ import { useBingDictionary } from '../../composables/useBingDictionary';
 import { useBingDictionaryClient } from '../../composables/useBingDictionaryClient';
 import TaskCenterPanel from './TaskCenterPanel.vue';
 import ClientModePanel from './bing-dictionary/ClientModePanel.vue';
+import NotebookLMPanel from './NotebookLMPanel.vue';
 import SearchBox from './bing-dictionary/SearchBox.vue';
 import WordResult from './bing-dictionary/WordResult.vue';
 import HistoryList from './bing-dictionary/HistoryList.vue';
@@ -79,8 +92,16 @@ const {
 const {
   clientConfig,
   clientService,
+  error: assistError,
+  connectionStatus,
+  currentEndpoint,
+  testWords,
+  testResults,
+  testing,
   toggleClientService,
   updateConfig,
+  testConnection,
+  runScrapeTest,
   formatTimestamp,
   initPanel,
 } = useBingDictionaryClient();

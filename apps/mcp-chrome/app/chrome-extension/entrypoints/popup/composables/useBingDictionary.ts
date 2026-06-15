@@ -4,7 +4,6 @@
  */
 
 import { ref } from 'vue';
-import { apiManager } from '@/services/ApiManager';
 
 export interface Translation {
   type: string;
@@ -47,26 +46,33 @@ export function useBingDictionary() {
     currentResult.value = null;
 
     try {
-      const baseUrl = apiManager.getCurrentBaseUrl();
-      const response = await fetch(`${baseUrl}/api/dictionary/bing?word=${encodeURIComponent(query)}`);
+      // Look the word up by scraping Bing dictionary LOCALLY (same path the
+      // worker uses) rather than calling a backend endpoint. laravel_main does
+      // not expose a dictionary lookup API — only the worker task queue — so the
+      // extension owns single-word lookups itself.
+      const response = await chrome.runtime.sendMessage({
+        type: 'bing_dictionary_worker_service',
+        action: 'test_scrape',
+        words: [query],
+        mode: 'worker',
+      });
 
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
+      if (!response || !response.success) {
+        throw new Error((response && response.error) || 'Failed to lookup word');
       }
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to lookup word');
+      const r = (response.results || [])[0];
+      if (!r || !r.ok) {
+        throw new Error(r?.invalid ? 'No Bing dictionary entry for this word' : r?.error || 'No result');
       }
 
       currentResult.value = {
-        word: query,
-        phonetic: data.phonetic,
-        pronunciation: data.pronunciation,
-        translations: data.translations || [],
-        examples: data.examples || [],
-        synonyms: data.synonyms || [],
+        word: r.word || query,
+        phonetic: r.phonetic || undefined,
+        pronunciation: r.audioUrl || undefined,
+        translations: r.translation ? [{ type: '', text: r.translation }] : [],
+        examples: [],
+        synonyms: [],
       };
 
       addToHistory(query);

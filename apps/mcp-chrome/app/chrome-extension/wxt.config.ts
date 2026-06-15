@@ -67,6 +67,8 @@ export default defineConfig({
       'offscreen',
       'tabCapture',
       'storage',
+      'alarms',
+      'tabGroups',
     ],
     host_permissions: ['<all_urls>'],
     web_accessible_resources: [
@@ -130,8 +132,13 @@ export default defineConfig({
       include: ['chrome-mcp-shared'],
     },
     build: {
-      // 我们的构建产物需要兼容到es6
-      target: 'es2015',
+      // MV3 extensions only ever run in modern Chrome (Chrome 88+), so there is no
+      // reason to down-level to ES2015. Crucially, deps like @xenova/transformers and
+      // hnswlib-wasm-static use BigInt literals (1n/0n), which CANNOT be transpiled to
+      // ES2015 — targeting es2015 makes rolldown ship them as-is and spam
+      // [TOLERATED_TRANSFORM] warnings on every build. es2020 natively supports BigInt
+      // (and optional chaining / nullish coalescing), which clears those warnings.
+      target: 'es2020',
       // 非生产环境下生成sourcemap
       sourcemap: env.mode !== 'production',
       // 禁用gzip 压缩大小报告，因为压缩大型文件可能会很慢

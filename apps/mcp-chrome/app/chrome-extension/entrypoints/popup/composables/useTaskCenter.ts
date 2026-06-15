@@ -5,6 +5,7 @@
  */
 
 import { ref, onUnmounted } from 'vue';
+import { apiManager } from '@/services/ApiManager';
 
 export interface TaskCenterConfig {
   apiUrl: string;
@@ -105,6 +106,9 @@ export function useTaskCenter() {
 
   const startTaskCenter = async () => {
     try {
+      // Always use the single endpoint configured in Settings (shared ApiManager).
+      await apiManager.initialize({ autoDetect: false });
+      config.value.apiUrl = apiManager.getCurrentBaseUrl();
       const response = await chrome.runtime.sendMessage({
         type: 'task_center',
         action: 'start',

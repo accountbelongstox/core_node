@@ -14,8 +14,11 @@
  * yet) a compact hint row renders instead of a broken-looking empty block. */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, BookOpen, Captions, Image as ImageIcon, RefreshCw } from 'lucide-react';
-import { Icons, Card, Button, LoadingState, EmptyState, Badge, Spinner } from '../WfUI';
+import {
+  Plus, BookOpen, Captions, Image as ImageIcon, RefreshCw,
+  Star, Briefcase, Plane, FlaskConical, GraduationCap, Library as LibraryIcon,
+} from 'lucide-react';
+import { Icons, Button, LoadingState, EmptyState, Badge, Spinner } from '../WfUI';
 import { wfPath } from '../WfBottomTabNav';
 import { useWfT } from '../WfAppContext';
 import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
@@ -32,6 +35,32 @@ import WfAddToLibrarySheet, {
 } from '../components/WfAddToLibrarySheet';
 
 type LibraryTab = 'all' | 'mine';
+
+/** Deterministic vivid gradient cover from a seed (name) — gives every library
+ * a distinct "图" banner even without a generated cover image. */
+const seedHash = (s: string): number => {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+};
+const libGradient = (seed: string): string => {
+  const a = seedHash(seed) % 360;
+  const b = (a + 38) % 360;
+  return `linear-gradient(135deg, hsl(${a} 72% 60%) 0%, hsl(${b} 66% 48%) 100%)`;
+};
+const libInitial = (name: string): string => (name || '?').trim().charAt(0).toUpperCase();
+/** Coarse category icon (lucide) for the cover chip — never an emoji affordance. */
+const LibGlyph: React.FC<{ lib: { type?: string; category?: string } }> = ({ lib }) => {
+  const c = `${lib.category || ''} ${lib.type || ''}`.toLowerCase();
+  const cls = 'w-4 h-4';
+  if (c.includes('system')) return <Star className={cls} aria-hidden />;
+  if (c.includes('document') || c.includes('book')) return <BookOpen className={cls} aria-hidden />;
+  if (c.includes('business')) return <Briefcase className={cls} aria-hidden />;
+  if (c.includes('travel')) return <Plane className={cls} aria-hidden />;
+  if (c.includes('science') || c.includes('tech')) return <FlaskConical className={cls} aria-hidden />;
+  if (c.includes('exam') || c.includes('test')) return <GraduationCap className={cls} aria-hidden />;
+  return <LibraryIcon className={cls} aria-hidden />;
+};
 
 const LANG_PILLS: { id: string; label: string }[] = [
   { id: '', label: 'All Languages' },
@@ -80,7 +109,7 @@ const CoverThumb: React.FC<{
         alt={alt}
         loading="lazy"
         onError={() => setFailed(true)}
-        className="w-full h-24 rounded-xl object-cover"
+        className="w-full h-full object-cover"
       />
     );
   }
@@ -89,12 +118,11 @@ const CoverThumb: React.FC<{
   if (isGenerating && !failed) {
     return (
       <div
-        className="w-full h-24 rounded-xl flex flex-col items-center justify-center gap-1 text-[var(--klein-blue)] animate-pulse"
-        style={{ background: 'var(--klein-blue-soft)' }}
+        className="w-full h-full flex flex-col items-center justify-center gap-1 text-white animate-pulse"
         aria-busy="true"
       >
-        <ImageIcon className="w-7 h-7 opacity-70" aria-hidden />
-        <span className="text-[0.65rem] font-medium opacity-80">{labels.generating}</span>
+        <ImageIcon className="w-7 h-7 opacity-90" aria-hidden />
+        <span className="text-[0.65rem] font-medium opacity-90">{labels.generating}</span>
       </div>
     );
   }
@@ -103,14 +131,13 @@ const CoverThumb: React.FC<{
   // optional unobtrusive retry that re-queues the cover for pycore.
   return (
     <div
-      className="w-full h-24 rounded-xl flex flex-col items-center justify-center gap-1 text-[var(--klein-blue)]"
-      style={{ background: 'var(--klein-blue-soft)' }}
+      className="w-full h-full flex flex-col items-center justify-center gap-1 text-white"
     >
       <BookOpen className="w-7 h-7" aria-hidden />
       {isFailed && (
         <>
           <span
-            className="text-[0.65rem] font-medium text-[var(--color-text-tertiary)]"
+            className="text-[0.65rem] font-medium text-white/80"
             title={errorMessage || labels.failed}
           >
             {labels.failed}
@@ -124,7 +151,7 @@ const CoverThumb: React.FC<{
                 onRetry();
               }}
               disabled={retrying}
-              className="inline-flex items-center gap-1 text-[0.65rem] font-semibold text-[color:var(--klein-blue)] hover:underline disabled:opacity-50"
+              className="inline-flex items-center gap-1 text-[0.65rem] font-semibold text-white hover:underline disabled:opacity-50"
             >
               <RefreshCw className={`w-3 h-3 ${retrying ? 'animate-spin' : ''}`} aria-hidden />
               {labels.retry}
@@ -361,50 +388,40 @@ const WfLearnLibraryPage: React.FC = () => {
         )}
 
         {!loading && visibleGroups.length > 0 && (
-          <div className="ds-stack ds-stack-tight">
-            {visibleGroups.map((library) => (
-              <Card
-                key={library.id}
-                onClick={() => handleGroupClick(library)}
-                className="cursor-pointer hover:shadow-lg transition-all group"
-              >
-                <div className="flex items-start gap-4">
-                  <div
-                    className="w-14 h-14 rounded-2xl flex-shrink-0 flex items-center justify-center text-[color:var(--klein-blue)] text-xl"
-                    style={{ background: 'var(--klein-blue-soft)' }}
-                  >
-                    {library.coverImage && library.coverImage.length <= 2
-                      ? library.coverImage
-                      : <Icons.Book />}
+          <div className="grid grid-cols-2 gap-3">
+            {visibleGroups.map((library) => {
+              const emojiCover = library.coverImage && library.coverImage.length <= 2 ? library.coverImage : null;
+              return (
+                <button
+                  key={library.id}
+                  type="button"
+                  onClick={() => handleGroupClick(library)}
+                  className="ds-cover-card ds-card !p-0"
+                >
+                  {/* Cover banner — gradient + monogram + chip + word-count tag */}
+                  <div className="ds-cover h-24">
+                    <div className="ds-cover-img" style={{ backgroundImage: libGradient(library.name) }} />
+                    <span className="ds-cover-glyph text-4xl">{emojiCover || libInitial(library.name)}</span>
+                    <span className="ds-cover-chip"><LibGlyph lib={library} /></span>
+                    <span className="ds-cover-tag">
+                      <BookOpen className="w-3 h-3" aria-hidden />
+                      {library.count}
+                    </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-lg text-[var(--color-text-primary)] mb-1 truncate group-hover:text-[var(--klein-blue)] transition-colors">
+                  {/* Text block */}
+                  <div className="p-3 flex flex-col gap-2 flex-1">
+                    <h3 className="font-bold text-sm text-[var(--color-text-primary)] line-clamp-2 leading-snug min-h-[2.5rem]">
                       {library.name}
                     </h3>
-                    {library.description && (
-                      <p className="text-sm text-[var(--color-text-secondary)] line-clamp-2 mb-2">
-                        {library.description}
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                      {library.language && <Badge tone="klein">{library.language.toUpperCase()}</Badge>}
-                      {library.type === 'system' && <Badge tone="neutral">System</Badge>}
-                      {library.type === 'document' && <Badge tone="neutral">Document</Badge>}
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-                      <BookOpen className="w-4 h-4" aria-hidden />
-                      <span>{library.count} {t('library.words') || 'words'}</span>
+                    <div className="mt-auto flex items-center gap-1.5 flex-wrap">
+                      {library.language && <Badge tone="klein" className="!px-2 !py-0.5">{library.language.toUpperCase()}</Badge>}
+                      {library.type === 'system' && <Badge tone="neutral" dot className="!px-2 !py-0.5">System</Badge>}
+                      {library.type === 'document' && <Badge tone="neutral" className="!px-2 !py-0.5">Document</Badge>}
                     </div>
                   </div>
-
-                  <div className="text-[var(--color-text-tertiary)] group-hover:text-[var(--klein-blue)] transition-colors flex-shrink-0">
-                    <Icons.ChevronRight />
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -431,49 +448,57 @@ const WfLearnLibraryPage: React.FC = () => {
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   {publicLibraries.map((lib) => (
-                    <div key={lib.id} className="ds-card !p-3 flex flex-col gap-3 relative">
-                      <CoverThumb
-                        src={lib.image_url}
-                        alt={lib.name}
-                        status={lib.cover_status}
-                        attempts={lib.cover_attempts}
-                        errorMessage={lib.cover_error_message}
-                        retrying={retryingCovers.has(lib.id)}
-                        onRetry={() => handleRetryCover(lib.id)}
-                        labels={{
-                          generating: t('library.coverGenerating') || 'Generating cover…',
-                          failed: t('library.coverFailed') || 'No cover',
-                          retry: t('library.coverRetry') || 'Retry',
-                        }}
-                      />
-                      {/* Add to study group — the only action (auth-gated) */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          runProtected(() =>
-                            setAddSheetContent({ kind: 'library', id: lib.id, name: lib.name })
-                          )
-                        }
-                        className="ds-glass ds-glass-edge absolute top-2 right-2 w-8 h-8 rounded-full shadow-md flex items-center justify-center text-[color:var(--klein-blue)] hover:bg-[color:var(--klein-blue)] hover:text-[color:var(--klein-on)] transition-all active:scale-95"
-                        title={t('library.addToGroup') || 'Add to Group'}
-                        aria-label={t('library.addToGroup') || 'Add to Group'}
-                      >
-                        <Plus className="w-4 h-4" aria-hidden />
-                      </button>
-                      <div className="min-w-0">
-                        <h3 className="font-bold text-sm text-[var(--color-text-primary)] line-clamp-2 min-h-[2.5rem]">
+                    <div key={lib.id} className="ds-cover-card ds-card !p-0">
+                      {/* Cover banner — real cover image over a gradient fallback */}
+                      <div className="ds-cover h-28" style={{ backgroundImage: libGradient(lib.name) }}>
+                        <div className="ds-cover-img">
+                          <CoverThumb
+                            src={lib.image_url}
+                            alt={lib.name}
+                            status={lib.cover_status}
+                            attempts={lib.cover_attempts}
+                            errorMessage={lib.cover_error_message}
+                            retrying={retryingCovers.has(lib.id)}
+                            onRetry={() => handleRetryCover(lib.id)}
+                            labels={{
+                              generating: t('library.coverGenerating') || 'Generating cover…',
+                              failed: t('library.coverFailed') || 'No cover',
+                              retry: t('library.coverRetry') || 'Retry',
+                            }}
+                          />
+                        </div>
+                        <span className="ds-cover-chip"><LibGlyph lib={lib} /></span>
+                        <span className="ds-cover-tag">
+                          <BookOpen className="w-3 h-3" aria-hidden />
+                          {lib.word_count.toLocaleString()}
+                        </span>
+                        {/* Add to study group — the only action (auth-gated) */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            runProtected(() =>
+                              setAddSheetContent({ kind: 'library', id: lib.id, name: lib.name })
+                            )
+                          }
+                          className="ds-glass ds-glass-edge absolute top-2 right-2 z-10 w-8 h-8 rounded-full shadow-md flex items-center justify-center text-[color:var(--klein-blue)] hover:bg-[color:var(--klein-blue)] hover:text-[color:var(--klein-on)] transition-all active:scale-90 hover:rotate-90"
+                          title={t('library.addToGroup') || 'Add to Group'}
+                          aria-label={t('library.addToGroup') || 'Add to Group'}
+                        >
+                          <Plus className="w-4 h-4" aria-hidden />
+                        </button>
+                      </div>
+                      {/* Text block */}
+                      <div className="p-3 flex flex-col gap-2 flex-1">
+                        <h3 className="font-bold text-sm text-[var(--color-text-primary)] line-clamp-2 leading-snug min-h-[2.5rem]">
                           {lib.name}
                         </h3>
-                        <div className="flex items-center gap-2 flex-wrap mt-1">
-                          {lib.difficulty && <Badge tone="klein">{difficultyLabel(lib.difficulty)}</Badge>}
+                        <div className="mt-auto flex items-center gap-1.5 flex-wrap">
+                          {lib.difficulty && <Badge tone="klein" className="!px-2 !py-0.5">{difficultyLabel(lib.difficulty)}</Badge>}
                           {lib.category && (
                             <span className="text-xs text-[var(--color-text-tertiary)] capitalize truncate">
                               {lib.category}
                             </span>
                           )}
-                        </div>
-                        <div className="text-xs text-[var(--color-text-secondary)] mt-1">
-                          {lib.word_count.toLocaleString()} {t('library.words') || 'words'}
                         </div>
                       </div>
                     </div>

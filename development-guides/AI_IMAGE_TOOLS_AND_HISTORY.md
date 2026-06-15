@@ -3,8 +3,8 @@
 Canonical contract for the unified AI tools UI (chat test + image generation test
 + image management + history) on BOTH the laravel-manager dashboard and the
 pycore-manager, with history shared cross-runtime via a file. Builds on
-`COVER_PULL_ARCHITECTURE.md` (image generation backends) and the existing
-`.ai_state` shared-store pattern.
+`poly_apps/laravel_main/docs/COVER_PULL_ARCHITECTURE.md` (image generation
+backends) and the existing `.ai_state` shared-store pattern.
 
 Related memory: `pycore-ai-status-chat`, `laravel-pycore-assist`,
 `capability-status-page`, `unified-shell-merge`, `dashboard-custom-endpoints`.

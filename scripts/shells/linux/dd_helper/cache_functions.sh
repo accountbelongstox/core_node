@@ -383,6 +383,14 @@ check_encrypted_content_changed() {
     fi
 }
 
+# Check whether a persistent content-change baseline exists for a file
+encrypted_content_baseline_exists() {
+    local filename="$1"
+    local cache_file="$GLOBAL_VAR_DIR/secret_cache/encrypted_content_hash/${filename}.enc_hash"
+
+    [ -s "$cache_file" ]
+}
+
 # Get list of encrypted files that need re-decryption due to content changes
 get_encrypted_files_needing_redecryption() {
     local encrypted_dir="$1"
@@ -399,12 +407,24 @@ get_encrypted_files_needing_redecryption() {
         base_name="${base_name%.JS}"
         local raw_file="$raw_dir/$base_name"
 
-        # Check if encrypted content changed
+        # Only consider files we have already decrypted locally. First-time decryption
+        # (raw file missing) is handled by the separate missing-files flow.
+        if [ ! -s "$raw_file" ]; then
+            continue
+        fi
+
+        # A missing baseline is NOT evidence of a content change (e.g. fresh install or a
+        # cleared cache dir). Seed it from the current encrypted file and treat it as up to
+        # date, so we never raise a phantom "all files changed" prompt. Real changes are
+        # detected only when a baseline EXISTS and its hash no longer matches.
+        if ! encrypted_content_baseline_exists "$base_name"; then
+            set_encrypted_content_hash_cache "$base_name" "$enc_file"
+            continue
+        fi
+
+        # Baseline exists: a hash mismatch means the encrypted content actually changed.
         if check_encrypted_content_changed "$base_name" "$enc_file"; then
-            # Check if corresponding raw file exists
-            if [ -s "$raw_file" ]; then
-                changed_files+=("$base_name")
-            fi
+            changed_files+=("$base_name")
         fi
     done < <(find "$encrypted_dir" -type f \( -name '*.js' -o -name '*.JS' \) -print0 2>/dev/null)
 
@@ -499,23 +519,12 @@ cleanup_secret_cache() {
         done
     fi
 
-    # Cleanup encrypted content hash cache
-    local hash_cache_dir="$cache_base_dir/encrypted_content_hash"
-    if [ -d "$hash_cache_dir" ]; then
-        for cache_file in "$hash_cache_dir"/*.enc_hash; do
-            if [ -s "$cache_file" ]; then
-                local file_mtime=$(stat -c %Y "$cache_file" 2>/dev/null)
-                if [ -z "$file_mtime" ]; then
-                    file_mtime="0"
-                fi
-                local file_age=$((current_time - file_mtime))
-                if [ "$file_age" -gt "$cache_expiry_seconds" ]; then
-                    $sudo rm -f "$cache_file" 2>/dev/null
-                    ((cleaned_files++))
-                fi
-            fi
-        done
-    fi
+    # NOTE: encrypted_content_hash/*.enc_hash files are deliberately NOT expired here.
+    # They are persistent content-change baselines, not throwaway cache. Deleting them on
+    # a timer makes check_encrypted_content_changed see no baseline and report EVERY encrypted
+    # file as "changed", producing a phantom "Found N encrypted file(s) with content changes"
+    # prompt on the first run after expiry. The baselines are refreshed on encrypt/decrypt
+    # and stay valid until the encrypted content actually changes.
 
     if [ "$cleaned_files" -gt 0 ]; then
         echo -e "\033[33m[SECRET CACHE CLEANUP] Removed $cleaned_files expired secret cache entries\033[0m"

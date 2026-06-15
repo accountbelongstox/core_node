@@ -39,12 +39,14 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
           `pong received for action '${this.name}' in tab ${tabId}. Assuming script is active.`,
         );
         return;
-      } else {
-        console.warn(`Unexpected ping response in tab ${tabId}:`, response);
       }
+      // A non-pong response just means the script isn't loaded yet; fall through to inject.
     } catch (error) {
-      console.error(
-        `ping content script failed: ${error instanceof Error ? error.message : String(error)}`,
+      // Expected on first use / after the content script is evicted (the tab was
+      // discarded or the page reloaded). This is the normal pre-injection probe,
+      // not a failure — log at debug level so it doesn't spam the console.
+      console.debug(
+        `ping content script (${this.name}) miss, will inject: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
 

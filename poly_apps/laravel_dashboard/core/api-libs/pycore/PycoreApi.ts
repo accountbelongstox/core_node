@@ -19,6 +19,7 @@ import type {
   AutostartStatus, AiProbeResponse, AiProvider, AiRateLimitsResponse, AiChatMessage, AiChatResponse, AiGatewayStatus,
   AiUsageResponse,
   AiImageResponse, ImageHistoryResponse, ImageHistoryClearResponse, ImageHistoryDeleteResponse,
+  AiKeysResponse, AiKeySetRequest, AiKeySetResponse, AiKeyDeleteResponse, AiKeyResetCooldownResponse,
   OcrStatus, TtsStatus, CapabilityStatus, SystemInfo, OpenDirResponse,
   TranslationQueueResponse, TranslationQueueActionResponse,
   LocalTaskDetailResponse, PycoreGlobalTaskDetailResponse,
@@ -160,6 +161,10 @@ export interface BookSourceState {
 export interface BooksStateResponse { success: boolean; sources: BookSourceState[]; last_options: Record<string, unknown>; error?: string; }
 export interface BookSubmitItem { path: string; files: number; sentences: number; words: number; success: boolean; errors?: string[] | null; }
 export interface BooksSubmitResponse { success: boolean; items: BookSubmitItem[]; total_sentences: number; total_words: number; error?: string; }
+export interface BooksListResponse {
+  success: boolean; kind: string; total: number; start: number; limit: number;
+  items: any[]; totals: Record<string, number>; error?: string;
+}
 
 export const pycoreApi = {
   // --- queue (pycore /voice-subtitle, mapped via mapQueueSnapshot) --------- #
@@ -314,6 +319,12 @@ export const pycoreApi = {
   // One-shot batch submit to laravel_main (builds the v2 payload server-side).
   booksSubmit: (paths?: string[], language?: string) =>
     postJSON<BooksSubmitResponse>('/pyapi/api/local/books/submit', { paths, language }),
+  // Paginated drill-down into a source's lists (words/sentences/languages),
+  // cached server-side per source so paging is cheap.
+  booksList: (
+    path: string, kind: string, start = 0, limit = 100,
+    opts: { formats?: string[]; refresh?: boolean; max_files?: number } = {},
+  ) => postJSON<BooksListResponse>('/pyapi/api/local/books/list', { path, kind, start, limit, ...opts }),
   // Drag-drop fallback for sandboxed browsers (no File.path): upload the bytes;
   // the backend stages them to disk and returns staged paths + analysis.
   booksAnalyzeUpload: async (
@@ -386,6 +397,26 @@ export const pycoreApi = {
   // --- AI gateway status (tiers, quotas, cooldowns, task records) ---------- #
   getAiGateway: () => getJSON<AiGatewayStatus>('/pyapi/api/local/ai/gateway'),
 
+  // --- AI key management (indexed secret-store key files) ------------------ #
+  // List every provider's key base + per-slot rotation status (KEY1/KEY2…),
+  // plus the raw env-var names of each configured key file (for targeted
+  // delete). Read-only; never returns full secrets (slots are masked).
+  getAiKeys: () => getJSON<AiKeysResponse>('/pyapi/api/local/ai/keys'),
+  // Write ONE indexed key file ({BASE}_{index}, or {BASE}_IMAGE_{index} when
+  // image=true) then re-probe. Values are write-only — never echoed back.
+  setAiKey: (body: AiKeySetRequest) =>
+    postJSON<AiKeySetResponse>('/pyapi/api/local/ai/keys', body),
+  // Delete one specific key file by its exact env-var name (e.g.
+  // GOOGLE_API_KEY_2 or OPENAI_API_KEY_IMAGE_1).
+  deleteAiKey: (keyName: string) =>
+    deleteJSON<AiKeyDeleteResponse>(
+      `/pyapi/api/local/ai/keys/${encodeURIComponent(keyName)}`),
+  // Clear the cooldown on one rotation key so it becomes usable again. `index`
+  // targets a specific slot (0-based); `image` targets the dedicated image
+  // budget instead of the text keys. Omitting index clears every slot.
+  resetKeyCooldown: (req: { provider: string; index?: number; image?: boolean }) =>
+    postJSON<AiKeyResetCooldownResponse>('/pyapi/api/local/ai/keys/reset-cooldown', req),
+
   // --- AI usage (SHARED cross-runtime store — text / vision / probe) ------- #
   // The store is shared with laravel, so this returns usage from BOTH runtimes
   // (see each record's `runtime`). Image generations are NOT here — they live in
@@ -410,6 +441,12 @@ export const pycoreApi = {
   // history store. `source` labels the task in the records.
   generateImage: (req: { prompt: string; size?: string; model?: string; provider?: string; source?: string }) =>
     postJSON<AiImageResponse>('/pyapi/api/local/ai/image', req),
+
+  // One-click "Test this provider": force a single image provider, ignoring the
+  // cooldown/rate window. Returns the same AiImageResponse shape (base64 + mime
+  // + latency) so the caller can show the image + latency in a popup.
+  testImageProvider: (req: { provider: string; prompt?: string; size?: string; model?: string }) =>
+    postJSON<AiImageResponse>('/pyapi/api/local/ai/image/test', req),
 
   // --- AI image history (SHARED store — pycore + laravel entries) ---------- #
   // Metadata only (newest-first); fetch bytes via imageHistoryFileUrl(id).

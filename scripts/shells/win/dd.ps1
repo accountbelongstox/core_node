@@ -244,14 +244,14 @@ $script:MenuItems = @(
         }
     },
     @{
-        Text              = "AI Management"
+        Text              = "AI & MCP Management"
         Values            = @("default")
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
-            $aiManagementScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\claude_assistant\AIManagementMenu.ps1"
-            Write-ColorMessage -Message "Launching AI Management (Claude Code Agent Teams)..." -Type "Info"
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $aiManagementScript
+            $aiMcpMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\MCPManagementMenu.ps1"
+            Write-ColorMessage -Message "Launching AI & MCP Management Menu..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $aiMcpMenuScript
         }
     },
     @{
@@ -274,17 +274,6 @@ $script:MenuItems = @(
             $backupMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\BackupManager.ps1"
             Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
             & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
-        }
-    },
-    @{
-        Text              = "MCP Management"
-        Values            = @("default")
-        CurrentValueIndex = 0
-        Key               = $null
-        Action            = {
-            $mcpMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\MCPManagementMenu.ps1"
-            Write-ColorMessage -Message "Launching MCP Management Menu..." -Type "Info"
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $mcpMenuScript
         }
     },
     @{

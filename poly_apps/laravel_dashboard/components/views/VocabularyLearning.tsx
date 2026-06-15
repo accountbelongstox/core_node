@@ -28,13 +28,16 @@ import {
   ChevronDown,
   CircleAlert,
   ListChecks,
-  Trash2
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 import { extractArrayFromResponse } from '../../utils/arrayUtils';
 import { useAppState } from '../../contexts/AppStateContext';
 import { usePersistentTask } from '../../core/tasks/usePersistentTask';
 import VocabularyWordListModal from '../vocabulary/VocabularyWordListModal';
+import BooksPanel from '../vocabulary/BooksPanel';
+import PaginatedListModal, { type PaginatedListColumn, type PaginatedListFetcher } from '../vocabulary/PaginatedListModal';
 import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../types';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
@@ -336,6 +339,19 @@ const VocabularyLearning: React.FC = () => {
   // Library deletion confirm state
   const [libraryToDelete, setLibraryToDelete] = useState<any | null>(null);
   const [deletingLibrary, setDeletingLibrary] = useState(false);
+
+  // Generic stat drill-down modal (TTS queue items / dictionary words /
+  // language breakdown / libraries). `fetchPage`/`columns` are supplied per
+  // stat so one PaginatedListModal serves every clickable number on the page.
+  const [statDrill, setStatDrill] = useState<{
+    title: string;
+    subtitle?: string;
+    fetchPage: PaginatedListFetcher;
+    columns?: PaginatedListColumn[];
+    renderDetail?: (row: any, absoluteIndex: number) => React.ReactNode;
+    wide?: boolean;
+    reloadKey: string;
+  } | null>(null);
 
   const toast = useToast();
   const t = TRANSLATIONS[lang].vocabulary;
@@ -899,6 +915,313 @@ const VocabularyLearning: React.FC = () => {
     });
   };
 
+  // ===== Clickable-stat drill-downs (open the shared PaginatedListModal) ===== #
+  const nf = (n: number | undefined | null) => (typeof n === 'number' ? n.toLocaleString() : '0');
+
+  /** Resolve the dictionary-language for a drill-down (filter 'all' → English). */
+  const drillLanguage = (): string => (statsLanguageFilter === 'all' ? 'english' : statsLanguageFilter);
+
+  /** Inline play of a word's pre-rendered audio (drill-down ▶ button + detail panel). */
+  const playWordAudio = (url: string, label?: string) => {
+    try {
+      const a = new Audio(url);
+      a.play().catch((e) => {
+        logError('vocab', `Audio play failed${label ? ` for "${label}"` : ''}: ${e?.message || e}`);
+        toast.error('Could not play audio');
+      });
+    } catch (e: any) {
+      logError('vocab', `Audio play error: ${e?.message || e}`);
+      toast.error('Could not play audio');
+    }
+  };
+
+  /** Pretty render of word_details JSON (definitions / examples / POS) when present. */
+  const renderWordDetailsJson = (wd: any): React.ReactNode => {
+    if (wd == null) return null;
+    let parsed: any = wd;
+    if (typeof wd === 'string') {
+      try {
+        parsed = JSON.parse(wd);
+      } catch {
+        // Not JSON — show as plain text.
+        return <p className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{wd}</p>;
+      }
+    }
+    if (parsed == null || (typeof parsed !== 'object')) {
+      return <p className="text-xs text-slate-600 dark:text-slate-300">{String(parsed)}</p>;
+    }
+    // Try common shapes: { definitions: [...], examples: [...], pos / part_of_speech }.
+    const defs: any[] = Array.isArray(parsed.definitions) ? parsed.definitions : [];
+    const examples: any[] = Array.isArray(parsed.examples) ? parsed.examples : [];
+    const pos = parsed.pos || parsed.part_of_speech || parsed.partOfSpeech;
+    const hasKnownShape = defs.length > 0 || examples.length > 0 || pos;
+    if (hasKnownShape) {
+      return (
+        <div className="space-y-1.5">
+          {pos && (
+            <div className="text-[11px]">
+              <span className="text-slate-500 dark:text-slate-400">POS: </span>
+              <span className="font-medium text-slate-700 dark:text-slate-200">{String(pos)}</span>
+            </div>
+          )}
+          {defs.length > 0 && (
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">Definitions</div>
+              <ul className="list-disc list-inside space-y-0.5 text-xs text-slate-700 dark:text-slate-200">
+                {defs.map((d, i) => (
+                  <li key={i}>{typeof d === 'string' ? d : (d?.text || d?.definition || JSON.stringify(d))}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {examples.length > 0 && (
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">Examples</div>
+              <ul className="list-disc list-inside space-y-0.5 text-xs text-slate-600 dark:text-slate-300 italic">
+                {examples.map((ex, i) => (
+                  <li key={i}>{typeof ex === 'string' ? ex : (ex?.text || JSON.stringify(ex))}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      );
+    }
+    // Unknown object shape — pretty-print the JSON gracefully.
+    return (
+      <pre className="text-[11px] leading-snug text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/60 rounded p-2 overflow-auto max-h-48">
+        {JSON.stringify(parsed, null, 2)}
+      </pre>
+    );
+  };
+
+  /** Full per-word detail panel shown under an expanded dictionary-word row. */
+  const renderWordDetail = (r: any): React.ReactNode => {
+    const translations: string[] = Array.isArray(r.translations) ? r.translations : [];
+    const images: any[] = Array.isArray(r.image_files) ? r.image_files : [];
+    const imageUrl = (img: any): string | null => {
+      if (typeof img === 'string') return img;
+      if (img && typeof img === 'object') return img.url || img.path || img.src || null;
+      return null;
+    };
+    const Field = ({ label, value }: { label: string; value: React.ReactNode }) =>
+      value == null || value === '' ? null : (
+        <div className="flex gap-2 text-[11px]">
+          <span className="text-slate-500 dark:text-slate-400 min-w-[5.5rem] flex-shrink-0">{label}</span>
+          <span className="text-slate-700 dark:text-slate-200 break-words">{value}</span>
+        </div>
+      );
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Left: meaning + audio + phonetics */}
+        <div className="space-y-3">
+          <div>
+            <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Translations</div>
+            {translations.length ? (
+              <ul className="list-disc list-inside space-y-0.5 text-xs text-slate-700 dark:text-slate-200">
+                {translations.map((tr, i) => (
+                  <li key={i}>{tr}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-400">No translation.</p>
+            )}
+          </div>
+          <div className="flex items-center gap-3 flex-wrap text-[11px]">
+            {r.us_phonetic && (
+              <span className="font-mono text-slate-600 dark:text-slate-300">US {r.us_phonetic}</span>
+            )}
+            {r.uk_phonetic && (
+              <span className="font-mono text-slate-600 dark:text-slate-300">UK {r.uk_phonetic}</span>
+            )}
+            {r.phonetic && !r.us_phonetic && !r.uk_phonetic && (
+              <span className="font-mono text-slate-600 dark:text-slate-300">{r.phonetic}</span>
+            )}
+          </div>
+          {r.audio_url && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => playWordAudio(r.audio_url as string, r.content)}
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+              >
+                <Volume2 className="w-3.5 h-3.5" /> Play audio
+              </button>
+              <audio controls src={r.audio_url} className="h-8 max-w-[14rem]" />
+            </div>
+          )}
+          {r.word_details != null && (
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Details</div>
+              {renderWordDetailsJson(r.word_details)}
+            </div>
+          )}
+          {images.length > 0 && (
+            <div>
+              <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Images</div>
+              <div className="flex flex-wrap gap-2">
+                {images.map((img, i) => {
+                  const u = imageUrl(img);
+                  return u ? (
+                    <img key={i} src={u} alt={`${r.content} ${i + 1}`} className="w-16 h-16 object-cover rounded border border-slate-200 dark:border-slate-700" />
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+        {/* Right: metadata */}
+        <div className="space-y-1.5">
+          <Field label="Valid" value={r.is_valid ? 'Yes' : 'No'} />
+          <Field label="Validity note" value={r.validity_note} />
+          <Field label="Validity src" value={r.validity_source} />
+          <Field label="Checked at" value={r.validity_checked_at} />
+          <Field label="Translation" value={r.translation_provider} />
+          <Field label="TTS provider" value={r.tts_provider} />
+          <Field label="Image" value={r.image_provider} />
+          <Field label="TTS status" value={r.tts_status} />
+          <Field label="TTS attempts" value={typeof r.tts_attempts === 'number' ? String(r.tts_attempts) : null} />
+          <Field
+            label="TTS error"
+            value={r.tts_error ? <span className="text-rose-600 dark:text-rose-400">{r.tts_error}</span> : null}
+          />
+          <Field label="Queries" value={typeof r.query_count === 'number' ? nf(r.query_count) : null} />
+          <Field label="Last modified" value={r.last_modified} />
+          <Field label="Last query" value={r.last_query_time} />
+          <Field label="MD5" value={r.md5 ? <span className="font-mono">{r.md5}</span> : null} />
+        </div>
+      </div>
+    );
+  };
+
+  /** TTS queue items by status or type (GET /tts/queue/items). */
+  const openTtsQueueDrill = (
+    label: string,
+    params: { status?: 'pending' | 'processing' | 'completed' | 'failed'; type?: 'word' | 'sentence' | 'article' }
+  ) => {
+    const columns: PaginatedListColumn[] = [
+      { key: 'content_text', header: 'Content', className: 'text-slate-900 dark:text-slate-100 max-w-xs truncate', render: (r) => r.content_text || r.content || r.text || '-' },
+      { key: 'task_type', header: 'Type', render: (r) => r.task_type || r.type || '-' },
+      { key: 'language', header: 'Lang', className: 'uppercase', render: (r) => r.language || '-' },
+      { key: 'status', header: 'Status', render: (r) => r.status || '-' },
+    ];
+    const fetchPage: PaginatedListFetcher = async (start, limit) => {
+      const r = await api.books.getTtsQueueItems({ ...params, start, limit });
+      if (!r.success || !r.data) throw new Error(r.error || 'Failed to load queue items');
+      return { items: r.data.items || [], total: r.data.total || 0 };
+    };
+    logInfo('vocab', `Drill-down: TTS queue "${label}"`);
+    setStatDrill({ title: `TTS Queue — ${label}`, fetchPage, columns, reloadKey: `tts:${JSON.stringify(params)}` });
+  };
+
+  /** Dictionary words by filter (GET /dictionary/words). */
+  const openDictionaryDrill = (
+    label: string,
+    filter: 'all' | 'with_translation' | 'without_translation' | 'invalid' | 'with_audio' | 'without_audio',
+    language?: string
+  ) => {
+    const lang = language ?? drillLanguage();
+    const columns: PaginatedListColumn[] = [
+      { key: 'content', header: 'Word', className: 'font-medium text-slate-900 dark:text-slate-100' },
+      {
+        key: 'translations',
+        header: 'Translation',
+        className: 'max-w-[16rem]',
+        render: (r) => {
+          const text = Array.isArray(r.translations) && r.translations.length
+            ? r.translations.join('; ')
+            : (r.has_translation ? '—' : '');
+          if (!text) return <span className="text-slate-400">—</span>;
+          return (
+            <span className="block truncate" title={text}>{text}</span>
+          );
+        },
+      },
+      {
+        key: 'audio',
+        header: 'Audio',
+        className: 'text-center',
+        render: (r) =>
+          r.audio_url ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                playWordAudio(r.audio_url as string, r.content);
+              }}
+              className="inline-flex items-center justify-center rounded-full p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
+              aria-label={`Play audio for ${r.content}`}
+              title="Play audio"
+            >
+              <Play className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <span className="text-slate-400">-</span>
+          ),
+      },
+      { key: 'us_phonetic', header: 'US', className: 'font-mono text-slate-500 dark:text-slate-400', render: (r) => r.us_phonetic || <span className="text-slate-300 dark:text-slate-600">—</span> },
+      { key: 'uk_phonetic', header: 'UK', className: 'font-mono text-slate-500 dark:text-slate-400', render: (r) => r.uk_phonetic || <span className="text-slate-300 dark:text-slate-600">—</span> },
+      {
+        key: 'is_valid',
+        header: 'Valid',
+        className: 'text-center',
+        render: (r) => (
+          <span
+            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+              r.is_valid
+                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
+                : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'
+            }`}
+          >
+            {r.is_valid ? 'Yes' : 'No'}
+          </span>
+        ),
+      },
+      { key: 'query_count', header: 'Queries', className: 'text-right tabular-nums', render: (r) => nf(r.query_count) },
+    ];
+    const fetchPage: PaginatedListFetcher = async (start, limit) => {
+      const r = await api.books.getDictionaryWords({ language: lang, filter, start, limit });
+      if (!r.success || !r.data) throw new Error(r.error || 'Failed to load words');
+      return { items: r.data.items || [], total: r.data.total || 0 };
+    };
+    logInfo('vocab', `Drill-down: dictionary "${label}" (${lang}/${filter})`);
+    setStatDrill({
+      title: `${label} — ${lang}`,
+      subtitle: `filter: ${filter}`,
+      fetchPage,
+      columns,
+      renderDetail: (r) => renderWordDetail(r),
+      wide: true,
+      reloadKey: `dict:${lang}:${filter}`,
+    });
+  };
+
+  /** Total Libraries → the libraries list (GET /vocabulary/libraries, paged). */
+  const openLibrariesDrill = () => {
+    const columns: PaginatedListColumn[] = [
+      { key: 'name', header: 'Library', className: 'font-medium text-slate-900 dark:text-slate-100' },
+      { key: 'language', header: 'Language', className: 'capitalize' },
+      { key: 'word_count', header: 'Words', className: 'text-right', render: (r) => nf(r.word_count) },
+    ];
+    const fetchPage: PaginatedListFetcher = async (start, limit) => {
+      const perPage = limit;
+      const page = Math.floor(start / perPage) + 1;
+      const r = await api.appQyV1.getLibraries({ language: drillLanguage(), page, per_page: perPage });
+      if (!r.success || !r.data) throw new Error(r.error || 'Failed to load libraries');
+      const d = r.data as any;
+      const items = Array.isArray(d.libraries) ? d.libraries : Array.isArray(d) ? d : [];
+      const total = Number(d.pagination?.total ?? d.total ?? items.length) || items.length;
+      return { items, total };
+    };
+    logInfo('vocab', 'Drill-down: libraries list');
+    setStatDrill({ title: `Total Libraries — ${drillLanguage()}`, fetchPage, columns, reloadKey: `libs:${drillLanguage()}` });
+  };
+
+  /** Language Breakdown → dictionary words for that language (GET /dictionary/words). */
+  const openLanguageRowDrill = (languageName: string) => {
+    openDictionaryDrill(`Language: ${languageName}`, 'all', languageName);
+  };
+
   return (
     <div className="h-full flex flex-col p-6 overflow-hidden">
       {/* Header */}
@@ -941,30 +1264,50 @@ const VocabularyLearning: React.FC = () => {
             <div>
               <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Status Statistics</h4>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">
+                <button
+                  type="button"
+                  onClick={() => openTtsQueueDrill('Pending', { status: 'pending' })}
+                  className="text-left bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+                >
+                  <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
                     {queueStats.by_status?.pending || 0}
+                    <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
                   </div>
                   <div className="text-xs text-slate-600 dark:text-slate-400">Pending</div>
-                </div>
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openTtsQueueDrill('Processing', { status: 'processing' })}
+                  className="text-left bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+                >
+                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1">
                     {queueStats.by_status?.processing || 0}
+                    <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
                   </div>
                   <div className="text-xs text-slate-600 dark:text-slate-400">Processing</div>
-                </div>
-                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openTtsQueueDrill('Completed', { status: 'completed' })}
+                  className="text-left bg-green-50 dark:bg-green-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+                >
+                  <div className="text-2xl font-bold text-green-700 dark:text-green-400 flex items-center gap-1">
                     {queueStats.by_status?.completed || 0}
+                    <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
                   </div>
                   <div className="text-xs text-slate-600 dark:text-slate-400">Completed</div>
-                </div>
-                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-red-700 dark:text-red-400">
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openTtsQueueDrill('Failed', { status: 'failed' })}
+                  className="text-left bg-red-50 dark:bg-red-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+                >
+                  <div className="text-2xl font-bold text-red-700 dark:text-red-400 flex items-center gap-1">
                     {queueStats.by_status?.failed || 0}
+                    <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
                   </div>
                   <div className="text-xs text-slate-600 dark:text-slate-400">Failed</div>
-                </div>
+                </button>
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
                   <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">
                     {queueStats.total || 0}
@@ -979,24 +1322,39 @@ const VocabularyLearning: React.FC = () => {
               <div>
                 <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Type Statistics</h4>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400">
+                  <button
+                    type="button"
+                    onClick={() => openTtsQueueDrill('Word', { type: 'word' })}
+                    className="text-left bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+                  >
+                    <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
                       {queueStats.by_type.word || 0}
+                      <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
                     </div>
                     <div className="text-xs text-slate-600 dark:text-slate-400">Word</div>
-                  </div>
-                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openTtsQueueDrill('Sentence', { type: 'sentence' })}
+                    className="text-left bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+                  >
+                    <div className="text-2xl font-bold text-purple-700 dark:text-purple-400 flex items-center gap-1">
                       {queueStats.by_type.sentence || 0}
+                      <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
                     </div>
                     <div className="text-xs text-slate-600 dark:text-slate-400">Sentence</div>
-                  </div>
-                  <div className="bg-pink-50 dark:bg-pink-900/20 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-pink-700 dark:text-pink-400">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openTtsQueueDrill('Article', { type: 'article' })}
+                    className="text-left bg-pink-50 dark:bg-pink-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+                  >
+                    <div className="text-2xl font-bold text-pink-700 dark:text-pink-400 flex items-center gap-1">
                       {queueStats.by_type.article || 0}
+                      <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
                     </div>
                     <div className="text-xs text-slate-600 dark:text-slate-400">Article</div>
-                  </div>
+                  </button>
                 </div>
               </div>
             )}
@@ -1052,6 +1410,9 @@ const VocabularyLearning: React.FC = () => {
         )}
       </div>
 
+      {/* Books / Add source — collapsible upload + analyze + ingest panel */}
+      <BooksPanel />
+
       {/* Statistics Section */}
       {(statistics || loadingStatistics) && (
         <div className={`${commonClasses.card} p-4 mb-4`}>
@@ -1097,12 +1458,17 @@ const VocabularyLearning: React.FC = () => {
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-400">Languages Supported</div>
             </div>
-            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-              <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+            <button
+              type="button"
+              onClick={openLibrariesDrill}
+              className="text-left bg-green-50 dark:bg-green-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+            >
+              <div className="text-2xl font-bold text-green-700 dark:text-green-400 flex items-center gap-1">
                 {(statistics.summary?.total_libraries || 0).toLocaleString()}
+                <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-400">Total Libraries</div>
-            </div>
+            </button>
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
               <button
                 type="button"
@@ -1129,27 +1495,47 @@ const VocabularyLearning: React.FC = () => {
 
           {/* Dictionary-level totals: distinct words, translation coverage, validity */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4">
-              <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">
+            <button
+              type="button"
+              onClick={() => openDictionaryDrill('Dictionary Words', 'all')}
+              className="text-left bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+            >
+              <div className="text-2xl font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
                 {(statistics.summary?.total_dictionary_words || 0).toLocaleString()}
+                <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-400">Dictionary Words</div>
-            </div>
-            <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4">
-              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+            </button>
+            <button
+              type="button"
+              onClick={() => openDictionaryDrill('With Translation', 'with_translation')}
+              className="text-left bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+            >
+              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
                 {(statistics.summary?.total_with_translation || 0).toLocaleString()}
+                <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-400">With Translation</div>
-            </div>
-            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
-              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+            </button>
+            <button
+              type="button"
+              onClick={() => openDictionaryDrill('Without Translation', 'without_translation')}
+              className="text-left bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+            >
+              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
                 {(statistics.summary?.total_without_translation || 0).toLocaleString()}
+                <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-400">Without Translation</div>
-            </div>
-            <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-4">
-              <div className="text-2xl font-bold text-rose-700 dark:text-rose-400">
+            </button>
+            <button
+              type="button"
+              onClick={() => openDictionaryDrill('Invalid Words', 'invalid')}
+              className="text-left bg-rose-50 dark:bg-rose-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
+            >
+              <div className="text-2xl font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1">
                 {(statistics.summary?.total_invalid_words || 0).toLocaleString()}
+                <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
               </div>
               <div className="text-xs text-slate-600 dark:text-slate-400">
                 Invalid Words
@@ -1159,7 +1545,7 @@ const VocabularyLearning: React.FC = () => {
                   </span>
                 )}
               </div>
-            </div>
+            </button>
           </div>
 
           {/* Language Breakdown - total table */}
@@ -1185,8 +1571,17 @@ const VocabularyLearning: React.FC = () => {
                     {statistics.languages.map((lang: any, idx: number) => {
                       const words = (lang.dictionary_words ?? 0) > 0 ? lang.dictionary_words : (lang.total_words || 0);
                       return (
-                      <tr key={idx} className="border-b border-slate-100 dark:border-slate-700/50 last:border-0">
-                        <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">{lang.language}</td>
+                      <tr
+                        key={idx}
+                        onClick={() => openLanguageRowDrill(lang.language)}
+                        className="border-b border-slate-100 dark:border-slate-700/50 last:border-0 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition"
+                      >
+                        <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">
+                          <span className="inline-flex items-center gap-1 underline decoration-dotted">
+                            {lang.language}
+                            <Eye className="w-3 h-3 opacity-40" />
+                          </span>
+                        </td>
                         <td className="py-2 px-3 text-right text-slate-700 dark:text-slate-300 font-medium">{(words || 0).toLocaleString()}</td>
                         <td className="py-2 px-3 text-right text-emerald-600 dark:text-emerald-400">{(lang.with_translation || 0).toLocaleString()}</td>
                         <td className="py-2 px-3 text-right text-amber-600 dark:text-amber-400">{(lang.without_translation || 0).toLocaleString()}</td>
@@ -1982,6 +2377,21 @@ const VocabularyLearning: React.FC = () => {
         onRefresh={loadQueueStats}
         t={t}
       />
+
+      {/* Clickable-stat drill-down (TTS queue / dictionary words / libraries / language) */}
+      {statDrill && (
+        <PaginatedListModal
+          open={!!statDrill}
+          onClose={() => setStatDrill(null)}
+          title={statDrill.title}
+          subtitle={statDrill.subtitle}
+          fetchPage={statDrill.fetchPage}
+          columns={statDrill.columns}
+          renderDetail={statDrill.renderDetail}
+          wide={statDrill.wide}
+          reloadKey={statDrill.reloadKey}
+        />
+      )}
 
       {/* Library deletion confirm */}
       <ConfirmModal

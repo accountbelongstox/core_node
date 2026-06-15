@@ -8,6 +8,8 @@ import { cleanupModelCache } from '@/utils/semantic-similarity-engine';
 import { setupAudioStatusListener } from './tools/audio';
 import { getDeepSeekPollingService } from './deepseek-polling-service';
 import { initBingDictionaryClientListener } from './bing-dictionary-client-listener';
+import { initBingWorkerLifecycle } from './services/bing-dictionary-worker-service';
+import { initNotebookLMListener } from './notebooklm-listener';
 import { taskCenter } from './services/task-center/TaskCenter';
 import { initializeProcessors } from './services/task-center/init-processors';
 import { initTaskCenterListener } from './task-center-listener';
@@ -75,6 +77,11 @@ export default defineBackground(() => {
   initStorageManagerListener();
   setupAudioStatusListener();
   initBingDictionaryClientListener();
+  // MV3-resilient assist: resurrect the Bing translation worker after the
+  // service worker (or browser) restarts, via chrome.alarms + startup hooks.
+  initBingWorkerLifecycle();
+  // NotebookLM automation bridge for the popup test panel.
+  initNotebookLMListener();
 
   // Initialize DeepSeek polling service
   getDeepSeekPollingService()

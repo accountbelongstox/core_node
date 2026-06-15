@@ -27,6 +27,15 @@ export class NativeMessagingHost {
   private associatedServer: Server | null = null;
   private pendingRequests: Map<string, PendingRequest> = new Map();
   private keepAliveTimer: NodeJS.Timeout | null = null;
+  // Whether the Chrome extension's stdio link to THIS process is still alive.
+  // Goes false when stdin ends (Service Worker disconnected / went idle). An
+  // orphaned process can no longer relay tool calls, so it must yield the port
+  // to a fresh instance that does have a live link.
+  private extensionConnected = true;
+
+  public isExtensionConnected(): boolean {
+    return this.extensionConnected;
+  }
 
   public setServer(serverInstance: Server): void {
     this.associatedServer = serverInstance;
@@ -76,6 +85,9 @@ export class NativeMessagingHost {
     stdin.on('end', () => {
       log('WARN', 'stdin ended - Chrome Extension Service Worker may have stopped');
       log('INFO', 'Server will continue running - use STOP message to shut down');
+      // The extension link is gone; mark orphaned so a fresh instance can take
+      // over the port even while this one still has active MCP sessions.
+      this.extensionConnected = false;
       // Don't call cleanup() - let server continue running
       // Service Worker in MV3 may stop after inactivity, but server should persist
 
@@ -251,6 +263,21 @@ export class NativeMessagingHost {
     const detectionResult = await detector.detect();
 
     if (!detectionResult.canStart) {
+      if (detectionResult.isExisting) {
+        // A healthy server is already listening on this port and could not be
+        // shut down (e.g. it still has active MCP sessions). The extension only
+        // needs *a* server reachable on the port, so adopt the existing one and
+        // report success instead of surfacing a fatal error.
+        log(
+          'WARN',
+          `Existing server present on port ${port}; adopting it instead of failing: ${detectionResult.message}`,
+        );
+        this.sendMessage({
+          type: NativeMessageType.SERVER_STARTED,
+          payload: { port, adopted: true },
+        });
+        return;
+      }
       const errorMsg = `Cannot start server: ${detectionResult.message}`;
       log('ERROR', errorMsg);
       this.sendError(errorMsg);

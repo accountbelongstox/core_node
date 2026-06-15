@@ -679,67 +679,46 @@ class SingletonDetector:
                 client_socket.sendall(response_data + b'\n')
 
             elif msg_type == MessageType.SHUTDOWN.value:
-                self._log("Received shutdown request", "WARNING")
+                # Newest-wins takeover: a SHUTDOWN from a sibling means the user
+                # launched a NEWER instance. Always accept and shut down
+                # gracefully (execute_handlers=True still runs every shutdown
+                # handler, so in-flight work can flush/save) — the newer instance
+                # is the user's latest intent. Busy state is still reported via
+                # STATUS for external monitors, but never blocks a sibling
+                # takeover (that would leave the user's new launch unable to run).
+                new_pid = message.get('pid')
+                self._log(f"Takeover SHUTDOWN from PID {new_pid}; yielding to newer instance", "WARNING")
 
-                # Check if shutdown is allowed
-                can_shutdown = True
-                shutdown_reason = "Normal shutdown"
+                # Notification interface (the "old instance" side): fire
+                # 'singleton.superseded' BEFORE the ACK so app code subscribed via
+                # on_singleton_superseded() can react while graceful shutdown runs.
+                THREAD_BUS.trigger_event('singleton.superseded', {
+                    'app_id': self.app_id,
+                    'new_pid': new_pid,
+                }, async_mode=True)
 
-                if self.state_checker:
-                    try:
-                        app_state = self.state_checker()
-                        can_shutdown = app_state.get("can_shutdown", True)
-                        if not can_shutdown:
-                            shutdown_reason = f"Shutdown denied: {app_state.get('message', 'Application is busy')}"
-                            self._log(shutdown_reason, "WARNING")
-                    except Exception as e:
-                        self._log(f"State checker failed during shutdown: {e}", "ERROR")
-                        # On error, allow shutdown (fail-safe)
-                        can_shutdown = True
-                else:
-                    # THREAD_BUS Integration: Use THREAD_BUS state when no state_checker
-                    # Check if THREAD_BUS reports system is busy
-                    if THREAD_BUS.is_busy():
-                        can_shutdown = False
-                        shutdown_reason = f"Shutdown denied: {THREAD_BUS.get_busy_reason()}"
-                        self._log(shutdown_reason, "WARNING")
-
-                # Send response
                 response = self._create_message(
                     MessageType.SHUTDOWN_ACK,
-                    accepted=can_shutdown,
-                    reason=shutdown_reason if not can_shutdown else "Shutdown accepted"
+                    accepted=True,
+                    reason="Shutdown accepted (newer instance takes over)"
                 )
                 response_data = json.dumps(response).encode('utf-8')
                 client_socket.sendall(response_data + b'\n')
 
-                # Flush and close socket to ensure response is sent
+                # Ensure the ACK is flushed before teardown (benign if already closed).
                 try:
                     client_socket.shutdown(socket.SHUT_WR)
-                except:
+                except OSError:
                     pass
 
-                if can_shutdown:
-                    self._log("Shutdown ACK sent (accepted), triggering shutdown...", "WARNING")
+                def trigger_shutdown():
+                    time.sleep(0.3)  # let the ACK reach the new instance first
+                    THREAD_BUS.request_shutdown(
+                        reason=f"Superseded by newer instance (PID {new_pid})",
+                        execute_handlers=True
+                    )
 
-                    # THREAD_BUS Integration: Trigger shutdown request via THREAD_BUS
-                    # This allows all modules to respond to shutdown properly
-                    def trigger_shutdown():
-                        time.sleep(0.3)  # Short delay to ensure response is received
-
-                        # Call legacy callback if provided (backward compatibility)
-                        if self.on_message:
-                            self.on_message({'type': 'SHUTDOWN', 'pid': message.get('pid')})
-
-                        # Trigger THREAD_BUS shutdown (new mechanism)
-                        THREAD_BUS.request_shutdown(
-                            reason=f"Shutdown requested by another instance (PID {message.get('pid')})",
-                            execute_handlers=True
-                        )
-
-                    threading.Thread(target=trigger_shutdown, daemon=True).start()
-                else:
-                    self._log(f"Shutdown ACK sent (rejected): {shutdown_reason}", "WARNING")
+                threading.Thread(target=trigger_shutdown, daemon=True).start()
 
             elif msg_type == MessageType.PING.value:
                 # Send PONG
@@ -834,6 +813,25 @@ def detect_singleton(
         debug=debug
     )
     return detector.detect_and_bind()
+
+
+def on_singleton_superseded(callback: Callable[[Dict[str, Any]], None]) -> None:
+    """
+    Register a callback for when a NEWER instance takes over this (older) one.
+
+    This is the single public hook for the "old instance" side of the
+    newest-wins policy: when another instance launches and triggers a takeover,
+    the old instance fires the 'singleton.superseded' THREAD_BUS event right
+    before it begins graceful shutdown. The callback receives the event payload
+    dict: ``{'app_id': str, 'new_pid': int}``. Use it to surface a notice or
+    persist state; the graceful shutdown then proceeds automatically.
+
+    Example:
+        from pycore.pylauncher import on_singleton_superseded
+        on_singleton_superseded(lambda e: ColorPrint.yellow(
+            f"A newer instance (PID {e['new_pid']}) took over; exiting."))
+    """
+    THREAD_BUS.register_event_handler('singleton.superseded', callback)
 
 
 # ============================================================
