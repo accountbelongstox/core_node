@@ -1433,18 +1433,11 @@ _tcp_probe() {
 check_host_reachable() {
     local url="$1"
     local host=""
-<<<<<<< HEAD
-    local port=22
-=======
     local port=22   # scp-style git@host:path uses SSH (22)
->>>>>>> a94d3fe9ca6f3c9e7bc327607c4d7f3ed04eb528
 
     # Extract host (+ optional port) from the git URL.
     if [[ "$url" =~ ^ssh://[^@]+@([^:/]+):?([0-9]*) ]]; then
         host="${BASH_REMATCH[1]}"
-<<<<<<< HEAD
-    elif [[ "$url" =~ //([^/:]+)(:([0-9]+))? ]]; then
-=======
         [ -n "${BASH_REMATCH[2]}" ] && port="${BASH_REMATCH[2]}"
     elif [[ "$url" =~ @([^:]+): ]]; then
         host="${BASH_REMATCH[1]}"
@@ -1452,7 +1445,6 @@ check_host_reachable() {
         host="${BASH_REMATCH[1]}"
         port=443
     elif [[ "$url" =~ //([^/]+) ]]; then
->>>>>>> a94d3fe9ca6f3c9e7bc327607c4d7f3ed04eb528
         host="${BASH_REMATCH[1]}"
         if [[ -n "${BASH_REMATCH[3]}" ]]; then
             port="${BASH_REMATCH[3]}"
@@ -1462,56 +1454,6 @@ check_host_reachable() {
         return 0
     fi
 
-<<<<<<< HEAD
-    # Determine port from URL scheme
-    if [[ "$url" =~ ^https:// ]]; then
-        port=443
-    elif [[ "$url" =~ ^http:// ]]; then
-        port=80
-    fi
-
-    write_color_text "Checking connectivity to: $host (port $port)" "DarkGray"
-
-    # Method 1: Use ssh connection test for SSH (port 22) targets
-    if [[ "$port" -eq 22 ]]; then
-        if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$host" echo 2>&1 | grep -qiE "permission denied|authentication|successfully"; then
-            write_color_text "✓ Host $host is reachable (SSH port open)" "Green"
-            return 0
-        fi
-    fi
-
-    # Method 2: Use nc (netcat) for TCP port check
-    if command -v nc >/dev/null 2>&1; then
-        if nc -z -w 5 "$host" "$port" >/dev/null 2>&1; then
-            write_color_text "✓ Host $host is reachable (port $port open)" "Green"
-            return 0
-        fi
-    fi
-
-    # Method 3: Use bash /dev/tcp (built-in, no extra tools needed)
-    if (echo >/dev/tcp/"$host"/"$port") 2>/dev/null; then
-        write_color_text "✓ Host $host is reachable (port $port open)" "Green"
-        return 0
-    fi
-
-    # Method 4: Use curl for HTTP/HTTPS targets
-    if [[ "$port" -eq 443 || "$port" -eq 80 ]]; then
-        if command -v curl >/dev/null 2>&1; then
-            if curl -s --connect-timeout 5 --max-time 5 -o /dev/null "$url" 2>/dev/null; then
-                write_color_text "✓ Host $host is reachable (HTTP check)" "Green"
-                return 0
-            fi
-        fi
-    fi
-
-    # Method 5: Fallback to ping (may be blocked by firewalls)
-    if ping -c 1 -W 3 "$host" >/dev/null 2>&1; then
-        write_color_text "✓ Host $host is reachable (ICMP)" "Green"
-        return 0
-    fi
-
-    write_color_text "✗ Host $host is NOT reachable (all methods failed)" "Red"
-=======
     write_color_text "Checking connectivity to: $host:$port (TCP)" "DarkGray"
 
     if _tcp_probe "$host" "$port"; then
@@ -1531,7 +1473,6 @@ check_host_reachable() {
     fi
 
     write_color_text "✗ Host $host is NOT reachable on port $port (and 443)" "Red"
->>>>>>> a94d3fe9ca6f3c9e7bc327607c4d7f3ed04eb528
     return 1
 }
 

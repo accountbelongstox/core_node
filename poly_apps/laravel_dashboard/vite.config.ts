@@ -34,6 +34,16 @@ export default defineConfig(({ mode }) => {
             changeOrigin: true,
             ws: true,
             rewrite: (p) => p.replace(/^\/pyapi/, ''),
+            // Suppress ECONNREFUSED noise during startup (the Python worker takes
+            // a few seconds to bind :59000 after Vite is already serving).
+            configure: (proxy) => {
+              proxy.on('error', (_err, _req, res) => {
+                if (res && 'writeHead' in res && !res.headersSent) {
+                  (res as import('http').ServerResponse).writeHead(502);
+                  (res as import('http').ServerResponse).end();
+                }
+              });
+            },
           },
         },
       },

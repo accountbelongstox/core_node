@@ -1,20 +1,6 @@
 {
   "peers": [
     {
-      "host": "10.61.251.54",
-      "id": "159ec26d49df9c5c3a5a2270108f4a11d307cc2417d154fba5038d6e1c3128b5",
-      "name": "DESKTOP-1L9K06N",
-      "port": 59000,
-      "role": "dev"
-    },
-    {
-      "host": "43.163.112.77",
-      "id": "43.163.112.77:59000",
-      "name": "si.api.12gm.com",
-      "port": 59000,
-      "role": "client"
-    },
-    {
       "host": "10.150.186.10",
       "id": "aae4a4b2b3f6a69d946945bf9b7d08862e76c15e8481ddce9171a6812b752a7a",
       "name": "ubuntu-HW15S",
@@ -22,11 +8,6 @@
       "role": "client"
     }
   ],
-<<<<<<< HEAD
-  "updated_at": 1781495986.6314538,
-  "version": 13
-=======
-  "updated_at": 1781500616.1749444,
-  "version": 14
->>>>>>> a94d3fe9ca6f3c9e7bc327607c4d7f3ed04eb528
+  "updated_at": 1781501906.2852836,
+  "version": 1
 }

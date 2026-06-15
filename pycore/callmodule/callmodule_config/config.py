@@ -45,11 +45,12 @@ class Config:
     # ==================== UI Configuration ====================
     IS_WINDOWS = platform.system() == 'Windows'
     IS_LINUX = platform.system() == 'Linux'
+    HAS_DISPLAY = bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
     WINDOW_WIDTH = 1400
     WINDOW_HEIGHT = 900
     FRAMELESS = True
     SHOW_UI_ON_START = IS_WINDOWS
-    ENABLE_TRAY = IS_WINDOWS
+    ENABLE_TRAY = IS_WINDOWS or (IS_LINUX and HAS_DISPLAY)
 
     # ==================== Debug Window ====================
     DEBUG_WINDOW_WIDTH = 650
