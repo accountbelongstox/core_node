@@ -1434,15 +1434,22 @@ check_host_reachable() {
     local url="$1"
     local host=""
 <<<<<<< HEAD
+<<<<<<< HEAD
     local port=22   # scp-style git@host:path uses SSH (22)
 =======
     local port=22
 >>>>>>> 6ef6c82737ccdae9a10004adb0cdef35878179ec
+=======
+    local port=22   # scp-style git@host:path uses SSH (22)
+>>>>>>> c57c295e103b6b288db82be1e2ec39d5ae060ec2
 
     # Extract host (+ optional port) from the git URL.
     if [[ "$url" =~ ^ssh://[^@]+@([^:/]+):?([0-9]*) ]]; then
         host="${BASH_REMATCH[1]}"
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> c57c295e103b6b288db82be1e2ec39d5ae060ec2
         [ -n "${BASH_REMATCH[2]}" ] && port="${BASH_REMATCH[2]}"
     elif [[ "$url" =~ @([^:]+): ]]; then
         host="${BASH_REMATCH[1]}"
@@ -1450,9 +1457,12 @@ check_host_reachable() {
         host="${BASH_REMATCH[1]}"
         port=443
     elif [[ "$url" =~ //([^/]+) ]]; then
+<<<<<<< HEAD
 =======
     elif [[ "$url" =~ //([^/:]+)(:([0-9]+))? ]]; then
 >>>>>>> 6ef6c82737ccdae9a10004adb0cdef35878179ec
+=======
+>>>>>>> c57c295e103b6b288db82be1e2ec39d5ae060ec2
         host="${BASH_REMATCH[1]}"
         if [[ -n "${BASH_REMATCH[3]}" ]]; then
             port="${BASH_REMATCH[3]}"
@@ -1463,6 +1473,9 @@ check_host_reachable() {
     fi
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> c57c295e103b6b288db82be1e2ec39d5ae060ec2
     write_color_text "Checking connectivity to: $host:$port (TCP)" "DarkGray"
 
     if _tcp_probe "$host" "$port"; then
@@ -1482,6 +1495,7 @@ check_host_reachable() {
     fi
 
     write_color_text "✗ Host $host is NOT reachable on port $port (and 443)" "Red"
+<<<<<<< HEAD
 =======
     # Determine port from URL scheme
     if [[ "$url" =~ ^https:// ]]; then
@@ -1532,6 +1546,8 @@ check_host_reachable() {
 
     write_color_text "✗ Host $host is NOT reachable (all methods failed)" "Red"
 >>>>>>> 6ef6c82737ccdae9a10004adb0cdef35878179ec
+=======
+>>>>>>> c57c295e103b6b288db82be1e2ec39d5ae060ec2
     return 1
 }
 

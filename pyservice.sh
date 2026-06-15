@@ -106,6 +106,7 @@ fi
 
 BIND_HOST="0.0.0.0"
 PORT="59000"
+RPC_PORT="59000"
 DEBUG=0
 RELOAD=0
 NO_INSTALL=0
@@ -255,16 +256,16 @@ fi
 # pyservice binds the RPC API ($PORT, default 59000) and the dashboard UI
 # ($UI_PORT, default 13054). If a Docker container PUBLISHES one of these host
 # ports it surfaces as a docker-proxy holder the normal lsof/kill paths won't
-# touch. Offer to stop the owning container (default Yes; non-interactive
-# auto-stops). Override: PORT_CONFLICT_AUTO_STOP=no (keep) / =yes (pre-confirm).
-prompt_default_yes() {
+# touch. Offer to stop the owning container and disable its auto-startup
+# (default No; keep running). Override: PORT_CONFLICT_AUTO_STOP=yes (pre-confirm).
+prompt_default_no() {
     local msg="$1" reply=""
-    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Nn]*) return 1 ;; [Yy]*) return 0 ;; esac
+    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Yy]*) return 0 ;; [Nn]*) return 1 ;; esac
     if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '%s [Y/n] ' "$msg" > /dev/tty
+        printf '%s [y/N] ' "$msg" > /dev/tty
         read -r reply < /dev/tty || reply=""
     fi
-    case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+    case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 stop_docker_publisher() {
     local port="$1" row="" cid="" cname=""
@@ -275,9 +276,12 @@ stop_docker_publisher() {
     cid=$(printf '%s' "$row" | awk '{print $1}')
     cname=$(printf '%s' "$row" | awk '{print $2}')
     echo "[i] Port ${port} is published by Docker container: ${cname:-$cid}"
-    if prompt_default_yes "[?] Stop container ${cname:-$cid} to free port ${port}?"; then
+    if prompt_default_no "[?] Stop container ${cname:-$cid} and disable its auto-startup to free port ${port}?"; then
         echo "[..] Stopping container ${cname:-$cid} ..."
         docker stop "$cid" >/dev/null 2>&1 || ${USE_SUDO:-} docker stop "$cid" >/dev/null 2>&1 || true
+        # Disable auto-startup (restart policy -> no)
+        docker update --restart=no "$cid" >/dev/null 2>&1 || ${USE_SUDO:-} docker update --restart=no "$cid" >/dev/null 2>&1 || true
+        echo "[i] Container ${cname:-$cid} stopped and auto-startup disabled."
         return 0
     fi
     echo "[i] Left container ${cname:-$cid} running; port ${port} still occupied."
@@ -311,9 +315,10 @@ else
     stop_docker_publisher "$UI_PORT" || true
     # Vite reads PORT for its dev-server port; the /pyapi proxy + WS target the
     # running pycore backend via PYCORE_API_BASE.
+    RPC_PORT="$PORT"
     export PORT="$UI_PORT"
     export PYCORE_UI_PORT="$UI_PORT"
-    export PYCORE_API_BASE="http://localhost:$PORT"
+    export PYCORE_API_BASE="http://localhost:$RPC_PORT"
     # Install deps only if missing.
     if [[ ! -d "$UI_DIR/node_modules" ]]; then
         echo "[..] Installing dashboard deps (pnpm install) ..."
@@ -375,6 +380,36 @@ fi
 
 # --- 3) launch the worker ------------------------------------------------ #
 # NOTE: run (not exec) so the EXIT trap can stop the UI afterwards.
+# Restore PORT to the RPC port so the Python worker (which reads $PORT env var)
+# binds to 59000, not 13054 (the Vite UI port that was temporarily exported).
+export PORT="${RPC_PORT:-59000}"
+export PYCORE_RPC_PORT="$PORT"
+
+# Ensure DISPLAY is set on Linux desktop so the tray (AppIndicator/pystray) can
+# connect to the X11/Wayland session. Also forward DBUS_SESSION_BUS_ADDRESS which
+# AppIndicator3 needs to register with the system tray (GNOME/Ubuntu/KDE).
+if [[ "$(uname)" == "Linux" ]]; then
+    if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+        # Try to detect a running display server
+        if [[ -e /tmp/.X11-unix/X0 ]]; then
+            export DISPLAY=":0"
+        fi
+    fi
+    # Forward DBUS session bus if not set (needed by AppIndicator3)
+    if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+        # Try to get it from the logged-in desktop user
+        local_user=$(w -h 2>/dev/null | awk 'NR==1{print $1}')
+        if [[ -n "$local_user" ]] && [[ "$local_user" != "root" ]]; then
+            local_uid=$(id -u "$local_user" 2>/dev/null)
+            if [[ -n "$local_uid" ]] && [[ -e "/run/user/${local_uid}/bus" ]]; then
+                export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${local_uid}/bus"
+            fi
+        elif [[ -e "/run/user/$(id -u)/bus" ]]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+        fi
+    fi
+fi
+
 PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT")
 if [[ "$DEBUG" -eq 1 ]]; then PY_ARGS+=(--debug); fi
 if [[ "$RELOAD" -eq 1 ]]; then PY_ARGS+=(--reload); fi   # backend hot-reload (watch .py -> os.execv restart)

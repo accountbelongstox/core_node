@@ -76,17 +76,17 @@ port_in_use() {
     fi
 }
 
-# Y/n prompt that DEFAULTS TO YES. Non-interactive (no controlling TTY) -> YES
-# automatically (policy: auto-stop the conflicting container). Override with
-# PORT_CONFLICT_AUTO_STOP=no (force No) or =yes (pre-confirm).
-prompt_default_yes() {
+# y/N prompt that DEFAULTS TO NO. Non-interactive (no controlling TTY) -> NO
+# automatically (policy: keep container running). Override with
+# PORT_CONFLICT_AUTO_STOP=yes (pre-confirm) or =no (force No).
+prompt_default_no() {
     local msg="$1" reply=""
-    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Nn]*) return 1 ;; [Yy]*) return 0 ;; esac
+    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Yy]*) return 0 ;; [Nn]*) return 1 ;; esac
     if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '%s [Y/n] ' "$msg" > /dev/tty
+        printf '%s [y/N] ' "$msg" > /dev/tty
         read -r reply < /dev/tty || reply=""
     fi
-    case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+    case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 
 # Detect & resolve a conflict on <port>. A Docker-published port (e.g. a
@@ -107,9 +107,11 @@ resolve_port_conflict() {
         cid=$(printf '%s' "$row" | awk '{print $1}')
         cname=$(printf '%s' "$row" | awk '{print $2}')
         echo "[$SCRIPT_INDEX] Held by Docker container: ${cname:-$cid} (publishes :$port)."
-        if prompt_default_yes "[$SCRIPT_INDEX] Stop container ${cname:-$cid} to free port $port?"; then
+        if prompt_default_no "[$SCRIPT_INDEX] Stop container ${cname:-$cid} and disable its auto-startup to free port $port?"; then
             echo "[$SCRIPT_INDEX] Stopping container ${cname:-$cid} ..."
             $USE_SUDO docker stop "$cid" >/dev/null 2>&1 || docker stop "$cid" >/dev/null 2>&1 || true
+            $USE_SUDO docker update --restart=no "$cid" >/dev/null 2>&1 || docker update --restart=no "$cid" >/dev/null 2>&1 || true
+            echo "[$SCRIPT_INDEX] Container ${cname:-$cid} stopped and auto-startup disabled."
             sleep 2
             if port_in_use "$port"; then
                 echo "[$SCRIPT_INDEX] Port $port still in use after stopping the container."

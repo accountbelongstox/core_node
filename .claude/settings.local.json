@@ -40,7 +40,12 @@
       "Bash(mkdir -p /tmp/_ssh_test)",
       "Bash(node scripts/git/git.ssh.id.ed.pub.js)",
       "Bash(node scripts/git/git.ssh.id.ed.pub.js show)",
-      "Bash(node scripts/git/git.ssh.id.ed.js show)"
+      "Bash(node scripts/git/git.ssh.id.ed.js show)",
+      "Bash(grep -rn \"pystray\\\\|PyGObject\\\\|gi.repository\\\\|appindicator\\\\|PySide6\" /www/programing/core_node/pycore/requirements*.txt /www/programing/core_node/pycore/setup.py /www/programing/core_node/requirements*.txt)",
+      "Bash(dpkg -l)",
+      "Bash(awk '{print $2, $3}')",
+      "Bash(npx tsc:*)",
+      "Bash(node:*)"
     ]
   }
 }

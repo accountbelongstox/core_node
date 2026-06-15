@@ -673,10 +673,12 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
     # Native tray (default): independent pystray service, started before/without
     # PySide6. Used unless TRAY_BACKEND == "pyside" (then the Qt tray in the UI
     # thread is used instead). The PySide6 tray code is kept and gated by config.
-    if IS_WINDOWS and not CallmoduleConfig.UI_ENABLE_TRAY:
+    # On Linux desktop (DISPLAY set), use the native tray (AppIndicator/pystray).
+    _can_show_tray = IS_WINDOWS or (IS_LINUX and CallmoduleConfig.HAS_DISPLAY)
+    if _can_show_tray and not CallmoduleConfig.UI_ENABLE_TRAY:
         services['tray'] = build_tray_service_config(port=port)
         ColorPrint.blue(f"[ConfigBuilder] Added independent tray service (backend={CallmoduleConfig.TRAY_BACKEND})")
-    elif IS_WINDOWS:
+    elif _can_show_tray and CallmoduleConfig.UI_ENABLE_TRAY:
         ColorPrint.blue("[ConfigBuilder] Using PySide6 Qt tray (TRAY_BACKEND=pyside)")
 
     # Create launcher configuration - from callmodule_config/config.py
