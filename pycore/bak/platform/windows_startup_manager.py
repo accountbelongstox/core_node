@@ -55,8 +55,13 @@ class WindowsStartupManager:
         self.app_name = app_name
         self.script_name = f"{app_name}.bat"
 
-        # Windows Startup folder (current user)
-        startup_folder = Path(os.environ.get('APPDATA', '')) / \
+        # Windows Startup folder (current user). APPDATA can be empty under a
+        # stripped service env; fall back to an ABSOLUTE path so we never build a
+        # RELATIVE 'Microsoft\Windows\...' path that mkdir(parents=True) would
+        # materialize as a stray directory under the current working directory.
+        appdata = os.environ.get('APPDATA') or str(
+            Path(os.environ.get('USERPROFILE') or Path.home()) / 'AppData' / 'Roaming')
+        startup_folder = Path(appdata) / \
                         'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
 
         self.startup_folder = startup_folder

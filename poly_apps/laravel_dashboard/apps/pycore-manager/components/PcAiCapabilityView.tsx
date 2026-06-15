@@ -1,45 +1,46 @@
 /**
- * PcAiStatusPage — pycore Capability Status dashboard ("功能状态").
+ * PcAiCapabilityView — the "Capability" sub-view of the unified AI page.
  *
- * One page over every pycore capability, each a live best-effort probe (a panel
- * failing never blanks the others; the last good snapshot is kept):
- *   - System & Compute : CPU / memory meters + CUDA/GPU readiness
- *                        (GET /api/local/system/resources + /capabilities/status)
- *   - AI Providers      : key / models / latency  (GET /api/local/ai/catalog + on-demand probe)
- *   - OCR engines       : windows → easyocr → cnocr + ai-vision (/ocr/status)
- *   - Text-to-Speech    : live edge-tts availability + version   (/tts/status)
- *   - Free libraries    : translation / TTS / OCR / STT importable + version
- *                         (GET /api/local/capabilities/status)
+ * The former PcAiStatusPage body, reorganized into the merged page (its own
+ * sticky page chrome is dropped — PcAiPage owns the header). Adds two modern
+ * interactions on top of the original:
+ *   - provider cards are COLLAPSIBLE: the header (name/badges/latency) is always
+ *     visible; clicking a card expands a drawer with the rate budget bars + the
+ *     per-key rotation slots (with per-key "Reset cooldown" on a cooled chip).
+ *   - each image-capable provider gets a "Test image" button that forces ONE
+ *     generation on it (ignoring cooldown) and shows the result in a lightbox.
  *
- * Resources poll fast (live meters); capability probes poll slowly. "Open AI
- * chat" hands off to the shared AiChatKit via useShell().openChat('pycore').
+ * Everything else (live meters, sort, per-provider availability test, OCR/TTS,
+ * free libraries, constants & static dirs) is preserved from the original page.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   BrainCircuit, RefreshCcw, CheckCircle2, AlertTriangle, MinusCircle, Timer, KeyRound,
-  MessageSquare, Snowflake,
-  Cpu, MemoryStick, Zap, ScanText, Activity, Eye, Image as ImageIcon,
-  Settings2, FolderOpen, Lock, FolderX, Gauge, ArrowUp, ArrowDown,
+  Snowflake, Cpu, MemoryStick, Zap, ScanText, Activity, Image as ImageIcon,
+  Settings2, FolderOpen, Lock, FolderX, Gauge, ArrowUp, ArrowDown, Layers,
+  ChevronDown, Wand2,
 } from 'lucide-react';
-import { useShell } from '../../../shell/ShellContext';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import { appendChatMessages } from '../../../shared/AiChatKit/aiChatHistory';
 import type { AiChatMessage } from '../../../shell/shellTypes';
 import type {
-  AiProvider, AiProviderRate,
+  AiProvider, AiProviderRate, AiKeySlot,
   SystemResourcesResponse, SystemInfo,
 } from '../../../core/api-libs/pycore';
 import { usePcCapability } from '../PcCapabilityContext';
-import { PcPipelineStatusPanels, PcFreeLibrariesPanel } from '../components/PcPipelineStatusPanels';
+import { PcPipelineStatusPanels, PcFreeLibrariesPanel } from './PcPipelineStatusPanels';
 import AiUsagePanel from '../../../components/ai-tools/AiUsagePanel';
+import { logInfo, logSuccess, logError } from '../../../core/logs/logStore';
+import { PcCollapse, PcImageLightbox } from './PcAiShared';
+
+const LOG_SRC = 'pc-ai-capability';
 
 const TIER_CLS: Record<string, string> = {
   free: 'bg-emerald-500/15 text-emerald-500',
   balance: 'bg-sky-500/15 text-sky-500',
   paid: 'bg-amber-500/15 text-amber-500',
 };
-
 
 type ProviderSortField = 'original' | 'name' | 'availability' | 'speed';
 type ProviderSortDir = 'asc' | 'desc';
@@ -106,8 +107,7 @@ const LimitChips: React.FC<{ limits: string }> = ({ limits }) => {
           key={i}
           title={part}
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium
-                     bg-indigo-500/8 border border-indigo-400/20 text-slate-500 dark:text-slate-400"
-        >
+                     bg-indigo-500/8 border border-indigo-400/20 text-slate-500 dark:text-slate-400">
           <Gauge className="w-3 h-3 text-indigo-400/70 shrink-0" />
           <span className="leading-snug">{part}</span>
         </span>
@@ -125,8 +125,6 @@ const RateStatus: React.FC<{ rate?: AiProviderRate | null }> = ({ rate }) => {
   }
   const lim = rate.limits;
   const use = rate.usage;
-  // Soonest budget-reset countdown (minute=sliding 60s, day=local midnight,
-  // month=the 1st). The pyheartbeat tick performs the actual reset.
   const resetSecs = [rate.resets_in?.minute, rate.resets_in?.day, rate.resets_in?.month]
     .filter((s): s is number => typeof s === 'number' && s > 0);
   const soonestReset = resetSecs.length ? Math.min(...resetSecs) : null;
@@ -174,6 +172,80 @@ const RateStatus: React.FC<{ rate?: AiProviderRate | null }> = ({ rate }) => {
   );
 };
 
+/**
+ * Per-key rotation badges for one provider. Each slot is a KEY1/KEY2… chip with a
+ * colored dot: green = ready/active, amber = cooling. A cooling chip also gets a
+ * small "Reset cooldown" button (wired through onResetCooldown).
+ */
+const KeyRotation: React.FC<{
+  slots?: AiKeySlot[];
+  label: string;
+  image?: boolean;
+  resetting?: Set<string>;
+  onResetCooldown?: (image: boolean, index: number) => void;
+}> = ({ slots, label, image = false, resetting, onResetCooldown }) => {
+  const { t } = useTranslation('pc');
+  if (!slots || slots.length === 0) return null;
+  const activeIdx = slots.findIndex((s) => s.cooldown_s <= 0);
+  const fmtCooldown = (s: number) =>
+    s < 90 ? `${s}s` : s < 5400 ? `${Math.ceil(s / 60)}m` : `${Math.ceil(s / 3600)}h`;
+  return (
+    <div className="mt-1">
+      <div className="flex items-center gap-1 mb-1">
+        <KeyRound className="w-3 h-3 text-indigo-400/70" />
+        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
+        <span className="text-[9px] font-mono text-slate-400">×{slots.length}</span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {slots.map((s) => {
+          const cooling = s.cooldown_s > 0;
+          const active = !cooling && s.index === activeIdx;
+          const busy = resetting?.has(`${image ? 'image' : 'text'}:${s.index}`) ?? false;
+          return (
+            <span
+              key={`${label}-${s.index}`}
+              title={[
+                `${s.label} · ${s.masked || 'no key'}`,
+                cooling ? `Cooling down ${fmtCooldown(s.cooldown_s)} (rotates to the next key)` : 'Ready',
+                `ok ${s.ok} · failed ${s.failed}`,
+                s.last_error ? `Last error: ${s.last_error}` : '',
+              ].filter(Boolean).join('\n')}
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-mono border ${
+                cooling
+                  ? 'bg-amber-500/10 border-amber-400/30 text-amber-600 dark:text-amber-400'
+                  : active
+                    ? 'bg-emerald-500/15 border-emerald-400/30 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-slate-500/8 border-slate-400/20 text-slate-500 dark:text-slate-400'
+              }`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cooling ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+              <span className="font-bold normal-case">{s.label}</span>
+              <span className="opacity-80">{s.masked || '—'}</span>
+              {cooling
+                ? <span className="inline-flex items-center gap-0.5"><Snowflake className="w-2.5 h-2.5" />{fmtCooldown(s.cooldown_s)}</span>
+                : (s.ok + s.failed > 0 && <span className="opacity-70">{s.ok}/{s.ok + s.failed}</span>)}
+              {(!!s.minute_used || !!s.day_used) && (
+                <span className="opacity-60 border-l border-current/20 pl-1">
+                  {s.minute_used ?? 0}/min · {s.day_used ?? 0} today
+                </span>
+              )}
+              {cooling && onResetCooldown && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onResetCooldown(image, s.index); }}
+                  disabled={busy}
+                  title={t('ai.resetCooldownTitle')}
+                  className="ml-0.5 -mr-0.5 px-1 py-0.5 rounded text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition disabled:opacity-40 normal-case font-bold">
+                  {busy ? <RefreshCcw className="w-2.5 h-2.5 animate-spin" /> : t('ai.resetCooldown')}
+                </button>
+              )}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // --- small presentational helpers ---------------------------------------- #
 const Dot: React.FC<{ ok: boolean; warn?: boolean }> = ({ ok, warn }) => (
   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -201,9 +273,15 @@ const Meter: React.FC<{ label: string; pct: number; sub?: string; Icon: React.FC
     );
   };
 
-const PcAiStatusPage: React.FC = () => {
+interface ImageTestResult {
+  provider: string;
+  src: string;
+  model: string;
+  latency_ms: number | null;
+}
+
+const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }) => {
   const { t } = useTranslation('pc');
-  const { openChat } = useShell();
 
   const [providers, setProviders] = useState<AiProvider[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -212,8 +290,13 @@ const PcAiStatusPage: React.FC = () => {
   const [unreachable, setUnreachable] = useState(false);
   const [testingAll, setTestingAll] = useState(false);
   const [testing, setTesting] = useState<Set<string>>(new Set());
+  const [imageTesting, setImageTesting] = useState<Set<string>>(new Set());
+  const [resetting, setResetting] = useState<Record<string, Set<string>>>({});
+  const [notice, setNotice] = useState<string | null>(null);
+  const [imageResult, setImageResult] = useState<ImageTestResult | null>(null);
   const [sortField, setSortField] = useState<ProviderSortField>('original');
   const [sortDir, setSortDir] = useState<ProviderSortDir>('asc');
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const { caps, retry: retryCapabilityStatus, refreshing: capabilityRefreshing } = usePcCapability();
 
@@ -226,7 +309,23 @@ const PcAiStatusPage: React.FC = () => {
     try { const r = await pycoreApi.getSystemResources(); if (r && r.success !== false) setRes(r); } catch { /* keep last */ }
   }, []);
 
-  // Constants + static dirs are fixed in code — fetch once (and on refresh).
+  const mergeKeyStatus = useCallback(async () => {
+    try {
+      const g = await pycoreApi.getAiGateway();
+      const byName = new Map((g?.providers ?? []).map((p) => [p.name, p]));
+      if (byName.size === 0) return;
+      setProviders((prev) => {
+        if (!prev) return prev;
+        return prev.map((p) => {
+          const gp = byName.get(p.name);
+          return gp
+            ? { ...p, key_count: gp.key_count, keys: gp.keys, image_keys: gp.image_keys }
+            : p;
+        });
+      });
+    } catch { /* keep last */ }
+  }, []);
+
   const fetchSysInfo = useCallback(async () => {
     try { const s = await pycoreApi.getSystemInfo(); if (s?.success) setSysInfo(s); } catch { /* keep last */ }
   }, []);
@@ -244,9 +343,6 @@ const PcAiStatusPage: React.FC = () => {
     }
   }, [t]);
 
-  // Load the provider CATALOG — no live test, no quota/token spend. Opening the
-  // page (or hitting Refresh) only lists providers + their rate budget; a live
-  // availability test runs ONLY when the user clicks "Test" / "Test all".
   const loadCatalog = useCallback(async (refresh: boolean) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     try {
@@ -261,10 +357,9 @@ const PcAiStatusPage: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-    fetchResources(); fetchSysInfo();
-  }, [fetchResources, fetchSysInfo]);
+    fetchResources(); fetchSysInfo(); void mergeKeyStatus();
+  }, [fetchResources, fetchSysInfo, mergeKeyStatus]);
 
-  // Replace one provider row in place (after a single-provider test) — order unchanged.
   const mergeProvider = useCallback((rec: AiProvider) => {
     setProviders((prev) => {
       const list = prev ? [...prev] : [];
@@ -287,7 +382,6 @@ const PcAiStatusPage: React.FC = () => {
     });
   }, []);
 
-  // Test ONE provider on demand (rate-aware on the backend).
   const testOne = useCallback(async (name: string) => {
     setTesting((s) => { const n = new Set(s); n.add(name); return n; });
     try {
@@ -319,9 +413,73 @@ const PcAiStatusPage: React.FC = () => {
     }
   }, [mergeProviders]);
 
-  // Merge ONLY the live rate snapshot into each provider (keeps availability/
-  // models/etc.) so the budget bars visibly auto-reset as the pyheartbeat tick
-  // prunes expired windows on the backend — no provider call, no quota spend.
+  // Force one image generation on a single provider (ignores cooldown), then
+  // pop the result into the lightbox. New backend endpoint /ai/image/test.
+  const testImage = useCallback(async (name: string) => {
+    setImageTesting((s) => { const n = new Set(s); n.add(name); return n; });
+    setNotice(null);
+    logInfo(LOG_SRC, `Image test on ${name}…`);
+    try {
+      const r = await pycoreApi.testImageProvider({ provider: name, prompt: t('ai.imageTestPrompt') });
+      if (r?.success && r.image_base64) {
+        setImageResult({
+          provider: r.provider || name,
+          src: `data:${r.mime || 'image/png'};base64,${r.image_base64}`,
+          model: r.model,
+          latency_ms: r.latency_ms,
+        });
+        setNotice(t('ai.imageTestOk', { ms: Math.round(r.latency_ms ?? 0) }));
+        logSuccess(LOG_SRC, `Image test passed on ${name} (${Math.round(r.latency_ms ?? 0)} ms).`);
+        void mergeKeyStatus();
+      } else {
+        const msg = r?.error || t('ai.imageTestFailed');
+        setNotice(`${t('ai.imageTestFailed')}: ${msg}`);
+        logError(LOG_SRC, `Image test failed on ${name}: ${msg}`);
+      }
+    } catch (e: any) {
+      const msg = e?.message || t('ai.imageTestFailed');
+      setNotice(`${t('ai.imageTestFailed')}: ${msg}`);
+      logError(LOG_SRC, `Image test failed on ${name}: ${msg}`);
+    } finally {
+      setImageTesting((s) => { const n = new Set(s); n.delete(name); return n; });
+    }
+  }, [t, mergeKeyStatus]);
+
+  // Clear one key's cooldown so it can be used again. New backend endpoint
+  // /ai/keys/reset-cooldown.
+  const resetCooldown = useCallback(async (provider: string, image: boolean, index: number) => {
+    const slotKey = `${image ? 'image' : 'text'}:${index}`;
+    setResetting((prev) => {
+      const next = { ...prev };
+      next[provider] = new Set(next[provider] ?? []);
+      next[provider].add(slotKey);
+      return next;
+    });
+    setNotice(null);
+    try {
+      const r = await pycoreApi.resetKeyCooldown({ provider, index, image });
+      if (r?.success) {
+        setNotice(t('ai.cooldownReset'));
+        logSuccess(LOG_SRC, `Cleared cooldown on ${provider} ${slotKey}.`);
+        await mergeKeyStatus();
+      } else {
+        setNotice(r?.error || t('ai.cooldownResetFailed'));
+        logError(LOG_SRC, r?.error || `Could not clear cooldown on ${provider} ${slotKey}.`);
+      }
+    } catch (e: any) {
+      setNotice(e?.message || t('ai.cooldownResetFailed'));
+      logError(LOG_SRC, e?.message || `Could not clear cooldown on ${provider} ${slotKey}.`);
+    } finally {
+      setResetting((prev) => {
+        const next = { ...prev };
+        const set = new Set(next[provider] ?? []);
+        set.delete(slotKey);
+        next[provider] = set;
+        return next;
+      });
+    }
+  }, [t, mergeKeyStatus]);
+
   const refreshRates = useCallback(async () => {
     try {
       const r = await pycoreApi.getAiRateLimits();
@@ -339,13 +497,19 @@ const PcAiStatusPage: React.FC = () => {
 
   useEffect(() => { loadCatalog(false); }, [loadCatalog]);
 
-  // Live meters poll fast. OCR/TTS/caps poll via PcCapabilityProvider (shared).
-  // Rate budgets poll slower (the backend tick resets them; we just reflect it).
+  // External refresh signal from the page header (PcAiPage Refresh button).
+  useEffect(() => {
+    if (refreshSignal === undefined) return;
+    loadCatalog(true);
+    void retryCapabilityStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal]);
+
   useEffect(() => {
     const fast = window.setInterval(() => { fetchResources(); }, 3000);
-    const rates = window.setInterval(() => { void refreshRates(); }, 5000);
+    const rates = window.setInterval(() => { void refreshRates(); void mergeKeyStatus(); }, 5000);
     return () => { window.clearInterval(fast); window.clearInterval(rates); };
-  }, [fetchResources, refreshRates]);
+  }, [fetchResources, refreshRates, mergeKeyStatus]);
 
   const toggleSort = useCallback((field: Exclude<ProviderSortField, 'original'>) => {
     setSortField((prev) => {
@@ -355,6 +519,14 @@ const PcAiStatusPage: React.FC = () => {
       }
       setSortDir('asc');
       return field;
+    });
+  }, []);
+
+  const toggleExpanded = useCallback((name: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
     });
   }, []);
 
@@ -396,36 +568,7 @@ const PcAiStatusPage: React.FC = () => {
   const gpus = res?.gpus ?? [];
 
   return (
-    <div className="p-6 md:p-8 space-y-5 min-w-0 max-w-full">
-      {/* Sticky page chrome — title + actions stay pinned below PcTopBar while scrolling. */}
-      <div
-        className="sticky top-0 z-20 -mx-6 md:-mx-8 px-6 md:px-8 py-3 -mt-6 md:-mt-8 mb-1 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl"
-        style={{ paddingRight: 'max(1.5rem, var(--shell-dock-right-gutter, 264px))' }}
-      >
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-            <Activity className="w-5 h-5 text-indigo-500" /> {t('aiStatus.title')}
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {t('aiStatus.subtitle')}
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-2 self-end sm:self-auto">
-          <button
-            onClick={() => openChat('pycore')}
-            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 transition">
-            <MessageSquare className="w-3.5 h-3.5" /> {t('common.openAiChat')}
-          </button>
-          <button
-            onClick={() => { loadCatalog(true); void retryCapabilityStatus(); }}
-            disabled={loading || refreshing}
-            title={t('aiStatus.refreshTitle')}
-            className="px-3 py-2 pc-glass hover:bg-indigo-500/10 text-xs font-bold rounded-xl flex items-center gap-1 transition disabled:opacity-50 text-slate-700 dark:text-slate-200">
-            <RefreshCcw className={`w-3.5 h-3.5 ${refreshing || capabilityRefreshing ? 'animate-spin' : ''}`} /> {t('common.refresh')}
-          </button>
-        </div>
-      </div>
-
+    <div className="space-y-5 min-w-0 max-w-full">
       {(unreachable || error) && (
         <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -435,6 +578,7 @@ const PcAiStatusPage: React.FC = () => {
           </span>
         </div>
       )}
+      {notice && <p className="text-[11px] text-indigo-500 break-words">{notice}</p>}
 
       {/* ===================== System & Compute ===================== */}
       <section className="pc-glass p-5">
@@ -447,7 +591,6 @@ const PcAiStatusPage: React.FC = () => {
           <Meter label={t('aiStatus.memory')} pct={res?.mem?.percent ?? 0} Icon={MemoryStick}
                  sub={res?.mem ? `${Math.round((res.mem.used_mb ?? 0) / 1024)} / ${Math.round((res.mem.total_mb ?? 0) / 1024)} GB` : t('common.noData')} />
 
-          {/* CUDA readiness */}
           <div className="rounded-2xl p-3 border bg-white/40 dark:bg-white/5 border-slate-300/35 dark:border-white/5">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -468,7 +611,6 @@ const PcAiStatusPage: React.FC = () => {
             </div>
           </div>
 
-          {/* GPU summary (first GPU live; count if more) */}
           <div className="rounded-2xl p-3 border bg-white/40 dark:bg-white/5 border-slate-300/35 dark:border-white/5">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -549,6 +691,15 @@ const PcAiStatusPage: React.FC = () => {
           </button>
         </div>
 
+        <div className="mt-3 flex items-start gap-2 text-[11px] rounded-2xl p-3 border bg-indigo-500/8 border-indigo-400/20 text-slate-500 dark:text-slate-400">
+          <Layers className="w-4 h-4 shrink-0 mt-0.5 text-indigo-400" />
+          <div className="min-w-0 space-y-0.5">
+            <p className="font-semibold text-slate-600 dark:text-slate-300">{t('aiStatus.keysInfo.title')}</p>
+            <p className="leading-snug">{t('aiStatus.keysInfo.body')}</p>
+            <p className="leading-snug">{t('aiStatus.keysInfo.readonly')}</p>
+          </div>
+        </div>
+
         {loading && list.length === 0 ? (
           <div className="text-xs text-slate-500 py-8 text-center flex flex-col items-center gap-2">
             <RefreshCcw className="w-5 h-5 animate-spin text-slate-400" /> {t('aiStatus.loadingProviders')}
@@ -561,79 +712,115 @@ const PcAiStatusPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-3">
             {list.map((p) => {
               const busy = testing.has(p.name);
+              const imgBusy = imageTesting.has(p.name);
+              const isOpen = expanded.has(p.name);
               return (
                 <div key={p.name}
-                     className={`rounded-2xl p-4 border bg-white/40 dark:bg-white/5 border-slate-300/35 dark:border-white/5 flex flex-col gap-2 ${!p.configured ? 'opacity-60' : ''}`}>
-                  {/* header: name + tier/vision + availability */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{p.name}</span>
-                      {p.tier && (
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${TIER_CLS[p.tier] ?? ''}`}>{p.tier}</span>
+                     className={`rounded-2xl border bg-white/40 dark:bg-white/5 border-slate-300/35 dark:border-white/5 flex flex-col ${!p.configured ? 'opacity-60' : ''}`}>
+                  {/* clickable header toggles the detail drawer */}
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(p.name)}
+                    className="text-left p-4 flex flex-col gap-2 w-full">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{p.name}</span>
+                        {p.tier && (
+                          <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${TIER_CLS[p.tier] ?? ''}`}>{p.tier}</span>
+                        )}
+                        {p.vision && <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-violet-500/15 text-violet-500">vision</span>}
+                        {p.image && (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase max-w-[160px] ${
+                              p.image_ready
+                                ? 'bg-pink-500/15 text-pink-500'
+                                : 'border border-pink-400/40 text-pink-400/70'
+                            }`}
+                            title={`${p.image_ready
+                              ? 'Image generation ready (API key present).'
+                              : 'Image-capable, but no API key configured yet.'}${p.image_model ? ` Model: ${p.image_model}` : ''}`}>
+                            <ImageIcon className="w-3 h-3 shrink-0" />
+                            <span className="truncate normal-case">{p.image_model || 'image'}</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {badge(p)}
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+                      <span className="inline-flex items-center gap-1 font-mono truncate" title="API key (masked)">
+                        <KeyRound className="w-3 h-3 shrink-0" />{p.key_masked || t('aiStatus.noKey')}
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-mono truncate" title="Models">
+                        <BrainCircuit className="w-3 h-3 shrink-0" />{modelsLabel(p)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-mono" title="Latency of the last availability test">
+                        <Timer className="w-3 h-3 shrink-0" />{p.tested && p.latency_ms != null ? `${Math.round(p.latency_ms)} ms` : t('aiStatus.notTested')}
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* collapsible detail drawer */}
+                  <PcCollapse open={isOpen}>
+                    <div className="px-4 pb-2 -mt-1 space-y-1">
+                      {p.limits && <LimitChips limits={p.limits} />}
+                      <RateStatus rate={p.rate} />
+                      <KeyRotation
+                        slots={p.keys}
+                        label={t('aiStatus.keyRotation.textKeys')}
+                        resetting={resetting[p.name]}
+                        onResetCooldown={(image, index) => resetCooldown(p.name, image, index)}
+                      />
+                      {p.image && p.image_keys && p.image_keys.length > 0 && (
+                        <KeyRotation
+                          slots={p.image_keys}
+                          label={t('aiStatus.keyRotation.imageKeys')}
+                          image
+                          resetting={resetting[p.name]}
+                          onResetCooldown={(image, index) => resetCooldown(p.name, image, index)}
+                        />
                       )}
-                      {p.vision && <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-violet-500/15 text-violet-500">vision</span>}
-                      {/* image-generation marking: solid pink = key present & ready;
-                          muted outline = capable but no key (not ready). When the
-                          provider has a bound image_model, show its id (compact,
-                          truncated) in place of the generic "image" label. */}
-                      {p.image && (
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase max-w-[160px] ${
-                            p.image_ready
-                              ? 'bg-pink-500/15 text-pink-500'
-                              : 'border border-pink-400/40 text-pink-400/70'
-                          }`}
-                          title={`${p.image_ready
-                            ? 'Image generation ready (API key present).'
-                            : 'Image-capable, but no API key configured yet.'}${p.image_model ? ` Model: ${p.image_model}` : ''}`}>
-                          <ImageIcon className="w-3 h-3 shrink-0" />
-                          <span className="truncate normal-case">{p.image_model || 'image'}</span>
-                        </span>
+                      {p.tested && p.configured && !p.available && p.error && (
+                        <p className="text-[10px] text-amber-600/90 dark:text-amber-400/90 leading-snug flex items-start gap-1">
+                          <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                          <span className="break-words">{p.error}</span>
+                        </p>
                       )}
                     </div>
-                    {badge(p)}
+                  </PcCollapse>
+
+                  {/* action row: availability test + image test */}
+                  <div className="px-4 pb-4 pt-1 mt-auto flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => testOne(p.name)}
+                      disabled={busy || testingAll || !p.configured}
+                      title={p.configured
+                        ? (p.tested ? t('aiStatus.retestTitle') : t('aiStatus.testTitle'))
+                        : t('aiStatus.noKeyConfigured')}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                        p.tested && p.available
+                          ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
+                          : p.tested && p.configured && !p.available
+                            ? 'bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
+                            : 'pc-glass hover:bg-indigo-500/10 text-indigo-500'
+                      }`}>
+                      {busy ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
+                      {busy ? t('common.testing') : p.tested ? t('common.retest') : t('common.test')}
+                    </button>
+                    {p.image && (
+                      <button
+                        onClick={() => testImage(p.name)}
+                        disabled={imgBusy || !p.image_ready}
+                        title={p.image_ready ? t('ai.imageTestTitle') : t('aiStatus.noKeyConfigured')}
+                        className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition pc-glass hover:bg-pink-500/10 text-pink-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                        {imgBusy ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                        {imgBusy ? t('ai.imageTesting') : t('ai.imageTest')}
+                      </button>
+                    )}
                   </div>
-
-                  {/* key / models / latency */}
-                  <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                    <span className="inline-flex items-center gap-1 font-mono truncate" title="API key (masked)">
-                      <KeyRound className="w-3 h-3 shrink-0" />{p.key_masked || t('aiStatus.noKey')}
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-mono truncate" title="Models">
-                      <BrainCircuit className="w-3 h-3 shrink-0" />{modelsLabel(p)}
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-mono" title="Latency of the last availability test">
-                      <Timer className="w-3 h-3 shrink-0" />{p.tested && p.latency_ms != null ? `${Math.round(p.latency_ms)} ms` : t('aiStatus.notTested')}
-                    </span>
-                  </div>
-
-                  {p.limits && <LimitChips limits={p.limits} />}
-                  <RateStatus rate={p.rate} />
-
-                  {p.tested && p.configured && !p.available && p.error && (
-                    <p className="text-[10px] text-amber-600/90 dark:text-amber-400/90 leading-snug flex items-start gap-1">
-                      <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-                      <span className="break-words">{p.error}</span>
-                    </p>
-                  )}
-
-                  {/* per-card on-demand test */}
-                  <button
-                    onClick={() => testOne(p.name)}
-                    disabled={busy || testingAll || !p.configured}
-                    title={p.configured
-                      ? (p.tested ? t('aiStatus.retestTitle') : t('aiStatus.testTitle'))
-                      : t('aiStatus.noKeyConfigured')}
-                    className={`mt-auto self-start px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition disabled:opacity-40 disabled:cursor-not-allowed ${
-                      p.tested && p.available
-                        ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
-                        : p.tested && p.configured && !p.available
-                          ? 'bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25'
-                          : 'pc-glass hover:bg-indigo-500/10 text-indigo-500'
-                    }`}>
-                    {busy ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
-                    {busy ? t('common.testing') : p.tested ? t('common.retest') : t('common.test')}
-                  </button>
                 </div>
               );
             })}
@@ -649,7 +836,7 @@ const PcAiStatusPage: React.FC = () => {
         />
       </section>
 
-      {/* ===================== OCR / TTS pipelines (shared with Voice & Subtitle) ===================== */}
+      {/* ===================== OCR / TTS pipelines ===================== */}
       <section className="pc-glass p-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-200">
@@ -684,9 +871,7 @@ const PcAiStatusPage: React.FC = () => {
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-1.5">
           <Lock className="w-3 h-3" /> {t('aiStatus.constantsDirsHint')}
         </p>
-        {openNotice && (
-          <p className="mb-3 text-[11px] text-indigo-500">{openNotice}</p>
-        )}
+        {openNotice && <p className="mb-3 text-[11px] text-indigo-500">{openNotice}</p>}
 
         {!sysInfo ? (
           <p className="text-[11px] italic text-slate-400">{t('aiStatus.systemInfoUnavailable')}</p>
@@ -743,8 +928,28 @@ const PcAiStatusPage: React.FC = () => {
           </div>
         )}
       </section>
+
+      {/* image-test result popup */}
+      <PcImageLightbox
+        open={!!imageResult}
+        src={imageResult?.src ?? null}
+        alt={imageResult?.provider}
+        closeLabel={t('aiImage.close')}
+        onClose={() => setImageResult(null)}
+        caption={imageResult && (
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide bg-pink-500/15 text-pink-500">
+              {imageResult.provider}
+            </span>
+            <span className="text-[11px] font-mono text-slate-500 truncate">
+              {imageResult.model}
+              {imageResult.latency_ms != null ? ` · ${Math.round(imageResult.latency_ms)} ms` : ''}
+            </span>
+          </div>
+        )}
+      />
     </div>
   );
 };
 
-export default PcAiStatusPage;
+export default PcAiCapabilityView;

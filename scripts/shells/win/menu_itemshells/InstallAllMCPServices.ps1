@@ -29,7 +29,6 @@ $script:GLOBALVARS_PS1 = Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1"
 $script:AI_TOOLS_DIR = Join-Path $script:CORE_NODE_DIR "scripts\pytools\ai_tools"
 $script:AI_PS1TOOLS_DIR = Join-Path $script:CORE_NODE_DIR "scripts\ai_ps1tools"
 $script:CHROME_MCP_START_PS1 = Join-Path $script:CORE_NODE_DIR "apps\mcp-chrome\scripts\start.ps1"
-$script:WAIT_PLEASE_INSTALL_PS1 = Join-Path $script:CORE_NODE_DIR "ncore\mcp_server\wait_please\install-windows.ps1"
 
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
@@ -99,6 +98,13 @@ function Invoke-ChromeMCPStep {
         Write-ColorMessage -Message "Chrome MCP script not found; skipping." -Type "Warning"
         return
     }
+    # Compile the Chrome extension at most once per install run, but always force a
+    # fresh rebuild for that one compile (ignore any stale MCP_SKIP_BUILD).
+    if ($env:MCP_CHROME_BUILD_DONE -eq "1") {
+        Write-ColorMessage -Message "Chrome extension already rebuilt in this install run; skipping duplicate compile." -Type "Info"
+        return
+    }
+    Remove-Item Env:\MCP_SKIP_BUILD -ErrorAction SilentlyContinue
     $ddPython = Get-DDPythonExePath
     $prevPythonExe = $env:PYTHON_EXE
     $prevPath = $env:PATH
@@ -120,6 +126,7 @@ function Invoke-ChromeMCPStep {
     } finally {
         if ($null -ne $prevPythonExe) { $env:PYTHON_EXE = $prevPythonExe } else { Remove-Item -Path env:PYTHON_EXE -ErrorAction SilentlyContinue }
         $env:PATH = $prevPath
+        $env:MCP_CHROME_BUILD_DONE = "1"
     }
 }
 
@@ -150,14 +157,6 @@ function Invoke-Context7Step {
     }
 }
 
-function Invoke-WaitPleaseStep {
-    if (-not (Test-Path -LiteralPath $script:WAIT_PLEASE_INSTALL_PS1)) {
-        Write-ColorMessage -Message "Wait Please install script not found; skipping." -Type "Warning"
-        return
-    }
-    & $script:WAIT_PLEASE_INSTALL_PS1
-}
-
 function Invoke-SyncToToolsStep {
     if (-not (Test-Path -LiteralPath $script:AI_PS1TOOLS_DIR)) {
         Write-ColorMessage -Message "ai_ps1tools directory not found; skipping sync." -Type "Warning"
@@ -186,10 +185,12 @@ Write-ColorMessage -Message "========================================" -Type "In
 Write-ColorMessage -Message "   Install All MCP Services" -Type "Info"
 Write-ColorMessage -Message "========================================" -Type "Info"
 
-Invoke-Step -Title "Step 1/4: Chrome MCP (build + register)" -Action { Invoke-ChromeMCPStep }
-Invoke-Step -Title "Step 2/4: Context7 MCP (npx @upstash/context7-mcp)" -Action { Invoke-Context7Step }
-Invoke-Step -Title "Step 3/4: Built-in MCP (Wait Please)" -Action { Invoke-WaitPleaseStep }
-Invoke-Step -Title "Step 4/4: Sync MCP config to Cursor/Claude/Codex/Gemini/Droid" -Action { Invoke-SyncToToolsStep }
+# New install run: allow exactly one (forced) Chrome extension recompile.
+$env:MCP_CHROME_BUILD_DONE = "0"
+
+Invoke-Step -Title "Step 1/3: Chrome MCP (build + register)" -Action { Invoke-ChromeMCPStep }
+Invoke-Step -Title "Step 2/3: Context7 MCP (npx @upstash/context7-mcp)" -Action { Invoke-Context7Step }
+Invoke-Step -Title "Step 3/3: Sync MCP config to all AI tools" -Action { Invoke-SyncToToolsStep }
 
 Write-ColorMessage -Message "Install All MCP Services finished." -Type "Success"
 #endregion

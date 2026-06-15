@@ -784,6 +784,7 @@ export const fr: WfTranslationDict = {
     switchToLight: 'Passer en mode clair',
     switchToDark: 'Passer en mode sombre',
     changeLanguage: 'Changer de langue',
+    aiChat: 'Chat IA',
     profile: 'Profil',
     login: 'Connexion',
     settings: 'Réglages',

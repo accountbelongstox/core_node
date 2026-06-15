@@ -5,6 +5,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyDocum
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyExportController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyLibraryPublicController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyValidityController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyStatsController;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'app_qy_v1';
@@ -16,6 +17,10 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/libraries/{libraryId}/words', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraryWords']);
         Route::get('/libraries', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraries']);
 
+        // Vocabulary page stats drill-down (dashboard, read-only). Powers the
+        // "Language Breakdown" panel + per-language drilldown.
+        Route::get('/language-breakdown', [AppQyV1VocabularyStatsController::class, 'languageBreakdown']);
+
         // Vocabulary export downloads (public, same data as statistics
         // include_words). Format whitelist (csv|json|anki|text|pdf) is
         // enforced in the controller with a 400 for anything else.
@@ -25,6 +30,14 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/validity/pending', [AppQyV1VocabularyValidityController::class, 'getPending']);
         Route::post('/validity/report', [AppQyV1VocabularyValidityController::class, 'report']);
     });
+
+    // Per-language dictionary drill-down (Vocabulary page stats). Read-only,
+    // paginated rows from app_qy_v1_tts_cache_<lang> with a coverage filter.
+    Route::get('/dictionary/words', [AppQyV1VocabularyStatsController::class, 'dictionaryWords']);
+
+    // TTS queue items drill-down (Vocabulary page stats). Paginated view over
+    // the unified TTS queue (canonical tables).
+    Route::get('/tts/queue/items', [AppQyV1VocabularyStatsController::class, 'ttsQueueItems']);
 });
 
 // Document re-processing endpoints: documents are stored per user at upload

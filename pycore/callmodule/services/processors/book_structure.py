@@ -112,17 +112,23 @@ def build_book_structure(text: str, language: Optional[str] = None) -> Dict[str,
         sentence_seq.append({"s": cid})
 
     # ---- words bucketed by language --------------------------------------- #
+    # The shared word library (app_qy_v1_tts_cache_<lang>) is case-folded so word
+    # variants dedupe ("The"/"the") and the same word agrees with the laravel
+    # Books path (which lowercases too). content_id = md5(lowercased word).
     words_by_lang: Dict[str, Dict[str, Dict[str, str]]] = {}   # lang -> cid -> row
     for w in tokenize_words(text):
         if not w:
             continue
-        lang = guess_language(w)
+        wl = w.lower()
+        if not wl:
+            continue
+        lang = guess_language(wl)
         if lang == "und":
             lang = primary_lang
-        cid = hashlib.md5(w.encode("utf-8")).hexdigest()
+        cid = hashlib.md5(wl.encode("utf-8")).hexdigest()
         bucket = words_by_lang.setdefault(lang, {})
         if cid not in bucket:
-            bucket[cid] = {"content_id": cid, "content": w}
+            bucket[cid] = {"content_id": cid, "content": wl}
     words = {lang: list(rows.values()) for lang, rows in words_by_lang.items()}
 
     # ---- book content_id + stats ------------------------------------------ #

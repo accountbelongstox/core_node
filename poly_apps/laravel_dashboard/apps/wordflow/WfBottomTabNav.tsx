@@ -131,6 +131,7 @@ export const WfBottomTabNav: React.FC = () => {
               <div className="ds-bar-tab-icon-wrap">
                 {isActive ? tab.activeIcon : tab.icon}
               </div>
+              <span className="ds-tab-dot" aria-hidden />
             </button>
           );
         })}

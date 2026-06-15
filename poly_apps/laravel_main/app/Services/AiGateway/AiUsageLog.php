@@ -32,11 +32,45 @@ class AiUsageLog
 
     private const KINDS = ['text', 'vision', 'probe'];
 
-    /** Absolute path of the shared .ai_state dir (same dir pycore writes). */
+    /** Absolute path of the shared .data/.ai_state dir (same dir pycore writes). */
     public static function stateDir(): string
     {
         $coreNode = PathMapper::getCoreNodeDir() ?: PathMapper::getLaravelMainDir();
-        return rtrim($coreNode, '/\\') . '/.ai_state';
+        $new = rtrim($coreNode, '/\\') . '/.data/.ai_state';
+        self::migrateLegacyStateDir($coreNode, $new);
+        return $new;
+    }
+
+    /** Run the legacy-dir migration at most once per worker. */
+    private static bool $migrated = false;
+
+    /**
+     * One-time PER-FILE move of the prior <core_node>/.ai_state dir into
+     * .data/.ai_state (per-file so a partially-created new dir never orphans files).
+     */
+    private static function migrateLegacyStateDir(string $coreNode, string $new): void
+    {
+        if (self::$migrated) {
+            return;
+        }
+        self::$migrated = true;
+        $old = rtrim($coreNode, '/\\') . '/.ai_state';
+        if (!is_dir($old) || @realpath($old) === @realpath($new)) {
+            return;
+        }
+        if (!is_dir($new)) {
+            @mkdir($new, 0775, true);
+        }
+        foreach ((array) @scandir($old) as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+            $dest = $new . '/' . $item;
+            if (!file_exists($dest)) {
+                @rename($old . '/' . $item, $dest);
+            }
+        }
+        @rmdir($old);
     }
 
     public static function file(): string

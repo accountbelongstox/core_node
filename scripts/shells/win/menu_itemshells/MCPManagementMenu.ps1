@@ -26,18 +26,23 @@ $script:SCRIPT_DIR = Split-Path $script:SHELLS_DIR -Parent
 $script:CORE_NODE_DIR = Split-Path $script:SCRIPT_DIR -Parent
 $script:CHROME_MCP_START_PS1 = Join-Path $script:CORE_NODE_DIR "apps\mcp-chrome\scripts\start.ps1"
 $script:CONTEXT7_PS1 = Join-Path $script:CORE_NODE_DIR "ncore\mcp_server\auto-context7-mcp\auto_fix_context7.ps1"
-$script:WAIT_PLEASE_INSTALL_PS1 = Join-Path $script:CORE_NODE_DIR "ncore\mcp_server\wait_please\install-windows.ps1"
 $script:INSTALL_ALL_MCP_PS1 = Join-Path $script:PS_CURRENT_DIR "InstallAllMCPServices.ps1"
 $script:AI_PS1TOOLS_DIR = Join-Path $script:CORE_NODE_DIR "scripts\ai_ps1tools"
 $script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR "win_common"
 $script:GLOBALVARS_PS1 = Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1"
+$script:MCP_STATUS_PS1 = Join-Path $script:AI_PS1TOOLS_DIR "mcp_status.ps1"
+$script:AI_ACTIONS_PS1 = Join-Path $script:PS_CURRENT_DIR "claude_assistant\AIManagementActions.ps1"
+$script:AI_ACTIONS_AVAILABLE = $false
 
 $script:SYNC_SCRIPTS = @(
     "claude_sync_mcp_servers.ps1",
     "cursor_sync_mcp_servers.ps1",
     "codex_sync_mcp_servers.ps1",
     "gemini_sync_mcp_servers.ps1",
-    "droid_sync_mcp_servers.ps1"
+    "droid_sync_mcp_servers.ps1",
+    "windsurf_sync_mcp_servers.ps1",
+    "devin_sync_mcp_servers.ps1",
+    "vscode_sync_mcp_servers.ps1"
 )
 
 $script:COLOR_SUCCESS = "Green"
@@ -47,7 +52,54 @@ $script:COLOR_INFO = "White"
 $script:COLOR_HIGHLIGHT = "Cyan"
 #endregion
 
+#region Load Modules
+if (Test-Path -LiteralPath $script:MCP_STATUS_PS1) {
+    . $script:MCP_STATUS_PS1
+} else {
+    Write-Host "[WARNING] mcp_status.ps1 not found: $script:MCP_STATUS_PS1" -ForegroundColor Yellow
+}
+if (Test-Path -LiteralPath $script:AI_ACTIONS_PS1) {
+    . $script:AI_ACTIONS_PS1
+    $script:AI_ACTIONS_AVAILABLE = $true
+} else {
+    Write-Host "[WARNING] AIManagementActions.ps1 not found: $script:AI_ACTIONS_PS1" -ForegroundColor Yellow
+}
+#endregion
+
 #region Helper Functions
+function Invoke-AIAction {
+    param([Parameter(Mandatory=$true)] [scriptblock]$Action)
+    if (-not $script:AI_ACTIONS_AVAILABLE) {
+        Write-Host "[ERROR] AI Management actions unavailable (ClaudeAssistantEnv/AIManagementActions missing)." -ForegroundColor Red
+        Write-Host "Press any key to return to menu..." -ForegroundColor Cyan
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        return
+    }
+    & $Action
+}
+
+function Invoke-ShowPlannedServers {
+    if (Get-Command Show-MCPPlannedServers -ErrorAction SilentlyContinue) {
+        Show-MCPPlannedServers
+    } else {
+        Write-Host "[ERROR] Status module not loaded; cannot show planned servers." -ForegroundColor Red
+    }
+    Write-Host ""
+    Write-Host "Press any key to return to menu..." -ForegroundColor Cyan
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
+
+function Invoke-RefreshStatus {
+    if (Get-Command Initialize-MCPStatusPanel -ErrorAction SilentlyContinue) {
+        Write-Host "[INFO] Re-detecting AI tools and reading existing MCP servers..." -ForegroundColor Cyan
+        Initialize-MCPStatusPanel
+        Write-Host "[INFO] Detection refreshed." -ForegroundColor Green
+    } else {
+        Write-Host "[ERROR] Status module not loaded; cannot refresh." -ForegroundColor Red
+    }
+    Start-Sleep -Milliseconds 600
+}
+
 function Get-DDPythonExePathForChrome {
     if (-not (Test-Path -LiteralPath $script:GLOBALVARS_PS1)) { return $null }
     try {
@@ -129,6 +181,8 @@ function Invoke-ChromeMCPInstall {
     }
     Write-ColorMessage -Message "Running Chrome MCP install/setup (all output below is real-time)..." -Type "Info"
     Write-Host ""
+    # Force a fresh recompile for this install (ignore any stale MCP_SKIP_BUILD).
+    Remove-Item Env:\MCP_SKIP_BUILD -ErrorAction SilentlyContinue
     $ddPython = Get-DDPythonExePathForChrome
     $prevPythonExe = $env:PYTHON_EXE
     $prevPath = $env:PATH
@@ -176,31 +230,6 @@ function Invoke-Context7MCPInstall {
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
-function Invoke-WaitPleaseInstall {
-    if (-not (Test-Path -LiteralPath $script:WAIT_PLEASE_INSTALL_PS1)) {
-        Write-ColorMessage -Message "Wait Please install script not found: $script:WAIT_PLEASE_INSTALL_PS1" -Type "Error"
-        Write-Host ""
-        Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        return
-    }
-    Write-ColorMessage -Message "Running built-in MCP (Wait Please) install..." -Type "Info"
-    Write-Host ""
-    $prevDir = Get-Location
-    try {
-        Set-Location (Split-Path -Parent $script:WAIT_PLEASE_INSTALL_PS1)
-        & $script:WAIT_PLEASE_INSTALL_PS1
-    } finally {
-        Set-Location $prevDir
-    }
-    Write-Host ""
-    Write-ColorMessage -Message "Wait Please install finished. Now syncing to all AI tools..." -Type "Info"
-    Invoke-SyncToAllAITools
-    Write-Host ""
-    Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-}
-
 function Invoke-InstallAllMCPServices {
     if (-not (Test-Path -LiteralPath $script:INSTALL_ALL_MCP_PS1)) {
         Write-ColorMessage -Message "Install All script not found: $script:INSTALL_ALL_MCP_PS1" -Type "Error"
@@ -225,20 +254,28 @@ function Invoke-SyncAllOnly {
 #region Menu System
 function Show-MCPMenu {
     $menuItems = @(
-        @{ Text = "-- Install All -----------------------"; Action = { }; IsHeader = $true },
+        @{ Text = "== AI Management (Claude Code Agent Teams) =============="; Action = { }; IsHeader = $true },
+        @{ Text = "  One-click Setup (guided wizard)"; Action = { Invoke-AIAction -Action { Invoke-OneClickSetupWizard } }; IsHeader = $false },
+        @{ Text = "  Environment diagnostics"; Action = { Invoke-AIAction -Action { Invoke-EnvironmentDiagnostics } }; IsHeader = $false },
+        @{ Text = "  Open Agent Teams docs (browser)"; Action = { Invoke-AIAction -Action { Invoke-OpenAgentTeamsDocumentation } }; IsHeader = $false },
+        @{ Text = "== MCP: Inspect ========================================"; Action = { }; IsHeader = $true },
+        @{ Text = "  Show planned servers + command details (dry-run)"; Action = { Invoke-ShowPlannedServers }; IsHeader = $false },
+        @{ Text = "  Re-detect AI tools + existing MCP (refresh panel)"; Action = { Invoke-RefreshStatus }; IsHeader = $false },
+        @{ Text = "== MCP: Install (auto-syncs all tools) ================="; Action = { }; IsHeader = $true },
         @{ Text = "  Install All MCP + Sync to All AI Tools"; Action = { Invoke-InstallAllMCPServices }; IsHeader = $false },
-        @{ Text = "-- Install Individual MCP Server ------"; Action = { }; IsHeader = $true },
         @{ Text = "  Install Chrome MCP + Sync All"; Action = { Invoke-ChromeMCPInstall }; IsHeader = $false },
         @{ Text = "  Install Context7 MCP + Sync All"; Action = { Invoke-Context7MCPInstall }; IsHeader = $false },
-        @{ Text = "  Install built-in MCP (Wait Please) + Sync All"; Action = { Invoke-WaitPleaseInstall }; IsHeader = $false },
-        @{ Text = "-- Sync Config Only (no install) ------"; Action = { }; IsHeader = $true },
+        @{ Text = "== MCP: Sync config only (no install) =================="; Action = { }; IsHeader = $true },
         @{ Text = "  Sync to All AI Tools"; Action = { Invoke-SyncAllOnly }; IsHeader = $false },
         @{ Text = "  Sync to Claude"; Action = { Invoke-SyncToSingleTool -ToolName "claude" }; IsHeader = $false },
-        @{ Text = "  Sync to Cursor"; Action = { Invoke-SyncToSingleTool -ToolName "cursor" }; IsHeader = $false },
+        @{ Text = "  Sync to Cursor (+ Cursor Agent)"; Action = { Invoke-SyncToSingleTool -ToolName "cursor" }; IsHeader = $false },
         @{ Text = "  Sync to Codex"; Action = { Invoke-SyncToSingleTool -ToolName "codex" }; IsHeader = $false },
         @{ Text = "  Sync to Gemini"; Action = { Invoke-SyncToSingleTool -ToolName "gemini" }; IsHeader = $false },
         @{ Text = "  Sync to Droid"; Action = { Invoke-SyncToSingleTool -ToolName "droid" }; IsHeader = $false },
-        @{ Text = "---------------------------------------"; Action = { }; IsHeader = $true },
+        @{ Text = "  Sync to Windsurf"; Action = { Invoke-SyncToSingleTool -ToolName "windsurf" }; IsHeader = $false },
+        @{ Text = "  Sync to Devin"; Action = { Invoke-SyncToSingleTool -ToolName "devin" }; IsHeader = $false },
+        @{ Text = "  Sync to VS Code"; Action = { Invoke-SyncToSingleTool -ToolName "vscode" }; IsHeader = $false },
+        @{ Text = "========================================================"; Action = { }; IsHeader = $true },
         @{ Text = "Back to main menu"; Action = { return $true }; IsHeader = $false },
         @{ Text = "Exit"; Action = { exit }; IsHeader = $false }
     )
@@ -246,9 +283,10 @@ function Show-MCPMenu {
     $selectedIndex = 1
     while ($true) {
         Clear-Host
-        Write-ColorMessage -Message "========================================" -Type "Info"
-        Write-ColorMessage -Message "       MCP Management Menu" -Type "Info"
-        Write-ColorMessage -Message "========================================" -Type "Info"
+        Write-ColorMessage -Message "========================================================" -Type "Info"
+        Write-ColorMessage -Message "       AI & MCP Management" -Type "Info"
+        Write-ColorMessage -Message "========================================================" -Type "Info"
+        Show-MCPStatusPanel
 
         for ($i = 0; $i -lt $menuItems.Count; $i++) {
             if ($menuItems[$i].IsHeader -eq $true) {

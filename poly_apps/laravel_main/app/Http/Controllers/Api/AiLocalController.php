@@ -6,8 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Services\AiGateway\AiChat;
 use App\Services\AiGateway\AiGateway;
 use App\Services\AiGateway\AiImageHistory;
+use App\Services\AiGateway\AiKeyRotation;
 use App\Services\AiGateway\AiProbe;
+use App\Services\AiGateway\AiProviderRegistry;
 use App\Services\AiGateway\AiRateLimiter;
+use App\Services\AiGateway\AiSecretLoader;
+use App\Services\AiGateway\AiSecretWriter;
 use App\Services\AiGateway\AiUsageLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -212,6 +216,147 @@ class AiLocalController extends Controller
         return response()->json(['success' => true, 'removed' => AiImageHistory::clear()]);
     }
 
+    /**
+     * GET /api/local/ai/keys — per-provider AI key inventory. For every provider
+     * it returns the relevant secret slots (indexed _1.._5, bare, dedicated image
+     * _IMAGE_1..5, and the extra-secret name if any), each as
+     * { name, set, masked }. Values are NEVER returned — only the first4…last4
+     * mask (or null when unset). Keys are SHARED with pycore.
+     */
+    public function keysList(): JsonResponse
+    {
+        $out = [];
+        foreach (AiProviderRegistry::orderedNames() as $provider) {
+            $keyBase = AiProviderRegistry::keyBase($provider);
+            $extraName = AiProviderRegistry::extraSecretName($provider);
+            $keyless = AiProviderRegistry::isKeyless($provider);
+
+            $slotNames = [];
+            if ($keyBase !== '') {
+                for ($i = 1; $i <= 5; $i++) {
+                    $slotNames[] = $keyBase . '_' . $i;
+                }
+                $slotNames[] = $keyBase;
+                for ($i = 1; $i <= 5; $i++) {
+                    $slotNames[] = $keyBase . '_IMAGE_' . $i;
+                }
+            }
+            if ($extraName !== '') {
+                $slotNames[] = $extraName;
+            }
+            // base-url override + aux config (endpoint / deployment / region /
+            // spark triple) so card-bound providers are fully UI-configurable.
+            $baseUrlName = AiProviderRegistry::baseUrlKeyName($provider);
+            if ($baseUrlName !== '') {
+                $slotNames[] = $baseUrlName;
+            }
+            foreach (AiProviderRegistry::auxSecretNames($provider) as $aux) {
+                $slotNames[] = $aux;
+            }
+
+            $slots = [];
+            foreach (array_values(array_unique($slotNames)) as $name) {
+                $raw = AiSecretLoader::get($name);
+                $set = $raw !== '';
+                $isSecret = AiProviderRegistry::isSecretName($name);
+                $slots[] = [
+                    'name' => $name,
+                    'set' => $set,
+                    // True secret → mask; plain config (endpoint/deployment/region/
+                    // base-url) is safe to show in full so the user can verify it.
+                    'secret' => $isSecret,
+                    'masked' => $set ? ($isSecret ? AiProviderRegistry::maskKey($raw) : $raw) : null,
+                ];
+            }
+
+            // Per-key rotation status (cooldown + counters + rate) — same shape as
+            // pycore's gateway/keys exposure, so the dashboard shows KEY1/KEY2…
+            // health identically on both ends.
+            $textKeys = $keyless ? [''] : AiProviderRegistry::allSecrets($provider);
+            $imgKeys = $keyless ? [''] : AiProviderRegistry::allImageSecrets($provider);
+            $isImage = AiProviderRegistry::imageModel($provider) !== '';
+
+            $out[] = [
+                'provider' => $provider,
+                'key_base' => $keyBase,
+                'extra_secret_name' => $extraName !== '' ? $extraName : null,
+                'keyless' => $keyless,
+                'image_only' => AiProviderRegistry::isImageOnly($provider),
+                'configured' => AiProviderRegistry::isConfigured($provider),
+                'image_ready' => AiProviderRegistry::hasImageKey($provider),
+                'key_count' => count($textKeys),
+                'keys' => AiKeyRotation::status($provider, $textKeys ?: ['']),
+                'image_keys' => $isImage ? AiKeyRotation::status($provider . '#image', $imgKeys ?: ['']) : [],
+                'slots' => $slots,
+            ];
+        }
+
+        return response()->json(['success' => true, 'providers' => $out]);
+    }
+
+    /**
+     * POST /api/local/ai/keys { key_name, value } — write/replace a secret. The
+     * name must pass AiSecretWriter::isAllowedKeyName (a known registry base with
+     * an allowed suffix), and value must be non-empty. Returns the MASKED form
+     * only — never the raw value. 400 on invalid name / empty value.
+     */
+    public function keySet(Request $request): JsonResponse
+    {
+        $keyName = strtoupper(trim((string) $request->input('key_name', '')));
+        $value = trim((string) $request->input('value', ''));
+
+        if ($keyName === '' || !AiSecretWriter::isAllowedKeyName($keyName)) {
+            return response()->json(['success' => false, 'error' => 'invalid key_name'], 400);
+        }
+        if ($value === '') {
+            return response()->json(['success' => false, 'error' => 'value is required'], 400);
+        }
+
+        $ok = AiSecretWriter::set($keyName, $value);
+        if (!$ok) {
+            return response()->json(['success' => false, 'error' => 'failed to write key'], 500);
+        }
+
+        // A new/changed key must be reflected by probe/catalog/quota immediately.
+        self::invalidateAfterKeyChange();
+
+        $isSecret = AiProviderRegistry::isSecretName($keyName);
+        return response()->json([
+            'success' => true,
+            'key_name' => $keyName,
+            'secret' => $isSecret,
+            'masked' => $isSecret ? AiProviderRegistry::maskKey($value) : $value,
+        ]);
+    }
+
+    /**
+     * POST /api/local/ai/keys/delete { key_name } — remove a secret file. Name
+     * must pass the allow-list. Returns { success }.
+     */
+    public function keyDelete(Request $request): JsonResponse
+    {
+        $keyName = strtoupper(trim((string) $request->input('key_name', '')));
+
+        if ($keyName === '' || !AiSecretWriter::isAllowedKeyName($keyName)) {
+            return response()->json(['success' => false, 'error' => 'invalid key_name'], 400);
+        }
+
+        $ok = AiSecretWriter::delete($keyName);
+        self::invalidateAfterKeyChange();
+        return response()->json(['success' => $ok]);
+    }
+
+    /**
+     * Drop cached provider state after a key set/delete so the next probe /
+     * catalog / gateway reflects the change instead of a stale snapshot.
+     */
+    private static function invalidateAfterKeyChange(): void
+    {
+        self::$probeCache = null;
+        self::$probeCacheTs = 0.0;
+        AiGateway::invalidateCaches();
+    }
+
     public function info(): JsonResponse
     {
         return response()->json([
@@ -226,6 +371,9 @@ class AiLocalController extends Controller
                 'POST /api/local/ai/chat' => '{ provider?, message?|messages?, model?, source? } — auto = smart dispatch.',
                 'GET  /api/local/ai/gateway?refresh=1' => 'Per-provider tier/usage/cooldown + recent records.',
                 'GET  /api/local/ai/rate-limits?provider=NAME' => 'Local usage vs free-tier limits (shared with pycore).',
+                'GET  /api/local/ai/keys' => 'Per-provider key inventory (slots, masked only — never raw).',
+                'POST /api/local/ai/keys' => '{ key_name, value } — set/replace an AI provider key (returns masked).',
+                'POST /api/local/ai/keys/delete' => '{ key_name } — delete an AI provider key file.',
                 'POST /api/local/ai/image' => '{ prompt, size?, model?, source? } — image-capable providers (records shared history).',
                 'GET  /api/local/ai/image/history?limit=50' => 'Newest-first image history metadata (shared with pycore).',
                 'GET  /api/local/ai/image/history/file/{id}' => 'Raw bytes of one history image.',

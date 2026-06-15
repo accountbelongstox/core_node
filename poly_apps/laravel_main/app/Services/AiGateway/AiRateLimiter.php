@@ -79,7 +79,41 @@ class AiRateLimiter
     public static function usageFile(): string
     {
         $coreNode = PathMapper::getCoreNodeDir() ?: PathMapper::getLaravelMainDir();
-        return rtrim($coreNode, '/\\') . '/.ai_state/ai_rate_usage.json';
+        $dir = rtrim($coreNode, '/\\') . '/.data/.ai_state';
+        self::migrateLegacyStateDir($coreNode, $dir);
+        return $dir . '/ai_rate_usage.json';
+    }
+
+    /** Run the legacy-dir migration at most once per worker. */
+    private static bool $migrated = false;
+
+    /**
+     * One-time PER-FILE move of the prior <core_node>/.ai_state dir into
+     * .data/.ai_state (per-file so a partially-created new dir never orphans files).
+     */
+    private static function migrateLegacyStateDir(string $coreNode, string $new): void
+    {
+        if (self::$migrated) {
+            return;
+        }
+        self::$migrated = true;
+        $old = rtrim($coreNode, '/\\') . '/.ai_state';
+        if (!is_dir($old) || @realpath($old) === @realpath($new)) {
+            return;
+        }
+        if (!is_dir($new)) {
+            @mkdir($new, 0775, true);
+        }
+        foreach ((array) @scandir($old) as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+            $dest = $new . '/' . $item;
+            if (!file_exists($dest)) {
+                @rename($old . '/' . $item, $dest);
+            }
+        }
+        @rmdir($old);
     }
 
     /** Conservative fallback RPM for a registry free provider with no explicit row. */
@@ -118,6 +152,23 @@ class AiRateLimiter
             'rpm_month' => $raw['rpm_month'] ?? null,
             'note' => $raw['note'] ?? '',
         ];
+    }
+
+    /**
+     * [rpm, rpd] PER-KEY budget from the provider's free-tier limit spec (each
+     * key = its own account/quota). [null, null] when unenforced (paid/unlisted).
+     * Consumed by AiKeyRotation::rateOk for per-key gating, mirroring pycore's
+     * ai_gateway._rate_caps.
+     *
+     * @return array{0: int|null, 1: int|null}
+     */
+    public static function perKeyCaps(string $provider, ?string $model = null): array
+    {
+        $spec = self::resolveLimit($provider, $model);
+        if ($spec === null) {
+            return [null, null];
+        }
+        return [$spec['rpm'] ?? null, $spec['rpd'] ?? null];
     }
 
     /**

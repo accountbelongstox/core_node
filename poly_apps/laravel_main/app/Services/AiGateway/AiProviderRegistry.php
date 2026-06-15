@@ -36,13 +36,15 @@ class AiProviderRegistry
 
     /** Dispatch order: free -> balance -> paid; within tier = list order. */
     public const PROVIDER_ORDER = [
-        'openrouter', 'gemini', 'groq', 'cerebras', 'mistral', 'cohere',
+        'openrouter', 'gemini', 'pollinations', 'groq', 'cerebras', 'mistral', 'cohere',
         'nvidia', 'huggingface', 'github', 'cloudflare',
         'siliconflow', 'dashscope', 'hunyuan', 'qianfan', 'spark', 'zhipuai',
         'deepseek',
         'volcano', 'moonshot', 'minimax', 'stepfun', 'yi',
         'openai', 'anthropic', 'xai',
         'together',
+        // image-only providers (after chat providers) — names match pycore.
+        'imagen', 'azure', 'bedrock', 'vertex',
     ];
 
     /** Memoized registry map (built once per worker). */
@@ -72,8 +74,10 @@ class AiProviderRegistry
                 // ranking; demonstrates the registry extra_headers hook).
                 'extra_headers' => ['X-Title' => 'core_node'],
                 'vision' => true,
-                'image' => false,
-                'image_model' => '',
+                // OpenRouter generates images via chat completions with
+                // modalities:["image","text"]; this model returns an inline data-URI.
+                'image' => true,
+                'image_model' => 'google/gemini-2.5-flash-image',
             ],
             'gemini' => [
                 'key_base' => 'GOOGLE_API_KEY',
@@ -86,6 +90,21 @@ class AiProviderRegistry
                 'vision' => true,
                 'image' => true,
                 'image_model' => 'gemini-2.5-flash-image',
+            ],
+            'pollinations' => [
+                // Free, no-card, NO API KEY. Image-only provider (no chat). Treated
+                // as configured WITHOUT a secret (see isConfigured / hasImageKey).
+                'key_base' => '',
+                'default_model' => 'flux',
+                'free_models' => ['flux'],
+                'limits' => 'Free, no key required (image only; rate-limited per IP)',
+                'tier' => 'free',
+                'client' => 'pollinations',
+                'base_url' => 'https://image.pollinations.ai',
+                'vision' => false,
+                'image' => true,
+                'image_only' => true,
+                'image_model' => 'flux',
             ],
             'groq' => [
                 'key_base' => 'GROQ_API_KEY',
@@ -182,8 +201,9 @@ class AiProviderRegistry
                 'client' => 'cloudflare',
                 'base_url' => 'https://api.cloudflare.com/client/v4',
                 'vision' => false,
-                'image' => false,
-                'image_model' => '',
+                // Workers AI text-to-image (run endpoint returns raw image bytes).
+                'image' => true,
+                'image_model' => '@cf/stabilityai/stable-diffusion-xl-base-1.0',
             ],
             'siliconflow' => [
                 'key_base' => 'SILICONFLOW_API_KEY',
@@ -195,21 +215,23 @@ class AiProviderRegistry
                 'base_url' => 'https://api.siliconflow.cn/v1',
                 'base_url_key' => 'SILICONFLOW_BASE_URL',
                 'vision' => false,
-                'image' => false,
-                'image_model' => '',
+                // FLUX.1-schnell is free; OpenAI-compatible /images/generations.
+                'image' => true,
+                'image_model' => 'black-forest-labs/FLUX.1-schnell',
             ],
             'dashscope' => [
                 'key_base' => 'DASHSCOPE_API_KEY',
                 'default_model' => 'qwen-turbo',
                 'free_models' => ['qwen-turbo', 'qwen-plus', 'qwen-max'],
-                'limits' => 'Free quota for qwen-turbo (RPM/RPD per Bailian console)',
+                'limits' => 'Free quota for qwen-turbo (RPM/RPD per Bailian console). Image: wanx (Tongyi Wanxiang) free-trial quota; ASYNC task+poll',
                 'tier' => 'free',
                 'client' => 'compat',
                 'base_url' => 'https://dashscope.aliyuncs.com/compatible-mode/v1',
                 'base_url_key' => 'DASHSCOPE_BASE_URL',
                 'vision' => true,
-                'image' => false,
-                'image_model' => '',
+                // Tongyi Wanxiang text-to-image (ASYNC submit + poll on the native API).
+                'image' => true,
+                'image_model' => 'wanx2.1-t2i-turbo',
             ],
             'hunyuan' => [
                 'key_base' => 'HUNYUAN_API_KEY',
@@ -228,38 +250,45 @@ class AiProviderRegistry
                 'key_base' => 'QIANFAN_API_KEY',
                 'default_model' => 'ernie-speed-128k',
                 'free_models' => ['ernie-speed-128k', 'ernie-lite-8k', 'ernie-3.5-8k'],
-                'limits' => 'ERNIE speed/lite tiers free RPM (Baidu console)',
+                'limits' => 'ERNIE speed/lite tiers free RPM (Baidu console). Image: ERNIE iRAG (irag-1.0), bearer /v2/images/generations -> URL',
                 'tier' => 'free',
                 'client' => 'compat',
                 'base_url' => 'https://qianfan.baidubce.com/v2',
                 'base_url_key' => 'QIANFAN_BASE_URL',
                 'vision' => false,
-                'image' => false,
-                'image_model' => '',
+                // Baidu ERNIE iRAG text-to-image (bearer, OpenAI-style images endpoint -> URL).
+                'image' => true,
+                'image_model' => 'irag-1.0',
             ],
             'spark' => [
                 'key_base' => 'SPARK_API_PASSWORD',
                 'default_model' => 'lite',
                 'free_models' => ['lite'],
-                'limits' => 'Spark Lite free tier (iFlytek console RPM)',
+                'limits' => 'Spark Lite free tier (iFlytek console RPM). Image: tti v2.1 (needs SPARK_APP_ID/SPARK_API_KEY/SPARK_API_SECRET HMAC signing)',
                 'tier' => 'free',
                 'client' => 'spark',
                 'base_url' => 'https://spark-api-open.xf-yun.com/v1',
                 'vision' => false,
-                'image' => false,
-                'image_model' => '',
+                // iFlytek Spark text-to-image (HMAC-signed v2.1/tti). The image
+                // backend uses a separate APP_ID/API_KEY/API_SECRET triple (NOT the
+                // chat api_password) — declared as aux_secrets so the key panel can
+                // set them and the writer allow-lists them.
+                'image' => true,
+                'image_model' => 'spark-tti-v2.1',
+                'aux_secrets' => ['SPARK_APP_ID', 'SPARK_API_KEY', 'SPARK_API_SECRET'],
             ],
             'zhipuai' => [
                 'key_base' => 'ZHIPUAI_API_KEY',
                 'default_model' => 'glm-4-flash',
                 'free_models' => ['glm-4-flash', 'glm-4', 'glm-4v-flash'],
-                'limits' => 'Free tier RPM limits; no public quota API (cooldown on 429)',
+                'limits' => 'Free tier RPM limits; no public quota API (cooldown on 429). Image: cogview-3-flash is FREE (concurrency-capped; 429 on burst)',
                 'tier' => 'free',
                 'client' => 'compat',
                 'base_url' => 'https://open.bigmodel.cn/api/paas/v4',
                 'vision' => true,
-                'image' => false,
-                'image_model' => '',
+                // CogView-3-Flash free text-to-image (sync POST /images/generations -> URL).
+                'image' => true,
+                'image_model' => 'cogview-3-flash',
             ],
             'deepseek' => [
                 'key_base' => 'DEEPSEEK_API_KEY',
@@ -283,8 +312,10 @@ class AiProviderRegistry
                 'base_url' => 'https://ark.cn-beijing.volces.com/api/v3',
                 'base_url_key' => 'ARK_BASE_URL',
                 'vision' => true,
-                'image' => false,
-                'image_model' => '',
+                // Doubao/Seedream text-to-image on the Ark base (OpenAI-compatible
+                // /images/generations); best-effort, paid.
+                'image' => true,
+                'image_model' => 'doubao-seedream-3-0-t2i-250415',
             ],
             'moonshot' => [
                 'key_base' => 'MOONSHOT_API_KEY',
@@ -315,14 +346,15 @@ class AiProviderRegistry
                 'key_base' => 'STEPFUN_API_KEY',
                 'default_model' => 'step-1-8k',
                 'free_models' => ['step-1-8k', 'step-2-mini'],
-                'limits' => 'Prepaid balance (StepFun console)',
+                'limits' => 'Prepaid balance (StepFun console). Image: step-1x-medium (paid, OpenAI-compatible /images/generations) — last-resort backup',
                 'tier' => 'paid',
                 'client' => 'compat',
                 'base_url' => 'https://api.stepfun.com/v1',
                 'base_url_key' => 'STEPFUN_BASE_URL',
                 'vision' => false,
-                'image' => false,
-                'image_model' => '',
+                // OpenAI-compatible images endpoint (paid; tried after free backends).
+                'image' => true,
+                'image_model' => 'step-1x-medium',
             ],
             'yi' => [
                 'key_base' => 'YI_API_KEY',
@@ -345,9 +377,11 @@ class AiProviderRegistry
                 'tier' => 'paid',
                 'client' => 'compat',
                 'base_url' => 'https://api.openai.com/v1',
+                'base_url_key' => 'OPENAI_BASE_URL',
                 'vision' => true,
-                'image' => false,
-                'image_model' => '',
+                // OpenAI Images API (POST /v1/images/generations). dall-e-3 returns b64_json.
+                'image' => true,
+                'image_model' => 'dall-e-3',
             ],
             'anthropic' => [
                 'key_base' => 'ANTHROPIC_API_KEY',
@@ -386,6 +420,74 @@ class AiProviderRegistry
                 'vision' => false,
                 'image' => false,
                 'image_model' => '',
+            ],
+            // ---- image-only providers (no chat; names match pycore) -----------
+            'imagen' => [
+                // Google Imagen 3 via the Gemini API key (generativelanguage :predict).
+                // Shares GOOGLE_API_KEY; add GOOGLE_API_KEY_IMAGE to isolate its budget.
+                'key_base' => 'GOOGLE_API_KEY',
+                'default_model' => 'imagen-3.0-generate-002',
+                'free_models' => ['imagen-3.0-generate-002'],
+                'limits' => 'Imagen 3 via Gemini API (billed; Vertex $300 trial / paid tier)',
+                'tier' => 'paid',
+                'client' => 'imagen',
+                'base_url' => 'https://generativelanguage.googleapis.com/v1beta',
+                'vision' => false,
+                'image' => true,
+                'image_only' => true,
+                'image_model' => 'imagen-3.0-generate-002',
+            ],
+            'azure' => [
+                // Azure OpenAI DALL-E 3. Needs AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT
+                // (+ optional AZURE_OPENAI_IMAGE_DEPLOYMENT, default dall-e-3).
+                'key_base' => 'AZURE_OPENAI_API_KEY',
+                'default_model' => 'dall-e-3',
+                'free_models' => ['dall-e-3'],
+                'limits' => 'Azure OpenAI DALL-E 3 ($200 new-account credit; paid after)',
+                'tier' => 'paid',
+                'client' => 'azure',
+                'base_url' => '',
+                'vision' => false,
+                'image' => true,
+                'image_only' => true,
+                'image_model' => 'dall-e-3',
+                'aux_secrets' => ['AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_IMAGE_DEPLOYMENT'],
+            ],
+            'bedrock' => [
+                // AWS Bedrock Titan Image Generator (SigV4-signed). Needs
+                // AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (+ optional AWS_REGION).
+                'key_base' => 'AWS_ACCESS_KEY_ID',
+                'extra_secret' => 'AWS_SECRET_ACCESS_KEY',
+                'default_model' => 'amazon.titan-image-generator-v1',
+                'free_models' => ['amazon.titan-image-generator-v1'],
+                'limits' => 'AWS Bedrock Titan Image G1 (photoreal; paid, new-account credits)',
+                'tier' => 'paid',
+                'client' => 'bedrock',
+                'base_url' => '',
+                'vision' => false,
+                'image' => true,
+                'image_only' => true,
+                'image_model' => 'amazon.titan-image-generator-v1',
+                'aux_secrets' => ['AWS_REGION'],
+            ],
+            'vertex' => [
+                // Google Vertex AI Imagen via SERVICE-ACCOUNT OAuth (RS256 JWT -> token).
+                // Secrets: GOOGLE_VERTEX_SA_JSON (full SA JSON) + VERTEX_PROJECT_ID
+                // (+ optional VERTEX_REGION, default us-central1). A raw
+                // VERTEX_ACCESS_TOKEN is also accepted as a fallback (see imageVertex).
+                'key_base' => 'GOOGLE_VERTEX_SA_JSON',
+                'extra_secret' => 'VERTEX_PROJECT_ID',
+                'default_model' => 'imagen-3.0-generate-002',
+                'free_models' => ['imagen-3.0-generate-002', 'imagen-4.0-generate-001'],
+                'limits' => 'Vertex AI Imagen ($300 new-account credit; service-account OAuth)',
+                'tier' => 'paid',
+                'client' => 'vertex',
+                'base_url' => '',
+                'vision' => false,
+                'image' => true,
+                'image_only' => true,
+                'image_model' => 'imagen-3.0-generate-002',
+                'aux_secrets' => ['VERTEX_REGION', 'VERTEX_ACCESS_TOKEN'],
             ],
         ];
 
@@ -434,6 +536,21 @@ class AiProviderRegistry
         return $names;
     }
 
+    /** Providers that work WITHOUT any API key (free, no card). */
+    public const KEYLESS = ['pollinations'];
+
+    /** True when the provider needs no API key (free / no card). */
+    public static function isKeyless(string $provider): bool
+    {
+        return in_array($provider, self::KEYLESS, true);
+    }
+
+    /** True for image-only providers (no chat backend) — excluded from text dispatch. */
+    public static function isImageOnly(string $provider): bool
+    {
+        return (bool) (self::meta($provider)['image_only'] ?? false);
+    }
+
     /**
      * First non-empty secret for the provider (indexed _1.._5 then bare).
      */
@@ -443,11 +560,128 @@ class AiProviderRegistry
         return $base ? AiSecretLoader::getIndexed($base) : '';
     }
 
+    /**
+     * ALL non-empty secrets for the provider (chat/probe keys) in resolution
+     * order [_1, _2, … _max, bare], deduped — for multi-key rotation/failover.
+     * Mirrors pycore's get_all_secret_keys_indexed over the registry key_base.
+     *
+     * @return string[]
+     */
+    public static function allSecrets(string $provider): array
+    {
+        $base = self::meta($provider)['key_base'] ?? '';
+        return $base ? AiSecretLoader::getAllIndexed($base) : [];
+    }
+
+    /**
+     * Key for IMAGE generation, preferring a DEDICATED image key so the image
+     * budget is isolated from heavy text usage (mirrors pycore image_first_secret).
+     *
+     * Tries {key_base}_IMAGE (indexed _IMAGE_1..5 then bare _IMAGE) first, then
+     * falls back to the provider's normal first secret.
+     */
+    public static function imageFirstSecret(string $provider): string
+    {
+        $base = self::meta($provider)['key_base'] ?? '';
+        if ($base) {
+            $img = AiSecretLoader::getIndexed($base . '_IMAGE');
+            if ($img !== '') {
+                return $img;
+            }
+        }
+        return self::firstSecret($provider);
+    }
+
+    /**
+     * ALL image-usable secrets for the provider, in failover order: the dedicated
+     * {key_base}_IMAGE keys FIRST, then the normal keys, deduped. Mirrors the
+     * image_first_secret precedence but returns every key for rotation.
+     *
+     * @return string[]
+     */
+    public static function allImageSecrets(string $provider): array
+    {
+        $base = self::meta($provider)['key_base'] ?? '';
+        if (!$base) {
+            return [];
+        }
+        $keys = array_merge(
+            AiSecretLoader::getAllIndexed($base . '_IMAGE'),
+            AiSecretLoader::getAllIndexed($base)
+        );
+        // Dedupe while preserving order (image keys first).
+        return array_values(array_unique($keys));
+    }
+
+    /**
+     * True when an image-usable key exists (dedicated image key OR normal key),
+     * OR the provider is keyless (e.g. pollinations). Mirrors pycore has_image_key.
+     */
+    public static function hasImageKey(string $provider): bool
+    {
+        if (self::isKeyless($provider)) {
+            return true;
+        }
+        return self::imageFirstSecret($provider) !== '';
+    }
+
     /** Secondary secret (e.g. CLOUDFLARE_ACCOUNT_ID). */
     public static function extraSecret(string $provider): string
     {
         $name = self::meta($provider)['extra_secret'] ?? '';
         return $name ? AiSecretLoader::getIndexed($name) : '';
+    }
+
+    /** Registry secret base NAME for a provider (e.g. GOOGLE_API_KEY); '' if none. */
+    public static function keyBase(string $provider): string
+    {
+        return (string) (self::meta($provider)['key_base'] ?? '');
+    }
+
+    /** Registry secondary secret NAME (e.g. CLOUDFLARE_ACCOUNT_ID); '' if none. */
+    public static function extraSecretName(string $provider): string
+    {
+        return (string) (self::meta($provider)['extra_secret'] ?? '');
+    }
+
+    /** Registry base-url override secret NAME (e.g. SILICONFLOW_BASE_URL); '' if none. */
+    public static function baseUrlKeyName(string $provider): string
+    {
+        return (string) (self::meta($provider)['base_url_key'] ?? '');
+    }
+
+    /**
+     * Aux (non-key) secret names a provider needs beyond key_base/extra_secret —
+     * endpoint / deployment / region / spark triple. Image backends read these.
+     *
+     * @return string[]
+     */
+    public static function auxSecretNames(string $provider): array
+    {
+        $out = [];
+        foreach ((array) (self::meta($provider)['aux_secrets'] ?? []) as $n) {
+            $n = strtoupper(trim((string) $n));
+            if ($n !== '') {
+                $out[] = $n;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Whether a secret NAME holds a true secret (mask it) vs plain config that is
+     * safe to show in full so the user can verify it (endpoint / deployment /
+     * region / base-url / project / account-id).
+     */
+    public static function isSecretName(string $name): bool
+    {
+        $name = strtoupper($name);
+        foreach (['ENDPOINT', 'DEPLOYMENT', 'REGION', 'BASE_URL', 'PROJECT', 'ACCOUNT_ID'] as $plain) {
+            if (str_contains($name, $plain)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -480,13 +714,33 @@ class AiProviderRegistry
         return rtrim(trim((string) ($meta['base_url'] ?? '')), '/');
     }
 
-    /** True when the provider's required secrets are present. */
+    /** True when the provider's required secrets are present (keyless = always). */
     public static function isConfigured(string $provider): bool
     {
+        if (self::isKeyless($provider)) {
+            return true;
+        }
+        // vertex: a service-account JSON (key_base) OR a raw VERTEX_ACCESS_TOKEN,
+        // plus the project id (extra_secret). Checked before the generic key test
+        // so token-only setups (no SA JSON) still count as configured.
+        if ($provider === 'vertex') {
+            $hasAuth = self::firstSecret('vertex') !== ''
+                || AiSecretLoader::getIndexed('VERTEX_ACCESS_TOKEN') !== '';
+            return $hasAuth && self::extraSecret('vertex') !== '';
+        }
         if (self::firstSecret($provider) === '') {
             return false;
         }
         if ($provider === 'cloudflare' && self::extraSecret('cloudflare') === '') {
+            return false;
+        }
+        // bedrock is image-only and needs its AWS secret access key (extra_secret).
+        if ($provider === 'bedrock' && self::extraSecret('bedrock') === '') {
+            return false;
+        }
+        // azure is image-only and needs an endpoint alongside the key (the image
+        // deployment is optional — defaults to dall-e-3, matching pycore).
+        if ($provider === 'azure' && AiSecretLoader::getIndexed('AZURE_OPENAI_ENDPOINT') === '') {
             return false;
         }
         return true;

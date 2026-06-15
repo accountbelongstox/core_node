@@ -72,13 +72,16 @@ export const ShellControls: React.FC = () => {
 
           <div className="h-px bg-slate-200 dark:bg-slate-700" />
 
-          {/* AI chat */}
-          <button
-            onClick={() => { openChat(); setOpen(false); }}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200"
-          >
-            <Bot className="w-4 h-4" /> AI Chat
-          </button>
+          {/* AI chat — on wordflow this lives in WfTopBar's right-side icons
+              instead of this floating dock, so it is hidden here for that end. */}
+          {end !== 'wordflow' && (
+            <button
+              onClick={() => { openChat(); setOpen(false); }}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200"
+            >
+              <Bot className="w-4 h-4" /> AI Chat
+            </button>
+          )}
 
           {/* Dark toggle */}
           <button

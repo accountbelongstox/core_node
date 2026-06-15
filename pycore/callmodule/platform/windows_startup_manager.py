@@ -52,7 +52,12 @@ class WindowsStartupManager:
         self.common_startup = (Path(program_data) / 'Microsoft' / 'Windows'
                                / 'Start Menu' / 'Programs' / 'Startup')
         # Per-user Startup folder - fallback when the common folder isn't writable.
-        appdata = os.environ.get('APPDATA', '')
+        # APPDATA can be empty under a stripped service env; fall back to an ABSOLUTE
+        # path (USERPROFILE\AppData\Roaming, else the home dir) so we never build a
+        # RELATIVE 'Microsoft\Windows\...' path that mkdir(parents=True) would create
+        # as a stray directory under the current working directory.
+        appdata = os.environ.get('APPDATA') or str(
+            Path(os.environ.get('USERPROFILE') or Path.home()) / 'AppData' / 'Roaming')
         self.user_startup = (Path(appdata) / 'Microsoft' / 'Windows'
                              / 'Start Menu' / 'Programs' / 'Startup')
 
@@ -159,6 +164,11 @@ class WindowsStartupManager:
 
     def _create_shortcut(self, lnk_path: Path) -> bool:
         """Create the .lnk (pointing at powershell + the .ps1) with the native shell."""
+        # Guard: refuse a relative target so a missing env var (e.g. empty APPDATA)
+        # can never make mkdir(parents=True) materialize a stray 'Microsoft\Windows\...'
+        # tree under the current working directory.
+        if not lnk_path.is_absolute():
+            return False
         lnk_path.parent.mkdir(parents=True, exist_ok=True)
         target = str(self.powershell_exe)
         arguments = self._shortcut_arguments()

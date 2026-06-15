@@ -38,6 +38,9 @@ export interface WorkerStats {
   newTasks: number;
   duplicateTasks: number;
   activeTabs: number;
+  // Live activity surfaced in the popup so the user can see work happening.
+  currentWord: string | null;
+  currentTaskId: string | null;
 }
 
 interface NormalizedWord {
@@ -60,6 +63,23 @@ interface ResultEntry {
 
 const MAX_TABS = 8;
 const NO_RESULT_ERROR = 'No results found for this word';
+// Title of the tab group the pool tabs are collected under, so a multi-tab pool
+// does not clutter the tab strip (chrome.tabs.group + chrome.tabGroups.update).
+const TAB_GROUP_TITLE = 'Bing Assist';
+
+// MV3 service workers are terminated after ~30s idle and lose all globals +
+// setInterval timers (https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle).
+// We persist the "assisting" intent and reuse a chrome.alarms watchdog to
+// resurrect the worker after the SW (or the whole browser) restarts.
+const RUNTIME_STORAGE_KEY = 'bing_worker_runtime';
+const WATCHDOG_ALARM = 'bing-translation-worker-watchdog';
+// 1 min: above the 30s production floor, frequent enough to recover quickly.
+const WATCHDOG_PERIOD_MINUTES = 1;
+
+interface PersistedRuntime {
+  running: boolean;
+  config: WorkerConfig | null;
+}
 
 class BingDictionaryWorkerService {
   private isRunning = false;
@@ -87,7 +107,12 @@ class BingDictionaryWorkerService {
     newTasks: 0,
     duplicateTasks: 0,
     activeTabs: 0,
+    currentWord: null,
+    currentTaskId: null,
   };
+
+  // Id of the collapsed "Bing Assist" tab group holding the pool tabs.
+  private tabGroupId: number | null = null;
 
   async start(config: WorkerConfig): Promise<void> {
     if (this.isRunning) {
@@ -99,7 +124,9 @@ class BingDictionaryWorkerService {
     }
 
     this.config = {
-      apiUrl: config.apiUrl,
+      // Normalize: trim + strip trailing slashes so base + '/api/...' never
+      // produces a double slash.
+      apiUrl: config.apiUrl.trim().replace(/\/+$/, ''),
       workerName: config.workerName || 'MCP Chrome Bing Translation Worker',
       pollInterval: config.pollInterval ?? 5,
       heartbeatInterval: config.heartbeatInterval ?? 60,
@@ -114,14 +141,21 @@ class BingDictionaryWorkerService {
 
     await this.registerWorker();
 
-    // Open/reuse the Bing dictionary tab pool up front so "start assisting"
-    // immediately surfaces Bing (auto-open if none, switch/activate if present).
-    await this.ensureTabs();
+    // Open/reuse the Bing dictionary tab pool up front. focus=true here is the
+    // ONE place we surface Bing to the user (they just clicked Start); per-task
+    // ensureTabs(false) calls never steal focus afterwards.
+    await this.ensureTabs(true);
 
     this.startHeartbeat();
     this.startPolling();
 
     this.isRunning = true;
+
+    // Persist intent + arm the watchdog so the worker survives SW termination
+    // and browser restarts.
+    await this.persistRuntime(true);
+    await this.ensureWatchdog();
+
     console.log('[Bing Worker] Service started successfully');
   }
 
@@ -149,8 +183,86 @@ class BingDictionaryWorkerService {
     this.stats.queueTotal = 0;
     this.stats.newTasks = 0;
     this.stats.duplicateTasks = 0;
+    this.stats.currentWord = null;
+    this.stats.currentTaskId = null;
+
+    // Clear persisted intent + disarm the watchdog so a later SW revival does
+    // not auto-restart a service the user explicitly stopped.
+    this.persistRuntime(false).catch(() => undefined);
+    this.clearWatchdog().catch(() => undefined);
 
     console.log('[Bing Worker] Service stopped');
+  }
+
+  /**
+   * Re-establish the worker after a service-worker (or browser) restart if the
+   * user had it assisting. Safe to call repeatedly: start() no-ops when already
+   * running. Invoked from the alarm watchdog and runtime startup listeners.
+   */
+  async resume(): Promise<void> {
+    if (this.isRunning) {
+      // Already alive — just make sure the watchdog stays armed.
+      await this.ensureWatchdog();
+      return;
+    }
+
+    let persisted: PersistedRuntime | null = null;
+    try {
+      const result = await chrome.storage.local.get(RUNTIME_STORAGE_KEY);
+      persisted = result[RUNTIME_STORAGE_KEY] || null;
+    } catch (error) {
+      console.warn('[Bing Worker] Failed to read persisted runtime:', error);
+      return;
+    }
+
+    if (!persisted || !persisted.running || !persisted.config?.apiUrl) {
+      return;
+    }
+
+    try {
+      console.log('[Bing Worker] Resuming assist after restart');
+      await this.start(persisted.config);
+    } catch (error) {
+      console.error('[Bing Worker] Resume failed:', error);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Persistence + watchdog (MV3 lifecycle resilience)
+  // ------------------------------------------------------------------
+
+  private async persistRuntime(running: boolean): Promise<void> {
+    const payload: PersistedRuntime = {
+      running,
+      config: running ? this.config : null,
+    };
+    try {
+      await chrome.storage.local.set({ [RUNTIME_STORAGE_KEY]: payload });
+    } catch (error) {
+      console.warn('[Bing Worker] Failed to persist runtime:', error);
+    }
+  }
+
+  private async ensureWatchdog(): Promise<void> {
+    try {
+      const existing = await chrome.alarms.get(WATCHDOG_ALARM);
+      if (!existing) {
+        await chrome.alarms.create(WATCHDOG_ALARM, {
+          periodInMinutes: WATCHDOG_PERIOD_MINUTES,
+          delayInMinutes: WATCHDOG_PERIOD_MINUTES,
+        });
+      }
+    } catch (error) {
+      console.warn('[Bing Worker] Failed to arm watchdog alarm:', error);
+    }
+  }
+
+  private async clearWatchdog(): Promise<void> {
+    try {
+      await chrome.alarms.clear(WATCHDOG_ALARM);
+    } catch (error) {
+      console.warn('[Bing Worker] Failed to clear watchdog alarm:', error);
+    }
   }
 
   getStatus(): { isRunning: boolean; stats: WorkerStats } {
@@ -283,6 +395,7 @@ class BingDictionaryWorkerService {
     if (!this.workerClient || !this.config) return;
 
     const workerId = this.stats.workerId!;
+    this.stats.currentTaskId = task.task_id;
 
     try {
       console.log(`[Bing Worker] Processing task: ${task.task_id}`);
@@ -300,7 +413,8 @@ class BingDictionaryWorkerService {
         throw new Error('No words in task payload');
       }
 
-      const tabIds = await this.ensureTabs();
+      // Reuse the existing pool without stealing focus (focus=false).
+      const tabIds = await this.ensureTabs(false);
       const targetLanguage = task.payload.target_language || this.config.targetLanguage;
 
       const translations: ResultEntry[] = [];
@@ -316,6 +430,7 @@ class BingDictionaryWorkerService {
           const i = nextIndex++;
           if (i >= total) break;
           const w = words[i];
+          this.stats.currentWord = w.word;
 
           try {
             const data = await bingDictionaryTool.lookupInTab(tabId, w.word);
@@ -387,6 +502,10 @@ class BingDictionaryWorkerService {
       }
 
       this.taskCache.delete(task.task_id);
+    } finally {
+      // Clear live activity between tasks so the popup shows idle, not a stale word.
+      this.stats.currentWord = null;
+      this.stats.currentTaskId = null;
     }
   }
 
@@ -407,13 +526,15 @@ class BingDictionaryWorkerService {
       return 'translated';
     }
 
-    // Genuine "Bing has no entry" signals: either the explicit no-results page,
-    // or a successful parse that yielded nothing usable.
-    if (data.error === NO_RESULT_ERROR || (data.success && !hasContent)) {
+    // SAFETY: only a CONFIRMED dictionary page with no entry means the word is
+    // genuinely invalid. A non-dict page (region redirect, web-search fallback,
+    // load failure) must NOT invalidate the word — otherwise a regional Bing
+    // outage would mass-flag the whole queue. Those are transient.
+    const isDictPage = data.pageType === undefined || data.pageType === 'dict';
+    if (isDictPage && data.success && (data.error === NO_RESULT_ERROR || !hasContent)) {
       return 'invalid';
     }
 
-    // success === false from a helper exception -> treat as transient.
     return 'error';
   }
 
@@ -545,11 +666,14 @@ class BingDictionaryWorkerService {
 
   /**
    * Ensure the configured number of Bing dictionary tabs exist. Reuses any
-   * already-tracked or already-open bing.com/dict tabs and creates the rest,
-   * activating the first so "start assisting" visibly switches to Bing.
+   * already-tracked or already-open bing.com/dict tabs and creates the rest as
+   * BACKGROUND tabs (never stealing focus), then collects them into a collapsed
+   * "Bing Assist" tab group so a multi-tab pool stays tidy.
+   *
+   * @param focus when true (explicit Start only), surface the group to the user.
    */
-  private async ensureTabs(): Promise<number[]> {
-    const want = this.config?.tabCount ?? 3;
+  private async ensureTabs(focus = false, wantOverride?: number): Promise<number[]> {
+    const want = Math.max(1, Math.min(MAX_TABS, wantOverride ?? this.config?.tabCount ?? 3));
     const alive: number[] = [];
 
     // Keep tracked tabs that still exist.
@@ -569,11 +693,11 @@ class BingDictionaryWorkerService {
       }
     }
 
-    // Create the remainder.
+    // Create the remainder as background tabs — never yank the user away.
     while (alive.length < want) {
       const created = await chrome.tabs.create({
         url: 'https://www.bing.com/dict',
-        active: alive.length === 0,
+        active: false,
       });
       if (created.id) {
         alive.push(created.id);
@@ -585,12 +709,147 @@ class BingDictionaryWorkerService {
     this.tabIds = alive.slice(0, want);
     this.stats.activeTabs = this.tabIds.length;
 
-    // Surface Bing: activate the first pool tab.
-    if (this.tabIds.length > 0) {
-      chrome.tabs.update(this.tabIds[0], { active: true }).catch(() => undefined);
-    }
+    await this.groupTabs(focus);
 
     return this.tabIds;
+  }
+
+  /**
+   * Collect the pool tabs into a single collapsed, labelled tab group so they
+   * don't clutter the tab strip. chrome.tabs.group() needs only "tabs";
+   * chrome.tabGroups.update() (title/color/collapsed) needs "tabGroups".
+   * Best-effort: grouping can fail if the API is unavailable or tabs span
+   * windows, which must never break translation.
+   */
+  private async groupTabs(focus: boolean): Promise<void> {
+    if (this.tabIds.length === 0) return;
+    if (!chrome.tabs.group || !chrome.tabGroups) return;
+
+    try {
+      const options: chrome.tabs.GroupOptions = { tabIds: this.tabIds as [number, ...number[]] };
+      if (this.tabGroupId !== null) {
+        options.groupId = this.tabGroupId;
+      }
+      this.tabGroupId = await chrome.tabs.group(options);
+
+      await chrome.tabGroups.update(this.tabGroupId, {
+        title: TAB_GROUP_TITLE,
+        color: 'cyan',
+        // Collapse when running in the background; expand when the user just
+        // pressed Start so they can see Bing.
+        collapsed: !focus,
+      });
+
+      if (focus && this.tabIds[0] !== undefined) {
+        chrome.tabs.update(this.tabIds[0], { active: true }).catch(() => undefined);
+      }
+    } catch (error) {
+      console.warn('[Bing Worker] Tab grouping skipped:', error);
+      this.tabGroupId = null;
+    }
+  }
+
+  /**
+   * Ad-hoc Bing scrape test driven from the popup. Scrapes the given word(s)
+   * live across the configured parallel tab pool WITHOUT pulling from or posting
+   * to the backend, and returns a compact per-word result for display. Lets the
+   * user validate the Bing extraction + parallelism before assisting for real.
+   */
+  async testScrape(
+    rawWords: string[],
+    tabCount?: number,
+  ): Promise<
+    Array<{
+      word: string;
+      ok: boolean;
+      invalid?: boolean;
+      translation?: string;
+      phonetic?: string;
+      images?: number;
+      audio?: boolean;
+      audioUrl?: string;
+      imageUrls?: string[];
+      error?: string;
+    }>
+  > {
+    const words = this.normalizeWords(rawWords as any);
+    if (words.length === 0) return [];
+
+    // Parallelism only helps with many words. Never open more tabs than there
+    // are words to test — a single-word test must use exactly ONE tab, not the
+    // configured max. (The configured tabCount only caps the upper bound.)
+    const want = Math.min(words.length, tabCount ?? this.config?.tabCount ?? 3);
+    const tabIds = await this.ensureTabs(true, want);
+    const results: Array<any> = [];
+    let nextIndex = 0;
+
+    const runSlot = async (tabId: number): Promise<void> => {
+      while (true) {
+        const i = nextIndex++;
+        if (i >= words.length) break;
+        const w = words[i];
+        this.stats.currentWord = w.word;
+        try {
+          const data = await bingDictionaryTool.lookupInTab(tabId, w.word);
+          const classification = this.classify(data);
+          if (classification === 'translated' && data) {
+            const formatted = this.formatExplanation(data);
+            const audioUrl = this.pickAudioUrl(data) || undefined;
+            const imageUrls = (data.sampleImages || [])
+              .map((s: any) => s.url)
+              .filter(Boolean)
+              .slice(0, 6);
+            results.push({
+              word: w.word,
+              ok: true,
+              translation: formatted.text,
+              phonetic:
+                formatted.phonetic || formatted.us_phonetic || formatted.uk_phonetic || '',
+              images: imageUrls.length,
+              audio: !!audioUrl,
+              audioUrl,
+              imageUrls,
+            });
+          } else if (classification === 'invalid') {
+            results.push({ word: w.word, ok: false, invalid: true, error: 'No Bing entry' });
+          } else {
+            results.push({ word: w.word, ok: false, error: 'Lookup failed (transient)' });
+          }
+        } catch (error: any) {
+          results.push({ word: w.word, ok: false, error: error?.message || 'Error' });
+        }
+      }
+    };
+
+    await Promise.all(tabIds.map((tabId) => runSlot(tabId)));
+    this.stats.currentWord = null;
+
+    // Preserve the user's input order.
+    const order = new Map(words.map((w, i) => [w.word, i]));
+    results.sort((a, b) => (order.get(a.word) ?? 0) - (order.get(b.word) ?? 0));
+    return results;
+  }
+
+  /**
+   * Verify the API base URL is reachable by hitting the worker stats endpoint.
+   * Used by the popup "Test" button so the user gets immediate feedback instead
+   * of a silently dead Start.
+   */
+  async testConnection(apiUrl: string): Promise<{ ok: boolean; message: string }> {
+    const trimmed = (apiUrl || '').trim().replace(/\/+$/, '');
+    if (!trimmed) {
+      return { ok: false, message: 'API URL is empty' };
+    }
+    try {
+      const client = new WorkerApiClient(trimmed);
+      const response = await client.getWorkerStats();
+      if (response.success) {
+        return { ok: true, message: 'Connected' };
+      }
+      return { ok: false, message: response.message || 'Server returned an error' };
+    } catch (error: any) {
+      return { ok: false, message: error?.message || 'Unreachable' };
+    }
   }
 
   private async tabExists(tabId: number): Promise<boolean> {
@@ -605,3 +864,33 @@ class BingDictionaryWorkerService {
 
 // Singleton instance
 export const bingDictionaryWorkerService = new BingDictionaryWorkerService();
+
+/**
+ * Register the MV3 lifecycle hooks that keep the translation assist alive.
+ *
+ * Per the official service-worker lifecycle guidance, event listeners must be
+ * registered synchronously at the top level of the SW so they are present when
+ * the worker is revived. This wires:
+ *   - chrome.alarms.onAlarm  -> watchdog resurrection (also wakes a terminated SW)
+ *   - chrome.runtime.onStartup / onInstalled -> resume after browser restart/update
+ * plus an immediate resume() for SWs revived by any other event.
+ */
+export function initBingWorkerLifecycle(): void {
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === WATCHDOG_ALARM) {
+      bingDictionaryWorkerService.resume().catch(() => undefined);
+    }
+  });
+
+  chrome.runtime.onStartup.addListener(() => {
+    bingDictionaryWorkerService.resume().catch(() => undefined);
+  });
+
+  chrome.runtime.onInstalled.addListener(() => {
+    bingDictionaryWorkerService.resume().catch(() => undefined);
+  });
+
+  // The SW may have just been revived by an unrelated event; re-establish the
+  // worker immediately if the user had it assisting.
+  bingDictionaryWorkerService.resume().catch(() => undefined);
+}

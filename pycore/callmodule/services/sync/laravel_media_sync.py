@@ -1151,6 +1151,59 @@ def build_book_payload_v2(path: str, full_content: str, language: str = "en") ->
     }
 
 
+# Chunk size for book ingest: keeps each POST a SMALL, fast DB transaction so a
+# huge book (e.g. a Bible ~39k sentences / ~15k words) never exceeds the ingest
+# timeout. The book row (full_content + sentence_seq + word_ids) is sent only on
+# the FIRST chunk; later chunks carry a minimal source {source_key}.
+_BOOK_CHUNK = 1500
+
+
+def _ingest_book_chunked(
+    base_url: str,
+    payload: Dict[str, Any],
+    progress: Callable[[str, int, int, str], None],
+) -> Tuple[bool, List[str]]:
+    """POST a book payload to /media/ingest in small idempotent chunks.
+
+    Each chunk is its own server-side transaction; the fill-missing contract makes
+    partial/repeated chunks safe. Returns ``(ok, errors)``.
+    """
+    source = payload.get("source") or {}
+    sentences = payload.get("sentences") or []
+    words_by_lang = payload.get("words") or {}
+    # Flatten words to (lang, item) for stable slicing across chunks.
+    word_items = [(lang, w) for lang, ws in words_by_lang.items() for w in ws]
+
+    n_sent = len(sentences)
+    n_word = len(word_items)
+    chunks = max(1, (n_sent + _BOOK_CHUNK - 1) // _BOOK_CHUNK,
+                 (n_word + _BOOK_CHUNK - 1) // _BOOK_CHUNK)
+    errors: List[str] = []
+
+    for i in range(chunks):
+        s_slice = sentences[i * _BOOK_CHUNK:(i + 1) * _BOOK_CHUNK]
+        w_slice = word_items[i * _BOOK_CHUNK:(i + 1) * _BOOK_CHUNK]
+        w_dict: Dict[str, List[Dict[str, Any]]] = {}
+        for lang, w in w_slice:
+            w_dict.setdefault(lang, []).append(w)
+        # First chunk carries the full book row (meta + sentence_seq + word_ids +
+        # full_content); later chunks only need source_key to attach rows.
+        chunk_source = source if i == 0 else {"source_key": source.get("source_key")}
+        body = {
+            "source_type": "book",
+            "model_version": 2,
+            "source": chunk_source,
+            "sentences": s_slice,
+            "words": w_dict,
+        }
+        ok, detail = _post_ingest(base_url, body)
+        if not ok:
+            errors.append(f"chunk {i + 1}/{chunks}: {detail}")
+        progress("ingest", i + 1, chunks,
+                 f"chunk {i + 1}/{chunks} ({len(s_slice)} sentence(s), {len(w_slice)} word(s))")
+    return (len(errors) == 0), errors
+
+
 def sync_book_source(
     path: str,
     language: str = "en",
@@ -1202,7 +1255,10 @@ def sync_book_source(
         _progress("error", 0, 0, "book not found")
         return result
 
-    _progress("scan", 0, 1, os.path.basename(abs_path))
+    name = os.path.basename(abs_path)
+    _progress("scan", 0, 1, name)
+    # 1) Extract text (PDFs/EPUBs can be slow — its own stage so the UI shows it).
+    _progress("extract", 0, 1, f"extracting text: {name}")
     try:
         full_content = extract_text(abs_path)
     except Exception as e:
@@ -1215,21 +1271,21 @@ def sync_book_source(
         _progress("error", 0, 1, "no extractable text")
         return result
 
+    # 2) Build the v2 structure (strip + tokenize + content_ids + sequence).
+    _progress("build", 0, 1, f"structuring {len(full_content):,} chars: {name}")
     payload = build_book_payload_v2(abs_path, full_content, language=language)
     result["source_key"] = payload["source"]["source_key"]
     result["sentences"] = len(payload["sentences"])
     result["words"] = sum(len(v) for v in (payload.get("words") or {}).values())
 
-    ok, detail = _post_ingest(base, payload)
-    if ok:
-        result["success"] = True
-        _progress("ingest", 1, 1,
-                  f"{os.path.basename(abs_path)}: {result['sentences']} sentence(s) / "
-                  f"{result['words']} word(s)")
-    else:
-        errors.append(f"ingest failed ({detail})")
-        _progress("error", 1, 1, f"FAILED {detail}")
+    # 3) Ingest in small idempotent chunks (per-chunk progress; big books OK).
+    ok, errs = _ingest_book_chunked(base, payload, _progress)
+    if not ok:
+        errors.extend(errs)
+        _progress("error", 1, 1, f"ingest had {len(errs)} failed chunk(s): {errs[0] if errs else ''}")
         return result
 
-    _progress("done", 1, 1, f"{result['sentences']} sentence row(s) ingested")
+    result["success"] = True
+    _progress("done", 1, 1,
+              f"{name}: {result['sentences']} sentence(s) / {result['words']} word(s) ingested")
     return result

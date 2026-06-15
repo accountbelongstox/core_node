@@ -91,7 +91,7 @@ $entries = ConvertTo-EntryList -Configs $configs
 $tempFile = Join-Path $env:TEMP "mcp_gemini_entries.json"
 $entries | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempFile -Encoding utf8
 
-& $script:PYTHON_CMD -u $script:JSON_HELPER_PY $script:GEMINI_SETTINGS_PATH $tempFile
+& $script:PYTHON_CMD -u $script:JSON_HELPER_PY $script:GEMINI_SETTINGS_PATH $tempFile "gemini"
 
 Remove-Item -LiteralPath $tempFile -ErrorAction SilentlyContinue
 

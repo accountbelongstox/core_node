@@ -161,6 +161,42 @@ const fallbackMessages: Record<string, string> = {
   itemsUnit: 'items',
   pagesUnit: 'pages',
 
+  // Bing Translation Assist panel
+  bingAssistTitle: 'Bing Translation Assist',
+  bingAssistEndpointLabel: 'laravel_main Endpoint:',
+  bingAssistTest: 'Test',
+  bingAssistAdd: 'Add',
+  bingAssistDel: 'Del',
+  bingAssistPollInterval: 'Poll Interval (seconds):',
+  bingAssistBatchSize: 'Batch Size (tasks):',
+  bingAssistParallelTabs: 'Parallel Bing Tabs:',
+  bingAssistTargetLang: 'Target Language:',
+  bingAssistStopToChange: 'Stop the service to change settings.',
+  bingAssistScrapeLabel: 'Bing scrape test (space/comma separated):',
+  bingAssistScrape: 'Scrape',
+  bingAssistTranslatingLabel: 'Translating:',
+  bingAssistQueueTotal: 'Queue Total',
+  bingAssistNewTasks: 'New Tasks',
+  bingAssistDuplicates: 'Duplicates',
+  bingAssistPending: 'Pending:',
+  bingAssistTranslated: 'Translated:',
+  bingAssistFailed: 'Failed:',
+  bingAssistInvalid: 'Invalid:',
+  bingAssistActiveTabs: 'Active Tabs:',
+  bingAssistLastRun: 'Last Run:',
+  bingAssistWorkerId: 'Worker ID:',
+  bingAssistStatusLabel: 'Status:',
+  bingAssistInvalidNoEntry: 'invalid (no Bing entry)',
+
+  // NotebookLM automation panel
+  notebooklmTitle: 'NotebookLM Automation',
+  notebooklmQuestionLabel: 'Question:',
+  notebooklmAsk: 'Ask',
+  notebooklmNotebookUrl: 'Notebook URL (optional):',
+  notebooklmAnswerLabel: 'Answer:',
+  notebooklmHint: 'Open a NotebookLM notebook first, then ask. Requires sign-in.',
+  notebooklmAsking: 'Asking…',
+
   // Legacy keys for backwards compatibility
   nativeServerConfig: 'Native Server Configuration',
   runningStatus: 'Running Status',
@@ -227,6 +263,62 @@ const fallbackMessages: Record<string, string> = {
   bookmarksBar: 'Bookmarks Bar',
 };
 
+// ---------------------------------------------------------------------------
+// User-selected locale (in-app language switcher support)
+//
+// chrome.i18n.getMessage is locked to the BROWSER UI locale and ignores the
+// in-app `userLanguage` preference, so the popup's LanguageSelector could not
+// actually re-translate the UI. We load the chosen locale's messages.json
+// ourselves at popup startup and consult it FIRST, which makes every existing
+// getMessage() call across the whole popup honor the selected language.
+// ---------------------------------------------------------------------------
+let userMessages: Record<string, string> = {};
+let userLocale = '';
+
+function applySubstitutions(text: string, substitutions?: string[]): string {
+  if (!substitutions || substitutions.length === 0) return text;
+  let out = text;
+  substitutions.forEach((value, index) => {
+    out = out.split(`{${index}}`).join(value); // fallback {0} style
+    out = out.split(`$${index + 1}`).join(value); // chrome $1 style
+  });
+  return out;
+}
+
+/**
+ * Load the user-selected locale's messages.json into memory. Call once before
+ * mounting the popup so synchronous getMessage() renders in the chosen language.
+ */
+export async function loadUserLocale(): Promise<void> {
+  try {
+    const result = await chrome.storage.local.get(['userLanguage']);
+    const lang = result.userLanguage || 'en';
+    userLocale = lang;
+    const url = chrome.runtime.getURL(`_locales/${lang}/messages.json`);
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      userMessages = {};
+      return;
+    }
+    const json = await resp.json();
+    const flat: Record<string, string> = {};
+    for (const key of Object.keys(json)) {
+      const entry = json[key];
+      if (entry && typeof entry.message === 'string') {
+        flat[key] = entry.message;
+      }
+    }
+    userMessages = flat;
+  } catch (error) {
+    console.warn('Failed to load user locale:', error);
+    userMessages = {};
+  }
+}
+
+export function getCurrentLocale(): string {
+  return userLocale;
+}
+
 /**
  * Safe i18n message getter with fallback support
  * @param key Message key
@@ -234,8 +326,13 @@ const fallbackMessages: Record<string, string> = {
  * @returns Localized message or fallback
  */
 export function getMessage(key: string, substitutions?: string[]): string {
+  // 1. User-selected locale (honors the in-app language switcher).
+  if (userMessages[key]) {
+    return applySubstitutions(userMessages[key], substitutions);
+  }
+
   try {
-    // Check if Chrome extension APIs are available
+    // 2. Chrome extension i18n (browser UI locale).
     if (typeof chrome !== 'undefined' && chrome.i18n && chrome.i18n.getMessage) {
       const message = chrome.i18n.getMessage(key, substitutions);
       if (message) {
@@ -246,10 +343,8 @@ export function getMessage(key: string, substitutions?: string[]): string {
     console.warn(`Failed to get i18n message for key "${key}":`, error);
   }
 
-  // Fallback to English messages
+  // 3. Fallback to the bundled English messages.
   let fallback = fallbackMessages[key] || key;
-
-  // Handle substitutions in fallback messages
   if (substitutions && substitutions.length > 0) {
     substitutions.forEach((value, index) => {
       fallback = fallback.replace(`{${index}}`, value);

@@ -96,6 +96,17 @@ class AiProbe
      */
     private static function probeModels(string $provider): array
     {
+        // Image-only providers (pollinations / imagen / azure / bedrock / vertex)
+        // have no chat /models endpoint to list. Report the catalog when they're
+        // configured (image readiness is gated by image_ready, not this probe),
+        // and avoid the misleading "key" check (pollinations is keyless; vertex may
+        // auth via a token rather than a key_base value).
+        if (AiProviderRegistry::isImageOnly($provider)) {
+            return AiProviderRegistry::isConfigured($provider)
+                ? [AiProviderRegistry::catalogModels($provider, self::MAX_MODELS), null]
+                : [[], 'Not configured'];
+        }
+
         $key = AiProviderRegistry::firstSecret($provider);
         if ($key === '') {
             return [[], 'No API key configured'];
@@ -204,6 +215,11 @@ class AiProbe
             'limits' => $meta['limits'] ?? '',
             'vision' => $meta['vision'] ?? false,
             'image' => $meta['image'] ?? false,
+            // image_ready = registry image flag AND an image-usable key exists
+            // (or keyless). Consumers gate image work on THIS, not the volatile
+            // live `available`. Mirrors pycore ai_probe.
+            'image_ready' => (bool) ($meta['image'] ?? false) && AiProviderRegistry::hasImageKey($name),
+            'image_model' => ($meta['image'] ?? false) ? (string) ($meta['image_model'] ?? '') : '',
             'key_masked' => $configured ? AiProviderRegistry::maskKey($key) : null,
             'models' => [],
             'error' => $configured ? null : 'No API key configured',
@@ -219,6 +235,8 @@ class AiProbe
         $rec['limits'] = $meta['limits'] ?? '';
         $rec['vision'] = $meta['vision'] ?? false;
         $rec['image'] = $meta['image'] ?? false;
+        $rec['image_ready'] = (bool) ($meta['image'] ?? false) && AiProviderRegistry::hasImageKey($name);
+        $rec['image_model'] = ($meta['image'] ?? false) ? (string) ($meta['image_model'] ?? '') : '';
         if (!empty($rec['configured']) && empty($rec['models'])) {
             $rec['models'] = AiProviderRegistry::catalogModels($name, self::MAX_MODELS);
         }

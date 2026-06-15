@@ -267,8 +267,15 @@ class MediaIngestService
             // Legacy key kept so existing v1 readers / links keep working.
             $sentenceId = self::computeSentenceId($text, $language);
 
-            // ---- Shared sentence library (dedupe on content_id) ----
+            // ---- Shared sentence library ----
+            // Dedupe by content_id (v2 key); fall back to the legacy sentence_id
+            // so a pre-v2 / cross-path row (content_id NULL, e.g. a punctuation-free
+            // subtitle cue whose stripped text equals this book sentence) RECONCILES
+            // instead of colliding on the sentence_id unique constraint.
             $sentenceRow = Sentence::where('content_id', $contentId)->first();
+            if (!$sentenceRow) {
+                $sentenceRow = Sentence::where('sentence_id', $sentenceId)->first();
+            }
 
             if (!$sentenceRow) {
                 $incoming = $this->pick($sentence, $sentenceAllowed);
@@ -283,11 +290,15 @@ class MediaIngestService
                 Sentence::create($incoming);
                 $sCreated++;
             } else {
-                // Duplicate: never overwrite text/AI/audio; bump occurrence_count;
-                // fill only currently-empty optional fields. Backfill sentence_id
-                // if a pre-v2 row somehow lacks it.
+                // Duplicate (by content_id OR sentence_id): never overwrite
+                // text/AI/audio; bump occurrence_count; fill only currently-empty
+                // optional fields; backfill content_id / sentence_id when a matched
+                // pre-v2 row lacks them (so future v2 lookups hit content_id).
                 $sDeduped++;
                 $incoming = $this->pick($sentence, $sentenceAllowed);
+                if ($this->isEmptyValue($sentenceRow->getAttribute('content_id'))) {
+                    $incoming['content_id'] = $contentId;
+                }
                 if ($this->isEmptyValue($sentenceRow->getAttribute('sentence_id'))) {
                     $incoming['sentence_id'] = $sentenceId;
                 }

@@ -48,27 +48,37 @@ export const IconsDotMatrix = {
   ),
 };
 
-export const Card = ({ children, className = '', onClick, media, mediaClassName = '' }: any) => (
-  <div
-    onClick={onClick}
-    className={`ds-card rounded-[var(--radius-card)] p-6 relative overflow-hidden group ${onClick ? 'cursor-pointer' : ''} ${className}`}
-  >
-    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
-    {/* v4.0 transparent-media (magazine PNG) slot */}
-    {media && (
-      <div className={`ds-media-frame mb-4 aspect-[4/3] ${mediaClassName}`}>
-        {media}
+export const Card = ({ children, className = '', onClick, media, mediaClassName = '', glow = false }: any) => {
+  // Cursor-follow specular spotlight — updates CSS vars consumed by .ds-card-spot.
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--card-mx', `${((e.clientX - r.left) / r.width) * 100}%`);
+    el.style.setProperty('--card-my', `${((e.clientY - r.top) / r.height) * 100}%`);
+  };
+  return (
+    <div
+      onClick={onClick}
+      onMouseMove={onMove}
+      className={`ds-card ds-card-spot rounded-[var(--radius-card)] p-6 relative overflow-hidden group ${glow ? 'ds-card-glow' : ''} ${onClick ? 'cursor-pointer' : ''} ${className}`}
+    >
+      {/* v4.0 transparent-media (magazine PNG) slot */}
+      {media && (
+        <div className={`ds-media-frame mb-4 aspect-[4/3] ${mediaClassName}`}>
+          {media}
+        </div>
+      )}
+      <div className="relative z-10">
+        {children}
       </div>
-    )}
-    <div className="relative z-10">
-      {children}
     </div>
-  </div>
-);
+  );
+};
 
-export const Button = ({ children, variant = 'primary', className = '', onClick, disabled, showSparkles = false, showPlay = false }: any) => {
-  const base = "font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100";
+export const Button = ({ children, variant = 'primary', className = '', onClick, disabled, loading = false, icon, showSparkles = false, showPlay = false }: any) => {
+  const base = "font-bold tracking-wide transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 active:scale-[0.98]";
   const radiusClass = variant === 'pill' ? 'rounded-full' : variant === 'bento' ? '' : 'rounded-[var(--radius-button)]';
+  const isDisabled = disabled || loading;
 
   const styles: any = {
     // v4.0: primary is the Klein-blue anchor (no ad-hoc bg-blue-600). Same
@@ -87,9 +97,11 @@ export const Button = ({ children, variant = 'primary', className = '', onClick,
 
   if (variant === 'bento') {
     return (
-      <button onClick={onClick} disabled={disabled} className={`${styles.bento} ${className}`}>
+      <button onClick={onClick} disabled={isDisabled} className={`${styles.bento} ${className}`}>
         <span className="ds-btn-bento-accent">
-          <IconsDotMatrix.ArrowRight />
+          {loading
+            ? <span className="h-5 w-5 rounded-full border-2 border-current/40 border-t-current animate-spin" />
+            : <IconsDotMatrix.ArrowRight />}
         </span>
         <span className="ds-btn-bento-label">
           {children}
@@ -99,13 +111,19 @@ export const Button = ({ children, variant = 'primary', className = '', onClick,
   }
 
   return (
-    <button onClick={onClick} disabled={disabled} className={`${base} ${radiusClass} ${styles[variant] || styles.primary} ${className}`}>
-      {showSparkles && variant === 'pill' && (
+    <button onClick={onClick} disabled={isDisabled} aria-busy={loading} className={`${base} ${radiusClass} ${styles[variant] || styles.primary} ${className}`}>
+      {loading && (
+        <span className="relative z-10 flex-shrink-0 h-5 w-5 rounded-full border-2 border-current/40 border-t-current animate-spin" />
+      )}
+      {!loading && icon && (
+        <span className="relative z-10 flex-shrink-0 [&_svg]:w-5 [&_svg]:h-5">{icon}</span>
+      )}
+      {!loading && showSparkles && variant === 'pill' && (
         <span className="relative z-10 flex-shrink-0 text-white/95">
           <Icons.Sparkles />
         </span>
       )}
-      {showPlay && variant === 'fluid' && (
+      {!loading && showPlay && variant === 'fluid' && (
         <span className="relative z-10 flex-shrink-0">
           <Icons.Play />
         </span>
@@ -124,51 +142,75 @@ export const Button = ({ children, variant = 'primary', className = '', onClick,
  * no hex, no bg-blue-*.
  * ========================================================================== */
 
-const SPINNER_SIZE: Record<string, string> = {
-  sm: 'h-5 w-5 border-2',
-  md: 'h-8 w-8 border-2',
-  lg: 'h-12 w-12 border-[3px]',
+const SPINNER_SIZE: Record<string, { box: number; thick: number }> = {
+  sm: { box: 20, thick: 2.5 },
+  md: { box: 32, thick: 3 },
+  lg: { box: 48, thick: 4 },
 };
 
-/** Unified Klein-blue loading spinner. */
-export const Spinner = ({ size = 'md', className = '' }: any) => (
-  <div
-    role="status"
-    aria-label="Loading"
-    className={`${SPINNER_SIZE[size] || SPINNER_SIZE.md} rounded-full border-[var(--klein-blue)] border-t-transparent animate-spin ${className}`}
-  />
-);
+/** Conic-gradient Klein loading spinner with a chromatic glow. */
+export const Spinner = ({ size = 'md', className = '' }: any) => {
+  const s = SPINNER_SIZE[size] || SPINNER_SIZE.md;
+  return (
+    <div
+      role="status"
+      aria-label="Loading"
+      className={`ds-spinner ${className}`}
+      style={{ width: s.box, height: s.box, ['--ds-spinner-thick' as any]: `${s.thick}px` }}
+    />
+  );
+};
 
-/** Centered full-area loading state (spinner + optional label). */
+/** Centered full-area loading state — spinner over a soft breathing aura. */
 export const LoadingState = ({ label, className = '' }: any) => (
-  <div className={`flex flex-col items-center justify-center py-16 gap-4 ${className}`}>
-    <Spinner size="lg" />
-    {label && <p className="text-sm text-[var(--color-text-secondary)]">{label}</p>}
+  <div className={`flex flex-col items-center justify-center py-16 gap-5 ${className}`}>
+    <div className="relative flex items-center justify-center">
+      <span className="ds-loading-aura absolute w-12 h-12 opacity-50" aria-hidden />
+      <Spinner size="lg" />
+    </div>
+    {label && (
+      <p className="text-sm font-medium text-[var(--color-text-secondary)] animate-pulse">{label}</p>
+    )}
   </div>
 );
 
-/** Dashed empty state. Consumes `.ds-empty`. icon/title/description/action. */
+/** Dashed empty state. Consumes `.ds-empty`. icon floats inside a glass halo;
+ *  icon/title/description/action. */
 export const EmptyState = ({ icon, title, description, action, className = '' }: any) => (
-  <div className={`ds-empty flex flex-col items-center justify-center text-center px-6 py-12 gap-3 ${className}`}>
-    {icon && <div className="text-[var(--color-text-tertiary)] [&_svg]:w-10 [&_svg]:h-10">{icon}</div>}
-    {title && <p className="font-semibold text-[var(--color-text-primary)]">{title}</p>}
-    {description && <p className="text-sm text-[var(--color-text-secondary)] max-w-xs">{description}</p>}
+  <div className={`ds-empty flex flex-col items-center justify-center text-center px-6 py-14 gap-4 ${className}`}>
+    {icon && (
+      <div className="relative flex items-center justify-center">
+        <span className="ds-loading-aura absolute w-14 h-14 opacity-25" aria-hidden />
+        <span className="ds-empty-icon relative flex items-center justify-center w-16 h-16 rounded-full ds-glass ds-glass-edge text-[var(--klein-blue)] [&_svg]:w-8 [&_svg]:h-8">
+          {icon}
+        </span>
+      </div>
+    )}
+    {title && <p className="font-bold text-[var(--color-text-primary)]">{title}</p>}
+    {description && <p className="text-sm text-[var(--color-text-secondary)] max-w-xs leading-relaxed">{description}</p>}
     {action && <div className="mt-2">{action}</div>}
   </div>
 );
 
-/** Quiet round icon button (≥ --touch-min). Pass an Icons.* element. */
-export const IconButton = ({ icon, onClick, label, active = false, className = '', disabled }: any) => (
+const ICONBTN_VARIANT: Record<string, string> = {
+  ghost: 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--klein-blue-soft)]',
+  glass: 'ds-glass ds-glass-edge text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]',
+  grad: 'ds-fab-grad',
+};
+
+/** Round icon button (≥ --touch-min). variant: ghost | glass | grad. `active`
+ *  paints the Klein-soft state + ring. Pass an Icons.* element. */
+export const IconButton = ({ icon, onClick, label, active = false, variant = 'ghost', className = '', disabled }: any) => (
   <button
     type="button"
     onClick={onClick}
     disabled={disabled}
     aria-label={label}
     title={label}
-    className={`ds-touch-target inline-flex items-center justify-center rounded-full p-2 transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
+    className={`ds-iconbtn ds-touch-target p-2 disabled:opacity-40 disabled:cursor-not-allowed ${
       active
-        ? 'text-[var(--klein-blue)] bg-[var(--klein-blue-soft)]'
-        : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--klein-blue-soft)]'
+        ? 'text-[var(--klein-blue)] bg-[var(--klein-blue-soft)] ring-1 ring-[var(--klein-ring)]/50 shadow-[var(--klein-glow)]'
+        : ICONBTN_VARIANT[variant] || ICONBTN_VARIANT.ghost
     } ${className}`}
   >
     {icon}
@@ -180,72 +222,103 @@ export const BackButton = ({ onClick, label = 'Back', className = '' }: any) => 
   <IconButton icon={<Icons.Back />} onClick={onClick} label={label} className={className} />
 );
 
-/** Sticky minimal glass page header. left/right are optional slots; pass
- *  `onBack` to auto-render a BackButton on the left. */
-export const PageHeader = ({ title, onBack, left, right, center, className = '' }: any) => (
+/** Sticky glass page header. left/right are optional slots; pass `onBack` to
+ *  auto-render a BackButton. `accentTitle` gradient-clips the title; `subtitle`
+ *  adds a secondary line. */
+export const PageHeader = ({ title, subtitle, onBack, left, right, center, accentTitle = false, className = '' }: any) => (
   <header
-    className={`sticky top-0 ds-z-sticky flex items-center gap-3 px-5 py-3 backdrop-blur-md bg-[var(--color-surface)]/80 border-b border-[var(--border-highlight)] ${className}`}
+    className={`ds-pageheader sticky top-0 ds-z-sticky flex items-center gap-3 px-5 py-3 backdrop-blur-xl bg-[var(--color-surface)]/75 border-b border-[var(--border-highlight)] shadow-[0_6px_24px_-12px_rgba(76,70,140,0.25)] ${className}`}
   >
     {onBack ? <BackButton onClick={onBack} /> : left}
     {center
       ? <div className="flex-1 flex justify-center">{center}</div>
-      : <h1 className="flex-1 text-lg font-bold text-[var(--color-text-primary)] truncate">{title}</h1>}
+      : (
+        <div className="flex-1 min-w-0">
+          <h1 className={`text-lg font-extrabold truncate leading-tight ${accentTitle ? 'ds-text-grad' : 'text-[var(--color-text-primary)]'}`}>{title}</h1>
+          {subtitle && <p className="text-xs text-[var(--color-text-secondary)] truncate">{subtitle}</p>}
+        </div>
+      )}
     {right && <div className="flex items-center gap-1">{right}</div>}
   </header>
 );
 
 const BADGE_TONE: Record<string, string> = {
-  neutral: 'border border-[var(--border-highlight)] text-[var(--color-text-secondary)]',
-  klein: 'bg-[var(--klein-blue-soft)] text-[var(--klein-blue)]',
-  success: 'bg-emerald-500/10 text-emerald-500',
-  danger: 'bg-red-500/10 text-red-500',
+  neutral: 'border border-[var(--border-highlight)] bg-white/40 dark:bg-white/[0.06] text-[var(--color-text-secondary)] shadow-sm',
+  klein: 'bg-[var(--klein-blue-soft)] text-[var(--klein-blue)] border border-[var(--klein-ring)]/40 shadow-[var(--klein-glow)]',
+  grad: 'text-white border border-white/25 shadow-[var(--klein-grad-glow)]',
+  success: 'bg-emerald-500/12 text-emerald-500 border border-emerald-500/25 shadow-[0_4px_14px_rgba(16,185,129,0.18)]',
+  danger: 'bg-red-500/12 text-red-500 border border-red-500/25 shadow-[0_4px_14px_rgba(239,68,68,0.18)]',
 };
 
-/** Small pill badge/tag. tone: neutral | klein | success | danger. */
-export const Badge = ({ children, tone = 'neutral', className = '' }: any) => (
+/** Glass pill badge/tag. tone: neutral | klein | grad | success | danger.
+ *  `dot` shows a leading status dot; `pulse` makes it breathe; `icon` is an
+ *  optional leading element (e.g. an Icons.* glyph). */
+export const Badge = ({ children, tone = 'neutral', dot = false, pulse = false, icon, className = '' }: any) => (
   <span
-    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${BADGE_TONE[tone] || BADGE_TONE.neutral} ${className}`}
+    className={`ds-badge ${pulse ? 'ds-badge-pulse' : ''} ${BADGE_TONE[tone] || BADGE_TONE.neutral} ${className}`}
+    style={tone === 'grad' ? { background: 'var(--klein-gradient)' } : undefined}
   >
+    {dot && <span className="ds-badge-dot" aria-hidden />}
+    {icon && <span className="flex-shrink-0 [&_svg]:w-3.5 [&_svg]:h-3.5">{icon}</span>}
     {children}
   </span>
 );
 
-/** Klein-fill progress bar. value/max clamped 0–100%. */
-export const ProgressBar = ({ value = 0, max = 100, className = '', barClassName = '' }: any) => {
+/** Gradient progress bar — glow + shimmer sweep, springy fill. value/max
+ *  clamped 0–100%. `size`: sm | md | lg. `showLabel` adds an inline % readout.
+ *  Back-compat: `className` styles the track, `barClassName` the fill. */
+export const ProgressBar = ({ value = 0, max = 100, size = 'sm', showLabel = false, className = '', barClassName = '' }: any) => {
   const pct = Math.max(0, Math.min(100, max > 0 ? (value / max) * 100 : 0));
-  return (
+  const baseH = size === 'lg' ? 'h-3' : size === 'md' ? 'h-2' : 'h-1.5';
+  const track = (
     <div
       role="progressbar"
       aria-valuenow={value}
       aria-valuemax={max}
-      className={`h-1.5 w-full rounded-full overflow-hidden bg-[var(--border-highlight)] ${className}`}
+      className={`ds-progress w-full ${baseH} ${className}`}
     >
-      <div
-        className={`h-full rounded-full transition-all duration-500 ${barClassName}`}
-        style={{ width: `${pct}%`, background: 'var(--klein-blue)' }}
-      />
+      <div className={`ds-progress-fill ${barClassName}`} style={{ width: `${pct}%` }} />
+    </div>
+  );
+  if (!showLabel) return track;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0">{track}</div>
+      <span className="text-xs font-bold text-[var(--klein-blue)] tabular-nums w-9 text-right">
+        {Math.round(pct)}%
+      </span>
     </div>
   );
 };
 
-/** Glass modal / bottom-sheet. position: 'center' | 'bottom'. Renders nothing
- *  when `open` is false. */
-export const Sheet = ({ open, onClose, children, position = 'center', className = '', panelClassName = '' }: any) => {
+/** Glass modal / bottom-sheet with a springy entrance. position: 'center' |
+ *  'bottom'. Bottom sheets show a grab handle. Pass `title` to render a header
+ *  with a close button. Renders nothing when `open` is false. */
+export const Sheet = ({ open, onClose, children, title, position = 'center', className = '', panelClassName = '' }: any) => {
   if (!open) return null;
-  const align = position === 'bottom' ? 'items-end' : 'items-center justify-center';
-  const panelRadius = position === 'bottom' ? 'rounded-t-[calc(var(--radius-card)+6px)]' : '';
+  const bottom = position === 'bottom';
+  const align = bottom ? 'items-end' : 'items-center justify-center';
+  const panelRadius = bottom ? 'rounded-t-[calc(var(--radius-card)+10px)]' : '';
+  const enter = bottom ? 'ds-sheet-bottom' : 'ds-sheet-center';
   return (
     <Portal>
       <div
-        className={`fixed inset-0 ds-z-modal flex ${align} ds-modal-backdrop animate-fade-in ${className}`}
+        className={`fixed inset-0 ds-z-modal flex ${align} ds-modal-backdrop ds-backdrop-in ${className}`}
         onClick={onClose}
         role="dialog"
         aria-modal="true"
       >
         <div
-          className={`ds-modal-panel relative ${position === 'bottom' ? 'w-full' : 'max-w-md w-[calc(100%-2rem)]'} ${panelRadius} p-6 ${panelClassName}`}
+          className={`ds-modal-panel relative ${enter} ${bottom ? 'w-full pb-safe' : 'max-w-md w-[calc(100%-2rem)]'} ${panelRadius} p-6 ${panelClassName}`}
           onClick={(e: any) => e.stopPropagation()}
         >
+          {bottom && <div className="ds-sheet-handle" aria-hidden />}
+          {title && (
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-lg font-bold text-[var(--color-text-primary)] truncate">{title}</h3>
+              <IconButton icon={<Icons.X />} onClick={onClose} label="Close" />
+            </div>
+          )}
           {children}
         </div>
       </div>
@@ -253,74 +326,144 @@ export const Sheet = ({ open, onClose, children, position = 'center', className 
   );
 };
 
-/** Metric mini-cell (value over label). `accent` makes the value Klein-blue. */
-export const Stat = ({ value, label, accent = false, className = '' }: any) => (
-  <div className={`flex flex-col ${className}`}>
-    <span className={`text-2xl font-bold ${accent ? 'text-[var(--klein-blue)]' : 'text-[var(--color-text-primary)]'}`}>{value}</span>
-    {label && <span className="text-xs text-[var(--color-text-secondary)] mt-0.5">{label}</span>}
-  </div>
-);
+/** Metric cell (value over label). `accent` gradient-clips the value; `icon`
+ *  shows a gradient chip; `trend` (+/- number or 'up'/'down') adds a colored
+ *  delta; `card` wraps it in a hoverable glass card. */
+export const Stat = ({ value, label, icon, trend, accent = false, card = false, className = '' }: any) => {
+  const trendUp = trend === 'up' || (typeof trend === 'number' && trend > 0);
+  const trendDown = trend === 'down' || (typeof trend === 'number' && trend < 0);
+  const body = (
+    <>
+      {icon && (
+        <span className="ds-bento-chip flex-shrink-0 w-10 h-10 [&_svg]:w-5 [&_svg]:h-5" aria-hidden>{icon}</span>
+      )}
+      <div className="flex flex-col min-w-0">
+        <span className={`text-2xl font-extrabold leading-none ${accent ? 'ds-text-grad' : 'text-[var(--color-text-primary)]'}`}>
+          {value}
+        </span>
+        <span className="flex items-center gap-1.5 mt-1">
+          {label && <span className="text-xs text-[var(--color-text-secondary)] truncate">{label}</span>}
+          {trend != null && trend !== '' && (
+            <span className={`inline-flex items-center gap-0.5 text-[0.68rem] font-bold ${
+              trendUp ? 'text-emerald-500' : trendDown ? 'text-red-500' : 'text-[var(--color-text-tertiary)]'
+            }`}>
+              {trendUp ? '▲' : trendDown ? '▼' : ''}
+              {typeof trend === 'number' ? Math.abs(trend) : ''}
+            </span>
+          )}
+        </span>
+      </div>
+    </>
+  );
+  return (
+    <div className={`${card ? 'ds-card p-4' : ''} flex ${icon ? 'items-center gap-3' : 'flex-col'} ${className}`}>
+      {body}
+    </div>
+  );
+};
 
-/** Uppercase section label (consumes `.ds-section-label`), optional right action. */
-export const SectionLabel = ({ children, action, className = '' }: any) => (
-  <div className={`flex items-center justify-between ${className}`}>
-    <span className="ds-section-label">{children}</span>
+/** Uppercase section label (consumes `.ds-section-label`) with a gradient accent
+ *  bar. `accent={false}` drops the bar; optional right action. */
+export const SectionLabel = ({ children, action, accent = true, className = '' }: any) => (
+  <div className={`flex items-center justify-between gap-3 ${className}`}>
+    <span className="flex items-center gap-2 min-w-0">
+      {accent && <span className="ds-label-accent" aria-hidden />}
+      <span className="ds-section-label truncate">{children}</span>
+    </span>
     {action}
   </div>
 );
 
 /* -------- v4.1 Iris primitives (reference-faithful) ----------------------- */
 
-/** Bold section heading with optional subtitle + right "See all" action. */
-export const SectionTitle = ({ title, subtitle, onMore, moreLabel = 'See all', action, className = '' }: any) => (
-  <div className={`flex items-end justify-between gap-3 ${className}`}>
-    <div className="min-w-0">
-      <h2 className="ds-section-title truncate">{title}</h2>
-      {subtitle && <p className="ds-section-sub truncate">{subtitle}</p>}
+/** Bold section heading with optional leading gradient chip, subtitle, and a
+ *  right "See all" action whose chevron slides on hover. */
+export const SectionTitle = ({ title, subtitle, icon, onMore, moreLabel = 'See all', action, className = '' }: any) => (
+  <div className={`flex items-center justify-between gap-3 ${className}`}>
+    <div className="flex items-center gap-3 min-w-0">
+      {icon && <span className="ds-title-chip" aria-hidden>{icon}</span>}
+      <div className="min-w-0">
+        <h2 className="ds-section-title truncate">{title}</h2>
+        {subtitle && <p className="ds-section-sub truncate">{subtitle}</p>}
+      </div>
     </div>
     {action ?? (onMore && (
-      <button type="button" className="ds-link-more flex-shrink-0" onClick={onMore}>
+      <button type="button" className="ds-link-more flex items-center gap-0.5 flex-shrink-0 [&_svg]:w-4 [&_svg]:h-4" onClick={onMore}>
         {moreLabel}
+        <Icons.ChevronRight />
       </button>
     ))}
   </div>
 );
 
-/** Circular colored icon tile (games / quick actions). */
-export const IconTile = ({ icon, label, onClick, bg, className = '' }: any) => (
-  <button type="button" onClick={onClick} className={`flex flex-col items-center gap-2 ${className}`}>
-    <span className="ds-icon-tile" style={bg ? { background: bg } : undefined}>{icon}</span>
-    {label && <span className="text-xs font-semibold text-[var(--color-text-secondary)] truncate max-w-[72px]">{label}</span>}
-  </button>
-);
-
-/** Gradient circular FAB (search filter / accent action). Size in px. */
-export const FabGrad = ({ icon, onClick, label, size = 44, className = '' }: any) => (
-  <button
-    type="button"
-    onClick={onClick}
-    aria-label={label}
-    title={label}
-    className={`ds-fab-grad flex-shrink-0 ${className}`}
-    style={{ width: size, height: size }}
-  >
-    {icon}
-  </button>
-);
-
-/** Bento card with corner gradient icon-chip. Whole card is the click target. */
-export const BentoTile = ({ title, description, chipIcon, onClick, className = '', children }: any) => (
-  <div onClick={onClick} className={`ds-bento flex flex-col ${className}`}>
-    <div className="flex items-start justify-between gap-3">
-      <h3 className="text-base font-bold text-[var(--color-text-primary)] leading-tight">{title}</h3>
-      {chipIcon && <span className="ds-bento-chip flex-shrink-0">{chipIcon}</span>}
-    </div>
-    {description && (
-      <p className="text-sm text-[var(--color-text-secondary)] mt-4 leading-snug">{description}</p>
+/** Circular colored icon tile (games / quick actions). `grad` fills with the
+ *  Klein gradient; `badge` shows a corner count; `bg` overrides the fill. */
+export const IconTile = ({ icon, label, onClick, bg, grad = false, badge, className = '' }: any) => (
+  <button type="button" onClick={onClick} className={`group flex flex-col items-center gap-2 ${className}`}>
+    <span className="relative">
+      <span
+        className={`ds-icon-tile ${grad ? 'ds-icon-tile-grad' : ''}`}
+        style={!grad && bg ? { background: bg } : undefined}
+      >
+        {icon}
+      </span>
+      {badge != null && badge !== '' && <span className="ds-icon-tile-badge">{badge}</span>}
+    </span>
+    {label && (
+      <span className="text-xs font-semibold text-[var(--color-text-secondary)] group-hover:text-[var(--color-text-primary)] transition-colors truncate max-w-[72px]">
+        {label}
+      </span>
     )}
-    {children}
-  </div>
+  </button>
 );
+
+/** Gradient circular FAB (search filter / accent action). Size in px. `pulse`
+ *  adds an attention ring; `badge` shows a corner count. */
+export const FabGrad = ({ icon, onClick, label, size = 44, pulse = false, badge, className = '' }: any) => (
+  <span className="relative inline-flex flex-shrink-0">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={`ds-fab-grad ${pulse ? 'ds-fab-pulse' : ''} ${className}`}
+      style={{ width: size, height: size }}
+    >
+      {icon}
+    </button>
+    {badge != null && badge !== '' && <span className="ds-corner-badge">{badge}</span>}
+  </span>
+);
+
+/** Bento card with corner gradient icon-chip. Whole card is the click target.
+ *  `tone='grad'` makes it a gradient hero tile; `cta` adds a hover-reveal
+ *  chevron affordance with that label. */
+export const BentoTile = ({ title, description, chipIcon, onClick, tone = 'glass', cta, className = '', children }: any) => {
+  const grad = tone === 'grad';
+  return (
+    <div
+      onClick={onClick}
+      className={`ds-bento flex flex-col ${grad ? 'text-white border-white/20' : ''} ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      style={grad ? { background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' } : undefined}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <h3 className={`text-base font-bold leading-tight ${grad ? 'text-white' : 'text-[var(--color-text-primary)]'}`}>{title}</h3>
+        {chipIcon && (
+          <span className={`ds-bento-chip flex-shrink-0 ${grad ? '!bg-white/20 !shadow-none' : ''}`}>{chipIcon}</span>
+        )}
+      </div>
+      {description && (
+        <p className={`text-sm mt-4 leading-snug ${grad ? 'text-white/85' : 'text-[var(--color-text-secondary)]'}`}>{description}</p>
+      )}
+      {children}
+      {(cta || onClick) && (
+        <span className={`ds-bento-arrow mt-3 text-sm font-semibold gap-1 ${grad ? '!text-white' : ''}`}>
+          {cta} <Icons.ChevronRight />
+        </span>
+      )}
+    </div>
+  );
+};
 
 /* -------- v4.1 stacking primitives (portal + popover) -------------------- */
 

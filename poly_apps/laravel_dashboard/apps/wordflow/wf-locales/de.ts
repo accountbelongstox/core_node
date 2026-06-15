@@ -784,6 +784,7 @@ export const de: WfTranslationDict = {
     switchToLight: 'Zum hellen Modus wechseln',
     switchToDark: 'Zum dunklen Modus wechseln',
     changeLanguage: 'Sprache ändern',
+    aiChat: 'KI-Chat',
     profile: 'Profil',
     login: 'Anmelden',
     settings: 'Einstellungen',

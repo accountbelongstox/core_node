@@ -13,7 +13,7 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { randomUUID } from 'node:crypto';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { getMcpServer } from '../mcp/mcp-server';
+import { createMcpServer } from '../mcp/mcp-server';
 import { SingletonHandler } from './singleton';
 
 // Log function for debugging
@@ -44,12 +44,20 @@ export class Server {
     this.fastify = Fastify({ logger: SERVER_CONFIG.LOGGER_ENABLED });
     this.singletonHandler = new SingletonHandler('chrome-mcp-native-server');
 
-    // Set shutdown callback - allow shutdown if no active MCP sessions
+    // Set shutdown callback - allow shutdown if no active MCP sessions OR if
+    // this instance is orphaned (its Chrome extension stdio link has ended).
+    // An orphaned server can no longer relay tool calls, so a fresh instance
+    // MUST be allowed to take over the port even if old sessions linger —
+    // otherwise a Service-Worker reconnect deadlocks with "Server is busy".
     this.singletonHandler.setCanShutdownCallback(() => {
       const activeSessions = this.transportsMap.size;
-      log('INFO', `Shutdown check: ${activeSessions} active MCP sessions`);
-      // Allow shutdown if no active sessions, or always allow for now
-      return activeSessions === 0;
+      const linkAlive = this.nativeHost ? this.nativeHost.isExtensionConnected() : true;
+      const allow = activeSessions === 0 || !linkAlive;
+      log(
+        'INFO',
+        `Shutdown check: ${activeSessions} active MCP sessions, linkAlive=${linkAlive}, allow=${allow}`,
+      );
+      return allow;
     });
 
     this.setupPlugins();
@@ -130,8 +138,10 @@ export class Server {
           this.transportsMap.delete(transport.sessionId);
         });
 
-        log('INFO', 'Connecting MCP server to SSE transport');
-        const server = getMcpServer();
+        log('INFO', 'Connecting a fresh MCP server instance to SSE transport');
+        // Fresh Server per SSE session for the same one-transport-per-Server
+        // reason as the streamable-HTTP path above.
+        const server = createMcpServer();
         await server.connect(transport);
         log('SUCCESS', 'MCP server connected to SSE transport');
 
@@ -205,8 +215,10 @@ export class Server {
           }
         };
 
-        log('INFO', 'Connecting MCP server to transport');
-        await getMcpServer().connect(transport);
+        log('INFO', 'Connecting a fresh MCP server instance to transport');
+        // A fresh Server per session — an SDK Server binds to ONE transport for
+        // life, so reusing a singleton makes the 2nd client's initialize 500.
+        await createMcpServer().connect(transport);
         log('SUCCESS', 'MCP server connected to transport');
       } else {
         log('ERROR', 'Invalid MCP request', { sessionId, isInitRequest: isInitializeRequest(request.body) });

@@ -19,7 +19,10 @@ import socket
 import websockets
 from websockets.asyncio.client import connect as ws_connect
 
+from pathlib import Path
+
 from pyapps.claude_host.claude_host_config import (
+    ALLOWED_PATH_PREFIXES,
     AUTO_CREATE_USERS,
     CLAUDE_BIN,
     CLAUDE_USERS,
@@ -35,6 +38,7 @@ from pyapps.claude_host.controller.claude_runner import ClaudeRunner
 from pyapps.claude_host.service.center_registration import CenterRegistration
 from pyapps.claude_host.service.claude_status import (
     check_all_users_status,
+    check_claude_status_cached,
     check_claude_usage,
     invalidate_cache,
 )
@@ -146,11 +150,27 @@ class HostAgent:
         """Return heartbeat payload (without envelope wrapper)."""
         mem = self.ops.system.memory()
         load = self.ops.system.load_avg()
+        uptime_s = int(self.ops.system.uptime())
+
+        # Disk totals for the root '/' filesystem (bytes -> MB). DiskInfo
+        # stores sizes in GB (1 GB = 1024 MB), so convert via *1024.
+        disk_total_mb = 0
+        disk_avail_mb = 0
+        disks = await self.ops.system.disks()
+        root_disk = next((d for d in disks if d.mount == "/"), None)
+        if root_disk is None and disks:
+            root_disk = disks[0]
+        if root_disk is not None:
+            disk_total_mb = int(root_disk.total_gb * 1024)
+            disk_avail_mb = int(root_disk.avail_gb * 1024)
+
         return {
             "host_id": HOST_ID,
             "hostname": self.ops.system.hostname(),
+            "uptime_s": uptime_s,
             "load": list(load),
             "memory": {"total": mem.total, "available": mem.available},
+            "disk_mb": {"total": disk_total_mb, "available": disk_avail_mb},
             "users": self._get_user_status(),
             "active_count": len(self.runners),
             "claude_bin": CLAUDE_BIN,
@@ -284,6 +304,10 @@ class HostAgent:
                 await runner.stop()
         elif action == "create_user":
             await self._handle_create_user(msg, req_id)
+        elif action == "verify_claude":
+            await self._handle_verify_claude(msg, req_id)
+        elif action == "create_project_dir":
+            await self._handle_create_project_dir(msg, req_id)
         elif action == "list_users":
             await self._send_response(req_id, {"users": self._get_user_status()})
         elif action == "refresh_status":
@@ -389,6 +413,117 @@ class HostAgent:
             "username": username,
             "home_dir": user_info.home if user_info else "",
             "message": result.stderr if not result.ok else f"User {username} ready",
+        })
+
+    async def _handle_verify_claude(self, msg: dict, req_id: str):
+        """
+        Handle ``verify_claude`` command (host-protocol.md §5.6).
+
+        Checks Claude availability for the given user by reusing the existing
+        Claude auth-status detection (``check_claude_status_cached``), the same
+        path that populates ``_claude_status_cache``. Replies with availability,
+        plan, and expiry per spec.
+        """
+        username = msg.get("username", "")
+        if not self.ops.user.validate_username(username):
+            await self._send_response(req_id, {
+                "status": "error",
+                "username": username,
+                "message": f"Invalid username format: {username}",
+            })
+            return
+
+        try:
+            status = await check_claude_status_cached(username)
+        except Exception as e:
+            await self._send_response(req_id, {
+                "status": "error",
+                "username": username,
+                "message": str(e)[:200],
+            })
+            return
+
+        # Cache the fresh result so heartbeats stay consistent.
+        self._claude_status_cache[username] = status
+
+        await self._send_response(req_id, {
+            "username": username,
+            "available": bool(status.get("logged_in", False)),
+            "plan": status.get("plan") or "",
+            "expires_at": status.get("expires") or "",
+        })
+
+    async def _handle_create_project_dir(self, msg: dict, req_id: str):
+        """
+        Handle ``create_project_dir`` command (host-protocol.md §5.7).
+
+        Enforces the same path whitelist used by ``run_claude``
+        (``ALLOWED_PATH_PREFIXES``, paths must resolve under an allowed prefix
+        such as ``/home/``) and creates the directory as the target user via
+        ``ops.file.ensure_user_dir`` — the same mechanism run_claude uses.
+        Rejects path traversal with status 'error'.
+        """
+        username = msg.get("username", "")
+        path = msg.get("path", "")
+
+        if not self.ops.user.validate_username(username):
+            await self._send_response(req_id, {
+                "status": "error",
+                "username": username,
+                "path": path,
+                "message": f"Invalid username format: {username}",
+            })
+            return
+
+        if not path:
+            await self._send_response(req_id, {
+                "status": "error",
+                "username": username,
+                "path": path,
+                "message": "Missing path",
+            })
+            return
+
+        # Path whitelist enforcement (same rule as ClaudeRunner._validate_project_dir).
+        resolved = Path(path).resolve()
+        allowed = False
+        for prefix in ALLOWED_PATH_PREFIXES:
+            if prefix and resolved.is_relative_to(Path(prefix).resolve()):
+                allowed = True
+                break
+        if not allowed:
+            await self._send_response(req_id, {
+                "status": "error",
+                "username": username,
+                "path": path,
+                "message": "Path not in allowed paths",
+            })
+            return
+
+        ok, user_msg = await self._ensure_user_ready(username)
+        if not ok:
+            await self._send_response(req_id, {
+                "status": "error",
+                "username": username,
+                "path": str(resolved),
+                "message": user_msg,
+            })
+            return
+
+        result = self.ops.file.ensure_user_dir(str(resolved), username)
+        if not result.ok:
+            await self._send_response(req_id, {
+                "status": "error",
+                "username": username,
+                "path": str(resolved),
+                "message": result.stderr,
+            })
+            return
+
+        await self._send_response(req_id, {
+            "username": username,
+            "path": str(resolved),
+            "created": True,
         })
 
     # ── Main connection loop ─────────────────────────────────

@@ -8,6 +8,8 @@ from typing import Dict, Any, List
 from pathlib import Path
 from datetime import timedelta
 
+from pycore.pyfoundations.system_paths import get_app_temp_dir
+
 
 class AudioProcessor:
     """Processor for audio transcription and subtitle generation"""
@@ -15,7 +17,7 @@ class AudioProcessor:
     def __init__(self):
         self._whisper_model = None
         self._vosk_model = None
-        self.output_dir = Path("./temp/audio")
+        self.output_dir = get_app_temp_dir() / "audio"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_whisper_provider(self):

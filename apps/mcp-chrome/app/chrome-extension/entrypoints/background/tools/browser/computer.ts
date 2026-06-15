@@ -57,6 +57,26 @@ interface ComputerParams {
 class ComputerTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.COMPUTER;
 
+  /**
+   * Resolve a read_page ref to on-page coordinates + selector by asking the
+   * accessibility-tree helper, which owns the ref registry. Returns null when the
+   * ref can't be resolved (e.g. it expired because the page navigated away).
+   */
+  private async resolveRef(
+    tabId: number,
+    ref: string,
+  ): Promise<{ center?: { x: number; y: number }; selector?: string } | null> {
+    await this.injectContentScript(tabId, ['inject-scripts/accessibility-tree-helper.js']);
+    const resolved = await this.sendMessageToTab(tabId, {
+      action: TOOL_MESSAGE_TYPES.RESOLVE_REF,
+      ref,
+    });
+    if (resolved && resolved.success) {
+      return { center: resolved.center, selector: resolved.selector };
+    }
+    return null;
+  }
+
   async execute(args: ComputerParams): Promise<ToolResult> {
     const { action, tabId, windowId } = args || {};
 
@@ -86,12 +106,8 @@ class ComputerTool extends BaseBrowserToolExecutor {
           let coordinates = args.coordinates;
           if (args.ref && !coordinates) {
             try {
-              await this.injectContentScript(targetTab.id, ['inject-scripts/accessibility-tree-helper.js']);
-              const resolved = await this.sendMessageToTab(targetTab.id, {
-                action: TOOL_MESSAGE_TYPES.RESOLVE_REF,
-                ref: args.ref,
-              });
-              if (resolved && resolved.success && resolved.center) {
+              const resolved = await this.resolveRef(targetTab.id, args.ref);
+              if (resolved?.center) {
                 coordinates = { x: resolved.center.x, y: resolved.center.y };
               }
             } catch (e) {
@@ -111,18 +127,16 @@ class ComputerTool extends BaseBrowserToolExecutor {
           let selector = args.selector;
           if (args.ref && !selector) {
             try {
-              await this.injectContentScript(targetTab.id, ['inject-scripts/accessibility-tree-helper.js']);
-              const resolved = await this.sendMessageToTab(targetTab.id, {
-                action: TOOL_MESSAGE_TYPES.RESOLVE_REF,
-                ref: args.ref,
-              });
-              if (resolved && resolved.success && resolved.selector) {
+              const resolved = await this.resolveRef(targetTab.id, args.ref);
+              if (resolved?.selector) {
                 selector = resolved.selector;
               } else {
                 return createErrorResponse(`Failed to resolve ref: ${args.ref}`);
               }
             } catch (e) {
-              return createErrorResponse(`Failed to resolve ref: ${e instanceof Error ? e.message : String(e)}`);
+              return createErrorResponse(
+                `Failed to resolve ref: ${e instanceof Error ? e.message : String(e)}`,
+              );
             }
           }
           if (!selector) {

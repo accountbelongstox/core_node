@@ -906,3 +906,809 @@ html.dark .ds-icon-tile {
   .ds-modal-panel::before,
   .ds-pop-panel::before { transition: none; }
 }
+
+/* ========================================================================
+ * Component micro-interactions (primitives) — Batch 1: spinner / progress /
+ * badge. Reusable keyframes (float / pulse) are declared here for later
+ * batches too. Token-driven, dark/light parity, reduced-motion guarded.
+ * ====================================================================== */
+
+@keyframes ds-spin { to { transform: rotate(360deg); } }
+@keyframes ds-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+@keyframes ds-pulse-soft {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.15; transform: scale(1.18); }
+}
+@keyframes ds-progress-shimmer {
+  0%   { transform: translateX(-130%); }
+  100% { transform: translateX(230%); }
+}
+
+/* ---- Spinner: conic gradient ring with a soft chromatic glow ---- */
+.ds-spinner {
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 90deg,
+    transparent 0%,
+    var(--klein-grad-from) 55%,
+    var(--klein-grad-to) 100%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--ds-spinner-thick, 3px)), #000 calc(100% - var(--ds-spinner-thick, 3px)));
+          mask: radial-gradient(farthest-side, transparent calc(100% - var(--ds-spinner-thick, 3px)), #000 calc(100% - var(--ds-spinner-thick, 3px)));
+  filter: drop-shadow(0 0 7px var(--klein-grad-soft));
+  animation: ds-spin 0.75s linear infinite;
+}
+/* Soft breathing aura behind a full-area loading state. */
+.ds-loading-aura {
+  background: var(--klein-gradient);
+  border-radius: 9999px;
+  filter: blur(14px);
+  animation: ds-pulse-soft 1.8s var(--ease-liquid) infinite;
+}
+
+/* ---- ProgressBar: gradient fill + glow + shimmer sweep ---- */
+.ds-progress {
+  position: relative;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--klein-blue-soft);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08), inset 0 0 0 1px var(--border-highlight);
+}
+.ds-progress-fill {
+  position: relative;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--klein-gradient);
+  box-shadow: 0 0 12px var(--klein-grad-soft), inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
+  transition: width 0.6s var(--ease-liquid-spring);
+  overflow: hidden;
+}
+.ds-progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  transform: translateX(-130%);
+  animation: ds-progress-shimmer 1.8s var(--ease-liquid) infinite;
+}
+
+/* ---- Badge: glass pill + subtle glow + hover lift ---- */
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 9999px;
+  padding: 3px 11px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  backdrop-filter: blur(var(--glass-blur-sm));
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm));
+  transition: transform 0.3s var(--ease-spring), box-shadow 0.3s var(--ease-liquid), filter 0.25s var(--ease-liquid);
+}
+.ds-badge:hover { transform: translateY(-1px); }
+.ds-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+.ds-badge-pulse .ds-badge-dot { animation: ds-pulse-soft 1.6s var(--ease-liquid) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-spinner { animation-duration: 1.4s; }
+  .ds-loading-aura,
+  .ds-progress-fill::after,
+  .ds-badge-pulse .ds-badge-dot { animation: none; }
+  .ds-progress-fill { transition: none; }
+}
+
+/* ========================================================================
+ * Component micro-interactions — Batch 2: empty-state / icon-button / stat.
+ * ====================================================================== */
+
+/* Gradient-clipped text (stat values, accents). */
+.ds-text-grad {
+  background: var(--klein-gradient);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Empty-state floating icon halo. */
+.ds-empty { transition: border-color 0.3s var(--ease-liquid), background 0.3s var(--ease-liquid); }
+.ds-empty:hover { border-color: var(--klein-ring); }
+.ds-empty-icon { animation: ds-float 3.4s var(--ease-liquid) infinite; }
+
+/* Icon button: tactile press + active ring. */
+.ds-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  transition: transform 0.25s var(--ease-spring), background 0.25s var(--ease-liquid),
+    color 0.2s var(--ease-liquid), box-shadow 0.3s var(--ease-liquid);
+}
+.ds-iconbtn:active { transform: scale(0.88); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-empty-icon { animation: none; }
+}
+
+/* ========================================================================
+ * Component micro-interactions — Batch 3: sheet / page-header / icon-tile.
+ * ====================================================================== */
+
+@keyframes ds-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ds-sheet-up {
+  from { opacity: 0; transform: translateY(26px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes ds-sheet-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.95); }
+  to   { opacity: 1; transform: none; }
+}
+
+.ds-backdrop-in { animation: ds-backdrop-in 0.25s ease both; }
+.ds-sheet-bottom { animation: ds-sheet-up 0.42s var(--ease-spring) both; }
+.ds-sheet-center { animation: ds-sheet-pop 0.3s var(--ease-spring) both; }
+
+/* Bottom-sheet grab handle. */
+.ds-sheet-handle {
+  width: 40px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--color-text-tertiary);
+  opacity: 0.4;
+  margin: 0 auto 12px;
+}
+
+/* Page header: lifts to a stronger glass shadow once scrolled. */
+.ds-pageheader {
+  transition: box-shadow 0.3s var(--ease-liquid), background 0.3s var(--ease-liquid);
+}
+
+/* Icon-tile gradient variant + count badge. */
+.ds-icon-tile-grad {
+  background: var(--klein-gradient) !important;
+  color: var(--klein-on);
+  box-shadow: var(--klein-grad-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.3) !important;
+}
+.ds-icon-tile-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: var(--klein-gradient);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--klein-grad-glow);
+  border: 1.5px solid var(--bar-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-backdrop-in, .ds-sheet-bottom, .ds-sheet-center { animation: none; }
+}
+
+/* ========================================================================
+ * Component micro-interactions — Batch 4: card / button / section heads.
+ * ====================================================================== */
+
+/* Card cursor-follow specular spotlight (opt-in via the Card component).
+ * Uses ::after so it composes with the Fluid-Glass ::before sheen. Sits above
+ * the glass fill, below the z-10 content wrapper. */
+.ds-card-spot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(220px circle at var(--card-mx, 50%) var(--card-my, 0%),
+    rgba(255, 255, 255, 0.20), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-liquid);
+}
+.ds-card-spot:hover::after { opacity: 1; }
+
+/* Optional colored ambient halo for hero cards. */
+.ds-card-glow {
+  box-shadow: var(--klein-grad-glow),
+    0 16px 44px rgba(76, 70, 140, 0.12),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.24);
+}
+
+/* Button leading-icon spacing + "See all" chevron slide. */
+.ds-link-more svg { transition: transform 0.25s var(--ease-spring); }
+.ds-link-more:hover svg { transform: translateX(3px); }
+
+/* Section label gradient accent bar. */
+.ds-label-accent {
+  display: inline-block;
+  width: 4px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--klein-gradient);
+  box-shadow: var(--klein-grad-glow);
+  flex-shrink: 0;
+}
+/* Small gradient chip preceding a section title. */
+.ds-title-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--klein-gradient);
+  color: var(--klein-on);
+  box-shadow: var(--klein-grad-glow);
+  flex-shrink: 0;
+}
+.ds-title-chip svg { width: 18px; height: 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-card-spot::after { transition: none; }
+}
+
+/* ========================================================================
+ * Component micro-interactions — Batch 5: fab / bento-tile / popover.
+ * ====================================================================== */
+
+@keyframes ds-ring-pulse {
+  0%   { transform: scale(1); opacity: 0.55; }
+  70%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* Attention pulse ring around a gradient FAB. */
+.ds-fab-pulse { position: relative; }
+.ds-fab-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: var(--klein-gradient);
+  z-index: -1;
+  animation: ds-ring-pulse 1.8s var(--ease-liquid) infinite;
+}
+
+/* Generic corner count badge (fab / tile). */
+.ds-corner-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
+  border: 1.5px solid var(--bar-bg);
+}
+
+/* BentoTile: chip springs on hover; a chevron affordance slides in. */
+.ds-bento .ds-bento-chip {
+  transition: transform 0.45s var(--ease-spring), box-shadow 0.3s var(--ease-liquid);
+}
+.ds-bento:hover .ds-bento-chip {
+  transform: rotate(-8deg) scale(1.08);
+}
+.ds-bento-arrow {
+  display: inline-flex;
+  align-items: center;
+  color: var(--klein-blue);
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.3s var(--ease-liquid), transform 0.35s var(--ease-spring);
+}
+.ds-bento:hover .ds-bento-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Popover: scale-from-top entrance origin (panel uses ds-pop-in keyframe). */
+.ds-pop-panel { transform-origin: top center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-fab-pulse::after { animation: none; }
+  .ds-bento:hover .ds-bento-chip { transform: none; }
+  .ds-bento-arrow { transition: none; }
+}
+
+/* ========================================================================
+ * WfSearchOverlay — global top-bar dropdown search (3 switchable styles).
+ *   .is-spotlight  command-palette card dropping from the bar
+ *   .is-sheet      full-width frosted sheet flush under the bar
+ *   .is-island     rounded floating island with gradient orbs + spring pop
+ * Sits just BELOW the header (z 39 < header z 40) so the glass pill stays
+ * visible/clickable above the dim. Enter/exit driven by [data-shown].
+ * ====================================================================== */
+.wf-search-ov {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  display: flex;
+  justify-content: center;
+}
+
+.wf-search-ov__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 18, 40, 0.34);
+  backdrop-filter: blur(var(--blur-sm, 8px)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--blur-sm, 8px)) saturate(120%);
+  opacity: 0;
+  transition: opacity 0.32s var(--ease-liquid, ease);
+}
+.wf-search-ov[data-shown="true"] .wf-search-ov__backdrop { opacity: 1; }
+
+/* Shared panel shell — heavy frosted glass + chromatic edge. */
+.wf-search-ov__panel {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + var(--wf-ov-top, 80px));
+  left: max(var(--page-padding-h), env(safe-area-inset-left, 0px));
+  right: max(var(--page-padding-h), env(safe-area-inset-right, 0px));
+  margin-inline: auto;
+  max-height: calc(100dvh - var(--wf-ov-top, 80px) - env(safe-area-inset-top, 0px) - 24px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 16px 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, var(--material-thick-opacity, 0.72));
+  backdrop-filter: blur(var(--material-thick-blur, 40px)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--material-thick-blur, 40px)) saturate(170%);
+  border: 1px solid var(--border-highlight);
+  border-radius: calc(var(--radius-card) + 4px);
+  box-shadow: 0 28px 70px rgba(76, 70, 140, 0.26), 0 12px 32px rgba(30, 27, 60, 0.18),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
+  opacity: 0;
+  transition: opacity 0.3s var(--ease-smooth, ease), transform 0.42s var(--ease-spring, ease);
+}
+.wf-search-ov[data-shown="true"] .wf-search-ov__panel { opacity: 1; transform: none; }
+
+/* --- Style 1: Spotlight (drops straight down, command-palette width) --- */
+.wf-search-ov.is-spotlight .wf-search-ov__panel {
+  max-width: 660px;
+  transform: translateY(-12px) scale(0.985);
+}
+
+/* --- Style 2: Glass Sheet (full width, flush under bar, bottom-rounded) --- */
+.wf-search-ov.is-sheet .wf-search-ov__panel {
+  top: calc(env(safe-area-inset-top, 0px) + var(--wf-ov-top, 80px) - 12px);
+  left: 0;
+  right: 0;
+  max-width: none;
+  border-top: none;
+  border-radius: 0 0 calc(var(--radius-card) + 8px) calc(var(--radius-card) + 8px);
+  padding-top: 22px;
+  background: rgba(255, 255, 255, calc(var(--material-thick-opacity, 0.72) + 0.06));
+  transform: translateY(-14px);
+}
+.wf-search-ov.is-sheet .wf-search-ov__panel::after {
+  content: '';
+  position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  background: var(--klein-gradient);
+  opacity: 0.85;
+}
+
+/* --- Style 3: Floating Island (gap below bar, fully rounded, orbs, spring) --- */
+.wf-search-ov.is-island .wf-search-ov__panel {
+  top: calc(env(safe-area-inset-top, 0px) + var(--wf-ov-top, 80px) + 12px);
+  max-width: 600px;
+  border-radius: 30px;
+  box-shadow: 0 36px 90px rgba(76, 70, 140, 0.34), 0 16px 40px rgba(30, 27, 60, 0.22),
+              0 0 0 1px var(--border-highlight), inset 0 1px 0 0 rgba(255, 255, 255, 0.28);
+  transform: translateY(-10px) scale(0.92);
+}
+
+/* Gradient orbs — only visible on the floating island. */
+.wf-search-ov__orb { display: none; }
+.wf-search-ov.is-island .wf-search-ov__orb {
+  display: block;
+  position: absolute;
+  width: 180px; height: 180px;
+  border-radius: 50%;
+  filter: blur(36px);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0;
+  animation: ds-float 7s var(--ease-liquid, ease-in-out) infinite;
+}
+.wf-search-ov.is-island .wf-search-ov__orb--a {
+  top: -70px; right: -50px;
+  background: var(--klein-grad-from, #6366f1);
+}
+.wf-search-ov.is-island .wf-search-ov__orb--b {
+  bottom: -80px; left: -60px;
+  background: var(--klein-grad-to, #a855f7);
+  animation-delay: -3.5s;
+}
+
+/* Panel inner content sits above the orbs. */
+.wf-search-ov__panel > *:not(.wf-search-ov__orb) { position: relative; z-index: 1; }
+
+/* Header row: title + style switcher + close */
+.wf-search-ov__head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.wf-search-ov__title {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.95rem; font-weight: 700; color: var(--color-text-primary);
+  margin-right: auto; min-width: 0;
+}
+.wf-search-ov__title > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-search-ov__title-orb {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--klein-gradient); color: var(--klein-on, #fff);
+  box-shadow: var(--klein-grad-glow);
+  flex-shrink: 0;
+}
+.wf-search-ov.is-island .wf-search-ov__title-orb { animation: ds-pulse-soft 2.6s var(--ease-liquid, ease-in-out) infinite; }
+
+/* Style switcher (1 / 2 / 3) */
+.wf-search-ov__styles {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px; border-radius: var(--radius-full, 999px);
+  background: rgba(255, 255, 255, var(--material-thin-opacity, 0.5));
+  border: 1px solid var(--border-highlight);
+}
+.wf-search-ov__style {
+  width: 24px; height: 24px; border-radius: 50%;
+  font-size: 0.72rem; font-weight: 700; line-height: 1;
+  color: var(--color-text-tertiary);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 0.25s var(--ease-spring), color 0.2s var(--ease-liquid), transform 0.3s var(--ease-spring);
+}
+.wf-search-ov__style:hover { color: var(--color-text-primary); }
+.wf-search-ov__style.is-active {
+  background: var(--klein-gradient); color: var(--klein-on, #fff);
+  box-shadow: var(--klein-grad-glow); transform: scale(1.06);
+}
+
+.wf-search-ov__close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, var(--material-thin-opacity, 0.5));
+  border: 1px solid var(--border-highlight);
+  cursor: pointer;
+  transition: color 0.2s var(--ease-liquid), background 0.25s var(--ease-liquid), transform 0.3s var(--ease-spring);
+}
+.wf-search-ov__close:hover { color: var(--color-text-primary); background: var(--klein-blue-soft); }
+.wf-search-ov__close:active { transform: scale(0.92); }
+
+/* Search input */
+.wf-search-ov__inputwrap { position: relative; display: flex; align-items: center; }
+.wf-search-ov__input {
+  width: 100%; height: 52px; padding: 0 48px 0 46px;
+  border-radius: var(--radius-full, 999px);
+  background: rgba(255, 255, 255, var(--glass-opacity, 0.5));
+  border: 1px solid var(--border-highlight);
+  color: var(--color-text-primary); font-size: 1rem; outline: none;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  transition: border-color 0.25s var(--ease-liquid), box-shadow 0.3s var(--ease-liquid), background 0.3s var(--ease-liquid);
+}
+.wf-search-ov__input::placeholder { color: var(--color-text-tertiary); }
+.wf-search-ov__input:focus {
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--klein-ring), var(--klein-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+.wf-search-ov__inputicon {
+  position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+  color: var(--color-text-tertiary); display: inline-flex; pointer-events: none;
+}
+.wf-search-ov.is-sheet .wf-search-ov__inputicon,
+.wf-search-ov.is-island .wf-search-ov__inputicon { color: var(--klein-blue); }
+.wf-search-ov__clear {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  width: 28px; height: 28px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--color-text-tertiary); cursor: pointer;
+  transition: color 0.2s var(--ease-liquid), background 0.2s var(--ease-liquid);
+}
+.wf-search-ov__clear:hover { color: var(--color-text-primary); background: var(--klein-blue-soft); }
+
+/* Capability hint chips */
+.wf-search-ov__caps { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 2px 4px; }
+.wf-search-ov__cap {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: var(--radius-full, 999px);
+  font-size: 0.72rem; font-weight: 600;
+  color: var(--color-text-secondary);
+  background: var(--klein-blue-soft);
+  border: 1px solid var(--border-highlight);
+}
+.wf-search-ov__cap svg { color: var(--klein-blue); }
+
+.wf-search-ov__tabs { margin: 12px 0 6px; }
+
+/* Scrollable results region */
+.wf-search-ov__results {
+  flex: 1; min-height: 0; overflow-y: auto;
+  margin-top: 8px; padding: 4px 2px 6px;
+  scroll-behavior: smooth;
+}
+.wf-search-ov.is-spotlight .wf-search-ov__results { min-height: 220px; }
+.wf-search-ov.is-sheet .wf-search-ov__results { min-height: 240px; }
+.wf-search-ov.is-island .wf-search-ov__results { min-height: 200px; }
+
+.wf-search-ov__card { transition: transform 0.35s var(--ease-spring), border-color 0.25s var(--ease-liquid), box-shadow 0.3s var(--ease-liquid); }
+.wf-search-ov__card:hover { transform: translateY(-2px); border-color: var(--klein-ring); }
+
+/* History row */
+.wf-search-ov__row {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; border-radius: 16px;
+  background: rgba(255, 255, 255, var(--material-thin-opacity, 0.5));
+  border: 1px solid var(--border-highlight);
+  color: var(--color-text-secondary); cursor: pointer;
+  transition: border-color 0.25s var(--ease-liquid), background 0.25s var(--ease-liquid), transform 0.3s var(--ease-spring);
+}
+.wf-search-ov__row:hover { border-color: var(--klein-ring); transform: translateX(2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-search-ov__panel,
+  .wf-search-ov__backdrop,
+  .wf-search-ov__card,
+  .wf-search-ov__row { transition: opacity 0.15s linear; transform: none !important; }
+  .wf-search-ov.is-island .wf-search-ov__orb,
+  .wf-search-ov.is-island .wf-search-ov__title-orb { animation: none; }
+}
+
+@media (max-width: 480px) {
+  .wf-search-ov.is-spotlight .wf-search-ov__panel,
+  .wf-search-ov.is-island .wf-search-ov__panel { left: 12px; right: 12px; }
+}
+
+/* ========================================================================
+ * Component micro-interactions — Batch 6: bottom-nav / error / login sheet.
+ * ====================================================================== */
+
+/* Active-tab gradient indicator dot under the bottom-nav side tabs. */
+.ds-tab-dot {
+  width: 5px;
+  height: 5px;
+  margin-top: 2px;
+  border-radius: 9999px;
+  background: var(--klein-gradient);
+  box-shadow: var(--klein-grad-glow);
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity 0.3s var(--ease-liquid), transform 0.4s var(--ease-spring);
+}
+.ds-bar-tab.is-active .ds-tab-dot { opacity: 1; transform: scale(1); }
+
+/* The elevated center orb breathes gently to draw the eye. */
+.ds-bar-cta > svg { transition: transform 0.4s var(--ease-spring); }
+.ds-bar-cta:hover > svg { transform: rotate(90deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-tab-dot { transition: none; }
+  .ds-bar-cta:hover > svg { transform: none; }
+}
+
+/* ========================================================================
+ * Library cover cards (NotebookLM-style 图文) — cover banner + corner chip +
+ * overlaid glass tags + title/meta below. Used by the Learn Library page.
+ * ====================================================================== */
+
+.ds-cover-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  text-align: left;
+}
+
+/* The cover banner; ds-cover-img holds the gradient/photo and zooms on hover. */
+.ds-cover {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.ds-cover-img {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: transform 0.6s var(--ease-spring);
+}
+.ds-cover-card:hover .ds-cover-img { transform: scale(1.08); }
+/* Top sheen + bottom scrim so overlaid chips/tags stay legible. */
+.ds-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, transparent 32%, transparent 58%, rgba(0, 0, 0, 0.30) 100%);
+}
+
+/* Big translucent monogram/glyph centered on the cover. */
+.ds-cover-glyph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 900;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  transition: transform 0.5s var(--ease-spring);
+}
+.ds-cover-card:hover .ds-cover-glyph { transform: scale(1.06) rotate(-3deg); }
+
+/* Corner glass icon-chip (the "图" affordance). */
+.ds-cover-chip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  font-size: 1.05rem;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
+  color: var(--klein-blue);
+}
+html.dark .ds-cover-chip { background: rgba(18, 18, 38, 0.6); }
+
+/* Overlaid glass tag (word count, etc.) bottom-right on the cover. */
+.ds-cover-tag {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ds-cover-img, .ds-cover-glyph { transition: none; }
+  .ds-cover-card:hover .ds-cover-img,
+  .ds-cover-card:hover .ds-cover-glyph { transform: none; }
+}
+
+/* ========================================================================
+ * WfSearchOverlay — enhancement layer (online toggle, suggestions, retry,
+ * pronunciation, keyboard highlight, hint footer). Builds on the .wf-search-ov
+ * base block defined above. See components/WfSearchOverlay.tsx.
+ * ====================================================================== */
+
+/* Online / Offline dictionary source row */
+.wf-search-ov__source {
+  display: flex; align-items: center; gap: 12px;
+  margin: 10px 2px 2px; padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, var(--material-thin-opacity, 0.5));
+  border: 1px solid var(--border-highlight);
+}
+.wf-search-ov__source-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 12px; flex-shrink: 0;
+  background: rgba(120, 120, 150, 0.12); color: var(--color-text-secondary);
+  transition: background 0.3s var(--ease-liquid), color 0.3s var(--ease-liquid);
+}
+.wf-search-ov__source-icon.is-on { background: var(--klein-blue-soft); color: var(--klein-blue); }
+.wf-search-ov__source-title { font-size: 0.82rem; font-weight: 700; color: var(--color-text-primary); margin-right: auto; }
+.wf-search-ov__source-sub { font-size: 0.7rem; color: var(--color-text-tertiary); }
+.wf-search-ov__source > .min-w-0 { margin-right: auto; }
+
+/* iOS-style switch */
+.wf-search-ov__switch {
+  flex-shrink: 0; width: 46px; height: 26px; border-radius: 999px; padding: 3px;
+  background: rgba(120, 120, 150, 0.25); border: 1px solid var(--border-highlight);
+  cursor: pointer; transition: background 0.3s var(--ease-spring);
+}
+.wf-search-ov__switch.is-on { background: var(--klein-gradient); border-color: transparent; box-shadow: var(--klein-grad-glow); }
+.wf-search-ov__switch-knob {
+  display: block; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  transform: translateX(0); transition: transform 0.32s var(--ease-spring);
+}
+.wf-search-ov__switch.is-on .wf-search-ov__switch-knob { transform: translateX(20px); }
+
+/* Recent-search suggestion chips (empty state) */
+.wf-search-ov__suggest { margin-top: 6px; padding: 0 2px; }
+.wf-search-ov__suggest-label {
+  display: block; margin: 0 2px 8px;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+.wf-search-ov__suggest-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.wf-search-ov__suggest-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 13px; border-radius: 999px;
+  font-size: 0.8rem; font-weight: 600; color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, var(--material-thin-opacity, 0.5));
+  border: 1px solid var(--border-highlight); cursor: pointer;
+  transition: color 0.2s var(--ease-liquid), border-color 0.25s var(--ease-liquid),
+              background 0.25s var(--ease-liquid), transform 0.3s var(--ease-spring);
+}
+.wf-search-ov__suggest-chip svg { color: var(--klein-blue); }
+.wf-search-ov__suggest-chip:hover { color: var(--color-text-primary); border-color: var(--klein-ring); transform: translateY(-1px); }
+.wf-search-ov__suggest-chip:active { transform: scale(0.96); }
+
+/* Retry button (error state) */
+.wf-search-ov__retry {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 18px; border-radius: 999px;
+  font-size: 0.82rem; font-weight: 700; color: var(--klein-on, #fff);
+  background: var(--klein-gradient); box-shadow: var(--klein-grad-glow);
+  cursor: pointer; transition: transform 0.3s var(--ease-spring), box-shadow 0.3s var(--ease-liquid);
+}
+.wf-search-ov__retry:hover { box-shadow: var(--klein-grad-glow), 0 0 0 4px var(--klein-grad-soft); }
+.wf-search-ov__retry:active { transform: scale(0.96); }
+
+/* Keyboard highlight (arrow-key active item) */
+.wf-search-ov__card.is-active {
+  border-color: var(--klein-ring) !important;
+  box-shadow: 0 0 0 2px var(--klein-ring), 0 14px 36px rgba(76, 70, 140, 0.18) !important;
+  transform: translateY(-1px);
+}
+.wf-search-ov__row.is-active {
+  border-color: var(--klein-ring);
+  background: var(--klein-blue-soft);
+  box-shadow: 0 0 0 2px var(--klein-ring);
+}
+
+/* Keyboard hint footer */
+.wf-search-ov__hints {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  margin-top: 10px; padding: 10px 4px 2px;
+  border-top: 1px solid var(--border-highlight);
+  font-size: 0.7rem; color: var(--color-text-tertiary);
+}
+.wf-search-ov__hints span { display: inline-flex; align-items: center; gap: 5px; }
+.wf-search-ov__hints kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 5px; font-size: 0.66rem; font-family: inherit; line-height: 1;
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, var(--material-thin-opacity, 0.5));
+  border: 1px solid var(--border-highlight);
+  box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.06);
+}
+.wf-search-ov.is-sheet .wf-search-ov__hints { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-search-ov__switch-knob,
+  .wf-search-ov__suggest-chip,
+  .wf-search-ov__retry,
+  .wf-search-ov__card.is-active { transition: none; transform: none; }
+}
