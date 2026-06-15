@@ -395,17 +395,43 @@ if [[ "$(uname)" == "Linux" ]]; then
             export DISPLAY=":0"
         fi
     fi
-    # Forward DBUS session bus if not set (needed by AppIndicator3)
+    # XDG_RUNTIME_DIR must be owned by the running uid — GLib and PulseAudio
+    # check ownership and warn/fail if it doesn't match. When running as root
+    # via sudo, XDG_RUNTIME_DIR is often inherited as /run/user/1001 (the
+    # desktop user), which root (uid 0) does not own.
+    #
+    # DBUS_SESSION_BUS_ADDRESS must point to the desktop user's session bus so
+    # AppIndicator3 can register with the system tray panel.
+    #
+    # Strategy:
+    #   XDG_RUNTIME_DIR -> always /run/user/<own_uid> (no ownership mismatch)
+    #   DBUS_SESSION_BUS_ADDRESS -> desktop user's bus (to reach the tray)
+    my_uid=$(id -u)
+    my_runtime="/run/user/${my_uid}"
+
+    # Always force XDG_RUNTIME_DIR to match the running uid.
+    # sudo often leaks the invoking user's value (e.g. /run/user/1001 for root).
+    if [[ ! -d "$my_runtime" ]]; then
+        mkdir -p "$my_runtime" 2>/dev/null || true
+        chmod 700 "$my_runtime" 2>/dev/null || true
+        chown "${my_uid}:$(id -g)" "$my_runtime" 2>/dev/null || true
+    fi
+    export XDG_RUNTIME_DIR="$my_runtime"
+
+    # Forward DBUS session bus from the desktop user (needed by AppIndicator3)
     if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
-        # Try to get it from the logged-in desktop user
-        local_user=$(w -h 2>/dev/null | awk 'NR==1{print $1}')
-        if [[ -n "$local_user" ]] && [[ "$local_user" != "root" ]]; then
-            local_uid=$(id -u "$local_user" 2>/dev/null)
-            if [[ -n "$local_uid" ]] && [[ -e "/run/user/${local_uid}/bus" ]]; then
-                export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${local_uid}/bus"
+        # First try own bus
+        if [[ -e "${my_runtime}/bus" ]]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=${my_runtime}/bus"
+        else
+            # Running as root: borrow the desktop user's D-Bus session bus
+            local_user=$(w -h 2>/dev/null | awk 'NR==1{print $1}')
+            if [[ -n "$local_user" ]] && [[ "$local_user" != "root" ]]; then
+                local_uid=$(id -u "$local_user" 2>/dev/null)
+                if [[ -n "$local_uid" ]] && [[ -e "/run/user/${local_uid}/bus" ]]; then
+                    export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${local_uid}/bus"
+                fi
             fi
-        elif [[ -e "/run/user/$(id -u)/bus" ]]; then
-            export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
         fi
     fi
 fi

@@ -49,7 +49,8 @@
       "Bash(php -l app/Console/Commands/InitializeApps.php)",
       "Bash(php -l app/Services/UserSyncService.php)",
       "Bash(python3 *)",
-      "Bash(php:*)"
+      "Bash(php:*)",
+      "Bash(chmod +x scripts/shells/linux/debian/install_shells/63_install_tailscale.sh)"
     ]
   }
 }
