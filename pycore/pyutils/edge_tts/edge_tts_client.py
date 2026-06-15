@@ -81,7 +81,11 @@ def _normalize_rate(rate: Optional[str]) -> str:
 
 
 def _is_retryable_tts_error(err: Exception) -> bool:
-    """403 handshake / rate-limit / transient network errors are worth a retry."""
+    """403 handshake / rate-limit / transient network / our synth timeout are retryable."""
+    # asyncio.wait_for timeout (our per-attempt bound) carries an empty message, so
+    # match it by TYPE, not text.
+    if isinstance(err, (asyncio.TimeoutError, TimeoutError)):
+        return True
     msg = str(err).lower()
     return any(m in msg for m in (
         '403', 'invalid response status', 'handshake', 'timeout', 'timed out',
@@ -269,7 +273,6 @@ class EdgeTTSClient:
             # Serialize ALL edge-tts synthesis (no concurrency -> no 403 storms).
             with _EDGE_SYNTH_LOCK:
                 if edge_tts:
-                    import asyncio
                     try:
                         loop = asyncio.get_event_loop()
                     except RuntimeError:
@@ -282,9 +285,14 @@ class EdgeTTSClient:
                         # Fresh Communicate per attempt; edge-tts is one-shot per save.
                         kwargs = {"proxy": proxy} if proxy else {}
                         communicate = edge_tts.Communicate(text, voice, rate=rate, **kwargs)
-                        await communicate.save(str(output_path))
+                        # Bound each attempt: edge-tts's save() has no timeout, so a
+                        # stalled WebSocket otherwise hangs ~180s (Python socket
+                        # default). wait_for cancels the coroutine + raises on stall.
+                        await asyncio.wait_for(communicate.save(str(output_path)), timeout=_SYNTH_TIMEOUT_S)
                         if subtitle_path:
-                            await communicate.save_subtitles(str(subtitle_path), subtitle_format="srt")
+                            await asyncio.wait_for(
+                                communicate.save_subtitles(str(subtitle_path), subtitle_format="srt"),
+                                timeout=_SUBTITLE_TIMEOUT_S)
 
                     # Retry with backoff: the endpoint 403s under rate-limit/region
                     # blocking even though edge-tts already corrects clock skew.
