@@ -470,6 +470,137 @@ class AppQyV1TranslationQueueController extends Controller
     }
 
     /**
+     * GET /api/app_qy_v1/ai_tools/translation/queue/history
+     *
+     * CONTROL plane (no-auth, dashboard-reachable). A DETAILED processing-history
+     * view over TERMINAL word_translation tasks (completed + failed), newest
+     * first, with the per-task result (translations + provider) and timing.
+     * Read-only and paginated — feeds the laravel-manager "Translation History"
+     * panel and aligns with pycore's translation records.
+     *
+     * Query: status?(completed|failed) · limit?(1..500=50) · page?|offset?
+     */
+    public function controlHistory(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => 'nullable|string',
+            'limit' => 'nullable|integer|min:1|max:500',
+            'offset' => 'nullable|integer|min:0',
+            'page' => 'nullable|integer|min:1',
+        ]);
+
+        $limit = isset($validated['limit']) ? (int) $validated['limit'] : 50;
+
+        $offset = 0;
+        if (isset($validated['page'])) {
+            $offset = ((int) $validated['page'] - 1) * $limit;
+        } elseif (isset($validated['offset'])) {
+            $offset = (int) $validated['offset'];
+        }
+        if ($offset < 0) {
+            $offset = 0;
+        }
+
+        $base = GlobalTask::query()
+            ->where('app_name', 'AppQyV1')
+            ->where('task_type', 'word_translation');
+
+        // Terminal-only by default (completed + failed); a status filter narrows it.
+        if (isset($validated['status']) && $validated['status'] !== '') {
+            if ($validated['status'] === 'completed') {
+                $base->whereIn('status', [GlobalTask::STATUS_COMPLETED, GlobalTask::STATUS_COMPLETED_DEMO]);
+            } else {
+                $base->where('status', $validated['status']);
+            }
+        } else {
+            $base->whereIn('status', [
+                GlobalTask::STATUS_COMPLETED,
+                GlobalTask::STATUS_COMPLETED_DEMO,
+                GlobalTask::STATUS_FAILED,
+            ]);
+        }
+
+        $filteredTotal = (clone $base)->count();
+
+        // Newest first by insert order (id is monotonic) — portable across PG /
+        // sqlite and free of NULL-ordering surprises on completed_at.
+        $rows = (clone $base)
+            ->orderByDesc('id')
+            ->offset($offset)
+            ->limit($limit)
+            ->get();
+
+        $items = [];
+        foreach ($rows as $task) {
+            $payload = is_array($task->payload) ? $task->payload : [];
+            $result = is_array($task->result) ? $task->result : [];
+
+            $words = [];
+            if (isset($payload['words']) && is_array($payload['words'])) {
+                $words = array_values($payload['words']);
+            }
+
+            $translations = [];
+            if (isset($result['translations']) && is_array($result['translations'])) {
+                $translations = $result['translations'];
+            }
+
+            $provider = '';
+            if (isset($result['provider'])) {
+                $provider = (string) $result['provider'];
+            }
+
+            $targetLanguage = '';
+            if (isset($result['target_language'])) {
+                $targetLanguage = (string) $result['target_language'];
+            } elseif (isset($payload['target_language'])) {
+                $targetLanguage = (string) $payload['target_language'];
+            }
+
+            $createdAt = null;
+            if ($task->created_at !== null) {
+                $createdAt = $task->created_at->toIso8601String();
+            }
+            $completedAt = null;
+            if ($task->completed_at !== null) {
+                $completedAt = $task->completed_at->toIso8601String();
+            }
+            $durationMs = null;
+            if ($task->created_at !== null && $task->completed_at !== null) {
+                $durationMs = $task->created_at->diffInMilliseconds($task->completed_at);
+            }
+
+            $items[] = [
+                'task_id' => $task->task_id,
+                'status' => $task->status,
+                'words' => $words,
+                'word_count' => count($words),
+                'language' => (string) ($payload['language'] ?? ''),
+                'target_language' => $targetLanguage,
+                'provider' => $provider,
+                'translations' => $translations,
+                'error' => $task->error,
+                'retry_count' => (int) $task->retry_count,
+                'assigned_to' => $task->assigned_to,
+                'created_at' => $createdAt,
+                'completed_at' => $completedAt,
+                'duration_ms' => $durationMs,
+            ];
+        }
+
+        return $this->success([
+            'items' => $items,
+            'pagination' => [
+                'limit' => $limit,
+                'offset' => $offset,
+                'page' => (int) floor($offset / max(1, $limit)) + 1,
+                'total' => $filteredTotal,
+                'has_more' => ($offset + count($items)) < $filteredTotal,
+            ],
+        ], 'Translation history listed');
+    }
+
+    /**
      * POST /api/app_qy_v1/ai_tools/translation/queue/priority
      *
      * Body: { task_id, priority:int }. CONTROL plane (no-auth, pycore-reachable).

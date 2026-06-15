@@ -255,16 +255,16 @@ fi
 # pyservice binds the RPC API ($PORT, default 59000) and the dashboard UI
 # ($UI_PORT, default 13054). If a Docker container PUBLISHES one of these host
 # ports it surfaces as a docker-proxy holder the normal lsof/kill paths won't
-# touch. Offer to stop the owning container (default Yes; non-interactive
-# auto-stops). Override: PORT_CONFLICT_AUTO_STOP=no (keep) / =yes (pre-confirm).
-prompt_default_yes() {
+# touch. Offer to stop the owning container and disable its auto-startup
+# (default No; keep running). Override: PORT_CONFLICT_AUTO_STOP=yes (pre-confirm).
+prompt_default_no() {
     local msg="$1" reply=""
-    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Nn]*) return 1 ;; [Yy]*) return 0 ;; esac
+    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Yy]*) return 0 ;; [Nn]*) return 1 ;; esac
     if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '%s [Y/n] ' "$msg" > /dev/tty
+        printf '%s [y/N] ' "$msg" > /dev/tty
         read -r reply < /dev/tty || reply=""
     fi
-    case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+    case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 stop_docker_publisher() {
     local port="$1" row="" cid="" cname=""

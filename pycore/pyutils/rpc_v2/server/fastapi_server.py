@@ -10,11 +10,13 @@ reusing the proven event/request/inventory tables from rpc v1.
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 import time
 import uuid
+from collections import deque
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Deque, Dict, Optional, Set, Tuple
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pyfoundations.third_party import (
@@ -29,6 +31,7 @@ WebSocket = fastapi.WebSocket
 WebSocketDisconnect = fastapi.WebSocketDisconnect
 status = fastapi.status
 JSONResponse = fastapi.responses.JSONResponse
+StreamingResponse = fastapi.responses.StreamingResponse
 
 # Import CORS middleware and StaticFiles properly
 from fastapi.middleware.cors import CORSMiddleware
@@ -150,6 +153,17 @@ class FastAPIRPCServer:
         # Event loop for async broadcast
         self._broadcast_loop = None
 
+        # ---- SSE broadcast fan-out (additive; shares the SAME event source as WS) ----
+        # Every broadcast_event() increments this process-wide monotonic seq, appends
+        # (seq, event_name, data) to a bounded ring buffer (for ?since= resume), and
+        # pushes the tagged event to each connected SSE subscriber's asyncio.Queue.
+        # The WS delivery path is untouched.
+        sse_options = options or {}
+        self._sse_seq: int = 0
+        self._sse_ring_max: int = sse_options.get("sse_ring_size", 500)
+        self._sse_ring: Deque[Tuple[int, str, Dict[str, Any]]] = deque(maxlen=self._sse_ring_max)
+        self._sse_subscribers: Set["asyncio.Queue"] = set()
+
         # Live log streaming (observer pattern): register a callback into the base
         # print library so every printed line is relayed to connected WS clients.
         # rpc_v2 imports ColorPrint, never the reverse — ColorPrint stays decoupled.
@@ -209,6 +223,25 @@ class FastAPIRPCServer:
             event_name: Event name (e.g., 'voice_subtitle_update')
             data: Event data to send to clients
         """
+        # SSE fan-out FIRST so it shares the SAME event source as WS and is NOT
+        # skipped when no WS client is connected. Assign a process-wide monotonic
+        # seq, append to the bounded ring buffer (for ?since= resume), and push the
+        # tagged event to every connected SSE subscriber queue. This runs on the
+        # event loop thread, so plain (non-locked) mutation of these structures is
+        # safe; SSE generators consume on the same loop.
+        self._sse_seq += 1
+        seq = self._sse_seq
+        self._sse_ring.append((seq, event_name, data))
+        if self._sse_subscribers:
+            sse_item = (seq, event_name, data)
+            for queue in list(self._sse_subscribers):
+                try:
+                    queue.put_nowait(sse_item)
+                except asyncio.QueueFull:
+                    # Slow/stuck subscriber: drop the live push (it can still recover
+                    # via the ring buffer on reconnect with ?since=). Never block WS.
+                    pass
+
         clients = self.client_registry.ws_clients
         if not clients:
             return
@@ -305,6 +338,10 @@ class FastAPIRPCServer:
         @self.app.websocket(WS_PATH)
         async def websocket_endpoint(websocket: WebSocket):
             await self._handle_websocket(websocket)
+
+        @self.app.get(f"{HTTP_PATH_PREFIX}/sse")
+        async def sse_stream(request: Request, client_id: Optional[str] = None, since: Optional[int] = None):
+            return await self._handle_sse(request, client_id=client_id, since=since)
 
     # ------------------------------------------------------------------ HTTP handlers
     async def _handle_http_rpc(
@@ -650,6 +687,144 @@ class FastAPIRPCServer:
             "event_table": self.request_event_table.get_stats(),
             "inventory": self.inventory_table.get_stats(),
         }
+
+    # ------------------------------------------------------------------ SSE handler
+    async def _handle_sse(
+        self,
+        request: Request,
+        client_id: Optional[str] = None,
+        since: Optional[int] = None,
+    ) -> StreamingResponse:
+        """
+        Additive Server-Sent-Events endpoint (GET /rpc/sse).
+
+        Browser clients that only need to RECEIVE pycore broadcast events (the same
+        ones pushed to WS clients: pycore_log / voice_subtitle_queue_update /
+        system_settings_update / ...) can subscribe here instead of opening a WS.
+        The existing /rpc/ws route is unchanged and stays the bidirectional RPC path.
+
+        Frame contract (mirrors the translation SSE stream, cursor renamed to seq):
+          - on connect:          event: stream.open   data: {"seq": <currentSeq>}
+          - each broadcast:      (default message)    data: {"event": <name>, "_seq": <int>, ...payload}
+                                 i.e. NO `event:` line, so the client's onmessage
+                                 dispatches ANY broadcast name generically.
+          - idle keep-alive:     event: ping          data: {"seq": <seq>}  (~15s)
+          - bounded lifetime:    event: stream.close  data: {"seq": <seq>}  (~50s),
+                                 then the generator ends (client reconnects ?since=).
+
+        Resume: ?since=<seq> replays buffered ring events with seq > since (oldest
+        first). since absent / <= 0 starts from the current tail (only new events).
+        """
+        # Capture the event loop here too, so SSE works even before any WS connect.
+        if self._broadcast_loop is None:
+            self._broadcast_loop = asyncio.get_running_loop()
+
+        # Bounded per-connection inbox. broadcast_event() pushes live events here;
+        # maxsize bounds memory — overflow is fine, the client recovers via ?since=.
+        queue: "asyncio.Queue" = asyncio.Queue(maxsize=self._sse_ring_max)
+        conn_id = client_id or str(uuid.uuid4())
+
+        # Lifetime / cadence (seconds). Mirrors the translation stream.
+        max_lifetime = 50.0
+        heartbeat_interval = 15.0
+        # Wake at most every `tick` to emit a heartbeat / honour disconnects.
+        tick = 1.0
+
+        ColorPrint.green(f"[SSE] connected id={conn_id[:8]} since={since}")
+
+        async def event_generator():
+            # --- Replay backlog from the ring buffer (seq > since), oldest first. ---
+            # since absent / <= 0 -> start from current tail (only new events).
+            replay_from = since if isinstance(since, int) and since > 0 else None
+            # Snapshot the ring before subscribing so we don't miss or double-send
+            # events that land between replay and subscription.
+            backlog = list(self._sse_ring) if replay_from is not None else []
+
+            # Subscribe to live events.
+            self._sse_subscribers.add(queue)
+            try:
+                current_seq = self._sse_seq
+
+                # stream.open confirms the resume point.
+                yield self._sse_format("stream.open", {"seq": current_seq})
+
+                # Drain backlog (only events newer than the resume cursor).
+                for seq, event_name, data in backlog:
+                    if seq > replay_from:
+                        frame = self._sse_with_seq(data, seq)
+                        frame["event"] = event_name  # generic (default-message) channel frame
+                        yield self._sse_format("", frame)
+                        current_seq = seq
+
+                start = time.monotonic()
+                last_beat = start
+
+                while (time.monotonic() - start) < max_lifetime:
+                    # Client gone? stop promptly and free the worker.
+                    if await request.is_disconnected():
+                        break
+
+                    try:
+                        seq, event_name, data = await asyncio.wait_for(queue.get(), timeout=tick)
+                    except asyncio.TimeoutError:
+                        # Idle: emit a keep-alive ping at the heartbeat cadence.
+                        if (time.monotonic() - last_beat) >= heartbeat_interval:
+                            yield self._sse_format("ping", {"seq": current_seq})
+                            last_beat = time.monotonic()
+                        continue
+
+                    # Skip stale ring duplicates already replayed from backlog.
+                    if seq <= current_seq:
+                        continue
+                    frame = self._sse_with_seq(data, seq)
+                    frame["event"] = event_name  # generic (default-message) channel frame
+                    yield self._sse_format("", frame)
+                    current_seq = seq
+                    last_beat = time.monotonic()
+
+                # Bounded lifetime reached: tell the client where to resume.
+                yield self._sse_format("stream.close", {"seq": current_seq})
+            finally:
+                self._sse_subscribers.discard(queue)
+                ColorPrint.yellow(f"[SSE] disconnected id={conn_id[:8]}")
+
+        headers = {
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        }
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers=headers,
+        )
+
+    @staticmethod
+    def _sse_with_seq(data: Dict[str, Any], seq: int) -> Dict[str, Any]:
+        """Return a shallow copy of the WS payload with a top-level _seq resume cursor."""
+        if isinstance(data, dict):
+            merged = dict(data)
+        else:
+            # Non-dict payloads are wrapped so _seq always has a place to live.
+            merged = {"value": data}
+        merged["_seq"] = seq
+        return merged
+
+    @staticmethod
+    def _sse_format(event_name: str, data: Dict[str, Any]) -> str:
+        """Serialize one SSE frame: 'event:' + 'data:' lines, blank line terminates it.
+
+        A NON-EMPTY event_name -> NAMED SSE event (the stream.open/ping/stream.close
+        ENVELOPE), consumed on the client via addEventListener('<name>'). An EMPTY
+        event_name -> DEFAULT 'message' event (client onmessage), used for CHANNEL
+        broadcasts so the client dispatches ANY broadcast name generically (the name
+        travels inside data['event']) — mirroring the WS path's generic dispatch and
+        staying forward-compatible with new event names without client changes.
+        """
+        payload = json.dumps(data, ensure_ascii=False)
+        if event_name:
+            return f"event: {event_name}\ndata: {payload}\n\n"
+        return f"data: {payload}\n\n"
 
     # ------------------------------------------------------------------ WebSocket handlers
     async def _handle_websocket(self, websocket: WebSocket):
