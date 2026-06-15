@@ -133,7 +133,7 @@ resolve_port_conflict() {
     if [ -n "$pids" ]; then
         echo "[$SCRIPT_INDEX] Held by process PID(s): $pids"
         ps -o pid=,comm= -p $pids 2>/dev/null | sed "s/^/[$SCRIPT_INDEX]   /"
-        if prompt_default_yes "[$SCRIPT_INDEX] Kill process(es) $pids holding port $port?"; then
+        if prompt_default_no "[$SCRIPT_INDEX] Kill process(es) $pids holding port $port?"; then
             $USE_SUDO kill $pids 2>/dev/null || kill $pids 2>/dev/null || true
             sleep 1
             $USE_SUDO kill -9 $pids 2>/dev/null || true
