@@ -348,7 +348,20 @@ class AppIndicatorSystemTray:
 
         if not self.gtk_menu:
             self._create_menu()
-            self.indicator.set_menu(self.gtk_menu)
+
+        # If no menu items were set, add a default Quit item so the menu is not
+        # empty (AppIndicator3 shows nothing on click if the menu has 0 children).
+        if self.gtk_menu and len(self.gtk_menu.get_children()) == 0:
+            quit_item = Gtk.MenuItem(label="Quit")
+            quit_item.connect("activate", lambda _: self.stop())
+            self.gtk_menu.append(quit_item)
+            self.gtk_menu.show_all()
+
+        # Always call set_menu() after the indicator is created.
+        # When set_menu_items() was called before run(), _rebuild_menu() built
+        # self.gtk_menu but could not call set_menu() because self.indicator was
+        # None at that point.  We must set it here unconditionally.
+        self.indicator.set_menu(self.gtk_menu)
 
         # Mark as running
         self._running = True
