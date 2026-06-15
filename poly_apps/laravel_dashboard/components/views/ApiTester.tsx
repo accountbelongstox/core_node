@@ -3,7 +3,7 @@ import { Search, ChevronDown, X, Loader2, AlertCircle, Clock, Copy, Check } from
 import { api } from '../../core/api';
 import { FullApiInfo, ApiInfo, ApiInfoParsedEndpoint, Language } from '../../types';
 import { parseFeatureString, generateExampleParams, extractPathPlaceholders } from '../../utils/apiInfoParser';
-import { logInfo, logError } from '../../core/logs/logStore';
+import { logInfo, logError } from '../../core/logstore/logStore';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
 import { TRANSLATIONS } from '../../constants';
 import BentoCard from '../BentoCard';

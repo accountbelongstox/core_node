@@ -28,7 +28,7 @@ Reverb = Pusher protocol — handshake + subscribe
 Connection (from Laravel REVERB_* via callmodule_config.Config):
     ws://<host>:<port>/app/<app_key>?protocol=7&client=pycore&version=1.0
     host  = TRANSLATION_REVERB_HOST  (REVERB_HOST 0.0.0.0 -> dial 127.0.0.1)
-    port  = TRANSLATION_REVERB_PORT  (8080)
+    port  = TRANSLATION_REVERB_PORT  (9000 — laravel_main Octane; 8080 retired)
     sch.  = TRANSLATION_REVERB_SCHEME (http->ws, https->wss)
     key   = TRANSLATION_REVERB_APP_KEY (rotates on reverb restart — env-overridable)
 
@@ -117,7 +117,7 @@ class TranslationWsClient:
     def __init__(
         self,
         host: str = "127.0.0.1",
-        port: int = 8080,
+        port: int = 9000,
         scheme: str = "http",
         app_key: str = "",
         channel: str = "translation-queue",
@@ -495,7 +495,7 @@ class TranslationWsClient:
 
 def get_translation_ws_client(
     host: str = "127.0.0.1",
-    port: int = 8080,
+    port: int = 9000,
     scheme: str = "http",
     app_key: str = "",
     channel: str = "translation-queue",

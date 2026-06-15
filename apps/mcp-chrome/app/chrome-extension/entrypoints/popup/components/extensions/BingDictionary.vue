@@ -12,11 +12,15 @@
       :testWords="testWords"
       :testResults="testResults"
       :testing="testing"
+      :queueOverview="queueOverview"
+      :prepared="prepared"
       @toggle-service="toggleClientService"
       @update-config="updateConfig"
       @test-connection="testConnection"
       @run-scrape-test="runScrapeTest"
       @update-test-words="(v) => (testWords = v)"
+      @refresh-queue="loadQueueOverview"
+      @set-queue-page="setQueuePage"
     />
 
     <!-- Header -->
@@ -92,6 +96,10 @@ const {
   testWords,
   testResults,
   testing,
+  queueOverview,
+  loadQueueOverview,
+  setQueuePage,
+  prepared,
   toggleClientService,
   updateConfig,
   testConnection,

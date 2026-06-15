@@ -14,7 +14,6 @@ import { initApiHealthListener } from './api-health-listener';
 import { taskCenter } from './services/task-center/TaskCenter';
 import { initializeProcessors } from './services/task-center/init-processors';
 import { initTaskCenterListener } from './task-center-listener';
-import { getLocalTaskQueueService, setupQueueMessageListener } from './services/local-task-queue';
 
 /**
  * Background script entry point
@@ -52,18 +51,6 @@ export default defineBackground(() => {
     // Log other unhandled rejections (actual errors that need attention)
     console.error('[Background] ⚠️ Unhandled promise rejection:', event.reason);
   });
-
-  // Initialize Local Task Queue (Unified Queue System)
-  console.log('🎯 Initializing Local Task Queue...');
-  setupQueueMessageListener();
-  getLocalTaskQueueService()
-    .initialize()
-    .then(() => {
-      console.log('✅ Local Task Queue initialized');
-    })
-    .catch((error) => {
-      console.error('❌ Failed to initialize Local Task Queue:', error);
-    });
 
   // Initialize Unified Task Center (State Center)
   console.log('🎯 Initializing Unified Task Center...');

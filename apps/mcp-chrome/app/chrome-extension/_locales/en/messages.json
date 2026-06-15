@@ -667,6 +667,8 @@
   "apiTesting": { "message": "Testing…" },
   "apiTest": { "message": "Test" },
   "apiCurrentLabel": { "message": "Current:" },
+  "apiAutoMode": { "message": "Auto (best available)" },
+  "apiAutoTag": { "message": "AUTO" },
   "apiNone": { "message": "None" },
   "apiLocalTag": { "message": "LOCAL" },
   "apiRemoteTag": { "message": "REMOTE" },

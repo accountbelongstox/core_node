@@ -146,19 +146,20 @@ class Config:
     # replacing the queue monitor's 5s HTTP poll as the primary signal (the poll is
     # kept as a slower fallback/reconciler if the WS drops).
     #
-    # Reverb connection comes from Laravel's REVERB_* (poly_apps/laravel_main/.env):
-    #   REVERB_HOST=0.0.0.0  REVERB_PORT=8080  REVERB_SCHEME=http  REVERB_APP_KEY=...
-    # We connect to 127.0.0.1 (REVERB_HOST 0.0.0.0 is a bind address, not a dial
-    # address) and map scheme http->ws / https->wss. ALL are env-overridable so a
-    # deployment can point at a different Reverb. NOTE: Laravel rotates REVERB_APP_KEY
-    # on each reverb (re)start; set REVERB_APP_KEY (or TRANSLATION_REVERB_APP_KEY) in
-    # pycore's env to the CURRENT key, or the Pusher handshake's subscribe will be
-    # refused. The default below is the last-seen dev key (best-effort).
+    # The pycore end does NOT read laravel_main/.env — these defaults are the
+    # source of truth (env vars only act as optional overrides). laravel_main now
+    # serves on port 9000 (Octane HTTP, systemd octane-poly-9000) and the Reverb
+    # broadcast endpoint is reached on that same host:port via the Pusher path
+    # /app/<app_key>. 8080 is the OLD/retired Reverb port — do not reintroduce it.
+    # We connect to 127.0.0.1 (0.0.0.0 is a bind address, not a dial address) and
+    # map scheme http->ws / https->wss. NOTE: Laravel rotates the app key on each
+    # reverb (re)start; keep TRANSLATION_REVERB_APP_KEY in sync or the Pusher
+    # handshake's subscribe will be refused. The default below is the last-seen key.
     TRANSLATION_REVERB_HOST = os.getenv(
         "TRANSLATION_REVERB_HOST", os.getenv("REVERB_HOST", "127.0.0.1")
     )
     TRANSLATION_REVERB_PORT = int(
-        os.getenv("TRANSLATION_REVERB_PORT", os.getenv("REVERB_PORT", "8080"))
+        os.getenv("TRANSLATION_REVERB_PORT", os.getenv("REVERB_PORT", "9000"))
     )
     TRANSLATION_REVERB_SCHEME = os.getenv(
         "TRANSLATION_REVERB_SCHEME", os.getenv("REVERB_SCHEME", "http")

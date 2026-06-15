@@ -31,7 +31,7 @@ import type {
 import { usePcCapability } from '../PcCapabilityContext';
 import { PcPipelineStatusPanels, PcFreeLibrariesPanel } from './PcPipelineStatusPanels';
 import AiUsagePanel from '../../../components/ai-tools/AiUsagePanel';
-import { logInfo, logSuccess, logError } from '../../../core/logs/logStore';
+import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import { PcCollapse, PcImageLightbox } from './PcAiShared';
 
 const LOG_SRC = 'pc-ai-capability';

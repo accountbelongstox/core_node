@@ -207,35 +207,55 @@ def _get_actual_user() -> str:
         return os.environ.get('USER', 'user')
 
 
+def _ensure_dir(path: Path) -> Path:
+    r"""Create ``path``; on Linux make it ALL-USERS-WRITABLE (mode 1777, sticky)
+    so the shared ``/var/_core_node`` runtime tree is usable by ANY user.
+
+    The sticky bit (like ``/tmp``) lets every user create files there while
+    protecting others' files from deletion. ``chmod`` is a no-op on Windows
+    (per-user ``~/.core_node``). Best-effort: a failed chmod (e.g. the dir is
+    owned by another user and we're not root) is ignored — it was already
+    created 1777 by whoever made it first.
+    """
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=True)
+    if sys.platform != 'win32':
+        try:
+            os.chmod(path, 0o1777)
+        except OSError:
+            pass
+    return path
+
+
 def get_system_cache_dir() -> Path:
     r"""
     Get platform-specific system cache directory
 
     Returns:
         Path: System cache directory path
-            - Windows: C:\Users\{username}\.core_node
-            - Linux: /var/_core_node
+            - Windows: C:\Users\{username}\.core_node  (per-user)
+            - Linux:   /var/_core_node                 (ONE shared, all-users-writable)
 
-    The directory is automatically created if it does not exist.
+    On Linux this is a SINGLE shared directory so every user (and the service,
+    whoever runs it) reads/writes the SAME runtime state. It is created 1777
+    (sticky + world-writable) so any user can use it; only when it cannot be
+    created AND is not writable do we fall back to the per-user ``~/.core_node``.
     """
     if sys.platform == 'win32':
-        # Windows: Use user home directory
-        user_home = Path.home()
-        cache_dir = user_home / '.core_node'
-    else:
-        # Linux/Unix: Use /var/_core_node
-        cache_dir = Path('/var/_core_node')
+        # Windows: per-user home directory.
+        return _ensure_dir(Path.home() / '.core_node')
 
-        # Fallback to user home if /var is not writable
-        if not os.access('/var', os.W_OK):
-            user_home = Path.home()
-            cache_dir = user_home / '.core_node'
+    # Linux/Unix: ONE shared, all-users-writable system dir.
+    shared = Path('/var/_core_node')
+    try:
+        _ensure_dir(shared)
+    except OSError:
+        pass
+    if shared.is_dir() and os.access(shared, os.W_OK):
+        return shared
 
-    # Create directory if not exists
-    if not cache_dir.exists():
-        cache_dir.mkdir(parents=True, exist_ok=True)
-
-    return cache_dir
+    # Fallback: per-user home when the shared dir can't be created/written.
+    return _ensure_dir(Path.home() / '.core_node')
 
 
 def get_ui_state_cache_dir() -> Path:
@@ -247,12 +267,7 @@ def get_ui_state_cache_dir() -> Path:
     Returns:
         Path: UI state cache directory (.core_node/ui_state/)
     """
-    ui_state_dir = get_system_cache_dir() / 'ui_state'
-
-    if not ui_state_dir.exists():
-        ui_state_dir.mkdir(parents=True, exist_ok=True)
-
-    return ui_state_dir
+    return _ensure_dir(get_system_cache_dir() / 'ui_state')
 
 
 def get_app_cache_dir() -> Path:
@@ -262,12 +277,7 @@ def get_app_cache_dir() -> Path:
     Returns:
         Path: Application cache directory (.core_node/cache/)
     """
-    cache_dir = get_system_cache_dir() / 'cache'
-
-    if not cache_dir.exists():
-        cache_dir.mkdir(parents=True, exist_ok=True)
-
-    return cache_dir
+    return _ensure_dir(get_system_cache_dir() / 'cache')
 
 
 def get_app_config_dir() -> Path:
@@ -277,12 +287,7 @@ def get_app_config_dir() -> Path:
     Returns:
         Path: Application config directory (.core_node/config/)
     """
-    config_dir = get_system_cache_dir() / 'config'
-
-    if not config_dir.exists():
-        config_dir.mkdir(parents=True, exist_ok=True)
-
-    return config_dir
+    return _ensure_dir(get_system_cache_dir() / 'config')
 
 
 def get_app_data_dir() -> Path:
@@ -292,12 +297,7 @@ def get_app_data_dir() -> Path:
     Returns:
         Path: Application data directory (.core_node/data/)
     """
-    data_dir = get_system_cache_dir() / 'data'
-
-    if not data_dir.exists():
-        data_dir.mkdir(parents=True, exist_ok=True)
-
-    return data_dir
+    return _ensure_dir(get_system_cache_dir() / 'data')
 
 
 def get_app_logs_dir() -> Path:
@@ -307,12 +307,7 @@ def get_app_logs_dir() -> Path:
     Returns:
         Path: Application logs directory (.core_node/logs/)
     """
-    logs_dir = get_system_cache_dir() / 'logs'
-
-    if not logs_dir.exists():
-        logs_dir.mkdir(parents=True, exist_ok=True)
-
-    return logs_dir
+    return _ensure_dir(get_system_cache_dir() / 'logs')
 
 
 def get_local_data_dir() -> Path:
@@ -328,12 +323,7 @@ def get_local_data_dir() -> Path:
     Returns:
         Path: Repo-local data directory (<repo>/.data/)
     """
-    data_dir = get_core_node_root() / '.data'
-
-    if not data_dir.exists():
-        data_dir.mkdir(parents=True, exist_ok=True)
-
-    return data_dir
+    return _ensure_dir(get_core_node_root() / '.data')
 
 
 def get_app_temp_dir() -> Path:
@@ -596,6 +586,14 @@ class UserDataStore:
                     fh.flush()
                     os.fsync(fh.fileno())
                 os.replace(str(tmp), str(self._path))
+                # World-writable on Linux so ANY user can overwrite this shared
+                # state file (the dir is 1777, but a 0644 file written by another
+                # user would otherwise block updates).
+                if sys.platform != 'win32':
+                    try:
+                        os.chmod(str(self._path), 0o666)
+                    except OSError:
+                        pass
             except Exception as exc:
                 ColorPrint.red(f"[UserDataStore] Failed to save {self._path}: {exc}")
 
@@ -727,6 +725,11 @@ class UserDataStore:
                     fh.flush()
                     os.fsync(fh.fileno())
                 os.replace(str(tmp), str(path))
+                if sys.platform != 'win32':
+                    try:
+                        os.chmod(str(path), 0o666)
+                    except OSError:
+                        pass
             except Exception as exc:
                 ColorPrint.red(f"[UserDataStore] Failed to save feature config {name}: {exc}")
 

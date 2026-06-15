@@ -2,7 +2,7 @@
  * imageGenBridge — tiny module-level handoff so the Image History tool can push
  * a prompt into the Image Gen tool when the user clicks "reuse prompt", even
  * though the two live on separate left-nav tools (state is unmounted between
- * switches). Framework-free pub/sub, mirroring core/logs/logStore.
+ * switches). Framework-free pub/sub, mirroring core/logstore/logStore.
  */
 
 let pendingPrompt: string | null = null;

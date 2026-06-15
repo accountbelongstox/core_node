@@ -1304,6 +1304,10 @@ if [ ! -d "$GLOBAL_VAR_DIR" ]; then
     $USE_SUDO mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
     echo "Created global variable directory: $GLOBAL_VAR_DIR"
 fi
+# Make the shared /var/_core_node tree ALL-USERS-WRITABLE (1777, sticky like /tmp)
+# so any user (not just the one who created it first) can read/write the global
+# vars and the rest of the runtime tree. Idempotent; best-effort (ignore errors).
+$USE_SUDO chmod 1777 "$CORE_NODE_DATA_DIR" "$GLOBAL_VAR_DIR" 2>/dev/null || chmod 1777 "$CORE_NODE_DATA_DIR" "$GLOBAL_VAR_DIR" 2>/dev/null || true
 
 # Set IS_GLOBAL based on SELECTED_REGION
 set_is_global() {
@@ -1352,8 +1356,10 @@ set_global_var() {
     local file_path=$(_get_var_file_path "$key")
 
     # Write value to file
-    echo "$val" | $USE_SUDO tee "$file_path" >/dev/null
-    if [[ $? -eq 0 ]]; then
+    if echo "$val" | $USE_SUDO tee "$file_path" >/dev/null; then
+        # World-writable so a DIFFERENT user can later overwrite this shared var
+        # (the dir is 1777, but a root-written 0644 file would block other users).
+        $USE_SUDO chmod 666 "$file_path" 2>/dev/null || chmod 666 "$file_path" 2>/dev/null || true
         if [[ "$print" != "false" ]]; then
             echo "Successfully set global variable: $key -> $val"
         fi

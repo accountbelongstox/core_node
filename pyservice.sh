@@ -251,6 +251,39 @@ if [[ "$ONLY" -eq 1 ]]; then
     exit 0
 fi
 
+# --- port-conflict guard (Docker publishers) ----------------------------- #
+# pyservice binds the RPC API ($PORT, default 59000) and the dashboard UI
+# ($UI_PORT, default 13054). If a Docker container PUBLISHES one of these host
+# ports it surfaces as a docker-proxy holder the normal lsof/kill paths won't
+# touch. Offer to stop the owning container (default Yes; non-interactive
+# auto-stops). Override: PORT_CONFLICT_AUTO_STOP=no (keep) / =yes (pre-confirm).
+prompt_default_yes() {
+    local msg="$1" reply=""
+    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Nn]*) return 1 ;; [Yy]*) return 0 ;; esac
+    if [ -t 0 ] && [ -r /dev/tty ]; then
+        printf '%s [Y/n] ' "$msg" > /dev/tty
+        read -r reply < /dev/tty || reply=""
+    fi
+    case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+}
+stop_docker_publisher() {
+    local port="$1" row="" cid="" cname=""
+    command -v docker >/dev/null 2>&1 || return 1
+    row=$(docker ps --filter "publish=${port}" --format '{{.ID}} {{.Names}}' 2>/dev/null | head -1)
+    [ -n "$row" ] || row=$(${USE_SUDO:-} docker ps --filter "publish=${port}" --format '{{.ID}} {{.Names}}' 2>/dev/null | head -1)
+    [ -n "$row" ] || return 1
+    cid=$(printf '%s' "$row" | awk '{print $1}')
+    cname=$(printf '%s' "$row" | awk '{print $2}')
+    echo "[i] Port ${port} is published by Docker container: ${cname:-$cid}"
+    if prompt_default_yes "[?] Stop container ${cname:-$cid} to free port ${port}?"; then
+        echo "[..] Stopping container ${cname:-$cid} ..."
+        docker stop "$cid" >/dev/null 2>&1 || ${USE_SUDO:-} docker stop "$cid" >/dev/null 2>&1 || true
+        return 0
+    fi
+    echo "[i] Left container ${cname:-$cid} running; port ${port} still occupied."
+    return 1
+}
+
 # --- 2) launch the unified dashboard UI (unless --no-ui) ----------------- #
 # The UI is the pure-Vite shell at poly_apps/laravel_dashboard. It runs as its own
 # dev server (pnpm); PySide6 loads it via PYCORE_UI_URL (exported, pointing at the
@@ -273,6 +306,9 @@ elif [[ ! -f "$UI_DIR/package.json" ]]; then
 elif ! command -v pnpm >/dev/null 2>&1; then
     echo "[i] pnpm not on PATH; using legacy /web/subtitle UI."
 else
+    # Free the UI port from a foreign Docker publisher first (host vite servers
+    # are processes, not containers -> no-op; the reuse/kill logic below handles those).
+    stop_docker_publisher "$UI_PORT" || true
     # Vite reads PORT for its dev-server port; the /pyapi proxy + WS target the
     # running pycore backend via PYCORE_API_BASE.
     export PORT="$UI_PORT"
@@ -342,6 +378,9 @@ fi
 PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT")
 if [[ "$DEBUG" -eq 1 ]]; then PY_ARGS+=(--debug); fi
 if [[ "$RELOAD" -eq 1 ]]; then PY_ARGS+=(--reload); fi   # backend hot-reload (watch .py -> os.execv restart)
+
+# Free the RPC port from a foreign Docker publisher before binding it.
+stop_docker_publisher "$PORT" || true
 
 echo ""
 echo "[>] Launching worker: $WORKER_REL"

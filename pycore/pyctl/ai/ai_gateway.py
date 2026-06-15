@@ -76,6 +76,7 @@ except Exception:  # noqa: BLE001 — optional dep; Vertex helper guards on this
     _GcpAuthRequest = None
     _GCP_AUTH_AVAILABLE = False
 from pycore.pyctl.ai.ai_usage_log import record_usage
+from pycore.pyctl.ai.ai_image_history import record_image as _record_image_history
 
 _GEMINI_VISION_MODEL = "gemini-2.5-flash"
 
@@ -1643,6 +1644,23 @@ def generate_image(
                 # cooldown can't block image and vice-versa — isolation is per key.
                 _on_result(name, True, None)
                 _record("image", source, out)
+                # Record to the shared cross-runtime image history HERE (the core),
+                # not at the HTTP router, so EVERY image — on-demand, gateway-
+                # internal, and assist-claimed COVERS — lands in history exactly
+                # once with its `source` label (e.g. "assist-cover"). Best-effort.
+                if out.get("image_base64"):
+                    _record_image_history(
+                        provider=out.get("provider", name),
+                        model=out.get("model", ""),
+                        prompt=prompt,
+                        image_base64=out["image_base64"],
+                        size=size or "",
+                        mime=out.get("mime") or "image/png",
+                        latency_ms=out.get("latency_ms"),
+                        source=source,
+                        origin="pycore",
+                        ok=True,
+                    )
                 return out
             err = out.get("error")
             # Cool the key on a quota OR unreachable/timeout error so the dead
