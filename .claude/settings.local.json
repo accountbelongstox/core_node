@@ -45,7 +45,10 @@
       "Bash(dpkg -l)",
       "Bash(awk '{print $2, $3}')",
       "Bash(npx tsc:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(php -l app/Console/Commands/InitializeApps.php)",
+      "Bash(php -l app/Services/UserSyncService.php)",
+      "Bash(python3 *)"
     ]
   }
 }
