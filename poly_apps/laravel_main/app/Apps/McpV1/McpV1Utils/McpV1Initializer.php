@@ -184,16 +184,23 @@ class McpV1Initializer implements AppInitializerInterface
     private function createPlaceholderTable(): array
     {
         try {
-            if (Schema::hasTable('placeholder_images')) {
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::MCPV1);
+
+            if (Schema::connection($connectionName)->hasTable('placeholder_images')) {
                 return [
                     'status' => 'success',
                     'message' => 'Table placeholder_images already exists',
                 ];
             }
 
-            // Migrations are handled by sys:init command
-            // This method only checks if tables exist
-            if (Schema::hasTable('placeholder_images')) {
+            // Run the migration on the correct connection
+            \Illuminate\Support\Facades\Artisan::call('migrate', [
+                '--path' => 'database/migrations/mcpv1_placeholder_images_table.php',
+                '--database' => $connectionName,
+                '--force' => true,
+            ]);
+
+            if (Schema::connection($connectionName)->hasTable('placeholder_images')) {
                 return [
                     'status' => 'success',
                     'message' => 'Table placeholder_images created successfully',
@@ -201,7 +208,7 @@ class McpV1Initializer implements AppInitializerInterface
             } else {
                 return [
                     'status' => 'error',
-                    'message' => 'Migration ran but table not found',
+                    'message' => 'Migration ran but table not found in ' . $connectionName . ' database',
                 ];
             }
         } catch (\Exception $e) {
@@ -215,11 +222,12 @@ class McpV1Initializer implements AppInitializerInterface
     private function verifyTables(): array
     {
         try {
+            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::MCPV1);
             $requiredTables = ['placeholder_images'];
             $missingTables = [];
 
             foreach ($requiredTables as $table) {
-                if (!Schema::hasTable($table)) {
+                if (!Schema::connection($connectionName)->hasTable($table)) {
                     $missingTables[] = $table;
                 }
             }
