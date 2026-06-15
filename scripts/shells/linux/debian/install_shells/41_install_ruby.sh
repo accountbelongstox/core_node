@@ -154,7 +154,7 @@ setup_ruby_environment() {
     mkdir -p "$RUBY_GEM_HOME" "$RUBY_GEM_BIN_DIR"
 
     # Set environment for current session
-    export GEM_HOME="$RUBY_GEM_HOME"
+GEM_HOME="$RUBY_GEM_HOME"
     export PATH="$RUBY_GEM_BIN_DIR:$PATH"
 
     # Add gem paths to shell profiles

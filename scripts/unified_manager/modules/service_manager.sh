@@ -44,7 +44,6 @@ set -e
 
 # Restore and export ROOT_DIR after sourcing (prevent overwrite)
 ROOT_DIR="$SERVICE_MANAGER_ROOT_DIR"
-export ROOT_DIR
 
 # Get fixed port for specific app (using core library)
 get_app_fixed_port() {
@@ -746,10 +745,7 @@ create_unified_service() {
             return 1
         fi
         
-        # Source the Laravel service manager (pass USE_SUDO if available)
-        if [ -n "${USE_SUDO:-}" ]; then
-            export USE_SUDO
-        fi
+        # Source the Laravel service manager (USE_SUDO is already a shell variable when set)
         source "$laravel_service_manager"
         
         # Install Laravel service using poly app method

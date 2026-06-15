@@ -129,7 +129,7 @@ run_installation_mode() {
     fi
     chmod +x "$bootstrap_dest"
     echo "Handing off to bootstrap; dd.sh is no longer responsible for the rest."
-    export REPO_BASE_URL="$base_url"
+REPO_BASE_URL="$base_url"
     exec bash "$bootstrap_dest"
 }
 
@@ -295,7 +295,6 @@ check_and_install_sudo() {
         sudo=""
         USE_SUDO=""
         echo "Running as root. sudo not needed."
-        export USE_SUDO
         return
     fi
 
@@ -307,7 +306,6 @@ check_and_install_sudo() {
             echo "Failed to install sudo. Commands will be run without sudo."
             sudo=""
             USE_SUDO=""
-            export USE_SUDO
             return
         fi
     fi
@@ -321,7 +319,6 @@ check_and_install_sudo() {
         USE_SUDO=""
         echo "sudo is not available. Commands will be run without sudo."
     fi
-    export USE_SUDO
 }
 
 # Check and install git

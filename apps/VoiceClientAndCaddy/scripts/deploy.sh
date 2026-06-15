@@ -36,7 +36,7 @@ fi
 
 # Deploy VoiceClientAndCaddy in production mode
 echo "[INFO] Starting VoiceClientAndCaddy in production mode..."
-export NODE_ENV=production
+NODE_ENV=production
 node ./main.js app=VoiceClientAndCaddy
 
 exit 0

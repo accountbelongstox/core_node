@@ -11,6 +11,9 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+# Shared environment hub: this file may export variables for consumers that source it.
+# Other project *.sh files must not export path/config constants; resolve them locally or source hubs like this one.
+
 # Detect environment type
 IS_WSL=false
 IS_PRODUCTION=false

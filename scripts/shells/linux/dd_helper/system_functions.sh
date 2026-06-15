@@ -66,7 +66,6 @@ check_and_install_sudo() {
         sudo=""
         USE_SUDO=""
         echo "Running as root. sudo not needed."
-        export USE_SUDO
         return
     fi
 
@@ -78,7 +77,6 @@ check_and_install_sudo() {
             echo "Failed to install sudo. Commands will be run without sudo."
             sudo=""
             USE_SUDO=""
-            export USE_SUDO
             return
         fi
     fi
@@ -92,7 +90,6 @@ check_and_install_sudo() {
         USE_SUDO=""
         echo "sudo is not available. Commands will be run without sudo."
     fi
-    export USE_SUDO
 }
 
 check_and_install_dos2unix() {

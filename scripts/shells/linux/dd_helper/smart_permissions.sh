@@ -214,12 +214,12 @@ setup_environment_variables() {
     
     # Claude Code configuration (disable auto-updates)
     if [ -z "${DISABLE_AUTOUPDATER:-}" ]; then
-        export DISABLE_AUTOUPDATER="1"
+        DISABLE_AUTOUPDATER="1"
         echo "[SUCCESS] Set DISABLE_AUTOUPDATER=1"
     fi
     
     if [ -z "${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-}" ]; then
-        export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
         echo "[SUCCESS] Set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
     fi
     
@@ -236,7 +236,7 @@ setup_environment_variables() {
     
     # Core Node project root
     if [ -n "$project_root" ] && [ -z "${CORE_NODE_PROJECT_ROOT:-}" ]; then
-        export CORE_NODE_PROJECT_ROOT="$project_root"
+        CORE_NODE_PROJECT_ROOT="$project_root"
         echo "[SUCCESS] Set CORE_NODE_PROJECT_ROOT=$project_root"
     fi
     

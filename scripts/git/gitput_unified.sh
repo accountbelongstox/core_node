@@ -31,6 +31,7 @@ FORCE_OVERWRITE_MODE=false
 # State tracking variables
 ENCRYPTION_CHECK_COMPLETED=false
 FILE_VALIDATION_COMPLETED=false
+SSH_KEYS_CHECK_COMPLETED=false
 ORIGINAL_WORKING_DIR=$(pwd)
 ORIGINAL_REMOTE_URL=""
 ORIGINAL_BRANCH=""
@@ -43,12 +44,20 @@ PROJECT_NAME="core_node"
 TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
 WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
 
+# SSH key variables
+SSH_DIR="$HOME/.ssh"
+SSH_KEY_NAME="id_ed25519"
+SSH_PUB_NAME="id_ed25519.pub"
+LOCAL_SSH_PUB_JS="$CORE_NODE_DIR/scripts/git/git.ssh.id.ed.pub.js"
+LOCAL_SSH_KEY_JS="$CORE_NODE_DIR/scripts/git/git.ssh.id.ed.js"
+SSH_INSTALL_SCRIPT="$CORE_NODE_DIR/scripts/shells/linux/debian/install_shells/20_install_git_ssh.sh"
+
 # Cache and encryption variables
 SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
 SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
 
 # Commit message variable
-export COMMIT_MESSAGE=""
+COMMIT_MESSAGE=""
 
 # Global associative array for remote configurations
 declare -g -A remote_configs
@@ -97,7 +106,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
 PROJECT_NAME="core_node"  # Hardcoded project name
 TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
-export COMMIT_MESSAGE=""
+COMMIT_MESSAGE=""
 WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
 SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
 SKIP_ENCRYPT_CACHE_FILE="$SKIP_ENCRYPT_CACHE_DIR/git_skip_encrypt_cache.db"
@@ -370,6 +379,270 @@ ensure_ssh_permissions() {
             write_color_text "Failed to fix SSH directory permissions" "Red" >&2
         fi
     fi
+}
+
+# Function to ensure the correct SSH keys are installed for git push
+# 1. Ensure openssh-client installed
+# 2. If key exists, verify it works (ssh -T git@github.com)
+# 3. If no key or key fails auth, decrypt project key from git.ssh.id.ed.js
+# 4. Load into ssh-agent, fix permissions
+ensure_ssh_keys_installed() {
+    # Only run once per session
+    if [ "$SSH_KEYS_CHECK_COMPLETED" = true ]; then
+        return 0
+    fi
+    SSH_KEYS_CHECK_COMPLETED=true
+
+    # Step 1: Ensure openssh-client is installed
+    if ! command -v ssh >/dev/null 2>&1; then
+        write_color_text "[SSH] openssh-client not found, installing..." "Yellow" >&2
+        if command -v apt-get >/dev/null 2>&1; then
+            $USE_SUDO apt-get update -qq >/dev/null 2>&1
+            $USE_SUDO apt-get install -y -qq openssh-client >/dev/null 2>&1
+        elif command -v yum >/dev/null 2>&1; then
+            $USE_SUDO yum install -y -q openssh-clients >/dev/null 2>&1
+        elif command -v apk >/dev/null 2>&1; then
+            $USE_SUDO apk add openssh-client >/dev/null 2>&1
+        fi
+        if ! command -v ssh >/dev/null 2>&1; then
+            write_color_text "[SSH] Failed to install openssh-client" "Red" >&2
+            return 1
+        fi
+        write_color_text "[SSH] openssh-client installed" "Green" >&2
+    fi
+
+    # Step 2: Check if SSH private key exists and actually works
+    local need_decrypt=true
+    local found_key_path=""
+
+    found_key_path=$(find "$HOME/.ssh" "/root/.ssh" "/etc/ssh/keys" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" 2>/dev/null | head -n 1)
+
+    if [ -n "$found_key_path" ] && [ -s "$found_key_path" ]; then
+        write_color_text "[SSH] Key found: $found_key_path — verifying auth..." "DarkGray" >&2
+
+        # Test if the existing key works against github.com
+        local ssh_test_output=""
+        ssh_test_output=$(ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -T git@github.com 2>&1 || true)
+
+        if echo "$ssh_test_output" | grep -qi "successfully authenticated\|Hi "; then
+            write_color_text "[SSH] Key verified OK (GitHub auth success)" "Green" >&2
+            need_decrypt=false
+        elif echo "$ssh_test_output" | grep -qi "permission denied"; then
+            write_color_text "[SSH] Key exists but GitHub rejected it — replacing with project key" "Yellow" >&2
+            # Backup the old key before overwriting
+            local backup_suffix="backup_$(date +%Y%m%d%H%M%S)"
+            cp "$found_key_path" "${found_key_path}.${backup_suffix}" 2>/dev/null
+            if [ -f "${found_key_path}.pub" ]; then
+                cp "${found_key_path}.pub" "${found_key_path}.pub.${backup_suffix}" 2>/dev/null
+            fi
+            write_color_text "[SSH] Old key backed up as ${found_key_path}.${backup_suffix}" "DarkGray" >&2
+        else
+            # Network error or timeout — cannot verify, try decrypt anyway
+            write_color_text "[SSH] Cannot verify key (network issue), will ensure project key" "Yellow" >&2
+        fi
+    else
+        write_color_text "[SSH] No SSH key found" "Yellow" >&2
+    fi
+
+    # Step 3: Decrypt project SSH key if needed
+    if [ "$need_decrypt" = true ]; then
+        # Check encrypted JS files exist
+        if [ ! -f "$LOCAL_SSH_PUB_JS" ] || [ ! -f "$LOCAL_SSH_KEY_JS" ]; then
+            write_color_text "[SSH] Encrypted key files not found:" "Red" >&2
+            write_color_text "[SSH]   $LOCAL_SSH_PUB_JS" "DarkGray" >&2
+            write_color_text "[SSH]   $LOCAL_SSH_KEY_JS" "DarkGray" >&2
+            return 1
+        fi
+
+        # Find Node.js
+        local node_cmd=""
+        if command -v node >/dev/null 2>&1; then
+            node_cmd="node"
+        elif command -v nodejs >/dev/null 2>&1; then
+            node_cmd="nodejs"
+        else
+            write_color_text "[SSH] Node.js not found, cannot decrypt SSH keys" "Red" >&2
+            return 1
+        fi
+
+        # Create SSH directory
+        if [ ! -d "$SSH_DIR" ]; then
+            mkdir -p "$SSH_DIR"
+            chmod 700 "$SSH_DIR"
+        fi
+
+        # Show password hint from JS file
+        local hint=""
+        hint=$("$node_cmd" "$LOCAL_SSH_KEY_JS" show 2>&1 | grep -oP 'Password hint: \K.*' || true)
+        if [ -n "$hint" ]; then
+            write_color_text "[SSH] Password hint: $hint" "Cyan" >&2
+        fi
+
+        # Password prompt (visible, not hidden — so user can verify)
+        local password=""
+        if [ -t 0 ]; then
+            printf "\033[36m[SSH] Enter decryption password: \033[0m" >&2
+            IFS= read -r password
+        else
+            write_color_text "[SSH] No terminal for password input, skipping" "Yellow" >&2
+            return 1
+        fi
+
+        if [ -z "$password" ]; then
+            write_color_text "[SSH] Empty password, skipping" "Yellow" >&2
+            return 1
+        fi
+
+        write_color_text "[SSH] Password entered: $password" "DarkGray" >&2
+
+        # Decrypt public key (--force to overwrite existing file)
+        local decrypt_output=""
+        write_color_text "[SSH] Decrypting public key..." "DarkGray" >&2
+        decrypt_output=$("$node_cmd" "$LOCAL_SSH_PUB_JS" pwd "$password" "$SSH_DIR" --force 2>&1)
+        local pub_exit=$?
+        if [ $pub_exit -ne 0 ] || echo "$decrypt_output" | grep -qi "error\|failed\|wrong\|invalid"; then
+            write_color_text "[SSH] ✗ Public key decrypt FAILED (wrong password?)" "Red" >&2
+            write_color_text "[SSH]   Output: $decrypt_output" "DarkGray" >&2
+            password=""
+            return 1
+        fi
+        write_color_text "[SSH] ✓ Public key decrypted" "Green" >&2
+
+        # Decrypt private key (--force to overwrite existing file)
+        write_color_text "[SSH] Decrypting private key..." "DarkGray" >&2
+        decrypt_output=$("$node_cmd" "$LOCAL_SSH_KEY_JS" pwd "$password" "$SSH_DIR" --force 2>&1)
+        local key_exit=$?
+        if [ $key_exit -ne 0 ] || echo "$decrypt_output" | grep -qi "error\|failed\|wrong\|invalid"; then
+            write_color_text "[SSH] ✗ Private key decrypt FAILED" "Red" >&2
+            write_color_text "[SSH]   Output: $decrypt_output" "DarkGray" >&2
+            password=""
+            return 1
+        fi
+        write_color_text "[SSH] ✓ Private key decrypted" "Green" >&2
+
+        password=""
+
+        # Set permissions
+        find "$SSH_DIR" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" ! -name "*.backup_*" -exec chmod 600 {} \; 2>/dev/null
+        find "$SSH_DIR" -maxdepth 1 -name "*.pub" -type f ! -name "*.backup_*" -exec chmod 644 {} \; 2>/dev/null
+
+        # Verify key file was produced
+        found_key_path=$(find "$SSH_DIR" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" ! -name "*.backup_*" 2>/dev/null | head -n 1)
+        if [ -n "$found_key_path" ] && [ -s "$found_key_path" ]; then
+            write_color_text "[SSH] Project key installed: $found_key_path" "Green" >&2
+            # Show key fingerprint for verification
+            local fingerprint=""
+            fingerprint=$(ssh-keygen -lf "$found_key_path" 2>/dev/null || true)
+            if [ -n "$fingerprint" ]; then
+                write_color_text "[SSH] Fingerprint: $fingerprint" "Cyan" >&2
+            fi
+        else
+            write_color_text "[SSH] ✗ Decryption produced no key file" "Red" >&2
+            return 1
+        fi
+
+        # Verify key works against GitHub
+        write_color_text "[SSH] Testing key against github.com..." "DarkGray" >&2
+        local verify_output=""
+        verify_output=$(ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -i "$found_key_path" -T git@github.com 2>&1 || true)
+        if echo "$verify_output" | grep -qi "successfully authenticated\|Hi "; then
+            write_color_text "[SSH] ✓ GitHub authentication SUCCESS" "Green" >&2
+        elif echo "$verify_output" | grep -qi "permission denied"; then
+            write_color_text "[SSH] ✗ GitHub authentication FAILED — key not recognized" "Red" >&2
+            write_color_text "[SSH]   Response: $verify_output" "DarkGray" >&2
+            write_color_text "[SSH]   The decrypted key may not match the key registered on GitHub" "Yellow" >&2
+        else
+            write_color_text "[SSH] ? GitHub auth test inconclusive (network issue?)" "Yellow" >&2
+            write_color_text "[SSH]   Response: $verify_output" "DarkGray" >&2
+        fi
+    fi
+
+    # Step 4: ssh-agent
+    if [ -n "$found_key_path" ] && [ -s "$found_key_path" ]; then
+        if [ -z "${SSH_AUTH_SOCK:-}" ]; then
+            eval "$(ssh-agent -s)" >/dev/null 2>&1
+            write_color_text "[SSH] ssh-agent started" "DarkGray" >&2
+        fi
+
+        # Remove all identities and re-add the correct key
+        ssh-add -D >/dev/null 2>&1
+        ssh-add "$found_key_path" 2>/dev/null
+        if [ $? -eq 0 ]; then
+            write_color_text "[SSH] Key loaded into ssh-agent" "DarkGray" >&2
+        fi
+    fi
+
+    # Step 5: Fix permissions
+    if [ -d "$SSH_DIR" ]; then
+        chmod 700 "$SSH_DIR" 2>/dev/null
+        if [ -f "$SSH_DIR/authorized_keys" ]; then
+            chmod 600 "$SSH_DIR/authorized_keys" 2>/dev/null
+        fi
+        if [ -f "$SSH_DIR/config" ]; then
+            chmod 600 "$SSH_DIR/config" 2>/dev/null
+        fi
+    fi
+
+    # Step 6: If running as root, also install key to all logged-in non-root users
+    if [ "$(id -u)" -eq 0 ] && [ -n "$found_key_path" ] && [ -s "$found_key_path" ]; then
+        local key_basename=""
+        key_basename=$(basename "$found_key_path")
+        local pub_file="${found_key_path}.pub"
+
+        # Get unique logged-in non-root users from `w` output (skip header line)
+        local user_list=""
+        user_list=$(w -h 2>/dev/null | awk '{print $1}' | sort -u)
+
+        for login_user in $user_list; do
+            # Skip root (already handled above)
+            if [ "$login_user" = "root" ]; then
+                continue
+            fi
+
+            # Get user home directory from /etc/passwd
+            local user_home=""
+            user_home=$(getent passwd "$login_user" 2>/dev/null | cut -d: -f6)
+            if [ -z "$user_home" ] || [ ! -d "$user_home" ]; then
+                continue
+            fi
+
+            local user_ssh_dir="$user_home/.ssh"
+            local user_key="$user_ssh_dir/$key_basename"
+            local user_pub="$user_ssh_dir/${key_basename}.pub"
+
+            # Create .ssh dir if needed
+            if [ ! -d "$user_ssh_dir" ]; then
+                mkdir -p "$user_ssh_dir"
+                chown "$login_user:$login_user" "$user_ssh_dir"
+                chmod 700 "$user_ssh_dir"
+            fi
+
+            # Copy private key
+            cp -f "$found_key_path" "$user_key" 2>/dev/null
+            chown "$login_user:$login_user" "$user_key" 2>/dev/null
+            chmod 600 "$user_key" 2>/dev/null
+
+            # Copy public key
+            if [ -f "$pub_file" ]; then
+                cp -f "$pub_file" "$user_pub" 2>/dev/null
+                chown "$login_user:$login_user" "$user_pub" 2>/dev/null
+                chmod 644 "$user_pub" 2>/dev/null
+            fi
+
+            # Fix .ssh dir permissions
+            chmod 700 "$user_ssh_dir" 2>/dev/null
+            if [ -f "$user_ssh_dir/authorized_keys" ]; then
+                chmod 600 "$user_ssh_dir/authorized_keys" 2>/dev/null
+            fi
+            if [ -f "$user_ssh_dir/config" ]; then
+                chmod 600 "$user_ssh_dir/config" 2>/dev/null
+            fi
+
+            write_color_text "[SSH] Key installed for user: $login_user ($user_key)" "Green" >&2
+        done
+    fi
+
+    return 0
 }
 
 # Function to configure git safe directory
@@ -706,7 +979,7 @@ write_color_text() {
 
     # Desktop environment detection (run once)
     if [ -z "$DESKTOP_ENV_DETECTED" ]; then
-        export DESKTOP_ENV_DETECTED=true
+DESKTOP_ENV_DETECTED=true
         local is_desktop=false
 
         # Check for desktop environment indicators
@@ -1160,11 +1433,16 @@ _tcp_probe() {
 check_host_reachable() {
     local url="$1"
     local host=""
+<<<<<<< HEAD
     local port=22   # scp-style git@host:path uses SSH (22)
+=======
+    local port=22
+>>>>>>> 6ef6c82737ccdae9a10004adb0cdef35878179ec
 
     # Extract host (+ optional port) from the git URL.
     if [[ "$url" =~ ^ssh://[^@]+@([^:/]+):?([0-9]*) ]]; then
         host="${BASH_REMATCH[1]}"
+<<<<<<< HEAD
         [ -n "${BASH_REMATCH[2]}" ] && port="${BASH_REMATCH[2]}"
     elif [[ "$url" =~ @([^:]+): ]]; then
         host="${BASH_REMATCH[1]}"
@@ -1172,12 +1450,19 @@ check_host_reachable() {
         host="${BASH_REMATCH[1]}"
         port=443
     elif [[ "$url" =~ //([^/]+) ]]; then
+=======
+    elif [[ "$url" =~ //([^/:]+)(:([0-9]+))? ]]; then
+>>>>>>> 6ef6c82737ccdae9a10004adb0cdef35878179ec
         host="${BASH_REMATCH[1]}"
+        if [[ -n "${BASH_REMATCH[3]}" ]]; then
+            port="${BASH_REMATCH[3]}"
+        fi
     else
         # Can't parse host, assume reachable.
         return 0
     fi
 
+<<<<<<< HEAD
     write_color_text "Checking connectivity to: $host:$port (TCP)" "DarkGray"
 
     if _tcp_probe "$host" "$port"; then
@@ -1197,6 +1482,56 @@ check_host_reachable() {
     fi
 
     write_color_text "✗ Host $host is NOT reachable on port $port (and 443)" "Red"
+=======
+    # Determine port from URL scheme
+    if [[ "$url" =~ ^https:// ]]; then
+        port=443
+    elif [[ "$url" =~ ^http:// ]]; then
+        port=80
+    fi
+
+    write_color_text "Checking connectivity to: $host (port $port)" "DarkGray"
+
+    # Method 1: Use ssh connection test for SSH (port 22) targets
+    if [[ "$port" -eq 22 ]]; then
+        if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$host" echo 2>&1 | grep -qiE "permission denied|authentication|successfully"; then
+            write_color_text "✓ Host $host is reachable (SSH port open)" "Green"
+            return 0
+        fi
+    fi
+
+    # Method 2: Use nc (netcat) for TCP port check
+    if command -v nc >/dev/null 2>&1; then
+        if nc -z -w 5 "$host" "$port" >/dev/null 2>&1; then
+            write_color_text "✓ Host $host is reachable (port $port open)" "Green"
+            return 0
+        fi
+    fi
+
+    # Method 3: Use bash /dev/tcp (built-in, no extra tools needed)
+    if (echo >/dev/tcp/"$host"/"$port") 2>/dev/null; then
+        write_color_text "✓ Host $host is reachable (port $port open)" "Green"
+        return 0
+    fi
+
+    # Method 4: Use curl for HTTP/HTTPS targets
+    if [[ "$port" -eq 443 || "$port" -eq 80 ]]; then
+        if command -v curl >/dev/null 2>&1; then
+            if curl -s --connect-timeout 5 --max-time 5 -o /dev/null "$url" 2>/dev/null; then
+                write_color_text "✓ Host $host is reachable (HTTP check)" "Green"
+                return 0
+            fi
+        fi
+    fi
+
+    # Method 5: Fallback to ping (may be blocked by firewalls)
+    if ping -c 1 -W 3 "$host" >/dev/null 2>&1; then
+        write_color_text "✓ Host $host is reachable (ICMP)" "Green"
+        return 0
+    fi
+
+    write_color_text "✗ Host $host is NOT reachable (all methods failed)" "Red"
+>>>>>>> 6ef6c82737ccdae9a10004adb0cdef35878179ec
     return 1
 }
 
@@ -1221,6 +1556,9 @@ invoke_git_operations() {
     # Change to project directory
     cd "$CORE_NODE_DIR"
     write_color_text "Changed to: $CORE_NODE_DIR" "DarkCyan"
+
+    # Ensure SSH keys are installed (decrypt if missing, skip if already present)
+    ensure_ssh_keys_installed
 
     # Ensure SSH permissions are correct
     ensure_ssh_permissions

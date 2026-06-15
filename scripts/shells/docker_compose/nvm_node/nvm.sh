@@ -1003,7 +1003,7 @@ nvm_print_formatted_alias() {
       ALIAS_FORMAT="\033[${INSTALLED_COLOR}%s\033[0m"
       DEST_FORMAT="\033[${INSTALLED_COLOR}%s\033[0m"
       VERSION_FORMAT="\033[${INSTALLED_COLOR}%s\033[0m"
-    elif [ "${VERSION}" = '??? ] || [ "${VERSION}" = 'N/A' ]; then
+    elif [ "${VERSION}" = '???' ] || [ "${VERSION}" = 'N/A' ]; then
       ALIAS_FORMAT="\033[${NOT_INSTALLED_COLOR}%s\033[0m"
       DEST_FORMAT="\033[${NOT_INSTALLED_COLOR}%s\033[0m"
       VERSION_FORMAT="\033[${NOT_INSTALLED_COLOR}%s\033[0m"
@@ -1014,7 +1014,7 @@ nvm_print_formatted_alias() {
     if [ "_${DEST%/*}" = "_lts" ]; then
       DEST_FORMAT="\033[${LTS_COLOR}%s\033[0m"
     fi
-  elif [ "_${VERSION}" != '_??? ] && [ "_${VERSION}" != '_N/A' ]; then
+  elif [ "_${VERSION}" != '_???' ] && [ "_${VERSION}" != '_N/A' ]; then
     VERSION_FORMAT='%s *'
   fi
   if [ "${DEST}" = "${VERSION}" ]; then
@@ -1705,7 +1705,7 @@ nvm_get_checksum() {
     SHASUMS_URL="${MIRROR}/${3}/SHASUMS.txt"
   fi
 
-  nvm_download -L -s "${SHASUMS_URL}" -o - | command awk "{ if (\"${4}.${5}\" == \$2) print \$1}"
+  nvm_download -L -s "${SHASUMS_URL}" -o - | command awk "{ if (\"${4}.${5}\" == \$2) print \$1 }"
 }
 
 nvm_print_versions() {
@@ -3579,7 +3579,7 @@ nvm() {
             nvm_err "Could not find ${NVM_DIR}/*/share/man in \${MANPATH}"
           fi
         else
-          export MANPATH="${NEWPATH}"
+MANPATH="${NEWPATH}"
           if [ "${NVM_SILENT:-0}" -ne 1 ]; then
             nvm_echo "${NVM_DIR}/*/share/man removed from \${MANPATH}"
           fi
@@ -3589,7 +3589,7 @@ nvm() {
       if [ -n "${NODE_PATH-}" ]; then
         NEWPATH="$(nvm_strip_path "${NODE_PATH}" "/lib/node_modules")"
         if [ "_${NODE_PATH}" != "_${NEWPATH}" ]; then
-          export NODE_PATH="${NEWPATH}"
+NODE_PATH="${NEWPATH}"
           if [ "${NVM_SILENT:-0}" -ne 1 ]; then
             nvm_echo "${NVM_DIR}/*/lib/node_modules removed from \${NODE_PATH}"
           fi
@@ -3695,9 +3695,7 @@ nvm() {
         fi
         # Change current version
         MANPATH="$(nvm_change_path "${MANPATH}" "/share/man" "${NVM_VERSION_DIR}")"
-        export MANPATH
       fi
-      export PATH
       \hash -r
       export NVM_BIN="${NVM_VERSION_DIR}/bin"
       export NVM_INC="${NVM_VERSION_DIR}/include/node"
