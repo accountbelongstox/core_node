@@ -75,6 +75,16 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
                 'trace' => $e->getTraceAsString(),
             ]);
         }
+
+        // Warm the assist pending-work snapshot cache on every tick so third
+        // parties (pycore) and the dashboard poll /assist/pending cheaply without
+        // ever running the aggregate queries themselves. Best-effort: a failure
+        // here must never break cover maintenance above.
+        try {
+            (new \App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService())->pendingSnapshot(true);
+        } catch (\Throwable $e) {
+            $this->logError('Assist pending-snapshot warm failed', ['error' => $e->getMessage()]);
+        }
     }
 
     /**

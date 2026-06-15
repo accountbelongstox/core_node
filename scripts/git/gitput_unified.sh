@@ -1409,25 +1409,60 @@ invoke_force_overwrite() {
     return 0
 }
 
-# Function to check if IP/host is reachable
+# TCP reachability probe (NOT ICMP). Returns 0 if a TCP connection to host:port
+# can be opened within ~3s. Prefers `nc`, falls back to bash /dev/tcp + timeout.
+_tcp_probe() {
+    local h="$1"
+    local p="$2"
+    if command -v nc >/dev/null 2>&1; then
+        nc -z -w 3 "$h" "$p" >/dev/null 2>&1 && return 0
+        return 1
+    fi
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 3 bash -c "exec 3<>/dev/tcp/$h/$p" >/dev/null 2>&1 && return 0
+        return 1
+    fi
+    (exec 3<>/dev/tcp/"$h"/"$p") >/dev/null 2>&1 && return 0
+    return 1
+}
+
+# Function to check if a git remote host is reachable for SSH/HTTPS.
+# IMPORTANT: this checks the actual TCP SERVICE PORT, never ICMP ping —
+# github.com and gitee.com BLOCK ping, so the old `ping` check always reported
+# "not reachable" and silently skipped every push.
 check_host_reachable() {
     local url="$1"
     local host=""
+<<<<<<< HEAD
     local port=22
+=======
+    local port=22   # scp-style git@host:path uses SSH (22)
+>>>>>>> a94d3fe9ca6f3c9e7bc327607c4d7f3ed04eb528
 
-    # Extract host from git URL
-    if [[ "$url" =~ @([^:]+): ]]; then
+    # Extract host (+ optional port) from the git URL.
+    if [[ "$url" =~ ^ssh://[^@]+@([^:/]+):?([0-9]*) ]]; then
         host="${BASH_REMATCH[1]}"
+<<<<<<< HEAD
     elif [[ "$url" =~ //([^/:]+)(:([0-9]+))? ]]; then
+=======
+        [ -n "${BASH_REMATCH[2]}" ] && port="${BASH_REMATCH[2]}"
+    elif [[ "$url" =~ @([^:]+): ]]; then
+        host="${BASH_REMATCH[1]}"
+    elif [[ "$url" =~ ^https?://([^/:]+) ]]; then
+        host="${BASH_REMATCH[1]}"
+        port=443
+    elif [[ "$url" =~ //([^/]+) ]]; then
+>>>>>>> a94d3fe9ca6f3c9e7bc327607c4d7f3ed04eb528
         host="${BASH_REMATCH[1]}"
         if [[ -n "${BASH_REMATCH[3]}" ]]; then
             port="${BASH_REMATCH[3]}"
         fi
     else
-        # Can't parse host, assume reachable
+        # Can't parse host, assume reachable.
         return 0
     fi
 
+<<<<<<< HEAD
     # Determine port from URL scheme
     if [[ "$url" =~ ^https:// ]]; then
         port=443
@@ -1476,6 +1511,27 @@ check_host_reachable() {
     fi
 
     write_color_text "✗ Host $host is NOT reachable (all methods failed)" "Red"
+=======
+    write_color_text "Checking connectivity to: $host:$port (TCP)" "DarkGray"
+
+    if _tcp_probe "$host" "$port"; then
+        write_color_text "✓ Host $host:$port is reachable" "Green"
+        return 0
+    fi
+
+    # Fallback: SSH over 443 (many networks block 22). GitHub exposes
+    # ssh.github.com:443; for others retry the same host on 443.
+    local alt_host="$host"
+    if [ "$host" = "github.com" ]; then
+        alt_host="ssh.github.com"
+    fi
+    if _tcp_probe "$alt_host" 443; then
+        write_color_text "✓ Host reachable via $alt_host:443 (SSH/HTTPS over 443)" "Green"
+        return 0
+    fi
+
+    write_color_text "✗ Host $host is NOT reachable on port $port (and 443)" "Red"
+>>>>>>> a94d3fe9ca6f3c9e7bc327607c4d7f3ed04eb528
     return 1
 }
 
@@ -1484,10 +1540,11 @@ invoke_git_operations() {
     local target_url="$1"
     local force_push_mode="$2"  # "yes" or "no"
 
-    # Check if host is reachable before proceeding
+    # Check if host is reachable before proceeding. Return code 2 = SKIPPED
+    # (NOT success) so the caller does not falsely report "Successfully pushed".
     if ! check_host_reachable "$target_url"; then
-        write_color_text "Skipping $target_url (host not reachable)" "Yellow"
-        return 0
+        write_color_text "Skipping $target_url (host not reachable; push NOT performed)" "Yellow"
+        return 2
     fi
 
     write_color_text "----------------------------------------------------------------" "DarkYellow"
@@ -1943,8 +2000,14 @@ main() {
             else
                 write_color_text "\n=== Pushing to $target ($target_url) ===" "Magenta"
                 invoke_git_operations "$target_url" "$force_push_mode"
-                if [ $? -eq 0 ]; then
+                push_rc=$?
+                if [ $push_rc -eq 0 ]; then
                     write_color_text "Successfully pushed to $target" "Green"
+                elif [ $push_rc -eq 2 ]; then
+                    # Skipped (host unreachable) — NOT a success and NOT counted as
+                    # pushed; mark the run as not fully successful so the summary is honest.
+                    all_success=false
+                    write_color_text "⊘ Skipped $target (host not reachable — nothing pushed)" "Yellow"
                 else
                     all_success=false
                     write_color_text "Failed to push to $target" "Red"

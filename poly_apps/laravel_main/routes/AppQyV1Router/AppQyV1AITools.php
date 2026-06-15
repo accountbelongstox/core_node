@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationQueueController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationStreamController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSWorkerController;
@@ -108,6 +109,13 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
     ->prefix('app_qy_v1/ai_tools/translation/queue')
     ->group(function () {
         Route::get('/list', [AppQyV1TranslationQueueController::class, 'controlList']);
+        // Real-time SSE stream (replaces Reverb). pycore subscribes here over the
+        // same Octane :9000 HTTP port; emits task.queued/task.priority/
+        // word.translated/task.completed with a `_id` cursor.
+        Route::get('/stream', [AppQyV1TranslationStreamController::class, 'stream']);
+        // Detailed processing-history view over terminal word_translation tasks
+        // (completed + failed) — feeds the laravel-manager "Translation History".
+        Route::get('/history', [AppQyV1TranslationQueueController::class, 'controlHistory']);
         Route::post('/priority', [AppQyV1TranslationQueueController::class, 'controlPriority']);
         Route::post('/stack', [AppQyV1TranslationQueueController::class, 'controlStack']);
     });

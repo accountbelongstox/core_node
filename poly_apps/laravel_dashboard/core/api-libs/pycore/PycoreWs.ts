@@ -171,6 +171,24 @@ function dispatch(event: string, data: any) {
   set.forEach((h) => { h(data); });
 }
 
+// When SSE is the broadcast-event source, the WS onmessage path stops
+// dispatching {type:'event'} frames to avoid DUPLICATE delivery. Defaults to
+// false so events still flow over WS as a graceful fallback if SSE never
+// connects. PycoreSse flips this via setSseEventsActive() once its stream opens.
+let sseEventsActive = false;
+
+/** Called by PycoreSse to take over (true) / release (false) broadcast-event
+ *  dispatch from the WS path. RPC request/response on WS is unaffected. */
+export function setSseEventsActive(active: boolean): void {
+  sseEventsActive = active;
+}
+
+/** Feed a broadcast event into the existing subscribe() handlers from an
+ *  external transport (PycoreSse). RPC stays on WS. */
+export function dispatchEvent(event: string, data: any): void {
+  dispatch(event, data);
+}
+
 function resolveWsUrl(): string {
   // Connect DIRECTLY to the pycore backend (same host as the page, backend port
   // 59000). This avoids a same-origin proxy dependency; a page reload alone
@@ -259,7 +277,9 @@ function openSocket() {
     if (!msg || typeof msg !== 'object') return;
     // Request/response frames for native callRpc (response/error with our id).
     if (settlePendingCall(msg)) return;
-    if (msg.type === 'event' && typeof msg.event === 'string') {
+    // SSE owns broadcast-event delivery when connected; skip here to avoid
+    // duplicates. Falls back to WS dispatch when SSE is not active.
+    if (!sseEventsActive && msg.type === 'event' && typeof msg.event === 'string') {
       dispatch(msg.event, msg.data ?? {});
     }
   };
@@ -306,7 +326,7 @@ function startSharedClient(Ctor: any): void {
   client.on('connection', () => { diag('info', `connected as client_id=${client.clientId}`); setConnected(true); });
   client.on('disconnect', (d: any) => { diag('warn', `disconnected code=${d?.code ?? '?'}${d?.reason ? ` reason=${d.reason}` : ''} — retrying`); setConnected(false); });
   client.on('reconnect', (d: any) => diag('info', `reconnecting (attempt ${d?.attempt ?? '?'})`));
-  client.on('event', (msg: any) => { if (msg && typeof msg.event === 'string') dispatch(msg.event, msg.data ?? {}); });
+  client.on('event', (msg: any) => { if (!sseEventsActive && msg && typeof msg.event === 'string') dispatch(msg.event, msg.data ?? {}); });
   // Keep a module ref so callRpc() can issue request/response RPCs through it.
   sharedClient = client;
   client.connect();
@@ -338,6 +358,11 @@ export function callRpc(method: string, params: any = {}, timeoutMs: number = CA
 export function connectPycoreWs(): void {
   if (started) return;
   started = true;
+  // Broadcast events migrate to SSE (RPC stays on WS). Started lazily here so
+  // every existing consumer that calls connectPycoreWs() also gets SSE, with no
+  // change to their subscribe()/onWsStatus() calls. Lazy import keeps this
+  // module's load dependency-free and avoids a static import cycle.
+  import('./PycoreSse').then(({ connectPycoreSse }) => { connectPycoreSse(); }).catch(() => { /* SSE best-effort; WS fallback dispatches events */ });
   const Shared = (typeof window !== 'undefined') ? (window as any).FastAPIWsRpcClient : undefined;
   if (Shared) {
     startSharedClient(Shared);
