@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
+r"""
 Code Sync Server - Push code changes to connected clients
 
 Pushes code from D:\programing\core_node to connected clients.
@@ -64,7 +64,7 @@ class CodeSyncClient:
 
 
 class CodeSyncServer:
-    """
+    r"""
     Code Synchronization Server
 
     Features:

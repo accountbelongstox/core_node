@@ -115,6 +115,14 @@ DEPENDENCY_MAP = {
     "six": "six>=1.17.0",
     "aiohttp": "aiohttp",
     "fastapi": "fastapi",
+    # typing_extensions: transitive dep of pydantic/pydantic_core. Pin >=4.13.0
+    # because recent pydantic_core imports `typing_extensions.Sentinel` (added in
+    # 4.13.0). On Linux an OLD apt-packaged typing_extensions
+    # (/usr/lib/python3/dist-packages) can shadow pip's and lacks Sentinel →
+    # "ImportError: cannot import name 'Sentinel'". Listing it here ensures a
+    # compatible version is installed for fresh setups; existing boxes must
+    # upgrade once: pip install -U "typing_extensions>=4.13".
+    "typing_extensions": "typing_extensions>=4.13.0",
 
     # For GUI and HTML rendering (SDKTool uses PyQt5; pycore uses PySide6 for Qt6)
     "PyQt5": "PyQt5>=5.15,<6",

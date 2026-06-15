@@ -13,6 +13,7 @@
 
 import { WorkerApiClient, Task, ProcessorType } from '../api/WorkerApiClient';
 import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-dictionary';
+import { mediaCache } from '@/utils/media-cache';
 
 export interface WorkerConfig {
   apiUrl: string;
@@ -657,9 +658,11 @@ class BingDictionaryWorkerService {
     let ukPhonetic = '';
     if (data.phonetics && data.phonetics.length > 0) {
       data.phonetics.forEach((p) => {
-        if (p.lang && p.lang.includes('US')) {
+        const lang = p.lang || '';
+        if (lang.includes('US')) {
           usPhonetic = p.text;
-        } else if (p.lang && p.lang.includes('UK')) {
+        } else if (lang.includes('GB') || lang.includes('UK')) {
+          // The helper labels UK pronunciation as 'en-GB' (not 'UK').
           ukPhonetic = p.text;
         } else if (!phonetic) {
           phonetic = p.text;
@@ -796,10 +799,22 @@ class BingDictionaryWorkerService {
       invalid?: boolean;
       translation?: string;
       phonetic?: string;
+      usPhonetic?: string;
+      ukPhonetic?: string;
+      definitions?: Array<{ partOfSpeech: string; definition: string }>;
+      detailedDefinitions?: Array<{ cn: string; en: string }>;
+      examples?: Array<{ en: string; cn: string }>;
+      synonyms?: Array<{ type: string; words: string }>;
+      webDefinitions?: Array<{ type: string; content: string }>;
       images?: number;
       audio?: boolean;
       audioUrl?: string;
+      usAudioUrl?: string;
+      ukAudioUrl?: string;
       imageUrls?: string[];
+      // Debug: what was captured in-page as binary and cached (the cache "paths"
+      // are the original remote URLs, which double as the cache keys).
+      media?: Array<{ url: string; kind: 'image' | 'audio'; mime: string | null; bytes: number; cached: boolean }>;
       error?: string;
     }>
   > {
@@ -821,29 +836,82 @@ class BingDictionaryWorkerService {
         const w = words[i];
         this.stats.currentWord = w.word;
         try {
-          // includeMedia=true: the scrape test displays images + plays audio, so
-          // capture them in-page as base64 (fixes broken hot-linked thumbnails).
-          const data = await bingDictionaryTool.lookupInTab(tabId, w.word, true);
+          // Extraction returns URLs only; the binaries are fetched in-page by the
+          // injected BingMediaFetcher class library (includeMedia=false here).
+          const data = await bingDictionaryTool.lookupInTab(tabId, w.word, false);
           const classification = this.classify(data);
           if (classification === 'translated' && data) {
             const formatted = this.formatExplanation(data);
-            const audioUrl = this.pickAudioUrl(data) || undefined;
-            // Prefer the in-page base64 capture (data URL) over the remote URL,
-            // which hot-links badly from the popup (referrer/CORS → broken image).
-            const imageUrls = (data.sampleImages || [])
-              .map((s: any) => s.dataUrl || s.url)
+
+            // Identify the US/UK pronunciation tracks (Bing labels UK 'en-GB').
+            const phonetics = data.phonetics || [];
+            const usP = phonetics.find((p: any) => p.lang && p.lang.includes('US'));
+            const ukP = phonetics.find(
+              (p: any) => p.lang && (p.lang.includes('GB') || p.lang.includes('UK')),
+            );
+            const usAudioRemote = (usP && usP.audioUrl) || undefined;
+            const ukAudioRemote = (ukP && ukP.audioUrl) || undefined;
+            const imageRemote = (data.sampleImages || [])
+              .map((s: any) => s.url)
               .filter(Boolean)
               .slice(0, 6);
+
+            // Capture every image + both audios IN the page as raw binary, then
+            // cache the bytes. We NEVER request these remote URLs directly.
+            const toFetch = [...imageRemote, usAudioRemote, ukAudioRemote].filter(
+              (u): u is string => typeof u === 'string' && u.length > 0,
+            );
+            const captured = await bingDictionaryTool.fetchMediaInTab(tabId, toFetch);
+            const debugMedia: Array<{
+              url: string;
+              kind: 'image' | 'audio';
+              mime: string | null;
+              bytes: number;
+              cached: boolean;
+            }> = [];
+            for (const m of captured) {
+              const ok = !!(m.ok && m.bytes && m.bytes.length);
+              if (ok) mediaCache.put(m.url, m.bytes, m.mime || undefined);
+              debugMedia.push({
+                url: m.url,
+                kind: m.url === usAudioRemote || m.url === ukAudioRemote ? 'audio' : 'image',
+                mime: m.mime,
+                bytes: m.bytes ? m.bytes.length : 0,
+                cached: ok,
+              });
+            }
+
+            // Build data URLs from the cached BYTES (no remote re-request, no
+            // remote-URL fallback — a missed capture simply yields nothing).
+            const fromCache = (u?: string) => (u ? mediaCache.toDataUrl(u) || undefined : undefined);
+            const imageUrls = imageRemote
+              .map((u: string) => fromCache(u))
+              .filter((u): u is string => !!u)
+              .slice(0, 6);
+            const usAudioUrl = fromCache(usAudioRemote);
+            const ukAudioUrl = fromCache(ukAudioRemote);
+            const audioUrl = usAudioUrl || ukAudioUrl;
+
             results.push({
               word: w.word,
               ok: true,
               translation: formatted.text,
               phonetic:
                 formatted.phonetic || formatted.us_phonetic || formatted.uk_phonetic || '',
+              usPhonetic: formatted.us_phonetic,
+              ukPhonetic: formatted.uk_phonetic,
+              definitions: data.translations,
+              detailedDefinitions: data.detailedDefinitions,
+              examples: data.examples,
+              synonyms: data.synonyms,
+              webDefinitions: data.advancedTranslations,
               images: imageUrls.length,
-              audio: !!audioUrl,
+              audio: !!(usAudioUrl || ukAudioUrl),
               audioUrl,
+              usAudioUrl,
+              ukAudioUrl,
               imageUrls,
+              media: debugMedia,
             });
           } else if (classification === 'invalid') {
             results.push({ word: w.word, ok: false, invalid: true, error: 'No Bing entry' });
