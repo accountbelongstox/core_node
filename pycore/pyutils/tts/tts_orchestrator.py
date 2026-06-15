@@ -13,6 +13,7 @@ Override order with env ``TTS_ENGINE_PRIORITY`` (e.g. ``edge->sherpa->melotts``)
 """
 
 import os
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -48,10 +49,35 @@ def _priority() -> tuple[str, ...]:
 
 TTS_ENGINE_PRIORITY = _priority()
 
+# Edge-tts cooldown: after a synth failure, skip edge for a short window so a whole
+# batch doesn't keep paying the per-attempt timeout when the endpoint is down or
+# region-blocked — the offline engine takes over immediately. Override TTS_EDGE_COOLDOWN_S.
+_EDGE_COOLDOWN_S = float(os.environ.get("TTS_EDGE_COOLDOWN_S", "60") or "60")
+_edge_cooldown_until = 0.0
+
+
+def _edge_in_cooldown() -> bool:
+    return time.monotonic() < _edge_cooldown_until
+
+
+def _set_edge_cooldown() -> None:
+    """Mark edge-tts as failing so the orchestrator skips it for a short window."""
+    global _edge_cooldown_until
+    _edge_cooldown_until = time.monotonic() + _EDGE_COOLDOWN_S
+    ColorPrint.yellow(
+        f"[tts] edge-tts cooling down for {_EDGE_COOLDOWN_S:.0f}s; using offline engine meanwhile")
+
 
 def _edge_voice(lang: Optional[str]) -> str:
     locale = _LOCALE_BY_LANG.get((lang or "en").lower(), "en-US")
-    return TTSConfig.get_voice(locale, "female")
+    voice = TTSConfig.get_voice(locale, "female")
+    if not voice:
+        # Unmapped locale -> get_voice returns "" and edge-tts would fail with no
+        # audio. Fall back to a known-good English voice (offline engines still take
+        # over later if edge is unavailable / cooling down).
+        ColorPrint.yellow(f"[tts] no edge voice for locale '{locale}'; falling back to en-US")
+        voice = TTSConfig.get_voice("en-US", "female") or "en-US-JennyNeural"
+    return voice
 
 
 def _rate_to_speed(rate: Optional[str]) -> float:
@@ -163,6 +189,11 @@ def synthesize(
     tried: List[str] = []
     last_error: Optional[str] = None
     for name in _priority():
+        # Skip a recently-failed edge endpoint so a whole batch doesn't repeatedly
+        # pay the per-attempt timeout when edge is down — go straight to offline.
+        if name == "edge" and _edge_in_cooldown():
+            ColorPrint.gray("[tts] edge in cooldown (recent failure); skipping to offline engine")
+            continue
         if not engine_available(name):
             continue
         synth = _SYNTHESIZERS.get(name)
@@ -174,11 +205,15 @@ def synthesize(
         except Exception as e:  # noqa: BLE001 — fall through to next engine
             last_error = f"{name}: {e}"
             ColorPrint.yellow(f"[tts] {name} failed ({e}); trying next engine")
+            if name == "edge":
+                _set_edge_cooldown()
             continue
         if ok and output_path.exists() and output_path.stat().st_size > 0:
             return {"success": True, "engine": name, "error": None, "tried": tried}
         last_error = f"{name}: synthesis failed"
         ColorPrint.gray(f"[tts] {name} returned no audio; trying next engine")
+        if name == "edge":
+            _set_edge_cooldown()
 
     return {
         "success": False,
