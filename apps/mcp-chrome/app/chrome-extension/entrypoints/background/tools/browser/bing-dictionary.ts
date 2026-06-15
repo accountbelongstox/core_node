@@ -161,6 +161,29 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     return this.extractFromTab(tabId, tab?.url || BING_DICT_HOME, includeMedia);
   }
 
+  /**
+   * Fetch image/audio binaries IN the dictionary page via the injected
+   * BingMediaFetcher class library. Returns raw bytes (number[]) per URL so the
+   * extension can cache them and rebuild data URLs locally — it never re-requests
+   * the remote *.bing.net / mediamp3 URL from the popup/background (wrong
+   * referrer/CORS → broken media).
+   */
+  async fetchMediaInTab(
+    tabId: number,
+    urls: string[],
+  ): Promise<Array<{ url: string; ok: boolean; mime: string | null; bytes: number[] }>> {
+    const unique = Array.from(new Set((urls || []).filter(Boolean)));
+    if (unique.length === 0) return [];
+    await this.injectContentScript(tabId, ['inject-scripts/bing-media-fetcher.js']);
+    // Let the freshly-injected listener register before messaging it.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const resp = await this.sendMessageToTab(tabId, {
+      action: 'bingDictionaryFetchMedia',
+      urls: unique,
+    });
+    return (resp && (resp as any).results) || [];
+  }
+
   /** Ensure the tab is on a bing.com/dict page; load the home if not. */
   private async ensureOnDictPage(tabId: number): Promise<void> {
     const tab = await this.tryGetTab(tabId);

@@ -42,6 +42,7 @@
       :result="currentResult"
       :isLoading="isLoading"
       @play-pronunciation="handlePlayPronunciation"
+      @play-audio="handlePlayAudio"
       @lookup-word="handleLookupWord"
     />
 
@@ -75,6 +76,7 @@ const {
   history,
   lookupWord,
   playPronunciation,
+  playAudio,
   clearHistory,
   formatTime,
   loadHistory,
@@ -109,6 +111,10 @@ const handleLookupWord = (word: string) => {
 
 const handlePlayPronunciation = () => {
   playPronunciation();
+};
+
+const handlePlayAudio = (url: string) => {
+  playAudio(url);
 };
 
 const handleClearHistory = () => {

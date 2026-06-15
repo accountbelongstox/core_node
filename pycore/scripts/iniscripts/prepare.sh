@@ -36,9 +36,40 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# --- Shared install base (LINUX ONLY: ONE system-wide, all-users-writable dir) -
+# Every installer below runs pip; without this each user installs into their own
+# ~/.local and the service (possibly a different user) can't see those packages.
+# Point pip + the runtime at ONE SYSTEM directory (default /opt/_core_node/pyuserbase,
+# NOT under the repo) that every member of the system can access. The first run
+# (typically root) creates it 1777 — sticky + world-writable like /tmp — so any
+# user can then install; umask 000 makes the installed files world-writable too.
+# Override via PYCORE_PYUSERBASE. Non-Linux keeps the default per-user behavior.
+if [[ "$(uname -s)" == "Linux" ]]; then
+    : "${PYCORE_PYUSERBASE:=/opt/_core_node/pyuserbase}"
+    umask 0000
+    mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
+    if [[ ! -w "$PYCORE_PYUSERBASE" ]] && command -v sudo >/dev/null 2>&1; then
+        sudo -n mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
+        sudo -n chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
+    fi
+    if [[ -w "$PYCORE_PYUSERBASE" ]]; then
+        chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
+        export PYCORE_PYUSERBASE
+        export PYTHONUSERBASE="$PYCORE_PYUSERBASE"
+        export PIP_USER=1                    # pip installs target PYTHONUSERBASE (user site)
+        export PIP_BREAK_SYSTEM_PACKAGES=1   # bypass PEP 668 (e.g. Ubuntu 24.04 externally-managed)
+        SHARED_BASE_MSG="[i] Shared Python base (all users): $PYTHONUSERBASE (PIP_USER=1)"
+    else
+        SHARED_BASE_MSG="[!] Shared base $PYCORE_PYUSERBASE not writable — run once as root to create it 1777. Falling back to per-user installs."
+    fi
+else
+    SHARED_BASE_MSG=""
+fi
+
 echo "------------------------------------------------------"
 echo " Pycore prerequisites (iniscripts)"
 echo "------------------------------------------------------"
+[[ -n "$SHARED_BASE_MSG" ]] && echo "$SHARED_BASE_MSG"
 
 # in_include <name> -> 0 if name is selected (or no -include filter given)
 in_include() {
