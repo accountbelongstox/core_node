@@ -268,4 +268,3 @@ is_centos() {
 
 ensure_dir
 # Export the GLOBAL_VAR_DIR
-export GLOBAL_VAR_DIR

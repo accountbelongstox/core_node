@@ -316,7 +316,7 @@ _HINT_LIB="$GROUP_ROOT/scripts/lib/webclaude_start_nohup_hint.sh"
 _wc_abs_start_sh() { echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"; }
 
 # Sub-scripts run in the background with logs redirected; skip systemd prompts there.
-export WEBCLAUDE_SKIP_SERVICE_PROMPT=1
+WEBCLAUDE_SKIP_SERVICE_PROMPT=1
 
 # shellcheck source=/dev/null
 source "$_HINT_LIB"

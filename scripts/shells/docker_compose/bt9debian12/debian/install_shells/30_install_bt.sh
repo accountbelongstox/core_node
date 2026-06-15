@@ -51,7 +51,6 @@ ensure_www_dir() {
 # Function to automatically answer yes to prompts
 auto_answer_yes() {
     DEBIAN_FRONTEND=noninteractive
-    export DEBIAN_FRONTEND
 }
 
 # Function to save credentials

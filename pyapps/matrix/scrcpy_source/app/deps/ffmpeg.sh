@@ -35,15 +35,15 @@ else
     then
         # -static-libgcc to avoid missing libgcc_s_dw2-1.dll
         # -static to avoid dynamic dependency to zlib
-        export CFLAGS='-static-libgcc -static'
-        export CXXFLAGS="$CFLAGS"
-        export LDFLAGS='-static-libgcc -static'
+CFLAGS='-static-libgcc -static'
+CXXFLAGS="$CFLAGS"
+LDFLAGS='-static-libgcc -static'
     elif [[ "$HOST" == "macos" ]]
     then
-        export PKG_CONFIG_PATH="/opt/homebrew/opt/zlib/lib/pkgconfig"
+PKG_CONFIG_PATH="/opt/homebrew/opt/zlib/lib/pkgconfig"
     fi
 
-    export PKG_CONFIG_PATH="$INSTALL_DIR/$DIRNAME/lib/pkgconfig:$PKG_CONFIG_PATH"
+PKG_CONFIG_PATH="$INSTALL_DIR/$DIRNAME/lib/pkgconfig:$PKG_CONFIG_PATH"
 
     conf=(
         --prefix="$INSTALL_DIR/$DIRNAME"

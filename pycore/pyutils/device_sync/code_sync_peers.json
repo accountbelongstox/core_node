@@ -13,8 +13,20 @@
       "name": "si.api.12gm.com",
       "port": 59000,
       "role": "client"
+    },
+    {
+      "host": "10.150.186.10",
+      "id": "aae4a4b2b3f6a69d946945bf9b7d08862e76c15e8481ddce9171a6812b752a7a",
+      "name": "ubuntu-HW15S",
+      "port": 59000,
+      "role": "client"
     }
   ],
+<<<<<<< HEAD
   "updated_at": 1781500616.1749444,
   "version": 14
+=======
+  "updated_at": 1781495986.6314538,
+  "version": 13
+>>>>>>> 6ef6c82737ccdae9a10004adb0cdef35878179ec
 }

@@ -206,19 +206,19 @@ export_legacy_config() {
     local app_name="$1"
     
     if [[ "$app_name" == "cursor" ]]; then
-        export CURSOR_INSTALL_DIR=$(get_app_config "cursor" "install_dir")
-        export CURSOR_EXTRACTED_DIR=$(get_app_config "cursor" "extracted_dir")
-        export CURSOR_DESKTOP_FILE=$(get_app_config "cursor" "desktop_file")
-        export CURSOR_INSTALLED_FLAG=$(get_app_config "cursor" "installed_flag")
-        export CURSOR_LAUNCHER_SCRIPT=$(get_app_config "cursor" "launcher_script")
-        export CURSOR_DOWNLOAD_URL=$(get_app_config "cursor" "url")
+CURSOR_INSTALL_DIR=$(get_app_config "cursor" "install_dir")
+CURSOR_EXTRACTED_DIR=$(get_app_config "cursor" "extracted_dir")
+CURSOR_DESKTOP_FILE=$(get_app_config "cursor" "desktop_file")
+CURSOR_INSTALLED_FLAG=$(get_app_config "cursor" "installed_flag")
+CURSOR_LAUNCHER_SCRIPT=$(get_app_config "cursor" "launcher_script")
+CURSOR_DOWNLOAD_URL=$(get_app_config "cursor" "url")
     elif [[ "$app_name" == "vscode" ]]; then
-        export VSCODE_INSTALL_DIR=$(get_app_config "vscode" "install_dir")
-        export VSCODE_DEB_DIR=$(get_app_config "vscode" "deb_dir")
-        export VSCODE_DESKTOP_FILE=$(get_app_config "vscode" "desktop_file")
-        export VSCODE_INSTALLED_FLAG=$(get_app_config "vscode" "installed_flag")
-        export VSCODE_LAUNCHER_SCRIPT=$(get_app_config "vscode" "launcher_script")
-        export VSCODE_DOWNLOAD_URL=$(get_app_config "vscode" "url")
+VSCODE_INSTALL_DIR=$(get_app_config "vscode" "install_dir")
+VSCODE_DEB_DIR=$(get_app_config "vscode" "deb_dir")
+VSCODE_DESKTOP_FILE=$(get_app_config "vscode" "desktop_file")
+VSCODE_INSTALLED_FLAG=$(get_app_config "vscode" "installed_flag")
+VSCODE_LAUNCHER_SCRIPT=$(get_app_config "vscode" "launcher_script")
+VSCODE_DOWNLOAD_URL=$(get_app_config "vscode" "url")
     fi
 }
 

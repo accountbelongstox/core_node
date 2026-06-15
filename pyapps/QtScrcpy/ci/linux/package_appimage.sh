@@ -240,23 +240,23 @@ if [ -f "$HERE/usr/lib/libQt5XcbQpa.so.5" ]; then
 fi
 QT_PLUGINS_DIR="$HERE/usr/plugins"
 if [ -d "$QT_PLUGINS_DIR" ]; then
-    export QT_PLUGIN_PATH="$QT_PLUGINS_DIR"
-    export QT_QPA_PLATFORM_PLUGIN_PATH="$QT_PLUGINS_DIR/platforms"
+QT_PLUGIN_PATH="$QT_PLUGINS_DIR"
+QT_QPA_PLATFORM_PLUGIN_PATH="$QT_PLUGINS_DIR/platforms"
 fi
-export QTSCRCPY_ADB_PATH="$HERE/usr/lib/qtscrcpy/adb"
-export QTSCRCPY_SERVER_PATH="$HERE/usr/lib/qtscrcpy/scrcpy-server"
-export QTSCRCPY_KEYMAP_PATH="$HERE/usr/share/keymap"
-export QTSCRCPY_CONFIG_PATH="$HERE/usr/share/config"
+QTSCRCPY_ADB_PATH="$HERE/usr/lib/qtscrcpy/adb"
+QTSCRCPY_SERVER_PATH="$HERE/usr/lib/qtscrcpy/scrcpy-server"
+QTSCRCPY_KEYMAP_PATH="$HERE/usr/share/keymap"
+QTSCRCPY_CONFIG_PATH="$HERE/usr/share/config"
 exec "$HERE/usr/bin/QtScrcpy" "$@"
 APPRUN_EOF
 else
     cat > "$appdir_path/AppRun" << 'APPRUN_EOF'
 #!/bin/bash
 HERE="$(dirname "$(readlink -f "${0}")")"
-export QTSCRCPY_ADB_PATH="$HERE/usr/lib/qtscrcpy/adb"
-export QTSCRCPY_SERVER_PATH="$HERE/usr/lib/qtscrcpy/scrcpy-server"
-export QTSCRCPY_KEYMAP_PATH="$HERE/usr/share/keymap"
-export QTSCRCPY_CONFIG_PATH="$HERE/usr/share/config"
+QTSCRCPY_ADB_PATH="$HERE/usr/lib/qtscrcpy/adb"
+QTSCRCPY_SERVER_PATH="$HERE/usr/lib/qtscrcpy/scrcpy-server"
+QTSCRCPY_KEYMAP_PATH="$HERE/usr/share/keymap"
+QTSCRCPY_CONFIG_PATH="$HERE/usr/share/config"
 exec "$HERE/usr/bin/QtScrcpy" "$@"
 APPRUN_EOF
 fi
@@ -292,9 +292,9 @@ fi
 linuxdeploy_path="$linuxdeploy_path_abs"
 linuxdeploy_qt_path="$linuxdeploy_qt_path_abs"
 
-export QMAKE="$ENV_QT_PATH/gcc_64/bin/qmake"
-export QML_SOURCES_PATHS="$project_root/QtScrcpy"
-export DEPLOY_CMD="$linuxdeploy_path"
+QMAKE="$ENV_QT_PATH/gcc_64/bin/qmake"
+QML_SOURCES_PATHS="$project_root/QtScrcpy"
+DEPLOY_CMD="$linuxdeploy_path"
 export PATH="$ENV_QT_PATH/gcc_64/bin:$PATH"
 
 # Pre-copy Qt plugins and libraries for CI environment
@@ -321,7 +321,7 @@ fi
 
 # Run linuxdeploy
 cd "$project_root"
-export LINUXDEPLOY_PLUGIN_QT_PATH="$linuxdeploy_qt_path"
+LINUXDEPLOY_PLUGIN_QT_PATH="$linuxdeploy_qt_path"
 
 linuxdeploy_args=(
     --appdir "$appdir_path"

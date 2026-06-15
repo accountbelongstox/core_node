@@ -12,13 +12,23 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # APP Install Menu - Packages from linux_applications_list (120 --exact-app) plus install_shells scripts.
-# Order: BASE, DEV, APP, AI, MCP packages, then Docker, MySQL, Redis, Cursor, Antigravity, WeChat (run script).
+# Paths resolved only from this script location (no reliance on exported env from parent).
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LINUX_DIR="$(dirname "$SCRIPT_DIR")"
-COMMON_DIR="$LINUX_DIR/common"
-INSTALL_SHELLS_DIR="$LINUX_DIR/debian/install_shells"
-STEP120_SCRIPT="$LINUX_DIR/debian/install_shells/120_install_desktop_applications.sh"
+SCRIPT_DIR=""
+LINUX_DIR=""
+COMMON_DIR=""
+INSTALL_SHELLS_DIR=""
+STEP120_SCRIPT=""
+
+_resolve_app_install_paths() {
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    LINUX_DIR="$(dirname "$SCRIPT_DIR")"
+    COMMON_DIR="$LINUX_DIR/common"
+    INSTALL_SHELLS_DIR="$LINUX_DIR/debian/install_shells"
+    STEP120_SCRIPT="$INSTALL_SHELLS_DIR/120_install_desktop_applications.sh"
+}
+
+_resolve_app_install_paths
 
 # Script-based installs: "script:filename|Display Name"
 # Infra/DB: 45 Redis, 46 PostgreSQL, 47 Docker, 50 MySQL
@@ -84,7 +94,8 @@ get_all_packages_flat_list() {
     for e in "${SCRIPT_INSTALL_ENTRIES[@]}"; do
         list+=("$e")
     done
-    printf '%s\n' "${list[@]}" | sort -t'|' -k2
+    # Sort by display name (field after '|'), case-insensitive (GNU sort)
+    printf '%s\n' "${list[@]}" | sort -t '|' -k2,2 -f
 }
 
 show_app_install_menu() {
@@ -95,7 +106,7 @@ show_app_install_menu() {
     while true; do
         clear
         echo "================================================================================"
-        echo "APP Install Menu - Select a package to install (120 single-package run)"
+        echo "Linux Management APP Install Menu - Select a package to install (120 single-package run)"
         echo "================================================================================"
         echo ""
 

@@ -19,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 if [[ -d "$CORE_NODE_ROOT/webclaude_group" ]]; then
-  export WEBCLAUDE_DATA_DIR="${WEBCLAUDE_DATA_DIR:-$CORE_NODE_ROOT/webclaude_group/.data}"
+WEBCLAUDE_DATA_DIR="${WEBCLAUDE_DATA_DIR:-$CORE_NODE_ROOT/webclaude_group/.data}"
   mkdir -p "$WEBCLAUDE_DATA_DIR/cache"
 fi
 PREV_DIR="$(pwd)"

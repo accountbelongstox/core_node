@@ -33,17 +33,14 @@ SYNC_ALL_MCP_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SYNC_ALL_MCP_SCRIPT_RELATIVE"
 AI_MCP_MANAGEMENT_MENU_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$AI_MCP_MANAGEMENT_MENU_SCRIPT_RELATIVE"
 
 show_special_software_env_menu() {
-    export USE_SUDO
     bash "$SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_PATH"
 }
 
 show_service_manager() {
-    export USE_SUDO
     bash "$SERVICE_MANAGER_SCRIPT_PATH"
 }
 
 show_backup_management() {
-    export USE_SUDO
     local backup_script_path="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/gitea_backup/backup_management_main.sh"
     if [ -f "$backup_script_path" ]; then
         bash "$backup_script_path"

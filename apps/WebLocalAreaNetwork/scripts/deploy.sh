@@ -36,7 +36,7 @@ fi
 
 # Deploy WebLocalAreaNetwork in production mode
 echo "[INFO] Starting WebLocalAreaNetwork in production mode..."
-export NODE_ENV=production
+NODE_ENV=production
 node ./main.js app=WebLocalAreaNetwork
 
 exit 0

@@ -44,3 +44,9 @@ AI_MCP_MANAGEMENT_MENU_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/men
 GVAR_COMMON_FILE_RELATIVE="scripts/shells/linux/common/gvar_common.sh"
 SETTING_BASE_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/2_setting_base.sh"
 PROJECT_VALIDATOR_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/8_project_validator.sh"
+
+# Repo root: dd.sh sets CORE_NODE_ROOT_DIR before sourcing this file; if sourced alone, derive from dd_helper path (no export).
+if [ -z "${CORE_NODE_ROOT_DIR:-}" ]; then
+    _DD_HELPER_CONST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    CORE_NODE_ROOT_DIR="$(cd "$_DD_HELPER_CONST_DIR/../../../.." && pwd)"
+fi

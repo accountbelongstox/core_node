@@ -200,11 +200,11 @@ setup_environment() {
 # Node.js Environment Setup
 export NODE_HOME=$NODE_INSTALL_DIR/node-$NODE_VERSION
 export PATH=\$NODE_HOME/bin:\$PATH
-export NODE_PATH=\$NODE_HOME/lib/node_modules
+NODE_PATH=\$NODE_HOME/lib/node_modules
 # Add npm global directory to PATH
 export PATH=$COMPILE_DIR/npm-global/bin:\$PATH
 # Add COMPILE_DIR to environment
-export COMPILE_DIR=$COMPILE_DIR
+COMPILE_DIR=$COMPILE_DIR
 EOF
     
     sudo chmod 755 "$env_script"
