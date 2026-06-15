@@ -310,6 +310,7 @@ interface Props {
   testResults?: any[];
   testing?: boolean;
   queueOverview?: QueueOverview | null;
+  prepared?: boolean;
 }
 
 interface Emits {
@@ -327,6 +328,7 @@ const props = withDefaults(defineProps<Props>(), {
   testWords: 'hello',
   testing: false,
   queueOverview: null,
+  prepared: false,
 });
 const emit = defineEmits<Emits>();
 
@@ -942,10 +944,20 @@ const playAudio = (url?: string) => {
   border-radius: 999px;
   background: currentColor;
 }
+/* off = "Load queue" (neutral blue), ready = "Confirm & Start" (green),
+   on = "Stop" (red). */
 .service-toggle.off {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+.service-toggle.ready {
   background: #10b981;
   border-color: #10b981;
   color: #fff;
+}
+.service-toggle.ready .toggle-dot {
+  animation: pulse 1.2s infinite;
 }
 .service-toggle.on {
   background: #f43f5e;
@@ -954,6 +966,56 @@ const playAudio = (url?: string) => {
 }
 .service-toggle.on .toggle-dot {
   animation: pulse 1.2s infinite;
+}
+
+/* Backend connection line. */
+.backend-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.be-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--text-faint);
+}
+.be-dot.ok {
+  background: #10b981;
+}
+.be-dot.fail {
+  background: #f43f5e;
+}
+.be-label {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+}
+.be-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, monospace;
+  color: var(--text);
+}
+.be-msg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.be-hint {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.be-hint.warn {
+  color: #f59e0b;
 }
 .service-toggle:disabled {
   opacity: 0.5;
