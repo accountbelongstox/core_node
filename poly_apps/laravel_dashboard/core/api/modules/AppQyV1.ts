@@ -113,8 +113,19 @@ export interface AssistCoverRetryResult {
   reset: number;
 }
 
+/** Per-status counts of the word_translation queue (global_tasks). */
+export interface TranslationQueueStats {
+  pending: number;
+  processing: number;
+  completed: number;
+  failed: number;
+  total: number;
+}
+
 /** GET /assist/status — cover + TTS queues as exposed to third-party assist workers. */
 export interface AssistStatusData {
+  enabled?: boolean;
+  mode?: string;
   cover: CoverQueueStats;
   tts: {
     pending: number;
@@ -123,7 +134,43 @@ export interface AssistStatusData {
     failed: number;
     leased: number;
   };
+  /** Added 2026-06-15: word-translation queue counts. */
+  translation?: TranslationQueueStats;
   lease_minutes: number;
+}
+
+/** GET /assist/pending — unified, cache-backed pending-work snapshot warmed by
+ *  the Octane cover timer (cover + tts + translation). */
+export interface AssistPendingSnapshot {
+  generated_at: string;
+  enabled: boolean;
+  lease_minutes: number;
+  cover: CoverQueueStats;
+  tts: { pending: number; processing: number; completed: number; failed: number; leased: number };
+  translation: TranslationQueueStats;
+}
+
+/** One terminal word_translation task in the processing-history view. */
+export interface TranslationHistoryItem {
+  task_id: string;
+  status: string;
+  words: string[];
+  word_count: number;
+  language: string;
+  target_language: string;
+  provider: string;
+  translations: Array<{ word: string; translation: string }>;
+  error: string | null;
+  retry_count: number;
+  assigned_to: string | null;
+  created_at: string | null;
+  completed_at: string | null;
+  duration_ms: number | null;
+}
+
+export interface TranslationHistoryResponse {
+  items: TranslationHistoryItem[];
+  pagination: { limit: number; offset: number; page: number; total: number; has_more: boolean };
 }
 
 // ========== Review queue / learning stats ==========
@@ -332,6 +379,32 @@ export class AppQyV1API extends BaseAPI {
    */
   async retryCover(payload: { ids?: number[]; all?: boolean }): Promise<APIResponse<AssistCoverRetryResult>> {
     return this.post<AssistCoverRetryResult>('/assist/cover/retry', payload);
+  }
+
+  /**
+   * GET /assist/pending — cheap, cache-backed pending-work snapshot across all
+   * three assist tracks (cover / tts / translation). Warmed every tick by the
+   * Octane cover timer, so the dashboard can poll it freely. `fresh` forces a
+   * server-side recompute.
+   */
+  async getAssistPending(fresh = false): Promise<APIResponse<{ snapshot: AssistPendingSnapshot }>> {
+    return this.get<{ snapshot: AssistPendingSnapshot }>(
+      '/assist/pending', fresh ? { fresh: 1 } : undefined, false);
+  }
+
+  /**
+   * GET /ai_tools/translation/queue/history — detailed processing history over
+   * TERMINAL word_translation tasks (completed + failed), newest first, with the
+   * per-task result (translations + provider) and timing. Read-only, paginated.
+   */
+  async getTranslationHistory(params?: {
+    status?: 'completed' | 'failed' | '';
+    limit?: number;
+    page?: number;
+    offset?: number;
+  }): Promise<APIResponse<TranslationHistoryResponse>> {
+    return this.get<TranslationHistoryResponse>(
+      '/ai_tools/translation/queue/history', params as Record<string, any>, false);
   }
 
   // ========== Speech-to-Text ==========
