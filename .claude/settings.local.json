@@ -34,7 +34,8 @@
       "Bash(timeout 5 ssh -T git@gitee.com -o ConnectTimeout=5 -o StrictHostKeyChecking=no)",
       "Bash(ping -c 1 -W 3 github.com)",
       "Bash(ping -c 1 -W 3 gitee.com)",
-      "Bash(ls -la /www/programing/core_node/scripts/git/git.ssh.id.ed*.js)"
+      "Bash(ls -la /www/programing/core_node/scripts/git/git.ssh.id.ed*.js)",
+      "Bash(bash:*)"
     ]
   }
 }
