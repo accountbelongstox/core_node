@@ -35,7 +35,12 @@
       "Bash(ping -c 1 -W 3 github.com)",
       "Bash(ping -c 1 -W 3 gitee.com)",
       "Bash(ls -la /www/programing/core_node/scripts/git/git.ssh.id.ed*.js)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(ssh-keygen -lf /root/.ssh/id_ed25519.pub)",
+      "Bash(mkdir -p /tmp/_ssh_test)",
+      "Bash(node scripts/git/git.ssh.id.ed.pub.js)",
+      "Bash(node scripts/git/git.ssh.id.ed.pub.js show)",
+      "Bash(node scripts/git/git.ssh.id.ed.js show)"
     ]
   }
 }

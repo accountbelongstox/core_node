@@ -471,17 +471,18 @@ ensure_ssh_keys_installed() {
             chmod 700 "$SSH_DIR"
         fi
 
-        # Single clean password prompt
-        local password=""
-        local old_stty=""
+        # Show password hint from JS file
+        local hint=""
+        hint=$("$node_cmd" "$LOCAL_SSH_KEY_JS" show 2>&1 | grep -oP 'Password hint: \K.*' || true)
+        if [ -n "$hint" ]; then
+            write_color_text "[SSH] Password hint: $hint" "Cyan" >&2
+        fi
 
+        # Password prompt (visible, not hidden — so user can verify)
+        local password=""
         if [ -t 0 ]; then
-            old_stty=$(stty -g 2>/dev/null)
             printf "\033[36m[SSH] Enter decryption password: \033[0m" >&2
-            stty -echo 2>/dev/null
             IFS= read -r password
-            stty "$old_stty" 2>/dev/null
-            echo >&2
         else
             write_color_text "[SSH] No terminal for password input, skipping" "Yellow" >&2
             return 1
@@ -492,36 +493,67 @@ ensure_ssh_keys_installed() {
             return 1
         fi
 
-        # Decrypt public key
-        local decrypt_output=""
-        decrypt_output=$("$node_cmd" "$LOCAL_SSH_PUB_JS" pwd "$password" "$SSH_DIR" 2>&1)
-        if [ $? -ne 0 ]; then
-            write_color_text "[SSH] Failed to decrypt public key (wrong password?)" "Red" >&2
-            password=""
-            return 1
-        fi
+        write_color_text "[SSH] Password entered: $password" "DarkGray" >&2
 
-        # Decrypt private key
-        decrypt_output=$("$node_cmd" "$LOCAL_SSH_KEY_JS" pwd "$password" "$SSH_DIR" 2>&1)
-        if [ $? -ne 0 ]; then
-            write_color_text "[SSH] Failed to decrypt private key" "Red" >&2
+        # Decrypt public key (--force to overwrite existing file)
+        local decrypt_output=""
+        write_color_text "[SSH] Decrypting public key..." "DarkGray" >&2
+        decrypt_output=$("$node_cmd" "$LOCAL_SSH_PUB_JS" pwd "$password" "$SSH_DIR" --force 2>&1)
+        local pub_exit=$?
+        if [ $pub_exit -ne 0 ] || echo "$decrypt_output" | grep -qi "error\|failed\|wrong\|invalid"; then
+            write_color_text "[SSH] ✗ Public key decrypt FAILED (wrong password?)" "Red" >&2
+            write_color_text "[SSH]   Output: $decrypt_output" "DarkGray" >&2
             password=""
             return 1
         fi
+        write_color_text "[SSH] ✓ Public key decrypted" "Green" >&2
+
+        # Decrypt private key (--force to overwrite existing file)
+        write_color_text "[SSH] Decrypting private key..." "DarkGray" >&2
+        decrypt_output=$("$node_cmd" "$LOCAL_SSH_KEY_JS" pwd "$password" "$SSH_DIR" --force 2>&1)
+        local key_exit=$?
+        if [ $key_exit -ne 0 ] || echo "$decrypt_output" | grep -qi "error\|failed\|wrong\|invalid"; then
+            write_color_text "[SSH] ✗ Private key decrypt FAILED" "Red" >&2
+            write_color_text "[SSH]   Output: $decrypt_output" "DarkGray" >&2
+            password=""
+            return 1
+        fi
+        write_color_text "[SSH] ✓ Private key decrypted" "Green" >&2
 
         password=""
 
         # Set permissions
-        find "$SSH_DIR" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" -exec chmod 600 {} \; 2>/dev/null
-        find "$SSH_DIR" -maxdepth 1 -name "*.pub" -type f -exec chmod 644 {} \; 2>/dev/null
+        find "$SSH_DIR" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" ! -name "*.backup_*" -exec chmod 600 {} \; 2>/dev/null
+        find "$SSH_DIR" -maxdepth 1 -name "*.pub" -type f ! -name "*.backup_*" -exec chmod 644 {} \; 2>/dev/null
 
-        # Verify
-        found_key_path=$(find "$SSH_DIR" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" 2>/dev/null | head -n 1)
+        # Verify key file was produced
+        found_key_path=$(find "$SSH_DIR" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" ! -name "*.backup_*" 2>/dev/null | head -n 1)
         if [ -n "$found_key_path" ] && [ -s "$found_key_path" ]; then
-            write_color_text "[SSH] Project key decrypted to $SSH_DIR" "Green" >&2
+            write_color_text "[SSH] Project key installed: $found_key_path" "Green" >&2
+            # Show key fingerprint for verification
+            local fingerprint=""
+            fingerprint=$(ssh-keygen -lf "$found_key_path" 2>/dev/null || true)
+            if [ -n "$fingerprint" ]; then
+                write_color_text "[SSH] Fingerprint: $fingerprint" "Cyan" >&2
+            fi
         else
-            write_color_text "[SSH] Decryption produced no key file" "Red" >&2
+            write_color_text "[SSH] ✗ Decryption produced no key file" "Red" >&2
             return 1
+        fi
+
+        # Verify key works against GitHub
+        write_color_text "[SSH] Testing key against github.com..." "DarkGray" >&2
+        local verify_output=""
+        verify_output=$(ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -i "$found_key_path" -T git@github.com 2>&1 || true)
+        if echo "$verify_output" | grep -qi "successfully authenticated\|Hi "; then
+            write_color_text "[SSH] ✓ GitHub authentication SUCCESS" "Green" >&2
+        elif echo "$verify_output" | grep -qi "permission denied"; then
+            write_color_text "[SSH] ✗ GitHub authentication FAILED — key not recognized" "Red" >&2
+            write_color_text "[SSH]   Response: $verify_output" "DarkGray" >&2
+            write_color_text "[SSH]   The decrypted key may not match the key registered on GitHub" "Yellow" >&2
+        else
+            write_color_text "[SSH] ? GitHub auth test inconclusive (network issue?)" "Yellow" >&2
+            write_color_text "[SSH]   Response: $verify_output" "DarkGray" >&2
         fi
     fi
 
@@ -549,6 +581,65 @@ ensure_ssh_keys_installed() {
         if [ -f "$SSH_DIR/config" ]; then
             chmod 600 "$SSH_DIR/config" 2>/dev/null
         fi
+    fi
+
+    # Step 6: If running as root, also install key to all logged-in non-root users
+    if [ "$(id -u)" -eq 0 ] && [ -n "$found_key_path" ] && [ -s "$found_key_path" ]; then
+        local key_basename=""
+        key_basename=$(basename "$found_key_path")
+        local pub_file="${found_key_path}.pub"
+
+        # Get unique logged-in non-root users from `w` output (skip header line)
+        local user_list=""
+        user_list=$(w -h 2>/dev/null | awk '{print $1}' | sort -u)
+
+        for login_user in $user_list; do
+            # Skip root (already handled above)
+            if [ "$login_user" = "root" ]; then
+                continue
+            fi
+
+            # Get user home directory from /etc/passwd
+            local user_home=""
+            user_home=$(getent passwd "$login_user" 2>/dev/null | cut -d: -f6)
+            if [ -z "$user_home" ] || [ ! -d "$user_home" ]; then
+                continue
+            fi
+
+            local user_ssh_dir="$user_home/.ssh"
+            local user_key="$user_ssh_dir/$key_basename"
+            local user_pub="$user_ssh_dir/${key_basename}.pub"
+
+            # Create .ssh dir if needed
+            if [ ! -d "$user_ssh_dir" ]; then
+                mkdir -p "$user_ssh_dir"
+                chown "$login_user:$login_user" "$user_ssh_dir"
+                chmod 700 "$user_ssh_dir"
+            fi
+
+            # Copy private key
+            cp -f "$found_key_path" "$user_key" 2>/dev/null
+            chown "$login_user:$login_user" "$user_key" 2>/dev/null
+            chmod 600 "$user_key" 2>/dev/null
+
+            # Copy public key
+            if [ -f "$pub_file" ]; then
+                cp -f "$pub_file" "$user_pub" 2>/dev/null
+                chown "$login_user:$login_user" "$user_pub" 2>/dev/null
+                chmod 644 "$user_pub" 2>/dev/null
+            fi
+
+            # Fix .ssh dir permissions
+            chmod 700 "$user_ssh_dir" 2>/dev/null
+            if [ -f "$user_ssh_dir/authorized_keys" ]; then
+                chmod 600 "$user_ssh_dir/authorized_keys" 2>/dev/null
+            fi
+            if [ -f "$user_ssh_dir/config" ]; then
+                chmod 600 "$user_ssh_dir/config" 2>/dev/null
+            fi
+
+            write_color_text "[SSH] Key installed for user: $login_user ($user_key)" "Green" >&2
+        done
     fi
 
     return 0
