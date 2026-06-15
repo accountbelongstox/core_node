@@ -91,7 +91,7 @@ class InitializeApps extends Command
         $this->info('Database initialization results:');
 
         foreach ($results as $dbName => $status) {
-            $icon = in_array($status, ['created', 'exists']) ? '✅' : '❌';
+            $icon = (in_array($status, ['created', 'exists']) || str_contains($status, 'canonical identity')) ? '✅' : '❌';
             $this->line("{$icon} {$dbName}: {$status}");
 
             if ($this->getOutput()->isVerbose()) {

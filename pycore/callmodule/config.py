@@ -100,6 +100,7 @@ from pycore.callmodule.routers.web_router import router as web_router
 from pycore.callmodule.routers.voice_subtitle_router import router as voice_subtitle_router
 
 IS_WINDOWS = platform.system() == 'Windows'
+IS_LINUX = platform.system() == 'Linux'
 
 # Desired main-window size for the new desktop-manager UI. Clamped to the screen
 # (minus a margin) when the display is too small to fit it.

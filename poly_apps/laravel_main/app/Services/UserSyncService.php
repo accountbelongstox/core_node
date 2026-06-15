@@ -206,15 +206,13 @@ class UserSyncService
             $results['Main (personal_access_tokens)'] = 'skipped - will be created by migrations';
         }
 
-        // Canonical-identity model: there are NO per-sub-app `users` tables.
-        // Identity lives ONCE in the main `users` table; app-specific user
-        // fields live in per-app extension tables keyed by main_user_id.
-        // Sub-app users tables are intentionally NOT created here (the old
-        // dual-write/duplication produced non-ACID cross-file writes and the
-        // registration FK failure). Any pre-existing duplicate sub-app `users`
-        // tables are removed by the drop-orphan-subapp-users migration.
-        foreach (self::getSubAppKeys() as $appKey) {
-            $results[$appKey] = 'skipped - canonical identity (no per-app users table)';
+        // Canonical-identity model: all sub-apps share the main `users` table.
+        // No per-sub-app users tables exist (the old dual-write duplication was
+        // removed). Report a single summary instead of per-app "skipped" lines.
+        $subAppKeys = self::getSubAppKeys();
+        if (!empty($subAppKeys)) {
+            $appList = implode(', ', $subAppKeys);
+            $results['Sub-apps (' . count($subAppKeys) . ')'] = "canonical identity — all use main users table ({$appList})";
         }
 
         return $results;
