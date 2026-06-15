@@ -660,6 +660,7 @@
   "bingAssistStatusLabel": { "message": "状态：" },
   "bingAssistInvalidNoEntry": { "message": "无效（Bing 无词条）" },
   "bingAssistPlayAudio": { "message": "播放发音" },
+  "bingAssistCachedAt": { "message": "缓存位置：" },
   "apiConfigurationLabel": { "message": "API 配置" },
   "apiAutoDetecting": { "message": "自动检测中…" },
   "apiTestAll": { "message": "全部测试" },

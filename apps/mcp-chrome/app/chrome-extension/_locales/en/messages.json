@@ -660,6 +660,7 @@
   "bingAssistStatusLabel": { "message": "Status:" },
   "bingAssistInvalidNoEntry": { "message": "invalid (no Bing entry)" },
   "bingAssistPlayAudio": { "message": "Play pronunciation" },
+  "bingAssistCachedAt": { "message": "Cached at:" },
   "apiConfigurationLabel": { "message": "API Configuration" },
   "apiAutoDetecting": { "message": "auto-detecting…" },
   "apiTestAll": { "message": "Test All" },
