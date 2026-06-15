@@ -1,7 +1,10 @@
 <template>
   <div
     data-popup-root
-    class="theme-dark w-[780px] h-[580px] flex flex-col overflow-hidden"
+    :class="[
+      'theme-dark flex flex-col overflow-hidden',
+      isTabView ? 'w-screen h-screen' : 'w-[780px] h-[580px]',
+    ]"
     style="background: var(--bg); color: var(--text)"
   >
     <!-- Header -->
@@ -17,6 +20,15 @@
       </div>
       <div class="flex items-center gap-3">
         <LanguageSelector />
+        <button
+          v-if="!isTabView"
+          @click="openInTab"
+          class="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-indigo-400 transition-colors"
+          title="Open in a tab (stays open while you work)"
+        >
+          <!-- external-window / open-in-new icon -->
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 3h7v7m0-7L10 14M19 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h5"/></svg>
+        </button>
         <button
           @click="toggleTheme"
           class="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-indigo-400 transition-colors"
@@ -271,6 +283,18 @@ import {
 } from './components/icons';
 import { useAppStore } from '@/composables/useAppStore';
 import { usePersistedRef } from '@/composables/usePersistedRef';
+
+// Tab view: the same UI opened as a full browser tab via the header button.
+// A browser-action popup is destroyed on blur (can't be kept open), so "open in
+// a tab" gives a window that stays open while you work; combined with the
+// persisted UI state, it mirrors the popup exactly. Detected via ?view=tab.
+const isTabView = new URLSearchParams(window.location.search).get('view') === 'tab';
+
+const openInTab = () => {
+  // popup.html is the WXT popup entrypoint output; reuse it full-size in a tab.
+  // chrome.tabs.create with a URL needs no extra permission.
+  chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?view=tab') });
+};
 
 const nativeConnectionStatus = ref<'unknown' | 'connected' | 'disconnected'>('unknown');
 const isConnecting = ref(false);

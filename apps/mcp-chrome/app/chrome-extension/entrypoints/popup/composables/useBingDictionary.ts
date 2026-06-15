@@ -4,6 +4,7 @@
  */
 
 import { ref } from 'vue';
+import { usePersistedRef } from '@/composables/usePersistedRef';
 
 export interface Translation {
   type: string;
@@ -15,13 +16,42 @@ export interface Example {
   translation?: string;
 }
 
+export interface DetailedDefinition {
+  cn: string;
+  en: string;
+}
+
+export interface SynonymGroup {
+  type: string;
+  words: string;
+}
+
+export interface WebDefinition {
+  type: string;
+  content: string;
+}
+
 export interface WordResult {
   word: string;
-  phonetic?: string;
+  usPhonetic?: string;
+  ukPhonetic?: string;
+  // Pronunciation audio: a single fallback plus the two separate US/UK tracks
+  // (Bing usually serves both), so each phonetic gets its own play button.
   pronunciation?: string;
+  usAudioUrl?: string;
+  ukAudioUrl?: string;
+  // Short part-of-speech glosses.
   translations: Translation[];
+  // Detailed Collins/Oxford definitions (Chinese gloss + English explanation).
+  detailedDefinitions: DetailedDefinition[];
+  // Example sentences (English + Chinese translation).
   examples: Example[];
-  synonyms: string[];
+  // Synonym / antonym groups.
+  synonyms: SynonymGroup[];
+  // Web definitions / advanced blocks.
+  webDefinitions: WebDefinition[];
+  // Sample image data URLs.
+  images: string[];
 }
 
 export interface HistoryItem {
@@ -30,10 +60,12 @@ export interface HistoryItem {
 }
 
 export function useBingDictionary() {
-  const searchQuery = ref('');
+  // searchQuery + currentResult are persisted so reopening the popup restores the
+  // last lookup (the word box and its full result) without re-scraping Bing.
+  const searchQuery = usePersistedRef('bingSearchQuery', '');
   const isLoading = ref(false);
   const error = ref('');
-  const currentResult = ref<WordResult | null>(null);
+  const currentResult = usePersistedRef<WordResult | null>('bingLastResult', null);
   const history = ref<HistoryItem[]>([]);
 
   const lookupWord = async (word?: string) => {
@@ -68,11 +100,20 @@ export function useBingDictionary() {
 
       currentResult.value = {
         word: r.word || query,
-        phonetic: r.phonetic || undefined,
-        pronunciation: r.audioUrl || undefined,
-        translations: r.translation ? [{ type: '', text: r.translation }] : [],
-        examples: [],
-        synonyms: [],
+        usPhonetic: r.usPhonetic || undefined,
+        ukPhonetic: r.ukPhonetic || undefined,
+        pronunciation: r.audioUrl || r.usAudioUrl || r.ukAudioUrl || undefined,
+        usAudioUrl: r.usAudioUrl || undefined,
+        ukAudioUrl: r.ukAudioUrl || undefined,
+        translations: (r.definitions || []).map((d: any) => ({
+          type: d.partOfSpeech || '',
+          text: d.definition,
+        })),
+        detailedDefinitions: r.detailedDefinitions || [],
+        examples: (r.examples || []).map((e: any) => ({ text: e.en, translation: e.cn })),
+        synonyms: r.synonyms || [],
+        webDefinitions: r.webDefinitions || [],
+        images: r.imageUrls || [],
       };
 
       addToHistory(query);
@@ -88,13 +129,17 @@ export function useBingDictionary() {
     }
   };
 
-  const playPronunciation = () => {
-    if (!currentResult.value?.pronunciation) return;
-
-    const audio = new Audio(currentResult.value.pronunciation);
+  // Play any pronunciation track (base64 data URL or remote mp3).
+  const playAudio = (url?: string | null) => {
+    if (!url) return;
+    const audio = new Audio(url);
     audio.play().catch(err => {
       console.error('[Bing Dictionary] Failed to play audio:', err);
     });
+  };
+
+  const playPronunciation = () => {
+    playAudio(currentResult.value?.pronunciation);
   };
 
   const addToHistory = (word: string) => {
@@ -118,6 +163,9 @@ export function useBingDictionary() {
 
   const clearHistory = async () => {
     history.value = [];
+    // Also reset the persisted current view so [CLEAR] fully empties the panel.
+    currentResult.value = null;
+    searchQuery.value = '';
     await chrome.storage.local.remove('bing_dictionary_history');
   };
 
@@ -166,6 +214,7 @@ export function useBingDictionary() {
     history,
     lookupWord,
     playPronunciation,
+    playAudio,
     clearHistory,
     formatTime,
     loadHistory,

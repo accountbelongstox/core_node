@@ -110,14 +110,34 @@
           >
             <div class="scrape-row-head">
               <span class="scrape-word">{{ r.word }}</span>
+              <!-- US + UK pronunciations, each with its own play button. -->
+              <span v-if="r.ok && (r.usPhonetic || r.usAudioUrl)" class="scrape-pr">
+                <button
+                  v-if="r.usAudioUrl"
+                  class="audio-btn"
+                  :class="{ playing: playingUrl === r.usAudioUrl }"
+                  @click="playAudio(r.usAudioUrl)"
+                  title="US"
+                >US ▶</button>
+                <em v-if="r.usPhonetic" class="scrape-phonetic">[{{ r.usPhonetic }}]</em>
+              </span>
+              <span v-if="r.ok && (r.ukPhonetic || r.ukAudioUrl)" class="scrape-pr">
+                <button
+                  v-if="r.ukAudioUrl"
+                  class="audio-btn"
+                  :class="{ playing: playingUrl === r.ukAudioUrl }"
+                  @click="playAudio(r.ukAudioUrl)"
+                  title="UK"
+                >UK ▶</button>
+                <em v-if="r.ukPhonetic" class="scrape-phonetic">[{{ r.ukPhonetic }}]</em>
+              </span>
               <button
-                v-if="r.ok && r.audioUrl"
+                v-if="r.ok && !r.usAudioUrl && !r.ukAudioUrl && r.audioUrl"
                 class="audio-btn"
                 :class="{ playing: playingUrl === r.audioUrl }"
                 @click="playAudio(r.audioUrl)"
                 :title="t('bingAssistPlayAudio')"
               >▶</button>
-              <em v-if="r.ok && r.phonetic" class="scrape-phonetic">[{{ r.phonetic }}]</em>
               <span v-if="!r.ok" class="scrape-detail">
                 {{ r.invalid ? t('bingAssistInvalidNoEntry') : r.error }}
               </span>
@@ -134,6 +154,21 @@
                 :alt="r.word"
               />
             </div>
+            <!-- Cached media (audio + images): the original remote URL is the
+                 cache key/"path"; the bytes are stored in the extension cache. -->
+            <div v-if="r.ok && r.media && r.media.length" class="scrape-media">
+              <div v-for="(m, k) in r.media" :key="k" class="scrape-media-row">
+                <span :class="['m-tag', m.kind]">{{ m.kind }}</span>
+                <span :class="['m-ok', m.cached ? 'yes' : 'no']">{{ m.cached ? 'cached' : 'miss' }}</span>
+                <span class="m-bytes">{{ m.bytes }}B</span>
+                <span class="m-url" :title="m.url">{{ m.url }}</span>
+              </div>
+            </div>
+            <!-- Structured result (JSON), data URLs elided for readability. -->
+            <details v-if="r.ok" class="scrape-json">
+              <summary>JSON</summary>
+              <pre>{{ jsonView(r) }}</pre>
+            </details>
           </div>
         </div>
         <div v-if="testResults && testResults.length" class="scrape-cache-hint">
@@ -236,6 +271,26 @@ const emit = defineEmits<Emits>();
 const onToggleService = () => emit('toggle-service');
 const onTestConnection = () => emit('test-connection');
 const onRunScrape = () => emit('run-scrape-test');
+
+// Render the structured scrape result as JSON, eliding huge base64 data URLs
+// (images/audio) to "[dataURL N bytes]" so the JSON stays readable.
+const jsonView = (r: any): string => {
+  const elide = (v: any): any => {
+    if (typeof v === 'string' && v.startsWith('data:')) return `[dataURL ${v.length}b]`;
+    if (Array.isArray(v)) return v.map(elide);
+    if (v && typeof v === 'object') {
+      const out: any = {};
+      for (const k of Object.keys(v)) out[k] = elide(v[k]);
+      return out;
+    }
+    return v;
+  };
+  try {
+    return JSON.stringify(elide(r), null, 2);
+  } catch {
+    return String(r);
+  }
+};
 
 const onTestWordsInput = (event: Event) => {
   emit('update-test-words', (event.target as HTMLInputElement).value);
@@ -673,6 +728,71 @@ const playAudio = (url?: string) => {
   border-radius: 4px;
   border: 1px solid var(--border);
   background: var(--surface-2);
+}
+
+.scrape-pr {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 4px;
+}
+
+.scrape-media {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.scrape-media-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+}
+
+.m-tag {
+  padding: 0 4px;
+  border-radius: 3px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+}
+.m-tag.audio { background: rgba(99, 102, 241, 0.15); }
+.m-ok.yes { color: #10b981; }
+.m-ok.no { color: #f43f5e; }
+.m-bytes { color: var(--text-faint); }
+.m-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scrape-json {
+  margin-top: 4px;
+  font-size: 9px;
+}
+.scrape-json summary {
+  cursor: pointer;
+  color: var(--accent-fg);
+  font-weight: 700;
+}
+.scrape-json pre {
+  margin-top: 3px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Result row left borders keep semantic success/warning/danger colors. */

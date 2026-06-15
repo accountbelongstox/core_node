@@ -85,6 +85,25 @@ set -euo pipefail
 # Resolve this script's directory (repo root), following symlinks.
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 
+# Shared Python user-base (LINUX ONLY): prerequisites install here (see prepare.sh)
+# and the worker must read from the SAME system directory, so packages installed by
+# ANY user are visible to the running service. Default /opt/_core_node/pyuserbase (a
+# system path every member can access, NOT under the repo); override via
+# PYCORE_PYUSERBASE. Exported before both prepare AND the worker launch.
+if [[ "$(uname -s)" == "Linux" ]]; then
+    : "${PYCORE_PYUSERBASE:=/opt/_core_node/pyuserbase}"
+    mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
+    if [[ ! -w "$PYCORE_PYUSERBASE" ]] && command -v sudo >/dev/null 2>&1; then
+        sudo -n mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
+        sudo -n chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
+    fi
+    if [[ -w "$PYCORE_PYUSERBASE" ]]; then
+        chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
+        export PYCORE_PYUSERBASE
+        export PYTHONUSERBASE="$PYCORE_PYUSERBASE"
+    fi
+fi
+
 BIND_HOST="0.0.0.0"
 PORT="59000"
 DEBUG=0
