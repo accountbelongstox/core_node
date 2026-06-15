@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col gap-2.5 max-h-[420px]">
+  <div class="flex flex-col gap-2.5 h-[420px]">
     <!-- ============================================================ -->
     <!-- Global Task System control block -->
     <!-- ============================================================ -->
