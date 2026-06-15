@@ -281,6 +281,19 @@ Implement API versioning (e.g., `/api/v2/`) for backwards-compatible evolution.
 ### 9.4 Observability Stack
 Add structured logging (JSON), distributed tracing (OpenTelemetry), and centralized dashboards (Grafana).
 
+### 9.5 Local Dev Hot Reload
+
+Every project ships `start.sh` + `start.ps1` with idempotent prerequisite "ensure" handling (deps, env, services) **and** hot reload. The unified launcher `scripts/start.{sh,ps1}` starts all four ends in hot-reload mode — edit code and changes apply automatically:
+
+| Service | Hot reload | Prefer / fallback | Ensure (prerequisites) |
+|---------|-----------|-------------------|------------------------|
+| webclaude_center_server | **nodemon** | local `node_modules/.bin/nodemon` → global → plain `node` | deps check, hash-guarded `npm install`, `.env` (CRLF fix), admin auto-setup, MySQL/Redis TCP probe |
+| webclaude_go-gateway | **air** | `air` → built binary | `ensure_go` (auto-install via core_node `53_install_golang22.sh`), `GOPROXY`/`GOSUMDB` fix, `go mod tidy`, `.env`, readiness |
+| webclaude_website | **Vite HMR** | `pnpm run dev` | Node/pnpm check, `pnpm install`, clear `node_modules/.vite` |
+| claude_host | **watchdog** | `start.sh --dev` → `scripts/dev_reload.py` (auto-installs `watchdog`) | python3 check, `pip install` websockets, config hints |
+
+The unified launcher passes `--dev` to `claude_host` so it reloads on `*.py` changes, matching the other three. Standalone, each project's own `start` script also defaults to its hot-reload path (the host needs the `--dev` flag).
+
 ---
 
 ## Internal Documentation

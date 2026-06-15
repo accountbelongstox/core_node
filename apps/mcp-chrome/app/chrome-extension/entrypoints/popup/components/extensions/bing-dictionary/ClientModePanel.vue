@@ -4,19 +4,17 @@
       <div class="config-header">
         <span class="config-label">{{ t('bingAssistTitle') }}</span>
         <div class="config-controls">
+          <!-- Single auto-toggle: Start requests the untranslated queue overview
+               and immediately begins crawling per Settings; click again to Stop.
+               Label + colour reflect the running state (no separate Test/status). -->
           <button
-            class="ghost-test"
-            @click="onTestConnection"
-            :disabled="connectionStatus?.state === 'testing'"
-            :title="t('bingAssistTest')"
+            class="service-toggle"
+            :class="clientService.isRunning ? 'on' : 'off'"
+            @click="onToggleService"
+            :disabled="!currentEndpoint || !!(queueOverview && queueOverview.loading)"
           >
-            {{ connectionStatus?.state === 'testing' ? '…' : t('bingAssistTest') }}
-          </button>
-          <span :class="['status-indicator', clientService.isRunning ? 'running' : 'stopped']">
-            {{ clientService.isRunning ? 'RUNNING' : 'STOPPED' }}
-          </span>
-          <button class="service-button" @click="onToggleService" :disabled="!currentEndpoint">
-            {{ clientService.isRunning ? '[STOP]' : '[START]' }}
+            <span class="toggle-dot"></span>
+            {{ clientService.isRunning ? 'Stop' : (queueOverview && queueOverview.loading ? 'Starting…' : 'Start') }}
           </button>
         </div>
       </div>
@@ -35,57 +33,51 @@
         ○ {{ connectionStatus.message }}
       </div>
 
-      <!-- Config as a compact 2-column grid (not a vertical list). -->
-      <div class="config-grid">
-        <div class="config-field">
-          <label class="form-label">{{ t('bingAssistPollInterval') }}</label>
-          <input
-            :value="clientConfig.fetchInterval"
-            @input="onConfigChange('fetchInterval', $event)"
-            type="number"
-            min="1"
-            max="60"
-            class="form-input-small"
-            :disabled="clientService.isRunning"
-          />
+      <!-- Untranslated queue overview: how many entries + the pending task list
+           (paginated, each row expandable). Loaded on Start; refresh anytime. -->
+      <div v-if="queueOverview" class="queue-overview">
+        <div class="qo-head">
+          <span class="qo-title">Untranslated queue</span>
+          <button
+            class="qo-refresh"
+            @click="onRefreshQueue"
+            :disabled="queueOverview.loading"
+            title="Refresh"
+          >{{ queueOverview.loading ? '…' : '↻' }}</button>
         </div>
-        <div class="config-field">
-          <label class="form-label">{{ t('bingAssistBatchSize') }}</label>
-          <input
-            :value="clientConfig.batchSize"
-            @input="onConfigChange('batchSize', $event)"
-            type="number"
-            min="1"
-            max="50"
-            class="form-input-small"
-            :disabled="clientService.isRunning"
-          />
+        <div v-if="queueOverview.error" class="qo-error">⚠ {{ queueOverview.error }}</div>
+        <div v-if="queueOverview.summary" class="qo-summary">
+          <span class="qo-chip pending">pending <b>{{ queueOverview.summary.pending }}</b></span>
+          <span class="qo-chip proc">processing <b>{{ queueOverview.summary.processing }}</b></span>
+          <span class="qo-chip done">completed <b>{{ queueOverview.summary.completed }}</b></span>
+          <span class="qo-chip fail">failed <b>{{ queueOverview.summary.failed }}</b></span>
+          <span class="qo-chip total">total <b>{{ queueOverview.summary.total }}</b></span>
         </div>
-        <div v-if="clientConfig.mode === 'worker'" class="config-field">
-          <label class="form-label">{{ t('bingAssistParallelTabs') }}</label>
-          <input
-            :value="clientConfig.tabCount"
-            @input="onConfigChange('tabCount', $event)"
-            type="number"
-            min="1"
-            max="8"
-            class="form-input-small"
-            :disabled="clientService.isRunning"
-          />
+        <div v-if="queuePageItems.length" class="qo-list">
+          <details v-for="(item, i) in queuePageItems" :key="item.task_id || i" class="qo-item">
+            <summary class="qo-item-head">
+              <span :class="['qo-badge', item.status]">{{ item.status }}</span>
+              <span class="qo-words">{{ (item.words || []).slice(0, 6).join(', ')
+                }}<span v-if="(item.words || []).length > 6"> …</span></span>
+              <span class="qo-count">{{ item.word_count }}w</span>
+            </summary>
+            <div class="qo-item-body">
+              <div>task: <code>{{ item.task_id }}</code></div>
+              <div>{{ item.language }} → {{ item.target_language }} · prio {{ item.priority }} · {{ item.age_seconds }}s</div>
+              <div v-if="item.assigned_to">assigned: {{ item.assigned_to }}</div>
+              <div class="qo-allwords">{{ (item.words || []).join(', ') }}</div>
+            </div>
+          </details>
         </div>
-        <div v-if="clientConfig.mode === 'worker'" class="config-field">
-          <label class="form-label">{{ t('bingAssistTargetLang') }}</label>
-          <input
-            :value="clientConfig.targetLanguage"
-            @input="onConfigChange('targetLanguage', $event)"
-            type="text"
-            placeholder="zh"
-            class="form-input-small"
-            :disabled="clientService.isRunning"
-          />
+        <div v-else-if="queueOverview.summary && !queueOverview.loading" class="qo-empty">
+          No pending tasks.
+        </div>
+        <div v-if="queueTotalPages > 1" class="qo-pager">
+          <button @click="onSetQueuePage(queueOverview.page - 1)" :disabled="queueOverview.page <= 1">Prev</button>
+          <span>{{ queueOverview.page }} / {{ queueTotalPages }}</span>
+          <button @click="onSetQueuePage(queueOverview.page + 1)" :disabled="queueOverview.page >= queueTotalPages">Next</button>
         </div>
       </div>
-      <div v-if="clientService.isRunning" class="config-hint">{{ t('bingAssistStopToChange') }}</div>
 
       <!-- Live Bing scrape test (default word: hello) -->
       <div class="scrape-test">
@@ -221,12 +213,36 @@
           <span v-if="clientService.stats.invalid !== undefined" class="chip"><i class="c-dot invalid"></i>{{ t('bingAssistInvalid') }}<b>{{ clientService.stats.invalid }}</b></span>
         </div>
       </div>
+
+      <!-- Settings (moved to the bottom). Disabled while the worker is running. -->
+      <div class="settings-block">
+        <div class="settings-title">Settings</div>
+        <div class="config-grid">
+          <div class="config-field">
+            <label class="form-label">{{ t('bingAssistPollInterval') }}</label>
+            <input :value="clientConfig.fetchInterval" @input="onConfigChange('fetchInterval', $event)" type="number" min="1" max="60" class="form-input-small" :disabled="clientService.isRunning" />
+          </div>
+          <div class="config-field">
+            <label class="form-label">{{ t('bingAssistBatchSize') }}</label>
+            <input :value="clientConfig.batchSize" @input="onConfigChange('batchSize', $event)" type="number" min="1" max="50" class="form-input-small" :disabled="clientService.isRunning" />
+          </div>
+          <div v-if="clientConfig.mode === 'worker'" class="config-field">
+            <label class="form-label">{{ t('bingAssistParallelTabs') }}</label>
+            <input :value="clientConfig.tabCount" @input="onConfigChange('tabCount', $event)" type="number" min="1" max="8" class="form-input-small" :disabled="clientService.isRunning" />
+          </div>
+          <div v-if="clientConfig.mode === 'worker'" class="config-field">
+            <label class="form-label">{{ t('bingAssistTargetLang') }}</label>
+            <input :value="clientConfig.targetLanguage" @input="onConfigChange('targetLanguage', $event)" type="text" placeholder="zh" class="form-input-small" :disabled="clientService.isRunning" />
+          </div>
+        </div>
+        <div v-if="clientService.isRunning" class="config-hint">{{ t('bingAssistStopToChange') }}</div>
+      </div>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import type { ClientConfig, ClientServiceState } from '../../../composables/useBingDictionaryClient';
 import { getMessage as t } from '../../../../../utils/i18n';
 import { describeLocation } from '../../../composables/useCacheStore';
@@ -240,6 +256,23 @@ interface ConnectionStatus {
   message: string;
 }
 
+interface QueueOverview {
+  summary: {
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+    total: number;
+  } | null;
+  items: any[]; // current page only (server-paginated)
+  page: number;
+  pageSize: number;
+  total: number; // total filtered rows
+  hasMore: boolean;
+  loading: boolean;
+  error: string;
+}
+
 interface Props {
   clientConfig: ClientConfig;
   clientService: ClientServiceState;
@@ -250,27 +283,40 @@ interface Props {
   testWords?: string;
   testResults?: any[];
   testing?: boolean;
+  queueOverview?: QueueOverview | null;
 }
 
 interface Emits {
   (e: 'toggle-service'): void;
   (e: 'update-config', field: string, value: any): void;
-  (e: 'test-connection'): void;
   (e: 'run-scrape-test'): void;
   (e: 'update-test-words', value: string): void;
+  (e: 'refresh-queue'): void;
+  (e: 'set-queue-page', page: number): void;
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   currentEndpoint: '',
   testResults: () => [],
   testWords: 'hello',
   testing: false,
+  queueOverview: null,
 });
 const emit = defineEmits<Emits>();
 
 const onToggleService = () => emit('toggle-service');
-const onTestConnection = () => emit('test-connection');
 const onRunScrape = () => emit('run-scrape-test');
+const onRefreshQueue = () => emit('refresh-queue');
+const onSetQueuePage = (page: number) => emit('set-queue-page', page);
+
+// Server-side pagination: `items` is already the current page; the page count
+// comes from the server `total`. The pager emits set-queue-page → server fetch.
+const queueTotalPages = computed(() => {
+  const q = props.queueOverview;
+  if (!q) return 1;
+  return Math.max(1, Math.ceil((q.total || q.items.length) / q.pageSize));
+});
+const queuePageItems = computed(() => props.queueOverview?.items ?? []);
 
 // Render the structured scrape result as JSON, eliding huge base64 data URLs
 // (images/audio) to "[dataURL N bytes]" so the JSON stays readable.
@@ -849,5 +895,197 @@ const playAudio = (url?: string) => {
   50% {
     opacity: 0.3;
   }
+}
+
+/* Single auto-toggle button (replaces Test / STOPPED / START). */
+.service-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.service-toggle .toggle-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.service-toggle.off {
+  background: #10b981;
+  border-color: #10b981;
+  color: #fff;
+}
+.service-toggle.on {
+  background: #f43f5e;
+  border-color: #f43f5e;
+  color: #fff;
+}
+.service-toggle.on .toggle-dot {
+  animation: pulse 1.2s infinite;
+}
+.service-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Untranslated queue overview. */
+.queue-overview {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.qo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.qo-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.qo-refresh {
+  border: none;
+  background: transparent;
+  color: var(--accent-fg);
+  cursor: pointer;
+  font-size: 13px;
+}
+.qo-error {
+  font-size: 10px;
+  color: #f43f5e;
+  margin-bottom: 4px;
+}
+.qo-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.qo-chip {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.qo-chip b {
+  margin-left: 3px;
+  color: var(--text);
+}
+.qo-chip.pending b {
+  color: #f59e0b;
+}
+.qo-chip.fail b {
+  color: #f43f5e;
+}
+.qo-chip.done b {
+  color: #10b981;
+}
+.qo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.qo-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 3px 6px;
+}
+.qo-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 10px;
+}
+.qo-badge {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+}
+.qo-words {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.qo-count {
+  color: var(--text-faint);
+  font-size: 9px;
+}
+.qo-item-body {
+  margin-top: 4px;
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+  word-break: break-word;
+}
+.qo-allwords {
+  margin-top: 2px;
+  color: var(--text);
+}
+.qo-empty {
+  font-size: 10px;
+  color: var(--text-faint);
+  padding: 4px 0;
+}
+.qo-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.qo-pager button {
+  padding: 2px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.qo-pager button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Settings block moved to the bottom. */
+.settings-block {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.settings-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin-bottom: 6px;
 }
 </style>

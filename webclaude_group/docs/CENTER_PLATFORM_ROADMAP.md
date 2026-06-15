@@ -120,19 +120,19 @@
 |---------|------|--------|------|
 | M1 | webclaude_center_server | 用户认证与资料 | 已有 |
 | M2 | webclaude_center_server | 订阅与支付 / 套餐 | 已有 |
-| M3 | webclaude_center_server | API Key CRUD 与权限 | 已有，需绑项目/对话 |
-| M4 | webclaude_center_server | **项目 / 对话** 模型与配额 | **待做** |
-| M5 | webclaude_center_server | **主机注册 / 心跳 / 用户-Claude 映射上报** | **待做** |
-| M6 | webclaude_center_server | **Host API**：创建 user、Claude 可用性探测 | **待做** |
-| M7 | webclaude_center_server | **流式 API**（若走中心直连，需与网关去重设计） | **待设计** |
-| M8 | webclaude_go-gateway | Key 校验、账号池、用量、**WS 前端/Host 中继** | 已有 |
+| M3 | webclaude_center_server | API Key CRUD 与权限 | ✅ 已完成（`ApiKey.allowed_projects` + `scopes`，注册默认 Key 沿用） |
+| M4 | webclaude_center_server | **项目 / 对话** 模型与配额 | ✅ 已完成 — `Project`/`Conversation` EntitySchema + `/api/projects`、`/api/projects/:pid/conversations`、`/api/conversations/:id`；按 `User.level` 走 `quotaPolicyDefaults`（free/pro/max/team），超限 403 `QUOTA_EXCEEDED` |
+| M5 | webclaude_center_server | **主机注册 / 心跳 / 用户-Claude 映射上报** | ✅ 已完成 — Host 经 `POST /api/registry/host` 上报心跳（含 `users[]`/`load`/`memory_mb`），`GET /admin/hosts` 派生在线/离线（90s 阈值）与可用用户 |
+| M6 | webclaude_center_server | **Host API**：创建 user、Claude 可用性探测 | ✅ 已完成 — `/admin/hosts/:id/create-user`、`/admin/hosts/:id/verify-claude` 经 `gatewayBridgeClient` → go-gateway `/internal/bridge/{hostId}` 同步往返 |
+| M7 | webclaude_center_server | **流式 API**（聊天链路；与网关去重） | ✅ 已完成 — 不在中心直连；由 go-gateway 提供 `WS /ws/chat` 与 **HTTP SSE `POST /api/chat/completions`**（共用账号/主机选择，不重复实现） |
+| M8 | webclaude_go-gateway | Key 校验、账号池、用量、**WS 前端/Host 中继** | 已有（新增同步桥接 `BridgeCommandSync` + SSE 聊天端点） |
 | M9 | `webclaude_gateway`（独立仓库） | **不使用** — 与 M8 重复，**不部署** | 废弃 |
-| M10 | core_node/pyapps/claude_host | HostAgent、Runner、LinuxOps | 已有，需接中心上报 |
-| M11 | webclaude_website | 聊天 Web、免 Key 跳转、上传 | 部分已有，待对齐 |
+| M10 | core_node/pyapps/claude_host | HostAgent、Runner、LinuxOps | ✅ 已接中心上报（`center_registration` HTTPS 心跳）；补齐 `verify_claude`/`create_project_dir` 指令、心跳 `uptime_s`/`disk_mb` |
+| M11 | webclaude_website | 聊天 Web、免 Key 跳转、上传 | ✅ 项目/对话页对接 `/api/projects`；注册补齐邮箱验证两步流程（send-verification/verify-email）。免 Key 跳转 + 上传仍待对齐 |
 | M12 | （插件组仓库） | VS Code / 独立客户端 | 外部 |
 | M13 | 运维 | Nginx 边缘模板与多节点 | **待做** |
 
-**模块数**：**13** 个逻辑编号（M9 为显式废弃声明）；**活跃实现 12**；其中 **中心侧新增/大改约 4–5 个（M4–M7 及 M5 联调）**。
+**模块数**：**13** 个逻辑编号（M9 为显式废弃声明）；**活跃实现 12**。**中心侧 M4–M7 + M3 绑定已落地**（2026-06-15）；剩余主要为 **M13（Nginx 边缘）** 与 **M11 的免 Key 跳转 / 文件上传**、插件组（M12，外部）。
 
 ---
 
@@ -157,12 +157,14 @@
 
 ## 8. 建议的下一步（实施顺序）
 
-1. **数据模型**：项目 / 对话 / Key 绑定关系（MySQL migration + center API）。  
-2. **Host 上报**：最小心跳 JSON + 鉴权（Host token 与 machine id）。  
-3. **网关**：只读新表或同步字段，保证 Key 请求能解析到「允许的项目/对话」。  
-4. **Web 聊天**：Key 登录路径 + 文件上传对接同一上传服务。  
-5. **Nginx**：边缘反代模板，指向 website + gateway + ws 升级。  
-6. **插件组**：在稳定 WebSocket 与 Key 语义后再接 MCP/同步。
+1. ✅ **数据模型**：项目 / 对话 / Key 绑定关系（`Project`/`Conversation` 实体 + center `/api/projects*`；`ApiKey.allowed_projects`）。  
+2. ✅ **Host 上报**：心跳 JSON + 鉴权（`/api/registry/host` + Host token；`/admin/hosts` 聚合）。  
+3. ✅ **网关**：同步桥接（`/internal/bridge/{hostId}` + `BridgeCommandSync`）+ SSE 聊天端点；会话亲和缓存解析项目/对话。  
+4. ⏳ **Web 聊天**：Key 登录路径已具备（注册含邮箱验证）；**文件上传**对接同一上传服务仍待做。  
+5. ⏳ **Nginx**：边缘反代模板，指向 website + gateway + ws 升级（M13，未做）。  
+6. ⏳ **插件组**：在稳定 WebSocket 与 Key 语义后再接 MCP/同步（外部）。
+
+> **本地开发热重载**：统一启动器 `scripts/start.{sh,ps1}` 让四端均以热重载运行 —— center=nodemon、gateway=air、website=Vite HMR、claude_host=watchdog（`--dev` → `dev_reload.py`）。详见 [ARCHITECTURE_GUIDE.md](./ARCHITECTURE_GUIDE.md) §9.5。
 
 ---
 
@@ -172,3 +174,4 @@
 |------|------|
 | 2026-04-02 | 初版：角色/模块/冲突对齐 |
 | 2026-04-02 | 声明 `webclaude_gateway` 重复实现、不部署；执行路径改为仅 go-gateway WS |
+| 2026-06-15 | 落地 M4（项目/对话+配额）、M5/M6（主机注册/心跳 + Host Admin API 经网关桥接）、M7（go-gateway SSE 聊天端点）、M3（Key↔项目绑定）；claude_host 补齐 verify_claude/create_project_dir + 心跳 uptime_s/disk_mb；website 项目页对接 + 注册邮箱验证两步流程；统一启动器四端热重载对齐 |

@@ -308,11 +308,25 @@ class AppQyV1TranslationQueueController extends Controller
         $validated = $request->validate([
             'status' => 'nullable|string',
             'limit' => 'nullable|integer|min:1|max:1000',
+            // Server-side pagination: pass either `page` (1-based) OR a raw
+            // `offset`. `page` wins when both are given (offset = (page-1)*limit).
+            'offset' => 'nullable|integer|min:0',
+            'page' => 'nullable|integer|min:1',
         ]);
 
         $limit = 100;
         if (isset($validated['limit'])) {
             $limit = (int) $validated['limit'];
+        }
+
+        $offset = 0;
+        if (isset($validated['page'])) {
+            $offset = ((int) $validated['page'] - 1) * $limit;
+        } elseif (isset($validated['offset'])) {
+            $offset = (int) $validated['offset'];
+        }
+        if ($offset < 0) {
+            $offset = 0;
         }
 
         // Summary counts across all word_translation tasks (not just the page).
@@ -365,22 +379,29 @@ class AppQyV1TranslationQueueController extends Controller
         });
 
         // Page query. "processing" is treated as the live set (assigned+processing)
-        // to mirror the summary; unknown/empty status returns all.
-        $query = (clone $base)
-            ->orderBy('priority', 'desc')
-            ->orderBy('created_at', 'asc')
-            ->limit($limit);
-
+        // to mirror the summary; unknown/empty status returns all. The status
+        // filter is applied to a base BEFORE counting so the pagination total
+        // matches exactly what the (status-filtered) page draws from.
+        $pageQuery = (clone $base);
         if (isset($validated['status']) && $validated['status'] !== '') {
             $status = $validated['status'];
             if ($status === 'processing') {
-                $query->whereIn('status', [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING]);
+                $pageQuery->whereIn('status', [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING]);
             } elseif ($status === 'completed') {
-                $query->whereIn('status', [GlobalTask::STATUS_COMPLETED, GlobalTask::STATUS_COMPLETED_DEMO]);
+                $pageQuery->whereIn('status', [GlobalTask::STATUS_COMPLETED, GlobalTask::STATUS_COMPLETED_DEMO]);
             } else {
-                $query->where('status', $status);
+                $pageQuery->where('status', $status);
             }
         }
+
+        // Total rows matching the filtered query (drives client pagination).
+        $filteredTotal = (clone $pageQuery)->count();
+
+        $query = $pageQuery
+            ->orderBy('priority', 'desc')
+            ->orderBy('created_at', 'asc')
+            ->offset($offset)
+            ->limit($limit);
 
         $now = now();
         $items = [];
@@ -436,6 +457,15 @@ class AppQyV1TranslationQueueController extends Controller
         return $this->success([
             'summary' => $summary,
             'items' => $items,
+            // Server-side pagination metadata (additive; existing consumers that
+            // only read summary/items are unaffected).
+            'pagination' => [
+                'limit' => $limit,
+                'offset' => $offset,
+                'page' => (int) floor($offset / max(1, $limit)) + 1,
+                'total' => $filteredTotal,
+                'has_more' => ($offset + count($items)) < $filteredTotal,
+            ],
         ], 'Translation queue listed');
     }
 

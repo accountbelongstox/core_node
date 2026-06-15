@@ -943,6 +943,40 @@ class BingDictionaryWorkerService {
   }
 
   /**
+   * Translation queue overview: how many words are still untranslated + the
+   * pending task list (with per-task word counts), for the panel to show on Start.
+   * Works whether or not the worker is running (a plain control read). Aligned
+   * with laravel_main /api/app_qy_v1/ai_tools/translation/queue/list.
+   */
+  async getQueueOverview(
+    apiUrl?: string,
+    status = 'pending',
+    limit = 10,
+    page = 1,
+  ): Promise<{ ok: boolean; summary?: any; items?: any[]; pagination?: any; message?: string }> {
+    const base = (apiUrl || this.config?.apiUrl || '').trim().replace(/\/+$/, '');
+    if (!base) return { ok: false, message: 'No endpoint configured in Settings' };
+    try {
+      const client =
+        this.workerClient && this.config?.apiUrl === base
+          ? this.workerClient
+          : new WorkerApiClient(base);
+      const resp = await client.getTranslationQueue({ status, limit, page });
+      if (resp.success && resp.data) {
+        return {
+          ok: true,
+          summary: resp.data.summary,
+          items: resp.data.items,
+          pagination: resp.data.pagination,
+        };
+      }
+      return { ok: false, message: resp.message || 'Failed to load queue' };
+    } catch (error: any) {
+      return { ok: false, message: error?.message || 'Unreachable' };
+    }
+  }
+
+  /**
    * Verify the API base URL is reachable by hitting the worker stats endpoint.
    * Used by the popup "Test" button so the user gets immediate feedback instead
    * of a silently dead Start.

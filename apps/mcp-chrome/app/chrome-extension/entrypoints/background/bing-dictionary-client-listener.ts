@@ -71,6 +71,21 @@ async function handleBingDictionaryMessage(
         break;
       }
 
+      case 'queue_overview': {
+        const cfg = message.config as WorkerConfig | undefined;
+        const status = (message as any).status || 'pending';
+        const limit = (message as any).limit || 10;
+        const page = (message as any).page || 1;
+        const overview = await bingDictionaryWorkerService.getQueueOverview(
+          cfg?.apiUrl || '',
+          status,
+          limit,
+          page,
+        );
+        sendResponse({ success: overview.ok, ...overview });
+        break;
+      }
+
       case 'test_connection': {
         const apiUrl = (message.config as WorkerConfig | undefined)?.apiUrl || '';
         const result = await bingDictionaryWorkerService.testConnection(apiUrl);

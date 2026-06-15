@@ -397,6 +397,47 @@ export interface AiProbeResponse {
   error?: string;
 }
 
+/**
+ * GET /api/local/ai/balance[?provider=] — account credit / remaining balance.
+ * Only openrouter / deepseek / siliconflow / moonshot expose a balance API;
+ * any other provider returns `supported:false` with no network call.
+ */
+export interface AiBalance {
+  name: string;
+  /** This provider exposes a machine-readable balance endpoint at all. */
+  supported: boolean;
+  /** A key is present (balance can be fetched). */
+  configured: boolean;
+  /** The live balance fetch succeeded. */
+  ok: boolean;
+  currency: string | null;
+  /** Remaining / available balance. */
+  balance: number | null;
+  /** Free / granted portion (deepseek / siliconflow gift). */
+  granted: number | null;
+  /** Paid / topped-up portion. */
+  topped_up: number | null;
+  /** Total credits granted (openrouter). */
+  total: number | null;
+  /** Total usage to date (openrouter). */
+  used: number | null;
+  /** Openrouter key tier flag. */
+  is_free_tier: boolean | null;
+  key_masked: string | null;
+  /** Human one-liner, e.g. "4.20 USD remaining". */
+  detail: string;
+  error: string | null;
+  latency_ms: number | null;
+}
+
+export interface AiBalanceResponse {
+  providers: AiBalance[];
+  /** Provider names that expose a balance API. */
+  supported: string[];
+  /** Every other registered provider (no balance endpoint). */
+  unsupported: string[];
+}
+
 // --- AI image generation + shared history -------------------------------- #
 /**
  * POST /api/local/ai/image — unified IMAGE contract. On success the backend ALSO

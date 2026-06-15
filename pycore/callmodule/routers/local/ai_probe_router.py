@@ -4,6 +4,7 @@ AI provider probe router.
 
 Endpoints (prefix /api/local/ai):
   GET /probe[?refresh=1]   -> probe_all(): per-provider configured/available/models
+  GET /balance[?provider=] -> balance_all()/balance_one(): account credit/balance
 
 Probing makes live network calls (list-models per provider) and can be slow, so
 the result is cached for ~30s; ``?refresh=1`` forces a fresh probe. The returned
@@ -16,7 +17,7 @@ from typing import Optional
 
 import fastapi
 
-from pycore.pyctl.ai import probe_all, probe_one, catalog
+from pycore.pyctl.ai import probe_all, probe_one, catalog, balance_all, balance_one
 
 router = fastapi.APIRouter(prefix="/api/local/ai", tags=["Local Processing - AI"])
 
@@ -82,3 +83,23 @@ async def probe(refresh: int = 0, provider: Optional[str] = None):
     out["cached"] = False
     out["age_ms"] = 0.0
     return out
+
+
+@router.get("/balance")
+async def balance(provider: Optional[str] = None):
+    """
+    Read AI account balance / remaining credit.
+
+    Only a few providers expose a machine-readable balance endpoint
+    (openrouter / deepseek / siliconflow / moonshot); every other provider is
+    reported as ``supported:false`` WITHOUT a network call (billing is
+    console-only — e.g. Gemini, OpenAI, Anthropic).
+
+    - ``?provider=NAME`` returns the single balance record for that provider.
+    - No ``provider`` returns ``{providers, supported, unsupported}`` for the
+      whole balance-capable set. Never cached — balances change with usage and
+      the call set is tiny.
+    """
+    if provider:
+        return balance_one(provider)
+    return balance_all()
