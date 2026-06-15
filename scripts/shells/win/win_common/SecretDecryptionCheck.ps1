@@ -64,7 +64,9 @@ if (-not (Test-Path $encryptedDir)) {
 # Clean up expired secret cache entries
 Clear-ExpiredSecretCache
 
-$encryptedFiles = Get-ChildItem -Path $encryptedDir -Filter "*.js" -File -ErrorAction SilentlyContinue
+# Force array so .Count is always available (zero matches returns $null,
+# which throws under Set-StrictMode when .Count is accessed).
+$encryptedFiles = @(Get-ChildItem -Path $encryptedDir -Filter "*.js" -File -ErrorAction SilentlyContinue)
 
 if ($encryptedFiles.Count -eq 0) {
     return

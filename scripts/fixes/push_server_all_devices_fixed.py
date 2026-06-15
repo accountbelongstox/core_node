@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from pycore.pyutils.scrcpy_init import get_initializer
+from pycore.pyutils.device.scrcpy_init import get_initializer
 from pycore import ColorPrint
 
 scrcpy_init = get_initializer()

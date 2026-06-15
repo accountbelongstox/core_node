@@ -100,6 +100,22 @@ const parseResponse = (responseString: string): ApiInfoResponse[] => {
   return responses;
 };
 
+/**
+ * Extract `{placeholder}` names from an endpoint path,
+ * e.g. "/api/servermanager/v1/nginx/sites/{site_name}" -> ["site_name"].
+ * These must be URL-substituted before sending — a literal "{site_name}"
+ * never matches a Laravel route and produces a 404 with an empty body.
+ */
+export const extractPathPlaceholders = (path: string): string[] => {
+  const names: string[] = [];
+  const regex = /\{(\w+)\}/g;
+  let match;
+  while ((match = regex.exec(path)) !== null) {
+    names.push(match[1]);
+  }
+  return names;
+};
+
 export const generateExampleParams = (params?: ApiInfoParam[]): Record<string, any> => {
   if (!params || params.length === 0) return {};
 

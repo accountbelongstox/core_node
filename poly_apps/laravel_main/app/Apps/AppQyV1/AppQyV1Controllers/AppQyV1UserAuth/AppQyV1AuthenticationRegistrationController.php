@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
@@ -24,6 +21,7 @@ use App\Models\InviteCode;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use App\Services\UnifiedAuthService;
+use App\Constants\AppKeys;
 use App\Services\AvatarService;
 use App\Http\Common\CommonAuthService;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
@@ -149,7 +147,11 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             ],
         ];
 
-        $unifiedResult = UnifiedAuthService::register($credentials, 'AppQyV1');
+        // AppKeys::APPQYV1 === 'appqyv1', the connection key defined in
+        // config/database.php. Passing the PascalCase literal 'AppQyV1' here
+        // caused "Database connection [AppQyV1] not configured." (the
+        // UnifiedAuthService 2nd arg is used as $userModel->setConnection()).
+        $unifiedResult = UnifiedAuthService::register($credentials, AppKeys::APPQYV1);
 
         if (!$unifiedResult['success']) {
             $errorMessage = $unifiedResult['error'];
@@ -172,7 +174,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         }
 
         $user = $unifiedResult['user'];
-        $user = \App\Http\Common\CommonAvatarPublic::createAvatar($user);
+        $user = \App\Http\Common\CommonAvatarPublic::createAvatar($user, true);
         event(new \Illuminate\Auth\Events\Registered($user));
 
         if ($inviteCode && isset($invite)) {

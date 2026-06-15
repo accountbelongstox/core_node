@@ -30,7 +30,7 @@ from typing import Optional, Callable, List
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot, QTimer, Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 from PySide6.QtGui import QIcon
 
 from pycore import THREAD_BUS, ColorPrint
@@ -46,7 +46,8 @@ from .system_tray import (
     PySide6SystemTray,
     PySide6TrayMenuItem,
     create_default_tray_menu,
-    create_i18n_event_driven_tray_menu
+    create_i18n_event_driven_tray_menu,
+    build_pyside6_menu_from_dicts
 )
 from .webview import PySide6WebView
 
@@ -156,6 +157,8 @@ class PySide6Framework(QObject):
     _thread_bus_close_signal = Signal()
     _thread_bus_minimize_signal = Signal()
     _thread_bus_maximize_signal = Signal()
+    _thread_bus_update_tray_menu_signal = Signal(object)  # menu items (list of dicts)
+    _thread_bus_subtitle_mode_signal = Signal(bool)  # subtitle compact mode: True=enter, False=exit
 
     def __init__(
         self,
@@ -385,6 +388,15 @@ class PySide6Framework(QObject):
         ColorPrint.green(f"[PySide6Framework] Framework is now running")
         ColorPrint.green(f"[PySide6Framework] Window visible: {self.main_window.isVisible() if self.main_window else False}")
 
+        # Auto-close the tk bootstrap window now that PySide6 is fully up.
+        # This is race-free, unlike the 'system.third_party_packages_loaded'
+        # handler which may be registered only after the launcher already fired
+        # that event (this framework is constructed late, in the UI worker thread).
+        # close_startup() is idempotent (it clears self.startup_thread).
+        if self.startup_config.auto_close and self.startup_thread:
+            ColorPrint.blue("[PySide6Framework] auto_close: closing tk bootstrap window (PySide6 ready)")
+            self.close_startup()
+
         # Start Qt event loop (blocking)
         if self._qt_app_created_internally:
             ColorPrint.blue("[PySide6Framework] Starting Qt event loop (blocking)...")
@@ -418,7 +430,8 @@ class PySide6Framework(QObject):
             height=self.config.window_size[1],
             frameless=self.config.frameless,
             icon_path=self.config.icon_path,
-            cache_window_state=self.config.cache_window_state
+            cache_window_state=self.config.cache_window_state,
+            close_to_tray=self.config.close_to_tray
         )
         ColorPrint.green(f"[PySide6Framework] Main window created: {self.config.window_size[0]}x{self.config.window_size[1]}, frameless={self.config.frameless}")
 
@@ -473,15 +486,25 @@ class PySide6Framework(QObject):
             ColorPrint.yellow("[PySide6Framework] WebView disabled")
 
         # System tray
-        if self.config.enable_tray:
+        if self.config.enable_tray and not QSystemTrayIcon.isSystemTrayAvailable():
+            # Native tray requested but the OS has no system tray available.
+            # Hand off to the pystray fallback (kept as code-only; started on demand).
+            ColorPrint.yellow("[PySide6Framework] Native system tray unavailable, requesting pystray fallback...")
+            THREAD_BUS.trigger_event('tray.native_unavailable', {})
+        elif self.config.enable_tray:
             ColorPrint.blue("[PySide6Framework] Creating system tray...")
             self.system_tray = PySide6SystemTray(
                 app_name=self.config.app_name,
                 icon_path=self.config.tray_icon_path or self.config.icon_path
             )
 
-            # Create default menu if no custom items
-            if not self.config.tray_menu_items:
+            if self.config.tray_menu_items:
+                # Custom menu provided as canonical dicts (e.g. app-specific rich menu)
+                ColorPrint.blue("[PySide6Framework] Building custom tray menu from config...")
+                self.system_tray.set_menu_items(
+                    build_pyside6_menu_from_dicts(self.config.tray_menu_items)
+                )
+            else:
                 ColorPrint.blue("[PySide6Framework] Creating default i18n event-driven tray menu...")
                 # Use i18n + event-driven menu (automatically updates with language changes)
                 menu_items = create_i18n_event_driven_tray_menu(
@@ -521,6 +544,22 @@ class PySide6Framework(QObject):
             self.main_window.window_restored.connect(
                 lambda: self.title_bar.set_maximized(False) if self.title_bar else None
             )
+            # Hidden-to-tray (close_to_tray) also updates the published visibility state
+            self.main_window.window_hidden.connect(lambda: self._publish_window_visible(False))
+
+        # Web page title -> custom title bar + window title. This lets the embedded
+        # web UI drive the native title: the React app sets document.title from its
+        # i18n table, so switching language in the web also retitles the simulated
+        # title bar (and the taskbar entry). No-op if the title is empty.
+        if self.webview is not None:
+            def _sync_web_title(title: str):
+                if not title:
+                    return
+                if self.title_bar:
+                    self.title_bar.update_title(title)
+                if self.main_window:
+                    self.main_window.setWindowTitle(title)
+            self.webview.title_changed.connect(_sync_web_title)
 
         # System tray connections
         if self.system_tray:
@@ -541,6 +580,8 @@ class PySide6Framework(QObject):
         self._thread_bus_close_signal.connect(self.quit)
         self._thread_bus_minimize_signal.connect(self._do_minimize_window)
         self._thread_bus_maximize_signal.connect(self._do_maximize_window)
+        self._thread_bus_update_tray_menu_signal.connect(self._do_update_tray_menu)
+        self._thread_bus_subtitle_mode_signal.connect(self._do_subtitle_mode)
 
         # THREAD_BUS event listeners (always enabled)
         self._setup_thread_bus_listeners()
@@ -562,7 +603,14 @@ class PySide6Framework(QObject):
 
     @Slot()
     def _on_close(self):
-        """Handle close action."""
+        """Handle close action (custom title-bar close button)."""
+        # When the window lives in the tray, the close button hides it instead of
+        # quitting; the tray "Exit" remains the real quit path. Consistent with
+        # the native close button (MainWindow.closeEvent close_to_tray branch).
+        if self.config.close_to_tray:
+            ColorPrint.blue("[PySide6Framework] close_to_tray: hiding window instead of quitting")
+            self.hide_window()
+            return
         self.quit()
 
     @Slot()
@@ -616,15 +664,22 @@ class PySide6Framework(QObject):
 
     # ========== Public Methods ==========
 
+    def _publish_window_visible(self, visible: bool):
+        """Publish window visibility so the tray menu can reflect it (state_getter)."""
+        namespace = self.config.thread_bus_namespace or self.config.app_id or "ui"
+        THREAD_BUS.signal(f"{namespace}.window_visible", visible)
+
     def show_window(self):
         """Show main window."""
         if self.main_window:
             self.main_window.show_window()
+            self._publish_window_visible(True)
 
     def hide_window(self):
         """Hide main window."""
         if self.main_window:
             self.main_window.hide_window()
+            self._publish_window_visible(False)
 
     def toggle_window(self):
         """Toggle window visibility."""
@@ -709,6 +764,17 @@ class PySide6Framework(QObject):
         for event_name, handler in events.items():
             THREAD_BUS.register_event_handler(event_name, handler)
 
+        # Tray menu live-update for the Qt tray (only when this framework owns the tray;
+        # the independent pystray tray registers its own 'tray.update_menu' handler).
+        if self.config.enable_tray:
+            THREAD_BUS.register_event_handler('tray.update_menu', self._on_thread_bus_update_tray_menu)
+
+        # Voice-subtitle compact ("Subtitle Mode") window control. Triggered by the
+        # web UI via WS RPC -> thread_bus.trigger_event. Handled here (Qt thread)
+        # because window/screen geometry must be touched on the GUI thread.
+        THREAD_BUS.register_event_handler('voice_subtitle.subtitle_mode_enter', self._on_thread_bus_subtitle_mode_enter)
+        THREAD_BUS.register_event_handler('voice_subtitle.subtitle_mode_exit', self._on_thread_bus_subtitle_mode_exit)
+
         if self.config.debug:
             ColorPrint.green(f"[PySide6Framework] Registered THREAD_BUS listeners with namespace: {namespace}")
 
@@ -787,6 +853,60 @@ class PySide6Framework(QObject):
         Emits signal to execute in Qt main thread.
         """
         self._thread_bus_maximize_signal.emit()
+
+    def _on_thread_bus_update_tray_menu(self, event_data):
+        """
+        Handle tray.update_menu event from THREAD_BUS (may be called from any thread).
+        Emits signal to rebuild the native tray menu in the Qt main thread.
+
+        event_data expected format: {'menu_items': List[dict]}  (canonical dict menu)
+        """
+        if isinstance(event_data, dict):
+            menu_items = event_data.get('menu_items')
+            if menu_items is not None:
+                self._thread_bus_update_tray_menu_signal.emit(menu_items)
+
+    @Slot(object)
+    def _do_update_tray_menu(self, menu_items):
+        """Rebuild the native tray menu (Qt main thread)."""
+        if self.system_tray:
+            self.system_tray.set_menu_items(build_pyside6_menu_from_dicts(menu_items))
+
+    def _on_thread_bus_subtitle_mode_enter(self, event_data):
+        """voice_subtitle.subtitle_mode_enter (any thread) -> Qt thread."""
+        self._thread_bus_subtitle_mode_signal.emit(True)
+
+    def _on_thread_bus_subtitle_mode_exit(self, event_data):
+        """voice_subtitle.subtitle_mode_exit (any thread) -> Qt thread."""
+        self._thread_bus_subtitle_mode_signal.emit(False)
+
+    @Slot(bool)
+    def _do_subtitle_mode(self, enter: bool):
+        """
+        Enter/exit compact "Subtitle Mode": a small window at the bottom-center of
+        the screen (above the taskbar). Runs on the Qt main thread.
+        """
+        if not self.main_window:
+            return
+        if enter:
+            self._subtitle_saved_geometry = self.main_window.geometry()
+            screen = self.qt_app.primaryScreen() if self.qt_app else QApplication.primaryScreen()
+            avail = screen.availableGeometry() if screen else None
+            width, height = 1200, 200
+            if avail:
+                x = avail.x() + (avail.width() - width) // 2
+                y = avail.y() + avail.height() - height - 10
+            else:
+                x, y = 100, 100
+            self.main_window.setGeometry(x, y, width, height)
+            self.main_window.show()
+            self.main_window.raise_()
+            self.main_window.activateWindow()
+            self._publish_window_visible(True)
+        else:
+            saved = getattr(self, "_subtitle_saved_geometry", None)
+            if saved is not None:
+                self.main_window.setGeometry(saved)
 
     # ========== WebView Methods ==========
 

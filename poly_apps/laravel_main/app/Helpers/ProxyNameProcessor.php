@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
@@ -50,23 +47,23 @@ class ProxyNameProcessor
             ];
         }
 
-        // 确定引号类型和名称
+        // Determine the quote type and the name
         if (preg_match('/name:\s*"/', $line)) {
-            // 双引号情况
+            // Double-quote case
             if (!preg_match('/name:\s*"([^"]+)"/', $line, $matches)) {
                 return ['proposed_name' => null, 'new_line' => $line];
             }
             $originalName = $matches[1];
             $quoteType = 'double';
         } elseif (preg_match('/name:\s*\'/', $line)) {
-            // 单引号情况
+            // Single-quote case
             if (!preg_match('/name:\s*\'([^\']+)\'/', $line, $matches)) {
                 return ['proposed_name' => null, 'new_line' => $line];
             }
             $originalName = $matches[1];
             $quoteType = 'single';
         } else {
-            // 无引号情况
+            // No-quote case
             if (!preg_match('/name:\s*([^,]+)/', $line, $matches)) {
                 return ['proposed_name' => null, 'new_line' => $line];
             }
@@ -76,7 +73,7 @@ class ProxyNameProcessor
 
         $proposedName = self::generateUniqueName(trim($originalName), $existingNames);
         
-        // 根据引号类型构建新行
+        // Build the new line based on the quote type
         switch ($quoteType) {
             case 'double':
                 $newLine = preg_replace(

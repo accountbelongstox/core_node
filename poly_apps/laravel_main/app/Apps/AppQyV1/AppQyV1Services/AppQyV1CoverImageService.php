@@ -291,7 +291,15 @@ class AppQyV1CoverImageService
      */
     public static function getImagePath(string $filename): ?string
     {
-        $storageDir = PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::STORAGE_SUBDIR;
+        // Check VocabularyCoverService path first (AI-generated covers)
+        $vocabCoversDir = PathMapper::getStaticPath() . '/app_qy_v1/covers';
+        $vocabPath = $vocabCoversDir . DIRECTORY_SEPARATOR . $filename;
+        if (file_exists($vocabPath)) {
+            return $vocabPath;
+        }
+
+        // Fallback to GD-generated covers path
+        $storageDir = PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::getStorageSubdir();
         $path = $storageDir . DIRECTORY_SEPARATOR . $filename;
 
         return file_exists($path) ? $path : null;

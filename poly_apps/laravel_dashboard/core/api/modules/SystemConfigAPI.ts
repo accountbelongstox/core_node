@@ -69,16 +69,80 @@ export interface EnvironmentInfo {
 }
 
 /**
+ * Client-side TTL for the /api_info catalog (ms).
+ *
+ * /api_info is a large, fairly static catalog that Settings.tsx and
+ * ApiTester.tsx both fetch on every mount. Without a cache each mount (and
+ * StrictMode's double-mount) re-hits the network. 60s comfortably dedupes
+ * normal navigation between those views while still picking up backend
+ * restarts quickly. The backend also sends Cache-Control/ETag, but we honor
+ * an explicit client-side TTL regardless so behaviour is deterministic.
+ */
+const API_INFO_TTL_MS = 60000;
+
+interface ApiInfoCacheEntry {
+  data: APIResponse<any>;
+  timestamp: number;
+}
+
+/**
  * System Configuration API
- * 获取系统路径配置和其他全局配置
+ * Retrieves system path configuration and other global config
  */
 export class SystemConfigAPI extends BaseAPI {
+  // Shared across instances and keyed by the fully-resolved request URL
+  // (base URL + path + params) so Settings.tsx swapping `baseURL` to a
+  // user-supplied test URL never collides with the default-endpoint cache.
+  private static apiInfoCache = new Map<string, ApiInfoCacheEntry>();
+  // Single-flight: concurrent callers for the same resolved URL share one
+  // in-flight request instead of each issuing their own.
+  private static apiInfoInflight = new Map<string, Promise<APIResponse<any>>>();
+
   /**
-   * Get API info - 获取API基本信息和健康状态
+   * Fetch /api_info with a TTL cache + single-flight, keyed by the resolved
+   * URL so Settings.tsx (test base URL) and ApiTester.tsx (default base URL)
+   * each get correct, de-duplicated results.
+   */
+  private async fetchApiInfo(params?: Record<string, any>): Promise<APIResponse<any>> {
+    const key = this.buildURL('/api_info') + (params ? `?${JSON.stringify(params)}` : '');
+
+    const cached = SystemConfigAPI.apiInfoCache.get(key);
+    if (cached && Date.now() - cached.timestamp < API_INFO_TTL_MS) {
+      return cached.data;
+    }
+
+    const inflight = SystemConfigAPI.apiInfoInflight.get(key);
+    if (inflight) {
+      return inflight;
+    }
+
+    // retry=false: a single api_info call must never become a 3x retry storm
+    // against a slow/dead endpoint.
+    const promise = this.get('/api_info', params, false, 300000, false)
+      .then((response) => {
+        // Only cache successful responses; failures should retry next call.
+        if (response.success) {
+          SystemConfigAPI.apiInfoCache.set(key, {
+            data: response,
+            timestamp: Date.now()
+          });
+        }
+        return response;
+      })
+      .finally(() => {
+        SystemConfigAPI.apiInfoInflight.delete(key);
+      });
+
+    SystemConfigAPI.apiInfoInflight.set(key, promise);
+    return promise;
+  }
+
+  /**
+   * Get API info - basic API information and health status
    * Note: This is a web route, not an API route
    */
   async getApiInfo(): Promise<APIResponse<any>> {
-    return this.get('/api_info', undefined, false);
+    return this.fetchApiInfo();
   }
 
   /**
@@ -87,7 +151,7 @@ export class SystemConfigAPI extends BaseAPI {
    */
   async getFullApiInfo(app?: string): Promise<APIResponse<any>> {
     const params = app ? { app } : undefined;
-    return this.get('/api_info', params, false);
+    return this.fetchApiInfo(params);
   }
 
   /**

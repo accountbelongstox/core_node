@@ -20,7 +20,7 @@ import json
 from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
 
 sqlalchemy = get_third_package_sqlalchemy()
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.database.base_model import BaseModel
 from pycore.database.models.table_keys import TableKeys
 from pycore.database.models.namespaces import TableNamespaces

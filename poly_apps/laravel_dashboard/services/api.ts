@@ -1,17 +1,21 @@
 
 import { ToolConfig, ApiResponse } from "../types";
 import { MockService } from "./mockData";
-import { getDefaultBaseURL } from "../config/constants";
 
-const getDefaultBaseUrl = (): string => {
-    return getDefaultBaseURL();
-};
-
+/**
+ * MOCK tool-execution client (demo flows only).
+ *
+ * This is NOT the real API layer — real requests go through `core/api` (the
+ * `api` singleton), which follows the live shared base URL managed by
+ * ApiManager. This client backs the demo tools (WordCounter, AgeCalculator,
+ * PasswordGenerator, HexToRgb, UniversalTool, ToolWorkspace): every action is
+ * resolved by MockService; "cloud" mode merely simulates latency/failures.
+ * It therefore holds NO base URL or key (the former static `globalBaseUrl` /
+ * `setGlobalConfig` / `fetchEndpoint` were dead code — never read or called —
+ * and risked being mistaken for a live, but stale, endpoint source).
+ */
 class ApiClient {
     private static instance: ApiClient;
-
-    private globalBaseUrl: string = getDefaultBaseUrl();
-    private globalApiKey: string = "sk-mock-key-12345";
 
     private constructor() {}
 
@@ -20,45 +24,6 @@ class ApiClient {
             ApiClient.instance = new ApiClient();
         }
         return ApiClient.instance;
-    }
-
-    public setGlobalConfig(baseUrl: string, apiKey: string) {
-        this.globalBaseUrl = baseUrl;
-        this.globalApiKey = apiKey;
-    }
-
-    /**
-     * General purpose fetcher for ApiTester
-     */
-    public async fetchEndpoint(method: string, path: string, headers: any): Promise<ApiResponse> {
-        const start = Date.now();
-        
-        // Mocking network delay
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const latency = Date.now() - start;
-                
-                // Random failure simulation
-                if (Math.random() > 0.9) {
-                     resolve({
-                        success: false,
-                        statusCode: 500,
-                        error: "Internal Server Error (Simulated)",
-                        latency,
-                        dataSource: 'mock'
-                    });
-                    return;
-                }
-
-                resolve({
-                    success: true,
-                    statusCode: 200,
-                    data: { message: `Successfully executed ${method} ${path}`, timestamp: new Date().toISOString() },
-                    latency,
-                    dataSource: 'cloud'
-                });
-            }, 300 + Math.random() * 800);
-        });
     }
 
     /**

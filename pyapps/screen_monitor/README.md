@@ -19,9 +19,9 @@ Developed according to `PYTHON_PYCORE.md` standards:
 ### Used pycore Modules
 
 - `pycore.pyutils.ocr` - OCR recognition using ocr_manager singleton
-- `pycore.pyutils.window_ops` - Windows operations (click)
+- `pycore.pyutils.window.ops` - Windows operations (click)
 - `pycore.pyutils.image_comparator` - Image similarity comparison (histogram, MSE, SSIM)
-- `pycore.pyutils.window_analyzer` - Window detection and region analysis
+- `pycore.pyutils.window.analyzer` - Window detection and region analysis
 - `pycore.pyfoundations.color_print` - Colored console output
 - `pycore.pyfoundations.third_party` - Lazy loading of third-party packages (mss, PIL_Image)
 - `pycore.pygvar` - Global constants (PYTOOLS_TMP_DIR)
@@ -30,9 +30,9 @@ Developed according to `PYTHON_PYCORE.md` standards:
 
 ```python
 from pycore.pyutils.ocr import ocr_manager
-from pycore.pyutils.window_ops import WindowOps
+from pycore.pyutils.window.ops import WindowOps
 from pycore.pyutils.image_comparator import ImageComparator
-from pycore.pyutils.window_analyzer import WindowAnalyzer
+from pycore.pyutils.window.analyzer import WindowAnalyzer
 from pycore.pyfoundations.third_party import get_third_package_mss, get_third_package_PIL_Image
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pygvar import PYTOOLS_TMP_DIR

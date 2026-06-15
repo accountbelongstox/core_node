@@ -148,6 +148,15 @@ return new class extends Migration
         }
 
         $connection = DB::connection($this->connection);
+        $driver = $connection->getDriverName();
+
+        // pgsql supports adding a serial primary key column in-place; no table rebuild needed.
+        if ($driver === 'pgsql') {
+            $connection->statement('ALTER TABLE "' . $this->tableName . '" ADD COLUMN id BIGSERIAL PRIMARY KEY');
+
+            return;
+        }
+
         $quotedTable = '"' . $this->tableName . '"';
         $tempTable = $this->tableName . '_tmp_with_id';
         $quotedTemp = '"' . $tempTable . '"';

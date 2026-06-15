@@ -19,7 +19,7 @@ except ImportError:
     print("请安装 uiautomator2: pip install uiautomator2")
     sys.exit(1)
 
-from pycore.pyutils.scrcpy_init import get_initializer
+from pycore.pyutils.device.scrcpy_init import get_initializer
 from pycore.pyutils.device.adb_commands import ADBCommands
 
 

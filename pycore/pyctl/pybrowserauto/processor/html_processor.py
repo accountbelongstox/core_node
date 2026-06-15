@@ -8,7 +8,7 @@ Processes HTML content: extracts resources, rewrites URLs, and saves for offline
 
 from pathlib import Path
 from typing import Dict, Optional, List
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class HTMLProcessor:

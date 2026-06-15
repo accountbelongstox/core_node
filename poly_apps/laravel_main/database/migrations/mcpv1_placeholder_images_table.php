@@ -6,7 +6,9 @@ use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
 {
-    protected $connection = 'sqlite';
+    // McpV1 owns this table -> use the McpV1 connection (its own database under the
+    // per-app pgsql topology), not the default 'sqlite'/core_node_main connection.
+    protected $connection = 'mcpv1';
     protected $tableName = 'placeholder_images';
 
     public function up(): void

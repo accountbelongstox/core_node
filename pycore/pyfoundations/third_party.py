@@ -18,16 +18,24 @@ import sys
 import importlib
 import importlib.util
 import platform
-from typing import Optional
+import shutil
+import zipfile
+from pathlib import Path
+from typing import Optional, List, Union, Tuple, Dict, Any, Callable
 
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.cpu_gpu_packages import get_cnocr_pip_package
-from pycore.pyfoundations.cuda_detector import CUDADetector
-from pycore.pyfoundations.cuda_initializer import CudaInitializer
-from pycore.pyfoundations.onnx_runtime_capability import last_ort_install_ran
-from pycore.pyfoundations.ocr_initializer import OcrInitializer
-from pycore.pyfoundations.safe_subprocess import subprocess
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.compute_caps import (
+    CUDADetector,
+    CudaInitializer,
+    get_cnocr_pip_package,
+    get_ort_install_package,
+    last_ort_install_ran,
+    is_onnx_cuda_usable,
+    ORT_CPU_PKG,
+    ORT_GPU_PKG,
+)
+from pycore.pyfoundations.pybasecommon.safe_subprocess import subprocess
 from pycore.pyfoundations.pybasecommon.commander import Commander
 
 try:
@@ -181,6 +189,10 @@ DEPENDENCY_MAP = {
     # For Google Gemini API (google.genai)
     "google.genai": "google-genai",
 
+    # For OpenAI-compatible AI providers (OpenAI, DeepSeek via base_url, etc.)
+    # DeepSeek is OpenAI-API-compatible: same SDK, base_url=https://api.deepseek.com
+    "openai": "openai",
+
     # For audio playback (cross-platform, supports MP3/OGG/WAV)
     "pygame": "pygame",
 
@@ -209,11 +221,24 @@ OPTIONAL_PACKAGES = {
     # Install with: sudo apt-get install python3-gi gir1.2-appindicator3-0.1
     # Or: ./scripts/install_ubuntu_tray_support.sh
     "gi": "PyGObject",
+
+    # For EPUB ebook text extraction (Books ingest) - optional; book_processor
+    # falls back to a stdlib zipfile + tag-strip when absent.
+    "ebooklib": "ebooklib",
+    # For legacy .rtf text extraction (Books ingest) - optional; book_processor
+    # falls back to a stdlib control-word regex strip when absent.
+    "striprtf": "striprtf",
+    # Faster/robuster HTML/XML parser for BeautifulSoup (Books ingest) - optional;
+    # bs4 falls back to the stdlib "html.parser" when lxml is absent.
+    "lxml": "lxml",
 }
 
 # Windows-only optional: WinRT OCR (Windows.Media.Ocr). Multiple pip packages required; loaded via get_third_package_windows_ocr().
 WINDOWS_OCR_WINRT_PACKAGES = [
     "winrt-Windows.Foundation",
+    # OcrResult.lines / line.words are WinRT collections — without this projection
+    # recognition raises "No module named 'winrt.windows.foundation.collections'".
+    "winrt-Windows.Foundation.Collections",
     "winrt-Windows.Media.Ocr",
     "winrt-Windows.Graphics.Imaging",
     "winrt-Windows.Storage.Streams",
@@ -527,65 +552,71 @@ def install_and_reimport_azure():
         return None
 
 
+def _edge_tts_version_ge(version: str, minimum: str) -> bool:
+    """True if dotted `version` >= `minimum` (numeric-aware, no packaging dep)."""
+    def parts(v):
+        out = []
+        for p in str(v).split('.'):
+            num = ''.join(ch for ch in p if ch.isdigit())
+            out.append(int(num) if num else 0)
+        return out
+    a, b = parts(version), parts(minimum)
+    a += [0] * (len(b) - len(a))
+    b += [0] * (len(a) - len(b))
+    return a >= b
+
+
 def install_and_reimport_edge_tts():
     """
-    Install Edge TTS package and reimport it.
+    Install / upgrade Edge TTS and import it. Targets the LATEST release.
 
-    Direct hard import, no string variables, no DEPENDENCY_MAP lookup.
-
-    IMPORTANT: edge-tts 7.2.2+ has NoAudioReceived bug.
-    Compatible versions: 7.2.1, 7.2.0, 7.1.0, 7.0.0
-    Required version: 7.2.1
-    Reference: https://github.com/rany2/edge-tts/issues/443
+    History: edge-tts 7.2.3 hit a server-side outage -> NoAudioReceived (issue
+    #443); the same-day workaround was "pin 7.2.1". That fix shipped in 7.2.4
+    ("Resolve NoAudioReceived issue"). Pinning an OLD version is now harmful: a
+    stale Sec-MS-GEC handshake gets rejected with HTTP 403 (issues #290/#458).
+    So we require >= 7.2.4 and upgrade to the latest otherwise. A 403 on the
+    latest version is rate-limit / regional blocking (set EDGE_TTS_PROXY), not a
+    version problem.
 
     Returns:
         The imported module if successful, None otherwise.
     """
-    REQUIRED_VERSION = "7.2.1"
-    COMPATIBLE_VERSIONS = ["7.2.1", "7.2.0", "7.1.0", "7.0.0"]
+    MIN_VERSION = "7.2.4"   # first release that resolved NoAudioReceived
 
-    # Try direct hard import first
+    # Try direct hard import first.
     try:
         import edge_tts
-        current_version = edge_tts.__version__
+        current_version = getattr(edge_tts, '__version__', '0')
 
-        # Check if current version is compatible
-        if current_version in COMPATIBLE_VERSIONS:
-            ColorPrint.green(f"[SUCCESS] Edge TTS {current_version} is compatible")
+        if _edge_tts_version_ge(current_version, MIN_VERSION):
+            ColorPrint.green(f"[SUCCESS] Edge TTS {current_version} is compatible (>= {MIN_VERSION})")
             return edge_tts
-        else:
-            ColorPrint.yellow(f"[WARNING] Edge TTS {current_version} is incompatible (has NoAudioReceived bug)")
-            ColorPrint.yellow(f"[WARNING] Downgrading to {REQUIRED_VERSION}...")
 
-            # Force reinstall with correct version
-            pip_cmd = build_pip_install_command(f"edge-tts=={REQUIRED_VERSION}")
-            pip_cmd.append("--force-reinstall")
-            run_pip_install_with_realtime_output(pip_cmd, f"edge-tts=={REQUIRED_VERSION}")
+        ColorPrint.yellow(f"[WARNING] Edge TTS {current_version} is too old (< {MIN_VERSION}); "
+                          "old versions 403 on a stale Sec-MS-GEC handshake. Upgrading to latest...")
+        pip_cmd = build_pip_install_command("edge-tts")
+        pip_cmd.append("--upgrade")
+        run_pip_install_with_realtime_output(pip_cmd, "edge-tts (latest)")
 
-            # Clear import cache and reimport
-            importlib.invalidate_caches()
-            # Remove from sys.modules to force reimport
-            if 'edge_tts' in sys.modules:
-                del sys.modules['edge_tts']
-
-            import edge_tts
-            new_version = edge_tts.__version__
-            ColorPrint.green(f"[SUCCESS] Edge TTS downgraded from {current_version} to {new_version}")
-            return edge_tts
+        importlib.invalidate_caches()
+        if 'edge_tts' in sys.modules:
+            del sys.modules['edge_tts']
+        import edge_tts
+        new_version = getattr(edge_tts, '__version__', 'unknown')
+        ColorPrint.green(f"[SUCCESS] Edge TTS upgraded from {current_version} to {new_version}")
+        return edge_tts
 
     except ImportError:
         ColorPrint.blue("[INFO] Edge TTS not installed")
     except AttributeError:
         ColorPrint.yellow("[WARNING] Edge TTS installed but version cannot be detected")
 
-    # Install required version
-    ColorPrint.blue(f"[INFO] Installing Edge TTS {REQUIRED_VERSION}...")
-    pip_cmd = build_pip_install_command(f"edge-tts=={REQUIRED_VERSION}")
+    # Install the latest version.
+    ColorPrint.blue("[INFO] Installing latest Edge TTS...")
+    pip_cmd = build_pip_install_command("edge-tts")
+    pip_cmd.append("--upgrade")
+    run_pip_install_with_realtime_output(pip_cmd, "edge-tts (latest)")
 
-    # Run installation with real-time output
-    run_pip_install_with_realtime_output(pip_cmd, f"edge-tts=={REQUIRED_VERSION}")
-
-    # Verify installation by trying to import (not by return code)
     importlib.invalidate_caches()
     try:
         import edge_tts
@@ -850,6 +881,44 @@ def get_third_package_PIL_ImageDraw():
         from PIL import ImageDraw as PIL_ImageDraw
         _PACKAGE_CACHE['PIL_ImageDraw'] = PIL_ImageDraw
     return _PACKAGE_CACHE['PIL_ImageDraw']
+
+
+# Document-parsing packages (Books ingest). Used by book_processor / file_processor
+# to extract plain text from .pdf/.docx/.html/.epub/.rtf. All are auto-installed
+# from DEPENDENCY_MAP/OPTIONAL_PACKAGES on first use; the optional ones
+# (ebooklib/striprtf) have stdlib fallbacks in the processor when unavailable.
+def get_third_package_pdfplumber():
+    """Get pdfplumber package (lazy load) for PDF text extraction."""
+    return _lazy_import('pdfplumber', 'import pdfplumber')
+
+
+def get_third_package_docx():
+    """Get python-docx's Document class (lazy load) for .docx text extraction."""
+    if 'docx_Document' not in _PACKAGE_CACHE:
+        from docx import Document as docx_Document
+        _PACKAGE_CACHE['docx_Document'] = docx_Document
+    return _PACKAGE_CACHE['docx_Document']
+
+
+def get_third_package_bs4():
+    """Get BeautifulSoup class (lazy load) for HTML/EPUB text extraction."""
+    if 'bs4_BeautifulSoup' not in _PACKAGE_CACHE:
+        from bs4 import BeautifulSoup as bs4_BeautifulSoup
+        _PACKAGE_CACHE['bs4_BeautifulSoup'] = bs4_BeautifulSoup
+    return _PACKAGE_CACHE['bs4_BeautifulSoup']
+
+
+def get_third_package_ebooklib():
+    """Get ebooklib package (lazy load) for EPUB parsing (optional)."""
+    return _lazy_import('ebooklib', 'import ebooklib')
+
+
+def get_third_package_striprtf():
+    """Get striprtf's rtf_to_text function (lazy load) for .rtf (optional)."""
+    if 'striprtf_rtf_to_text' not in _PACKAGE_CACHE:
+        from striprtf.striprtf import rtf_to_text as striprtf_rtf_to_text
+        _PACKAGE_CACHE['striprtf_rtf_to_text'] = striprtf_rtf_to_text
+    return _PACKAGE_CACHE['striprtf_rtf_to_text']
 
 
 def get_third_package_PIL_ImageFont():
@@ -1310,6 +1379,859 @@ CNOCR_MODEL_DOWNLOAD_HINT = (
 )
 
 
+# ===========================================================================
+# Hugging Face Hub helpers + OCR model provisioning
+# Merged in from the former huggingface_hub_helper / ocr_prewarm_spec /
+# ocr_hf_models / ocr_initializer modules. Kept HERE (not as sibling
+# pyfoundations modules) because the OCR provisioning chain depends on this
+# module's get_third_package_* getters (a cycle), and pyfoundations top-level
+# modules may import ONLY pybasecommon. Folding the chain into third_party
+# removes the cycle and the sideways pyfoundations imports.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Hugging Face Hub base helpers. Native Python API only (no CLI/wget).
+# Uses huggingface_hub.hf_hub_download and snapshot_download.
+# Ref: https://huggingface.co/docs/huggingface_hub/guides/download
+# ---------------------------------------------------------------------------
+def ensure_huggingface_hub():
+    """Return huggingface_hub module or None (installs via this module's getter)."""
+    return get_third_package_huggingface_hub()
+
+
+def hf_download_file(
+    repo_id: str,
+    filename: str,
+    local_dir: Optional[Union[str, Path]] = None,
+    revision: Optional[str] = None,
+    force_download: bool = False,
+) -> Optional[str]:
+    """
+    Download a single file from Hub. Native API, no CLI.
+    Returns local path or None on failure.
+    """
+    hub = ensure_huggingface_hub()
+    if hub is None:
+        ColorPrint.yellow("[HF] huggingface_hub not available; pip install huggingface_hub")
+        return None
+    try:
+        path = hub.hf_hub_download(
+            repo_id=repo_id,
+            filename=filename,
+            local_dir=local_dir,
+            revision=revision or "main",
+            force_download=force_download,
+        )
+        return path
+    except Exception as e:
+        ColorPrint.red(f"[HF] hf_hub_download failed: {e}")
+        return None
+
+
+def hf_snapshot_to_dir(
+    repo_id: str,
+    local_dir: Union[str, Path],
+    allow_patterns: Optional[Union[str, List[str]]] = None,
+    ignore_patterns: Optional[Union[str, List[str]]] = None,
+    revision: Optional[str] = None,
+    force_download: bool = False,
+) -> Optional[str]:
+    """
+    Download a snapshot of the repo (or filtered by patterns) to local_dir.
+    Returns local_dir path or None on failure.
+    """
+    hub = ensure_huggingface_hub()
+    if hub is None:
+        return None
+    try:
+        path = hub.snapshot_download(
+            repo_id=repo_id,
+            local_dir=str(local_dir),
+            allow_patterns=allow_patterns,
+            ignore_patterns=ignore_patterns,
+            revision=revision or "main",
+            force_download=force_download,
+        )
+        return path
+    except Exception as e:
+        ColorPrint.red(f"[HF] snapshot_download failed: {e}")
+        return None
+
+
+def hf_download_zip_and_extract(
+    repo_id: str,
+    filename: str,
+    extract_to: Union[str, Path],
+    revision: Optional[str] = None,
+) -> bool:
+    """
+    Download a zip from Hub (uses default cache; no re-download if already cached) and extract to extract_to.
+    Returns True on success. Ref: https://huggingface.co/docs/huggingface_hub/guides/download
+    """
+    hub = ensure_huggingface_hub()
+    if hub is None:
+        return False
+    try:
+        path = hub.hf_hub_download(
+            repo_id=repo_id,
+            filename=filename,
+            revision=revision or "main",
+        )
+        if not path or not os.path.isfile(path):
+            return False
+        extract_to = Path(extract_to)
+        extract_to.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(path, "r") as z:
+            z.extractall(extract_to)
+        return True
+    except Exception as e:
+        ColorPrint.red(f"[HF] download+extract failed: {e}")
+        return False
+
+
+def hf_list_repo_files(repo_id: str, path_in_repo: str = "", revision: Optional[str] = None) -> List[str]:
+    """List files in a repo path. Returns list of relative file paths. Compatible with old HfApi (no path_in_repo)."""
+    hub = ensure_huggingface_hub()
+    if hub is None:
+        return []
+    rev = revision or "main"
+    path_prefix = (path_in_repo or "").strip().rstrip("/")
+    try:
+        from huggingface_hub import HfApi
+        api = HfApi()
+        try:
+            items = api.list_repo_files(repo_id=repo_id, path_in_repo=path_in_repo or None, revision=rev)
+        except TypeError:
+            # Old huggingface_hub: list_repo_files() has no path_in_repo -> list all and filter
+            items = api.list_repo_files(repo_id=repo_id, revision=rev)
+            if path_prefix and items:
+                prefix = path_prefix + "/"
+                items = [f for f in items if f == path_prefix or f.startswith(prefix)]
+        return list(items) if items else []
+    except Exception as e:
+        ColorPrint.gray(f"[HF] list_repo_files: {e}")
+        return []
+
+
+def hf_get_collection_models(collection_slug: str) -> List[str]:
+    """
+    Get model repo_ids from a Hub collection (e.g. breezedeus/cnocr).
+    Uses HfApi.get_collection; only items with item_type=='model' are returned.
+    Ref: https://huggingface.co/docs/huggingface_hub/en/package_reference/collections
+    """
+    hub = ensure_huggingface_hub()
+    if hub is None:
+        return []
+    try:
+        api = hub.HfApi()
+        coll = api.get_collection(collection_slug=collection_slug)
+        return [it.item_id for it in (coll.items or []) if getattr(it, "item_type", None) == "model"]
+    except Exception as e:
+        ColorPrint.gray(f"[HF] get_collection {collection_slug}: {e}")
+        return []
+
+
+def hf_download_repo_latest(
+    repo_id: str,
+    local_dir: Union[str, Path],
+    allow_patterns: Optional[Union[str, List[str]]] = None,
+    revision: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Download latest revision of a repo (default main) to local_dir.
+    Returns local_dir path or None. Use revision='main' or None for latest.
+    """
+    return hf_snapshot_to_dir(
+        repo_id=repo_id,
+        local_dir=local_dir,
+        allow_patterns=allow_patterns,
+        revision=revision or "main",
+    )
+
+
+# ---------------------------------------------------------------------------
+# OCR prewarm spec: single source of truth for OCR prewarm (zh / en / cht),
+# each with latest models per language. Drives both HF download and prewarm.
+# Refs:
+# - CnOCR install: https://cnocr.readthedocs.io/zh-cn/stable/install/
+# - CnOCR models: https://cnocr.readthedocs.io/zh-cn/stable/models/
+# - HF collection: https://huggingface.co/collections/breezedeus/cnocr
+# ---------------------------------------------------------------------------
+PREWARM_SPEC: Dict[str, Dict[str, Any]] = {
+    "zh": {
+        "det_repos": (
+            "breezedeus/cnstd-ppocr-ch_PP-OCRv5_det",
+            "breezedeus/cnstd-ppocr-ch_PP-OCRv5_det_server",
+        ),
+        "rec_repos": (
+            "breezedeus/cnocr-ppocr-ch_PP-OCRv5",
+            "breezedeus/cnocr-ppocr-ch_PP-OCRv5_server",
+        ),
+        "det_zips": (),
+        "rec_zips": (),
+        "prewarm_det": "ch_PP-OCRv5_det",
+        "prewarm_det_server": "ch_PP-OCRv5_det_server",
+        "prewarm_rec": "ch_PP-OCRv5",
+        "prewarm_rec_server": "ch_PP-OCRv5_server",
+    },
+    "en": {
+        "det_repos": ("breezedeus/cnstd-ppocr-en_PP-OCRv3_det",),
+        "rec_repos": (
+            "breezedeus/cnocr-ppocr-en_PP-OCRv4",
+            "breezedeus/cnocr-ppocr-en_PP-OCRv3",
+        ),
+        "det_zips": (),
+        "rec_zips": (),
+        "prewarm_det": "en_PP-OCRv3_det",
+        "prewarm_det_server": None,
+        "prewarm_rec": "en_PP-OCRv4",
+        "prewarm_rec_fallbacks": ("en_PP-OCRv3",),
+    },
+    "cht": {
+        "det_repos": (),
+        "rec_repos": (),
+        "det_zips": ("ch_PP-OCRv3_det_infer-onnx.zip",),
+        "rec_zips": ("chinese_cht_PP-OCRv3_rec_infer-onnx.zip",),
+        "prewarm_det": "ch_PP-OCRv3_det",
+        "prewarm_det_server": None,
+        "prewarm_rec": "chinese_cht_PP-OCRv3",
+        "prewarm_rec_fallbacks": (),
+    },
+}
+
+PREWARM_LANGUAGES: Tuple[str, ...] = ("zh", "en", "cht")
+
+# Single config for CnOcr(rec_more_configs=...). Used by prewarm (OcrInitializer) and by CnOCREngine.init()
+# so that initialization and engine creation stay aligned. font_path=None lets rapidocr use default font.
+REC_MORE_CONFIGS_CNOCR: Dict[str, Any] = {"font_path": None}
+
+
+def all_cnstd_repos() -> Tuple[str, ...]:
+    """Union of all det repos from spec (for download)."""
+    seen: set = set()
+    for lang in PREWARM_LANGUAGES:
+        for r in PREWARM_SPEC[lang]["det_repos"]:
+            seen.add(r)
+    return tuple(sorted(seen))
+
+
+def all_cnocr_repos() -> Tuple[str, ...]:
+    """Union of all rec repos from spec (for download)."""
+    seen: set = set()
+    for lang in PREWARM_LANGUAGES:
+        for r in PREWARM_SPEC[lang]["rec_repos"]:
+            seen.add(r)
+    return tuple(sorted(seen))
+
+
+def all_cnstd_zips() -> Tuple[str, ...]:
+    """Union of all det zips from spec (bundle allowlist)."""
+    seen: set = set()
+    for lang in PREWARM_LANGUAGES:
+        for z in PREWARM_SPEC[lang]["det_zips"]:
+            seen.add(z)
+    return tuple(sorted(seen))
+
+
+def all_cnocr_zips() -> Tuple[str, ...]:
+    """Union of all rec zips from spec (bundle allowlist)."""
+    seen: set = set()
+    for lang in PREWARM_LANGUAGES:
+        for z in PREWARM_SPEC[lang]["rec_zips"]:
+            seen.add(z)
+    return tuple(sorted(seen))
+
+
+def prewarm_det_rec_for_lang(lang: str, use_gpu: bool) -> Tuple[str, Tuple[str, ...]]:
+    """
+    Return (det_model_name, (rec_primary, rec_fallback, ...)) for CnOcr(det_model_name=..., rec_model_name=...).
+    When use_gpu and spec has _server, prefer server variant for zh.
+    """
+    s = PREWARM_SPEC.get(lang)
+    if not s:
+        return "ch_PP-OCRv5_det", ("ch_PP-OCRv5",)
+    det = s["prewarm_det"]
+    if use_gpu and s.get("prewarm_det_server"):
+        det = s["prewarm_det_server"]
+    rec_primary = s["prewarm_rec"]
+    if use_gpu and s.get("prewarm_rec_server"):
+        rec_primary = s["prewarm_rec_server"]
+    fallbacks = s.get("prewarm_rec_fallbacks") or ()
+    rec_order = (rec_primary,) + fallbacks
+    return det, rec_order
+
+
+# ---------------------------------------------------------------------------
+# OCR model init: download CnSTD/CnOCR models from Hugging Face (native API).
+# Download list is driven by PREWARM_SPEC (zh/en/cht latest per language).
+# CnSTD root: ~/.cnstd, expects 1.2/ppocr/<model>/<model>_infer.onnx
+# CnOCR root: ~/.cnocr, expects 2.3/ppocr/<model>/<model>_rec_infer.onnx
+# ---------------------------------------------------------------------------
+HF_OCR_REPO = "breezedeus/cnstd-cnocr-models"
+CNSTD_SUBDIR = "models/cnstd/1.2"
+CNOCR_SUBDIR = "models/cnocr/2.3"
+CNSTD_COLLECTION_SLUG = "breezedeus/cnstd"
+CNOCR_COLLECTION_SLUG = "breezedeus/cnocr"
+
+
+def _appdata_root() -> Path:
+    if os.name == "nt":
+        return Path(os.environ.get("APPDATA", os.path.expanduser("~")))
+    return Path.home()
+
+
+def cnstd_root() -> Path:
+    """CnSTD model root. Win: %APPDATA%\\cnstd, else ~/.cnstd."""
+    if os.name == "nt":
+        return _appdata_root() / "cnstd"
+    return Path.home() / ".cnstd"
+
+
+def cnocr_root() -> Path:
+    """CnOCR model root. Win: %APPDATA%\\cnocr, else ~/.cnocr."""
+    if os.name == "nt":
+        return _appdata_root() / "cnocr"
+    return Path.home() / ".cnocr"
+
+
+def _model_name_from_ppocr_repo(repo_id: str) -> str:
+    """breezedeus/cnstd-ppocr-ch_PP-OCRv5_det -> ch_PP-OCRv5_det; cnocr-ppocr-ch_PP-OCRv5 -> ch_PP-OCRv5."""
+    name = repo_id.split("/", 1)[-1]
+    for prefix in ("cnstd-ppocr-", "cnocr-ppocr-"):
+        if name.startswith(prefix):
+            return name[len(prefix):]
+    return name
+
+
+def _repos_from_collection(collection_slug: str, name_prefix: str) -> List[str]:
+    """
+    Get model repo_ids from Hub collection (HfApi.get_collection).
+    Only returns repos whose name (after owner/) starts with name_prefix (e.g. cnstd-ppocr- or cnocr-ppocr-).
+    """
+    repo_ids = hf_get_collection_models(collection_slug)
+    return [r for r in repo_ids if r.split("/", 1)[-1].startswith(name_prefix)]
+
+
+def _needed_det_model_names(use_gpu: bool) -> set:
+    """Model names needed for CnSTD det by GPU/CPU: zh optimal (server vs non-server), en, cht from zip."""
+    needed = set()
+    zh = PREWARM_SPEC["zh"]
+    if use_gpu and zh.get("prewarm_det_server"):
+        needed.add(zh["prewarm_det_server"])
+    else:
+        needed.add(zh["prewarm_det"])
+    for lang in ("en",):
+        for r in PREWARM_SPEC[lang]["det_repos"]:
+            needed.add(_model_name_from_ppocr_repo(r))
+    return needed
+
+
+def _needed_rec_model_names(use_gpu: bool) -> set:
+    """Model names needed for CnOCR rec by GPU/CPU: zh optimal, en, cht from zip."""
+    needed = set()
+    zh = PREWARM_SPEC["zh"]
+    if use_gpu and zh.get("prewarm_rec_server"):
+        needed.add(zh["prewarm_rec_server"])
+    else:
+        needed.add(zh["prewarm_rec"])
+    for lang in ("en",):
+        for r in PREWARM_SPEC[lang]["rec_repos"]:
+            needed.add(_model_name_from_ppocr_repo(r))
+    for lang in ("zh", "en"):
+        for rec in PREWARM_SPEC[lang].get("prewarm_rec_fallbacks") or ():
+            needed.add(rec)
+    return needed
+
+
+def _repos_to_download_cnstd(use_gpu: bool) -> Tuple[str, ...]:
+    """Optimal CnSTD repo list from static spec (zh V5 + en + cht). GPU: prefer _server for zh. Never rely on Hub collection alone (it may omit zh V5)."""
+    needed = _needed_det_model_names(use_gpu)
+    return tuple(sorted(r for r in all_cnstd_repos() if _model_name_from_ppocr_repo(r) in needed))
+
+
+def _repos_to_download_cnocr(use_gpu: bool) -> Tuple[str, ...]:
+    """Optimal CnOCR repo list from static spec (zh V5 + en + cht). GPU: prefer _server for zh. Never rely on Hub collection alone."""
+    needed = _needed_rec_model_names(use_gpu)
+    return tuple(sorted(r for r in all_cnocr_repos() if _model_name_from_ppocr_repo(r) in needed))
+
+
+def _download_ppocr_single_model_repos(
+    repos: Tuple[str, ...],
+    version_subdir: str,
+    root: Path,
+    revision: Optional[str] = None,
+) -> bool:
+    """
+    Download from single-model repos (e.g. breezedeus/cnstd-ppocr-ch_PP-OCRv5_det).
+    Repo root contains .onnx and config.yaml; save to root/<version_subdir>/ppocr/<model_name>/.
+    """
+    if not repos:
+        return True
+    ColorPrint.blue("[HF] Single-model repos (V5/V4 etc.):")
+    for repo_id in repos:
+        print(f"  [HF]   - {repo_id}", flush=True)
+    sys.stdout.flush()
+    rev = revision or "main"
+    ok = True
+    for repo_id in repos:
+        model_name = _model_name_from_ppocr_repo(repo_id)
+        dest_dir = root / version_subdir / "ppocr" / model_name
+        if dest_dir.is_dir() and any(dest_dir.glob("*.onnx")):
+            continue
+        files = hf_list_repo_files(repo_id, path_in_repo="", revision=rev)
+        to_download = [f for f in files if f.endswith(".onnx") or f.endswith(".yaml")]
+        if not to_download:
+            ColorPrint.yellow(f"[HF] No .onnx in {repo_id}")
+            continue
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        got = False
+        for filename in to_download:
+            path = hf_download_file(repo_id, filename, local_dir=dest_dir, revision=rev)
+            if path:
+                got = True
+            else:
+                ok = False
+        if got:
+            ColorPrint.blue(f"[HF] Downloaded {repo_id} -> {dest_dir}")
+    return ok
+
+
+def _zip_basename_to_ppocr_model(basename: str, kind: str) -> Optional[str]:
+    """
+    Map zip basename to expected ppocr subdir (model name) for skip-if-present check.
+    kind 'cnstd': *_det_infer-onnx.zip -> *_det; kind 'cnocr': *_rec_infer-onnx.zip -> model name before _rec.
+    """
+    if not basename.endswith(".zip"):
+        return None
+    name = basename[:-4]
+    if kind == "cnstd" and name.endswith("_det_infer-onnx"):
+        return name[: -len("_infer-onnx")]  # ch_PP-OCRv3_det_infer-onnx -> ch_PP-OCRv3_det
+    if kind == "cnocr" and "_rec_infer-onnx" in name:
+        return name.replace("_rec_infer-onnx", "")  # chinese_cht_PP-OCRv3_rec_infer-onnx -> chinese_cht_PP-OCRv3
+    return None
+
+
+def _dir_has_onnx(p: Path) -> bool:
+    """True if path is a dir and contains at least one .onnx file (direct or nested)."""
+    if not p.is_dir():
+        return False
+    return any(p.rglob("*.onnx"))
+
+
+def _zip_already_extracted(
+    target_root: Path,
+    zip_basename: str,
+    zip_to_ppocr_model: Optional[Callable[[str], Optional[str]]],
+) -> bool:
+    """
+    Return True iff the model from this zip is already present so we can skip download.
+    Checks: (1) target_root/ppocr/<model_name>/ (library path), (2) target_root/<stem>/,
+    (3) target_root/models/cnstd/1.2/<stem>/, (4) target_root/models/cnocr/2.3/<stem>/,
+    (5) any dir under target_root whose name contains model_name and has .onnx (HF zip layout may vary).
+    """
+    root = Path(target_root).resolve()
+    if zip_to_ppocr_model is None:
+        return False
+    model_name = zip_to_ppocr_model(zip_basename)
+    if not model_name:
+        return False
+    expect_dir = root / "ppocr" / model_name
+    if _dir_has_onnx(expect_dir):
+        return True
+    stem = zip_basename[:-4] if zip_basename.endswith(".zip") else zip_basename
+    candidates = [
+        root / stem,
+        root / CNSTD_SUBDIR / stem,
+        root / CNOCR_SUBDIR / stem,
+    ]
+    for d in candidates:
+        if d.is_dir() and _dir_has_onnx(d):
+            return True
+    if not root.is_dir():
+        return False
+    for d in root.rglob("*"):
+        if d.is_dir() and model_name in d.name and _dir_has_onnx(d):
+            return True
+    return False
+
+
+def _normalize_extract_to_ppocr(
+    target_root: Path,
+    zip_basename: str,
+    zip_to_ppocr_model: Optional[Callable[[str], Optional[str]]],
+) -> None:
+    """
+    After extracting a bundle zip, ensure the library path exists: target_root/ppocr/<model_name>/ with .onnx.
+    If the zip did not create that layout, copy from wherever it extracted (e.g. target_root/<stem>/ or flat).
+    """
+    if zip_to_ppocr_model is None:
+        return
+    model_name = zip_to_ppocr_model(zip_basename)
+    if not model_name:
+        return
+    root = Path(target_root).resolve()
+    expect_dir = root / "ppocr" / model_name
+    if _dir_has_onnx(expect_dir):
+        return
+    stem = zip_basename[:-4] if zip_basename.endswith(".zip") else zip_basename
+    candidates: List[Path] = [
+        root / stem,
+        root / Path(CNSTD_SUBDIR) / stem,
+        root / Path(CNOCR_SUBDIR) / stem,
+    ]
+    source_dir: Optional[Path] = None
+    for c in candidates:
+        if c.is_dir() and _dir_has_onnx(c):
+            source_dir = c
+            break
+    if source_dir is None and root.is_dir():
+        onnx_at_root = list(root.glob("*.onnx"))
+        if onnx_at_root:
+            expect_dir.mkdir(parents=True, exist_ok=True)
+            for f in onnx_at_root:
+                shutil.copy2(f, expect_dir / f.name)
+            return
+    if source_dir is None:
+        for d in root.iterdir():
+            if d.is_dir() and d.name != "ppocr" and _dir_has_onnx(d):
+                source_dir = d
+                break
+    if source_dir is None and root.is_dir():
+        for d in root.rglob("*"):
+            if d.is_dir() and model_name in d.name and _dir_has_onnx(d):
+                source_dir = d
+                break
+    if source_dir is not None:
+        expect_dir.mkdir(parents=True, exist_ok=True)
+        for f in source_dir.rglob("*"):
+            if f.is_file():
+                rel = f.relative_to(source_dir)
+                dest = expect_dir / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dest)
+
+
+def _download_and_extract_zips_to(
+    repo_id: str,
+    path_in_repo: str,
+    target_root: Path,
+    revision: Optional[str] = None,
+    allowlist: Optional[Tuple[str, ...]] = None,
+    zip_to_ppocr_model: Optional[Callable[[str], Optional[str]]] = None,
+) -> bool:
+    """
+    List zip files under path_in_repo, optionally filter by allowlist (basename in allowlist),
+    download each that is not already present, extract into target_root.
+    When zip_to_ppocr_model(basename) returns ppocr model dir, skip download if target_root/ppocr/<dir> exists with .onnx.
+    """
+    files = hf_list_repo_files(repo_id, path_in_repo=path_in_repo or "", revision=revision)
+    all_zips = [f for f in files if f.endswith(".zip")]
+    if all_zips:
+        ColorPrint.blue("[HF] Available zips (%s):" % path_in_repo)
+        for z in all_zips:
+            print(f"  [HF]   - {os.path.basename(z)}", flush=True)
+        sys.stdout.flush()
+    else:
+        ColorPrint.yellow(f"[HF] No zip files under {path_in_repo}")
+    zips = all_zips
+    if allowlist:
+        zips = [f for f in zips if os.path.basename(f) in allowlist]
+        if zips:
+            to_skip = [
+                rel for rel in zips
+                if _zip_already_extracted(Path(target_root), os.path.basename(rel), zip_to_ppocr_model)
+            ]
+            to_download = [rel for rel in zips if rel not in to_skip]
+            for rel in to_skip:
+                ColorPrint.blue("[HF] Skip (already present): %s" % os.path.basename(rel))
+                _normalize_extract_to_ppocr(Path(target_root), os.path.basename(rel), zip_to_ppocr_model)
+            if to_download:
+                ColorPrint.blue("[HF] Will download (allowlist):")
+                for z in to_download:
+                    print(f"  [HF]   - {os.path.basename(z)}", flush=True)
+                sys.stdout.flush()
+            zips = to_download
+        if not zips:
+            return True
+    if not zips:
+        ColorPrint.yellow(f"[HF] No zip files to download under {path_in_repo}" + (" (allowlist)" if allowlist else ""))
+        return False
+    target_root = Path(target_root)
+    target_root.mkdir(parents=True, exist_ok=True)
+    prefix = (path_in_repo or "").rstrip("/")
+    ok = False
+    for rel in zips:
+        filename = f"{prefix}/{rel}" if prefix and "/" not in rel else rel
+        basename = os.path.basename(rel)
+        ColorPrint.blue(f"[HF] Downloading {filename} -> {target_root}")
+        if hf_download_zip_and_extract(repo_id, filename, target_root, revision=revision):
+            _normalize_extract_to_ppocr(Path(target_root), basename, zip_to_ppocr_model)
+            ok = True
+        else:
+            ColorPrint.red(f"[HF] Failed {filename}")
+    return ok
+
+
+def ensure_cnstd_models(
+    use_gpu: bool = False,
+    det_model_name: Optional[str] = None,
+) -> bool:
+    """
+    Ensure CnSTD 1.2 models under cnstd_root()/1.2.
+    Uses HfApi.get_collection(breezedeus/cnstd) for repo list; only downloads optimal set for use_gpu.
+    Zip from bundle only for cht (no single-model repo); skip if already present.
+    """
+    root = cnstd_root()
+    dest = root / "1.2"
+    dest.mkdir(parents=True, exist_ok=True)
+    if det_model_name:
+        expect_dir = dest / "ppocr" / det_model_name
+        if expect_dir.is_dir() and any(expect_dir.iterdir()):
+            return True
+    repos = _repos_to_download_cnstd(use_gpu)
+    ok = _download_ppocr_single_model_repos(repos, "1.2", root)
+    zips_allow = all_cnstd_zips()
+    if zips_allow:
+        ok = _download_and_extract_zips_to(
+            HF_OCR_REPO,
+            CNSTD_SUBDIR,
+            dest,
+            allowlist=zips_allow,
+            zip_to_ppocr_model=lambda b: _zip_basename_to_ppocr_model(b, "cnstd"),
+        ) or ok
+    return ok
+
+
+def ensure_cnocr_models(
+    use_gpu: bool = False,
+    rec_model_name: Optional[str] = None,
+) -> bool:
+    """
+    Ensure CnOCR 2.3 models under cnocr_root()/2.3.
+    Uses HfApi.get_collection(breezedeus/cnocr) for repo list; only downloads optimal set for use_gpu.
+    Zip from bundle only for cht; skip if already present.
+    """
+    root = cnocr_root()
+    dest = root / "2.3"
+    dest.mkdir(parents=True, exist_ok=True)
+    if rec_model_name:
+        expect_dir = dest / "ppocr" / rec_model_name
+        if expect_dir.is_dir() and any(expect_dir.iterdir()):
+            return True
+    repos = _repos_to_download_cnocr(use_gpu)
+    ok = _download_ppocr_single_model_repos(repos, "2.3", root)
+    zips_allow = all_cnocr_zips()
+    if zips_allow:
+        ok = _download_and_extract_zips_to(
+            HF_OCR_REPO,
+            CNOCR_SUBDIR,
+            dest,
+            allowlist=zips_allow,
+            zip_to_ppocr_model=lambda b: _zip_basename_to_ppocr_model(b, "cnocr"),
+        ) or ok
+    return ok
+
+
+def init_ocr_models_from_hf(
+    cnstd: bool = True,
+    cnocr: bool = True,
+    use_gpu: bool = False,
+    det_model_name: Optional[str] = None,
+    rec_model_name: Optional[str] = None,
+) -> bool:
+    """
+    Initialize OCR models from Hugging Face (native download, no CLI).
+    Uses get_collection(breezedeus/cnstd|cnocr) for repo list; only downloads optimal set for use_gpu.
+    Zip from bundle only for cht (skip if already present).
+    """
+    ok = True
+    if cnstd:
+        ColorPrint.blue("[HF] Ensuring CnSTD models at " + str(cnstd_root()))
+        if not ensure_cnstd_models(use_gpu=use_gpu, det_model_name=det_model_name):
+            ColorPrint.yellow("[HF] CnSTD models incomplete; check " + str(cnstd_root() / "1.2"))
+            ok = False
+    if cnocr:
+        ColorPrint.blue("[HF] Ensuring CnOCR models at " + str(cnocr_root()))
+        if not ensure_cnocr_models(use_gpu=use_gpu, rec_model_name=rec_model_name):
+            ColorPrint.yellow("[HF] CnOCR models incomplete; check " + str(cnocr_root() / "2.3"))
+            ok = False
+    return ok
+
+
+# ---------------------------------------------------------------------------
+# OcrInitializer: single entry for OCR init (HF download -> load cnocr -> prewarm).
+# Assumes CudaInitializer.run() already done (ONNX switch + CUDA readiness).
+# Callers inject get_cnocr, run_pip_uninstall, run_pip_install, clear_cnocr_cache,
+# is_pip_package_installed.
+# ---------------------------------------------------------------------------
+class OcrInitializer:
+    """
+    Single entry for OCR init: download from HF -> load cnocr -> prewarm.
+    ONNX switch and ensure_onnx_cuda_usable are done by CudaInitializer.run() (predecessor). Run once per process (guarded).
+    Caller injects get_cnocr, run_pip_uninstall, run_pip_install, clear_cnocr_cache, is_pip_package_installed.
+    """
+
+    def __init__(
+        self,
+        *,
+        get_cnocr: Callable[[], Any],
+        run_pip_uninstall: Callable[[str], None],
+        run_pip_install: Callable[[str, Optional[str]], None],  # (package_name, index_url=None)
+        clear_cnocr_cache: Callable[[], None],
+        is_pip_package_installed: Callable[[str], bool],
+        verify_onnx_import: Optional[Callable[[], bool]] = None,
+        run_pip_install_force: Optional[Callable[[str], None]] = None,
+    ):
+        self._get_cnocr = get_cnocr
+        self._run_pip_uninstall = run_pip_uninstall
+        self._run_pip_install = run_pip_install
+        self._clear_cnocr_cache = clear_cnocr_cache
+        self._is_pip_package_installed = is_pip_package_installed
+        self._verify_onnx_import = verify_onnx_import if verify_onnx_import is not None else (lambda: True)
+        self._run_pip_install_force = run_pip_install_force
+        self._done = False
+        self._prewarmed: Dict[str, Any] = {}
+
+    def _use_gpu_for_ort(self) -> bool:
+        """True if we should use GPU for OCR (install and context). Uses ORT CUDA capability when available."""
+        return is_onnx_cuda_usable()
+
+    def _need_onnx_runtime_switch(self) -> Tuple[bool, bool]:
+        """
+        Return (need_uninstall_other, need_install_target).
+        When both False, no switch needed (target already active).
+        Install choice: system GPU (CUDADetector) so we install onnxruntime-gpu when NVIDIA present.
+        """
+        use_gpu = CUDADetector.is_cuda_available()
+        cpu_installed = self._is_pip_package_installed(ORT_CPU_PKG)
+        gpu_installed = self._is_pip_package_installed(ORT_GPU_PKG)
+        if use_gpu:
+            need_uninstall = cpu_installed
+            need_install = not gpu_installed
+        else:
+            need_uninstall = gpu_installed
+            need_install = not cpu_installed
+        return need_uninstall, need_install
+
+    def _ensure_onnx_runtime_switch(self) -> None:
+        """
+        Uninstall the other runtime only if installed; install target only if missing.
+        Target: OCR on CUDA 12 (PyPI onnxruntime-gpu). When installing gpu, always use PyPI (CUDA 12).
+        CUDA 12 DLLs (cublasLt64_12 etc.) are provided by ensure_onnx_cuda_usable via nvidia-cublas-cu12.
+        When switching to GPU: install (if needed) then verify import works; only then uninstall CPU so we never leave ORT broken.
+        """
+        use_gpu = CUDADetector.is_cuda_available()
+        gpu_installed = self._is_pip_package_installed(ORT_GPU_PKG)
+
+        need_uninstall, need_install = self._need_onnx_runtime_switch()
+        target_pkg = get_ort_install_package()
+
+        if not need_uninstall and not need_install:
+            ColorPrint.blue("[HF] No ONNX runtime switch needed (target already active).")
+            if use_gpu and not self._verify_onnx_import():
+                ColorPrint.blue("[HF] ORT GPU import check failed; force-reinstalling onnxruntime-gpu...")
+                if self._run_pip_install_force is not None:
+                    self._run_pip_install_force(target_pkg)
+                    if not self._verify_onnx_import():
+                        ColorPrint.yellow("[HF] ORT GPU still not importable; installing onnxruntime (CPU) so app can run.")
+                        self._run_pip_install(ORT_CPU_PKG)
+                        self._clear_cnocr_cache()
+                else:
+                    ColorPrint.yellow("[HF] ORT GPU import check failed; install onnxruntime (CPU) manually if needed.")
+            return
+
+        if use_gpu and need_uninstall and need_install:
+            # CPU installed, GPU not: pip usually requires uninstall CPU before installing GPU. Uninstall -> install -> verify; if verify fails restore CPU.
+            ColorPrint.blue("[HF] Uninstalling CPU-only onnxruntime before installing ort-gpu...")
+            self._run_pip_uninstall(ORT_CPU_PKG)
+            ColorPrint.blue("[HF] Installing onnxruntime-gpu[cuda,cudnn] for ort-gpu (CUDA 12)...")
+            self._run_pip_install(target_pkg)
+            if not self._verify_onnx_import():
+                ColorPrint.yellow("[HF] ORT GPU import check failed after install; restoring onnxruntime (CPU) so app can run.")
+                self._run_pip_install(ORT_CPU_PKG)
+            self._clear_cnocr_cache()
+            return
+        if need_install and not (use_gpu and need_uninstall):
+            if use_gpu:
+                ColorPrint.blue("[HF] Installing onnxruntime-gpu[cuda,cudnn] for ort-gpu (CUDA 12)...")
+            else:
+                ColorPrint.blue("[HF] Installing onnxruntime for ort-cpu...")
+            self._run_pip_install(target_pkg)
+
+        if need_uninstall and use_gpu and not need_install:
+            # GPU already installed, CPU also listed by pip. Do NOT uninstall CPU here: both packages
+            # provide the same module name "onnxruntime" and share the same site-packages path;
+            # uninstalling onnxruntime (CPU) would remove the module files and break the current
+            # process (e.g. module has no attribute get_available_providers). Ensure import works
+            # and optionally force-reinstall GPU so disk state is correct; leave CPU package as-is.
+            if not self._verify_onnx_import():
+                if self._run_pip_install_force is not None:
+                    ColorPrint.blue("[HF] ORT GPU import check failed; force-reinstalling onnxruntime-gpu...")
+                    self._run_pip_install_force(target_pkg)
+                    if not self._verify_onnx_import():
+                        ColorPrint.yellow("[HF] ORT GPU still not importable after reinstall; installing onnxruntime (CPU) so app can run.")
+                        self._run_pip_install(ORT_CPU_PKG)
+                        self._clear_cnocr_cache()
+                else:
+                    ColorPrint.yellow("[HF] ORT GPU import check failed; install onnxruntime (CPU) manually if needed.")
+            # Skip CPU uninstall: avoid breaking shared onnxruntime module used by ort-gpu.
+        elif need_uninstall and not use_gpu:
+            ColorPrint.blue("[HF] Uninstalling onnxruntime-gpu before using ort-cpu...")
+            self._run_pip_uninstall(ORT_GPU_PKG)
+
+        if need_uninstall or need_install:
+            self._clear_cnocr_cache()
+
+    def run(self) -> bool:
+        """
+        Run full OCR init once: HF download -> load cnocr -> prewarm.
+        Assumes CudaInitializer.run() already called (ONNX switch + CUDA prompt and device line done there). Returns True if cnocr is available and prewarm completed.
+        """
+        if self._done:
+            return self._get_cnocr() is not None
+        self._done = True
+        try:
+            init_ocr_models_from_hf(
+                cnstd=True,
+                cnocr=True,
+                use_gpu=self._use_gpu_for_ort(),
+            )
+        except Exception as e:
+            ColorPrint.gray("[OcrInitializer] HF init: %s" % e)
+        cnocr_module = self._get_cnocr()
+        if cnocr_module is None:
+            return False
+        self._prewarm(cnocr_module)
+        return True
+
+    def _prewarm(self, cnocr_module: Any) -> None:
+        """Build zh/en/cht CnOcr instances from spec. Use GPU context only when is_onnx_cuda_usable() is True.
+        rec_more_configs from REC_MORE_CONFIGS_CNOCR so rapidocr has font_path."""
+        CnOcr = cnocr_module.CnOcr
+        use_gpu = self._use_gpu_for_ort()
+        ctx = "gpu" if use_gpu else "cpu"
+        for lang in PREWARM_LANGUAGES:
+            det, rec_order = prewarm_det_rec_for_lang(lang, use_gpu)
+            inst = None
+            for rec in rec_order:
+                try:
+                    inst = CnOcr(
+                        det_model_name=det,
+                        rec_model_name=rec,
+                        context=ctx,
+                        rec_more_configs=REC_MORE_CONFIGS_CNOCR,
+                    )
+                    ColorPrint.blue("[CnOCR] Prewarmed %s: det=%s rec=%s context=%s" % (lang, det, rec, ctx))
+                    break
+                except Exception as e:
+                    ColorPrint.gray("[CnOCR] Prewarm %s (%s+%s): %s" % (lang, det, rec, e))
+            self._prewarmed[lang] = inst
+
+    def get_prewarmed(self, lang: str) -> Optional[Any]:
+        """Return prewarmed CnOcr for lang ('zh', 'en', 'cht') or None."""
+        return self._prewarmed.get(lang)
+
+
 # CUDA init: single entry for whole project (system GPU info + ORT version switch + ensure ORT CUDA). Runs before OCR init.
 def _run_ort_version_switch_for_cuda() -> None:
     """Run ONNX runtime switch once: uninstall the other (cpu/gpu), install target (gpu uses PyPI CUDA 12 with [cuda,cudnn])."""
@@ -1748,6 +2670,43 @@ def get_third_package_windows_ocr():
     return _PACKAGE_CACHE[cache_key]
 
 
+def get_third_package_sherpa_onnx():
+    """
+    Get sherpa-onnx (offline TTS/ASR) package (lazy load; optional).
+
+    Installed by the edge-tts-sibling OCR/TTS prerequisite (install_tts_offline);
+    NOT auto-installed here. Returns None when absent so the TTS orchestrator can
+    fall through to the next engine. Pure-pip, identical on Windows/Linux.
+    """
+    if 'sherpa_onnx' not in _PACKAGE_CACHE:
+        try:
+            import sherpa_onnx
+            _PACKAGE_CACHE['sherpa_onnx'] = sherpa_onnx
+        except (ImportError, ModuleNotFoundError):
+            _PACKAGE_CACHE['sherpa_onnx'] = None
+    return _PACKAGE_CACHE['sherpa_onnx']
+
+
+def get_third_package_melo():
+    """
+    Get MeloTTS (`melo`) package (lazy load; optional).
+
+    Installed from git by the offline-TTS prerequisite (needs unidic-lite on
+    Windows); NOT auto-installed here. Returns None when absent so the TTS
+    orchestrator can fall through to the next engine.
+    """
+    if 'melo' not in _PACKAGE_CACHE:
+        try:
+            import melo
+            _PACKAGE_CACHE['melo'] = melo
+        except (ImportError, ModuleNotFoundError):
+            _PACKAGE_CACHE['melo'] = None
+        except Exception:
+            # MeloTTS can raise non-ImportError at import (mecab/unidic on Windows).
+            _PACKAGE_CACHE['melo'] = None
+    return _PACKAGE_CACHE['melo']
+
+
 def get_third_package_pywinauto():
     """Get pywinauto package (lazy load, Windows only)"""
     if 'pywinauto' not in _PACKAGE_CACHE:
@@ -1819,6 +2778,17 @@ def get_third_package_google_genai():
         from google import genai as google_genai
         _PACKAGE_CACHE['google_genai'] = google_genai
     return _PACKAGE_CACHE['google_genai']
+
+
+def get_third_package_openai():
+    """
+    Get openai package (lazy load).
+
+    Used by OpenAI-compatible providers (OpenAI, DeepSeek via base_url). The same
+    SDK talks to any service that implements the OpenAI REST API: set base_url
+    (e.g. https://api.deepseek.com for DeepSeek) and api_key on the client.
+    """
+    return _lazy_import('openai', 'import openai')
 
 
 __all__ = [
@@ -1920,6 +2890,8 @@ __all__ = [
     'get_third_package_win32process',
     'get_third_package_win32ui',
     'get_third_package_windows_ocr',
+    'get_third_package_sherpa_onnx',
+    'get_third_package_melo',
     'get_third_package_pywinauto',
     'get_third_package_pygetwindow',
     'get_third_package_uiautomation',
@@ -1930,6 +2902,32 @@ __all__ = [
     'get_third_package_redis',
     # Google Gemini API
     'get_third_package_google_genai',
+    # Hugging Face Hub helpers (merged from huggingface_hub_helper)
+    'ensure_huggingface_hub',
+    'hf_download_file',
+    'hf_snapshot_to_dir',
+    'hf_download_zip_and_extract',
+    'hf_list_repo_files',
+    'hf_get_collection_models',
+    'hf_download_repo_latest',
+    # OCR prewarm spec (merged from ocr_prewarm_spec)
+    'PREWARM_SPEC',
+    'PREWARM_LANGUAGES',
+    'REC_MORE_CONFIGS_CNOCR',
+    'all_cnstd_repos',
+    'all_cnocr_repos',
+    'all_cnstd_zips',
+    'all_cnocr_zips',
+    'prewarm_det_rec_for_lang',
+    # OCR model provisioning (merged from ocr_hf_models)
+    'cnstd_root',
+    'cnocr_root',
+    'ensure_cnstd_models',
+    'ensure_cnocr_models',
+    'init_ocr_models_from_hf',
+    # OCR initializer (merged from ocr_initializer)
+    'OcrInitializer',
+    'init_third_party_cnocr',
 ]
 
 # OCR/cnocr init is not run at import. Call init_third_party_cnocr() once (e.g. from cnocr_engine_registry) to download HF models and prewarm zh/en/cht.

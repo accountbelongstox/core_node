@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1DBTablesBrige;
@@ -110,6 +107,22 @@ class AppQyV1TableMaps
         ]
     ];
 
+    public const app_qy_v1_PERSONAL_DICTIONARY_ENTRIES = [
+        'tablename' => 'personal_dictionary_entries',
+        'fields' => [
+            'id' => 'id',
+            'uid' => 'uid',
+            'word' => 'word',
+            'language' => 'language',
+            'definition' => 'definition',
+            'example' => 'example',
+            'notes' => 'notes',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+            'deleted_at' => 'deleted_at'
+        ]
+    ];
+
     public const app_qy_v1_WORD_GROUPS = [
         'tablename' => 'word_groups',
         'fields' => [
@@ -127,34 +140,22 @@ class AppQyV1TableMaps
         ]
     ];
 
-    public const app_qy_v1_VOCABULARY_COLLECTIONS = [
-        'tablename' => 'vocabulary_collections',
-        'fields' => [
-            'id' => 'id',
-            'collection_name' => 'collection_name',
-            'lang_code' => 'lang_code',
-            'source_type' => 'source_type',
-            'owner_id' => 'owner_id',
-            'is_public' => 'is_public',
-            'description' => 'description',
-            'total_words' => 'total_words',
-            'meta_data' => 'meta_data',
-            'created_at' => 'created_at',
-            'updated_at' => 'updated_at',
-            'deleted_at' => 'deleted_at'
-        ]
-    ];
+    // vocabulary_collections / vocabulary_items were merged into
+    // vocabulary_libraries (word_ids of dictionary ids) by the Wave A/B
+    // consolidation and dropped by AppQyV1_2026_06_12_150002.
 
-    public const app_qy_v1_VOCABULARY_ITEMS = [
-        'tablename' => 'vocabulary_items',
+    // group_words / user_word_progress (row-per-word) were merged into
+    // group_word_progress (one JSON row per user+group) by the
+    // AppQyV1_2026_06_12_16000x migrations and dropped by ..._160002.
+    public const app_qy_v1_GROUP_WORD_PROGRESS = [
+        'tablename' => 'group_word_progress',
         'fields' => [
             'id' => 'id',
-            'collection_id' => 'collection_id',
-            'lang_code' => 'lang_code',
-            'word_content' => 'word_content',
-            'word_md5' => 'word_md5',
-            'word_index' => 'word_index',
-            'extra_data' => 'extra_data',
+            'user_id' => 'user_id',
+            'group_id' => 'group_id',
+            'language_code' => 'language_code',
+            'words' => 'words',
+            'total_words' => 'total_words',
             'created_at' => 'created_at',
             'updated_at' => 'updated_at'
         ]
@@ -179,6 +180,33 @@ class AppQyV1TableMaps
             'created_at' => 'created_at',
             'updated_at' => 'updated_at',
             'deleted_at' => 'deleted_at'
+        ]
+    ];
+
+    public const app_qy_v1_USER_FOLLOWS = [
+        'tablename' => 'user_follows',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'followed_user_id' => 'followed_user_id',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const app_qy_v1_DAILY_RECITATION_LOGS = [
+        'tablename' => 'daily_recitation_logs',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'date' => 'date',
+            'word' => 'word',
+            'language_code' => 'language_code',
+            'action' => 'action',
+            'session_id' => 'session_id',
+            'batch_id' => 'batch_id',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
         ]
     ];
 
@@ -217,7 +245,9 @@ class AppQyV1TableMaps
         if (preg_match('/^' . preg_quote($prefix, '/') . '_([a-z]{2,3})_DICTIONARIES$/i', $fullKey, $matches)) {
             $langCode = strtolower($matches[1]);
             if (in_array($langCode, self::getSupportedLanguageCodes())) {
-                return "{$prefix}_{$langCode}_dictionaries";
+                // Unified: every dictionary key resolves to the single
+                // canonical multi-language table tts_cache_{lang}.
+                return self::getDictionaryTableName($langCode);
             }
         }
 
@@ -228,42 +258,46 @@ class AppQyV1TableMaps
         return '';
     }
     
+    /**
+     * Legacy alias. The words_{lang} family is deprecated; every caller now
+     * resolves to the single canonical dictionary table tts_cache_{lang}.
+     * Language names (english/japanese/...) are normalized to codes.
+     */
     public static function getWordTableName(string $langCode): string
     {
-        $prefix = self::getTablePrefix();
         $langCode = strtolower($langCode);
 
-        $languageMapping = [
-            'en' => 'english',
-            'ja' => 'japanese',
-            'ko' => 'korean',
-            'vi' => 'vietnamese',
-            'lo' => 'lao',
-            'english' => 'english',
-            'japanese' => 'japanese',
-            'korean' => 'korean',
-            'vietnamese' => 'vietnamese',
-            'lao' => 'lao',
+        $nameToCode = [
+            'english' => 'en',
+            'japanese' => 'ja',
+            'korean' => 'ko',
+            'vietnamese' => 'vi',
+            'lao' => 'lo',
         ];
 
-        $mappedName = $languageMapping[$langCode] ?? $langCode;
-        return "{$prefix}_words_{$mappedName}";
+        if (isset($nameToCode[$langCode])) {
+            $langCode = $nameToCode[$langCode];
+        }
+
+        return self::getDictionaryTableName($langCode);
     }
 
     /**
-     * Get all available word tables
+     * Get all canonical dictionary tables (legacy method name kept).
+     *
+     * Enumerates every supported language code (edge_tts.lang_code_mapping)
+     * rather than a hardcoded subset, so the auto-scan can discover a dictionary
+     * for ANY language that has data, not just en/ja/vi/lo.
      *
      * @return array Array of [langCode => tableName]
      */
     public static function getAllWordTables(): array
     {
-        $prefix = self::getTablePrefix();
-        return [
-            'en' => "{$prefix}_words_english",
-            'ja' => "{$prefix}_words_japanese",
-            'vi' => "{$prefix}_words_vietnamese",
-            'lo' => "{$prefix}_words_lao",
-        ];
+        $tables = [];
+        foreach (self::getSupportedLanguageCodes() as $langCode) {
+            $tables[$langCode] = self::getDictionaryTableName($langCode);
+        }
+        return $tables;
     }
 
     public static function getDictionaryTableName(string $langCode): string
@@ -271,6 +305,15 @@ class AppQyV1TableMaps
         $prefix = self::getTablePrefix();
         $langCode = strtolower($langCode);
         return "{$prefix}_tts_cache_{$langCode}";
+    }
+
+    /**
+     * Stage-1 staging table for a language. Import pipelines write here;
+     * promoteStagingToFormal() copies into getDictionaryTableName($lang).
+     */
+    public static function getDictionaryStagingTableName(string $langCode): string
+    {
+        return self::getDictionaryTableName($langCode) . '_staging';
     }
 
     public static function getFieldName(string $tableKey, string $fieldKey): string
@@ -322,10 +365,12 @@ class AppQyV1TableMaps
         $keys = [
             "{$prefix}_DICTIONARIES",
             "{$prefix}_PERSONAL_DICTIONARIES",
+            "{$prefix}_PERSONAL_DICTIONARY_ENTRIES",
             "{$prefix}_WORD_GROUPS",
-            "{$prefix}_VOCABULARY_COLLECTIONS",
-            "{$prefix}_VOCABULARY_ITEMS",
+            "{$prefix}_GROUP_WORD_PROGRESS",
             "{$prefix}_USER_LEARNING_PROGRESS",
+            "{$prefix}_USER_FOLLOWS",
+            "{$prefix}_DAILY_RECITATION_LOGS",
             "{$prefix}_USER_SELECTED_LIBRARIES"
         ];
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional, List
 
 from pycore.pyfoundations import ColorPrint
-from pycore.pyutils.azure_speech.stt_base_provider import BaseSpeechRecognitionProvider
+from pycore.pyutils.common.stt_base_provider import BaseSpeechRecognitionProvider
 from pycore.pyutils.azure_speech.stt_provider import AzureSpeechRecognitionProvider
 
 

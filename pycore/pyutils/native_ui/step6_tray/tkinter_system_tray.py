@@ -52,11 +52,8 @@ from dataclasses import dataclass
 from pycore import THREAD_BUS, ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_pystray
 
-# Import i18n for multi-language support
-try:
-    from pycore.pyutils.native_ui.step0_i18n import i18n
-except ImportError:
-    i18n = None
+# i18n for multi-language support (pycore-internal: direct top import, never lazy)
+from pycore.pyutils.native_ui.step0_i18n import i18n
 
 # Use lazy loader to get pystray (handles X11 display errors gracefully)
 pystray = get_third_package_pystray()
@@ -94,6 +91,9 @@ class TrayMenuItem:
         submenu: Optional list of submenu items
         checked: Optional checked state (None = no checkbox, True = checked, False = unchecked)
         state_getter: Optional callable that returns current state for dynamic updates
+        text_args: Optional format args applied to the (translated) text, e.g.
+                   text="tray.menu.rpc_server" + text_args={"port": 59000} with the
+                   translation "RPC v2 Server: {port}"
     """
     text: str
     action_signal: str
@@ -103,6 +103,7 @@ class TrayMenuItem:
     submenu: Optional[List['TrayMenuItem']] = None
     checked: Optional[bool] = None
     state_getter: Optional[Callable] = None
+    text_args: Optional[dict] = None
 
     def get_display_text(self) -> str:
         """
@@ -113,12 +114,19 @@ class TrayMenuItem:
         """
         # Translate text if it's an i18n key (e.g., "tray.menu.show")
         translated_text = self.text
-        if i18n and self.text and not self.text.startswith("["):  # Skip already formatted text
+        if self.text and not self.text.startswith("["):  # Skip already formatted text
             # Try to translate the text key
             translated = i18n.get(self.text)
             # Only use translation if it's different from the key (meaning translation exists)
             if translated != self.text:
                 translated_text = translated
+
+        # Apply dynamic format args (e.g. port numbers) to the translated template
+        if self.text_args:
+            try:
+                translated_text = translated_text.format(**self.text_args)
+            except (KeyError, IndexError, ValueError):
+                pass  # malformed template: show it untouched rather than crash the tray
 
         # If state_getter is provided, use it to get current state
         if self.state_getter:
@@ -304,8 +312,16 @@ class TkinterSystemTray:
                 ColorPrint.blue("[TRAY] Received menu update via THREAD_BUS")
                 self.update_menu(menu_items)
 
+        def handle_language_changed(event_data):
+            """Rebuild the menu so item texts pick up the new language"""
+            ColorPrint.blue("[TRAY] Language changed, refreshing menu")
+            self._refresh_menu()
+
         THREAD_BUS.register_event_handler('tray.request_stop', handle_stop_request, priority=10)
         THREAD_BUS.register_event_handler('tray.update_menu', handle_update_menu, priority=10)
+        # pystray bakes item texts at build time (unlike the Win32 backend, which
+        # rebuilds on every right-click), so re-translate on language change.
+        THREAD_BUS.register_event_handler('ui.i18n.language_changed', handle_language_changed, priority=10)
         ColorPrint.blue("[TRAY] THREAD_BUS event handlers registered")
 
     def run(self):
@@ -383,8 +399,13 @@ class TkinterSystemTray:
         This is called automatically after menu actions to reflect state changes.
         """
         if self._tray_icon and self._running:
-            menu = self._build_menu()
-            self._tray_icon.menu = menu
+            self._tray_icon.menu = self._build_menu()
+            # On Windows, reassigning .menu alone does not refresh the live popup;
+            # update_menu() forces pystray to rebuild the Win32 menu handle.
+            try:
+                self._tray_icon.update_menu()
+            except Exception:
+                pass
 
     def update_menu(self, menu_items: List[TrayMenuItem]):
         """
@@ -396,8 +417,13 @@ class TkinterSystemTray:
         self.menu_items = menu_items
 
         if self._tray_icon and self._running:
-            menu = self._build_menu()
-            self._tray_icon.menu = menu
+            self._tray_icon.menu = self._build_menu()
+            # On Windows, reassigning .menu alone does not refresh the live popup;
+            # update_menu() forces pystray to rebuild the Win32 menu handle.
+            try:
+                self._tray_icon.update_menu()
+            except Exception:
+                pass
             ColorPrint.blue("[TRAY] Menu updated")
 
 

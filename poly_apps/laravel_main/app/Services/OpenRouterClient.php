@@ -10,8 +10,14 @@ class OpenRouterClient
 {
     const BASE_URL = 'https://openrouter.ai/api/v1';
     
+    // 'free' maps to OpenRouter's documented Free Models Router alias
+    // (https://openrouter.ai/docs/guides/routing/routers/free-router), which
+    // auto-selects an available free model. The old pinned free model
+    // (tngtech/deepseek-r1t2-chimera:free) was retired upstream and now 404s,
+    // so a static id is no longer a safe default.
     const MODELS = [
-        'deepseek-r1t2-chimera' => 'tngtech/deepseek-r1t2-chimera:free',
+        'free' => 'openrouter/free',
+        'auto' => 'openrouter/auto',
         'deepseek-r1' => 'deepseek/deepseek-r1',
         'deepseek-v3' => 'deepseek/deepseek-v3',
         'gpt-4o' => 'openai/gpt-4o',
@@ -25,9 +31,15 @@ class OpenRouterClient
         'gemini-flash' => 'google/gemini-flash',
         'llama-3.3-70b' => 'meta-llama/llama-3.3-70b-instruct',
         'llama-3.1-405b' => 'meta-llama/llama-3.1-405b-instruct',
-        'free' => 'tngtech/deepseek-r1t2-chimera:free',
     ];
-    
+
+    // In-request fallback list (OpenRouter `models` array). If the primary model
+    // is unavailable/over-quota, OpenRouter transparently tries the next one.
+    const FALLBACK_MODELS = [
+        'openrouter/free',
+        'nvidia/nemotron-3-super-120b-a12b:free',
+    ];
+
     private $apiKey;
     
     public function __construct(?string $apiKey = null)
@@ -48,7 +60,12 @@ class OpenRouterClient
         
         $this->apiKey = $apiKey;
     }
-    
+
+    public function hasApiKey(): bool
+    {
+        return !empty($this->apiKey);
+    }
+
     private function buildHeaders(): array
     {
         return [
@@ -81,7 +98,15 @@ class OpenRouterClient
             'temperature' => 1.0,
             'top_p' => 1.0,
         ];
-        
+
+        // When the caller did not pin a specific model, add OpenRouter's
+        // in-request `models` fallback array so a single dead/over-quota free
+        // model never fails the whole request.
+        if ($requestedModel === null && !isset($extra['models'])) {
+            $fallbacks = array_values(array_unique(array_merge([$model], self::FALLBACK_MODELS)));
+            $payload['models'] = $fallbacks;
+        }
+
         Log::info('[OpenRouterClient] Request', [
             'requested_model' => $requestedModel,
             'resolved_model' => $model,
@@ -201,9 +226,8 @@ class OpenRouterClient
                     continue;
                 }
                 
-                $isFree = isset($model['pricing']['prompt']) && 
-                          $model['pricing']['prompt'] === '0';
-                
+                $isFree = self::isFreeModel($model);
+
                 if ($freeOnly && !$isFree) {
                     continue;
                 }
@@ -224,6 +248,82 @@ class OpenRouterClient
         }
     }
     
+    /**
+     * Live availability probe for the AI status endpoint.
+     *
+     * Calls GET /models and returns a small slice of model ids. Mirrors the
+     * pycore ai_probe contract field-for-field (available / models / error /
+     * latency_ms) so the Laravel and pycore status payloads stay aligned.
+     */
+    public function probe(int $maxModels = 5, int $timeout = 20): array
+    {
+        $result = [
+            'available' => false,
+            'models' => [],
+            'error' => $this->apiKey ? null : 'No API key configured',
+            'latency_ms' => null,
+        ];
+
+        if (!$this->apiKey) {
+            return $result;
+        }
+
+        $start = microtime(true);
+        try {
+            $response = Http::withHeaders($this->buildHeaders())
+                ->timeout($timeout)
+                ->get(self::BASE_URL . '/models');
+
+            if ($response->successful()) {
+                $data = $response->json()['data'] ?? [];
+                $ids = [];
+                foreach ($data as $model) {
+                    // Load ONLY free OpenRouter models: id ends with ":free" OR
+                    // prompt+completion price is "0" (per OpenRouter's free
+                    // models router / pricing=free filter).
+                    if (empty($model['id']) || !self::isFreeModel($model)) {
+                        continue;
+                    }
+                    $ids[] = $model['id'];
+                    if (count($ids) >= $maxModels) {
+                        break;
+                    }
+                }
+                $result['available'] = true;
+                $result['models'] = $ids;
+            } else {
+                $body = $response->json();
+                $result['error'] = $body['error']['message'] ?? ('HTTP ' . $response->status());
+            }
+        } catch (\Exception $e) {
+            $result['error'] = $e->getMessage();
+        }
+
+        $result['latency_ms'] = round((microtime(true) - $start) * 1000, 1);
+        return $result;
+    }
+
+    /**
+     * Whether an OpenRouter /models entry is a FREE model.
+     *
+     * Per OpenRouter's docs a model is free when its id carries the ":free"
+     * variant suffix, or its pricing has zero prompt AND completion cost — the
+     * same set surfaced by the site's pricing=free filter and consumed by the
+     * openrouter/free router.
+     */
+    private static function isFreeModel(array $model): bool
+    {
+        $id = $model['id'] ?? '';
+        if (is_string($id) && str_ends_with($id, ':free')) {
+            return true;
+        }
+        $pricing = $model['pricing'] ?? [];
+        $isZero = static function ($v): bool {
+            return $v === '0' || $v === 0 || $v === '0.0' || $v === 0.0;
+        };
+        return $isZero($pricing['prompt'] ?? null) && $isZero($pricing['completion'] ?? null);
+    }
+
     public function getFreeModels(): array
     {
         $cached = $this->getCachedFreeModels();

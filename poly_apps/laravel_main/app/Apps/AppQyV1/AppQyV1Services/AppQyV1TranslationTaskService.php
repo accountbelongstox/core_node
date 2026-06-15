@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
@@ -16,7 +13,7 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Services\TaskManagerService;
 use App\Models\GlobalTask;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1TranslationTaskService
@@ -66,10 +63,18 @@ class AppQyV1TranslationTaskService
             'word_count' => count($untranslatedWords),
         ];
 
+        // EXECUTION_REMOTE_CLIENT, NOT EXECUTION_REMOTE_TRANSLATION: workers pull
+        // by execution_type, and the dict-shaped payload here ({word, md5,
+        // query_count} entries plus an "explanations" result contract) is only
+        // understood by the browser-side dictionary worker, which registers with
+        // processor_types ["remote_client"]. Tagging these remote_translation
+        // handed them to the pycore Google worker and the Laravel AI self-filler
+        // (both expect word_translation's plain-string words), which crashed on /
+        // rejected every one of them and burned the tasks' retries.
         $task = $this->taskManager->createTask(
             'AppQyV1',
             $taskType,
-            GlobalTask::EXECUTION_REMOTE_TRANSLATION,
+            GlobalTask::EXECUTION_REMOTE_CLIENT,
             $payload,
             $timeoutSeconds,
             50,
@@ -146,34 +151,41 @@ class AppQyV1TranslationTaskService
             }
 
             try {
-                $entry = AppQyV1MultiLangDictionaryModel::findByWord($langCode, $word);
+                $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, md5($word));
 
                 if (!$entry) {
                     $failed++;
                     continue;
                 }
 
-                $updateData = [];
+                // Unified schema: translations is a JSON map (json-cast on the
+                // model). Enrich it instead of writing legacy flat columns.
+                $translations = $entry->translations;
+                if (!is_array($translations)) {
+                    $translations = [];
+                }
 
                 if ($isEnglish) {
-                    $updateData['translation'] = $explanationText;
+                    $translations['en'] = $explanationText;
                     if (isset($explanation['us_phonetic'])) {
-                        $updateData['us_phonetic'] = $explanation['us_phonetic'];
+                        $entry->us_phonetic = $explanation['us_phonetic'];
                     }
                     if (isset($explanation['uk_phonetic'])) {
-                        $updateData['uk_phonetic'] = $explanation['uk_phonetic'];
+                        $entry->uk_phonetic = $explanation['uk_phonetic'];
                     }
                 } else {
-                    $updateData['meaning_en'] = $explanationText;
+                    $translations['en'] = $explanationText;
                     if (isset($explanation['meaning_zh'])) {
-                        $updateData['meaning_zh'] = $explanation['meaning_zh'];
+                        $translations['zh'] = $explanation['meaning_zh'];
                     }
                     if (isset($explanation['pronunciation'])) {
-                        $updateData['pronunciation'] = $explanation['pronunciation'];
+                        $entry->phonetic = $explanation['pronunciation'];
                     }
                 }
 
-                $entry->update($updateData);
+                $entry->translations = $translations;
+                $entry->has_translation = true;
+                $entry->save();
                 $processed++;
             } catch (\Exception $e) {
                 Log::error('[AppQyV1TranslationTaskService] Failed to update word', [
@@ -182,6 +194,12 @@ class AppQyV1TranslationTaskService
                 ]);
                 $failed++;
             }
+        }
+
+        // Translation writes change has_translation coverage -> invalidate the
+        // cached dashboard dictionary metrics for this language.
+        if ($processed > 0) {
+            AppQyV1LangDictionaryModel::forgetMetricsCache($langCode);
         }
 
         Log::info('[AppQyV1TranslationTaskService] Explanation result processed', [

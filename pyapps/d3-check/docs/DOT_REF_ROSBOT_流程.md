@@ -2,7 +2,7 @@
 
 **文档用途**：本文档将 ROSBOT 完整流程整理成文，并标注 Python 端代码地址，**专供 DOT（.NET 端口）参考**。DOT 实现须按 **DOT 规范** 编写，**功能与 Python 1:1 对应**（即 1:1 仿 Python 功能）。
 
-**说明**：本文档供 **DOT（.NET 端口）** 参考，要求 DOT 按 **DOT 规范**（[DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md)、[.cursor/rules/dot.mdc](../../../.cursor/rules/dot.mdc)；**UI 层以 [DOT_UI_PROJECT_SPECIFICATION.md](../../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md)、[.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc) 为规范**）实现，**功能与 Python 1:1 对应**。代码与注释使用英文/ASCII；行为与下述 Python 流程一致。
+**说明**：本文档供 **DOT（.NET 端口）** 参考，要求 DOT 按 **DOT 规范**（[DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md)、[.cursor/rules/dot.mdc](../../../.cursor/rules/dot.mdc)；**UI 层以 [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md)、[.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc) 为规范**）实现，**功能与 Python 1:1 对应**。代码与注释使用英文/ASCII；行为与下述 Python 流程一致。
 
 ---
 

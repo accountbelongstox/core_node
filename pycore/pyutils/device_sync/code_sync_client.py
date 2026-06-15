@@ -643,6 +643,25 @@ class CodeSyncClient:
         else:
             ColorPrint.yellow("[CodeSync Client] No code sync servers found")
 
+    def add_server(self, host: str, port: int = None):
+        """
+        Explicitly connect to a code-sync server (a configured dev-end peer).
+
+        Used by the manager to point the client at the dev peers from the committed
+        peer config, in addition to any LAN-discovered servers. Idempotent.
+        """
+        if not host:
+            return
+        port = port or self.server_port
+        if host in self.servers:
+            return
+        server_conn = ServerConnection(
+            host=host, port=port, client_id=self.client_id, client=self)
+        self.servers[host] = server_conn
+        if self.running:
+            server_conn.start()
+        ColorPrint.green(f"[CodeSync Client] Added configured dev-end server: {host}:{port}")
+
     def _get_local_ip(self) -> Optional[str]:
         """Get local IP address"""
         try:

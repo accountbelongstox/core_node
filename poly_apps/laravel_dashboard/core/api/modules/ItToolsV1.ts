@@ -3,10 +3,10 @@ import { APIResponse } from '../../types';
 
 /**
  * ItToolsV1 API Module
- * IT开发工具集API - 100+工具
+ * IT developer tools API - 100+ tools
  */
 export class ItToolsV1API extends BaseAPI {
-  // ========== Unified API (统一接口) ==========
+  // ========== Unified API ==========
   async encode(data: { type: string; input: string }): Promise<APIResponse> {
     return this.post('/unified/encode', data);
   }
@@ -51,7 +51,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/unified/basic-auth', data);
   }
 
-  // ========== Crypto & Security (加密安全) ==========
+  // ========== Crypto & Security ==========
   async hashText(data: { text: string; algorithm: string }): Promise<APIResponse> {
     return this.post('/crypto/hash', data);
   }
@@ -100,7 +100,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/crypto/decrypt', data);
   }
 
-  // ========== Converter (转换工具) ==========
+  // ========== Converter ==========
   async base64Encode(data: { text: string }): Promise<APIResponse> {
     return this.post('/converter/base64/encode', data);
   }
@@ -207,7 +207,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/converter/list', data);
   }
 
-  // ========== Web Development (Web开发) ==========
+  // ========== Web Development ==========
   async jsonPrettify(data: { json: string; indent?: number }): Promise<APIResponse> {
     return this.post('/web/json/prettify', data);
   }
@@ -272,7 +272,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/web/svg/optimize', data);
   }
 
-  // ========== Text Processing (文本处理) ==========
+  // ========== Text Processing ==========
   async textStatistics(data: { text: string }): Promise<APIResponse> {
     return this.post('/text/statistics', data);
   }
@@ -333,7 +333,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/text/obfuscate', data);
   }
 
-  // ========== Math (数学计算) ==========
+  // ========== Math ==========
   async mathEvaluate(data: { expression: string }): Promise<APIResponse> {
     return this.post('/math/evaluate', data);
   }
@@ -350,7 +350,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/math/benchmark', data);
   }
 
-  // ========== Network (网络工具) ==========
+  // ========== Network ==========
   async ipv4Convert(data: { ip: string; to: string }): Promise<APIResponse> {
     return this.post('/network/ipv4/convert', data);
   }
@@ -387,7 +387,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/network/port/random', data);
   }
 
-  // ========== Advanced Tools (高级工具) ==========
+  // ========== Advanced Tools ==========
   async imageResize(data: { image: File; width: number; height: number }): Promise<APIResponse> {
     const formData = new FormData();
     formData.append('image', data.image);
@@ -497,7 +497,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.request({ url: '/advanced/pdf/add-password', method: 'POST', data: formData } as any);
   }
 
-  // ========== Missing Methods (新增缺失的方法) ==========
+  // ========== Missing Methods (newly added) ==========
 
   async basicAuth(data: { username: string; password: string }): Promise<APIResponse> {
     return this.post('/unified/basic-auth', data);
@@ -515,10 +515,6 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/crypto/hmac', data);
   }
 
-  async mimeTypes(data: { extension?: string; mimeType?: string }): Promise<APIResponse> {
-    return this.post('/web/mime-types', data);
-  }
-
   async eta(data: { current: number; total: number; start_time: number }): Promise<APIResponse> {
     return this.post('/math/eta', data);
   }
@@ -533,9 +529,5 @@ export class ItToolsV1API extends BaseAPI {
 
   async statistics(data: { text: string }): Promise<APIResponse> {
     return this.post('/text/statistics', data);
-  }
-
-  async macGenerate(data: { separator?: string; case?: string }): Promise<APIResponse> {
-    return this.post('/network/mac-generate', data);
   }
 }

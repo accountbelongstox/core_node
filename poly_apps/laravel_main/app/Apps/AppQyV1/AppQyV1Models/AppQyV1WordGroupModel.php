@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
@@ -94,6 +91,13 @@ class AppQyV1WordGroupModel extends Model
                 $group->generateCoverImage();
             }
         });
+
+        // Group deletion cleanup: the per-group JSON progress row
+        // (group_word_progress) is owned by the group and goes with it.
+        // Fires on soft delete too (delete events run on SoftDeletes).
+        static::deleted(function (AppQyV1WordGroupModel $group) {
+            AppQyV1GroupWordProgressModel::where('group_id', $group->id)->delete();
+        });
     }
 
     /**
@@ -105,28 +109,32 @@ class AppQyV1WordGroupModel extends Model
     }
 
     /**
-     * Get group words (many-to-many relationship)
+     * The group's word membership + progress: ONE JSON row per group
+     * (group_word_progress replaced the row-per-word group_words /
+     * user_word_progress pair).
      */
-    public function groupWords()
+    public function wordProgress()
     {
-        return $this->hasMany(AppQyV1GroupWordModel::class, 'group_id');
+        return $this->hasOne(AppQyV1GroupWordProgressModel::class, 'group_id');
     }
 
     /**
-     * Get words through group_words pivot table
+     * Count of library/pivot words attached to this group - the JSON row's
+     * total_words cache (count of map keys). Uses the eager-loaded relation
+     * when present; otherwise one indexed single-row read. The displayed
+     * group total stays the merged count(gwords) + this value.
      */
-    public function words()
+    public function pivotWordsCount(): int
     {
-        return $this->belongsToMany(
-            AppQyV1VocabularyItemModel::class,
-            AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_words'),
-            'group_id',
-            'word_id',
-            'id',
-            'id'
-        )->withTimestamps()
-         ->withPivot('language_code', 'added_at')
-         ->using(AppQyV1GroupWordModel::class);
+        if ($this->relationLoaded('wordProgress')) {
+            $row = $this->getRelation('wordProgress');
+        } else {
+            $row = $this->wordProgress()->first();
+        }
+        if (!$row) {
+            return 0;
+        }
+        return (int) $row->total_words;
     }
 
     /**
@@ -144,14 +152,6 @@ class AppQyV1WordGroupModel extends Model
         )->withTimestamps()
          ->withPivot('added_at')
          ->using(AppQyV1GroupLibraryModel::class);
-    }
-
-    /**
-     * Get user progress for this group
-     */
-    public function userProgress()
-    {
-        return $this->hasMany(AppQyV1UserWordProgressModel::class, 'group_id');
     }
 
     /**
@@ -216,7 +216,7 @@ class AppQyV1WordGroupModel extends Model
     {
         $category = AppQyV1CoverImageService::inferCategory($this->gname);
 
-        $wordCount = $this->groupWords()->count();
+        $wordCount = $this->pivotWordsCount();
 
         $result = AppQyV1CoverImageService::generateGroupCover(
             $this->gname,

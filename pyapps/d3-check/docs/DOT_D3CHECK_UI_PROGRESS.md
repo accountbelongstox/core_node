@@ -1,6 +1,6 @@
 # D3Check Dot UI – Progress Reference
 
-Progress of the .NET/WPF UI for d3check. Layout and element spec: [DOT_D3CHECK_UI_LIBRARY.md](DOT_D3CHECK_UI_LIBRARY.md). Norms: [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md), [.cursor/rules/dot.mdc](../../../.cursor/rules/dot.mdc). **UI layer:** canonical spec [DOT_UI_PROJECT_SPECIFICATION.md](../../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md), [.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc).
+Progress of the .NET/WPF UI for d3check. Layout and element spec: [DOT_D3CHECK_UI_LIBRARY.md](DOT_D3CHECK_UI_LIBRARY.md). Norms: [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md), [.cursor/rules/dot.mdc](../../../.cursor/rules/dot.mdc). **UI layer:** canonical spec [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md), [.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc).
 
 ---
 

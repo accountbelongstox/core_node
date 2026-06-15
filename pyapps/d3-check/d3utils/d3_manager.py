@@ -12,7 +12,7 @@ from typing import List, Optional, Callable, Dict, Any, Set
 
 from providor.constants.d3 import DIABLO_III_EXE_NAME
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.third_party import get_third_package_win32gui
 from providor.providor_index import DIABLO_III_WINDOW_TITLES, get_config_value_safe
 from pycore.pyutils.common.window_finder import WindowFinder

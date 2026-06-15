@@ -23,7 +23,7 @@ class ImageOCRRequest(BaseModel):
     auto_upload: bool = Field(default=True, description="Automatically upload result")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "image_path": "/tmp/screenshot.png",
                 "engine": "paddleocr",
@@ -56,7 +56,7 @@ class ImageOCRResponse(BaseModel):
     error: Optional[str] = None
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "message": "OCR completed successfully",

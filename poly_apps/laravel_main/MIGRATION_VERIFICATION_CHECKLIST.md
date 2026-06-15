@@ -385,7 +385,7 @@ LIMIT 3;
 
 ```bash
 # 1. 验证定时器注册
-curl http://localhost:8000/api/octane/timer/status | jq '.tasks.appqyv1_cover_generation'
+curl http://localhost:9000/api/octane/timer/status | jq '.tasks.appqyv1_cover_generation'
 
 # 应返回:
 # {
@@ -396,10 +396,10 @@ curl http://localhost:8000/api/octane/timer/status | jq '.tasks.appqyv1_cover_ge
 # }
 
 # 2. 创建测试封面
-curl -X POST http://localhost:8000/api/appqyv1/vocabulary/library/1/cover
+curl -X POST http://localhost:9000/api/appqyv1/vocabulary/library/1/cover
 
 # 3. 等待5-10秒，检查是否处理
-curl http://localhost:8000/api/octane/timer/tasks | jq '.appqyv1_cover_generation'
+curl http://localhost:9000/api/octane/timer/tasks | jq '.appqyv1_cover_generation'
 
 # 4. 验证封面文件
 ls -la storage/app/public/app_qy_v1/covers/

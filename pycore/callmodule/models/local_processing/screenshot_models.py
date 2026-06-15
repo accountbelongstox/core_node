@@ -29,7 +29,7 @@ class ScreenshotRequest(BaseModel):
     auto_upload: bool = Field(default=True, description="Automatically upload after capture")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "format": "png",
                 "quality": 90,
@@ -54,7 +54,7 @@ class ScreenshotResponse(BaseModel):
     error: Optional[str] = None
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "message": "Screenshot captured successfully",

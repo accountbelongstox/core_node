@@ -2,7 +2,7 @@
 # Gitea Installation Script
 #
 # Prerequisites:
-#   - Git must be installed (run 19_install_git_ssh.sh first)
+#   - Git must be installed (run 20_install_git_ssh.sh first)
 #   - SQLite3 (automatically installed)
 #   - wget/curl (automatically installed)
 #
@@ -139,7 +139,7 @@ check_git_installation() {
     else
         print_warning_from_common_functions "Git is not installed"
         print_info_from_common_functions "Git is required for Gitea to function"
-        print_info_from_common_functions "Please run script 19_install_git_ssh.sh first, or install Git manually"
+        print_info_from_common_functions "Please run script 20_install_git_ssh.sh first, or install Git manually"
 
         echo -n "Do you want to install Git now? (Y/n): "
         read -r response
@@ -746,7 +746,7 @@ install_gitea() {
     # Check Git installation (CRITICAL DEPENDENCY)
     if ! check_git_installation; then
         print_error_from_common_functions "Git is required but not installed"
-        print_info_from_common_functions "Please install Git first by running: ./19_install_git_ssh.sh"
+        print_info_from_common_functions "Please install Git first by running: ./20_install_git_ssh.sh"
         return 1
     fi
 

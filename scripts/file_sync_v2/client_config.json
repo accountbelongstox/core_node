@@ -7,11 +7,13 @@
       "enabled": true
     },
     {
-      "host": "64.90.3.158",
+      "host": "45.249.247.163",
       "port": 18765,
       "enabled": true,
       "include": [
-        "webclaude_group/webclaude_go-gateway"
+        "webclaude_group/webclaude_go-gateway",
+        "scripts/file_sync_v2",
+        "scripts/shells"
       ]
     }
   ],

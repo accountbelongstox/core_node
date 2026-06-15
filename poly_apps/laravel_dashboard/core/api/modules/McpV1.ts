@@ -3,10 +3,10 @@ import { APIResponse } from '../../types';
 
 /**
  * McpV1 API Module
- * MCP 管理器 - 截图、任务、提示词等
+ * MCP manager - screenshots, tasks, prompts, etc.
  */
 export class McpV1API extends BaseAPI {
-  // ========== 截图管理 ==========
+  // ========== Screenshot Management ==========
   async getScreenshots(page: number = 1, limit: number = 20): Promise<APIResponse> {
     return this.get('/screenshots', { page, limit });
   }
@@ -46,7 +46,7 @@ export class McpV1API extends BaseAPI {
     return this.delete('/screenshots/clear-all/confirm');
   }
 
-  // ========== 任务管理 ==========
+  // ========== Task Management ==========
   async getTaskCategories(): Promise<APIResponse> {
     return this.get('/task-dispatch/categories', undefined, true, 600000);
   }
@@ -71,16 +71,16 @@ export class McpV1API extends BaseAPI {
     return this.post('/task-dispatch/categories', { name });
   }
 
-  async executeTask(taskId: string): Promise<APIResponse> {
-    return this.post(`/tasks/${taskId}/execute`);
-  }
-
   async getCategoryFiles(categoryId: string): Promise<APIResponse> {
     return this.get(`/task-dispatch/categories/${categoryId}/files`);
   }
 
   async updateTaskStatus(categoryId: string, taskId: string, status: 'pending' | 'in_progress' | 'completed' | 'failed'): Promise<APIResponse> {
     return this.put(`/task-dispatch/queue/${categoryId}/tasks/${taskId}/status`, { status });
+  }
+
+  async deleteTask(categoryId: string, taskId: string): Promise<APIResponse> {
+    return this.delete(`/task-dispatch/queue/${categoryId}/tasks/${taskId}`);
   }
 
   async getLastTask(categoryId: string): Promise<APIResponse> {
@@ -103,7 +103,7 @@ export class McpV1API extends BaseAPI {
     return this.delete(`/task-dispatch/mappings/${categoryId}`);
   }
 
-  // ========== 提示词管理 ==========
+  // ========== Prompt Management ==========
   async getPromptMappings(): Promise<APIResponse> {
     return this.get('/task-dispatch/mappings');
   }
@@ -115,7 +115,7 @@ export class McpV1API extends BaseAPI {
     });
   }
 
-  // ========== Placeholder生成器 ==========
+  // ========== Placeholder Generator ==========
   async getPlaceholders(): Promise<APIResponse> {
     return this.get('/placeholders');
   }
@@ -144,7 +144,7 @@ export class McpV1API extends BaseAPI {
     return this.post('/placeholders/cleanup', {});
   }
 
-  // ========== OCR 识别 ==========
+  // ========== OCR Recognition ==========
   async ocrRecognize(data: { image: File; engine?: string }): Promise<APIResponse> {
     const formData = new FormData();
     formData.append('image', data.image);
@@ -171,10 +171,12 @@ export class McpV1API extends BaseAPI {
   }
 
   async getOcrEngineInfo(engine: string): Promise<APIResponse> {
-    return this.get('/ocr/engine-info', { engine });
+    // Backend reads `model_type` (general/scene/doc/number/english/chinese_traditional),
+    // not `engine`. Send the param under the name the controller actually reads.
+    return this.get('/ocr/engine-info', { model_type: engine });
   }
 
-  // ========== Voice Subtitle (语音字幕队列) ==========
+  // ========== Voice Subtitle (voice subtitle queue) ==========
   async vsAddToQueue(data: { type: 'text' | 'image' | 'voice'; content: any; group?: string; category?: string }): Promise<APIResponse> {
     return this.post('/voice-subtitle/add', data);
   }
@@ -326,7 +328,7 @@ export class McpV1API extends BaseAPI {
     return this.get('/voice-subtitle/ping');
   }
 
-  // ========== Static Resources (静态资源管理) ==========
+  // ========== Static Resources (static resource management) ==========
 
   /**
    * Get static resources file tree
@@ -368,7 +370,9 @@ export class McpV1API extends BaseAPI {
     try {
       const formData = new FormData();
       files.forEach((file) => {
-        formData.append('files', file);
+        // `files[]` (not `files`) so Laravel's $request->file('files') receives
+        // the whole array — a repeated bare `files` key keeps only the last file.
+        formData.append('files[]', file);
       });
 
       const url = `${this.baseURL}/static-resources/upload`;

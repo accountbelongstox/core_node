@@ -6,7 +6,6 @@ pyfoundations/device/scrcpy_device.py
 pyfoundations/secret_manager.py
 pyfoundations/system_paths.py
 pyfoundations/third_party.py
-pyfoundations/third_partyCopy.py
 pyutils/adb/adb_manager.py
 pyutils/app_launcher.py
 pyutils/click_handler.py

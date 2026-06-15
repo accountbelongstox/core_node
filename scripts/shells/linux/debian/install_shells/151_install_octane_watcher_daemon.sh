@@ -144,7 +144,7 @@ if [ ! -d "node_modules/chokidar" ]; then
         echo "�?chokidar installed via npm"
     else
         echo "�?Neither pnpm nor npm found. Please install Node.js first"
-        echo "  Run: bash scripts/shells/linux/debian/install_shells/14_install_node_24.sh"
+        echo "  Run: bash scripts/shells/linux/debian/install_shells/15_install_node_24.sh"
         echo "  You can still use Octane without hot-reload"
     fi
 else

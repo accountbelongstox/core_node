@@ -20,8 +20,8 @@ class OCRProcessor:
         """Lazy load PaddleOCR"""
         if self._paddleocr is None:
             try:
-                from pycore.pyutils.ocr_manager import OCRManager
-                self._paddleocr = OCRManager()
+                from pycore.pyutils.ocr_cluster import ocr_manager
+                self._paddleocr = ocr_manager
             except ImportError:
                 raise RuntimeError("PaddleOCR not available. Check pycore.pyutils.ocr_manager")
         return self._paddleocr

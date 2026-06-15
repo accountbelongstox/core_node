@@ -248,6 +248,33 @@ def get_secret_key(key_name: str) -> str:
     return _read_secret_value(key_name)
 
 
+def get_secret_key_indexed(base_name: str, max_index: int = 5) -> str:
+    """
+    Get a secret key by base name, auto-scanning numbered variants.
+
+    Multi-key convention: a logical secret (e.g. an AI provider key) is stored as
+    ``<BASE>_1`` .. ``<BASE>_N`` (rotation / multiple accounts), and sometimes as a
+    bare ``<BASE>``. Callers must NOT hardcode a single index — if ``_1`` is absent
+    the value may live under ``_2``..``_5``. This is the single global loader every
+    AI provider (and any other indexed secret) goes through.
+
+    Resolution order (first non-empty wins):
+        <BASE>_1, <BASE>_2, ... <BASE>_<max_index>, then bare <BASE>
+
+    Args:
+        base_name: Key base without the trailing ``_<n>`` (e.g. "GOOGLE_API_KEY").
+        max_index: Highest numbered variant to try (default 5).
+
+    Returns:
+        First non-empty secret value found, or empty string if none exist.
+    """
+    for i in range(1, max_index + 1):
+        value = _read_secret_value(f"{base_name}_{i}")
+        if value:
+            return value
+    return _read_secret_value(base_name)
+
+
 def get_all_secret_keys() -> Dict[str, str]:
     """
     Get all secret keys as dictionary from .secret_ignore directory
@@ -282,6 +309,7 @@ def get_all_secret_keys() -> Dict[str, str]:
 __all__ = [
     'get_secret_directories',
     'get_secret_key',
+    'get_secret_key_indexed',
     'get_all_secret_keys',
     'decrypt_all_secrets',
     'find_disguise_tool',

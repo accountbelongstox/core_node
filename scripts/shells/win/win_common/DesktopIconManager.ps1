@@ -71,7 +71,7 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
         AdditionalKeywords = @(
             "Visual Studio", "IntelliJ", "Eclipse", "Android Studio", "Xcode", "Git", "Docker",
             "PyCharm", "WebStorm", "PhpStorm", "CLion", "DataGrip", "GoLand", "RubyMine",
-            "Rider", "AppCode", "Fleet", "Code", "VSCode", "Windsurf", "VSCodium", "Sublime Text", "Atom", "Brackets",
+            "Rider", "AppCode", "Fleet", "Code", "VSCode", "Windsurf", "Devin", "Cursor", "VSCodium", "Sublime Text", "Atom", "Brackets",
             "NetBeans", "BlueJ", "Dev-C++", "Code::Blocks", "Qt Creator", "Delphi", "Lazarus",
             "Unity", "Unreal Engine", "Godot", "GameMaker", "Construct", "RPG Maker",
             "Postman", "Insomnia", "Swagger", "SoapUI", "Fiddler", "Charles", "Wireshark",

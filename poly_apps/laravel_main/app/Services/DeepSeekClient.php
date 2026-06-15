@@ -20,22 +20,85 @@ class DeepSeekClient
     public function __construct(?string $apiKey = null)
     {
         if ($apiKey === null) {
-            $apiKey = GlobalSecretReader::getSecretContent('OPENROUTER_API_KEY_2');
+            // Key lookup order, aligned with pycore ai_probe (DEEPSEEK_API_KEY_1
+            // / DEEPSEEK_API_KEY). OPENROUTER_API_KEY_2 is kept as a final
+            // fallback because the deployed secret store currently holds the
+            // DeepSeek key (an sk-... DeepSeek key, not an sk-or-... OpenRouter
+            // key) under that name.
+            $apiKey = GlobalSecretReader::getSecretContent('DEEPSEEK_API_KEY_1');
             if (!$apiKey) {
                 $apiKey = GlobalSecretReader::getSecretContent('DEEPSEEK_API_KEY');
             }
             if (!$apiKey) {
-                $apiKey = env('OPENROUTER_API_KEY_2') ?? env('DEEPSEEK_API_KEY');
+                $apiKey = GlobalSecretReader::getSecretContent('OPENROUTER_API_KEY_2');
+            }
+            if (!$apiKey) {
+                $apiKey = env('DEEPSEEK_API_KEY_1') ?? env('DEEPSEEK_API_KEY') ?? env('OPENROUTER_API_KEY_2');
             }
         }
-        
+
         if (!$apiKey) {
-            Log::warning('[DeepSeekClient] No API key provided. Set OPENROUTER_API_KEY_2 or DEEPSEEK_API_KEY in .secret_keys/.secret_ignore/');
+            Log::warning('[DeepSeekClient] No API key provided. Set DEEPSEEK_API_KEY_1 in .secret_keys/.secret_ignore/');
         }
         
         $this->apiKey = $apiKey;
     }
-    
+
+    public function hasApiKey(): bool
+    {
+        return !empty($this->apiKey);
+    }
+
+    /**
+     * Live availability probe for the AI status endpoint.
+     *
+     * DeepSeek is OpenAI-compatible; GET /models lists available models.
+     * Returns the same shape as OpenRouterClient::probe / pycore ai_probe.
+     */
+    public function probe(int $maxModels = 5, int $timeout = 20): array
+    {
+        $result = [
+            'available' => false,
+            'models' => [],
+            'error' => $this->apiKey ? null : 'No API key configured',
+            'latency_ms' => null,
+        ];
+
+        if (!$this->apiKey) {
+            return $result;
+        }
+
+        $start = microtime(true);
+        try {
+            $response = Http::withHeaders($this->buildHeaders())
+                ->timeout($timeout)
+                ->get(self::BASE_URL . '/models');
+
+            if ($response->successful()) {
+                $data = $response->json()['data'] ?? [];
+                $ids = [];
+                foreach ($data as $model) {
+                    if (!empty($model['id'])) {
+                        $ids[] = $model['id'];
+                    }
+                    if (count($ids) >= $maxModels) {
+                        break;
+                    }
+                }
+                $result['available'] = true;
+                $result['models'] = $ids;
+            } else {
+                $body = $response->json();
+                $result['error'] = $body['error']['message'] ?? ('HTTP ' . $response->status());
+            }
+        } catch (\Exception $e) {
+            $result['error'] = $e->getMessage();
+        }
+
+        $result['latency_ms'] = round((microtime(true) - $start) * 1000, 1);
+        return $result;
+    }
+
     private function buildHeaders(): array
     {
         return [

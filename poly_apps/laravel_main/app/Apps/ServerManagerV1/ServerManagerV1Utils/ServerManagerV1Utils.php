@@ -54,8 +54,11 @@ class ServerManagerV1Utils
     
     /**
      * Execute system command safely with logging
+     *
+     * @param array|null $env Extra environment variables merged on top of the
+     *                        current process environment (null = inherit as-is)
      */
-    public static function executeCommand(string $command, array $arguments = [], ?int $timeout = null): array
+    public static function executeCommand(string $command, array $arguments = [], ?int $timeout = null, ?array $env = null): array
     {
         $timeout = $timeout ?? ServerManagerV1Constants::MAX_EXECUTION_TIME;
         
@@ -82,7 +85,9 @@ class ServerManagerV1Utils
             2 => ['pipe', 'w']   // stderr
         ];
         
-        $process = proc_open($fullCommand, $descriptorSpec, $pipes);
+        $envVars = $env !== null ? array_merge(getenv(), $env) : null;
+
+        $process = proc_open($fullCommand, $descriptorSpec, $pipes, null, $envVars);
         
         if (!is_resource($process)) {
             return [

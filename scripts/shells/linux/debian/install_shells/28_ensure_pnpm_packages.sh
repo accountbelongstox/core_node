@@ -193,7 +193,9 @@ configure_pnpm_global_dirs() {
     # Always set pnpm config to ensure it's correct (don't skip even if already configured)
     run_pnpm_from_common_functions config set global-dir "$pnpm_global_dir_target"
     run_pnpm_from_common_functions config set global-bin-dir "$pnpm_global_bin_target"
-    run_pnpm_from_common_functions config set enable-pre-post-scripts true
+    # enable-pre-post-scripts is TRUE by default (pnpm 7+) and is workspace-level in
+    # pnpm 10+ — a GLOBAL `pnpm config set` errors (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY).
+    # It's the default, so we don't set it globally. Docs: https://pnpm.io/settings
 
     # Create directories
     mkdir -p "$pnpm_global_dir_target"
@@ -395,7 +397,7 @@ verify_pnpm_config() {
             echo "[$SCRIPT_INDEX] �?enable-pre-post-scripts is set to true"
         else
             echo "[$SCRIPT_INDEX] �?enable-pre-post-scripts is NOT set correctly, fixing..."
-            pnpm config set enable-pre-post-scripts true
+            : # pnpm 10+ rejects a global set of this workspace-level key; it is true by default. Docs: https://pnpm.io/settings
             echo "[$SCRIPT_INDEX] �?enable-pre-post-scripts has been set to true"
         fi
     else

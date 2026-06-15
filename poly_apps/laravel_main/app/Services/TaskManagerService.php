@@ -9,9 +9,22 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Database\ConnectionInterface;
 use App\Services\TaskProcessors\TaskProcessorRegistry;
 use App\Services\TaskProcessors\DictionaryTaskProcessor;
+use App\Services\TaskProcessors\WordTranslationTaskProcessor;
 
 class TaskManagerService
 {
+    /**
+     * Transaction attempts for the worker-API hot paths (pull / submit).
+     *
+     * N pycore workers + the internal AI filler + the Octane timers all hit
+     * global_tasks concurrently. On the SQLite deployment that surfaces as
+     * "database is locked" (single writer), on Postgres as serialization /
+     * deadlock errors — both are transient concurrency errors that Laravel's
+     * transaction() retries when given attempts > 1, instead of bubbling up as
+     * an HTTP 500 that loses a worker's result POST.
+     */
+    private const TRANSACTION_ATTEMPTS = 3;
+
     protected ?TaskProcessorRegistry $processorRegistry = null;
 
     protected function db(): ConnectionInterface
@@ -29,6 +42,9 @@ class TaskManagerService
 
             // Register all task processors here
             $this->processorRegistry->register(new DictionaryTaskProcessor($this));
+
+            // Async word-translation pipeline write-back (word_translation tasks).
+            $this->processorRegistry->register(new WordTranslationTaskProcessor($this));
 
             // Future processors can be registered here:
             // $this->processorRegistry->register(new ImageTaskProcessor($this));
@@ -74,49 +90,9 @@ class TaskManagerService
         return $task;
     }
 
-    /**
-     * Pull tasks for a worker (smart allocation)
-     *
-     * @deprecated Use pullAndAssignTasksForWorker() instead for atomic operation
-     * @internal This method is UNSAFE - does not assign tasks atomically
-     *
-     * @param string $workerId Worker ID
-     * @param int $limit Maximum number of tasks to return
-     * @return array Array of tasks
-     */
-    public function pullTasksForWorker(string $workerId, int $limit = 5): array
-    {
-        // Get worker to check processor types
-        $worker = Worker::where('worker_id', $workerId)->first();
-        if (!$worker) {
-            throw new \Exception("Worker not found: $workerId");
-        }
-
-        // Get pending tasks that match worker's processor types
-        $tasks = [];
-        foreach ($worker->processor_types as $processorType) {
-            $availableTasks = GlobalTask::pending()
-                ->where('execution_type', $processorType)
-                ->orderBy('priority', 'desc')
-                ->orderBy('created_at', 'asc')
-                ->limit($limit - count($tasks))
-                ->get();
-
-            foreach ($availableTasks as $task) {
-                $tasks[] = $task;
-                if (count($tasks) >= $limit) {
-                    break 2;
-                }
-            }
-        }
-
-        Log::info('Tasks pulled', [
-            'worker_id' => $workerId,
-            'count' => count($tasks),
-        ]);
-
-        return $tasks;
-    }
+    // NOTE: the old non-atomic pullTasksForWorker() was removed — it pulled
+    // without assigning (two workers could grab the same task) and had no
+    // callers. pullAndAssignTasksForWorker() below is the only pull path.
 
     /**
      * Pull and assign tasks for a worker (atomic operation)
@@ -128,7 +104,10 @@ class TaskManagerService
      */
     public function pullAndAssignTasksForWorker(string $workerId, int $limit = 5): array
     {
-        // Use single transaction for all operations
+        // Use single transaction for all operations. LOCK ORDER: worker row
+        // first, then task rows — submitResult() acquires its locks in the SAME
+        // order, so a concurrent pull and result-submit for one worker serialize
+        // instead of deadlocking (opposite orders deadlock on Postgres).
         $assignedTasks = $this->db()->transaction(function () use ($workerId, $limit) {
             // Lock worker for update
             $worker = Worker::where('worker_id', $workerId)
@@ -186,7 +165,7 @@ class TaskManagerService
             }
 
             return $assignedTasks;
-        });
+        }, self::TRANSACTION_ATTEMPTS);
 
         Log::info('[pullAndAssignTasksForWorker] Transaction completed', [
             'worker_id' => $workerId,
@@ -208,6 +187,16 @@ class TaskManagerService
         $taskData = null;
 
         $success = $this->db()->transaction(function () use ($taskId, $workerId, &$taskData) {
+            // LOCK ORDER: worker first, then task (same as pull/submit) so
+            // concurrent assign/pull/submit cannot deadlock on opposite orders.
+            $worker = Worker::where('worker_id', $workerId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$worker) {
+                throw new \Exception("Worker not found: $workerId");
+            }
+
             // Lock and reload task
             $task = GlobalTask::where('task_id', $taskId)
                 ->lockForUpdate()
@@ -225,15 +214,6 @@ class TaskManagerService
                     'assigned_to' => $task->assigned_to,
                 ]);
                 return false;
-            }
-
-            // Get worker
-            $worker = Worker::where('worker_id', $workerId)
-                ->lockForUpdate()
-                ->first();
-
-            if (!$worker) {
-                throw new \Exception("Worker not found: $workerId");
             }
 
             // Assign task
@@ -256,9 +236,119 @@ class TaskManagerService
             ];
 
             return true;
-        });
+        }, self::TRANSACTION_ATTEMPTS);
 
         return $success;
+    }
+
+    /**
+     * Accept (acknowledge) a task for a worker.
+     *
+     * The documented worker contract includes a pull -> accept -> result flow,
+     * and remote clients (e.g. the browser dictionary worker) call accept for
+     * every task — but pull already assigns atomically, so accept is an
+     * IDEMPOTENT ACKNOWLEDGMENT: confirming a task the caller already owns
+     * succeeds; a still-pending task is claimed atomically (legacy flow); a
+     * task owned by another worker is a conflict.
+     *
+     * @return string One of 'accepted', 'not_found', 'conflict'
+     */
+    public function acceptTask(string $taskId, string $workerId): string
+    {
+        return $this->db()->transaction(function () use ($taskId, $workerId) {
+            // Same lock order as pull/assign/submit: worker first, then task.
+            $worker = Worker::where('worker_id', $workerId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$worker) {
+                return 'not_found';
+            }
+
+            $task = GlobalTask::where('task_id', $taskId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$task) {
+                return 'not_found';
+            }
+
+            // Already ours (the normal case after an atomic pull) — idempotent.
+            if ($task->assigned_to === $workerId
+                && in_array($task->status, [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING], true)) {
+                return 'accepted';
+            }
+
+            // Legacy pull-without-assign flow: claim a still-pending task now.
+            if ($task->status === GlobalTask::STATUS_PENDING) {
+                $task->assignTo($workerId, $task->timeout_seconds);
+                $worker->assignTask($taskId);
+                return 'accepted';
+            }
+
+            // Owned by another worker / already terminal.
+            return 'conflict';
+        }, self::TRANSACTION_ATTEMPTS);
+    }
+
+    /**
+     * Cancel a task (admin / control-plane action).
+     *
+     * Pending tasks cancel directly; assigned/processing tasks are revoked
+     * from their worker (the worker's in-flight result will be rejected by the
+     * submitResult ownership check and dropped). Terminal tasks are left
+     * untouched.
+     *
+     * @return string One of 'cancelled', 'not_found', 'not_cancellable'
+     */
+    public function cancelTask(string $taskId): string
+    {
+        return $this->db()->transaction(function () use ($taskId) {
+            // Lock-order exception: cancel must read the task to learn its
+            // worker, so it locks task -> worker (opposite of pull/submit).
+            // It is a rare admin action; a deadlock with a concurrent pull is
+            // detected by the DB and absorbed by the attempts=3 retry.
+            $task = GlobalTask::where('task_id', $taskId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$task) {
+                return 'not_found';
+            }
+
+            $cancellable = [
+                GlobalTask::STATUS_PENDING,
+                GlobalTask::STATUS_ASSIGNED,
+                GlobalTask::STATUS_PROCESSING,
+            ];
+            if (!in_array($task->status, $cancellable, true)) {
+                return 'not_cancellable';
+            }
+
+            $workerId = $task->assigned_to;
+            $task->status = GlobalTask::STATUS_CANCELLED;
+            $task->assigned_to = null;
+            $task->assigned_at = null;
+            $task->timeout_at = null;
+            $task->completed_at = now();
+            $task->save();
+
+            if ($workerId) {
+                $worker = Worker::where('worker_id', $workerId)
+                    ->lockForUpdate()
+                    ->first();
+                if ($worker && $worker->current_task_id === $taskId) {
+                    $worker->releaseTask();
+                }
+            }
+
+            Log::info('Task cancelled', [
+                'task_id' => $taskId,
+                'revoked_from' => $workerId,
+            ]);
+
+            return 'cancelled';
+        }, self::TRANSACTION_ATTEMPTS);
     }
 
     /**
@@ -281,13 +371,36 @@ class TaskManagerService
         ?string $error = null
     ): bool {
         $success = $this->db()->transaction(function () use ($taskId, $workerId, $status, $progress, $result, $error) {
+            // LOCK ORDER: worker first, then task — the same order
+            // pullAndAssignTasksForWorker uses. Locking task->worker here while a
+            // concurrent pull locked worker->tasks was a classic lock-ordering
+            // deadlock under multiple racing workers.
+            $worker = Worker::where('worker_id', $workerId)
+                ->lockForUpdate()
+                ->first();
+
+            // Unknown worker/task is a caller error, not a server fault: return
+            // false (HTTP 409 at the controller) instead of throwing a 500 the
+            // worker would pointlessly retry.
+            if (!$worker) {
+                Log::warning('Result submitted by unknown worker', [
+                    'task_id' => $taskId,
+                    'worker_id' => $workerId,
+                ]);
+                return false;
+            }
+
             // Lock and reload task
             $task = GlobalTask::where('task_id', $taskId)
                 ->lockForUpdate()
                 ->first();
 
             if (!$task) {
-                throw new \Exception("Task not found: $taskId");
+                Log::warning('Result submitted for unknown task', [
+                    'task_id' => $taskId,
+                    'worker_id' => $workerId,
+                ]);
+                return false;
             }
 
             // Check if this worker is assigned to this task
@@ -300,13 +413,26 @@ class TaskManagerService
                 return false;
             }
 
-            // Get worker
-            $worker = Worker::where('worker_id', $workerId)
-                ->lockForUpdate()
-                ->first();
-
-            if (!$worker) {
-                throw new \Exception("Worker not found: $workerId");
+            // Idempotent re-delivery guard: workers RETRY result POSTs on
+            // transient errors, so a result whose first attempt committed but
+            // whose response was lost arrives again. Acknowledge it as success
+            // WITHOUT reprocessing — re-running the completed branch would run
+            // the task processors (write-back) a second time and double-count
+            // worker stats.
+            $terminalStatuses = [
+                GlobalTask::STATUS_COMPLETED,
+                GlobalTask::STATUS_COMPLETED_DEMO,
+                GlobalTask::STATUS_FAILED,
+                GlobalTask::STATUS_CANCELLED,
+            ];
+            if (in_array($task->status, $terminalStatuses, true)) {
+                Log::info('Result re-delivered for terminal task — acknowledged without reprocessing', [
+                    'task_id' => $taskId,
+                    'worker_id' => $workerId,
+                    'task_status' => $task->status,
+                    'reported_status' => $status,
+                ]);
+                return true;
             }
 
             // Update task based on status
@@ -369,6 +495,13 @@ class TaskManagerService
                 if ($result) {
                     $task->result = $result;
                 }
+                // A progress report proves the worker is alive — extend the
+                // timeout lease so a long-running task is not reclaimed
+                // mid-flight (the timed-out scope now also covers `processing`,
+                // so without this a slow task would be double-processed).
+                if ($task->timeout_seconds) {
+                    $task->timeout_at = now()->addSeconds($task->timeout_seconds);
+                }
                 $task->save();
 
                 Log::debug('Task progress updated', [
@@ -378,7 +511,7 @@ class TaskManagerService
             }
 
             return true;
-        });
+        }, self::TRANSACTION_ATTEMPTS);
 
         return $success;
     }
@@ -386,7 +519,13 @@ class TaskManagerService
     /**
      * Release timed out tasks (called by OctaneTimer)
      *
-     * @return int Number of tasks released
+     * A timeout CONSUMES a retry attempt: a "poison" task whose worker always
+     * dies mid-flight without reporting used to cycle claim -> timeout ->
+     * release forever (releaseAssignment never touched retry_count). Now each
+     * timeout increments retry_count, and once max_retries is exhausted the
+     * task is failed permanently instead of being re-offered.
+     *
+     * @return int Number of tasks released (or failed-out)
      */
     public function releaseTimedOutTasks(): int
     {
@@ -395,21 +534,44 @@ class TaskManagerService
 
         foreach ($tasks as $task) {
             $workerId = $task->assigned_to;
-            $task->releaseAssignment();
+
+            if ($task->canRetry()) {
+                $task->retry_count++;
+                $task->releaseAssignment();
+
+                Log::warning('Task timed out and released', [
+                    'task_id' => $task->task_id,
+                    'worker_id' => $workerId,
+                    'retry_count' => $task->retry_count,
+                    'max_retries' => $task->max_retries,
+                ]);
+            } else {
+                $task->status = GlobalTask::STATUS_FAILED;
+                $task->error = 'Timed out '
+                    . ($task->retry_count + 1)
+                    . ' time(s) without a worker result (last worker: '
+                    . ($workerId ?? 'unknown') . ')';
+                $task->assigned_to = null;
+                $task->assigned_at = null;
+                $task->timeout_at = null;
+                $task->save();
+
+                Log::error('Task failed permanently after repeated timeouts', [
+                    'task_id' => $task->task_id,
+                    'worker_id' => $workerId,
+                    'retry_count' => $task->retry_count,
+                ]);
+            }
 
             // Update worker status
             if ($workerId) {
                 $worker = Worker::where('worker_id', $workerId)->first();
-                if ($worker) {
+                if ($worker && $worker->current_task_id === $task->task_id) {
                     $worker->releaseTask();
                 }
             }
 
             $count++;
-            Log::warning('Task timed out and released', [
-                'task_id' => $task->task_id,
-                'worker_id' => $workerId,
-            ]);
         }
 
         return $count;
@@ -481,14 +643,27 @@ class TaskManagerService
      */
     public function getTaskStats(): array
     {
+        // ONE grouped query instead of seven full-table counts; the response
+        // covers the complete status vocabulary (incl. cancelled) so every
+        // consumer (dashboard, pycore monitor) sees the same set.
+        $grouped = GlobalTask::query()
+            ->groupBy('status')
+            ->selectRaw('status, count(*) as total')
+            ->pluck('total', 'status');
+
+        $count = static function (string $status) use ($grouped): int {
+            return (int) ($grouped[$status] ?? 0);
+        };
+
         return [
-            'total' => GlobalTask::count(),
-            'pending' => GlobalTask::where('status', GlobalTask::STATUS_PENDING)->count(),
-            'assigned' => GlobalTask::where('status', GlobalTask::STATUS_ASSIGNED)->count(),
-            'processing' => GlobalTask::where('status', GlobalTask::STATUS_PROCESSING)->count(),
-            'completed' => GlobalTask::where('status', GlobalTask::STATUS_COMPLETED)->count(),
-            'completed_demo' => GlobalTask::where('status', GlobalTask::STATUS_COMPLETED_DEMO)->count(),
-            'failed' => GlobalTask::where('status', GlobalTask::STATUS_FAILED)->count(),
+            'total' => (int) $grouped->sum(),
+            'pending' => $count(GlobalTask::STATUS_PENDING),
+            'assigned' => $count(GlobalTask::STATUS_ASSIGNED),
+            'processing' => $count(GlobalTask::STATUS_PROCESSING),
+            'completed' => $count(GlobalTask::STATUS_COMPLETED),
+            'completed_demo' => $count(GlobalTask::STATUS_COMPLETED_DEMO),
+            'failed' => $count(GlobalTask::STATUS_FAILED),
+            'cancelled' => $count(GlobalTask::STATUS_CANCELLED),
         ];
     }
 

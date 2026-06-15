@@ -103,7 +103,7 @@ Tests live under **dotcore/tests/** (e.g. DotCore.Foundations.Tests). They are p
 - **API:** **VocIo** (VocBox, ReadBoxesFromVoc, WriteVocXml); **VocAnnotatorConfig** (Load/SaveConfig, Get/SetZoomPercent, Get/SetLastImagesDir, Get/SetLastSaveDir); **ProjectConfig** (LoadProjectConfig, SaveProjectConfig, GetClassesFromConfig); **AnnotationIo** (ShapeToBbox, ShapesToBoxes, BoxesToShapes, LoadAnnotations, SaveAnnotations; shape_type rectangle/polygon/ellipse/circle); **VocAnnotatorLauncher** (ResolveVocAnnotatorExe, Launch(imagesDir, projectPath, hintAppBaseDir)—logic 1:1 with Python flow3_open_label_tool / _launch_voc_annotator_subprocess).
 - **App:** dotapps/VocAnnotator (WPF): Open images dir, set save dir, image list, canvas (image + rectangles), class list, add rectangle by drag, Save (JSON + VOC). Accepts CLI: first path = images dir, `--project-path &lt;dir&gt;` = save/project dir.
 - **Consume from d3check:** Calibration tab "Open label" calls VocAnnotatorLauncher.Launch with project path from config; VocAnnotator.exe started as separate process.
-- **Refs:** [development-guides/DOT_VOC_ANNOTATOR_PROGRESS.md](../development-guides/DOT_VOC_ANNOTATOR_PROGRESS.md), pycore/pyutils/voc_annotator.
+- **Refs:** [development-guides/DOT_ARCHITECTURE.md](../development-guides/DOT_ARCHITECTURE.md), pycore/pyutils/voc_annotator.
 
 ---
 
@@ -120,7 +120,7 @@ When developing dotcore, use:
 | [development-guides/DOT_ARCHITECTURE.md](../development-guides/DOT_ARCHITECTURE.md) | Dot layout, naming, dependencies. |
 | [dotcore/DESIGN.md](DESIGN.md) | Dotcore project list and roles. |
 | [.cursor/rules/dot.mdc](../.cursor/rules/dot.mdc) | Cursor rule: English, ASCII, layout. |
-| [development-guides/DOT_UI_PROJECT_SPECIFICATION.md](../development-guides/DOT_UI_PROJECT_SPECIFICATION.md) | UI (WPF/MAUI/Blazor/Avalonia): canonical spec – Clean Architecture + MVVM + Fluent 2. |
+| [development-guides/DOT_ARCHITECTURE.md](../development-guides/DOT_ARCHITECTURE.md) | UI (WPF/MAUI/Blazor/Avalonia): canonical spec – Clean Architecture + MVVM + Fluent 2. |
 | [.cursor/rules/dot-ui.mdc](../.cursor/rules/dot-ui.mdc) | Cursor rule for dotapps UI layer. |
 | [.cursor/skills/dot/SKILL.md](../.cursor/skills/dot/SKILL.md) | How to add lib/app, ref paths. |
 | [pyapps/d3-check/docs/DOT_D3CHECK_*.md](../pyapps/d3-check/docs/) | **Differential/requirements:** D3Check port (UI, sub-libraries, controllers); dot implements same capabilities in .NET. |

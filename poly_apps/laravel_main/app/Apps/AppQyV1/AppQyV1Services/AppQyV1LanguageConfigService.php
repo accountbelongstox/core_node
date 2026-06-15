@@ -159,7 +159,7 @@ class AppQyV1LanguageConfigService
             'supports_tts' => true,
             'supports_dictionary' => true,
         ],
-        // EdgeTTS 支持的其他语言
+        // Other languages supported by EdgeTTS
         'af' => ['name' => 'Afrikaans', 'native_name' => 'Afrikaans', 'zh_name' => '南非荷兰语', 'voice_id' => 'af-ZA-AdriNeural', 'flag_icon' => 'flag-za', 'supports_tts' => true],
         'am' => ['name' => 'Amharic', 'native_name' => 'አማርኛ', 'zh_name' => '阿姆哈拉语', 'voice_id' => 'am-ET-MekdesNeural', 'flag_icon' => 'flag-et', 'supports_tts' => true],
         'ar' => ['name' => 'Arabic', 'native_name' => 'العربية', 'zh_name' => '阿拉伯语', 'voice_id' => 'ar-EG-SalmaNeural', 'flag_icon' => 'flag-sa', 'supports_tts' => true],
@@ -400,6 +400,50 @@ class AppQyV1LanguageConfigService
     {
         $name = strtolower($name);
         return self::LANGUAGE_NAME_MAP[$name] ?? null;
+    }
+
+    /**
+     * Normalize any stored language value to its ISO 639-1 code.
+     *
+     * Accepts both 2-letter codes ('en') and full English names ('english',
+     * as stored on vocabulary_libraries.language) and returns the code form.
+     * Unknown values are returned lowercased/trimmed as-is so that callers
+     * comparing mixed or unexpected data never crash.
+     */
+    public static function normalizeToCode(string $language): string
+    {
+        $normalized = strtolower(trim($language));
+        if ($normalized === '') {
+            return $normalized;
+        }
+
+        if (isset(self::ALL_LANGUAGES[$normalized])) {
+            return $normalized;
+        }
+
+        if (isset(self::LANGUAGE_NAME_MAP[$normalized])) {
+            return self::LANGUAGE_NAME_MAP[$normalized];
+        }
+
+        foreach (self::ALL_LANGUAGES as $code => $info) {
+            if (isset($info['name']) && strtolower($info['name']) === $normalized) {
+                return $code;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Compare two language values regardless of storage form.
+     *
+     * Symmetric: a group stored as 'en' matches a library stored as
+     * 'english' and vice versa. Unknown values compare as plain
+     * lowercased strings.
+     */
+    public static function languagesMatch(string $first, string $second): bool
+    {
+        return self::normalizeToCode($first) === self::normalizeToCode($second);
     }
 
     /**

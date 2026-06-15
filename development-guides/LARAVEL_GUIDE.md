@@ -74,6 +74,17 @@ This codebase is designed to support multiple applications simultaneously. Each 
 - **Table Name Bridging**: Establish table name maps in `app/Apps/{appNameWithVersion}/{appNameWithVersion}TablesMaps/`, reference `app/Providers/GlobalTablesMaps.php` to get common table names. All database operations directly reference TablesMaps classes, prohibited from secondary encapsulation.
 - **Unified Table Name and Connection Center**: All app keys, table prefixes, and database connections are centrally defined in `config/app_registry.php`. Use `App\Constants\AppKeys` constants instead of hardcoded strings. Access via `App\Providers\AppTablePrefixServiceProvider::getConnection($appKey)`, `buildTableName($appKey, $suffix)`, or magic methods like `getAppQyV1TableName('vocabulary_libraries', 'v1')`. **Prohibited** from using hardcoded connection strings like `'appqyv1'` in code, migrations, or services.
 
+### 5.1 Idempotent Schema Management — never rebuild a populated table (MANDATORY)
+
+`sys:init` + every initializer/migration must be safely re-runnable on empty, half-filled, or full tables (verified vs. official Laravel Schema docs):
+
+1. **Create only if absent** — `Schema::hasTable()` / `hasColumn()` / `hasIndex()`.
+2. **Align by ALTER, not rebuild** — existing table + changed code structure ⇒ ADD missing columns/indexes via `Schema::table()`, **generically** (all expected columns, not `if col=='x'`). **Never** `drop`/`dropIfExists`/drop-then-create a data-bearing table, `dropColumn` (outside `down()`), or `truncate()`.
+3. **Structure ≠ data** — adding a column and idempotent data fill-missing (補缺: insert only absent rows via `insertOrIgnore`/upsert) are **separate passes**; neither re-seeds nor wipes existing rows.
+4. **Canonical helper** — use `SafeMigrationHelper::alignTableStructureFromArray($conn, $table, $structure, ['shrink_columns'=>false])` (create-if-missing + add missing cols/indexes; `modify_columns=false` on large tables). `drop*` only in `down()`.
+
+Enforced by `CheckMigrationSafety`. Supersedes `poly_apps/laravel_main/MIGRATION_SAFETY_AUDIT.md`.
+
 ## 6. Public and Static File Rules
 
 - **Storage Path**: The `public` directory used for uploading and storing static files is also **located outside the project code directory**.

@@ -52,12 +52,12 @@ if ($AppType -eq "pycoreApp") {
 
 Write-Host "Checking for build_config.ini..." -ForegroundColor Gray
 try {
-    $configExistsOutput = python -m pycore.pyutils.build_config_parser "$appDir" "exists" 2>$null
+    $configExistsOutput = python -m pycore.pyutils.common.build_config_parser "$appDir" "exists" 2>$null
     $configExists = ($configExistsOutput -eq "true")
 
     if ($configExists) {
         Write-Host "Found build_config.ini, loading configuration..." -ForegroundColor Green
-        $configJson = python -m pycore.pyutils.build_config_parser "$appDir" "all" 2>$null
+        $configJson = python -m pycore.pyutils.common.build_config_parser "$appDir" "all" 2>$null
         $buildConfig = $configJson | ConvertFrom-Json
 
         # Display config info
@@ -77,7 +77,7 @@ try {
 
         # Execute pre-install commands if specified
         if ($buildConfig.installation.pre_install_commands) {
-            $preCommands = python -m pycore.pyutils.build_config_parser "$appDir" "pre_install_commands" 2>$null
+            $preCommands = python -m pycore.pyutils.common.build_config_parser "$appDir" "pre_install_commands" 2>$null
             if ($preCommands) {
                 Write-Host ""
                 Write-Host "Executing pre-install commands..." -ForegroundColor Cyan
@@ -353,7 +353,7 @@ if ($createShortcut) {
     # Get icon path from config if specified
     $configIconFile = $null
     if ($configExists) {
-        $configIconFile = python -m pycore.pyutils.build_config_parser "$appDir" "icon_file" 2>$null
+        $configIconFile = python -m pycore.pyutils.common.build_config_parser "$appDir" "icon_file" 2>$null
         if ($configIconFile) {
             Write-Host "[DEBUG] Icon from config: $configIconFile" -ForegroundColor DarkGray
         }
@@ -446,7 +446,7 @@ Write-Host ""
 Write-Host "[DEBUG] Checking for post-install commands..." -ForegroundColor DarkGray
 if ($configExists -and $buildConfig.installation.post_install_commands) {
     Write-Host "[DEBUG] Post-install commands found in config" -ForegroundColor DarkGray
-    $postCommands = python -m pycore.pyutils.build_config_parser "$appDir" "post_install_commands" 2>$null
+    $postCommands = python -m pycore.pyutils.common.build_config_parser "$appDir" "post_install_commands" 2>$null
     if ($postCommands) {
         Write-Host "[DEBUG] Post-install commands: $postCommands" -ForegroundColor DarkGray
         Write-Host "Executing post-install commands..." -ForegroundColor Cyan
@@ -493,7 +493,7 @@ if ($configExists) {
     Write-Host "[DEBUG] Checking for custom startup configuration..." -ForegroundColor DarkGray
 
     # Check for custom startup command
-    $customCommandOutput = python -m pycore.pyutils.build_config_parser "$appDir" "startup_command" 2>$null
+    $customCommandOutput = python -m pycore.pyutils.common.build_config_parser "$appDir" "startup_command" 2>$null
     # If output is an array, take the last line (the actual value)
     if ($customCommandOutput -is [array]) {
         $customCommand = $customCommandOutput[-1]

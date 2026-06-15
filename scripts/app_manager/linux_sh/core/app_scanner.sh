@@ -93,6 +93,7 @@ scan_applications() {
     APP_DEBUGS=()
     APP_COMMANDS=()
     local i=0
+    local laravel_index=0
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         local n p t f port d
@@ -105,10 +106,16 @@ scan_applications() {
         APP_PATHS+=("$p")
         APP_TYPES+=("$t")
         APP_FRAMEWORKS+=("$f")
-        APP_PORTS+=($((BASE_PORT + i)))
+        # Laravel apps get dedicated port range from LARAVEL_BASE_PORT (9000+)
+        if [[ "$f" == "laravelStart" ]]; then
+            APP_PORTS+=($((LARAVEL_BASE_PORT + laravel_index)))
+            laravel_index=$((laravel_index + 1))
+        else
+            APP_PORTS+=($((BASE_PORT + i)))
+        fi
         APP_DEBUGS+=("$d")
         APP_COMMANDS+=("")
-        ((i++))
+        i=$((i + 1))
     done < "$list.sorted"
     APP_COUNT=$i
     rm -rf "$tmpdir"

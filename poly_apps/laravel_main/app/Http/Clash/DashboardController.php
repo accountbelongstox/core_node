@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
@@ -21,15 +18,15 @@ class DashboardController
 {
     public function __construct()
     {
-        // 移除构造函数中的中间件设置，因为已经在路由中设置了
+        // Removed middleware setup in the constructor since it is already configured in the routes
     }
 
     public function index(Request $request)
     {
-        // 获取组标识符（可以是名称或ID）
+        // Get the group identifier (can be a name or ID)
         $groupIdentifier = $request->query('group');
-        
-        // 使用 GroupViewController 查找组
+
+        // Use GroupViewController to look up the group
         $groupViewController = new GroupViewController();
         $currentGroup = $groupIdentifier 
             ? $groupViewController->findGroup($groupIdentifier)

@@ -256,6 +256,23 @@ function Invoke-SecretDecryptAll {
         if ($LASTEXITCODE -eq 0) {
             Write-Host $result
 
+            # Keep each decrypted raw file's timestamp in sync with its encrypted
+            # source. The encryption check is timestamp-based (raw newer than the
+            # ".js" means "needs re-encryption"), so without this a freshly
+            # decrypted file would look newer than its source and be falsely flagged.
+            if (Test-Path $OutputDir) {
+                $syncedFiles = Get-ChildItem -Path $OutputDir -File -ErrorAction SilentlyContinue
+                foreach ($syncedFile in $syncedFiles) {
+                    $sourceEncFile = Join-Path $dirs.ENCRYPTED_DIR "$($syncedFile.Name).js"
+                    if (Test-Path $sourceEncFile) {
+                        try {
+                            (Get-Item $syncedFile.FullName).LastWriteTime = (Get-Item $sourceEncFile).LastWriteTime
+                        } catch {
+                        }
+                    }
+                }
+            }
+
             # Set decryption timestamp cache and encrypted content hash cache for all decrypted files
             if (Get-Command Set-DecryptionTimestampCache -ErrorAction SilentlyContinue) {
                 if (Test-Path $OutputDir) {
@@ -402,7 +419,7 @@ function Invoke-SecretEncryptAll {
                 continue
             }
 
-            $result = & $Global:NODE_EXE_PATH $disguiseJs $keyName $Password $content $dirs.ENCRYPTED_DIR
+            $result = & $Global:NODE_EXE_PATH $disguiseJs $sourceFile.FullName $Password $dirs.ENCRYPTED_DIR
 
             if (Test-Path $outputFile) {
                 Write-Host "[SECRET_ENCRYPT_ALL]    SUCCESS: $keyName.js" -ForegroundColor Green
@@ -928,13 +945,23 @@ function Clear-AndRedecryptSecrets {
 
 <#
 .SYNOPSIS
-    Check which files need re-encryption using enhanced cache logic
+    Check which files need (re-)encryption using file timestamp comparison
+
+.DESCRIPTION
+    A raw file in RawDir needs encryption when either:
+      - it has no corresponding "<name>.js" file in EncryptedDir, or
+      - its LastWriteTime is newer than that of its "<name>.js" counterpart.
+    Files whose encrypted counterpart is up to date are skipped. This is a
+    deterministic timestamp rule and does not depend on the secret cache.
 
 .PARAMETER RawDir
     Directory containing decrypted files
 
 .PARAMETER EncryptedDir
     Directory containing encrypted files
+
+.PARAMETER Quiet
+    Suppress per-file status output (used during startup checks)
 
 .RETURNS
     Array of file names that need re-encryption
@@ -948,10 +975,16 @@ function Get-FilesNeedingReEncryption {
         [string]$RawDir,
 
         [Parameter(Mandatory = $true)]
-        [string]$EncryptedDir
+        [string]$EncryptedDir,
+
+        [switch]$Quiet
     )
 
     $filesNeedReEncrypt = @()
+    $baseName = ""
+    $encFile = ""
+    $currentRawHash = $null
+    $cachedRawHash = $null
 
     if (-not (Test-Path $RawDir) -or -not (Test-Path $EncryptedDir)) {
         return $filesNeedReEncrypt
@@ -964,24 +997,45 @@ function Get-FilesNeedingReEncryption {
         $encFile = Join-Path $EncryptedDir "$baseName.js"
 
         if (-not (Test-Path $encFile)) {
-            # No encrypted file exists - need to encrypt
+            # No encrypted file exists - needs encryption
             $filesNeedReEncrypt += $baseName
-        } else {
-            # Check if raw file was modified after decryption using cache
-            if (Get-Command Test-RawFileModifiedAfterDecryption -ErrorAction SilentlyContinue) {
-                if (Test-RawFileModifiedAfterDecryption -FileName $baseName -RawFile $rawFile.FullName) {
-                    # Raw file was modified after decryption - need re-encryption
-                    $filesNeedReEncrypt += $baseName
-                    Write-Host "[CACHE CHECK] $baseName modified after decryption - needs re-encryption" -ForegroundColor Yellow
-                } else {
-                    # Raw file was not modified after decryption - skip re-encryption
-                    Write-Host "[CACHE SKIP] $baseName unchanged since decryption - skipping re-encryption" -ForegroundColor Green
+            if (-not $Quiet) {
+                Write-Host "[ENCRYPT CHECK] $baseName has no encrypted file - needs encryption" -ForegroundColor Yellow
+            }
+        } elseif ((Get-Item $rawFile.FullName).LastWriteTime -gt (Get-Item $encFile).LastWriteTime) {
+            # Raw file mtime is newer than its encrypted counterpart. A bulk file
+            # operation (copy / restore / sync) can bump mtime without changing
+            # content, so confirm against the content-hash baseline before flagging.
+            $currentRawHash = $null
+            $cachedRawHash = $null
+
+            if (Get-Command Get-CachedRawContentHash -ErrorAction SilentlyContinue) {
+                $cachedRawHash = Get-CachedRawContentHash -FileName $baseName
+                $currentRawHash = (Get-FileHash -Path $rawFile.FullName -Algorithm SHA256 -ErrorAction SilentlyContinue).Hash
+            }
+
+            if ($cachedRawHash -and $currentRawHash -and ($cachedRawHash -eq $currentRawHash)) {
+                # Content is identical to the last encryption - the newer mtime is a
+                # false positive. Sync the raw timestamp back to the encrypted file
+                # so this pair reads as up to date next time, then skip.
+                try {
+                    (Get-Item $rawFile.FullName).LastWriteTime = (Get-Item $encFile).LastWriteTime
+                } catch {
+                }
+                if (-not $Quiet) {
+                    Write-Host "[ENCRYPT SKIP] $baseName newer mtime but identical content - synced timestamp, skipping" -ForegroundColor Green
                 }
             } else {
-                # Fallback to file timestamp comparison if cache functions not available
-                if ((Get-Item $rawFile.FullName).LastWriteTime -gt (Get-Item $encFile).LastWriteTime) {
-                    $filesNeedReEncrypt += $baseName
+                # No baseline recorded, or content genuinely changed - needs re-encryption
+                $filesNeedReEncrypt += $baseName
+                if (-not $Quiet) {
+                    Write-Host "[ENCRYPT CHECK] $baseName changed since encryption - needs re-encryption" -ForegroundColor Yellow
                 }
+            }
+        } else {
+            # Encrypted file is up to date - skip
+            if (-not $Quiet) {
+                Write-Host "[ENCRYPT SKIP] $baseName unchanged since encryption - skipping" -ForegroundColor Green
             }
         }
     }

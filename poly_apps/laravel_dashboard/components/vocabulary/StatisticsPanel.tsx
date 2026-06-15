@@ -1,122 +1,189 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3,
-  TrendingUp,
   Calendar,
-  Clock,
   Target,
   Award,
   RefreshCw,
-  Download
+  AlertCircle,
+  Lock,
+  BookOpen,
+  Languages
 } from 'lucide-react';
+import { api } from '../../core/api';
+import type { LearningStatsData } from '../../core/api/modules/AppQyV1';
 import { commonClasses } from '../../styles/theme';
+import { TRANSLATIONS } from '../../constants';
+import { useAppState } from '../../contexts/AppStateContext';
+import { logError, logInfo } from '../../core/logs/logStore';
 
 interface StatisticsPanelProps {
   userId?: string;
 }
 
-interface LearningStats {
+/**
+ * Mapped from GET /user/stats (AppQyV1ProfileController::getStatistics).
+ * Only fields with a real backing data source are kept — total_study_time is
+ * reported as a known gap by the backend (always 0) and is NOT shown.
+ */
+interface UserStats {
   totalWords: number;
-  learnedWords: number;
-  reviewedWords: number;
+  learnedWords: number;      // total_words_learned (total - new)
   masteredWords: number;
-  studyTime: number;
-  accuracy: number;
-  streak: number;
-  dailyGoal: number;
+  needsReview: number;
+  accuracy: number;          // average_accuracy (%)
+  completionRate: number;    // mastered / total (%)
+  dailyAverage: number;
+  studyDays: number;
+  currentStreak: number;
+  longestStreak: number;
   todayProgress: number;
-}
-
-interface ProgressData {
-  date: string;
-  wordsLearned: number;
-  reviewsCompleted: number;
-  studyTime: number;
+  dailyGoal: number;
+  /** Words touched per day, oldest → today (7 entries). */
+  weeklyProgress: number[];
 }
 
 const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ userId }) => {
-  const [stats, setStats] = useState<LearningStats>({
-    totalWords: 0,
-    learnedWords: 0,
-    reviewedWords: 0,
-    masteredWords: 0,
-    studyTime: 0,
-    accuracy: 0,
-    streak: 0,
-    dailyGoal: 20,
-    todayProgress: 0
-  });
-  const [progressData, setProgressData] = useState<ProgressData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('week');
+  const { lang } = useAppState();
+  const t = TRANSLATIONS[lang].vocabulary;
 
-  useEffect(() => {
-    loadStatistics();
-  }, [userId, timeRange]);
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [learningStats, setLearningStats] = useState<LearningStatsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [authRequired, setAuthRequired] = useState(false);
 
-  const loadStatistics = async () => {
+  const loadStatistics = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
+    setAuthRequired(false);
+
     try {
-      // Mock data - replace with actual API calls
-      const mockStats: LearningStats = {
-        totalWords: 500,
-        learnedWords: 247,
-        reviewedWords: 189,
-        masteredWords: 132,
-        studyTime: 750, // minutes
-        accuracy: 87,
-        streak: 14,
-        dailyGoal: 20,
-        todayProgress: 12
-      };
+      const [userRes, learningRes] = await Promise.all([
+        api.appQyV1.getStats(),
+        // Supplementary series (selected libraries / languages); non-fatal.
+        api.appQyV1.getLearningStats()
+      ]);
 
-      const mockProgress: ProgressData[] = generateMockProgressData(timeRange);
+      if (!userRes.success || !userRes.data) {
+        if (userRes.status === 401 || userRes.status === 403) {
+          setAuthRequired(true);
+          setStats(null);
+          setLearningStats(null);
+          return;
+        }
+        throw new Error(userRes.error || t.stats_load_failed);
+      }
 
-      setStats(mockStats);
-      setProgressData(mockProgress);
-    } catch (error) {
+      const d: any = userRes.data;
+      const weekly = Array.isArray(d.weekly_progress)
+        ? d.weekly_progress.map((v: any) => Number(v) || 0).slice(-7)
+        : [];
+
+      setStats({
+        totalWords: Number(d.total_words ?? d.totalWords) || 0,
+        learnedWords: Number(d.total_words_learned ?? d.learned_count) || 0,
+        masteredWords: Number(d.mastered_words) || 0,
+        needsReview: Number(d.needs_review ?? d.review_count) || 0,
+        accuracy: Number(d.average_accuracy ?? d.averageAccuracy) || 0,
+        completionRate: Number(d.daily_goal_progress ?? d.completionRate) || 0,
+        dailyAverage: Number(d.daily_average) || 0,
+        studyDays: Number(d.study_days ?? d.studyDays) || 0,
+        currentStreak: Number(d.current_streak) || 0,
+        longestStreak: Number(d.longest_streak) || 0,
+        todayProgress: Number(d.today_progress) || 0,
+        dailyGoal: Math.max(1, Number(d.daily_goal) || 20),
+        weeklyProgress: weekly
+      });
+
+      if (learningRes.success && learningRes.data) {
+        setLearningStats(learningRes.data as LearningStatsData);
+      } else {
+        setLearningStats(null);
+      }
+
+      logInfo('vocab', 'Statistics loaded from /user/stats + /learning/stats');
+    } catch (error: any) {
       console.error('Failed to load statistics:', error);
+      setLoadError(error?.message || t.stats_load_failed);
+      logError('vocab', `Statistics load failed: ${error?.message || 'unknown error'}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, [t.stats_load_failed]);
 
-  const generateMockProgressData = (range: 'week' | 'month' | 'year'): ProgressData[] => {
-    const days = range === 'week' ? 7 : range === 'month' ? 30 : 365;
-    const data: ProgressData[] = [];
+  useEffect(() => {
+    loadStatistics();
+  }, [userId, loadStatistics]);
+
+  /** Weekday labels for the trailing 7-day chart (oldest → today). */
+  const weekDayLabels = (count: number): string[] => {
+    const labels: string[] = [];
     const now = new Date();
-
-    for (let i = days - 1; i >= 0; i--) {
+    for (let i = count - 1; i >= 0; i--) {
       const date = new Date(now);
       date.setDate(date.getDate() - i);
-      data.push({
-        date: date.toISOString().split('T')[0],
-        wordsLearned: Math.floor(Math.random() * 25),
-        reviewsCompleted: Math.floor(Math.random() * 40),
-        studyTime: Math.floor(Math.random() * 60)
-      });
+      labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
     }
-
-    return data;
+    return labels;
   };
 
-  const formatTime = (minutes: number): string => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
 
-  const calculateWeeklyChange = (metric: keyof ProgressData): number => {
-    if (progressData.length < 7) return 0;
-    const lastWeek = progressData.slice(-7);
-    const prevWeek = progressData.slice(-14, -7);
+  if (authRequired) {
+    return (
+      <div className="p-6">
+        <div className={`${commonClasses.card} p-8 max-w-2xl mx-auto text-center`}>
+          <Lock className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            {t.login_required}
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            {t.stats_login_hint}
+          </p>
+          <button
+            onClick={loadStatistics}
+            className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-    const lastWeekSum = lastWeek.reduce((sum, day) => sum + (day[metric] as number), 0);
-    const prevWeekSum = prevWeek.reduce((sum, day) => sum + (day[metric] as number), 0);
+  if (loadError || !stats) {
+    return (
+      <div className="p-6">
+        <div className={`${commonClasses.card} p-8 max-w-2xl mx-auto text-center`}>
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            {t.stats_load_failed}
+          </h2>
+          {loadError && <p className="text-gray-600 dark:text-gray-400 mb-4">{loadError}</p>}
+          <button
+            onClick={loadStatistics}
+            className={`${commonClasses.button} ${commonClasses.buttonPrimary}`}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-    if (prevWeekSum === 0) return 100;
-    return Math.round(((lastWeekSum - prevWeekSum) / prevWeekSum) * 100);
-  };
+  const weekly = stats.weeklyProgress;
+  const weeklyMax = Math.max(1, ...weekly);
+  const labels = weekDayLabels(weekly.length);
+  const goalRemaining = stats.dailyGoal - stats.todayProgress;
 
   return (
     <div className="p-6 space-y-6">
@@ -130,19 +197,13 @@ const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ userId }) => {
             Track your vocabulary learning progress
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={loadStatistics}
-            disabled={loading}
-            className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}>
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </button>
-        </div>
+        <button
+          onClick={loadStatistics}
+          disabled={loading}
+          className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {/* Key Metrics */}
@@ -165,29 +226,35 @@ const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ userId }) => {
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
               <div
                 className="bg-indigo-600 h-2 rounded-full transition-all"
-                style={{ width: `${(stats.learnedWords / stats.totalWords) * 100}%` }}
+                style={{
+                  width: `${stats.totalWords > 0
+                    ? Math.min((stats.learnedWords / stats.totalWords) * 100, 100)
+                    : 0}%`
+                }}
               />
             </div>
           </div>
-          <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-            +{calculateWeeklyChange('wordsLearned')}% this week
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            {stats.dailyAverage} words / study day on average
           </p>
         </div>
 
-        {/* Study Time */}
+        {/* Mastered */}
         <div className={`${commonClasses.card} p-6`}>
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">
-              Study Time
+              Mastered
             </h3>
-            <Clock className="w-5 h-5 text-green-500" />
+            <BookOpen className="w-5 h-5 text-green-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">
-            {formatTime(stats.studyTime)}
+            {stats.masteredWords}
           </p>
-          <p className="text-sm text-gray-500 mt-1">Total time invested</p>
-          <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-            +{calculateWeeklyChange('studyTime')}% this week
+          <p className="text-sm text-gray-500 mt-1">
+            {stats.completionRate}% of your collection
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            {stats.needsReview} due for review
           </p>
         </div>
 
@@ -202,9 +269,9 @@ const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ userId }) => {
           <p className="text-3xl font-bold text-gray-900 dark:text-white">
             {stats.accuracy}%
           </p>
-          <p className="text-sm text-gray-500 mt-1">Average accuracy</p>
-          <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-            +5% improvement
+          <p className="text-sm text-gray-500 mt-1">Average review accuracy</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Across {stats.studyDays} study days
           </p>
         </div>
 
@@ -217,11 +284,11 @@ const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ userId }) => {
             <Award className="w-5 h-5 text-orange-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">
-            {stats.streak}
+            {stats.currentStreak}
           </p>
           <p className="text-sm text-gray-500 mt-1">Consecutive days</p>
           <p className="text-xs text-orange-600 dark:text-orange-400 mt-2">
-            Keep it up!
+            Longest streak: {stats.longestStreak} days
           </p>
         </div>
       </div>
@@ -250,106 +317,93 @@ const StatisticsPanel: React.FC<StatisticsPanelProps> = ({ userId }) => {
           </div>
         </div>
         <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-          {stats.dailyGoal - stats.todayProgress > 0
-            ? `${stats.dailyGoal - stats.todayProgress} more words to reach your daily goal`
+          {goalRemaining > 0
+            ? `${goalRemaining} more words to reach your daily goal`
             : 'Daily goal achieved! Great job!'}
         </p>
       </div>
 
-      {/* Progress Chart */}
+      {/* Weekly Activity (only real series available: /user/stats weekly_progress) */}
       <div className={`${commonClasses.card} p-6`}>
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Learning Progress
+            Last 7 Days
           </h3>
-          <div className="flex gap-2">
-            {(['week', 'month', 'year'] as const).map((range) => (
-              <button
-                key={range}
-                onClick={() => setTimeRange(range)}
-                className={`px-3 py-1 text-sm rounded ${
-                  timeRange === range
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                {range.charAt(0).toUpperCase() + range.slice(1)}
-              </button>
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <div className="w-3 h-3 bg-indigo-500 rounded"></div>
+            <span>Words studied</span>
+          </div>
+        </div>
+
+        {weekly.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            No activity data yet.
+          </p>
+        ) : (
+          <div className="grid grid-cols-7 gap-2 h-48">
+            {weekly.map((value, index) => (
+              <div key={index} className="flex flex-col items-center gap-1">
+                <div className="flex-1 w-full flex flex-col justify-end">
+                  <div
+                    className="w-full bg-indigo-500 rounded-t transition-all hover:bg-indigo-600"
+                    style={{ height: `${(value / weeklyMax) * 100}%` }}
+                    title={`Words: ${value}`}
+                  />
+                </div>
+                <span className="text-xs text-gray-600 dark:text-gray-400">
+                  {labels[index]}
+                </span>
+              </div>
             ))}
           </div>
-        </div>
-
-        {/* Simple Bar Chart */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-indigo-500 rounded"></div>
-              <span>Words Learned</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded"></div>
-              <span>Reviews Completed</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-7 gap-2 h-48">
-            {progressData.slice(-7).map((day, index) => {
-              const maxValue = Math.max(
-                ...progressData.slice(-7).map(d => Math.max(d.wordsLearned, d.reviewsCompleted))
-              );
-              return (
-                <div key={index} className="flex flex-col items-center gap-1">
-                  <div className="flex-1 w-full flex flex-col justify-end gap-1">
-                    <div
-                      className="w-full bg-indigo-500 rounded-t transition-all hover:bg-indigo-600"
-                      style={{ height: `${(day.wordsLearned / maxValue) * 100}%` }}
-                      title={`Words: ${day.wordsLearned}`}
-                    />
-                    <div
-                      className="w-full bg-green-500 rounded-t transition-all hover:bg-green-600"
-                      style={{ height: `${(day.reviewsCompleted / maxValue) * 100}%` }}
-                      title={`Reviews: ${day.reviewsCompleted}`}
-                    />
-                  </div>
-                  <span className="text-xs text-gray-600 dark:text-gray-400">
-                    {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Achievements */}
-      <div className={`${commonClasses.card} p-6`}>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Recent Achievements
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-            <Award className="w-8 h-8 text-yellow-500" />
-            <div>
-              <p className="font-semibold text-sm">First 100 Words</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400">Completed</p>
+      {/* Learning Setup (from GET /learning/stats) */}
+      {learningStats && (
+        <div className={`${commonClasses.card} p-6`}>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Learning Setup
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+              <BookOpen className="w-8 h-8 text-indigo-500" />
+              <div>
+                <p className="font-semibold text-sm text-gray-900 dark:text-white">
+                  {learningStats.selected_libraries_count ?? 0} selected libraries
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Word sources for learning
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <TrendingUp className="w-8 h-8 text-blue-500" />
-            <div>
-              <p className="font-semibold text-sm">Week Streak</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400">7 days in a row</p>
+            <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <Languages className="w-8 h-8 text-blue-500" />
+              <div>
+                <p className="font-semibold text-sm text-gray-900 dark:text-white">
+                  {Array.isArray(learningStats.learning_languages) && learningStats.learning_languages.length > 0
+                    ? learningStats.learning_languages.join(', ')
+                    : '—'}
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Learning languages (native: {learningStats.native_language || '—'})
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-            <Target className="w-8 h-8 text-green-500" />
-            <div>
-              <p className="font-semibold text-sm">Perfect Week</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400">100% daily goals</p>
+            <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <Target className="w-8 h-8 text-green-500" />
+              <div>
+                <p className="font-semibold text-sm text-gray-900 dark:text-white">
+                  {learningStats.stats?.learning_words ?? 0} in progress
+                </p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {learningStats.stats?.new_words ?? 0} new • {learningStats.stats?.mastered_words ?? 0} mastered
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

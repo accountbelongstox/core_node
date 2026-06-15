@@ -12,11 +12,11 @@ use App\Constants\AuthErrorCodes as AuthErrorCodesConstants;
  * Standardized JSON response format for all API endpoints
  * NO try-catch blocks - trust data structures
  *
- * 扩展功能:
- * - 支持错误码 (errorWithCode)
- * - 自动提取 supported_params (validationErrorWithParams)
- * - 快捷方法 (created, noContent, conflict)
- * - 支持附加数据的 notFound/unauthorized
+ * Extended features:
+ * - Supports error codes (errorWithCode)
+ * - Automatically extracts supported_params (validationErrorWithParams)
+ * - Shortcut methods (created, noContent, conflict)
+ * - notFound/unauthorized with additional data support
  */
 trait ApiResponse
 {
@@ -87,11 +87,11 @@ trait ApiResponse
         ], $httpCode);
     }
 
-    // ==================== 新增方法 ====================
+    // ==================== New Methods ====================
 
     /**
-     * 使用错误码返回错误响应
-     * 支持多语言错误消息
+     * Return an error response using an error code
+     * Supports multilingual error messages
      */
     protected function errorWithCode(
         string $errorCode,
@@ -115,8 +115,8 @@ trait ApiResponse
     }
 
     /**
-     * 验证失败响应 - 自动提取 supported_params
-     * 从验证器规则中自动提取参数列表
+     * Validation failure response - automatically extracts supported_params
+     * Automatically extracts the parameter list from the validator rules
      */
     protected function validationErrorWithParams(Validator $validator): JsonResponse
     {
@@ -133,7 +133,7 @@ trait ApiResponse
     }
 
     /**
-     * 支持附加数据的 notFound
+     * notFound with additional data support
      */
     protected function notFoundWithData(string $message, $data = null): JsonResponse
     {
@@ -141,7 +141,7 @@ trait ApiResponse
     }
 
     /**
-     * 支持附加数据的 unauthorized
+     * unauthorized with additional data support
      */
     protected function unauthorizedWithData(string $message, $data = null): JsonResponse
     {
@@ -149,7 +149,7 @@ trait ApiResponse
     }
 
     /**
-     * 创建成功响应 (201)
+     * Resource created successfully response (201)
      */
     protected function created($data = null, string $message = 'Resource created successfully'): JsonResponse
     {
@@ -157,7 +157,7 @@ trait ApiResponse
     }
 
     /**
-     * 无内容响应 (204)
+     * No content response (204)
      */
     protected function noContent(): JsonResponse
     {
@@ -165,7 +165,7 @@ trait ApiResponse
     }
 
     /**
-     * 冲突错误响应 (409)
+     * Conflict error response (409)
      */
     protected function conflict(string $message = 'Resource conflict', $data = null): JsonResponse
     {
@@ -173,7 +173,7 @@ trait ApiResponse
     }
 
     /**
-     * 分页响应
+     * Paginated response
      */
     protected function paginated($items, string $message = 'Success'): JsonResponse
     {
@@ -188,14 +188,14 @@ trait ApiResponse
             ], $message);
         }
 
-        // 普通数组
+        // Plain array
         return $this->success($items, $message);
     }
 
-    // ==================== 快捷错误方法 (基于错误码) ====================
+    // ==================== Shortcut Error Methods (based on error codes) ====================
 
     /**
-     * 分组未找到
+     * Group not found
      */
     protected function groupNotFound($data = null): JsonResponse
     {
@@ -203,7 +203,7 @@ trait ApiResponse
     }
 
     /**
-     * 词库未找到
+     * Library not found
      */
     protected function libraryNotFound($data = null): JsonResponse
     {
@@ -211,7 +211,7 @@ trait ApiResponse
     }
 
     /**
-     * 单词未找到
+     * Word not found
      */
     protected function wordNotFound($data = null): JsonResponse
     {
@@ -219,7 +219,7 @@ trait ApiResponse
     }
 
     /**
-     * 语言不匹配
+     * Language mismatch
      */
     protected function languageMismatch(string $libraryLang, string $groupLang, $data = null): JsonResponse
     {
@@ -233,7 +233,7 @@ trait ApiResponse
     }
 
     /**
-     * 词库已添加
+     * Library already added
      */
     protected function libraryAlreadyAdded($data = null): JsonResponse
     {
@@ -241,7 +241,7 @@ trait ApiResponse
     }
 
     /**
-     * 词库未关联
+     * Library not linked
      */
     protected function libraryNotLinked($data = null): JsonResponse
     {

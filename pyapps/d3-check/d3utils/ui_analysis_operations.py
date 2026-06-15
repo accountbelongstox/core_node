@@ -23,7 +23,7 @@ from d3utils.ui_control_operations import (
     operate_control,
     click_at_control_rect,
 )
-from pycore.pyutils.click_handler import ClickHandler
+from pycore.pyutils.input.click_handler import ClickHandler
 from d3utils.click_handler_singleton import get_click_handler
 from d3utils.rosbot_ui_structure import get_resume_sequence
 

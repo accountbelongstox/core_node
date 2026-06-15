@@ -12,7 +12,7 @@ The actual data is stored in the clipboard database via ClipboardHistoryModel.
 
 import time
 from typing import List, Dict, Any, Optional
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class ClipboardHistory:

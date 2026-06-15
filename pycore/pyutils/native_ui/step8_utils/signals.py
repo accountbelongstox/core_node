@@ -6,7 +6,7 @@ Signal system module with signal management and timer system
 """
 
 # Import ColorPrint for logging
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 import queue
 import time

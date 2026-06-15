@@ -67,9 +67,9 @@ class ServerManagerV1OctaneServiceManager
      * Service is per-directory, not per-domain
      * Multiple domains in same directory share the same service
      *
-     * Service naming: octane-{app_name}-{port}
-     * - poly: octane-poly-9000
-     * - AChatV1: octane-achatv1-9001
+     * Service naming (legacy): octane-{app_name}-{port}
+     * New unified naming: app-manager-{project_name} (e.g. app-manager-laravel_main)
+     * Legacy examples: octane-poly-9000, octane-achatv1-9001
      */
     public static function getOctaneServiceNameFromPath(string $wwwDir, int $port): string
     {

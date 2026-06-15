@@ -15,7 +15,7 @@ from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 import sys
 from typing import Callable, Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import (
     get_third_package_pyperclip,
     get_third_package_tkinter,

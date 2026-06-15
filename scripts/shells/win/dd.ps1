@@ -225,15 +225,6 @@ $script:MenuItems = @(
         }
     },
     @{
-        Text              = "WSL Ubuntu Management"
-        Values            = @("default")
-        CurrentValueIndex = 0
-        Key               = $null
-        Action            = {
-            Show-WSLUbuntuSubMenu
-        }
-    },
-    @{
         Text              = "Git Management"
         Values            = @("default")
         CurrentValueIndex = 0
@@ -1127,12 +1118,6 @@ function Start-MainLoop {
     }
 }
 
-function Show-WSLUbuntuSubMenu {
-    $wslMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\WSLUbuntuManager.ps1"
-    Write-ColorMessage -Message "Launching WSL Ubuntu Management..." -Type "Info"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $wslMenuScript
-}
-
 function Set-CommonEnvironmentVariables {
     <#
     .SYNOPSIS
@@ -1229,6 +1214,10 @@ if (-not $SkipInitialization) {
     # Check for encrypted secrets and prompt for decryption
     $secretDecryptCheckScript = Join-Path $script:PS_CURENT_DIR "win_common\SecretDecryptionCheck.ps1"
     & powershell -NoProfile -ExecutionPolicy Bypass -File $secretDecryptCheckScript
+
+    # Check for newly added raw secrets and prompt for encryption (reverse direction)
+    $secretEncryptCheckScript = Join-Path $script:PS_CURENT_DIR "win_common\SecretEncryptionCheck.ps1"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $secretEncryptCheckScript
 } else {
     Write-ColorMessage -Message "Skipping initialization operations (returning from sub-menu)..." -Type "Info"
 }

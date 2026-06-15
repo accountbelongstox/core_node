@@ -532,6 +532,30 @@ class EdgeTTSService
     }
 
     /**
+     * Absolute audio storage root ({laravel_data}/tts_data/audio). External
+     * result ingestion (the worker report endpoint) writes through this +
+     * buildRelativePath so worker-generated files land exactly where
+     * generateAudio would put them.
+     */
+    public function getAudioBaseDir(): string
+    {
+        return $this->audioDir;
+    }
+
+    /**
+     * Deterministic relative path for a (text, lang, type, rate) tuple — the
+     * SAME formula generateAudio uses, exposed so other writers (the pycore
+     * worker report endpoint) produce identical paths and existence checks
+     * stay equivalent to generation-time cache hits.
+     */
+    public function buildRelativePath(string $text, string $langCode, string $textType = 'word', string $rate = '+0%'): string
+    {
+        $speedKey = str_replace(['+', '%', '-'], ['p', 'pct', 'm'], $rate);
+        $hash = md5($langCode . ':' . $textType . ':' . $rate . ':' . trim($text));
+        return $langCode . '/' . $textType . '/' . $speedKey . '/' . $hash . '.mp3';
+    }
+
+    /**
      * Clean zero-byte audio files in background (non-blocking)
      * Called randomly during service initialization to maintain clean storage
      * Limits: Max 100 files per call to avoid performance impact

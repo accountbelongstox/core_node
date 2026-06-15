@@ -27,7 +27,7 @@ class LogEntry(BaseModel):
     source: Optional[str] = Field(None, description="Source of the log")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "timestamp": "2025-12-07T10:30:00Z",
                 "level": "INFO",
@@ -54,7 +54,7 @@ class LogsQuery(BaseModel):
     search: Optional[str] = Field(None, description="Search keyword in message")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "lines": 100,
                 "level": "ERROR",
@@ -75,7 +75,7 @@ class LogsResponse(BaseModel):
     logs: List[LogEntry] = Field(default_factory=list)
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "total": 250,
                 "has_more": True,

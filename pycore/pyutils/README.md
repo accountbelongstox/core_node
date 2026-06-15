@@ -4,20 +4,37 @@ Consolidated utility library for device management, networking, UI, and more.
 
 ## Directory Structure
 
+Every utility lives inside a functional **group package** - there are no loose
+`.py` files at the package root (only `__init__.py`). See `pyutils_tree.md` for
+the full map. Highlights:
+
 ```
 pyutils/
-├── adb/               # ADB communication (unified from pyadb)
-├── device/            # Device utilities (re-exports pyutils.device)
-├── video_stream/      # Video streaming (H264, FMP4)
-├── control/           # Device control (touch, keyboard)
-├── group/             # Group device control
-├── mcp/               # MCP network discovery (NEW)
-├── native_ui/         # Native UI frameworks (PySide6, Tkinter)
-├── api/               # WebSocket and API utilities
-├── web/               # Web utilities
-├── wsrpc/             # WebSocket RPC framework
-└── launcher/          # Application launcher utilities
+├── common/            # SHARED BASE - generic helpers any group may import
+├── window/            # window & on-screen UI (activator, screenshot, ops, analyzer, unified_detector, ...)
+├── desktop/           # desktop shortcut managers + taskbar
+├── input/             # input simulation (click, field typing, IME, tray)
+├── image_tools/       # image & media processing (image_processor, media_compressor, dataset_generator, ...)
+├── device/            # ADB / scrcpy device layer (device_manager, scrcpy_init, ...)
+├── hotkey/            # hotkey listeners
+├── adb/ control/ group/ video_stream/   # device control & streaming
+├── mcp/ rpc_v2/ wsrpc/ api/ web/ nodejs_bridge/   # network / RPC
+├── native_ui/ frontend_launcher/ launcher/         # UI & launching
+├── edge_tts/ azure_speech/ whisper_stt/ tts/ translator/   # speech / language
+├── ocr_cluster/ ultralytics/ voc_annotator/ ai_cluster/    # vision / ML
+└── examples/          # sample & template code
 ```
+
+### Layering rule (STRICT - see PYTHON_PYCORE.md S2.2 / S3.2)
+
+- **`common/` is the only shared base.** Any group MAY import `common`,
+  `pyfoundations` and `pygvar`.
+- **`common/` MUST NOT import a group** (no `common -> edge_tts`).
+- **A group MUST NOT import a sibling group** (no `tts -> edge_tts`,
+  `input -> clipboard`, ...). Intra-package imports within one group are fine.
+- **`pyutils` MUST NOT import `pyctl`.** Only `pyctl` imports `pyutils`.
+  Cross-group coordination belongs in `pyctl` (the layer above) or is wired by
+  dependency injection - never a sideways group->group import.
 
 ## Key Modules
 
@@ -94,6 +111,22 @@ launch_app_with_startup(
 ```
 
 ## Version History
+
+- **2.1.0** (2026-06-15) - Regrouped all loose top-level modules into functional
+  group packages (`common`, `window`, `desktop`, `input`, `image_tools`, plus
+  `device`/`hotkey`/`examples` absorbing their kin). No loose `.py` remains at the
+  package root. Shared base is now `common/` only; introduced
+  `common/clipboard_text.py` and moved the shortcut/icon engine
+  (`icon_generator`, `appusermodelid`) into `common`. All import sites across
+  `pycore`, `pyapps` and `scripts` were updated (no shims).
+  - **`common` is now verified group-free.** The speech ORCHESTRATORS
+    (`SpeechSwitch`, `ProviderStatus`, TTS/STT switches) moved out of `common`
+    into `pycore/pyctl/speech/` (coordination is a pyctl concern); `common` keeps
+    only the speech contracts/base classes. This removed the last
+    `common -> group` edges.
+  - Module-specific docs moved next to their code (`SHORTCUT_MANAGER_README.md`
+    -> `desktop/`, `INTEGRATION_ULTRALYTICS_VOC_ANNOTATOR.md` -> `voc_annotator/`);
+    only `README.md` + `pyutils_tree.md` remain at the package root.
 
 - **2.0.0** - Unified ADB and device utilities
   - Consolidated `pyadb` into `pyutils.device`

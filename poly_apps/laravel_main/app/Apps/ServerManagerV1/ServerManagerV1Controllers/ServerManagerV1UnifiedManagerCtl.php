@@ -792,7 +792,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
         }
 
         try {
-            $serviceName = 'octane-poly-9000';
+            $serviceName = 'app-manager-laravel_main';
 
             // Clear Laravel caches before restart
             Artisan::call('config:clear');
@@ -845,7 +845,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
         }
 
         try {
-            $serviceName = 'octane-poly-9000';
+            $serviceName = 'app-manager-laravel_main';
 
             // Reload Octane service (graceful)
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['reload', $serviceName], 10);

@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'pycore'))
 from pycore.pyutils.device.scrcpy_device import ScrcpyDevice
 from pycore.pyutils.device.server_params import ServerParams
 from pycore.pyutils.control import TouchEvent, TouchAction, MessageBuilder
-from pycore.pyutils.scrcpy_init import get_initializer, get_adb_path
+from pycore.pyutils.device.scrcpy_init import get_initializer, get_adb_path
 from pycore import ColorPrint
 
 # UTF-8 encoding already handled by ScrcpyDevice import

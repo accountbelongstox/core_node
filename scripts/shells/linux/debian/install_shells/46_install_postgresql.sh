@@ -29,6 +29,11 @@ POSTGRESQL_CONFIG_DIR=""
 POSTGRESQL_LOG_DIR=""
 POSTGRESQL_USER="postgres"
 POSTGRESQL_SERVICE_NAME="postgresql"
+# WSL persistence: loop-mount point for the D-drive ext4 image (see
+# wsl_mount_pg_image). Resolved from the central mapping (map_web_path "pg_mount")
+# AFTER gvar_common.sh is sourced -- never hardcoded here.
+PG_D_MOUNT=""
+APP_DATABASES="core_node_main app_qy_v1_database awy_v0_database vipclub_v1_database server_manager_v1_database achat_v1_database code_mart_v1_database mcp_v1_database it_tools_v1_database bank_v1_database"
 
 # Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -47,6 +52,9 @@ POSTGRESQL_VERSION="15"
 POSTGRESQL_DATA_DIR=$(map_web_path "compile_dir" "postgresql/data")
 POSTGRESQL_CONFIG_DIR=""
 POSTGRESQL_LOG_DIR=$(map_web_path "compile_dir" "postgresql/logs")
+# Loop-mount target for the WSL D-drive image, from the central mapping (bash
+# gvar_common.sh + Python system_paths.py both define the "pg_mount" key).
+PG_D_MOUNT=$(map_web_path "pg_mount")
 
 echo "[$SCRIPT_INDEX] PostgreSQL Database Management Script"
 echo "[$SCRIPT_INDEX] START_POSTGRESQL: $START_POSTGRESQL"
@@ -64,14 +72,124 @@ check_postgresql() {
     return 1  # false, is not installed
 }
 
-# Function to check if PostgreSQL service is running
+# Function to check if PostgreSQL service is running.
+# WSL-safe: systemd is often absent, so fall back to pg_isready / pgrep.
 is_postgresql_running() {
-    if command_exists systemctl; then
-        if systemctl is-active --quiet postgresql; then
-            return 0  # true, is running
-        fi
+    if command_exists systemctl && systemctl is-active --quiet postgresql 2>/dev/null; then
+        return 0
+    fi
+    if command_exists pg_isready && pg_isready -q 2>/dev/null; then
+        return 0
+    fi
+    if pgrep -x postgres >/dev/null 2>&1; then
+        return 0
     fi
     return 1  # false, is not running
+}
+
+# WSL-safe service control: systemd -> sysv service -> Debian cluster tool.
+# action is one of: start|stop|restart|reload|enable|disable
+pg_service() {
+    local action="$1"
+    local ver=""
+    if command_exists systemctl; then
+        if $USE_SUDO systemctl "$action" postgresql 2>/dev/null; then
+            return 0
+        fi
+    fi
+    if command_exists service; then
+        if $USE_SUDO service postgresql "$action" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    # No systemd (e.g. WSL): drive the cluster directly.
+    ver="$(detect_postgresql_version)"
+    case "$action" in
+        start|restart|reload)
+            $USE_SUDO pg_ctlcluster "$ver" main "$action" 2>/dev/null || true
+            ;;
+        *)
+            : # enable/disable/stop are best-effort no-ops without an init system
+            ;;
+    esac
+    return 0
+}
+
+# Run a command as the postgres OS user regardless of whether sudo is available.
+# Handles the root-without-sudo case (USE_SUDO empty) where `$USE_SUDO -u postgres`
+# would otherwise expand to a broken `-u postgres ...` invocation.
+run_as_postgres() {
+    if command -v sudo >/dev/null 2>&1; then
+        sudo -u postgres "$@"
+    elif [ "$(id -u)" -eq 0 ]; then
+        su -s /bin/bash postgres -c "$(printf '%q ' "$@")"
+    else
+        "$@"
+    fi
+}
+
+# Idempotently create the per-app databases. Only run when the server is ready so
+# non-start.sh paths don't leave them missing (migrations would otherwise fail).
+create_app_databases() {
+    echo "[$SCRIPT_INDEX] Ensuring per-app databases..."
+    local db=""
+    for db in $APP_DATABASES; do
+        if run_as_postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${db}'" 2>/dev/null | grep -q 1; then
+            : # exists
+        else
+            echo "[$SCRIPT_INDEX] Creating database: ${db}"
+            run_as_postgres createdb "${db}" 2>/dev/null || echo "[$SCRIPT_INDEX] WARN: failed to create ${db}"
+        fi
+    done
+}
+
+# Resolve (or generate + persist) the postgres superuser password via the shared
+# global-var store, mirroring the MySQL pattern (50_install_mysql.sh). The same
+# value is read by start.sh and written into the Laravel .env, so dd.sh and
+# start.sh stay aligned. A fresh (re)install with no stored value regenerates it.
+get_postgresql_password() {
+    local pw=""
+    pw=$(get_global_var "POSTGRES_PASSWORD" "")
+    if [ -z "$pw" ]; then
+        if command_exists openssl; then
+            pw=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24)
+        else
+            pw=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)
+        fi
+        set_global_var "POSTGRES_PASSWORD" "$pw"
+    fi
+    echo "$pw"
+}
+
+# Restrict the server to loopback only: listen_addresses=localhost and pg_hba TCP
+# host rules limited to 127.0.0.1/::1 (scram), local socket kept on peer so that
+# `sudo -u postgres psql` admin access keeps working. Any all-interfaces rule is
+# disabled. Safe to call repeatedly.
+configure_localhost_only() {
+    local cfg="$POSTGRESQL_CONFIG_DIR/postgresql.conf"
+    local hba="$POSTGRESQL_CONFIG_DIR/pg_hba.conf"
+
+    echo "[$SCRIPT_INDEX] Restricting PostgreSQL to localhost-only access..."
+
+    if [ -f "$cfg" ]; then
+        if grep -qE "^[#[:space:]]*listen_addresses[[:space:]]*=" "$cfg"; then
+            $USE_SUDO sed -E -i "s|^[#[:space:]]*listen_addresses[[:space:]]*=.*|listen_addresses = 'localhost'|" "$cfg"
+        else
+            echo "listen_addresses = 'localhost'" | $USE_SUDO tee -a "$cfg" >/dev/null
+        fi
+    fi
+
+    if [ -f "$hba" ]; then
+        $USE_SUDO cp "$hba" "$hba.backup.localhost" 2>/dev/null || true
+        if ! grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+127\.0\.0\.1/32" "$hba"; then
+            echo "host    all    all    127.0.0.1/32    scram-sha-256" | $USE_SUDO tee -a "$hba" >/dev/null
+        fi
+        if ! grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+::1/128" "$hba"; then
+            echo "host    all    all    ::1/128    scram-sha-256" | $USE_SUDO tee -a "$hba" >/dev/null
+        fi
+        # Disable any all-interfaces rule (defense in depth; default has none).
+        $USE_SUDO sed -E -i "s|^([[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+)0\.0\.0\.0/0(.*)$|# DISABLED (localhost-only) \10.0.0.0/0\2|" "$hba"
+    fi
 }
 
 ##############################
@@ -150,6 +268,25 @@ configure_postgresql() {
 
     # Determine installed major version
     POSTGRESQL_VERSION="$(detect_postgresql_version)"
+
+    # WSL: compile_dir lives on drvfs (/mnt/*), where PostgreSQL cannot run (the
+    # data dir must be owned by postgres with mode 0700, impossible on drvfs).
+    # Pin data/log dirs to the native ext4 distro-default cluster so the logic
+    # below adopts the default cluster and performs NO relocation/recreate.
+    if [ "$IS_WSL" = true ]; then
+        if wsl_mount_pg_image; then
+            # PG_DATA_ON_D=true and the D-image is mounted -> data lives on D.
+            POSTGRESQL_DATA_DIR="${PG_D_MOUNT}/${POSTGRESQL_VERSION}/main"
+            $USE_SUDO mkdir -p "${PG_D_MOUNT}/${POSTGRESQL_VERSION}" 2>/dev/null || true
+            $USE_SUDO chown -R postgres:postgres "${PG_D_MOUNT}/${POSTGRESQL_VERSION}" 2>/dev/null || true
+            echo "[$SCRIPT_INDEX] WSL -> PG data on D-drive image: $POSTGRESQL_DATA_DIR"
+        else
+            echo "[$SCRIPT_INDEX] WSL detected -> keeping PostgreSQL on native ext4 (no drvfs relocation)"
+            POSTGRESQL_DATA_DIR="/var/lib/postgresql/$POSTGRESQL_VERSION/main"
+        fi
+        POSTGRESQL_LOG_DIR="/var/log/postgresql"
+    fi
+
     POSTGRESQL_CONFIG_DIR="/etc/postgresql/$POSTGRESQL_VERSION/main"
 
     # If cluster exists in /etc/postgresql/<ver>/main
@@ -159,7 +296,7 @@ configure_postgresql() {
         echo "[$SCRIPT_INDEX] Found existing cluster directory: $cluster_dir"
         # Read current data_directory from config if present
         local current_data_dir
-        current_data_dir=$(awk -F"='" '/^data_directory\s*=/{print $2}' "$cluster_dir/postgresql.conf" 2>/dev/null | sed "s/'\s*$//")
+        current_data_dir=$($USE_SUDO grep -E "^[[:space:]]*data_directory[[:space:]]*=" "$cluster_dir/postgresql.conf" 2>/dev/null | sed -E "s/^[^=]*=[[:space:]]*'?([^']*)'?[[:space:]]*$/\1/")
         if [ -z "$current_data_dir" ]; then
             # Try to infer default path
             current_data_dir="/var/lib/postgresql/$POSTGRESQL_VERSION/main"
@@ -172,7 +309,7 @@ configure_postgresql() {
     fi
 
     # Stop base service to avoid conflicts
-    $USE_SUDO systemctl stop postgresql 2>/dev/null || true
+    pg_service stop
 
     # Case 1: If target data dir already initialized (PG_VERSION exists), adopt it via config
     if [ -f "$POSTGRESQL_DATA_DIR/PG_VERSION" ]; then
@@ -191,28 +328,28 @@ configure_postgresql() {
         if [ ! -f "$cluster_dir/postgresql.conf" ]; then
             echo "[$SCRIPT_INDEX] Bootstrapping configuration files"
             $USE_SUDO pg_createcluster "$POSTGRESQL_VERSION" main --datadir="/var/lib/postgresql/$POSTGRESQL_VERSION/main" --start
-            $USE_SUDO systemctl stop postgresql
+            pg_service stop
         fi
         # Point data_directory to our path and set logging options
         local cfg="$cluster_dir/postgresql.conf"
-        if grep -q "^data_directory\s*=" "$cfg"; then
-            $USE_SUDO sed -i "s|^data_directory\s*=.*$|data_directory = '$POSTGRESQL_DATA_DIR'|" "$cfg"
+        if grep -qE "^[[:space:]]*data_directory[[:space:]]*=" "$cfg"; then
+            $USE_SUDO sed -E -i "s|^[[:space:]]*data_directory[[:space:]]*=.*$|data_directory = '$POSTGRESQL_DATA_DIR'|" "$cfg"
         else
             echo "data_directory = '$POSTGRESQL_DATA_DIR'" | $USE_SUDO tee -a "$cfg" >/dev/null
         fi
-        if grep -q "^#\?logging_collector\s*=" "$cfg"; then
-            $USE_SUDO sed -i "s|^#\?logging_collector\s*=.*$|logging_collector = on|" "$cfg"
+        if grep -qE "^[#[:space:]]*logging_collector[[:space:]]*=" "$cfg"; then
+            $USE_SUDO sed -E -i "s|^[#[:space:]]*logging_collector[[:space:]]*=.*$|logging_collector = on|" "$cfg"
         else
             echo "logging_collector = on" | $USE_SUDO tee -a "$cfg" >/dev/null
         fi
-        if grep -q "^#\?log_directory\s*=" "$cfg"; then
-            $USE_SUDO sed -i "s|^#\?log_directory\s*=.*$|log_directory = '$POSTGRESQL_LOG_DIR'|" "$cfg"
+        if grep -qE "^[#[:space:]]*log_directory[[:space:]]*=" "$cfg"; then
+            $USE_SUDO sed -E -i "s|^[#[:space:]]*log_directory[[:space:]]*=.*$|log_directory = '$POSTGRESQL_LOG_DIR'|" "$cfg"
         else
             echo "log_directory = '$POSTGRESQL_LOG_DIR'" | $USE_SUDO tee -a "$cfg" >/dev/null
         fi
         # Enable and start service
-        $USE_SUDO systemctl enable postgresql >/dev/null 2>&1 || true
-        $USE_SUDO systemctl start postgresql
+        pg_service enable
+        pg_service start
     else
         # Case 2: Recreate cluster with target data dir
         if [ "$need_recreate" = true ]; then
@@ -233,54 +370,50 @@ configure_postgresql() {
         fi
         # Update logging settings in cluster config
         local cfg="$POSTGRESQL_CONFIG_DIR/postgresql.conf"
-        if grep -q "^#\?logging_collector\s*=" "$cfg"; then
-            $USE_SUDO sed -i "s|^#\?logging_collector\s*=.*$|logging_collector = on|" "$cfg"
+        if grep -qE "^[#[:space:]]*logging_collector[[:space:]]*=" "$cfg"; then
+            $USE_SUDO sed -E -i "s|^[#[:space:]]*logging_collector[[:space:]]*=.*$|logging_collector = on|" "$cfg"
         else
             echo "logging_collector = on" | $USE_SUDO tee -a "$cfg" >/dev/null
         fi
-        if grep -q "^#\?log_directory\s*=" "$cfg"; then
-            $USE_SUDO sed -i "s|^#\?log_directory\s*=.*$|log_directory = '$POSTGRESQL_LOG_DIR'|" "$cfg"
+        if grep -qE "^[#[:space:]]*log_directory[[:space:]]*=" "$cfg"; then
+            $USE_SUDO sed -E -i "s|^[#[:space:]]*log_directory[[:space:]]*=.*$|log_directory = '$POSTGRESQL_LOG_DIR'|" "$cfg"
         else
             echo "log_directory = '$POSTGRESQL_LOG_DIR'" | $USE_SUDO tee -a "$cfg" >/dev/null
         fi
-        $USE_SUDO systemctl enable postgresql >/dev/null 2>&1 || true
-        $USE_SUDO systemctl restart postgresql
+        pg_service enable
+        pg_service restart
     fi
 
     echo "[$SCRIPT_INDEX] PostgreSQL cluster configuration completed"
 }
 
-# Function to setup PostgreSQL user and database
+# Function to setup the postgres superuser password and localhost-only access.
+# Idempotent: safe to re-run. Requires POSTGRESQL_CONFIG_DIR to be set.
 setup_postgresql_user() {
-    echo "[$SCRIPT_INDEX] Setting up PostgreSQL user and databases..."
+    echo "[$SCRIPT_INDEX] Setting up PostgreSQL user and access rules..."
 
     # Wait for PostgreSQL to be ready
     sleep 3
 
-    # Set password for postgres user (use peer auth before switching to md5)
-    echo "[$SCRIPT_INDEX] Setting up postgres user password..."
-    $USE_SUDO -u postgres psql -d postgres -c "ALTER USER postgres WITH PASSWORD 'postgres123';"
+    # Generate (or reuse) the superuser password from the shared global-var store
+    # (/var/_core_node/global_var/POSTGRES_PASSWORD). It is NEVER written into the
+    # Laravel .env; Laravel reads it back via App\Support\CoreNodeSecrets, so a
+    # copied/committed .env can never leak the credential.
+    local pg_password
+    pg_password="$(get_postgresql_password)"
 
-    # Create a sample database
-    echo "[$SCRIPT_INDEX] Creating sample database..."
-    $USE_SUDO -u postgres createdb sample_db
+    echo "[$SCRIPT_INDEX] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)..."
+    run_as_postgres psql -d postgres -c "ALTER USER postgres WITH PASSWORD '$pg_password';"
 
-    # Update pg_hba.conf for local connections (Debian keeps it under /etc/postgresql/<ver>/main)
-    local hba_file="$POSTGRESQL_CONFIG_DIR/pg_hba.conf"
-    if [ -f "$hba_file" ]; then
-        # Backup original
-        $USE_SUDO cp "$hba_file" "$hba_file.backup"
+    # Restrict to localhost only: listen_addresses=localhost and pg_hba scram auth
+    # on 127.0.0.1/::1 (the local Unix socket stays on peer so that admin access
+    # via `sudo -u postgres psql` keeps working without a password).
+    configure_localhost_only
 
-        # Switch local auth to md5 robustly
-        $USE_SUDO sed -E -i "s/^(\s*local\s+all\s+postgres\s+).*/\1md5/" "$hba_file"
-        $USE_SUDO sed -E -i "s/^(\s*local\s+all\s+all\s+).*/\1md5/" "$hba_file"
+    # Reload so the new auth rules take effect (WSL-safe).
+    pg_service reload
 
-        # Reload configuration
-        $USE_SUDO systemctl reload postgresql
-    fi
-
-    echo "[$SCRIPT_INDEX] PostgreSQL user setup completed"
-    echo "[$SCRIPT_INDEX] Default postgres password: postgres123"
+    echo "[$SCRIPT_INDEX] PostgreSQL user setup completed (localhost-only, scram auth)"
 }
 
 # Function to display PostgreSQL status and information
@@ -290,6 +423,16 @@ show_postgresql_info() {
 
     if command_exists psql; then
         echo "[$SCRIPT_INDEX] PostgreSQL Version: $(psql --version)"
+        # Show the ACTUAL data directory the running cluster uses (query the server)
+        # rather than the in-script variable -- on WSL the cluster is pinned to
+        # native ext4 (/var/lib/postgresql/<ver>/main), not the compile_dir value.
+        local actual_data_dir=""
+        if is_postgresql_running; then
+            actual_data_dir="$(run_as_postgres psql -tAc 'SHOW data_directory;' 2>/dev/null | tr -d '[:space:]')"
+        fi
+        if [ -n "$actual_data_dir" ]; then
+            POSTGRESQL_DATA_DIR="$actual_data_dir"
+        fi
         echo "[$SCRIPT_INDEX] Data Directory: $POSTGRESQL_DATA_DIR"
         if [ -z "$POSTGRESQL_CONFIG_DIR" ]; then
             local ver_detected
@@ -298,18 +441,18 @@ show_postgresql_info() {
         fi
         echo "[$SCRIPT_INDEX] Config Directory: $POSTGRESQL_CONFIG_DIR"
         echo "[$SCRIPT_INDEX] Log Directory: $POSTGRESQL_LOG_DIR"
-        echo "[$SCRIPT_INDEX] Default Port: 5432"
+        echo "[$SCRIPT_INDEX] Default Port: 5432 (localhost-only)"
         echo "[$SCRIPT_INDEX] Default User: postgres"
-        echo "[$SCRIPT_INDEX] Default Password: postgres123"
+        echo "[$SCRIPT_INDEX] Password: generated, stored in global_var POSTGRES_PASSWORD (read by Laravel via App\\Support\\CoreNodeSecrets; never in .env)"
 
         if is_postgresql_running; then
             echo "[$SCRIPT_INDEX] Status: Running"
-            echo "[$SCRIPT_INDEX] Service: systemctl {start|stop|restart|status} postgresql"
+            echo "[$SCRIPT_INDEX] Service: systemctl/service/pg_ctlcluster {start|stop|restart} postgresql"
         else
             echo "[$SCRIPT_INDEX] Status: Stopped"
         fi
 
-        echo "[$SCRIPT_INDEX] Connect: psql -U postgres -d sample_db"
+        echo "[$SCRIPT_INDEX] Connect (admin): sudo -u postgres psql"
         echo "[$SCRIPT_INDEX] Config: $POSTGRESQL_CONFIG_DIR/postgresql.conf"
     else
         echo "[$SCRIPT_INDEX] PostgreSQL is not installed"
@@ -324,11 +467,11 @@ remove_postgresql() {
 
     # Stop service
     if is_postgresql_running; then
-        $USE_SUDO systemctl stop postgresql
+        pg_service stop
     fi
 
     # Disable service
-    $USE_SUDO systemctl disable postgresql 2>/dev/null || true
+    pg_service disable
 
     # Remove packages
     $USE_SUDO apt remove --purge -y postgresql postgresql-contrib postgresql-client
@@ -351,6 +494,105 @@ remove_postgresql() {
     echo "[$SCRIPT_INDEX] PostgreSQL removal completed"
 }
 
+# OPT-IN WSL persistence on the D: drive.
+# drvfs (/mnt/*) cannot host a PostgreSQL data dir (it needs postgres-owned, mode
+# 0700 -- impossible on drvfs). To keep PG data physically on D AND survive a WSL
+# distro reset, we store a real ext4 filesystem IMAGE file on D and loop-mount it:
+# PG then sees a native ext4 dir whose bytes live in the image on D.
+#
+# Auto-enabled on WSL (PG_DATA_ON_D defaults true; set false to opt out).
+# Size via PG_DATA_IMG_SIZE (default 20G). Idempotent: image created once, mounted
+# if not already. Returns 0 when the image is mounted at $PG_D_MOUNT, 1 otherwise
+# (callers then fall back to native ext4 so PG always starts). All human-readable
+# output goes to STDERR so callers can capture the resolved data dir from stdout.
+wsl_mount_pg_image() {
+    [ "$IS_WSL" = true ] || return 1
+    # Default ON for WSL -- no manual global_var needed. Still overridable by
+    # putting PG_DATA_ON_D=false in the global-var store.
+    [ "$(get_var "PG_DATA_ON_D" "true")" = "true" ] || return 1
+
+    local d_base img size
+    # All paths come from the SINGLE canonical mapping (map_web_path), NOT hardcoded.
+    # The image lives under the same "laravel_db" location as the sqlite DBs:
+    #   map_web_path "laravel_db" == /mnt/d/www/wwwroot/laravel_db (WSL)
+    #                             == D:\www\wwwroot\laravel_db      (Windows)
+    img="$(map_web_path "laravel_db" "postgresql/pgdata.ext4")"
+    d_base="$(dirname "$img")"
+    # Only meaningful when that mapped location is actually on a drvfs (/mnt/*) mount.
+    case "$d_base" in
+        /mnt/*) : ;;
+        *) return 1 ;;
+    esac
+    size="$(get_var "PG_DATA_IMG_SIZE" "20G")"
+
+    $USE_SUDO mkdir -p "$d_base" "$PG_D_MOUNT" 2>/dev/null || true
+
+    # Create the ext4 image once.
+    if [ ! -f "$img" ]; then
+        echo "[$SCRIPT_INDEX] Creating ${size} ext4 image on D for PG persistence: $img" >&2
+        if ! $USE_SUDO truncate -s "$size" "$img" 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] WARN: cannot create image on D -> native ext4 fallback" >&2
+            return 1
+        fi
+        if ! $USE_SUDO mkfs.ext4 -F -q "$img" 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] WARN: mkfs.ext4 failed -> native ext4 fallback" >&2
+            $USE_SUDO rm -f "$img" 2>/dev/null || true
+            return 1
+        fi
+    fi
+
+    # Loop-mount (idempotent; WSL does not persist mounts across sessions).
+    if ! mountpoint -q "$PG_D_MOUNT" 2>/dev/null; then
+        if ! $USE_SUDO mount -o loop "$img" "$PG_D_MOUNT" 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] WARN: loop-mount failed -> native ext4 fallback" >&2
+            return 1
+        fi
+        echo "[$SCRIPT_INDEX] Mounted D-image at $PG_D_MOUNT (PG data persists on D)" >&2
+    fi
+
+    $USE_SUDO chown postgres:postgres "$PG_D_MOUNT" 2>/dev/null || true
+    $USE_SUDO chmod 700 "$PG_D_MOUNT" 2>/dev/null || true
+    return 0
+}
+
+# Resolve the CANONICAL data dir from the central mapping (cross-system) and, as a
+# side effect, auto-fix the mount. Echoes ONLY the path on stdout (wsl_mount_pg_image
+# logs to stderr). WSL+D-image -> ${PG_D_MOUNT}/<ver>/main; WSL fallback / native
+# server -> the standard native cluster dir or the compile_dir relocation.
+pg_expected_data_dir() {
+    local ver="$1"
+    if [ "$IS_WSL" = true ]; then
+        if wsl_mount_pg_image; then
+            echo "${PG_D_MOUNT}/${ver}/main"
+        else
+            echo "/var/lib/postgresql/${ver}/main"
+        fi
+        return 0
+    fi
+    map_web_path "compile_dir" "postgresql/data"
+}
+
+# True when a RUNNING cluster's actual data dir differs from the canonical/mapped
+# one (e.g. data still on native ext4 while the mapping now points at the D-image).
+# Drives the idempotent reconcile: recreate on the mapped dir (sys:init re-seeds from
+# init_data -- NOT a dump/restore migration).
+pg_data_dir_drifted() {
+    is_postgresql_running || return 1
+    local ver actual expected
+    ver="$(detect_postgresql_version)"
+    actual="$(run_as_postgres psql -tAc 'SHOW data_directory;' 2>/dev/null | tr -d '[:space:]')"
+    expected="$(pg_expected_data_dir "$ver")"
+    [ -n "$actual" ] && [ -n "$expected" ] && [ "$actual" != "$expected" ]
+}
+
+# True when at least one PostgreSQL cluster exists (running or stopped). Used by
+# the already-installed converge path: psql being present does NOT imply a cluster
+# exists (e.g. a dropped/relocated cluster), so we must create one if none exist.
+cluster_exists() {
+    command -v pg_lsclusters >/dev/null 2>&1 || return 1
+    [ -n "$(pg_lsclusters -h 2>/dev/null)" ]
+}
+
 # Main execution logic
 main() {
     # Configure based on START_POSTGRESQL variable
@@ -359,9 +601,45 @@ main() {
         echo "[$SCRIPT_INDEX] START_POSTGRESQL is true - Installing and starting PostgreSQL..."
         echo "[$SCRIPT_INDEX] ============================================"
 
+        # WSL D-drive persistence: the loop mount does NOT survive a WSL session, so
+        # re-establish it BEFORE any cluster start (an existing D-image cluster's
+        # data dir would otherwise be absent and PG would fail to start). Best-effort.
+        if [ "$IS_WSL" = true ]; then
+            wsl_mount_pg_image || true
+        fi
+
         # Check if PostgreSQL is already installed
         if check_postgresql; then
-            echo "[$SCRIPT_INDEX] PostgreSQL is already installed"
+            # Already installed (possibly by an earlier dd.sh chain run). Converge
+            # idempotently: ensure the cluster is running, then re-apply the
+            # password + localhost-only access rules so re-runs are self-healing.
+            echo "[$SCRIPT_INDEX] PostgreSQL is already installed - ensuring config (idempotent)"
+            POSTGRESQL_VERSION="$(detect_postgresql_version)"
+            POSTGRESQL_CONFIG_DIR="/etc/postgresql/$POSTGRESQL_VERSION/main"
+            # psql present does NOT mean a cluster exists. If none exists or it is
+            # not running, (re)configure to CREATE + start it on the correct
+            # filesystem (ext4 on WSL, never drvfs). configure_postgresql is
+            # idempotent and applies the WSL data-dir pin + localhost config.
+            if ! cluster_exists || ! is_postgresql_running; then
+                echo "[$SCRIPT_INDEX] No running cluster -> creating/starting via configure_postgresql"
+                configure_postgresql
+            elif pg_data_dir_drifted; then
+                # The running cluster's data dir != the canonical/mapped dir (e.g.
+                # still on native ext4 while the mapping now resolves to the D-image).
+                # Idempotently reconcile to the mapped dir: configure_postgresql adopts
+                # an existing mapped cluster (non-destructive) or recreates a fresh one
+                # there (sys:init re-seeds from init_data -- NOT a dump/restore migration).
+                echo "[$SCRIPT_INDEX] Data dir DRIFT detected (actual != mapped) -> reconciling to mapped dir"
+                echo "[$SCRIPT_INDEX]   If the mapped dir has no cluster, the old one is dropped and recreated there;"
+                echo "[$SCRIPT_INDEX]   sys:init then re-seeds from init_data (no dump/restore migration)."
+                configure_postgresql
+            fi
+            if is_postgresql_running; then
+                setup_postgresql_user
+                create_app_databases
+            else
+                echo "[$SCRIPT_INDEX] WARNING: PostgreSQL still not running after configure"
+            fi
             show_postgresql_info
         else
             echo "[$SCRIPT_INDEX] Installing PostgreSQL..."
@@ -369,6 +647,7 @@ main() {
                 configure_postgresql
                 if is_postgresql_running; then
                     setup_postgresql_user
+                    create_app_databases
                     show_postgresql_info
                 else
                     echo "[$SCRIPT_INDEX] PostgreSQL installation failed - service not running"
@@ -382,8 +661,8 @@ main() {
 
         # Enable and start service
         if ! is_postgresql_running; then
-            $USE_SUDO systemctl enable postgresql
-            $USE_SUDO systemctl start postgresql
+            pg_service enable
+            pg_service start
         fi
 
         echo "[$SCRIPT_INDEX] ============================================"
@@ -400,7 +679,7 @@ main() {
 
             if is_postgresql_running; then
                 echo "[$SCRIPT_INDEX] Stopping PostgreSQL service..."
-                $USE_SUDO systemctl stop postgresql
+                pg_service stop
             fi
 
             # Wait a moment and check if PostgreSQL processes are still running
@@ -428,7 +707,7 @@ main() {
 
             # Disable PostgreSQL service from auto-start
             echo "[$SCRIPT_INDEX] Disabling PostgreSQL service from auto-start..."
-            $USE_SUDO systemctl disable postgresql 2>/dev/null || true
+            pg_service disable
 
             echo "[$SCRIPT_INDEX] ============================================"
             echo "[$SCRIPT_INDEX] PostgreSQL is installed but stopped and disabled"

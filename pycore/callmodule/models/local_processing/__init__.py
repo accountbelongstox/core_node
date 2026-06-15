@@ -37,6 +37,27 @@ from .video_models import (
     VideoExtractAudioResponse,
 )
 
+from .video_extract_models import (
+    VideoExtractRequest,
+    VideoExtractStartResponse,
+    VideoExtractPreviewResponse,
+    VideoExtractSegmentsRequest,
+    VideoExtractSegmentsResponse,
+)
+
+from .user_data_models import (
+    OkResponse,
+    SystemSettingsRequest,
+    SystemSettingsResponse,
+    VideoExtractHistoryEntry,
+    VideoExtractHistoryResponse,
+    VideoExtractAddRequest,
+    VideoExtractRemoveRequest,
+    VideoExtractOptionsRequest,
+    PickPathRequest,
+    PickPathResponse,
+)
+
 __all__ = [
     # Screenshot models
     "ScreenshotRequest",
@@ -66,4 +87,23 @@ __all__ = [
     "VideoProcessResponse",
     "VideoExtractAudioRequest",
     "VideoExtractAudioResponse",
+
+    # Video extract (batch/single audio+subtitle) models
+    "VideoExtractRequest",
+    "VideoExtractStartResponse",
+    "VideoExtractPreviewResponse",
+    "VideoExtractSegmentsRequest",
+    "VideoExtractSegmentsResponse",
+
+    # User-data (settings + video-extract history) models
+    "OkResponse",
+    "SystemSettingsRequest",
+    "SystemSettingsResponse",
+    "VideoExtractHistoryEntry",
+    "VideoExtractHistoryResponse",
+    "VideoExtractAddRequest",
+    "VideoExtractRemoveRequest",
+    "VideoExtractOptionsRequest",
+    "PickPathRequest",
+    "PickPathResponse",
 ]

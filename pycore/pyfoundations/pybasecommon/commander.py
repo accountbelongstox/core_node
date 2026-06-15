@@ -15,9 +15,14 @@ import sys
 import platform
 import shutil
 import re
+import subprocess
 from typing import Optional, Union, List, Tuple
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.safe_subprocess import subprocess
+
+# Intra-pybasecommon import (allowed: both live in the stdlib-only kernel and
+# color_print imports nothing from pycore, so there is no cycle). Commander
+# routes its live output through ColorPrint so subprocess lines reach the SAME
+# shared callback registry (the observer pipeline) as colored logs.
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class CommandResult:
@@ -198,16 +203,16 @@ class Commander:
             CommandResult object with return_code, stdout, stderr, and combined output
         """
         command_str, executable = Commander._prepare_command(command)
-        
+
         if info:
-            ColorPrint.success(f"Executing command: {command_str}")
-        
+            ColorPrint.stream(f"Executing command: {command_str}", color="blue", log_level="INFO")
+
         try:
             process = Commander._create_process(command_str, executable, cwd)
-            
+
             stdout_lines = []
             stderr_lines = []
-            
+
             # Read stdout in real-time
             while True:
                 output = process.stdout.readline()
@@ -217,15 +222,15 @@ class Commander:
                     line = output.strip()
                     stdout_lines.append(line)
                     if show_output and info:
-                        ColorPrint.info(line)
-            
+                        ColorPrint.stream(line, color="gray", log_level="DEBUG")
+
             # Read stderr
             stderr_output = process.stderr.read()
             if stderr_output:
                 stderr_lines = [line.strip() for line in stderr_output.strip().split('\n') if line.strip()]
                 if show_output and info:
                     for line in stderr_lines:
-                        ColorPrint.warn(line)
+                        ColorPrint.stream(line, color="yellow", log_level="WARNING")
             
             return_code = process.poll()
             
@@ -255,7 +260,7 @@ class Commander:
             
         except Exception as e:
             error_msg = f"Command execution failed: {str(e)}"
-            ColorPrint.error(error_msg)
+            ColorPrint.stream(error_msg, color="red", log_level="ERROR")
             return CommandResult(
                 return_code=-1,
                 stdout="",

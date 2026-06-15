@@ -1,8 +1,0 @@
-{
-  "name": "NexusAI Membership Portal",
-  "description": "A high-end, futuristic AI platform membership management system featuring usage analytics, tiered pricing, and an AI-driven plan advisor powered by Gemini.",
-  "requestFramePermissions": [
-    "camera",
-    "microphone"
-  ]
-}

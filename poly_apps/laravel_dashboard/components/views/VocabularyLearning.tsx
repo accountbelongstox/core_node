@@ -24,13 +24,243 @@ import {
   RefreshCw,
   X,
   BookOpen,
-  CheckCircle
+  CheckCircle,
+  ChevronDown,
+  CircleAlert,
+  ListChecks,
+  Trash2
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 import { extractArrayFromResponse } from '../../utils/arrayUtils';
 import { useAppState } from '../../contexts/AppStateContext';
+import { usePersistentTask } from '../../core/tasks/usePersistentTask';
 import VocabularyWordListModal from '../vocabulary/VocabularyWordListModal';
 import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../types';
+import Portal from '../shared/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
+import { ConfirmModal, useToast } from '../admin';
+import { logError, logInfo, logSuccess } from '../../core/logs/logStore';
+
+/** Status → text colour for the collapsed-pill latest-entry one-liner. */
+const ttsLogStatusText = (status: string | undefined): string =>
+  status === 'failed' ? 'text-red-600 dark:text-red-400' :
+  status === 'completed' ? 'text-green-600 dark:text-green-400' :
+  status === 'processing' ? 'text-blue-600 dark:text-blue-400' :
+  'text-yellow-600 dark:text-yellow-400';
+
+interface TtsLogsDockProps {
+  open: boolean;
+  onToggle: () => void;
+  /** Polled queue-stats snapshot (shape comes from the backend, kept loose). */
+  queueStats: any;
+  loading: boolean;
+  autoRefresh: boolean;
+  onAutoRefreshChange: (value: boolean) => void;
+  onRefresh: () => void;
+  /** i18n strings (vocabulary section). */
+  t: {
+    recent_logs_dock: string;
+    auto_refresh: string;
+    refresh: string;
+    failed: string;
+    no_logs: string;
+  };
+}
+
+/**
+ * TtsLogsDock — page-local floating dock for the TTS queue "Recent Logs"
+ * table, anchored bottom-LEFT (the global operation-log dock owns
+ * bottom-right). Collapsed: a pill with live count / failed badges + the
+ * latest entry. Expanded: the full 8-column log table in a scrollable panel.
+ * `left-16 md:left-20` clears the fixed app sidebar (z-50, ~3.5–4rem wide);
+ * z-[150] matches the global dock — above app chrome, below Portal overlays.
+ */
+const TtsLogsDock: React.FC<TtsLogsDockProps> = ({
+  open,
+  onToggle,
+  queueStats,
+  loading,
+  autoRefresh,
+  onAutoRefreshChange,
+  onRefresh,
+  t
+}) => {
+  const recentLogs: any[] = Array.isArray(queueStats?.recent_logs) ? queueStats.recent_logs : [];
+  const logsCount: number = Number(queueStats?.logs_count) || recentLogs.length;
+  const failedCount = recentLogs.filter((log: any) => log?.status === 'failed').length;
+  const latest: any | null = recentLogs.length > 0 ? recentLogs[0] : null;
+
+  return (
+    <Portal lockScroll={false}>
+      <div className="fixed bottom-3 left-16 md:left-20 z-[150] flex flex-col items-start pointer-events-none">
+        {open && (
+          <div className="pointer-events-auto mb-2 w-[min(960px,calc(100vw-6rem))] rounded-xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xl overflow-hidden">
+            {/* Header: title + auto-refresh + manual refresh + collapse */}
+            <div className="flex items-center gap-3 px-3 py-1.5 border-b border-slate-200 dark:border-slate-700 text-xs text-slate-500 dark:text-slate-400">
+              <ListChecks className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+              <span className="font-medium text-slate-700 dark:text-slate-200">
+                {t.recent_logs_dock}{logsCount > 0 ? ` (${logsCount})` : ''}
+              </span>
+              <span className="flex-1" />
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => onAutoRefreshChange(e.target.checked)}
+                  className="rounded border-slate-300 dark:border-slate-600"
+                />
+                {t.auto_refresh}
+              </label>
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={loading}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+                {t.refresh}
+              </button>
+              <button
+                type="button"
+                onClick={onToggle}
+                className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title={t.recent_logs_dock}
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Body: the 8-column queue-log table (moved from the TTS Queue card) */}
+            <div className="max-h-80 overflow-auto">
+              {recentLogs.length === 0 ? (
+                <p className="text-xs text-slate-400 px-3 py-4">{t.no_logs}</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">ID</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Content</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Type</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Language</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Status</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Priority</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Retries</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {recentLogs.map((log: any, index: number) => (
+                      <React.Fragment key={log.id || index}>
+                        <tr
+                          className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                            log.status === 'failed' ? 'bg-red-50/50 dark:bg-red-900/10' :
+                            log.status === 'completed' ? 'bg-green-50/50 dark:bg-green-900/10' :
+                            log.status === 'processing' ? 'bg-blue-50/50 dark:bg-blue-900/10' :
+                            ''
+                          }`}
+                        >
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400 font-mono text-xs">
+                            {log.id}
+                          </td>
+                          <td className="px-3 py-2 text-slate-900 dark:text-slate-100 max-w-xs truncate" title={log.content_text}>
+                            {log.content_text || '-'}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={`px-2 py-0.5 rounded text-xs ${
+                              log.task_type === 'word' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' :
+                              log.task_type === 'sentence' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
+                              'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400'
+                            }`}>
+                              {log.task_type || '-'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400 uppercase">
+                            {log.language || '-'}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              log.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                              log.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                              log.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                              'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                            }`}>
+                              {log.status || '-'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
+                            {log.priority ? log.priority.toLocaleString() : '-'}
+                          </td>
+                          <td className="px-3 py-2">
+                            {log.retry_count !== undefined && log.retry_count > 0 ? (
+                              <span className="px-2 py-0.5 rounded text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+                                {log.retry_count}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">0</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
+                            {log.completed_at ? (
+                              <span className="text-green-600 dark:text-green-400" title={log.completed_at}>
+                                {new Date(log.completed_at).toLocaleString()}
+                              </span>
+                            ) : log.started_at ? (
+                              <span className="text-blue-600 dark:text-blue-400" title={log.started_at}>
+                                {new Date(log.started_at).toLocaleString()}
+                              </span>
+                            ) : log.requested_at ? (
+                              <span className="text-yellow-600 dark:text-yellow-400" title={log.requested_at}>
+                                {new Date(log.requested_at).toLocaleString()}
+                              </span>
+                            ) : '-'}
+                          </td>
+                        </tr>
+                        {log.error_message && (
+                          <tr className="bg-red-50/30 dark:bg-red-900/10">
+                            <td colSpan={8} className="px-3 py-2">
+                              <p className="text-xs text-red-700 dark:text-red-400">
+                                <strong>Error:</strong> {log.error_message}
+                              </p>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Collapsed pill — always visible; badges stay live via the parent's poll. */}
+        <button
+          type="button"
+          onClick={onToggle}
+          title={t.recent_logs_dock}
+          className="pointer-events-auto flex items-center gap-2 max-w-[min(560px,calc(100vw-8rem))] px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg text-xs text-slate-500 dark:text-slate-400 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
+        >
+          <ListChecks className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+          <span className="font-medium text-slate-700 dark:text-slate-200 flex-shrink-0">{t.recent_logs_dock}</span>
+          <span className="px-1.5 py-px rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex-shrink-0">
+            {logsCount}
+          </span>
+          {failedCount > 0 && (
+            <span className="flex items-center gap-0.5 px-1.5 py-px rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 flex-shrink-0">
+              <CircleAlert className="w-3 h-3" />
+              {failedCount} {t.failed}
+            </span>
+          )}
+          {!open && latest && (
+            <span className={`truncate font-mono ${ttsLogStatusText(latest.status)}`}>
+              {latest.content_text || latest.status || '-'}
+            </span>
+          )}
+        </button>
+      </div>
+    </Portal>
+  );
+};
 
 const VocabularyLearning: React.FC = () => {
   const { lang } = useAppState();
@@ -72,6 +302,8 @@ const VocabularyLearning: React.FC = () => {
   const [libraries, setLibraries] = useState<any[]>([]);
   const [loadingLibraries, setLoadingLibraries] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('english');
+  // Per-library cover-retry in flight (keyed by library id).
+  const [retryingCovers, setRetryingCovers] = useState<Set<number | string>>(new Set());
 
   // Library Words Viewer State
   const [libraryWordsModalOpen, setLibraryWordsModalOpen] = useState(false);
@@ -92,12 +324,42 @@ const VocabularyLearning: React.FC = () => {
   const [wordModalLanguage, setWordModalLanguage] = useState<string>('english');
   const [wordModalCache, setWordModalCache] = useState<Record<string, { page: number; perPage: number }>>({});
 
-  // TTS Queue State
-  const [queueStats, setQueueStats] = useState<any>(null);
+  // TTS Queue State — backed by the global task layer (`laravel.tts-queue`).
+  // The polled stats snapshot + its poll loop live in <TaskPersistenceProvider>
+  // above the router, so the live queue view survives leaving and returning to
+  // this page and a full reload re-polls. `loadingQueueStats` is page-local UI.
   const [loadingQueueStats, setLoadingQueueStats] = useState(false);
   const [autoRefreshQueue, setAutoRefreshQueue] = useState(false);
+  // Floating Recent-Logs dock (bottom-left). Collapsed by default.
+  const [logsDockOpen, setLogsDockOpen] = useState(false);
 
+  // Library deletion confirm state
+  const [libraryToDelete, setLibraryToDelete] = useState<any | null>(null);
+  const [deletingLibrary, setDeletingLibrary] = useState(false);
+
+  const toast = useToast();
   const t = TRANSLATIONS[lang].vocabulary;
+
+  // No try/catch — guard with `.catch`. Returns null on failure (settles the
+  // loop, keeping the last good stats) which mirrors the original behaviour.
+  const fetchQueueStats = (): Promise<any | null> =>
+    api.appQyV1.getTTSQueueStats()
+      .then((response: any) => {
+        setLoadingQueueStats(false);
+        return (response.success && response.data) ? response.data : null;
+      })
+      .catch((error: any) => {
+        console.error('Failed to load queue stats:', error);
+        setLoadingQueueStats(false);
+        return null;
+      });
+
+  const queueTask = usePersistentTask<any>('laravel.tts-queue', {
+    intervalMs: 5000,
+    poll: fetchQueueStats,
+    reattach: fetchQueueStats,
+  });
+  const queueStats = queueTask.data;
 
   useEffect(() => {
     loadLanguages();
@@ -120,15 +382,14 @@ const VocabularyLearning: React.FC = () => {
     }
   }, [selectedTask]);
 
-  // Auto-refresh TTS queue stats
+  // Auto-refresh toggle drives the persistent poll loop on/off.
   useEffect(() => {
     if (autoRefreshQueue) {
-      const interval = setInterval(() => {
-        loadQueueStats();
-      }, 5000); // Refresh every 5 seconds
-
-      return () => clearInterval(interval);
+      if (!queueTask.running) queueTask.begin();
+    } else if (queueTask.running) {
+      queueTask.end();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRefreshQueue]);
 
   useEffect(() => {
@@ -241,11 +502,70 @@ const VocabularyLearning: React.FC = () => {
       } else {
         setLibraries([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load libraries:', error);
+      logError('vocab', `Failed to load libraries: ${error?.message || 'unknown error'}`);
       setLibraries([]);
     } finally {
       setLoadingLibraries(false);
+    }
+  };
+
+  /**
+   * Retry a single library's FAILED cover. Resets that row to `pending` so
+   * pycore re-claims and regenerates it (pull-only cover architecture), then
+   * reloads the list so the new cover/status surfaces.
+   */
+  const handleRetryCover = async (library: any) => {
+    const id = library?.id;
+    if (id == null) return;
+    setRetryingCovers((prev) => { const n = new Set(prev); n.add(id); return n; });
+    logInfo('covers', `Retrying failed cover for library #${id} (${library?.name ?? ''})...`);
+    try {
+      const response = await api.appQyV1.retryCover({ ids: [Number(id)] });
+      if (response.success) {
+        toast.success('Cover queued for regeneration.');
+        logSuccess('covers', `Cover retry queued for library #${id}`);
+        await loadLibraries();
+      } else {
+        toast.error(response.error || 'Failed to retry cover');
+        logError('covers', `Cover retry failed for library #${id}: ${response.error || 'unknown error'}`);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to retry cover');
+      logError('covers', `Cover retry failed for library #${id}: ${error?.message || error}`);
+    } finally {
+      setRetryingCovers((prev) => { const n = new Set(prev); n.delete(id); return n; });
+    }
+  };
+
+  /**
+   * Delete a user-created learning library (confirmed via modal).
+   * The endpoint is auth:sanctum — a 401/403 surfaces a "please log in" toast.
+   */
+  const handleDeleteLibrary = async () => {
+    if (!libraryToDelete) return;
+    const name: string = libraryToDelete.name || `#${libraryToDelete.id}`;
+    setDeletingLibrary(true);
+    logInfo('vocab', `Deleting library "${name}" (id=${libraryToDelete.id})...`);
+    try {
+      const response = await api.appQyV1.deleteLearningLibrary(libraryToDelete.id);
+      if (response.success) {
+        toast.success(t.delete_library_success.replace('{name}', name));
+        logSuccess('vocab', `Library "${name}" deleted`);
+        setLibraryToDelete(null);
+        loadLibraries();
+      } else if (response.status === 401 || response.status === 403) {
+        toast.error(t.login_required);
+        logError('vocab', `Delete library "${name}" failed: authentication required (HTTP ${response.status})`);
+      } else {
+        throw new Error(response.error || t.delete_library_failed);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || t.delete_library_failed);
+      logError('vocab', `Delete library "${name}" failed: ${error?.message || 'unknown error'}`);
+    } finally {
+      setDeletingLibrary(false);
     }
   };
 
@@ -360,22 +680,10 @@ const VocabularyLearning: React.FC = () => {
     }
   };
 
-  const loadQueueStats = async () => {
+  // Manual refresh = one immediate fetch pushed into the shared session.
+  const loadQueueStats = () => {
     setLoadingQueueStats(true);
-    try {
-      const response = await api.appQyV1.getTTSQueueStats();
-
-      if (response.success && response.data) {
-        setQueueStats(response.data);
-      } else {
-        setQueueStats(null);
-      }
-    } catch (error) {
-      console.error('Failed to load queue stats:', error);
-      setQueueStats(null);
-    } finally {
-      setLoadingQueueStats(false);
-    }
+    fetchQueueStats().then((s) => { if (s) queueTask.set(s); });
   };
 
   const loadWordModal = async (language: string, page: number, perPage: number): Promise<{ words: VocabularyStatisticsWordRow[]; pagination: VocabularyWordsPagination | null }> => {
@@ -453,6 +761,7 @@ const VocabularyLearning: React.FC = () => {
           status: 'success'
         });
         setHistory(prev => [response.data!, ...prev.slice(0, 9)]);
+        logSuccess('vocab', `Translated ${sourceLanguage}→${targetLanguage} (${inputText.trim().length} chars)`);
       } else {
         throw new Error(response.error || 'Translation failed');
       }
@@ -463,6 +772,8 @@ const VocabularyLearning: React.FC = () => {
         error: error.message,
         status: 'error'
       });
+      toast.error(`${t.translate_failed}: ${error.message}`);
+      logError('vocab', `Translate ${sourceLanguage}→${targetLanguage} failed: ${error.message}`);
     }
   };
 
@@ -483,6 +794,7 @@ const VocabularyLearning: React.FC = () => {
           setSourceLanguage(response.data.detected_language);
         }
         setHistory(prev => [response.data!, ...prev.slice(0, 9)]);
+        logSuccess('vocab', `Detect+translate →${targetLanguage} succeeded (detected: ${response.data.detected_language || 'unknown'})`);
       } else {
         throw new Error(response.error || 'Translation failed');
       }
@@ -493,6 +805,8 @@ const VocabularyLearning: React.FC = () => {
         error: error.message,
         status: 'error'
       });
+      toast.error(`${t.translate_failed}: ${error.message}`);
+      logError('vocab', `Detect+translate →${targetLanguage} failed: ${error.message}`);
     }
   };
 
@@ -515,6 +829,8 @@ const VocabularyLearning: React.FC = () => {
           error: null,
           status: 'success'
         });
+        toast.success(t.tts_success);
+        logSuccess('vocab', `TTS generated (${targetLanguage}, ${translation.data.translated_text.length} chars)`);
       } else {
         throw new Error(response.error || 'TTS generation failed');
       }
@@ -525,6 +841,8 @@ const VocabularyLearning: React.FC = () => {
         error: error.message,
         status: 'error'
       });
+      toast.error(`${t.tts_failed}: ${error.message}`);
+      logError('vocab', `TTS generation failed: ${error.message}`);
     }
   };
 
@@ -708,113 +1026,20 @@ const VocabularyLearning: React.FC = () => {
               </div>
             </div>
 
-            {/* Recent Logs */}
-            {queueStats.recent_logs && Array.isArray(queueStats.recent_logs) && queueStats.recent_logs.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Recent Logs {queueStats.logs_count && `(${queueStats.logs_count})`}
-                  </h4>
-                </div>
-                <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                  <div className="max-h-96 overflow-y-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">ID</th>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Content</th>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Type</th>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Language</th>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Status</th>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Priority</th>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Retries</th>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Time</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                        {queueStats.recent_logs.map((log: any, index: number) => (
-                          <React.Fragment key={log.id || index}>
-                            <tr
-                              className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
-                                log.status === 'failed' ? 'bg-red-50/50 dark:bg-red-900/10' :
-                                log.status === 'completed' ? 'bg-green-50/50 dark:bg-green-900/10' :
-                                log.status === 'processing' ? 'bg-blue-50/50 dark:bg-blue-900/10' :
-                                ''
-                              }`}
-                            >
-                              <td className="px-3 py-2 text-slate-600 dark:text-slate-400 font-mono text-xs">
-                                {log.id}
-                              </td>
-                              <td className="px-3 py-2 text-slate-900 dark:text-slate-100 max-w-xs truncate" title={log.content_text}>
-                                {log.content_text || '-'}
-                              </td>
-                              <td className="px-3 py-2">
-                                <span className={`px-2 py-0.5 rounded text-xs ${
-                                  log.task_type === 'word' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' :
-                                  log.task_type === 'sentence' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
-                                  'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400'
-                                }`}>
-                                  {log.task_type || '-'}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-slate-600 dark:text-slate-400 uppercase">
-                                {log.language || '-'}
-                              </td>
-                              <td className="px-3 py-2">
-                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                  log.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                                  log.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
-                                  log.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
-                                  'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                                }`}>
-                                  {log.status || '-'}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
-                                {log.priority ? log.priority.toLocaleString() : '-'}
-                              </td>
-                              <td className="px-3 py-2">
-                                {log.retry_count !== undefined && log.retry_count > 0 ? (
-                                  <span className="px-2 py-0.5 rounded text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
-                                    {log.retry_count}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-400">0</span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
-                                {log.completed_at ? (
-                                  <span className="text-green-600 dark:text-green-400" title={log.completed_at}>
-                                    {new Date(log.completed_at).toLocaleString()}
-                                  </span>
-                                ) : log.started_at ? (
-                                  <span className="text-blue-600 dark:text-blue-400" title={log.started_at}>
-                                    {new Date(log.started_at).toLocaleString()}
-                                  </span>
-                                ) : log.requested_at ? (
-                                  <span className="text-yellow-600 dark:text-yellow-400" title={log.requested_at}>
-                                    {new Date(log.requested_at).toLocaleString()}
-                                  </span>
-                                ) : '-'}
-                              </td>
-                            </tr>
-                            {log.error_message && (
-                              <tr className="bg-red-50/30 dark:bg-red-900/10">
-                                <td colSpan={8} className="px-3 py-2">
-                                  <p className="text-xs text-red-700 dark:text-red-400">
-                                    <strong>Error:</strong> {log.error_message}
-                                  </p>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Recent Logs — moved to the floating bottom-left dock (<TtsLogsDock/>) */}
+            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+              <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <ListChecks className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+                {t.logs_moved_hint}
+              </p>
+              <button
+                type="button"
+                onClick={() => setLogsDockOpen(true)}
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex-shrink-0"
+              >
+                {t.open_logs_dock}
+              </button>
+            </div>
           </div>
         ) : loadingQueueStats ? (
           <div className="flex items-center justify-center py-8">
@@ -902,6 +1127,41 @@ const VocabularyLearning: React.FC = () => {
             </div>
           </div>
 
+          {/* Dictionary-level totals: distinct words, translation coverage, validity */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4">
+              <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">
+                {(statistics.summary?.total_dictionary_words || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400">Dictionary Words</div>
+            </div>
+            <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4">
+              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                {(statistics.summary?.total_with_translation || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400">With Translation</div>
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
+              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                {(statistics.summary?.total_without_translation || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400">Without Translation</div>
+            </div>
+            <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-4">
+              <div className="text-2xl font-bold text-rose-700 dark:text-rose-400">
+                {(statistics.summary?.total_invalid_words || 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-slate-600 dark:text-slate-400">
+                Invalid Words
+                {statistics.summary?.total_validity_checked != null && (
+                  <span className="ml-1 text-slate-400">
+                    ({(statistics.summary?.total_validity_checked || 0).toLocaleString()} checked)
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Language Breakdown - total table */}
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Language Breakdown</h4>
@@ -911,24 +1171,33 @@ const VocabularyLearning: React.FC = () => {
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
                       <th className="text-left py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Language</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Libraries</th>
                       <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Words</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Translated</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">No Translation</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Valid</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Invalid</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Libraries</th>
                       <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">TTS</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Images</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">AI Reviewed</th>
+                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Translation %</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {statistics.languages.map((lang: any, idx: number) => (
+                    {statistics.languages.map((lang: any, idx: number) => {
+                      const words = (lang.dictionary_words ?? 0) > 0 ? lang.dictionary_words : (lang.total_words || 0);
+                      return (
                       <tr key={idx} className="border-b border-slate-100 dark:border-slate-700/50 last:border-0">
                         <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">{lang.language}</td>
-                        <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">{(lang.libraries_count || 0).toLocaleString()}</td>
-                        <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">{(lang.total_words || 0).toLocaleString()}</td>
+                        <td className="py-2 px-3 text-right text-slate-700 dark:text-slate-300 font-medium">{(words || 0).toLocaleString()}</td>
+                        <td className="py-2 px-3 text-right text-emerald-600 dark:text-emerald-400">{(lang.with_translation || 0).toLocaleString()}</td>
+                        <td className="py-2 px-3 text-right text-amber-600 dark:text-amber-400">{(lang.without_translation || 0).toLocaleString()}</td>
+                        <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">{(lang.valid_words ?? words ?? 0).toLocaleString()}</td>
+                        <td className="py-2 px-3 text-right text-rose-600 dark:text-rose-400">{(lang.invalid_words || 0).toLocaleString()}</td>
+                        <td className="py-2 px-3 text-right text-slate-500 dark:text-slate-500">{(lang.libraries_count || 0).toLocaleString()}</td>
                         <td className="py-2 px-3 text-right text-green-600 dark:text-green-400">{lang.tts_percentage ?? 0}%</td>
-                        <td className="py-2 px-3 text-right text-blue-600 dark:text-blue-400">{lang.images_percentage ?? 0}%</td>
                         <td className="py-2 px-3 text-right text-purple-600 dark:text-purple-400">{lang.review_percentage ?? 0}%</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -997,7 +1266,55 @@ const VocabularyLearning: React.FC = () => {
                     />
                   </div>
                 )}
-                <h4 className="font-semibold text-sm mb-1">{library.name}</h4>
+                {/* Failed cover: show WHY (error_message + attempts) and a per-
+                    library Retry that re-queues it for pycore (pull-only). */}
+                {library.cover?.status === 'failed' && (
+                  <div
+                    className="mb-3 px-2.5 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-start gap-1.5 text-xs text-red-700 dark:text-red-300">
+                      <CircleAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span
+                        className="flex-1 line-clamp-2 break-words"
+                        title={library.cover.error_message || 'Cover generation failed.'}
+                      >
+                        {library.cover.error_message || 'Cover generation failed.'}
+                        {typeof library.cover.attempts === 'number' && library.cover.attempts > 0 && (
+                          <span className="text-red-500/80 dark:text-red-400/80">
+                            {' '}({library.cover.attempts} attempt{library.cover.attempts === 1 ? '' : 's'})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRetryCover(library);
+                      }}
+                      disabled={retryingCovers.has(library.id)}
+                      className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${retryingCovers.has(library.id) ? 'animate-spin' : ''}`} />
+                      Retry cover
+                    </button>
+                  </div>
+                )}
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <h4 className="font-semibold text-sm">{library.name}</h4>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLibraryToDelete(library);
+                    }}
+                    className="flex-shrink-0 p-1 rounded text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    title={t.delete_library}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
                 {library.description && (
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 line-clamp-2">
                     {library.description}
@@ -1462,8 +1779,9 @@ const VocabularyLearning: React.FC = () => {
 
       {/* Library Words Modal */}
       {libraryWordsModalOpen && activeLibrary && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-700/80">
+        <Portal>
+          <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}>
+            <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-700/80">
             {/* Modal Header */}
             <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
               <div className="flex flex-col">
@@ -1606,8 +1924,9 @@ const VocabularyLearning: React.FC = () => {
                 </table>
               )}
             </div>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
 
       {/* History Bar */}
@@ -1650,6 +1969,34 @@ const VocabularyLearning: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* Floating Recent-Logs dock (bottom-left; the global log dock owns bottom-right).
+          Rendered unconditionally so the pill badges stay live while collapsed. */}
+      <TtsLogsDock
+        open={logsDockOpen}
+        onToggle={() => setLogsDockOpen((v) => !v)}
+        queueStats={queueStats}
+        loading={loadingQueueStats}
+        autoRefresh={autoRefreshQueue}
+        onAutoRefreshChange={setAutoRefreshQueue}
+        onRefresh={loadQueueStats}
+        t={t}
+      />
+
+      {/* Library deletion confirm */}
+      <ConfirmModal
+        isOpen={!!libraryToDelete}
+        onClose={() => {
+          if (!deletingLibrary) setLibraryToDelete(null);
+        }}
+        onConfirm={handleDeleteLibrary}
+        title={t.delete_library}
+        message={t.delete_library_confirm.replace('{name}', libraryToDelete?.name || `#${libraryToDelete?.id ?? ''}`)}
+        confirmText={t.delete_library}
+        cancelText={t.cancel}
+        variant="danger"
+        loading={deletingLibrary}
+      />
     </div>
   );
 };

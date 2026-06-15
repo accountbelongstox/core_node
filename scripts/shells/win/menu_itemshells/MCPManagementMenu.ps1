@@ -14,7 +14,8 @@
 .SYNOPSIS
     MCP Management Menu
 .DESCRIPTION
-    Menu for MCP-related actions such as Install Chrome MCP. Output is streamed in real time; no exit code detection.
+    Menu for MCP-related actions. Every MCP install auto-syncs config to all AI tools.
+    Output is streamed in real time; no exit code detection.
 #>
 
 #region Variable Declarations
@@ -27,8 +28,17 @@ $script:CHROME_MCP_START_PS1 = Join-Path $script:CORE_NODE_DIR "apps\mcp-chrome\
 $script:CONTEXT7_PS1 = Join-Path $script:CORE_NODE_DIR "ncore\mcp_server\auto-context7-mcp\auto_fix_context7.ps1"
 $script:WAIT_PLEASE_INSTALL_PS1 = Join-Path $script:CORE_NODE_DIR "ncore\mcp_server\wait_please\install-windows.ps1"
 $script:INSTALL_ALL_MCP_PS1 = Join-Path $script:PS_CURRENT_DIR "InstallAllMCPServices.ps1"
+$script:AI_PS1TOOLS_DIR = Join-Path $script:CORE_NODE_DIR "scripts\ai_ps1tools"
 $script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR "win_common"
 $script:GLOBALVARS_PS1 = Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1"
+
+$script:SYNC_SCRIPTS = @(
+    "claude_sync_mcp_servers.ps1",
+    "cursor_sync_mcp_servers.ps1",
+    "codex_sync_mcp_servers.ps1",
+    "gemini_sync_mcp_servers.ps1",
+    "droid_sync_mcp_servers.ps1"
+)
 
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
@@ -62,6 +72,53 @@ function Write-ColorMessage {
     Write-Host -ForegroundColor $color "$prefix$Message"
 }
 
+function Invoke-SyncToAllAITools {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor $script:COLOR_HIGHLIGHT
+    Write-ColorMessage -Message "Syncing MCP config to all AI tools..." -Type "Info"
+    Write-Host "========================================" -ForegroundColor $script:COLOR_HIGHLIGHT
+    if (-not (Test-Path -LiteralPath $script:AI_PS1TOOLS_DIR)) {
+        Write-ColorMessage -Message "ai_ps1tools directory not found: $script:AI_PS1TOOLS_DIR" -Type "Error"
+        return
+    }
+    foreach ($syncScript in $script:SYNC_SCRIPTS) {
+        $scriptPath = Join-Path $script:AI_PS1TOOLS_DIR $syncScript
+        if (-not (Test-Path -LiteralPath $scriptPath)) {
+            Write-ColorMessage -Message "Sync script not found, skipping: $syncScript" -Type "Warning"
+            continue
+        }
+        Write-ColorMessage -Message "Running: $syncScript" -Type "Info"
+        & $scriptPath
+        Write-ColorMessage -Message "Finished: $syncScript" -Type "Info"
+        Write-Host ""
+    }
+    Write-Host "========================================" -ForegroundColor $script:COLOR_HIGHLIGHT
+    Write-ColorMessage -Message "All AI tools sync complete." -Type "Success"
+    Write-Host "========================================" -ForegroundColor $script:COLOR_HIGHLIGHT
+}
+
+function Invoke-SyncToSingleTool {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ToolName
+    )
+    $scriptFileName = "${ToolName}_sync_mcp_servers.ps1"
+    $scriptPath = Join-Path $script:AI_PS1TOOLS_DIR $scriptFileName
+    if (-not (Test-Path -LiteralPath $scriptPath)) {
+        Write-ColorMessage -Message "Sync script not found: $scriptPath" -Type "Error"
+        Write-Host ""
+        Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        return
+    }
+    Write-ColorMessage -Message "Syncing MCP config to $ToolName..." -Type "Info"
+    & $scriptPath
+    Write-Host ""
+    Write-ColorMessage -Message "$ToolName sync complete." -Type "Success"
+    Write-Host ""
+    Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
+
 function Invoke-ChromeMCPInstall {
     if (-not (Test-Path -LiteralPath $script:CHROME_MCP_START_PS1)) {
         Write-ColorMessage -Message "Chrome MCP start script not found: $script:CHROME_MCP_START_PS1" -Type "Error"
@@ -93,9 +150,8 @@ function Invoke-ChromeMCPInstall {
         $env:PATH = $prevPath
     }
     Write-Host ""
-    Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
-    Write-ColorMessage -Message "Chrome MCP script finished." -Type "Info"
-    Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
+    Write-ColorMessage -Message "Chrome MCP install finished. Now syncing to all AI tools..." -Type "Info"
+    Invoke-SyncToAllAITools
     Write-Host ""
     Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
@@ -112,6 +168,9 @@ function Invoke-Context7MCPInstall {
     Write-ColorMessage -Message "Running Context7 MCP (may start server)..." -Type "Info"
     Write-Host ""
     & $script:CONTEXT7_PS1
+    Write-Host ""
+    Write-ColorMessage -Message "Context7 MCP install finished. Now syncing to all AI tools..." -Type "Info"
+    Invoke-SyncToAllAITools
     Write-Host ""
     Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
@@ -135,6 +194,9 @@ function Invoke-WaitPleaseInstall {
         Set-Location $prevDir
     }
     Write-Host ""
+    Write-ColorMessage -Message "Wait Please install finished. Now syncing to all AI tools..." -Type "Info"
+    Invoke-SyncToAllAITools
+    Write-Host ""
     Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
@@ -152,17 +214,31 @@ function Invoke-InstallAllMCPServices {
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
+function Invoke-SyncAllOnly {
+    Invoke-SyncToAllAITools
+    Write-Host ""
+    Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
 #endregion
 
 #region Menu System
 function Show-MCPMenu {
     $menuItems = @(
-        @{ Text = "-- MCP Management -----------------"; Action = { }; IsHeader = $true },
-        @{ Text = "  Install all MCP services"; Action = { Invoke-InstallAllMCPServices }; IsHeader = $false },
-        @{ Text = "  Install Chrome MCP"; Action = { Invoke-ChromeMCPInstall }; IsHeader = $false },
-        @{ Text = "  Install Context7 MCP"; Action = { Invoke-Context7MCPInstall }; IsHeader = $false },
-        @{ Text = "  Install built-in MCP (Wait Please)"; Action = { Invoke-WaitPleaseInstall }; IsHeader = $false },
-        @{ Text = "------------------------------------"; Action = { }; IsHeader = $true },
+        @{ Text = "-- Install All -----------------------"; Action = { }; IsHeader = $true },
+        @{ Text = "  Install All MCP + Sync to All AI Tools"; Action = { Invoke-InstallAllMCPServices }; IsHeader = $false },
+        @{ Text = "-- Install Individual MCP Server ------"; Action = { }; IsHeader = $true },
+        @{ Text = "  Install Chrome MCP + Sync All"; Action = { Invoke-ChromeMCPInstall }; IsHeader = $false },
+        @{ Text = "  Install Context7 MCP + Sync All"; Action = { Invoke-Context7MCPInstall }; IsHeader = $false },
+        @{ Text = "  Install built-in MCP (Wait Please) + Sync All"; Action = { Invoke-WaitPleaseInstall }; IsHeader = $false },
+        @{ Text = "-- Sync Config Only (no install) ------"; Action = { }; IsHeader = $true },
+        @{ Text = "  Sync to All AI Tools"; Action = { Invoke-SyncAllOnly }; IsHeader = $false },
+        @{ Text = "  Sync to Claude"; Action = { Invoke-SyncToSingleTool -ToolName "claude" }; IsHeader = $false },
+        @{ Text = "  Sync to Cursor"; Action = { Invoke-SyncToSingleTool -ToolName "cursor" }; IsHeader = $false },
+        @{ Text = "  Sync to Codex"; Action = { Invoke-SyncToSingleTool -ToolName "codex" }; IsHeader = $false },
+        @{ Text = "  Sync to Gemini"; Action = { Invoke-SyncToSingleTool -ToolName "gemini" }; IsHeader = $false },
+        @{ Text = "  Sync to Droid"; Action = { Invoke-SyncToSingleTool -ToolName "droid" }; IsHeader = $false },
+        @{ Text = "---------------------------------------"; Action = { }; IsHeader = $true },
         @{ Text = "Back to main menu"; Action = { return $true }; IsHeader = $false },
         @{ Text = "Exit"; Action = { exit }; IsHeader = $false }
     )

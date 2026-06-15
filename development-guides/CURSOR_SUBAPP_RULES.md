@@ -12,4 +12,4 @@
 
 **Using pycore:** Sub-apps that import pycore must add the path containing the `pycore` package to `sys.path` before any pycore import (e.g. walk up from `__file__` until a directory named `pycore` exists, then `sys.path.insert(0, that_dir)`). This ensures imports succeed when the process is started from the sub-app or a tool entry point.
 
-Existing: `pyapps/d3-check` → `.cursor/rules/d3-check.mdc`, `pyapps/GameAISDK` → `.cursor/rules/game-aisdk.mdc`. **dotapps UI:** `.cursor/rules/dot-ui.mdc` (globs `dotapps/**`); canonical UI spec: [DOT_UI_PROJECT_SPECIFICATION.md](DOT_UI_PROJECT_SPECIFICATION.md). Any doc that describes UI or Presentation must defer to that spec. **How to edit or add rules:** [CURSOR_RULES_UPDATE_GUIDE.md](CURSOR_RULES_UPDATE_GUIDE.md).
+Existing: `pyapps/d3-check` → `.cursor/rules/d3-check.mdc`, `pyapps/GameAISDK` → `.cursor/rules/game-aisdk.mdc`. **dotapps UI:** `.cursor/rules/dot-ui.mdc` (globs `dotapps/**`); canonical UI spec: [DOT_ARCHITECTURE.md](DOT_ARCHITECTURE.md). Any doc that describes UI or Presentation must defer to that spec. **How to edit or add rules:** [CURSOR_RULES_UPDATE_GUIDE.md](CURSOR_RULES_UPDATE_GUIDE.md).

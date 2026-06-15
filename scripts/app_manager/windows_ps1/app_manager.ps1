@@ -21,7 +21,7 @@ if (-not $Global:PYTHON_EXE_PATH) {
 $Script:Apps = @()
 $Script:CurrentIndex = 0
 $Script:MaxAppNameWidth = 8
-# Active per row: "start" or "安装到服务"
+# Active per row: "start" or "install-service"
 $Script:AppActives = @()
 $Colors = @{ Header = "Cyan"; Success = "Green"; Warning = "Yellow"; Error = "Red"; Info = "DarkGray"; Highlight = "White" }
 
@@ -97,7 +97,7 @@ function Show-Menu {
     }
     Write-Host ""
     Write-AMWarning "Controls:"
-    Write-Host "Up/Down: select app | Left/Right: toggle Active (start / 安装到服务) | Enter: Launch or Install | R: Rescan | Q: Quit"
+    Write-Host "Up/Down: select app | Left/Right: toggle Active (start / install-service) | Enter: Launch or Install | R: Rescan | Q: Quit"
     Write-Host ""
     Write-Host "Press key: " -ForegroundColor $Colors.Header -NoNewline
 }
@@ -262,19 +262,19 @@ function Start-MainLoop {
                 }
             }
             LeftArrow {
-                if ($Script:Apps.Count -gt 0 -and $Script:AppActives.Count -gt $Script:CurrentIndex -and $Script:AppActives[$Script:CurrentIndex] -eq "安装到服务") {
+                if ($Script:Apps.Count -gt 0 -and $Script:AppActives.Count -gt $Script:CurrentIndex -and $Script:AppActives[$Script:CurrentIndex] -eq "install-service") {
                     $Script:AppActives[$Script:CurrentIndex] = "start"
                 }
             }
             RightArrow {
                 if ($Script:Apps.Count -gt 0 -and $Script:AppActives.Count -gt $Script:CurrentIndex -and $Script:AppActives[$Script:CurrentIndex] -eq "start") {
-                    $Script:AppActives[$Script:CurrentIndex] = "安装到服务"
+                    $Script:AppActives[$Script:CurrentIndex] = "install-service"
                 }
             }
             Enter {
                 if ($Script:Apps.Count -gt 0) {
                     Save-LastIndex
-                    if ($Script:AppActives[$Script:CurrentIndex] -eq "安装到服务") {
+                    if ($Script:AppActives[$Script:CurrentIndex] -eq "install-service") {
                         Install-CurrentAsService
                     } else {
                         Start-CurrentApp

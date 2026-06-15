@@ -11,7 +11,13 @@ wc_lib_resolve_paths() {
     scripts_dir="$(cd "$lib_dir/.." && pwd)"
     local group_root=""
     group_root="$(cd "$scripts_dir/.." && pwd)"
-    WC_CORE_NODE="$(cd "$group_root/.." && pwd)"
+    WC_CORE_NODE=""
+    # shellcheck source=/dev/null
+    source "$lib_dir/webclaude_resolve_core_node.sh"
+    WC_CORE_NODE="$(webclaude_print_resolved_core_node "$group_root" "$group_root" 2>/dev/null)"
+    if [[ -z "$WC_CORE_NODE" ]]; then
+        WC_CORE_NODE="$(cd "$group_root/.." && pwd)"
+    fi
     WC_FIREWALL_SH="$WC_CORE_NODE/scripts/shells/linux/common/firewall_manager.sh"
     WC_SERVICE_SH="$WC_CORE_NODE/scripts/shells/linux/common/debian_service_manager.sh"
 }

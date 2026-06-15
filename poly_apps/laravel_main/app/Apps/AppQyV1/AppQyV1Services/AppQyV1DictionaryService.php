@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
@@ -40,7 +37,26 @@ class AppQyV1DictionaryService
     public static function getLanguageCode(string $language): string
     {
         $normalizedLanguage = strtolower($language);
-        return self::LANGUAGE_MAP[$normalizedLanguage] ?? $normalizedLanguage;
+
+        // Primary: local name->code map.
+        if (isset(self::LANGUAGE_MAP[$normalizedLanguage])) {
+            return self::LANGUAGE_MAP[$normalizedLanguage];
+        }
+
+        // Already a known language code -> return as-is.
+        $fullMap = \App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService::LANGUAGES;
+        if (isset($fullMap[$normalizedLanguage])) {
+            return $normalizedLanguage;
+        }
+
+        // Fallback: full language name (e.g. "russian") -> code ("ru").
+        foreach ($fullMap as $code => $name) {
+            if (strtolower($name) === $normalizedLanguage) {
+                return $code;
+            }
+        }
+
+        return $normalizedLanguage;
     }
 
     /**
@@ -74,7 +90,7 @@ class AppQyV1DictionaryService
 
                 $existing[] = [
                     'word' => $word,
-                    'md5' => md5(strtolower($word)),
+                    'md5' => md5($word),
                     'has_translation' => $hasTranslation,
                     'query_count' => 0,
                 ];
@@ -160,7 +176,7 @@ class AppQyV1DictionaryService
         $isEnglish = in_array(strtolower($langCode), ['en', 'english']);
 
         foreach ($words as $word) {
-            $wordMd5 = md5(strtolower($word));
+            $wordMd5 = md5($word);
             $entry = AppQyV1MultiLangDictionaryModel::findByWord($langCode, $word);
 
             if ($entry) {
@@ -233,11 +249,9 @@ class AppQyV1DictionaryService
         $translated = AppQyV1MultiLangDictionaryModel::countByTranslation($langCode);
         $untranslated = $total - $translated;
 
+        // Unified schema: audio presence is the has_audio boolean.
         $needingTTS = AppQyV1MultiLangDictionaryModel::forLanguage($langCode)
-            ->where(function($query) {
-                $query->where('tts_generated', false)
-                    ->orWhereNull('tts_generated');
-            })
+            ->where('has_audio', false)
             ->count();
 
         return [
@@ -267,7 +281,7 @@ class AppQyV1DictionaryService
         foreach ($words as $word) {
             $result[] = [
                 'word' => $word->word,
-                'md5' => md5(strtolower($word->word)),
+                'md5' => md5($word->word),
                 'query_count' => 0,
             ];
         }
@@ -429,10 +443,20 @@ class AppQyV1DictionaryService
     {
         $langCode = strtolower($langCode);
 
+        // Primary: the local name->code map (english/chinese/...).
         foreach (self::LANGUAGE_MAP as $name => $code) {
             if ($code === $langCode) {
                 return $name;
             }
+        }
+
+        // Fallback: the canonical 80+ language code->name table. Without this a
+        // code such as 'en' (or any unlisted code) would leak through as a bare
+        // code, so getStatistics could not resolve the correct dictionary and
+        // scanning silently skipped that language.
+        $fullMap = \App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService::LANGUAGES;
+        if (isset($fullMap[$langCode])) {
+            return strtolower($fullMap[$langCode]);
         }
 
         return $langCode;

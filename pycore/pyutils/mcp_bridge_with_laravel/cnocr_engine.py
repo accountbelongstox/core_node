@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-from pycore.pyfoundations.cpu_gpu_packages import get_cnocr_pip_package
+from pycore.pyfoundations.pybasecommon.compute_caps import get_cnocr_pip_package
 
 # Get logger
 logger = logging.getLogger(__name__)

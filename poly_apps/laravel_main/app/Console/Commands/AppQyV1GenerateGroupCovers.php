@@ -42,15 +42,16 @@ class AppQyV1GenerateGroupCovers extends Command
         $appKey = AppKeys::APPQYV1;
         $model = new AppQyV1WordGroupModel();
         $connection = $model->getConnection();
-        $groupWordsTable = AppTablePrefixServiceProvider::buildTableName($appKey, 'group_words');
+        // One JSON row per group: total_words caches the word-map key count.
+        $progressTable = AppTablePrefixServiceProvider::buildTableName($appKey, 'group_word_progress');
 
         foreach ($groups as $group) {
             $category = AppQyV1CoverImageService::inferCategory($group->gname);
 
-            $wordCount = $connection
-                ->table($groupWordsTable)
+            $wordCount = (int) $connection
+                ->table($progressTable)
                 ->where('group_id', $group->id)
-                ->count();
+                ->value('total_words');
 
             $result = AppQyV1CoverImageService::generateGroupCover(
                 $group->gname,

@@ -20,6 +20,10 @@
       synonyms: [],
       advancedTranslations: [],
       voiceUrls: [],
+      // True when the page yielded at least one usable signal (definition,
+      // phonetic, or image). The worker marks a word invalid in the backend when
+      // this is false, so a genuine "Bing has no entry" never re-queues.
+      hasContent: false,
       error: null,
     };
 
@@ -124,6 +128,17 @@
             });
           }
         });
+      }
+
+      // A real dictionary hit yields at least a definition, a phonetic, or an
+      // image. Pure noise (e.g. a redirect/landing page) leaves all three empty.
+      result.hasContent =
+        result.translations.length > 0 ||
+        result.phonetics.length > 0 ||
+        result.sampleImages.length > 0;
+
+      if (!result.hasContent && !result.error) {
+        result.error = 'No usable dictionary content for this word';
       }
 
       result.success = true;

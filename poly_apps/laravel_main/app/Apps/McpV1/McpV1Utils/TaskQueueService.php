@@ -3,6 +3,7 @@
 namespace App\Apps\McpV1\McpV1Utils;
 
 use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 
 /**
  * Task Queue Service (McpV1)
@@ -22,25 +23,33 @@ class TaskQueueService
     private $queueDirectory;
     private $mappingService;
 
+    /** Whether the queue directory is usable (degraded mode when false). */
+    private $directoryReady = false;
+
     public function __construct($baseDirectory = null)
     {
         $this->baseDirectory = $baseDirectory ?? PathMapper::getCoreNodeDir();
 
         // Store queue data in _prompts/task-data/queues/ (not committed to git)
-        // Fall back to shared-data if needed for static file mapping
+        // Fall back to shared-data if needed for static file mapping.
+        // ensurePromptsDirectory resolves a file squatting on the _prompts path
+        // (preserving it) and never throws — a bare mkdir() here would raise an
+        // ErrorException from the constructor and 500 every queue route.
         $promptsDir = $this->baseDirectory . DIRECTORY_SEPARATOR . '_prompts';
         $this->queueDirectory = $promptsDir . DIRECTORY_SEPARATOR . 'task-data' . DIRECTORY_SEPARATOR . 'queues';
 
-        if (!file_exists($this->queueDirectory)) {
-            mkdir($this->queueDirectory, 0755, true);
-            error_log('[TaskQueueService] Created queue directory: ' . $this->queueDirectory);
+        $this->directoryReady = TaskCategoryService::ensurePromptsDirectory($promptsDir)
+            && FileSystemManager::ensureDirectoryExists($this->queueDirectory);
+
+        if (!$this->directoryReady) {
+            error_log('[TaskQueueService] queue directory unavailable: ' . $this->queueDirectory . ' — queue persistence disabled');
         }
 
         $this->mappingService = new PromptMappingService();
     }
 
     /**
-     * 获取分类队列文件路径
+     * Get the category queue file path
      */
     private function getCategoryQueueFile($categoryId)
     {
@@ -48,22 +57,30 @@ class TaskQueueService
     }
 
     /**
-     * 加载分类队列
+     * Load the category queue
      */
     public function loadCategoryQueue($categoryId)
     {
         $queueFile = $this->getCategoryQueueFile($categoryId);
 
-        if (!file_exists($queueFile)) {
+        if (!$this->directoryReady || !file_exists($queueFile)) {
             return $this->initializeCategoryQueue($categoryId);
         }
 
-        $content = file_get_contents($queueFile);
-        return json_decode($content, true);
+        $content = @file_get_contents($queueFile);
+        $decoded = $content === false ? null : json_decode($content, true);
+
+        // A corrupt/unreadable queue file degrades to an empty queue instead
+        // of letting callers explode on null.
+        if (!is_array($decoded) || !isset($decoded['tasks'])) {
+            return $this->initializeCategoryQueue($categoryId);
+        }
+
+        return $decoded;
     }
 
     /**
-     * 初始化分类队列
+     * Initialize the category queue
      */
     private function initializeCategoryQueue($categoryId)
     {
@@ -79,27 +96,35 @@ class TaskQueueService
     }
 
     /**
-     * 保存分类队列
+     * Save the category queue
      */
     private function saveCategoryQueue($categoryId, $queue)
     {
         $queue['last_updated'] = date('Y-m-d H:i:s');
 
+        if (!$this->directoryReady) {
+            return;
+        }
+
         $queueFile = $this->getCategoryQueueFile($categoryId);
-        file_put_contents(
+        $written = @file_put_contents(
             $queueFile,
             json_encode($queue, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
+
+        if ($written === false) {
+            error_log('[TaskQueueService] Failed to write queue file: ' . $queueFile);
+        }
     }
 
     /**
-     * 从文件内容解析任务段落
+     * Parse task paragraphs from file content
      *
-     * 使用\n\n作为段落分隔符
+     * Uses \n\n as the paragraph separator
      */
     private function parseParagraphsFromContent($content)
     {
-        // 使用\n\n分隔段落
+        // Split paragraphs using \n\n
         $paragraphs = preg_split('/\n\s*\n/', trim($content));
 
         $result = [];
@@ -118,21 +143,21 @@ class TaskQueueService
     }
 
     /**
-     * 添加文件到任务队列
+     * Add a file to the task queue
      *
-     * @param string $categoryId 分类ID
-     * @param string $filePath 文件路径（相对于_prompts）
-     * @param string $content 文件内容
-     * @param bool $applyMapping 是否应用提示词映射（默认true）
+     * @param string $categoryId Category ID
+     * @param string $filePath File path (relative to _prompts)
+     * @param string $content File content
+     * @param bool $applyMapping Whether to apply prompt mapping (default true)
      */
     public function addFileToQueue($categoryId, $filePath, $content, $applyMapping = true)
     {
         $queue = $this->loadCategoryQueue($categoryId);
 
-        // 解析段落
+        // Parse paragraphs
         $paragraphs = $this->parseParagraphsFromContent($content);
 
-        // 为每个段落创建任务
+        // Create a task for each paragraph
         foreach ($paragraphs as $paragraph) {
             $taskId = 'task_' . uniqid();
 
@@ -142,7 +167,7 @@ class TaskQueueService
                 ? $this->mappingService->applyMapping($categoryId, $originalContent)
                 : $originalContent;
 
-            // 检查是否已存在相同内容的任务（通过hash）
+            // Check whether a task with the same content already exists (by hash)
             $exists = false;
             foreach ($queue['tasks'] as $task) {
                 if ($task['file'] === $filePath &&
@@ -178,7 +203,7 @@ class TaskQueueService
     }
 
     /**
-     * 获取所有任务
+     * Get all tasks
      */
     public function getAllTasks($categoryId)
     {
@@ -187,7 +212,7 @@ class TaskQueueService
     }
 
     /**
-     * 获取最后一个任务（最新任务）
+     * Get the last task (the newest task)
      */
     public function getLastTask($categoryId)
     {
@@ -202,7 +227,7 @@ class TaskQueueService
     }
 
     /**
-     * 检查是否有最新任务
+     * Check whether there is a latest task
      */
     public function hasLatestTask($categoryId)
     {
@@ -211,7 +236,7 @@ class TaskQueueService
     }
 
     /**
-     * 根据关键字搜索任务
+     * Search tasks by keyword
      */
     public function searchTasksByKeyword($categoryId, $keyword)
     {
@@ -230,7 +255,7 @@ class TaskQueueService
     }
 
     /**
-     * 更新任务状态
+     * Update task status
      */
     public function updateTaskStatus($categoryId, $taskId, $status)
     {
@@ -250,7 +275,7 @@ class TaskQueueService
     }
 
     /**
-     * 删除任务
+     * Delete a task
      */
     public function deleteTask($categoryId, $taskId)
     {
@@ -260,7 +285,7 @@ class TaskQueueService
             return $task['id'] !== $taskId;
         });
 
-        // 重新索引数组
+        // Re-index the array
         $queue['tasks'] = array_values($queue['tasks']);
 
         $this->saveCategoryQueue($categoryId, $queue);
@@ -269,7 +294,7 @@ class TaskQueueService
     }
 
     /**
-     * 清空分类队列
+     * Clear the category queue
      */
     public function clearCategoryQueue($categoryId)
     {
@@ -278,7 +303,7 @@ class TaskQueueService
     }
 
     /**
-     * 获取队列统计信息
+     * Get queue statistics
      */
     public function getQueueStats($categoryId)
     {

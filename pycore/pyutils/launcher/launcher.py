@@ -28,7 +28,7 @@ from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
 from pycore.pyutils.launcher.config_manager import ConfigManager
 from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyutils.launcher.menu import InteractiveMenu
-from pycore.pyutils.desktop_icon_generator import DesktopIconGenerator
+from pycore.pyutils.common.icon_generator import DesktopIconGenerator
 
 
 # ============================================================================

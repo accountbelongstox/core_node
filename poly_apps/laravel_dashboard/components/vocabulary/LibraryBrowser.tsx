@@ -47,7 +47,7 @@ const LibraryBrowser: React.FC<LibraryBrowserProps> = ({ onLibrarySelected }) =>
         setRecommended(recRes.data as any);
       }
 
-      // 设置默认语言列表
+      // Set the default language list
       setLanguages([
         { code: 'all', name: 'All Languages' },
         { code: 'english', name: 'English' },
@@ -67,8 +67,8 @@ const LibraryBrowser: React.FC<LibraryBrowserProps> = ({ onLibrarySelected }) =>
     setError(null);
 
     try {
-      // Note: 需要在 AppQyV1API 中添加 selectLibrary 方法
-      // 暂时使用现有的实现
+      // Note: a selectLibrary method needs to be added to AppQyV1API
+      // For now, use the existing implementation
       onLibrarySelected(library);
     } catch (err: any) {
       setError(err.message || 'Selection error');

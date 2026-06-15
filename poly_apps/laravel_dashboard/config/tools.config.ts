@@ -78,12 +78,15 @@ export const AI_TOOLS: Record<string, ToolConfig> = {
     icon: 'FileImage',
     description: 'Extract text from images using OCR',
     apiModule: 'mcpV1',
-    apiMethod: 'mcpV1.uploadScreenshot',
+    // Was 'mcpV1.uploadScreenshot' — that posts the image to the screenshot
+    // store, NOT the OCR engine, so "Extract Text" silently produced no text.
+    // ocrRecognize hits the real /mcp/v1/ocr/recognize endpoint.
+    apiMethod: 'mcpV1.ocrRecognize',
     inputSchema: {
       required: ['image'],
       properties: {
         image: { type: 'file' },
-        description: { type: 'string' }
+        engine: { type: 'string' }
       }
     },
     outputSchema: {
@@ -138,6 +141,8 @@ export const AI_TOOLS: Record<string, ToolConfig> = {
     description: 'Generate images from text descriptions',
     apiModule: 'appQyV1',
     apiMethod: 'appQyV1.generateImage',
+    // Backend endpoint does not exist yet — shown as coming soon, execute disabled.
+    unavailable: true,
     inputSchema: {
       required: ['prompt'],
       properties: {
@@ -168,6 +173,8 @@ export const AI_TOOLS: Record<string, ToolConfig> = {
     description: 'Convert speech audio to text',
     apiModule: 'appQyV1',
     apiMethod: 'appQyV1.transcribeAudio',
+    // Backend endpoint does not exist yet — shown as coming soon, execute disabled.
+    unavailable: true,
     inputSchema: {
       required: ['audio'],
       properties: {
@@ -636,33 +643,9 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     cache: false
   },
 
-  textStatistics: {
-    id: 'textStatistics',
-    name: 'Text Statistics',
-    category: 'Text Processing',
-    icon: 'Calculator',
-    description: 'Count words, characters, lines, and more',
-    apiModule: 'itToolsV1',
-    apiMethod: 'itToolsV1.textStatistics',
-    inputSchema: {
-      required: ['text'],
-      properties: {
-        text: { type: 'string', minLength: 1 }
-      }
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        characters: { type: 'number' },
-        words: { type: 'number' },
-        lines: { type: 'number' },
-        paragraphs: { type: 'number' }
-      }
-    },
-    history: true,
-    favorites: true,
-    cache: false
-  },
+  // NOTE: `textStatistics` is defined canonically in tools.config.missing.ts
+  // (richer schema with readingTime). The duplicate that lived here was removed
+  // during the registry dedupe so each tool id resolves to a single definition.
 
   // ========== Crypto & Security Tools (14 new) ==========
 
@@ -689,30 +672,9 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     cache: false
   },
 
-  tokenGenerator: {
-    id: 'tokenGenerator',
-    name: 'Token Generator',
-    category: 'Crypto & Security',
-    icon: 'Key',
-    description: 'Generate secure random tokens for authentication',
-    apiModule: 'itToolsV1',
-    apiMethod: 'itToolsV1.generateToken',
-    inputSchema: {
-      required: [],
-      properties: {
-        length: { type: 'number', min: 16, max: 256 }
-      }
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        token: { type: 'string' }
-      }
-    },
-    history: true,
-    favorites: true,
-    cache: false
-  },
+  // NOTE: `tokenGenerator` is defined canonically in tools.config.missing.ts
+  // (richer schema with length + token type). The duplicate that lived here
+  // was removed during the registry dedupe.
 
   hmacGenerator: {
     id: 'hmacGenerator',
@@ -929,32 +891,9 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     cache: false
   },
 
-  basicAuthGenerator: {
-    id: 'basicAuthGenerator',
-    name: 'Basic Auth Generator',
-    category: 'Crypto & Security',
-    icon: 'Key',
-    description: 'Generate HTTP Basic Authentication headers',
-    apiModule: 'itToolsV1',
-    apiMethod: 'itToolsV1.generateBasicAuth',
-    inputSchema: {
-      required: ['username', 'password'],
-      properties: {
-        username: { type: 'string', minLength: 1 },
-        password: { type: 'string', minLength: 1 }
-      }
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        header: { type: 'string' },
-        encoded: { type: 'string' }
-      }
-    },
-    history: true,
-    favorites: true,
-    cache: false
-  },
+  // NOTE: `basicAuthGenerator` is defined canonically in tools.config.missing.ts
+  // (richer schema with field titles). The duplicate that lived here was
+  // removed during the registry dedupe.
 
   bcryptVerifier: {
     id: 'bcryptVerifier',

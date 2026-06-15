@@ -110,8 +110,9 @@ class AppIndicatorSystemTrayThread(threading.Thread):
 
         if not APPINDICATOR_AVAILABLE:
             raise RuntimeError(
-                "AppIndicator3 not available. Install with:\n"
-                "  sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
+                "AppIndicator not available. Install with:\n"
+                "  (modern Ubuntu) sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1\n"
+                "  (legacy)        sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
             )
 
         self.app_id = app_id

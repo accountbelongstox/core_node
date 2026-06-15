@@ -2,6 +2,7 @@
 
 namespace App\Services\TimerTasks;
 
+use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TranslationTaskService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
@@ -89,6 +90,16 @@ class AppQyV1DictionaryTranslationTask extends OctaneTimerTaskAbstract
             $maxTasksPerLanguage = 2;
             $createdCount = 0;
 
+            // Do not pile up: these dictionary_explanation tasks are consumed
+            // only by the browser-side remote_client worker, which may be
+            // offline for long stretches. Without this cap the 30s tick keeps
+            // appending tasks forever (the mis-routed remote_translation
+            // consumers used to drain them by failing them, masking this).
+            $pendingCount = $this->countPendingForLanguage($languageName);
+            if ($pendingCount >= $maxTasksPerLanguage) {
+                continue;
+            }
+
             for ($i = 0; $i < $maxTasksPerLanguage; $i++) {
                 $result = $this->translationService->createDictionaryExplanationTask(
                     $languageName,
@@ -133,6 +144,22 @@ class AppQyV1DictionaryTranslationTask extends OctaneTimerTaskAbstract
                 'available_languages' => count($allLanguageStats),
             ]);
         }
+    }
+
+    /**
+     * Count PENDING dictionary_explanation tasks for one language so the tick
+     * tops the queue up to the cap instead of growing it unboundedly.
+     * createDictionaryExplanationTask stores the language NAME in the payload,
+     * so match on that (json column predicate on the index-backed subset).
+     */
+    private function countPendingForLanguage(string $languageName): int
+    {
+        return GlobalTask::query()
+            ->where('app_name', 'AppQyV1')
+            ->whereIn('task_type', ['dictionary_explanation', 'dictionary_explanation_demo'])
+            ->where('status', GlobalTask::STATUS_PENDING)
+            ->where('payload->language', $languageName)
+            ->count();
     }
 
     /**

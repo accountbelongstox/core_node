@@ -1,5 +1,7 @@
 # 词典表重命名 - artisan sys:init 修改摘要
 
+> ⚠️ **已废弃 / SUPERSEDED (2026-05)。** 表族已统一为单一真实来源 **`{prefix}_tts_cache_{lang}`**（多语言，经 `AppQyV1LangDictionaryModel` 访问；`AppQyV1TableMaps::getDictionaryTableName($lang)` 返回 `{prefix}_tts_cache_{langCode}`）。生命周期：txt → 临时/staging (`_staging`) → 提升为正式 `tts_cache_{lang}` → 运行时实时更新（如客户端补充缺失翻译）。`app_qy_v1_words_*` / `app_qy_v1_*_dictionaries` / `AppQyV1MultiLangDictionaryModel` 已废弃。外部数据根目录改为 `<www>/wwwroot/laravel_db/external_data`。下列重命名映射与表结构仅作历史记录。
+
 ## 📋 概述
 
 已完成 `artisan sys:init` 命令的更新，使其符合新的词典表命名规范。

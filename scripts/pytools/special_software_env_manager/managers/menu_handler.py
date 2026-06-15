@@ -39,7 +39,11 @@ class MenuHandler:
             ColorMessage.write("=" * 80, 'info')
             print()
 
-            menu_items = []
+            # Custom Add is pinned as item #1 so it stays one keystroke away
+            # regardless of how long the provider list below grows.
+            menu_items = [
+                {'Text': 'Custom Add (any KEY, auto-indexed)', 'Action': 'custom_add', 'HasSubMenu': False},
+            ]
 
             for config_name, config in self.config_manager.get_all_configs().items():
                 action = config['Common']
@@ -65,7 +69,9 @@ class MenuHandler:
             if action is None:
                 continue
 
-            if action == 'addpath':
+            if action == 'custom_add':
+                handlers['encrypted_constants_manager'].custom_add()
+            elif action == 'addpath':
                 handlers['env_var_manager'].add_scripts_to_path()
             elif action == 'viewall':
                 handlers['env_var_manager'].show_all_environment_variables(self.config_manager)

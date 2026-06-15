@@ -1,5 +1,5 @@
 # Pair-code sync client: first run full tree sync; then filesystem watch + debounced incremental updates.
-# Single-file: inlined protocol + pip/ensurepip + auto pip-install missing third-party (watchdog).
+# Single-file: inlined protocol. Stdlib only (watchdog optional, must be pre-installed).
 # v2: persistent connections, batch_files, TCP_NODELAY, parallel targets, scandir, snap hash skip.
 
 from __future__ import annotations
@@ -11,7 +11,6 @@ import json
 import os
 import socket
 import struct
-import subprocess
 import sys
 import threading
 import time
@@ -23,62 +22,7 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 
-def _pip_bootstrap() -> None:
-    if os.environ.get("FILE_SYNC_V2_NO_AUTO_PIP", "").lower() in ("1", "true", "yes"):
-        return
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "--version"],
-            check=True,
-            timeout=30,
-            capture_output=True,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-        try:
-            subprocess.run(
-                [sys.executable, "-m", "ensurepip", "--upgrade"],
-                check=False,
-                timeout=120,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except OSError:
-            pass
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "-q", "--upgrade", "pip"],
-            check=False,
-            timeout=300,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except (subprocess.TimeoutExpired, OSError):
-        pass
-
-
-_pip_bootstrap()
-
-
-def _ensure_pip_package(import_name: str, pip_name: str | None = None) -> bool:
-    pip_name = pip_name or import_name
-    try:
-        importlib.import_module(import_name)
-        return True
-    except ImportError:
-        pass
-    if os.environ.get("FILE_SYNC_V2_NO_AUTO_DEPS", "").lower() in ("1", "true", "yes"):
-        return False
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "-q", pip_name],
-            check=False,
-            timeout=300,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-    importlib.invalidate_caches()
+def _try_import(import_name: str) -> bool:
     try:
         importlib.import_module(import_name)
         return True
@@ -152,7 +96,7 @@ def resolve_path_against(base_dir: str, p: str) -> str:
 
 
 _HAS_WATCHDOG = False
-if _ensure_pip_package("watchdog"):
+if _try_import("watchdog"):
     from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
 
@@ -457,18 +401,44 @@ def _try_pair_handshake(host: str, port: int, code: str) -> tuple[str, str]:
                 pass
 
 
+_PAIR_HISTORY_DIR = os.path.join(os.path.expanduser("~"), ".file_sync_v2")
+_PAIR_HISTORY_FILE = os.path.join(_PAIR_HISTORY_DIR, "pair_history.json")
+
+
+def _load_pair_history() -> dict[str, str]:
+    if not os.path.isfile(_PAIR_HISTORY_FILE):
+        return {}
+    try:
+        with open(_PAIR_HISTORY_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_pair_history(history: dict[str, str]) -> None:
+    os.makedirs(_PAIR_HISTORY_DIR, exist_ok=True)
+    with open(_PAIR_HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=2)
+
+
 def _interactive_acquire_pairs(enabled_targets: list[dict[str, str | int | bool | tuple[str, ...]]]) -> None:
+    history = _load_pair_history()
     for t in enabled_targets:
         label = f"{t['host']}:{t['port']}"
+        last_code = history.get(label, "")
+        hint = f" (last: {last_code})" if last_code else ""
         wrong_pair = 0
         while wrong_pair < 2:
-            raw = input(f"Pair code [{label}] (two digits from server console): ").strip()
+            raw = input(f"Pair code [{label}]{hint} (two digits from server console): ").strip()
             if len(raw) != 2 or not raw.isdigit():
                 print("Enter two digits (00-99).", flush=True)
                 continue
             kind, detail = _try_pair_handshake(str(t["host"]), int(t["port"]), raw)
             if kind == "ok":
                 t["pair"] = raw
+                history[label] = raw
+                _save_pair_history(history)
                 print(f"Paired successfully with {label}.", flush=True)
                 break
             if kind == "net":
@@ -1230,6 +1200,9 @@ def _run_loop() -> None:
             return True
         except (OSError, RuntimeError, ValueError) as e:
             print(f"  push failed [{key}]: {e}", flush=True)
+            # Roll back: remove pushed files from snap so watchdog re-detects them
+            for rel in target_changed:
+                snap.pop(rel, None)
             return False
 
     # --- initial sync ---
@@ -1355,7 +1328,7 @@ def _run_loop() -> None:
 
     # --- poll mode ---
     if use_watch and not _HAS_WATCHDOG:
-        print("watchdog not installed; pip install watchdog  OR  set use_watch false", flush=True)
+        print("watchdog not installed; set use_watch false in config, or install watchdog manually", flush=True)
 
     try:
         while True:

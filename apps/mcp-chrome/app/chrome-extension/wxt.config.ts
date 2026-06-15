@@ -35,6 +35,25 @@ export default defineConfig({
     default_locale: 'en',
     name: '__MSG_extensionName__',
     description: '__MSG_extensionDescription__',
+    // https://developer.chrome.com/docs/extensions/reference/manifest/icons
+    // https://developer.chrome.com/docs/extensions/reference/api/action#manifest
+    icons: {
+      16: 'icon/16.png',
+      32: 'icon/32.png',
+      48: 'icon/48.png',
+      96: 'icon/96.png',
+      128: 'icon/128.png',
+    },
+    action: {
+      // Localized via _locales/<code>/messages.json — never hardcode here.
+      // (Without this, newer WXT injects a placeholder "Default Popup Title".)
+      default_title: '__MSG_extensionName__',
+      default_icon: {
+        16: 'icon/16.png',
+        32: 'icon/32.png',
+        48: 'icon/48.png',
+      },
+    },
     permissions: [
       'nativeMessaging',
       'tabs',
@@ -91,6 +110,18 @@ export default defineConfig({
       }) as any,
     ],
     resolve: {
+      // Explicitly register the WXT @ / ~ aliases for Vite/rolldown. Earlier
+      // WXT versions injected these automatically, but after upgrading to
+      // Vite 8 + rolldown the bundler no longer sees them, so imports like
+      // `@/composables/...` were treated as literal paths and failed to
+      // resolve ([UNLOADABLE_DEPENDENCY] os error 3). Map all four WXT alias
+      // forms to the chrome-extension srcDir (this directory).
+      alias: {
+        '@': resolve(__dirname, '.'),
+        '~': resolve(__dirname, '.'),
+        '@@': resolve(__dirname, '.'),
+        '~~': resolve(__dirname, '.'),
+      },
       // Ensure chrome-mcp-shared is resolved correctly
       preserveSymlinks: false,
     },

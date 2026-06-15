@@ -31,15 +31,15 @@ _resolve_app_install_paths() {
 _resolve_app_install_paths
 
 # Script-based installs: "script:filename|Display Name"
-# Infra/DB: 45 Redis, 46 PostgreSQL, 47 Docker, 48 MySQL
+# Infra/DB: 45 Redis, 46 PostgreSQL, 47 Docker, 50 MySQL
 # Desktop/App: 35 Chrome, 121 Cursor, 122 VSCode, 126 Antigravity, 127 WeChat, 30 Edge
-# Runtime/Toolchain: 13 Python, 14 Node 24, 18 UV, 42 Rust, 53 Go, 54 Java, 34 Composer, 38 Flutter, 36 Ruby, 37 .NET
+# Runtime/Toolchain: 13 Python, 14 faster-whisper, 15 Node 24, 19 UV, 42 Rust, 53 Go, 54 Java, 34 Composer, 38 Flutter, 41 Ruby, 37 .NET
 # Server/Service: 25 Nginx, 26 Certbot, 85 Code Server, 123 Gitea, 124 RustDesk Client, 128 RustDesk Server
 # AI: 95 DeepSeek, 96 DeepSeek OCR
 # Setup: 125 GNOME RDP
 SCRIPT_INSTALL_ENTRIES=(
     "script:47_install_docker.sh|Docker"
-    "script:48_install_mysql.sh|MySQL"
+    "script:50_install_mysql.sh|MySQL"
     "script:45_install_redis.sh|Redis"
     "script:46_install_postgresql.sh|PostgreSQL"
     "script:121_install_cursor.sh|Cursor"
@@ -48,15 +48,16 @@ SCRIPT_INSTALL_ENTRIES=(
     "script:127_install_wechat.sh|WeChat"
     "script:35_install_chrome.sh|Chrome (script)"
     "script:30_install_edge.sh|Edge"
-    "script:14_install_node_24.sh|Node.js 24"
+    "script:15_install_node_24.sh|Node.js 24"
     "script:54_install_java.sh|Java"
     "script:53_install_golang22.sh|Go 1.22"
     "script:42_install_rust.sh|Rust"
-    "script:18_install_uv.sh|UV"
+    "script:19_install_uv.sh|UV"
     "script:13_ensure_python.sh|Python (ensure)"
+    "script:14_install_faster_whisper.sh|faster-whisper (STT)"
     "script:34_install_composer.sh|Composer"
     "script:38_install_flutter.sh|Flutter"
-    "script:36_install_ruby.sh|Ruby"
+    "script:41_install_ruby.sh|Ruby"
     "script:37_install_dotnet.sh|.NET"
     "script:25_install_nginx.sh|Nginx"
     "script:26_install_certbot.sh|Certbot"

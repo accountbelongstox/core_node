@@ -257,10 +257,10 @@ add_api_website() {
     # Use unified Laravel service manager if available
     if [ -f "$LARAVEL_SERVICE_MANAGER" ] && command -v add_laravel_website >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX]   Using unified Laravel service manager (poly app method)"
-        echo "[$SCRIPT_INDEX]   Executing: add_laravel_website \"$api_domain\" \"auto\""
-        
+        echo "[$SCRIPT_INDEX]   Executing: add_laravel_website \"laravel_main\" \"$api_domain\" \"auto\""
+
         local output
-        output=$(add_laravel_website "$api_domain" "auto" 2>&1)
+        output=$(add_laravel_website "laravel_main" "$api_domain" "auto" 2>&1)
         local result=$?
     else
         echo "[$SCRIPT_INDEX]   Executing: $USE_SUDO php artisan servermanager:website add \"$api_domain\" --type=poly --ssl=auto --php-mode=swoole"

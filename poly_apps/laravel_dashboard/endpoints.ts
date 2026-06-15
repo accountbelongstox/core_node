@@ -566,10 +566,75 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
         params: []
     },
     {
-        id: 'nginx9', method: 'DELETE', path: '/api/servermanager/v1/nginx/sites/{site_name}', 
+        id: 'nginx9', method: 'DELETE', path: '/api/servermanager/v1/nginx/sites/{site_name}',
         description: 'Delete nginx site', section: 'ServerManager - Nginx',
         params: [
             { name: 'site_name', type: 'string', required: true, path: true }
+        ]
+    },
+    {
+        id: 'nginx10', method: 'GET', path: '/api/servermanager/v1/nginx/status',
+        description: 'Nginx overview: install/version/running/config-test/site count', section: 'ServerManager - Nginx',
+        params: []
+    },
+    {
+        id: 'nginx11', method: 'POST', path: '/api/servermanager/v1/nginx/service',
+        description: 'Control the nginx service', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'action', type: 'string', required: true, options: ['start', 'stop', 'restart', 'reload', 'status'] }
+        ]
+    },
+    {
+        id: 'nginx12', method: 'GET', path: '/api/servermanager/v1/nginx/logs',
+        description: 'Read nginx access/error log tail', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'type', type: 'string', required: false, options: ['access', 'error'], default: 'access' },
+            { name: 'lines', type: 'integer', required: false, default: 200, description: '10..2000' },
+            { name: 'filter', type: 'string', required: false, description: 'Substring filter' }
+        ]
+    },
+    {
+        id: 'nginx13', method: 'POST', path: '/api/servermanager/v1/nginx/install',
+        description: 'Run the idempotent nginx installer (long-running)', section: 'ServerManager - Nginx',
+        params: []
+    },
+    {
+        id: 'nginx14', method: 'GET', path: '/api/servermanager/v1/nginx/backups',
+        description: 'List nginx config backups', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'site', type: 'string', required: false }
+        ]
+    },
+    {
+        id: 'nginx15', method: 'POST', path: '/api/servermanager/v1/nginx/backups/restore',
+        description: 'Restore a nginx config backup', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'file', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'nginx16', method: 'GET', path: '/api/servermanager/v1/nginx/main-config',
+        description: 'Read nginx.conf + conf.d listing (read-only)', section: 'ServerManager - Nginx',
+        params: []
+    },
+    {
+        id: 'nginx17', method: 'GET', path: '/api/servermanager/v1/nginx/port-check',
+        description: 'Check whether a TCP port is in use', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'port', type: 'integer', required: true, description: '1..65535' }
+        ]
+    },
+    {
+        id: 'nginx18', method: 'GET', path: '/api/servermanager/v1/nginx/metrics',
+        description: 'Nginx stub_status + process stats', section: 'ServerManager - Nginx',
+        params: []
+    },
+    {
+        id: 'nginx19', method: 'POST', path: '/api/servermanager/v1/nginx/sites/batch',
+        description: 'Batch enable/disable/test nginx sites', section: 'ServerManager - Nginx',
+        params: [
+            { name: 'action', type: 'string', required: true, options: ['enable', 'disable', 'test'] },
+            { name: 'sites', type: 'array', required: true, description: 'Site names' }
         ]
     },
 
@@ -719,11 +784,53 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
         ]
     },
     {
-        id: 'unified4', method: 'GET', path: '/api/servermanager/v1/unified/logs', 
+        id: 'unified4', method: 'GET', path: '/api/servermanager/v1/unified/logs',
         description: 'Get application logs', section: 'ServerManager - Unified Manager',
         params: [
             { name: 'app_name', type: 'string', required: true },
             { name: 'lines', type: 'integer', required: false }
+        ]
+    },
+
+    // --- Dashboard - DB Manager ---
+    {
+        id: 'dbmgr_cred_get', method: 'GET', path: '/api/dashboard/db-manager/credentials',
+        description: 'Get credential snapshot for a connection', section: 'Dashboard - DB Manager',
+        params: [
+            { name: 'connection', type: 'string', required: true, description: 'Laravel connection key, e.g. pgsql/mysql/sqlite' }
+        ]
+    },
+    {
+        id: 'dbmgr_cred_change', method: 'POST', path: '/api/dashboard/db-manager/credentials/change',
+        description: 'Set a new password for a connection user', section: 'Dashboard - DB Manager',
+        params: [
+            { name: 'connection', type: 'string', required: true },
+            { name: 'new_password', type: 'string', required: true },
+            { name: 'user', type: 'string', required: false, description: 'Defaults to the configured connection user' }
+        ]
+    },
+    {
+        id: 'dbmgr_cred_reset', method: 'POST', path: '/api/dashboard/db-manager/credentials/reset',
+        description: 'Generate a fresh strong password for the connection', section: 'Dashboard - DB Manager',
+        params: [
+            { name: 'connection', type: 'string', required: true }
+        ]
+    },
+    {
+        id: 'dbmgr_user_create', method: 'POST', path: '/api/dashboard/db-manager/credentials/users',
+        description: 'Create a database account (password is shown once when generated)', section: 'Dashboard - DB Manager',
+        params: [
+            { name: 'connection', type: 'string', required: true },
+            { name: 'username', type: 'string', required: true },
+            { name: 'password', type: 'string', required: false, description: 'Generated server-side when omitted' }
+        ]
+    },
+    {
+        id: 'dbmgr_user_delete', method: 'DELETE', path: '/api/dashboard/db-manager/credentials/users/{username}',
+        description: 'Drop a database account (configured superuser is guarded server-side)', section: 'Dashboard - DB Manager',
+        params: [
+            { name: 'username', type: 'string', required: true, path: true },
+            { name: 'connection', type: 'string', required: true }
         ]
     }
 ];

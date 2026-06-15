@@ -150,6 +150,25 @@ class FastAPIRPCServer:
         # Event loop for async broadcast
         self._broadcast_loop = None
 
+        # Live log streaming (observer pattern): register a callback into the base
+        # print library so every printed line is relayed to connected WS clients.
+        # rpc_v2 imports ColorPrint, never the reverse — ColorPrint stays decoupled.
+        # The callback is a no-op until a client connects / the loop is running.
+        self._log_guard = threading.local()
+        ColorPrint.register_callback(self._colorprint_ws_callback)
+
+    def _colorprint_ws_callback(self, message, color_type="white", log_level=None):
+        """ColorPrint callback: relay every printed line to connected WS clients as a 'pycore_log' event. Never raises; no-op when no client/loop."""
+        if getattr(self._log_guard, "active", False):
+            return
+        # The broadcast path logs "[Broadcast] ..." in debug mode (on the loop thread,
+        # where this guard doesn't apply); skip those to avoid a log->broadcast->log loop.
+        if isinstance(message, str) and message.lstrip().startswith("[Broadcast]"):
+            return
+        self._log_guard.active = True
+        self.broadcast_event_sync("pycore_log", {"message": message, "color": color_type or "white", "level": log_level or "INFO"})
+        self._log_guard.active = False
+
     # ------------------------------------------------------------------ Public API
     def route(self, name: str, handler: Callable, sync: bool = False, description: Optional[str] = None):
         """
@@ -179,6 +198,12 @@ class FastAPIRPCServer:
     async def broadcast_event(self, event_name: str, data: Dict[str, Any]):
         """
         Broadcast an event to all connected WebSocket clients.
+
+        NOTE: Live "stream every ColorPrint line to the UI" rides on this method:
+        this server registers `_colorprint_ws_callback` into ColorPrint's callback
+        registry (observer pattern), which calls broadcast_event_sync('pycore_log',
+        ...). rpc_v2 imports ColorPrint, never the reverse — ColorPrint stays a
+        decoupled base library, so no import cycle forms.
 
         Args:
             event_name: Event name (e.g., 'voice_subtitle_update')
@@ -214,16 +239,16 @@ class FastAPIRPCServer:
             event_name: Event name
             data: Event data
         """
-        if self._broadcast_loop is None:
-            if self.debug:
+        # Precondition check (no try/except): run_coroutine_threadsafe raises if the
+        # loop is missing or not running (e.g. during shutdown), so guard against both.
+        loop = self._broadcast_loop
+        if loop is None or not loop.is_running():
+            if self.debug and loop is None:
                 ColorPrint.yellow(f"[Broadcast] Event loop not ready for {event_name}, skipping")
             return
 
         # Schedule the coroutine in the uvicorn event loop
-        asyncio.run_coroutine_threadsafe(
-            self.broadcast_event(event_name, data),
-            self._broadcast_loop
-        )
+        asyncio.run_coroutine_threadsafe(self.broadcast_event(event_name, data), loop)
 
     def register_thread_bus_listener(self, event_name: str):
         """
@@ -629,13 +654,20 @@ class FastAPIRPCServer:
     # ------------------------------------------------------------------ WebSocket handlers
     async def _handle_websocket(self, websocket: WebSocket):
         """Accept WebSocket connections and dispatch messages."""
+        # Logged unconditionally (not behind debug): this is THE signal that a WS
+        # upgrade actually reached the backend. If you see this in the terminal, the
+        # /rpc/ws path/proxy works; if you never see it, the upgrade never arrived.
+        ColorPrint.cyan(
+            f"[WS] upgrade reached backend: path={websocket.url.path} "
+            f"client={websocket.client.host if websocket.client else '?'} "
+            f"origin={websocket.headers.get('origin', '-')}"
+        )
         await websocket.accept()
 
         # Capture event loop on first WebSocket connection
         if self._broadcast_loop is None:
             self._broadcast_loop = asyncio.get_running_loop()
-            if self.debug:
-                ColorPrint.blue("[WS] Captured event loop for broadcast")
+            ColorPrint.blue("[WS] Captured event loop for broadcast")
 
         client_id = websocket.query_params.get("client_id") or str(uuid.uuid4())
         remote_addr = websocket.client.host if websocket.client else "unknown"
@@ -649,8 +681,7 @@ class FastAPIRPCServer:
         )
         await self.client_registry.set_client_status(client_id, ClientStatus.CONNECTED)
 
-        if self.debug:
-            ColorPrint.green(f"[WS] Client connected id={client_id[:8]} addr={remote_addr}")
+        ColorPrint.green(f"[WS] connected id={client_id[:8]} addr={remote_addr}")
 
         await websocket.send_json(
             {
@@ -695,9 +726,10 @@ class FastAPIRPCServer:
         except WebSocketDisconnect:
             pass
         finally:
-            await self.client_registry.unregister_websocket_client(client_id)
-            if self.debug:
-                ColorPrint.yellow(f"[WS] Client disconnected id={client_id[:8]}")
+            # Pass this websocket so a connection already superseded by a newer one
+            # for the same client_id doesn't clobber the live session.
+            await self.client_registry.unregister_websocket_client(client_id, websocket)
+            ColorPrint.yellow(f"[WS] disconnected id={client_id[:8]}")
 
     async def _handle_websocket_message(
         self,

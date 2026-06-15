@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from urllib.parse import urljoin
 from typing import Dict, Optional, List
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class CSSProcessor:

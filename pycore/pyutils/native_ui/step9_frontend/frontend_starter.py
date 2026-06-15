@@ -7,7 +7,7 @@ Convenience function to start frontend based on configuration.
 """
 
 from typing import Optional
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from .frontend_config import FrontendConfig
 from .frontend_thread import FrontendLauncherThread
 

@@ -67,16 +67,16 @@ elif [ "$APP_TYPE" = "ncoreApp" ]; then
 fi
 
 echo -e "\033[90mChecking for build_config.ini...\033[0m"
-CONFIG_EXISTS_OUTPUT=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "exists" 2>/dev/null)
+CONFIG_EXISTS_OUTPUT=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "exists" 2>/dev/null)
 if [ "$CONFIG_EXISTS_OUTPUT" = "true" ]; then
         CONFIG_EXISTS=true
         echo -e "\033[32mFound build_config.ini, loading configuration...\033[0m"
 
         # Read display name and info
-        DISPLAY_NAME_CHINESE=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "display_name_chinese" 2>/dev/null)
-        DISPLAY_NAME_ENGLISH=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "display_name_english" 2>/dev/null)
-        DESCRIPTION=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "description" 2>/dev/null)
-        VERSION=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "version" 2>/dev/null)
+        DISPLAY_NAME_CHINESE=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "display_name_chinese" 2>/dev/null)
+        DISPLAY_NAME_ENGLISH=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "display_name_english" 2>/dev/null)
+        DESCRIPTION=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "description" 2>/dev/null)
+        VERSION=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "version" 2>/dev/null)
 
         # Display config info
         if [ -n "$DISPLAY_NAME_CHINESE" ] && [ -n "$DISPLAY_NAME_ENGLISH" ]; then
@@ -92,12 +92,12 @@ if [ "$CONFIG_EXISTS_OUTPUT" = "true" ]; then
         fi
 
         # Read installation settings
-        SKIP_PNPM_INSTALL=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "skip_pnpm_install" 2>/dev/null)
-        SKIP_PYCORE_INIT=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "skip_pycore_init" 2>/dev/null)
-        CREATE_DESKTOP_SHORTCUT=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "create_desktop_shortcut" 2>/dev/null)
+        SKIP_PNPM_INSTALL=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "skip_pnpm_install" 2>/dev/null)
+        SKIP_PYCORE_INIT=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "skip_pycore_init" 2>/dev/null)
+        CREATE_DESKTOP_SHORTCUT=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "create_desktop_shortcut" 2>/dev/null)
 
         # Execute pre-install commands if specified
-        PRE_INSTALL_COMMANDS=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "pre_install_commands" 2>/dev/null)
+        PRE_INSTALL_COMMANDS=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "pre_install_commands" 2>/dev/null)
         if [ -n "$PRE_INSTALL_COMMANDS" ]; then
             echo ""
             echo -e "\033[36mExecuting pre-install commands...\033[0m"
@@ -325,7 +325,7 @@ else
 
         # Priority 1: icon_file from build_config.ini
         if [ "$CONFIG_EXISTS" = true ]; then
-            CONFIG_ICON_FILE=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "icon_file" 2>/dev/null)
+            CONFIG_ICON_FILE=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "icon_file" 2>/dev/null)
             if [ -n "$CONFIG_ICON_FILE" ]; then
                 ICON_PATH="$APP_DIR/$CONFIG_ICON_FILE"
                 if [ -f "$ICON_PATH" ]; then
@@ -392,7 +392,7 @@ fi
 
 # Execute post-install commands if specified
 if [ "$CONFIG_EXISTS" = true ]; then
-    POST_INSTALL_COMMANDS=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "post_install_commands" 2>/dev/null)
+    POST_INSTALL_COMMANDS=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "post_install_commands" 2>/dev/null)
     if [ -n "$POST_INSTALL_COMMANDS" ]; then
         echo -e "\033[36mExecuting post-install commands...\033[0m"
         IFS=';' read -ra COMMANDS <<< "$POST_INSTALL_COMMANDS"
@@ -424,7 +424,7 @@ FINAL_WORKING_DIR="$WORKING_DIR"
 
 if [ "$CONFIG_EXISTS" = true ]; then
     # Check for custom startup command
-    CUSTOM_COMMAND=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "startup_command" 2>/dev/null)
+    CUSTOM_COMMAND=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "startup_command" 2>/dev/null)
     if [ -n "$CUSTOM_COMMAND" ]; then
         FINAL_START_COMMAND="$CUSTOM_COMMAND"
         echo -e "\033[36mUsing custom startup command from config\033[0m"
@@ -435,7 +435,7 @@ if [ "$CONFIG_EXISTS" = true ]; then
 
     # Set environment variables from config
     # Read environment section from JSON (simplified - reads key=value pairs)
-    ENV_VARS=$(python -m pycore.pyutils.build_config_parser "$APP_DIR" "all" 2>/dev/null | python -c "
+    ENV_VARS=$(python -m pycore.pyutils.common.build_config_parser "$APP_DIR" "all" 2>/dev/null | python -c "
 import sys, json
 try:
     data = json.load(sys.stdin)

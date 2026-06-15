@@ -13,7 +13,7 @@ import threading
 import time
 from typing import List, Optional, Tuple
 
-from pycore.pyutils.system_launcher import open_dir, open_path as open_path_system
+from pycore.pyutils.common.system_launcher import open_dir, open_path as open_path_system
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _D3_CHECK_ROOT = os.path.dirname(_THIS_DIR)

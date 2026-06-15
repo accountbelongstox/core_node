@@ -16,7 +16,7 @@ PIL_Image = get_third_package_PIL_Image()
 PIL_ImageDraw = get_third_package_PIL_ImageDraw()
 PIL_ImageFont = get_third_package_PIL_ImageFont()
 numpy = get_third_package_numpy()
-from pycore.pyutils.ocr import ocr_manager
+from pycore.pyutils.ocr_cluster import ocr_manager
 from pycore.pyutils.mcp.file_processing.color_palette_extractor_with_dominant_colors_and_histogram import (
     get_color_extractor_singleton
 )

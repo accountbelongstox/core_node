@@ -7,7 +7,7 @@ import time
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.field_input import fill_field_with_fallback, CLEAR_MODE_REPLACE
+from pycore.pyutils.input.field_input import fill_field_with_fallback, CLEAR_MODE_REPLACE
 from providor.constants.common import (
     ASIA_LOGIN_ACCOUNT_AUTOMATION_IDS,
     ASIA_LOGIN_ACCOUNT_NAME_KEYWORDS,

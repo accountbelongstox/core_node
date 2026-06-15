@@ -5,6 +5,7 @@ Encrypted Constants Manager Module
 Manages encrypted constants storage and retrieval from .secret_ignore directory.
 """
 
+import re
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
@@ -243,6 +244,89 @@ class EncryptedConstantsManager:
         else:
             ColorMessage.write("No encrypted constants found for this version.", 'warning')
 
+        print()
+        input("Press Enter to continue...")
+
+    @staticmethod
+    def _normalize_custom_key(key: str) -> Optional[str]:
+        """Normalize an arbitrary custom KEY into a safe, env-var-style name.
+
+        - Spaces and hyphens become underscores.
+        - Any remaining filesystem/env-illegal characters are dropped.
+        - A leading digit is prefixed with '_' (env vars cannot start with a digit).
+
+        Returns the normalized key, or None if nothing usable remains.
+        """
+        candidate = key.strip().replace('-', '_').replace(' ', '_')
+        candidate = re.sub(r'[^A-Za-z0-9_]', '', candidate)
+        if not candidate:
+            return None
+        if candidate[0].isdigit():
+            candidate = f"_{candidate}"
+        return candidate
+
+    def custom_add(self):
+        """Add one or more custom KEY=VALUE secrets with an auto-incrementing index.
+
+        The user may enter ANY key name. For each key we auto-detect existing
+        ``{KEY}_N`` files in the .secret_ignore directory and save the new value
+        under the next free index (``{KEY}_1``, ``{KEY}_2``, ``{KEY}_3`` ...), so
+        previously saved values are never overwritten.
+        """
+        clear_screen()
+        ColorMessage.write("Custom Add - Add Any Custom KEY", 'info')
+        ColorMessage.write("=" * 60, 'info')
+        print()
+        ColorMessage.write("Enter any custom KEY name and its value.", 'info')
+        ColorMessage.write("The file name is auto-indexed (KEY_1, KEY_2, KEY_3 ...) so an", 'info')
+        ColorMessage.write("existing value is never overwritten.", 'info')
+        ColorMessage.write(f"Storage location: {self.raw_dir}", 'info')
+        print()
+
+        added_count = 0
+
+        while True:
+            raw_key = input("  Custom KEY name (press Enter to finish): ").strip()
+            if not raw_key:
+                break
+
+            key = self._normalize_custom_key(raw_key)
+            if key is None:
+                ColorMessage.write("  [X] Invalid KEY. Use letters, digits, and underscores.", 'error')
+                print()
+                continue
+
+            if key != raw_key:
+                ColorMessage.write(f"  [i] KEY normalized to: {key}", 'warning')
+
+            # Auto-detect existing entries and compute the next index for this key.
+            existing_numbers = self.file_number_manager.list_existing_encrypted_constants([key])
+            next_number = self.file_number_manager.get_next_encrypted_constant_number(key, [key])
+
+            if existing_numbers:
+                existing_str = ", ".join(f"{key}_{n}" for n in existing_numbers)
+                ColorMessage.write(f"  [i] Existing: {existing_str}", 'info')
+            ColorMessage.write(f"  [i] Will save as: {key}_{next_number}", 'success')
+
+            value = input(f"  Value for {key}_{next_number}: ").strip()
+            if not value:
+                ColorMessage.write("  [SKIP] No value entered, skipped.", 'warning')
+                print()
+                continue
+
+            self._save_to_secret_ignore({key: value}, next_number)
+            added_count += 1
+            print()
+
+            again = input("  Add another custom KEY? (y/N): ").strip().lower()
+            print()
+            if again != 'y':
+                break
+
+        if added_count > 0:
+            ColorMessage.write(f"Custom add complete. {added_count} secret(s) saved to .secret_ignore.", 'success')
+        else:
+            ColorMessage.write("No custom secrets were added.", 'warning')
         print()
         input("Press Enter to continue...")
 

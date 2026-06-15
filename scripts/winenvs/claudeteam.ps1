@@ -34,6 +34,7 @@ $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
 $exitCode = 0
+$claudeInvokeDisplayArgs = $null
 
 $scriptPath = $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($scriptPath)) {
@@ -49,12 +50,18 @@ Set-CoreNodePaths
 
 $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 
+$claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
+    [string]::Format(" {0}", ($args -join " "))
+} else {
+    ""
+}
+
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "claudeteam.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session)" -ForegroundColor Green
-Write-Host "[INFO] Invoking: claude --dangerously-skip-permissions --teammate-mode in-process [your args]" -ForegroundColor Green
+Write-Host "[INFO] Invoking: claude --dangerously-skip-permissions$claudeInvokeDisplayArgs" -ForegroundColor Green
 if ($args.Count -gt 0) {
     Write-Host "[INFO] Extra arguments ($($args.Count)): $($args -join ' ')" -ForegroundColor DarkGray
 } else {
@@ -63,7 +70,8 @@ if ($args.Count -gt 0) {
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-& claude --dangerously-skip-permissions --teammate-mode in-process @args
+# & claude --dangerously-skip-permissions --teammate-mode in-process @args
+& claude --dangerously-skip-permissions @args
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0

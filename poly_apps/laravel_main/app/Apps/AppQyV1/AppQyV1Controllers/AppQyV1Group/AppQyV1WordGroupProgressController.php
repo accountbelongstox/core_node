@@ -4,28 +4,81 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserWordProgressModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Traits\ApiResponse;
 
 class AppQyV1WordGroupProgressController
 {
     use ApiResponse;
 
+    /**
+     * Normalized 2-letter language code of a group ('en' default).
+     */
+    private static function resolveGroupLanguageCode(AppQyV1WordGroupModel $group): string
+    {
+        $languageCode = $group->language;
+        if ($languageCode) {
+            $languageCode = AppQyV1LanguageConfigService::normalizeToCode($languageCode);
+        }
+        if (!is_string($languageCode) || $languageCode === '') {
+            $languageCode = 'en';
+        }
+        return $languageCode;
+    }
+
+    /** Unix seconds (entry short-key value) -> Carbon|null for responses. */
+    private static function tsToCarbon($ts): ?Carbon
+    {
+        if ($ts === null) {
+            return null;
+        }
+        return Carbon::createFromTimestamp((int) $ts);
+    }
+
+    /** Legacy progress response block built from a short-key entry. */
+    private static function entryToProgressArray(array $entry): array
+    {
+        return [
+            'read_count' => (int) $entry['rc'],
+            'review_count' => (int) $entry['vc'],
+            'proficiency' => (float) $entry['pf'],
+            'next_review_at' => self::tsToCarbon($entry['nr']),
+            'last_read_at' => self::tsToCarbon($entry['lr']),
+            'last_review_at' => self::tsToCarbon($entry['lv']),
+        ];
+    }
+
+    /**
+     * POST /group/update_progress
+     *
+     * Legacy single shape: {gid, word_id, action: read|review,
+     * proficiency?, is_correct?} - response unchanged.
+     * Batch shape: {gid, updates: [{word_id, correct}]} - every update is a
+     * review outcome (proficiency +5/-10 clamped 0-100, review_count + next
+     * review recompute). Either way the call performs ONE JSON write.
+     */
     public function updateProgress(Request $request): JsonResponse
     {
-        $supported_params = ['gid', 'word_id', 'action', 'proficiency', 'is_correct'];
+        $supported_params = ['gid', 'word_id', 'action', 'proficiency', 'is_correct', 'updates'];
 
         $validator = Validator::make($request->all(), [
             'gid' => 'required|string',
-            'word_id' => 'required|integer',
-            'action' => 'required|in:read,review',
+            'word_id' => 'required_without:updates|integer',
+            'action' => 'required_without:updates|in:read,review',
             'proficiency' => 'nullable|numeric|min:0|max:100',
             'is_correct' => 'nullable|boolean',
+            'updates' => 'sometimes|array|min:1',
+            'updates.*.word_id' => 'required_with:updates|integer',
+            'updates.*.correct' => 'required_with:updates|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -40,10 +93,6 @@ class AppQyV1WordGroupProgressController
         }
 
         $gid = $request->input('gid');
-        $wordId = $request->input('word_id');
-        $action = $request->input('action');
-        $proficiency = $request->input('proficiency');
-        $isCorrect = $request->input('is_correct');
 
         $group = AppQyV1WordGroupModel::where('gid', $gid)
             ->where('uid', $user->id)
@@ -55,67 +104,141 @@ class AppQyV1WordGroupProgressController
             ]);
         }
 
-        $progress = AppQyV1UserWordProgressModel::forUser($user->id)
-            ->forGroup($group->id)
-            ->where('word_id', $wordId)
-            ->first();
+        if ($request->has('updates')) {
+            return $this->applyBatchUpdates($request, $group, $user->id, $supported_params);
+        }
 
-        if (!$progress) {
-            $word = AppQyV1VocabularyItemModel::with('collection')->find($wordId);
+        return $this->applySingleUpdate($request, $group, $user->id, $supported_params);
+    }
 
-            if (!$word) {
-                return $this->error('Word not found', 404, [
-                    'supported_params' => $supported_params,
-                ]);
+    private function applySingleUpdate(Request $request, AppQyV1WordGroupModel $group, int $userId, array $supported_params): JsonResponse
+    {
+        $wordId = (int) $request->input('word_id');
+        $action = $request->input('action');
+        $proficiency = $request->input('proficiency');
+        $isCorrect = $request->input('is_correct');
+
+        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $userId, $wordId, $action, $proficiency, $isCorrect, $supported_params) {
+            $languageCode = self::resolveGroupLanguageCode($group);
+            $progressRow = AppQyV1GroupWordProgressModel::forUserGroup($userId, $group->id, $languageCode);
+            $locked = AppQyV1GroupWordProgressModel::lockForGroup($group->id);
+            if ($locked) {
+                $progressRow = $locked;
             }
 
-            $progress = AppQyV1UserWordProgressModel::create([
-                'user_id' => $user->id,
+            // Auto-enroll an unknown word only when it resolves in the
+            // group's dictionary (legacy created the progress row the same
+            // way, weight = word length).
+            if (!$progressRow->hasWord($wordId)) {
+                $word = AppQyV1LangDictionaryModel::forLanguage($progressRow->languageCodeValue())->find($wordId);
+                if (!$word) {
+                    return $this->error('Word not found', 404, [
+                        'supported_params' => $supported_params,
+                    ]);
+                }
+                $progressRow->putWords([$wordId], (string) now(), [$wordId => strlen((string) $word->content)]);
+            }
+
+            $map = $progressRow->getWordsMap();
+            $entry = array_merge(AppQyV1GroupWordProgressModel::EMPTY_ENTRY, $map[(string) $wordId]);
+
+            $patch = [];
+            if ($action === 'read') {
+                $patch['lr'] = time();
+                $patch['rc'] = ((int) $entry['rc']) + 1;
+            } else {
+                $patch['lv'] = time();
+                $patch['vc'] = ((int) $entry['vc']) + 1;
+
+                if ($isCorrect !== null) {
+                    $newProficiency = (float) $entry['pf'];
+                    if ($isCorrect) {
+                        $newProficiency = min(100, $newProficiency + 5);
+                    } else {
+                        $newProficiency = max(0, $newProficiency - 10);
+                    }
+                    $patch['pf'] = $newProficiency;
+                }
+            }
+
+            if ($proficiency !== null) {
+                $patch['pf'] = (float) $proficiency;
+            }
+
+            // updateWordProgress normalizes the entry (first_read_at stamp +
+            // next_review_at recompute - the ported observer rules).
+            $entry = $progressRow->updateWordProgress($wordId, $patch);
+            $progressRow->save();
+
+            return $this->success([
+                'gid' => $group->gid,
                 'word_id' => $wordId,
-                'group_id' => $group->id,
-                'language_code' => $word->collection->lang_code ?? null,
-                'weight' => strlen($word->word_content),
-                'proficiency' => 0,
-                'read_count' => 0,
-                'review_count' => 0,
-            ]);
-        }
+                'action' => $action,
+                'progress' => self::entryToProgressArray($entry),
+            ], 'Progress updated successfully');
+        });
+    }
 
-        if ($action === 'read') {
-            if ($progress->first_read_at === null) {
-                $progress->first_read_at = now();
+    private function applyBatchUpdates(Request $request, AppQyV1WordGroupModel $group, int $userId, array $supported_params): JsonResponse
+    {
+        $updates = $request->input('updates');
+
+        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $userId, $updates) {
+            $languageCode = self::resolveGroupLanguageCode($group);
+            $progressRow = AppQyV1GroupWordProgressModel::forUserGroup($userId, $group->id, $languageCode);
+            $locked = AppQyV1GroupWordProgressModel::lockForGroup($group->id);
+            if ($locked) {
+                $progressRow = $locked;
             }
-            $progress->last_read_at = now();
-            $progress->read_count += 1;
-        } else {
-            $progress->last_review_at = now();
-            $progress->review_count += 1;
 
-            if ($isCorrect !== null) {
-                $progress->updateProficiency($isCorrect);
+            // Auto-enroll unknown words in ONE dictionary whereIn.
+            $unknownIds = [];
+            foreach ($updates as $update) {
+                $batchWordId = (int) $update['word_id'];
+                if (!$progressRow->hasWord($batchWordId)) {
+                    $unknownIds[$batchWordId] = true;
+                }
             }
-        }
+            if (!empty($unknownIds)) {
+                $weights = [];
+                $foundIds = [];
+                $rows = AppQyV1LangDictionaryModel::forLanguage($progressRow->languageCodeValue())
+                    ->whereIn('id', array_keys($unknownIds))
+                    ->get(['id', 'content']);
+                foreach ($rows as $row) {
+                    $foundIds[] = (int) $row->id;
+                    $weights[(int) $row->id] = strlen((string) $row->content);
+                }
+                if (!empty($foundIds)) {
+                    $progressRow->putWords($foundIds, (string) now(), $weights);
+                }
+            }
 
-        if ($proficiency !== null) {
-            $progress->proficiency = $proficiency;
-        }
+            $updated = 0;
+            $skipped = 0;
+            $progressByWordId = [];
+            foreach ($updates as $update) {
+                $batchWordId = (int) $update['word_id'];
+                if (!$progressRow->hasWord($batchWordId)) {
+                    $skipped++;
+                    continue;
+                }
+                $entry = $progressRow->applyReviewResult($batchWordId, (bool) $update['correct']);
+                $progressByWordId[$batchWordId] = self::entryToProgressArray($entry);
+                $updated++;
+            }
 
-        $progress->calculateNextReviewTime();
-        $progress->save();
+            // ONE JSON write for the whole batch.
+            $progressRow->save();
 
-        return $this->success([
-            'gid' => $group->gid,
-            'word_id' => $wordId,
-            'action' => $action,
-            'progress' => [
-                'read_count' => $progress->read_count,
-                'review_count' => $progress->review_count,
-                'proficiency' => $progress->proficiency,
-                'next_review_at' => $progress->next_review_at,
-                'last_read_at' => $progress->last_read_at,
-                'last_review_at' => $progress->last_review_at,
-            ],
-        ], 'Progress updated successfully');
+            return $this->success([
+                'gid' => $group->gid,
+                'batch' => true,
+                'updated' => $updated,
+                'skipped' => $skipped,
+                'progress' => $progressByWordId,
+            ], 'Progress batch updated successfully');
+        });
     }
 
     public function getReviewWords(Request $request): JsonResponse
@@ -153,49 +276,81 @@ class AppQyV1WordGroupProgressController
             ]);
         }
 
-        $query = AppQyV1UserWordProgressModel::forUser($user->id)
-            ->forGroup($group->id)
-            ->dueForReview()
-            ->with(['word:id,word,word_index'])
-            ->select([
-                'id',
-                'word_id',
-                'proficiency',
-                'read_count',
-                'review_count',
-                'last_review_at',
-                'next_review_at',
-                'weight',
-            ]);
+        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $group->id)->first();
 
-        if ($proficiencyMax !== null) {
-            $query->byProficiency(null, $proficiencyMax);
+        $candidates = [];
+        if ($progressRow) {
+            $nowTs = time();
+            foreach ($progressRow->getWordsMap() as $key => $stored) {
+                $entry = AppQyV1GroupWordProgressModel::EMPTY_ENTRY;
+                if (is_array($stored)) {
+                    $entry = array_merge($entry, $stored);
+                }
+                if (!AppQyV1GroupWordProgressModel::entryDueForReview($entry, $nowTs)) {
+                    continue;
+                }
+                if ($proficiencyMax !== null && (float) $entry['pf'] > (float) $proficiencyMax) {
+                    continue;
+                }
+                $candidates[] = [(int) $key, $entry];
+            }
+
+            // Same priority as the legacy query: proficiency ASC, weight DESC
+            // (word_id ASC as the deterministic tie-break).
+            usort($candidates, function (array $a, array $b) {
+                $pfCompare = (float) $a[1]['pf'] <=> (float) $b[1]['pf'];
+                if ($pfCompare !== 0) {
+                    return $pfCompare;
+                }
+                $wtCompare = (int) $b[1]['wt'] <=> (int) $a[1]['wt'];
+                if ($wtCompare !== 0) {
+                    return $wtCompare;
+                }
+                return $a[0] <=> $b[0];
+            });
+
+            $candidates = array_slice($candidates, 0, (int) $limit);
         }
 
-        $progressRecords = $query->orderBy('proficiency', 'asc')
-            ->orderBy('weight', 'desc')
-            ->limit($limit)
-            ->get();
+        $resolved = [];
+        if ($progressRow && !empty($candidates)) {
+            $candidateIds = [];
+            foreach ($candidates as $candidate) {
+                $candidateIds[] = $candidate[0];
+            }
+            $resolved = $progressRow->resolveDictionaryRows($candidateIds);
+        }
 
-        $words = $progressRecords->map(function ($progress) {
-            return [
-                'progress_id' => $progress->id,
-                'word_id' => $progress->word_id,
-                'word' => $progress->word->word ?? null,
-                'word_index' => $progress->word->word_index ?? null,
-                'proficiency' => $progress->proficiency,
-                'read_count' => $progress->read_count,
-                'review_count' => $progress->review_count,
-                'last_review_at' => $progress->last_review_at,
-                'next_review_at' => $progress->next_review_at,
-                'weight' => $progress->weight,
+        $words = [];
+        foreach ($candidates as $candidate) {
+            $candidateWordId = $candidate[0];
+            $entry = $candidate[1];
+
+            $wordText = null;
+            if (isset($resolved[$candidateWordId])) {
+                $wordText = $resolved[$candidateWordId]->content;
+            }
+
+            $words[] = [
+                // No per-word row id remains - word_id is the stable
+                // identifier (kept under the legacy progress_id key).
+                'progress_id' => $candidateWordId,
+                'word_id' => $candidateWordId,
+                'word' => $wordText,
+                'word_index' => null,
+                'proficiency' => (float) $entry['pf'],
+                'read_count' => (int) $entry['rc'],
+                'review_count' => (int) $entry['vc'],
+                'last_review_at' => self::tsToCarbon($entry['lv']),
+                'next_review_at' => self::tsToCarbon($entry['nr']),
+                'weight' => (int) $entry['wt'],
             ];
-        });
+        }
 
         return $this->success([
             'gid' => $group->gid,
             'gname' => $group->gname,
-            'review_words_count' => $words->count(),
+            'review_words_count' => count($words),
             'words' => $words,
         ], 'Review words retrieved successfully');
     }
@@ -231,33 +386,225 @@ class AppQyV1WordGroupProgressController
             ]);
         }
 
-        $baseQuery = AppQyV1UserWordProgressModel::forUser($user->id)
-            ->forGroup($group->id);
+        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $group->id)->first();
 
-        $stats = (object)[
-            'total_words' => $baseQuery->count(),
-            'avg_proficiency' => $baseQuery->avg('proficiency'),
-            'total_reads' => $baseQuery->sum('read_count'),
-            'total_reviews' => $baseQuery->sum('review_count'),
-            'mastered_words' => (clone $baseQuery)->mastered()->count(),
-            'learning_words' => (clone $baseQuery)->learning()->count(),
-            'struggling_words' => (clone $baseQuery)->struggling()->count(),
-            'due_for_review' => (clone $baseQuery)->dueForReview()->count(),
-        ];
+        // Aggregate the JSON map in PHP (one row read; shape unchanged).
+        $entryCount = 0;
+        $proficiencySum = 0.0;
+        $totalReads = 0;
+        $totalReviews = 0;
+        $masteredWords = 0;
+        $learningWords = 0;
+        $strugglingWords = 0;
+        $dueForReview = 0;
+        $nowTs = time();
+
+        if ($progressRow) {
+            foreach ($progressRow->getWordsMap() as $stored) {
+                $entry = AppQyV1GroupWordProgressModel::EMPTY_ENTRY;
+                if (is_array($stored)) {
+                    $entry = array_merge($entry, $stored);
+                }
+                $entryCount++;
+                $pf = (float) $entry['pf'];
+                $proficiencySum += $pf;
+                $totalReads += (int) $entry['rc'];
+                $totalReviews += (int) $entry['vc'];
+                if ($pf >= 90) {
+                    $masteredWords++;
+                } elseif ($pf >= 60) {
+                    $learningWords++;
+                } else {
+                    $strugglingWords++;
+                }
+                if (AppQyV1GroupWordProgressModel::entryDueForReview($entry, $nowTs)) {
+                    $dueForReview++;
+                }
+            }
+        }
+
+        $avgProficiency = 0.0;
+        if ($entryCount > 0) {
+            $avgProficiency = $proficiencySum / $entryCount;
+        }
+
+        // Group total = gwords JSON words + the progress map (library
+        // word-ID memberships). Disjoint sources, both count.
+        $gwords = $group->getWordsArray();
+        $gwordsCount = 0;
+        if (is_array($gwords)) {
+            $gwordsCount = count($gwords);
+        }
 
         return $this->success([
             'gid' => $group->gid,
             'gname' => $group->gname,
             'stats' => [
-                'total_words' => $stats->total_words ?? 0,
-                'avg_proficiency' => round($stats->avg_proficiency ?? 0, 2),
-                'total_reads' => $stats->total_reads ?? 0,
-                'total_reviews' => $stats->total_reviews ?? 0,
-                'mastered_words' => $stats->mastered_words ?? 0,
-                'learning_words' => $stats->learning_words ?? 0,
-                'struggling_words' => $stats->struggling_words ?? 0,
-                'due_for_review' => $stats->due_for_review ?? 0,
+                'total_words' => $gwordsCount + $entryCount,
+                'avg_proficiency' => round($avgProficiency, 2),
+                'total_reads' => $totalReads,
+                'total_reviews' => $totalReviews,
+                'mastered_words' => $masteredWords,
+                'learning_words' => $learningWords,
+                'struggling_words' => $strugglingWords,
+                'due_for_review' => $dueForReview,
             ],
         ], 'Progress stats retrieved successfully');
+    }
+
+    /**
+     * POST /group/get_progress_blob {gid}
+     *
+     * The whole per-group progress map in ONE row read - the FE computes
+     * stats client-side from this (no 65k bind limits, no joins). words is
+     * the raw short-key map; legend maps short keys to full field names
+     * (single source of truth: AppQyV1GroupWordProgressModel::ENTRY_LEGEND).
+     * All timestamps inside entries are unix seconds (UTC).
+     */
+    public function getProgressBlob(Request $request): JsonResponse
+    {
+        $supported_params = ['gid'];
+
+        $validator = Validator::make($request->all(), [
+            'gid' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 400, [
+                'supported_params' => $supported_params,
+            ]);
+        }
+
+        $user = Auth::user();
+        if (!$user) {
+            return $this->unauthorized('Authentication required');
+        }
+
+        $gid = $request->input('gid');
+
+        $group = AppQyV1WordGroupModel::where('gid', $gid)
+            ->where('uid', $user->id)
+            ->first();
+
+        if (!$group) {
+            return $this->error('Group not found', 404, [
+                'supported_params' => $supported_params,
+            ]);
+        }
+
+        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $group->id)->first();
+
+        $wordsMap = [];
+        $totalWords = 0;
+        $languageCode = self::resolveGroupLanguageCode($group);
+        if ($progressRow) {
+            $wordsMap = $progressRow->getWordsMap();
+            $totalWords = (int) $progressRow->total_words;
+            $languageCode = $progressRow->languageCodeValue();
+        }
+
+        return $this->success([
+            'gid' => $group->gid,
+            'gname' => $group->gname,
+            'language_code' => $languageCode,
+            'total_words' => $totalWords,
+            'legend' => AppQyV1GroupWordProgressModel::ENTRY_LEGEND,
+            'words' => (object) $wordsMap,
+        ], 'Progress blob retrieved successfully');
+    }
+
+    public function getCourseAnalysis(Request $request, $gid): JsonResponse
+    {
+        $knownThreshold = 60;
+
+        $user = Auth::user();
+        if (!$user) {
+            return $this->unauthorized('Authentication required');
+        }
+
+        $group = AppQyV1WordGroupModel::where('gid', $gid)->first();
+        if (!$group) {
+            return $this->error('Group not found', 404);
+        }
+
+        $groupWordSet = [];
+        $gwords = $group->getWordsArray();
+
+        // A group's words live in TWO representations (gwords JSON text +
+        // the progress map's word-ID memberships from library attachment);
+        // the analysis set must merge both.
+        if (is_array($gwords) && !empty($gwords)) {
+            foreach ($gwords as $w) {
+                $normalized = strtolower(trim((string) $w));
+                if ($normalized !== '') {
+                    $groupWordSet[] = $normalized;
+                }
+            }
+        }
+
+        // Map word ids resolve from the dictionary (word_id is a dictionary
+        // id): one whereIn batch via resolveDictionaryRows.
+        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $group->id)->first();
+        if ($progressRow) {
+            foreach ($progressRow->resolveDictionaryRows() as $dictWord) {
+                $content = $dictWord->content;
+                if ($content !== null) {
+                    $normalized = strtolower(trim((string) $content));
+                    if ($normalized !== '') {
+                        $groupWordSet[] = $normalized;
+                    }
+                }
+            }
+        }
+
+        $groupWordSet = array_values(array_unique($groupWordSet));
+        $totalWords = count($groupWordSet);
+
+        // Known words across ALL the user's groups: every progress row of
+        // the user, entries with proficiency >= threshold, batch-resolved.
+        $knownWordSet = [];
+        $userRows = AppQyV1GroupWordProgressModel::where('user_id', $user->id)->get();
+        foreach ($userRows as $userRow) {
+            $knownIds = [];
+            foreach ($userRow->getWordsMap() as $key => $stored) {
+                $pf = 0.0;
+                if (is_array($stored) && isset($stored['pf'])) {
+                    $pf = (float) $stored['pf'];
+                }
+                if ($pf >= $knownThreshold) {
+                    $knownIds[] = (int) $key;
+                }
+            }
+            if (empty($knownIds)) {
+                continue;
+            }
+            foreach ($userRow->resolveDictionaryRows($knownIds) as $dictWord) {
+                $content = $dictWord->content;
+                if ($content !== null) {
+                    $knownWordSet[] = strtolower(trim((string) $content));
+                }
+            }
+        }
+
+        $knownWordSet = array_values(array_unique($knownWordSet));
+
+        $knownWords = count(array_intersect($groupWordSet, $knownWordSet));
+
+        $similarity = 0;
+        if ($totalWords > 0) {
+            $similarity = (int) round($knownWords / $totalWords * 100);
+        }
+
+        $newWords = $totalWords - $knownWords;
+        $estimatedDays = $newWords > 0 ? (int) ceil($newWords / 20) : 0;
+
+        return $this->success([
+            'groupId' => $group->gid,
+            'totalWords' => $totalWords,
+            'knownWords' => $knownWords,
+            'newWords' => $newWords,
+            'estimatedDays' => $estimatedDays,
+            'similarity' => $similarity,
+        ], 'Course analysis retrieved successfully');
     }
 }

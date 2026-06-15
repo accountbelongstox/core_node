@@ -21,7 +21,7 @@ try:
 except ImportError:
     win32process = None
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 # Exe base names (lowercase) that indicate a browser process

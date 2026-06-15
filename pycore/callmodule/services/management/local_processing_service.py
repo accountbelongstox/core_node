@@ -140,7 +140,7 @@ class LocalProcessingService:
     def _check_ocr_availability(self) -> bool:
         """Check if OCR is available"""
         try:
-            from pycore.pyutils.ocr_manager import OCRManager
+            from pycore.pyutils.ocr_cluster import ocr_manager
             return True
         except:
             return False

@@ -1,0 +1,20 @@
+{
+  "peers": [
+    {
+      "host": "10.61.251.54",
+      "id": "159ec26d49df9c5c3a5a2270108f4a11d307cc2417d154fba5038d6e1c3128b5",
+      "name": "DESKTOP-1L9K06N",
+      "port": 59000,
+      "role": "dev"
+    },
+    {
+      "host": "43.163.112.77",
+      "id": "43.163.112.77:59000",
+      "name": "si.api.12gm.com",
+      "port": 59000,
+      "role": "client"
+    }
+  ],
+  "updated_at": 1780997103.2812686,
+  "version": 10
+}

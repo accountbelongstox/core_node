@@ -1,14 +1,11 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
@@ -74,12 +71,16 @@ class AppQyV1WordGroupManagementController
         }
 
         $personal_words = PDQBasePublic::queryPersonalDictionary(false);
+        // Merged total: gwords JSON words + the group_word_progress row's
+        // total_words cache (library word-ID memberships) - disjoint
+        // sources, both count.
+        $groupWordsCount = $group->pivotWordsCount();
 
         return $this->success([
             'gid' => $group->gid,
             'gname' => $group->gname,
             'gwords' => $group->gwords,
-            'total_words' => count($group->gwords),
+            'total_words' => count($group->gwords) + $groupWordsCount,
             'created_at' => $group->created_at,
             'updated_at' => $group->updated_at,
             'uid' => $uid,
@@ -119,12 +120,15 @@ class AppQyV1WordGroupManagementController
         }
 
         $personal_words = PDQBasePublic::queryPersonalDictionary(false);
+        // Merged total: gwords JSON words + the group_word_progress row's
+        // total_words cache - disjoint sources, both count.
+        $groupWordsCount = $group->pivotWordsCount();
 
         return $this->success([
             'gid' => $group->gid,
             'gname' => $group->gname,
             'gwords' => $group->gwords,
-            'total_words' => count($group->gwords),
+            'total_words' => count($group->gwords) + $groupWordsCount,
             'created_at' => $group->created_at,
             'updated_at' => $group->updated_at,
             'uid' => $uid,
@@ -229,7 +233,8 @@ class AppQyV1WordGroupManagementController
         $start = $request->input('start', 0);
         $limit = $request->input('limit', 1000);
 
-        $groups = AppQyV1WordGroupModel::orderBy('created_at', 'desc')
+        $groups = AppQyV1WordGroupModel::with('wordProgress:id,group_id,total_words')
+            ->orderBy('created_at', 'desc')
             ->skip($start)
             ->take($limit)
             ->get()
@@ -247,11 +252,14 @@ class AppQyV1WordGroupManagementController
                 if (is_string($group->gwords)) {
                     $group->gwords = StrTool::extractWords($group->gcontent);
                 }
+                // Merged total: gwords JSON words + the progress row's
+                // total_words cache - disjoint sources, both count.
+                $groupWordsCount = $group->pivotWordsCount();
                 return [
                     'gid' => $group->gid,
                     'gname' => $group->gname,
                     'gwords' => $group->gwords,
-                    'total_words' => count($group->gwords),
+                    'total_words' => count($group->gwords) + $groupWordsCount,
                     'created_at' => $group->created_at,
                     'updated_at' => $group->updated_at,
                     'words_frequency' => $group->words_frequency,

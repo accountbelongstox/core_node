@@ -24,7 +24,7 @@ import re
 import socket
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import threading
 import time
 from dataclasses import dataclass
