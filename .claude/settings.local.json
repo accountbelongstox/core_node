@@ -48,7 +48,8 @@
       "Bash(node:*)",
       "Bash(php -l app/Console/Commands/InitializeApps.php)",
       "Bash(php -l app/Services/UserSyncService.php)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(php:*)"
     ]
   }
 }
