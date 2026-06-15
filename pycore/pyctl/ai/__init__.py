@@ -12,6 +12,7 @@ pycore.pyctl.desktop.ai_hooks (composed at the app layer).
 """
 
 from pycore.pyctl.ai.ai_probe import probe_all, probe_one, catalog, mask_key
+from pycore.pyctl.ai.ai_balance import balance_all, balance_one, BALANCE_PROVIDERS
 from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER
 from pycore.pyctl.ai.ai_gateway import (
@@ -28,6 +29,7 @@ from pycore.pyctl.ai.ai_rate_limits import prune_expired, rate_status
 
 __all__ = [
     "probe_all", "probe_one", "catalog", "mask_key", "chat_once",
+    "balance_all", "balance_one", "BALANCE_PROVIDERS",
     "prune_expired", "rate_status", "clear_expired_cooldowns",
     "PROVIDERS", "PROVIDER_ORDER",
     "generate_text", "describe_image", "generate_image", "available_providers",

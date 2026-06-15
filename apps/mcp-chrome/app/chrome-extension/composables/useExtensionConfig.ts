@@ -31,14 +31,6 @@ export interface ExtensionRegistry {
 // ============================================================
 
 const EXTENSION_REGISTRY: ExtensionRegistry = {
-  'queue-center': {
-    id: 'queue-center',
-    name: 'Task Queue & Logs',
-    description: 'Unified task queue (serial processing) and its event logs',
-    icon: '📋',
-    iconBg: 'bg-purple-100',
-    status: 'active',
-  },
   'bing-dictionary': {
     id: 'bing-dictionary',
     name: 'Bing Dictionary',
@@ -81,7 +73,7 @@ let isInitialized = false;
 function getDefaultExtensions(): ExtensionConfig[] {
   return Object.values(EXTENSION_REGISTRY).map(ext => ({
     ...ext,
-    enabled: ext.id === 'queue-center' || ext.id === 'bing-dictionary',
+    enabled: ext.id === 'bing-dictionary',
     config: {},
   }));
 }

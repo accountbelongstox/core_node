@@ -64,12 +64,108 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Function to check if PostgreSQL is already installed
-check_postgresql() {
-    if command_exists psql; then
-        return 0  # true, is installed
+# True if something is LISTENING on the given TCP port.
+port_in_use() {
+    local port="$1"
+    if command_exists ss; then
+        ss -ltnH 2>/dev/null | grep -qE "[:.]${port}[[:space:]]"
+    elif command_exists lsof; then
+        lsof -ti "tcp:${port}" -sTCP:LISTEN >/dev/null 2>&1
+    else
+        return 1
     fi
-    return 1  # false, is not installed
+}
+
+# Y/n prompt that DEFAULTS TO YES. Non-interactive (no controlling TTY) -> YES
+# automatically (policy: auto-stop the conflicting container). Override with
+# PORT_CONFLICT_AUTO_STOP=no (force No) or =yes (pre-confirm).
+prompt_default_yes() {
+    local msg="$1" reply=""
+    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Nn]*) return 1 ;; [Yy]*) return 0 ;; esac
+    if [ -t 0 ] && [ -r /dev/tty ]; then
+        printf '%s [Y/n] ' "$msg" > /dev/tty
+        read -r reply < /dev/tty || reply=""
+    fi
+    case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+}
+
+# Detect & resolve a conflict on <port>. A Docker-published port (e.g. a
+# pgvector/postgres container on 5432) blocks the LOCAL cluster from binding.
+# Offer to stop the owning container (default Yes); else offer to kill a plain
+# process holder. Returns 0 if the port is free (or freed), 1 otherwise.
+resolve_port_conflict() {
+    local port="$1" label="${2:-service}" row="" cid="" cname="" pids=""
+
+    port_in_use "$port" || return 0
+    echo "[$SCRIPT_INDEX] Port $port ($label) is already in use."
+
+    if command_exists docker; then
+        row=$($USE_SUDO docker ps --filter "publish=${port}" --format '{{.ID}} {{.Names}}' 2>/dev/null | head -1)
+        [ -n "$row" ] || row=$(docker ps --filter "publish=${port}" --format '{{.ID}} {{.Names}}' 2>/dev/null | head -1)
+    fi
+    if [ -n "$row" ]; then
+        cid=$(printf '%s' "$row" | awk '{print $1}')
+        cname=$(printf '%s' "$row" | awk '{print $2}')
+        echo "[$SCRIPT_INDEX] Held by Docker container: ${cname:-$cid} (publishes :$port)."
+        if prompt_default_yes "[$SCRIPT_INDEX] Stop container ${cname:-$cid} to free port $port?"; then
+            echo "[$SCRIPT_INDEX] Stopping container ${cname:-$cid} ..."
+            $USE_SUDO docker stop "$cid" >/dev/null 2>&1 || docker stop "$cid" >/dev/null 2>&1 || true
+            sleep 2
+            if port_in_use "$port"; then
+                echo "[$SCRIPT_INDEX] Port $port still in use after stopping the container."
+                return 1
+            fi
+            echo "[$SCRIPT_INDEX] Port $port is now free."
+            return 0
+        fi
+        echo "[$SCRIPT_INDEX] Container left running; port $port still occupied."
+        return 1
+    fi
+
+    if command_exists ss; then
+        pids=$(ss -ltnpH 2>/dev/null | grep -E "[:.]${port}[[:space:]]" | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u)
+    fi
+    if [ -z "$pids" ] && command_exists lsof; then
+        pids=$(lsof -ti "tcp:${port}" -sTCP:LISTEN 2>/dev/null | sort -u)
+    fi
+    if [ -n "$pids" ]; then
+        echo "[$SCRIPT_INDEX] Held by process PID(s): $pids"
+        ps -o pid=,comm= -p $pids 2>/dev/null | sed "s/^/[$SCRIPT_INDEX]   /"
+        if prompt_default_yes "[$SCRIPT_INDEX] Kill process(es) $pids holding port $port?"; then
+            $USE_SUDO kill $pids 2>/dev/null || kill $pids 2>/dev/null || true
+            sleep 1
+            $USE_SUDO kill -9 $pids 2>/dev/null || true
+            sleep 1
+            port_in_use "$port" || { echo "[$SCRIPT_INDEX] Port $port is now free."; return 0; }
+        fi
+    fi
+    echo "[$SCRIPT_INDEX] Port $port still occupied."
+    return 1
+}
+
+# Function to check if the PostgreSQL SERVER is already installed.
+# IMPORTANT: psql is the CLIENT (package postgresql-client) — its presence does
+# NOT mean the server is installed. A client-only box has NO `postgres` OS user,
+# NO cluster tools (pg_createcluster/pg_ctlcluster from postgresql-common) and NO
+# server daemon, so the old `command_exists psql` check wrongly took the "already
+# installed" path and then died with "sudo: unknown user postgres" and
+# "pg_createcluster: command not found". Require real SERVER artifacts here so a
+# client-only host falls through to install_postgresql.
+check_postgresql() {
+    # Debian/Ubuntu: server pulls postgresql-common (cluster tools) + creates the
+    # postgres OS user. Both present => server installed.
+    if command_exists pg_ctlcluster && id postgres >/dev/null 2>&1; then
+        return 0
+    fi
+    # Non-Debian layout: server daemon on PATH.
+    if command_exists postgres; then
+        return 0
+    fi
+    # Debian server binary present even when not on PATH (e.g. /usr/lib/postgresql/16/bin/postgres).
+    if ls /usr/lib/postgresql/*/bin/postgres >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1  # client-only or absent -> trigger install_postgresql
 }
 
 # Function to check if PostgreSQL service is running.
@@ -255,6 +351,19 @@ install_postgresql() {
 # Function to configure PostgreSQL using Debian/Ubuntu cluster tools
 configure_postgresql() {
     echo "[$SCRIPT_INDEX] Configuring PostgreSQL (Debian/Ubuntu cluster)..."
+
+    # Self-heal: the "already installed" path in main() calls us directly, and a
+    # client-only box reaches here with NO cluster tools and NO postgres user.
+    # Without this, pg_createcluster ("command not found") + chown postgres:postgres
+    # ("invalid user") both fail. Ensure the SERVER (postgresql + postgresql-common,
+    # which also creates the postgres user and a default cluster) is installed first.
+    if ! command_exists pg_createcluster || ! id postgres >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] Server tools/user missing (client-only?) -> installing PostgreSQL server first"
+        if ! install_postgresql; then
+            echo "[$SCRIPT_INDEX] ERROR: PostgreSQL server install failed; cannot configure cluster"
+            return 1
+        fi
+    fi
 
     # Ensure directories
     create_postgresql_directories
@@ -607,6 +716,14 @@ main() {
         if [ "$IS_WSL" = true ]; then
             wsl_mount_pg_image || true
         fi
+
+        # Free port 5432 if a Docker container (e.g. a pgvector/postgres container)
+        # publishes it -- the LOCAL cluster cannot bind an occupied port, and a
+        # foreign DB on 5432 answers Laravel with "password authentication failed".
+        # Offers to stop the container (default Yes); set PORT_CONFLICT_AUTO_STOP=no
+        # to keep it (then use the Docker DB instead of the local one).
+        resolve_port_conflict 5432 "PostgreSQL" || \
+            echo "[$SCRIPT_INDEX] WARNING: port 5432 still occupied; the local cluster may fail to bind."
 
         # Check if PostgreSQL is already installed
         if check_postgresql; then

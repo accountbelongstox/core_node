@@ -61,20 +61,10 @@ def image(req: ImageRequest):
             detail=f"prompt too long (max {_PROMPT_MAX_CHARS} chars)",
         )
     source = req.source or "image"
+    # NOTE: history recording now happens inside generate_image() (the gateway
+    # core) so EVERY image path — including assist-claimed covers that never go
+    # through this route — is recorded exactly once. Do not re-record here.
     result = generate_image(prompt=prompt, size=req.size, model=req.model, source=source)
-    if result.get("success") and result.get("image_base64"):
-        ai_image_history.record_image(
-            provider=result.get("provider", ""),
-            model=result.get("model", ""),
-            prompt=prompt,
-            image_base64=result["image_base64"],
-            size=req.size or "",
-            mime=result.get("mime") or "image/png",
-            latency_ms=result.get("latency_ms"),
-            source=source,
-            origin="pycore",
-            ok=True,
-        )
     return result
 
 
@@ -96,14 +86,9 @@ def image_test(req: ImageTestRequest):
     if not provider:
         raise fastapi.HTTPException(status_code=400, detail="provider is required")
     prompt = (req.prompt or "A small test image: a friendly robot waving, flat style").strip()
+    # History recording happens inside generate_image() (gateway core) — see /image.
     result = generate_image(prompt=prompt, size=req.size or "1:1", model=req.model,
                             source="provider-test", provider=provider)
-    if result.get("success") and result.get("image_base64"):
-        ai_image_history.record_image(
-            provider=result.get("provider", provider), model=result.get("model", ""),
-            prompt=prompt, image_base64=result["image_base64"], size=req.size or "1:1",
-            mime=result.get("mime") or "image/png", latency_ms=result.get("latency_ms"),
-            source="provider-test", origin="pycore", ok=True)
     return result
 
 
