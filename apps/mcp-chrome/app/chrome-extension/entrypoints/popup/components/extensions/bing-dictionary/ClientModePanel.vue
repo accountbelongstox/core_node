@@ -571,6 +571,14 @@ const playAudio = (url?: string) => {
   background: var(--warning);
 }
 
+.scrape-cache-hint {
+  margin-top: 6px;
+  font-size: 9px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-faint);
+  word-break: break-all;
+}
+
 .scrape-test {
   margin: 10px 0;
   padding: 10px;
