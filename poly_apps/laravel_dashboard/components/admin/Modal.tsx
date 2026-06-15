@@ -2,6 +2,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
+import Portal from '../shared/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 
 /**
  * Modal Props
@@ -59,20 +61,7 @@ export function Modal({
     return () => window.removeEventListener('keydown', handleEsc);
   }, [isOpen, closeOnEsc, onClose]);
 
-  /**
-   * Prevent body scroll when modal is open
-   */
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+  // Background scroll lock is handled centrally by <Portal/>.
 
   /**
    * Handle backdrop click
@@ -94,14 +83,15 @@ export function Modal({
   }[size];
 
   return (
+    <Portal>
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+      className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP} animate-in fade-in duration-200`}
       onClick={handleBackdropClick}
     >
       <div
         ref={modalRef}
         className={`
-          relative w-full ${sizeClass} bg-white rounded-lg shadow-2xl
+          relative w-full ${sizeClass} bg-white dark:bg-slate-800 rounded-lg shadow-2xl
           animate-in zoom-in-95 duration-200
           max-h-[90vh] flex flex-col
           ${className}
@@ -137,6 +127,7 @@ export function Modal({
         )}
       </div>
     </div>
+    </Portal>
   );
 }
 

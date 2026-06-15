@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, LogIn, UserPlus, Loader2 } from 'lucide-react';
 import { api } from '../../core/api';
 import { commonClasses } from '../../styles/theme';
+import Portal from '../shared/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 
 interface VocabAuthModalProps {
   isOpen: boolean;
@@ -75,8 +77,9 @@ const VocabAuthModal: React.FC<VocabAuthModalProps> = ({ isOpen, onClose, onSucc
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className={`${commonClasses.card} w-full max-w-md mx-4`}>
+    <Portal>
+    <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.login} ${OVERLAY_BACKDROP}`}>
+      <div className={`${commonClasses.card} relative w-full max-w-md`}>
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-xl font-bold">{mode === 'login' ? 'Login' : 'Register'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded">
@@ -231,6 +234,7 @@ const VocabAuthModal: React.FC<VocabAuthModalProps> = ({ isOpen, onClose, onSucc
         </div>
       </div>
     </div>
+    </Portal>
   );
 };
 

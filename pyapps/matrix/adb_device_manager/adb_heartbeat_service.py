@@ -17,7 +17,7 @@ from pyapps.matrix.adb_device_manager.device_table import device_table, DeviceTa
 from pyapps.matrix.adb_device_manager.network_scanner import network_scanner, NetworkScanner
 from pyapps.matrix.adb_device_manager.usb_monitor import get_usb_monitor
 from pyapps.matrix.services.device_id_manager import DeviceIDManager
-from pycore.pyutils.device_manager import device_manager, DeviceManager
+from pycore.pyutils.device.device_manager import device_manager, DeviceManager
 
 
 class ADBHeartbeatService:
@@ -133,7 +133,7 @@ class ADBHeartbeatService:
             ip: 设备IP地址
         """
         # Import at function start to avoid UnboundLocalError
-        from pycore.pyutils.device_manager import device_manager, DeviceState as DM_DeviceState
+        from pycore.pyutils.device.device_manager import device_manager, DeviceState as DM_DeviceState
         from pyapps.matrix.services.device_id_manager import DeviceIDManager
 
         with self.connection_semaphore:  # 限制最多3个并发

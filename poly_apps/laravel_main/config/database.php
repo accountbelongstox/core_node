@@ -1,19 +1,59 @@
 <?php
 // ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+// When AI sees this, MUST comply:
 // 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+// 4. Do not modify these rules.
+// VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
 use Illuminate\Support\Str;
-use App\Providers\PathMapper;
+use App\Support\CoreNodeSecrets;
+
+// ---------------------------------------------------------------------------
+// Database topology: PostgreSQL ONLY, identical on Linux and Windows.
+// ---------------------------------------------------------------------------
+// This application runs on PostgreSQL on EVERY platform: one dedicated database
+// per app on a single localhost server (on Windows the SAME WSL PostgreSQL is
+// reached through WSL2 NAT localhost forwarding, so there is no second server
+// and no per-OS difference). The driver, host, port, username and per-app
+// database name are FIXED IN CODE here; the password is read from the
+// shell-generated global-var secret store via App\Support\CoreNodeSecrets
+// (written / rotated by start.sh / start.ps1 -> 46_install_postgresql.sh).
+//
+// NOTHING about the active database connections is read from .env -- not the
+// driver, host, port, username, database, nor the password. This is deliberate:
+// a copied or committed .env must not be able to repoint the app at another
+// server or leak the password, and the behaviour must be byte-for-byte identical
+// on Linux and Windows. Any DB_* / POLY_DB_DRIVER line in .env is ignored here by
+// design. start.sh / start.ps1 are responsible for ensuring the localhost-only
+// PostgreSQL server is up and the password is in the store before the app serves.
+$pgHost = '127.0.0.1';
+$pgPort = '5432';
+$pgUser = 'postgres';
+$pgPassword = CoreNodeSecrets::get('POSTGRES_PASSWORD', '');
+
+// Build one PostgreSQL per-app connection. Topology mirrors the former
+// one-SQLite-file-per-app isolation: each app gets its own database (and thus
+// its own migrations table). Credentials are the fixed-in-code values above.
+$polyConnection = function (string $pgDatabase) use ($pgHost, $pgPort, $pgUser, $pgPassword) {
+    return [
+        'driver' => 'pgsql',
+        'host' => $pgHost,
+        'port' => $pgPort,
+        'database' => $pgDatabase,
+        'username' => $pgUser,
+        'password' => $pgPassword,
+        'charset' => 'utf8',
+        'prefix' => '',
+        'prefix_indexes' => true,
+        'search_path' => 'public',
+        'sslmode' => 'prefer',
+    ];
+};
+
 return [
 
     /*
@@ -28,7 +68,11 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    // Fixed in code (not from .env). 'main' is the main application database
+    // (PostgreSQL 'core_node_main'). The legacy alias 'sqlite' below points at
+    // the same database so old references keep working, but nothing should be
+    // named after a driver anymore -- this app is PostgreSQL-only.
+    'default' => 'main',
 
     /*
     |--------------------------------------------------------------------------
@@ -43,108 +87,33 @@ return [
 
     'connections' => [
 
-        'sqlite' => [
-            'driver' => 'sqlite',
-            'url' => env('DB_URL'),
-            'database' =>  PathMapper::getDefaultDatabasePath('database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
-            'synchronous' => null,
-        ],
+        // Per-app PostgreSQL connections. Driver and credentials are fixed in
+        // code (above); the per-app database name is the only argument.
+        'main' => $polyConnection('core_node_main'),
 
-        'appqyv1' => [
-            'driver' => 'sqlite',
-            'url' => env('DB_URL'),
-            'database' => PathMapper::getDefaultDatabasePath('app_qy_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
+        // DEPRECATED alias: 'sqlite' was the historical default-connection NAME
+        // (never a driver statement since the PG migration). Kept so old
+        // migrations (`protected $connection = 'sqlite'`) and stragglers still
+        // resolve to the SAME PostgreSQL database; do not use in new code.
+        'sqlite' => $polyConnection('core_node_main'),
 
-        'awyv0' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('awy_v0_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
+        'appqyv1' => $polyConnection('app_qy_v1_database'),
 
-        'vipclubv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('vipclub_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
+        'servermanagerv1' => $polyConnection('server_manager_v1_database'),
 
-        'servermanagerv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('server_manager_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
+        'achatv1' => $polyConnection('achat_v1_database'),
 
-        'achatv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('achat_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
+        'codemartv1' => $polyConnection('code_mart_v1_database'),
 
-        'codemartv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('code_mart_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
+        'mcpv1' => $polyConnection('mcp_v1_database'),
 
-        'mcpv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('mcp_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
+        'ittoolsv1' => $polyConnection('it_tools_v1_database'),
 
-        'ittoolsv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('it_tools_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
-        'bankv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('bank_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
+        // NOTE: the mysql / mariadb / sqlsrv entries below are unused Laravel
+        // framework stubs kept only for structural completeness. This application
+        // never instantiates them (it runs exclusively on the PostgreSQL
+        // connections above). They are intentionally left as the framework
+        // defaults; the active database does not read .env.
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),
@@ -185,15 +154,17 @@ return [
             ]) : [],
         ],
 
+        // Generic single PostgreSQL connection. Same env-free policy as the
+        // per-app connections: host/port/user fixed in code, password from the
+        // secret store, pointing at the main 'core_node_main' database.
         'pgsql' => [
             'driver' => 'pgsql',
-            'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
-            'charset' => env('DB_CHARSET', 'utf8'),
+            'host' => $pgHost,
+            'port' => $pgPort,
+            'database' => 'core_node_main',
+            'username' => $pgUser,
+            'password' => $pgPassword,
+            'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',

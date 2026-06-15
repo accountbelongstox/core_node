@@ -1,21 +1,15 @@
 import React, { useState } from 'react';
-import { Languages } from 'lucide-react';
+import { Languages, ArrowRightLeft, Copy, Check, Eraser } from 'lucide-react';
 import { useToolModel } from '../../hooks';
 import { AI_TOOLS } from '../../config/tools.config';
 import ToolWrapper from '../universal/ToolWrapper';
 import HistoryList from '../universal/HistoryList';
-import BentoCard from '../BentoCard';
 import { commonClasses } from '../../styles/theme';
+import { AI_BODY, AI_GRID_2, AiBentoCard, AiToolActions, AiToolAlert } from '../ai-tools/ui';
 
-/**
- * TranslationForm - Simplified translation tool using centralized architecture
- *
- * Before: 370 lines with manual API calls, history, favorites
- * After: ~100 lines with automatic management
- */
 const TranslationForm: React.FC = () => {
   const config = AI_TOOLS.translation;
-  const { execute, loading, error, result, history, isFavorite, toggleFavorite, clearError } = useToolModel(config);
+  const { execute, loading, error, history, isFavorite, toggleFavorite, clearError } = useToolModel(config);
 
   const [input, setInput] = useState({
     text: '',
@@ -25,6 +19,7 @@ const TranslationForm: React.FC = () => {
 
   const [showHistory, setShowHistory] = useState(false);
   const [translatedText, setTranslatedText] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const handleTranslate = async () => {
     if (!input.text.trim()) return;
@@ -38,9 +33,32 @@ const TranslationForm: React.FC = () => {
         setTranslatedText(result.translated_text);
       }
     } catch (err) {
-      // Error is automatically handled by useToolModel
       console.error('Translation failed:', err);
     }
+  };
+
+  const handleSwap = () => {
+    if (input.sourceLang === 'auto') return;
+    setInput((prev) => ({
+      ...prev,
+      sourceLang: prev.targetLang,
+      targetLang: prev.sourceLang,
+      text: translatedText || prev.text
+    }));
+    setTranslatedText('');
+  };
+
+  const handleClear = () => {
+    setInput((prev) => ({ ...prev, text: '' }));
+    setTranslatedText('');
+    clearError();
+  };
+
+  const handleCopy = async () => {
+    if (!translatedText) return;
+    await navigator.clipboard.writeText(translatedText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const languageOptions = [
@@ -67,107 +85,115 @@ const TranslationForm: React.FC = () => {
       onToggleHistory={() => setShowHistory(!showHistory)}
       history={<HistoryList items={history} />}
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Source Text */}
-        <BentoCard title="Source Text">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Source Language
-              </label>
-              <select
-                value={input.sourceLang}
-                onChange={(e) => setInput({ ...input, sourceLang: e.target.value })}
-                className={commonClasses.input}
-              >
-                {languageOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
+      <div className={AI_BODY}>
+        <AiBentoCard>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <select
+              value={input.sourceLang}
+              onChange={(e) => setInput({ ...input, sourceLang: e.target.value })}
+              className={`${commonClasses.input} w-full flex-1`}
+              aria-label="Source language"
+            >
+              {languageOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Text to Translate
-              </label>
+            <button
+              onClick={handleSwap}
+              disabled={input.sourceLang === 'auto'}
+              title={input.sourceLang === 'auto' ? 'Pick a source language to swap' : 'Swap languages'}
+              className={`${commonClasses.button} ${commonClasses.buttonSecondary} shrink-0 p-2.5 disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+            </button>
+
+            <select
+              value={input.targetLang}
+              onChange={(e) => setInput({ ...input, targetLang: e.target.value })}
+              className={`${commonClasses.input} w-full flex-1`}
+              aria-label="Target language"
+            >
+              {languageOptions.filter(opt => opt.value !== 'auto').map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </AiBentoCard>
+
+        <div className={AI_GRID_2}>
+          <AiBentoCard title="Source Text">
+            <div className="flex flex-col">
               <textarea
                 value={input.text}
                 onChange={(e) => setInput({ ...input, text: e.target.value })}
                 placeholder="Enter text to translate..."
-                className={`${commonClasses.input} resize-none`}
-                rows={8}
+                className={`${commonClasses.input} w-full resize-none min-h-[220px]`}
+                rows={9}
               />
-            </div>
-
-            <button
-              onClick={handleTranslate}
-              disabled={loading || !input.text.trim()}
-              className={`${commonClasses.button} ${commonClasses.buttonPrimary} w-full`}
-            >
-              {loading ? 'Translating...' : 'Translate'}
-            </button>
-
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
-                {error}
+              <div className="mt-2 text-right text-xs text-slate-400 dark:text-slate-500">
+                {input.text.length} characters
               </div>
-            )}
-          </div>
-        </BentoCard>
-
-        {/* Translated Text */}
-        <BentoCard title="Translation">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Target Language
-              </label>
-              <select
-                value={input.targetLang}
-                onChange={(e) => setInput({ ...input, targetLang: e.target.value })}
-                className={commonClasses.input}
-              >
-                {languageOptions.filter(opt => opt.value !== 'auto').map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
             </div>
+          </AiBentoCard>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Translated Text
-              </label>
+          <AiBentoCard title="Translation">
+            <div className="flex flex-col">
               <div
-                className={`${commonClasses.input} min-h-[200px] whitespace-pre-wrap ${
+                className={`${commonClasses.input} w-full min-h-[220px] whitespace-pre-wrap overflow-auto ${
                   loading ? 'animate-pulse' : ''
                 }`}
               >
                 {loading ? (
-                  <div className="flex items-center justify-center h-full text-slate-400">
-                    Translating...
+                  <div className="flex items-center justify-center h-full min-h-[200px] text-slate-400">
+                    Translating…
                   </div>
                 ) : translatedText ? (
                   translatedText
                 ) : (
-                  <div className="flex items-center justify-center h-full text-slate-400">
+                  <div className="flex items-center justify-center h-full min-h-[200px] text-slate-400">
                     Translation will appear here
                   </div>
                 )}
               </div>
+              <div className="mt-2 flex items-center justify-between text-xs">
+                <span className="text-slate-400 dark:text-slate-500">
+                  {translatedText.length} characters
+                </span>
+                {translatedText && (
+                  <button
+                    onClick={handleCopy}
+                    className="flex items-center gap-1 font-medium text-cyan-600 hover:text-cyan-700 dark:text-cyan-400"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? 'Copied!' : 'Copy'}
+                  </button>
+                )}
+              </div>
             </div>
+          </AiBentoCard>
+        </div>
 
-            {translatedText && (
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(translatedText);
-                }}
-                className={`${commonClasses.button} ${commonClasses.buttonSecondary} w-full`}
-              >
-                Copy Translation
-              </button>
-            )}
-          </div>
-        </BentoCard>
+        {error && <AiToolAlert>{error}</AiToolAlert>}
+
+        <AiToolActions>
+          <button
+            onClick={handleClear}
+            disabled={!input.text && !translatedText}
+            className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed`}
+          >
+            <Eraser className="w-4 h-4" />
+            Clear
+          </button>
+          <button
+            onClick={handleTranslate}
+            disabled={loading || !input.text.trim()}
+            className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 px-8 disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            <Languages className="w-4 h-4" />
+            {loading ? 'Translating…' : 'Translate'}
+          </button>
+        </AiToolActions>
       </div>
     </ToolWrapper>
   );

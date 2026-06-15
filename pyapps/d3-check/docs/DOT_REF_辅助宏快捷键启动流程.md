@@ -1,6 +1,6 @@
 # 辅助宏快捷键启动流程 — 供 DOT 参考
 
-**说明**：本文档供 **DOT（.NET 端口）** 参考，要求 DOT 按 **DOT 规范**（[DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md)、[.cursor/rules/dot.mdc](../../../.cursor/rules/dot.mdc)；**UI 层以 [DOT_UI_PROJECT_SPECIFICATION.md](../../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md)、[.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc) 为规范**）实现，**功能与 Python 1:1 对应**。代码与注释使用英文/ASCII；行为与下述 Python 流程一致。
+**说明**：本文档供 **DOT（.NET 端口）** 参考，要求 DOT 按 **DOT 规范**（[DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md)、[.cursor/rules/dot.mdc](../../../.cursor/rules/dot.mdc)；**UI 层以 [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md)、[.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc) 为规范**）实现，**功能与 Python 1:1 对应**。代码与注释使用英文/ASCII；行为与下述 Python 流程一致。
 
 **更新**：本节新增 **§9 颜色类库、识别类库等在流程中的嵌入**，描述 ColorPrint、UnifiedStyles/UITheme、D3InterfaceManager、界面检测与模板匹配等在该流程中的嵌入位置与依赖顺序，便于 DOT 按 1:1 引入等价类库与初始化顺序。
 

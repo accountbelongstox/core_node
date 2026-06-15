@@ -20,9 +20,9 @@ from typing import Optional, Dict, Any
 from pycore.pyfoundations.third_party import get_third_package_mss, get_third_package_PIL_Image
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyutils.ocr import ocr_manager
-from pycore.pyutils.window_ops import WindowOps
+from pycore.pyutils.window.ops import WindowOps
 from pycore.pyutils.image_comparator import ImageComparator
-from pycore.pyutils.window_analyzer import WindowAnalyzer
+from pycore.pyutils.window.analyzer import WindowAnalyzer
 from pycore.pygvar import PYTOOLS_TMP_DIR
 
 mss = get_third_package_mss()

@@ -49,10 +49,10 @@ After editing, Cursor will pick up changes when the rule is next loaded (e.g. op
 
 ## 4. Keeping One Source of Truth (Avoid Duplication)
 
-- Put **long or detailed specs** in `development-guides/` (e.g. `DOT_ARCHITECTURE.md`, `DOT_UI_PROJECT_SPECIFICATION.md`).
+- Put **long or detailed specs** in `development-guides/` (e.g. `DOT_ARCHITECTURE.md`, `DOT_ARCHITECTURE.md`).
 - **Rule files** (.mdc): state scope (globs), point to the canonical doc, and list a few bullet points. Do not copy the full spec into the rule.
-- **Other documents**: When a doc describes UI or Presentation layer structure, **reference** the canonical spec (DOT_UI_PROJECT_SPECIFICATION.md); do not duplicate or redefine folder layout, naming, or Fluent 2 rules there.
-- **Conflict resolution**: Any document that conflicts with or duplicates UI/Presentation content must be **updated to defer** to `DOT_UI_PROJECT_SPECIFICATION.md` and `.cursor/rules/dot-ui.mdc` (e.g. replace in-place definitions with "UI layer: see DOT_UI_PROJECT_SPECIFICATION.md").
+- **Other documents**: When a doc describes UI or Presentation layer structure, **reference** the canonical spec (DOT_ARCHITECTURE.md); do not duplicate or redefine folder layout, naming, or Fluent 2 rules there.
+- **Conflict resolution**: Any document that conflicts with or duplicates UI/Presentation content must be **updated to defer** to `DOT_ARCHITECTURE.md` and `.cursor/rules/dot-ui.mdc` (e.g. replace in-place definitions with "UI layer: see DOT_ARCHITECTURE.md").
 - Sub-apps can keep their own canonical doc (e.g. `docs/PROJECT_STANDARDS.md`) and have a rule that references it (see [CURSOR_SUBAPP_RULES.md](CURSOR_SUBAPP_RULES.md)).
 
 ---
@@ -61,14 +61,14 @@ After editing, Cursor will pick up changes when the rule is next loaded (e.g. op
 
 - **One concern per rule.** Examples: `dot.mdc` = layout + language for dotcore/dotapps; `dot-ui.mdc` = UI layer (Clean Architecture, MVVM, Fluent 2) for dotapps; `d3-check.mdc` = d3-check app only.
 - **Scope by glob.** Use `globs` so each rule applies only to the relevant paths (e.g. `dotapps/**` for dot-ui, `pyapps/d3-check/**` for d3-check). This reduces overlap and conflict.
-- **Precedence for UI/Presentation:** If any document or rule conflicts with `DOT_UI_PROJECT_SPECIFICATION.md` or `.cursor/rules/dot-ui.mdc` on UI structure, Fluent 2, or Presentation layer, **DOT_UI_PROJECT_SPECIFICATION and dot-ui.mdc win**; do not add alternative UI rules elsewhere.
+- **Precedence for UI/Presentation:** If any document or rule conflicts with `DOT_ARCHITECTURE.md` or `.cursor/rules/dot-ui.mdc` on UI structure, Fluent 2, or Presentation layer, **DOT_UI_PROJECT_SPECIFICATION and dot-ui.mdc win**; do not add alternative UI rules elsewhere.
 - **General:** When two rules could conflict, the more **specific** glob wins for that path. Prefer stating in the rule: "In case of conflict with dot.mdc, follow DOT_ARCHITECTURE for layout/language; follow this rule for UI structure only."
 
 ---
 
 ## 6. Updating or Adding a .NET UI (or Other) Specification
 
-1. **Write or update the canonical doc** in `development-guides/` (e.g. `DOT_UI_PROJECT_SPECIFICATION.md`). Put all detailed rules there.
+1. **Write or update the canonical doc** in `development-guides/` (e.g. `DOT_ARCHITECTURE.md`). Put all detailed rules there.
 2. **Add or update a rule** in `.cursor/rules/` (e.g. `dot-ui.mdc`):
    - Set `description` and `globs` (e.g. `dotapps/**`).
    - Set `alwaysApply: false` unless you want it always on.
@@ -76,7 +76,7 @@ After editing, Cursor will pick up changes when the rule is next loaded (e.g. op
 3. **Resolve conflicts:** If the new spec overlaps with an existing rule (e.g. dot.mdc), clarify in the new rule that base layout/language come from DOT_ARCHITECTURE/dot.mdc, and this rule only adds UI/Presentation conventions.
 4. **Commit** the doc and the `.mdc` file so everyone uses the same Cursor behavior.
 
-**When DOT_UI_PROJECT_SPECIFICATION.md changes:** (1) Update the canonical doc in `development-guides/DOT_UI_PROJECT_SPECIFICATION.md`. (2) Update `.cursor/rules/dot-ui.mdc`: keep the body as a short summary that reflects the spec (layers, structure, naming, Fluent 2); do not copy the full spec. (3) Any other document that describes UI or Presentation layer structure must defer to this canonical spec; do not duplicate or contradict it (e.g. "UI layer: see DOT_UI_PROJECT_SPECIFICATION.md").
+**When DOT_ARCHITECTURE.md changes:** (1) Update the canonical doc in `development-guides/DOT_ARCHITECTURE.md`. (2) Update `.cursor/rules/dot-ui.mdc`: keep the body as a short summary that reflects the spec (layers, structure, naming, Fluent 2); do not copy the full spec. (3) Any other document that describes UI or Presentation layer structure must defer to this canonical spec; do not duplicate or contradict it (e.g. "UI layer: see DOT_ARCHITECTURE.md").
 
 ---
 
@@ -84,9 +84,9 @@ After editing, Cursor will pick up changes when the rule is next loaded (e.g. op
 
 | Goal                         | Action |
 |-----------------------------|--------|
-| Change what AI does in dotapps | Edit `development-guides/DOT_ARCHITECTURE.md` or `DOT_UI_PROJECT_SPECIFICATION.md`, then `.cursor/rules/dot.mdc` or `dot-ui.mdc`. |
-| Change UI/Presentation spec   | Edit `DOT_UI_PROJECT_SPECIFICATION.md`, then `.cursor/rules/dot-ui.mdc`; other docs must defer to this canonical spec. |
-| Update conflicting docs       | Per **DOT_UI_PROJECT_SPECIFICATION** and this guide: any doc that defines or duplicates UI/Presentation structure must be updated to **reference** the canonical spec only (e.g. "UI layer: see DOT_UI_PROJECT_SPECIFICATION.md"); remove in-place redefinitions. |
+| Change what AI does in dotapps | Edit `development-guides/DOT_ARCHITECTURE.md` or `DOT_ARCHITECTURE.md`, then `.cursor/rules/dot.mdc` or `dot-ui.mdc`. |
+| Change UI/Presentation spec   | Edit `DOT_ARCHITECTURE.md`, then `.cursor/rules/dot-ui.mdc`; other docs must defer to this canonical spec. |
+| Update conflicting docs       | Per **DOT_UI_PROJECT_SPECIFICATION** and this guide: any doc that defines or duplicates UI/Presentation structure must be updated to **reference** the canonical spec only (e.g. "UI layer: see DOT_ARCHITECTURE.md"); remove in-place redefinitions. |
 | Add a new sub-app rule      | Create `.cursor/rules/<app>.mdc` with glob `pyapps/<AppName>/**` or `dotapps/<AppName>/**`; reference app's canonical doc. |
 | Edit rules from CLI         | Use `/rules` in Cursor agent session (see `.agents/skills/cursor-agent/SKILL.md`). |
 | Single source of truth      | Long text in `development-guides/` or app `docs/`; rules only reference and summarize. |

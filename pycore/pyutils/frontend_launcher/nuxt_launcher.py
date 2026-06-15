@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from .frontend_config import FrontendConfig
 from .output_capturer import OutputCapturer
 import subprocess

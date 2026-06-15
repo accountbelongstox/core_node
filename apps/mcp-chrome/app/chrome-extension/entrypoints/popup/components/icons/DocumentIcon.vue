@@ -21,6 +21,6 @@ interface Props {
 }
 
 withDefaults(defineProps<Props>(), {
-  className: 'icon-default',
+  className: 'w-4 h-4',
 });
 </script>

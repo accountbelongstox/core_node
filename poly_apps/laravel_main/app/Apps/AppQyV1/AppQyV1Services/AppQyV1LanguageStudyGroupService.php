@@ -7,14 +7,14 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 
 /**
- * 语言学习分组服务
- * 重构: 使用统一的 AppQyV1LanguageConfigService 替代重复的语言配置
+ * Language study group service
+ * Refactor: use the unified AppQyV1LanguageConfigService instead of duplicate language configs
  */
 class AppQyV1LanguageStudyGroupService
 {
     /**
-     * 获取默认分组名称
-     * 委托给 AppQyV1LanguageConfigService
+     * Get the default group name
+     * Delegates to AppQyV1LanguageConfigService
      */
     public static function getDefaultGroupName(string $language, string $locale = 'zh'): string
     {
@@ -22,8 +22,8 @@ class AppQyV1LanguageStudyGroupService
     }
 
     /**
-     * 获取语言图标
-     * 委托给 AppQyV1LanguageConfigService
+     * Get the language icon
+     * Delegates to AppQyV1LanguageConfigService
      */
     public static function getLanguageIcon(string $language): string
     {
@@ -31,8 +31,8 @@ class AppQyV1LanguageStudyGroupService
     }
 
     /**
-     * 获取语言颜色
-     * 委托给 AppQyV1LanguageConfigService
+     * Get the language color
+     * Delegates to AppQyV1LanguageConfigService
      */
     public static function getLanguageColor(string $language): string
     {
@@ -40,8 +40,8 @@ class AppQyV1LanguageStudyGroupService
     }
 
     /**
-     * 验证是否为有效的学习语言
-     * 委托给 AppQyV1LanguageConfigService
+     * Validate whether this is a valid study language
+     * Delegates to AppQyV1LanguageConfigService
      */
     public static function isValidLanguage(string $language): bool
     {
@@ -117,7 +117,7 @@ class AppQyV1LanguageStudyGroupService
     {
         return AppQyV1WordGroupModel::where('uid', $userId)
             ->where('language', $language)
-            ->orderByRaw('is_language_default DESC')
+            ->orderByDesc('is_language_default')
             ->orderBy('created_at', 'asc')
             ->get()
             ->toArray();

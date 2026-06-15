@@ -14,6 +14,20 @@ class UserSettingsManager
     private array $tableColumns = [];
     private array $supportedLanguageCodes = [];
 
+    /**
+     * Query-builder connection for the voice_subtitle_user_settings table.
+     * Same connection resolution as ensureTableColumns() (the McpV1 app
+     * connection via AppTablePrefixServiceProvider) so reads, writes and the
+     * schema introspection can never disagree. An earlier refactor left both
+     * this method and the $this->dbConnection property it replaced missing,
+     * which 500'd every voice-subtitle route ("Call to undefined method").
+     */
+    private function getDbConnection(): \Illuminate\Database\Connection
+    {
+        $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::MCPV1);
+        return DB::connection($connectionName);
+    }
+
     public function getUserSettings(string $userIdentifier): array
     {
         // Use model connection for query builder (Laravel best practice)
@@ -75,12 +89,12 @@ class UserSettingsManager
             $updateData['updated_at'] = now();
         }
 
-        $exists = $this->dbConnection->table('voice_subtitle_user_settings')
+        $exists = $this->getDbConnection()->table('voice_subtitle_user_settings')
             ->where('user_identifier', $userIdentifier)
             ->exists();
 
         if ($exists) {
-            $this->dbConnection->table('voice_subtitle_user_settings')
+            $this->getDbConnection()->table('voice_subtitle_user_settings')
                 ->where('user_identifier', $userIdentifier)
                 ->update($updateData);
         } else {
@@ -90,7 +104,7 @@ class UserSettingsManager
             if ($this->hasColumn('created_at')) {
                 $updateData['created_at'] = now();
             }
-            $this->dbConnection->table('voice_subtitle_user_settings')->insert($updateData);
+            $this->getDbConnection()->table('voice_subtitle_user_settings')->insert($updateData);
         }
 
         return [
@@ -117,7 +131,7 @@ class UserSettingsManager
 
         $dbSettings = $this->filterColumns($defaultSettings);
         if (!empty($dbSettings)) {
-            $this->dbConnection->table('voice_subtitle_user_settings')->insert($dbSettings);
+            $this->getDbConnection()->table('voice_subtitle_user_settings')->insert($dbSettings);
         }
 
         Log::info('[UserSettingsManager] Created default settings', [

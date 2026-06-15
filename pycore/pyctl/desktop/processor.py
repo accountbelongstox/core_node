@@ -14,9 +14,10 @@ from typing import Optional, List, Dict
 from pycore import ColorPrint
 from pycore.pyfoundations.system_paths import APP_CACHE_DIR
 from pycore.pyctl.desktop import get_voice_subtitle_queue
-from pycore.pyutils.edge_tts import get_edge_tts_client
+from pycore.pyctl.desktop.ai_hooks import ai_describe_image
+from pycore.pyutils.ocr_cluster import extract_text as ocr_extract_text
+from pycore.pyutils.tts import synthesize as tts_synthesize
 from pycore.pyutils.translator import GoogleTranslator
-from pycore.pyutils.gemini import gemini_manager
 from pycore.pyutils.common.tts_models import clean_tts_text
 
 
@@ -133,26 +134,45 @@ async def generate_tts_for_paragraph(text: str, lang: str) -> Optional[Path]:
     # Generate TTS (using cleaned text)
     ColorPrint.blue(f"[TTS] Generating audio for ({lang}): {cleaned_text[:50]}...")
 
-    edge_tts_client = get_edge_tts_client()
     cache_path = _tts_cache_manager.get_cache_path(cleaned_text, lang, voice)
 
     # Ensure cache directory exists
     cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Synthesize with cleaned text (run sync function in thread pool)
-    success = await asyncio.to_thread(
-        edge_tts_client.synthesize,
-        text=cleaned_text,  # Use cleaned text for TTS
-        voice=voice,
-        output_path=cache_path
+    # Synthesize via the multi-engine orchestrator (by priority: edge -> sherpa
+    # -> melotts -> gptsovits). edge-tts is serialized + rate-aware internally;
+    # rate=None uses EDGE_TTS_RATE / the -20% default. Run the blocking call in a
+    # thread so the event loop stays free.
+    result = await asyncio.to_thread(
+        tts_synthesize,
+        cleaned_text,   # text
+        lang,
+        cache_path,     # output_path (.mp3)
     )
 
-    if success and cache_path.exists():
-        ColorPrint.green(f"[TTS] Audio generated and cached: {cache_path.name}")
+    if result.get("success") and cache_path.exists():
+        ColorPrint.green(
+            f"[TTS] Audio generated via {result.get('engine')} and cached: {cache_path.name}")
         return cache_path
     else:
-        ColorPrint.red(f"[TTS] Failed to generate audio")
+        ColorPrint.red(f"[TTS] Failed to generate audio ({result.get('error')})")
         return None
+
+
+def _is_speakable(text: str) -> bool:
+    """
+    True if the text has at least one pronounceable character (letter / digit /
+    CJK). Pure punctuation/symbol lines ("×", "+", ".", "X") make edge-tts return
+    "No audio was received" — they are skipped instead of attempted.
+    """
+    for ch in (text or ""):
+        if ch.isalnum():
+            return True
+        # CJK / Hiragana / Katakana / Hangul ranges.
+        o = ord(ch)
+        if (0x3040 <= o <= 0x30FF) or (0x3400 <= o <= 0x9FFF) or (0xAC00 <= o <= 0xD7A3):
+            return True
+    return False
 
 
 async def generate_tts_for_text(text: str, lang: str) -> List[Dict]:
@@ -174,6 +194,12 @@ async def generate_tts_for_text(text: str, lang: str) -> List[Dict]:
         # Clean text before processing
         cleaned_paragraph = clean_tts_text(paragraph)
 
+        # Skip lines with nothing to say (pure punctuation/symbols) — they only
+        # produce "No audio was received" and clutter the queue.
+        if not _is_speakable(cleaned_paragraph):
+            ColorPrint.gray(f"[TTS] Skipping non-speakable segment: {paragraph[:30]!r}")
+            continue
+
         audio_path = await generate_tts_for_paragraph(paragraph, lang)
         if audio_path:
             results.append({
@@ -188,7 +214,8 @@ async def generate_tts_for_text(text: str, lang: str) -> List[Dict]:
 # Text Processing
 # ============================================================
 
-async def process_text_input(text: str, langs: List[str], category: str = "normal") -> Dict:
+async def process_text_input(text: str, langs: List[str], category: str = "normal",
+                             ai_provider: str = "", ai_model: str = "") -> Dict:
     """
     Process text input
 
@@ -201,6 +228,9 @@ async def process_text_input(text: str, langs: List[str], category: str = "norma
         text: Input text
         langs: Target languages
         category: Queue item category (default: "normal")
+        ai_provider: AI that produced ``text`` ("" = plain user input) — stored
+                     on the queue items so the UI can attribute the task
+        ai_model: model id used by that provider
 
     Returns:
         Dict: {success, added_count, items_added, error}
@@ -236,7 +266,8 @@ async def process_text_input(text: str, langs: List[str], category: str = "norma
             # Add to queue
             queue = get_voice_subtitle_queue()
             for item_index, item in enumerate(tts_results, 1):
-                queue.add_item(text=item['text'], audio_path=item['audio_path'], category=category)
+                queue.add_item(text=item['text'], audio_path=item['audio_path'], category=category,
+                               ai_provider=ai_provider, ai_model=ai_model)
                 total_items_count += 1
                 ColorPrint.green(f"[Processor] ✓ Added [{item_index}/{len(tts_results)}]: {item['text'][:50]}...")
                 items_added.append({
@@ -268,13 +299,17 @@ async def process_image_input(
     category: str = "normal"
 ) -> Dict:
     """
-    Process image input
+    Process image input (the full-screen auto-subtitle path).
 
-    Steps:
-    1. Summarize image with Gemini
-    2. Translate to all target languages
-    3. Generate TTS for each language
-    4. Add to queue
+    Flow — OCR FIRST, AI second:
+    1. OCR the screenshot with the best available LOCAL engine
+       (windows -> easyocr -> cnocr). The screen is mostly text, so we want the
+       on-screen text verbatim, and a local engine works with no AI quota.
+    2. If no local OCR engine produced text, fall back to AI-VISION OCR: ask a
+       vision provider (via the gateway) to TRANSCRIBE the visible text. This is
+       the last resort and keeps working when no local engine is installed.
+    3. Translate the extracted text to all target languages.
+    4. Generate TTS for each language and add to the queue.
 
     Args:
         image_path: Path to image file
@@ -288,34 +323,63 @@ async def process_image_input(
     """
     ColorPrint.blue("[VoiceSubtitle] Processing image input...")
 
-    # Step 1: Summarize image with Gemini
-    ColorPrint.blue("[VoiceSubtitle] Summarizing image with Gemini...")
-
-    if image_path:
-        gemini_result = gemini_manager.summarize_image(
-            image_path=image_path,
-            detail_level="medium"
-        )
-    else:
+    if not image_path:
         return {
             'success': False,
             'error': "Only image_path is currently supported"
         }
 
-    if not gemini_result.get('success'):
+    # The recognition language drives BOTH the OCR model and the output: the
+    # first target language is the single unified parameter from the UI.
+    ocr_lang = (langs or ['en'])[0]
+
+    # Step 1: local OCR (windows -> easyocr -> cnocr; skips unavailable engines).
+    # Run OFF the event loop: the screenshot pipeline already runs inside
+    # asyncio.run(), and the Windows OCR engine drives its own loop — calling it
+    # in a worker thread keeps both safe.
+    ColorPrint.blue(f"[VoiceSubtitle] Running OCR on screenshot (lang={ocr_lang})...")
+    ocr = await asyncio.to_thread(ocr_extract_text, image_path, ocr_lang)
+    extracted_text = (ocr.get('text') or '').strip() if ocr.get('success') else ''
+    source_label = f"ocr:{ocr.get('engine')}" if extracted_text else ''
+    ai_provider = ''
+    ai_model = ''
+
+    # Step 2: AI-vision OCR fallback (transcribe visible text verbatim) only when
+    # no local engine produced text.
+    if not extracted_text:
+        ColorPrint.yellow(
+            f"[VoiceSubtitle] Local OCR yielded no text "
+            f"(tried: {ocr.get('tried') or 'none'}); falling back to AI-vision OCR...")
+        ai_result = ai_describe_image(
+            image_path,
+            prompt=(
+                "Transcribe all the visible text in this image verbatim, in "
+                "reading order. Output only the transcribed text — no commentary, "
+                "labels, or description. If there is no text, reply with an empty line."
+            ),
+            source="image-ocr",
+        )
+        if not ai_result.get('success'):
+            return {
+                'success': False,
+                'error': f"OCR failed and AI-vision fallback failed: {ai_result.get('error')}"
+            }
+        extracted_text = (ai_result.get('text') or '').strip()
+        ai_provider = ai_result.get('provider', '')
+        ai_model = ai_result.get('model', '')
+        source_label = f"ocr:ai-vision/{ai_provider}"
+
+    if not extracted_text:
         return {
             'success': False,
-            'error': f"Gemini image summarization failed: {gemini_result.get('error')}"
+            'error': "No text could be extracted from the image (OCR + AI-vision both empty)"
         }
 
-    summarized_text = gemini_result.get('summary', '')
-    if not summarized_text:
-        return {
-            'success': False,
-            'error': "Gemini returned empty summary"
-        }
+    ColorPrint.green(
+        f"[VoiceSubtitle] {source_label} extracted: {extracted_text[:100]}...")
 
-    ColorPrint.green(f"[VoiceSubtitle] Gemini summary: {summarized_text[:100]}...")
-
-    # Step 2-4: Process as text (translate + TTS + add to queue)
-    return await process_text_input(summarized_text, langs, category)
+    # Step 3-4: Process as text (translate + TTS + add to queue), attributed to
+    # the engine/AI that produced the text.
+    return await process_text_input(
+        extracted_text, langs, category,
+        ai_provider=ai_provider, ai_model=ai_model)

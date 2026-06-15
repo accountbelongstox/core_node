@@ -29,6 +29,7 @@ SYSTEM_INFO_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SYSTEM_INFO_SCRIPT_RELATIVE"
 UNIFIED_MANAGER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$UNIFIED_MANAGER_SCRIPT_RELATIVE"
 GITPUT_UNIFIED_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$GITPUT_UNIFIED_SCRIPT_RELATIVE"
 ROUTER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$ROUTER_SCRIPT_RELATIVE"
+SYNC_ALL_MCP_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SYNC_ALL_MCP_SCRIPT_RELATIVE"
 
 show_special_software_env_menu() {
     bash "$SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_PATH"
@@ -81,6 +82,10 @@ handle_menu_action() {
             ;;
         "show_backup_management")
             show_backup_management
+            ;;
+        "sync_all_mcp")
+            echo "Syncing all MCP services..."
+            bash "$SYNC_ALL_MCP_SCRIPT_PATH"
             ;;
         "unified_manager")
             cd "$CORE_NODE_ROOT_DIR"

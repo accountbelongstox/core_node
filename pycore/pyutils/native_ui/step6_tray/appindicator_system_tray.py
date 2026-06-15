@@ -39,23 +39,39 @@ from typing import Optional, List, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 from pathlib import Path
 
-# Try to import GTK3 and AppIndicator3
+# Try to import GTK3 + an AppIndicator binding.
+#
+# Ubuntu differentiation: modern Ubuntu (22.04+/24.04) deprecates the old
+# AppIndicator3 (gir1.2-appindicator3-0.1) in favour of Ayatana AppIndicator
+# (gir1.2-ayatanaappindicator3-0.1 / AyatanaAppIndicator3). Their APIs are
+# identical (Indicator.new / IndicatorCategory / IndicatorStatus / set_menu /
+# set_status / set_title / set_icon_full), so we try Ayatana first and fall back
+# to the legacy binding, exposing whichever we get as `AppIndicator3`.
+APPINDICATOR_AVAILABLE = False
+IMPORT_ERROR = None
+APPINDICATOR_BACKEND = None  # "ayatana" | "legacy" | None
+Gtk = None
+AppIndicator3 = None
+GLib = None
+
 try:
     import gi
     gi.require_version('Gtk', '3.0')
-    gi.require_version('AppIndicator3', '0.1')
-    from gi.repository import Gtk, AppIndicator3, GLib
-    APPINDICATOR_AVAILABLE = True
-    IMPORT_ERROR = None
-except ImportError as e:
-    APPINDICATOR_AVAILABLE = False
-    IMPORT_ERROR = str(e)
-    # Create dummy classes for type hints
-    Gtk = None
-    AppIndicator3 = None
-    GLib = None
-except ValueError as e:
-    # gi.require_version failed
+    from gi.repository import Gtk, GLib
+
+    # 1) Modern Ubuntu: Ayatana AppIndicator
+    try:
+        gi.require_version('AyatanaAppIndicator3', '0.1')
+        from gi.repository import AyatanaAppIndicator3 as AppIndicator3
+        APPINDICATOR_AVAILABLE = True
+        APPINDICATOR_BACKEND = "ayatana"
+    except (ImportError, ValueError):
+        # 2) Legacy AppIndicator (older Ubuntu / Debian)
+        gi.require_version('AppIndicator3', '0.1')
+        from gi.repository import AppIndicator3
+        APPINDICATOR_AVAILABLE = True
+        APPINDICATOR_BACKEND = "legacy"
+except (ImportError, ValueError) as e:
     APPINDICATOR_AVAILABLE = False
     IMPORT_ERROR = str(e)
     Gtk = None
@@ -126,8 +142,9 @@ class AppIndicatorSystemTray:
         """
         if not APPINDICATOR_AVAILABLE:
             raise RuntimeError(
-                f"AppIndicator3 not available: {IMPORT_ERROR}\n"
-                f"Install with: sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
+                f"AppIndicator not available: {IMPORT_ERROR}\n"
+                f"Install (modern Ubuntu): sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1\n"
+                f"Install (legacy):        sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
             )
 
         self.app_id = app_id
@@ -406,7 +423,7 @@ def print_appindicator_status():
     ColorPrint.blue("=" * 70)
 
     if APPINDICATOR_AVAILABLE:
-        ColorPrint.green("✓ AppIndicator3 is available")
+        ColorPrint.green(f"✓ AppIndicator is available (backend: {APPINDICATOR_BACKEND})")
 
         # Try to get version info
         try:
@@ -415,15 +432,14 @@ def print_appindicator_status():
         except:
             pass
     else:
-        ColorPrint.red("✗ AppIndicator3 is NOT available")
+        ColorPrint.red("✗ AppIndicator is NOT available")
         ColorPrint.yellow(f"  Error: {IMPORT_ERROR}")
         ColorPrint.yellow("")
-        ColorPrint.yellow("  Installation:")
-        ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-appindicator3-0.1")
+        ColorPrint.yellow("  Installation (modern Ubuntu 22.04+/24.04 - Ayatana):")
+        ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1")
         ColorPrint.yellow("")
-        ColorPrint.yellow("  OR (with pip):")
-        ColorPrint.yellow("    pip install PyGObject")
-        ColorPrint.yellow("    sudo apt-get install gir1.2-appindicator3-0.1")
+        ColorPrint.yellow("  Installation (legacy AppIndicator):")
+        ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-appindicator3-0.1")
 
     ColorPrint.blue("=" * 70)
 

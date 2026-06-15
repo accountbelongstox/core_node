@@ -3,7 +3,7 @@ Push scrcpy-server.jar to all 19 devices and prepare for testing
 """
 import subprocess
 from pathlib import Path
-from pycore.pyutils.scrcpy_init import get_adb_path
+from pycore.pyutils.device.scrcpy_init import get_adb_path
 
 adb = str(get_adb_path())
 scrcpy_server = Path("D:/.tmp/Users/MyBest11/.core_node/scrcpy/scrcpy-server")

@@ -5,13 +5,16 @@ import { ServerManagerAPI } from './modules/ServerManagerAPI';
 import { ItToolsV1API } from './modules/ItToolsV1';
 import { InviteCodeAPI } from './modules/InviteCodeAPI';
 import { SystemConfigAPI } from './modules/SystemConfigAPI';
-import { BankV1API } from './modules/BankV1';
 import { AuthAPI } from './modules/AuthAPI';
-import { DashboardDbViewerAPI } from './modules/DashboardDbViewerAPI';
+import { DatabaseManagerAPI, AuthDebugAPI } from './modules/DatabaseManagerAPI';
+import { MediaQueryAPI } from './modules/MediaQueryAPI';
+import { AiStatusAPI } from './modules/AiStatusAPI';
+import { AiManagementAPI } from './modules/AiManagementAPI';
+import { setSharedBaseURL } from './base/BaseAPI';
 import { getDefaultBaseURL, DEFAULT_API_TIMEOUT } from '../../config/constants';
 
 /**
- * API配置
+ * API configuration
  * NO ?? or || allowed - use explicit checks
  */
 const API_CONFIG = {
@@ -20,7 +23,7 @@ const API_CONFIG = {
 };
 
 /**
- * 统一API服务 - 单例模式
+ * Unified API service - singleton pattern
  */
 class APIService {
   private static instance: APIService;
@@ -32,12 +35,21 @@ class APIService {
   public itToolsV1: ItToolsV1API;
   public inviteCode: InviteCodeAPI;
   public systemConfig: SystemConfigAPI;
-  public bankV1: BankV1API;
   public auth: AuthAPI;
-  public dashboardDbViewer: DashboardDbViewerAPI;
+  public databaseManager: DatabaseManagerAPI;
+  public authDebug: AuthDebugAPI;
+  public mediaQuery: MediaQueryAPI;
+  public aiStatus: AiStatusAPI;
+  public aiManagement: AiManagementAPI;
 
   private constructor() {
-    // 初始化所有API模块
+    // Seed the single shared base URL so EVERY module (including
+    // serverManager / systemConfig, which the old recreate-list forgot)
+    // resolves the same endpoint from the very first request, even before
+    // App.tsx's preselect runs.
+    setSharedBaseURL(API_CONFIG.baseURL);
+
+    // Initialize all API modules
     this.appQyV1 = new AppQyV1API({
       baseURL: API_CONFIG.baseURL,
       prefix: '/api/app_qy_v1',
@@ -80,27 +92,45 @@ class APIService {
       timeout: API_CONFIG.timeout
     });
 
-    this.bankV1 = new BankV1API({
-      baseURL: API_CONFIG.baseURL,
-      prefix: '/api/bank',
-      timeout: API_CONFIG.timeout
-    });
-
     this.auth = new AuthAPI({
       baseURL: API_CONFIG.baseURL,
       prefix: '/api',
       timeout: API_CONFIG.timeout
     });
 
-    this.dashboardDbViewer = new DashboardDbViewerAPI({
+    this.databaseManager = new DatabaseManagerAPI({
       baseURL: API_CONFIG.baseURL,
-      prefix: '/api/dashboard/db-viewer',
+      prefix: '/api/dashboard/db-manager',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.authDebug = new AuthDebugAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/dashboard/auth',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.mediaQuery = new MediaQueryAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/app_qy_v1/media',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.aiStatus = new AiStatusAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/app_qy_v1/ai_tools/ai',
+      timeout: API_CONFIG.timeout
+    });
+
+    this.aiManagement = new AiManagementAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/local/ai',
       timeout: API_CONFIG.timeout
     });
   }
 
   /**
-   * 获取单例实例
+   * Get the singleton instance
    */
   static getInstance(): APIService {
     if (!APIService.instance) {
@@ -110,7 +140,7 @@ class APIService {
   }
 
   /**
-   * 设置全局Authorization header
+   * Set the global Authorization header
    */
   setAuthToken(token: string): void {
     const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
@@ -120,13 +150,15 @@ class APIService {
     this.serverManager.setHeader('Authorization', bearerToken);
     this.itToolsV1.setHeader('Authorization', bearerToken);
     this.inviteCode.setHeader('Authorization', bearerToken);
-    this.bankV1.setHeader('Authorization', bearerToken);
     this.auth.setHeader('Authorization', bearerToken);
-    this.dashboardDbViewer.setHeader('Authorization', bearerToken);
+    this.databaseManager.setHeader('Authorization', bearerToken);
+    this.mediaQuery.setHeader('Authorization', bearerToken);
+    this.aiStatus.setHeader('Authorization', bearerToken);
+    this.aiManagement.setHeader('Authorization', bearerToken);
   }
 
   /**
-   * 清除认证
+   * Clear authentication
    */
   clearAuth(): void {
     this.appQyV1.removeHeader('Authorization');
@@ -135,13 +167,15 @@ class APIService {
     this.serverManager.removeHeader('Authorization');
     this.itToolsV1.removeHeader('Authorization');
     this.inviteCode.removeHeader('Authorization');
-    this.bankV1.removeHeader('Authorization');
     this.auth.removeHeader('Authorization');
-    this.dashboardDbViewer.removeHeader('Authorization');
+    this.databaseManager.removeHeader('Authorization');
+    this.mediaQuery.removeHeader('Authorization');
+    this.aiStatus.removeHeader('Authorization');
+    this.aiManagement.removeHeader('Authorization');
   }
 
   /**
-   * 设置全局header
+   * Set a global header
    */
   setGlobalHeader(key: string, value: string): void {
     this.appQyV1.setHeader(key, value);
@@ -150,68 +184,31 @@ class APIService {
     this.serverManager.setHeader(key, value);
     this.itToolsV1.setHeader(key, value);
     this.inviteCode.setHeader(key, value);
-    this.bankV1.setHeader(key, value);
     this.auth.setHeader(key, value);
-    this.dashboardDbViewer.setHeader(key, value);
+    this.databaseManager.setHeader(key, value);
+    this.mediaQuery.setHeader(key, value);
+    this.aiStatus.setHeader(key, value);
+    this.aiManagement.setHeader(key, value);
   }
 
   /**
-   * 更新所有模块的baseURL
+   * Re-point EVERY API module at a new base URL.
+   *
+   * This now updates the single shared base URL instead of recreating each
+   * module. One write re-points all modules in lock-step — including
+   * serverManager and systemConfig, which the old enumerated recreate-list
+   * silently omitted (the bug that made octane-tasks call the stale LAN IP
+   * while the switcher showed localhost). Because modules are no longer
+   * recreated, any Authorization / global headers set via setAuthToken /
+   * setGlobalHeader also survive an endpoint failover.
    */
   updateBaseURL(baseURL: string): void {
-    // 重新创建所有API模块实例
-    this.appQyV1 = new AppQyV1API({
-      baseURL,
-      prefix: '/api/app_qy_v1',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.mcpV1 = new McpV1API({
-      baseURL,
-      prefix: '/api/mcp/v1',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.serverManagerV1 = new ServerManagerV1API({
-      baseURL,
-      prefix: '/api/servermanager/v1',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.itToolsV1 = new ItToolsV1API({
-      baseURL,
-      prefix: '/api/ittools/v1',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.inviteCode = new InviteCodeAPI({
-      baseURL,
-      prefix: '/api',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.bankV1 = new BankV1API({
-      baseURL,
-      prefix: '/api/bank',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.auth = new AuthAPI({
-      baseURL,
-      prefix: '/api',
-      timeout: API_CONFIG.timeout
-    });
-
-    this.dashboardDbViewer = new DashboardDbViewerAPI({
-      baseURL,
-      prefix: '/api/dashboard/db-viewer',
-      timeout: API_CONFIG.timeout
-    });
+    setSharedBaseURL(baseURL);
   }
 }
 
-// 导出单例
+// Export the singleton
 export const api = APIService.getInstance();
 
-// 导出类型
+// Export types
 export type { APIResponse } from '../types';

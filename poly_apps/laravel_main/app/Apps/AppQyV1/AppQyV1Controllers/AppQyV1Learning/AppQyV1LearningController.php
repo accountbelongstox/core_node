@@ -7,12 +7,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyCollectionModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyItemModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserSelectedLibraryModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Traits\ApiResponse;
 
 class AppQyV1LearningController extends Controller
@@ -96,9 +98,27 @@ class AppQyV1LearningController extends Controller
             }
         }
 
-        $publicLibraries = AppQyV1VocabularyCollectionModel::getPublicCollections($langCode);
+        // Collections were merged into vocabulary_libraries (Wave A/B
+        // consolidation): public libraries replace public collections and
+        // owner_user_id libraries replace user collections. Library rows
+        // store the full language NAME ('english'); the API keeps lang_code.
+        $languageName = AppQyV1VocabularyLibraryModel::languageCodeToName($langCode);
 
-        $userLibraries = AppQyV1VocabularyCollectionModel::getUserCollections($user->id, $langCode);
+        $publicLibraries = collect();
+        $userLibraries = collect();
+        if ($languageName !== null) {
+            $publicLibraries = AppQyV1VocabularyLibraryModel::query()
+                ->public()
+                ->forLanguage($languageName)
+                ->orderBy('name')
+                ->get();
+
+            $userLibraries = AppQyV1VocabularyLibraryModel::query()
+                ->where('owner_user_id', $user->id)
+                ->forLanguage($languageName)
+                ->orderByDesc('created_at')
+                ->get();
+        }
 
         $selectedLibraries = AppQyV1UserSelectedLibraryModel::getUserSelectedLibraries(
             $user->id,
@@ -108,31 +128,23 @@ class AppQyV1LearningController extends Controller
 
         $selectedIds = $selectedLibraries->pluck('collection_id')->toArray();
 
+        $transform = function ($lib) use ($selectedIds, $langCode) {
+            return [
+                'id' => $lib->id,
+                'name' => $lib->name,
+                'lang_code' => $langCode,
+                'total_words' => $lib->total_words,
+                'description' => $lib->description,
+                'is_selected' => in_array($lib->id, $selectedIds),
+                'cover_image_url' => $this->coverService->getDefaultCoverUrl(),
+            ];
+        };
+
         return response()->json([
             'success' => true,
             'data' => [
-                'public_libraries' => $publicLibraries->map(function($lib) use ($selectedIds) {
-                    return [
-                        'id' => $lib->id,
-                        'name' => $lib->collection_name,
-                        'lang_code' => $lib->lang_code,
-                        'total_words' => $lib->total_words,
-                        'description' => $lib->description,
-                        'is_selected' => in_array($lib->id, $selectedIds),
-                        'cover_image_url' => $this->coverService->getDefaultCoverUrl(),
-                    ];
-                }),
-                'user_libraries' => $userLibraries->map(function($lib) use ($selectedIds) {
-                    return [
-                        'id' => $lib->id,
-                        'name' => $lib->collection_name,
-                        'lang_code' => $lib->lang_code,
-                        'total_words' => $lib->total_words,
-                        'description' => $lib->description,
-                        'is_selected' => in_array($lib->id, $selectedIds),
-                        'cover_image_url' => $this->coverService->getDefaultCoverUrl(),
-                    ];
-                }),
+                'public_libraries' => $publicLibraries->map($transform),
+                'user_libraries' => $userLibraries->map($transform),
                 'lang_code' => $langCode,
             ]
         ]);
@@ -151,7 +163,9 @@ class AppQyV1LearningController extends Controller
         $langCode = $request->input('lang_code');
         $action = $request->input('action');
 
-        $collection = AppQyV1VocabularyCollectionModel::find($collectionId);
+        // collection_id is a vocabulary_libraries id (collections were merged
+        // into libraries by the Wave A/B consolidation).
+        $collection = AppQyV1VocabularyLibraryModel::find($collectionId);
 
         if (!$collection) {
             return response()->json([
@@ -160,19 +174,21 @@ class AppQyV1LearningController extends Controller
             ], 404);
         }
 
-        if ($collection->owner_id && $collection->owner_id !== $user->id) {
+        if ($collection->owner_user_id && $collection->owner_user_id !== $user->id) {
             return response()->json([
                 'success' => false,
                 'error' => 'You do not have permission to access this collection',
             ], 403);
         }
 
-        $message = DB::transaction(function () use ($action, $user, $collectionId, $langCode) {
+        $message = DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($action, $user, $collection, $collectionId, $langCode) {
             if ($action === 'select') {
                 AppQyV1UserSelectedLibraryModel::selectLibrary($user->id, $collectionId, $langCode);
 
-                $words = AppQyV1VocabularyItemModel::getWordsForCollection($collectionId);
-                $wordContents = $words->pluck('word_content')->toArray();
+                // Library words: word_ids resolved against the per-language
+                // dictionary (one whereIn, word_ids order).
+                $words = $collection->dictionaryWords(0, count($collection->getWordIdsArray()));
+                $wordContents = $words->pluck('content')->toArray();
 
                 if (!empty($wordContents)) {
                     AppQyV1UserLearningProgressModel::initializeWordsForUser(
@@ -222,7 +238,7 @@ class AppQyV1LearningController extends Controller
         $dictionaryEntries = [];
 
         foreach ($wordMd5s as $md5) {
-            $entry = AppQyV1MultiLangDictionaryModel::findByMd5($langCode, $md5);
+            $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
             if ($entry) {
                 $dictionaryEntries[$md5] = $entry;
             }
@@ -262,7 +278,7 @@ class AppQyV1LearningController extends Controller
                     if ($result['success']) {
                         $ttsFiles = [[
                             'path' => $result['audio_path'],
-                            'url' => $result['audio_url'],
+                            'url' => AppQyV1TtsUrl::forPath($result['audio_path']),
                             'provider' => 'edge-tts',
                             'speed' => $result['speed'] ?? '+0%',
                             'created_at' => now()->toDateTimeString()

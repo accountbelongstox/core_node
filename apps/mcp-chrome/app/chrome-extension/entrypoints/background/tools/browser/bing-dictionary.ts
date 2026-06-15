@@ -8,7 +8,7 @@ interface BingDictionaryParams {
   openInNewTab?: boolean;
 }
 
-interface BingDictionaryResult {
+export interface BingDictionaryResult {
   success: boolean;
   word: string | null;
   phonetics: Array<{
@@ -102,23 +102,10 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
         return createErrorResponse('Failed to create or access tab');
       }
 
-      // Wait for page to load
-      console.log('[Bing Dictionary] Waiting for page to load...');
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Wait for the navigation to settle, then inject + extract.
+      await this.waitForTabComplete(tab.id);
 
-      // Inject content script
-      console.log('[Bing Dictionary] Injecting content script...');
-      await this.injectContentScript(tab.id, ['inject-scripts/bing-dictionary-helper.js']);
-
-      // Wait a bit for content script to initialize
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Send message to extract translation data
-      console.log('[Bing Dictionary] Requesting translation data...');
-      const translationData: BingDictionaryResult = await this.sendMessageToTab(tab.id, {
-        action: TOOL_MESSAGE_TYPES.BING_DICTIONARY_FETCH_TRANSLATION,
-        word: word,
-      });
+      const translationData = await this.extractFromTab(tab.id, bingDictUrl);
 
       if (!translationData) {
         return createErrorResponse('No response from content script');
@@ -127,10 +114,6 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
       if (!translationData.success) {
         console.warn('[Bing Dictionary] Translation extraction failed:', translationData.error);
       }
-
-      // Add metadata
-      translationData.url = bingDictUrl;
-      translationData.tabId = tab.id;
 
       console.log('[Bing Dictionary] Translation data retrieved successfully');
 
@@ -150,6 +133,87 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
         `Error looking up word in Bing Dictionary: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  /**
+   * Look up a word in a SPECIFIC, caller-owned tab. Used by the parallel
+   * translation worker, which manages a pool of Bing dictionary tabs and drives
+   * several lookups concurrently. Navigates the given tab to the search URL,
+   * waits for load, injects the helper, and returns the parsed result (incl.
+   * phonetics[].audioUrl and sampleImages).
+   */
+  async lookupInTab(tabId: number, word: string): Promise<BingDictionaryResult> {
+    const searchWord = encodeURIComponent(word.trim());
+    const bingDictUrl = `https://www.bing.com/dict/search?q=${searchWord}`;
+
+    await chrome.tabs.update(tabId, { url: bingDictUrl });
+    await this.waitForTabComplete(tabId);
+
+    return this.extractFromTab(tabId, bingDictUrl);
+  }
+
+  /**
+   * Inject the helper and pull the dictionary data out of an already-navigated
+   * tab. Shared by execute() and lookupInTab().
+   */
+  private async extractFromTab(tabId: number, bingDictUrl: string): Promise<BingDictionaryResult> {
+    await this.injectContentScript(tabId, ['inject-scripts/bing-dictionary-helper.js']);
+
+    // Give the freshly-injected content script a moment to register its listener.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const translationData: BingDictionaryResult = await this.sendMessageToTab(tabId, {
+      action: TOOL_MESSAGE_TYPES.BING_DICTIONARY_FETCH_TRANSLATION,
+    });
+
+    if (translationData) {
+      translationData.url = bingDictUrl;
+      translationData.tabId = tabId;
+    }
+
+    return translationData;
+  }
+
+  /**
+   * Resolve once the tab finishes loading. Prefers the chrome.tabs "complete"
+   * status event over a fixed sleep, with a hard timeout fallback so a hung
+   * navigation can never wedge the worker.
+   */
+  private waitForTabComplete(tabId: number, timeoutMs = 15000): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        try {
+          chrome.tabs.onUpdated.removeListener(onUpdated);
+        } catch {
+          // listener may already be gone
+        }
+        clearTimeout(timer);
+        // Small settle delay so late-rendered dictionary nodes are present.
+        setTimeout(resolve, 400);
+      };
+
+      const onUpdated = (updatedTabId: number, info: chrome.tabs.TabChangeInfo) => {
+        if (updatedTabId === tabId && info.status === 'complete') {
+          finish();
+        }
+      };
+
+      const timer = setTimeout(finish, timeoutMs);
+      chrome.tabs.onUpdated.addListener(onUpdated);
+
+      // The tab may already be "complete" before we attached the listener.
+      chrome.tabs.get(tabId).then(
+        (tab) => {
+          if (tab.status === 'complete') {
+            finish();
+          }
+        },
+        () => finish(),
+      );
+    });
   }
 }
 

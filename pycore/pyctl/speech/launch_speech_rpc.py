@@ -97,10 +97,10 @@ def launch_speech_rpc_service(
 
     # Step 2: Prepare static web directory path (BEFORE launching services)
     from pathlib import Path
-    web_dir = Path(__file__).parent / 'rpc' / 'web'
+    web_dir = Path(__file__).parent / 'rpc_v2' / 'web'
 
     # Step 3: Create RPC server and configure static directories BEFORE starting
-    from pycore.pyutils.rpc import UnifiedRpcServerRunner
+    from pycore.pyutils.rpc_v2 import UnifiedRpcServerRunner
     rpc_server = UnifiedRpcServerRunner(
         host=config.rpc_host,
         port=config.rpc_port,

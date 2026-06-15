@@ -1,33 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Common Speech Utilities
+pyutils.common - the SHARED BASE for pyutils.
 
-Provides the unified SpeechSwitch plus legacy compatibility helpers.
-Integrates with PyHeartbeat for task management.
+Generic helpers that ANY pyutils group may import. This package MUST NOT import a
+group package (no `common -> edge_tts`); that direction is backwards (see
+PYTHON_PYCORE.md S2.2 / S3.2).
 
-Components:
-- SpeechSwitch: Routes both TTS and STT tasks based on provider status
-- Legacy wrappers: TTSSwitch/STTSwitch aliases for backward compatibility
-- Shared task models and provider status helpers
-- WindowFinder: Centralized window searching utility
+Provides:
+- Speech CONTRACTS shared by speech groups: task models, provider-status data,
+  speech/global config (the cross-group speech ORCHESTRATORS - SpeechSwitch,
+  ProviderStatus, TTS/STT switches - now live in `pycore.pyctl.speech`, since
+  coordinating groups is a pyctl concern).
+- WindowFinder / BrowserWindowDetector: window searching utilities.
+- Plus stand-alone modules imported directly: clipboard_text, system_launcher,
+  process_manager, app_launcher, dev_reload, robust_downloader, port_utils,
+  zip_task_queue, build_config_parser, capabilities, icon_generator, appusermodelid.
 """
 
-# Legacy switch exports (proxies to SpeechSwitch)
-from pycore.pyutils.common.tts_switch import (
-    TTSProvider,
-    TTSSwitch,
-    get_tts_switch,
-    initialize_tts_switch,
-)
-from pycore.pyutils.common.stt_switch import (
-    STTProvider,
-    STTSwitch,
-    get_stt_switch,
-    initialize_stt_switch,
-)
-
-# Speech Task Models exports
+# Speech Task Models exports (shared contracts)
 from pycore.pyutils.common.speech_task_models import (
     SpeechTaskType,
     TTSTaskData,
@@ -50,20 +41,6 @@ from pycore.pyutils.common.speech_config import (
     speech_config
 )
 
-# Provider Status exports
-from pycore.pyutils.common.provider_status import (
-    ProviderStatus,
-    ProviderInfo,
-    get_provider_status
-)
-
-# Unified Speech Switch exports
-from pycore.pyutils.common.speech_switch import (
-    SpeechSwitch,
-    get_speech_switch,
-    initialize_speech_switch
-)
-
 # Window Finder exports
 from pycore.pyutils.common.window_finder import WindowFinder
 
@@ -76,16 +53,6 @@ from pycore.pyutils.common.browser_window_detector import (
 )
 
 __all__ = [
-    # TTS Switch
-    'TTSProvider',
-    'TTSSwitch',
-    'get_tts_switch',
-    'initialize_tts_switch',
-    # STT Switch
-    'STTProvider',
-    'STTSwitch',
-    'get_stt_switch',
-    'initialize_stt_switch',
     # Speech Task Models
     'SpeechTaskType',
     'TTSTaskData',
@@ -100,14 +67,6 @@ __all__ = [
     # Speech Configuration
     'SpeechConfig',
     'speech_config',
-    # Provider Status
-    'ProviderStatus',
-    'ProviderInfo',
-    'get_provider_status',
-    # Unified Speech Switch
-    'SpeechSwitch',
-    'get_speech_switch',
-    'initialize_speech_switch',
     # Window Finder
     'WindowFinder',
     # Browser Window Detector
@@ -116,4 +75,3 @@ __all__ = [
     'get_process_exe_path',
     'is_browser_process_by_path',
 ]
-

@@ -25,7 +25,7 @@ from pycore.pyfoundations.third_party import (
 from providor.constants.d3 import ROSBOT_EXE_PATTERNS
 from d3utils.f3_refresh_line import is_f3_refresh_silent
 from d3utils.process_helper import kill_process_by_pid
-from pycore.pyutils.system_launcher import start_program
+from pycore.pyutils.common.system_launcher import start_program
 
 psutil = get_third_package_psutil()
 win32gui = get_third_package_win32gui()

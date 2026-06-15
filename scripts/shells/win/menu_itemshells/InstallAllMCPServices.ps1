@@ -27,6 +27,7 @@ $script:CORE_NODE_DIR = Split-Path $script:SCRIPT_DIR -Parent
 $script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR "win_common"
 $script:GLOBALVARS_PS1 = Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1"
 $script:AI_TOOLS_DIR = Join-Path $script:CORE_NODE_DIR "scripts\pytools\ai_tools"
+$script:AI_PS1TOOLS_DIR = Join-Path $script:CORE_NODE_DIR "scripts\ai_ps1tools"
 $script:CHROME_MCP_START_PS1 = Join-Path $script:CORE_NODE_DIR "apps\mcp-chrome\scripts\start.ps1"
 $script:WAIT_PLEASE_INSTALL_PS1 = Join-Path $script:CORE_NODE_DIR "ncore\mcp_server\wait_please\install-windows.ps1"
 
@@ -123,17 +124,29 @@ function Invoke-ChromeMCPStep {
 }
 
 function Invoke-Context7Step {
-    $verResult = npx -y @upstash/context7-mcp --version 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Write-ColorMessage -Message "Context7 package already available." -Type "Success"
-        return
+    # Context7 is a hosted HTTP MCP server (https://mcp.context7.com/mcp); the
+    # actual registration happens in Step 4 (sync) using CONTEXT7_API_KEY. This
+    # step only warms the optional local npx cache. npm/npx prints warnings to
+    # stderr (e.g. unknown pnpm-only config keys), which under a 'Stop' error
+    # preference would abort the whole step. Force 'Continue' and swallow stderr
+    # so a benign warning is never treated as a failure.
+    Write-ColorMessage -Message "Warming optional Context7 npx cache (non-fatal)..." -Type "Info"
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $versionText = ""
+    try {
+        $checkOutput = & npx -y @upstash/context7-mcp --version 2>$null
+        $versionText = ($checkOutput | Out-String).Trim()
+        if ($versionText) { Write-Host $versionText }
+    } catch {
+        Write-ColorMessage -Message "npx warm-up skipped: $_" -Type "Warning"
+    } finally {
+        $ErrorActionPreference = $prevEap
     }
-    Write-ColorMessage -Message "Ensuring Context7 package (npx @upstash/context7-mcp@latest)..." -Type "Info"
-    npx -y @upstash/context7-mcp@latest --version 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Write-ColorMessage -Message "Context7 package ready." -Type "Success"
+    if ($versionText -match "\d+\.\d+") {
+        Write-ColorMessage -Message "Context7 npx package available ($versionText)." -Type "Success"
     } else {
-        Write-ColorMessage -Message "Context7 ensure failed; sync may still add it if CONTEXT7_API_KEY is set." -Type "Warning"
+        Write-ColorMessage -Message "Context7 npx package not detected; hosted HTTP server is used anyway. Will register in Step 4 if CONTEXT7_API_KEY is set." -Type "Info"
     }
 }
 
@@ -146,39 +159,23 @@ function Invoke-WaitPleaseStep {
 }
 
 function Invoke-SyncToToolsStep {
-    if (-not (Test-Path -LiteralPath $script:AI_TOOLS_DIR)) {
-        Write-ColorMessage -Message "ai_tools directory not found; skipping sync." -Type "Warning"
-        return
-    }
-    $pythonExe = Get-DDPythonExePath
-    if (-not $pythonExe) {
-        $pythonExe = (Get-Command python -ErrorAction SilentlyContinue).Source
-        if (-not $pythonExe) { $pythonExe = (Get-Command python3 -ErrorAction SilentlyContinue).Source }
-    }
-    if (-not $pythonExe -or -not (Test-Path -LiteralPath $pythonExe)) {
-        Write-ColorMessage -Message "Python not found; run DD Install to install Python, or add Python to PATH. Skipping MCP sync." -Type "Warning"
+    if (-not (Test-Path -LiteralPath $script:AI_PS1TOOLS_DIR)) {
+        Write-ColorMessage -Message "ai_ps1tools directory not found; skipping sync." -Type "Warning"
         return
     }
     $syncScripts = @(
-        "claude_sync_mcp_servers.py",
-        "codex_sync_mcp_servers.py",
-        "gemini_sync_mcp_servers.py",
-        "droid_sync_mcp_servers.py"
+        "cursor_sync_mcp_servers.ps1",
+        "claude_sync_mcp_servers.ps1",
+        "codex_sync_mcp_servers.ps1",
+        "gemini_sync_mcp_servers.ps1",
+        "droid_sync_mcp_servers.ps1"
     )
-    $prevDir = Get-Location
-    try {
-        Set-Location $script:AI_TOOLS_DIR
-        foreach ($scriptName in $syncScripts) {
-            $scriptPath = Join-Path $script:AI_TOOLS_DIR $scriptName
-            if (-not (Test-Path -LiteralPath $scriptPath)) { continue }
-            Write-ColorMessage -Message "Syncing MCP for: $scriptName" -Type "Info"
-            & $pythonExe -u $scriptPath 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                Write-ColorMessage -Message "Sync reported non-zero exit for $scriptName" -Type "Warning"
-            }
-        }
-    } finally {
-        Set-Location $prevDir
+    foreach ($scriptName in $syncScripts) {
+        $scriptPath = Join-Path $script:AI_PS1TOOLS_DIR $scriptName
+        if (-not (Test-Path -LiteralPath $scriptPath)) { continue }
+        Write-ColorMessage -Message "Syncing MCP for: $scriptName" -Type "Info"
+        & $scriptPath
+        Write-ColorMessage -Message "Sync finished for $scriptName (see live output above)." -Type "Info"
     }
 }
 #endregion
@@ -192,7 +189,7 @@ Write-ColorMessage -Message "========================================" -Type "In
 Invoke-Step -Title "Step 1/4: Chrome MCP (build + register)" -Action { Invoke-ChromeMCPStep }
 Invoke-Step -Title "Step 2/4: Context7 MCP (npx @upstash/context7-mcp)" -Action { Invoke-Context7Step }
 Invoke-Step -Title "Step 3/4: Built-in MCP (Wait Please)" -Action { Invoke-WaitPleaseStep }
-Invoke-Step -Title "Step 4/4: Sync MCP config to Claude/Codex/Gemini/Droid" -Action { Invoke-SyncToToolsStep }
+Invoke-Step -Title "Step 4/4: Sync MCP config to Cursor/Claude/Codex/Gemini/Droid" -Action { Invoke-SyncToToolsStep }
 
 Write-ColorMessage -Message "Install All MCP Services finished." -Type "Success"
 #endregion

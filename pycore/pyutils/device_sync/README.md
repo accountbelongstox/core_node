@@ -1,29 +1,42 @@
-# Device Sync - Independent File Synchronization Module
+# Device Sync - Role-Based Code Sync Mesh
 
 Independent device synchronization module without dependencies on other pycore.pyutils modules.
 
+> **Current model:** Code Sync is now a **role-based peer mesh**, not a single
+> Primary/Secondary pair. See **[CODE_SYNC_MESH.md](CODE_SYNC_MESH.md)** for the
+> authoritative description (roles, peer config, HTTP endpoints, mesh/replication,
+> UI control). The sections below are retained for historical/API reference; where
+> they conflict, CODE_SYNC_MESH.md wins.
+
 ## Features
 
-- **Primary/Secondary Architecture**: One device serves files, others sync from it
-- **Auto-Discovery**: Automatically find primary device on local network
-- **Incremental Sync**: Only transfer changed files
-- **Single Instance**: Only one instance runs per machine
-- **System Tray UI**: Tkinter-based tray menu for control
-- **Remote Control**: Control via IPC socket (restart, shutdown, mode switch)
+- **Role-Based Architecture**: every machine has a role — **dev** (distributes
+  code; multiple dev-ends allowed) or **client** (receives code by default).
+  Sync flows only dev → client; clients never push.
+- **Newest-wins pull**: clients pull the newest version of each file across **all**
+  configured dev-ends (per-file mtime).
+- **Committed peer config**: peers live in `code_sync_peers.json` (committed in the
+  repo), edited from the UI, replicated across peers via the mesh (last-writer-wins),
+  and **excluded** from the bulk file-sync.
+- **Status mesh**: every end probes all peers on a tick; unreachable peers are shown,
+  and offline peers receive queued config updates when they return.
+- **UI-only control**: no tray menu. Clients receive by default; a **dev must
+  manually enable distribution after each startup** (off by default).
 
 ## Architecture
 
 ```
-┌─────────────────┐         ┌─────────────────┐
-│  Primary Device │◄────────┤Secondary Device │
-│  (File Server)  │         │  (File Client)  │
-│  Port: 45679    │         │  Auto-discover  │
-└─────────────────┘         └─────────────────┘
-        │                            │
-        │                            │
-        ▼                            ▼
-  Files cached                   Syncs every 5s
-  Serves updates                (when enabled)
+        ┌──────────┐        ┌──────────┐
+        │  dev #1  │        │  dev #2  │   (distribution OFF until enabled)
+        └────┬─────┘        └────┬─────┘
+             │  newest file per mtime across all dev-ends
+             ▼                   ▼
+        ┌─────────────────────────────┐
+        │      client (default on)    │
+        └─────────────────────────────┘
+
+  All ends run the status mesh: probe peers each tick,
+  replicate code_sync_peers.json (last-writer-wins).
 ```
 
 ## Components

@@ -126,7 +126,7 @@
 
 | 子类库 / 模块 | 路径 | 用途 |
 |---------------|------|------|
-| **窗口缓存** | `pycore.pyutils.common.window_finder`、`pycore.pyutils.window_screenshot`、`d3utils.screenshot_provider` | 同一组 `titles` 使用**单一规范 cache key**（`window_cache_{titles[0].lower()}`），所有调用方共享；无效时 `ENCYCLOPEDIA.remove(cache_key)`。战网窗口标题含 `BATTLE_NET_WINDOW_TITLES`（含 `"Battle.net Login"`）。 |
+| **窗口缓存** | `pycore.pyutils.common.window_finder`、`pycore.pyutils.window.screenshot`、`d3utils.screenshot_provider` | 同一组 `titles` 使用**单一规范 cache key**（`window_cache_{titles[0].lower()}`），所有调用方共享；无效时 `ENCYCLOPEDIA.remove(cache_key)`。战网窗口标题含 `BATTLE_NET_WINDOW_TITLES`（含 `"Battle.net Login"`）。 |
 | **截图提供** | `d3utils.screenshot_provider` | 按窗口标题截取战网窗口或全屏；截图触发与日志触发均需 |
 | **OCR 关键词** | `d3utils.ocr_helper` | `ocr_has_any_keywords(image_path, keywords, ...)`：判断是否包含关键词；`ocr_find_keyword_boxes(image_path, keywords, ...)`：返回匹配的 `{keyword, text, bbox}` 列表（图像坐标），用于国服流程点击；`bbox_center(bbox)`、`bbox_first_char_center(bbox, num_chars=3)`：由 bbox 算点击中心。国服流程用上述接口找「您同意」「使用网易账号登录或注册」「登陆」并点击。 |
 | **战网窗口截图并保存** | `d3utils.battlenet_capture` | `capture_battlenet_and_save_to_category(category)`：截战网窗口、保存到分类目录、清理旧文件；返回 `(screenshot_data, path)` |
@@ -430,7 +430,7 @@
 | 战网操作（BattlenetOperation） | `d3utils/battlenet_operation.py` |
 | 战网 UI 导出（调试按钮、WindowAnalyzer） | `ui/panels/rosbot_extension_panel.py`（_export_battlenet_ui_to_json） |
 | 战网元素 JSON / 控件说明 | `docs/登陆后的战网元素.json`、`docs/登陆后的战网元素-控件说明.md` |
-| WindowAnalyzer（UI Automation 树导出） | pycore.pyutils.window_analyzer |
+| WindowAnalyzer（UI Automation 树导出） | pycore.pyutils.window.analyzer |
 | Login Try 控制器（登陆功能类库） | `controller/login_try_screenshot_controller.py` |
 | 截图提供 | `d3utils/screenshot_provider.py` |
 | 战网窗口截图并保存 | `d3utils/battlenet_capture.py` |

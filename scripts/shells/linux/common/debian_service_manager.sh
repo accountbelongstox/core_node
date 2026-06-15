@@ -43,7 +43,7 @@
 # AVAILABLE FUNCTIONS (Can be called directly after sourcing):
 # -----------------------------------------------------------
 #
-# 1. create_systemd_service(service_name, description, exec_command, working_dir, [user], [restart], [restart_sec], [cpu_limit], [memory_limit])
+# 1. create_systemd_service(service_name, description, exec_command, working_dir, [user], [restart], [restart_sec], [cpu_limit], [memory_limit], [log_file])
 #    - Creates a generic systemd service (not limited to ncore-* naming)
 #    - ALL services are created with CPU and memory restrictions by default
 #    - Parameters:
@@ -57,6 +57,7 @@
 #      * cpu_limit (optional): CPU limit like "20%" (default: auto-calculated based on system)
 #      * memory_limit (optional): Memory limit like "200M" or "1G" (default: auto-calculated based on system RAM)
 #    - Default limits are applied automatically if not specified
+#    - Optional log_file (10th arg): if set, StandardOutput/StandardError append to this absolute path (otherwise journal).
 #    - Example: create_systemd_service "my-service" "My Service" "/usr/bin/python3 /app/main.py" "/app" "ubuntu"
 #
 # 2. create_ncore_service(script_path, [custom_name], [description], [cpu_limit], [memory_limit])
@@ -486,6 +487,7 @@ create_systemd_service() {
     local restart_sec="${7:-10s}"
     local cpu_limit="${8:-}"
     local memory_limit="${9:-}"
+    local log_file="${10:-}"
 
     if [ -z "$service_name" ] || [ -z "$description" ] || [ -z "$exec_command" ]; then
         echo "[ERROR] service_name, description, and exec_command are required"
@@ -526,6 +528,13 @@ create_systemd_service() {
     fi
     echo "[INFO] Working Directory: $working_dir"
     echo "[INFO] User: $user"
+    if [ -n "$log_file" ]; then
+        local log_parent
+        log_parent="$(dirname "$log_file")"
+        mkdir -p "$log_parent" 2>/dev/null || true
+        touch "$log_file" 2>/dev/null || true
+        echo "[INFO] Unified log file: $log_file"
+    fi
 
     cat > "$service_file" << EOF
 [Unit]
@@ -539,9 +548,13 @@ WorkingDirectory=$working_dir
 ExecStart=$clean_command
 Restart=$restart_policy
 RestartSec=$restart_sec
-StandardOutput=journal
-StandardError=journal
 EOF
+
+    if [ -n "$log_file" ]; then
+        printf 'StandardOutput=append:%s\nStandardError=append:%s\n' "$log_file" "$log_file" >> "$service_file"
+    else
+        printf 'StandardOutput=journal\nStandardError=journal\n' >> "$service_file"
+    fi
 
     # Add environment variables if extracted
     if [ -n "$env_vars" ]; then

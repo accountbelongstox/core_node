@@ -1,0 +1,47 @@
+---
+description: Optional requires, bridge modules, and visible errors (Node/TS/Go) — WebClaude group
+globs: webclaude_group/**/*.js, webclaude_group/**/*.ts, webclaude_group/**/*.tsx, webclaude_group/**/*.go
+---
+
+# Error handling and module loading
+
+## References (agent / Cursor / Claude practice)
+
+- Cursor agent best practices: https://cursor.com/blog/agent-best-practices  
+- Prefer **path-scoped** rules and **verifiable** outcomes (build, logs), not silent success.
+
+## Node.js (center_server, `packages/webclaude-shared`, website)
+
+### Eager loading
+
+- **Production paths**: load all `require()` dependencies at **module top** in dependency order. Do not defer `require()` into request handlers or getters for core services.
+- Optional third-party packages (SMS SDKs, etc.) must be listed in **`package.json`** so install is deterministic; avoid “soft” dynamic `require` for code that must run in production.
+
+### `require` / `import` placement
+
+- Do **not** put `require()` or dynamic `import()` **inside** `catch` blocks to “fix” failures — load at **module top** or in a **dedicated `*Bridge.js`** file.
+- **Optional peer / native packages** (SMS SDKs, etc.): prefer listing in **`package.json`** and top-level `require`. If a build flavor truly omits a module, use **one** `*Bridge.js` that distinguishes `MODULE_NOT_FOUND` from other errors (log + rethrow), not empty `catch`.
+
+### Circular dependencies
+
+- If two modules `require` each other, **break the cycle** with a thin **bridge** or a **third module** that both sides depend on, instead of nested try/require chains.
+
+### `catch` blocks
+
+- Avoid **empty** `catch {}` or `catch { return null }` around `require` without checking `err.code === 'MODULE_NOT_FOUND'`.
+- For **untrusted JSON** (Redis, DB text columns), use **`packages/webclaude-shared/utils/jsonParseLenient.js`** (or the same API under `src/utils/jsonParseLenient.js`) instead of `try { JSON.parse } catch {}` that hides invalid payloads.
+- For intentional fallbacks (optional feature flags), **narrow** the condition or log with **context** at the right level.
+
+## TypeScript / React (`webclaude_website`)
+
+- Prefer static `import type` / top-level `import` for modules used on error paths.
+- Optional client chunks: use explicit `import().then()` with `.catch` that **logs** or maps errors; do not swallow.
+
+## Go (`webclaude_go-gateway`)
+
+- Wrap errors with `%w` or `errors.Join` so logs show the full chain.
+- Do not hide init failures with empty `if err != nil { return nil }`; return wrapped errors to callers.
+
+## Bridge file convention
+
+- `*Bridge.js` files contain **optional load glue only**; keep business logic out except mapping loaded exports.

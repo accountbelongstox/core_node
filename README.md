@@ -10,7 +10,7 @@
 <!-- VIOLATION OF THESE RULES IS STRICTLY PROHIBITED -->
 <!-- ### AI SPECIAL ATTENTION RULES END ### -->
 
-# Welcome
+# Welcome  
 
 **Important:** Before you begin, please read the [DEVELOPMENT_GUIDE_THIS_FILE_NO_AI_EDIT.md](DEVELOPMENT_GUIDE_THIS_FILE_NO_AI_EDIT.md) for essential project information and setup instructions.
 

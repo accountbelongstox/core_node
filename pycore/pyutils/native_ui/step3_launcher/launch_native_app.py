@@ -654,7 +654,7 @@ def _start_rpc_v2_service(
     try:
         # ========== 0. Ensure RPC port is available ==========
         # After singleton takeover, wait for old instance's ports to be released
-        from pycore.pyutils.port_utils import ensure_ports_available
+        from pycore.pyutils.common.port_utils import ensure_ports_available
 
         ports_to_check = [config.rpc_port]
         # Only check frontend port in production mode (dev mode frontend is already running)

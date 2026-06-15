@@ -78,7 +78,7 @@ class LocalCapabilities(BaseModel):
     capabilities: Dict[str, Dict[str, Any]] = Field(..., description="Processing capabilities map")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "hardware": {
                     "cpu": {
@@ -224,7 +224,7 @@ class LocalProcessingStats(BaseModel):
     timeline: List[TimelineStats] = Field(default_factory=list)
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "period": "today",
                 "summary": {
@@ -295,7 +295,7 @@ class TestResponse(BaseModel):
     error: Optional[str] = None
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "test_type": "ocr",

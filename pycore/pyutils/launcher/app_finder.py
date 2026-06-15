@@ -58,6 +58,16 @@ class AppFinder:
                 'C:\\Users\\{username}\\AppData\\Local\\Programs\\cursor'
             ]
         },
+        # Devin Desktop is Windsurf rebranded (Cognition); app binary stays Windsurf.exe.
+        # Cover both naming/install dirs and keep paths username-parameterized for new systems.
+        'devin': {
+            'names': ['Windsurf.exe', 'windsurf.exe', 'Devin.exe', 'devin.exe'],
+            'search_paths': [
+                'D:\\applications',
+                'C:\\Users\\{username}\\AppData\\Local\\Programs\\Windsurf',
+                'C:\\Users\\{username}\\AppData\\Local\\Programs\\Devin'
+            ]
+        },
         'edge': {
             'names': ['msedge.exe', 'MicrosoftEdge.exe'],
             'search_paths': [

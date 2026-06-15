@@ -10,15 +10,15 @@ Quick Imports:
     from pycore.pyutils import ADBManager, DEVICE_CONTROL_AVAILABLE
     from pycore.pyutils import get_available_utilities
     from pycore.pyutils.security import encrypt_password, decrypt_password, is_likely_ciphertext
-    from pycore.pyutils.field_input import type_into_field, FieldInputSimulator, CLEAR_MODE_REPLACE, CLEAR_MODE_APPEND, CLEAR_MODE_NONE
-    from pycore.pyutils.ime_switch import save_and_switch_ime_to_english, restore_ime, is_ime_switch_available
+    from pycore.pyutils.input.field_input import type_into_field, FieldInputSimulator, CLEAR_MODE_REPLACE, CLEAR_MODE_APPEND, CLEAR_MODE_NONE
+    from pycore.pyutils.input.ime_switch import save_and_switch_ime_to_english, restore_ime, is_ime_switch_available
 """
 
 # ============================================================================
 # OCR Utilities
 # ============================================================================
 try:
-    from pycore.pyutils.ocr.ocr_manager import ocr_manager
+    from pycore.pyutils.ocr_cluster import ocr_manager
     OCR_AVAILABLE = True
 except Exception as e:
     ocr_manager = None
@@ -28,7 +28,7 @@ except Exception as e:
 # Device Manager (Legacy compatibility)
 # ============================================================================
 try:
-    from pycore.pyutils.device_manager import DeviceManager, DeviceState
+    from pycore.pyutils.device.device_manager import DeviceManager, DeviceState
     DEVICE_MANAGER_AVAILABLE = True
 except Exception:
     DeviceManager = None
@@ -91,7 +91,7 @@ except Exception:
 # Field Input Simulator (focus, clear, type into input fields)
 # ============================================================================
 try:
-    from pycore.pyutils.field_input import (
+    from pycore.pyutils.input.field_input import (
         type_into_field,
         fill_field_with_fallback,
         FieldInputSimulator,
@@ -111,7 +111,7 @@ except Exception:
 # Tkinter taskbar (Windows: show overrideredirect window in taskbar)
 # ============================================================================
 try:
-    from pycore.pyutils.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
+    from pycore.pyutils.desktop.tk_taskbar import ensure_tk_root_in_taskbar, set_windows_app_user_model_id
 except Exception:
     ensure_tk_root_in_taskbar = None
     set_windows_app_user_model_id = None
@@ -148,7 +148,7 @@ except Exception:
 # Media Compression Utilities
 # ============================================================================
 try:
-    from pycore.pyutils.media_compressor import (
+    from pycore.pyutils.image_tools.media_compressor import (
         MediaCompressor,
         get_media_compressor,
         CompressionStats,
@@ -226,7 +226,7 @@ except Exception:
 # RPC Utilities
 # ============================================================================
 try:
-    from pycore.pyutils.rpc import rpc_manager
+    from pycore.pyutils.rpc_v2 import rpc_manager
     RPC_AVAILABLE = True
 except Exception:
     rpc_manager = None

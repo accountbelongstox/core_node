@@ -21,7 +21,7 @@ controller = LocalProcessingController()
 
 @router.get("/stats", response_model=LocalProcessingStats)
 async def get_stats(
-    period: str = Query("today", regex="^(today|week|month|all|custom)$"),
+    period: str = Query("today", pattern="^(today|week|month|all|custom)$"),
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None)
 ):

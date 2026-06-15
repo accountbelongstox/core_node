@@ -1,13 +1,22 @@
 # Octane Tasks Integration Summary
 
-**Date**: 2025-12-01
-**Status**: ✅ Completed
+**Date**: 2025-12-01 (runtime wired 2026-05-18)
+**Status**: ✅ Completed and active
 
 ---
 
 ## Overview
 
 Integrated Octane Timer Tasks with `sys:init` command and debug interface for centralized task management and monitoring.
+
+> **Single-driver model (2026-05-18):** The Octane (Swoole) timer is the **only**
+> task driver. `scripts/start.sh` ensures Swoole and launches
+> `php artisan octane:start --server=swoole --host=0.0.0.0 --port=9000 [--watch]`
+> on Linux/WSL. The duplicate Laravel-Scheduler registration in
+> `routes/console.php` was removed and the last `queue:listen` producer (CodeMart
+> AI analysis) became `app/Services/TimerTasks/CodeMartV1AIAnalysisTask.php`. There
+> is no Scheduler/`queue:listen` duplicate. Windows (no Swoole) uses
+> `composer dev:win` as a degraded fallback where timer tasks do not run.
 
 ---
 
@@ -207,18 +216,18 @@ php artisan sys:init
 
 ```bash
 # Get all tasks status
-curl http://localhost:8000/octane-tasks/status
+curl http://localhost:9000/octane-tasks/status
 
 # Get specific task
-curl http://localhost:8000/octane-tasks/task/appqyv1_cover_generation
+curl http://localhost:9000/octane-tasks/task/appqyv1_cover_generation
 
 # Verify initialization
-curl http://localhost:8000/octane-tasks/verify
+curl http://localhost:9000/octane-tasks/verify
 ```
 
 ### Debug Interface
 
-1. Open browser: `http://localhost:8000`
+1. Open browser: `http://localhost:9000`
 2. Click "⏱️ Octane Timer Tasks" in sidebar
 3. View real-time task status
 4. Click "🔄 Refresh" to update manually

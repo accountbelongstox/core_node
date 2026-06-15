@@ -47,16 +47,47 @@ class ChangesResponse(BaseModel):
     files: List[Dict]
 
 
-class StatusResponse(BaseModel):
-    success: bool = True
-    mode: str  # "server", "client", or "disabled"
-    server: Optional[Dict] = None
-    client: Optional[Dict] = None
-
-
 class DownloadRequest(BaseModel):
     client_id: str
     file_path: str  # Relative file path
+
+
+# Peer mesh request models
+class PeerConfigRequest(BaseModel):
+    peers: List[Dict]
+    version: int
+    updated_at: float
+
+
+class PeerAddRequest(BaseModel):
+    name: str
+    host: str
+    port: int = 59000
+    role: str = "client"
+
+
+class PeerRemoveRequest(BaseModel):
+    id: str
+
+
+class PeerUpdateRequest(BaseModel):
+    id: str
+    name: Optional[str] = None
+    host: Optional[str] = None
+    port: Optional[int] = None
+    role: Optional[str] = None
+
+
+class RoleRequest(BaseModel):
+    role: str
+
+
+class DistributeRequest(BaseModel):
+    enabled: bool
+
+
+class SkipUpdateRequest(BaseModel):
+    enabled: bool
 
 
 # Endpoints
@@ -149,32 +180,115 @@ async def get_changes(request: ChangesRequest):
     )
 
 
-@router.get("/status", response_model=StatusResponse)
+@router.get("/status")
 async def get_status():
-    """Get code sync status"""
+    """Get full code sync status (role, distributing, peers, version)."""
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+    return get_code_sync_manager().get_status()
+
+
+# ---- Peer mesh endpoints ---------------------------------------------------- #
+
+@router.get("/peer/status")
+async def peer_status():
+    """
+    Lightweight self status, probed frequently by other peers on every mesh tick.
+
+    Must be fast and never raise - returns a minimal dict on any error.
+    """
+    try:
+        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+        return get_code_sync_manager().get_local_peer_status()
+    except Exception as exc:
+        return {"role": "client", "distributing": False, "error": str(exc)}
+
+
+@router.post("/peer/config")
+async def peer_config(request: PeerConfigRequest):
+    """Apply a replicated peer-config update from another peer (last-writer-wins)."""
     from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
     manager = get_code_sync_manager()
-    mode = manager.get_mode()
+    return manager.apply_remote_config(request.peers, request.version, request.updated_at)
 
-    response = StatusResponse(mode=mode)
 
-    if mode == "server":
-        server = manager.get_server()
-        if server:
-            response.server = server.get_status()
+@router.get("/peers")
+async def get_peers():
+    """Get the current peer list (self + peers + config version)."""
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
-    elif mode == "client":
-        client = manager.get_client()
-        if client:
-            response.client = client.get_status()
+    return get_code_sync_manager().get_peers()
 
-    return response
+
+@router.post("/peers/add")
+async def add_peer(request: PeerAddRequest):
+    """Add a peer to the committed config (replicated across the mesh)."""
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+    manager = get_code_sync_manager()
+    return manager.add_peer(request.name, request.host, request.port, request.role)
+
+
+@router.post("/peers/remove")
+async def remove_peer(request: PeerRemoveRequest):
+    """Remove a peer from the committed config (replicated across the mesh)."""
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+    manager = get_code_sync_manager()
+    return manager.remove_peer(request.id)
+
+
+@router.post("/peers/update")
+async def update_peer(request: PeerUpdateRequest):
+    """Update fields of an existing peer (replicated across the mesh)."""
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+    fields = request.dict(exclude_none=True)
+    fields.pop("id", None)
+    manager = get_code_sync_manager()
+    return manager.update_peer(request.id, fields)
+
+
+@router.post("/role")
+async def set_role(request: RoleRequest):
+    """Set this machine's role ('dev' or 'client'); replicated across the mesh."""
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+    manager = get_code_sync_manager()
+    return {"success": True, "role": manager.set_role(request.role)}
+
+
+@router.post("/distribute")
+async def set_distribute(request: DistributeRequest):
+    """Enable/disable code distribution (dev only; OFF by default each startup)."""
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+    manager = get_code_sync_manager()
+    return manager.set_distributing(request.enabled)
+
+
+@router.post("/skip-update")
+async def set_skip_update(request: SkipUpdateRequest):
+    """Temporarily reject (skip) incoming code updates on this client; the status
+    mesh keeps running so peers still see this node and its skip state."""
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+    manager = get_code_sync_manager()
+    return manager.set_skip_update(request.enabled)
+
+
+@router.post("/discover")
+async def discover():
+    """Discover candidate peers on the LAN."""
+    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+
+    return get_code_sync_manager().discover()
 
 
 @router.post("/set-server")
 async def set_server_mode():
-    """Switch to server mode"""
+    """Deprecated: use POST /role {role:'dev'}. Kept via back-compat shims."""
     from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
     manager = get_code_sync_manager()
@@ -185,7 +299,7 @@ async def set_server_mode():
 
 @router.post("/set-client")
 async def set_client_mode():
-    """Switch to client mode"""
+    """Deprecated: use POST /role {role:'client'}. Kept via back-compat shims."""
     from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
     manager = get_code_sync_manager()
@@ -196,7 +310,7 @@ async def set_client_mode():
 
 @router.post("/stop")
 async def stop_sync():
-    """Stop code sync (both server and client)"""
+    """Deprecated: use POST /distribute {enabled:false}. Kept via back-compat shims."""
     from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
 
     manager = get_code_sync_manager()

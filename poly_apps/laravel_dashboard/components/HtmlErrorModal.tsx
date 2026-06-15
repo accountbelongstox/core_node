@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { X, Code, Eye, Link as LinkIcon, AlertTriangle } from 'lucide-react';
 import { CopyButton } from './common/CopyButton';
+import Portal from './shared/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../styles/overlay';
 
 export interface HtmlErrorModalProps {
   isOpen: boolean;
@@ -54,9 +56,10 @@ export function HtmlErrorModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <Portal>
+    <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.error}`}>
       <div
-        className="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md"
+        className={`absolute inset-0 ${OVERLAY_BACKDROP}`}
         onClick={onClose}
       />
 
@@ -175,6 +178,7 @@ export function HtmlErrorModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 

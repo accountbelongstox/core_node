@@ -512,34 +512,9 @@ export const CONVERTER_TOOLS: Record<string, ToolConfig> = {
 
   // ========== Temperature & DateTime ==========
 
-  temperatureConverter: {
-    id: 'temperatureConverter',
-    name: 'Temperature Converter',
-    category: 'Converters',
-    icon: 'Wrench',
-    description: 'Convert between Celsius, Fahrenheit, and Kelvin',
-    apiModule: 'itToolsV1',
-    apiMethod: 'itToolsV1.convertTemperature',
-    inputSchema: {
-      required: ['value', 'from'],
-      properties: {
-        value: { type: 'number' },
-        from: { type: 'string', enum: ['celsius', 'fahrenheit', 'kelvin'] },
-        to: { type: 'string', enum: ['celsius', 'fahrenheit', 'kelvin'] }
-      }
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        celsius: { type: 'number' },
-        fahrenheit: { type: 'number' },
-        kelvin: { type: 'number' }
-      }
-    },
-    history: true,
-    favorites: true,
-    cache: false
-  },
+  // NOTE: `temperatureConverter` is defined canonically in tools.config.missing.ts
+  // (richer schema with from/to + titles + defaults). The duplicate that lived
+  // here was removed during the registry dedupe.
 
   dateTimeConverter: {
     id: 'dateTimeConverter',
@@ -1356,7 +1331,7 @@ export const MATH_TOOLS: Record<string, ToolConfig> = {
   mathEvaluator: {
     id: 'mathEvaluator',
     name: 'Math Expression Evaluator',
-    category: 'Math & Calculation',
+    category: 'Math & Calculators',
     icon: 'Calculator',
     description: 'Evaluate mathematical expressions',
     apiModule: 'itToolsV1',
@@ -1383,7 +1358,7 @@ export const MATH_TOOLS: Record<string, ToolConfig> = {
   percentageCalculator: {
     id: 'percentageCalculator',
     name: 'Percentage Calculator',
-    category: 'Math & Calculation',
+    category: 'Math & Calculators',
     icon: 'Calculator',
     description: 'Calculate percentages, percentage change, etc.',
     apiModule: 'itToolsV1',
@@ -1411,7 +1386,7 @@ export const MATH_TOOLS: Record<string, ToolConfig> = {
   etaCalculator: {
     id: 'etaCalculator',
     name: 'ETA Calculator',
-    category: 'Math & Calculation',
+    category: 'Math & Calculators',
     icon: 'Clock',
     description: 'Calculate estimated time of arrival/completion',
     apiModule: 'itToolsV1',
@@ -1442,7 +1417,7 @@ export const MATH_TOOLS: Record<string, ToolConfig> = {
   benchmarkTool: {
     id: 'benchmarkTool',
     name: 'Performance Benchmark',
-    category: 'Math & Calculation',
+    category: 'Math & Calculators',
     icon: 'Zap',
     description: 'Benchmark operation performance',
     apiModule: 'itToolsV1',

@@ -7,7 +7,7 @@ Syncs speech recognition results to clipboard database for real-time sharing.
 """
 
 from typing import Optional
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def add_recognition_to_clipboard(

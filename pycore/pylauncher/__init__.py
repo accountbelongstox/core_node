@@ -36,6 +36,12 @@ from pycore.pylauncher.app_executable_launcher import (
     get_app_executable_launcher,
 )
 
+# Register the executable-launcher provider with pyfoundations.app_launcher so
+# AppLauncher can launch sidecar executables without importing UP into pylauncher
+# (preserves the layer direction: higher layers import lower, never the reverse).
+from pycore.pyfoundations.app_launcher import register_executable_launcher_provider
+register_executable_launcher_provider(get_app_executable_launcher)
+
 __all__ = [
     'LauncherConfig',   # Configuration
     'ServiceLauncher',  # Launcher

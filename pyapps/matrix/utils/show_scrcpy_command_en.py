@@ -92,7 +92,7 @@ def show_scrcpy_command():
     print("\n3. Replace <DEVICE_SERIAL> with actual serial and run:")
     print("   (command shown above)")
     print("\n4. Or use Matrix DeviceManager:")
-    print("   from pycore.pyutils.device_manager import DeviceManager")
+    print("   from pycore.pyutils.device.device_manager import DeviceManager")
     print("   manager = DeviceManager.instance()")
     print("   device = await manager.connect_device('DEVICE_SERIAL')")
     print("\n" + "=" * 70)

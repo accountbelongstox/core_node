@@ -59,6 +59,7 @@ class PySide6MainWindow(QMainWindow):
     window_minimized = Signal()
     window_maximized = Signal()
     window_restored = Signal()
+    window_hidden = Signal()  # emitted when hidden to tray (close_to_tray)
 
     def __init__(
         self,
@@ -69,6 +70,7 @@ class PySide6MainWindow(QMainWindow):
         frameless: bool = True,
         icon_path: Optional[str] = None,
         cache_window_state: bool = True,
+        close_to_tray: bool = False,
         parent: Optional[QWidget] = None
     ):
         """
@@ -92,6 +94,7 @@ class PySide6MainWindow(QMainWindow):
         self._icon_path = icon_path
         self._is_maximized = False
         self._cache_window_state = cache_window_state
+        self._close_to_tray = close_to_tray  # hide to tray on close instead of quitting
 
         # Window state manager
         self._state_manager = WindowStateManager(app_id=app_id) if cache_window_state else None
@@ -503,6 +506,15 @@ class PySide6MainWindow(QMainWindow):
             self.window_closing.emit()
             event.accept()
             self.window_closed.emit()
+            return
+
+        # Close-to-tray: the window lives in the tray, so the close button hides it
+        # instead of quitting the whole app. The tray "Exit" is the real quit path.
+        if self._close_to_tray:
+            ColorPrint.blue("[MainWindow] close_to_tray: hiding window instead of quitting")
+            self.hide()
+            self.window_hidden.emit()
+            event.ignore()
             return
 
         # First close attempt: Trigger shutdown flow

@@ -117,7 +117,7 @@ const StaticResourceBrowser = {
     // Smart sort function for files
     smartSort(items) {
         const chineseNumbers = {
-            // Chinese number mapping for parsing
+            // Chinese-numeral to value mapping used for parsing filenames
             '零': 0, '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
             '十': 10, '十一': 11, '十二': 12, '十三': 13, '十四': 14, '十五': 15, '十六': 16, '十七': 17, '十八': 18, '十九': 19,
             '二十': 20, '二十一': 21, '二十二': 22, '二十三': 23, '二十四': 24, '二十五': 25, '二十六': 26, '二十七': 27, '二十八': 28, '二十九': 29,
@@ -128,7 +128,7 @@ const StaticResourceBrowser = {
         const extractNumber = (name) => {
             // Try various patterns to extract number
             const patterns = [
-                // Pattern: 第X课, 第X章, 第X集
+                // Pattern: "lesson X / chapter X / episode X" written with Chinese characters
                 /第([零一二三四五六七八九十百千]+)[课章集节篇]/,
                 /第(\d+)[课章集节篇]/,
                 // Pattern: (1), [1], 【1】, @1, ＠1
@@ -151,7 +151,7 @@ const StaticResourceBrowser = {
                     {
                         return chineseNumbers[numStr];
                     }
-                    // Check for compound Chinese numbers like 二十一
+                    // Check for compound Chinese numbers (e.g. twenty-one)
                     for (const [cn, num] of Object.entries(chineseNumbers)) {
                         if (numStr === cn) {
                             return num;
@@ -250,7 +250,7 @@ const StaticResourceBrowser = {
             this.updateDeleteConfirmState();
         });
         deleteInput.addEventListener('keyup', (e) => {
-            if (e.key === 'Enter' && deleteInput.value.trim() === '确认') {
+            if (e.key === 'Enter' && deleteInput.value.trim() === 'Confirm') {
                 this.executeDelete();
             }
         });
@@ -1053,7 +1053,7 @@ const StaticResourceBrowser = {
         }
 
         message += ` from <code>${this.escapeHtml(this.pendingDeletePath)}</code>. `;
-        message += `Type <strong>确认</strong> to confirm.`;
+        message += `Type <strong>Confirm</strong> to confirm.`;
 
         summary.innerHTML = message;
     },
@@ -1076,7 +1076,7 @@ const StaticResourceBrowser = {
         const confirmInput = document.getElementById('static-delete-confirm-input');
         const confirmBtn = document.getElementById('static-delete-confirm-btn');
 
-        confirmBtn.disabled = confirmInput.value.trim() !== '确认';
+        confirmBtn.disabled = confirmInput.value.trim() !== 'Confirm';
     },
 
     async executeDelete() {
@@ -1085,8 +1085,8 @@ const StaticResourceBrowser = {
         }
 
         const confirmInput = document.getElementById('static-delete-confirm-input');
-        if (confirmInput.value.trim() !== '确认') {
-            alert('Please type 确认 to proceed.');
+        if (confirmInput.value.trim() !== 'Confirm') {
+            alert('Please type Confirm to proceed.');
             return;
         }
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { Clock, Trash2, Copy, CheckCircle, XCircle } from 'lucide-react';
 import { ToolHistoryItem } from '../../core/types';
 import { commonClasses } from '../../styles/theme';
-import BentoCard from '../BentoCard';
+import { AiBentoCard } from '../ai-tools/ui';
 
 interface HistoryListProps {
   items: ToolHistoryItem[];
@@ -29,8 +29,8 @@ const HistoryList: React.FC<HistoryListProps> = ({
   if (displayItems.length === 0) {
     return (
       <div className="text-center py-8 text-slate-500 dark:text-slate-400">
-        <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
-        <p>No history yet</p>
+        <Clock className="w-10 h-10 mx-auto mb-2 opacity-40" />
+        <p className="text-sm">No history yet</p>
       </div>
     );
   }
@@ -76,9 +76,9 @@ const HistoryList: React.FC<HistoryListProps> = ({
   return (
     <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
       {displayItems.map((item, index) => (
-        <BentoCard
+        <AiBentoCard
           key={`history-${item.timestamp}-${index}`}
-          className="relative"
+          className="!shadow-none ring-1 ring-slate-200/50 dark:ring-white/5"
         >
           <div className="space-y-3">
             {/* Header */}
@@ -124,7 +124,7 @@ const HistoryList: React.FC<HistoryListProps> = ({
                 <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
                   Input:
                 </p>
-                <div className="bg-slate-100 dark:bg-slate-700 rounded p-2">
+                <div className="bg-slate-100/80 dark:bg-slate-800/60 rounded-lg p-2.5 border border-slate-200/50 dark:border-slate-700/50">
                   <p className="text-sm break-words whitespace-pre-wrap">
                     {renderValue(item.input)}
                   </p>
@@ -138,7 +138,7 @@ const HistoryList: React.FC<HistoryListProps> = ({
                 <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
                   Output:
                 </p>
-                <div className="bg-slate-100 dark:bg-slate-700 rounded p-2">
+                <div className="bg-slate-100/80 dark:bg-slate-800/60 rounded-lg p-2.5 border border-slate-200/50 dark:border-slate-700/50">
                   <p className="text-sm break-words whitespace-pre-wrap">
                     {renderValue(item.output)}
                   </p>
@@ -160,7 +160,7 @@ const HistoryList: React.FC<HistoryListProps> = ({
               </div>
             )}
           </div>
-        </BentoCard>
+        </AiBentoCard>
       ))}
 
       {items.length > maxItems && (

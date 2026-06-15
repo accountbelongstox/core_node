@@ -15,13 +15,29 @@
 # Non-interactive: WEBCLAUDE_NON_INTERACTIVE=1
 # ═══════════════════════════════════════════════════════════════
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GROUP_ROOT="$(dirname "$SCRIPT_DIR")"
-CORE_NODE="$(dirname "$GROUP_ROOT")"
-
-SKIP_CHECKS=false
+SKIP_CHECKS=false 
 BUILD_ONLY=false
 SERVICES_CLI=""
+PY=""
+CORE_NODE=""
+PREFLIGHT_OK=1
+SUDO_APT=""
+SCRIPT_DIR=""
+GROUP_ROOT=""
+DEPLOY_ROLE_PY=""
+PREFLIGHT=""
+WC_TAIL_PY=""
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+GROUP_ROOT="$(dirname "$SCRIPT_DIR")"
+DEPLOY_ROLE_PY="$SCRIPT_DIR/pytools/deploy_role.py"
+PREFLIGHT="$SCRIPT_DIR/pytools/preflight.py"
+WC_TAIL_PY="$SCRIPT_DIR/pytools/wc_tail_file.py"
+
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    SUDO_APT="sudo "
+fi
+
 for arg in "$@"; do
     case "$arg" in
         --skip-checks) SKIP_CHECKS=true ;;
@@ -43,8 +59,14 @@ fail()   { echo -e "  ${RED}[FAIL]${NC} $1"; }
 info()   { echo -e "  ${GRAY}[INFO]${NC} $1"; }
 header() { echo -e "\n${CYAN}=== $1 ===${NC}"; }
 
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/lib/webclaude_resolve_core_node.sh"
+CORE_NODE="$(webclaude_print_resolved_core_node "$GROUP_ROOT" "$GROUP_ROOT" 2>/dev/null)"
+if [ -z "$CORE_NODE" ]; then
+    warn "core_node root not found — set WEBCLAUDE_CORE_NODE or clone core_node beside webclaude_group (Redis install / claude_host need it)."
+fi
+
 # ── Find Python ─────────────────────────────────────────────
-PY=""
 for cmd in python3 python; do
     command -v "$cmd" >/dev/null 2>&1 && PY="$cmd" && break
 done
@@ -59,7 +81,6 @@ fi
 # Deploy role (data dir + cache). Emits SERVICES, WEBCLAUDE_DATA_DIR, WEBCLAUDE_LOG_DIR
 # ═══════════════════════════════════════════════════════════════
 
-DEPLOY_ROLE_PY="$SCRIPT_DIR/pytools/deploy_role.py"
 chmod +x "$DEPLOY_ROLE_PY" 2>/dev/null || true
 DATA_DIR_DEFAULT="${WEBCLAUDE_DATA_DIR:-$GROUP_ROOT/.data}"
 DEPLOY_ENV_FILE="$(mktemp 2>/dev/null || mktemp -t wcdeploy 2>/dev/null || echo "${TMPDIR:-/tmp}/wc-deploy-role-$$.env")"
@@ -101,15 +122,19 @@ echo ""
 #   - output KEY=VALUE lines to stdout (sourced via temp file, not eval)
 # ═══════════════════════════════════════════════════════════════
 
-PREFLIGHT="$SCRIPT_DIR/pytools/preflight.py"
 chmod +x "$SCRIPT_DIR/pytools/"*.py 2>/dev/null || true
 
-if [ "$SKIP_CHECKS" = false ] && [ -f "$PREFLIGHT" ]; then
-    # preflight.py prints checks to stderr (visible), KEY=VALUE to stdout (captured)
-    PREFLIGHT_OUTPUT="$($PY "$PREFLIGHT" "$SERVICES")"
-    eval "$PREFLIGHT_OUTPUT"
+if [ "$SKIP_CHECKS" = false ] && [ -n "$PY" ]; then
+    PREFLIGHT_ENV="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/wc-preflight-$$.env")"
+    PYTHONWARNINGS=ignore "$PY" "$PREFLIGHT" "$SERVICES" >"$PREFLIGHT_ENV"
+    if [ -s "$PREFLIGHT_ENV" ]; then
+        set -a
+        # shellcheck disable=SC1090
+        . "$PREFLIGHT_ENV"
+        set +a
+    fi
+    rm -f "$PREFLIGHT_ENV"
 else
-    # Defaults when skipping
     PREFLIGHT_OK=1
     CENTER_PORT=18100
     PY_CMD="$PY"
@@ -149,8 +174,8 @@ s.close()
         fi
 
         # Also export as env var for belt-and-suspenders
-START_REDIS=true
-        bash "$REDIS_INSTALL_SCRIPT" 2>&1 | tail -15
+        export START_REDIS=true
+        bash "$REDIS_INSTALL_SCRIPT"
 
         # If script failed (deps issue), try simple apt install as fallback
         REDIS_UP2="$($PY -c "
@@ -159,9 +184,9 @@ print('yes' if s.connect_ex(('$REDIS_HOST',$REDIS_PORT))==0 else 'no'); s.close(
 " 2>/dev/null)"
         if [ "$REDIS_UP2" != "yes" ]; then
             info "Core script didn't start Redis, trying direct apt install..."
-            apt-get install -y -qq redis-server 2>/dev/null || true
-            systemctl enable redis-server 2>/dev/null || true
-            systemctl start redis-server 2>/dev/null || redis-server --daemonize yes 2>/dev/null || true
+            ${SUDO_APT}apt-get install -y -qq redis-server 2>/dev/null || true
+            ${SUDO_APT}systemctl enable redis-server 2>/dev/null || true
+            ${SUDO_APT}systemctl start redis-server 2>/dev/null || redis-server --daemonize yes 2>/dev/null || true
         fi
         # Verify
         REDIS_UP="$($PY -c "
@@ -194,19 +219,23 @@ if has_service center; then
         ok "center_server: node_modules exists"
     else
         info "center_server: npm install..."
-        cd "$DIR" && npm install --no-audit --no-fund 2>&1 | tail -3
-        ok "center_server: installed"
+        cd "$DIR" && npm install --no-audit --no-fund
+        if [ -d "$DIR/node_modules" ]; then
+            ok "center_server: installed"
+        else
+            fail "center_server: node_modules missing after npm install"
+        fi
     fi
 fi
 
 if has_service gateway; then
     DIR="$GROUP_ROOT/webclaude_go-gateway"
     info "go-gateway: building..."
-    cd "$DIR" && go build -trimpath -ldflags "-s -w" -o relay-api ./cmd/relay-api 2>&1 | tail -3
+    cd "$DIR" && go build -trimpath -ldflags "-s -w" -o relay-api ./cmd/relay-api
     if [ -f "$DIR/relay-api" ]; then
         ok "go-gateway: built"
     else
-        fail "go-gateway: build failed"
+        fail "go-gateway: relay-api binary missing after build"
     fi
 fi
 
@@ -216,8 +245,12 @@ if has_service website; then
         ok "website: node_modules exists"
     else
         info "website: pnpm install..."
-        cd "$DIR" && pnpm install --no-frozen-lockfile 2>&1 | tail -3
-        ok "website: installed"
+        cd "$DIR" && pnpm install --no-frozen-lockfile
+        if [ -d "$DIR/node_modules" ]; then
+            ok "website: installed"
+        else
+            fail "website: node_modules missing after pnpm install"
+        fi
     fi
 fi
 
@@ -279,8 +312,30 @@ GATEWAY_SH="$GROUP_ROOT/webclaude_go-gateway/scripts/start.sh"
 WEBSITE_SH="$GROUP_ROOT/webclaude_website/scripts/start.sh"
 HOST_SH="$CORE_NODE/pyapps/claude_host/scripts/start.sh"
 
+_HINT_LIB="$GROUP_ROOT/scripts/lib/webclaude_start_nohup_hint.sh"
+_wc_abs_start_sh() { echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"; }
+
 # Sub-scripts run in the background with logs redirected; skip systemd prompts there.
 WEBCLAUDE_SKIP_SERVICE_PROMPT=1
+
+# shellcheck source=/dev/null
+source "$_HINT_LIB"
+header "Nohup (background) and hot reload — per service"
+has_service center && webclaude_print_nohup_and_hot_reload "$(_wc_abs_start_sh "$CENTER_SH")" "$LOG_DIR/center.nohup.log" \
+    "cd $(printf %q "$GROUP_ROOT/webclaude_center_server") && npm run dev  # nodemon hot reload" \
+    "Center Server" "--skip-deps --no-build" "1"
+has_service gateway && webclaude_print_nohup_and_hot_reload "$(_wc_abs_start_sh "$GATEWAY_SH")" "$LOG_DIR/gateway.nohup.log" \
+    "cd $(printf %q "$GROUP_ROOT/webclaude_go-gateway") && air  # install: go install github.com/air-verse/air@latest" \
+    "Go Gateway" "--skip-deps --no-build" "1"
+has_service website && webclaude_print_nohup_and_hot_reload "$(_wc_abs_start_sh "$WEBSITE_SH")" "$LOG_DIR/website.nohup.log" \
+    "cd $(printf %q "$GROUP_ROOT/webclaude_website") && PORT=${WEBSITE_P} pnpm run dev  # Vite HMR hot reload" \
+    "Website (Vite)" "--skip-deps" "1"
+if has_service host && [[ -f "$HOST_SH" ]]; then
+    _wc_host_hot="See claude_host project; typical dev: cd $(printf %q "$CORE_NODE") && ${PY_CMD:-python3} -u pymain.py app=claude_host"
+    [[ -z "$CORE_NODE" ]] && _wc_host_hot="Set WEBCLAUDE_CORE_NODE and use pyapps/claude_host dev workflow (watchdog) for hot reload."
+    webclaude_print_nohup_and_hot_reload "$(_wc_abs_start_sh "$HOST_SH")" "$LOG_DIR/host.nohup.log" \
+        "$_wc_host_hot" "Claude Host" "" "1"
+fi
 
 # ── Print all sub-script commands for manual debugging ──
 echo ""
@@ -305,7 +360,18 @@ if has_service center; then
     URLS+=("http://0.0.0.0:$CENTER_P")
     ok "Started: Center Server (PID $!) on port $CENTER_P"
 
-    info "Waiting for Center Server..."
+    _WC_ENV_PY="$SCRIPT_DIR/pytools/wc_env.py"
+    _GATEWAY_ENV="$GROUP_ROOT/webclaude_go-gateway/.env"
+    CENTER_URL_FROM_GATEWAY=""
+    if [ -n "$PY" ] && [ -f "$_WC_ENV_PY" ] && [ -f "$_GATEWAY_ENV" ]; then
+        CENTER_URL_FROM_GATEWAY="$("$PY" "$_WC_ENV_PY" --file "$_GATEWAY_ENV" --key CENTER_SERVER_URL --default "")"
+    fi
+    info "Waiting for Center Server (readiness: TCP 127.0.0.1:$CENTER_P)..."
+    if [ -n "$CENTER_URL_FROM_GATEWAY" ]; then
+        info "Gateway .env CENTER_SERVER_URL=$CENTER_URL_FROM_GATEWAY (relay uses this for center HTTP APIs)"
+    else
+        info "Gateway .env has no CENTER_SERVER_URL (or unreadable); center registration/auth-cache may be off"
+    fi
     $PY -c "
 import socket, time
 for i in range(30):
@@ -346,16 +412,42 @@ fi
 
 # ── 4. Claude Host ──────────────────────────────────────
 if has_service host; then
+    _wc_host_started=0
     if [ -f "$HOST_SH" ]; then
         bash "$HOST_SH" > "$LOG_DIR/host.log" 2>&1 &
-    else
+        _wc_host_started=1
+    elif [ -n "$CORE_NODE" ] && [ -f "$CORE_NODE/pymain.py" ]; then
         cd "$CORE_NODE" && ${PY_CMD:-python3} -u pymain.py app=claude_host > "$LOG_DIR/host.log" 2>&1 &
+        _wc_host_started=1
+    else
+        warn "Claude Host not started: missing core_node or $HOST_SH (set WEBCLAUDE_CORE_NODE)."
     fi
-    PIDS+=($!)
-    NAMES+=("Claude Host")
-    PORTS+=("WS")
-    URLS+=("ws://gateway:$GATEWAY_P/ws/client")
-    ok "Started: Claude Host (PID $!) -> gateway:$GATEWAY_P"
+    if [ "$_wc_host_started" = 1 ]; then
+        PIDS+=($!)
+        NAMES+=("Claude Host")
+        PORTS+=("WS")
+        URLS+=("ws://gateway:$GATEWAY_P/ws/client")
+        ok "Started: Claude Host (PID $!) -> gateway:$GATEWAY_P"
+    fi
+fi
+
+if declare -F webclaude_is_first_run >/dev/null 2>&1 && webclaude_is_first_run webclaude_group_unified 2>/dev/null; then
+    info "First run: brief pause, then last 25 lines from each service log (unified launcher)."
+    sleep 2
+    header "First run — log preview (last 25 lines)"
+    for _wc_log in center.log gateway.log website.log host.log; do
+        _wc_lp="$LOG_DIR/$_wc_log"
+        [[ -f "$_wc_lp" ]] || continue
+        echo ""
+        echo -e "  ${GRAY}--- $_wc_lp ---${NC}"
+        if [ -n "$PY" ]; then
+            "$PY" "$WC_TAIL_PY" --file "$_wc_lp" --lines 25
+        else
+            tail -n 25 "$_wc_lp" 2>/dev/null || true
+        fi
+    done
+    webclaude_mark_first_run_done webclaude_group_unified
+    echo ""
 fi
 
 # ── Get local IP for display ────────────────────────────
@@ -380,10 +472,10 @@ for i in "${!PIDS[@]}"; do
         LOG_NAME=$(echo "${NAMES[$i]}" | tr '[:upper:]' '[:lower:]' | tr ' ' '_' | tr -cd 'a-z_')
         for logfile in "$LOG_DIR"/*.log; do
             case "$logfile" in
-                *center*) [ "${NAMES[$i]}" = "Center Server" ] && echo -e "  ${RED}--- Last 15 lines of $(basename $logfile) ---${NC}" && tail -15 "$logfile" ;;
-                *gateway*) [ "${NAMES[$i]}" = "Go Gateway" ] && echo -e "  ${RED}--- Last 15 lines of $(basename $logfile) ---${NC}" && tail -15 "$logfile" ;;
-                *website*) echo "${NAMES[$i]}" | grep -qi "website" && echo -e "  ${RED}--- Last 15 lines of $(basename $logfile) ---${NC}" && tail -15 "$logfile" ;;
-                *host*) [ "${NAMES[$i]}" = "Claude Host" ] && echo -e "  ${RED}--- Last 15 lines of $(basename $logfile) ---${NC}" && tail -15 "$logfile" ;;
+                *center*) [ "${NAMES[$i]}" = "Center Server" ] && echo -e "  ${RED}--- Last 15 lines of $(basename $logfile) ---${NC}" && { [ -n "$PY" ] && "$PY" "$WC_TAIL_PY" --file "$logfile" --lines 15 || tail -n 15 "$logfile" 2>/dev/null || true; } ;;
+                *gateway*) [ "${NAMES[$i]}" = "Go Gateway" ] && echo -e "  ${RED}--- Last 15 lines of $(basename $logfile) ---${NC}" && { [ -n "$PY" ] && "$PY" "$WC_TAIL_PY" --file "$logfile" --lines 15 || tail -n 15 "$logfile" 2>/dev/null || true; } ;;
+                *website*) echo "${NAMES[$i]}" | grep -qi "website" && echo -e "  ${RED}--- Last 15 lines of $(basename $logfile) ---${NC}" && { [ -n "$PY" ] && "$PY" "$WC_TAIL_PY" --file "$logfile" --lines 15 || tail -n 15 "$logfile" 2>/dev/null || true; } ;;
+                *host*) [ "${NAMES[$i]}" = "Claude Host" ] && echo -e "  ${RED}--- Last 15 lines of $(basename $logfile) ---${NC}" && { [ -n "$PY" ] && "$PY" "$WC_TAIL_PY" --file "$logfile" --lines 15 || tail -n 15 "$logfile" 2>/dev/null || true; } ;;
             esac
         done
     fi
@@ -403,7 +495,7 @@ print('yes' if s.connect_ex(('127.0.0.1',$P))==0 else 'no'); s.close()
         ok "Port $P is listening (${NAMES[$i]})"
     else
         fail "Port $P is NOT listening (${NAMES[$i]})"
-        info "Check log: tail -30 $LOG_DIR/*.log"
+        info "Inspect logs under $LOG_DIR (use wc_tail_file.py or your editor)"
     fi
 done
 
@@ -411,13 +503,13 @@ done
 echo ""
 header "All Services Running"
 echo ""
-echo -e "  ${CYAN}┌──────────────────────────────────────────────────────────────┐${NC}"
-echo -e "  ${CYAN}│${NC}  Service            Port     URL                              ${CYAN}│${NC}"
-echo -e "  ${CYAN}├──────────────────────────────────────────────────────────────┤${NC}"
+echo -e "  ${CYAN}----------------------------------------------------------------${NC}"
+echo -e "  ${CYAN}  Service            Port     URL${NC}"
+echo -e "  ${CYAN}----------------------------------------------------------------${NC}"
 for i in "${!NAMES[@]}"; do
-    printf "  ${CYAN}│${NC}  %-18s %-8s %-33s ${CYAN}│${NC}\n" "${NAMES[$i]}" "${PORTS[$i]}" "${URLS[$i]}"
+    printf "  ${CYAN}  %-18s %-8s %-33s${NC}\n" "${NAMES[$i]}" "${PORTS[$i]}" "${URLS[$i]}"
 done
-echo -e "  ${CYAN}└──────────────────────────────────────────────────────────────┘${NC}"
+echo -e "  ${CYAN}----------------------------------------------------------------${NC}"
 echo ""
 echo -e "  ${GREEN}Local access:${NC}"
 echo -e "    Website:  ${GREEN}http://localhost:$WEBSITE_P${NC}"

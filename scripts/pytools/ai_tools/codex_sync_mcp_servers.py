@@ -24,57 +24,85 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 # Import from common provider
 from mcp_config_provider import MCPConfig, get_mcp_configs, get_project_root
 
-# Determine if running on Windows
-IS_WINDOWS = sys.platform == "win32"
-
-
-def run_command(cmd: List[str], description: str, cwd: Optional[Path] = None) -> bool:
-    """Run a shell command and return success status"""
+def stream_command(cmd: List[str], description: str, cwd: Optional[Path] = None) -> str:
+    """Run command with live output and return combined output text."""
     print(f"[INFO] {description}")
     print(f"[CMD] {' '.join(cmd)}")
     if cwd:
         print(f"[CWD] {cwd}")
-
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd=str(cwd) if cwd else None,
-            shell=IS_WINDOWS
-        )
-
-        if result.stdout:
-            print(result.stdout)
-
-        if result.returncode == 0:
-            print(f"[SUCCESS] {description}")
-            return True
-        else:
-            print(f"[ERROR] Command failed with exit code {result.returncode}")
-            if result.stderr:
-                print(f"[STDERR] {result.stderr}")
-            return False
-
-    except subprocess.TimeoutExpired:
-        print(f"[ERROR] Command timed out after 30 seconds")
-        return False
-    except FileNotFoundError:
-        print(f"[ERROR] Command not found: {cmd[0]}")
-        return False
-    except Exception as e:
-        print(f"[ERROR] Failed to run command: {e}")
-        return False
+    combined_lines: List[str] = []
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        cwd=str(cwd) if cwd else None,
+        bufsize=1
+    )
+    if process.stdout is not None:
+        for line in process.stdout:
+            text = line.rstrip("\n")
+            combined_lines.append(text)
+            print(text)
+    process.wait()
+    return "\n".join(combined_lines)
 
 
-def configure_codex_mcp() -> int:
-    """Configure MCP servers for Codex using native commands"""
+def set_codex_http_headers(name: str, headers: dict) -> None:
+    """Write [mcp_servers.<name>.http_headers] into ~/.codex/config.toml.
+
+    'codex mcp add --url' has no flag for custom HTTP headers, so context7's
+    CONTEXT7_API_KEY header cannot be set via the CLI. Any existing header table
+    for the server is replaced. Uses stdlib only (no toml writer dependency).
+    """
+    if not headers:
+        return
+    import os
+    codex_home = os.environ.get("CODEX_HOME") or str(Path.home() / ".codex")
+    codex_config = Path(codex_home) / "config.toml"
+    if not codex_config.exists():
+        print(f"[WARNING] codex config.toml not found at {codex_config}; cannot set headers for {name}")
+        return
+    section = f"[mcp_servers.{name}.http_headers]"
+    lines = codex_config.read_text(encoding="utf-8-sig").splitlines()
+    kept: List[str] = []
+    skipping = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == section:
+            skipping = True
+            continue
+        if skipping:
+            if stripped.startswith("["):
+                skipping = False
+            else:
+                continue
+        kept.append(line)
+    kept.append("")
+    kept.append(section)
+    for key, value in headers.items():
+        escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
+        kept.append(f'{key} = "{escaped}"')
+    codex_config.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    print(f"[OK] Wrote http_headers for {name} to codex config.toml")
+
+
+def verify_with_list(server_name: str) -> Tuple[bool, str]:
+    """Verify server exists by parsing 'codex mcp list' output content."""
+    list_output = stream_command(["codex", "mcp", "list"], "Verifying with: codex mcp list")
+    text = list_output.lower()
+    is_ok = server_name.lower() in text
+    reason = f"server-name-present={is_ok}"
+    return is_ok, reason
+
+
+def configure_codex_mcp() -> None:
+    """Configure MCP servers for Codex using native commands."""
     print("=" * 80)
     print("[CODEX] Configuring MCP servers using 'codex mcp add' commands")
     print("=" * 80)
@@ -82,12 +110,11 @@ def configure_codex_mcp() -> int:
 
     # Check if codex command exists
     check_cmd = ["codex", "--version"]
-    result = subprocess.run(check_cmd, capture_output=True, text=True, shell=IS_WINDOWS)
-    if result.returncode != 0:
-        print("[ERROR] 'codex' command not found. Please install Codex Code first.")
-        return 1
-
-    print(f"[INFO] Codex version: {result.stdout.strip()}")
+    try:
+        stream_command(check_cmd, "Checking Codex CLI availability")
+    except Exception:
+        print("[ERROR] Failed to execute 'codex --version'. Please install Codex CLI first.")
+        return
     print()
 
     # Get MCP configurations from common provider
@@ -95,7 +122,7 @@ def configure_codex_mcp() -> int:
 
     if not configs:
         print("[WARNING] No MCP servers to configure")
-        return 0
+        return
 
     # Get project root for relative path execution
     project_root = get_project_root()
@@ -109,13 +136,8 @@ def configure_codex_mcp() -> int:
 
     for idx, config in enumerate(configs, 1):
         if config.transport_type == "http":
-            # HTTP transport: codex mcp add <name> --url <url> [--header "key: value"]
+            # HTTP transport: codex mcp add <name> --url <url>
             cmd = ["codex", "mcp", "add", config.name, "--url", config.url]
-
-            # Add headers if present
-            if config.headers:
-                for key, value in config.headers.items():
-                    cmd.extend(["--header", f"{key}: {value}"])
 
             commands_to_run.append((config, cmd, None))
         else:
@@ -160,30 +182,29 @@ def configure_codex_mcp() -> int:
     print("=" * 80)
     print()
 
-    success_count = 0
-    failed_count = 0
-
     for idx, (config, cmd, cwd) in enumerate(commands_to_run, 1):
         print(f"[{idx}/{len(configs)}] Executing: {config.name}")
-
+        # Remove any existing entry first so re-runs always apply latest config.
+        stream_command(["codex", "mcp", "remove", config.name],
+                       f"Removing existing {config.name} (if any)")
         description = f"Adding {config.name} MCP server ({config.transport_type})"
-        if run_command(cmd, description, cwd=cwd):
-            success_count += 1
+        stream_command(cmd, description, cwd=cwd)
+        # codex CLI cannot set custom HTTP headers; inject them into config.toml.
+        if config.transport_type == "http" and config.headers:
+            set_codex_http_headers(config.name, config.headers)
+        ok, reason = verify_with_list(config.name)
+        if ok:
+            print(f"[VERIFY] {config.name}: OK ({reason})")
         else:
-            failed_count += 1
-
+            print(f"[VERIFY] {config.name}: NOT CONFIRMED ({reason})")
         print()
 
     print("=" * 80)
-    print(f"[SUMMARY] Codex MCP Configuration Complete")
-    print(f"  Success: {success_count}/{len(configs)}")
-    print(f"  Failed:  {failed_count}/{len(configs)}")
+    print("[SUMMARY] Codex MCP Configuration Complete")
     print("=" * 80)
 
-    return 0 if failed_count == 0 else 1
 
-
-def main():
+def main() -> None:
     """Main entry point"""
     parser = argparse.ArgumentParser(
         description="Configure MCP servers for Codex AI"
@@ -211,18 +232,16 @@ def main():
     print("=" * 80)
     print()
 
-    return configure_codex_mcp()
+    configure_codex_mcp()
 
 
 if __name__ == "__main__":
     try:
-        sys.exit(main())
+        main()
     except KeyboardInterrupt:
         print()
         print("[INFO] Operation cancelled by user")
-        sys.exit(130)
     except Exception as e:
         print(f"[ERROR] Unexpected error: {e}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 from contextlib import contextmanager
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class DatabaseBase:

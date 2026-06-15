@@ -1,15 +1,14 @@
 import { ToolConfig } from '../core/types';
 
 /**
- * Missing Tool Configurations (补充缺失的工具配置)
+ * Missing Tool Configurations
  *
- * 这些工具的后端API已存在，但之前未在前端配置
  * These tools have backend APIs but were not previously configured in frontend
  *
  * Total: 15 tools
  */
 
-// ========== Crypto & Security (加密与安全) ==========
+// ========== Crypto & Security ==========
 
 export const MISSING_CRYPTO_TOOLS: Record<string, ToolConfig> = {
   basicAuthGenerator: {
@@ -157,7 +156,7 @@ export const MISSING_CRYPTO_TOOLS: Record<string, ToolConfig> = {
   }
 };
 
-// ========== Converters (转换器) ==========
+// ========== Converters ==========
 
 export const MISSING_CONVERTER_TOOLS: Record<string, ToolConfig> = {
   base64EncoderV2: {
@@ -262,7 +261,7 @@ export const MISSING_CONVERTER_TOOLS: Record<string, ToolConfig> = {
   }
 };
 
-// ========== Web Development (Web开发) ==========
+// ========== Web Development ==========
 
 export const MISSING_WEB_TOOLS: Record<string, ToolConfig> = {
   jsonMinifier: {
@@ -332,123 +331,15 @@ export const MISSING_WEB_TOOLS: Record<string, ToolConfig> = {
   }
 };
 
-// ========== Math Tools (数学工具) ==========
+// ========== Math Tools ==========
 
-export const MISSING_MATH_TOOLS: Record<string, ToolConfig> = {
-  etaCalculator: {
-    id: 'etaCalculator',
-    name: 'ETA Calculator',
-    category: 'Math Tools',
-    icon: 'Clock',
-    description: 'Calculate Estimated Time of Arrival based on progress',
-    apiModule: 'itToolsV1',
-    apiMethod: 'itToolsV1.eta',
-    inputSchema: {
-      required: ['current', 'total', 'start_time'],
-      properties: {
-        current: {
-          type: 'number',
-          title: 'Current Progress',
-          min: 0
-        },
-        total: {
-          type: 'number',
-          title: 'Total',
-          min: 1
-        },
-        start_time: {
-          type: 'number',
-          title: 'Start Time (Unix timestamp)',
-          min: 0
-        }
-      }
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        eta: { type: 'number', title: 'ETA (Unix timestamp)' },
-        remaining_seconds: { type: 'number' },
-        percentage: { type: 'number' }
-      }
-    },
-    history: true,
-    favorites: true,
-    cache: false
-  },
+// NOTE: `etaCalculator`, `mathEvaluator` and `percentageCalculator(V2)` are
+// defined canonically in tools.config.extended.ts (MATH_TOOLS, with richer
+// schemas). Their near-duplicates that lived here were removed during the
+// registry dedupe, so MISSING_MATH_TOOLS is now empty.
+export const MISSING_MATH_TOOLS: Record<string, ToolConfig> = {};
 
-  mathEvaluator: {
-    id: 'mathEvaluator',
-    name: 'Math Expression Evaluator',
-    category: 'Math Tools',
-    icon: 'Calculator',
-    description: 'Evaluate mathematical expressions safely',
-    apiModule: 'itToolsV1',
-    apiMethod: 'itToolsV1.evaluate',
-    inputSchema: {
-      required: ['expression'],
-      properties: {
-        expression: {
-          type: 'string',
-          title: 'Expression (e.g., 2 + 2 * 3)',
-          minLength: 1
-        }
-      }
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        result: { type: 'number' },
-        expression: { type: 'string' }
-      }
-    },
-    history: true,
-    favorites: true,
-    cache: true
-  },
-
-  percentageCalculatorV2: {
-    id: 'percentageCalculatorV2',
-    name: 'Percentage Calculator',
-    category: 'Math Tools',
-    icon: 'Percent',
-    description: 'Calculate percentage of a value relative to total',
-    apiModule: 'itToolsV1',
-    apiMethod: 'itToolsV1.percentage',
-    inputSchema: {
-      required: ['value', 'total'],
-      properties: {
-        value: {
-          type: 'number',
-          title: 'Value'
-        },
-        total: {
-          type: 'number',
-          title: 'Total',
-          min: 0.01
-        },
-        decimal: {
-          type: 'number',
-          title: 'Decimal Places',
-          default: 2,
-          min: 0,
-          max: 10
-        }
-      }
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        percentage: { type: 'number' },
-        formatted: { type: 'string' }
-      }
-    },
-    history: true,
-    favorites: true,
-    cache: true
-  }
-};
-
-// ========== Text Processing (文本处理) ==========
+// ========== Text Processing ==========
 
 export const MISSING_TEXT_TOOLS: Record<string, ToolConfig> = {
   textStatistics: {
@@ -486,13 +377,13 @@ export const MISSING_TEXT_TOOLS: Record<string, ToolConfig> = {
   }
 };
 
-// ========== Network Tools (网络工具) ==========
+// ========== Network Tools ==========
 
 export const MISSING_NETWORK_TOOLS: Record<string, ToolConfig> = {
   ipv4Converter: {
     id: 'ipv4Converter',
     name: 'IPv4 Converter',
-    category: 'Network Utilities',
+    category: 'Network Tools',
     icon: 'Network',
     description: 'Convert IPv4 address between different formats',
     apiModule: 'itToolsV1',
@@ -526,41 +417,9 @@ export const MISSING_NETWORK_TOOLS: Record<string, ToolConfig> = {
     cache: true
   },
 
-  macAddressGenerator: {
-    id: 'macAddressGenerator',
-    name: 'MAC Address Generator',
-    category: 'Network Utilities',
-    icon: 'Wifi',
-    description: 'Generate random MAC addresses with customizable format',
-    apiModule: 'itToolsV1',
-    apiMethod: 'itToolsV1.macGenerate',
-    inputSchema: {
-      required: [],
-      properties: {
-        separator: {
-          type: 'string',
-          title: 'Separator',
-          enum: [':', '-', '.', ''],
-          default: ':'
-        },
-        case: {
-          type: 'string',
-          title: 'Case',
-          enum: ['upper', 'lower'],
-          default: 'upper'
-        }
-      }
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        mac: { type: 'string' }
-      }
-    },
-    history: true,
-    favorites: true,
-    cache: false
-  }
+  // NOTE: `macAddressGenerator` was a near-duplicate (by name) of `macGenerator`
+  // in tools.config.extended.ts (NETWORK_TOOLS), which has the more complete
+  // schema. It was removed during the registry dedupe.
 };
 
 // ========== Export All Missing Tools ==========

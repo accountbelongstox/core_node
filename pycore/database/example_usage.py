@@ -13,7 +13,7 @@ from pycore.database.models import (
     ExampleTaskModel,
     UtilCacheModel,
 )
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def main():

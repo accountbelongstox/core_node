@@ -58,6 +58,20 @@ from enum import Enum
 # THREAD_BUS Integration
 from pycore import THREAD_BUS, ColorPrint
 
+# Fallback "process start" stamp when psutil is unavailable: module import time
+# (later than the true process start, but preserves ordering between instances
+# whose load times are similar).
+_IMPORT_TIME = time.time()
+
+
+def _process_start_time() -> float:
+    """This process's creation time (epoch seconds), used for instance ordering."""
+    try:
+        import psutil
+        return float(psutil.Process().create_time())
+    except Exception:
+        return _IMPORT_TIME
+
 
 # ============================================================
 # Protocol Definition
@@ -92,6 +106,9 @@ class DetectionResult:
     existing_instance: bool       # True if found existing instance
     existing_port: Optional[int]  # Port of existing instance (if found)
     message: str                  # Human-readable message
+    # True when this (older) process deliberately yielded to a PRIMARY that was
+    # started MORE RECENTLY than itself (takeover ordering: newest instance wins).
+    yielded_to_newer: bool = False
 
 
 # ============================================================
@@ -167,6 +184,12 @@ class SingletonDetector:
         self.on_message = on_message
         self.state_checker = state_checker
         self.shutdown_existing = shutdown_existing
+        # Process start time: the ordering key for takeover. "New kicks old" must
+        # hold even when the OLDER instance finishes its (slow) startup LAST —
+        # e.g. a boot-autostart instance still loading packages while the user
+        # manually launches a fresh one. Without this, "whoever finishes
+        # detection last wins" inverts the intended semantics.
+        self.started_at = _process_start_time()
 
         # Runtime state
         self._is_primary = False
@@ -373,6 +396,29 @@ class SingletonDetector:
             if response:
                 # Found valid instance!
                 self._log("[FOUND] Existing instance detected")
+
+                # Takeover ordering: the NEWEST instance wins. If the running
+                # PRIMARY was started more recently than this process, this is
+                # the OLD instance arriving late (slow startup, e.g. boot
+                # autostart still loading packages while the user launched a
+                # fresh instance) — yield instead of kicking the newer one.
+                # Old instances that don't report started_at are treated as
+                # older (kick them), keeping backward compatibility.
+                existing_started = response.get('started_at')
+                if (self.shutdown_existing and existing_started is not None
+                        and float(existing_started) > self.started_at):
+                    self._log(
+                        f"[YIELD] Existing instance is NEWER (started "
+                        f"{float(existing_started):.3f} > ours {self.started_at:.3f}); "
+                        "yielding instead of shutting it down", "WARNING")
+                    return DetectionResult(
+                        is_primary=False,
+                        port=0,
+                        existing_instance=True,
+                        existing_port=port,
+                        message=f"Yielded to newer instance at port {port}",
+                        yielded_to_newer=True
+                    )
 
                 # Check if we should shutdown existing instance
                 if self.shutdown_existing:
@@ -595,11 +641,12 @@ class SingletonDetector:
 
             # Handle different message types
             if msg_type == MessageType.CHECK.value:
-                # Send ALIVE response
+                # Send ALIVE response (started_at lets the checker order instances)
                 response = self._create_message(
                     MessageType.ALIVE,
                     is_primary=self._is_primary,
-                    port=self._bound_port
+                    port=self._bound_port,
+                    started_at=self.started_at
                 )
                 response_data = json.dumps(response).encode('utf-8')
                 client_socket.sendall(response_data + b'\n')

@@ -14,67 +14,19 @@
  * 4. Immediate Effect
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { ViewType, Language, Theme } from '../../types';
 import { User, UserPreferences } from '../types';
 import { StorageManager, StorageKeys } from '../persistence';
+import {
+  readViewFromHash,
+  writeViewToHash,
+  bindHashListener
+} from '../routing/viewRoute';
 import { userModel } from '../models';
 import { getAuthErrorMessage } from '../utils/authErrors';
-
-/**
- * Unified App State Interface
- */
-interface UnifiedAppState {
-  // App State
-  activeView: ViewType;
-  lang: Language;
-  theme: Theme;
-
-  // User State
-  user: User | null;
-  isLoggedIn: boolean;
-  preferences: UserPreferences;
-
-  // Loading & Error
-  loading: boolean;
-  error: string | null;
-}
-
-/**
- * Unified App Context Type
- */
-interface UnifiedAppContextType {
-  // State
-  activeView: ViewType;
-  lang: Language;
-  theme: Theme;
-  user: User | null;
-  isLoggedIn: boolean;
-  preferences: UserPreferences;
-  loading: boolean;
-  error: string | null;
-
-  // App Actions
-  setActiveView: (view: ViewType) => void;
-  setLang: (lang: Language, reload?: boolean) => void;
-  setTheme: (theme: Theme, reload?: boolean) => void;
-  toggleTheme: (reload?: boolean) => void;
-  toggleLang: (reload?: boolean) => void;
-
-  // User Actions
-  login: (username: string, password: string) => Promise<boolean>;
-  register: (username: string, password: string, email?: string, nickname?: string, registrationCode?: string) => Promise<boolean>;
-  logout: () => Promise<boolean>;
-  updatePreferences: (prefs: Partial<UserPreferences>) => Promise<boolean>;
-  addRecentTool: (toolId: string) => void;
-  toggleFavorite: (toolId: string) => void;
-  isFavorite: (toolId: string) => boolean;
-
-  // Utility Actions
-  clearError: () => void;
-  refreshState: () => void;
-  resetAll: () => void;
-}
+import { UnifiedAppContext } from './unifiedAppContext.core';
+import type { UnifiedAppContextType, UnifiedAppState } from './unifiedAppContext.core';
 
 /**
  * Default State
@@ -104,8 +56,14 @@ const loadStateFromStorage = (): UnifiedAppState => {
     const savedUser = StorageManager.get<User | null>(StorageKeys.USER, null);
     const savedPreferences = StorageManager.get<UserPreferences>(StorageKeys.SETTINGS, DEFAULT_STATE.preferences);
 
+    // URL hash WINS over storage on first paint so deep-links / bookmarks
+    // such as `…/#/ai-tools` open the right view even when localStorage
+    // remembers something else. Unknown / absent hash falls through to the
+    // saved view, then the default.
+    const fromUrl = readViewFromHash();
+
     return {
-      activeView: saved.activeView || DEFAULT_STATE.activeView,
+      activeView: fromUrl ?? saved.activeView ?? DEFAULT_STATE.activeView,
       lang: saved.lang || DEFAULT_STATE.lang,
       theme: saved.theme || DEFAULT_STATE.theme,
       user: savedUser,
@@ -146,11 +104,6 @@ const saveStateToStorage = (state: UnifiedAppState): void => {
 };
 
 /**
- * Create Context
- */
-const UnifiedAppContext = createContext<UnifiedAppContextType | undefined>(undefined);
-
-/**
  * Provider Props
  */
 interface UnifiedAppProviderProps {
@@ -185,6 +138,23 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     }
     console.log('[UnifiedAppContext] Theme applied:', state.theme);
   }, [state.theme]);
+
+  // ── Routing: activeView ⇄ URL hash ─────────────────────────────────
+  // Every `setActiveView` call (sidebar click, deep nav, programmatic) flows
+  // through this single context, so wiring the URL here means every route
+  // change reflects in the address bar automatically — no caller has to
+  // know about routing. The hash form (`#/ai-tools`) avoids depending on a
+  // Laravel rewrite for deep links. Both sides early-return on equality so
+  // there's no state↔URL feedback loop.
+  useEffect(() => {
+    writeViewToHash(state.activeView);
+  }, [state.activeView]);
+
+  useEffect(() => {
+    return bindHashListener((next) => {
+      setState(prev => (prev.activeView === next ? prev : { ...prev, activeView: next }));
+    });
+  }, []);
 
   // Set active view
   const setActiveView = useCallback((view: ViewType) => {
@@ -449,22 +419,3 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     </UnifiedAppContext.Provider>
   );
 };
-
-/**
- * Custom Hook - Use Unified App State
- *
- * @example
- * const { theme, toggleTheme, user, login, logout } = useUnifiedApp();
- */
-export const useUnifiedApp = (): UnifiedAppContextType => {
-  const context = useContext(UnifiedAppContext);
-  if (!context) {
-    throw new Error('useUnifiedApp must be used within UnifiedAppProvider');
-  }
-  return context;
-};
-
-/**
- * Export types
- */
-export type { UnifiedAppState, UnifiedAppContextType };

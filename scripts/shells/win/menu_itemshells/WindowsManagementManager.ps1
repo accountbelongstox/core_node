@@ -180,6 +180,24 @@ function Show-WindowsManagementSubMenu {
                 Read-Host "Press Enter to continue"
             }
         },
+        @{
+            Text = "WSL Ubuntu Management";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $wslMenuScript = Join-Path $script:PS_CURRENT_DIR "WSLUbuntuManager.ps1"
+                if (Test-Path $wslMenuScript) {
+                    Write-ColorMessage -Message "Launching WSL Ubuntu Management..." -Type "Info"
+                    Write-Host ""
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $wslMenuScript
+                } else {
+                    Write-ColorMessage -Message "WSLUbuntuManager.ps1 not found: $wslMenuScript" -Type "Error"
+                }
+                Write-Host ""
+                Read-Host "Press Enter to continue"
+            }
+        },
         @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },
         @{ Text = "Quit"; Values = @("default"); Key = $null; Action = { exit } }
     )

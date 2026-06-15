@@ -62,19 +62,129 @@ class Config:
     LAUNCHER_APP_NAME = "Pycore Module Caller"
 
     # ==================== UI service (Voice Subtitle) ====================
-    UI_APP_NAME = "Voice Subtitle"
+    # UI FRONTEND = the unified laravel_dashboard shell's pycore end. The PySide6
+    # webview loads http://localhost:<UiPort>/pycore-manager (PYCORE_UI_URL, set by
+    # pyservice.ps1/.sh which start poly_apps/laravel_dashboard via pnpm). The old
+    # standalone pycore/pyctl/desktop/desktop-manager is no longer the UI.
+    UI_APP_NAME = "Py模块UI界面"
     UI_APP_ID = "voice_subtitle_ui"
-    UI_WINDOW_SIZE = (1000, 180)
+    UI_WINDOW_SIZE = (1000, 180)  # legacy default; main window size now via config._resolve_window_size()
     UI_SHOW_ON_START = False  # Only show tk debug window on start; open main window from tray
-    UI_FRAMELESS = False
-    UI_ENABLE_TRAY = False
+    # Frameless (no OS title bar) but KEEP the framework's built-in simulated
+    # title bar (PySide6TitleBar): it provides the app title + minimize/maximize/
+    # close buttons and native window drag (startSystemMove) for the borderless
+    # window. Its title text follows the embedded web's language — the webview's
+    # titleChanged (driven by the React app's document.title) retitles the bar —
+    # so switching language in the UI also retitles the native bar.
+    UI_FRAMELESS = True
+    UI_ENABLE_TITLE_BAR = True  # Framework simulated title bar (controls + drag)
     UI_SHOW_STARTUP = True
-    UI_AUTO_CLOSE_STARTUP = False
+    UI_AUTO_CLOSE_STARTUP = True  # Close tk debug window once third-party packages are loaded
 
     # ==================== Tray service ====================
+    # Tray backend selection (independent of / started before PySide6):
+    #   "native"  = platform-native tray [default]:
+    #                 Windows -> Win32 Shell_NotifyIcon (pywin32, no third-party lib)
+    #                 Ubuntu/GNOME -> AppIndicator (Ayatana preferred)
+    #                 (falls back to pystray if the native backend is unavailable)
+    #   "pystray" = cross-platform third-party pystray tray (kept as fallback/option)
+    #   "pyside"  = more powerful Qt (QSystemTrayIcon) tray embedded in the UI thread
+    TRAY_BACKEND = "native"
     TRAY_APP_NAME = "Pycore RPC Server"
     TRAY_ICON_PATH_REL = "pyutils/native_ui/step1_config/app_icon.png"
     TRAY_TRIGGER_SHUTDOWN_ON_EXIT = True
+
+    # The PySide6 Qt tray is enabled only when the "pyside" backend is selected.
+    UI_ENABLE_TRAY = (TRAY_BACKEND == "pyside")
+
+    # ==================== Translation Worker (Laravel worker-API) ====================
+    # Base URL of the Laravel backend that exposes the worker task API
+    # (/api/worker/register, /heartbeat, /tasks/pull, /tasks/result).
+    # Env-overridable so deployments can point at a different host/port.
+    LARAVEL_WORKER_API_URL = os.getenv("LARAVEL_WORKER_API_URL", "http://127.0.0.1:9000")
+    # Heartbeat-callback interval (seconds) for the translation worker poll loop.
+    TRANSLATION_WORKER_INTERVAL = int(os.getenv("TRANSLATION_WORKER_INTERVAL", "12"))
+    # Whether the translation worker callback is enabled on start (pipeline runs
+    # by default; can be toggled at runtime via /api/heartbeat/disable/translation_worker).
+    TRANSLATION_WORKER_ENABLED_ON_START = (
+        os.getenv("TRANSLATION_WORKER_ENABLED_ON_START", "1") in ("1", "true", "True")
+    )
+
+    # ==================== TTS Queue Worker (Laravel word-generation queue) ====================
+    # The TTS worker claims pending word TTS tasks from laravel_main
+    # (/api/app_qy_v1/ai_tools/tts/worker/claim), synthesizes MP3s with the
+    # pyutils TTS orchestrator and reports them back (/tts/worker/report).
+    # ON by default; disable with PYCORE_TTS_WORKER=0 (or at runtime via
+    # POST /api/heartbeat/disable/tts_queue_poller).
+    TTS_WORKER_ENABLED_ON_START = (
+        os.getenv("PYCORE_TTS_WORKER", "1") in ("1", "true", "True")
+    )
+    # Tasks claimed per tick (server caps the claim at 50).
+    TTS_WORKER_BATCH = int(os.getenv("PYCORE_TTS_WORKER_BATCH", "10"))
+    # Heartbeat-callback interval (seconds) for the TTS worker poll loop.
+    TTS_WORKER_INTERVAL = int(os.getenv("PYCORE_TTS_WORKER_INTERVAL", "60"))
+
+    # ==================== Translation Queue Monitor (Laravel queue API) ====================
+    # The monitor + control proxy poll/steer Laravel's translation QUEUE
+    # (/api/app_qy_v1/ai_tools/translation/queue/{list,priority,stack}). It shares
+    # the SAME backend as the worker via LARAVEL_WORKER_API_URL + the worker's
+    # candidate-URL discovery, so monitor and worker always agree on the host.
+    # Heartbeat-callback interval (seconds) for the queue-monitor poll loop (~5s).
+    TRANSLATION_QUEUE_MONITOR_INTERVAL = int(os.getenv("TRANSLATION_QUEUE_MONITOR_INTERVAL", "5"))
+    # Enabled on start by default so the UI sees the live queue out of the box;
+    # toggle at runtime via /api/heartbeat/disable/translation_queue_monitor.
+    TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START = (
+        os.getenv("TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START", "1") in ("1", "true", "True")
+    )
+    # How long (seconds) a task stays flagged `recently_bumped` after a detected
+    # priority increase, so the UI can highlight it briefly.
+    TRANSLATION_QUEUE_BUMP_TTL_SECONDS = int(os.getenv("TRANSLATION_QUEUE_BUMP_TTL_SECONDS", "30"))
+
+    # ==================== Translation WS Client (Laravel Reverb broadcasts) ====================
+    # Phase C: a WebSocket client subscribes to Laravel's Reverb server (Pusher
+    # protocol over WS) and receives translation-queue events in REAL TIME,
+    # replacing the queue monitor's 5s HTTP poll as the primary signal (the poll is
+    # kept as a slower fallback/reconciler if the WS drops).
+    #
+    # Reverb connection comes from Laravel's REVERB_* (poly_apps/laravel_main/.env):
+    #   REVERB_HOST=0.0.0.0  REVERB_PORT=8080  REVERB_SCHEME=http  REVERB_APP_KEY=...
+    # We connect to 127.0.0.1 (REVERB_HOST 0.0.0.0 is a bind address, not a dial
+    # address) and map scheme http->ws / https->wss. ALL are env-overridable so a
+    # deployment can point at a different Reverb. NOTE: Laravel rotates REVERB_APP_KEY
+    # on each reverb (re)start; set REVERB_APP_KEY (or TRANSLATION_REVERB_APP_KEY) in
+    # pycore's env to the CURRENT key, or the Pusher handshake's subscribe will be
+    # refused. The default below is the last-seen dev key (best-effort).
+    TRANSLATION_REVERB_HOST = os.getenv(
+        "TRANSLATION_REVERB_HOST", os.getenv("REVERB_HOST", "127.0.0.1")
+    )
+    TRANSLATION_REVERB_PORT = int(
+        os.getenv("TRANSLATION_REVERB_PORT", os.getenv("REVERB_PORT", "8080"))
+    )
+    TRANSLATION_REVERB_SCHEME = os.getenv(
+        "TRANSLATION_REVERB_SCHEME", os.getenv("REVERB_SCHEME", "http")
+    )
+    TRANSLATION_REVERB_APP_KEY = os.getenv(
+        "TRANSLATION_REVERB_APP_KEY",
+        os.getenv("REVERB_APP_KEY", "reverb-key-1769434123"),
+    )
+    # Public channel broadcast by Laravel (Phase C contract).
+    TRANSLATION_REVERB_CHANNEL = os.getenv("TRANSLATION_REVERB_CHANNEL", "translation-queue")
+    # Whether the WS client is enabled on start (real-time signal runs by default);
+    # toggle at runtime via /api/heartbeat/disable/translation_ws_client.
+    TRANSLATION_WS_ENABLED_ON_START = (
+        os.getenv("TRANSLATION_WS_ENABLED_ON_START", "1") in ("1", "true", "True")
+    )
+    # Heartbeat-callback interval (seconds) for the WS supervisor tick. This is NOT
+    # the network read interval (the WS loop runs on its own background thread); it
+    # is how often the light heartbeat callback checks/relaunches that thread.
+    TRANSLATION_WS_SUPERVISOR_INTERVAL = int(
+        os.getenv("TRANSLATION_WS_SUPERVISOR_INTERVAL", "5")
+    )
+    # TTL (seconds) for the "recently completed words" coordination set. A word
+    # broadcast as translated by ANY pycore is skipped by the others for this long.
+    TRANSLATION_WS_WORD_TTL_SECONDS = int(
+        os.getenv("TRANSLATION_WS_WORD_TTL_SECONDS", "120")
+    )
 
     # ==================== Runtime Mode ====================
     MODE = os.getenv("CALLMODULE_MODE", "dev")

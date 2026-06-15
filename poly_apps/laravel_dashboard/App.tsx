@@ -2,17 +2,18 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
 import MediaBrowser from './components/views/MediaBrowser';
+import MoviesBooksBrowser from './components/views/MoviesBooksBrowser';
 import CodeBrowser from './components/views/CodeBrowser';
 import { UnifiedToolsPage } from './components/views/UnifiedToolsPage';
 import ApiTester from './components/views/ApiTester';
 import VocabularyLearning from './components/views/VocabularyLearning';
 import AITools from './components/views/AITools';
+import AiManagement from './components/views/AiManagement';
 import MCPManager from './components/views/MCPManager';
-import OctaneTasks from './components/views/OctaneTasks';
+import TaskCenter from './components/views/TaskCenter';
 import ServerManager from './components/views/ServerManager';
-import DatabaseViewer from './components/views/DatabaseViewer';
+import DatabaseManager from './components/views/DatabaseManager';
 import Settings from './components/views/Settings';
-import BankManager from './components/views/BankManager';
 import LoginModal from './components/LoginModal';
 import AuthGuard from './components/auth/AuthGuard';
 import { HtmlErrorModal } from './components/HtmlErrorModal';
@@ -24,10 +25,12 @@ import { useUser } from './hooks/useUser';
 import { ViewType } from './types';
 import { useTranslation } from 'react-i18next';
 import { APP_NAME } from './constants';
-import { getRequireLoginMessage, isRequireLoginView } from './config/auth';
+import { getRequireLoginMessage, isRequireLoginView, setDebugAuthBypass } from './config/auth';
 import i18n from './core/i18n';
 import { htmlErrorManager, HtmlErrorEvent } from './services/HtmlErrorManager';
 import { apiManager } from './services/ApiManager';
+import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './services/ApiHealthRecheck';
+import { OfflineBanner, GlobalLogPanel } from './components/shared';
 
 /**
  * AppContent – main layout and view routing.
@@ -44,10 +47,9 @@ const AppContent: React.FC = () => {
     toggleLang,
     theme,
     toggleTheme,
-    isLoggedIn,
-    setIsLoggedIn
+    isLoggedIn
   } = useAppState();
-  const { isLoggedIn: userIsLoggedIn, logout: userLogout, user } = useUser();
+  const { logout: userLogout, user } = useUser();
   const { t } = useTranslation();
 
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -55,31 +57,94 @@ const AppContent: React.FC = () => {
   const [loginModalFromProtectedView, setLoginModalFromProtectedView] = useState(false);
   const [htmlError, setHtmlError] = useState<HtmlErrorEvent | null>(null);
   const [apiReady, setApiReady] = useState(false);
+  /** Bumped once the loopback debug-status probe resolves so AuthGuard re-reads the bypass flag. */
+  const [, setDebugProbed] = useState(false);
 
   // Initialize API Manager and set global API base URL before any views run requests.
   // This ensures the preferred endpoint (from API Endpoints switcher / store) is used everywhere.
   useEffect(() => {
-    const initializeApi = async () => {
-      await apiManager.initialize({
-        autoDetect: true,
-        timeout: 1000
-      });
+    // FIRST PAINT IS NEVER BLOCKED BY A PROBE.
+    //
+    // Step 1 (synchronous, no network): pick the active endpoint instantly
+    // from the store/priority precedence, point `api` at it and flip
+    // apiReady=true in the same tick. The app shell renders immediately —
+    // there is no awaited health probe between mount and paint, so dead LAN
+    // IPs / slow HTTPS remotes can no longer cause the white
+    // "Loading API endpoint..." screen.
+    const preselected = apiManager.preselectEndpointSync();
+    if (preselected) {
+      api.updateBaseURL(apiManager.getCurrentBaseUrl());
+      console.log('[ApiManager] Pre-selected (sync):', apiManager.getCurrentBaseUrl());
+    }
+    setApiReady(true);
 
-      const baseUrl = apiManager.getCurrentBaseUrl();
-      api.updateBaseURL(baseUrl);
-      setApiReady(true);
-      console.log('[ApiManager] Initialized with:', baseUrl);
+    // Step 2 (background, does NOT gate paint): the shared STORED-FIRST
+    // detection pass (single-flight + StrictMode-safe). It probes ONLY the
+    // stored last-used endpoint first — if that answers, it is kept and no
+    // other endpoint is touched; only when it is dead does the pass sweep ALL
+    // endpoints in parallel and "以能使用的为准" auto-fail-over to the
+    // highest-weight healthy one (store write-back, api_user_modified never
+    // clobbered). No timeout override here — the config's 3000ms applies (a
+    // 1s override regressed the Octane cold-worker fix recorded in
+    // config/api-endpoints.ts and froze a false all-Offline state). The pass
+    // itself dispatches `api-health-initialized` for the read-only switcher.
+    //
+    // If EVERYTHING is Offline (e.g. the WSL backend was started after this
+    // page loaded), syncOfflineRecheckLoop starts the per-end retry loop:
+    // re-run the same pass at the configurable healthCheckInterval until
+    // something comes online, then stop. Unmounting this end stops the loop
+    // (path-prefix gating — /laravel-manager owns this scheduler).
+    let cancelled = false;
+    const refineApiHealth = async () => {
+      const chosen = await apiManager.runBackgroundHealthPass();
+      if (cancelled) return;
 
-      await apiManager.runInitialHealthCheck(1000);
-      window.dispatchEvent(new CustomEvent('api-health-initialized'));
+      if (chosen) {
+        const baseUrl = apiManager.getCurrentBaseUrl();
+        if (!preselected || chosen.id !== preselected.id) {
+          api.updateBaseURL(baseUrl);
+          console.log('[ApiManager] Auto-failover to:', baseUrl);
+        }
+      }
+
+      syncOfflineRecheckLoop();
     };
 
-    initializeApi();
+    refineApiHealth();
+
+    return () => {
+      cancelled = true;
+      stopOfflineRecheckLoop();
+    };
   }, []);
 
+  // Login state lives in UnifiedAppContext (useAppState().isLoggedIn already
+  // reflects it) — no legacy setIsLoggedIn sync needed.
+
+  // Loopback DEBUG auth bypass: probe the open /auth/debug-status once on
+  // startup. When debug_mode is true (request came from 127.0.0.1) we set the
+  // global bypass flag so AuthGuard treats every user as authenticated and the
+  // login modal never appears. When false, behavior is unchanged.
   useEffect(() => {
-    setIsLoggedIn(userIsLoggedIn);
-  }, [userIsLoggedIn, setIsLoggedIn]);
+    let cancelled = false;
+    api.authDebug
+      .getDebugStatus()
+      .then((status) => {
+        if (cancelled || !status) return;
+        if (status.debug_mode === true) {
+          setDebugAuthBypass(true);
+          console.log('[Auth] Loopback debug bypass enabled:', status.reason, status.client_ip);
+          // Force a re-render so already-mounted AuthGuards re-read the flag.
+          setDebugProbed(true);
+        }
+      })
+      .catch(() => {
+        /* open endpoint best-effort; ignore failures (auth stays required) */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     i18n.changeLanguage(lang);
@@ -101,7 +166,6 @@ const AppContent: React.FC = () => {
   const handleAuthAction = async () => {
     if (isLoggedIn) {
       await userLogout();
-      setIsLoggedIn(false);
     } else {
       setLoginModalFromProtectedView(false);
       setShowLoginModal(true);
@@ -147,30 +211,37 @@ const AppContent: React.FC = () => {
     switch (activeView) {
       case ViewType.MEDIA_BROWSER:
         return <MediaBrowser />;
+      case ViewType.MOVIES_BOOKS:
+        return <MoviesBooksBrowser />;
       case ViewType.CODE_BROWSER:
         return <CodeBrowser />;
       case ViewType.TOOLS:
         return <UnifiedToolsPage lang={lang} />;
       case ViewType.API_TESTER:
-        return <ApiTester />;
+        return <ApiTester lang={lang} />;
       case ViewType.VOCABULARY:
         return <VocabularyLearning />;
       case ViewType.AI_TOOLS:
         return <AITools />;
+      case ViewType.AI_MANAGEMENT:
+        return <AiManagement />;
       case ViewType.MCP_MANAGER:
         return <MCPManager lang={lang} />;
+      case ViewType.TASK_CENTER:
+        return <TaskCenter lang={lang} />;
+      // Legacy deep links land on the matching TaskCenter tab.
       case ViewType.OCTANE_TASKS:
-        return <OctaneTasks lang={lang} />;
+        return <TaskCenter lang={lang} initialTab="scheduler" />;
+      case ViewType.GLOBAL_TASKS:
+        return <TaskCenter lang={lang} initialTab="queue" />;
       case ViewType.SERVER_MANAGER:
         return wrapWithAuthGuard(ViewType.SERVER_MANAGER, <ServerManager lang={lang} />);
       case ViewType.SETTINGS:
         return wrapWithAuthGuard(ViewType.SETTINGS, <Settings lang={lang} />);
       case ViewType.INVITE_CODE_MANAGER:
         return wrapWithAuthGuard(ViewType.INVITE_CODE_MANAGER, <InviteCodeManager lang={lang} />);
-      case ViewType.BANK_MANAGER:
-        return <BankManager lang={lang} />;
-      case ViewType.DATABASE_VIEWER:
-        return wrapWithAuthGuard(ViewType.DATABASE_VIEWER, <DatabaseViewer lang={lang} />);
+      case ViewType.DATABASE_MANAGER:
+        return wrapWithAuthGuard(ViewType.DATABASE_MANAGER, <DatabaseManager lang={lang} />);
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-500">
@@ -184,17 +255,21 @@ const AppContent: React.FC = () => {
   const getPageTitle = () => {
     switch (activeView) {
       case ViewType.MEDIA_BROWSER: return t('header.titles.media');
+      case ViewType.MOVIES_BOOKS: return t('header.titles.movies_books');
       case ViewType.CODE_BROWSER: return t('header.titles.code');
       case ViewType.TOOLS: return t('header.titles.tools');
       case ViewType.API_TESTER: return t('header.titles.api');
       case ViewType.VOCABULARY: return t('header.titles.vocabulary');
       case ViewType.AI_TOOLS: return t('header.titles.ai_tools');
+      case ViewType.AI_MANAGEMENT: return t('header.titles.ai_management');
       case ViewType.MCP_MANAGER: return t('header.titles.mcp');
-      case ViewType.OCTANE_TASKS: return t('header.titles.octane');
+      case ViewType.TASK_CENTER:
+      case ViewType.OCTANE_TASKS:
+      case ViewType.GLOBAL_TASKS:
+        return t('header.titles.task_center');
       case ViewType.SERVER_MANAGER: return t('header.titles.server');
       case ViewType.INVITE_CODE_MANAGER: return inviteCodesTitle;
-      case ViewType.BANK_MANAGER: return t('header.titles.bank_manager');
-      case ViewType.DATABASE_VIEWER: return t('header.titles.db_viewer');
+      case ViewType.DATABASE_MANAGER: return t('header.titles.db_manager');
       case ViewType.SETTINGS: return t('header.titles.settings');
       default: return APP_NAME;
     }
@@ -207,7 +282,10 @@ const AppContent: React.FC = () => {
         ? 'bg-slate-900 text-slate-200 selection:bg-indigo-500/30 selection:text-indigo-200' 
         : 'bg-slate-50 text-slate-800 selection:bg-indigo-500/20 selection:text-indigo-600'}
     `}>
-      
+
+      {/* Global connectivity banner – fixed, non-blocking, overlays everything */}
+      <OfflineBanner />
+
       {/* Dynamic Backgrounds */}
       {theme === 'dark' ? (
         <div className="fixed inset-0 pointer-events-none z-0">
@@ -240,6 +318,11 @@ const AppContent: React.FC = () => {
             onAuthClick={handleAuthAction}
           />
 
+          {/* Global operation log — floating bottom dock (portaled to <body>,
+              collapsed to a pill by default; the store keeps the last 1000
+              entries). Mounted here once for the whole laravel-manager end. */}
+          <GlobalLogPanel />
+
           {/* Scrollable view content */}
           <div className="flex-1 min-h-0 relative overflow-y-auto overflow-x-hidden">
             <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-indigo-600/5 dark:bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none mix-blend-screen" />
@@ -247,22 +330,18 @@ const AppContent: React.FC = () => {
             {renderView()}
           </div>
 
-          {/* Login modal: only over the right (main) area, not full screen; sidebar stays visible and clickable. */}
-          {showLoginModal && (
-            <div className="absolute inset-0 z-50">
-              <LoginModal
-                isOpen={true}
-                onClose={handleCloseLoginModal}
-                onSuccess={handleLoginSuccess}
-                lang={lang}
-                blockCloseBackdrop={loginModalFromProtectedView}
-                contained
-              />
-            </div>
-          )}
         </main>
       </div>
       )}
+
+      {/* Login modal: full-screen, top-most overlay portaled to <body> (renders nothing when closed). */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={handleCloseLoginModal}
+        onSuccess={handleLoginSuccess}
+        lang={lang}
+        blockCloseBackdrop={loginModalFromProtectedView}
+      />
 
       {/* HTML Error Debug Modal */}
       <HtmlErrorModal

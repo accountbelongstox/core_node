@@ -3,13 +3,18 @@ import { useApiConfig } from '../../contexts/ApiConfigContext';
 import { useAppState } from '../../contexts/AppStateContext';
 import { Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
-import { Settings as SettingsIcon, Save, RotateCcw, CheckCircle, AlertCircle, Globe, Key, Shield, User, Server, Database, Code, Info, Mail, HardDrive, Clock, Lock, Bell, Palette, Languages, Upload, Eye, EyeOff, Trash2, Download } from 'lucide-react';
+import { Settings as SettingsIcon, Save, RotateCcw, CheckCircle, AlertCircle, Globe, Key, Shield, User, Server, Database, Code, Info, Mail, HardDrive, Clock, Lock, Bell, Palette, Languages, Upload, Eye, EyeOff, Trash2, Download, Plus, RefreshCw, Moon, Sun } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 import { useUser } from '../../hooks/useUser';
 import { useUserRole } from '../../hooks/useUserRole';
 import { api } from '../../core/api';
 import { ServerConfig, EnvironmentInfo } from '../../core/api/modules/SystemConfigAPI';
 import { getOriginUrl } from '../../config/constants';
+import { apiManager, HealthCheckResult } from '../../services/ApiManager';
+import { recheckApiEndpointsNow } from '../../services/ApiHealthRecheck';
+import {
+  ApiEndpoint, addCustomEndpoint, removeCustomEndpoint, isCustomEndpoint, buildApiUrl,
+} from '../../config/api-endpoints';
 
 interface SettingsProps {
   lang?: Language;
@@ -18,7 +23,7 @@ interface SettingsProps {
 type SettingsTab = 'server' | 'user' | 'api' | 'other';
 
 const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
-  const { lang } = useAppState();
+  const { lang, theme, setLang, setTheme } = useAppState();
   const { config, updateConfig, resetConfig } = useApiConfig();
   const { user } = useUser();
   const { isAdmin, isSuperAdmin, roleLevel, roleName } = useUserRole();
@@ -31,6 +36,93 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   const [port, setPort] = useState(config.port || 9000);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+
+  // Endpoint switcher state (shared with the top API-Endpoints switcher via the
+  // merged built-in + custom list in config/api-endpoints).
+  const [endpoints, setEndpoints] = useState<ApiEndpoint[]>(() => apiManager.getAllEndpoints());
+  const [currentEndpoint, setCurrentEndpoint] = useState<ApiEndpoint | null>(() => apiManager.getCurrentEndpoint());
+  const [health, setHealth] = useState<Map<string, HealthCheckResult>>(new Map());
+  const [probing, setProbing] = useState(false);
+  // Add-endpoint form
+  const [addProtocol, setAddProtocol] = useState<'http' | 'https'>('http');
+  const [addUrl, setAddUrl] = useState('');
+  const [addPort, setAddPort] = useState<string>('9000');
+  const [addDesc, setAddDesc] = useState('');
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const reloadEndpoints = () => {
+    setEndpoints(apiManager.getAllEndpoints());
+    setCurrentEndpoint(apiManager.getCurrentEndpoint());
+    const m = new Map<string, HealthCheckResult>();
+    apiManager.getAllHealthResults().forEach(r => m.set(r.endpoint.id, r));
+    setHealth(m);
+  };
+
+  useEffect(() => {
+    reloadEndpoints();
+    const onHealth = () => reloadEndpoints();
+    window.addEventListener('api-health-initialized', onHealth);
+    window.addEventListener('api-endpoints-changed', onHealth);
+    return () => {
+      window.removeEventListener('api-health-initialized', onHealth);
+      window.removeEventListener('api-endpoints-changed', onHealth);
+    };
+  }, []);
+
+  const [switchingEndpoint, setSwitchingEndpoint] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+
+  /**
+   * Probe-before-switch (same path as the top switcher): the target endpoint
+   * is verified first; only a healthy one is persisted + applied (then the
+   * page reloads). A dead target changes nothing — no more "switched to a
+   * dead endpoint and the page hangs".
+   */
+  const handleSelectEndpoint = async (id: string) => {
+    if (!id || id === currentEndpoint?.id || switchingEndpoint) return;
+    setSwitchingEndpoint(true);
+    setSwitchError(null);
+    try {
+      const res = await apiManager.switchEndpoint(id);
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const desc = res.endpoint?.description ?? id;
+        setSwitchError(`${desc} is unreachable (${res.result?.error ?? 'health check failed'}). Kept the current endpoint.`);
+        reloadEndpoints();
+      }
+    } finally {
+      setSwitchingEndpoint(false);
+    }
+  };
+
+  const handleRecheckEndpoints = async () => {
+    if (probing) return;
+    setProbing(true);
+    try { await recheckApiEndpointsNow(); }
+    finally { setProbing(false); reloadEndpoints(); }
+  };
+
+  const handleAddEndpoint = () => {
+    setAddError(null);
+    const res = addCustomEndpoint({
+      url: addUrl,
+      protocol: addProtocol,
+      port: addPort.trim() ? Number(addPort) : undefined,
+      description: addDesc,
+    });
+    if (!res.ok) { setAddError(res.error); return; }
+    setAddUrl(''); setAddDesc(''); setAddError(null);
+    window.dispatchEvent(new CustomEvent('api-endpoints-changed'));
+    reloadEndpoints();
+  };
+
+  const handleRemoveEndpoint = (id: string) => {
+    if (removeCustomEndpoint(id)) {
+      window.dispatchEvent(new CustomEvent('api-endpoints-changed'));
+      reloadEndpoints();
+    }
+  };
 
   // Server Configuration State
   const [serverConfig, setServerConfig] = useState<ServerConfig | null>(null);
@@ -60,7 +152,9 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   const [avatarUploadStatus, setAvatarUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   
   // Other Settings State
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  // theme / setTheme come from useAppState() above (global app theme); a local
+  // useState here shadowed them (duplicate declaration → build error) and was
+  // disconnected from the real theme, so it is removed.
   const [language, setLanguage] = useState<string>('en');
   const [notifications, setNotifications] = useState({ email: true, push: false, sms: false });
 
@@ -353,11 +447,155 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
       <div className="flex-1 overflow-auto">
         {activeTab === 'api' && (
           <div className="space-y-6">
-            {/* API Configuration Section */}
+            {/* Active Endpoint — dropdown switcher, consistent with the top
+                "API Endpoints" switcher. Built-in + custom endpoints are merged
+                (deduped) and shared with the header switcher. */}
+            <div className={`${commonClasses.card} p-6`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Server className="w-5 h-5 text-indigo-500" />
+                  <h2 className="text-lg font-semibold">API Endpoint</h2>
+                </div>
+                <button
+                  onClick={handleRecheckEndpoints}
+                  disabled={probing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 disabled:opacity-50 transition-colors"
+                  title="Re-detect: checks the current endpoint first; sweeps all only if it is down"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${probing ? 'animate-spin' : ''}`} />
+                  Re-detect
+                </button>
+              </div>
+
+              {/* Dropdown of all endpoints (built-in + custom) */}
+              <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
+                Active endpoint
+              </label>
+              <select
+                value={currentEndpoint?.id || ''}
+                onChange={(e) => handleSelectEndpoint(e.target.value)}
+                disabled={switchingEndpoint}
+                className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none disabled:opacity-60"
+              >
+                {endpoints.map((ep) => {
+                  const h = health.get(ep.id);
+                  const dot = h ? (h.isHealthy ? '🟢' : '🔴') : '⚪';
+                  const tag = isCustomEndpoint(ep.id) ? ' [custom]' : '';
+                  return (
+                    <option key={ep.id} value={ep.id}>
+                      {dot} {ep.description} — {ep.protocol}://{ep.url}{ep.port ? `:${ep.port}` : ''}{tag}
+                    </option>
+                  );
+                })}
+              </select>
+              {switchingEndpoint && (
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1 flex items-center gap-1.5">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  Testing endpoint before switching…
+                </p>
+              )}
+              {switchError && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-1 flex items-center gap-1.5">
+                  <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                  {switchError}
+                </p>
+              )}
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Endpoints are health-checked before switching; an unreachable endpoint is never applied. Current origin: {getOriginUrl()}
+              </p>
+
+              {/* Custom endpoints list (removable) */}
+              {endpoints.some(ep => isCustomEndpoint(ep.id)) && (
+                <div className="mt-4">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Your endpoints</h3>
+                  <div className="space-y-1.5">
+                    {endpoints.filter(ep => isCustomEndpoint(ep.id)).map((ep) => (
+                      <div key={ep.id} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700">
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-slate-800 dark:text-white truncate">{ep.description}</div>
+                          <div className="text-xs font-mono text-slate-500 dark:text-slate-400 truncate">
+                            {ep.protocol}://{ep.url}{ep.port ? `:${ep.port}` : ''}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveEndpoint(ep.id)}
+                          className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          title="Remove this endpoint"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Add a new endpoint (saved to localStorage; no duplicates) */}
+              <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Add endpoint</h3>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div>
+                    <label className="block text-[11px] text-slate-500 mb-1">Protocol</label>
+                    <select
+                      value={addProtocol}
+                      onChange={(e) => setAddProtocol(e.target.value as 'http' | 'https')}
+                      className="px-2 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                    >
+                      <option value="http">http</option>
+                      <option value="https">https</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 min-w-[160px]">
+                    <label className="block text-[11px] text-slate-500 mb-1">Host / IP</label>
+                    <input
+                      type="text"
+                      value={addUrl}
+                      onChange={(e) => setAddUrl(e.target.value)}
+                      placeholder="192.168.50.10 or api.example.com"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                    />
+                  </div>
+                  <div className="w-24">
+                    <label className="block text-[11px] text-slate-500 mb-1">Port</label>
+                    <input
+                      type="number"
+                      value={addPort}
+                      onChange={(e) => setAddPort(e.target.value)}
+                      placeholder="9000"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[140px]">
+                    <label className="block text-[11px] text-slate-500 mb-1">Label (optional)</label>
+                    <input
+                      type="text"
+                      value={addDesc}
+                      onChange={(e) => setAddDesc(e.target.value)}
+                      placeholder="My server"
+                      className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={handleAddEndpoint}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> Add
+                  </button>
+                </div>
+                {addError && (
+                  <div className="mt-2 flex items-center gap-1.5 text-red-600 dark:text-red-400 text-xs">
+                    <AlertCircle className="w-3.5 h-3.5" /> {addError}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* API Configuration Section (advanced / manual override) */}
             <div className={`${commonClasses.card} p-6`}>
               <div className="flex items-center gap-2 mb-4">
                 <Globe className="w-5 h-5 text-indigo-500" />
                 <h2 className="text-lg font-semibold">{t.api_config}</h2>
+                <span className="text-xs text-slate-400">(manual override)</span>
               </div>
 
               <div className="space-y-4">
@@ -475,20 +713,34 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
               </div>
             </div>
 
-            {/* Current Configuration Display */}
+            {/* Current Configuration Display — LIVE values. Base URL/port come
+                from the ApiManager's active endpoint (kept fresh via the
+                api-health-initialized listener), NOT from the frozen startup
+                config: the old display showed the .env default even after the
+                switcher had moved every request to another endpoint. */}
             <div className={`${commonClasses.card} p-6`}>
               <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">
                 Current Configuration
               </h3>
               <div className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Base URL:</span>
-                  <span className="font-mono text-slate-900 dark:text-white">{config.baseUrl}</span>
+                  <span className="text-slate-500 dark:text-slate-400">Base URL (live):</span>
+                  <span className="font-mono text-slate-900 dark:text-white">
+                    {currentEndpoint ? buildApiUrl(currentEndpoint) : config.baseUrl}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 dark:text-slate-400">API Port:</span>
-                  <span className="font-mono text-slate-900 dark:text-white">{config.port || 9000}</span>
+                  <span className="font-mono text-slate-900 dark:text-white">
+                    {currentEndpoint?.port ?? config.port ?? 9000}
+                  </span>
                 </div>
+                {currentEndpoint && config.baseUrl !== buildApiUrl(currentEndpoint) && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-slate-400">Configured default:</span>
+                    <span className="font-mono text-slate-400 dark:text-slate-500">{config.baseUrl}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 dark:text-slate-400">Browser Origin:</span>
                   <span className="font-mono text-slate-900 dark:text-white">{getOriginUrl()}</span>
@@ -1054,11 +1306,68 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         )}
 
         {activeTab === 'other' && (
-          <div className={`${commonClasses.card} p-6`}>
-            <h2 className="text-lg font-semibold mb-4">Other Settings</h2>
-            <p className="text-slate-600 dark:text-slate-400">
-              Additional settings and preferences will be available here.
-            </p>
+          <div className="space-y-6">
+            {/* Appearance & Language */}
+            <div className={`${commonClasses.card} p-6`}>
+              <div className="flex items-center gap-2 mb-4">
+                <Palette className="w-5 h-5 text-indigo-500" />
+                <h2 className="text-lg font-semibold">Appearance &amp; Language</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Language */}
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Languages className="w-4 h-4" /> Language
+                  </label>
+                  <select
+                    value={lang}
+                    onChange={(e) => setLang(e.target.value as Language)}
+                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    <option value="en">English</option>
+                    <option value="zh">中文 (Chinese)</option>
+                  </select>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Applies across the dashboard UI.</p>
+                </div>
+
+                {/* Theme */}
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />} Theme
+                  </label>
+                  <select
+                    value={theme}
+                    onChange={(e) => setTheme(e.target.value as 'light' | 'dark')}
+                    className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Light or dark color scheme.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Notifications (local preference) */}
+            <div className={`${commonClasses.card} p-6`}>
+              <div className="flex items-center gap-2 mb-4">
+                <Bell className="w-5 h-5 text-indigo-500" />
+                <h2 className="text-lg font-semibold">Notifications</h2>
+              </div>
+              <div className="space-y-2">
+                {([['email', 'Email notifications'], ['push', 'Push notifications'], ['sms', 'SMS notifications']] as const).map(([key, label]) => (
+                  <label key={key} className="flex items-center justify-between gap-3 py-1.5 cursor-pointer">
+                    <span className="text-sm text-slate-700 dark:text-slate-300">{label}</span>
+                    <input
+                      type="checkbox"
+                      checked={(notifications as any)[key]}
+                      onChange={(e) => setNotifications({ ...notifications, [key]: e.target.checked })}
+                      className="w-4 h-4 accent-indigo-600"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>

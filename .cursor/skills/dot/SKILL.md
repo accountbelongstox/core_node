@@ -10,7 +10,7 @@ Use this skill when editing or adding code under **dotcore/** or **dotapps/**.
 - **dotcore** = .NET **public class libraries (公共类库)** = counterpart of **pycore**. All shared libraries used by more than one app (DotCore.Foundations, DotCore.Common, DotCore.Utils, DotCore.Infrastructure, DotCore.UIInspect, DotCore.UITheme, etc.) live here.
 - **dotapps** = runnable applications; they reference dotcore and, when needed, their own **sub-app characteristic library (子APP的特征类库)** under dotapps/<App>/ (e.g. dotapps/d3check/D3CheckCore/). No app-to-app references.
 
-Canonical spec: [development-guides/DOT_ARCHITECTURE.md](../../development-guides/DOT_ARCHITECTURE.md). Cursor rule: [.cursor/rules/dot.mdc](../../.cursor/rules/dot.mdc). **UI (WPF/MAUI/Blazor/Avalonia):** canonical spec [development-guides/DOT_UI_PROJECT_SPECIFICATION.md](../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md), [.cursor/rules/dot-ui.mdc](../../.cursor/rules/dot-ui.mdc). Progress and pycore↔dotcore mapping: [dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md](../../dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md).
+Canonical spec: [development-guides/DOT_ARCHITECTURE.md](../../development-guides/DOT_ARCHITECTURE.md). Cursor rule: [.cursor/rules/dot.mdc](../../.cursor/rules/dot.mdc). **UI (WPF/MAUI/Blazor/Avalonia):** canonical spec [development-guides/DOT_ARCHITECTURE.md](../../development-guides/DOT_ARCHITECTURE.md), [.cursor/rules/dot-ui.mdc](../../.cursor/rules/dot-ui.mdc). Progress and pycore↔dotcore mapping: [dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md](../../dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md).
 
 ## When to Use
 
@@ -73,7 +73,7 @@ Canonical spec: [development-guides/DOT_ARCHITECTURE.md](../../development-guide
 
 - Canonical project spec: [development-guides/DOT_ARCHITECTURE.md](../../development-guides/DOT_ARCHITECTURE.md).
 - Rule file: [.cursor/rules/dot.mdc](../../.cursor/rules/dot.mdc). Keep skill and rule in sync; avoid duplicate wording; reference by section (e.g. §3) where possible.
-- UI rule: For WPF/MAUI/Blazor/Avalonia apps, also follow [development-guides/DOT_UI_PROJECT_SPECIFICATION.md](../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md) and [.cursor/rules/dot-ui.mdc](../../.cursor/rules/dot-ui.mdc).
+- UI rule: For WPF/MAUI/Blazor/Avalonia apps, also follow [development-guides/DOT_ARCHITECTURE.md](../../development-guides/DOT_ARCHITECTURE.md) and [.cursor/rules/dot-ui.mdc](../../.cursor/rules/dot-ui.mdc).
 - When adding a new library or app, update DOT_ARCHITECTURE.md and DESIGN.md; optionally extend this SKILL.md Instructions.
 
 ## Summary
@@ -85,6 +85,6 @@ Canonical spec: [development-guides/DOT_ARCHITECTURE.md](../../development-guide
 | Runnable app | dotapps/<AppName>/ |
 | Canonical layout and naming | DOT_ARCHITECTURE.md |
 | Cursor rule (globs dotcore/**, dotapps/**) | .cursor/rules/dot.mdc |
-| UI layer (Clean Architecture + MVVM + Fluent 2) | DOT_UI_PROJECT_SPECIFICATION.md, .cursor/rules/dot-ui.mdc |
+| UI layer (Clean Architecture + MVVM + Fluent 2) | DOT_ARCHITECTURE.md, .cursor/rules/dot-ui.mdc |
 | Build | dotnet build dotcore/dotcore.sln |
 | Run app | dotnet run --project dotapps/... or start.ps1 |

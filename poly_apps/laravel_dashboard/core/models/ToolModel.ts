@@ -2,7 +2,7 @@ import { ToolConfig, ToolHistoryItem, ValidationResult } from '../types';
 import { api } from '../api';
 
 /**
- * ToolModel - 工具模型基类
+ * ToolModel - Base class for tool models
  */
 export class ToolModel {
   protected config: ToolConfig;
@@ -16,17 +16,17 @@ export class ToolModel {
   }
 
   /**
-   * 执行工具
+   * Execute the tool
    */
   async execute(input: any): Promise<any> {
-    // 验证输入
+    // Validate input
     const validation = this.validate(input);
     if (!validation.valid) {
       throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
     }
 
     try {
-      // 调用API
+      // Call the API
       const [moduleName, methodName] = this.config.apiMethod.split('.');
       const apiModule = (api as any)[moduleName];
 
@@ -40,14 +40,14 @@ export class ToolModel {
         throw new Error(response.error || 'API request failed');
       }
 
-      // 保存到历史
+      // Save to history
       if (this.config.history) {
         this.addToHistory(input, response.data, true);
       }
 
       return response.data;
     } catch (error: any) {
-      // 保存失败记录
+      // Save the failure record
       if (this.config.history) {
         this.addToHistory(input, null, false);
       }
@@ -56,14 +56,14 @@ export class ToolModel {
   }
 
   /**
-   * 验证输入
+   * Validate input
    */
   validate(input: any): ValidationResult {
     const errors: string[] = [];
 
-    // 使用inputSchema验证
+    // Validate using inputSchema
     if (this.config.inputSchema) {
-      // 简单验证逻辑，实际可以使用JSON Schema
+      // Simple validation logic; JSON Schema could be used instead
       const required = this.config.inputSchema.required || [];
       for (const field of required) {
         if (input[field] === undefined || input[field] === null || input[field] === '') {
@@ -79,14 +79,14 @@ export class ToolModel {
   }
 
   /**
-   * 获取历史记录
+   * Get the history records
    */
   getHistory(): ToolHistoryItem[] {
-    return [...this.history].reverse(); // 最新的在前
+    return [...this.history].reverse(); // Newest first
   }
 
   /**
-   * 添加到历史
+   * Add to history
    */
   protected addToHistory(input: any, output: any, success: boolean): void {
     const item: ToolHistoryItem = {
@@ -100,7 +100,7 @@ export class ToolModel {
 
     this.history.push(item);
 
-    // 最多保存20条
+    // Keep at most 20 entries
     if (this.history.length > 20) {
       this.history.shift();
     }
@@ -109,7 +109,7 @@ export class ToolModel {
   }
 
   /**
-   * 清除历史
+   * Clear history
    */
   clearHistory(): void {
     this.history = [];
@@ -117,7 +117,7 @@ export class ToolModel {
   }
 
   /**
-   * 删除历史项
+   * Delete a history item
    */
   deleteHistoryItem(index: number): void {
     if (index >= 0 && index < this.history.length) {
@@ -130,7 +130,7 @@ export class ToolModel {
   }
 
   /**
-   * 保存历史到localStorage
+   * Save history to localStorage
    */
   protected saveHistory(): void {
     try {
@@ -142,7 +142,7 @@ export class ToolModel {
   }
 
   /**
-   * 从localStorage加载历史
+   * Load history from localStorage
    */
   protected loadHistory(): void {
     try {
@@ -157,7 +157,7 @@ export class ToolModel {
   }
 
   /**
-   * 切换收藏
+   * Toggle favorite
    */
   toggleFavorite(): void {
     if (this.favorites.has(this.config.id)) {
@@ -169,14 +169,14 @@ export class ToolModel {
   }
 
   /**
-   * 是否已收藏
+   * Whether this tool is favorited
    */
   isFavorite(): boolean {
     return this.favorites.has(this.config.id);
   }
 
   /**
-   * 保存收藏
+   * Save favorites
    */
   protected saveFavorites(): void {
     try {
@@ -187,7 +187,7 @@ export class ToolModel {
   }
 
   /**
-   * 加载收藏
+   * Load favorites
    */
   protected loadFavorites(): void {
     try {
@@ -201,7 +201,7 @@ export class ToolModel {
   }
 
   /**
-   * 获取配置
+   * Get the configuration
    */
   getConfig(): ToolConfig {
     return { ...this.config };

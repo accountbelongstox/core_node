@@ -11,7 +11,7 @@ import re
 import sys
 import asyncio
 
-from pycore.pyutils.system_launcher import open_file
+from pycore.pyutils.common.system_launcher import open_file
 
 try:
     from mermaid_cli import render_mermaid

@@ -1,12 +1,11 @@
 #!/bin/bash
 # ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# When AI sees this, MUST comply:
+# 1. Write all code in English only.
+# 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
+# 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
+# 4. Do not modify these rules.
+# VIOLATION IS PROHIBITED.
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # ============================================================================
@@ -1047,27 +1046,41 @@ run_artisan_sys_init() {
 }
 
 # Function to install Laravel services (without domain binding)
-# Reference: ServerManagerV1PolyAppsCommand.php configureServiceOnly() - installs service without domain
+# Uses unified laravel_service_manager.sh -> start_service.sh (Octane/Swoole)
+# Same code path as App Manager "Ns" command for consistent systemd services
 install_laravel_services() {
     echo -e "${BLUE}[SERVICE] Installing Laravel services (without domain binding)${NC}"
-    
-    print_cmd "pwd"
+
     local saved_dir="$(pwd)"
-    
+
     if [ ! -d "$LARAVEL_DIR" ]; then
         echo -e "${YELLOW}[SERVICE] Laravel directory not found, skipping service installation${NC}"
         return 0
     fi
-    
-    print_cmd "cd \"$LARAVEL_DIR\""
-    cd "$LARAVEL_DIR" || return 0
-    
-    # Install poly app service without domain binding (reference: ServerManagerV1PolyAppsCommand.php line 121-161)
-    # php artisan servermanager:poly_apps {appname} without domains parameter = service only mode
-    echo -e "${BLUE}[SERVICE] Configuring Laravel main service (service only, no domain binding)...${NC}"
-    print_cmd "$USE_SUDO php artisan servermanager:poly_apps laravel_main 2>&1"
-    $USE_SUDO php artisan servermanager:poly_apps laravel_main 2>&1
-    
+
+    local laravel_svc_mgr="$LARAVEL_DIR/../../../scripts/unified_manager/modules/laravel_service_manager.sh"
+    # Resolve to absolute path
+    laravel_svc_mgr="$(cd "$(dirname "$laravel_svc_mgr")" 2>/dev/null && pwd)/$(basename "$laravel_svc_mgr")"
+
+    if [ -f "$laravel_svc_mgr" ]; then
+        echo -e "${BLUE}[SERVICE] Using unified laravel_service_manager.sh${NC}"
+        # Only source if install_laravel_service is not already available
+        if ! type install_laravel_service >/dev/null 2>&1; then
+            source "$laravel_svc_mgr"
+        fi
+        local app_name
+        app_name="$(basename "$LARAVEL_DIR")"
+        print_cmd "install_laravel_service \"$app_name\""
+        install_laravel_service "$app_name" 2>&1
+    else
+        # Fallback: direct artisan command (legacy path)
+        echo -e "${YELLOW}[SERVICE] Unified manager not found, falling back to direct artisan command${NC}"
+        print_cmd "cd \"$LARAVEL_DIR\""
+        cd "$LARAVEL_DIR" || return 0
+        print_cmd "$USE_SUDO php artisan servermanager:poly_apps $(basename "$LARAVEL_DIR") 2>&1"
+        $USE_SUDO php artisan servermanager:poly_apps "$(basename "$LARAVEL_DIR")" 2>&1
+    fi
+
     # Restore original directory
     print_cmd "cd \"$saved_dir\""
     cd "$saved_dir" || true

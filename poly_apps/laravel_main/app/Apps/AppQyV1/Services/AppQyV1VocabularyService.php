@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyWordModel;
+use App\Apps\AppQyV1\Utils\AppQyV1VocabularyImporter;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 
@@ -16,6 +16,12 @@ class AppQyV1VocabularyService
      * Check if vocabulary tables exist
      * Tables are created automatically by 'php artisan sys:init' command
      * This method only checks table existence, does not create tables
+     *
+     * Wave B consolidation: vocabulary_words and vocabulary_covers are gone
+     * (membership lives in vocabulary_libraries.word_ids, covers in the
+     * cover_* columns), so only the surviving tables are checked.
+     * group_word_progress replaced the dropped group_words /
+     * user_word_progress pair (one JSON row per user+group).
      */
     public static function ensureVocabularyTablesExist(): array
     {
@@ -26,10 +32,9 @@ class AppQyV1VocabularyService
         $appKey = AppKeys::APPQYV1;
         $tables = [
             AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries'),
-            AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_words'),
+            AppTablePrefixServiceProvider::buildTableName($appKey, 'group_word_progress'),
             AppTablePrefixServiceProvider::buildTableName($appKey, 'user_languages'),
             AppTablePrefixServiceProvider::buildTableName($appKey, 'user_vocabulary_selections'),
-            AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_covers'),
         ];
 
         foreach ($tables as $tableName) {
@@ -39,7 +44,15 @@ class AppQyV1VocabularyService
 
         return $results;
     }
-    
+
+    /**
+     * Import the init_data vocabulary .txt files into vocabulary_libraries.
+     *
+     * Wave B consolidation: words go into the per-language dictionary
+     * (tts_cache_{lang}) and membership into word_ids - all through
+     * AppQyV1VocabularyImporter (idempotent fill-missing, keyed by source).
+     * This service only contributes the filename-derived metadata.
+     */
     public static function importVocabularyFromFiles(): array
     {
         $results = [
@@ -48,108 +61,91 @@ class AppQyV1VocabularyService
             'errors' => 0,
             'libraries' => []
         ];
-        
-        $appKey = AppKeys::APPQYV1;
-        $connection = AppTablePrefixServiceProvider::getConnection($appKey);
+
         $vocabDir = base_path('init_data/AppQyV1/VoiceStaticServer/vocabulary');
-        
+
         if (!is_dir($vocabDir)) {
             $results['error'] = 'Vocabulary directory not found';
             return $results;
         }
-        
+
         $files = glob($vocabDir . '/*.txt');
         if (empty($files)) {
             $results['error'] = 'No vocabulary files found';
             return $results;
         }
-        
+
+        $importer = new AppQyV1VocabularyImporter();
+
         foreach ($files as $filePath) {
             $filename = basename($filePath);
             $meta = self::buildLibraryMetadata($filename);
-            
+
             try {
                 $existing = AppQyV1VocabularyLibraryModel::where('source', $meta['source'])->first();
-                
-                if ($existing) {
-                    $wordsCount = AppQyV1VocabularyWordModel::where('library_id', $existing->id)->count();
-                    
-                    if ($wordsCount > 0) {
-                        $results['libraries'][$filename] = 'already imported';
-                        $results['skipped']++;
-                        continue;
-                    }
+
+                if ($existing && count($existing->getWordIdsArray()) > 0) {
+                    $results['libraries'][$filename] = 'already imported';
+                    $results['skipped']++;
+                    continue;
                 }
-                
+
                 $words = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
                 $words = array_values(array_unique(array_filter(array_map('trim', $words))));
-                
+
                 if (empty($words)) {
                     $results['libraries'][$filename] = 'no words detected';
                     $results['skipped']++;
                     continue;
                 }
-                
-                if ($existing) {
-                    $existing->update([
-                        'name' => $meta['name'],
-                        'description' => $meta['description'],
-                        'language' => $meta['language'],
-                        'total_words' => count($words),
-                        'category' => $meta['category'],
-                        'difficulty_level' => $meta['difficulty'],
-                        'image_url' => $meta['image_url'],
-                        'is_recommended' => $meta['is_recommended'],
-                        'tags' => $meta['tags'],
-                    ]);
-                    
-                    AppQyV1VocabularyWordModel::where('library_id', $existing->id)->delete();
-                    $libraryId = $existing->id;
-                } else {
-                    $library = AppQyV1VocabularyLibraryModel::create([
-                        'name' => $meta['name'],
-                        'description' => $meta['description'],
-                        'language' => $meta['language'],
-                        'total_words' => count($words),
-                        'is_public' => true,
-                        'owner_user_id' => null,
-                        'source' => $meta['source'],
-                        'difficulty_level' => $meta['difficulty'],
-                        'category' => $meta['category'],
-                        'image_url' => $meta['image_url'],
-                        'is_recommended' => $meta['is_recommended'],
-                        'tags' => $meta['tags'],
-                    ]);
-                    $libraryId = $library->id;
+
+                $langCode = AppQyV1VocabularyLibraryModel::languageNameToCode($meta['language']);
+                if ($langCode === null) {
+                    $results['libraries'][$filename] = 'error: unmapped language ' . $meta['language'];
+                    $results['errors']++;
+                    continue;
                 }
-                
-                $batchSize = 1000;
-                $wordIndex = 0;
-                
-                foreach (array_chunk($words, $batchSize) as $batch) {
-                    $insertData = [];
-                    foreach ($batch as $word) {
-                        $insertData[] = [
-                            'library_id' => $libraryId,
-                            'word_index' => $wordIndex++,
-                            'word' => $word,
-                            'created_at' => now(),
-                        ];
-                    }
-                    
-                    AppQyV1VocabularyWordModel::insert($insertData);
+
+                $importResult = $importer->createVocabularyCollection(
+                    $meta['name'],
+                    $langCode,
+                    $words,
+                    'system',
+                    null,
+                    true,
+                    $meta['description'],
+                    $meta['source']
+                );
+
+                if (empty($importResult['success'])) {
+                    $results['libraries'][$filename] = 'error: ' . ($importResult['error'] ?? 'unknown import failure');
+                    $results['errors']++;
+                    continue;
                 }
-                
-                $results['libraries'][$filename] = "imported {$wordIndex} words";
+
+                // Refresh the filename-derived metadata (the importer only
+                // manages name/description/word_ids).
+                AppQyV1VocabularyLibraryModel::where('id', $importResult['collection_id'])->update([
+                    'name' => $meta['name'],
+                    'description' => $meta['description'],
+                    'category' => $meta['category'],
+                    'difficulty_level' => $meta['difficulty'],
+                    'image_url' => $meta['image_url'],
+                    'is_recommended' => $meta['is_recommended'],
+                    'tags' => json_encode($meta['tags']),
+                    'updated_at' => now(),
+                ]);
+
+                $results['libraries'][$filename] = "imported {$importResult['total_words']} words";
                 $results['imported']++;
-                
+
             } catch (\Exception $e) {
                 Log::error("[VocabService] Failed to import {$filename}: " . $e->getMessage());
                 $results['libraries'][$filename] = 'error: ' . $e->getMessage();
                 $results['errors']++;
             }
         }
-        
+
         return $results;
     }
 
@@ -210,7 +206,7 @@ class AppQyV1VocabularyService
             'tags' => array_values(array_unique($tags)),
         ];
     }
-    
+
     public static function calculateNextReviewTime(int $familiarityLevel, int $timesCorrect): string
     {
         $intervals = [
@@ -223,14 +219,14 @@ class AppQyV1VocabularyService
             6 => 60,
             7 => 120,
         ];
-        
+
         $level = min($familiarityLevel, count($intervals) - 1);
         $days = $intervals[$level];
-        
+
         if ($timesCorrect >= 5 && $familiarityLevel >= 5) {
             $days = 180;
         }
-        
+
         return date('Y-m-d H:i:s', strtotime("+{$days} days"));
     }
 }

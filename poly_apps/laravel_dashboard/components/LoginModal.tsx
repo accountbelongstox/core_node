@@ -6,6 +6,8 @@ import { Language } from '../types';
 import { useUser } from '../hooks/useUser';
 import { api } from '../core/api';
 import { InviteCode } from '../core/api/modules/InviteCodeAPI';
+import Portal from './shared/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP, OVERLAY_BACKDROP_STRONG } from '../styles/overlay';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -120,17 +122,17 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
   const submitText = isRegisterMode ? t('login.register_submit') : t('login.submit');
   const processingText = isRegisterMode ? t('login.register_processing') : t('login.processing');
 
-  // Design: contained=true → only cover right (main) area, sidebar visible; contained=false → full viewport.
-  const rootClass = contained
-    ? 'h-full w-full relative flex items-center justify-center p-4'
-    : 'fixed inset-0 z-[110] flex items-center justify-center p-4';
+  // The login box is always a true full-screen, top-most overlay portaled to
+  // <body>, so its mask covers the whole viewport (including the sidebar) and is
+  // never clipped/squeezed by parent stacking contexts. (`contained` is kept for
+  // backward compatibility with existing callers but no longer alters layout.)
+  void contained;
   return (
-    <div className={rootClass} role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
+    <Portal>
+    <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.login}`} role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
       <div
-        className={`absolute inset-0 backdrop-blur-md transition-opacity duration-300 ${
-          blockCloseBackdrop
-            ? 'bg-slate-900/95 dark:bg-black/95'
-            : 'bg-slate-900/60 dark:bg-black/80'
+        className={`absolute inset-0 transition-opacity duration-300 ${
+          blockCloseBackdrop ? OVERLAY_BACKDROP_STRONG : OVERLAY_BACKDROP
         }`}
         onClick={blockCloseBackdrop ? undefined : onClose}
         role="presentation"
@@ -330,6 +332,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
         </div>
       </div>
     </div>
+    </Portal>
   );
 };
 

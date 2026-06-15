@@ -11,7 +11,7 @@ import os
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.pybrowser.utils.image_utils import ImageUtils
 from pycore.pyutils.pybrowser.utils.file_utils import FileUtils
 

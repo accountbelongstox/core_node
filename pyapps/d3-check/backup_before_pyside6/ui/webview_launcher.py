@@ -26,7 +26,7 @@ from pycore.pyutils.native_ui import (
 )
 
 # Import d3-check components
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from providor.providor_index import CONFIG, save_config, DIABLO_III_WINDOW_TITLES
 from providor.i18n_manager import i18n_manager
 class D3MacroWebViewAPI:

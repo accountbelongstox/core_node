@@ -65,7 +65,8 @@ const modules = {
     'queue-manager': document.getElementById('module-queue-manager'),
     'window-automation': document.getElementById('module-window-automation'),
     'code-sync': document.getElementById('module-code-sync'),
-    'task-queue': document.getElementById('module-task-queue')
+    'task-queue': document.getElementById('module-task-queue'),
+    'video-extract': document.getElementById('module-video-extract')
 };
 
 // ========== Initialization ==========
@@ -185,6 +186,162 @@ function switchModule(moduleName) {
         refreshCodeSyncStatus();
     } else if (moduleName === 'task-queue') {
         fetchTasks();
+    }
+}
+
+// ========== Video Extract Module ==========
+let veTaskId = null;
+let vePollTimer = null;
+
+// Best-effort: derive an absolute path from a browser file pick. QtWebEngine
+// usually exposes File.path; if not, we can only show the name and the user must
+// type/paste the absolute path (the typed field is the source of truth).
+function handleVeBrowse(event) {
+    const files = event.target.files;
+    const hint = document.getElementById('veBrowseHint');
+    if (!files || !files.length) return;
+    const mode = document.querySelector('input[name="veMode"]:checked')?.value || 'folder';
+    const f0 = files[0];
+    let abs = f0.path || '';  // Qt/Electron expose .path; plain browsers do not
+    if (abs) {
+        if (mode === 'folder') {
+            // f0.path is a file inside the chosen dir; strip the webkitRelativePath tail.
+            const rel = (f0.webkitRelativePath || '').replace(/\\/g, '/');
+            if (rel && abs.replace(/\\/g, '/').endsWith(rel)) {
+                abs = abs.slice(0, abs.length - rel.length);
+            } else {
+                abs = abs.replace(/[\\/][^\\/]*$/, '');  // drop file name
+            }
+        }
+        document.getElementById('vePath').value = abs;
+        hint.textContent = '';
+    } else {
+        const top = (f0.webkitRelativePath || f0.name).split('/')[0];
+        hint.textContent = `Picked "${top}" — your browser hides the absolute path; please type/paste the full path above.`;
+    }
+}
+
+function veGatherRequest() {
+    const mode = document.querySelector('input[name="veMode"]:checked')?.value || 'folder';
+    const formats = Array.from(document.querySelectorAll('.ve-fmt:checked')).map(c => c.value);
+    return {
+        path: (document.getElementById('vePath').value || '').trim(),
+        mode,
+        output: (document.getElementById('veOutput').value || '').trim() || null,
+        formats: formats.length ? formats : ['mp3'],
+        bitrate: (document.getElementById('veBitrate').value || '').trim() || null,
+        sample_rate: parseInt(document.getElementById('veSampleRate').value || '22050', 10),
+        stereo: !document.getElementById('veMono').checked,
+        make_mp4: document.getElementById('veMakeMp4').checked,
+        subtitle: document.getElementById('veSubtitle').checked,
+        lang: (document.getElementById('veLang').value || 'en').trim(),
+        engine: document.getElementById('veEngine').value || 'faster-whisper',
+        whisper_model: document.getElementById('veModel').value || 'auto',
+        translate: document.getElementById('veTranslate').checked,
+        dry_run: false,
+    };
+}
+
+async function videoExtractPreview() {
+    const req = veGatherRequest();
+    if (!req.path) { dialog.error('Please enter an input path.'); return; }
+    req.dry_run = true;
+    const result = document.getElementById('veResult');
+    result.textContent = 'Scanning...';
+    try {
+        const r = await api.videoExtractPreview(req);
+        if (!r.success) { result.textContent = ''; dialog.error(r.error || 'Preview failed'); return; }
+        const list = (r.videos || []).slice(0, 200).map(v => '  • ' + v).join('\n');
+        const more = r.count > 200 ? `\n  ... and ${r.count - 200} more` : '';
+        result.innerHTML = `<b>${r.count}</b> video(s) found &nbsp;|&nbsp; ffmpeg: ${r.ffmpeg_found ? 'OK' : '<span style="color:#f44">missing</span>'}`
+            + ` &nbsp;|&nbsp; engine: ${r.engine} / ${r.model} / ${r.device}<br>output: ${r.output || '-'}`;
+        const log = document.getElementById('veLog');
+        log.style.display = 'block';
+        log.textContent = (r.count ? list + more : '(no videos found)');
+    } catch (e) {
+        result.textContent = '';
+        dialog.error('Preview request failed: ' + e.message);
+    }
+}
+
+async function videoExtractStart() {
+    const req = veGatherRequest();
+    if (!req.path) { dialog.error('Please enter an input path.'); return; }
+    try {
+        const r = await api.videoExtractStart(req);
+        if (!r.success || !r.task_id) { dialog.error(r.error || 'Failed to start'); return; }
+        veTaskId = r.task_id;
+        document.getElementById('veStartBtn').style.display = 'none';
+        document.getElementById('veStopBtn').style.display = '';
+        document.getElementById('veProgressWrap').style.display = 'block';
+        document.getElementById('veResult').innerHTML = `Started — task ${r.task_id}` + (r.total != null ? ` (${r.total} video(s))` : '');
+        document.getElementById('veLog').style.display = 'block';
+        veStartPolling();
+    } catch (e) {
+        dialog.error('Start request failed: ' + e.message);
+    }
+}
+
+function veStartPolling() {
+    if (vePollTimer) clearInterval(vePollTimer);
+    vePollTimer = setInterval(async () => {
+        if (!veTaskId) return;
+        try {
+            const r = await api.videoExtractTask(veTaskId);
+            if (!r.success || !r.task) return;
+            const t = r.task;
+            const snap = t.result || {};
+            const bar = document.getElementById('veProgressBar');
+            const txt = document.getElementById('veProgressText');
+            bar.style.width = (t.progress || 0) + '%';
+            const processed = snap.processed != null ? snap.processed : 0;
+            const total = snap.total != null ? snap.total : (t.input_data && t.input_data.total) || '?';
+            txt.textContent = `${t.status} — ${processed}/${total} (${t.progress || 0}%)`;
+            if (Array.isArray(snap.logs)) {
+                document.getElementById('veLog').textContent = snap.logs.join('\n');
+            }
+            if (t.status === 'completed' || t.status === 'failed') {
+                veStopPolling();
+                veRenderFinal(t);
+            }
+        } catch (e) {
+            console.error('[VideoExtract] poll error', e);
+        }
+    }, 2000);
+}
+
+function veStopPolling() {
+    if (vePollTimer) { clearInterval(vePollTimer); vePollTimer = null; }
+    document.getElementById('veStartBtn').style.display = '';
+    document.getElementById('veStopBtn').style.display = 'none';
+}
+
+function veRenderFinal(task) {
+    const res = task.result || {};
+    const result = document.getElementById('veResult');
+    if (task.status === 'failed') {
+        result.innerHTML = `<span style="color:#f44">Failed:</span> ${task.error || (res && res.error) || 'unknown error'}`;
+        return;
+    }
+    const s = res.stats || {};
+    const pc = res.per_codec || {};
+    const codecLine = Object.keys(pc).map(c => `${c}: ${pc[c].done} new / ${pc[c].skip} skip / ${pc[c].fail} fail`).join(' | ');
+    result.innerHTML = `<b>Done.</b> ${res.processed || 0}/${res.total || 0} video(s)`
+        + (res.stopped ? ' (stopped early)' : '')
+        + `<br>mp4: ${s.mp4_done || 0} new / ${s.mp4_skip || 0} skip / ${s.mp4_fail || 0} fail`
+        + ` &nbsp;|&nbsp; srt: ${s.srt_done || 0} new / ${s.srt_skip || 0} skip / ${s.srt_empty || 0} empty / ${s.srt_fail || 0} fail`
+        + (codecLine ? `<br>${codecLine}` : '')
+        + `<br>output: ${res.output || '-'}`;
+    dialog.success('Video extraction finished.');
+}
+
+async function videoExtractStop() {
+    if (!veTaskId) return;
+    try {
+        await api.videoExtractCancel(veTaskId);
+        dialog.info('Stop requested — finishing current video, then aborting.');
+    } catch (e) {
+        dialog.error('Cancel failed: ' + e.message);
     }
 }
 
@@ -707,6 +864,17 @@ function setupEventListeners() {
     document.getElementById('enableBackup')?.addEventListener('change', toggleBackup);
 
     // Task Queue controls
+    // Video Extract module
+    document.getElementById('vePreviewBtn')?.addEventListener('click', videoExtractPreview);
+    document.getElementById('veStartBtn')?.addEventListener('click', videoExtractStart);
+    document.getElementById('veStopBtn')?.addEventListener('click', videoExtractStop);
+    document.getElementById('veBrowseBtn')?.addEventListener('click', () => {
+        const mode = document.querySelector('input[name="veMode"]:checked')?.value || 'folder';
+        document.getElementById(mode === 'file' ? 'veFileInput' : 'veFolderInput')?.click();
+    });
+    document.getElementById('veFolderInput')?.addEventListener('change', handleVeBrowse);
+    document.getElementById('veFileInput')?.addEventListener('change', handleVeBrowse);
+
     document.getElementById('refreshTasksBtn')?.addEventListener('click', fetchTasks);
     document.getElementById('taskAutoRefresh')?.addEventListener('change', (e) => {
         taskAutoRefresh = e.target.checked;

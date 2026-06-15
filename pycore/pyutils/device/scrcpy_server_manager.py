@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from pycore import ColorPrint
-from pycore.pyutils.robust_downloader import RobustDownloader
-from pycore.pyutils.scrcpy_init import get_initializer
+from pycore.pyutils.common.robust_downloader import RobustDownloader
+from pycore.pyutils.device.scrcpy_init import get_initializer
 
 
 # ✅ Global download lock to prevent concurrent downloads

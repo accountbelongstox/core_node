@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -19,23 +20,43 @@ return new class extends Migration
         $this->prefix = AppTablePrefixServiceProvider::getPrefix($this->appKey);
     }
 
+    /**
+     * Driver-agnostic enumeration of dictionary tables (works on sqlite + pgsql).
+     *
+     * @return array<int, string>
+     */
+    private function dictionaryTableNames(): array
+    {
+        $suffix = '_dictionaries';
+        $tableNames = Schema::connection($this->connection)->getTableListing();
+
+        // Normalize possibly schema-qualified names (pgsql may return
+        // "public.table") so the prefix/suffix match works on every driver.
+        $tableNames = array_map(static function ($name) {
+            $pos = strrpos($name, '.');
+            return $pos === false ? $name : substr($name, $pos + 1);
+        }, $tableNames);
+
+        return array_values(array_filter($tableNames, function ($name) use ($suffix) {
+            return str_starts_with($name, $this->prefix . '_') && str_ends_with($name, $suffix);
+        }));
+    }
+
     public function up(): void
     {
         // Get all dictionary table names
-        $pattern = $this->prefix . '_%_dictionaries';
-        $tables = DB::connection($this->connection)
-            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", [$pattern]);
+        foreach ($this->dictionaryTableNames() as $tableName) {
 
-        foreach ($tables as $table) {
-            $tableName = $table->name;
-            
             // Define structure for adding has_audio column
             $tableStructure = [
                 'columns' => [
+                    // BOOLEAN (not integer): the backfill below sets has_audio = true,
+                    // and every reader treats it as a boolean. An integer column would
+                    // make `SET has_audio = true` error on pgsql.
                     'has_audio' => [
-                        'type' => 'integer',
+                        'type' => 'boolean',
                         'nullable' => false,
-                        'default' => 0,
+                        'default' => false,
                     ],
                 ],
             ];
@@ -53,18 +74,13 @@ return new class extends Migration
             );
             
             // Update has_audio based on existing tts_files if column exists
-            $columns = DB::connection($this->connection)->select("PRAGMA table_info({$tableName})");
-            $hasTtsFilesColumn = false;
-            foreach ($columns as $column) {
-                if ($column->name === 'tts_files') {
-                    $hasTtsFilesColumn = true;
-                    break;
-                }
-            }
-            
+            $hasTtsFilesColumn = Schema::connection($this->connection)->hasColumn($tableName, 'tts_files');
+
             if ($hasTtsFilesColumn) {
+                // Use boolean literals so this is valid on a pgsql BOOLEAN column too
+                // (SET has_audio = 1 errors on pgsql); true/false also works on sqlite.
                 DB::connection($this->connection)->statement(
-                    "UPDATE {$tableName} SET has_audio = 1 WHERE tts_files IS NOT NULL AND tts_files != '' AND tts_files != '[]'"
+                    "UPDATE {$tableName} SET has_audio = true WHERE tts_files IS NOT NULL AND tts_files != '' AND tts_files != '[]'"
                 );
             }
         }
@@ -74,12 +90,7 @@ return new class extends Migration
     {
         // SQLite doesn't support DROP COLUMN directly
         // For safety, we skip rollback (column will remain)
-        $pattern = $this->prefix . '_%_dictionaries';
-        $tables = DB::connection($this->connection)
-            ->select("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", [$pattern]);
-        
-        foreach ($tables as $table) {
-            $tableName = $table->name;
+        foreach ($this->dictionaryTableNames() as $tableName) {
             // SQLite limitation: cannot drop column, so we leave it
         }
     }

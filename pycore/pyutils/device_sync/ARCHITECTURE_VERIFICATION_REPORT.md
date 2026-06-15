@@ -1,5 +1,14 @@
 # 架构验证和性能优化报告
 
+> **NOTE / 注意 (superseded):** This report verified the older PRIMARY/SECONDARY
+> design. The current Code Sync model is a **role-based peer mesh** (**dev** /
+> **client**) — see **[CODE_SYNC_MESH.md](CODE_SYNC_MESH.md)**. In particular:
+> **multiple dev-ends are now allowed** (the "only 1 PRIMARY" enforcement in
+> requirements #4/#5 below no longer applies), clients pull the **newest version
+> of each file across all dev-ends** (per-file mtime), and control is **UI-only**
+> (no tray menu; a dev must manually enable distribution after each startup). The
+> verification results below describe the legacy implementation.
+
 ## 执行时间
 2025-11-13
 

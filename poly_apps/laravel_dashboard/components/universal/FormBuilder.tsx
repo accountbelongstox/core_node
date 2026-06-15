@@ -243,7 +243,7 @@ const FormBuilder: React.FC<FormBuilderProps> = ({
     }
   };
 
-  const fields = Object.entries(schema.properties);
+  const fields = Object.entries(schema.properties) as Array<[string, FormFieldSchema]>;
 
   if (layout === 'grid') {
     return (

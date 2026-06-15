@@ -2,8 +2,8 @@ import { api } from '../api';
 import { BaseModel, ModelResult } from './BaseModel';
 
 /**
- * MCP Model - MCP管理器业务模型
- * 使用命名空间组织不同功能模块
+ * MCP Model - MCP manager business model
+ * Uses namespaces to organize the different feature modules
  */
 export class McpModel extends BaseModel {
   private static instance: McpModel;
@@ -55,10 +55,7 @@ export class McpModel extends BaseModel {
       this.execute(api.mcpV1.getQueueStats(categoryId)),
 
     add: (data: { category_id: string; content: string; file_name?: string; priority?: number }) =>
-      this.execute(api.mcpV1.addTask(data)),
-
-    execute: (taskId: string) =>
-      this.execute(api.mcpV1.executeTask(taskId))
+      this.execute(api.mcpV1.addTask(data))
   };
 
   // ========== Prompts namespace ==========

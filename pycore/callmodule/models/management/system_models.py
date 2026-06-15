@@ -54,7 +54,7 @@ class SystemStatus(BaseModel):
     local_processing: Dict[str, Any] = Field(..., description="Local processing information")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "system": {
                     "status": "running",
@@ -106,7 +106,7 @@ class SystemConfig(BaseModel):
     local_processing: Optional[Dict[str, Any]] = Field(None, description="Local processing configuration")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "system": {
                     "debug": False,
@@ -142,7 +142,7 @@ class ControlResponse(BaseModel):
     timestamp: str = Field(..., description="ISO 8601 timestamp")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "message": "Service restarted successfully",
@@ -161,7 +161,7 @@ class DashboardOverview(BaseModel):
     today_stats: Dict[str, Any] = Field(..., description="Today's statistics")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "system": {
                     "status": "running",
@@ -198,7 +198,7 @@ class RealtimeMetrics(BaseModel):
     tasks_per_minute: int
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "timestamp": "2025-12-07T10:30:00Z",
                 "cpu_usage": 25.5,

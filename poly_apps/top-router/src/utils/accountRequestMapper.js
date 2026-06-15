@@ -79,42 +79,51 @@ function buildAccountOperationRequest(operation, payload = {}) {
       data.accountData?.accountType
   )
   if (!segment) {
-    throw new Error('accountType is required')
+    return { ok: false, message: 'accountType is required' }
   }
 
   if (operation === 'add_account') {
     const body = data.accountData || stripMeta(data)
     return {
-      endpoint: `/admin/${segment}`,
-      method: 'POST',
-      body
+      ok: true,
+      request: {
+        endpoint: `/admin/${segment}`,
+        method: 'POST',
+        body
+      }
     }
   }
 
   if (operation === 'update_account') {
     if (!data.accountId) {
-      throw new Error('accountId is required')
+      return { ok: false, message: 'accountId is required' }
     }
     const body = data.updates || data.accountData || stripMeta(data)
     return {
-      endpoint: `/admin/${segment}/${data.accountId}`,
-      method: 'PUT',
-      body
+      ok: true,
+      request: {
+        endpoint: `/admin/${segment}/${data.accountId}`,
+        method: 'PUT',
+        body
+      }
     }
   }
 
   if (operation === 'delete_account') {
     if (!data.accountId) {
-      throw new Error('accountId is required')
+      return { ok: false, message: 'accountId is required' }
     }
     return {
-      endpoint: `/admin/${segment}/${data.accountId}`,
-      method: 'DELETE',
-      body: {}
+      ok: true,
+      request: {
+        endpoint: `/admin/${segment}/${data.accountId}`,
+        method: 'DELETE',
+        body: {}
+      }
     }
   }
 
-  throw new Error(`Unsupported operation: ${operation || 'unknown'}`)
+  return { ok: false, message: `Unsupported operation: ${operation || 'unknown'}` }
 }
 
 module.exports = {

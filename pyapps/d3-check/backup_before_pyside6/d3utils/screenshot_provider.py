@@ -28,7 +28,7 @@ from pycore.pyfoundations.third_party import (
     get_third_package_win32gui,
 )
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyutils.window_screenshot import WindowScreenshot
 from pycore.pyutils.common.window_finder import WindowFinder
 from pycore.pyutils.window_activator import WindowActivator

@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyutils.openrouter_sdk import openrouter_client
+from pycore.pyutils.ai_cluster.openrouter import openrouter_client
 
 
 def debug_basic_request():

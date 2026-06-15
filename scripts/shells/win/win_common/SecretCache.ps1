@@ -241,6 +241,94 @@ function Test-EncryptedContentChanged {
 
 <#
 .SYNOPSIS
+    Store raw (decrypted) file content hash as the encryption baseline
+
+.DESCRIPTION
+    Records the SHA256 hash of a raw secret file at the moment it is encrypted.
+    The reverse-direction check (Get-FilesNeedingReEncryption) uses this baseline
+    to tell a real content change apart from a mere timestamp bump caused by bulk
+    file operations (copy / restore / sync), which would otherwise trigger a
+    false "needs re-encryption" prompt.
+
+.PARAMETER FileName
+    Name of the file (without extension)
+
+.PARAMETER RawFile
+    Path to the raw (decrypted) file
+
+.EXAMPLE
+    Set-RawContentHashCache -FileName "API_KEY_1" -RawFile "C:\path\API_KEY_1"
+#>
+function Set-RawContentHashCache {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FileName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RawFile
+    )
+
+    $cacheDir = ""
+    $cacheFile = ""
+    $fileHash = $null
+
+    $cacheDir = Join-Path (Get-SecretCacheBaseDir) "raw_content_hash"
+
+    if (-not (Test-Path $cacheDir)) {
+        New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+    }
+
+    $cacheFile = Join-Path $cacheDir "$FileName.raw_hash"
+
+    if (Test-Path $RawFile) {
+        $fileHash = Get-FileHash -Path $RawFile -Algorithm SHA256 -ErrorAction SilentlyContinue
+        if ($fileHash) {
+            Set-Content -Path $cacheFile -Value $fileHash.Hash -Force
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+    Get the cached raw-content baseline hash for a file
+
+.PARAMETER FileName
+    Name of the file (without extension)
+
+.RETURNS
+    The cached SHA256 hash string, or $null if no baseline is recorded
+
+.EXAMPLE
+    $baseline = Get-CachedRawContentHash -FileName "API_KEY_1"
+#>
+function Get-CachedRawContentHash {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FileName
+    )
+
+    $cacheDir = ""
+    $cacheFile = ""
+    $cachedHash = ""
+
+    $cacheDir = Join-Path (Get-SecretCacheBaseDir) "raw_content_hash"
+    $cacheFile = Join-Path $cacheDir "$FileName.raw_hash"
+
+    if (-not (Test-Path $cacheFile)) {
+        return $null
+    }
+
+    $cachedHash = Get-Content -Path $cacheFile -ErrorAction SilentlyContinue
+
+    if ([string]::IsNullOrWhiteSpace($cachedHash)) {
+        return $null
+    }
+
+    return $cachedHash.Trim()
+}
+
+<#
+.SYNOPSIS
     Get list of encrypted files that need re-decryption due to content changes
 
 .PARAMETER EncryptedDir

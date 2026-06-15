@@ -78,7 +78,7 @@ def decrypt_password(cipher_b64: str) -> Optional[str]:
         payload = payload_bytes.decode("utf-8")
         if payload[:2] != VERIFY_PREFIX:
             try:
-                from pycore.pyfoundations.color_print import ColorPrint
+                from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
                 ColorPrint.yellow(_DECRYPT_FAIL_HINT)
             except Exception:
                 print(_DECRYPT_FAIL_HINT)
@@ -86,7 +86,7 @@ def decrypt_password(cipher_b64: str) -> Optional[str]:
         return payload[2:]
     except Exception:
         try:
-            from pycore.pyfoundations.color_print import ColorPrint
+            from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
             ColorPrint.yellow(_DECRYPT_FAIL_HINT)
         except Exception:
             print(_DECRYPT_FAIL_HINT)

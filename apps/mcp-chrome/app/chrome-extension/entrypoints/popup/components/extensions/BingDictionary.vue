@@ -47,6 +47,7 @@ import TaskCenterPanel from './TaskCenterPanel.vue';
 import SearchBox from './bing-dictionary/SearchBox.vue';
 import WordResult from './bing-dictionary/WordResult.vue';
 import HistoryList from './bing-dictionary/HistoryList.vue';
+import './bing-dictionary/base-styles.css';
 
 // Dictionary composable
 const {

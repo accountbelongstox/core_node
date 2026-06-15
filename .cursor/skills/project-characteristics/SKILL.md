@@ -16,7 +16,8 @@ description: Describes pycore (Python core library of core_node) requirements, c
 
 ### 入口与三层职责
 
-- **根入口**：`pycore_module_caller.py` → `build_launcher_config()` → `ServiceLauncher(config).start()` → `register_event_handlers()`；主循环等 `THREAD_BUS.is_shutdown_requested()` 后 `launcher.stop()`。
+- **服务入口（推荐）**：根目录 `pyservice.ps1`/`pyservice.sh` → 解析 Python → 运行 `pycore/scripts/iniscripts/prepare.{ps1,sh}` 安装 shell 管理的重型前置（如 whisper，补充 `pyfoundations/third_party.py` 的轻量自动检测）→ 启动 worker。`pyservice` 只是入口。
+- **Python 入口**：`pycore/pycore_module_caller.py`（已从根目录移入 pycore 包内）→ `build_launcher_config()` → `ServiceLauncher(config).start()` → `register_event_handlers()`；主循环等 `THREAD_BUS.is_shutdown_requested()` 后 `launcher.stop()`。
 - **callmodule**：只做配置与事件注册（`config.build_launcher_config`、`event_handlers.register_event_handlers`），不启动线程。
 - **pylauncher**：单例检测 + 按 `config.services` 调用 pythreadpool 的 starter；不实现具体服务逻辑。
 - **pythreadpool**：`SERVICE_STARTERS[name](config)` 启动各服务线程（heartbeat / rpc_v2 / ui / tray），并注册 `register_shutdown_handler`；关机时发 `tray.request_stop`、`{app_id}.close` 等事件。

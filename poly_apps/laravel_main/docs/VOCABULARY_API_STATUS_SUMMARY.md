@@ -83,25 +83,92 @@ Vocabulary library summary:
 
 **基础路径:** `/api/app_qy_v1/vocabulary`
 
-#### 1. 获取统计信息 ✅
+#### 1. 获取统计信息 ✅（已扩展）
 ```
 GET /api/app_qy_v1/vocabulary/statistics
 ```
 
 **参数:**
-- `language` (可选): 语言过滤，默认 "english"
+- `language` (可选): 语言过滤（语言代码或名称）。省略时返回所有语言的汇总。
+- `include_words` (可选): 是否在响应中附带单词样本，默认 false。
+- `page` / `per_page` (可选): 当 `include_words=true` 时对单词分页。
+
+> ⚠️ **重要（数据来源）：** `total_words` 仍是 `vocabulary_libraries.total_words` 的求和，
+> **包含跨词库的重复**（同一个单词出现在多个词库中会被多次计数）。
+> 而 **翻译 / 有效性 / 覆盖率（TTS、图片、AI 复核）全部来自规范词典表
+> `tts_cache_{lang}`**，按 canonical 单词去重，**不是**来自 `vocabulary_words` 词库表。
+> 因此 `tts_percentage` / `images_percentage` / `review_percentage` 现在是**真实值**，不再恒为 0。
 
 **响应示例:**
 ```json
 {
   "success": true,
   "data": {
-    "total_libraries": 8,
-    "total_words": 197357,
-    "recommended_count": 5
+    "summary": {
+      "total_languages": 1,
+      "total_libraries": 8,
+      "total_words": 197357,
+      "total_dictionary_words": 233197,
+      "total_with_translation": 180000,
+      "total_without_translation": 53197,
+      "total_valid_words": 233100,
+      "total_invalid_words": 97,
+      "total_validity_checked": 1200,
+      "tts_percentage": 42.5
+    },
+    "languages": [
+      {
+        "language": "english",
+        "language_code": "en",
+        "total_words": 197357,
+        "libraries_count": 8,
+        "dictionary_words": 233197,
+        "with_translation": 180000,
+        "without_translation": 53197,
+        "valid_words": 233100,
+        "invalid_words": 97,
+        "validity_checked": 1200,
+        "validity_unchecked": 231997,
+        "tts_percentage": 42.5,
+        "images_percentage": 3.1,
+        "review_percentage": 77.2
+      }
+    ]
   }
 }
 ```
+
+**字段说明:**
+
+`summary`:
+| 字段 | 含义 |
+|------|------|
+| `total_languages` | 有词库的语言数量 |
+| `total_libraries` | 词库总数 |
+| `total_words` | `vocabulary_libraries.total_words` 求和（**含跨库重复**） |
+| `total_dictionary_words` | **新增**：`tts_cache_{lang}` 中去重后的 canonical 单词总数 |
+| `total_with_translation` | **新增**：已有翻译的词典单词数 |
+| `total_without_translation` | **新增**：无翻译的词典单词数 |
+| `total_valid_words` | **新增**：有效单词数 |
+| `total_invalid_words` | **新增**：无效单词数（仅被显式标记为无效的行） |
+| `total_validity_checked` | **新增**：已被第三方客户端检查过的行数 |
+| `tts_percentage` | TTS 覆盖率 |
+
+`languages[]`（每种语言一项）:
+| 字段 | 含义 |
+|------|------|
+| `language` / `language_code` | 语言名称 / 语言代码 |
+| `total_words` | 词库求和（**含重复**） |
+| `libraries_count` | 该语言下的词库数 |
+| `dictionary_words` | **新增**：`tts_cache_{lang}` 中去重后的单词数 |
+| `with_translation` / `without_translation` | **新增**：有 / 无翻译的词典单词数 |
+| `valid_words` | **新增**：有效单词数 |
+| `invalid_words` | **新增**：无效单词数（仅显式被标记无效的行） |
+| `validity_checked` | **新增**：第三方客户端已检查过的行数 |
+| `validity_unchecked` | **新增**：尚未被检查过的行数 |
+| `tts_percentage` | **真实值** = has_audio / dictionary_words |
+| `images_percentage` | **真实值**（图片覆盖率） |
+| `review_percentage` | **真实值** = with_translation / dictionary_words |
 
 #### 2. 获取推荐词库 ✅
 ```
@@ -166,6 +233,84 @@ GET /api/app_qy_v1/vocabulary/libraries
 }
 ```
 
+#### 4. 单词有效性 API ✅（新增）
+
+**有效性语义（重要）:** 有效性是**显式的、由外部断言的**。每条词典行**默认有效**；
+只有当第三方校验客户端（它会把单词拿到互联网上核对）**显式上报为无效**时，该行才变为无效。
+从未被检查过的行**保持有效**。
+
+有效性状态存储在 `tts_cache_{lang}` 上，由迁移
+`AppQyV1_2026_06_08_000000_add_validity_columns_to_tts_cache_tables.php` 新增的列承载：
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| `is_valid` | boolean，默认 `true` | 是否有效 |
+| `validity_checked_at` | datetime，检查前为 `null` | 第三方检查时间戳 |
+| `validity_source` | string | 标识上报来源的标签 |
+| `validity_note` | text | 备注 |
+
+##### 4a. 拉取待检查单词
+```
+GET /api/app_qy_v1/vocabulary/validity/pending
+```
+
+**参数:**
+- `language` (可选): 语言代码或名称，默认 `en`
+- `limit` (可选): 范围 1..1000，默认 100
+
+返回**尚未被检查过**的单词，按查询次数（`query_count`）从高到低排序，供客户端在线核对：
+
+```json
+{
+  "success": true,
+  "data": {
+    "language": "en",
+    "count": 100,
+    "words": [
+      { "id": 12, "word": "abandon", "md5": "5f93f983524def3dca464469d2cf9f3e" }
+    ]
+  }
+}
+```
+
+##### 4b. 上报校验结果
+```
+POST /api/app_qy_v1/vocabulary/validity/report
+```
+
+**请求体:**
+```json
+{
+  "language": "en",
+  "source": "external-checker",
+  "results": [
+    { "word": "abandon", "is_valid": true },
+    { "md5": "5f93f983524def3dca464469d2cf9f3e", "is_valid": false, "note": "not a real word", "source": "external-checker" }
+  ]
+}
+```
+
+- `language` (可选): 语言代码或名称，默认 `en`
+- `source` (可选): 默认来源标签，可被单条结果内的 `source` 覆盖
+- `results[]`: 每项含 `word?`（字符串）或 `md5?`（32 位）、`is_valid`（必填 boolean）、可选 `note`、可选 `source`
+- 匹配规则：优先按 `md5` 匹配；仅提供 `word` 时按 `md5(word)` 匹配。
+
+**响应:**
+```json
+{
+  "success": true,
+  "data": {
+    "language": "en",
+    "updated": 2,
+    "not_found": 0,
+    "marked_valid": 1,
+    "marked_invalid": 1
+  }
+}
+```
+
+---
+
 ### 路由配置 ✅
 
 **位置:** `routes/AppQyV1Router/AppQyV1Vocabulary.php`
@@ -176,6 +321,10 @@ Route::prefix('app_qy_v1')->group(function () {
         Route::get('/statistics', [AppQyV1VocabularyLibraryPublicController::class, 'getStatistics']);
         Route::get('/libraries/recommended', [AppQyV1VocabularyLibraryPublicController::class, 'getRecommended']);
         Route::get('/libraries', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraries']);
+
+        // 单词有效性上报（第三方校验客户端）
+        Route::get('/validity/pending', [AppQyV1VocabularyValidityController::class, 'getPending']);
+        Route::post('/validity/report', [AppQyV1VocabularyValidityController::class, 'report']);
     });
 });
 ```
@@ -257,9 +406,19 @@ curl "http://localhost:9000/api/app_qy_v1/vocabulary/libraries?search=high+schoo
 {
   "success": true,
   "data": {
-    "total_libraries": 8,
-    "total_words": 197357,
-    "recommended_count": 5
+    "summary": {
+      "total_languages": 1,
+      "total_libraries": 8,
+      "total_words": 197357,
+      "total_dictionary_words": 233197,
+      "total_with_translation": 180000,
+      "total_without_translation": 53197,
+      "total_valid_words": 233100,
+      "total_invalid_words": 97,
+      "total_validity_checked": 1200,
+      "tts_percentage": 42.5
+    },
+    "languages": [ /* 每种语言一项，见上文字段说明 */ ]
   }
 }
 ```
@@ -326,10 +485,16 @@ curl "http://localhost:9000/api/app_qy_v1/vocabulary/libraries?search=high+schoo
 **AppQyV1VocabularyLibraryPublicController**
 `app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1Vocabulary/AppQyV1VocabularyLibraryPublicController.php`
 
-- ✅ `getStatistics()` - 获取统计信息
+- ✅ `getStatistics()` - 获取统计信息（含词典覆盖率 / 有效性汇总，来源 `tts_cache_{lang}`）
 - ✅ `getRecommended()` - 获取推荐词库
 - ✅ `getLibraries()` - 获取词库列表（分页+过滤）
 - ✅ 集成 `AppQyV1VocabularyCoverService` - 自动获取封面
+
+**AppQyV1VocabularyValidityController**（新增）
+`app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1Vocabulary/AppQyV1VocabularyValidityController.php`
+
+- ✅ `getPending()` - 返回尚未被检查的单词供第三方校验
+- ✅ `report()` - 接收第三方校验结果并更新 `tts_cache_{lang}` 有效性列
 
 ---
 
@@ -353,10 +518,37 @@ export interface VocabularyLibrary {
   tags: string[];
 }
 
+export interface VocabularyLanguageStats {
+  language: string;
+  language_code: string;
+  total_words: number;          // library sum (includes cross-library duplicates)
+  libraries_count: number;
+  dictionary_words: number;     // distinct canonical words in tts_cache_{lang}
+  with_translation: number;
+  without_translation: number;
+  valid_words: number;
+  invalid_words: number;        // only rows explicitly flagged invalid
+  validity_checked: number;     // rows a third-party client has checked
+  validity_unchecked: number;
+  tts_percentage: number;       // has_audio / dictionary_words
+  images_percentage: number;
+  review_percentage: number;    // with_translation / dictionary_words
+}
+
 export interface VocabularyStatistics {
-  total_libraries: number;
-  total_words: number;
-  recommended_count: number;
+  summary: {
+    total_languages: number;
+    total_libraries: number;
+    total_words: number;              // library sum (includes duplicates)
+    total_dictionary_words: number;   // distinct canonical words across tts_cache_{lang}
+    total_with_translation: number;
+    total_without_translation: number;
+    total_valid_words: number;
+    total_invalid_words: number;
+    total_validity_checked: number;
+    tts_percentage: number;
+  };
+  languages: VocabularyLanguageStats[];
 }
 
 export interface VocabularyLibrariesResponse {
@@ -484,9 +676,10 @@ export const CoursesPage = () => {
 
 | 项目 | 状态 |
 |------|------|
-| 统计信息API | ✅ 已配置 |
+| 统计信息API（含词典覆盖率/有效性汇总） | ✅ 已扩展 |
 | 推荐词库API | ✅ 已配置 |
 | 词库列表API | ✅ 已配置 |
+| 单词有效性 pending/report API | ✅ 已配置 |
 | 路由已注册 | ✅ 是 |
 | 公开访问（无需认证） | ✅ 是 |
 | 支持过滤和搜索 | ✅ 是 |

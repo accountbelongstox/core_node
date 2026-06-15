@@ -24,7 +24,7 @@ class FileAnalyzeRequest(BaseModel):
     auto_upload: bool = Field(default=True, description="Automatically upload result")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "file_path": "/tmp/document.pdf",
                 "file_type": "pdf",
@@ -72,7 +72,7 @@ class FileAnalyzeResponse(BaseModel):
     error: Optional[str] = None
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "message": "File analyzed successfully",

@@ -14,7 +14,7 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
-from pycore import ColorPrint
+from pycore import ColorPrint, THREAD_BUS
 
 
 @dataclass
@@ -25,6 +25,10 @@ class VoiceSubtitleItem:
     play_count: int = 0
     category: str = "normal"  # 分类（默认"normal"普通）
     created_at: str = ""  # ISO格式时间戳
+    # Which AI produced this item's text (empty for plain user input). Shown in
+    # the UI so every AI-handled task is attributable to its provider/model.
+    ai_provider: str = ""
+    ai_model: str = ""
 
     def __post_init__(self):
         """Initialize created_at if not provided"""
@@ -74,7 +78,7 @@ class VoiceSubtitleQueue:
                 self._enabled = data.get('enabled', False)
 
     def _save_queue(self):
-        """Save queue to disk"""
+        """Save queue to disk and broadcast the new snapshot"""
         with self._lock:
             data = {
                 'queue': [asdict(item) for item in self._queue],
@@ -85,7 +89,14 @@ class VoiceSubtitleQueue:
             with open(self._storage_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
 
-    def add_item(self, text: str, audio_path: str, category: str = "normal") -> None:
+        # Every mutation funnels through here, so this is the single live-update
+        # point: the rpc_v2 server relays the event to its WS clients (registered
+        # in callmodule config), keeping the dashboard queue pages in sync.
+        # Payload shape == GET /voice-subtitle/queue response (minus 'success').
+        THREAD_BUS.trigger_event('voice_subtitle_queue_update', data)
+
+    def add_item(self, text: str, audio_path: str, category: str = "normal",
+                 ai_provider: str = "", ai_model: str = "") -> None:
         """
         Add item to queue
 
@@ -93,12 +104,16 @@ class VoiceSubtitleQueue:
             text: Subtitle text
             audio_path: Path to audio file
             category: Item category (default: "normal")
+            ai_provider: AI provider that produced the text ("" = not AI)
+            ai_model: model id used by that provider
         """
         with self._lock:
-            item = VoiceSubtitleItem(text=text, audio_path=audio_path, category=category)
+            item = VoiceSubtitleItem(text=text, audio_path=audio_path, category=category,
+                                     ai_provider=ai_provider, ai_model=ai_model)
             self._queue.append(item)
             self._save_queue()
-            ColorPrint.blue(f"[VoiceSubtitle] Added item ({category}): {text}")
+            ColorPrint.blue(f"[VoiceSubtitle] Added item ({category}"
+                            f"{', ai=' + ai_provider if ai_provider else ''}): {text}")
 
     def remove_item(self, index: int) -> bool:
         """

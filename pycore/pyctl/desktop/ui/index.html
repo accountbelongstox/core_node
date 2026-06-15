@@ -49,6 +49,10 @@
                     <span class="nav-icon">📊</span>
                     <span class="nav-label">Task Queue</span>
                 </button>
+                <button class="nav-item" data-tool="video-extract">
+                    <span class="nav-icon">🎬</span>
+                    <span class="nav-label">Video Extract</span>
+                </button>
             </nav>
         </aside>
 
@@ -602,6 +606,101 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Video Extract Module -->
+            <div class="module" id="module-video-extract" style="display: none;">
+                <div class="module-header">
+                    <h2>Video Extract</h2>
+                    <div class="module-actions">
+                        <button class="action-btn" id="vePreviewBtn">🔍 Preview</button>
+                        <button class="action-btn" id="veStartBtn">▶ Start</button>
+                        <button class="action-btn danger" id="veStopBtn" style="display:none;">⏹ Stop</button>
+                    </div>
+                </div>
+
+                <div style="padding:14px; overflow:auto;">
+                    <p style="color:var(--text-secondary); font-size:12px; margin:0 0 12px;">
+                        Extract audio (opus/aac/vorbis/mp3), a tiny AI-MP4, and/or an .srt subtitle
+                        (faster-whisper) from a folder of videos or a single file. Outputs mirror the
+                        source tree and are idempotent (existing outputs are skipped).
+                    </p>
+
+                    <!-- Input -->
+                    <fieldset style="border:1px solid var(--border-color,#333); border-radius:8px; padding:10px 12px; margin-bottom:12px;">
+                        <legend style="font-size:12px; color:var(--text-secondary);">Input</legend>
+                        <div style="margin-bottom:8px;">
+                            <label style="margin-right:14px;"><input type="radio" name="veMode" value="folder" checked> Folder (recursive)</label>
+                            <label><input type="radio" name="veMode" value="file"> Single file</label>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input type="text" id="vePath" placeholder="Absolute path, e.g. D:\\videos" style="flex:1; padding:6px;">
+                            <button class="action-btn" id="veBrowseBtn" type="button">📁 Browse</button>
+                            <input type="file" id="veFolderInput" webkitdirectory directory style="display:none;">
+                            <input type="file" id="veFileInput" accept="video/*" style="display:none;">
+                        </div>
+                        <div id="veBrowseHint" style="font-size:11px; color:var(--text-secondary); margin-top:4px;"></div>
+                        <div style="margin-top:8px;">
+                            <input type="text" id="veOutput" placeholder="Output folder (optional; default &lt;folder&gt;/_compressed_result)" style="width:100%; padding:6px;">
+                        </div>
+                    </fieldset>
+
+                    <!-- Audio -->
+                    <fieldset style="border:1px solid var(--border-color,#333); border-radius:8px; padding:10px 12px; margin-bottom:12px;">
+                        <legend style="font-size:12px; color:var(--text-secondary);">Audio</legend>
+                        <div style="margin-bottom:8px;">
+                            <label style="margin-right:12px;"><input type="checkbox" class="ve-fmt" value="mp3" checked> mp3</label>
+                            <label style="margin-right:12px;"><input type="checkbox" class="ve-fmt" value="opus"> opus</label>
+                            <label style="margin-right:12px;"><input type="checkbox" class="ve-fmt" value="aac"> aac</label>
+                            <label><input type="checkbox" class="ve-fmt" value="vorbis"> vorbis</label>
+                        </div>
+                        <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
+                            <label>Bitrate <input type="text" id="veBitrate" placeholder="auto" style="width:70px; padding:4px;"></label>
+                            <label>Sample rate <input type="number" id="veSampleRate" value="22050" style="width:90px; padding:4px;"></label>
+                            <label><input type="checkbox" id="veMono" checked> Mono</label>
+                            <label><input type="checkbox" id="veMakeMp4" checked> Tiny AI-MP4</label>
+                            <label><input type="checkbox" id="veTranslate"> Translate names</label>
+                        </div>
+                    </fieldset>
+
+                    <!-- Subtitle -->
+                    <fieldset style="border:1px solid var(--border-color,#333); border-radius:8px; padding:10px 12px; margin-bottom:12px;">
+                        <legend style="font-size:12px; color:var(--text-secondary);">Subtitle (speech-to-text)</legend>
+                        <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center;">
+                            <label><input type="checkbox" id="veSubtitle" checked> Generate .srt</label>
+                            <label>Engine
+                                <select id="veEngine" style="padding:4px;">
+                                    <option value="faster-whisper" selected>faster-whisper (default)</option>
+                                    <option value="whisper" disabled>openai-whisper (disabled)</option>
+                                </select>
+                            </label>
+                            <label>Language <input type="text" id="veLang" value="en" style="width:60px; padding:4px;"></label>
+                            <label>Model
+                                <select id="veModel" style="padding:4px;">
+                                    <option value="auto" selected>auto (by VRAM)</option>
+                                    <option value="tiny">tiny</option>
+                                    <option value="base">base</option>
+                                    <option value="small">small</option>
+                                    <option value="medium">medium</option>
+                                    <option value="large-v3">large-v3</option>
+                                    <option value="turbo">turbo</option>
+                                </select>
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <!-- Progress -->
+                    <div id="veProgressWrap" style="display:none; margin-bottom:12px;">
+                        <div style="background:var(--bg-secondary,#222); border-radius:6px; height:14px; overflow:hidden;">
+                            <div id="veProgressBar" style="height:100%; width:0%; background:#4caf50; transition:width .3s;"></div>
+                        </div>
+                        <div id="veProgressText" style="font-size:12px; color:var(--text-secondary); margin-top:6px;"></div>
+                    </div>
+
+                    <!-- Results / log -->
+                    <div id="veResult" style="font-size:12px; color:var(--text-secondary);"></div>
+                    <pre id="veLog" style="display:none; max-height:220px; overflow:auto; background:var(--bg-secondary,#111); color:#9fe; padding:8px; border-radius:6px; font-size:11px; white-space:pre-wrap;"></pre>
                 </div>
             </div>
         </main>

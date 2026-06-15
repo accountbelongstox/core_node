@@ -15,6 +15,8 @@ from PySide6.QtGui import QColor
 from typing import Optional
 from pathlib import Path
 
+from pycore import ColorPrint
+
 
 class PySide6WebView(QWidget):
     """
@@ -376,6 +378,11 @@ class PySide6WebView(QWidget):
         """Handle load finished."""
         if success:
             # Hide loading page immediately (no delay needed with QStackedWidget)
+            self.hide_loading_page()
+        else:
+            # Never leave the spinner up forever on a failed/aborted load
+            # (e.g. 404 / connection refused). Surface the error instead.
+            ColorPrint.yellow(f"[PySide6WebView] Load failed: {self.get_url()}")
             self.hide_loading_page()
 
         self.load_finished.emit(success)

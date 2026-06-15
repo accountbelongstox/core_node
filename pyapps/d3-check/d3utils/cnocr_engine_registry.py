@@ -11,7 +11,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 # Engine impl and third_party load in pycore; d3-check only maps task names
-from pycore.pyutils.cnocr_engine_registry import (
+from pycore.pyutils.ocr_cluster.cnocr_engine_registry import (
     ensure_cnocr_loaded_and_engines_initialized as _pycore_ensure,
     get_cnocr_engine_default as _pycore_default,
     get_cnocr_engine_by_model_key as _pycore_by_model_key,

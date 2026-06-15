@@ -1,5 +1,19 @@
 # 全局任务系统 Python Caller - 开发 TODO
 
+> **实现状态（2026-06-11）**：本文档设想的"通用 GlobalTaskClient / TaskWorker 框架"
+> 没有按原计划落地；实际实现是**按用途特化的 worker**：
+> `services/translation_worker_service.py`（register / heartbeat / pull / result，
+> 含结果回传重试与多实例 worker_id，见 `TRANSLATION_WORKER_IMPLEMENTATION.md`）+
+> `services/queue_monitor_service.py` + `services/translation_ws_client_service.py`。
+> 服务端契约要点与本文档的差异：
+> - `POST /api/worker/tasks/accept` **已存在**（幂等确认；pull 本身已原子认领，
+>   accept 仅做确认/补领，冲突返回 409）。
+> - 任务恢复由 Laravel 端 `GlobalTaskMaintenanceTask`（15s）负责：超时释放
+>   （assigned **和** processing）、离线 worker 清理、终态任务保留期清理。
+> - `POST /api/task/{taskId}/cancel` 已存在（pending/assigned/processing 可取消）。
+> 如需新的 worker 类型，参照 translation_worker_service.py 的模式实现即可，
+> 不必先建本文档中的通用框架。以下原始规范仅作 API 参考。
+
 ## 项目概述
 
 在 `pycore/callmodule` 中开发一个 Python 客户端模块，用于调用 Laravel 全局任务系统 API。

@@ -25,6 +25,26 @@ from pathlib import Path
 from typing import Optional, List
 
 
+# Optional executable-launcher hook. pylauncher (a higher layer) registers a
+# provider here at its import time so AppLauncher can launch sidecar executables
+# WITHOUT pyfoundations importing UP into pylauncher (which the layering forbids:
+# pyfoundations may import only pybasecommon + stdlib). When no provider is
+# registered, the executable-search step is simply skipped.
+_executable_launcher_provider = None
+
+
+def register_executable_launcher_provider(provider) -> None:
+    """
+    Register a zero-arg callable that returns an executable-launcher object
+    exposing ``search_and_launch_app_executables(app_dir, app_name, silent=...)``.
+
+    Called by pycore.pylauncher at its import time so app_launcher never imports
+    pylauncher directly (preserves the one-directional layer dependency).
+    """
+    global _executable_launcher_provider
+    _executable_launcher_provider = provider
+
+
 class AppLauncher:
     """
     Application Launcher
@@ -355,18 +375,20 @@ class AppLauncher:
             print(f'App Entry: {self.app_entry}')
             print()
 
-        # Search and launch executable files in app directory
-        # This allows parallel startup of other processes without blocking main app
-        if not is_mcp_mode:
-            print(f'[Launcher] Searching for executable files in app directory...')
-
-        from pycore.pylauncher import get_app_executable_launcher
-        executable_launcher = get_app_executable_launcher()
-        executable_launcher.search_and_launch_app_executables(
-            self.app_dir,
-            self.app_name,
-            silent=is_mcp_mode
-        )
+        # Search and launch executable files in app directory via the registered
+        # provider (pylauncher). This allows parallel startup of other processes
+        # without blocking the main app. Skipped when no provider is registered,
+        # so pyfoundations never imports UP into pylauncher.
+        if _executable_launcher_provider is not None:
+            if not is_mcp_mode:
+                print(f'[Launcher] Searching for executable files in app directory...')
+            executable_launcher = _executable_launcher_provider()
+            if executable_launcher is not None:
+                executable_launcher.search_and_launch_app_executables(
+                    self.app_dir,
+                    self.app_name,
+                    silent=is_mcp_mode
+                )
 
         # Load the app module dynamically
         module_name = f"pyapps.{self.app_name}.{self.app_name}_main"

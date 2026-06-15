@@ -842,7 +842,7 @@ THREAD_BUS = ThreadBus()
 
 def main():
     """Test ThreadBus"""
-    from pycore.pyfoundations.color_print import ColorPrint
+    from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
     ColorPrint.blue("=== Testing ThreadBus ===")
 

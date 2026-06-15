@@ -1,0 +1,23 @@
+=== keys present (image-capable providers) ===
+  KEY  openrouter  image_model=google/gemini-2.5-flash-image-preview
+  KEY  gemini      image_model=gemini-2.5-flash-image
+  KEY  zhipuai     image_model=cogview-3-flash
+  KEY  openai      image_model=dall-e-3
+  ----  dashscope   image_model=wanx2.1-t2i-turbo
+  ----  qianfan     image_model=irag-1.0
+  ----  spark       image_model=spark-tti-v2.1
+  ----  stepfun     image_model=step-1x-medium
+
+=== per-provider direct calls ===
+  FAIL gemini        7018ms  model=gemini-2.5-flash-image  err=ClientError: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more i
+  OK   zhipuai      12129ms  model=cogview-3-flash  31KB -> zhipuai.png
+  SKIP dashscope   (no key)
+  SKIP qianfan     (no key)
+  SKIP spark       (no key)
+  FAIL openrouter    2881ms  model=google/gemini-2.5-flash-image-preview  err=HTTP 404: {"error":{"message":"No endpoints found for google/gemini-2.5-flash-image-preview.","code":404},"user_id":"user_2uUL7GlMTCTq9p0ja4hjU1cSYF3"}
+  FAIL openai        1665ms  model=dall-e-3  err=HTTP 401: {
+  "error": {
+    "message": "Incorrect API key provided: 88_cb5fa*******************************************************e536. You can find your API 
+  SKIP stepfun     (no key)
+
+=== full generate_image() smart dispatch (free-first) ===

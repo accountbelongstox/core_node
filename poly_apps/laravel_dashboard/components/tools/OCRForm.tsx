@@ -8,21 +8,25 @@ import {
   Download,
   Eye,
   Languages,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Eraser
 } from 'lucide-react';
 import { useToolModel } from '../../hooks';
 import { AI_TOOLS } from '../../config/tools.config';
 import ToolWrapper from '../universal/ToolWrapper';
 import HistoryList from '../universal/HistoryList';
-import BentoCard from '../BentoCard';
 import { commonClasses } from '../../styles/theme';
+import {
+  AI_BODY,
+  AI_GRID_2,
+  AiBentoCard,
+  AiToolActions,
+  AiToolAlert,
+  AiToolField,
+  AiToolSegment,
+  AiToolTips,
+} from '../ai-tools/ui';
 
-/**
- * OCRForm - OCR text extraction using centralized architecture
- *
- * Before: 514 lines
- * After: ~220 lines (57% reduction)
- */
 const OCRForm: React.FC = () => {
   const config = AI_TOOLS.ocr;
   const {
@@ -35,7 +39,6 @@ const OCRForm: React.FC = () => {
     clearError
   } = useToolModel(config);
 
-  // Form state
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [imageUrl, setImageUrl] = useState('');
@@ -92,19 +95,12 @@ const OCRForm: React.FC = () => {
 
       const result = await execute(input);
 
-      if (result && result.text) {
-        setExtractedText(result.text);
+      const recognized =
+        result?.text ?? result?.result ?? result?.data?.text ?? '';
+      if (recognized) {
+        setExtractedText(recognized);
       } else {
-        // Fallback mock text for demo
-        const mockText = `Extracted text from image
-
-This is a placeholder for OCR functionality.
-The actual OCR extraction would happen on the backend using:
-- Tesseract OCR
-- Google Cloud Vision API
-- AWS Textract
-- Azure Computer Vision`;
-        setExtractedText(mockText);
+        setExtractedText('No text was recognized in this image.');
       }
     } catch (err) {
       console.error('OCR extraction failed:', err);
@@ -155,38 +151,25 @@ The actual OCR extraction would happen on the backend using:
       onToggleHistory={() => setShowHistory(!showHistory)}
       history={<HistoryList items={history} />}
     >
-      <div className="space-y-4 sm:space-y-6">
-        {/* Upload Mode Selection */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setUploadMode('file')}
-            className={`${commonClasses.button} ${
-              uploadMode === 'file' ? commonClasses.buttonPrimary : commonClasses.buttonSecondary
-            }`}
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Upload File
-          </button>
-          <button
-            onClick={() => setUploadMode('url')}
-            className={`${commonClasses.button} ${
-              uploadMode === 'url' ? commonClasses.buttonPrimary : commonClasses.buttonSecondary
-            }`}
-          >
-            <ImageIcon className="w-4 h-4 mr-2" />
-            Image URL
-          </button>
-        </div>
+      <div className={AI_BODY}>
+        <AiToolSegment
+          value={uploadMode}
+          onChange={(id) => setUploadMode(id as 'file' | 'url')}
+          options={[
+            { id: 'file', label: 'Upload File', icon: Upload },
+            { id: 'url', label: 'Image URL', icon: ImageIcon },
+          ]}
+        />
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Image Input */}
-          <BentoCard title="Image Source">
+        <div className={`${AI_GRID_2} lg:grid-cols-2`}>
+          <AiBentoCard title="Image Source">
             {uploadMode === 'file' ? (
               <div
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
-                className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-8 text-center hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors cursor-pointer"
+                className="border-2 border-dashed border-slate-200 dark:border-slate-600/80 rounded-xl p-8 text-center
+                  hover:border-amber-400/70 dark:hover:border-amber-400/50 hover:bg-amber-50/30 dark:hover:bg-amber-950/10
+                  transition-all duration-200 cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
               >
                 {imagePreview ? (
@@ -194,9 +177,9 @@ The actual OCR extraction would happen on the backend using:
                     <img
                       src={imagePreview}
                       alt="Preview"
-                      className="max-h-64 mx-auto rounded"
+                      className="max-h-64 mx-auto rounded-lg shadow-sm"
                     />
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                    <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
                       {selectedImage?.name}
                     </p>
                   </div>
@@ -226,14 +209,14 @@ The actual OCR extraction would happen on the backend using:
                   value={imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}
                   placeholder="https://example.com/image.jpg"
-                  className={commonClasses.input}
+                  className={`${commonClasses.input} w-full`}
                 />
                 {imageUrl && (
-                  <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+                  <div className="border border-slate-200/80 dark:border-slate-700/80 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-800/30">
                     <img
                       src={imageUrl}
                       alt="Preview"
-                      className="max-h-64 mx-auto rounded"
+                      className="max-h-64 mx-auto rounded-lg"
                       onError={(e) => {
                         e.currentTarget.src = '';
                         e.currentTarget.alt = 'Failed to load image';
@@ -243,17 +226,16 @@ The actual OCR extraction would happen on the backend using:
                 )}
               </div>
             )}
-          </BentoCard>
+          </AiBentoCard>
 
-          {/* Extracted Text */}
-          <BentoCard
+          <AiBentoCard
             title="Extracted Text"
             headerControls={
-              extractedText && (
+              extractedText ? (
                 <div className="flex gap-2">
                   <button
                     onClick={handleCopy}
-                    className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                    className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 flex items-center gap-1"
                   >
                     {copied ? (
                       <>
@@ -269,20 +251,20 @@ The actual OCR extraction would happen on the backend using:
                   </button>
                   <button
                     onClick={handleDownload}
-                    className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                    className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 flex items-center gap-1"
                   >
                     <Download className="w-3 h-3" />
                     Download
                   </button>
                 </div>
-              )
+              ) : undefined
             }
           >
-            <div className={`${commonClasses.input} h-80 overflow-auto bg-slate-50 dark:bg-slate-800`}>
+            <div className={`${commonClasses.input} min-h-[280px] overflow-auto bg-slate-50/80 dark:bg-slate-800/50`}>
               {loading ? (
-                <div className="flex items-center justify-center h-full">
+                <div className="flex items-center justify-center h-full min-h-[240px]">
                   <div className="text-center">
-                    <RefreshCw className="w-8 h-8 animate-spin text-orange-500 mx-auto mb-2" />
+                    <RefreshCw className="w-8 h-8 animate-spin text-amber-500 mx-auto mb-2" />
                     <p className="text-sm text-slate-600 dark:text-slate-400">
                       Extracting text from image...
                     </p>
@@ -291,42 +273,44 @@ The actual OCR extraction would happen on the backend using:
               ) : extractedText ? (
                 <p className="whitespace-pre-wrap">{extractedText}</p>
               ) : (
-                <div className="flex items-center justify-center h-full">
+                <div className="flex items-center justify-center h-full min-h-[240px]">
                   <p className="text-slate-400 text-center">
                     Extracted text will appear here
                   </p>
                 </div>
               )}
             </div>
-          </BentoCard>
+          </AiBentoCard>
         </div>
 
-        {/* Settings */}
-        <BentoCard title="OCR Settings">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Language</label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className={commonClasses.input}
-              >
-                <option value="auto">Auto Detect</option>
-                <option value="en">English</option>
-                <option value="zh">Chinese</option>
-                <option value="ja">Japanese</option>
-                <option value="ko">Korean</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="ar">Arabic</option>
-              </select>
-            </div>
-          </div>
-        </BentoCard>
+        <AiBentoCard title="OCR Settings">
+          <AiToolField label="Language">
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className={`${commonClasses.input} w-full max-w-md`}
+            >
+              <option value="auto">Auto Detect</option>
+              <option value="en">English</option>
+              <option value="zh">Chinese</option>
+              <option value="ja">Japanese</option>
+              <option value="ko">Korean</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="ar">Arabic</option>
+            </select>
+          </AiToolField>
+        </AiBentoCard>
 
-        {/* Action Buttons */}
-        <div className="flex items-center justify-center gap-3">
+        <AiToolActions>
+          <button
+            onClick={handleClear}
+            className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
+          >
+            <Eraser className="w-4 h-4" />
+            Clear
+          </button>
           <button
             onClick={handleExtract}
             disabled={
@@ -334,7 +318,7 @@ The actual OCR extraction would happen on the backend using:
               (uploadMode === 'file' && !selectedImage) ||
               (uploadMode === 'url' && !imageUrl.trim())
             }
-            className={`${commonClasses.button} ${commonClasses.buttonPrimary} px-8 flex items-center gap-2`}
+            className={`${commonClasses.button} ${commonClasses.buttonPrimary} px-8 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             {loading ? (
               <>
@@ -348,38 +332,18 @@ The actual OCR extraction would happen on the backend using:
               </>
             )}
           </button>
-          <button
-            onClick={handleClear}
-            className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
-          >
-            Clear
-          </button>
-        </div>
+        </AiToolActions>
 
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
-            {error}
-          </div>
-        )}
+        {error && <AiToolAlert>{error}</AiToolAlert>}
 
-        {/* Tips */}
-        <BentoCard title="Tips" className="bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20">
-          <ul className="text-sm space-y-2 text-slate-700 dark:text-slate-300">
-            <li className="flex items-start gap-2">
-              <Eye className="w-4 h-4 mt-0.5 flex-shrink-0 text-orange-600" />
-              <span>Best results with clear, high-contrast images</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <Languages className="w-4 h-4 mt-0.5 flex-shrink-0 text-orange-600" />
-              <span>Supports multiple languages - select the appropriate one for better accuracy</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <ImageIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-orange-600" />
-              <span>Works with screenshots, scanned documents, photos of text, and more</span>
-            </li>
-          </ul>
-        </BentoCard>
+        <AiToolTips
+          accent="amber"
+          items={[
+            { icon: Eye, text: 'Best results with clear, high-contrast images' },
+            { icon: Languages, text: 'Supports multiple languages - select the appropriate one for better accuracy' },
+            { icon: ImageIcon, text: 'Works with screenshots, scanned documents, photos of text, and more' },
+          ]}
+        />
       </div>
     </ToolWrapper>
   );

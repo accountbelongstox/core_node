@@ -99,6 +99,21 @@ class TaskController extends Controller
             $updatedAt = $task->updated_at->toISOString();
         }
 
+        $assignedAt = null;
+        if ($task->assigned_at) {
+            $assignedAt = $task->assigned_at->toISOString();
+        }
+
+        $completedAt = null;
+        if ($task->completed_at) {
+            $completedAt = $task->completed_at->toISOString();
+        }
+
+        $timeoutAt = null;
+        if ($task->timeout_at) {
+            $timeoutAt = $task->timeout_at->toISOString();
+        }
+
         return $this->success([
             'task' => [
                 'task_id' => $task->task_id,
@@ -107,11 +122,19 @@ class TaskController extends Controller
                 'execution_type' => $task->execution_type,
                 'status' => $task->status,
                 'progress' => $task->progress,
+                'priority' => $task->priority,
+                'retry_count' => $task->retry_count,
+                'max_retries' => $task->max_retries,
+                'timeout_seconds' => $task->timeout_seconds,
                 'assigned_to' => $task->assigned_to,
+                'payload' => $task->payload,
                 'result' => $task->result,
                 'error' => $task->error,
                 'created_at' => $createdAt,
                 'updated_at' => $updatedAt,
+                'assigned_at' => $assignedAt,
+                'timeout_at' => $timeoutAt,
+                'completed_at' => $completedAt,
             ],
         ], 'Task status retrieved successfully');
     }
@@ -174,6 +197,33 @@ class TaskController extends Controller
                 ];
             }),
         ], 'Tasks list retrieved successfully');
+    }
+
+    /**
+     * Cancel a task
+     *
+     * POST /api/task/{taskId}/cancel
+     *
+     * Pending tasks cancel directly; assigned/processing tasks are revoked
+     * from their worker (its late result is rejected by the ownership check).
+     * Terminal tasks (completed/failed/cancelled) are not cancellable.
+     */
+    public function cancel(string $taskId): JsonResponse
+    {
+        $outcome = $this->taskManager->cancelTask($taskId);
+
+        if ($outcome === 'not_found') {
+            return $this->notFound('Task not found');
+        }
+
+        if ($outcome === 'not_cancellable') {
+            return $this->error('Task already finished — cannot cancel', 409);
+        }
+
+        return $this->success([
+            'task_id' => $taskId,
+            'status' => GlobalTask::STATUS_CANCELLED,
+        ], 'Task cancelled');
     }
 
     /**

@@ -23,6 +23,13 @@ export interface APIRequestConfig {
   timeout?: number;
   cache?: boolean;
   cacheTTL?: number;
+  /**
+   * When false, the request layer must NOT retry on transient
+   * network/timeout failures. Used for probe/info GETs where a single
+   * logical call must never fan out into a 3x retry storm against a slow
+   * or dead endpoint. Defaults to true (existing retry behaviour).
+   */
+  retry?: boolean;
 }
 
 /**
@@ -72,6 +79,12 @@ export interface ToolConfig {
   history?: boolean;
   favorites?: boolean;
   cache?: boolean;
+  /**
+   * When true, the tool's backend endpoint does not exist yet. The UI shows it
+   * with a muted "coming soon" badge and a disabled Execute button so the API
+   * is never called.
+   */
+  unavailable?: boolean;
 }
 
 /**

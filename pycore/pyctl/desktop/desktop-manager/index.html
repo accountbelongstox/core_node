@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Py模块UI界面</title>
+    <!-- Shared, enhanced pycore rpc_v2 WS client (FastAPIWsRpcClient), served by the
+         backend and reached same-origin through the /pyapi reverse proxy. Classic
+         (non-module) script so window.FastAPIWsRpcClient is ready before the app
+         runs; ws.ts uses it when present and falls back to a native socket if not. -->
+    <script defer src="/pyapi/js/rpc/ws_rpc_client.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

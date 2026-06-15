@@ -3,7 +3,7 @@ import { APIResponse } from '../../types';
 
 /**
  * ServerManagerV1 API Module
- * 服务器管理系统API
+ * Server management system API
  */
 export class ServerManagerV1API extends BaseAPI {
   // ========== System Information ==========
@@ -45,16 +45,17 @@ export class ServerManagerV1API extends BaseAPI {
     return this.get('/files/browse', { path });
   }
 
+  // Backend reads `file_path` for download/info/preview (only /files/browse reads `path`).
   async downloadFile(path: string): Promise<APIResponse> {
-    return this.get('/files/download', { path });
+    return this.get('/files/download', { file_path: path });
   }
 
   async getFileInfo(path: string): Promise<APIResponse> {
-    return this.get('/files/info', { path });
+    return this.get('/files/info', { file_path: path });
   }
 
   async previewFile(path: string): Promise<APIResponse> {
-    return this.get('/files/preview', { path });
+    return this.get('/files/preview', { file_path: path });
   }
 
   // ========== Code Executor ==========
@@ -62,7 +63,7 @@ export class ServerManagerV1API extends BaseAPI {
     return this.get('/executor/scripts');
   }
 
-  async executeScript(data: { script: string; args?: any }): Promise<APIResponse> {
+  async executeScript(data: { script?: string; script_id?: number; args?: any }): Promise<APIResponse> {
     return this.post('/executor/run', data);
   }
 
@@ -109,6 +110,58 @@ export class ServerManagerV1API extends BaseAPI {
 
   async reloadNginx(): Promise<APIResponse> {
     return this.post('/nginx/reload');
+  }
+
+  async getNginxStatus(): Promise<APIResponse> {
+    return this.get('/nginx/status');
+  }
+
+  async nginxService(action: 'start' | 'stop' | 'restart' | 'reload'): Promise<APIResponse> {
+    return this.post('/nginx/service', { action });
+  }
+
+  async getNginxLogs(type: 'access' | 'error' = 'error', lines: number = 200, filter?: string): Promise<APIResponse> {
+    // addQueryParams drops undefined/null params, so filter is only sent when set
+    return this.get('/nginx/logs', { type, lines, filter: filter || undefined });
+  }
+
+  /**
+   * Install nginx via the system package manager. Long-running (can take up
+   * to ~15 minutes on a cold apt/yum cache), so it bypasses the module-level
+   * 15s timeout with an explicit per-request timeout and disables retry —
+   * a timed-out install must never be re-fired automatically.
+   */
+  async installNginx(): Promise<APIResponse> {
+    return this.request({
+      url: '/nginx/install',
+      method: 'POST',
+      timeout: 15 * 60 * 1000,
+      retry: false
+    });
+  }
+
+  async getNginxBackups(site?: string): Promise<APIResponse> {
+    return this.get('/nginx/backups', { site: site || undefined });
+  }
+
+  async restoreNginxBackup(file: string): Promise<APIResponse> {
+    return this.post('/nginx/backups/restore', { file });
+  }
+
+  async getNginxMainConfig(): Promise<APIResponse> {
+    return this.get('/nginx/main-config');
+  }
+
+  async checkNginxPort(port: number): Promise<APIResponse> {
+    return this.get('/nginx/port-check', { port });
+  }
+
+  async getNginxMetrics(): Promise<APIResponse> {
+    return this.get('/nginx/metrics');
+  }
+
+  async batchNginxSites(action: 'enable' | 'disable' | 'test', sites: string[]): Promise<APIResponse> {
+    return this.post('/nginx/sites/batch', { action, sites });
   }
 
   // Alias method for UI compatibility
@@ -176,8 +229,8 @@ export class ServerManagerV1API extends BaseAPI {
     return this.listCertificates();
   }
 
-  async generateSSLCertificate(data: { domain: string; email: string }): Promise<APIResponse> {
-    return this.generateCertificate(data);
+  async generateSSLCertificate(data: { domain: string; email?: string; provider?: 'dnspod' | 'cloudflare'; staging?: boolean }): Promise<APIResponse> {
+    return this.generateCertificate({ domain: data.domain, provider: data.provider, staging: data.staging });
   }
 
   async renewSSLCertificates(): Promise<APIResponse> {

@@ -1,6 +1,6 @@
 # D3Check .NET UI Project Standards – Progress
 
-Single DOT standards doc for d3check & dotcore: **progress checklist** + **code conventions**. UI/structure/MVVM/Fluent 2: canonical [DOT_UI_PROJECT_SPECIFICATION.md](../../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md) and [.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc); this doc does not redefine them.
+Single DOT standards doc for d3check & dotcore: **progress checklist** + **code conventions**. UI/structure/MVVM/Fluent 2: canonical [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md) and [.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc); this doc does not redefine them.
 
 ---
 
@@ -25,7 +25,7 @@ Single DOT standards doc for d3check & dotcore: **progress checklist** + **code 
 
 ## 1. Target layout (canonical spec)
 
-[DOT_UI_PROJECT_SPECIFICATION.md](../../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md) §1–§3: Domain→Application→Infrastructure→Presentation; Presentation = Assets/, Components/, Pages/, ViewModels/, Services/, Converters/; [Feature]Page.xaml, [Feature]ViewModel.cs, I[Name]Service, [Action]Command, [Method]Async.
+[DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md) §1–§3: Domain→Application→Infrastructure→Presentation; Presentation = Assets/, Components/, Pages/, ViewModels/, Services/, Converters/; [Feature]Page.xaml, [Feature]ViewModel.cs, I[Name]Service, [Action]Command, [Method]Async.
 
 ---
 

@@ -251,17 +251,27 @@ $cmdRegister = Get-Var -Key ([VarKeys]::CMD_REGISTER)
 Write-Host "  Registering native messaging host..." -ForegroundColor Cyan
 Invoke-Expression $cmdRegister
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ERROR: Native host registration failed" -ForegroundColor Red
-    exit 1
-}
-
 $manifestPath = Get-Var -Key ([VarKeys]::MANIFEST_PATH)
 Write-Host ""
 Write-Host "  Registration Verification:"
 if (Test-Path $manifestPath) {
     Write-Host "  OK Chrome manifest registered" -ForegroundColor Green
     Write-Host "    Location: $manifestPath" -ForegroundColor DarkGray
+    $manifestContent = Get-Content $manifestPath -Raw
+    Write-Host "  Manifest content:" -ForegroundColor DarkGray
+    Write-Host "  $manifestContent" -ForegroundColor DarkGray
+} else {
+    Write-Host "  WARNING: Manifest file not found at: $manifestPath" -ForegroundColor Yellow
+    Write-Host "  Native messaging host may not work correctly" -ForegroundColor Yellow
+}
+
+# Verify Windows registry key
+$regKeyPath = "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.chromemcp.nativehost"
+if (Test-Path $regKeyPath) {
+    Write-Host "  OK Windows registry key exists" -ForegroundColor Green
+} else {
+    Write-Host "  WARNING: Windows registry key not found at: $regKeyPath" -ForegroundColor Yellow
+    Write-Host "  Chrome may not be able to discover the native messaging host" -ForegroundColor Yellow
 }
 
 # ======================================

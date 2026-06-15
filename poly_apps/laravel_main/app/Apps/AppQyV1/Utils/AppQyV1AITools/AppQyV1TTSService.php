@@ -133,14 +133,14 @@ class AppQyV1TTSService
                 'success' => true,
                 'cached' => true,
                 'audio_path' => $relativePath,
-                'audio_url' => '/app_qy_v1/ai_tools/tts/audio/' . $relativePath,
+                'audio_url' => AppQyV1TtsUrl::forPath($relativePath),
                 'text' => $text,
                 'language' => $langCode,
                 'type' => $textType,
                 'speed' => $rate,
             ];
         }
-        
+
         $voices = self::getVOICES();
         $voice = $voices[$langCode];
         $volume = $options['volume'] ?? '+0%';
@@ -159,7 +159,7 @@ class AppQyV1TTSService
                     'success' => true,
                     'cached' => false,
                     'audio_path' => $relativePath,
-                    'audio_url' => '/app_qy_v1/ai_tools/tts/audio/' . $relativePath,
+                    'audio_url' => AppQyV1TtsUrl::forPath($relativePath),
                     'text' => $text,
                     'language' => $langCode,
                     'type' => $textType,
@@ -278,7 +278,7 @@ class AppQyV1TTSService
                         'success' => true,
                         'cached' => true,
                         'audio_path' => $path,
-                        'audio_url' => '/app_qy_v1/ai_tools/tts/audio/' . $path,
+                        'audio_url' => AppQyV1TtsUrl::forPath($path),
                         'text' => $entry->content,
                         'language' => $langCode,
                         'type' => $ttsFile['type'] ?? 'sentence',

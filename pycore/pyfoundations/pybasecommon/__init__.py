@@ -4,6 +4,7 @@
 PyBaseCommon - Common base utilities for pyfoundations
 """
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import (
     Commander,
     CommandResult,
@@ -16,8 +17,28 @@ from pycore.pyfoundations.pybasecommon.commander import (
     get_command_output,
     run_background,
 )
+from pycore.pyfoundations.pybasecommon.encyclopedia import Encyclopedia, ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.compute_caps import (
+    CUDADetector,
+    is_cuda_available,
+    get_cuda_info,
+    ORT_CPU_PKG,
+    ORT_GPU_PKG,
+    CNOCR_PIP_CPU,
+    CNOCR_PIP_GPU,
+    get_ort_install_package,
+    get_cnocr_pip_package,
+    get_paddle_install_package,
+    is_onnx_cuda_usable,
+    ensure_onnx_cuda_usable,
+    clear_onnx_cuda_usable_cache,
+    last_ort_install_ran,
+    CudaInitializer,
+    ORT_CUDA_REQUIREMENTS_URL,
+)
 
 __all__ = [
+    'ColorPrint',
     'Commander',
     'CommandResult',
     'commander',
@@ -28,5 +49,23 @@ __all__ = [
     'command_exists',
     'get_command_output',
     'run_background',
+    'Encyclopedia',
+    'ENCYCLOPEDIA',
+    'CUDADetector',
+    'is_cuda_available',
+    'get_cuda_info',
+    'ORT_CPU_PKG',
+    'ORT_GPU_PKG',
+    'CNOCR_PIP_CPU',
+    'CNOCR_PIP_GPU',
+    'get_ort_install_package',
+    'get_cnocr_pip_package',
+    'get_paddle_install_package',
+    'is_onnx_cuda_usable',
+    'ensure_onnx_cuda_usable',
+    'clear_onnx_cuda_usable_cache',
+    'last_ort_install_ran',
+    'CudaInitializer',
+    'ORT_CUDA_REQUIREMENTS_URL',
 ]
 

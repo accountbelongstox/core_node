@@ -63,6 +63,16 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::post('disable', [ServerManagerV1NginxManagerCtl::class, 'disableSite']);
         Route::post('test', [ServerManagerV1NginxManagerCtl::class, 'testConfig']);
         Route::post('reload', [ServerManagerV1NginxManagerCtl::class, 'reloadNginx']);
+        Route::get('status', [ServerManagerV1NginxManagerCtl::class, 'statusOverview']);
+        Route::post('service', [ServerManagerV1NginxManagerCtl::class, 'serviceControl']);
+        Route::get('logs', [ServerManagerV1NginxManagerCtl::class, 'logs']);
+        Route::post('install', [ServerManagerV1NginxManagerCtl::class, 'install']);
+        Route::get('backups', [ServerManagerV1NginxManagerCtl::class, 'listBackups']);
+        Route::post('backups/restore', [ServerManagerV1NginxManagerCtl::class, 'restoreBackup']);
+        Route::get('main-config', [ServerManagerV1NginxManagerCtl::class, 'mainConfig']);
+        Route::get('port-check', [ServerManagerV1NginxManagerCtl::class, 'portCheck']);
+        Route::get('metrics', [ServerManagerV1NginxManagerCtl::class, 'metrics']);
+        Route::post('sites/batch', [ServerManagerV1NginxManagerCtl::class, 'batchSites']);
     });
     
     // Unified Manager Routes

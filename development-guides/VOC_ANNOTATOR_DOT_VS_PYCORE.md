@@ -22,7 +22,7 @@ This document (1) restates the task in a clear, structured form; (2) compares py
 **Deliverables**
 
 - Implement missing dotcore libraries and d3check integration (UI + logic).
-- **Update code and documentation** where they conflict with this architecture or with the dot vs pycore mapping (e.g. DOT_D3CHECK_*, DOT_PUBLIC_LIBRARY_PROGRESS, DOT_ARCHITECTURE; **for UI layer use [DOT_UI_PROJECT_SPECIFICATION.md](DOT_UI_PROJECT_SPECIFICATION.md) as canonical**).
+- **Update code and documentation** where they conflict with this architecture or with the dot vs pycore mapping (e.g. DOT_D3CHECK_*, DOT_PUBLIC_LIBRARY_PROGRESS, DOT_ARCHITECTURE; **for UI layer use [DOT_ARCHITECTURE.md](DOT_ARCHITECTURE.md) as canonical**).
 
 ---
 

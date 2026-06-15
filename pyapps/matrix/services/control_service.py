@@ -11,7 +11,7 @@ except ImportError:
 from typing import Optional, Dict, Set, TYPE_CHECKING
 import asyncio
 from pycore.pyutils.control import TouchEvent, KeyEvent, MessageBuilder
-from pycore.pyutils.device_manager import device_manager
+from pycore.pyutils.device.device_manager import device_manager
 from pycore.pyutils.device import ADBManager
 from pycore.pyutils.group import SyncEvent
 from pyapps.matrix.matrix_config import Config

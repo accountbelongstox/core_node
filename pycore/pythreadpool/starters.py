@@ -27,6 +27,10 @@ from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import (
     PYSTRAY_AVAILABLE
 )
 from pycore.pyutils.native_ui.step6_tray.tray_thread import TkinterSystemTrayThread
+from pycore.pyutils.native_ui.step6_tray.win32_system_tray import (
+    Win32SystemTrayThread,
+    WIN32_AVAILABLE,
+)
 
 
 # ============================================================
@@ -249,10 +253,17 @@ def start_ui(config: Dict[str, Any]) -> Any:
     webview_url = config.get('webview_url', 'http://localhost:59000')
     show_on_start = config.get('show_on_start', True)
     frameless = config.get('frameless', False)
+    # When the embedded web draws its own (simulated) title bar, disable the Qt
+    # one to avoid stacking duplicate title bars. Defaults True for back-compat.
+    enable_title_bar = config.get('enable_title_bar', True)
     icon_path = config.get('icon_path')
     logo_path = config.get('logo_path')
     menu_icon_path = config.get('menu_icon_path')
     enable_tray = config.get('enable_tray', False)
+    tray_icon_path = config.get('tray_icon_path')
+    tray_menu_items = config.get('tray_menu_items', [])
+    minimize_to_tray = config.get('minimize_to_tray', False)
+    close_to_tray = config.get('close_to_tray', False)
     enable_webview = config.get('enable_webview', True)
     enable_dev_tools = config.get('enable_dev_tools', False)
     debug = config.get('debug', False)
@@ -270,6 +281,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
     ColorPrint.blue(f"[ui]   - webview_url: {webview_url}")
     ColorPrint.blue(f"[ui]   - show_on_start: {show_on_start}")
     ColorPrint.blue(f"[ui]   - frameless: {frameless}")
+    ColorPrint.blue(f"[ui]   - enable_title_bar: {enable_title_bar}")
     ColorPrint.blue(f"[ui]   - icon_path: {icon_path}")
     ColorPrint.blue(f"[ui]   - logo_path: {logo_path}")
     ColorPrint.blue(f"[ui]   - menu_icon_path: {menu_icon_path}")
@@ -289,10 +301,15 @@ def start_ui(config: Dict[str, Any]) -> Any:
         window_size=window_size,
         show_on_start=show_on_start,
         frameless=frameless,
+        enable_title_bar=enable_title_bar,
         icon_path=icon_path,
         logo_path=logo_path,
         menu_icon_path=menu_icon_path,
         enable_tray=enable_tray,
+        tray_icon_path=tray_icon_path,
+        tray_menu_items=tray_menu_items,
+        minimize_to_tray=minimize_to_tray,
+        close_to_tray=close_to_tray,
         enable_webview=enable_webview,
         webview_url=webview_url,
         enable_dev_tools=enable_dev_tools,
@@ -387,11 +404,39 @@ def start_tray(config: Dict[str, Any]) -> Any:
     icon_path = config.get('icon_path')
     menu_items = config.get('menu_items', [])
     trigger_shutdown = config.get('trigger_shutdown_on_exit', True)
+    # Backend preference: "native" (platform-native: win32 on Windows,
+    # AppIndicator on Ubuntu/GNOME), or "pystray" to force the cross-platform
+    # third-party fallback. ("pyside" is handled by the UI framework, not here.)
+    backend = (config.get('backend') or 'native').lower()
     adapter = get_platform_adapter()
-    recommended = adapter.get_recommended_tray_backend()
 
-    # Ubuntu/GNOME desktop: try AppIndicator first
-    if recommended == PlatformTrayBackend.APPINDICATOR and adapter.can_use_tray():
+    def _register_stop_handler(label: str):
+        def stop_tray():
+            ColorPrint.blue(f"[tray] Stopping System Tray ({label})...")
+            THREAD_BUS.trigger_event('tray.request_stop', {})
+            ColorPrint.green("[tray] System Tray stop signal sent")
+        priority = THREAD_REGISTRY['tray']['shutdown_priority']
+        THREAD_BUS.register_shutdown_handler(handler=stop_tray, priority=priority, name="tray")
+
+    # ---- Windows native: Win32 Shell_NotifyIcon (pywin32, no third-party) ----
+    if backend != 'pystray' and adapter.is_windows and WIN32_AVAILABLE:
+        try:
+            tray_thread = Win32SystemTrayThread(
+                app_name=app_name,
+                icon_path=icon_path,
+                menu_items=menu_items,
+                trigger_shutdown_on_exit=trigger_shutdown,
+                daemon=True,
+            )
+            tray_thread.start()
+            _register_stop_handler("Win32")
+            ColorPrint.green(f"[tray] System Tray started (native Win32): {app_name}")
+            return tray_thread
+        except Exception as e:
+            ColorPrint.yellow(f"[tray] Win32 native tray failed ({e}), falling back to pystray")
+
+    # ---- Ubuntu/GNOME native: AppIndicator (Ayatana preferred) ----
+    if backend != 'pystray' and adapter.is_linux and adapter.can_use_tray():
         try:
             from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
                 AppIndicatorSystemTrayThread,
@@ -410,18 +455,13 @@ def start_tray(config: Dict[str, Any]) -> Any:
                     daemon=True
                 )
                 tray_thread.start()
-                def stop_tray():
-                    ColorPrint.blue("[tray] Stopping System Tray (AppIndicator)...")
-                    THREAD_BUS.trigger_event('tray.request_stop', {})
-                    ColorPrint.green("[tray] System Tray stop signal sent")
-                priority = THREAD_REGISTRY['tray']['shutdown_priority']
-                THREAD_BUS.register_shutdown_handler(handler=stop_tray, priority=priority, name="tray")
-                ColorPrint.green(f"[tray] System Tray started (AppIndicator): {app_name}")
+                _register_stop_handler("AppIndicator")
+                ColorPrint.green(f"[tray] System Tray started (native AppIndicator): {app_name}")
                 return tray_thread
         except Exception as e:
             ColorPrint.yellow(f"[tray] AppIndicator unavailable ({e}), falling back to pystray")
 
-    # Fallback: pystray (TkinterSystemTrayThread)
+    # ---- Fallback: pystray (cross-platform third-party) ----
     if not PYSTRAY_AVAILABLE:
         ColorPrint.red("[tray] pystray not available, tray service disabled")
         return None
@@ -434,15 +474,8 @@ def start_tray(config: Dict[str, Any]) -> Any:
         daemon=True
     )
     tray_thread.start()
-
-    def stop_tray():
-        ColorPrint.blue("[tray] Stopping System Tray...")
-        THREAD_BUS.trigger_event('tray.request_stop', {})
-        ColorPrint.green("[tray] System Tray stop signal sent")
-
-    priority = THREAD_REGISTRY['tray']['shutdown_priority']
-    THREAD_BUS.register_shutdown_handler(handler=stop_tray, priority=priority, name="tray")
-    ColorPrint.green(f"[tray] System Tray started: {app_name}")
+    _register_stop_handler("pystray")
+    ColorPrint.green(f"[tray] System Tray started (pystray fallback): {app_name}")
     return tray_thread
 
 

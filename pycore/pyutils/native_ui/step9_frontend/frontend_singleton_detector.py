@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from pycore import THREAD_BUS
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 # ============================================================

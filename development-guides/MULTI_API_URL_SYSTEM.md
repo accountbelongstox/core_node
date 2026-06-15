@@ -176,6 +176,234 @@
 
 ---
 
+---
+
+## Realized detection contract (English, authoritative — updated 2026-05-19, "API detection redundancy fix")
+
+> This section is authoritative and **supersedes** the older "60s background
+> check interval" and "select-then-background-test-the-rest" descriptions above
+> for `laravel_dashboard`. The earlier flow caused a redundant-probe storm and a
+> ~21s preflight hang; the realized behavior is below.
+>
+> **⚠️ CORRECTION 2026-06-11 — STORED-FIRST detection + per-end all-Offline
+> recheck; supersedes all earlier detection wording in this section (the
+> 2026-05-19 "parallel-all-once / no timers / no retries" note included).
+> Canonical write-up: `poly_apps/laravel_dashboard/EndpointsProcess.md`
+> "Endpoint detection / health-check".** Detection is automatic at app
+> startup, NOT lazy and NOT click-triggered.
+
+### Detection (frontend, `services/ApiManager.ts` — stored-first)
+Every entry point (startup, all-Offline interval retry, manual Re-detect) runs
+the SAME single-flight pass (`recheckEndpoints()`, StrictMode-safe, config
+3000ms probe timeout — never override shorter):
+1. **Stored-first**: probe ONLY the stored last-used endpoint
+   (`api_user_modified` → `api_current_endpoint` → `api_auto_detected`). If it
+   answers, keep it — nothing else is probed (one request total).
+2. **Else full sweep**: probe ALL endpoints in parallel and auto-switch to the
+   highest-weight healthy one (user pin → stored → config priority), written
+   back to `api_auto_detected`/`api_current_endpoint`. Auto-detection **NEVER
+   overwrites `api_user_modified`** — 以能使用的为准, a dead manual choice still
+   yields a working session endpoint without deleting the saved manual key.
+3. **Else interval retry**: while everything is Offline, re-run the same pass
+   at the configurable `healthCheckInterval` (default 60s, floor 5s) and stop
+   on first recovery. A healthy backend is never polled; the loop only runs
+   while its end is mounted (path-prefix gated). The other two ends (wordflow
+   `WordflowApiManager.recheckAndFailover()`, pycore `PycoreHealth.ts` single
+   `/pyapi/ping`) follow the same contract.
+
+`App.tsx` triggers the startup pass; the pass dispatches
+`api-health-initialized` when it settles. `ApiEndpointSwitcher.tsx` is
+**read-only** apart from its Re-detect button (same stored-first pass) and the
+interval setting; it never probes on dropdown open. All endpoints are kept in
+`config/api-endpoints.ts` (no pruning).
+
+### Canonical endpoint contract
+| Endpoint | Behavior | Auth | Cache |
+|---|---|---|---|
+| `GET {base}/api/health` | `200 { status:'healthy', service, timestamp, version }`, liveness-only; cheap OPTIONS preflight via CORS fast-path, no web/Sanctum middleware | none | `no-store, max-age=0` |
+| `GET {base}/api_info[?app=]` | catalog JSON (body unchanged) | as before | server `ETag` + `Cache-Control: public, max-age=300, stale-while-revalidate=600` (304 on `If-None-Match`); client 60s TTL cache + single-flight; fetched with `retry=false` |
+
+Backend root cause that was fixed (`laravel_main`): `/api_info` is a
+`routes/web.php` route; previously no `cors.php` path matched it, so the OPTIONS
+preflight fell through the full web middleware stack (~21s hang). Fix:
+`config/cors.php` `paths` now includes `'api/health'` and `'api_info'` and
+`max_age` is `env('CORS_MAX_AGE', 86400)` (browser caches preflights);
+`GET /api/health` bypasses Sanctum/session middleware; `/api_info` emits stable
+ETag + `Cache-Control` and handles `If-None-Match` → 304.
+
+### ⚠️ LINKED-CHANGE constraint (联动改)
+
+> **The frontend probing contract and the backend `/api/health` + CORS/`cors.php`
+> paths + `/api_info` caching MUST be changed together — changing one side's
+> health/api_info contract, CORS paths, or cache headers without the other
+> reintroduces the preflight-hang / redundant-probe bug.**
+
+Treat the stored-first probe / precedence / single-flight
+(`recheckEndpoints()`) in `ApiManager.ts`, the `/api/health` route + its
+middleware bypass + body shape, the `cors.php` `paths`/`max_age`, and the
+`/api_info` ETag/`Cache-Control` as **one coordinated contract** — never edit
+one side alone.
+
+### noise.svg → local data-URI (frontend init hygiene — 2026-05-19)
+
+Separate, **frontend-only** init-hygiene change for `laravel_dashboard` with
+**no backend coupling** (not part of the linked health/CORS contract above): the
+external decorative texture `https://grainy-gradients.vercel.app/noise.svg`
+(which 404'd and triggered N failed cross-origin requests during init) was
+replaced with a fully local inline SVG `feTurbulence` data URI defined once in
+`poly_apps/laravel_dashboard/utils/noiseTexture.ts` and consumed by
+`BentoCard.tsx` and `tools/HexToRgb.tsx`. No external/CDN dependency remains.
+Not JS-blocking, but removes network/console overhead during init.
+
+---
+
+## Availability-first selection + cold-boot timeout (qy_capacitor / wordflow-ai — 2026-05-28)
+
+> Authoritative for `poly_apps/qy_capacitor`. Refines the realized contract above:
+> **availability is the PRIMARY sort key for endpoint selection — including for
+> the value read from localStorage.** A stored choice only ranks *higher in
+> weight*; it is never blindly pinned.
+
+### Selection rule (`services/ApiManager.ts`)
+- `initialize({ autoDetect: true })` probes **all endpoints once in parallel**
+  (`checkAllEndpoints`), then `selectAvailabilityFirst(results)` chooses:
+  1. **Filter to healthy endpoints only** (availability = primary key — an
+     unhealthy endpoint is never chosen while any healthy one exists).
+  2. Among the healthy set, tie-break by weight, lowest-rank first:
+     `api_user_modified` (0) → `api_auto_detected` (1) → config `priority`
+     ascending (2).
+  3. Persist the winner to `api_auto_detected` + `api_current_endpoint`. The
+     `api_user_modified` key is **never** written by auto-detection — only the
+     manual switcher (`setEndpoint`) owns it, so a dead manual choice survives
+     in storage yet still yields a *working* session endpoint.
+  4. If nothing is healthy → fall back to highest-priority endpoint, logged,
+     left marked unhealthy (rare last resort).
+- **Bug this fixed:** the old `initialize()` early-returned on a stored
+  `api_user_modified` / `api_auto_detected` id without probing, and the
+  "no healthy" path used `getAllEndpoints()[0]` — so on a same-machine/WSL dev
+  box it blind-pinned the unreachable priority-1 LAN IP (`192.168.50.3:9000`)
+  instead of the reachable `localhost:9000`.
+
+### Probe timeout vs `artisan serve` cold boot
+- Dev backend (`laravel_main`) runs under `php artisan serve` with **no
+  config/route cache and no opcache reuse**, so it cold-boots the whole
+  framework **per request** (~2.5s, ~27 MB peak observed) — this cost is **not
+  health-specific** (the `/api/health` route itself is already cheap and
+  correctly strips Sanctum/`GoLatency` via `withoutMiddleware`; CORS in
+  `config/cors.php` already lists `api/health`). A 1s probe aborts before a
+  healthy localhost can reply, which is what made every endpoint look dead.
+- Mitigation (frontend): probe `timeout` raised **1000 → 3000ms**
+  (`config/api-endpoints.ts` `GLOBAL_API_ENDPOINTS.timeout`,
+  `ApiManager.initialize` default, and the `AppContext.tsx` call site) to clear
+  the cold-boot window.
+- **Durable cure (dev-runtime, not the probe):** run
+  `php artisan config:cache && php artisan route:cache` in dev, or serve via
+  **Octane (Swoole)** so the worker stays warm — that drops every request
+  (including `/health`) to single-digit ms. No `/api/health` code change was
+  warranted.
+
+### Auto current-origin endpoint (qy_capacitor — 2026-05-28)
+
+> The page's **current origin** is auto-injected as the **highest-priority
+> (weight 0)** endpoint, so a same-origin backend is always tried first.
+
+- `config/api-endpoints.ts` adds `getCurrentOriginEndpoint()` — it derives an
+  `ApiEndpoint` from `window.location` (protocol + hostname + port), id
+  `current-origin` (`CURRENT_ORIGIN_ENDPOINT_ID`), `priority: 0`. It reuses the
+  **same `/api` path contract** as the static endpoints — only the host/port
+  come from wherever the app is served (e.g. `http://localhost`).
+- `getAllEndpoints()` prepends it (deduped against any identical
+  protocol/host/port already configured) and sorts by priority, so it leads the
+  probe/selection order and shows first in the switcher + testing center.
+  `getEndpointById('current-origin')` re-derives it fresh from `window.location`
+  (so a stored auto/manual choice of it stays correct across reloads).
+- Safe by construction: it is **availability-first** like every other endpoint —
+  if the current origin can't serve `/api/health` (e.g. split Vite dev server on
+  a different port with no proxy), its probe fails and the manager falls through
+  to the next healthy endpoint. Returns null for non-http(s) origins
+  (SSR / `file://` / `capacitor://`), so nothing is injected there.
+- Primary benefit: production / reverse-proxy / same-origin Capacitor hosting,
+  where the frontend and backend share an origin — that origin is now selected
+  first with zero manual configuration.
+
+---
+
+## Master API base client (laravel_dashboard `core/api-libs/base` — 2026-06-12)
+
+> Authoritative for `poly_apps/laravel_dashboard`. One MASTER HTTP base client
+> that the three end API libs inherit:
+> `core/api-libs/base/{MasterApiClient.ts, RequestQueue.ts, index.ts}`.
+> Design parents: `pycore/pyutils/rpc/client/unified_rpc_client.js`
+> (PYTHON_PYCORE.md §8.1 — NO TIMEOUT + localStorage pending-request
+> persistence + reconnect resume) and NODE_NCORE_GUIDE.md §11 (unified
+> http-client POST retry queue while the endpoint is unavailable).
+
+### No-arbitrary-timeout rule
+- **No more arbitrary frontend timeouts** (the old 5s/8s/20s tiers in
+  wordflow's `request()` are deleted). The ONLY guard is a single
+  AbortController **ceiling against truly dead sockets — default 30 MINUTES**
+  (`DEFAULT_CEILING_MS`, "一般30分钟"); per-call override via `ceilingMs`;
+  `ceilingMs: 0` waits forever (rpc-client parity).
+- **Endpoint-detection PROBES are NOT `request()`** — the stored-first
+  detection path (`WordflowApiManager.checkEndpoint`, `config 3000ms probe
+  timeout`) is load-bearing and stays exactly as specified in the detection
+  contract above. Never route probes through the master client.
+
+### Persistent offline write queue
+- A **QUEUEABLE** request (caller `queueable: true`, or the subclass's
+  `isQueueableEndpoint(endpoint, method)` default — idempotent POST writes
+  only) that fails with a **NETWORK-level error** (fetch `TypeError`,
+  `navigator.onLine === false`) or hits the ceiling is persisted to
+  localStorage under a **per-end namespaced key** (wordflow: `wf_api_queue`)
+  as `{ id, baseUrlKey, endpoint, method, headers-minus-auth-header, body,
+  createdAt, attempts }`. The caller's promise rejects with a distinguishable
+  **`QueuedError`** (`isQueuedError()`), so UIs show "saved offline, will
+  sync" (locale key `common.queuedOffline`, all 7 wf-locales) instead of a
+  failure.
+- **NEVER queued**: GETs (enforced), non-queueable calls (they reject exactly
+  as before), non-string bodies (FormData/streams). **Tokens are NEVER
+  persisted** — entries store headers minus the auth header names; the live
+  token is re-resolved per replay attempt via `resolveAuthHeaders()`.
+- Cap **100 entries** (oldest dropped first), entries **older than 24h pruned
+  on load**, identical pending entries (endpoint + method + body) **deduped**.
+- **Replay** (FIFO, sequential, single-flight; base URL + token re-resolved
+  per attempt) triggers: window `'online'`, construction (app start), and the
+  end's endpoint-recovered hook — wordflow wires
+  `WORDFLOW_API_HEALTH_EVENT` + `apiManager.hasHealthyEndpoint()` →
+  `drainQueue()`. Success removes the entry; a network failure **stops the
+  drain** (retried on the next trigger); an **HTTP 4xx/5xx answer REMOVES the
+  entry** and emits `queue-entry-failed` — the server answered, it is not a
+  connectivity problem, so replaying forever would be wrong.
+- Observability: `onQueueChange(cb)` (`{ size, draining }`) and
+  `onQueueEntryFailed(cb)` on the client (tiny internal emitter — the base
+  never imports any end's event bus); passthroughs on `wordflowApi`.
+
+### Inheritance contract (the 3 ends)
+- The base is **END-AGNOSTIC**; subclass hooks: `resolveBaseUrl()`,
+  `resolveAuthHeaders()`, `isQueueableEndpoint()` default, `authHeaderNames()`,
+  `queuedMessage()`, plus config `queueStorageKey` (queue disabled when
+  omitted) and `log` fn (the dashboard logStore `appendLog` pattern).
+- **wordflow — ENABLED** (`WordflowTransport` in
+  `core/api-libs/wordflow/WordflowApi.ts`): the master client owns transport
+  (URL + token/X-App-Language injection + 30-min ceiling + queue);
+  `WordflowApiService.request()` keeps parsing (BOM-safe), envelope unwrap,
+  error surfacing and caching. Queueable defaults (idempotent writes):
+  `/group/add_library`, `/group/add_media_source`, `/group/remove_library`,
+  `/group/remove_word`, `/group/remove_media_source`, `/create_group`,
+  `/learning/collections/select`, `/learning/progress`,
+  `/ai_tools/translation/queue/batch/add`, `/ai_tools/tts/queue/batch/add`,
+  `/create_personal_dictionary`, `/delete_personal_dictionary_by_id`,
+  `/delete_personal_all_dictionary`.
+- **laravel — pass-through** (`LaravelMasterClient`, queue disabled): the
+  existing `core/api` BaseAPI stack keeps its current timeout/retry behavior
+  unchanged; the subclass is the structural opt-in point for later.
+- **pycore — pass-through** (`PycoreMasterClient`, queue disabled,
+  `defaultCeilingMs: 0` = the previous no-timeout plain-fetch behavior): only
+  the HTTP parts (`getJSON`/`postJSON` over `/pyapi/*`) wrap the base; the WS
+  RPC path is untouched.
+
+---
+
 ## 🔗 参考实现
 
 - **laravel_dashboard**: `/services/ApiManager.ts` + `/config/api-endpoints.ts`
@@ -185,6 +413,6 @@
 
 ---
 
-**文档版本**: v3.0 (精简版)
-**最后更新**: 2025-12-15
+**文档版本**: v3.3 (精简版 + realized detection contract + availability-first selection + master API base client)
+**最后更新**: 2026-06-12
 **适用范围**: 所有前端应用

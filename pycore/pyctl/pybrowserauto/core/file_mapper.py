@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse, unquote
 from typing import Optional
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.pybrowser.utils.file_utils import FileUtils
 
 

@@ -44,7 +44,7 @@ All config and shared app state go through the above; no duplicate stores. See [
 | App entry | pyapps/d3-check/main.py | dotapps/d3check/ App.xaml.cs + MainWindow. |
 | Dependency rule | App uses pycore; app does not use another pyapps app. | App references dotcore and D3CheckCore; D3CheckCore references only dotcore. No app-to-app refs. |
 
-Canonical: [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md), [PYCORE_PYAPPS_STRUCTURE.md](../../../development-guides/PYCORE_PYAPPS_STRUCTURE.md), [.cursor/rules/dot.mdc](../../../.cursor/rules/dot.mdc). **UI layer:** canonical spec [DOT_UI_PROJECT_SPECIFICATION.md](../../../development-guides/DOT_UI_PROJECT_SPECIFICATION.md), [.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc).
+Canonical: [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md), [PYCORE_PYAPPS_STRUCTURE.md](../../../development-guides/PYCORE_PYAPPS_STRUCTURE.md), [.cursor/rules/dot.mdc](../../../.cursor/rules/dot.mdc). **UI layer:** canonical spec [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md), [.cursor/rules/dot-ui.mdc](../../../.cursor/rules/dot-ui.mdc).
 
 ---
 

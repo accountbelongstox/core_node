@@ -8,6 +8,7 @@ from .ocr_processor import OCRProcessor
 from .audio_processor import AudioProcessor
 from .file_processor import FileProcessor
 from .video_processor import VideoProcessor
+from .video_extract_processor import VideoExtractProcessor
 
 __all__ = [
     "ScreenshotProcessor",
@@ -15,4 +16,5 @@ __all__ = [
     "AudioProcessor",
     "FileProcessor",
     "VideoProcessor",
+    "VideoExtractProcessor",
 ]

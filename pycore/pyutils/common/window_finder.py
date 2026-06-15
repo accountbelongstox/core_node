@@ -12,8 +12,8 @@ from pycore.pyfoundations.third_party import get_third_package_win32gui
 
 win32gui = get_third_package_win32gui()
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 
 # Last lookup result per cache_key (found or not). Log only on state change.
 _window_finder_last_found: Dict[str, bool] = {}

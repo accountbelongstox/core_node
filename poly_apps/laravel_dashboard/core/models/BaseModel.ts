@@ -7,12 +7,12 @@ export interface ModelResult<T = any> {
 }
 
 /**
- * BaseModel - 所有业务模型的基类
- * 提供统一的API调用封装和错误处理
+ * BaseModel - Base class for all business models
+ * Provides unified API call wrapping and error handling
  */
 export class BaseModel {
   /**
-   * 执行API调用并统一处理响应
+   * Execute an API call and handle the response uniformly
    */
   protected async execute<T = any>(apiCall: Promise<APIResponse>): Promise<ModelResult<T>> {
     try {
@@ -27,7 +27,7 @@ export class BaseModel {
   }
 
   /**
-   * 批量执行API调用
+   * Execute API calls in batch
    */
   protected async executeBatch<T = any>(apiCalls: Promise<APIResponse>[]): Promise<ModelResult<T>[]> {
     const results = await Promise.allSettled(apiCalls);
@@ -44,7 +44,7 @@ export class BaseModel {
   }
 
   /**
-   * 处理分页响应
+   * Handle paginated responses
    */
   protected handlePaginatedResponse<T>(response: APIResponse): ModelResult<{ items: T[]; total: number; page: number }> {
     if (response.success && response.data) {

@@ -15,12 +15,21 @@ export enum ViewType {
   SYSTEM_INFO = 'system',
   VOCABULARY = 'vocabulary',
   MCP_MANAGER = 'mcp',
+  /** Unified Task Center (scheduler + queue + workers tabs). */
+  TASK_CENTER = 'task_center',
+  /** Legacy deep-link values — both render TaskCenter on a specific tab. */
   OCTANE_TASKS = 'octane',
+  GLOBAL_TASKS = 'global_tasks',
   SERVER_MANAGER = 'server',
   AI_TOOLS = 'ai_tools',
+  /** AI Management — laravel_main's unified AI gateway (provider grid, live
+   *  rate/quota meters, gateway records, chat test). */
+  AI_MANAGEMENT = 'ai_management',
   INVITE_CODE_MANAGER = 'invite_codes',
-  BANK_MANAGER = 'bank_manager',
-  DATABASE_VIEWER = 'db_viewer'
+  /** Database Viewer was merged into DATABASE_MANAGER (Tables tab); the old
+   *  #/db-viewer slug deep-links there via core/routing/viewRoute.ts. */
+  DATABASE_MANAGER = 'db_manager',
+  MOVIES_BOOKS = 'movies_books'
 }
 
 export interface NavItem {
@@ -69,6 +78,8 @@ export interface ApiParam {
   description?: string;
   options?: string[]; // For enums
   default?: any;
+  /** True when the param is a {placeholder} in the endpoint path — it must be URL-substituted, never sent as query/body. */
+  path?: boolean;
 }
 
 export interface ApiEndpoint {
@@ -398,6 +409,44 @@ export interface VocabularyWordsPagination {
   has_more: boolean;
 }
 
+/** Per-language row from GET /vocabulary/statistics. Translation/validity/coverage
+ *  fields are sourced from the canonical dictionary table tts_cache_{lang}. */
+export interface VocabularyLanguageStat {
+  language: string;
+  language_code?: string;
+  total_words: number;        // sum of library word counts (counts duplicates)
+  libraries_count: number;
+  dictionary_words?: number;  // distinct canonical words in the dictionary
+  with_translation?: number;
+  without_translation?: number;
+  valid_words?: number;
+  invalid_words?: number;      // only rows explicitly flagged invalid
+  validity_checked?: number;
+  validity_unchecked?: number;
+  tts_percentage?: number;
+  images_percentage?: number;
+  review_percentage?: number;
+}
+
+/** Summary block from GET /vocabulary/statistics. */
+export interface VocabularyStatisticsSummary {
+  total_languages: number;
+  total_libraries: number;
+  total_words: number;
+  total_dictionary_words?: number;
+  total_with_translation?: number;
+  total_without_translation?: number;
+  total_valid_words?: number;
+  total_invalid_words?: number;
+  total_validity_checked?: number;
+  tts_percentage?: number;
+}
+
+export interface VocabularyStatistics {
+  summary: VocabularyStatisticsSummary;
+  languages: VocabularyLanguageStat[];
+}
+
 /** Single word row from vocabulary statistics word list API */
 export interface VocabularyStatisticsWordRow {
   id?: number;
@@ -662,12 +711,19 @@ export interface NginxSite {
   config_path: string;
   created_at: string;
   updated_at: string;
+  listen_ports?: number[];
+  server_names?: string[];
+  config_type?: string;
+  modified_human?: string;
+  cert_expiry?: { expires_at: string; days_left: number } | null;
 }
 
 export interface NginxSiteConfig {
   site_name: string;
   config: string;
   path: string;
+  /** Some backend versions return the file body as `content` instead of `config`. */
+  content?: string;
 }
 
 export interface NginxSiteCreateRequest {
@@ -699,6 +755,110 @@ export interface NginxTestResponse {
 export interface NginxReloadResponse {
   success: boolean;
   message: string;
+}
+
+export type NginxServiceAction = 'start' | 'stop' | 'restart' | 'reload';
+
+export interface NginxStatusOverview {
+  installed: boolean;
+  binary: string | null;
+  version: string | null;
+  running: boolean;
+  process_count: number;
+  service_manager: 'systemctl' | 'service' | null;
+  config_test: { valid: boolean; output: string } | null;
+  sites: { total: number; enabled: number; disabled: number };
+  paths: { config_path: string; enabled_path: string; backup_path: string };
+  install_hint: string | null;
+}
+
+export interface NginxServiceResult {
+  action: NginxServiceAction;
+  executed_via: string;
+  success: boolean;
+  output: string;
+  error: string | null;
+}
+
+export interface NginxLogsResponse {
+  type: 'access' | 'error';
+  file: string;
+  exists: boolean;
+  lines: string[];
+  size_bytes: number;
+  /** Present when a keyword filter was applied server-side. */
+  filter?: string | null;
+  /** How many raw lines were scanned to produce the filtered result. */
+  scanned_lines?: number;
+}
+
+export interface NginxInstallResult {
+  installed: boolean;
+  already_installed: boolean;
+  version: string | null;
+  output?: string;
+  exit_code?: number;
+}
+
+export interface NginxBackup {
+  file: string;
+  site: string;
+  type: 'update' | 'delete';
+  size_bytes: number;
+  created_at: string;
+}
+
+export interface NginxBackupRestoreResult {
+  restored: boolean | string;
+  site: string;
+  config_file: string;
+  previous_backup: string | null;
+  config_test: { valid: boolean; output: string } | null;
+}
+
+export interface NginxMainConfig {
+  file: string;
+  exists: boolean;
+  content: string;
+  truncated: boolean;
+  conf_d: { file: string; size_bytes: number }[];
+  parsed: {
+    worker_processes: string | number | null;
+    worker_connections: string | number | null;
+    includes: string[];
+  };
+}
+
+export interface NginxPortCheck {
+  port: number;
+  in_use: boolean;
+  holder: string | null;
+  is_nginx: boolean;
+}
+
+export interface NginxMetrics {
+  available: boolean;
+  stub_status: {
+    active_connections: number;
+    accepts: number;
+    handled: number;
+    requests: number;
+    reading: number;
+    writing: number;
+    waiting: number;
+  } | null;
+  hint?: string | null;
+  processes: { pid: number; rss_kb: number; cpu: number }[];
+  totals: { memory_kb: number; cpu_percent: number };
+}
+
+export type NginxBatchAction = 'enable' | 'disable' | 'test';
+
+export interface NginxBatchResult {
+  action: NginxBatchAction;
+  results: { site: string; success: boolean; message: string }[];
+  succeeded: number;
+  failed: number;
 }
 
 export interface SSLCertificate {

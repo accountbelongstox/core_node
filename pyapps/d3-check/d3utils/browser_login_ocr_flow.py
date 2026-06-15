@@ -12,8 +12,8 @@ from typing import Optional, Tuple, List, Dict, Any
 
 from pycore.pyfoundations.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageGrab
-from pycore.pyutils.click_handler import ClickHandler
-from pycore.pyutils.window_activator import WindowActivator
+from pycore.pyutils.input.click_handler import ClickHandler
+from pycore.pyutils.window.activator import WindowActivator
 from d3utils.click_handler_singleton import get_click_handler
 
 from providor.constants.common import (

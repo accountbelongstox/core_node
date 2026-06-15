@@ -136,22 +136,22 @@ CORE_NODE_PROJECT_ROOT=""
 # Function to detect desktop environment
 detect_desktop_environment() {
     # Check for X11 session
-    if [ -n "$DISPLAY" ] && [ "$DISPLAY" != ":0" ]; then
+    if [ -n "${DISPLAY:-}" ] && [ "${DISPLAY:-}" != ":0" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
     fi
 
     # Check for Wayland session
-    if [ -n "$WAYLAND_DISPLAY" ]; then
+    if [ -n "${WAYLAND_DISPLAY:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
     fi
 
     # Check for common desktop environment variables
-    if [ -n "$XDG_CURRENT_DESKTOP" ]; then
+    if [ -n "${XDG_CURRENT_DESKTOP:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$XDG_CURRENT_DESKTOP"
-    elif [ -n "$DESKTOP_SESSION" ]; then
+        DESKTOP_ENVIRONMENT="${XDG_CURRENT_DESKTOP:-}"
+    elif [ -n "${DESKTOP_SESSION:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$DESKTOP_SESSION"
+        DESKTOP_ENVIRONMENT="${DESKTOP_SESSION:-}"
     fi
 
     # Check for running desktop processes
@@ -162,7 +162,7 @@ detect_desktop_environment() {
     # Check for desktop environment directories
     if [ -d "/usr/share/xsessions" ] || [ -d "/usr/share/wayland-sessions" ]; then
         # Additional check: see if we're in a graphical session
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             HAS_DESKTOP_ENVIRONMENT=true
         fi
     fi
@@ -170,7 +170,7 @@ detect_desktop_environment() {
     # Check for WSL with desktop environment
     if [ "$IS_WSL" = true ]; then
         # In WSL, check if X11 forwarding is available or if WSLg is running
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ] || pgrep -x "wslg" >/dev/null 2>&1; then
+        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] || pgrep -x "wslg" >/dev/null 2>&1; then
             HAS_DESKTOP_ENVIRONMENT=true
         fi
     fi
@@ -579,22 +579,22 @@ determine_largest_windows_drive() {
 # Function to detect desktop environment
 detect_desktop_environment() {
     # Check for X11 session
-    if [ -n "$DISPLAY" ] && [ "$DISPLAY" != ":0" ]; then
+    if [ -n "${DISPLAY:-}" ] && [ "${DISPLAY:-}" != ":0" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
     fi
     
     # Check for Wayland session
-    if [ -n "$WAYLAND_DISPLAY" ]; then
+    if [ -n "${WAYLAND_DISPLAY:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
     fi
     
     # Check for common desktop environment variables
-    if [ -n "$XDG_CURRENT_DESKTOP" ]; then
+    if [ -n "${XDG_CURRENT_DESKTOP:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$XDG_CURRENT_DESKTOP"
-    elif [ -n "$DESKTOP_SESSION" ]; then
+        DESKTOP_ENVIRONMENT="${XDG_CURRENT_DESKTOP:-}"
+    elif [ -n "${DESKTOP_SESSION:-}" ]; then
         HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$DESKTOP_SESSION"
+        DESKTOP_ENVIRONMENT="${DESKTOP_SESSION:-}"
     fi
     
     # Check for running desktop processes
@@ -605,7 +605,7 @@ detect_desktop_environment() {
     # Check for desktop environment directories
     if [ -d "/usr/share/xsessions" ] || [ -d "/usr/share/wayland-sessions" ]; then
         # Additional check: see if we're in a graphical session
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             HAS_DESKTOP_ENVIRONMENT=true
         fi
     fi
@@ -613,7 +613,7 @@ detect_desktop_environment() {
     # Check for WSL with desktop environment
     if [ "$IS_WSL" = true ]; then
         # In WSL, check if X11 forwarding is available or if WSLg is running
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ] || pgrep -x "wslg" >/dev/null 2>&1; then
+        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] || pgrep -x "wslg" >/dev/null 2>&1; then
             HAS_DESKTOP_ENVIRONMENT=true
         fi
     fi
@@ -1124,6 +1124,13 @@ map_web_path() {
         "logs")
             # Keep logs in Linux filesystem
             mapped_path="/var/log"
+            ;;
+        "pg_mount")
+            # Native ext4 loop-mount target for the PostgreSQL D-drive image (WSL
+            # persistence). MUST be on the native Linux fs (NOT drvfs): the whole
+            # point is to give pg a postgres-owned, mode-0700 data dir that drvfs
+            # cannot provide. The data/image itself lives under "laravel_db".
+            mapped_path="/var/lib/postgresql/d"
             ;;
         "programing")
             # Programming/development directory under base_path

@@ -22,7 +22,17 @@ class TaskCategoryService
     private $promptsDirectory;
     private $categoriesConfigFile;
 
-    // 默认任务分类
+    /**
+     * Whether the _prompts directory is actually usable. When false (e.g. the
+     * path is squatted by an unrenamable regular file, or mkdir failed), every
+     * read degrades to the in-memory defaults and every write becomes a no-op
+     * with an error result — the service must never 500 the route from its
+     * constructor (it is built inside the controller constructor, so an
+     * exception here takes down ALL task-dispatch endpoints).
+     */
+    private $directoryReady = false;
+
+    // Default task categories
     private $defaultCategories = [
         [
             'id' => 'global',
@@ -73,19 +83,32 @@ class TaskCategoryService
         $this->baseDirectory = $baseDirectory ?? PathMapper::getCoreNodeDir();
         $this->promptsDirectory = $this->baseDirectory . DIRECTORY_SEPARATOR . '_prompts';
 
-        // 使用 _prompts/.categories.json 作为配置文件（可提交到git）
-        // 数据文件存储在 _prompts/task-data/ 中（不提交）
+        // Use _prompts/.categories.json as the config file (can be committed to git)
+        // Data files are stored in _prompts/task-data/ (not committed)
         $this->categoriesConfigFile = $this->promptsDirectory . DIRECTORY_SEPARATOR . '.categories.json';
 
         $this->ensureDefaultStructure();
     }
 
     /**
-     * 确保默认目录结构存在
+     * Ensure the default directory structure exists.
+     *
+     * Live incident 2026-06-12: a regular FILE (user notes) sat at the
+     * _prompts path, so ensureDirectoryExists() returned false (silently) and
+     * the config write threw "Failed to open stream: No such file or
+     * directory" — a 500 on every task-dispatch route. Such a file is user
+     * data: preserve it by renaming it aside, then create the directory. If
+     * the path still cannot become a directory, mark the service degraded
+     * instead of throwing.
      */
     private function ensureDefaultStructure()
     {
-        FileSystemManager::ensureDirectoryExists($this->promptsDirectory);
+        $this->directoryReady = self::ensurePromptsDirectory($this->promptsDirectory);
+
+        if (!$this->directoryReady) {
+            error_log('[TaskCategoryService] prompts directory unavailable: ' . $this->promptsDirectory . ' — serving in-memory default categories');
+            return;
+        }
 
         if (!file_exists($this->categoriesConfigFile)) {
             $this->initializeCategoriesConfig();
@@ -95,25 +118,57 @@ class TaskCategoryService
     }
 
     /**
-     * 初始化分类配置文件
+     * Make the _prompts path a usable directory, shared by every McpV1 service
+     * that stores data under it (TaskCategoryService / PromptMappingService /
+     * TaskQueueService). A regular file squatting on the path is user data:
+     * it is preserved by renaming it aside before the directory is created.
+     * Returns false (never throws) when the path cannot become a directory.
+     */
+    public static function ensurePromptsDirectory(string $promptsDirectory): bool
+    {
+        if (is_file($promptsDirectory)) {
+            $backup = $promptsDirectory . '.file-backup-' . date('Ymd-His') . '.txt';
+            if (@rename($promptsDirectory, $backup)) {
+                error_log('[McpV1] _prompts path was a regular file; preserved as: ' . $backup);
+            } else {
+                error_log('[McpV1] _prompts path is a regular file and could not be renamed: ' . $promptsDirectory);
+                return false;
+            }
+        }
+
+        return FileSystemManager::ensureDirectoryExists($promptsDirectory);
+    }
+
+    /**
+     * Initialize the categories config file (no-op when the directory is
+     * unavailable — degraded mode serves the in-memory defaults instead).
      */
     private function initializeCategoriesConfig()
     {
+        if (!$this->directoryReady) {
+            return;
+        }
+
         $config = [
             'version' => '1.0',
             'categories' => $this->defaultCategories
         ];
 
-        file_put_contents(
+        $written = @file_put_contents(
             $this->categoriesConfigFile,
             json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
+
+        if ($written === false) {
+            error_log('[TaskCategoryService] Failed to write categories config at: ' . $this->categoriesConfigFile);
+            return;
+        }
 
         error_log('[TaskCategoryService] Created categories config at: ' . $this->categoriesConfigFile);
     }
 
     /**
-     * 自动创建需要auto_create的分类目录
+     * Automatically create the category directories that require auto_create
      */
     private function autoCreateCategoryDirectories()
     {
@@ -128,20 +183,40 @@ class TaskCategoryService
     }
 
     /**
-     * 加载分类配置
+     * Load the categories config. Falls back to the in-memory defaults when
+     * the directory is degraded or the config file is unreadable/corrupt, so
+     * readers always get a valid structure.
      */
     public function loadCategoriesConfig()
     {
+        $defaults = [
+            'version' => '1.0',
+            'categories' => $this->defaultCategories
+        ];
+
+        if (!$this->directoryReady) {
+            return $defaults;
+        }
+
         if (!file_exists($this->categoriesConfigFile)) {
             $this->initializeCategoriesConfig();
         }
 
-        $content = file_get_contents($this->categoriesConfigFile);
-        return json_decode($content, true);
+        $content = @file_get_contents($this->categoriesConfigFile);
+        if ($content === false) {
+            return $defaults;
+        }
+
+        $decoded = json_decode($content, true);
+        if (!is_array($decoded) || empty($decoded['categories'])) {
+            return $defaults;
+        }
+
+        return $decoded;
     }
 
     /**
-     * 获取所有分类
+     * Get all categories
      */
     public function getAllCategories()
     {
@@ -150,7 +225,7 @@ class TaskCategoryService
     }
 
     /**
-     * 获取默认分类
+     * Get the default category
      */
     public function getDefaultCategory()
     {
@@ -164,7 +239,7 @@ class TaskCategoryService
     }
 
     /**
-     * 根据ID获取分类
+     * Get a category by ID
      */
     public function getCategoryById($id)
     {
@@ -178,20 +253,24 @@ class TaskCategoryService
     }
 
     /**
-     * 创建新分类
+     * Create a new category
      */
     public function createCategory($id, $name, $path)
     {
+        if (!$this->directoryReady) {
+            return ['success' => false, 'error' => 'Prompts directory unavailable (degraded mode) — check the _prompts path on the server'];
+        }
+
         $config = $this->loadCategoriesConfig();
 
-        // 检查ID是否已存在
+        // Check whether the ID already exists
         foreach ($config['categories'] as $category) {
             if ($category['id'] === $id) {
                 return ['success' => false, 'error' => 'Category ID already exists'];
             }
         }
 
-        // 创建目录
+        // Create the directory
         if (!empty($path)) {
             $categoryPath = $this->promptsDirectory . DIRECTORY_SEPARATOR . $path;
             if (!is_dir($categoryPath)) {
@@ -199,7 +278,7 @@ class TaskCategoryService
             }
         }
 
-        // 添加到配置
+        // Add to the config
         $config['categories'][] = [
             'id' => $id,
             'name' => $name,
@@ -211,16 +290,20 @@ class TaskCategoryService
 
         $config['updated_at'] = date('Y-m-d H:i:s');
 
-        file_put_contents(
+        $written = @file_put_contents(
             $this->categoriesConfigFile,
             json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         );
+
+        if ($written === false) {
+            return ['success' => false, 'error' => 'Failed to persist categories config'];
+        }
 
         return ['success' => true, 'category' => $config['categories'][count($config['categories']) - 1]];
     }
 
     /**
-     * 获取分类下的所有文件
+     * Get all files under a category
      */
     public function getCategoryFiles($categoryId)
     {
