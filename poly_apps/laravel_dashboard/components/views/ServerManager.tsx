@@ -33,7 +33,7 @@ import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { getDefaultBaseURL } from '../../config/constants';
 import { useToast, Modal, ConfirmModal } from '../admin';
-import { logInfo, logSuccess, logError } from '../../core/logs/logStore';
+import { logInfo, logSuccess, logError } from '../../core/logstore/logStore';
 import {
   Network,
   Shield,

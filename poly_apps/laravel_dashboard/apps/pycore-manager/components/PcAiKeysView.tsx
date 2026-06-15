@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { AiKeyProvider, AiKeySlot } from '../../../core/api-libs/pycore';
-import { logInfo, logSuccess, logError } from '../../../core/logs/logStore';
+import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
+import PcAiBalancesView from './PcAiBalancesView';
 
 const LOG_SRC = 'pc-ai-keys';
 /** Rotation slots a single key base supports (BASE_1 … BASE_5). */
@@ -264,6 +265,9 @@ const PcAiKeysView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }) =
           </p>
         </div>
       </div>
+
+      {/* ===================== Account balances ===================== */}
+      <PcAiBalancesView refreshSignal={refreshSignal} />
 
       {/* ===================== Add / update a key ===================== */}
       <section className="pc-glass p-5">

@@ -80,6 +80,87 @@ export function useBingDictionaryClient() {
   const testResults = ref<any[]>([]);
   const testing = ref(false);
 
+  // Translation queue overview (the "untranslated data": how many entries + the
+  // pending task list). SERVER-side paginated: each page is fetched from
+  // laravel_main's controlList via `page`/`limit`; `total` drives the page count.
+  const QUEUE_PAGE_SIZE = 10;
+  const queueOverview = ref<{
+    summary: {
+      pending: number;
+      processing: number;
+      completed: number;
+      failed: number;
+      total: number;
+    } | null;
+    items: any[];      // CURRENT page only (server-paginated)
+    page: number;
+    pageSize: number;
+    total: number;     // total filtered rows (from pagination.total)
+    hasMore: boolean;
+    loading: boolean;
+    error: string;
+  }>({
+    summary: null,
+    items: [],
+    page: 1,
+    pageSize: QUEUE_PAGE_SIZE,
+    total: 0,
+    hasMore: false,
+    loading: false,
+    error: '',
+  });
+
+  // Two-step Start: the FIRST click loads + shows the queue (prepared=true) and
+  // does NOT start crawling; the SECOND click (Confirm & Start) actually starts.
+  const prepared = ref(false);
+
+  // Fetch ONE page of the untranslated/pending queue from laravel_main (via the
+  // worker service). Called on Start (page 1) and by the pager.
+  const loadQueueOverview = async (page = 1) => {
+    syncEndpointFromSettings();
+    if (!clientConfig.value.apiUrl) {
+      queueOverview.value.error = 'No endpoint configured in Settings';
+      connectionStatus.value = { state: 'fail', message: 'No endpoint configured in Settings' };
+      return;
+    }
+    const target = Math.max(1, Math.floor(page) || 1);
+    queueOverview.value.loading = true;
+    queueOverview.value.error = '';
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        type: 'bing_dictionary_worker_service',
+        action: 'queue_overview',
+        config: clientConfig.value,
+        status: 'pending',
+        limit: queueOverview.value.pageSize,
+        page: target,
+      });
+      if (resp && resp.success) {
+        const pg = resp.pagination || {};
+        queueOverview.value.summary = resp.summary || null;
+        queueOverview.value.items = Array.isArray(resp.items) ? resp.items : [];
+        queueOverview.value.page = pg.page ?? target;
+        queueOverview.value.total =
+          typeof pg.total === 'number' ? pg.total : queueOverview.value.items.length;
+        queueOverview.value.hasMore = !!pg.has_more;
+        // Loading the queue IS the live connectivity check for the panel.
+        const pending = queueOverview.value.summary?.pending ?? 0;
+        connectionStatus.value = { state: 'ok', message: `Connected · ${pending} pending` };
+      } else {
+        queueOverview.value.error = (resp && resp.message) || 'Failed to load queue';
+        connectionStatus.value = { state: 'fail', message: queueOverview.value.error };
+      }
+    } catch (err: any) {
+      queueOverview.value.error = err?.message || 'Failed to load queue';
+      connectionStatus.value = { state: 'fail', message: queueOverview.value.error };
+    } finally {
+      queueOverview.value.loading = false;
+    }
+  };
+
+  // Pager → fetch that page from the server.
+  const setQueuePage = (page: number) => loadQueueOverview(page);
+
   let statsPollingInterval: ReturnType<typeof setInterval> | null = null;
 
   const toggleClientMode = async () => {
@@ -222,29 +303,57 @@ export function useBingDictionaryClient() {
     }
   };
 
+  // First click LOADS + shows the queue (no start); second click CONFIRMS + starts.
+  const prepareQueue = async () => {
+    error.value = '';
+    syncEndpointFromSettings();
+    await loadQueueOverview(1);
+    // Ready to confirm only when the queue actually loaded (reachable backend).
+    prepared.value = !queueOverview.value.error;
+  };
+
+  // Three-state primary action driving the single toggle button:
+  //   running        -> stop
+  //   stopped & !ready -> prepare (load + show the queue; DON'T start yet)
+  //   stopped & ready  -> confirm: start crawling per settings
   const toggleClientService = async () => {
     try {
-      // Always pull the endpoint from Settings right before starting.
-      if (!clientService.value.isRunning) {
-        syncEndpointFromSettings();
+      // Worker service is the only path aligned with laravel_main's /api/worker/*.
+      if (clientService.value.isRunning) {
+        const resp = await chrome.runtime.sendMessage({
+          type: 'bing_dictionary_worker_service',
+          action: 'stop',
+          config: clientConfig.value,
+        });
+        if (resp && resp.success) {
+          clientService.value.isRunning = false;
+          prepared.value = false;
+          await loadClientServiceState();
+        } else {
+          error.value = resp?.error || 'Failed to stop service';
+        }
+        return;
       }
-      // Always the worker service — the only path aligned with laravel_main's
-      // /api/worker/* endpoints (the legacy /api/dictionary/* client was removed).
-      const response = await chrome.runtime.sendMessage({
+
+      // Step 1: not yet prepared — load + display the queue, do NOT start.
+      if (!prepared.value) {
+        await prepareQueue();
+        return;
+      }
+
+      // Step 2: confirmed — start crawling per settings.
+      syncEndpointFromSettings();
+      const resp = await chrome.runtime.sendMessage({
         type: 'bing_dictionary_worker_service',
-        action: clientService.value.isRunning ? 'stop' : 'start',
+        action: 'start',
         config: clientConfig.value,
       });
-
-      if (response && response.success) {
-        clientService.value.isRunning = !clientService.value.isRunning;
-        console.log(`[Bing Dictionary] worker service ${clientService.value.isRunning ? 'started' : 'stopped'}`);
-        // Refresh state immediately so the UI reflects the first poll right away
-        // instead of waiting for the next 3s stats tick.
+      if (resp && resp.success) {
+        clientService.value.isRunning = true;
+        prepared.value = false;
         await loadClientServiceState();
       } else {
-        console.error('[Bing Dictionary] Failed to toggle service:', response?.error);
-        error.value = response?.error || 'Failed to toggle service';
+        error.value = resp?.error || 'Failed to start service';
       }
     } catch (err: any) {
       console.error('[Bing Dictionary] Service toggle error:', err);
@@ -329,6 +438,10 @@ export function useBingDictionaryClient() {
     testWords,
     testResults,
     testing,
+    queueOverview,
+    loadQueueOverview,
+    setQueuePage,
+    prepared,
     toggleClientMode,
     saveClientConfig,
     updateConfig,

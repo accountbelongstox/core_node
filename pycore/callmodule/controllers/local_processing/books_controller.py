@@ -21,7 +21,7 @@ import collections
 from typing import List, Optional, Tuple
 
 from pycore import ColorPrint, get_user_data_store, THREAD_BUS
-from pycore.pyfoundations.system_paths import get_app_data_dir
+from pycore.pyfoundations.system_paths import get_local_data_dir
 from pycore.pyfoundations.text_parsing import (
     tokenize_words,
     split_sentences,
@@ -51,6 +51,10 @@ def _norm_path(path: str) -> str:
     """Normalize a path for dedupe comparison."""
     return os.path.normcase(os.path.abspath((path or "").strip()))
 
+# Books temp lives under the SHARED repo-local data dir (<core_node>/.data),
+# namespaced "pycore/..." — mirroring the laravel Books path (.data/appqyv1/...)
+# so both ends' Books scratch sits under the same shared .data area.
+_BOOKS_NS = "pycore"
 # Where drag-dropped uploads (no OS path in the browser sandbox) are staged on
 # disk so they get a stable absolute path the ingest pipeline can read + key on.
 _STAGING_SUBDIR = "books_staging"
@@ -235,8 +239,9 @@ class BooksController:
 
     # ----- upload + analyze (drag-drop fallback for sandboxed browsers) ---- #
     def staging_dir(self) -> str:
-        """Absolute staging dir for uploads (created on demand)."""
-        d = os.path.join(str(get_app_data_dir()), _STAGING_SUBDIR)
+        """Absolute staging dir for uploads (created on demand), under the shared
+        <core_node>/.data/pycore/books_staging."""
+        d = os.path.join(str(get_local_data_dir()), _BOOKS_NS, _STAGING_SUBDIR)
         os.makedirs(d, exist_ok=True)
         return d
 
@@ -481,7 +486,7 @@ class BooksController:
 
     # ----- drill-down lists (paginated words / sentences / languages) ------ #
     def _list_cache_path(self, source_key: str) -> str:
-        d = os.path.join(str(get_app_data_dir()), _LIST_CACHE_SUBDIR)
+        d = os.path.join(str(get_local_data_dir()), _BOOKS_NS, _LIST_CACHE_SUBDIR)
         os.makedirs(d, exist_ok=True)
         return os.path.join(d, source_key + ".json")
 

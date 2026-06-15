@@ -163,6 +163,40 @@ pg_run_as_postgres() {
 # graceful `octane:stop` for a previously-started Octane server; (2) detect any
 # remaining listener on the port; (3) stop ONLY leftover app servers
 # (octane/swoole/artisan serve) -- a non-app holder is reported, never killed.
+# Y/n prompt that DEFAULTS TO YES. Non-interactive (no controlling TTY) -> YES
+# automatically (policy: auto-stop the conflicting container). Force-disable with
+# PORT_CONFLICT_AUTO_STOP=no (always No) or pre-confirm with =yes.
+prompt_default_yes() {
+    local msg="$1" reply=""
+    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Nn]*) return 1 ;; [Yy]*) return 0 ;; esac
+    if [ -t 0 ] && [ -r /dev/tty ]; then
+        printf '%s [Y/n] ' "$msg" > /dev/tty
+        read -r reply < /dev/tty || reply=""
+    fi
+    case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+}
+
+# If a Docker container PUBLISHES <port> (e.g. MinIO on :9000, pgvector on :5432),
+# it surfaces as a docker-proxy holder we must NOT kill directly. Identify the
+# owning container and offer to stop it (default Yes). Returns 0 if one was stopped.
+stop_docker_publisher() {
+    local port="$1" row="" cid="" cname=""
+    command -v docker >/dev/null 2>&1 || return 1
+    row=$(docker ps --filter "publish=${port}" --format '{{.ID}} {{.Names}}' 2>/dev/null | head -1)
+    [ -n "$row" ] || row=$(${USE_SUDO:-} docker ps --filter "publish=${port}" --format '{{.ID}} {{.Names}}' 2>/dev/null | head -1)
+    [ -n "$row" ] || return 1
+    cid=$(printf '%s' "$row" | awk '{print $1}')
+    cname=$(printf '%s' "$row" | awk '{print $2}')
+    echo "  Port ${port} is published by Docker container: ${cname:-$cid}"
+    if prompt_default_yes "  Stop container ${cname:-$cid} to free port ${port}?"; then
+        echo "  Stopping container ${cname:-$cid} ..."
+        docker stop "$cid" >/dev/null 2>&1 || ${USE_SUDO:-} docker stop "$cid" >/dev/null 2>&1 || true
+        return 0
+    fi
+    echo "  Left container ${cname:-$cid} running; port ${port} still occupied."
+    return 1
+}
+
 # Returns non-zero only when the port is still occupied by something we won't kill.
 ensure_port_free() {
     local port="$1"
@@ -180,6 +214,19 @@ ensure_port_free() {
     fi
     if [ -z "$pids" ]; then
         return 0
+    fi
+
+    # Docker-published holder -> stop the owning container (default Yes), then
+    # re-detect any remaining native listeners.
+    if stop_docker_publisher "$port"; then
+        sleep 2
+        if command -v ss >/dev/null 2>&1; then
+            pids=$(ss -ltnpH 2>/dev/null | grep -E "[:.]${port}[[:space:]]" | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u)
+        fi
+        if [ -z "$pids" ] && command -v lsof >/dev/null 2>&1; then
+            pids=$(lsof -ti "tcp:${port}" -sTCP:LISTEN 2>/dev/null | sort -u)
+        fi
+        [ -z "$pids" ] && return 0
     fi
 
     for pid in $pids; do

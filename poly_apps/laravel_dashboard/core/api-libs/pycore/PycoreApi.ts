@@ -16,7 +16,7 @@ import type {
   VideoExtractCapabilities, PickPathResult, VideoExtractSegmentsResponse,
   SystemResourcesResponse, VideoExtractOpenKind, VideoExtractOpenResponse,
   CodeSyncRole, CodeSyncPeersResponse, CodeSyncCandidate,
-  AutostartStatus, AiProbeResponse, AiProvider, AiRateLimitsResponse, AiChatMessage, AiChatResponse, AiGatewayStatus,
+  AutostartStatus, AiProbeResponse, AiProvider, AiBalance, AiBalanceResponse, AiRateLimitsResponse, AiChatMessage, AiChatResponse, AiGatewayStatus,
   AiUsageResponse,
   AiImageResponse, ImageHistoryResponse, ImageHistoryClearResponse, ImageHistoryDeleteResponse,
   AiKeysResponse, AiKeySetRequest, AiKeySetResponse, AiKeyDeleteResponse, AiKeyResetCooldownResponse,
@@ -375,6 +375,14 @@ export const pycoreApi = {
   // Test ONE provider (per-card "Test"): live, never cached, rate-aware.
   probeAiOne: (provider: string) =>
     getJSON<AiProvider>(`/pyapi/api/local/ai/probe?provider=${encodeURIComponent(provider)}`),
+
+  // --- AI account balance / remaining credit ------------------------------- #
+  // Only openrouter / deepseek / siliconflow / moonshot expose a balance API;
+  // every other provider returns supported:false WITHOUT a network call
+  // (billing is console-only — e.g. Gemini, OpenAI, Anthropic). Never cached.
+  getAiBalances: () => getJSON<AiBalanceResponse>('/pyapi/api/local/ai/balance'),
+  getAiBalanceOne: (provider: string) =>
+    getJSON<AiBalance>(`/pyapi/api/local/ai/balance?provider=${encodeURIComponent(provider)}`),
 
   // --- AI local rate budgets (auto-reset by the pyheartbeat tick) ---------- #
   // Cheap poll: current per-minute/day/month usage vs limits + resets-in

@@ -50,7 +50,7 @@ import {
 import { Language } from '../../types';
 import { Portal } from '../shared';
 import { OVERLAY_Z } from '../../styles/overlay';
-import { logInfo, logSuccess, logError } from '../../core/logs/logStore';
+import { logInfo, logSuccess, logError } from '../../core/logstore/logStore';
 
 /** Default page size for the table browser; user-adjustable up to MAX_PER_PAGE. */
 const DEFAULT_PER_PAGE = 1000;

@@ -193,6 +193,54 @@ export class WorkerApiClient extends BaseApiClient {
   }
 
   /**
+   * Translation queue overview: summary counts + the pending task list (the
+   * "untranslated data" with how many entries). Aligned with laravel_main
+   * `GET /api/app_qy_v1/ai_tools/translation/queue/list` (pycore proxies the same
+   * at /api/local/translation/queue). No worker_id needed — it's a control read.
+   */
+  async getTranslationQueue(
+    options: { status?: string; limit?: number; page?: number; offset?: number } = {},
+  ): Promise<
+    ApiResponse<{
+      summary: {
+        pending: number;
+        processing: number;
+        completed: number;
+        failed: number;
+        total: number;
+      };
+      items: Array<{
+        task_id: string;
+        words: string[];
+        word_count: number;
+        language: string;
+        target_language: string;
+        priority: number;
+        status: string;
+        created_at: string;
+        age_seconds: number;
+        assigned_to: string | null;
+      }>;
+      // Server-side pagination metadata (laravel_main controlList).
+      pagination?: {
+        limit: number;
+        offset: number;
+        page: number;
+        total: number;
+        has_more: boolean;
+      };
+    }>
+  > {
+    const { status, limit = 10, page, offset } = options;
+    const params: Record<string, any> = { limit: Math.max(1, Math.min(1000, limit)) };
+    if (status) params.status = status;
+    // `page` (1-based) takes precedence; else a raw `offset`.
+    if (page != null) params.page = Math.max(1, Math.floor(page));
+    else if (offset != null) params.offset = Math.max(0, Math.floor(offset));
+    return this.get('/api/app_qy_v1/ai_tools/translation/queue/list', params);
+  }
+
+  /**
    * Get worker statistics
    */
   async getWorkerStats(): Promise<

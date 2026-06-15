@@ -856,30 +856,39 @@ class BingDictionaryWorkerService {
               .filter(Boolean)
               .slice(0, 6);
 
-            // Capture every image + both audios IN the page as raw binary, then
-            // cache the bytes. We NEVER request these remote URLs directly.
-            const toFetch = [...imageRemote, usAudioRemote, ukAudioRemote].filter(
+            // Persistent local cache: load it, then ONLY fetch what we don't
+            // already have stored locally (a word looked up before is served
+            // from chrome.storage.local without re-downloading). Binaries are
+            // captured IN the page as raw bytes; we NEVER request the remote
+            // *.bing.net / mediamp3 URL directly (it isn't accessible from here).
+            await mediaCache.init();
+            const allMedia = [...imageRemote, usAudioRemote, ukAudioRemote].filter(
               (u): u is string => typeof u === 'string' && u.length > 0,
             );
-            const captured = await bingDictionaryTool.fetchMediaInTab(tabId, toFetch);
-            const debugMedia: Array<{
-              url: string;
-              kind: 'image' | 'audio';
-              mime: string | null;
-              bytes: number;
-              cached: boolean;
-            }> = [];
+            const toFetch = allMedia.filter((u) => !mediaCache.has(u));
+            const captured = toFetch.length
+              ? await bingDictionaryTool.fetchMediaInTab(tabId, toFetch)
+              : [];
             for (const m of captured) {
-              const ok = !!(m.ok && m.bytes && m.bytes.length);
-              if (ok) mediaCache.put(m.url, m.bytes, m.mime || undefined);
-              debugMedia.push({
-                url: m.url,
-                kind: m.url === usAudioRemote || m.url === ukAudioRemote ? 'audio' : 'image',
-                mime: m.mime,
-                bytes: m.bytes ? m.bytes.length : 0,
-                cached: ok,
-              });
+              if (m.ok && m.bytes && m.bytes.length) {
+                mediaCache.put(m.url, m.bytes, m.mime || undefined);
+              }
             }
+
+            // Debug: report every media URL with its local-cache status + size
+            // (the URL is the cache key; the bytes live in chrome.storage.local).
+            const debugMedia = allMedia.map((u) => {
+              const e = mediaCache.get(u);
+              return {
+                url: u,
+                kind: (u === usAudioRemote || u === ukAudioRemote ? 'audio' : 'image') as
+                  | 'audio'
+                  | 'image',
+                mime: e ? e.mime : null,
+                bytes: e ? e.len : 0,
+                cached: !!e,
+              };
+            });
 
             // Build data URLs from the cached BYTES (no remote re-request, no
             // remote-URL fallback — a missed capture simply yields nothing).
@@ -931,6 +940,40 @@ class BingDictionaryWorkerService {
     const order = new Map(words.map((w, i) => [w.word, i]));
     results.sort((a, b) => (order.get(a.word) ?? 0) - (order.get(b.word) ?? 0));
     return results;
+  }
+
+  /**
+   * Translation queue overview: how many words are still untranslated + the
+   * pending task list (with per-task word counts), for the panel to show on Start.
+   * Works whether or not the worker is running (a plain control read). Aligned
+   * with laravel_main /api/app_qy_v1/ai_tools/translation/queue/list.
+   */
+  async getQueueOverview(
+    apiUrl?: string,
+    status = 'pending',
+    limit = 10,
+    page = 1,
+  ): Promise<{ ok: boolean; summary?: any; items?: any[]; pagination?: any; message?: string }> {
+    const base = (apiUrl || this.config?.apiUrl || '').trim().replace(/\/+$/, '');
+    if (!base) return { ok: false, message: 'No endpoint configured in Settings' };
+    try {
+      const client =
+        this.workerClient && this.config?.apiUrl === base
+          ? this.workerClient
+          : new WorkerApiClient(base);
+      const resp = await client.getTranslationQueue({ status, limit, page });
+      if (resp.success && resp.data) {
+        return {
+          ok: true,
+          summary: resp.data.summary,
+          items: resp.data.items,
+          pagination: resp.data.pagination,
+        };
+      }
+      return { ok: false, message: resp.message || 'Failed to load queue' };
+    } catch (error: any) {
+      return { ok: false, message: error?.message || 'Unreachable' };
+    }
   }
 
   /**

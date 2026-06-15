@@ -9,7 +9,7 @@ import type {
 } from '../../core/api/modules/BooksAPI';
 import { commonClasses } from '../../styles/theme';
 import { useToast } from '../admin';
-import { logInfo, logSuccess, logError } from '../../core/logs/logStore';
+import { logInfo, logSuccess, logError } from '../../core/logstore/logStore';
 import PaginatedListModal, { PaginatedListColumn } from './PaginatedListModal';
 import ProcessingCapabilityCard from './ProcessingCapabilityCard';
 

@@ -16,7 +16,7 @@ import { commonClasses } from '../../styles/theme';
 import { TRANSLATIONS } from '../../constants';
 import { useAppState } from '../../contexts/AppStateContext';
 import { useToast } from '../admin';
-import { logError, logInfo, logSuccess } from '../../core/logs/logStore';
+import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
 
 interface ReviewPanelProps {
   userId?: string;
