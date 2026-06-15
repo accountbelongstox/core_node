@@ -4,33 +4,59 @@
       <div class="config-header">
         <span class="config-label">{{ t('bingAssistTitle') }}</span>
         <div class="config-controls">
-          <!-- Single auto-toggle: Start requests the untranslated queue overview
-               and immediately begins crawling per Settings; click again to Stop.
-               Label + colour reflect the running state (no separate Test/status). -->
+          <!-- Two-step single button:
+               stopped & not prepared -> "Load queue" (fetch + show data, NO start)
+               stopped & prepared      -> "Confirm & Start" (begin crawling)
+               running                 -> "Stop"
+               Colour: blue=load, green=confirm, red=stop. -->
           <button
             class="service-toggle"
-            :class="clientService.isRunning ? 'on' : 'off'"
+            :class="clientService.isRunning ? 'on' : (prepared ? 'ready' : 'off')"
             @click="onToggleService"
             :disabled="!currentEndpoint || !!(queueOverview && queueOverview.loading)"
           >
             <span class="toggle-dot"></span>
-            {{ clientService.isRunning ? 'Stop' : (queueOverview && queueOverview.loading ? 'Starting…' : 'Start') }}
+            <template v-if="queueOverview && queueOverview.loading">Loading…</template>
+            <template v-else-if="clientService.isRunning">Stop</template>
+            <template v-else-if="prepared">Confirm &amp; Start{{
+              queueOverview && queueOverview.summary ? ' · ' + queueOverview.summary.pending + ' pending' : ''
+            }}</template>
+            <template v-else>Load queue</template>
           </button>
         </div>
       </div>
 
       <div v-if="error" class="assist-error">⚠ {{ error }}</div>
-      <div
-        v-if="connectionStatus && connectionStatus.state === 'ok'"
-        class="conn-status ok"
-      >
-        ● {{ connectionStatus.message }}
+
+      <!-- Backend connection: the endpoint comes from Settings -> API
+           Configuration; the dot/message reflect the last queue load. -->
+      <div class="backend-line">
+        <span
+          :class="[
+            'be-dot',
+            connectionStatus
+              ? (connectionStatus.state === 'ok' ? 'ok' : connectionStatus.state === 'fail' ? 'fail' : 'idle')
+              : 'idle',
+          ]"
+        ></span>
+        <span class="be-label">Backend</span>
+        <span class="be-url" :title="currentEndpoint">
+          {{ currentEndpoint || 'not set — configure in Settings → API Configuration' }}
+        </span>
+        <span v-if="connectionStatus && connectionStatus.message" class="be-msg">
+          · {{ connectionStatus.message }}
+        </span>
+      </div>
+
+      <!-- Two-step hint + empty-queue guard. -->
+      <div v-if="!clientService.isRunning && !prepared" class="be-hint">
+        Click “Load queue” to review the untranslated data, then Confirm & Start.
       </div>
       <div
-        v-if="connectionStatus && connectionStatus.state === 'fail'"
-        class="conn-status fail"
+        v-else-if="prepared && queueOverview && queueOverview.summary && queueOverview.summary.pending === 0"
+        class="be-hint warn"
       >
-        ○ {{ connectionStatus.message }}
+        No pending words to translate — nothing to crawl.
       </div>
 
       <!-- Untranslated queue overview: how many entries + the pending task list
