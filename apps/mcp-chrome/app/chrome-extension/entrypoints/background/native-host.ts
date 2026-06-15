@@ -13,6 +13,51 @@ import { handleCallTool } from './tools';
 let nativePort: chrome.runtime.Port | null = null;
 export const HOST_NAME = NATIVE_HOST.NAME;
 
+// ---------------------------------------------------------------------------
+// Connection recovery (auto-reconnect + watchdog)
+//
+// MV3 service workers die after ~30s idle, and the native host link can drop
+// (host crash, port takeover, OS sleep). We recover with two layers:
+//   1. Exponential-backoff setTimeout reconnect while the SW is alive.
+//   2. A chrome.alarms watchdog (survives SW death) that re-establishes the
+//      connection on its next tick if it is down.
+// A user-initiated DISCONNECT suppresses both so we never fight the user.
+// ---------------------------------------------------------------------------
+let reconnectAttempts = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let userDisconnected = false;
+let lastKnownPort: number = NATIVE_HOST.DEFAULT_PORT;
+const BASE_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+const MAX_RECONNECT_ATTEMPTS = 8;
+const RECONNECT_ALARM = 'native-host-reconnect-watchdog';
+
+function clearReconnectTimer(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
+function scheduleReconnect(port: number): void {
+  if (userDisconnected) return;
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.warn(
+      `[NativeHost] Max fast-reconnect attempts reached; the alarm watchdog will keep retrying.`,
+    );
+    return;
+  }
+  clearReconnectTimer();
+  const backoff = BASE_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts);
+  const delay = Math.min(MAX_RECONNECT_DELAY_MS, backoff) + Math.floor(Math.random() * 500);
+  reconnectAttempts++;
+  console.log(`[NativeHost] Reconnect attempt ${reconnectAttempts} in ${delay}ms`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectNativeHost(port);
+  }, delay);
+}
+
 /**
  * Server status management interface
  */
@@ -76,6 +121,12 @@ function broadcastServerStatusChange(status: ServerStatus): void {
  * @param forceReconnect - If true, disconnect and reconnect even if already connected
  */
 export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT, forceReconnect: boolean = false) {
+  // Remember the port for watchdog/auto-reconnect; a fresh connect attempt is
+  // never a user disconnect.
+  lastKnownPort = port;
+  userDisconnected = false;
+  clearReconnectTimer();
+
   if (nativePort) {
     if (!forceReconnect) {
       console.log(`Already connected to native host, skipping connection`);
@@ -135,6 +186,9 @@ export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT, force
         }
       } else if (message.type === NativeMessageType.SERVER_STARTED) {
         const port = message.payload?.port;
+        // Healthy connection re-established — reset the reconnect backoff.
+        reconnectAttempts = 0;
+        clearReconnectTimer();
         currentServerStatus = {
           isRunning: true,
           port: port,
@@ -153,7 +207,26 @@ export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT, force
         broadcastServerStatusChange(currentServerStatus);
         console.log(SUCCESS_MESSAGES.SERVER_STOPPED);
       } else if (message.type === NativeMessageType.ERROR_FROM_NATIVE_HOST) {
-        console.error('Error from native host:', message.payload?.message || 'Unknown error');
+        const hostErr = message.payload?.message || 'Unknown error';
+        // "Server is busy" / "already running" / "Shutdown rejected" all mean a
+        // server IS up on the port — that is success from the extension's POV,
+        // not a fatal error. Reflect it as running instead of alarming the user.
+        const benign =
+          /already running|server is busy|active sessions|shutdown rejected/i.test(hostErr);
+        if (benign) {
+          console.warn('[NativeHost] Treating as already-running:', hostErr);
+          reconnectAttempts = 0;
+          clearReconnectTimer();
+          currentServerStatus = {
+            isRunning: true,
+            port: currentServerStatus.port || lastKnownPort,
+            lastUpdated: Date.now(),
+          };
+          await saveServerStatus(currentServerStatus);
+          broadcastServerStatusChange(currentServerStatus);
+        } else {
+          console.error('Error from native host:', hostErr);
+        }
       } else if (message.type === 'file_operation_response') {
         // Forward file operation response back to the requesting tool
         chrome.runtime.sendMessage(message).catch(() => {
@@ -193,8 +266,12 @@ export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT, force
       // The server process might still be alive even if the connection dropped
       broadcastServerStatusChange(currentServerStatus);
 
-      // Don't auto-reconnect here - let the next Service Worker wake-up handle it
-      // This prevents rapid reconnection loops if the host is actually crashing
+      // Auto-reconnect with exponential backoff unless this was a forbidden
+      // (mis-registered ID) error — those never recover by retrying — or a
+      // user-initiated disconnect. The alarm watchdog backstops the SW dying.
+      if (!isForbiddenError && !userDisconnected) {
+        scheduleReconnect(lastKnownPort);
+      }
     });
 
     // Only send START message if server is not already reported as running
@@ -207,8 +284,13 @@ export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT, force
     }
   } catch (error) {
     console.error(ERROR_MESSAGES.NATIVE_CONNECTION_FAILED, error);
+    nativePort = null;
     // Broadcast connection failure to UI
     broadcastServerStatusChange(currentServerStatus);
+    // Retry with backoff (e.g. host briefly unavailable during a takeover).
+    if (!userDisconnected) {
+      scheduleReconnect(lastKnownPort);
+    }
   }
 }
 
@@ -238,6 +320,19 @@ export const initNativeHostListener = () => {
     connectNativeHost(port);
   });
 
+  // Watchdog: a periodic alarm survives service-worker termination and
+  // re-establishes a dropped native connection on its next tick. Resets the
+  // fast-reconnect budget so backoff starts fresh each tick.
+  chrome.alarms.create(RECONNECT_ALARM, { periodInMinutes: 1 });
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name !== RECONNECT_ALARM) return;
+    if (userDisconnected || nativePort) return;
+    reconnectAttempts = 0;
+    const port = currentServerStatus.port || lastKnownPort || NATIVE_HOST.DEFAULT_PORT;
+    console.log('[NativeHost] Watchdog re-establishing native connection');
+    connectNativeHost(port);
+  });
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === NativeMessageType.CONNECT_NATIVE) {
       const port =
@@ -256,6 +351,10 @@ export const initNativeHostListener = () => {
     }
 
     if (message.type === NativeMessageType.DISCONNECT_NATIVE) {
+      // User-initiated: suppress auto-reconnect/watchdog until the next explicit
+      // connect.
+      userDisconnected = true;
+      clearReconnectTimer();
       if (nativePort) {
         nativePort.disconnect();
         nativePort = null;

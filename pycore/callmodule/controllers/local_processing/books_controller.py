@@ -14,11 +14,20 @@ an exception, so a folder scan never fails as a whole.
 
 import os
 import re
+import json
 import time
+import hashlib
+import collections
 from typing import List, Optional, Tuple
 
-from pycore import ColorPrint, get_user_data_store
+from pycore import ColorPrint, get_user_data_store, THREAD_BUS
 from pycore.pyfoundations.system_paths import get_app_data_dir
+from pycore.pyfoundations.text_parsing import (
+    tokenize_words,
+    split_sentences,
+    normalize_sentence_key,
+    language_breakdown,
+)
 from pycore.pyutils.text_stats import compute_text_stats, merge_stats
 from pycore.callmodule.services.processors.book_processor import (
     BOOK_EXTENSIONS,
@@ -30,6 +39,7 @@ from pycore.callmodule.services.processors.book_processor import (
 from pycore.callmodule.services.sync.laravel_media_sync import (
     source_key_for,
     sync_book_source,
+    SYNC_EVENT,
 )
 
 # User-data section persisting Books sources + their (compact) analysis +
@@ -44,6 +54,9 @@ def _norm_path(path: str) -> str:
 # Where drag-dropped uploads (no OS path in the browser sandbox) are staged on
 # disk so they get a stable absolute path the ingest pipeline can read + key on.
 _STAGING_SUBDIR = "books_staging"
+# Cached full drill-down lists (words/sentences/...) per source_key, so paging a
+# huge book never re-extracts/re-tokenizes the source.
+_LIST_CACHE_SUBDIR = "books_cache"
 
 
 def _safe_filename(name: str) -> str:
@@ -66,6 +79,7 @@ from ...models.local_processing.books_models import (
     BooksStateResponse,
     BookSubmitItem,
     BooksSubmitResponse,
+    BooksListResponse,
 )
 
 
@@ -147,7 +161,12 @@ class BooksController:
 
     # ----- analyze (extract → stats + preview) ----------------------------- #
     def _analyze_one(self, abs_file: str, root: str, language: Optional[str],
-                     preview_chars: int) -> BookFileAnalysis:
+                     preview_chars: int) -> Tuple[BookFileAnalysis, str]:
+        """Analyze one file; return (analysis, extracted_text).
+
+        The text is returned (not just the stats) so callers can reuse it to
+        precompute the drill-down list cache without extracting the file twice.
+        """
         entry = self._entry(abs_file, root)
         analysis = BookFileAnalysis(
             path=entry.path, rel=entry.rel, name=entry.name,
@@ -156,17 +175,17 @@ class BooksController:
             text = extract_text(abs_file)
         except Exception as e:
             analysis.error = f"extract failed: {e}"
-            return analysis
+            return analysis, ""
         if not (text and text.strip()):
             analysis.error = "no extractable text"
             analysis.stats = TextStats()
-            return analysis
+            return analysis, ""
         stats_dict = compute_text_stats(text, language=language)
         analysis.stats = TextStats(**stats_dict)
         if preview_chars > 0:
             preview = text[:preview_chars].strip()
             analysis.preview = preview + ("…" if len(text) > preview_chars else "")
-        return analysis
+        return analysis, text
 
     def analyze(self, path: str, formats: Optional[List[str]] = None,
                 language: Optional[str] = None, preview_chars: int = 800,
@@ -187,8 +206,12 @@ class BooksController:
 
         targets = all_files[:max_files]
         analyses: List[BookFileAnalysis] = []
+        texts: List[str] = []
         for f in targets:
-            analyses.append(self._analyze_one(f, scan_root, language, preview_chars))
+            a, t = self._analyze_one(f, scan_root, language, preview_chars)
+            analyses.append(a)
+            if t:
+                texts.append(t)
 
         # Folder aggregate (merge the per-file stats that actually parsed).
         stat_dicts = [a.stats.model_dump() for a in analyses if a.stats is not None]
@@ -205,6 +228,9 @@ class BooksController:
                 self.persist_analysis(path, mode, resp, language)
             except Exception as e:
                 ColorPrint.yellow(f"[BooksController] persist_analysis failed: {e}")
+            # Reuse the text we just extracted to populate the drill-down cache,
+            # so the first Words/Sentences open is instant (single-file sources).
+            self._maybe_cache_lists(path, mode, fmt_filter, "\n\n".join(texts))
         return resp
 
     # ----- upload + analyze (drag-drop fallback for sandboxed browsers) ---- #
@@ -248,7 +274,11 @@ class BooksController:
                     path="", rel=safe, name=safe, ext=ext,
                     size_bytes=len(content or b""), error=f"save failed: {e}"))
                 continue
-            analyses.append(self._analyze_one(dest, root, language, preview_chars))
+            a, text = self._analyze_one(dest, root, language, preview_chars)
+            analyses.append(a)
+            # Each staged upload is a single-file source; precompute its drill-down
+            # cache from the text just extracted so the Words list opens instantly.
+            self._maybe_cache_lists(dest, "file", None, text)
 
         stat_dicts = [a.stats.model_dump() for a in analyses if a.stats is not None]
         aggregate = TextStats(**merge_stats(stat_dicts)) if stat_dicts else None
@@ -373,28 +403,63 @@ class BooksController:
         total_words = 0
         any_fail = False
 
-        for path in targets:
+        for idx, path in enumerate(targets, 1):
             abs_path = os.path.abspath(path)
-            files = list(iter_books(abs_path)) if os.path.isdir(abs_path) else [abs_path]
+            # Coarse per-source progress (helps multi-source submits); the inner
+            # sync_book_source streams the fine extract/build/ingest stages.
+            try:
+                THREAD_BUS.trigger_event(SYNC_EVENT, {
+                    "stage": "source", "done": idx, "total": len(targets),
+                    "detail": os.path.basename(abs_path), "kind": "book",
+                })
+            except Exception:
+                pass
+            is_dir = os.path.isdir(abs_path)
+            files = list(iter_books(abs_path)) if is_dir else [abs_path]
             rec = next((s for s in sources if s.get("source_key") == source_key_for(abs_path)), None)
             lang = language or (rec.get("language") if rec else None) or "en"
             src_ok = True
             src_sent = 0
             src_word = 0
             errs: List[str] = []
+            # Precompute the drill-down cache from the text sync already extracts
+            # (no second extraction). To match list_items exactly, capture text
+            # ONLY for the files it would use — the first 25 in _list_files order
+            # (sorted) — for both single-file and folder sources. This also bounds
+            # memory: at most 25 texts are held, regardless of folder size.
+            cache_files = self._list_files(abs_path, None)[:25] if is_dir else [abs_path]
+            cache_set = {os.path.abspath(p) for p in cache_files}
+            captured = {}  # abspath -> extracted text (cache_files only)
             for f in files:
+                want_text = os.path.abspath(f) in cache_set
+                sink: List[str] = []
                 try:
-                    r = sync_book_source(f, language=lang)
+                    r = sync_book_source(f, language=lang,
+                                         on_text=(sink.append if want_text else None))
                 except Exception as e:
                     src_ok = False
                     errs.append(f"{os.path.basename(f)}: {e}")
                     continue
+                if want_text and sink:
+                    captured[os.path.abspath(f)] = sink[0]
                 if r.get("success"):
                     src_sent += int(r.get("sentences") or 0)
                     src_word += int(r.get("words") or 0)
                 else:
                     src_ok = False
                     errs.extend(r.get("errors") or [f"{os.path.basename(f)}: failed"])
+            # Build the cache in _list_files order so it is byte-for-byte what the
+            # lazy _build_lists would produce. Independent of Laravel ingest success
+            # (the drill-down is pure local analysis).
+            if captured:
+                joined = "\n\n".join(
+                    captured[os.path.abspath(p)] for p in cache_files
+                    if os.path.abspath(p) in captured)
+                if joined.strip():
+                    try:
+                        self._write_list_cache(abs_path, None, 25, self._lists_from_text(joined))
+                    except OSError as e:
+                        ColorPrint.yellow(f"[BooksController] submit precompute cache failed: {e}")
             total_sentences += src_sent
             total_words += src_word
             if not src_ok:
@@ -413,3 +478,150 @@ class BooksController:
         return BooksSubmitResponse(
             success=not any_fail, items=items,
             total_sentences=total_sentences, total_words=total_words)
+
+    # ----- drill-down lists (paginated words / sentences / languages) ------ #
+    def _list_cache_path(self, source_key: str) -> str:
+        d = os.path.join(str(get_app_data_dir()), _LIST_CACHE_SUBDIR)
+        os.makedirs(d, exist_ok=True)
+        return os.path.join(d, source_key + ".json")
+
+    def _source_fingerprint(self, path: str, fmt_filter: Optional[set],
+                            max_files: int) -> str:
+        """A stable signature of a source's files (abspath|size|mtime).
+
+        Used to validate the drill-down cache: when the underlying file changes
+        (or a cache was written before the file was extractable), the fingerprint
+        no longer matches and the cache is rebuilt — this self-heals a stale or
+        empty cached list instead of serving 0 forever.
+        """
+        files = self._list_files(path, fmt_filter)[:max_files]
+        if not files:
+            return "empty"
+        sig: List[str] = []
+        for f in files:
+            try:
+                st = os.stat(f)
+                sig.append(f"{os.path.abspath(f)}|{st.st_size}|{int(st.st_mtime)}")
+            except OSError:
+                sig.append(f"{os.path.abspath(f)}|?")
+        return hashlib.sha1("\n".join(sig).encode("utf-8")).hexdigest()
+
+    def _lists_from_text(self, all_text: str) -> dict:
+        """Build the drill-down lists from already-extracted text (no IO).
+
+        Returns {words:[{word,count}], sentences:[{seq,text}],
+                 unique_sentences:[{seq,text}], languages:[...], totals:{...}}.
+        """
+        tokens = tokenize_words(all_text)
+        counter = collections.Counter(t.casefold() for t in tokens)
+        words = [{"word": w, "count": c} for w, c in counter.most_common()]
+
+        sents = split_sentences(all_text)
+        sentences = [{"seq": i, "text": s} for i, s in enumerate(sents)]
+        seen: set = set()
+        unique_sentences: List[dict] = []
+        for s in sents:
+            key = normalize_sentence_key(s)
+            if key and key not in seen:
+                seen.add(key)
+                unique_sentences.append({"seq": len(unique_sentences), "text": s})
+
+        languages = language_breakdown(all_text)
+        totals = {
+            "words": len(tokens), "unique_words": len(counter),
+            "sentences": len(sents), "unique_sentences": len(unique_sentences),
+            "chars": len(all_text),
+        }
+        return {"words": words, "sentences": sentences,
+                "unique_sentences": unique_sentences, "languages": languages,
+                "totals": totals}
+
+    def _build_lists(self, path: str, fmt_filter: Optional[set],
+                     max_files: int) -> dict:
+        """Build the full drill-down lists for a source (single file or folder).
+
+        Heavy (re-extracts + tokenizes) — callers cache the result. analyze /
+        analyze-upload precompute this from text they ALREADY extracted (see
+        _maybe_cache_lists), so the first drill-down open is normally a cache hit.
+        """
+        files = self._list_files(path, fmt_filter)[:max_files]
+        parts: List[str] = []
+        for f in files:
+            try:
+                t = extract_text(f)
+            except Exception:
+                t = ""
+            if t and t.strip():
+                parts.append(t)
+        return self._lists_from_text("\n\n".join(parts))
+
+    def _write_list_cache(self, path: str, fmt_filter: Optional[set],
+                          max_files: int, data: dict) -> None:
+        """Persist drill-down lists for a source, stamped with its fingerprint."""
+        stamped = {**data, "_fp": self._source_fingerprint(path, fmt_filter, max_files)}
+        cache_file = self._list_cache_path(source_key_for(os.path.abspath(path)))
+        with open(cache_file, "w", encoding="utf-8") as fh:
+            json.dump(stamped, fh, ensure_ascii=False)
+
+    def _maybe_cache_lists(self, path: str, mode: str,
+                           fmt_filter: Optional[set], text: str) -> None:
+        """Precompute the drill-down cache from text extracted during analyze.
+
+        Only for single-file sources with no format filter (the canonical
+        list_items lookup uses formats=None), and only when text was extracted —
+        so opening the Words/Sentences list right after Analyze is instant rather
+        than re-extracting the whole book. Folders build lazily on first open.
+        """
+        if mode != "file" or fmt_filter is not None or not (text and text.strip()):
+            return
+        try:
+            self._write_list_cache(path, None, 25, self._lists_from_text(text))
+        except OSError as e:
+            ColorPrint.yellow(f"[BooksController] precompute list cache failed: {e}")
+
+    def list_items(self, path: str, kind: str = "words", start: int = 0,
+                   limit: int = 100, formats: Optional[List[str]] = None,
+                   language: Optional[str] = None, refresh: bool = False,
+                   max_files: int = 25) -> BooksListResponse:
+        """One page of a source's drill-down list (fingerprint-validated cache)."""
+        try:
+            self._resolve(path)
+        except ValueError as e:
+            return BooksListResponse(success=False, kind=kind, error=str(e))
+
+        fmt_filter = _norm_formats(formats)
+        cache_file = self._list_cache_path(source_key_for(os.path.abspath(path)))
+        fingerprint = self._source_fingerprint(path, fmt_filter, max_files)
+        data = None
+        if not refresh and os.path.isfile(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as fh:
+                    cached = json.load(fh)
+                # Reuse ONLY when the source is unchanged. A cache without _fp
+                # (old format) or with a mismatched one is rebuilt — this heals a
+                # cache written before the file was extractable (the empty-list bug).
+                if isinstance(cached, dict) and cached.get("_fp") == fingerprint:
+                    data = cached
+            except Exception:
+                data = None
+        if data is None:
+            data = self._build_lists(path, fmt_filter, max_files)
+            # Cache only a build that actually extracted text; a transient
+            # extraction failure (0 chars) is returned but NOT frozen, so the
+            # next open retries instead of serving a permanent empty list.
+            if (data.get("totals") or {}).get("chars", 0) > 0:
+                try:
+                    self._write_list_cache(path, fmt_filter, max_files, data)
+                except OSError as e:
+                    ColorPrint.yellow(f"[BooksController] list cache write failed: {e}")
+
+        # 'words' and 'unique_words' share the distinct-frequency list.
+        list_key = {"unique_words": "words"}.get(kind, kind)
+        items = data.get(list_key) or []
+        total = len(items)
+        start = max(0, int(start))
+        limit = max(1, min(1000, int(limit)))
+        page = items[start:start + limit]
+        return BooksListResponse(
+            success=True, kind=kind, total=total, start=start, limit=limit,
+            items=page, totals=data.get("totals") or {})

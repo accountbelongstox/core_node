@@ -247,6 +247,57 @@ export interface AiUsageResponse {
   entries: AiUsageRecord[];
 }
 
+/** One key slot for a provider (a single secret file name + masked value). */
+export interface AiKeySlot {
+  /** Exact secret name, e.g. GOOGLE_API_KEY_1 / GOOGLE_API_KEY_IMAGE_1. */
+  name: string;
+  /** True when a value is currently stored under this name. */
+  set: boolean;
+  /**
+   * True for a real secret (masked). False for plain config (endpoint /
+   * deployment / region / base-url) which is returned in FULL so the user can
+   * verify it. Absent → treat as secret.
+   */
+  secret?: boolean;
+  /** Secret: masked (first4…last4). Config: the full value. null when unset. */
+  masked: string | null;
+}
+
+/** One provider's key inventory from GET /keys. */
+export interface AiKeysProvider {
+  provider: string;
+  /** Registry base name (e.g. GOOGLE_API_KEY); '' for keyless providers. */
+  key_base: string;
+  /** Secondary secret name (e.g. CLOUDFLARE_ACCOUNT_ID) or null. */
+  extra_secret_name: string | null;
+  /** True when the provider needs no API key (e.g. pollinations). */
+  keyless: boolean;
+  /** _1.._5, bare, _IMAGE_1.._5, then the extra-secret slot if any. */
+  slots: AiKeySlot[];
+}
+
+/** Payload of GET /keys. */
+export interface AiKeysResponse {
+  success: boolean;
+  providers: AiKeysProvider[];
+  error?: string | null;
+}
+
+/** Payload of POST /keys (set/replace one key). */
+export interface AiKeySetResponse {
+  success: boolean;
+  key_name?: string;
+  /** Masked stored value (first4…last4) — never the raw key. */
+  masked?: string | null;
+  error?: string | null;
+}
+
+/** Payload of POST /keys/delete. */
+export interface AiKeyDeleteResponse {
+  success: boolean;
+  error?: string | null;
+}
+
 /**
  * AiManagementAPI module. Prefix is configured in core/api/index.ts as
  * `/api/local/ai`, so method paths are relative to that.
@@ -359,5 +410,28 @@ export class AiManagementAPI extends BaseAPI {
       params.kind = kind;
     }
     return this.get<AiUsageResponse>('/usage', params, false, 0, false);
+  }
+
+  /**
+   * Per-provider AI key inventory (slots with masked values only — the raw key
+   * is never returned). GET /keys. Keys are SHARED with pycore; multiple keys
+   * (KEY_1, KEY_2, …) enable automatic failover.
+   */
+  async listKeys(): Promise<APIResponse<AiKeysResponse>> {
+    return this.get<AiKeysResponse>('/keys', undefined, false, 0, false);
+  }
+
+  /**
+   * Set/replace one AI provider key. POST /keys { key_name, value }. The backend
+   * validates the name against the registry allow-list and returns the MASKED
+   * stored value — never the raw key.
+   */
+  async setKey(keyName: string, value: string): Promise<APIResponse<AiKeySetResponse>> {
+    return this.post<AiKeySetResponse>('/keys', { key_name: keyName, value });
+  }
+
+  /** Delete one AI provider key file. POST /keys/delete { key_name }. */
+  async deleteKey(keyName: string): Promise<APIResponse<AiKeyDeleteResponse>> {
+    return this.post<AiKeyDeleteResponse>('/keys/delete', { key_name: keyName });
   }
 }

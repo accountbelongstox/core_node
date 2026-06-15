@@ -6,7 +6,7 @@
 import React, { lazy } from 'react';
 import {
   Volume2, ListOrdered, AppWindow, FolderSync,
-  Film, Settings, BookOpen, Activity, Image as ImageIcon, type LucideIcon,
+  Film, Settings, BookOpen, Sparkles, type LucideIcon,
 } from 'lucide-react';
 
 export const PcVoiceSubtitlePage = lazy(() => import('./pages/PcVoiceSubtitlePage'));
@@ -15,8 +15,9 @@ export const PcWindowAutomationPage = lazy(() => import('./pages/PcWindowAutomat
 export const PcCodeSyncPage = lazy(() => import('./pages/PcCodeSyncPage'));
 export const PcVideoExtractPage = lazy(() => import('./pages/PcVideoExtractPage'));
 export const PcBooksPage = lazy(() => import('./pages/PcBooksPage'));
-export const PcAiStatusPage = lazy(() => import('./pages/PcAiStatusPage'));
-export const PcAiImagePage = lazy(() => import('./pages/PcAiImagePage'));
+// The three former AI pages (ai-status / ai-image / ai-keys) are merged into one
+// tabbed "AI" page. Their old routes redirect into it with the matching ?tab=.
+export const PcAiPage = lazy(() => import('./pages/PcAiPage'));
 export const PcSettingsPage = lazy(() => import('./pages/PcSettingsPage'));
 
 export interface PcPageDef {
@@ -36,7 +37,6 @@ export const PC_PAGES: PcPageDef[] = [
   { id: 'code-sync', labelKey: 'nav.codeSync', Icon: FolderSync, Component: PcCodeSyncPage },
   { id: 'video-extract', labelKey: 'nav.videoExtract', Icon: Film, Component: PcVideoExtractPage },
   { id: 'books', labelKey: 'nav.books', Icon: BookOpen, Component: PcBooksPage },
-  { id: 'ai-status', labelKey: 'nav.aiStatus', Icon: Activity, Component: PcAiStatusPage },
-  { id: 'ai-image', labelKey: 'nav.aiImage', Icon: ImageIcon, Component: PcAiImagePage },
+  { id: 'ai', labelKey: 'nav.ai', Icon: Sparkles, Component: PcAiPage },
   { id: 'settings', labelKey: 'nav.settings', Icon: Settings, Component: PcSettingsPage, bottom: true },
 ];

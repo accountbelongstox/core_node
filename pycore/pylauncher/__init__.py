@@ -30,6 +30,7 @@ Usage:
 from pycore.pylauncher.launcher import (
     LauncherConfig,
     ServiceLauncher,
+    on_singleton_superseded,
 )
 from pycore.pylauncher.app_executable_launcher import (
     AppExecutableLauncher,
@@ -45,6 +46,7 @@ register_executable_launcher_provider(get_app_executable_launcher)
 __all__ = [
     'LauncherConfig',   # Configuration
     'ServiceLauncher',  # Launcher
+    'on_singleton_superseded',  # Old-instance hook: notified when a newer instance takes over
     'AppExecutableLauncher',  # App executable launcher
     'get_app_executable_launcher',  # Get singleton instance
 ]

@@ -22,6 +22,11 @@ Route::prefix('local/ai')->middleware('throttle:120,1')->group(function () {
     Route::get('gateway', [AiLocalController::class, 'gateway']);
     Route::get('rate-limits', [AiLocalController::class, 'rateLimits']);
     Route::get('usage', [AiLocalController::class, 'usage']);
+    // AI key management — set/list/delete provider keys (shared with pycore).
+    // Keys are never returned raw: list yields first4…last4 masks only.
+    Route::get('keys', [AiLocalController::class, 'keysList']);
+    Route::post('keys', [AiLocalController::class, 'keySet']);
+    Route::post('keys/delete', [AiLocalController::class, 'keyDelete']);
     Route::post('image', [AiLocalController::class, 'image']);
     Route::get('image/history', [AiLocalController::class, 'imageHistory']);
     Route::get('image/history/file/{id}', [AiLocalController::class, 'imageHistoryFile']);

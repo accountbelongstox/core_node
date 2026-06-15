@@ -31,28 +31,12 @@ export interface ExtensionRegistry {
 // ============================================================
 
 const EXTENSION_REGISTRY: ExtensionRegistry = {
-  'api-settings': {
-    id: 'api-settings',
-    name: 'API Settings',
-    description: 'Configure API endpoints for extensions',
-    icon: '⚙️',
-    iconBg: 'bg-blue-100',
-    status: 'active',
-  },
-  'local-task-queue': {
-    id: 'local-task-queue',
-    name: 'Local Task Queue',
-    description: 'Unified task queue for all extensions (serial processing)',
+  'queue-center': {
+    id: 'queue-center',
+    name: 'Task Queue & Logs',
+    description: 'Unified task queue (serial processing) and its event logs',
     icon: '📋',
     iconBg: 'bg-purple-100',
-    status: 'active',
-  },
-  'log-viewer': {
-    id: 'log-viewer',
-    name: 'Task Queue Logs',
-    description: 'View all task queue logs and events',
-    icon: '📊',
-    iconBg: 'bg-green-100',
     status: 'active',
   },
   'bing-dictionary': {
@@ -63,12 +47,12 @@ const EXTENSION_REGISTRY: ExtensionRegistry = {
     iconBg: 'bg-orange-100',
     status: 'active',
   },
-  'deepseek-chat': {
-    id: 'deepseek-chat',
-    name: 'Deepseek Chat',
-    description: 'AI-powered chat assistant',
-    icon: '🤖',
-    iconBg: 'bg-pink-100',
+  'notebooklm': {
+    id: 'notebooklm',
+    name: 'NotebookLM',
+    description: 'Automate Google NotebookLM Q&A',
+    icon: '📓',
+    iconBg: 'bg-sky-100',
     status: 'active',
   },
 };
@@ -97,7 +81,7 @@ let isInitialized = false;
 function getDefaultExtensions(): ExtensionConfig[] {
   return Object.values(EXTENSION_REGISTRY).map(ext => ({
     ...ext,
-    enabled: ext.id === 'api-settings' || ext.id === 'local-task-queue' || ext.id === 'bing-dictionary',
+    enabled: ext.id === 'queue-center' || ext.id === 'bing-dictionary',
     config: {},
   }));
 }

@@ -30,9 +30,26 @@
         </div>
       </div>
 
+      <!-- Recording target: tabCapture cannot record chrome:// / extension pages. -->
+      <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2.5">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-[9px] font-bold text-slate-400 uppercase">{{ getMessage('recordingTargetLabel') }}</span>
+          <button @click="loadRecordableTabs" class="text-[9px] text-indigo-400 hover:underline" :disabled="recordingInfo.isRecording">↻</button>
+        </div>
+        <select
+          v-if="recordableTabs.length"
+          v-model="selectedTabId"
+          :disabled="recordingInfo.isRecording"
+          class="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-200 disabled:opacity-50"
+        >
+          <option v-for="tab in recordableTabs" :key="tab.id" :value="tab.id">{{ truncateTitle(tab.title) }}</option>
+        </select>
+        <p v-else class="text-[9px] text-amber-400">{{ getMessage('noRecordableTabs') }}</p>
+      </div>
+
       <!-- Quick Actions -->
       <div class="flex gap-1.5">
-        <button @click="startRecording" :disabled="recordingInfo.isRecording"
+        <button @click="startRecording" :disabled="recordingInfo.isRecording || selectedTabId === null"
           class="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           {{ getMessage('startRecordingButton') }}
         </button>
@@ -207,6 +224,45 @@ const backgroundStreaming = ref<BackgroundStreaming>({
   enabled: false,
 });
 
+// Recordable-tab picker. chrome.tabCapture CANNOT capture chrome://, extension,
+// devtools, or other system pages, so the user must pick a real web-page tab
+// (the active tab is often a system page, e.g. chrome://extensions).
+interface RecordableTab {
+  id: number;
+  title: string;
+  url: string;
+}
+const recordableTabs = ref<RecordableTab[]>([]);
+const selectedTabId = ref<number | null>(null);
+
+const isRecordableUrl = (url?: string): boolean => /^(https?|file):/i.test(url || '');
+
+const truncateTitle = (s: string): string => (s.length > 48 ? s.slice(0, 48) + '…' : s);
+
+const loadRecordableTabs = async () => {
+  try {
+    const tabs = await chrome.tabs.query({});
+    recordableTabs.value = tabs
+      .filter((t) => t.id !== undefined && isRecordableUrl(t.url))
+      .map((t) => ({ id: t.id as number, title: t.title || t.url || `Tab ${t.id}`, url: t.url || '' }));
+
+    // Default to the active tab when it is recordable; otherwise the first recordable tab.
+    const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (active?.id !== undefined && isRecordableUrl(active.url)) {
+      selectedTabId.value = active.id;
+    } else if (
+      recordableTabs.value.length &&
+      !recordableTabs.value.some((t) => t.id === selectedTabId.value)
+    ) {
+      selectedTabId.value = recordableTabs.value[0].id;
+    } else if (!recordableTabs.value.length) {
+      selectedTabId.value = null;
+    }
+  } catch (error) {
+    console.error('Failed to load recordable tabs:', error);
+  }
+};
+
 const updateSessionMetadata = (alertOnError = false) => {
   const raw = sessionMetadataText.value.trim();
   if (!raw) {
@@ -310,9 +366,14 @@ const startRecording = async () => {
       return;
     }
 
+    if (selectedTabId.value === null) {
+      alert(getMessage('noRecordableTabs'));
+      return;
+    }
     const response = await chrome.runtime.sendMessage({
       type: 'audio_start_recording',
       config: {
+        tabId: selectedTabId.value,
         apiServers: apiServers.value.filter(s => s.enabled),
         recordingSettings: recordingSettings.value,
         sessionMetadata: sessionMetadata.value,
@@ -408,6 +469,7 @@ const setupRecordingStatusListener = () => {
 
 onMounted(async () => {
   await loadConfig();
+  await loadRecordableTabs();
   setupRecordingStatusListener();
 
   try {

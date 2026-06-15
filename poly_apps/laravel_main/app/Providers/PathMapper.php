@@ -528,7 +528,9 @@ class PathMapper
         }
 
         if (!file_exists($defaultDatabasePath)) {
-            mkdir($defaultDatabasePath, 0755, true);
+            // Race-safe (Octane workers / DrvFs): suppress + re-check so a
+            // concurrent create doesn't promote a "File exists" warning to a 500.
+            @mkdir($defaultDatabasePath, 0755, true);
         }
 
         // Use proper path separator based on OS
@@ -863,7 +865,13 @@ class PathMapper
     public static function ensureDirectory(string $path, int $permissions = 0755): bool
     {
         if (!is_dir($path)) {
-            if (!mkdir($path, $permissions, true)) {
+            // Race-safe under Octane (many workers) + WSL DrvFs: mkdir() can fail
+            // with "File exists" when ANOTHER worker created the dir between the
+            // is_dir() check and this call. Suppress the warning (otherwise
+            // Laravel's HandleExceptions promotes it to a 500) and treat
+            // "failed BUT it now exists" as success — only a genuinely-missing dir
+            // is an error.
+            if (!@mkdir($path, $permissions, true) && !is_dir($path)) {
                 return false;
             }
         }
@@ -942,7 +950,28 @@ class PathMapper
         $cachedPath = $coreNodeDir;
         return $cachedPath;
     }
-    
+
+    /**
+     * Get a path under the SHARED core_node/.data temp directory.
+     *
+     * This is the cross-tool scratch area shared with pycore (core_node/.data).
+     * Callers MUST namespace their subtree (e.g. "appqyv1/books/<id>") so apps
+     * never collide. The directory is created if missing.
+     *
+     * @param string|null $subPath Namespaced sub-path under .data (e.g. "appqyv1/books").
+     * @return string Absolute path under core_node/.data (dir ensured).
+     */
+    public static function getCoreNodeDataDir(?string $subPath = ""): string
+    {
+        $base = self::getCoreNodeDir() . DIRECTORY_SEPARATOR . '.data';
+        $full = $base;
+        if ($subPath !== null && $subPath !== "") {
+            $full = $base . DIRECTORY_SEPARATOR . ltrim(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $subPath), DIRECTORY_SEPARATOR);
+        }
+        self::ensureDirectory($full);
+        return $full;
+    }
+
     /**
      * Get Laravel main directory path
      * Uses relative positioning from PathMapper file location

@@ -20,6 +20,7 @@ export {
   audioDurationTool,
 } from './audio';
 export { bingDictionaryTool } from './bing-dictionary';
+export { notebookLmTool } from './notebooklm';
 export {
   deepseekSendPromptTool,
   deepseekGetTaskStatusTool,

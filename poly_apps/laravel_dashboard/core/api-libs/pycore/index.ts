@@ -9,6 +9,7 @@ export type {
   BooksScanResponse, BookFileAnalysis, BooksAnalyzeResponse,
   BooksSupportedFormatsResponse, BooksAnalyzeOptions,
   BookSourceState, BooksStateResponse, BookSubmitItem, BooksSubmitResponse,
+  BooksListResponse,
 } from './PycoreApi';
 
 export {

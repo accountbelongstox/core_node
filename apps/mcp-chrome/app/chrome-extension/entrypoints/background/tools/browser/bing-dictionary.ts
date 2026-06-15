@@ -14,6 +14,8 @@ export interface BingDictionaryResult {
   phonetics: Array<{
     text: string;
     audioUrl: string | null;
+    // base64 data URL of the audio, captured in-page (bypasses hot-link/CORS).
+    audioDataUrl?: string;
     lang: string;
   }>;
   translations: Array<{
@@ -24,6 +26,8 @@ export interface BingDictionaryResult {
   sampleImages: Array<{
     url: string;
     alt: string;
+    // base64 data URL of the image, captured in-page (bypasses hot-link/CORS).
+    dataUrl?: string;
   }>;
   synonyms: Array<{
     type: string;
@@ -33,11 +37,26 @@ export interface BingDictionaryResult {
     type: string;
     content: string;
   }>;
+  // Detailed (Collins/Oxford-style) definitions from `.se_lis`: a Chinese gloss
+  // plus the English explanation.
+  detailedDefinitions?: Array<{ cn: string; en: string }>;
+  // Example sentences (`.sen_en` / `.sen_cn`) — English sentence + Chinese.
+  examples?: Array<{ en: string; cn: string }>;
   voiceUrls: string[];
+  // True when the page yielded at least one usable signal (definition, phonetic,
+  // or image). Absent on older cached injections — treat undefined as unknown.
+  hasContent?: boolean;
+  // 'dict' = confirmed Bing dictionary page; 'non-dict' = region-redirected /
+  // not a dictionary. Only a 'dict' page with no entry means the word is invalid.
+  pageType?: 'dict' | 'non-dict';
   error: string | null;
   url?: string;
   tabId?: number;
 }
+
+// 必应词典 home. We load this once per tab then drive its search box, instead of
+// hitting /dict/search?q= directly (which can region-redirect to web search).
+const BING_DICT_HOME = 'https://cn.bing.com/dict';
 
 class BingDictionaryTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.BING_DICTIONARY;
@@ -55,76 +74,37 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     console.log(`[Bing Dictionary] Looking up word: "${word}"`);
 
     try {
-      // Construct Bing Dictionary URL
-      const searchWord = encodeURIComponent(word.trim());
-      const bingDictUrl = `https://www.bing.com/dict/search?q=${searchWord}`;
-
-      console.log(`[Bing Dictionary] Target URL: ${bingDictUrl}`);
-
       let tab: chrome.tabs.Tab | undefined;
 
-      // Check if we should reuse an existing Bing Dictionary tab
+      // Reuse an existing Bing dictionary tab when allowed.
       if (!openInNewTab) {
         const allTabs = await chrome.tabs.query({});
-
-        // Find tabs with Bing Dictionary open
-        const bingDictTabs = allTabs.filter((t) => {
-          return t.url && t.url.includes('bing.com/dict');
-        });
-
-        if (bingDictTabs.length > 0) {
-          // Reuse the first Bing Dictionary tab found
-          tab = bingDictTabs[0];
-          console.log(
-            `[Bing Dictionary] Reusing existing tab ID: ${tab.id}, navigating to: ${bingDictUrl}`,
-          );
-
-          // Navigate to the new search URL
-          if (tab.id) {
-            await chrome.tabs.update(tab.id, {
-              url: bingDictUrl,
-              active: true,
-            });
-          }
+        tab = allTabs.find((t) => t.url && t.url.includes('bing.com/dict'));
+        if (tab?.id) {
+          await chrome.tabs.update(tab.id, { active: true });
         }
       }
 
-      // If no existing tab or openInNewTab is true, create a new tab
+      // Otherwise open the dictionary home (search box driven from there).
       if (!tab) {
-        console.log(`[Bing Dictionary] Creating new tab for: ${bingDictUrl}`);
-        tab = await chrome.tabs.create({
-          url: bingDictUrl,
-          active: true,
-        });
+        tab = await chrome.tabs.create({ url: BING_DICT_HOME, active: true });
       }
 
       if (!tab.id) {
         return createErrorResponse('Failed to create or access tab');
       }
 
-      // Wait for the navigation to settle, then inject + extract.
-      await this.waitForTabComplete(tab.id);
-
-      const translationData = await this.extractFromTab(tab.id, bingDictUrl);
+      const translationData = await this.lookupInTab(tab.id, word);
 
       if (!translationData) {
         return createErrorResponse('No response from content script');
       }
-
       if (!translationData.success) {
         console.warn('[Bing Dictionary] Translation extraction failed:', translationData.error);
       }
 
-      console.log('[Bing Dictionary] Translation data retrieved successfully');
-
-      // Return formatted result
       return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(translationData, null, 2),
-          },
-        ],
+        content: [{ type: 'text', text: JSON.stringify(translationData, null, 2) }],
         isError: false,
       };
     } catch (error) {
@@ -136,27 +116,79 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
   }
 
   /**
-   * Look up a word in a SPECIFIC, caller-owned tab. Used by the parallel
-   * translation worker, which manages a pool of Bing dictionary tabs and drives
-   * several lookups concurrently. Navigates the given tab to the search URL,
-   * waits for load, injects the helper, and returns the parsed result (incl.
-   * phonetics[].audioUrl and sampleImages).
+   * Look up a word in a SPECIFIC, caller-owned tab by driving the on-page search
+   * box (type the word + click search) rather than navigating to the ?q= URL.
+   * This keeps the dictionary's session/market context (avoiding the region
+   * redirect to web search) and mimics human interaction. Used by the parallel
+   * translation worker's tab pool.
    */
-  async lookupInTab(tabId: number, word: string): Promise<BingDictionaryResult> {
-    const searchWord = encodeURIComponent(word.trim());
-    const bingDictUrl = `https://www.bing.com/dict/search?q=${searchWord}`;
+  async lookupInTab(
+    tabId: number,
+    word: string,
+    includeMedia = false,
+  ): Promise<BingDictionaryResult> {
+    await this.ensureOnDictPage(tabId);
 
-    await chrome.tabs.update(tabId, { url: bingDictUrl });
+    // Type into the search box and click search.
+    let searchRes = await this.searchInTab(tabId, word);
+    if (!searchRes?.found) {
+      // The tab wasn't on a usable dictionary page — load the home and retry once.
+      await chrome.tabs.update(tabId, { url: BING_DICT_HOME });
+      await this.waitForTabComplete(tabId);
+      searchRes = await this.searchInTab(tabId, word);
+      if (!searchRes?.found) {
+        return {
+          success: false,
+          word: null,
+          phonetics: [],
+          translations: [],
+          pluralForms: [],
+          sampleImages: [],
+          synonyms: [],
+          advancedTranslations: [],
+          voiceUrls: [],
+          hasContent: false,
+          pageType: 'non-dict',
+          error: 'Bing dictionary search box not found (region/redirect issue)',
+          tabId,
+        };
+      }
+    }
+
+    // The click triggers a navigation to the result page; wait then extract.
     await this.waitForTabComplete(tabId);
+    const tab = await this.tryGetTab(tabId);
+    return this.extractFromTab(tabId, tab?.url || BING_DICT_HOME, includeMedia);
+  }
 
-    return this.extractFromTab(tabId, bingDictUrl);
+  /** Ensure the tab is on a bing.com/dict page; load the home if not. */
+  private async ensureOnDictPage(tabId: number): Promise<void> {
+    const tab = await this.tryGetTab(tabId);
+    if (!tab || !tab.url || !tab.url.includes('bing.com/dict')) {
+      await chrome.tabs.update(tabId, { url: BING_DICT_HOME });
+      await this.waitForTabComplete(tabId);
+    }
+  }
+
+  /** Inject the helper and trigger an on-page search (fill box + click). */
+  private async searchInTab(
+    tabId: number,
+    word: string,
+  ): Promise<{ found: boolean; error?: string } | undefined> {
+    await this.injectContentScript(tabId, ['inject-scripts/bing-dictionary-helper.js']);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    return this.sendMessageToTab(tabId, { action: 'bingDictionarySearch', word: word.trim() });
   }
 
   /**
    * Inject the helper and pull the dictionary data out of an already-navigated
    * tab. Shared by execute() and lookupInTab().
    */
-  private async extractFromTab(tabId: number, bingDictUrl: string): Promise<BingDictionaryResult> {
+  private async extractFromTab(
+    tabId: number,
+    bingDictUrl: string,
+    includeMedia = false,
+  ): Promise<BingDictionaryResult> {
     await this.injectContentScript(tabId, ['inject-scripts/bing-dictionary-helper.js']);
 
     // Give the freshly-injected content script a moment to register its listener.
@@ -164,6 +196,9 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
 
     const translationData: BingDictionaryResult = await this.sendMessageToTab(tabId, {
       action: TOOL_MESSAGE_TYPES.BING_DICTIONARY_FETCH_TRANSLATION,
+      // Only the test/display path needs in-page base64 capture of images+audio;
+      // bulk processing skips it to stay fast (audio is fetched separately).
+      includeBinaries: includeMedia,
     });
 
     if (translationData) {
@@ -204,15 +239,20 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
       const timer = setTimeout(finish, timeoutMs);
       chrome.tabs.onUpdated.addListener(onUpdated);
 
-      // The tab may already be "complete" before we attached the listener.
-      chrome.tabs.get(tabId).then(
-        (tab) => {
-          if (tab.status === 'complete') {
-            finish();
-          }
-        },
-        () => finish(),
-      );
+      // A just-triggered navigation can still report the PREVIOUS page as
+      // "complete" for a few ms. Probe the status only after a short delay so a
+      // stale "complete" can't resolve us onto the old page; by then the tab has
+      // flipped to "loading" and we wait for the real "complete" event.
+      setTimeout(() => {
+        chrome.tabs.get(tabId).then(
+          (tab) => {
+            if (tab.status === 'complete') {
+              finish();
+            }
+          },
+          () => finish(),
+        );
+      }, 600);
     });
   }
 }

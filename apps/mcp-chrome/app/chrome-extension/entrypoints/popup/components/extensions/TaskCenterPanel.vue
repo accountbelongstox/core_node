@@ -1,9 +1,14 @@
 <template>
-  <div class="bg-white rounded-xl p-6 shadow-sm space-y-6">
+  <div class="rounded-xl p-3 shadow-sm space-y-3" style="background: var(--surface); border: 1px solid var(--border)">
     <div class="flex items-center justify-between">
-      <h3 class="text-lg font-bold text-gray-800">🎯 Local Task Center</h3>
+      <h3 class="text-base font-bold" style="color: var(--text)">🎯 Local Task Center</h3>
       <div class="flex items-center gap-3">
-        <span :class="['px-3 py-1 text-xs font-bold rounded-full', state.isRunning ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600']">
+        <span
+          class="px-3 py-1 text-xs font-bold rounded-full"
+          :style="state.isRunning
+            ? 'background: var(--accent-soft); color: var(--success)'
+            : 'background: var(--surface-2); color: var(--text-muted)'"
+        >
           {{ state.isRunning ? '● RUNNING' : '○ STOPPED' }}
         </span>
         <button
@@ -16,20 +21,7 @@
       </div>
     </div>
 
-    <div class="space-y-3">
-      <div class="space-y-2">
-        <label class="block text-sm font-medium text-gray-700">Server API URL:</label>
-        <input
-          v-model="config.apiUrl"
-          @blur="saveConfig"
-          type="text"
-          placeholder="https://api.example.com"
-          class="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 transition-colors"
-        />
-      </div>
-    </div>
-
-    <div v-if="state.stats" class="space-y-4">
+    <div v-if="state.stats" class="space-y-3">
       <!-- Overall Stats -->
       <div class="grid grid-cols-4 gap-3">
         <div class="bg-purple-50 rounded-lg p-3 text-center space-y-1">
@@ -55,11 +47,17 @@
         <div
           v-for="(processor, type) in state.stats.processors"
           :key="type"
-          class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3"
+          class="rounded-lg p-3 space-y-3"
+          style="background: var(--surface-2); border: 1px solid var(--border)"
         >
           <div class="flex items-center justify-between">
-            <span class="text-sm font-semibold text-gray-800">{{ getProcessorName(type) }}</span>
-            <span :class="['px-2.5 py-1 text-xs font-bold rounded-full', processor.isRunning ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600']">
+            <span class="text-sm font-semibold" style="color: var(--text)">{{ getProcessorName(type) }}</span>
+            <span
+              class="px-2.5 py-1 text-xs font-bold rounded-full"
+              :style="processor.isRunning
+                ? 'background: var(--accent-soft); color: var(--success)'
+                : 'background: var(--surface); color: var(--text-muted)'"
+            >
               {{ processor.isRunning ? '▶ Active' : '⏸ Inactive' }}
             </span>
           </div>
@@ -82,12 +80,12 @@
             </div>
 
             <!-- Traditional Stats -->
-            <div class="flex flex-wrap gap-3 text-xs text-gray-600">
-              <span class="font-medium">Pending: <span class="text-gray-800">{{ processor.stats.pending }}</span></span>
-              <span class="font-medium">Done: <span class="text-gray-800">{{ processor.stats.translated }}</span></span>
-              <span class="font-medium">Failed: <span class="text-gray-800">{{ processor.stats.failed }}</span></span>
+            <div class="flex flex-wrap gap-3 text-xs" style="color: var(--text-muted)">
+              <span class="font-medium">Pending: <span style="color: var(--text)">{{ processor.stats.pending }}</span></span>
+              <span class="font-medium">Done: <span style="color: var(--text)">{{ processor.stats.translated }}</span></span>
+              <span class="font-medium">Failed: <span style="color: var(--text)">{{ processor.stats.failed }}</span></span>
               <span v-if="processor.stats.lastRun" class="font-medium">
-                Last: <span class="text-gray-800">{{ formatTimestamp(processor.stats.lastRun) }}</span>
+                Last: <span style="color: var(--text)">{{ formatTimestamp(processor.stats.lastRun) }}</span>
               </span>
             </div>
           </div>
@@ -124,3 +122,19 @@ onMounted(() => {
 });
 </script>
 
+<style scoped>
+.tk-input {
+  background: var(--surface-2);
+  border: 2px solid var(--border);
+  color: var(--text);
+}
+
+.tk-input:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.tk-input::placeholder {
+  color: var(--text-faint);
+}
+</style>

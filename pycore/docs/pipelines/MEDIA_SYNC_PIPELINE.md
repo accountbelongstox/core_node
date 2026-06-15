@@ -95,10 +95,10 @@ VideoExtractProcessor (pycore)                    laravel_main (:9000, app_qy_v1
 - 句子经 `source_sentences → sentences` 共享句库解析,优先 `grain='sentence'`,该粒度为空时回退 `grain='cue'`(返回中带 `grain` 字段)。
 - 分页:`limit` 默认 50,**上限钳制 200**;`start<0` 归零。
 - 列表/内容端点**永不返回 `full_content`**(字幕全文只用于入库,不对外)。
-- **v2 书籍注意(与 §8 相关)**:书籍句子在库中为**去标点**形式,故 `/media/content/book/{id}` 返回的
-  `text` 是去标点文本,`audio` 初始为空(由 pycore 后续回填)。带标点原文的精确重建依赖
-  `book.sentence_seq` + 标点标识库(§8.5/§8.6)。**当前公共读取控制器尚未做重建**(直接返回库中
-  `text`)——见 §8.12 待办。
+- **v2 书籍(与 §8 相关)**:书籍句子在库中为**去标点**形式。`/media/content/book/{id}` 对 v2 书籍
+  (`book.sentence_seq` 非空)由 `AppQyV1MediaContentPublicController::buildBookV2Content` **用
+  `sentence_seq` + 标点标识库重建带标点句子**后返回(按句子单元分页,`grain='sentence'`)。句子**内部**
+  标点(去标点时移除、未进序列)不还原,精确字节仅在 `full_content`(不对外);`audio` 初始为空(pycore 后续回填)。
 
 另:`GET /api/app_qy_v1/learning/recommendations` 同日改为公开(`AppQyV1Learning.php` 移出 `auth:sanctum` 组)——匿名得 `is_selected=false`,带 token 行为不变;`collections/select`、`collections/selected` 仍需认证。
 
@@ -143,6 +143,10 @@ VideoExtractProcessor (pycore)                    laravel_main (:9000, app_qy_v1
   注意:字幕(v1)路径句子仍**保留标点**,故共享库会同时存在带标点(字幕)与去标点(书籍)两类句子,
   两者不跨路去重(见 §2 的"句子键 v1↔v2")。
 - **句子内容ID = 去标点归一化文本的 MD5(不含语言),具 unique 属性**;书与词同样以 MD5 内容ID标识(词ID = 词的 MD5;书ID = 去标点归一化全文的 MD5)。
+- **大小写与语言取值(两端必须一致,pycore 与 laravel 都遵循)**:
+  - 句子**存储文本保留原始大小写**(仅去标点+归一化空白);**只有 content_id 做大小写折叠**(`md5(lowercase(collapse(strip)))`),从而大小写不敏感去重、又能重建出正确大小写的原文。
+  - **词库大小写折叠**:词的 `content`/`content_id` 一律小写(`md5(lowercase(word))`),使 "The"/"the" 归一、且 pycore↔laravel 同词同 id。
+  - 句子/词的 `language` 一律用**语言代码**(en/zh/ja/...),与按语言的 `tts_cache_<code>` 表对齐(不要用 english/chinese 之类全名)。
 
 ### 8.5 标点标识库
 - 内置一套**可扩展**的标点标识库;ASCII 与全角等不同字形各为**独立标识**(以便精确重建原文)。
@@ -184,9 +188,25 @@ VideoExtractProcessor (pycore)                    laravel_main (:9000, app_qy_v1
 
 ### 8.12 已知坑(书籍)
 - 标点标识库与句子去标点规则两端必须一致(pycore 为权威定义,laravel sys:init 播种须镜像)。
-- **公共读取未重建(待办)**:`/media/content/book/{id}`(§6.1)目前直接返回**去标点**库文本,且 `audio`
-  初始为空;若需对外显示带标点原文,需让 `AppQyV1MediaContentPublicController` 用 `book.sentence_seq`
-  + 标点标识库重建文本。该控制器尚未做 v2 改造。
+- **公共读取重建(已实现)**:`/media/content/book/{id}`(§6.1)对 v2 书籍用 `book.sentence_seq` +
+  标点标识库重建带标点文本(`AppQyV1MediaContentPublicController::buildBookV2Content`)。句子内部标点
+  不还原(精确字节在 `full_content`);`audio` 初始为空(pycore 回填)。
 - v2 书籍的 `source_sentences` 仅按**首次出现顺序**存**去重后**的句子(grain=`sentence`);**完整含重复的顺序**在 `book.sentence_seq`。§6.1 经 `source_sentences` 读取得到的是去重首现序,非逐字重现序。
 - 拖放取路径依赖 `File.path`,PySide6 QtWebEngine 沙箱不暴露 → 退化为上传暂存;选择器/手输路径始终可用。
 - 同 §7:改 RPC/入库逻辑后需重启 pycore worker;改 PHP 后须 `octane:reload`。
+
+### 8.13 两套独立实现(pycore 主、laravel 兜底)+ 差异化是否合理
+
+书籍功能有**两套独立实现、各自的 UI 路由**,写入**同一个共享库**(同一份 v2 契约 §8.4–§8.7):
+- **pycore**(`#/pycore-manager/books`):桌面引擎,**路径式**;`source_key=sha1(绝对路径)`;Python 解析(third_party);本地持久化来源+重开载入;一键提交分块同步。
+- **laravel-manager**(`#/vocabulary` 的 Books 面板):**兜底**,浏览器**上传式**;`source_key='book_'+content_id`(内容键);PHP 解析(pdfparser/phpword);上传→暂存 `.data/appqyv1/books/<uploadId>`→直接入库(大文档走 GlobalTask 进度)。
+
+**合理的差异(保留)**:
+| 维度 | pycore | laravel | 为何合理 |
+|---|---|---|---|
+| 来源键 | sha1(绝对路径) | `book_`+content_id | 浏览器无稳定路径,内容键反而能跨次上传去重 |
+| 添加方式 | 文件/文件夹/拖拽(原生选择器) | 上传/拖拽(浏览器) | 受运行环境约束 |
+| 解析 | Python third_party | PHP pdfparser/phpword | 各自栈内自洽 |
+| 持久化/历史 | 本地 user-data 来源列表+重开载入 | 入库后的书即durable记录(`/media/books`),上传态短暂 | 上传模型下"已入库的书"就是历史 |
+
+**必须一致(已校齐,见 §8.4)**:句子存储**保留大小写**(仅 content_id 折叠)、词库**小写**、`language` 用**代码**。校齐后**两端对同一句子产出相同 content_id**(已验证),共享库不再因来源不同而出现大小写/语言值/词条重复的分裂。

@@ -57,22 +57,29 @@ _FREE_DEFAULT_RPM = 10
 # threading lock serializes this process. True cross-runtime file locking over
 # DrvFs is not reliable, but free-tier requests are seconds apart so the
 # lost-update window is negligible; atomic replace guarantees no corruption.
-_SHARED_STATE_DIR = get_core_node_root() / ".ai_state"
+# Lives under <core_node>/.data/.ai_state; the prior <core_node>/.ai_state and the
+# per-OS APP_DATA location are both migrated once on first access.
+_SHARED_STATE_DIR = get_core_node_root() / ".data" / ".ai_state"
+_OLD_SHARED_DIR = get_core_node_root() / ".ai_state"
 _LEGACY_USAGE_FILE = APP_DATA_DIR / "ai_rate_usage.json"
 
 
 def _resolve_usage_file():
-    """Shared store path under the core_node root, migrating the legacy file once."""
+    """Shared store path under the core_node root, migrating older locations once."""
     try:
         _SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
     except Exception:
         # core_node root not writable (e.g. read-only deploy): keep the per-OS path.
         return _LEGACY_USAGE_FILE
     shared = _SHARED_STATE_DIR / "ai_rate_usage.json"
-    # One-time migration: seed the shared store from the old per-OS location so
-    # already-accumulated counters are not lost on upgrade.
+    # One-time migration: seed the new shared store from the prior shared dir
+    # (<core_node>/.ai_state) or, failing that, the old per-OS location — so
+    # already-accumulated counters survive the move to .data/.ai_state.
     try:
-        if not shared.exists() and _LEGACY_USAGE_FILE.is_file():
+        old_shared = _OLD_SHARED_DIR / "ai_rate_usage.json"
+        if not shared.exists() and old_shared.is_file():
+            os.replace(str(old_shared), str(shared))
+        elif not shared.exists() and _LEGACY_USAGE_FILE.is_file():
             shared.write_text(
                 _LEGACY_USAGE_FILE.read_text(encoding="utf-8"), encoding="utf-8"
             )

@@ -43,6 +43,7 @@ import re
 import threading
 import time
 from collections import deque
+from datetime import datetime, timezone
 from email.utils import formatdate
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -56,9 +57,24 @@ from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
 from pycore.pyctl.ai.ai_keys import (
     PROVIDERS, PROVIDER_ORDER, first_secret, image_first_secret,
     image_model, limits_note, base_url,
+    active_secret, active_image_secret, all_image_secrets, key_count,
+    mark_text_key_cooldown, mark_image_key_cooldown, record_image_key,
+    record_text_key, text_key_rate_ok, image_key_rate_ok, image_ready_now,
+    key_status, image_key_status, extra_secret, has_image_key, is_image_only,
 )
+from pycore.pyctl.ai.ai_rate_limits import resolve_limit
 from pycore.pyctl.ai.ai_probe import probe_all, _sort_key
 from pycore.pyctl.ai.ai_chat import chat_once
+
+# Optional: google-auth for Vertex AI service-account OAuth (RS256 JWT -> token).
+try:
+    from google.oauth2 import service_account as _gcp_service_account
+    from google.auth.transport.requests import Request as _GcpAuthRequest
+    _GCP_AUTH_AVAILABLE = True
+except Exception:  # noqa: BLE001 — optional dep; Vertex helper guards on this flag
+    _gcp_service_account = None
+    _GcpAuthRequest = None
+    _GCP_AUTH_AVAILABLE = False
 from pycore.pyctl.ai.ai_usage_log import record_usage
 
 _GEMINI_VISION_MODEL = "gemini-2.5-flash"
@@ -251,6 +267,68 @@ def _is_quota_error(error: Optional[str]) -> bool:
     return any(mark in e for mark in _QUOTA_ERROR_MARKS)
 
 
+def _rate_caps(provider: str, model: Optional[str] = None) -> Tuple[Optional[int], Optional[int]]:
+    """(rpm, rpd) PER-KEY budget from the provider's free-tier limit spec (each
+    key = its own account/quota). (None, None) when unenforced (paid/unlisted)."""
+    try:
+        spec = resolve_limit(provider, model)
+    except Exception:  # noqa: BLE001 — never let rate lookup break a call
+        return None, None
+    if not spec:
+        return None, None
+    return getattr(spec, "rpm", None), getattr(spec, "rpd", None)
+
+
+# Image network/time bounds. (connect, read) so a BLOCKED host fails in ~8s
+# instead of hanging; a hard per-provider thread bound covers SDK calls (e.g. the
+# google-genai client) that don't honour a requests timeout — so no single
+# provider can stall the whole image request.
+_IMG_HTTP_TIMEOUT: Tuple[int, int] = (8, 25)
+_IMG_BOUND_S = 30.0
+# Overall wall-clock budget for ONE generate_image call: once exceeded we stop
+# trying further providers and return the last error, so a sequence of slow/dead
+# providers can never make the request "stuck" (the dead ones get cooled + skipped
+# on the next call, which is then fast).
+_IMG_TOTAL_BUDGET_S = 80.0
+# Cooldown applied to an image key when its provider is UNREACHABLE/timed-out, so
+# a dead/blocked provider is skipped on subsequent calls (longer than the quota
+# cooldown — the host is likely down or geo-blocked, not just rate-limited).
+_IMG_UNREACHABLE_COOLDOWN_S = 300.0
+
+_NET_ERROR_MARKS = (
+    "timed out", "timeout", "connection", "max retries", "unreachable",
+    "failed to establish", "getaddrinfo", "connecterror", "read timed",
+    "newconnectionerror", "name or service not known", "ssl",
+)
+
+
+def _is_net_timeout_error(error: Optional[str]) -> bool:
+    e = (error or "").lower()
+    return any(mark in e for mark in _NET_ERROR_MARKS)
+
+
+def _run_image_helper(name: str, prompt: str, size: Optional[str],
+                      use_model: Optional[str], out: Dict[str, Any],
+                      secs: float = _IMG_BOUND_S) -> None:
+    """Run one image dispatch helper with a HARD time bound (daemon thread) so a
+    hanging provider (SDK with no timeout, blocked host) can't stall the pipeline.
+    On overrun ``out['error']`` is set to a timeout and we move on; the orphaned
+    thread dies with the process."""
+    done = threading.Event()
+
+    def _target() -> None:
+        try:
+            _IMAGE_DISPATCH[name](prompt, size, use_model, out)
+        except Exception as e:  # noqa: BLE001 — surface SDK failures, try next provider
+            out["error"] = str(e)
+        finally:
+            done.set()
+
+    threading.Thread(target=_target, daemon=True, name=f"img-{name}").start()
+    if not done.wait(secs):
+        out["error"] = f"timed out (> {int(secs)}s, provider unreachable)"
+
+
 def _on_result(provider: str, ok: bool, error: Optional[str]) -> None:
     with _lock:
         st = _stats[provider]
@@ -269,7 +347,9 @@ def _on_result(provider: str, ok: bool, error: Optional[str]) -> None:
                 st["cooldown_until"] = time.time() + cooldown
                 ColorPrint.yellow(
                     f"[ai_gateway] {provider} rate/quota limited — cooling down {cooldown:.0f}s")
-        _save_stats()
+    # _save_stats() re-acquires _lock, so it MUST run OUTSIDE the block above —
+    # threading.Lock is non-reentrant; calling it inside would self-deadlock.
+    _save_stats()
 
 
 def _in_cooldown(provider: str) -> bool:
@@ -312,7 +392,9 @@ def _record(kind: str, source: str, result: Dict[str, Any]) -> None:
             "latency_ms": result.get("latency_ms"),
             "error": result.get("error"),
         })
-        _save_stats()
+    # OUTSIDE the lock: _save_stats() re-acquires _lock (non-reentrant) — calling
+    # it inside the block above self-deadlocks (hung every generate_* call).
+    _save_stats()
     # Mirror vision calls into the shared cross-runtime usage log (text is logged
     # in chat_once; image generations live in ai_image_history). Outside _lock so
     # the file write never holds the gateway lock.
@@ -353,6 +435,11 @@ def gateway_status() -> Dict[str, Any]:
             "failed": st["failed"],
             "last_error": st["last_error"],
             "cooldown_s": round(cooldown_s, 1),
+            # Multi-key rotation: per-key slots (masked / cooldown / counters) so
+            # the UI can show KEY1/KEY2… status and which key is active.
+            "key_count": key_count(name),
+            "keys": key_status(name),
+            "image_keys": image_key_status(name) if meta.get("image") else [],
         })
     providers.sort(key=_sort_key)
     with _lock:
@@ -377,7 +464,10 @@ def _candidates(prefer: Optional[str], capability: Optional[str] = None) -> List
     def usable(name: str) -> bool:
         if name not in avail or _in_cooldown(name):
             return False
-        return bool(PROVIDERS[name].get(capability, False)) if capability else True
+        if capability:
+            return bool(PROVIDERS[name].get(capability, False))
+        # No capability filter = the TEXT/chat chain — exclude image-only providers.
+        return not is_image_only(name)
 
     ordered: List[str] = []
     if prefer and usable(prefer):
@@ -430,11 +520,33 @@ def generate_text(
     last: Dict[str, Any] = {}
     for i, (name, probed_model) in enumerate(chain):
         use_model = model if (i == 0 and model) else probed_model
-        last = chat_once(name, msgs, use_model, source=source)
+        # Multi-key rotation: try this provider's keys in turn — on a quota/429
+        # (or local per-key rate budget) cool the current key and retry with the
+        # NEXT key before falling through to the next provider (chat_once reads the
+        # active key via first_secret). Each key has its OWN per-key rate counter.
+        rpm, rpd = _rate_caps(name)
+        n_keys = max(1, key_count(name))
+        for attempt in range(n_keys):
+            idx, _key = active_secret(name)
+            if not text_key_rate_ok(name, idx, rpm, rpd):
+                if attempt < n_keys - 1:
+                    mark_text_key_cooldown(name, secs=30, error="per-key rate budget")
+                    continue
+                last = {"success": False, "provider": name, "model": "", "text": "",
+                        "latency_ms": None, "error": "per-key rate budget reached (all keys)"}
+                break
+            last = chat_once(name, msgs, use_model, source=source)
+            record_text_key(name, idx, bool(last.get("success")), last.get("error"))
+            if last.get("success"):
+                _on_result(name, True, None)
+                _record("text", source, last)
+                return last
+            if _is_quota_error(last.get("error")) and attempt < n_keys - 1:
+                mark_text_key_cooldown(name, error=last.get("error"))
+                ColorPrint.yellow(f"[ai_gateway] {name} KEY{idx + 1} quota-limited — rotating key")
+                continue
+            break
         _on_result(name, bool(last.get("success")), last.get("error"))
-        if last.get("success"):
-            _record("text", source, last)
-            return last
         ColorPrint.yellow(
             f"[ai_gateway] {name} failed ({last.get('error')}), "
             f"{'falling back' if i + 1 < len(chain) else 'no providers left'}")
@@ -725,6 +837,7 @@ _IMAGE_SIZES = {
     "dashscope": {"square": "1024*1024", "landscape": "1280*720",  "portrait": "720*1280"},
     "stepfun":   {"square": "1024x1024", "landscape": "1280x800",  "portrait": "800x1280"},
     "qianfan":   {"square": "1024x1024", "landscape": "1024x768",  "portrait": "768x1024"},
+    "siliconflow": {"square": "1024x1024", "landscape": "1280x960", "portrait": "960x1280"},
 }
 
 # Spark's tti body takes width/height as separate ints (allowed menu), not a
@@ -743,7 +856,7 @@ def _fetch_image_b64(url: str) -> Tuple[str, str]:
     if not url:
         return "", ""
     requests = get_third_package_requests()
-    resp = requests.get(url, timeout=60)
+    resp = requests.get(url, timeout=_IMG_HTTP_TIMEOUT)
     if resp.status_code != 200 or not resp.content:
         return "", ""
     mime = (resp.headers.get("Content-Type") or "image/png").split(";")[0].strip() or "image/png"
@@ -774,7 +887,7 @@ def _generate_image_with_openai(
     resp = requests.post(
         f"{api}/images/generations",
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        json=body, timeout=120,
+        json=body, timeout=_IMG_HTTP_TIMEOUT,
     )
     if resp.status_code != 200:
         out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -809,7 +922,7 @@ def _generate_image_with_openrouter(
         json={"model": use_model,
               "messages": [{"role": "user", "content": prompt}],
               "modalities": ["image", "text"]},
-        timeout=120,
+        timeout=_IMG_HTTP_TIMEOUT,
     )
     if resp.status_code != 200:
         out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -845,7 +958,7 @@ def _generate_image_with_zhipuai(
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": use_model, "prompt": prompt,
               "size": _provider_image_size("zhipuai", size)},
-        timeout=120,
+        timeout=_IMG_HTTP_TIMEOUT,
     )
     if resp.status_code != 200:
         out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -935,7 +1048,7 @@ def _generate_image_with_stepfun(
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": use_model, "prompt": prompt, "response_format": "b64_json",
               "size": _provider_image_size("stepfun", size)},
-        timeout=120,
+        timeout=_IMG_HTTP_TIMEOUT,
     )
     if resp.status_code != 200:
         out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -977,7 +1090,7 @@ def _generate_image_with_qianfan(
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         json={"model": use_model, "prompt": prompt,
               "size": _provider_image_size("qianfan", size)},
-        timeout=120,
+        timeout=_IMG_HTTP_TIMEOUT,
     )
     if resp.status_code != 200:
         out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -1032,7 +1145,7 @@ def _generate_image_with_spark(
         json={"header": {"app_id": app_id},
               "parameter": {"chat": {"domain": "general", "width": width, "height": height}},
               "payload": {"message": {"text": [{"role": "user", "content": prompt}]}}},
-        timeout=120,
+        timeout=_IMG_HTTP_TIMEOUT,
     )
     if resp.status_code != 200:
         out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -1053,6 +1166,357 @@ def _generate_image_with_spark(
     return out
 
 
+def _generate_image_with_cloudflare(
+    prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Cloudflare Workers AI image backup (free neuron budget). SDXL returns raw
+    PNG bytes from POST .../accounts/{id}/ai/run/{model}."""
+    token = image_first_secret("cloudflare")
+    account = extra_secret("cloudflare")  # CLOUDFLARE_ACCOUNT_ID
+    if not token or not account:
+        out["error"] = "Cloudflare needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID"
+        return out
+    use_model = model or image_model("cloudflare") or "@cf/stabilityai/stable-diffusion-xl-base-1.0"
+    out["model"] = use_model
+    requests = get_third_package_requests()
+    resp = requests.post(
+        f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/{use_model}",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"prompt": prompt}, timeout=_IMG_HTTP_TIMEOUT,
+    )
+    if resp.status_code != 200:
+        out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
+        return out
+    ctype = (resp.headers.get("Content-Type") or "").lower()
+    if ctype.startswith("image/"):
+        out["success"] = True
+        out["image_base64"] = base64.b64encode(resp.content).decode("ascii")
+        out["mime"] = ctype.split(";")[0]
+        return out
+    # Some Workers AI image models return JSON {result:{image:<b64>}} instead.
+    try:
+        b64 = ((resp.json() or {}).get("result") or {}).get("image")
+    except Exception:  # noqa: BLE001
+        b64 = None
+    if b64:
+        out["success"] = True
+        out["image_base64"] = b64
+        out["mime"] = "image/png"
+    else:
+        out["error"] = "Empty / unknown response from provider"
+    return out
+
+
+def _generate_image_with_siliconflow(
+    prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
+) -> Dict[str, Any]:
+    """SiliconFlow image backup (aggregates Kolors/FLUX/SDXL; very low cost).
+    OpenAI-style /images/generations returning an image URL."""
+    key = image_first_secret("siliconflow")
+    if not key:
+        out["error"] = "No API key configured"
+        return out
+    use_model = model or image_model("siliconflow") or "Kwai-Kolors/Kolors"
+    out["model"] = use_model
+    requests = get_third_package_requests()
+    api = base_url("siliconflow") or "https://api.siliconflow.cn/v1"
+    resp = requests.post(
+        f"{api}/images/generations",
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        json={"model": use_model, "prompt": prompt,
+              "image_size": _provider_image_size("siliconflow", size)},
+        timeout=_IMG_HTTP_TIMEOUT,
+    )
+    if resp.status_code != 200:
+        out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
+        return out
+    data = resp.json() or {}
+    imgs = data.get("images") or data.get("data") or []
+    url = imgs[0].get("url", "") if imgs and isinstance(imgs[0], dict) else ""
+    b64, mime = _fetch_image_b64(url)
+    if b64:
+        out["success"] = True
+        out["image_base64"] = b64
+        out["mime"] = mime
+    else:
+        out["error"] = "Empty / unfetchable image response from provider"
+    return out
+
+
+def _generate_image_with_pollinations(
+    prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Pollinations.ai — FREE, NO API KEY. GET the prompt URL -> image bytes."""
+    use_model = model or image_model("pollinations") or "flux"
+    out["model"] = use_model
+    requests = get_third_package_requests()
+    width, height = _SPARK_SIZES[_orientation(size)]
+    url = (f"https://image.pollinations.ai/prompt/{quote(prompt[:1500])}"
+           f"?width={width}&height={height}&model={use_model}&nologo=true")
+    resp = requests.get(url, timeout=_IMG_HTTP_TIMEOUT)
+    if resp.status_code != 200 or not resp.content:
+        out["error"] = f"HTTP {resp.status_code}"
+        return out
+    ctype = (resp.headers.get("Content-Type") or "image/jpeg").split(";")[0].strip()
+    if not ctype.startswith("image/"):
+        out["error"] = f"non-image response ({ctype})"
+        return out
+    out["success"] = True
+    out["image_base64"] = base64.b64encode(resp.content).decode("ascii")
+    out["mime"] = ctype
+    return out
+
+
+def _generate_image_with_imagen(
+    prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Google Imagen 3 via the Gemini API key (generativelanguage :predict)."""
+    key = image_first_secret("imagen")
+    if not key:
+        out["error"] = "No API key configured"
+        return out
+    use_model = model or image_model("imagen") or "imagen-3.0-generate-002"
+    out["model"] = use_model
+    requests = get_third_package_requests()
+    aspect = size if (size and _ASPECT_RATIO_RE.match(size)) else "1:1"
+    resp = requests.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{use_model}:predict?key={key}",
+        headers={"Content-Type": "application/json"},
+        json={"instances": [{"prompt": prompt}],
+              "parameters": {"sampleCount": 1, "aspectRatio": aspect}},
+        timeout=_IMG_HTTP_TIMEOUT,
+    )
+    if resp.status_code != 200:
+        out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
+        return out
+    preds = (resp.json() or {}).get("predictions") or []
+    b64 = preds[0].get("bytesBase64Encoded") if preds else None
+    if b64:
+        out["success"] = True
+        out["image_base64"] = b64
+        out["mime"] = preds[0].get("mimeType") or "image/png"
+    else:
+        out["error"] = "Empty response from provider"
+    return out
+
+
+def _generate_image_with_azure(
+    prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Azure OpenAI DALL-E 3 (api-key header; endpoint + deployment from secrets)."""
+    key = image_first_secret("azure")
+    endpoint = (extra_secret("azure", "AZURE_OPENAI_ENDPOINT") or "").rstrip("/")
+    if not key or not endpoint:
+        out["error"] = "Azure needs AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT"
+        return out
+    deployment = (extra_secret("azure", "AZURE_OPENAI_IMAGE_DEPLOYMENT")
+                  or model or image_model("azure") or "dall-e-3")
+    out["model"] = deployment
+    requests = get_third_package_requests()
+    resp = requests.post(
+        f"{endpoint}/openai/deployments/{deployment}/images/generations?api-version=2024-02-01",
+        headers={"api-key": key, "Content-Type": "application/json"},
+        json={"prompt": prompt, "n": 1, "size": _provider_image_size("openai", size)},
+        timeout=_IMG_HTTP_TIMEOUT,
+    )
+    if resp.status_code != 200:
+        out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
+        return out
+    data = (resp.json() or {}).get("data") or []
+    entry = data[0] if data else {}
+    b64 = entry.get("b64_json")
+    if not b64 and entry.get("url"):
+        b64, mime = _fetch_image_b64(entry["url"])
+        if b64:
+            out["success"] = True
+            out["image_base64"] = b64
+            out["mime"] = mime
+            return out
+    if b64:
+        out["success"] = True
+        out["image_base64"] = b64
+        out["mime"] = "image/png"
+    else:
+        out["error"] = "Empty response from provider"
+    return out
+
+
+def _generate_image_with_volcano(
+    prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
+) -> Dict[str, Any]:
+    """ByteDance Doubao Seedream via Volcano Ark (OpenAI-style /images/generations)."""
+    key = image_first_secret("volcano")
+    if not key:
+        out["error"] = "No API key configured"
+        return out
+    use_model = model or image_model("volcano") or "doubao-seedream-3-0-t2i-250415"
+    out["model"] = use_model
+    requests = get_third_package_requests()
+    api = base_url("volcano") or "https://ark.cn-beijing.volces.com/api/v3"
+    resp = requests.post(
+        f"{api}/images/generations",
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        json={"model": use_model, "prompt": prompt,
+              "size": _provider_image_size("openai", size), "response_format": "url"},
+        timeout=_IMG_HTTP_TIMEOUT,
+    )
+    if resp.status_code != 200:
+        out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
+        return out
+    data = (resp.json() or {}).get("data") or []
+    entry = data[0] if data else {}
+    if entry.get("b64_json"):
+        out["success"] = True
+        out["image_base64"] = entry["b64_json"]
+        out["mime"] = "image/png"
+        return out
+    b64, mime = _fetch_image_b64(entry.get("url", ""))
+    if b64:
+        out["success"] = True
+        out["image_base64"] = b64
+        out["mime"] = mime
+    else:
+        out["error"] = "Empty / unfetchable image response from provider"
+    return out
+
+
+def _aws_sigv4_headers(access_key: str, secret_key: str, region: str, service: str,
+                       host: str, path: str, body: bytes,
+                       amz_date: str, date_stamp: str) -> Dict[str, str]:
+    """Minimal AWS SigV4 signer (stdlib only) for Bedrock — no boto3 dependency."""
+    payload_hash = hashlib.sha256(body).hexdigest()
+    canonical_headers = (f"content-type:application/json\nhost:{host}\n"
+                         f"x-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n")
+    signed_headers = "content-type;host;x-amz-content-sha256;x-amz-date"
+    canonical_request = f"POST\n{path}\n\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
+    algorithm = "AWS4-HMAC-SHA256"
+    scope = f"{date_stamp}/{region}/{service}/aws4_request"
+    string_to_sign = (f"{algorithm}\n{amz_date}\n{scope}\n"
+                      f"{hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()}")
+
+    def _sign(key: bytes, msg: str) -> bytes:
+        return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
+
+    k_date = _sign(("AWS4" + secret_key).encode("utf-8"), date_stamp)
+    k_region = _sign(k_date, region)
+    k_service = _sign(k_region, service)
+    k_signing = _sign(k_service, "aws4_request")
+    signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+    authorization = (f"{algorithm} Credential={access_key}/{scope}, "
+                     f"SignedHeaders={signed_headers}, Signature={signature}")
+    return {"Content-Type": "application/json", "X-Amz-Date": amz_date,
+            "X-Amz-Content-Sha256": payload_hash, "Authorization": authorization}
+
+
+def _generate_image_with_bedrock(
+    prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
+) -> Dict[str, Any]:
+    """AWS Bedrock Titan Image Generator (SigV4-signed invoke)."""
+    access_key = image_first_secret("bedrock")  # AWS_ACCESS_KEY_ID
+    secret_key = extra_secret("bedrock", "AWS_SECRET_ACCESS_KEY")
+    if not access_key or not secret_key:
+        out["error"] = "Bedrock needs AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY"
+        return out
+    region = extra_secret("bedrock", "AWS_REGION") or "us-east-1"
+    use_model = model or image_model("bedrock") or "amazon.titan-image-generator-v1"
+    out["model"] = use_model
+    width, height = _SPARK_SIZES[_orientation(size)]
+    body = json.dumps({
+        "taskType": "TEXT_IMAGE",
+        "textToImageParams": {"text": prompt[:512]},
+        "imageGenerationConfig": {"numberOfImages": 1, "width": width, "height": height},
+    }).encode("utf-8")
+    host = f"bedrock-runtime.{region}.amazonaws.com"
+    path = f"/model/{quote(use_model, safe='')}/invoke"
+    now = datetime.now(timezone.utc)
+    headers = _aws_sigv4_headers(
+        access_key, secret_key, region, "bedrock", host, path, body,
+        now.strftime("%Y%m%dT%H%M%SZ"), now.strftime("%Y%m%d"))
+    requests = get_third_package_requests()
+    resp = requests.post(f"https://{host}{path}", headers=headers, data=body, timeout=_IMG_HTTP_TIMEOUT)
+    if resp.status_code != 200:
+        out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
+        return out
+    payload = resp.json() or {}
+    images = payload.get("images") or []
+    if images:
+        out["success"] = True
+        out["image_base64"] = images[0]
+        out["mime"] = "image/png"
+    else:
+        out["error"] = payload.get("error") or "Empty response from provider"
+    return out
+
+
+# Vertex OAuth access-token cache (keyed by SA client_email; tokens last ~1h).
+_vertex_token_cache: Dict[str, Dict[str, Any]] = {}
+
+
+def _vertex_access_token(sa_json_str: str) -> Tuple[Optional[str], Optional[str]]:
+    """Service-account JSON -> short-lived OAuth access token (cached). Returns
+    (token, None) or (None, error)."""
+    if not _GCP_AUTH_AVAILABLE:
+        return None, "google-auth not installed (pip install google-auth)"
+    try:
+        info = json.loads(sa_json_str)
+    except Exception:  # noqa: BLE001
+        return None, "invalid service-account JSON"
+    cache_key = f"{info.get('client_email', '')}:{info.get('private_key_id', '')}"
+    now = time.time()
+    cached = _vertex_token_cache.get(cache_key)
+    if cached and cached["exp"] - 60 > now:
+        return cached["token"], None
+    try:
+        creds = _gcp_service_account.Credentials.from_service_account_info(
+            info, scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        creds.refresh(_GcpAuthRequest())
+    except Exception as e:  # noqa: BLE001
+        return None, f"OAuth refresh failed: {e}"
+    _vertex_token_cache[cache_key] = {"token": creds.token, "exp": now + 3000}
+    return creds.token, None
+
+
+def _generate_image_with_vertex(
+    prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Google Vertex AI Imagen via SERVICE-ACCOUNT OAuth (true Vertex endpoint)."""
+    sa_json = image_first_secret("vertex")
+    project = extra_secret("vertex", "VERTEX_PROJECT_ID")
+    if not sa_json or not project:
+        out["error"] = "Vertex needs GOOGLE_VERTEX_SA_JSON + VERTEX_PROJECT_ID"
+        return out
+    region = extra_secret("vertex", "VERTEX_REGION") or "us-central1"
+    use_model = model or image_model("vertex") or "imagen-3.0-generate-002"
+    out["model"] = use_model
+    token, err = _vertex_access_token(sa_json)
+    if not token:
+        out["error"] = err or "could not obtain access token"
+        return out
+    requests = get_third_package_requests()
+    aspect = size if (size and _ASPECT_RATIO_RE.match(size)) else "1:1"
+    url = (f"https://{region}-aiplatform.googleapis.com/v1/projects/{project}"
+           f"/locations/{region}/publishers/google/models/{use_model}:predict")
+    resp = requests.post(
+        url,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json={"instances": [{"prompt": prompt}],
+              "parameters": {"sampleCount": 1, "aspectRatio": aspect}},
+        timeout=_IMG_HTTP_TIMEOUT,
+    )
+    if resp.status_code != 200:
+        out["error"] = f"HTTP {resp.status_code}: {resp.text[:200]}"
+        return out
+    preds = (resp.json() or {}).get("predictions") or []
+    b64 = preds[0].get("bytesBase64Encoded") if preds else None
+    if b64:
+        out["success"] = True
+        out["image_base64"] = b64
+        out["mime"] = preds[0].get("mimeType") or "image/png"
+    else:
+        out["error"] = "Empty response from provider"
+    return out
+
+
 # Image-capable provider dispatch (each helper self-checks its key, so a keyless
 # provider falls through cheaply with no network call).
 _IMAGE_DISPATCH = {
@@ -1060,18 +1524,30 @@ _IMAGE_DISPATCH = {
     "zhipuai": _generate_image_with_zhipuai,
     "dashscope": _generate_image_with_dashscope,
     "qianfan": _generate_image_with_qianfan,
+    "cloudflare": _generate_image_with_cloudflare,
+    "siliconflow": _generate_image_with_siliconflow,
+    "volcano": _generate_image_with_volcano,
     "spark": _generate_image_with_spark,
+    "pollinations": _generate_image_with_pollinations,
     "openrouter": _generate_image_with_openrouter,
     "openai": _generate_image_with_openai,
+    "imagen": _generate_image_with_imagen,
+    "azure": _generate_image_with_azure,
     "stepfun": _generate_image_with_stepfun,
+    "bedrock": _generate_image_with_bedrock,
+    "vertex": _generate_image_with_vertex,
 }
 
 # generate_image() preference: genuinely-FREE image backends first (gemini flash
 # image, zhipu cogview-3-flash, dashscope wanx free-trial, baidu iRAG, iFlytek
 # Spark), then metered/paid ones. Lower rank = tried first; unknown sort last.
 _IMAGE_PREFERENCE = {
-    "gemini": 0, "zhipuai": 1, "dashscope": 2, "qianfan": 3, "spark": 4,
-    "openrouter": 5, "openai": 6, "stepfun": 7,
+    "gemini": 0, "zhipuai": 1, "dashscope": 2, "qianfan": 3,
+    "cloudflare": 4, "siliconflow": 5,
+    "pollinations": 6,  # free + NO key -> reliable guaranteed fallback
+    "volcano": 7, "spark": 8, "openrouter": 9,
+    "imagen": 10, "azure": 11, "openai": 12, "stepfun": 13,
+    "bedrock": 14, "vertex": 15,
 }
 
 
@@ -1080,15 +1556,17 @@ def generate_image(
     size: Optional[str] = None,
     model: Optional[str] = None,
     source: str = "image",
+    provider: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Text -> image through the unified exit.
 
-    Same smart dispatch as generate_text, restricted to image-capable providers
-    (registry ``image`` flag — currently gemini only). ``model`` overrides the
-    registry ``image_model`` for the first candidate; ``size`` is forwarded as
-    an aspect ratio (e.g. "16:9") where the provider supports one, otherwise
-    ignored. ``source`` labels the task in the gateway records.
+    Free-first smart dispatch across image-capable providers (registry ``image``
+    flag + a usable/keyless key), with per-key rotation and a hard per-provider
+    time bound. ``model`` overrides the registry ``image_model`` for the first
+    candidate; ``size`` is forwarded as an aspect ratio where supported.
+    ``provider`` pins a SINGLE provider (the one-click "test this provider" path),
+    ignoring cooldown so a manual test always runs. ``source`` labels the record.
 
     Returns { success, provider, model, image_base64, mime, latency_ms, error }.
     """
@@ -1097,30 +1575,90 @@ def generate_image(
         out["error"] = "No prompt provided"
         return out
 
-    chain = [(n, m) for n, m in _candidates(None, capability="image") if n in _IMAGE_DISPATCH]
-    # Free image backends first (see _IMAGE_PREFERENCE) so a working free key is
-    # never skipped in favour of a chargeable provider.
-    chain.sort(key=lambda nm: _IMAGE_PREFERENCE.get(nm[0], 99))
+    # Forced single provider (manual test): bypass the chain + cooldown skip.
+    if provider:
+        if provider not in _IMAGE_DISPATCH or not PROVIDERS.get(provider, {}).get("image"):
+            out = _no_image_provider(provider)
+            out["error"] = f"'{provider}' is not an image-capable provider"
+            return out
+        chain = [(provider, None)]
+    else:
+        # Image dispatch is decoupled from the live CHAT probe: a provider is an
+        # image candidate purely on registry image-capability + a usable image key
+        # (or keyless) that is NOT on cooldown — NOT on a successful /models probe.
+        # This lets image-only / keyless providers work, makes image gen resilient
+        # when the chat probe is cold, and SKIPS dead/blocked providers so they
+        # don't stall every request. Free backends first via _IMAGE_PREFERENCE.
+        chain = [(n, None) for n in PROVIDER_ORDER
+                 if PROVIDERS.get(n, {}).get("image") and n in _IMAGE_DISPATCH
+                 and has_image_key(n) and image_ready_now(n)]
+        chain.sort(key=lambda nm: _IMAGE_PREFERENCE.get(nm[0], 99))
+        if not chain:
+            # Everything is cooling down (all providers recently failed/limited).
+            # Retry the full set rather than reporting "no provider" — cooldowns
+            # may be near expiry and one attempt beats a blank result.
+            chain = [(n, None) for n in PROVIDER_ORDER
+                     if PROVIDERS.get(n, {}).get("image") and n in _IMAGE_DISPATCH and has_image_key(n)]
+            chain.sort(key=lambda nm: _IMAGE_PREFERENCE.get(nm[0], 99))
     if not chain:
         out = _no_image_provider()
         _record("image", source, out)
         return out
 
     last: Dict[str, Any] = {}
+    deadline = time.time() + _IMG_TOTAL_BUDGET_S
     for i, (name, _probed_model) in enumerate(chain):
-        out = {"success": False, "provider": name, "model": "", "image_base64": "",
-               "mime": "", "latency_ms": None, "error": None}
+        if not provider and time.time() > deadline:
+            ColorPrint.yellow(
+                f"[ai_gateway] image: overall budget {int(_IMG_TOTAL_BUDGET_S)}s "
+                f"exceeded — stopping (dead providers cooled; next call will be fast)")
+            break
         use_model = model if (i == 0 and model) else None
-        start = time.time()
-        try:
-            _IMAGE_DISPATCH[name](prompt, size, use_model, out)
-        except Exception as e:  # noqa: BLE001 — surface SDK failures, try next provider
-            out["error"] = str(e)
-        out["latency_ms"] = round((time.time() - start) * 1000, 1)
-        _on_result(name, bool(out["success"]), out.get("error"))
-        if out["success"]:
-            _record("image", source, out)
-            return out
+        # Multi-key rotation per provider (separate ``{provider}#image`` budget):
+        # the image helper reads the active image key via image_first_secret, so
+        # cooling the current key rotates to the next one on a quota/429.
+        rpm, rpd = _rate_caps(name)
+        n_keys = max(1, len(all_image_secrets(name)))
+        out: Dict[str, Any] = {}
+        for attempt in range(n_keys):
+            idx, _key = active_image_secret(name)
+            # Per-key image rate budget (own minute/day window); rotate when over.
+            if not image_key_rate_ok(name, idx, rpm, rpd):
+                if attempt < n_keys - 1:
+                    mark_image_key_cooldown(name, idx, secs=30, error="per-key rate budget")
+                    continue
+                out = {"success": False, "provider": name, "model": "", "image_base64": "",
+                       "mime": "", "latency_ms": None,
+                       "error": "per-key rate budget reached (all keys)"}
+                break
+            out = {"success": False, "provider": name, "model": "", "image_base64": "",
+                   "mime": "", "latency_ms": None, "error": None}
+            start = time.time()
+            # HARD time bound: a hanging/blocked provider can't stall the request.
+            _run_image_helper(name, prompt, size, use_model, out)
+            out["latency_ms"] = round((time.time() - start) * 1000, 1)
+            record_image_key(name, idx, bool(out["success"]), out.get("error"))
+            if out["success"]:
+                # Image never provider-cools (error=None) so a text-quota provider
+                # cooldown can't block image and vice-versa — isolation is per key.
+                _on_result(name, True, None)
+                _record("image", source, out)
+                return out
+            err = out.get("error")
+            # Cool the key on a quota OR unreachable/timeout error so the dead
+            # provider is SKIPPED next time (longer cooldown when unreachable).
+            unreachable = _is_net_timeout_error(err)
+            if _is_quota_error(err) or unreachable:
+                mark_image_key_cooldown(
+                    name, idx, secs=_IMG_UNREACHABLE_COOLDOWN_S if unreachable else None,
+                    error=err)
+                if attempt < n_keys - 1:
+                    ColorPrint.yellow(
+                        f"[ai_gateway] image {name} KEY{idx + 1} "
+                        f"{'unreachable' if unreachable else 'quota-limited'} — rotating key")
+                    continue
+            break
+        _on_result(name, False, None)  # record failure WITHOUT provider cooldown
         ColorPrint.yellow(
             f"[ai_gateway] image {name} failed ({out.get('error')}), "
             f"{'falling back' if i + 1 < len(chain) else 'no providers left'}")

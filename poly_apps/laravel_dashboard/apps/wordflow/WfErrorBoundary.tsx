@@ -5,6 +5,7 @@
  * too) but below the shell, so i18n resolves via useShell().lang +
  * WfLanguageCenter.translate — no WfApp context required. */
 import React from 'react';
+import { AlertTriangle, RotateCw } from 'lucide-react';
 import { useShell } from '../../shell/ShellContext';
 import { translate } from './WfLanguageCenter';
 
@@ -45,12 +46,15 @@ class WfErrorBoundaryInner extends React.Component<WfErrorBoundaryInnerProps, Wf
     const { t } = this.props;
     return (
       <div className="ds-page min-h-screen flex items-center justify-center px-4">
-        <div className="ds-glass ds-glass-edge w-full max-w-md rounded-3xl p-8 text-center shadow-lg">
-          <div
-            className="ds-fab-grad mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full text-2xl"
-            aria-hidden
-          >
-            !
+        <div className="ds-card ds-card-glow ds-sheet-center w-full max-w-md rounded-3xl p-8 text-center">
+          <div className="relative mx-auto mb-6 flex items-center justify-center">
+            <span className="ds-loading-aura absolute h-14 w-14 opacity-30" aria-hidden />
+            <span
+              className="ds-empty-icon relative flex h-16 w-16 items-center justify-center rounded-full ds-glass ds-glass-edge text-amber-500 [&_svg]:h-8 [&_svg]:w-8"
+              aria-hidden
+            >
+              <AlertTriangle />
+            </span>
           </div>
           <h1 className="mb-2 text-lg font-bold text-[var(--color-text-primary,inherit)]">
             {t('errorBoundary.title')}
@@ -64,8 +68,9 @@ class WfErrorBoundaryInner extends React.Component<WfErrorBoundaryInnerProps, Wf
           <button
             type="button"
             onClick={this.handleReload}
-            className="ds-fab-grad inline-flex h-11 cursor-pointer items-center justify-center rounded-full px-8 text-sm font-semibold text-white shadow-sm transition-all duration-300 hover:opacity-90 active:scale-95"
+            className="ds-btn-grad inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-full px-8 text-sm font-semibold text-white [&_svg]:h-4 [&_svg]:w-4"
           >
+            <RotateCw />
             {t('errorBoundary.reload')}
           </button>
         </div>

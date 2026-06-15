@@ -18,6 +18,16 @@ import {
   isCommandMessage,
 } from './messages';
 
+// High-frequency read-only polls the popup fires every ~1-2s. Logging them
+// floods the queue log with hundreds of useless DEBUG lines, so they are
+// excluded from the per-message DEBUG logging below.
+const SILENT_MESSAGE_TYPES = new Set<string>([
+  MessageType.QUEUE_GET_STATS,
+  MessageType.QUEUE_GET_TASKS,
+  MessageType.QUEUE_IS_RUNNING,
+  MessageType.QUEUE_LOG_GET_ALL,
+]);
+
 /**
  * Message handler
  * Handles commands from Popup in Background Service Worker
@@ -32,7 +42,9 @@ export class QueueMessageHandler {
     message: CommandMessage,
     sender: chrome.runtime.MessageSender,
   ): Promise<MessageResponse> {
-    queueLogger.debug('QueueMessageHandler', `Handling message: ${message.type}`);
+    if (!SILENT_MESSAGE_TYPES.has(message.type)) {
+      queueLogger.debug('QueueMessageHandler', `Handling message: ${message.type}`);
+    }
 
     try {
       switch (message.type) {
@@ -258,7 +270,9 @@ export function setupQueueMessageListener(): void {
       return false;
     }
 
-    queueLogger.debug('QueueMessageHandler', `Received message: ${message.type}`);
+    if (!SILENT_MESSAGE_TYPES.has(message.type)) {
+      queueLogger.debug('QueueMessageHandler', `Received message: ${message.type}`);
+    }
 
     // Handle message asynchronously
     messageHandler

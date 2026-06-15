@@ -274,6 +274,32 @@ export class AppQyV1API extends BaseAPI {
     return this.post('/ai_tools/tts/queue_batch', { words });
   }
 
+  /**
+   * POST /ai_tools/translation/queue/batch/add — queue word(s) for (re)translation.
+   * Used by the word-detail "Re-translate" one-click action.
+   */
+  async queueTranslationBatch(data: {
+    words: string[];
+    language: string;
+    target_language?: string;
+  }): Promise<APIResponse> {
+    return this.post('/ai_tools/translation/queue/batch/add', {
+      target_language: 'zh',
+      ...data,
+    });
+  }
+
+  /**
+   * POST /ai_tools/tts/queue/batch/query — request/refresh audio for content
+   * item(s). Body is a bare array of { content, language, type }. Used by the
+   * word-detail "Add / refresh audio" one-click action.
+   */
+  async queueTTSBatchQuery(
+    items: Array<{ content: string; language: string; type?: 'word' | 'sentence' | 'article' }>
+  ): Promise<APIResponse> {
+    return this.post('/ai_tools/tts/queue/batch/query', items);
+  }
+
   // ========== Image Generation ==========
   async generateImage(data: { prompt: string; style?: string; size?: string; quality?: string }): Promise<APIResponse> {
     return this.post('/ai_tools/image/generate', data);

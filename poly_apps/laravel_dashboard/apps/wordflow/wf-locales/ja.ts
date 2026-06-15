@@ -784,6 +784,7 @@ export const ja: WfTranslationDict = {
     switchToLight: 'ライトモードに切り替え',
     switchToDark: 'ダークモードに切り替え',
     changeLanguage: '言語を変更',
+    aiChat: 'AIチャット',
     profile: 'プロフィール',
     login: 'ログイン',
     settings: '設定',

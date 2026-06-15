@@ -108,40 +108,49 @@ export const AiChatKit: React.FC<AiChatKitProps> = ({ adapter, className }) => {
 
   return (
     <div className={`flex flex-col h-full ${className || ''}`}>
-      {/* Provider / model selectors (only when the adapter advertises providers) */}
-      {(providers.length > 0) && (
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-xs">
-          <select
-            value={provider}
-            onChange={(e) => { setProvider(e.target.value); setModel(''); }}
-            className="bg-transparent border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-slate-700 dark:text-slate-200"
-          >
-            {providers.map((p) => (
-              <option
-                key={p.id}
-                value={p.id}
-                title={p.probeError || undefined}
-                className={p.available === false ? 'text-amber-600' : undefined}
-              >
-                {p.label}{p.available === false ? ' (probe failed)' : ''}
-              </option>
-            ))}
-          </select>
-          {activeProvider && activeProvider.models && activeProvider.models.length > 0 && (
+      {/* Toolbar: provider/model selectors (only when the adapter advertises
+          providers) + the always-available clear-conversation control. Adapters
+          without providers (wordflow / laravel) still get a clear button. */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-xs">
+        {providers.length > 0 && (
+          <>
             <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
+              value={provider}
+              onChange={(e) => { setProvider(e.target.value); setModel(''); }}
               className="bg-transparent border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-slate-700 dark:text-slate-200"
             >
-              <option value="">default model</option>
-              {activeProvider.models.map((m) => <option key={m} value={m}>{m}</option>)}
+              {providers.map((p) => (
+                <option
+                  key={p.id}
+                  value={p.id}
+                  title={p.probeError || undefined}
+                  className={p.available === false ? 'text-amber-600' : undefined}
+                >
+                  {p.label}{p.available === false ? ' (probe failed)' : ''}
+                </option>
+              ))}
             </select>
-          )}
-          <button onClick={clear} className="ml-auto p-1 text-slate-400 hover:text-rose-500" title="Clear conversation">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+            {activeProvider && activeProvider.models && activeProvider.models.length > 0 && (
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className="bg-transparent border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-slate-700 dark:text-slate-200"
+              >
+                <option value="">default model</option>
+                {activeProvider.models.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            )}
+          </>
+        )}
+        <button
+          onClick={clear}
+          disabled={messages.length === 0}
+          className="ml-auto p-1 text-slate-400 hover:text-rose-500 disabled:opacity-40 disabled:hover:text-slate-400 disabled:cursor-not-allowed"
+          title="Clear conversation"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
 
       {/* Message list */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-4">

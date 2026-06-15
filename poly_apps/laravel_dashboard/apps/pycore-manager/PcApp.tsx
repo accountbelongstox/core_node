@@ -20,8 +20,8 @@ import { PcLanguageSync } from './PcLanguageSync';
 registerPcLocales();
 import {
   PcVoiceSubtitlePage, PcQueueCenterPage, PcWindowAutomationPage,
-  PcCodeSyncPage, PcVideoExtractPage, PcBooksPage, PcAiStatusPage,
-  PcAiImagePage, PcSettingsPage,
+  PcCodeSyncPage, PcVideoExtractPage, PcBooksPage, PcAiPage,
+  PcSettingsPage,
 } from './pcPages';
 
 const Fallback: React.FC = () => <div className="p-8 text-slate-500">Loading…</div>;
@@ -66,8 +66,12 @@ const PcApp: React.FC = () => {
         <Route path="code-sync" element={wrap(<PcCodeSyncPage />)} />
         <Route path="video-extract" element={wrap(<PcVideoExtractPage />)} />
         <Route path="books" element={wrap(<PcBooksPage />)} />
-        <Route path="ai-status" element={wrap(<PcAiStatusPage />)} />
-        <Route path="ai-image" element={wrap(<PcAiImagePage />)} />
+        <Route path="ai" element={wrap(<PcAiPage />)} />
+        {/* Legacy routes of the three AI pages now merged into the tabbed AI
+            page: each old slug lands on the matching sub-tab. */}
+        <Route path="ai-status" element={<Navigate to="/pycore-manager/ai?tab=capability" replace />} />
+        <Route path="ai-image" element={<Navigate to="/pycore-manager/ai?tab=studio" replace />} />
+        <Route path="ai-keys" element={<Navigate to="/pycore-manager/ai?tab=keys" replace />} />
         <Route path="settings" element={wrap(<PcSettingsPage />)} />
         <Route path="*" element={<Navigate to="/pycore-manager" replace />} />
       </Route>

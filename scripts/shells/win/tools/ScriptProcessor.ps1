@@ -67,23 +67,45 @@ function Process-PsFiles {
 }
 
 function Ensure-LineEndings {
+    $fullPath = ""
+    $files = $null
+    $file = $null
+    $content = ""
+    $newContent = ""
+
     foreach ($dir in $script:target_dirs) {
         $fullPath = Join-Path $Global:CORE_NODE_DIR $dir
-        if (Test-Path $fullPath) {
-            try{
-                Get-ChildItem -Path $fullPath -Recurse -Include "*.ps1", "*.sh" -ErrorAction SilentlyContinue | Where-Object {
-                    return -not (Test-ShouldSkipFile -FilePath $_.FullName)
-                } | ForEach-Object {
-                    $content = Get-Content $_.FullName -Raw
-                    $content -replace "`r`n", "`n" | Set-Content $_.FullName -NoNewline
-                }
-            }
-            catch{
-                Write-ColorMessage -Message "Error ensuring line endings: $_" -Type "Error"
-            }
-        }
-        else {
+        if (-not (Test-Path $fullPath)) {
             Write-ColorMessage -Message "Directory '$fullPath' not found. Skipping." -Type "Warning"
+            continue
+        }
+
+        $files = Get-ChildItem -Path $fullPath -Recurse -Include "*.ps1", "*.sh" -ErrorAction SilentlyContinue | Where-Object {
+            return -not (Test-ShouldSkipFile -FilePath $_.FullName)
+        }
+
+        foreach ($file in $files) {
+            try {
+                $content = Get-Content $file.FullName -Raw -ErrorAction Stop
+                if ($null -eq $content) {
+                    continue
+                }
+                # Only rewrite when there is an actual CRLF to convert. Skipping the write for
+                # already-LF files avoids opening the file for truncation, which is what fails
+                # with ERROR_USER_MAPPED_FILE when the file is currently memory-mapped.
+                if (-not $content.Contains("`r`n")) {
+                    continue
+                }
+                $newContent = $content -replace "`r`n", "`n"
+                Set-Content -Path $file.FullName -Value $newContent -NoNewline -ErrorAction Stop
+            }
+            catch {
+                # A file mapped into memory (a script currently executing in this dd run, or one
+                # held by an editor / antivirus / search indexer) returns ERROR_USER_MAPPED_FILE
+                # on write. This is transient and harmless for normalization, so warn for this one
+                # file and continue with the rest instead of aborting the whole directory.
+                Write-ColorMessage -Message "Skipped line-ending fix for '$($file.FullName)': $($_.Exception.Message)" -Type "Warning"
+            }
         }
     }
 }
