@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 import time
+import asyncio
 
 from pycore import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_edge_tts
@@ -30,6 +31,13 @@ from pycore.pyutils.edge_tts.config import TTSConfig
 #   EDGE_TTS_PROXY = http://host:port   (or socks5://…) — passed to Communicate.
 _SYNTH_MAX_ATTEMPTS = 3
 _SYNTH_BACKOFF_BASE_S = 1.5
+# Hard per-attempt timeout. edge-tts's communicate.save() has NO timeout of its
+# own, so a stalled WebSocket to Microsoft hangs on Python's default socket timeout
+# (~180s) before failing — which stalled the whole TTS track per word. Bounding each
+# attempt makes a stall fail FAST so the orchestrator falls back to the offline
+# engine quickly. Override with EDGE_TTS_SYNTH_TIMEOUT_S.
+_SYNTH_TIMEOUT_S = float(os.environ.get("EDGE_TTS_SYNTH_TIMEOUT_S", "25") or "25")
+_SUBTITLE_TIMEOUT_S = 10.0
 # Live-availability test result is cached so a status poll never hammers the
 # endpoint (each test is a real synth round-trip).
 _AVAIL_TTL_S = 60.0

@@ -707,6 +707,10 @@ class AssistWorker:
                 "image_base64": out["image_base64"],
                 "mime": out.get("mime") or "image/png",
                 "claimer": self.claimer,
+                # Provenance for the detailed cover record on Laravel.
+                "provider": out.get("provider") or "",
+                "model": out.get("model") or "",
+                "latency_ms": int(out["latency_ms"]) if out.get("latency_ms") is not None else None,
             }, result)
         else:
             self._release(base, "cover", item_id,
@@ -756,6 +760,10 @@ class AssistWorker:
                 "audio_base64": base64.b64encode(audio).decode("ascii"),
                 "mime": "audio/mpeg",
                 "voice": engine,
+                # Provenance: the real engine that synthesized this audio, folded
+                # into the tts_provider record on Laravel.
+                "engine": engine,
+                "latency_ms": int(synth["latency_ms"]) if synth.get("latency_ms") is not None else None,
                 "claimer": self.claimer,
             }, result)
         finally:
