@@ -1,27 +1,56 @@
 <template>
-  <div class="bg-white rounded-xl p-6 shadow-sm space-y-4">
+  <div
+    class="rounded-xl p-6 shadow-sm space-y-4"
+    style="background: var(--surface); color: var(--text)"
+  >
     <!-- Header -->
-    <div class="flex items-center justify-between pb-4 border-b border-gray-200">
+    <div
+      class="flex items-center justify-between pb-4 border-b"
+      style="border-color: var(--border)"
+    >
       <div class="flex items-center gap-3">
-        <h3 class="text-lg font-bold text-gray-800">📋 Task Queue Logs</h3>
+        <h3 class="text-lg font-bold" style="color: var(--text)">📋 Task Queue Logs</h3>
         <span class="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
           {{ logs.length }} logs
         </span>
       </div>
       <div class="flex items-center gap-2">
         <button
-          class="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 font-medium rounded hover:bg-gray-100 transition-colors"
-          @click="clearLogs"
+          class="px-3 py-1.5 text-xs font-medium rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="testStatus.state === 'testing'"
+          @click="testRefresh"
         >
-          Clear All
+          {{ testStatus.state === 'testing' ? '…' : '↻ ' + t('logTestRefresh') }}
         </button>
         <button
-          class="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800 font-medium rounded hover:bg-gray-100 transition-colors"
+          class="px-3 py-1.5 text-xs font-medium rounded transition-colors tk-ghost-btn"
+          @click="clearLogs"
+        >
+          {{ t('logClearAll') }}
+        </button>
+        <button
+          class="px-3 py-1.5 text-xs font-medium rounded transition-colors tk-ghost-btn"
           @click="autoScroll = !autoScroll"
         >
-          {{ autoScroll ? '⏸ Pause' : '▶ Auto' }}
+          {{ autoScroll ? '⏸ ' + t('logPause') : '▶ ' + t('logAuto') }}
         </button>
       </div>
+    </div>
+
+    <!-- Test / refresh status line -->
+    <div
+      v-if="testStatus.state !== 'idle'"
+      :class="[
+        'text-xs rounded px-3 py-2 border',
+        testStatus.state === 'ok'
+          ? 'bg-green-50 border-green-200 text-green-700'
+          : testStatus.state === 'fail'
+            ? 'bg-red-50 border-red-200 text-red-700'
+            : 'tk-neutral-line',
+      ]"
+    >
+      {{ testStatus.state === 'ok' ? '● ' : testStatus.state === 'fail' ? '○ ' : '' }}
+      {{ testStatus.message }}
     </div>
 
     <!-- Filters -->
@@ -33,7 +62,7 @@
           'px-3 py-1.5 text-xs font-medium rounded transition-colors',
           selectedLevel === level
             ? getLevelActiveClass(level)
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+            : 'tk-filter-inactive',
         ]"
         @click="selectedLevel = selectedLevel === level ? null : level"
       >
@@ -45,7 +74,8 @@
     <!-- Log List -->
     <div
       ref="logContainer"
-      class="space-y-2 max-h-96 overflow-y-auto bg-gray-50 rounded-lg p-3"
+      class="space-y-2 max-h-96 overflow-y-auto rounded-lg p-3"
+      style="background: var(--surface-2)"
     >
       <div
         v-for="log in filteredLogs"
@@ -62,25 +92,25 @@
               <span :class="['px-2 py-0.5 text-xs font-bold rounded', getLevelBadgeClass(log.level)]">
                 {{ log.level.toUpperCase() }}
               </span>
-              <span class="text-xs text-gray-500">{{ log.source }}</span>
-              <span class="text-xs text-gray-400">{{ formatTimestamp(log.timestamp) }}</span>
+              <span class="text-xs" style="color: var(--text-muted)">{{ log.source }}</span>
+              <span class="text-xs" style="color: var(--text-faint)">{{ formatTimestamp(log.timestamp) }}</span>
             </div>
-            <p class="text-gray-800 font-medium">{{ log.message }}</p>
-            <div v-if="log.details" class="text-xs text-gray-600 bg-white bg-opacity-50 rounded p-2 font-mono">
+            <p class="font-medium" style="color: var(--text)">{{ log.message }}</p>
+            <div v-if="log.details" class="text-xs rounded p-2 font-mono tk-details">
               {{ formatDetails(log.details) }}
             </div>
           </div>
         </div>
       </div>
 
-      <div v-if="filteredLogs.length === 0" class="text-center py-8 text-gray-500">
+      <div v-if="filteredLogs.length === 0" class="text-center py-8" style="color: var(--text-muted)">
         <div class="text-4xl mb-2">📭</div>
         <p class="text-sm">No logs available</p>
       </div>
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-4 gap-2 pt-4 border-t border-gray-200">
+    <div class="grid grid-cols-4 gap-2 pt-4 border-t" style="border-color: var(--border)">
       <div class="text-center p-2 bg-blue-50 rounded">
         <div class="text-xs text-blue-600 font-medium">DEBUG</div>
         <div class="text-lg font-bold text-blue-700">{{ getLevelCount('debug') }}</div>
@@ -103,6 +133,7 @@
 
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { getMessage as t } from '../../../../utils/i18n';
 
 interface LogEntry {
   id: string;
@@ -119,6 +150,12 @@ const autoScroll = ref(true);
 const logContainer = ref<HTMLElement | null>(null);
 
 const logLevels = ['debug', 'info', 'warn', 'error'];
+
+// Test / refresh status (confirms the QUEUE_LOG_GET_ALL pipe works).
+const testStatus = ref<{ state: 'idle' | 'testing' | 'ok' | 'fail'; message: string }>({
+  state: 'idle',
+  message: '',
+});
 
 // Filtered logs
 const filteredLogs = computed(() => {
@@ -164,7 +201,7 @@ const getLevelBgClass = (level: string): string => {
   const classes: Record<string, string> = {
     debug: 'bg-blue-50',
     info: 'bg-green-50',
-    warn: 'border-yellow-50',
+    warn: 'bg-yellow-50',
     error: 'bg-red-50',
   };
   return classes[level] || 'bg-gray-50';
@@ -245,6 +282,32 @@ const fetchLogs = async () => {
   }
 };
 
+// Test / refresh: re-pull all logs via the real background pipe and confirm it
+// responds, reporting how many entries came back.
+const testRefresh = async () => {
+  testStatus.value = { state: 'testing', message: t('logTesting') };
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'QUEUE_LOG_GET_ALL',
+    });
+    if (response && response.success && response.data) {
+      logs.value = response.data.logs || [];
+      testStatus.value = {
+        state: 'ok',
+        message: t('logTestOk', [String(logs.value.length)]),
+      };
+      scrollToBottom();
+    } else {
+      testStatus.value = {
+        state: 'fail',
+        message: (response && response.error) || t('logTestFail'),
+      };
+    }
+  } catch (err: any) {
+    testStatus.value = { state: 'fail', message: err?.message || t('logTestFail') };
+  }
+};
+
 onMounted(() => {
   chrome.runtime.onMessage.addListener(handleMessage);
   fetchLogs();
@@ -255,3 +318,36 @@ onUnmounted(() => {
   chrome.runtime.onMessage.removeListener(handleMessage);
 });
 </script>
+
+<style scoped>
+/* Ghost text button using theme tokens. */
+.tk-ghost-btn {
+  color: var(--text-muted);
+}
+.tk-ghost-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+/* Neutral status line (testing/idle) using theme tokens. */
+.tk-neutral-line {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+/* Inactive level filter button using theme tokens. */
+.tk-filter-inactive {
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.tk-filter-inactive:hover {
+  background: var(--border);
+}
+
+/* Log detail block using theme tokens. */
+.tk-details {
+  background: var(--surface);
+  color: var(--text-muted);
+}
+</style>

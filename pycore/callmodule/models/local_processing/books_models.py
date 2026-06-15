@@ -193,3 +193,37 @@ class BooksSubmitResponse(BaseModel):
     total_sentences: int = 0
     total_words: int = 0
     error: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
+# Drill-down lists (paginated words / sentences / languages behind the stats)  #
+# --------------------------------------------------------------------------- #
+class BooksListRequest(BaseModel):
+    """Paginated drill-down into a source's computed lists.
+
+    kind: 'words' | 'unique_words' (distinct word-frequency list, shared) |
+          'sentences' (all, in order) | 'unique_sentences' | 'languages'.
+    The full lists are built once and cached (per source_key) so paging is cheap.
+    """
+    path: str
+    kind: str = Field("words", description="words|unique_words|sentences|unique_sentences|languages")
+    start: int = Field(0, ge=0)
+    limit: int = Field(100, ge=1, le=1000)
+    formats: Optional[List[str]] = None
+    language: Optional[str] = None
+    refresh: bool = Field(False, description="Rebuild the cached lists from the source.")
+    max_files: int = Field(25, ge=1, le=500)
+
+
+class BooksListResponse(BaseModel):
+    """One page of a drill-down list."""
+    success: bool
+    kind: str = "words"
+    total: int = Field(0, description="Total items in the selected list.")
+    start: int = 0
+    limit: int = 100
+    items: List[dict] = Field(default_factory=list,
+                              description="words:[{word,count}] · sentences:[{seq,text}] · languages:[{script,code,chars,ratio}]")
+    totals: dict = Field(default_factory=dict,
+                         description="{words, unique_words, sentences, unique_sentences, chars}.")
+    error: Optional[str] = None

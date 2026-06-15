@@ -40,6 +40,39 @@ class AiSecretLoader
     }
 
     /**
+     * ALL non-empty numbered variants of a base secret, in resolution order.
+     *
+     * The PHP twin of pycore's secret_manager.get_all_secret_keys_indexed: same
+     * convention as getIndexed() but returns EVERY key found
+     * (<BASE>_1 .. <BASE>_<maxIndex> then bare <BASE>) so callers can ROTATE
+     * across multiple keys/accounts (try KEY_1, then KEY_2 on a rate-limit /
+     * quota error). Duplicates are removed while preserving order.
+     *
+     * @return string[] distinct non-empty secret values (possibly empty)
+     */
+    public static function getAllIndexed(string $baseName, int $maxIndex = 5): array
+    {
+        if ($baseName === '') {
+            return [];
+        }
+
+        $found = [];
+        $seen = [];
+        for ($i = 1; $i <= $maxIndex; $i++) {
+            $value = trim(GlobalSecretReader::getSecretContent($baseName . '_' . $i));
+            if ($value !== '' && !isset($seen[$value])) {
+                $seen[$value] = true;
+                $found[] = $value;
+            }
+        }
+        $bare = trim(GlobalSecretReader::getSecretContent($baseName));
+        if ($bare !== '' && !isset($seen[$bare])) {
+            $found[] = $bare;
+        }
+        return $found;
+    }
+
+    /**
      * Read a single secret by its exact key name (no index scanning).
      */
     public static function get(string $keyName): string

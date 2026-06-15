@@ -28,41 +28,80 @@ $script:CONFIG_PROVIDER_PS1 = Join-Path $script:PS_CURRENT_DIR "mcp_config_provi
 #endregion
 
 #region Codex Config Helpers
-function Set-CodexHttpHeaders {
-    # 'codex mcp add --url' has no flag for custom HTTP headers, so context7's
-    # CONTEXT7_API_KEY header cannot be set via the CLI. This appends an
-    # [mcp_servers.<Name>.http_headers] table to ~/.codex/config.toml so the
-    # key is sent. Existing header tables for the server are replaced.
-    param(
-        [Parameter(Mandatory=$true)] [string]$Name,
-        [Parameter(Mandatory=$true)] [hashtable]$Headers
-    )
-    if ($Headers.Count -eq 0) { return }
-    $codexConfig = Join-Path $env:USERPROFILE ".codex\config.toml"
-    if (-not (Test-Path -LiteralPath $codexConfig)) {
-        Write-Host "[WARNING] codex config.toml not found at $codexConfig; cannot set headers for $Name"
-        return
+# Per the official Codex docs, `codex mcp add` only supports stdio servers; remote
+# HTTP/streamable-HTTP servers have NO CLI command and must be written directly to
+# ~/.codex/config.toml as [mcp_servers.<Name>] with `url` (+ optional `http_headers`).
+# The functions below own the config.toml editing for HTTP servers.
+$script:CODEX_CONFIG_PATH = Join-Path $env:USERPROFILE ".codex\config.toml"
+
+function Initialize-CodexConfig {
+    $parentDir = Split-Path $script:CODEX_CONFIG_PATH -Parent
+    if (-not (Test-Path -LiteralPath $parentDir)) {
+        New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
     }
-    $sectionHeader = "[mcp_servers.$Name.http_headers]"
-    $lines = Get-Content -LiteralPath $codexConfig -Encoding UTF8
+    if (-not (Test-Path -LiteralPath $script:CODEX_CONFIG_PATH)) {
+        Set-Content -LiteralPath $script:CODEX_CONFIG_PATH -Value @() -Encoding UTF8
+    }
+}
+
+function Remove-CodexServerSection {
+    # Strip an existing [mcp_servers.<Name>] table and ALL of its subtables
+    # ([mcp_servers.<Name>.http_headers], etc.) so re-runs are idempotent.
+    param(
+        [Parameter(Mandatory=$true)] [string]$Name
+    )
+    if (-not (Test-Path -LiteralPath $script:CODEX_CONFIG_PATH)) { return }
+    $lines = @(Get-Content -LiteralPath $script:CODEX_CONFIG_PATH -Encoding UTF8)
     $kept = New-Object System.Collections.Generic.List[string]
+    $base = "[mcp_servers.$Name]"
+    $subPrefix = "[mcp_servers.$Name."
     $skipping = $false
     foreach ($line in $lines) {
         $trimmed = $line.Trim()
-        if ($trimmed -eq $sectionHeader) { $skipping = $true; continue }
+        if ($trimmed -eq $base -or $trimmed.StartsWith($subPrefix)) {
+            $skipping = $true
+            continue
+        }
         if ($skipping) {
-            if ($trimmed.StartsWith("[")) { $skipping = $false } else { continue }
+            if ($trimmed.StartsWith("[")) {
+                $skipping = $false   # a different table starts; keep it (fall through)
+            } else {
+                continue              # still inside our table body; drop the line
+            }
         }
         $kept.Add($line)
     }
-    $kept.Add("")
-    $kept.Add($sectionHeader)
-    foreach ($hKey in $Headers.Keys) {
-        $hVal = ($Headers[$hKey] -replace '\\', '\\') -replace '"', '\"'
-        $kept.Add("$hKey = `"$hVal`"")
+    Set-Content -LiteralPath $script:CODEX_CONFIG_PATH -Value $kept -Encoding UTF8
+}
+
+function Set-CodexHttpServer {
+    # Write a remote HTTP server as [mcp_servers.<Name>] url = "..." plus an
+    # [mcp_servers.<Name>.http_headers] table for any custom headers.
+    param(
+        [Parameter(Mandatory=$true)] [string]$Name,
+        [Parameter(Mandatory=$true)] [string]$Url,
+        [Parameter()] [hashtable]$Headers = @{}
+    )
+    Initialize-CodexConfig
+    Remove-CodexServerSection -Name $Name
+    $urlEsc = ($Url -replace '\\', '\\') -replace '"', '\"'
+    $out = New-Object System.Collections.Generic.List[string]
+    foreach ($line in @(Get-Content -LiteralPath $script:CODEX_CONFIG_PATH -Encoding UTF8)) {
+        $out.Add($line)
     }
-    Set-Content -LiteralPath $codexConfig -Value $kept -Encoding UTF8
-    Write-Host "[OK] Wrote http_headers for $Name to codex config.toml"
+    $out.Add("")
+    $out.Add("[mcp_servers.$Name]")
+    $out.Add("url = `"$urlEsc`"")
+    if ($Headers -and $Headers.Count -gt 0) {
+        $out.Add("")
+        $out.Add("[mcp_servers.$Name.http_headers]")
+        foreach ($hKey in $Headers.Keys) {
+            $hVal = ($Headers[$hKey] -replace '\\', '\\') -replace '"', '\"'
+            $out.Add("$hKey = `"$hVal`"")
+        }
+    }
+    Set-Content -LiteralPath $script:CODEX_CONFIG_PATH -Value $out -Encoding UTF8
+    Write-Host "[OK] Wrote [mcp_servers.$Name] (url + http_headers) to codex config.toml"
 }
 #endregion
 
@@ -92,19 +131,18 @@ foreach ($config in $configs) {
     $transport = $config.TransportType
     Write-Host "[$idx/$($configs.Count)] Executing: $name ($transport)"
 
-    # Remove any existing entry first so re-runs always apply the latest config
-    # (codex add on an existing name can fail or leave stale values). Non-fatal.
-    Write-Host "[CLEAN] codex mcp remove $name"
-    codex mcp remove $name 2>$null
     if ($transport -eq "http") {
-        $fullArgs = @("mcp", "add", $name, "--url", $config.Url)
-        Write-Host "[CMD] codex $($fullArgs -join ' ')"
-        & codex $fullArgs
-        if ($config.Headers -and $config.Headers.Count -gt 0) {
-            Set-CodexHttpHeaders -Name $name -Headers $config.Headers
-        }
+        # codex mcp add is stdio-only; HTTP servers are written straight to
+        # config.toml. Set-CodexHttpServer clears any prior table first, so this
+        # is idempotent without needing the CLI 'remove'.
+        Write-Host "[CONFIG] Writing HTTP server '$name' directly to config.toml (no --url CLI flag exists)"
+        Set-CodexHttpServer -Name $name -Url $config.Url -Headers $config.Headers
     }
     else {
+        # Remove any existing stdio entry first so re-runs always apply the latest
+        # config (codex add on an existing name can fail or leave stale values).
+        Write-Host "[CLEAN] codex mcp remove $name"
+        codex mcp remove $name 2>$null
         $fullArgs = @("mcp", "add", $name)
         foreach ($eKey in $config.Env.Keys) {
             $eVal = $config.Env[$eKey]

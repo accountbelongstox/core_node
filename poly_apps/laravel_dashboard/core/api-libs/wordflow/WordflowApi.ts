@@ -445,7 +445,10 @@ export interface WfPublicLibrary {
   difficulty: string;
   category: string;
   image_url: string | null;
+  /** 'pending' | 'processing' | 'retry' | 'ready' | 'failed' (cover lifecycle). */
   cover_status?: string | null;
+  cover_error_message?: string | null;
+  cover_attempts?: number;
   is_recommended?: boolean;
   tags?: string[];
 }
@@ -1207,6 +1210,8 @@ class WordflowApiService {
         category: String(it?.category ?? ''),
         image_url: it?.image_url ?? null,
         cover_status: it?.cover_status ?? null,
+        cover_error_message: it?.cover_error_message ?? null,
+        cover_attempts: Number(it?.cover_attempts ?? 0),
         is_recommended: !!it?.is_recommended,
         tags: Array.isArray(it?.tags) ? it.tags : [],
       }));
@@ -1247,6 +1252,20 @@ class WordflowApiService {
         qs.toString() ? `?${qs.toString()}` : ''
       }`
     );
+  }
+
+  /**
+   * Re-queue a failed/stuck library cover for pycore (pull-only generation).
+   * POST /api/app_qy_v1/assist/cover/retry { ids:[libraryId] } resets that row
+   * to `pending` (cover_attempts=0, lease + error cleared) so the AssistWorker
+   * re-claims and regenerates it. No-auth assist group; mirrors laravel-manager's
+   * api.appQyV1.retryCover. Callers should refetch the library list afterwards.
+   */
+  async retryCover(libraryId: number): Promise<any> {
+    return this.request<any>('/assist/cover/retry', {
+      method: 'POST',
+      body: JSON.stringify({ ids: [libraryId] }),
+    });
   }
 
   // ---- Word groups (CRUD) ----

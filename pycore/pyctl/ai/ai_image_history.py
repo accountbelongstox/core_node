@@ -39,7 +39,10 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root
 
 # Cross-runtime shared store (see module docstring + ai_rate_limits rationale).
-_SHARED_STATE_DIR = get_core_node_root() / ".ai_state"
+# Lives under <core_node>/.data/.ai_state (the .data/ data root); the prior
+# <core_node>/.ai_state location is migrated once on first access.
+_SHARED_STATE_DIR = get_core_node_root() / ".data" / ".ai_state"
+_OLD_SHARED_DIR = get_core_node_root() / ".ai_state"
 _LEGACY_DIR = APP_DATA_DIR / "ai_state"
 
 # Newest-last ring buffer cap; older entries (and their image files) are trimmed.
@@ -53,11 +56,29 @@ _MIME_EXT = {
 _lock = threading.Lock()
 
 
+def _migrate_old_state():
+    """Move files from the prior shared dir (<core_node>/.ai_state) into the new
+    <core_node>/.data/.ai_state once. Idempotent — a name already present in the
+    new dir is left alone. All three AI-state modules share this dir, so whichever
+    runs first relocates everything (rate usage, usage records, image history +
+    the ai_images/ folder)."""
+    try:
+        if not _OLD_SHARED_DIR.exists() or _OLD_SHARED_DIR.resolve() == _SHARED_STATE_DIR.resolve():
+            return
+        for item in _OLD_SHARED_DIR.iterdir():
+            dest = _SHARED_STATE_DIR / item.name
+            if not dest.exists():
+                os.replace(str(item), str(dest))
+    except Exception:
+        pass
+
+
 def _state_dir():
-    """Shared ``.ai_state`` dir under the core_node root (legacy fallback if the
-    repo root is not writable, e.g. a read-only deploy)."""
+    """Shared ``.data/.ai_state`` dir under the core_node root (legacy fallback if
+    the repo root is not writable, e.g. a read-only deploy)."""
     try:
         _SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
+        _migrate_old_state()
         return _SHARED_STATE_DIR
     except Exception:
         _LEGACY_DIR.mkdir(parents=True, exist_ok=True)

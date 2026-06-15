@@ -322,10 +322,11 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> Optional[str]:
         return None
     
     selected_index = 0
-    
+    number_buffer = ""  # accumulates typed digits for multi-digit direct jump
+
     # Check if we can use interactive mode (arrow keys)
     use_arrow_keys = (HAS_MSVCRT and os.name == 'nt') or HAS_TERMIOS
-    
+
     while True:
         # Clear screen and redraw menu
         clear_screen()
@@ -352,39 +353,69 @@ def show_menu(title: str, menu_items: List[Dict[str, Any]]) -> Optional[str]:
         print()
         
         if use_arrow_keys:
-            ColorMessage.write("Use UP/DOWN arrows to navigate, ENTER to select, 0 or Q to cancel", 'info')
+            if number_buffer:
+                ColorMessage.write(
+                    f"Type a number to jump (current: {number_buffer}), ENTER to confirm, "
+                    f"UP/DOWN to move, BACKSPACE to clear, 0 or Q to cancel", 'info')
+            else:
+                ColorMessage.write(
+                    "Use UP/DOWN arrows to navigate, type a number to jump, "
+                    "ENTER to select, 0 or Q to cancel", 'info')
             # Flush output to ensure menu is displayed before waiting for input
             sys.stdout.flush()
         else:
             ColorMessage.write("Enter your choice (or 0 to cancel): ", 'info', no_newline=True)
             sys.stdout.flush()
-        
+
         if use_arrow_keys:
             key = _get_key_input()
-            
+
             if key == 'up':
+                number_buffer = ""
                 if selected_index == 0:
                     selected_index = len(menu_items) - 1  # 从顶部循环到底部
                 else:
                     selected_index = selected_index - 1
                 continue
             elif key == 'down':
+                number_buffer = ""
                 if selected_index == len(menu_items) - 1:
                     selected_index = 0  # 从底部循环到顶部
                 else:
                     selected_index = selected_index + 1
                 continue
             elif key == 'enter':
-                selected_item = menu_items[selected_index]
-                return selected_item.get('Action')
-            elif key == 'esc' or key == '0' or key == 'q':
+                # ENTER confirms a typed number if any, else the highlighted item
+                if number_buffer:
+                    choice_num = int(number_buffer)
+                    number_buffer = ""
+                    if 1 <= choice_num <= len(menu_items):
+                        return menu_items[choice_num - 1].get('Action')
+                    continue  # out of range: ignore and redraw
+                return menu_items[selected_index].get('Action')
+            elif key in ('backspace', '\x7f', '\x08'):
+                number_buffer = number_buffer[:-1]
+                continue
+            elif key == 'esc' or key == 'q':
+                return None
+            elif key == '0' and not number_buffer:
+                # bare 0 cancels (only when not building a number like "10")
                 return None
             elif key and key.isdigit():
-                # Allow direct number input
-                choice_num = int(key)
-                if 1 <= choice_num <= len(menu_items):
-                    selected_item = menu_items[choice_num - 1]
-                    return selected_item.get('Action')
+                # Multi-digit direct jump: accumulate digits, auto-jump as soon
+                # as the number can no longer be extended into a valid index.
+                candidate = number_buffer + key
+                if int(candidate) > len(menu_items):
+                    candidate = key  # overflow: restart buffer with this digit
+                choice_num = int(candidate)
+                if choice_num * 10 > len(menu_items):
+                    # no further digit could form a valid index -> jump now
+                    number_buffer = ""
+                    if 1 <= choice_num <= len(menu_items):
+                        return menu_items[choice_num - 1].get('Action')
+                else:
+                    number_buffer = candidate  # wait for a possible next digit
+                continue
         else:
             # Fallback to simple input
             try:

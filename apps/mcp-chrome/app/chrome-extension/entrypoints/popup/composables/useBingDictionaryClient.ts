@@ -4,20 +4,30 @@
  */
 
 import { ref, onUnmounted } from 'vue';
+import { apiManager } from '@/services/ApiManager';
+import { readJson, writeJson } from './useCacheStore';
 
 export type ServiceMode = 'legacy' | 'worker';
+
+// Where the last scrape-test results are cached (visible again on reopen).
+const SCRAPE_CACHE_KEY = 'scrape_test_results';
 
 export interface ClientConfig {
   apiUrl: string;
   fetchInterval: number;
   batchSize: number;
   mode?: ServiceMode;
+  // Worker mode: number of Bing dictionary tabs driven in parallel.
+  tabCount?: number;
+  // Worker mode: default target language when a task omits one.
+  targetLanguage?: string;
 }
 
 export interface ClientServiceStats {
   pending: number;
   translated: number;
   failed: number;
+  invalid?: number;         // Words Bing had no entry for (marked invalid)
   lastRun: number | null;
   workerId?: string | null;
   isOnline?: boolean;
@@ -25,6 +35,9 @@ export interface ClientServiceStats {
   queueTotal?: number;      // Total tasks in current queue
   newTasks?: number;        // New tasks received in last poll
   duplicateTasks?: number;  // Duplicate tasks skipped in last poll
+  activeTabs?: number;      // Bing tabs currently in the pool
+  currentWord?: string | null;   // Word currently being looked up
+  currentTaskId?: string | null; // Task currently being processed
 }
 
 export interface ClientServiceState {
@@ -39,12 +52,33 @@ export function useBingDictionaryClient() {
     fetchInterval: 5,  // Default 5 seconds for real-time updates
     batchSize: 10,
     mode: 'worker', // Default to Worker API mode
+    tabCount: 3,     // Parallel Bing dictionary tabs (worker mode)
+    targetLanguage: 'zh',
   });
   const clientService = ref<ClientServiceState>({
     isRunning: false,
     stats: null,
   });
   const error = ref('');
+  const connectionStatus = ref<{ state: 'idle' | 'testing' | 'ok' | 'fail'; message: string }>({
+    state: 'idle',
+    message: '',
+  });
+
+  // The worker pulls the untranslated queue from laravel_main using the SINGLE
+  // endpoint configured in Settings (the shared ApiManager). There is no separate
+  // endpoint list here — that was redundant. `currentEndpoint` mirrors Settings.
+  const currentEndpoint = ref('');
+  const syncEndpointFromSettings = () => {
+    const url = apiManager.getCurrentBaseUrl();
+    currentEndpoint.value = url;
+    clientConfig.value.apiUrl = url;
+  };
+
+  // Ad-hoc Bing scrape test (default word "hello").
+  const testWords = ref('hello');
+  const testResults = ref<any[]>([]);
+  const testing = ref(false);
 
   let statsPollingInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -62,6 +96,110 @@ export function useBingDictionaryClient() {
         await toggleClientService();
       }
     }
+  };
+
+  // Update a single config field from the panel and persist it, with light
+  // sanitation so unreasonable values can't reach the worker.
+  const updateConfig = async (field: string, value: any) => {
+    let next = value;
+    if (field === 'apiUrl' && typeof value === 'string') {
+      next = value.trim().replace(/\/+$/, '');
+    } else if (field === 'tabCount') {
+      const n = Number(value);
+      next = Number.isFinite(n) ? Math.max(1, Math.min(8, Math.round(n))) : 3;
+    } else if (field === 'batchSize') {
+      const n = Number(value);
+      next = Number.isFinite(n) ? Math.max(1, Math.min(50, Math.round(n))) : 5;
+    } else if (field === 'fetchInterval') {
+      const n = Number(value);
+      next = Number.isFinite(n) ? Math.max(1, Math.min(3600, Math.round(n))) : 5;
+    } else if (field === 'targetLanguage' && typeof value === 'string') {
+      next = value.trim().toLowerCase();
+    }
+    (clientConfig.value as any)[field] = next;
+    // Editing the endpoint invalidates a previous connection test.
+    if (field === 'apiUrl') {
+      connectionStatus.value = { state: 'idle', message: '' };
+    }
+    await saveClientConfig();
+  };
+
+  // Ping the endpoint configured in Settings so the user gets reachability feedback.
+  const testConnection = async () => {
+    syncEndpointFromSettings();
+    if (!clientConfig.value.apiUrl) {
+      connectionStatus.value = { state: 'fail', message: 'No endpoint configured in Settings' };
+      return;
+    }
+    connectionStatus.value = { state: 'testing', message: 'Testing…' };
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'bing_dictionary_worker_service',
+        action: 'test_connection',
+        config: clientConfig.value,
+        mode: 'worker',
+      });
+      if (response && response.ok) {
+        connectionStatus.value = { state: 'ok', message: response.message || 'Connected' };
+      } else {
+        connectionStatus.value = {
+          state: 'fail',
+          message: (response && response.message) || 'Unreachable',
+        };
+      }
+    } catch (err: any) {
+      connectionStatus.value = { state: 'fail', message: err?.message || 'Unreachable' };
+    }
+  };
+
+  // ---- Ad-hoc Bing scrape test --------------------------------------------
+  const runScrapeTest = async () => {
+    const words = (testWords.value || '')
+      .split(/[\s,，、]+/)
+      .map((w) => w.trim())
+      .filter(Boolean);
+    if (words.length === 0) {
+      testResults.value = [];
+      return;
+    }
+    testing.value = true;
+    testResults.value = [];
+    try {
+      syncEndpointFromSettings();
+      const response = await chrome.runtime.sendMessage({
+        type: 'bing_dictionary_worker_service',
+        action: 'test_scrape',
+        words,
+        config: clientConfig.value,
+        mode: 'worker',
+      });
+      if (response && response.success) {
+        testResults.value = response.results || [];
+        // Persist to the dictionary cache so results survive popup close/reopen.
+        await writeJson('dictionary', SCRAPE_CACHE_KEY, testResults.value);
+      } else {
+        error.value = (response && response.error) || 'Scrape test failed';
+      }
+    } catch (err: any) {
+      error.value = err?.message || 'Scrape test failed';
+    } finally {
+      testing.value = false;
+    }
+  };
+
+  // Always-on activation for an embedded panel: load saved config, pull the
+  // endpoint from Settings, load current service state, and begin polling.
+  const initPanel = async () => {
+    await loadClientConfig();
+    await apiManager.initialize({ autoDetect: false });
+    syncEndpointFromSettings();
+    // Restore the last scrape-test results from cache so they're visible again.
+    const cached = await readJson<any[]>('dictionary', SCRAPE_CACHE_KEY);
+    if (Array.isArray(cached) && cached.length) {
+      testResults.value = cached;
+    }
+    await loadClientServiceState();
+    startStatsPolling();
   };
 
   const saveClientConfig = async () => {
@@ -86,21 +224,24 @@ export function useBingDictionaryClient() {
 
   const toggleClientService = async () => {
     try {
-      // Determine message type based on mode
-      const messageType = clientConfig.value.mode === 'worker'
-        ? 'bing_dictionary_worker_service'
-        : 'bing_dictionary_client_service';
-
+      // Always pull the endpoint from Settings right before starting.
+      if (!clientService.value.isRunning) {
+        syncEndpointFromSettings();
+      }
+      // Always the worker service — the only path aligned with laravel_main's
+      // /api/worker/* endpoints (the legacy /api/dictionary/* client was removed).
       const response = await chrome.runtime.sendMessage({
-        type: messageType,
+        type: 'bing_dictionary_worker_service',
         action: clientService.value.isRunning ? 'stop' : 'start',
         config: clientConfig.value,
-        mode: clientConfig.value.mode,
       });
 
       if (response && response.success) {
         clientService.value.isRunning = !clientService.value.isRunning;
-        console.log(`[Bing Dictionary] ${response.mode || clientConfig.value.mode} service ${clientService.value.isRunning ? 'started' : 'stopped'}`);
+        console.log(`[Bing Dictionary] worker service ${clientService.value.isRunning ? 'started' : 'stopped'}`);
+        // Refresh state immediately so the UI reflects the first poll right away
+        // instead of waiting for the next 3s stats tick.
+        await loadClientServiceState();
       } else {
         console.error('[Bing Dictionary] Failed to toggle service:', response?.error);
         error.value = response?.error || 'Failed to toggle service';
@@ -113,14 +254,9 @@ export function useBingDictionaryClient() {
 
   const loadClientServiceState = async () => {
     try {
-      const messageType = clientConfig.value.mode === 'worker'
-        ? 'bing_dictionary_worker_service'
-        : 'bing_dictionary_client_service';
-
       const response = await chrome.runtime.sendMessage({
-        type: messageType,
+        type: 'bing_dictionary_worker_service',
         action: 'get_status',
-        mode: clientConfig.value.mode,
       });
 
       if (response && response.success) {
@@ -188,10 +324,20 @@ export function useBingDictionaryClient() {
     clientConfig,
     clientService,
     error,
+    connectionStatus,
+    currentEndpoint,
+    testWords,
+    testResults,
+    testing,
     toggleClientMode,
     saveClientConfig,
+    updateConfig,
+    testConnection,
+    syncEndpointFromSettings,
+    runScrapeTest,
     toggleClientService,
     formatTimestamp,
     initialize,
+    initPanel,
   };
 }

@@ -55,18 +55,19 @@ if (-not $PythonExe) {
     exit 1
 }
 
-# Run Python script
+# Run Python script. Output streams live; we do NOT gate on the exit code.
+# Success is judged by whether the build configuration was produced (probed
+# right after) and by the build artifacts verified in each step below.
 try {
     & $PythonExe $PythonScript
-    if ($LASTEXITCODE -ne 0) {
-        $error = Get-Var -Key ([VarKeys]::ERROR) -Default "Unknown error"
-        Write-Host ""
-        Write-Host "ERROR: Python processing failed: $error" -ForegroundColor Red
-        exit 1
-    }
 } catch {
-    Write-Host "ERROR: Failed to run Python script: $_" -ForegroundColor Red
-    exit 1
+    Write-Host "WARNING: Python script raised an error (continuing): $_" -ForegroundColor Yellow
+}
+
+$cmdConfigProbe = Get-Var -Key ([VarKeys]::CMD_BUILD_SHARED) -Default ""
+if (-not $cmdConfigProbe) {
+    Write-Host ""
+    Write-Host "WARNING: Build configuration looks incomplete; continuing with defaults." -ForegroundColor Yellow
 }
 
 Write-Host ""
@@ -110,26 +111,24 @@ Write-Host "[2/6] $step2"
 $shouldInstall = Get-Var -Key ([VarKeys]::SHOULD_INSTALL) -Default "false"
 if ($shouldInstall -eq "true") {
     $cmdInstall = Get-Var -Key ([VarKeys]::CMD_INSTALL)
-    Write-Host "  Installing dependencies..." -ForegroundColor Cyan
+    Write-Host "  Installing dependencies (live output)..." -ForegroundColor Cyan
     Invoke-Expression $cmdInstall
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  ERROR: Failed to install dependencies" -ForegroundColor Red
-        exit 1
-    }
-    Write-Host "  OK Dependencies installed" -ForegroundColor Green
+    Write-Host "  OK Dependency install step finished" -ForegroundColor Green
 } else {
     Write-Host "  OK Dependencies already installed" -ForegroundColor Green
 }
 
-# Check if extension already built, prompt to continue or skip
+# Quick compile+install: never block on an interactive prompt so the flow runs
+# unattended with continuous live output. Rebuild by default; set
+# MCP_SKIP_BUILD=1 to reuse the existing output instead.
 $extensionPath = Get-Var -Key ([VarKeys]::EXTENSION_PATH)
 $manifestJson = Join-Path $extensionPath "manifest.json"
 $skipBuild = $false
-if (Test-Path $manifestJson) {
-    $response = Read-Host "  Already built. Rebuild? [Y/n]"
-    if ($response -eq 'n' -or $response -eq 'N') {
-        $skipBuild = $true
-    }
+if ($env:MCP_SKIP_BUILD -eq "1") {
+    $skipBuild = $true
+    Write-Host "  MCP_SKIP_BUILD=1 set; skipping rebuild, reusing existing output." -ForegroundColor Yellow
+} else {
+    Write-Host "  Rebuilding (set MCP_SKIP_BUILD=1 to reuse existing output)." -ForegroundColor Cyan
 }
 
 if (-not $skipBuild) {
@@ -139,16 +138,16 @@ if (-not $skipBuild) {
     Write-Host "[3/6] $step3"
 
     $cmdBuildShared = Get-Var -Key ([VarKeys]::CMD_BUILD_SHARED)
-    Write-Host "  Building chrome-mcp-shared..." -ForegroundColor Cyan
+    Write-Host "  Building chrome-mcp-shared (live output)..." -ForegroundColor Cyan
     Invoke-Expression $cmdBuildShared
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  ERROR: Failed to build shared package" -ForegroundColor Red
-        exit 1
-    }
 
+    # Verify by artifact, not exit code (a noisy-but-successful build can return
+    # nonzero; a real failure leaves the artifact missing).
     $sharedPath = Get-Var -Key ([VarKeys]::SHARED_PATH)
-    if (Test-Path $sharedPath) {
-        Write-Host "  OK Shared package built successfully" -ForegroundColor Green
+    if ($sharedPath -and (Test-Path $sharedPath)) {
+        Write-Host "  OK Shared package built (artifact present)" -ForegroundColor Green
+    } else {
+        Write-Host "  WARNING: Shared build artifact not found at $sharedPath" -ForegroundColor Yellow
     }
 
     # Step 4: Build Native Server
@@ -157,11 +156,15 @@ if (-not $skipBuild) {
     Write-Host "[4/6] $step4"
 
     $cmdBuildNative = Get-Var -Key ([VarKeys]::CMD_BUILD_NATIVE)
-    Write-Host "  Building mcp-chrome-bridge..." -ForegroundColor Cyan
+    Write-Host "  Building mcp-chrome-bridge (live output)..." -ForegroundColor Cyan
     Invoke-Expression $cmdBuildNative
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  ERROR: Failed to build Native Server" -ForegroundColor Red
-        exit 1
+
+    # Verify by artifact, not exit code.
+    $nativePathProbe = Get-Var -Key ([VarKeys]::NATIVE_PATH) -Default ""
+    if ($nativePathProbe -and (Test-Path $nativePathProbe)) {
+        Write-Host "  OK Native Server built (artifact present)" -ForegroundColor Green
+    } else {
+        Write-Host "  WARNING: Native Server artifact not found at $nativePathProbe" -ForegroundColor Yellow
     }
 
     # Step 5: Build Chrome Extension

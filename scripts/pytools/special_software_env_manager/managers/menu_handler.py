@@ -39,13 +39,18 @@ class MenuHandler:
             ColorMessage.write("=" * 80, 'info')
             print()
 
-            # Custom Add is pinned as item #1 so it stays one keystroke away
-            # regardless of how long the provider list below grows.
+            # Layout: Custom Add is pinned first (always one keystroke away),
+            # then the provider entries sorted A->Z by display name, then the
+            # utility actions, with Back/Exit pinned last.
             menu_items = [
                 {'Text': 'Custom Add (any KEY, auto-indexed)', 'Action': 'custom_add', 'HasSubMenu': False},
             ]
 
-            for config_name, config in self.config_manager.get_all_configs().items():
+            sorted_configs = sorted(
+                self.config_manager.get_all_configs().items(),
+                key=lambda item: item[1].get('DisplayName', '').casefold()
+            )
+            for config_name, config in sorted_configs:
                 action = config['Common']
                 menu_items.append({
                     'Text': config['DisplayName'],
@@ -56,7 +61,6 @@ class MenuHandler:
             menu_items.extend([
                 {'Text': 'Regenerate All Scripts', 'Action': 'regenerate_all', 'HasSubMenu': False},
                 {'Text': 'Restore Scripts from Secret Storage', 'Action': 'restore_scripts', 'HasSubMenu': False},
-                {'Text': 'Add Scripts Directory to PATH', 'Action': 'addpath', 'HasSubMenu': False},
                 {'Text': 'View All Environment Variables', 'Action': 'viewall', 'HasSubMenu': False},
                 {'Text': 'Refresh Current Terminal Environment', 'Action': 'refresh', 'HasSubMenu': False},
                 {'Text': 'Gitea Backup Management', 'Action': 'gitea_backup', 'HasSubMenu': False},
@@ -71,8 +75,6 @@ class MenuHandler:
 
             if action == 'custom_add':
                 handlers['encrypted_constants_manager'].custom_add()
-            elif action == 'addpath':
-                handlers['env_var_manager'].add_scripts_to_path()
             elif action == 'viewall':
                 handlers['env_var_manager'].show_all_environment_variables(self.config_manager)
             elif action == 'refresh':

@@ -11,7 +11,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
  * Cover/image generation is NO LONGER driven here. pycore is the sole driver:
  * its AssistWorker polls /api/app_qy_v1/assist/claim, generates locally via the
  * unified AI gateway and submits results back (see
- * development-guides/COVER_PULL_ARCHITECTURE.md). This task is repurposed to
+ * poly_apps/laravel_main/docs/COVER_PULL_ARCHITECTURE.md). This task is repurposed to
  * MAINTENANCE-ONLY - it recovers stuck rows so pycore can always make progress
  * and never calls any AI client.
  *

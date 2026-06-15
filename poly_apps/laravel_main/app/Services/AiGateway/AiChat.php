@@ -40,6 +40,13 @@ class AiChat
             return $out;
         }
 
+        // Image-only providers (pollinations / imagen / azure / bedrock / vertex)
+        // have no chat backend.
+        if (AiProviderRegistry::isImageOnly($provider)) {
+            $out['error'] = "Provider '{$provider}' is image-only (no chat backend)";
+            return $out;
+        }
+
         if (!AiProviderRegistry::isConfigured($provider)) {
             $out['error'] = 'No API key configured';
             return $out;
@@ -57,12 +64,46 @@ class AiChat
             return $out;
         }
 
-        $key = AiProviderRegistry::firstSecret($provider);
+        // Multi-key rotation with PER-KEY cooldown + counters (AiKeyRotation, the
+        // twin of pycore ai_key_rotation): pick the active (non-cooled) key; on an
+        // AUTH/QUOTA error cool THAT key so it's SKIPPED next time, then rotate to
+        // the next key; record every attempt per-key and gate on a per-key rate
+        // budget (each key = its own account/quota).
+        $keys = AiProviderRegistry::allSecrets($provider);
+        if (empty($keys)) {
+            $keys = [''];
+        }
+        [$rpm, $rpd] = AiRateLimiter::perKeyCaps($provider, $useModel);
+        $n = count($keys);
         $start = microtime(true);
-        try {
-            self::dispatch($provider, $msgs, $requestedModel, $key, $out);
-        } catch (\Throwable $e) {
-            $out['error'] = $e->getMessage();
+        for ($attempt = 0; $attempt < $n; $attempt++) {
+            [$idx, $key] = AiKeyRotation::selectActive($provider, $keys);
+            if (!AiKeyRotation::rateOk($provider, $idx, $rpm, $rpd)) {
+                if ($attempt + 1 < $n) {
+                    AiKeyRotation::markCooldown($provider, $idx, 30, 'per-key rate budget');
+                    continue;
+                }
+                $out['error'] = 'per-key rate budget reached (all keys)';
+                break;
+            }
+            $out['success'] = false;
+            $out['error'] = null;
+            try {
+                self::dispatch($provider, $msgs, $requestedModel, $key, $out);
+            } catch (\Throwable $e) {
+                $out['error'] = $e->getMessage();
+            }
+            AiKeyRotation::record($provider, $idx, !empty($out['success']), $out['error'] ?? null);
+            if (!empty($out['success'])) {
+                break;
+            }
+            if (self::isAuthOrQuotaError($out['error'] ?? null)) {
+                AiKeyRotation::markCooldown($provider, $idx, null, $out['error'] ?? null);
+                if ($attempt + 1 < $n) {
+                    continue;
+                }
+            }
+            break;
         }
 
         if (empty($out['model'])) {
@@ -224,6 +265,32 @@ class AiChat
     }
 
     // --- helpers ----------------------------------------------------------- //
+
+    /** Error fragments meaning AUTH / QUOTA — these trigger a key rotation. */
+    private const AUTH_QUOTA_MARKS = [
+        'http 401', 'http 403', 'http 429',
+        'rate limit', 'rate_limit', 'ratelimit',
+        'quota', 'insufficient', 'overloaded', 'invalid api key', 'invalid_api_key',
+    ];
+
+    /**
+     * True when an error is an AUTH/QUOTA failure (HTTP 401/403/429 or a quota /
+     * rate-limit / invalid-key message) — the signal to try the NEXT key. Any
+     * other error stops the rotation (it would fail identically on every key).
+     */
+    private static function isAuthOrQuotaError(?string $error): bool
+    {
+        $e = strtolower((string) $error);
+        if ($e === '') {
+            return false;
+        }
+        foreach (self::AUTH_QUOTA_MARKS as $mark) {
+            if (str_contains($e, $mark)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     public static function nickname(string $provider, string $model): string
     {

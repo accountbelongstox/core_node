@@ -14,29 +14,67 @@
 .SYNOPSIS
     Claude MCP Servers Configuration (PowerShell version)
 .DESCRIPTION
-    Configures MCP servers for Claude using 'claude mcp add' CLI commands.
-    All commands execute directly with real-time output. No wrapping. No exit codes.
+    Configures user-scope MCP servers for Claude Code by writing the "mcpServers"
+    section of ~/.claude.json via _json_sync_helper.py (stdlib only, preserves all
+    other keys in the file). This replaces the flag-based 'claude mcp add' CLI:
+    on Windows, passing -H / -e / -- through the claude shim mangled the args so
+    http (headers) and stdio (env + command) servers silently failed to persist,
+    while only the bare http server (chrome) survived. Writing the JSON directly
+    is the documented user-scope store and avoids all shell-quoting fragility.
+    All output is real-time.
 #>
 
 #region Variable Declarations
 $script:PS_CURRENT_DIR = $PSScriptRoot
 $script:CONFIG_PROVIDER_PS1 = Join-Path $script:PS_CURRENT_DIR "mcp_config_provider.ps1"
+$script:JSON_HELPER_PY = Join-Path $script:PS_CURRENT_DIR "_json_sync_helper.py"
+$script:CLAUDE_CONFIG_PATH = $null
+$script:PYTHON_CMD = $null
 #endregion
 
-#region Load Config Provider
 . $script:CONFIG_PROVIDER_PS1
-#endregion
+
+$script:PYTHON_CMD = Get-MCPPythonExe
+if (-not $script:PYTHON_CMD) {
+    Write-Host "[ERROR] python not found. Required for JSON file operations."
+    return
+}
+
+function Find-ClaudeConfigPath {
+    $homeDir = [System.Environment]::GetFolderPath("UserProfile")
+    return (Join-Path $homeDir ".claude.json")
+}
+
+function ConvertTo-EntryList {
+    param([array]$Configs)
+    $entries = @()
+    foreach ($config in $Configs) {
+        $entry = @{ name = $config.Name; transport = $config.TransportType }
+        if ($config.TransportType -eq "http") {
+            $entry["url"] = $config.Url
+            if ($config.Headers.Count -gt 0) { $entry["headers"] = $config.Headers }
+        } else {
+            $entry["command"] = $config.Command
+            $entry["args"] = @($config.CmdArgs)
+            if ($config.Env.Count -gt 0) { $entry["env"] = $config.Env }
+        }
+        $entries += $entry
+    }
+    return $entries
+}
 
 #region Main Logic
 Write-Host "================================================================================"
-Write-Host "[CLAUDE] Configuring MCP servers using 'claude mcp add' commands"
+Write-Host "[CLAUDE] Configuring MCP servers via ~/.claude.json (user scope)"
 Write-Host "================================================================================"
 Write-Host ""
+Write-Host "[INFO] Using Python: $script:PYTHON_CMD"
 
+# Keep CLAUDE_CODE_GIT_BASH_PATH set so any later 'claude' invocation works on Windows.
 Set-ClaudeGitBashEnv
 
-Write-Host "[INFO] Checking Claude CLI availability..."
-claude --version
+$script:CLAUDE_CONFIG_PATH = Find-ClaudeConfigPath
+Write-Host "[INFO] Claude config file: $script:CLAUDE_CONFIG_PATH"
 Write-Host ""
 
 $configs = Get-AllMCPConfigs -Target "claude"
@@ -45,60 +83,19 @@ if ($configs.Count -eq 0) {
     return
 }
 
-Write-Host "================================================================================"
+$entries = ConvertTo-EntryList -Configs $configs
+$tempFile = Join-Path $env:TEMP "mcp_claude_entries.json"
+$entries | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempFile -Encoding utf8
+
+& $script:PYTHON_CMD -u $script:JSON_HELPER_PY $script:CLAUDE_CONFIG_PATH $tempFile "claude"
+
+Remove-Item -LiteralPath $tempFile -ErrorAction SilentlyContinue
+
 Write-Host ""
-
-$idx = 0
-foreach ($config in $configs) {
-    $idx++
-    $name = $config.Name
-    $transport = $config.TransportType
-    Write-Host "[$idx/$($configs.Count)] Executing: $name ($transport)"
-
-    # Remove any existing entry first. 'claude mcp add' refuses to overwrite an
-    # existing server ("already exists in user config"), so a stale/incorrect
-    # entry (e.g. a corrupted API key) would persist across re-runs. Removing
-    # first guarantees the latest config is applied. Errors are non-fatal.
-    Write-Host "[CLEAN] claude mcp remove $name -s user"
-    claude mcp remove $name -s user 2>$null
-    if ($transport -eq "http") {
-        # Order: flags name url -H (variadic flags AFTER positional args)
-        $fullArgs = @("mcp", "add", "-t", "http", "-s", "user", $name, $config.Url)
-        foreach ($hKey in $config.Headers.Keys) {
-            $hVal = $config.Headers[$hKey]
-            $fullArgs += "-H"
-            $fullArgs += "${hKey}: ${hVal}"
-        }
-        Write-Host "[CMD] claude $($fullArgs -join ' ')"
-        & claude $fullArgs
-    }
-    else {
-        # Order: flags name -e (variadic) -- command args
-        $fullArgs = @("mcp", "add", "-t", "stdio", "-s", "user", $name)
-        foreach ($eKey in $config.Env.Keys) {
-            $eVal = $config.Env[$eKey]
-            $fullArgs += "-e"
-            $fullArgs += "${eKey}=${eVal}"
-        }
-        $fullArgs += "--"
-        $fullArgs += $config.Command
-        foreach ($a in $config.CmdArgs) {
-            $fullArgs += $a
-        }
-        Write-Host "[CMD] claude $($fullArgs -join ' ')"
-        & claude $fullArgs
-    }
-    Write-Host ""
-
-    Write-Host "[VERIFY] claude mcp list"
-    claude mcp list
-    Write-Host ""
-    Write-Host "[VERIFY] claude mcp get $name"
-    claude mcp get $name
-    Write-Host ""
-}
-
+Write-Host "[VERIFY] claude mcp list (best-effort; requires claude CLI on PATH)"
+claude mcp list
+Write-Host ""
 Write-Host "================================================================================"
-Write-Host "[SUMMARY] Claude MCP Configuration Complete"
+Write-Host "[SUMMARY] Claude MCP Configuration Complete (user scope: $script:CLAUDE_CONFIG_PATH)"
 Write-Host "================================================================================"
 #endregion

@@ -18,6 +18,8 @@ use Illuminate\Http\JsonResponse;
 use App\Models\Book;
 use App\Models\Subtitle;
 use App\Models\SourceSentence;
+use App\Models\Sentence;
+use App\Models\PunctuationMarker;
 use App\Traits\ApiResponse;
 
 /**
@@ -104,6 +106,17 @@ class AppQyV1MediaContentPublicController
             ];
         }
 
+        // v2 books carry an ordered reconstruction sequence (sentence content-ids
+        // interleaved with punctuation-marker codes, repeats allowed). When present
+        // we rebuild punctuated text from book.sentence_seq + the marker library,
+        // since the shared sentence library stores book sentences WITHOUT punctuation.
+        if ($type === 'book') {
+            $rawSeq = $source->sentence_seq;
+            if (is_array($rawSeq) && count($rawSeq) > 0) {
+                return $this->buildBookV2Content($info, $rawSeq, $pagination);
+            }
+        }
+
         $baseQuery = SourceSentence::where('source_type', $type)
             ->where('source_key', $source->source_key);
 
@@ -147,6 +160,109 @@ class AppQyV1MediaContentPublicController
             'start' => $pagination['start'],
             'limit' => $pagination['limit'],
             'grain' => $grain,
+            'sentences' => $sentences,
+        ], 'Media content retrieved successfully');
+    }
+
+    /**
+     * Reconstruct a v2 book's punctuated content from book.sentence_seq.
+     *
+     * sentence_seq is an ordered token list: {"s": content_id} (a sentence) and
+     * {"m": marker_code} (the punctuation that followed it), repeats allowed. Each
+     * sentence token plus its trailing marker tokens forms one display unit. The
+     * stored sentence text is punctuation-stripped, so trailing marker glyphs (from
+     * the app_qy_v1_punctuation_markers library) are appended to restore sentence
+     * boundaries and terminal punctuation. Whitespace-only structure markers
+     * (newline/paragraph) are skipped in the per-sentence text. Internal punctuation
+     * removed during stripping is NOT restored here (exact bytes live in
+     * full_content, which is never exposed). Paginated by sentence unit.
+     */
+    private function buildBookV2Content(array $info, array $rawSeq, array $pagination): JsonResponse
+    {
+        $units = [];
+        $current = null;
+        $token = null;
+        $ids = [];
+        $sentenceMap = [];
+        $markerChar = [];
+        $sentences = [];
+
+        foreach ($rawSeq as $token) {
+            if (is_array($token) && array_key_exists('s', $token)) {
+                if ($current !== null) {
+                    $units[] = $current;
+                }
+                $current = ['content_id' => (string) $token['s'], 'markers' => []];
+            } elseif (is_array($token) && array_key_exists('m', $token)) {
+                if ($current !== null) {
+                    $current['markers'][] = (string) $token['m'];
+                }
+            }
+        }
+        if ($current !== null) {
+            $units[] = $current;
+        }
+
+        $totalSentences = count($units);
+        $page = array_slice($units, $pagination['start'], $pagination['limit']);
+
+        foreach ($page as $unit) {
+            $ids[] = $unit['content_id'];
+        }
+        $ids = array_values(array_unique($ids));
+        if (count($ids) > 0) {
+            $rows = Sentence::whereIn('content_id', $ids)->get();
+            foreach ($rows as $row) {
+                $sentenceMap[$row->content_id] = $row;
+            }
+        }
+
+        // marker code -> glyph (whitespace-only structure markers skipped on join)
+        $markers = PunctuationMarker::all();
+        foreach ($markers as $marker) {
+            $markerChar[$marker->code] = $marker->char;
+        }
+
+        $index = 0;
+        foreach ($page as $unit) {
+            $row = null;
+            if (array_key_exists($unit['content_id'], $sentenceMap)) {
+                $row = $sentenceMap[$unit['content_id']];
+            }
+            $text = '';
+            $audio = null;
+            $explanation = null;
+            if ($row !== null) {
+                $text = $row->text;
+                $audio = $row->audio;
+                $explanation = $row->explanation;
+            }
+            $suffix = '';
+            foreach ($unit['markers'] as $code) {
+                if (array_key_exists($code, $markerChar)) {
+                    $glyph = $markerChar[$code];
+                    if (trim($glyph) !== '') {
+                        $suffix .= $glyph;
+                    }
+                }
+            }
+            $sentences[] = [
+                'seq' => $pagination['start'] + $index,
+                'text' => $text . $suffix,
+                'audio' => $audio,
+                'explanation' => $explanation,
+                'start_sec' => null,
+                'end_sec' => null,
+            ];
+            $index++;
+        }
+
+        return $this->success([
+            'info' => $info,
+            'total_sentences' => $totalSentences,
+            'start' => $pagination['start'],
+            'limit' => $pagination['limit'],
+            'grain' => 'sentence',
             'sentences' => $sentences,
         ], 'Media content retrieved successfully');
     }

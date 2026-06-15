@@ -1,7 +1,23 @@
 <template>
   <div class="bing-dictionary">
-    <!-- Task Center Panel (Unified State Center) -->
-    <TaskCenterPanel />
+    <!-- Translation Assist (worker mode): pull untranslated words from
+         laravel_main, translate via parallel Bing tabs, post results back. -->
+    <ClientModePanel
+      :clientConfig="clientConfig"
+      :clientService="clientService"
+      :formatTimestamp="formatTimestamp"
+      :error="assistError"
+      :connectionStatus="connectionStatus"
+      :currentEndpoint="currentEndpoint"
+      :testWords="testWords"
+      :testResults="testResults"
+      :testing="testing"
+      @toggle-service="toggleClientService"
+      @update-config="updateConfig"
+      @test-connection="testConnection"
+      @run-scrape-test="runScrapeTest"
+      @update-test-words="(v) => (testWords = v)"
+    />
 
     <!-- Header -->
     <div class="dictionary-header">
@@ -43,7 +59,8 @@
 <script lang="ts" setup>
 import { onMounted } from 'vue';
 import { useBingDictionary } from '../../composables/useBingDictionary';
-import TaskCenterPanel from './TaskCenterPanel.vue';
+import { useBingDictionaryClient } from '../../composables/useBingDictionaryClient';
+import ClientModePanel from './bing-dictionary/ClientModePanel.vue';
 import SearchBox from './bing-dictionary/SearchBox.vue';
 import WordResult from './bing-dictionary/WordResult.vue';
 import HistoryList from './bing-dictionary/HistoryList.vue';
@@ -62,6 +79,24 @@ const {
   formatTime,
   loadHistory,
 } = useBingDictionary();
+
+// Translation-assist (worker) composable
+const {
+  clientConfig,
+  clientService,
+  error: assistError,
+  connectionStatus,
+  currentEndpoint,
+  testWords,
+  testResults,
+  testing,
+  toggleClientService,
+  updateConfig,
+  testConnection,
+  runScrapeTest,
+  formatTimestamp,
+  initPanel,
+} = useBingDictionaryClient();
 
 // Event handlers
 const handleSearch = () => {
@@ -83,6 +118,7 @@ const handleClearHistory = () => {
 // Initialize on mount
 onMounted(async () => {
   await loadHistory();
+  await initPanel();
 });
 </script>
 

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from pycore import ColorPrint, THREAD_BUS
 from pycore.pythreadpool import get_global_thread_pool, SERVICE_STARTERS
-from pycore.pylauncher.singleton_detector import SingletonDetector
+from pycore.pylauncher.singleton_detector import SingletonDetector, on_singleton_superseded
 
 
 # ============================================================
@@ -200,17 +200,14 @@ class ServiceLauncher:
         """
         ColorPrint.blue(f"[Singleton] Detecting {self.config.app_id}...")
 
-        # Define callbacks
-        def on_msg(msg):
-            """Handle incoming messages from new instances"""
-            if msg.get('type') == 'SHUTDOWN':
-                THREAD_BUS.request_shutdown(
-                    f"Shutdown by new instance (PID {msg.get('pid')})",
-                    execute_handlers=True
-                )
-
+        # Inter-instance takeover (newest-wins) is owned entirely by the detector:
+        # it fires 'singleton.superseded' and triggers the graceful shutdown when a
+        # newer instance arrives, so no on_message shutdown handler is needed here
+        # (that path was redundant with request_shutdown). state_checker still
+        # reports busy state for STATUS queries (external monitors), but no longer
+        # gates a sibling takeover.
         def state_checker():
-            """Check if application can shutdown (based on busy state)"""
+            """Report whether the app is busy (for STATUS queries only)."""
             is_busy = THREAD_BUS.is_busy()
             return {
                 'can_shutdown': not is_busy,
@@ -223,7 +220,6 @@ class ServiceLauncher:
             port_start=self.config.singleton_port_start,
             port_range=self.config.singleton_port_range,
             debug=True,
-            on_message=on_msg,
             state_checker=state_checker,
             shutdown_existing=self.config.shutdown_existing  # Pass config to detector
         )
@@ -333,6 +329,7 @@ __all__ = [
     'launch_services',
     'stop_services',
     'SingletonDetector',
+    'on_singleton_superseded',
 ]
 
 

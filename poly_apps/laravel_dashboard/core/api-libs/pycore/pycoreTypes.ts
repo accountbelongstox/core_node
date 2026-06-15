@@ -264,6 +264,103 @@ export interface AiRateLimitsResponse {
   providers: AiProviderRate[];
 }
 
+/**
+ * Per-KEY rotation status slot (gateway endpoint). Multi-key providers rotate
+ * KEY1 → KEY2 → … as keys hit a 429/quota and cool down. `image_keys` use the
+ * SAME shape but a SEPARATE budget (a provider may have a dedicated
+ * `{BASE}_IMAGE` key whose cooldowns never block text and vice-versa).
+ */
+export interface AiKeySlot {
+  /** 0-based position in the rotation pool (UI shows it as KEY{index+1}). */
+  index: number;
+  /** Display label — 'KEY1' | 'KEY2' | … */
+  label: string;
+  /** Masked key (first4 + … + last4); never the full secret. */
+  masked: string;
+  /** Seconds remaining on this key's cooldown (0 = ready/active). */
+  cooldown_s: number;
+  /** Total attempts counted against this key slot. */
+  used: number;
+  ok: number;
+  failed: number;
+  /** Requests by this key in the last 60s (persistent per-key rate counter). */
+  minute_used?: number;
+  /** Requests by this key today, UTC (persistent per-key rate counter). */
+  day_used?: number;
+  /** Epoch seconds of the last use, or null. */
+  last_used: number | null;
+  /** Last error string for this key, or null. */
+  last_error: string | null;
+}
+
+/**
+ * One provider row from GET /api/local/ai/keys — the key-management view of a
+ * provider (NOT a live availability probe). `keys` / `image_keys` reuse the
+ * AiKeySlot shape; `key_base` is the secret-store base name (e.g. GOOGLE_API_KEY)
+ * the indexed slots derive from (BASE_1 … BASE_5 for text, BASE_IMAGE_1 … for the
+ * dedicated image budget).
+ */
+export interface AiKeyProvider {
+  name: string;
+  /** Secret-store base name the indexed key files derive from. */
+  key_base: string;
+  /** True when this provider needs no API key (e.g. pollinations). */
+  keyless: boolean;
+  /** True when this provider only generates images (no text/chat). */
+  image_only: boolean;
+  /** A text key is present (or keyless) — ready for chat/text. */
+  configured: boolean;
+  /** An image key is present (or keyless) — ready for image generation. */
+  image_ready: boolean;
+  /** How many text keys are configured. */
+  key_count: number;
+  /** Per-text-key rotation slots (KEY1/KEY2 …). */
+  keys: AiKeySlot[];
+  /** Per-image-key rotation slots (separate budget). */
+  image_keys: AiKeySlot[];
+}
+
+/** GET /api/local/ai/keys — key-management catalog + the raw key file names. */
+export interface AiKeysResponse {
+  success: boolean;
+  providers: AiKeyProvider[];
+  /** Exact env-var names of every configured key file (for targeted delete). */
+  raw_key_files: string[];
+  error?: string;
+}
+
+/** POST /api/local/ai/keys body — write one indexed key file, then re-probe. */
+export interface AiKeySetRequest {
+  provider?: string;
+  base_name?: string;
+  /** 1..5 rotation slot. */
+  index?: number;
+  value: string;
+  /** Write {BASE}_IMAGE_{index} (dedicated image budget) instead of {BASE}_{index}. */
+  image?: boolean;
+}
+
+/** POST /api/local/ai/keys response — the env-var name that was written. */
+export interface AiKeySetResponse {
+  success: boolean;
+  key_name?: string;
+  error?: string;
+}
+
+/** DELETE /api/local/ai/keys/{key_name} response. */
+export interface AiKeyDeleteResponse {
+  success: boolean;
+  error?: string;
+}
+
+/** POST /api/local/ai/keys/reset-cooldown response. */
+export interface AiKeyResetCooldownResponse {
+  success: boolean;
+  /** How many key slots had their cooldown cleared. */
+  cleared?: number;
+  error?: string;
+}
+
 export interface AiProvider {
   name: string;
   configured: boolean;
@@ -287,6 +384,12 @@ export interface AiProvider {
   rate_limited?: boolean;
   /** Current local rate-limit usage vs limits (shown on the card). */
   rate?: AiProviderRate | null;
+  /** Rotation pool size — how many keys are configured (gateway-sourced). */
+  key_count?: number;
+  /** Per-text-key rotation status (gateway-sourced; merged onto catalog rows). */
+  keys?: AiKeySlot[];
+  /** Per-IMAGE-key rotation status (separate budget; gateway-sourced). */
+  image_keys?: AiKeySlot[];
 }
 
 export interface AiProbeResponse {
@@ -400,11 +503,18 @@ export interface AiGatewayProvider {
   key_masked?: string | null;
   models: string[];
   quota: AiGatewayQuota;
+  image_model?: string;
   calls: number;
   ok: number;
   failed: number;
   last_error: string | null;
   cooldown_s: number;
+  /** Rotation pool size — how many keys are configured. */
+  key_count?: number;
+  /** Per-text-key rotation status (KEY1/KEY2…). */
+  keys?: AiKeySlot[];
+  /** Per-IMAGE-key rotation status (separate budget). */
+  image_keys?: AiKeySlot[];
 }
 
 export interface AiGatewayRecord {

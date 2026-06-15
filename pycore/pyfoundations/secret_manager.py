@@ -14,10 +14,11 @@ Main Functions:
     3. decrypt_all_secrets()  - Decrypt all encrypted files
 """
 
+import os
 import sys
 from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 BATCH_DECRYPTION_ATTEMPTED = False
 
@@ -194,6 +195,19 @@ def _read_secret_value(key_name: str) -> str:
     if not key_name:
         return ""
 
+    # Step 0: OS environment variable (so a "Set Special Software Environment
+    # Variables" feature — or any external/OS env setup — can supply keys,
+    # including indexed names like GOOGLE_API_KEY_1). File-backed secrets below
+    # take precedence so an explicitly placed key file always wins.
+    env_val = os.environ.get(key_name)
+    if env_val and env_val.strip():
+        # Defer to a raw file when one exists (keeps file as the source of truth).
+        try:
+            if not (get_secret_directories()['RAW_DIR'] / key_name).exists():
+                return env_val.strip()
+        except Exception:
+            return env_val.strip()
+
     dirs = get_secret_directories()
     raw_file = dirs['RAW_DIR'] / key_name
 
@@ -273,6 +287,89 @@ def get_secret_key_indexed(base_name: str, max_index: int = 5) -> str:
         if value:
             return value
     return _read_secret_value(base_name)
+
+
+def get_all_secret_keys_indexed(base_name: str, max_index: int = 5) -> List[str]:
+    """
+    ALL non-empty numbered variants of a base secret, in resolution order.
+
+    Same convention as :func:`get_secret_key_indexed` but returns EVERY key
+    found (``<BASE>_1`` .. ``<BASE>_<max_index>`` then bare ``<BASE>``) so callers
+    can ROTATE across multiple keys/accounts (e.g. try KEY_1, then KEY_2 on a
+    rate-limit / quota error). Duplicates are removed while preserving order.
+
+    Returns:
+        List of distinct non-empty secret values (possibly empty).
+    """
+    found: List[str] = []
+    seen = set()
+    for i in range(1, max_index + 1):
+        value = _read_secret_value(f"{base_name}_{i}")
+        if value and value not in seen:
+            seen.add(value)
+            found.append(value)
+    bare = _read_secret_value(base_name)
+    if bare and bare not in seen:
+        found.append(bare)
+    return found
+
+
+def set_secret_key(key_name: str, value: str) -> bool:
+    """
+    Write a raw secret value to ``.secret_keys/.secret_ignore/<key_name>``.
+
+    Used by the local key-management API so users can set/rotate AI provider keys
+    from the UI. Writes the RAW (decrypted) store — the same place the reader
+    checks first. Returns True on success.
+    """
+    key_name = (key_name or "").strip()
+    if not key_name or any(c in key_name for c in "/\\.. "):
+        return False
+    value = (value or "").strip()
+    try:
+        raw_dir = get_secret_directories()['RAW_DIR']
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        (raw_dir / key_name).write_text(value + "\n", encoding="utf-8")
+        return True
+    except Exception:
+        return False
+
+
+def set_secret_key_indexed(base_name: str, value: str, index: int = 1) -> bool:
+    """Write ``<base_name>_<index>`` (the indexed multi-key convention)."""
+    base_name = (base_name or "").strip()
+    if not base_name:
+        return False
+    idx = max(1, int(index)) if str(index).isdigit() or isinstance(index, int) else 1
+    return set_secret_key(f"{base_name}_{idx}", value)
+
+
+def delete_secret_key(key_name: str) -> bool:
+    """Remove a raw secret file. Returns True if it existed and was removed."""
+    key_name = (key_name or "").strip()
+    if not key_name or any(c in key_name for c in "/\\.. "):
+        return False
+    try:
+        path = get_secret_directories()['RAW_DIR'] / key_name
+        if path.is_file():
+            path.unlink()
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def list_secret_key_names() -> List[str]:
+    """Names (NOT values) of raw secret files present. For UI presence checks."""
+    try:
+        raw_dir = get_secret_directories()['RAW_DIR']
+        if not raw_dir.exists():
+            return []
+        return sorted(
+            f.name for f in raw_dir.iterdir()
+            if f.is_file() and not f.name.startswith('.'))
+    except Exception:
+        return []
 
 
 def get_all_secret_keys() -> Dict[str, str]:

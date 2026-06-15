@@ -7,12 +7,14 @@ import time
 from typing import Dict, Any
 from pathlib import Path
 
+from pycore.pyfoundations.system_paths import get_app_temp_dir
+
 
 class VideoProcessor:
     """Processor for video processing and audio extraction"""
 
     def __init__(self):
-        self.output_dir = Path("./temp/video")
+        self.output_dir = get_app_temp_dir() / "video"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def process_video(self, video_path: str, config: Dict[str, Any]) -> Dict[str, Any]:

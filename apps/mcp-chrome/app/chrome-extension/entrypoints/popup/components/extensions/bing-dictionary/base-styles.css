@@ -8,7 +8,8 @@
    ========================================================================== */
 
 .bing-dictionary {
-  background: white;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -28,7 +29,7 @@
 .dictionary-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text);
   margin: 0;
 }
 
@@ -44,13 +45,13 @@
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 11px;
-  color: #64748b;
+  color: var(--text-muted);
   transition: all 0.2s;
 }
 
 .icon-button:hover {
-  background: #f1f5f9;
-  color: #374151;
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 /* ==========================================================================
@@ -58,8 +59,8 @@
    ========================================================================== */
 
 .mode-toggle {
-  background: #e0f2fe;
-  color: #0369a1;
+  background: var(--accent-soft);
+  color: var(--accent-fg);
   border: none;
   padding: 4px 10px;
   border-radius: 6px;
@@ -70,13 +71,13 @@
 }
 
 .mode-toggle.active {
-  background: #0ea5e9;
-  color: white;
+  background: var(--accent);
+  color: #fff;
 }
 
 .mode-toggle:hover {
-  background: #0284c7;
-  color: white;
+  background: var(--accent);
+  color: #fff;
 }
 
 /* ==========================================================================
@@ -92,22 +93,27 @@
 .search-input {
   flex: 1;
   padding: 10px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
-  background: #f8fafc;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.search-input::placeholder {
+  color: var(--text-faint);
 }
 
 .search-input:focus {
   outline: none;
-  border-color: #3b82f6;
-  background: white;
+  border-color: var(--accent);
+  background: var(--surface);
 }
 
 .search-button {
   padding: 10px 16px;
-  background: #3b82f6;
-  color: white;
+  background: var(--accent);
+  color: #fff;
   border: none;
   border-radius: 8px;
   font-size: 12px;
@@ -117,7 +123,7 @@
 }
 
 .search-button:hover:not(:disabled) {
-  background: #2563eb;
+  background: var(--accent-fg);
 }
 
 .search-button:disabled {
@@ -135,15 +141,15 @@
   justify-content: center;
   gap: 8px;
   padding: 24px;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
 .loading-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid #e2e8f0;
-  border-top-color: #3b82f6;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -154,15 +160,16 @@
   }
 }
 
+/* Error keeps semantic danger color (red). */
 .error-message {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.3);
   border-radius: 8px;
   padding: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #dc2626;
+  color: var(--danger);
   font-size: 13px;
 }
 
@@ -185,20 +192,21 @@
   align-items: center;
   justify-content: space-between;
   padding-bottom: 12px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--border);
 }
 
 .word-title {
   font-size: 20px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text);
   margin: 0;
 }
 
+/* Play keeps semantic success color (green). */
 .play-button {
   padding: 6px 12px;
-  background: #10b981;
-  color: white;
+  background: var(--success);
+  color: #fff;
   border: none;
   border-radius: 6px;
   font-size: 11px;
@@ -208,7 +216,7 @@
 }
 
 .play-button:hover {
-  background: #059669;
+  opacity: 0.88;
 }
 
 /* ==========================================================================
@@ -223,12 +231,12 @@
 }
 
 .phonetic-label {
-  color: #64748b;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .phonetic-text {
-  color: #3b82f6;
+  color: var(--accent-fg);
   font-family: 'Courier New', monospace;
 }
 
@@ -239,7 +247,7 @@
 .section-title {
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
+  color: var(--text-muted);
   margin: 0 0 8px 0;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -259,20 +267,20 @@
   display: flex;
   gap: 12px;
   padding: 8px;
-  background: #f8fafc;
+  background: var(--surface-2);
   border-radius: 6px;
 }
 
 .translation-type {
   font-size: 12px;
   font-weight: 600;
-  color: #7c3aed;
+  color: var(--accent-fg);
   min-width: 60px;
 }
 
 .translation-text {
   font-size: 13px;
-  color: #1e293b;
+  color: var(--text);
 }
 
 /* ==========================================================================
@@ -285,23 +293,24 @@
   gap: 12px;
 }
 
+/* Example keeps a semantic warning accent (amber left border). */
 .example-item {
   padding: 10px;
-  background: #fefce8;
-  border-left: 3px solid #eab308;
+  background: var(--surface-2);
+  border-left: 3px solid var(--warning);
   border-radius: 6px;
 }
 
 .example-text {
   font-size: 13px;
-  color: #1e293b;
+  color: var(--text);
   margin: 0 0 4px 0;
   font-style: italic;
 }
 
 .example-translation {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -317,8 +326,8 @@
 
 .synonym-tag {
   padding: 4px 10px;
-  background: #e0f2fe;
-  color: #0369a1;
+  background: var(--accent-soft);
+  color: var(--accent-fg);
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
@@ -327,8 +336,8 @@
 }
 
 .synonym-tag:hover {
-  background: #0ea5e9;
-  color: white;
+  background: var(--accent);
+  color: #fff;
 }
 
 /* ==========================================================================
@@ -350,25 +359,25 @@
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  background: #f8fafc;
+  background: var(--surface-2);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .history-item:hover {
-  background: #e0f2fe;
+  background: var(--accent-soft);
 }
 
 .history-word {
   font-size: 13px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--text);
 }
 
 .history-time {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-faint);
 }
 
 /* ==========================================================================
@@ -378,6 +387,6 @@
 .empty-state {
   text-align: center;
   padding: 32px;
-  color: #94a3b8;
+  color: var(--text-faint);
   font-size: 14px;
 }

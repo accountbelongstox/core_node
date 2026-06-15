@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "framer-motion": "^11.18.2",
     "i18next": "^25.8.18",
     "lucide-react": "^0.555.0",
     "react": "^19.2.1",

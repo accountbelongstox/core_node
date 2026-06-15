@@ -45,8 +45,11 @@ export function useWfProtectedAction(): WfProtectedAction {
   const loginConfirmSheet = (
     <Sheet open={confirmOpen} onClose={() => setConfirmOpen(false)} position="bottom">
       <div className="flex flex-col items-center text-center gap-3 pb-2">
-        <div className="w-14 h-14 rounded-full bg-[var(--klein-blue-soft)] flex items-center justify-center text-[var(--klein-blue)]">
-          <Lock className="w-6 h-6" aria-hidden />
+        <div className="relative flex items-center justify-center mb-1">
+          <span className="ds-loading-aura absolute w-14 h-14 opacity-25" aria-hidden />
+          <span className="ds-empty-icon relative w-16 h-16 rounded-full ds-glass ds-glass-edge flex items-center justify-center text-[var(--klein-blue)]">
+            <Lock className="w-7 h-7" aria-hidden />
+          </span>
         </div>
         <h2 className="text-lg font-bold text-[var(--color-text-primary)]">
           {t('home.loginRequired') || 'Login Required'}
@@ -54,13 +57,14 @@ export function useWfProtectedAction(): WfProtectedAction {
         <p className="text-sm text-[var(--color-text-secondary)] max-w-xs leading-relaxed">
           {t('home.accountRequired') || 'Account required for this feature. Login now?'}
         </p>
-        <div className="flex gap-3 w-full mt-2">
+        <div className="flex gap-3 w-full mt-3">
           <Button variant="secondary" className="flex-1" onClick={() => setConfirmOpen(false)}>
             {t('common.cancel') || 'Cancel'}
           </Button>
           <Button
             variant="grad"
             className="flex-1"
+            icon={<Lock />}
             onClick={() => {
               setConfirmOpen(false);
               navigate(wfPath('auth/login'));

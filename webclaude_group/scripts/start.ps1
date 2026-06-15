@@ -586,15 +586,23 @@ if ($SelectedServices -contains "host") {
     if (Test-Path $hostScript) {
         Start-Process powershell -ArgumentList @(
             "-NoExit", "-Command",
-            "`$Host.UI.RawUI.WindowTitle = '$title'; & '$hostScript'"
+            "`$Host.UI.RawUI.WindowTitle = '$title'; & '$hostScript' --dev"
         )
     } else {
-        # Fallback
+        # Fallback: prefer the watchdog dev-reload wrapper for hot reload parity
         if (-not $pyCmd) { $pyCmd = "python" }
-        Start-Process powershell -ArgumentList @(
-            "-NoExit", "-Command",
-            "Set-Location '$($Paths.host)'; `$Host.UI.RawUI.WindowTitle = '$title'; $pyCmd -u pymain.py app=claude_host"
-        )
+        $hostReload = Join-Path $Paths.host "pyapps\claude_host\scripts\dev_reload.py"
+        if (Test-Path $hostReload) {
+            Start-Process powershell -ArgumentList @(
+                "-NoExit", "-Command",
+                "Set-Location '$($Paths.host)'; `$Host.UI.RawUI.WindowTitle = '$title'; $pyCmd -u pyapps\claude_host\scripts\dev_reload.py"
+            )
+        } else {
+            Start-Process powershell -ArgumentList @(
+                "-NoExit", "-Command",
+                "Set-Location '$($Paths.host)'; `$Host.UI.RawUI.WindowTitle = '$title'; $pyCmd -u pymain.py app=claude_host"
+            )
+        }
     }
     $launched += $title
     Write-Ok "Started: $title"

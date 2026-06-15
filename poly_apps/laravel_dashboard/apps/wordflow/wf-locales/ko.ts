@@ -784,6 +784,7 @@ export const ko: WfTranslationDict = {
     switchToLight: '라이트 모드로 전환',
     switchToDark: '다크 모드로 전환',
     changeLanguage: '언어 변경',
+    aiChat: 'AI 채팅',
     profile: '프로필',
     login: '로그인',
     settings: '설정',

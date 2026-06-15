@@ -326,7 +326,12 @@ class AppQyV1UnifiedTTSQueueService
             ];
         }
 
-        $language = strtolower($language);
+        // Normalize the language the SAME way the translation queue does
+        // (AppQyV1DictionaryService::getLanguageCode) so this endpoint accepts a
+        // full NAME ("english") OR a 2-letter CODE ("en") interchangeably —
+        // previously a bare strtolower() let "english" fall through to
+        // "Unsupported language". Keeps all word-action endpoints consistent.
+        $language = AppQyV1DictionaryService::getLanguageCode($language);
 
         if ($type === self::TYPE_SENTENCE) {
             return $this->addSentenceTask($content, $language);

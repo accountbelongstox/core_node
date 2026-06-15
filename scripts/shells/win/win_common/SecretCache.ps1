@@ -344,6 +344,21 @@ function Get-CachedRawContentHash {
 .EXAMPLE
     $needsRedecryption = Get-EncryptedFilesNeedingRedecryption -EncryptedDir "C:\encrypted" -RawDir "C:\raw"
 #>
+function Test-EncryptedContentBaselineExists {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FileName
+    )
+
+    $cacheDir = ""
+    $cacheFile = ""
+
+    $cacheDir = Join-Path (Get-SecretCacheBaseDir) "encrypted_content_hash"
+    $cacheFile = Join-Path $cacheDir "$FileName.enc_hash"
+
+    return (Test-Path $cacheFile)
+}
+
 function Get-EncryptedFilesNeedingRedecryption {
     param(
         [Parameter(Mandatory = $true)]
@@ -365,12 +380,24 @@ function Get-EncryptedFilesNeedingRedecryption {
         $baseName = [System.IO.Path]::GetFileNameWithoutExtension($encFile.Name)
         $rawFile = Join-Path $RawDir $baseName
 
-        # Check if encrypted content changed
+        # Only consider files we have already decrypted locally. First-time decryption
+        # (raw file missing) is handled by the separate missing-files flow.
+        if (-not (Test-Path $rawFile)) {
+            continue
+        }
+
+        # A missing baseline is NOT evidence of a content change (e.g. fresh install or a
+        # cleared cache dir). Seed it from the current encrypted file and treat it as up to
+        # date, so we never raise a phantom "all files changed" prompt. Real changes are
+        # detected only when a baseline EXISTS and its hash no longer matches.
+        if (-not (Test-EncryptedContentBaselineExists -FileName $baseName)) {
+            Set-EncryptedContentHashCache -FileName $baseName -EncryptedFile $encFile.FullName
+            continue
+        }
+
+        # Baseline exists: a hash mismatch means the encrypted content actually changed.
         if (Test-EncryptedContentChanged -FileName $baseName -EncryptedFile $encFile.FullName) {
-            # Check if corresponding raw file exists
-            if (Test-Path $rawFile) {
-                $changedFiles += $baseName
-            }
+            $changedFiles += $baseName
         }
     }
 
@@ -471,19 +498,12 @@ function Clear-ExpiredSecretCache {
         }
     }
 
-    # Cleanup encrypted content hash cache
-    $hashCacheDir = Join-Path $cacheBaseDir "encrypted_content_hash"
-    if (Test-Path $hashCacheDir) {
-        $cacheFiles = Get-ChildItem -Path $hashCacheDir -Filter "*.enc_hash" -File -ErrorAction SilentlyContinue
-
-        foreach ($cacheFile in $cacheFiles) {
-            $fileAge = $currentTime - $cacheFile.LastWriteTime
-            if ($fileAge.TotalSeconds -gt $cacheExpirySeconds) {
-                Remove-Item -Path $cacheFile.FullName -Force -ErrorAction SilentlyContinue
-                $cleanedFiles++
-            }
-        }
-    }
+    # NOTE: encrypted_content_hash\*.enc_hash files are deliberately NOT expired here.
+    # They are persistent content-change baselines, not throwaway cache. Deleting them on
+    # a timer makes Test-EncryptedContentChanged see no baseline and report EVERY encrypted
+    # file as "changed", producing a phantom "Found N encrypted file(s) with content changes"
+    # prompt on the first run after expiry. The baselines are refreshed on encrypt/decrypt
+    # and stay valid until the encrypted content actually changes.
 
     if ($cleanedFiles -gt 0) {
         Write-Host "[SECRET CACHE CLEANUP] Removed $cleanedFiles expired secret cache entries" -ForegroundColor Yellow

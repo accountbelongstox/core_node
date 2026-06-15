@@ -459,6 +459,28 @@ def _probe_github() -> Dict[str, Any]:
 
 
 # Provider probe registry (order = PROVIDER_ORDER).
+def _probe_pollinations() -> Dict[str, Any]:
+    """Pollinations is a public, key-less image service — always reported ready."""
+    result = _blank("pollinations", "")
+    result["configured"] = True
+    result["available"] = True
+    result["models"] = ["flux", "turbo"]
+    result["error"] = None
+    return result
+
+
+def _probe_image_only_keyed(name: str) -> Dict[str, Any]:
+    """Readiness for image-only keyed providers (imagen / azure / bedrock) from
+    KEY PRESENCE — no live call (their generate endpoints are billed)."""
+    result = _blank(name, _provider_secret(name))
+    if is_configured(name):
+        result["available"] = True
+        model = PROVIDERS.get(name, {}).get("image_model", "")
+        result["models"] = [model] if model else []
+        result["error"] = None
+    return result
+
+
 _PROBE_BY_NAME = {
     "openrouter": _probe_openrouter,
     "gemini": _probe_gemini,
@@ -475,6 +497,11 @@ _PROBE_BY_NAME = {
     "openai": _probe_openai,
     "anthropic": _probe_anthropic,
     "spark": lambda: probe_spark(_blank, _provider_secret, _MAX_MODELS),
+    "pollinations": _probe_pollinations,
+    "imagen": lambda: _probe_image_only_keyed("imagen"),
+    "azure": lambda: _probe_image_only_keyed("azure"),
+    "bedrock": lambda: _probe_image_only_keyed("bedrock"),
+    "vertex": lambda: _probe_image_only_keyed("vertex"),
 }
 for _pname in OPENAI_COMPAT_PROVIDERS:
     _PROBE_BY_NAME[_pname] = partial(probe_openai_compat, _pname, _blank, _provider_secret, _MAX_MODELS)

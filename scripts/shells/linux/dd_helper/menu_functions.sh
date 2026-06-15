@@ -30,6 +30,7 @@ UNIFIED_MANAGER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$UNIFIED_MANAGER_SCRIPT_RELATIV
 GITPUT_UNIFIED_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$GITPUT_UNIFIED_SCRIPT_RELATIVE"
 ROUTER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$ROUTER_SCRIPT_RELATIVE"
 SYNC_ALL_MCP_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SYNC_ALL_MCP_SCRIPT_RELATIVE"
+AI_MCP_MANAGEMENT_MENU_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$AI_MCP_MANAGEMENT_MENU_SCRIPT_RELATIVE"
 
 show_special_software_env_menu() {
     bash "$SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_PATH"
@@ -86,6 +87,14 @@ handle_menu_action() {
         "sync_all_mcp")
             echo "Syncing all MCP services..."
             bash "$SYNC_ALL_MCP_SCRIPT_PATH"
+            ;;
+        "show_ai_mcp_management")
+            echo "Opening AI & MCP Management menu..."
+            export USE_SUDO
+            # Source so the interactive menu runs in this shell (arrow-key UI).
+            # shellcheck source=/dev/null
+            . "$AI_MCP_MANAGEMENT_MENU_SCRIPT_PATH"
+            show_ai_mcp_management_menu
             ;;
         "unified_manager")
             cd "$CORE_NODE_ROOT_DIR"

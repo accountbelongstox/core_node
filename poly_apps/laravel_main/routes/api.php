@@ -240,6 +240,17 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         Route::get('clip/{source_key}/{name}', [\App\Http\Controllers\MediaBrowseController::class, 'clip'])
             ->where('name', '.*');
     });
+
+    // AppQyV1 Books document pipeline (dashboard upload -> parse -> ingest).
+    // Same trust posture as media/ingest: local, no auth. PHP parses uploaded
+    // documents, computes stats, and on demand ingests sentences/words into the
+    // shared library via the v2 MediaIngestService path.
+    Route::prefix('app_qy_v1/books')->group(function () {
+        Route::post('upload', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'upload']);
+        Route::post('list', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'list']);
+        Route::post('ingest', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'ingest']);
+        Route::get('supported-formats', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'supportedFormats']);
+    });
 });
 
 use App\Http\Controllers\PathConfigController;

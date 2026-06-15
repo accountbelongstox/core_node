@@ -1,5 +1,9 @@
 <template>
-  <div class="w-[780px] h-[580px] bg-[#0f172a] text-slate-200 flex flex-col overflow-hidden">
+  <div
+    data-popup-root
+    class="theme-dark w-[780px] h-[580px] flex flex-col overflow-hidden"
+    style="background: var(--bg); color: var(--text)"
+  >
     <!-- Header -->
     <header class="h-10 border-b border-slate-800 flex items-center justify-between px-4 bg-slate-900/80 backdrop-blur-md z-20 shrink-0">
       <div class="flex items-center gap-2">
@@ -13,6 +17,15 @@
       </div>
       <div class="flex items-center gap-3">
         <LanguageSelector />
+        <button
+          @click="toggleTheme"
+          class="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-indigo-400 transition-colors"
+          :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+        >
+          <!-- Sun when in dark mode (click → light), moon when in light mode. -->
+          <svg v-if="theme === 'dark'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" stroke-width="2"/><path stroke-linecap="round" stroke-width="2" d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+          <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
         <div class="w-px h-5 bg-slate-800"></div>
         <div class="flex items-center gap-2">
           <div :class="['w-2 h-2 rounded-full', (nativeConnectionStatus === 'connected' && serverStatus.isRunning) ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500']"></div>
@@ -46,7 +59,6 @@
             {{ tabs.find(t => t.id === activeTab)?.label }}
             <span class="h-0.5 w-8 bg-indigo-500/30 rounded-full"></span>
           </h2>
-          <span class="text-[9px] text-slate-500 font-mono bg-slate-800/50 px-1.5 py-0.5 rounded border border-slate-700">VIEW_0{{ tabs.findIndex(t => t.id === activeTab) + 1 }}</span>
         </div>
         <div class="flex-1 overflow-y-auto pr-1 no-scrollbar">
       <!-- Server Tab -->
@@ -100,66 +112,6 @@
           <div class="bg-slate-950 rounded-md p-2 overflow-x-auto">
             <pre class="text-[10px] text-indigo-400 font-mono leading-relaxed">{{ mcpConfigJson }}</pre>
           </div>
-        </div>
-      </div>
-
-      <!-- Semantic Tab -->
-      <div v-show="activeTab === 'semantic'" class="space-y-2">
-        <div class="flex justify-between items-center">
-          <div :class="['flex items-center gap-1.5 px-2 py-0.5 rounded-full border', semanticEngineStatus === 'ready' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400']">
-            <div :class="['w-1 h-1 rounded-full', semanticEngineStatus === 'ready' ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400']"></div>
-            <span class="text-[9px] font-bold uppercase tracking-wider">{{ getSemanticEngineStatusText() }}</span>
-          </div>
-          <button
-            @click="initializeSemanticEngine"
-            :disabled="isSemanticEngineInitializing"
-            class="text-[9px] text-indigo-400 hover:underline disabled:opacity-50"
-          >{{ getSemanticEngineButtonText() }}</button>
-        </div>
-        <div v-if="isSemanticEngineInitializing" class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2">
-          <ProgressIndicator :visible="true" :text="semanticEngineInitProgress" :showSpinner="true" />
-        </div>
-        <div v-if="modelInitializationStatus === 'error'" class="bg-rose-950/30 border border-rose-700/50 rounded-lg p-3">
-          <div class="flex gap-3 mb-2">
-            <div class="w-8 h-8 flex items-center justify-center bg-rose-500/20 rounded-full text-rose-400 font-bold text-sm">[!]</div>
-            <div class="flex-1 space-y-0.5">
-              <p class="text-xs font-semibold text-rose-300">{{ getMessage('semanticEngineInitFailedStatus') }}</p>
-              <p class="text-[10px] text-rose-400/90">{{ modelErrorMessage || getErrorTypeText() }}</p>
-            </div>
-          </div>
-          <button
-            @click="retryModelInitialization"
-            :disabled="isModelSwitching || isModelDownloading"
-            class="w-full py-1 bg-rose-600/20 border border-rose-600/40 text-rose-400 text-[9px] font-bold rounded hover:bg-rose-600/30 disabled:opacity-50"
-          >[RETRY] {{ getMessage('retryButton') }}</button>
-        </div>
-        <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2.5 overflow-hidden">
-          <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-1.5">{{ getMessage('embeddingModelLabel') }}</h4>
-          <div class="grid grid-cols-3 gap-1.5">
-            <div
-              v-for="model in availableModels"
-              :key="model.preset"
-              @click="!isModelSwitching && !isModelDownloading && switchModel(model.preset as ModelPreset)"
-              :class="[
-                'p-1.5 rounded border cursor-pointer transition-all',
-                currentModel === model.preset ? 'bg-indigo-600/20 border-indigo-500/50' : 'bg-slate-800/30 border-slate-700/50 hover:bg-slate-800',
-                (isModelSwitching || isModelDownloading) && 'opacity-50 cursor-not-allowed'
-              ]"
-            >
-              <div class="flex justify-between items-center">
-                <span class="text-[10px] font-medium text-slate-200">{{ model.preset }}</span>
-                <CheckIcon v-if="currentModel === model.preset" class="w-3 h-3 text-indigo-400" />
-              </div>
-              <p class="text-[8px] text-slate-500 line-clamp-2">{{ getModelDescription(model) }}</p>
-              <div class="flex flex-wrap gap-0.5 mt-0.5">
-                <span class="px-1 py-px bg-indigo-500/20 text-indigo-400 text-[8px] rounded">{{ getPerformanceText(model.performance) }}</span>
-                <span class="px-1 py-px bg-slate-700/50 text-slate-400 text-[8px] rounded">{{ model.dimension }}D</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div v-if="isModelSwitching || isModelDownloading" class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2">
-          <ProgressIndicator :visible="true" :text="getProgressText()" :showSpinner="true" />
         </div>
       </div>
 
@@ -292,6 +244,8 @@ import {
 } from '@/utils/semantic-similarity-engine';
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 import { getMessage } from '@/utils/i18n';
+import { useTheme } from './composables/useTheme';
+import './theme.css';
 
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import ProgressIndicator from './components/ProgressIndicator.vue';
@@ -309,7 +263,6 @@ import {
   TabIcon,
   VectorIcon,
   ServerIcon,
-  SemanticIcon,
   DataIcon,
   ExtensionIcon,
   AudioIcon,
@@ -317,6 +270,7 @@ import {
   DebugIcon,
 } from './components/icons';
 import { useAppStore } from '@/composables/useAppStore';
+import { usePersistedRef } from '@/composables/usePersistedRef';
 
 const nativeConnectionStatus = ref<'unknown' | 'connected' | 'disconnected'>('unknown');
 const isConnecting = ref(false);
@@ -331,18 +285,21 @@ const serverStatus = ref<{
   lastUpdated: Date.now(),
 });
 
-// Debug related
-const showDebugInfo = ref(false);
+// Debug related — the LOGS/JSON toggle is persisted so reopening keeps the view.
+const showDebugInfo = usePersistedRef('debugView', false);
 const debugLogs = ref<Array<{ time: string; level: string; message: string }>>([]);
 
 // Initialize unified app store
 const appStore = useAppStore();
 
-// Tab management
-const activeTab = ref('server');
+// Dark/light theme
+const { theme, toggleTheme, initTheme } = useTheme();
+
+// Tab management — persisted so closing/reopening the popup restores the last
+// active tab (Chrome destroys the popup on blur, which otherwise resets it).
+const activeTab = usePersistedRef('activeTab', 'server');
 const tabs = [
   { id: 'server', label: 'Server', iconComponent: ServerIcon },
-  { id: 'semantic', label: 'Semantic', iconComponent: SemanticIcon },
   { id: 'data', label: 'Data', iconComponent: DataIcon },
   { id: 'extensions', label: 'Extensions', iconComponent: ExtensionIcon },
   { id: 'audio', label: 'Audio', iconComponent: AudioIcon },
@@ -1273,6 +1230,9 @@ const setupServerStatusListener = () => {
 };
 
 onMounted(async () => {
+  // Apply the saved dark/light theme before anything paints.
+  await initTheme();
+
   // Initialize unified app store
   await appStore.initialize();
 

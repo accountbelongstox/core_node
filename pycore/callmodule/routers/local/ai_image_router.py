@@ -78,6 +78,35 @@ def image(req: ImageRequest):
     return result
 
 
+class ImageTestRequest(BaseModel):
+    # The single provider to test (e.g. "zhipuai", "pollinations").
+    provider: str
+    # Optional override prompt/size/model; sensible defaults when omitted.
+    prompt: Optional[str] = None
+    size: Optional[str] = None
+    model: Optional[str] = None
+
+
+@router.post("/image/test")
+def image_test(req: ImageTestRequest):
+    """One-click "test this provider" — force-generate one image with a SINGLE
+    provider (ignores cooldown/dispatch order), record it, and return the unified
+    contract so the UI can show success + latency + the image (or the error)."""
+    provider = (req.provider or "").strip()
+    if not provider:
+        raise fastapi.HTTPException(status_code=400, detail="provider is required")
+    prompt = (req.prompt or "A small test image: a friendly robot waving, flat style").strip()
+    result = generate_image(prompt=prompt, size=req.size or "1:1", model=req.model,
+                            source="provider-test", provider=provider)
+    if result.get("success") and result.get("image_base64"):
+        ai_image_history.record_image(
+            provider=result.get("provider", provider), model=result.get("model", ""),
+            prompt=prompt, image_base64=result["image_base64"], size=req.size or "1:1",
+            mime=result.get("mime") or "image/png", latency_ms=result.get("latency_ms"),
+            source="provider-test", origin="pycore", ok=True)
+    return result
+
+
 @router.get("/image/history")
 def image_history(limit: int = 50):
     """Newest-first image history (metadata only; no base64). UI lists from this
