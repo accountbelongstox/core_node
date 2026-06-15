@@ -14,6 +14,8 @@ export interface BingDictionaryResult {
   phonetics: Array<{
     text: string;
     audioUrl: string | null;
+    // base64 data URL of the audio, captured in-page (bypasses hot-link/CORS).
+    audioDataUrl?: string;
     lang: string;
   }>;
   translations: Array<{
@@ -24,6 +26,8 @@ export interface BingDictionaryResult {
   sampleImages: Array<{
     url: string;
     alt: string;
+    // base64 data URL of the image, captured in-page (bypasses hot-link/CORS).
+    dataUrl?: string;
   }>;
   synonyms: Array<{
     type: string;
@@ -33,6 +37,11 @@ export interface BingDictionaryResult {
     type: string;
     content: string;
   }>;
+  // Detailed (Collins/Oxford-style) definitions from `.se_lis`: a Chinese gloss
+  // plus the English explanation.
+  detailedDefinitions?: Array<{ cn: string; en: string }>;
+  // Example sentences (`.sen_en` / `.sen_cn`) — English sentence + Chinese.
+  examples?: Array<{ en: string; cn: string }>;
   voiceUrls: string[];
   // True when the page yielded at least one usable signal (definition, phonetic,
   // or image). Absent on older cached injections — treat undefined as unknown.
@@ -113,7 +122,11 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
    * redirect to web search) and mimics human interaction. Used by the parallel
    * translation worker's tab pool.
    */
-  async lookupInTab(tabId: number, word: string): Promise<BingDictionaryResult> {
+  async lookupInTab(
+    tabId: number,
+    word: string,
+    includeMedia = false,
+  ): Promise<BingDictionaryResult> {
     await this.ensureOnDictPage(tabId);
 
     // Type into the search box and click search.
@@ -145,7 +158,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     // The click triggers a navigation to the result page; wait then extract.
     await this.waitForTabComplete(tabId);
     const tab = await this.tryGetTab(tabId);
-    return this.extractFromTab(tabId, tab?.url || BING_DICT_HOME);
+    return this.extractFromTab(tabId, tab?.url || BING_DICT_HOME, includeMedia);
   }
 
   /** Ensure the tab is on a bing.com/dict page; load the home if not. */
@@ -171,7 +184,11 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
    * Inject the helper and pull the dictionary data out of an already-navigated
    * tab. Shared by execute() and lookupInTab().
    */
-  private async extractFromTab(tabId: number, bingDictUrl: string): Promise<BingDictionaryResult> {
+  private async extractFromTab(
+    tabId: number,
+    bingDictUrl: string,
+    includeMedia = false,
+  ): Promise<BingDictionaryResult> {
     await this.injectContentScript(tabId, ['inject-scripts/bing-dictionary-helper.js']);
 
     // Give the freshly-injected content script a moment to register its listener.
@@ -179,6 +196,9 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
 
     const translationData: BingDictionaryResult = await this.sendMessageToTab(tabId, {
       action: TOOL_MESSAGE_TYPES.BING_DICTIONARY_FETCH_TRANSLATION,
+      // Only the test/display path needs in-page base64 capture of images+audio;
+      // bulk processing skips it to stay fast (audio is fetched separately).
+      includeBinaries: includeMedia,
     });
 
     if (translationData) {

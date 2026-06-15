@@ -451,6 +451,8 @@
     "message": "Recording Status:",
     "description": "Recording status label"
   },
+  "recordingTargetLabel": { "message": "Recording Target (tab)" },
+  "noRecordableTabs": { "message": "No recordable tab. Open a normal web page (http/https) — Chrome system and extension pages can't be recorded." },
   "recordingStatus": {
     "message": "Recording",
     "description": "Recording active status"
@@ -716,6 +718,8 @@
   "logTesting": { "message": "Refreshing logs…" },
   "logTestOk": { "message": "Log pipe OK — {0} entries loaded." },
   "logTestFail": { "message": "Failed to fetch logs." },
+  "extTaskQueueTitle": { "message": "Task Queue" },
+  "extTaskQueueSubtitle": { "message": "Process API requests locally" },
   "queueCenterTabQueue": { "message": "Queue" },
   "queueCenterTabLogs": { "message": "Logs" },
   "cacheStorageTitle": { "message": "Cache Storage" },

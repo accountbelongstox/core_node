@@ -34,6 +34,9 @@ Route::prefix($apiVersionPrefix)->group(function () {
     // Per-language dictionary drill-down (Vocabulary page stats). Read-only,
     // paginated rows from app_qy_v1_tts_cache_<lang> with a coverage filter.
     Route::get('/dictionary/words', [AppQyV1VocabularyStatsController::class, 'dictionaryWords']);
+    // Example sentences from the shared sentence library containing a word
+    // (lazy-loaded when a word row is expanded).
+    Route::get('/dictionary/sentences', [AppQyV1VocabularyStatsController::class, 'wordSentences']);
 
     // TTS queue items drill-down (Vocabulary page stats). Paginated view over
     // the unified TTS queue (canonical tables).

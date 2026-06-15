@@ -1209,6 +1209,7 @@ def sync_book_source(
     language: str = "en",
     base_url: Optional[str] = None,
     progress: Optional[Callable[[str, int, int, str], None]] = None,
+    on_text: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, Any]:
     """Idempotently ingest ONE book into the shared sentence library.
 
@@ -1220,6 +1221,11 @@ def sync_book_source(
     Fires the SAME ``video_extract_sync`` THREAD_BUS progress event per stage
     (scan/ingest/done/error) as the subtitle sync, and streams via ColorPrint.
     Returns {success, source_key, sentences, errors:[]}.
+
+    ``on_text`` (optional): receives the extracted full text once, so a caller
+    (e.g. the Books submit) can reuse it to precompute the local drill-down cache
+    WITHOUT re-extracting the file. It is NOT put on ``result`` to keep the WS
+    progress payload small.
     """
     base = resolve_laravel_base_url(base_url)
     errors: List[str] = []
@@ -1270,6 +1276,14 @@ def sync_book_source(
         errors.append("no extractable text")
         _progress("error", 0, 1, "no extractable text")
         return result
+
+    # Hand the extracted text to an optional sink so the caller can precompute the
+    # local drill-down cache from it (no second extraction of a big PDF/EPUB).
+    if on_text is not None:
+        try:
+            on_text(full_content)
+        except Exception:
+            pass
 
     # 2) Build the v2 structure (strip + tokenize + content_ids + sequence).
     _progress("build", 0, 1, f"structuring {len(full_content):,} chars: {name}")

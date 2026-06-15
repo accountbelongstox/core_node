@@ -575,11 +575,15 @@ class BingDictionaryWorkerService {
   /** Prefer the US pronunciation, else the first phonetic/voice URL available. */
   private pickAudioUrl(data: BingDictionaryResult): string | null {
     const phonetics = data.phonetics || [];
-    const us = phonetics.find((p) => p.audioUrl && p.lang && p.lang.includes('US'));
-    if (us?.audioUrl) return us.audioUrl;
+    // Prefer the in-page base64 capture (data URL) so playback never re-requests
+    // the remote mp3 (which can fail from the popup context).
+    const us = phonetics.find(
+      (p) => (p.audioDataUrl || p.audioUrl) && p.lang && p.lang.includes('US'),
+    );
+    if (us) return us.audioDataUrl || us.audioUrl;
 
-    const any = phonetics.find((p) => p.audioUrl);
-    if (any?.audioUrl) return any.audioUrl;
+    const any = phonetics.find((p) => p.audioDataUrl || p.audioUrl);
+    if (any) return any.audioDataUrl || any.audioUrl;
 
     return data.voiceUrls && data.voiceUrls.length > 0 ? data.voiceUrls[0] : null;
   }
@@ -614,10 +618,37 @@ class BingDictionaryWorkerService {
     uk_phonetic?: string;
   } {
     const parts: string[] = [];
+    // Short definitions (part of speech + gloss).
     if (data.translations && data.translations.length > 0) {
       data.translations.forEach((trans) => {
         const pos = trans.partOfSpeech ? `${trans.partOfSpeech}. ` : '';
         parts.push(`${pos}${trans.definition}`.trim());
+      });
+    }
+    // Detailed Collins/Oxford definitions (Chinese gloss + English explanation).
+    if (data.detailedDefinitions && data.detailedDefinitions.length > 0) {
+      data.detailedDefinitions.forEach((d, i) => {
+        const en = d.en ? ` — ${d.en}` : '';
+        const line = `${i + 1}. ${d.cn}${en}`.trim();
+        if (line) parts.push(line);
+      });
+    }
+    // Web definitions (.df_div advanced blocks); the type label comes from the page.
+    if (data.advancedTranslations && data.advancedTranslations.length > 0) {
+      data.advancedTranslations.forEach((a) => {
+        if (a.content) parts.push(`[${a.type}] ${a.content}`.trim());
+      });
+    }
+    // Synonyms / antonyms.
+    if (data.synonyms && data.synonyms.length > 0) {
+      data.synonyms.forEach((s) => {
+        if (s.words) parts.push(`[${s.type}] ${s.words}`.trim());
+      });
+    }
+    // Example sentences (English + Chinese).
+    if (data.examples && data.examples.length > 0) {
+      data.examples.forEach((ex) => {
+        parts.push(`• ${ex.en}${ex.cn ? '  ' + ex.cn : ''}`.trim());
       });
     }
 
@@ -790,13 +821,17 @@ class BingDictionaryWorkerService {
         const w = words[i];
         this.stats.currentWord = w.word;
         try {
-          const data = await bingDictionaryTool.lookupInTab(tabId, w.word);
+          // includeMedia=true: the scrape test displays images + plays audio, so
+          // capture them in-page as base64 (fixes broken hot-linked thumbnails).
+          const data = await bingDictionaryTool.lookupInTab(tabId, w.word, true);
           const classification = this.classify(data);
           if (classification === 'translated' && data) {
             const formatted = this.formatExplanation(data);
             const audioUrl = this.pickAudioUrl(data) || undefined;
+            // Prefer the in-page base64 capture (data URL) over the remote URL,
+            // which hot-links badly from the popup (referrer/CORS → broken image).
             const imageUrls = (data.sampleImages || [])
-              .map((s: any) => s.url)
+              .map((s: any) => s.dataUrl || s.url)
               .filter(Boolean)
               .slice(0, 6);
             results.push({

@@ -83,6 +83,8 @@
       sampleImages: [],
       synonyms: [],
       advancedTranslations: [],
+      detailedDefinitions: [],
+      examples: [],
       voiceUrls: [],
       hasContent: false,
       // 'dict'  -> a real Bing dictionary page
@@ -179,8 +181,8 @@
         pushVoice(audioOf(a));
       });
 
-      // Synonyms / antonyms blocks (best-effort; layout varies by word).
-      document.querySelectorAll('.wd_div .tb_div, .df_div .tb_div').forEach((div) => {
+      // Synonyms / antonyms blocks (`.wd_div`).
+      document.querySelectorAll('.wd_div .tb_div').forEach((div) => {
         const typeElement = div.querySelector('h2');
         const contentElement = div.nextElementSibling;
         if (typeElement && contentElement) {
@@ -191,8 +193,43 @@
         }
       });
 
+      // Web definitions (`.df_div` — advanced E-C / web-meaning blocks).
+      document.querySelectorAll('.df_div .tb_div').forEach((div) => {
+        const typeElement = div.querySelector('h2');
+        const contentElement = div.nextElementSibling;
+        if (typeElement && contentElement) {
+          result.advancedTranslations.push({
+            type: norm(typeElement.textContent),
+            content: norm(contentElement.textContent),
+          });
+        }
+      });
+
+      // Detailed Collins/Oxford definitions (`.se_lis` rows): Chinese gloss
+      // (`.bil`) + English explanation (`.val`). This is the long-form data.
+      document.querySelectorAll('.se_lis tr.def_row').forEach((row) => {
+        const bil = row.querySelector('.bil');
+        const val = row.querySelector('.val');
+        const cn = norm(bil && bil.textContent);
+        const en = norm(val && val.textContent);
+        if ((cn || en) && result.detailedDefinitions.length < 30) {
+          result.detailedDefinitions.push({ cn, en });
+        }
+      });
+
+      // Example sentences: `.sen_en` (English) zipped with `.sen_cn` (Chinese).
+      const senEn = document.querySelectorAll('.sen_en');
+      const senCn = document.querySelectorAll('.sen_cn');
+      for (let i = 0; i < senEn.length && result.examples.length < 20; i++) {
+        const en = norm(senEn[i].textContent);
+        const cn = senCn[i] ? norm(senCn[i].textContent) : '';
+        if (en) result.examples.push({ en, cn });
+      }
+
       result.hasContent =
         result.translations.length > 0 ||
+        result.detailedDefinitions.length > 0 ||
+        result.examples.length > 0 ||
         result.phonetics.length > 0 ||
         result.sampleImages.length > 0;
 
@@ -213,6 +250,79 @@
     return result;
   }
 
+  // --- In-page binary capture -------------------------------------------------
+  // The image thumbnails (*.bing.net) and pronunciation audio (cn.bing.com/dict
+  // /mediamp3) fail or look wrong when hot-linked from the extension popup
+  // (referrer/CORS). Instead we fetch them HERE, inside the bing.com/dict page
+  // (correct origin/referrer + cookies for same-origin audio), turn them into
+  // base64 data URLs, and hand those back so the extension can cache + display
+  // them directly without ever re-requesting the remote URL.
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve) => {
+      const fr = new FileReader();
+      fr.onloadend = () => resolve(typeof fr.result === 'string' ? fr.result : null);
+      fr.onerror = () => resolve(null);
+      fr.readAsDataURL(blob);
+    });
+  }
+
+  async function fetchAsDataUrl(url) {
+    if (!url) return null;
+    try {
+      // Default credentials = 'same-origin': audio (same origin) gets cookies,
+      // cross-origin CDN images don't (keeps their ACAO:* response valid).
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) return null;
+      return await blobToDataUrl(await res.blob());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Canvas fallback for images the CDN won't let us fetch() but will draw.
+  function imageToDataUrl(url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth || img.width;
+          canvas.height = img.naturalHeight || img.height;
+          canvas.getContext('2d').drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        } catch (_) {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+
+  async function enrichWithBinaries(result) {
+    // Images: first few only, fetch() then canvas-fallback.
+    const imgs = (result.sampleImages || []).slice(0, 6);
+    await Promise.all(
+      imgs.map(async (img) => {
+        let dataUrl = await fetchAsDataUrl(img.url);
+        if (!dataUrl) dataUrl = await imageToDataUrl(img.url);
+        if (dataUrl) img.dataUrl = dataUrl;
+      }),
+    );
+    // Pronunciation audio (same-origin /dict/mediamp3).
+    await Promise.all(
+      (result.phonetics || []).map(async (p) => {
+        if (p.audioUrl) {
+          const dataUrl = await fetchAsDataUrl(p.audioUrl);
+          if (dataUrl) p.audioDataUrl = dataUrl;
+        }
+      }),
+    );
+    return result;
+  }
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'bingDictionarySearch') {
       try {
@@ -223,11 +333,19 @@
       return true;
     }
     if (message.action === 'bingDictionaryFetchTranslation') {
-      try {
-        sendResponse(extractBingDictionaryData());
-      } catch (error) {
-        sendResponse({ success: false, error: String(error && error.message) });
-      }
+      // Async: parse the DOM, then (only when asked) fetch image/audio binaries
+      // in-page as base64 so the extension can cache + display them directly.
+      (async () => {
+        try {
+          const data = extractBingDictionaryData();
+          if (message.includeBinaries) {
+            await enrichWithBinaries(data);
+          }
+          sendResponse(data);
+        } catch (error) {
+          sendResponse({ success: false, error: String(error && error.message) });
+        }
+      })();
       return true;
     }
   });

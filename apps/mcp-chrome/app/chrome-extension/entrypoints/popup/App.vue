@@ -270,6 +270,7 @@ import {
   DebugIcon,
 } from './components/icons';
 import { useAppStore } from '@/composables/useAppStore';
+import { usePersistedRef } from '@/composables/usePersistedRef';
 
 const nativeConnectionStatus = ref<'unknown' | 'connected' | 'disconnected'>('unknown');
 const isConnecting = ref(false);
@@ -284,8 +285,8 @@ const serverStatus = ref<{
   lastUpdated: Date.now(),
 });
 
-// Debug related
-const showDebugInfo = ref(false);
+// Debug related — the LOGS/JSON toggle is persisted so reopening keeps the view.
+const showDebugInfo = usePersistedRef('debugView', false);
 const debugLogs = ref<Array<{ time: string; level: string; message: string }>>([]);
 
 // Initialize unified app store
@@ -294,8 +295,9 @@ const appStore = useAppStore();
 // Dark/light theme
 const { theme, toggleTheme, initTheme } = useTheme();
 
-// Tab management
-const activeTab = ref('server');
+// Tab management — persisted so closing/reopening the popup restores the last
+// active tab (Chrome destroys the popup on blur, which otherwise resets it).
+const activeTab = usePersistedRef('activeTab', 'server');
 const tabs = [
   { id: 'server', label: 'Server', iconComponent: ServerIcon },
   { id: 'data', label: 'Data', iconComponent: DataIcon },

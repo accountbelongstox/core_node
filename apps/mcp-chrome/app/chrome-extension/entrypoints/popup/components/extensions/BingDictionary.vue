@@ -1,8 +1,5 @@
 <template>
   <div class="bing-dictionary">
-    <!-- Task Center Panel (Unified State Center) -->
-    <TaskCenterPanel />
-
     <!-- Translation Assist (worker mode): pull untranslated words from
          laravel_main, translate via parallel Bing tabs, post results back. -->
     <ClientModePanel
@@ -21,9 +18,6 @@
       @run-scrape-test="runScrapeTest"
       @update-test-words="(v) => (testWords = v)"
     />
-
-    <!-- NotebookLM automation test panel (drives notebooklm.google.com) -->
-    <NotebookLMPanel />
 
     <!-- Header -->
     <div class="dictionary-header">
@@ -66,9 +60,7 @@
 import { onMounted } from 'vue';
 import { useBingDictionary } from '../../composables/useBingDictionary';
 import { useBingDictionaryClient } from '../../composables/useBingDictionaryClient';
-import TaskCenterPanel from './TaskCenterPanel.vue';
 import ClientModePanel from './bing-dictionary/ClientModePanel.vue';
-import NotebookLMPanel from './NotebookLMPanel.vue';
 import SearchBox from './bing-dictionary/SearchBox.vue';
 import WordResult from './bing-dictionary/WordResult.vue';
 import HistoryList from './bing-dictionary/HistoryList.vue';

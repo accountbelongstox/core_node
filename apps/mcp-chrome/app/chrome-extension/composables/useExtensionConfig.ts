@@ -47,6 +47,14 @@ const EXTENSION_REGISTRY: ExtensionRegistry = {
     iconBg: 'bg-orange-100',
     status: 'active',
   },
+  'notebooklm': {
+    id: 'notebooklm',
+    name: 'NotebookLM',
+    description: 'Automate Google NotebookLM Q&A',
+    icon: '📓',
+    iconBg: 'bg-sky-100',
+    status: 'active',
+  },
 };
 
 // ============================================================

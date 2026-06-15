@@ -451,6 +451,8 @@
     "message": "录制状态：",
     "description": "录制状态标签"
   },
+  "recordingTargetLabel": { "message": "录制目标（标签页）" },
+  "noRecordableTabs": { "message": "没有可录制的标签页。请打开普通网页（http/https）——Chrome 系统页和扩展页无法录制。" },
   "recordingStatus": {
     "message": "录制中",
     "description": "录制活动状态"
@@ -716,6 +718,8 @@
   "logTesting": { "message": "正在刷新日志……" },
   "logTestOk": { "message": "日志通道正常 —— 已加载 {0} 条记录。" },
   "logTestFail": { "message": "获取日志失败。" },
+  "extTaskQueueTitle": { "message": "任务队列" },
+  "extTaskQueueSubtitle": { "message": "在本地处理 API 请求" },
   "queueCenterTabQueue": { "message": "队列" },
   "queueCenterTabLogs": { "message": "日志" },
   "cacheStorageTitle": { "message": "缓存存储" },

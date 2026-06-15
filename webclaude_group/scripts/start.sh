@@ -331,10 +331,10 @@ has_service website && webclaude_print_nohup_and_hot_reload "$(_wc_abs_start_sh 
     "cd $(printf %q "$GROUP_ROOT/webclaude_website") && PORT=${WEBSITE_P} pnpm run dev  # Vite HMR hot reload" \
     "Website (Vite)" "--skip-deps" "1"
 if has_service host && [[ -f "$HOST_SH" ]]; then
-    _wc_host_hot="See claude_host project; typical dev: cd $(printf %q "$CORE_NODE") && ${PY_CMD:-python3} -u pymain.py app=claude_host"
+    _wc_host_hot="cd $(printf %q "$CORE_NODE") && ${PY_CMD:-python3} -u pyapps/claude_host/scripts/dev_reload.py  # watchdog hot reload (same as: $HOST_SH --dev)"
     [[ -z "$CORE_NODE" ]] && _wc_host_hot="Set WEBCLAUDE_CORE_NODE and use pyapps/claude_host dev workflow (watchdog) for hot reload."
     webclaude_print_nohup_and_hot_reload "$(_wc_abs_start_sh "$HOST_SH")" "$LOG_DIR/host.nohup.log" \
-        "$_wc_host_hot" "Claude Host" "" "1"
+        "$_wc_host_hot" "Claude Host" "--dev" "1"
 fi
 
 # ── Print all sub-script commands for manual debugging ──
@@ -414,10 +414,14 @@ fi
 if has_service host; then
     _wc_host_started=0
     if [ -f "$HOST_SH" ]; then
-        bash "$HOST_SH" > "$LOG_DIR/host.log" 2>&1 &
+        bash "$HOST_SH" --dev > "$LOG_DIR/host.log" 2>&1 &
         _wc_host_started=1
     elif [ -n "$CORE_NODE" ] && [ -f "$CORE_NODE/pymain.py" ]; then
-        cd "$CORE_NODE" && ${PY_CMD:-python3} -u pymain.py app=claude_host > "$LOG_DIR/host.log" 2>&1 &
+        if [ -f "$CORE_NODE/pyapps/claude_host/scripts/dev_reload.py" ]; then
+            cd "$CORE_NODE" && ${PY_CMD:-python3} -u pyapps/claude_host/scripts/dev_reload.py > "$LOG_DIR/host.log" 2>&1 &
+        else
+            cd "$CORE_NODE" && ${PY_CMD:-python3} -u pymain.py app=claude_host > "$LOG_DIR/host.log" 2>&1 &
+        fi
         _wc_host_started=1
     else
         warn "Claude Host not started: missing core_node or $HOST_SH (set WEBCLAUDE_CORE_NODE)."

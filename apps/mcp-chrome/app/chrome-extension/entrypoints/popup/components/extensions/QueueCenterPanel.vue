@@ -33,12 +33,14 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { getMessage as t } from '../../../../utils/i18n';
+import { usePersistedRef } from '@/composables/usePersistedRef';
 import LocalTaskQueue from './LocalTaskQueue.vue';
 import LogViewerPanel from './LogViewerPanel.vue';
 
-const activeTab = ref<'queue' | 'logs'>('queue');
+// Persisted so the Queue/Logs choice survives a popup close/reopen.
+const activeTab = usePersistedRef<'queue' | 'logs'>('queueCenterTab', 'queue');
 
 const tabs = computed(() => [
   { id: 'queue' as const, icon: '🎯', label: t('queueCenterTabQueue') },

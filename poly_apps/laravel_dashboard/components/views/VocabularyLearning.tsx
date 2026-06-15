@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   TranslationResponse,
   TTSGenerateResponse,
@@ -26,10 +27,14 @@ import {
   BookOpen,
   CheckCircle,
   ChevronDown,
+  ChevronRight,
   CircleAlert,
   ListChecks,
   Trash2,
-  Eye
+  Eye,
+  Search,
+  BarChart3,
+  Sliders
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 import { extractArrayFromResponse } from '../../utils/arrayUtils';
@@ -265,8 +270,99 @@ const TtsLogsDock: React.FC<TtsLogsDockProps> = ({
   );
 };
 
+/** Cross-fade/slide preset for swapping the active sub-tab panel. */
+const SUBTAB_MOTION = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.18, ease: 'easeOut' as const },
+};
+
+/**
+ * Collapse — animates its children's height between 0 and auto via framer-motion
+ * (mirrors the pycore PcCollapse pattern). Used for the inline secondary-setting
+ * panels (filters / language pickers / advanced options) so they expand/collapse
+ * instead of always taking vertical space.
+ */
+const Collapse: React.FC<{ open: boolean; children: React.ReactNode }> = ({ open, children }) => (
+  <AnimatePresence initial={false}>
+    {open && (
+      <motion.div
+        key="collapse"
+        initial={{ height: 0, opacity: 0 }}
+        animate={{ height: 'auto', opacity: 1 }}
+        exit={{ height: 0, opacity: 0 }}
+        transition={{ duration: 0.22, ease: 'easeInOut' }}
+        style={{ overflow: 'hidden' }}
+      >
+        {children}
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
+/**
+ * CollapsibleSection — a header button with a chevron that toggles an inline
+ * <Collapse> body. Reused for every secondary-settings disclosure on the page.
+ */
+const CollapsibleSection: React.FC<{
+  title: React.ReactNode;
+  icon?: React.ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  className?: string;
+}> = ({ title, icon, open, onToggle, children, className }) => (
+  <div className={`rounded-lg border border-slate-200 dark:border-slate-700 ${className || ''}`}>
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-lg transition-colors"
+    >
+      <span className="flex items-center gap-2">
+        {icon}
+        {title}
+      </span>
+      <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+    </button>
+    <Collapse open={open}>
+      <div className="px-3 pb-3 pt-1">{children}</div>
+    </Collapse>
+  </div>
+);
+
+/** Sub-tab keys for the page. Active tab persists in localStorage. */
+type VocabTab = 'translate' | 'words' | 'libraries' | 'statistics' | 'queue';
+const VOCAB_TAB_KEY = 'vocab_active_tab';
+const VOCAB_TABS: { key: VocabTab; label: string; Icon: React.FC<any> }[] = [
+  { key: 'translate', label: 'Translate', Icon: Languages },
+  { key: 'words', label: 'Words', Icon: Search },
+  { key: 'libraries', label: 'Libraries', Icon: BookOpen },
+  { key: 'statistics', label: 'Statistics', Icon: BarChart3 },
+  { key: 'queue', label: 'TTS Queue', Icon: ListChecks },
+];
+
 const VocabularyLearning: React.FC = () => {
   const { lang } = useAppState();
+  // Active sub-tab — persisted so returning to the page restores the last view.
+  const [activeTab, setActiveTab] = useState<VocabTab>(() => {
+    try {
+      const saved = localStorage.getItem(VOCAB_TAB_KEY) as VocabTab | null;
+      if (saved && VOCAB_TABS.some((t) => t.key === saved)) return saved;
+    } catch { /* ignore */ }
+    return 'translate';
+  });
+  const switchTab = (key: VocabTab) => {
+    setActiveTab(key);
+    try { localStorage.setItem(VOCAB_TAB_KEY, key); } catch { /* ignore */ }
+  };
+
+  // Collapsible secondary-settings disclosures (per tab).
+  const [translateSettingsOpen, setTranslateSettingsOpen] = useState(true);
+  const [wordsSearchOpen, setWordsSearchOpen] = useState(true);
+  const [statsFilterOpen, setStatsFilterOpen] = useState(false);
+  const [librariesFilterOpen, setLibrariesFilterOpen] = useState(false);
+
   const [translation, setTranslation] = useState<AsyncState<TranslationResponse>>({
     data: null,
     loading: false,
@@ -352,6 +448,24 @@ const VocabularyLearning: React.FC = () => {
     wide?: boolean;
     reloadKey: string;
   } | null>(null);
+
+  // ----- "Words" tab: inline dictionary search + filter + lazy detail -----
+  const [wordsLanguage, setWordsLanguage] = useState<string>('english');
+  const [wordsFilter, setWordsFilter] = useState<
+    'all' | 'with_translation' | 'without_translation' | 'invalid' | 'with_audio' | 'without_audio'
+  >('all');
+  const [wordsQuery, setWordsQuery] = useState<string>('');
+  // Applied search term (committed on submit) — drives the drill-down reloadKey.
+  const [wordsQueryApplied, setWordsQueryApplied] = useState<string>('');
+
+  // Per-row lazy example-sentence cache: word-content → load state + rows.
+  const [sentenceCache, setSentenceCache] = useState<
+    Record<string, { loading: boolean; error: string | null; sentences: any[] }>
+  >({});
+  // Per-row one-click action pending flags: `${action}:${content}`.
+  const [wordActionPending, setWordActionPending] = useState<Set<string>>(new Set());
+  // Bumped to force the Words-tab drill list to re-fetch a row after an action.
+  const [wordsReloadTick, setWordsReloadTick] = useState(0);
 
   const toast = useToast();
   const t = TRANSLATIONS[lang].vocabulary;
@@ -995,6 +1109,221 @@ const VocabularyLearning: React.FC = () => {
     );
   };
 
+  /**
+   * Lazy-load the example sentences for a word when its detail panel expands.
+   * Cached by word content so re-expanding the same row is instant. Resolves the
+   * dictionary language from the row (falls back to the active drill language).
+   */
+  const loadWordSentences = (content: string, language?: string) => {
+    if (!content) return;
+    const cached = sentenceCache[content];
+    if (cached && (cached.loading || cached.sentences.length > 0 || cached.error)) return;
+    const lng = language || drillLanguage();
+    setSentenceCache((prev) => ({ ...prev, [content]: { loading: true, error: null, sentences: [] } }));
+    api.books
+      .getWordSentences({ word: content, language: lng, limit: 10 })
+      .then((r: any) => {
+        if (r.success && r.data) {
+          const sentences = Array.isArray(r.data.sentences) ? r.data.sentences : [];
+          setSentenceCache((prev) => ({ ...prev, [content]: { loading: false, error: null, sentences } }));
+        } else {
+          throw new Error(r.error || 'Failed to load sentences');
+        }
+      })
+      .catch((e: any) => {
+        logError('vocab', `Load example sentences for "${content}" failed: ${e?.message || e}`);
+        setSentenceCache((prev) => ({
+          ...prev,
+          [content]: { loading: false, error: e?.message || 'Failed to load sentences', sentences: [] },
+        }));
+      });
+  };
+
+  /** True while the given one-click action is in flight for the given word. */
+  const isWordActionPending = (action: 'translate' | 'audio', content: string) =>
+    wordActionPending.has(`${action}:${content}`);
+
+  const setWordActionFlag = (key: string, on: boolean) =>
+    setWordActionPending((prev) => {
+      const n = new Set(prev);
+      if (on) n.add(key); else n.delete(key);
+      return n;
+    });
+
+  /**
+   * One-click "Re-translate" — queue the word for (re)translation. Targets the
+   * page's tracked target language when available, else 'zh'. Refreshes the word
+   * list afterwards so the Translated column reflects the new state.
+   */
+  const handleReTranslateWord = async (content: string, language?: string) => {
+    if (!content) return;
+    const lng = language || drillLanguage();
+    const key = `translate:${content}`;
+    setWordActionFlag(key, true);
+    logInfo('vocab', `Queueing "${content}" (${lng}) for re-translation...`);
+    try {
+      const response = await api.appQyV1.queueTranslationBatch({
+        words: [content],
+        language: lng,
+        target_language: targetLanguage || 'zh',
+      });
+      if (response.success) {
+        toast.success('Queued for translation');
+        logSuccess('vocab', `Re-translate queued for "${content}"`);
+        setWordsReloadTick((v) => v + 1);
+      } else {
+        throw new Error(response.error || 'Failed to queue translation');
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to queue translation');
+      logError('vocab', `Re-translate "${content}" failed: ${e?.message || e}`);
+    } finally {
+      setWordActionFlag(key, false);
+    }
+  };
+
+  /**
+   * One-click "Add / refresh audio" — request TTS for the word. If the response
+   * carries an audio_url, patch the in-memory row so the Audio column updates
+   * immediately; otherwise refresh the list so the queued state surfaces.
+   */
+  const handleAddAudioWord = async (row: any, language?: string) => {
+    const content: string = row?.content;
+    if (!content) return;
+    const lng = language || row?.language || drillLanguage();
+    const key = `audio:${content}`;
+    setWordActionFlag(key, true);
+    logInfo('vocab', `Requesting audio for "${content}" (${lng})...`);
+    try {
+      const response = await api.appQyV1.queueTTSBatchQuery([
+        { content, language: lng, type: 'word' },
+      ]);
+      if (response.success) {
+        toast.success('Audio requested');
+        logSuccess('vocab', `Audio requested for "${content}"`);
+        // Some backends return a ready audio_url synchronously — patch the row.
+        const data: any = response.data;
+        const audioUrl =
+          data?.audio_url ||
+          (Array.isArray(data?.results) ? data.results.find((x: any) => x?.content === content)?.audio_url : null) ||
+          (Array.isArray(data) ? data.find((x: any) => x?.content === content)?.audio_url : null);
+        if (audioUrl) {
+          row.audio_url = audioUrl;
+        }
+        setWordsReloadTick((v) => v + 1);
+      } else {
+        throw new Error(response.error || 'Failed to request audio');
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to request audio');
+      logError('vocab', `Add audio "${content}" failed: ${e?.message || e}`);
+    } finally {
+      setWordActionFlag(key, false);
+    }
+  };
+
+  /**
+   * Example-sentences block for a word's detail panel. Mounting (i.e. the row's
+   * detail expanding) triggers a one-time lazy fetch via useEffect; the result
+   * is cached so collapse/re-expand is instant and no fetch fires during render.
+   */
+  const WordSentences: React.FC<{ content: string; language?: string }> = ({ content, language }) => {
+    useEffect(() => {
+      loadWordSentences(content, language);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [content, language]);
+    return <>{renderWordSentences(content, language)}</>;
+  };
+
+  /** Example-sentences block for a word's detail panel (presentational only). */
+  const renderWordSentences = (content: string, language?: string): React.ReactNode => {
+    const state = sentenceCache[content];
+    return (
+      <div>
+        <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Example sentences</div>
+        {!state || state.loading ? (
+          <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            Loading sentences...
+          </div>
+        ) : state.error ? (
+          <p className="text-xs text-rose-500 dark:text-rose-400">{state.error}</p>
+        ) : state.sentences.length === 0 ? (
+          <p className="text-xs text-slate-400">No sentences found.</p>
+        ) : (
+          <ul className="space-y-2">
+            {state.sentences.map((s: any, i: number) => (
+              <li key={s.id ?? i} className="rounded-lg bg-white/70 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 px-2.5 py-2">
+                <div className="flex items-start gap-2">
+                  <p className="flex-1 text-xs text-slate-700 dark:text-slate-200">{s.text}</p>
+                  {s.audio && (
+                    <button
+                      type="button"
+                      onClick={() => playWordAudio(s.audio, content)}
+                      className="flex-shrink-0 inline-flex items-center justify-center rounded-full p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
+                      title="Play sentence audio"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                {s.explanation && (
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{s.explanation}</p>
+                )}
+                {s.grammar && (
+                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="font-semibold">Grammar: </span>{s.grammar}
+                  </p>
+                )}
+                {s.special_usage && (
+                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="font-semibold">Usage: </span>{s.special_usage}
+                  </p>
+                )}
+                {s.ai_commentary && (
+                  <p className="mt-0.5 text-[11px] italic text-slate-400">{s.ai_commentary}</p>
+                )}
+                {typeof s.occurrence_count === 'number' && s.occurrence_count > 0 && (
+                  <p className="mt-0.5 text-[10px] text-slate-400">Seen {s.occurrence_count}×</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  };
+
+  /** One-click action row (Re-translate / Add audio) for a word's detail panel. */
+  const renderWordActions = (r: any): React.ReactNode => {
+    const content: string = r.content;
+    const lng = r.language || drillLanguage();
+    const translating = isWordActionPending('translate', content);
+    const audioPending = isWordActionPending('audio', content);
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => handleReTranslateWord(content, lng)}
+          disabled={translating}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {translating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Languages className="w-3.5 h-3.5" />}
+          Re-translate
+        </button>
+        <button
+          type="button"
+          onClick={() => handleAddAudioWord(r, lng)}
+          disabled={audioPending}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {audioPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
+          Add / refresh audio
+        </button>
+      </div>
+    );
+  };
+
   /** Full per-word detail panel shown under an expanded dictionary-word row. */
   const renderWordDetail = (r: any): React.ReactNode => {
     const translations: string[] = Array.isArray(r.translations) ? r.translations : [];
@@ -1012,6 +1341,9 @@ const VocabularyLearning: React.FC = () => {
         </div>
       );
     return (
+      <div className="space-y-4">
+      {/* One-click actions (Re-translate / Add audio) */}
+      {renderWordActions(r)}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Left: meaning + audio + phonetics */}
         <div className="space-y-3">
@@ -1091,6 +1423,9 @@ const VocabularyLearning: React.FC = () => {
           <Field label="MD5" value={r.md5 ? <span className="font-mono">{r.md5}</span> : null} />
         </div>
       </div>
+      {/* Example sentences (lazy-loaded on expand) */}
+      <WordSentences content={r.content} language={r.language} />
+      </div>
     );
   };
 
@@ -1121,68 +1456,13 @@ const VocabularyLearning: React.FC = () => {
     language?: string
   ) => {
     const lang = language ?? drillLanguage();
-    const columns: PaginatedListColumn[] = [
-      { key: 'content', header: 'Word', className: 'font-medium text-slate-900 dark:text-slate-100' },
-      {
-        key: 'translations',
-        header: 'Translation',
-        className: 'max-w-[16rem]',
-        render: (r) => {
-          const text = Array.isArray(r.translations) && r.translations.length
-            ? r.translations.join('; ')
-            : (r.has_translation ? '—' : '');
-          if (!text) return <span className="text-slate-400">—</span>;
-          return (
-            <span className="block truncate" title={text}>{text}</span>
-          );
-        },
-      },
-      {
-        key: 'audio',
-        header: 'Audio',
-        className: 'text-center',
-        render: (r) =>
-          r.audio_url ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                playWordAudio(r.audio_url as string, r.content);
-              }}
-              className="inline-flex items-center justify-center rounded-full p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
-              aria-label={`Play audio for ${r.content}`}
-              title="Play audio"
-            >
-              <Play className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <span className="text-slate-400">-</span>
-          ),
-      },
-      { key: 'us_phonetic', header: 'US', className: 'font-mono text-slate-500 dark:text-slate-400', render: (r) => r.us_phonetic || <span className="text-slate-300 dark:text-slate-600">—</span> },
-      { key: 'uk_phonetic', header: 'UK', className: 'font-mono text-slate-500 dark:text-slate-400', render: (r) => r.uk_phonetic || <span className="text-slate-300 dark:text-slate-600">—</span> },
-      {
-        key: 'is_valid',
-        header: 'Valid',
-        className: 'text-center',
-        render: (r) => (
-          <span
-            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-              r.is_valid
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
-                : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'
-            }`}
-          >
-            {r.is_valid ? 'Yes' : 'No'}
-          </span>
-        ),
-      },
-      { key: 'query_count', header: 'Queries', className: 'text-right tabular-nums', render: (r) => nf(r.query_count) },
-    ];
+    const columns = dictionaryColumns();
     const fetchPage: PaginatedListFetcher = async (start, limit) => {
       const r = await api.books.getDictionaryWords({ language: lang, filter, start, limit });
       if (!r.success || !r.data) throw new Error(r.error || 'Failed to load words');
-      return { items: r.data.items || [], total: r.data.total || 0 };
+      // Stamp the language so detail-panel lazy loads resolve the right dictionary.
+      const items = (r.data.items || []).map((it: any) => ({ language: lang, ...it }));
+      return { items, total: r.data.total || 0 };
     };
     logInfo('vocab', `Drill-down: dictionary "${label}" (${lang}/${filter})`);
     setStatDrill({
@@ -1222,6 +1502,203 @@ const VocabularyLearning: React.FC = () => {
     openDictionaryDrill(`Language: ${languageName}`, 'all', languageName);
   };
 
+  /** Shared column set for dictionary-word lists (drill modal + Words tab). */
+  const dictionaryColumns = (): PaginatedListColumn[] => [
+    { key: 'content', header: 'Word', className: 'font-medium text-slate-900 dark:text-slate-100' },
+    {
+      key: 'translations',
+      header: 'Translation',
+      className: 'max-w-[16rem]',
+      render: (r) => {
+        const text = Array.isArray(r.translations) && r.translations.length
+          ? r.translations.join('; ')
+          : (r.has_translation ? '—' : '');
+        if (!text) return <span className="text-slate-400">—</span>;
+        return <span className="block truncate" title={text}>{text}</span>;
+      },
+    },
+    {
+      key: 'audio',
+      header: 'Audio',
+      className: 'text-center',
+      render: (r) =>
+        r.audio_url ? (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); playWordAudio(r.audio_url as string, r.content); }}
+            className="inline-flex items-center justify-center rounded-full p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
+            aria-label={`Play audio for ${r.content}`}
+            title="Play audio"
+          >
+            <Play className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <span className="text-slate-400">-</span>
+        ),
+    },
+    { key: 'us_phonetic', header: 'US', className: 'font-mono text-slate-500 dark:text-slate-400', render: (r) => r.us_phonetic || <span className="text-slate-300 dark:text-slate-600">—</span> },
+    { key: 'uk_phonetic', header: 'UK', className: 'font-mono text-slate-500 dark:text-slate-400', render: (r) => r.uk_phonetic || <span className="text-slate-300 dark:text-slate-600">—</span> },
+    {
+      key: 'is_valid',
+      header: 'Valid',
+      className: 'text-center',
+      render: (r) => (
+        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+          r.is_valid
+            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
+            : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'
+        }`}>
+          {r.is_valid ? 'Yes' : 'No'}
+        </span>
+      ),
+    },
+    { key: 'query_count', header: 'Queries', className: 'text-right tabular-nums', render: (r) => nf(r.query_count) },
+  ];
+
+  /**
+   * InlineWordsList — a compact, paginated dictionary-word browser embedded in
+   * the "Words" tab (the same data the drill-down modal shows, but inline). Each
+   * row expands to the full <renderWordDetail> panel (example sentences + the
+   * Re-translate / Add-audio one-click actions). Reuses the shared column set
+   * and `api.books.getDictionaryWords` fetcher.
+   */
+  const InlineWordsList: React.FC<{
+    language: string;
+    filter: string;
+    q: string;
+    reloadKey: string | number;
+  }> = ({ language, filter, q, reloadKey }) => {
+    const [start, setStart] = useState(0);
+    const [items, setItems] = useState<any[]>([]);
+    const [total, setTotal] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+    const limit = 50;
+    const columns = dictionaryColumns();
+
+    const load = async (nextStart: number) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const r = await api.books.getDictionaryWords({
+          language,
+          filter: filter as any,
+          q: q || undefined,
+          start: nextStart,
+          limit,
+        });
+        if (!r.success || !r.data) throw new Error(r.error || 'Failed to load words');
+        setItems(Array.isArray(r.data.items) ? r.data.items : []);
+        setTotal(Number(r.data.total) || 0);
+        setStart(nextStart);
+        setExpandedIdx(null);
+      } catch (e: any) {
+        setItems([]);
+        setError(e?.message || 'Failed to load words');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    useEffect(() => {
+      void load(0);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [language, filter, q, reloadKey]);
+
+    const from = total === 0 ? 0 : start + 1;
+    const to = start + items.length;
+    const hasPrev = start > 0;
+    const hasNext = start + limit < total;
+
+    return (
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex-1 overflow-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+          {loading ? (
+            <div className="flex items-center justify-center py-12 text-slate-500 dark:text-slate-400">
+              <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading...
+            </div>
+          ) : error ? (
+            <div className="flex items-center justify-center py-12 text-red-500 text-sm px-4 text-center">{error}</div>
+          ) : items.length === 0 ? (
+            <div className="flex items-center justify-center py-12 text-slate-400 text-sm">No words found.</div>
+          ) : (
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
+                <tr>
+                  <th className="px-2 py-2 font-semibold text-slate-600 dark:text-slate-300 w-8" />
+                  <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-14">#</th>
+                  {columns.map((col) => (
+                    <th key={col.key} className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">{col.header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {items.map((row, idx) => {
+                  const abs = start + idx + 1;
+                  const isExpanded = expandedIdx === idx;
+                  const toggle = () => setExpandedIdx((cur) => (cur === idx ? null : idx));
+                  return (
+                    <React.Fragment key={idx}>
+                      <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer" onClick={toggle}>
+                        <td className="px-2 py-2 text-slate-400">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggle(); }}
+                            className="rounded p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            aria-label={isExpanded ? 'Collapse detail' : 'Expand detail'}
+                          >
+                            {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400 font-mono">{abs}</td>
+                        {columns.map((col) => (
+                          <td key={col.key} className={`px-3 py-2 text-slate-700 dark:text-slate-300 ${col.className || ''}`}>
+                            {col.render ? col.render(row, abs) : String(row[col.key] ?? '')}
+                          </td>
+                        ))}
+                      </tr>
+                      {isExpanded && (
+                        <tr className="bg-slate-50/70 dark:bg-slate-800/40">
+                          <td colSpan={columns.length + 2} className="px-4 py-3">
+                            {renderWordDetail({ ...row, language })}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-3 text-xs pt-2">
+          <span className="text-slate-500 dark:text-slate-400">
+            Showing {from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={!hasPrev || loading}
+              onClick={() => load(Math.max(0, start - limit))}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              disabled={!hasNext || loading}
+              onClick={() => load(start + limit)}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="h-full flex flex-col p-6 overflow-hidden">
       {/* Header */}
@@ -1230,6 +1707,39 @@ const VocabularyLearning: React.FC = () => {
         <p className="text-sm text-slate-500 dark:text-slate-400">Translate, learn, and practice vocabulary</p>
       </div>
 
+      {/* Sub-tab bar — only the active tab's content mounts. Persisted in localStorage. */}
+      <div className="flex flex-wrap gap-1 mb-4 border-b border-slate-200 dark:border-slate-700">
+        {VOCAB_TABS.map(({ key, label, Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => switchTab(key)}
+            className={`relative px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors ${
+              activeTab === key
+                ? 'text-indigo-600 dark:text-indigo-400'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}
+          >
+            <Icon className="w-4 h-4" /> {label}
+            {activeTab === key && (
+              <motion.span
+                layoutId="vocab-subtab"
+                className="absolute left-0 right-0 -bottom-px h-0.5 bg-indigo-500"
+                transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Animated active-tab content (scrollable region). */}
+      <div className="flex-1 overflow-auto">
+      <AnimatePresence mode="wait">
+        <motion.div key={activeTab} {...SUBTAB_MOTION} className="h-full flex flex-col">
+
+      {/* ===================== TTS QUEUE TAB ===================== */}
+      {activeTab === 'queue' && (
+      <>
       {/* TTS Queue Management Section */}
       <div className={`${commonClasses.card} p-4 mb-4`}>
         <div className="flex items-center justify-between mb-4">
@@ -1409,30 +1919,53 @@ const VocabularyLearning: React.FC = () => {
           </div>
         )}
       </div>
+      </>
+      )}
 
-      {/* Books / Add source — collapsible upload + analyze + ingest panel */}
-      <BooksPanel />
+      {/* ===================== STATISTICS TAB ===================== */}
+      {activeTab === 'statistics' && (
+      <>
+      {/* Collapsible language-filter side panel (secondary settings) */}
+      <CollapsibleSection
+        title="Filters"
+        icon={<Sliders className="w-4 h-4 text-indigo-500" />}
+        open={statsFilterOpen}
+        onToggle={() => setStatsFilterOpen((v) => !v)}
+        className="mb-4"
+      >
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-xs text-slate-500 dark:text-slate-400">Language</label>
+          <select
+            value={statsLanguageFilter}
+            onChange={(e) => setStatsLanguageFilter(e.target.value)}
+            className={`${commonClasses.input} text-sm`}
+          >
+            <option value="all">All languages</option>
+            <option value="english">English</option>
+            <option value="chinese">Chinese</option>
+            <option value="japanese">Japanese</option>
+            <option value="korean">Korean</option>
+            <option value="french">French</option>
+            <option value="german">German</option>
+            <option value="spanish">Spanish</option>
+          </select>
+          <button
+            onClick={() => loadStatistics(statsLanguageFilter)}
+            disabled={loadingStatistics}
+            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+          >
+            <RefreshCw className={`w-3 h-3 ${loadingStatistics ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+      </CollapsibleSection>
 
       {/* Statistics Section */}
-      {(statistics || loadingStatistics) && (
+      {(statistics || loadingStatistics) ? (
         <div className={`${commonClasses.card} p-4 mb-4`}>
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <h3 className="font-semibold text-lg">Vocabulary Statistics</h3>
             <div className="flex items-center gap-2">
-              <select
-                value={statsLanguageFilter}
-                onChange={(e) => setStatsLanguageFilter(e.target.value)}
-                className={`${commonClasses.input} text-sm`}
-              >
-                <option value="all">All languages</option>
-                <option value="english">English</option>
-                <option value="chinese">Chinese</option>
-                <option value="japanese">Japanese</option>
-                <option value="korean">Korean</option>
-                <option value="french">French</option>
-                <option value="german">German</option>
-                <option value="spanish">Spanish</option>
-              </select>
               <button
                 onClick={() => loadStatistics(statsLanguageFilter)}
                 disabled={loadingStatistics}
@@ -1603,7 +2136,53 @@ const VocabularyLearning: React.FC = () => {
             </>
           ) : null}
         </div>
+      ) : (
+        <div className={`${commonClasses.card} p-8 mb-4 text-center text-slate-400 text-sm`}>
+          No statistics available yet.
+        </div>
       )}
+      </>
+      )}
+
+      {/* ===================== LIBRARIES TAB ===================== */}
+      {activeTab === 'libraries' && (
+      <>
+      {/* Collapsible language-filter side panel (secondary settings) */}
+      <CollapsibleSection
+        title="Filters"
+        icon={<Sliders className="w-4 h-4 text-indigo-500" />}
+        open={librariesFilterOpen}
+        onToggle={() => setLibrariesFilterOpen((v) => !v)}
+        className="mb-4"
+      >
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-xs text-slate-500 dark:text-slate-400">Language</label>
+          <select
+            value={selectedLanguage}
+            onChange={(e) => setSelectedLanguage(e.target.value)}
+            className={`${commonClasses.input} text-sm`}
+          >
+            <option value="english">English</option>
+            <option value="chinese">Chinese</option>
+            <option value="japanese">Japanese</option>
+            <option value="korean">Korean</option>
+            <option value="french">French</option>
+            <option value="german">German</option>
+            <option value="spanish">Spanish</option>
+          </select>
+          <button
+            onClick={loadLibraries}
+            disabled={loadingLibraries}
+            className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
+          >
+            <RefreshCw className={`w-4 h-4 ${loadingLibraries ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+      </CollapsibleSection>
+
+      {/* Books / Add source — collapsible upload + analyze + ingest panel */}
+      <BooksPanel />
 
       {/* Vocabulary Libraries Section */}
       <div className={`${commonClasses.card} p-4 mb-4`}>
@@ -1611,30 +2190,15 @@ const VocabularyLearning: React.FC = () => {
           <h3 className="font-semibold flex items-center gap-2">
             <BookOpen className="w-5 h-5" />
             Vocabulary Libraries
+            <span className="text-xs font-normal text-slate-400 capitalize">· {selectedLanguage}</span>
           </h3>
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedLanguage}
-              onChange={(e) => setSelectedLanguage(e.target.value)}
-              className={`${commonClasses.input} text-sm`}
-            >
-              <option value="english">English</option>
-              <option value="chinese">Chinese</option>
-              <option value="japanese">Japanese</option>
-              <option value="korean">Korean</option>
-              <option value="french">French</option>
-              <option value="german">German</option>
-              <option value="spanish">Spanish</option>
-            </select>
-            <button
-              onClick={loadLibraries}
-              disabled={loadingLibraries}
-              className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
-            >
-              <RefreshCw className={`w-4 h-4 ${loadingLibraries ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-          </div>
+          <button
+            onClick={() => setLibrariesFilterOpen((v) => !v)}
+            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            Filters
+          </button>
         </div>
 
         {loadingLibraries ? (
@@ -1757,22 +2321,103 @@ const VocabularyLearning: React.FC = () => {
           </div>
         )}
       </div>
+      </>
+      )}
 
-      {/* Word List Modal – requests paginated words by language when opened */}
-      <VocabularyWordListModal
-        open={wordModalOpen}
-        onClose={() => setWordModalOpen(false)}
-        language={wordModalLanguage}
-        fetchWords={loadWordModal}
-        initialPage={wordModalCache[wordModalLanguage]?.page ?? 1}
-        initialPerPage={wordModalCache[wordModalLanguage]?.perPage ?? 100}
-        onPageChange={(lang, page, perPage) => {
-          setWordModalCache((prev) => ({ ...prev, [lang]: { page, perPage } }));
-        }}
-      />
+      {/* ===================== WORDS TAB ===================== */}
+      {activeTab === 'words' && (
+      <div className="h-full flex flex-col">
+        {/* Collapsible search + filter side panel (secondary settings) */}
+        <CollapsibleSection
+          title="Search & filters"
+          icon={<Sliders className="w-4 h-4 text-indigo-500" />}
+          open={wordsSearchOpen}
+          onToggle={() => setWordsSearchOpen((v) => !v)}
+          className="mb-3 flex-shrink-0"
+        >
+          <form
+            onSubmit={(e) => { e.preventDefault(); setWordsQueryApplied(wordsQuery.trim()); }}
+            className="flex items-end gap-2 flex-wrap"
+          >
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-slate-500 dark:text-slate-400">Search</label>
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={wordsQuery}
+                  onChange={(e) => setWordsQuery(e.target.value)}
+                  placeholder="Search words..."
+                  className={`${commonClasses.input} text-sm pl-7 w-56`}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-slate-500 dark:text-slate-400">Language</label>
+              <select
+                value={wordsLanguage}
+                onChange={(e) => setWordsLanguage(e.target.value)}
+                className={`${commonClasses.input} text-sm`}
+              >
+                <option value="english">English</option>
+                <option value="chinese">Chinese</option>
+                <option value="japanese">Japanese</option>
+                <option value="korean">Korean</option>
+                <option value="french">French</option>
+                <option value="german">German</option>
+                <option value="spanish">Spanish</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-slate-500 dark:text-slate-400">Filter</label>
+              <select
+                value={wordsFilter}
+                onChange={(e) => setWordsFilter(e.target.value as any)}
+                className={`${commonClasses.input} text-sm`}
+              >
+                <option value="all">All</option>
+                <option value="with_translation">With translation</option>
+                <option value="without_translation">Without translation</option>
+                <option value="with_audio">With audio</option>
+                <option value="without_audio">Without audio</option>
+                <option value="invalid">Invalid</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2`}
+            >
+              <Search className="w-4 h-4" />
+              Search
+            </button>
+            <button
+              type="button"
+              onClick={() => { setWordsQuery(''); setWordsQueryApplied(''); setWordsFilter('all'); }}
+              className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
+            >
+              <X className="w-4 h-4" />
+              Clear
+            </button>
+          </form>
+        </CollapsibleSection>
 
+        {/* Inline dictionary words list (rows expand to the full detail panel). */}
+        <div className={`${commonClasses.card} p-4 flex-1 flex flex-col overflow-hidden`}>
+          <InlineWordsList
+            language={wordsLanguage}
+            filter={wordsFilter}
+            q={wordsQueryApplied}
+            reloadKey={`${wordsLanguage}:${wordsFilter}:${wordsQueryApplied}:${wordsReloadTick}`}
+          />
+        </div>
+      </div>
+      )}
+
+      {/* ===================== TRANSLATE TAB ===================== */}
+      {activeTab === 'translate' && (
+      <>
       {/* Main Content - Three Panel Layout */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-[28rem]">
         {/* Left Panel - Translation */}
         <div className={`${commonClasses.card} p-4 flex flex-col overflow-hidden`}>
           <div className="flex items-center justify-between mb-4">
@@ -1786,31 +2431,43 @@ const VocabularyLearning: React.FC = () => {
             </button>
           </div>
 
-          {/* Language Selectors */}
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            <select
-              value={sourceLanguage}
-              onChange={(e) => setSourceLanguage(e.target.value)}
-              className={`${commonClasses.input} text-sm`}
-            >
-              {Array.isArray(languages) && languages.map(lang => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.native_name} ({lang.name})
-                </option>
-              ))}
-            </select>
-            <select
-              value={targetLanguage}
-              onChange={(e) => setTargetLanguage(e.target.value)}
-              className={`${commonClasses.input} text-sm`}
-            >
-              {Array.isArray(languages) && languages.map(lang => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.native_name} ({lang.name})
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Language Selectors — collapsible secondary settings */}
+          <CollapsibleSection
+            title={
+              <span className="text-xs">
+                Languages: <span className="font-semibold uppercase">{sourceLanguage}</span> → <span className="font-semibold uppercase">{targetLanguage}</span>
+              </span>
+            }
+            icon={<Sliders className="w-3.5 h-3.5 text-indigo-500" />}
+            open={translateSettingsOpen}
+            onToggle={() => setTranslateSettingsOpen((v) => !v)}
+            className="mb-4 flex-shrink-0"
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={sourceLanguage}
+                onChange={(e) => setSourceLanguage(e.target.value)}
+                className={`${commonClasses.input} text-sm`}
+              >
+                {Array.isArray(languages) && languages.map(lang => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.native_name} ({lang.name})
+                  </option>
+                ))}
+              </select>
+              <select
+                value={targetLanguage}
+                onChange={(e) => setTargetLanguage(e.target.value)}
+                className={`${commonClasses.input} text-sm`}
+              >
+                {Array.isArray(languages) && languages.map(lang => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.native_name} ({lang.name})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </CollapsibleSection>
 
           {/* Input Text Area */}
           <textarea
@@ -2172,6 +2829,68 @@ const VocabularyLearning: React.FC = () => {
         </div>
       </div>
 
+      {/* History Bar (translate tab) */}
+      {history.length > 0 && (
+        <div className={`mt-4 ${commonClasses.card} overflow-hidden`}>
+          <div
+            className="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+            onClick={() => setHistoryCollapsed(!historyCollapsed)}
+          >
+            <h4 className="font-semibold text-sm">{t.history} ({history.length})</h4>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setHistory([]);
+              }}
+              className="text-xs text-slate-500 hover:text-red-500"
+            >
+              Clear
+            </button>
+          </div>
+          {!historyCollapsed && (
+            <div className="max-h-32 overflow-y-auto p-3 space-y-2">
+              {history.map((item, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => loadHistoryItem(item)}
+                  className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-600 dark:text-slate-400">{item.original_text}</span>
+                    <span className="text-slate-400">→</span>
+                    <span className="text-slate-800 dark:text-slate-200">{item.translated_text}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {item.source_language} → {item.target_language}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      </>
+      )}
+
+        </motion.div>
+      </AnimatePresence>
+      </div>
+
+      {/* ===================== GLOBAL MODALS / DOCKS (outside tabs) ===================== */}
+
+      {/* Word List Modal – requests paginated words by language when opened */}
+      <VocabularyWordListModal
+        open={wordModalOpen}
+        onClose={() => setWordModalOpen(false)}
+        language={wordModalLanguage}
+        fetchWords={loadWordModal}
+        initialPage={wordModalCache[wordModalLanguage]?.page ?? 1}
+        initialPerPage={wordModalCache[wordModalLanguage]?.perPage ?? 100}
+        onPageChange={(lang, page, perPage) => {
+          setWordModalCache((prev) => ({ ...prev, [lang]: { page, perPage } }));
+        }}
+      />
+
       {/* Library Words Modal */}
       {libraryWordsModalOpen && activeLibrary && (
         <Portal>
@@ -2322,47 +3041,6 @@ const VocabularyLearning: React.FC = () => {
             </div>
           </div>
         </Portal>
-      )}
-
-      {/* History Bar */}
-      {history.length > 0 && (
-        <div className={`mt-4 ${commonClasses.card} overflow-hidden`}>
-          <div
-            className="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
-            onClick={() => setHistoryCollapsed(!historyCollapsed)}
-          >
-            <h4 className="font-semibold text-sm">{t.history} ({history.length})</h4>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setHistory([]);
-              }}
-              className="text-xs text-slate-500 hover:text-red-500"
-            >
-              Clear
-            </button>
-          </div>
-          {!historyCollapsed && (
-            <div className="max-h-32 overflow-y-auto p-3 space-y-2">
-              {history.map((item, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => loadHistoryItem(item)}
-                  className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer text-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-600 dark:text-slate-400">{item.original_text}</span>
-                    <span className="text-slate-400">→</span>
-                    <span className="text-slate-800 dark:text-slate-200">{item.translated_text}</span>
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    {item.source_language} → {item.target_language}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       )}
 
       {/* Floating Recent-Logs dock (bottom-left; the global log dock owns bottom-right).

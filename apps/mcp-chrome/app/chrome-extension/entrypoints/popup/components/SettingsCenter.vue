@@ -10,67 +10,7 @@
       <div class="flex flex-col gap-2 min-w-0">
         <!-- API Configuration -->
         <ApiSettings />
-
-        <!-- Task Queue -->
-        <div class="tk-card rounded-lg p-2.5 overflow-hidden border">
-          <h4 class="text-[9px] font-bold uppercase tracking-tight mb-1.5" style="color: var(--text-muted)">Task Queue</h4>
-          <div class="flex justify-between items-center mb-2">
-            <div>
-              <label class="block text-[10px]" style="color: var(--text)">Enable Task Queue</label>
-              <span class="block text-[8px]" style="color: var(--text-faint)">Process API requests locally</span>
-            </div>
-            <button @click="toggleTaskQueue" :class="['w-7 h-4 rounded-full relative transition-colors', appStore.settings.value.taskQueue.enabled ? 'bg-purple-600' : 'bg-slate-600']">
-              <div :class="['absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all', appStore.settings.value.taskQueue.enabled ? 'left-3.5' : 'left-0.5']" />
-            </button>
-          </div>
-
-          <template v-if="appStore.settings.value.taskQueue.enabled">
-            <div class="flex justify-between items-center mb-2">
-              <div>
-                <label class="block text-[10px]" style="color: var(--text)">Queue Status</label>
-              </div>
-              <button
-                class="px-2 py-0.5 rounded text-[9px] font-bold text-white transition-all"
-                :class="appStore.settings.value.taskQueue.paused ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'"
-                @click="togglePause"
-              >
-                {{ appStore.settings.value.taskQueue.paused ? 'Resume' : 'Pause' }}
-              </button>
-            </div>
-            <div class="mb-1.5">
-              <label class="block text-[9px] mb-0.5" style="color: var(--text-muted)">Max Concurrent: {{ appStore.settings.value.taskQueue.maxConcurrent }}</label>
-              <input type="range" min="1" max="10" :value="appStore.settings.value.taskQueue.maxConcurrent" @input="updateMaxConcurrent"
-                class="tk-range w-full h-1 rounded-full outline-none appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:cursor-pointer" />
-            </div>
-            <div class="mb-1.5">
-              <label class="block text-[9px] mb-0.5" style="color: var(--text-muted)">Retry Attempts: {{ appStore.settings.value.taskQueue.retryAttempts }}</label>
-              <input type="range" min="0" max="5" :value="appStore.settings.value.taskQueue.retryAttempts" @input="updateRetryAttempts"
-                class="tk-range w-full h-1 rounded-full outline-none appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:cursor-pointer" />
-            </div>
-            <div class="grid grid-cols-4 gap-1 my-1.5 p-1.5 rounded" style="background: var(--surface-2)">
-              <div class="text-center">
-                <span class="block text-[8px]" style="color: var(--text-faint)">Pending</span>
-                <span class="block text-xs font-bold" style="color: var(--text)">{{ taskStats.pending }}</span>
-              </div>
-              <div class="text-center">
-                <span class="block text-[8px]" style="color: var(--text-faint)">Running</span>
-                <span class="block text-xs font-bold text-blue-400">{{ taskStats.running }}</span>
-              </div>
-              <div class="text-center">
-                <span class="block text-[8px]" style="color: var(--text-faint)">Done</span>
-                <span class="block text-xs font-bold text-green-400">{{ taskStats.completed }}</span>
-              </div>
-              <div class="text-center">
-                <span class="block text-[8px]" style="color: var(--text-faint)">Failed</span>
-                <span class="block text-xs font-bold text-red-400">{{ taskStats.failed }}</span>
-              </div>
-            </div>
-            <div class="flex gap-1.5">
-              <button class="tk-btn flex-1 px-2 py-1 rounded text-[9px] transition-colors" @click="clearCompleted">Clear Done</button>
-              <button class="flex-1 px-2 py-1 bg-rose-900/30 hover:bg-rose-900/50 text-rose-400 rounded text-[9px] transition-colors" @click="clearAll">Clear All</button>
-            </div>
-          </template>
-        </div>
+        <!-- Task Queue control moved to the Extensions tab (single source). -->
       </div>
 
       <!-- Right Column -->
@@ -128,54 +68,11 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue';
 import { useAppStore } from '@/composables/useAppStore';
-import { useTaskQueue } from '@/composables/useTaskQueue';
 import ApiSettings from './ApiSettings.vue';
 import CacheSettings from './CacheSettings.vue';
 
 const appStore = useAppStore();
-const taskQueue = useTaskQueue();
-
-// Task queue statistics
-const taskStats = computed(() => taskQueue.getStats());
-
-// Task queue control
-const toggleTaskQueue = () => {
-  if (appStore.settings.value.taskQueue.enabled) {
-    appStore.disableTaskQueue();
-  } else {
-    appStore.enableTaskQueue();
-  }
-};
-
-const togglePause = () => {
-  if (appStore.settings.value.taskQueue.paused) {
-    appStore.resumeTaskQueue();
-  } else {
-    appStore.pauseTaskQueue();
-  }
-};
-
-const updateMaxConcurrent = (e: Event) => {
-  const value = parseInt((e.target as HTMLInputElement).value);
-  appStore.setMaxConcurrent(value);
-};
-
-const updateRetryAttempts = (e: Event) => {
-  const value = parseInt((e.target as HTMLInputElement).value);
-  appStore.setRetryAttempts(value);
-};
-
-const clearCompleted = () => {
-  taskQueue.clearCompletedTasks();
-};
-
-const clearAll = () => {
-  if (confirm('Are you sure you want to clear the entire task queue?')) {
-    taskQueue.clearAllTasks();
-  }
-};
 
 // Server settings
 const toggleAutoConnect = () => {
