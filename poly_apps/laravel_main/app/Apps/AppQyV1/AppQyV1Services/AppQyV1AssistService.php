@@ -131,8 +131,14 @@ class AppQyV1AssistService
      *
      * @return array{ok:bool,status:string,already_done?:bool,error?:string,http_status:int}
      */
-    public function submitCover(int $libraryId, string $imageBase64, ?string $mime): array
-    {
+    public function submitCover(
+        int $libraryId,
+        string $imageBase64,
+        ?string $mime,
+        ?string $provider = null,
+        ?string $model = null,
+        ?int $latencyMs = null
+    ): array {
         $library = AppQyV1VocabularyLibraryModel::query()->find($libraryId);
         if (!$library) {
             return ['ok' => false, 'status' => 'not_found', 'error' => 'Library not found', 'http_status' => 404];
@@ -176,6 +182,17 @@ class AppQyV1AssistService
         $library->cover_error_message = null;
         $library->cover_last_generated_at = now();
         $library->cover_finished_at = now();
+        // Provenance (detailed processing record): who/how generated this cover.
+        // Best-effort — the columns are nullable and only set when reported.
+        if ($provider !== null && $provider !== '') {
+            $library->cover_provider = mb_substr($provider, 0, 64);
+        }
+        if ($model !== null && $model !== '') {
+            $library->cover_model = mb_substr($model, 0, 128);
+        }
+        if ($latencyMs !== null) {
+            $library->cover_latency_ms = $latencyMs;
+        }
         $library->assist_claimed_at = null;
         $library->assist_claimed_by = null;
         $library->save();
@@ -185,6 +202,9 @@ class AppQyV1AssistService
             'filename' => $library->cover_filename,
             'bytes' => strlen($binary),
             'mime' => $mime,
+            'provider' => $provider,
+            'model' => $model,
+            'latency_ms' => $latencyMs,
         ]);
 
         return ['ok' => true, 'status' => 'ready', 'http_status' => 200];
@@ -330,8 +350,13 @@ class AppQyV1AssistService
      *
      * @return array{ok:bool,status:string,already_done?:bool,error?:string,http_status:int}
      */
-    public function submitTts(int $taskId, string $audioBase64, string $claimer, ?string $voice): array
-    {
+    public function submitTts(
+        int $taskId,
+        string $audioBase64,
+        string $claimer,
+        ?string $voice,
+        ?string $engine = null
+    ): array {
         $decoded = AppQyV1DictionaryTTSCoordinator::decodeTaskId($taskId);
         if (!$decoded || $decoded['type'] !== AppQyV1DictionaryTTSCoordinator::TYPE_WORD) {
             return ['ok' => false, 'status' => 'invalid', 'error' => 'Invalid tts task id', 'http_status' => 422];
@@ -352,7 +377,10 @@ class AppQyV1AssistService
         }
 
         // tts_provider column is string(100) - keep the identity within it.
-        $provider = mb_substr('assist:' . $claimer . ($voice ? '/' . $voice : ''), 0, 100);
+        // When the worker reports its real engine (edge-tts / sherpa / ...),
+        // fold it in so the record shows WHICH engine synthesized the audio.
+        $engineTag = ($engine !== null && $engine !== '') ? mb_substr($engine, 0, 32) . ':' : '';
+        $provider = mb_substr('assist:' . $engineTag . $claimer . ($voice ? '/' . $voice : ''), 0, 100);
         $result = $this->coordinator->reportWordResult(
             $taskId,
             self::assistWorkerId($claimer),
