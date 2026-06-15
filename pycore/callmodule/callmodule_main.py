@@ -376,6 +376,7 @@ def _register_translation_ws_client():
         app_key=Config.TRANSLATION_REVERB_APP_KEY,
         channel=Config.TRANSLATION_REVERB_CHANNEL,
         word_ttl_seconds=Config.TRANSLATION_WS_WORD_TTL_SECONDS,
+        sse_path=Config.TRANSLATION_SSE_PATH,
     )
 
     heartbeat.register_callback(
@@ -385,13 +386,13 @@ def _register_translation_ws_client():
         enabled=Config.TRANSLATION_WS_ENABLED_ON_START,
     )
 
-    ColorPrint.green("[Callmodule] Registered translation Reverb WS client callback")
+    ColorPrint.green("[Callmodule] Registered translation SSE client callback")
     ColorPrint.blue("  - Callback name: translation_ws_client")
     ColorPrint.blue(f"  - Interval: {Config.TRANSLATION_WS_SUPERVISOR_INTERVAL} seconds (supervisor tick)")
     ColorPrint.blue(f"  - Initial state: {'enabled' if Config.TRANSLATION_WS_ENABLED_ON_START else 'disabled'}")
     ColorPrint.blue(
-        f"  - Reverb: {Config.TRANSLATION_REVERB_SCHEME}://{Config.TRANSLATION_REVERB_HOST}:"
-        f"{Config.TRANSLATION_REVERB_PORT} channel={Config.TRANSLATION_REVERB_CHANNEL}"
+        f"  - SSE: {Config.TRANSLATION_REVERB_SCHEME}://{Config.TRANSLATION_REVERB_HOST}:"
+        f"{Config.TRANSLATION_REVERB_PORT}{Config.TRANSLATION_SSE_PATH}"
     )
     ColorPrint.blue("  - WS library: websockets (rpc_v2's WS lib; sync client)")
     ColorPrint.blue("  - Control: POST /api/heartbeat/disable/translation_ws_client")

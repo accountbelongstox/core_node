@@ -17,6 +17,8 @@ export {
   isWsConnected, getClientId,
 } from './PycoreWs';
 
+export { connectPycoreSse, isSseConnected } from './PycoreSse';
+
 export {
   pycoreLaravelApi, PYCORE_LARAVEL_API_CHANGED_EVENT,
 } from './PycoreLaravelApi';

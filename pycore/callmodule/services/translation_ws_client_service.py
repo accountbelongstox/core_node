@@ -1,50 +1,40 @@
 # -*- coding: utf-8 -*-
 """
-Translation WebSocket Client Service (Phase C)
+Translation SSE Client Service (Phase C)
 
-A pycore WebSocket client that connects to Laravel's REVERB server (Pusher
-protocol over WebSocket) and receives translation-queue events in REAL TIME,
-replacing the QueueMonitorService's 5s HTTP poll as the PRIMARY signal. The HTTP
-poll is kept as a slower fallback/reconciler (the safety net if the WS drops).
-
-------------------------------------------------------------------------------
-Which WebSocket library (rpc_v2's) and how it is reused
-------------------------------------------------------------------------------
-pycore's rpc_v2 WS SERVER (FastAPIRPCServer, /rpc/ws — the FE live-log channel)
-runs on FastAPI + ``uvicorn[standard]``, whose WebSocket layer is the third-party
-``websockets`` library. ``websockets`` is declared in pyfoundations.third_party's
-DEPENDENCY_MAP ("websockets": "websockets") and obtained ONLY via
-``get_third_package_websockets()`` (never a bare import) — the pycore rule.
-
-This service REUSES that exact dependency as the WS CLIENT transport via the
-library's synchronous client API (``websockets.sync.client.connect``). The sync
-client lets us run a simple blocking recv loop on our OWN background thread
-(no asyncio event loop needed), which matches the worker/monitor threading model
-and keeps the heartbeat thread free.
+A pycore client that holds a long-lived Server-Sent-Events (SSE) stream on
+Laravel's Octane HTTP port and receives translation-queue events in REAL TIME,
+replacing the QueueMonitorService's 5s HTTP poll as the PRIMARY signal (the poll
+is kept as a slower fallback/reconciler). The previous Reverb (Pusher-over-
+WebSocket) transport is RETIRED: Octane provides no WebSocket and Reverb would
+need its own process/port, so the same signal now rides plain HTTP on :9000.
+(File/class names keep the legacy "ws" wording for import back-compat.)
 
 ------------------------------------------------------------------------------
-Reverb = Pusher protocol — handshake + subscribe
+Transport — SSE over the Octane HTTP port
 ------------------------------------------------------------------------------
-Connection (from Laravel REVERB_* via callmodule_config.Config):
-    ws://<host>:<port>/app/<app_key>?protocol=7&client=pycore&version=1.0
-    host  = TRANSLATION_REVERB_HOST  (REVERB_HOST 0.0.0.0 -> dial 127.0.0.1)
-    port  = TRANSLATION_REVERB_PORT  (9000 — laravel_main Octane; 8080 retired)
-    sch.  = TRANSLATION_REVERB_SCHEME (http->ws, https->wss)
-    key   = TRANSLATION_REVERB_APP_KEY (rotates on reverb restart — env-overridable)
+Connection (from Laravel HTTP base via callmodule_config.Config):
+    {scheme}://{host}:{port}{sse_path}?cursor={lastId}
+    host = TRANSLATION_REVERB_HOST  (0.0.0.0 -> dial 127.0.0.1)
+    port = TRANSLATION_REVERB_PORT  (9000 — laravel_main Octane; 8080 retired)
+    sch. = TRANSLATION_REVERB_SCHEME (http/https; SSE is plain HTTP, not ws)
+    path = TRANSLATION_SSE_PATH      (/api/app_qy_v1/ai_tools/translation/queue/stream)
+
+The transport dep is third-party ``requests`` via ``get_third_package_requests()``
+(never a bare import), used with ``stream=True`` so we read the event stream line
+by line on our OWN background thread (no asyncio), matching the worker/monitor
+threading model and keeping the heartbeat thread free.
 
 Flow:
-  1. Connect to the URL above.
-  2. Receive ``pusher:connection_established`` (its ``data`` is a JSON STRING
-     holding { socket_id, activity_timeout }).
-  3. Subscribe to the PUBLIC channel:
-        {"event":"pusher:subscribe","data":{"channel":"translation-queue"}}
-     (public channels need no auth signature.)
-  4. Receive ``pusher_internal:subscription_succeeded`` then channel events.
-  5. Respond to ``pusher:ping`` with ``pusher:pong`` to keep the link alive.
+  1. GET the SSE URL with our resume cursor (0 -> server starts at its tail).
+  2. Read ``event:`` / ``data:`` lines; a blank line ends one event.
+  3. Envelope events (stream.open / ping / stream.close) only carry/advance the
+     cursor. The server ends each stream after ~50s; we reconnect with the cursor
+     so no event is missed across the gap.
 
-Per Pusher, each frame is a JSON object { event, data, channel? } where ``data``
-is itself a JSON STRING and must be parsed again. Laravel may namespace event
-names (e.g. "App\\Events\\TaskQueued" or "task.queued"), so we MATCH ON SUFFIX.
+Each event's ``data`` is a JSON object carrying ``_id`` (the outbox row id used as
+the resume cursor). Laravel may namespace event names (e.g.
+"App\\Events\\TaskQueued" or "task.queued"), so we MATCH ON SUFFIX.
 
 Events handled (Phase C broadcast contract):
   - task.queued     { task_id, words:[str], language, target_language, priority }
@@ -62,7 +52,7 @@ Threading / lifecycle (mirrors translation_worker_service / queue_monitor)
 ------------------------------------------------------------------------------
   - Singleton, registered as a PyHeartbeat callback ('translation_ws_client',
     ENABLED by default). The heartbeat callback ``supervise()`` is LIGHT: it only
-    ensures the background WS thread is alive when enabled and signals it to stop
+    ensures the background SSE thread is alive when enabled and signals it to stop
     when disabled. It NEVER blocks the heartbeat thread on network I/O.
   - The actual connect + recv loop runs on a dedicated daemon thread with
     auto-reconnect and QUIET-RETRY logging (ONE clear connected/disconnected/
@@ -71,9 +61,10 @@ Threading / lifecycle (mirrors translation_worker_service / queue_monitor)
         POST /api/heartbeat/enable/translation_ws_client
         POST /api/heartbeat/disable/translation_ws_client
 
-Logging: ColorPrint only (pycore rule). WS lib via get_third_package_websockets()
-(never a bare import). This module imports only pyfoundations + sibling services
-(same layer) — never rpc_v2 / callmodule routers (no upward layer import).
+Logging: ColorPrint only (pycore rule). The SSE transport uses third-party
+`requests` via get_third_package_requests() (never a bare import). This module
+imports only pyfoundations + sibling services (same layer) — never rpc_v2 /
+callmodule routers (no upward layer import).
 """
 
 import json
@@ -83,8 +74,8 @@ from typing import Any, Dict, Optional
 
 # ColorPrint is the only allowed logger in pycore processors/services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-# websockets is a third-party dep — always via the lazy accessor (the rpc_v2 ws lib).
-from pycore.pyfoundations.third_party import get_third_package_websockets
+# requests is a third-party dep — always via the lazy accessor (SSE transport).
+from pycore.pyfoundations.third_party import get_third_package_requests
 # Sibling services (same layer): the monitor (snapshot push) + worker (word dedup).
 from pycore.callmodule.services.queue_monitor_service import get_queue_monitor_service
 from pycore.callmodule.services.translation_worker_service import (
@@ -94,13 +85,16 @@ from pycore.callmodule.services.translation_worker_service import (
 
 class TranslationWsClient:
     """
-    Reverb (Pusher-protocol) WebSocket client (singleton).
+    Laravel SSE client (singleton) — replaces the retired Reverb WebSocket.
 
-    Connects to Laravel's Reverb server, subscribes to the public
-    ``translation-queue`` channel, and routes the 4 contract events into the
-    QueueMonitorService snapshot (real-time UI) and the TranslationWorkerService
-    word-dedup set (multi-pycore coordination). Runs its recv loop on a background
-    thread with auto-reconnect; supervised by a light heartbeat callback.
+    Holds a long-lived Server-Sent-Events stream on Laravel's Octane HTTP port
+    (9000) at /api/app_qy_v1/ai_tools/translation/queue/stream, and routes the 4
+    contract events (task.queued/task.priority/word.translated/task.completed)
+    into the QueueMonitorService snapshot (real-time UI) and the
+    TranslationWorkerService word-dedup set (multi-pycore coordination). A `_id`
+    cursor carried in every event lets reconnects resume with no gap. Runs its
+    read loop on a background thread with auto-reconnect; supervised by a light
+    heartbeat callback. (Class name kept for import/back-compat.)
     """
 
     _instance: Optional["TranslationWsClient"] = None
@@ -122,42 +116,52 @@ class TranslationWsClient:
         app_key: str = "",
         channel: str = "translation-queue",
         word_ttl_seconds: int = 120,
+        sse_path: str = "/api/app_qy_v1/ai_tools/translation/queue/stream",
     ):
         """
-        Initialize the WS client (idempotent — safe to call repeatedly).
+        Initialize the SSE client (idempotent — safe to call repeatedly).
+
+        Transport is a long-lived SSE stream on Laravel's Octane HTTP port (the
+        retired Reverb WebSocket is gone). Same 4 contract events are routed into
+        the QueueMonitor snapshot + worker word-dedup set.
 
         Args:
-            host/port/scheme: Reverb connection (REVERB_* derived). scheme http->ws.
-            app_key: Reverb app key (rotates on reverb restart — keep in sync).
-            channel: public channel to subscribe to ("translation-queue").
-            word_ttl_seconds: TTL fed to the worker's done-words set per broadcast.
+            host/port/scheme: Laravel HTTP base (TRANSLATION_REVERB_* derived).
+            sse_path: SSE endpoint path on that base.
+            app_key/channel: kept for status/back-compat (unused by SSE).
+            word_ttl_seconds: TTL fed to the worker's done-words set per event.
         """
         if getattr(self, "_initialized", False):
             return
 
-        # REVERB_HOST is often 0.0.0.0 (a bind address). Never DIAL 0.0.0.0 — map it
-        # to loopback so the client connects to the local Reverb.
-        self._host = "127.0.0.1" if str(host) in ("0.0.0.0", "", None) else str(host)
+        # 0.0.0.0 is a bind address — never DIAL it; map to loopback.
+        self._host = "127.0.0.1" if str(host) in ("0.0.0.0", "", "None") else str(host)
         self._port = int(port)
-        # Map Laravel's HTTP scheme to the WS scheme (http->ws, https->wss).
-        self._ws_scheme = "wss" if str(scheme).lower() in ("https", "wss") else "ws"
+        # SSE rides plain HTTP(S) on the Octane port (NOT ws/wss).
+        self._scheme = "https" if str(scheme).lower() in ("https", "wss") else "http"
+        self._sse_path = sse_path or "/api/app_qy_v1/ai_tools/translation/queue/stream"
         self._app_key = app_key or ""
         self._channel = channel or "translation-queue"
         self._word_ttl = max(1, int(word_ttl_seconds))
+
+        # Resume cursor: highest outbox event id seen (carried in each event's _id).
+        self._cursor = 0
 
         # Sibling singletons (resolved lazily on first event so init order is free).
         self._monitor = None
         self._worker = None
 
-        # Background WS thread + control flags.
+        # Background thread + control flags.
         self._thread: Optional[threading.Thread] = None
         self._thread_lock = threading.Lock()
-        self._stop_event = threading.Event()  # set() asks the recv loop to exit
+        self._stop_event = threading.Event()  # set() asks the read loop to exit
         self._connected = False
 
         # Quiet-retry bookkeeping: emit ONE "unreachable" line, then stay silent
-        # until the situation changes (mirrors the worker's _conn_* style).
+        # until the situation changes. _ever_connected keeps periodic clean
+        # reconnects (the server ends each stream ~50s) from spamming the log.
         self._unreachable_warned = False
+        self._ever_connected = False
         self._reconnect_delay = 3  # seconds between reconnect attempts
 
         # Diagnostics.
@@ -166,8 +170,8 @@ class TranslationWsClient:
 
         self._initialized = True
         ColorPrint.green(
-            f"[TranslationWS] Service initialized (url={self._public_url(masked=True)}, "
-            f"channel={self._channel})"
+            f"[TranslationSSE] Service initialized (url={self._public_url()}, "
+            f"cursor={self._cursor})"
         )
 
     # -------------------- sibling accessors --------------------
@@ -186,17 +190,17 @@ class TranslationWsClient:
 
     # -------------------- URL --------------------
 
-    def _ws_url(self) -> str:
-        """Build the Pusher-protocol WS URL Reverb expects."""
+    def _stream_url(self) -> str:
+        """Build the SSE GET URL (cursor lets the server resume from our position)."""
         return (
-            f"{self._ws_scheme}://{self._host}:{self._port}/app/{self._app_key}"
-            f"?protocol=7&client=pycore&version=1.0"
+            f"{self._scheme}://{self._host}:{self._port}{self._sse_path}"
+            f"?cursor={int(self._cursor)}"
         )
 
     def _public_url(self, masked: bool = False) -> str:
-        """URL for logging; masks the app key when ``masked`` (it's a shared secret-ish)."""
-        key = "***" if masked and self._app_key else self._app_key
-        return f"{self._ws_scheme}://{self._host}:{self._port}/app/{key}"
+        """Base URL for logging (no secrets in the SSE transport; `masked` kept
+        for call-site compatibility)."""
+        return f"{self._scheme}://{self._host}:{self._port}{self._sse_path}"
 
     # -------------------- connection status --------------------
 
@@ -206,7 +210,7 @@ class TranslationWsClient:
         try:
             self._get_monitor().set_ws_connected(connected)
         except Exception:
-            # Status is best-effort; never let it break the WS loop.
+            # Status is best-effort; never let it break the SSE loop.
             pass
 
     # -------------------- event routing --------------------
@@ -273,7 +277,7 @@ class TranslationWsClient:
                     ttl_seconds=self._word_ttl,
                 )
                 ColorPrint.gray(
-                    f"[TranslationWS] word.translated '{word}' "
+                    f"[TranslationSSE] word.translated '{word}' "
                     f"-> {data.get('target_language')} (dedup across pycores)"
                 )
 
@@ -282,152 +286,139 @@ class TranslationWsClient:
             self._get_monitor().apply_task_completed(data)
         # Unknown channel events are ignored (forward-compatible).
 
-    def _handle_frame(self, ws, raw: str) -> None:
-        """
-        Handle one raw Pusher frame. Manages the protocol-level events
-        (connection_established / subscription_succeeded / ping) and forwards
-        channel events to _route_event.
-        """
+    # Envelope events the stream uses for resume/keep-alive (not channel events).
+    _ENVELOPE_EVENTS = ("stream.open", "ping", "stream.close")
+
+    def _advance_cursor(self, data: Dict[str, Any]) -> None:
+        """Move the resume cursor forward from an event payload (_id or cursor)."""
+        raw = data.get("_id", data.get("cursor"))
         try:
-            frame = json.loads(raw)
-        except (ValueError, TypeError):
+            new_id = int(raw)
+        except (TypeError, ValueError):
             return
-        if not isinstance(frame, dict):
-            return
+        if new_id > self._cursor:
+            self._cursor = new_id
 
-        event = frame.get("event", "")
-
-        # --- Pusher protocol events (exact names; never namespaced) ---
-        if event == "pusher:connection_established":
-            # Connected: now subscribe to the public channel.
-            self._subscribe(ws)
+    def _dispatch_sse(self, event_name: str, data_str: str) -> None:
+        """Parse one SSE event's data and route it (envelope vs channel event)."""
+        data = self._parse_data(data_str)
+        # Envelope events (stream.open/ping/stream.close) only carry the cursor.
+        if event_name in self._ENVELOPE_EVENTS:
+            self._advance_cursor(data)
             return
-        if event == "pusher:ping":
-            # Keep-alive: reply with pong.
-            try:
-                ws.send(json.dumps({"event": "pusher:pong", "data": {}}))
-            except Exception:
-                pass
-            return
-        if event in ("pusher_internal:subscription_succeeded",
-                     "pusher:subscription_succeeded"):
-            ColorPrint.green(
-                f"[TranslationWS] Subscribed to channel '{frame.get('channel', self._channel)}'"
-            )
-            return
-        if event == "pusher:error":
-            data = self._parse_data(frame.get("data"))
-            ColorPrint.yellow(
-                f"[TranslationWS] Pusher error: {data.get('message') or frame.get('data')} "
-                "(check REVERB_APP_KEY matches Laravel)"
-            )
-            return
-
-        # --- Channel (app) events ---
-        data = self._parse_data(frame.get("data"))
+        # Channel event: advance cursor + route to monitor/worker.
+        self._advance_cursor(data)
         self._events_received += 1
         self._last_event_ts = time.monotonic()
-        self._route_event(event, data)
+        self._route_event(event_name, data)
 
-    def _subscribe(self, ws) -> None:
-        """Send the Pusher subscribe frame for the public channel (no auth)."""
-        ws.send(json.dumps({
-            "event": "pusher:subscribe",
-            "data": {"channel": self._channel},
-        }))
-
-    # -------------------- WS recv loop (background thread) --------------------
+    # -------------------- SSE read loop (background thread) --------------------
 
     def _run_loop(self) -> None:
         """
-        Background-thread entry point: connect + recv until asked to stop, with
-        auto-reconnect and quiet-retry logging. Each connection:
-          connect -> (server sends connection_established) -> subscribe -> recv.
-        A dropped connection -> log once -> sleep -> reconnect.
+        Background-thread entry point: hold an SSE connection to Laravel and route
+        events until asked to stop, with auto-reconnect + quiet-retry logging.
+        The server ends each stream after ~50s; we immediately reconnect carrying
+        our cursor, so no event is missed across the gap.
         """
-        # The rpc_v2 WS library (websockets) — sync client API.
-        websockets = get_third_package_websockets()
-        from websockets.sync.client import connect as ws_connect
-        from websockets.exceptions import ConnectionClosed
-
-        url = self._ws_url()
+        requests = get_third_package_requests()
 
         while not self._stop_event.is_set():
+            event_name = ""
+            data_buf: list = []
             try:
-                # open_timeout keeps the connect attempt bounded; the server sends
-                # connection_established immediately after the upgrade.
-                with ws_connect(url, open_timeout=8, close_timeout=3) as ws:
+                url = self._stream_url()
+                # (connect timeout, read timeout). Server heartbeats arrive <=15s,
+                # so a 60s read gap means a dead connection -> reconnect.
+                with requests.get(
+                    url,
+                    stream=True,
+                    timeout=(8, 60),
+                    headers={"Accept": "text/event-stream", "Cache-Control": "no-cache"},
+                ) as resp:
+                    if resp.status_code != 200:
+                        raise RuntimeError(f"HTTP {resp.status_code}")
+
                     self._set_connected(True)
                     if self._unreachable_warned:
                         ColorPrint.green(
-                            f"[TranslationWS] Reconnected to Reverb at {self._public_url(masked=True)}"
+                            f"[TranslationSSE] Reconnected to Laravel SSE at {self._public_url()}"
                         )
-                    else:
+                    elif not self._ever_connected:
                         ColorPrint.green(
-                            f"[TranslationWS] Connected to Reverb at {self._public_url(masked=True)}"
+                            f"[TranslationSSE] Connected to Laravel SSE at {self._public_url()}"
                         )
+                    self._ever_connected = True
                     self._unreachable_warned = False
 
-                    # Blocking recv loop. recv() with a timeout lets us notice a
-                    # stop request promptly without busy-waiting.
-                    while not self._stop_event.is_set():
-                        try:
-                            raw = ws.recv(timeout=1.0)
-                        except TimeoutError:
-                            continue  # no message this tick — re-check stop flag
+                    # SSE framing: accumulate field lines; a blank line ends one
+                    # event. iter_lines yields lines without the trailing newline.
+                    for raw in resp.iter_lines(decode_unicode=True):
+                        if self._stop_event.is_set():
+                            break
                         if raw is None:
                             continue
                         if isinstance(raw, (bytes, bytearray)):
                             raw = raw.decode("utf-8", "ignore")
-                        self._handle_frame(ws, raw)
+                        line = raw.rstrip("\r")
 
-            except ConnectionClosed:
-                # Normal-ish drop (server restarted / network blip) — reconnect quietly.
-                self._set_connected(False)
-                if not self._stop_event.is_set():
-                    ColorPrint.yellow(
-                        "[TranslationWS] Reverb connection closed; will reconnect quietly."
-                    )
+                        if line == "":
+                            if event_name or data_buf:
+                                self._dispatch_sse(event_name, "\n".join(data_buf))
+                            event_name = ""
+                            data_buf = []
+                            continue
+                        if line.startswith(":"):
+                            continue  # SSE comment / keep-alive
+                        if line.startswith("event:"):
+                            event_name = line[len("event:"):].strip()
+                        elif line.startswith("data:"):
+                            data_buf.append(line[len("data:"):].lstrip(" "))
+                        # other SSE fields (id:/retry:) are ignored
+
             except Exception as e:
-                # Unreachable (Reverb down) / handshake refused — ONE concise line,
-                # then silence until it recovers (mirrors the worker's quiet retry).
+                # Unreachable (Laravel down) / non-200 — ONE concise line, then
+                # silence until it recovers (mirrors the worker's quiet retry).
                 self._set_connected(False)
                 if not self._unreachable_warned and not self._stop_event.is_set():
                     self._unreachable_warned = True
                     ColorPrint.yellow(
-                        f"[TranslationWS] Reverb unreachable at {self._public_url(masked=True)} "
+                        f"[TranslationSSE] Laravel SSE unreachable at {self._public_url()} "
                         f"({self._short_err(e)}). Will keep retrying quietly "
-                        "(set TRANSLATION_REVERB_HOST/PORT/APP_KEY to point at Laravel Reverb)."
+                        "(set TRANSLATION_REVERB_HOST/PORT or TRANSLATION_SSE_PATH)."
                     )
             finally:
                 self._set_connected(False)
 
-            # Wait before reconnecting (interruptible by stop).
+            # Wait before reconnecting (interruptible by stop). A clean server-side
+            # stream end falls through here too; the cursor prevents any gap.
             if not self._stop_event.is_set():
                 self._stop_event.wait(self._reconnect_delay)
 
-        ColorPrint.blue("[TranslationWS] WS loop stopped")
+        ColorPrint.blue("[TranslationSSE] SSE loop stopped")
 
     @staticmethod
     def _short_err(exc: Exception) -> str:
-        """Condense a noisy WS/socket exception into a one-line reason."""
+        """Condense a noisy HTTP/socket exception into a one-line reason."""
         name = type(exc).__name__
         text = str(exc)
         low = text.lower()
         if "refused" in low:
-            return "connection refused (Reverb not listening)"
+            return "connection refused (Laravel SSE not listening)"
         if "timed out" in low or "timeout" in low:
             return "timed out"
         if "getaddrinfo" in low or "name or service" in low or "resolve" in low:
             return "host not resolvable"
-        if "401" in text or "403" in text or "unauthorized" in low or "handshake" in low:
-            return "handshake rejected (check app key / path)"
+        if "404" in text or "405" in text:
+            return "stream route not found (check TRANSLATION_SSE_PATH)"
+        if "401" in text or "403" in text or "unauthorized" in low:
+            return "rejected (check route is in the no-auth control group)"
         return (text.splitlines()[0][:120] if text else name) or name
 
     # -------------------- thread lifecycle --------------------
 
     def _start_thread(self) -> None:
-        """Start the background WS thread if it isn't already running."""
+        """Start the background SSE thread if it isn't already running."""
         with self._thread_lock:
             if self._thread and self._thread.is_alive():
                 return
@@ -437,15 +428,15 @@ class TranslationWsClient:
                 target=self._run_loop, name="translation-ws", daemon=True
             )
             self._thread.start()
-            ColorPrint.blue("[TranslationWS] Background WS thread started")
+            ColorPrint.blue("[TranslationSSE] Background SSE thread started")
 
     def _stop_thread(self) -> None:
-        """Signal the background WS thread to stop (non-blocking)."""
+        """Signal the background SSE thread to stop (non-blocking)."""
         with self._thread_lock:
             if not (self._thread and self._thread.is_alive()):
                 return
             self._stop_event.set()
-            ColorPrint.blue("[TranslationWS] Background WS thread stop requested")
+            ColorPrint.blue("[TranslationSSE] Background SSE thread stop requested")
 
     # -------------------- heartbeat supervisor callback --------------------
 
@@ -453,8 +444,8 @@ class TranslationWsClient:
         """
         PyHeartbeat callback (invoked every ~interval seconds WHEN ENABLED).
 
-        LIGHT + exception-safe: only ensures the background WS thread is running.
-        It does NO network I/O itself (the WS loop owns the socket on its own
+        LIGHT + exception-safe: only ensures the background SSE thread is running.
+        It does NO network I/O itself (the SSE loop owns the socket on its own
         thread), so it never blocks the heartbeat thread. Disabling the callback
         (POST /api/heartbeat/disable/translation_ws_client) stops ticking this, so
         we also expose stop() for an explicit teardown.
@@ -465,7 +456,7 @@ class TranslationWsClient:
         try:
             self._start_thread()
         except Exception as e:
-            ColorPrint.red(f"[TranslationWS] supervise error: {e}")
+            ColorPrint.red(f"[TranslationSSE] supervise error: {e}")
 
     def stop(self) -> None:
         """Explicitly stop the WS thread (e.g. on shutdown / disable)."""
@@ -478,13 +469,14 @@ class TranslationWsClient:
         with self._thread_lock:
             alive = bool(self._thread and self._thread.is_alive())
         return {
-            "service": "Translation WS Client",
-            "url": self._public_url(masked=True),
+            "service": "Translation SSE Client",
+            "url": self._public_url(),
             "channel": self._channel,
             "connected": self._connected,
             "thread_alive": alive,
             "events_received": self._events_received,
-            "ws_library": "websockets (rpc_v2's WS lib; sync client)",
+            "cursor": self._cursor,
+            "transport": "requests (SSE stream)",
             "initialized": self._initialized,
         }
 
@@ -500,12 +492,14 @@ def get_translation_ws_client(
     app_key: str = "",
     channel: str = "translation-queue",
     word_ttl_seconds: int = 120,
+    sse_path: str = "/api/app_qy_v1/ai_tools/translation/queue/stream",
 ) -> TranslationWsClient:
     """
-    Get the TranslationWsClient singleton (idempotent).
+    Get the TranslationWsClient (SSE) singleton (idempotent).
 
-    Args mirror the Reverb connection (REVERB_* derived); see callmodule_main's
-    _register_translation_ws_client for the Config-driven wiring.
+    Args mirror Laravel's HTTP base (TRANSLATION_REVERB_* / TRANSLATION_SSE_*
+    derived); see callmodule_main's _register_translation_ws_client for the
+    Config-driven wiring.
     """
     return TranslationWsClient(
         host=host,
@@ -514,4 +508,5 @@ def get_translation_ws_client(
         app_key=app_key,
         channel=channel,
         word_ttl_seconds=word_ttl_seconds,
+        sse_path=sse_path,
     )

@@ -281,7 +281,26 @@ class AppQyV1AssistController extends Controller
             'mode' => 'pull',
             'cover' => $this->assist->coverCounts(),
             'tts' => $this->assist->ttsCounts(),
+            'translation' => $this->assist->translationCounts(),
             'lease_minutes' => AppQyV1AssistService::LEASE_MINUTES,
+        ]);
+    }
+
+    /**
+     * GET /api/app_qy_v1/assist/pending
+     *
+     * Cheap, cache-backed pending-work snapshot across all three assist tracks
+     * (cover / tts / translation). The Octane cover timer warms the cache every
+     * tick, so this read almost never hits the database — third-party workers
+     * and the dashboard poll it freely. ?fresh=1 forces a recompute.
+     */
+    public function pending(Request $request): JsonResponse
+    {
+        $fresh = (bool) $request->query('fresh', false);
+
+        return response()->json([
+            'success' => true,
+            'snapshot' => $this->assist->pendingSnapshot($fresh),
         ]);
     }
 }

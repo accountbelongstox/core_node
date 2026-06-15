@@ -408,6 +408,79 @@ class AppQyV1AssistService
         ];
     }
 
+    /** Pending/terminal counts for word_translation global tasks (one grouped
+     *  query, never per-status counts). */
+    public function translationCounts(): array
+    {
+        $grouped = \App\Models\GlobalTask::query()
+            ->where('app_name', 'AppQyV1')
+            ->where('task_type', 'word_translation')
+            ->groupBy('status')
+            ->select('status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
+            ->pluck('total', 'status');
+
+        $sumOf = static function (array $statuses) use ($grouped): int {
+            $sum = 0;
+            foreach ($statuses as $status) {
+                if ($grouped->has($status)) {
+                    $sum += (int) $grouped->get($status);
+                }
+            }
+            return $sum;
+        };
+
+        $total = 0;
+        foreach ($grouped as $value) {
+            $total += (int) $value;
+        }
+
+        return [
+            'pending' => $sumOf([\App\Models\GlobalTask::STATUS_PENDING]),
+            'processing' => $sumOf([\App\Models\GlobalTask::STATUS_ASSIGNED, \App\Models\GlobalTask::STATUS_PROCESSING]),
+            'completed' => $sumOf([\App\Models\GlobalTask::STATUS_COMPLETED, \App\Models\GlobalTask::STATUS_COMPLETED_DEMO]),
+            'failed' => $sumOf([\App\Models\GlobalTask::STATUS_FAILED]),
+            'total' => $total,
+        ];
+    }
+
+    /**
+     * Unified pending-work snapshot for ALL three assist tracks (cover / tts /
+     * translation), cached so third-party workers and the dashboard can poll it
+     * cheaply (the raw counts otherwise run several aggregate queries per call).
+     *
+     * The Octane cover timer (AppQyV1CoverGenerationTask) warms this every tick
+     * via fresh=true, so a poller almost always reads a warm cache. A direct
+     * caller with $fresh=false reuses the last snapshot for up to the TTL.
+     */
+    public const PENDING_SNAPSHOT_KEY = 'appqyv1:assist:pending_snapshot';
+    public const PENDING_SNAPSHOT_TTL = 12;
+
+    public function pendingSnapshot(bool $fresh = false): array
+    {
+        $build = function (): array {
+            return [
+                'generated_at' => now()->toIso8601String(),
+                'enabled' => self::isAssistEnabled(),
+                'lease_minutes' => self::LEASE_MINUTES,
+                'cover' => $this->coverCounts(),
+                'tts' => $this->ttsCounts(),
+                'translation' => $this->translationCounts(),
+            ];
+        };
+
+        if ($fresh) {
+            $snapshot = $build();
+            \Illuminate\Support\Facades\Cache::put(self::PENDING_SNAPSHOT_KEY, $snapshot, self::PENDING_SNAPSHOT_TTL);
+            return $snapshot;
+        }
+
+        return \Illuminate\Support\Facades\Cache::remember(
+            self::PENDING_SNAPSHOT_KEY,
+            self::PENDING_SNAPSHOT_TTL,
+            $build
+        );
+    }
+
     /** Image sniffing: PNG / JPEG / WebP (RIFF) / GIF magic bytes. */
     public static function looksLikeImage(string $bytes): bool
     {
