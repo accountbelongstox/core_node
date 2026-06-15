@@ -36,8 +36,10 @@ use Illuminate\Http\StreamedEvent;
  */
 class AppQyV1TranslationStreamController extends Controller
 {
-    // Bounded connection lifetime: end the stream so the Octane worker is freed;
-    // the client reconnects with its cursor and resumes with zero gap.
+    // Bounded connection lifetime CAP: end the stream so the Octane worker is freed;
+    // the client reconnects with its cursor and resumes with zero gap. The EFFECTIVE
+    // lifetime is clamped below Octane's per-request watchdog at runtime (see stream()),
+    // otherwise the worker kills the stream mid-flight and the client sees a timeout.
     private const MAX_LIFETIME_SECONDS = 50;
     // Poll cadence for new outbox rows when idle.
     private const POLL_INTERVAL_MS = 800;
@@ -65,7 +67,16 @@ class AppQyV1TranslationStreamController extends Controller
             $cursor = AppQyV1TranslationEventModel::maxId();
         }
 
-        $response = response()->eventStream(function () use ($cursor) {
+        // The effective lifetime MUST stay UNDER Octane's per-request watchdog
+        // (config octane.max_execution_time, default 30s) — otherwise the worker
+        // KILLS the stream mid-flight and the consumer (pycore) sees a read timeout
+        // / "unreachable". Subtract a safety margin; 0/disabled config = unlimited.
+        $maxExec = (int) config('octane.max_execution_time', 30);
+        $maxLifetime = $maxExec > 0
+            ? max(5, min(self::MAX_LIFETIME_SECONDS, $maxExec - 5))
+            : self::MAX_LIFETIME_SECONDS;
+
+        $response = response()->eventStream(function () use ($cursor, $maxLifetime) {
             $current = $cursor;
             $start = microtime(true);
             $lastBeat = $start;
@@ -74,7 +85,7 @@ class AppQyV1TranslationStreamController extends Controller
             // Confirm the resume point to the consumer.
             yield new StreamedEvent(event: 'stream.open', data: json_encode(['cursor' => $current]));
 
-            while ((microtime(true) - $start) < self::MAX_LIFETIME_SECONDS) {
+            while ((microtime(true) - $start) < $maxLifetime) {
                 $events = AppQyV1TranslationEventModel::since($current, self::BATCH_LIMIT);
 
                 if (!empty($events)) {

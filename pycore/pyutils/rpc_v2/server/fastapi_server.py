@@ -115,6 +115,25 @@ class FastAPIRPCServer:
             allow_credentials=True,
         )
 
+        # Windows asyncio (Proactor) raises a benign ConnectionResetError
+        # ([WinError 10054]) from _ProactorBasePipeTransport._call_connection_lost
+        # whenever a client drops a connection abruptly — a browser closing the WS,
+        # or an SSE EventSource on its ~50s reconnect cycle. It is harmless but spams
+        # "Exception in callback" tracebacks once per disconnect. Install a loop
+        # exception handler at startup that swallows ONLY these client-reset errors
+        # and defers everything else to asyncio's default handler.
+        @self.app.on_event("startup")
+        async def _install_loop_exception_handler() -> None:
+            def _handler(loop: "asyncio.AbstractEventLoop", context: Dict[str, Any]) -> None:
+                exc = context.get("exception")
+                if isinstance(exc, (ConnectionResetError, ConnectionAbortedError)):
+                    return  # client went away mid-stream; nothing to do
+                loop.default_exception_handler(context)
+            try:
+                asyncio.get_running_loop().set_exception_handler(_handler)
+            except Exception:
+                pass
+
         self._static_mounts: Dict[str, str] = {}
         self._register_builtin_routes()
         self._add_default_static_dirs()
@@ -724,8 +743,14 @@ class FastAPIRPCServer:
         queue: "asyncio.Queue" = asyncio.Queue(maxsize=self._sse_ring_max)
         conn_id = client_id or str(uuid.uuid4())
 
-        # Lifetime / cadence (seconds). Mirrors the translation stream.
-        max_lifetime = 50.0
+        # Lifetime / cadence (seconds). Unlike the Laravel/Octane translation stream
+        # (bounded at ~50s to free a blocking worker), THIS server is async uvicorn —
+        # one event loop holds many SSE connections cheaply, so there is no worker to
+        # free. A longer bound just paces cursor-resync + caps any leaked connection;
+        # 300s cuts the browser's reconnect churn ~6x (and the Windows-Proactor reset
+        # callbacks that come with each disconnect). The 15s heartbeat keeps proxies
+        # from dropping the idle connection in between.
+        max_lifetime = 300.0
         heartbeat_interval = 15.0
         # Wake at most every `tick` to emit a heartbeat / honour disconnects.
         tick = 1.0
