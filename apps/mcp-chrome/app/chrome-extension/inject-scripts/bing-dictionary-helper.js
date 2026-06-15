@@ -118,36 +118,66 @@
         }
       };
 
-      // Bing serves pronunciation audio via <a class="bigaud" data-mp3link="...">,
-      // NOT <audio> tags, and the link is a RELATIVE path (/dict/mediamp3?blob=...).
+      // Bing serves pronunciation audio via <a class="bigaud">; the mp3 link
+      // lives in data-mp3link / href / or an onclick("...mp3") call, and is often
+      // a RELATIVE path (/dict/mediamp3?...). Extract it from whichever is present.
+      const mp3From = (a) => {
+        if (!a) return null;
+        let link = a.getAttribute('data-mp3link') || a.getAttribute('data-mp3') || a.getAttribute('href');
+        const onclick = a.getAttribute('onclick') || '';
+        if ((!link || link === 'javascript:void(0)') && onclick) {
+          const m =
+            onclick.match(/https?:\/\/[^'")]+\.mp3[^'")]*/i) ||
+            onclick.match(/\/dict\/mediamp3[^'")]*/i);
+          if (m) link = m[0];
+        }
+        return link && link !== 'javascript:void(0)' ? absUrl(link) : null;
+      };
       const audioOf = (el) => {
         if (!el) return null;
         const a =
-          el.matches && el.matches('a.bigaud, .bigaud[data-mp3link]')
+          el.matches && el.matches('a.bigaud, .bigaud')
             ? el
-            : el.querySelector && el.querySelector('a.bigaud, .bigaud[data-mp3link]');
-        if (!a) return null;
-        const link = a.getAttribute('data-mp3link') || a.getAttribute('href');
-        return link && link !== 'javascript:void(0)' ? absUrl(link) : null;
+            : el.querySelector && el.querySelector('a.bigaud, .bigaud');
+        return mp3From(a);
       };
       const pushVoice = (url) => {
         if (url && !result.voiceUrls.includes(url)) result.voiceUrls.push(url);
       };
 
-      // Phonetics + audio: each label (.hd_prUS / .hd_pr, both .b_primtxt) is
-      // immediately followed by a .hd_tf wrapper holding the audio link.
-      document.querySelectorAll('.hd_p1_1 .b_primtxt').forEach((label) => {
-        const audioUrl = audioOf(label.nextElementSibling);
-        result.phonetics.push({
-          text: norm(label.textContent),
-          audioUrl,
-          lang: label.classList.contains('hd_prUS') ? 'en-US' : 'en-GB',
-        });
+      // Phonetics + audio. Bing's header shows US (.hd_prUS) and UK (.hd_pr)
+      // phonetics, each followed by a .hd_tf wrapper with the speaker <a.bigaud>.
+      // Collect them robustly: dedupe by element, classify by class/text, and as
+      // a fallback zip the header's bigaud audios (in order) onto any phonetic
+      // that didn't pair an audio — so we reliably get BOTH pronunciations.
+      const labelEls = [];
+      document.querySelectorAll('.hd_prUS, .hd_pr').forEach((el) => {
+        if (el.closest('.hd_area, .hd_p1_1, .qdef') && !labelEls.includes(el)) labelEls.push(el);
+      });
+      labelEls.forEach((label, idx) => {
+        const text = norm(label.textContent);
+        if (!text) return;
+        const isUS = label.classList.contains('hd_prUS') || /美|\bus\b/i.test(text) || idx === 0;
+        let audioUrl = audioOf(label.nextElementSibling);
+        if (!audioUrl && label.parentElement) {
+          audioUrl = audioOf(label.parentElement.querySelector('.hd_tf'));
+        }
+        result.phonetics.push({ text, audioUrl, lang: isUS ? 'en-US' : 'en-GB' });
         pushVoice(audioUrl);
       });
-      // Belt-and-suspenders: grab the two headword audios by id if pairing missed them.
-      pushVoice(audioOf(document.querySelector('#bigaud_us')));
-      pushVoice(audioOf(document.querySelector('#bigaud_uk')));
+      // Fallback: all header speaker links, in DOM order, zipped onto phonetics
+      // missing an audio (covers layouts where the per-label pairing misses).
+      const headerAuds = [];
+      document
+        .querySelectorAll('.hd_area a.bigaud, .hd_p1_1 a.bigaud, #bigaud_1, #bigaud_2, #bigaud_us, #bigaud_uk')
+        .forEach((a) => {
+          const u = mp3From(a);
+          if (u && !headerAuds.includes(u)) headerAuds.push(u);
+        });
+      result.phonetics.forEach((p, i) => {
+        if (!p.audioUrl && headerAuds[i]) p.audioUrl = headerAuds[i];
+      });
+      headerAuds.forEach(pushVoice);
 
       // Definitions: .qdef > ul > li, each li has a .pos (part of speech) + .def.
       document.querySelectorAll('.qdef > ul > li').forEach((li) => {
