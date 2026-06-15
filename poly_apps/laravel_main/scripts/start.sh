@@ -163,17 +163,17 @@ pg_run_as_postgres() {
 # graceful `octane:stop` for a previously-started Octane server; (2) detect any
 # remaining listener on the port; (3) stop ONLY leftover app servers
 # (octane/swoole/artisan serve) -- a non-app holder is reported, never killed.
-# Y/n prompt that DEFAULTS TO YES. Non-interactive (no controlling TTY) -> YES
-# automatically (policy: auto-stop the conflicting container). Force-disable with
-# PORT_CONFLICT_AUTO_STOP=no (always No) or pre-confirm with =yes.
-prompt_default_yes() {
+# y/N prompt that DEFAULTS TO NO. Non-interactive (no controlling TTY) -> NO
+# automatically (policy: keep container running). Override with
+# PORT_CONFLICT_AUTO_STOP=yes (pre-confirm) or =no (force No).
+prompt_default_no() {
     local msg="$1" reply=""
-    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Nn]*) return 1 ;; [Yy]*) return 0 ;; esac
+    case "${PORT_CONFLICT_AUTO_STOP:-}" in [Yy]*) return 0 ;; [Nn]*) return 1 ;; esac
     if [ -t 0 ] && [ -r /dev/tty ]; then
-        printf '%s [Y/n] ' "$msg" > /dev/tty
+        printf '%s [y/N] ' "$msg" > /dev/tty
         read -r reply < /dev/tty || reply=""
     fi
-    case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+    case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 
 # If a Docker container PUBLISHES <port> (e.g. MinIO on :9000, pgvector on :5432),
@@ -188,9 +188,11 @@ stop_docker_publisher() {
     cid=$(printf '%s' "$row" | awk '{print $1}')
     cname=$(printf '%s' "$row" | awk '{print $2}')
     echo "  Port ${port} is published by Docker container: ${cname:-$cid}"
-    if prompt_default_yes "  Stop container ${cname:-$cid} to free port ${port}?"; then
+    if prompt_default_no "  Stop container ${cname:-$cid} and disable its auto-startup to free port ${port}?"; then
         echo "  Stopping container ${cname:-$cid} ..."
         docker stop "$cid" >/dev/null 2>&1 || ${USE_SUDO:-} docker stop "$cid" >/dev/null 2>&1 || true
+        docker update --restart=no "$cid" >/dev/null 2>&1 || ${USE_SUDO:-} docker update --restart=no "$cid" >/dev/null 2>&1 || true
+        echo "  Container ${cname:-$cid} stopped and auto-startup disabled."
         return 0
     fi
     echo "  Left container ${cname:-$cid} running; port ${port} still occupied."
