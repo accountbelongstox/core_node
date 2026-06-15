@@ -5,7 +5,7 @@
       "id": "159ec26d49df9c5c3a5a2270108f4a11d307cc2417d154fba5038d6e1c3128b5",
       "name": "DESKTOP-1L9K06N",
       "port": 59000,
-      "role": "client"
+      "role": "dev"
     },
     {
       "host": "43.163.112.77",
@@ -15,6 +15,6 @@
       "role": "client"
     }
   ],
-  "updated_at": 1781489342.7183301,
-  "version": 11
+  "updated_at": 1781489883.354149,
+  "version": 12
 }

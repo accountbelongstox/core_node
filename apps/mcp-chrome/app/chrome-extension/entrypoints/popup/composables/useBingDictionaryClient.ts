@@ -5,8 +5,12 @@
 
 import { ref, onUnmounted } from 'vue';
 import { apiManager } from '@/services/ApiManager';
+import { readJson, writeJson } from './useCacheStore';
 
 export type ServiceMode = 'legacy' | 'worker';
+
+// Where the last scrape-test results are cached (visible again on reopen).
+const SCRAPE_CACHE_KEY = 'scrape_test_results';
 
 export interface ClientConfig {
   apiUrl: string;
@@ -171,6 +175,8 @@ export function useBingDictionaryClient() {
       });
       if (response && response.success) {
         testResults.value = response.results || [];
+        // Persist to the dictionary cache so results survive popup close/reopen.
+        await writeJson('dictionary', SCRAPE_CACHE_KEY, testResults.value);
       } else {
         error.value = (response && response.error) || 'Scrape test failed';
       }
@@ -187,6 +193,11 @@ export function useBingDictionaryClient() {
     await loadClientConfig();
     await apiManager.initialize({ autoDetect: false });
     syncEndpointFromSettings();
+    // Restore the last scrape-test results from cache so they're visible again.
+    const cached = await readJson<any[]>('dictionary', SCRAPE_CACHE_KEY);
+    if (Array.isArray(cached) && cached.length) {
+      testResults.value = cached;
+    }
     await loadClientServiceState();
     startStatsPolling();
   };
@@ -228,6 +239,9 @@ export function useBingDictionaryClient() {
       if (response && response.success) {
         clientService.value.isRunning = !clientService.value.isRunning;
         console.log(`[Bing Dictionary] worker service ${clientService.value.isRunning ? 'started' : 'stopped'}`);
+        // Refresh state immediately so the UI reflects the first poll right away
+        // instead of waiting for the next 3s stats tick.
+        await loadClientServiceState();
       } else {
         console.error('[Bing Dictionary] Failed to toggle service:', response?.error);
         error.value = response?.error || 'Failed to toggle service';

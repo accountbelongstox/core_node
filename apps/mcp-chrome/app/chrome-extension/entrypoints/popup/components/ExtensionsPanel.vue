@@ -25,9 +25,14 @@
               ]"
             ></span>
           </span>
-          <span class="text-[10px] font-bold text-slate-200 uppercase tracking-wide truncate">
-            {{ getMessage('extGlobalTaskSystem') }}
-          </span>
+          <div class="min-w-0">
+            <div class="text-[10px] font-bold uppercase tracking-wide truncate" style="color: var(--text)">
+              {{ getMessage('extTaskQueueTitle') }}
+            </div>
+            <div class="text-[8px] truncate" style="color: var(--text-faint)">
+              {{ getMessage('extTaskQueueSubtitle') }}
+            </div>
+          </div>
         </div>
         <span
           :class="[
@@ -178,9 +183,11 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { getMessage } from '@/utils/i18n';
 import { useExtensionConfig } from '@/composables/useExtensionConfig';
+import { usePersistedRef } from '@/composables/usePersistedRef';
 import { useLocalTaskQueue } from '../composables/useLocalTaskQueue';
 import BingDictionary from './extensions/BingDictionary.vue';
 import QueueCenterPanel from './extensions/QueueCenterPanel.vue';
+import NotebookLMPanel from './extensions/NotebookLMPanel.vue';
 
 // ============================================================
 // Centralized state management
@@ -196,7 +203,9 @@ const {
 } = useExtensionConfig();
 
 // Horizontal tab selection (replaces the old accordion expand/collapse).
-const activeExtId = ref<string>('');
+// Persisted so reopening the popup returns to the same extension (e.g. Bing
+// Dictionary) instead of resetting to the first one.
+const activeExtId = usePersistedRef<string>('activeExtId', '');
 const activeExtension = computed(
   () => extensions.value.find((e) => e.id === activeExtId.value) || extensions.value[0],
 );
@@ -290,6 +299,7 @@ const resumeTaskSystem = async () => {
 const registerAllComponents = () => {
   registerComponent('queue-center', QueueCenterPanel);
   registerComponent('bing-dictionary', BingDictionary);
+  registerComponent('notebooklm', NotebookLMPanel);
 };
 
 // ============================================================

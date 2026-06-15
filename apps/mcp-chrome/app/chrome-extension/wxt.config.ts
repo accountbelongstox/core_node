@@ -151,6 +151,14 @@ export default defineConfig({
         include: [/chrome-mcp-shared/, /node_modules/],
       },
       rollupOptions: {
+        // onnxruntime-web's minified WASM loader glue uses direct eval(). It's a
+        // vendor file we can't change and the eval is internal/required, so we
+        // silence just the [EVAL] diagnostic (our own code never uses direct
+        // eval, so suppressing this code is safe).
+        onwarn(warning: any, defaultHandler: (w: any) => void) {
+          if (warning && warning.code === 'EVAL') return;
+          defaultHandler(warning);
+        },
         output: {
           // Preserve all exports from shared package
           preserveModules: false,

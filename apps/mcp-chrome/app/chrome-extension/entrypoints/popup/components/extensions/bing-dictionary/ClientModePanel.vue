@@ -4,44 +4,40 @@
       <div class="config-header">
         <span class="config-label">{{ t('bingAssistTitle') }}</span>
         <div class="config-controls">
+          <button
+            class="ghost-test"
+            @click="onTestConnection"
+            :disabled="connectionStatus?.state === 'testing'"
+            :title="t('bingAssistTest')"
+          >
+            {{ connectionStatus?.state === 'testing' ? '…' : t('bingAssistTest') }}
+          </button>
           <span :class="['status-indicator', clientService.isRunning ? 'running' : 'stopped']">
             {{ clientService.isRunning ? 'RUNNING' : 'STOPPED' }}
           </span>
-          <button class="service-button" @click="onToggleService" :disabled="!clientConfig.apiUrl">
+          <button class="service-button" @click="onToggleService" :disabled="!currentEndpoint">
             {{ clientService.isRunning ? '[STOP]' : '[START]' }}
           </button>
         </div>
       </div>
 
       <div v-if="error" class="assist-error">⚠ {{ error }}</div>
+      <div
+        v-if="connectionStatus && connectionStatus.state === 'ok'"
+        class="conn-status ok"
+      >
+        ● {{ connectionStatus.message }}
+      </div>
+      <div
+        v-if="connectionStatus && connectionStatus.state === 'fail'"
+        class="conn-status fail"
+      >
+        ○ {{ connectionStatus.message }}
+      </div>
 
-      <div class="config-form">
-        <!-- Endpoint comes from Settings → API (single source). Read-only here. -->
-        <div class="form-group">
-          <label class="form-label">{{ t('bingAssistEndpointLabel') }}</label>
-          <div class="url-row">
-            <div class="endpoint-readonly" :title="currentEndpoint">
-              {{ currentEndpoint || t('bingAssistEndpointFromSettings') }}
-            </div>
-            <button
-              class="test-button"
-              @click="onTestConnection"
-              :disabled="!currentEndpoint || connectionStatus?.state === 'testing'"
-            >
-              {{ connectionStatus?.state === 'testing' ? '…' : t('bingAssistTest') }}
-            </button>
-          </div>
-          <div class="endpoint-hint">{{ t('bingAssistEndpointFromSettings') }}</div>
-          <div
-            v-if="connectionStatus && connectionStatus.state !== 'idle'"
-            :class="['conn-status', connectionStatus.state]"
-          >
-            {{ connectionStatus.state === 'ok' ? '● ' : connectionStatus.state === 'fail' ? '○ ' : '' }}
-            {{ connectionStatus.message }}
-          </div>
-        </div>
-
-        <div class="form-group">
+      <!-- Config as a compact 2-column grid (not a vertical list). -->
+      <div class="config-grid">
+        <div class="config-field">
           <label class="form-label">{{ t('bingAssistPollInterval') }}</label>
           <input
             :value="clientConfig.fetchInterval"
@@ -53,8 +49,7 @@
             :disabled="clientService.isRunning"
           />
         </div>
-
-        <div class="form-group">
+        <div class="config-field">
           <label class="form-label">{{ t('bingAssistBatchSize') }}</label>
           <input
             :value="clientConfig.batchSize"
@@ -66,8 +61,7 @@
             :disabled="clientService.isRunning"
           />
         </div>
-
-        <div v-if="clientConfig.mode === 'worker'" class="form-group">
+        <div v-if="clientConfig.mode === 'worker'" class="config-field">
           <label class="form-label">{{ t('bingAssistParallelTabs') }}</label>
           <input
             :value="clientConfig.tabCount"
@@ -79,8 +73,7 @@
             :disabled="clientService.isRunning"
           />
         </div>
-
-        <div v-if="clientConfig.mode === 'worker'" class="form-group">
+        <div v-if="clientConfig.mode === 'worker'" class="config-field">
           <label class="form-label">{{ t('bingAssistTargetLang') }}</label>
           <input
             :value="clientConfig.targetLanguage"
@@ -91,9 +84,8 @@
             :disabled="clientService.isRunning"
           />
         </div>
-
-        <div v-if="clientService.isRunning" class="config-hint">{{ t('bingAssistStopToChange') }}</div>
       </div>
+      <div v-if="clientService.isRunning" class="config-hint">{{ t('bingAssistStopToChange') }}</div>
 
       <!-- Live Bing scrape test (default word: hello) -->
       <div class="scrape-test">
@@ -144,6 +136,9 @@
             </div>
           </div>
         </div>
+        <div v-if="testResults && testResults.length" class="scrape-cache-hint">
+          {{ t('bingAssistCachedAt') }} {{ cacheLocation }}
+        </div>
       </div>
 
       <!-- Live activity -->
@@ -153,58 +148,42 @@
       </div>
 
       <div v-if="clientService.stats" class="service-stats">
-        <div class="stats-bento-grid">
-          <div class="bento-card bento-primary">
-            <div class="bento-label">{{ t('bingAssistQueueTotal') }}</div>
-            <div class="bento-value">{{ clientService.stats.queueTotal || 0 }}</div>
+        <!-- Status strip -->
+        <div class="stats-status">
+          <span
+            :class="['s-dot', clientService.stats.isOnline ? 'online' : 'offline']"
+          ></span>
+          <span class="s-state">{{ clientService.stats.isOnline ? 'Online' : 'Offline' }}</span>
+          <span class="s-meta">
+            {{ t('bingAssistLastRun') }} {{ formatTimestamp(clientService.stats.lastRun) }}
+          </span>
+          <span v-if="clientService.stats.activeTabs !== undefined" class="s-tabs">
+            {{ clientService.stats.activeTabs }} · {{ t('bingAssistActiveTabs') }}
+          </span>
+        </div>
+
+        <!-- Headline metrics -->
+        <div class="metric-grid">
+          <div class="metric-card mc-primary">
+            <span class="metric-value">{{ clientService.stats.queueTotal || 0 }}</span>
+            <span class="metric-label">{{ t('bingAssistQueueTotal') }}</span>
           </div>
-          <div class="bento-card bento-success">
-            <div class="bento-label">{{ t('bingAssistNewTasks') }}</div>
-            <div class="bento-value bento-highlight">{{ clientService.stats.newTasks || 0 }}</div>
+          <div class="metric-card mc-success">
+            <span class="metric-value">{{ clientService.stats.newTasks || 0 }}</span>
+            <span class="metric-label">{{ t('bingAssistNewTasks') }}</span>
           </div>
-          <div class="bento-card bento-warning">
-            <div class="bento-label">{{ t('bingAssistDuplicates') }}</div>
-            <div class="bento-value">{{ clientService.stats.duplicateTasks || 0 }}</div>
+          <div class="metric-card mc-warning">
+            <span class="metric-value">{{ clientService.stats.duplicateTasks || 0 }}</span>
+            <span class="metric-label">{{ t('bingAssistDuplicates') }}</span>
           </div>
         </div>
 
-        <div class="stats-traditional">
-          <div class="stat-item">
-            <span class="stat-label">{{ t('bingAssistPending') }}</span>
-            <span class="stat-value">{{ clientService.stats.pending }}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">{{ t('bingAssistTranslated') }}</span>
-            <span class="stat-value">{{ clientService.stats.translated }}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">{{ t('bingAssistFailed') }}</span>
-            <span class="stat-value">{{ clientService.stats.failed }}</span>
-          </div>
-          <div v-if="clientService.stats.invalid !== undefined" class="stat-item">
-            <span class="stat-label">{{ t('bingAssistInvalid') }}</span>
-            <span class="stat-value">{{ clientService.stats.invalid }}</span>
-          </div>
-          <div v-if="clientService.stats.activeTabs !== undefined" class="stat-item">
-            <span class="stat-label">{{ t('bingAssistActiveTabs') }}</span>
-            <span class="stat-value">{{ clientService.stats.activeTabs }}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">{{ t('bingAssistLastRun') }}</span>
-            <span class="stat-value">{{ formatTimestamp(clientService.stats.lastRun) }}</span>
-          </div>
-          <div v-if="clientService.stats.workerId" class="stat-item">
-            <span class="stat-label">{{ t('bingAssistWorkerId') }}</span>
-            <span class="stat-value stat-worker-id">{{ clientService.stats.workerId }}</span>
-          </div>
-          <div v-if="clientService.stats.isOnline !== undefined" class="stat-item">
-            <span class="stat-label">{{ t('bingAssistStatusLabel') }}</span>
-            <span
-              :class="['stat-value', 'stat-online', clientService.stats.isOnline ? 'online' : 'offline']"
-            >
-              {{ clientService.stats.isOnline ? '● Online' : '○ Offline' }}
-            </span>
-          </div>
+        <!-- Secondary stats as chips -->
+        <div class="stat-chips">
+          <span class="chip"><i class="c-dot pending"></i>{{ t('bingAssistPending') }}<b>{{ clientService.stats.pending }}</b></span>
+          <span class="chip"><i class="c-dot done"></i>{{ t('bingAssistTranslated') }}<b>{{ clientService.stats.translated }}</b></span>
+          <span class="chip"><i class="c-dot fail"></i>{{ t('bingAssistFailed') }}<b>{{ clientService.stats.failed }}</b></span>
+          <span v-if="clientService.stats.invalid !== undefined" class="chip"><i class="c-dot invalid"></i>{{ t('bingAssistInvalid') }}<b>{{ clientService.stats.invalid }}</b></span>
         </div>
       </div>
     </div>
@@ -215,6 +194,11 @@
 import { ref } from 'vue';
 import type { ClientConfig, ClientServiceState } from '../../../composables/useBingDictionaryClient';
 import { getMessage as t } from '../../../../../utils/i18n';
+import { describeLocation } from '../../../composables/useCacheStore';
+
+// Where scrape-test results are cached (OPFS · cache/dictionary). Shown so the
+// user can see the cache path right where the results appear.
+const cacheLocation = describeLocation();
 
 interface ConnectionStatus {
   state: 'idle' | 'testing' | 'ok' | 'fail';
@@ -402,6 +386,189 @@ const playAudio = (url?: string) => {
   font-size: 11px;
   color: var(--text-faint);
   font-style: italic;
+}
+
+/* Compact 2-column config grid (replaces the old vertical list of fields). */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.config-field .form-label {
+  margin: 0;
+}
+
+.config-field .form-input-small {
+  width: 100%;
+}
+
+.ghost-test {
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ghost-test:hover {
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+.ghost-test:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- Worker stats dashboard ---- */
+.service-stats {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stats-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.stats-status .s-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stats-status .s-dot.online {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent);
+}
+
+.stats-status .s-dot.offline {
+  background: var(--text-faint);
+}
+
+.stats-status .s-state {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stats-status .s-meta {
+  color: var(--text-faint);
+}
+
+.stats-status .s-tabs {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.metric-card .metric-value {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+}
+
+.metric-card .metric-label {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.metric-card.mc-primary {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+.metric-card.mc-primary .metric-value {
+  color: var(--accent-fg);
+}
+.metric-card.mc-success .metric-value {
+  color: var(--success);
+}
+.metric-card.mc-warning .metric-value {
+  color: var(--warning);
+}
+
+.stat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.stat-chips .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.stat-chips .chip b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.stat-chips .c-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.stat-chips .c-dot.pending {
+  background: var(--accent);
+}
+.stat-chips .c-dot.done {
+  background: var(--success);
+}
+.stat-chips .c-dot.fail {
+  background: var(--danger);
+}
+.stat-chips .c-dot.invalid {
+  background: var(--warning);
 }
 
 .scrape-test {

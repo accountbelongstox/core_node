@@ -1082,13 +1082,17 @@ const PcBooksPage: React.FC = () => {
         const hasPrev = lv.start > 0;
         const hasNext = lv.start + lv.limit < lv.total;
         const t = lv.totals || {};
+        // Always surface the character count too (the user expects it shown).
+        const charsPart = (t.chars != null) ? ` · ${nf(t.chars)} ${L.characters.toLowerCase()}` : '';
         let summary = '';
         if (lv.kind === 'words' || lv.kind === 'unique_words') {
-          summary = `${nf(t.unique_words)} ${L.distinctWord} · ${nf(t.words)} ${L.totalOccur}`;
+          summary = `${nf(t.unique_words)} ${L.distinctWord} · ${nf(t.words)} ${L.totalOccur}${charsPart}`;
         } else if (lv.kind === 'sentences') {
-          summary = `${nf(t.sentences)} ${L.sentences.toLowerCase()}`;
+          summary = `${nf(t.sentences)} ${L.sentences.toLowerCase()}${charsPart}`;
         } else if (lv.kind === 'unique_sentences') {
-          summary = `${nf(t.unique_sentences)} ${L.distinctWord}`;
+          summary = `${nf(t.unique_sentences)} ${L.distinctWord}${charsPart}`;
+        } else if (lv.kind === 'languages') {
+          summary = `${nf(t.chars)} ${L.characters.toLowerCase()}`;
         }
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"

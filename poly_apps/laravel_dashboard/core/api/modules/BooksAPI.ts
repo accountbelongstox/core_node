@@ -191,6 +191,26 @@ export interface DictionaryWordsResponse {
   error?: string;
 }
 
+// ========== Vocabulary stat drill-down: word example sentences ==========
+
+/** One example sentence for a dictionary word (GET /dictionary/sentences). */
+export interface WordSentenceRow {
+  id?: number | string;
+  text: string;
+  explanation?: string | null;
+  grammar?: string | null;
+  special_usage?: string | null;
+  ai_commentary?: string | null;
+  audio?: string | null;
+  occurrence_count?: number | null;
+}
+
+export interface WordSentencesResponse {
+  success: boolean;
+  sentences: WordSentenceRow[];
+  error?: string;
+}
+
 // ========== Vocabulary stat drill-down: TTS queue items ==========
 
 export type TtsQueueItemStatus = 'pending' | 'processing' | 'completed' | 'failed';
@@ -308,6 +328,19 @@ export class BooksAPI extends BaseAPI {
     limit?: number;
   }): Promise<APIResponse<DictionaryWordsResponse>> {
     return this.get<DictionaryWordsResponse>('/dictionary/words', params, false);
+  }
+
+  /**
+   * GET /dictionary/sentences — example sentences for one dictionary word.
+   * Lazy-loaded when a word's detail panel expands. Returns the sentence text
+   * plus any explanation / grammar / special-usage / AI commentary / audio.
+   */
+  async getWordSentences(params: {
+    word: string;
+    language?: string;
+    limit?: number;
+  }): Promise<APIResponse<WordSentencesResponse>> {
+    return this.get<WordSentencesResponse>('/dictionary/sentences', params, false);
   }
 
   /** GET /tts/queue/items — paginated TTS queue items by status / type. */

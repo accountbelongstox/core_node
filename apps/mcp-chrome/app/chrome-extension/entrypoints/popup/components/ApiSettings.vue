@@ -190,9 +190,11 @@ const refreshEndpoints = async () => {
   if (isRefreshing.value) return;
   isRefreshing.value = true;
   try {
+    // Manual "Test All" wants fast feedback — no retry (retries=0). The retry
+    // only belongs to the background auto-detect loop, where stability matters.
     const statuses = await Promise.all(
       apiManager.getAllEndpoints().map((endpoint) =>
-        apiManager.checkEndpoint(endpoint, PROBE_TIMEOUT_MS),
+        apiManager.checkEndpoint(endpoint, PROBE_TIMEOUT_MS, 0),
       ),
     );
     endpointStatuses.value = statuses;
@@ -207,7 +209,7 @@ const testEndpoint = async (endpoint: ApiEndpoint) => {
   if (testingId.value) return;
   testingId.value = endpoint.id;
   try {
-    const status = await apiManager.checkEndpoint(endpoint, PROBE_TIMEOUT_MS);
+    const status = await apiManager.checkEndpoint(endpoint, PROBE_TIMEOUT_MS, 0);
     const idx = endpointStatuses.value.findIndex((s) => s.endpoint.id === endpoint.id);
     if (idx >= 0) {
       endpointStatuses.value[idx] = status;

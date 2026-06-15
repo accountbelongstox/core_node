@@ -53,7 +53,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { WordResult } from '@/composables/useBingDictionary';
+import type { WordResult } from '../../../composables/useBingDictionary';
 
 interface Props {
   result: WordResult | null;

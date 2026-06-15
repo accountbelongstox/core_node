@@ -20,7 +20,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { HistoryItem, WordResult } from '@/composables/useBingDictionary';
+import type { HistoryItem, WordResult } from '../../../composables/useBingDictionary';
 
 interface Props {
   history: HistoryItem[];

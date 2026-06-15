@@ -73,12 +73,40 @@ export class ApiManager {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  /** One raw reachability probe. Resolves true if the host answered at all. */
+  /**
+   * One reachability/health probe. Prefers a REAL check routed through the
+   * background service worker (which bypasses CORS via host_permissions and can
+   * actually read `/api/health`), so the result reflects whether the API truly
+   * works — not just that the host answered an opaque response.
+   *
+   * Falls back to a direct `no-cors` reachability probe against `/up` when the
+   * background isn't reachable (e.g. running outside a popup context).
+   */
   private async probeOnce(endpoint: ApiEndpoint, timeout: number): Promise<boolean> {
+    const base = buildApiUrl(endpoint); // protocol://host[:port]/
+
+    // Preferred: ask the background SW for a genuine, CORS-free health check.
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        const resp: any = await chrome.runtime.sendMessage({
+          type: 'api_health_check',
+          url: base,
+          timeoutMs: timeout,
+        });
+        if (resp && typeof resp.healthy === 'boolean') {
+          // Healthy (real 2xx from /api/health) is the accurate "API works" signal.
+          return resp.healthy;
+        }
+      }
+    } catch {
+      // Background unavailable — fall through to the direct probe.
+    }
+
+    // Fallback: direct no-cors reachability probe (opaque; can't read the body).
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     try {
-      await fetch(buildApiUrl(endpoint, '/'), {
+      await fetch(buildApiUrl(endpoint, '/up'), {
         method: 'GET',
         signal: controller.signal,
         mode: 'no-cors',
