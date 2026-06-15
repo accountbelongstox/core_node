@@ -31,6 +31,7 @@ FORCE_OVERWRITE_MODE=false
 # State tracking variables
 ENCRYPTION_CHECK_COMPLETED=false
 FILE_VALIDATION_COMPLETED=false
+SSH_KEYS_CHECK_COMPLETED=false
 ORIGINAL_WORKING_DIR=$(pwd)
 ORIGINAL_REMOTE_URL=""
 ORIGINAL_BRANCH=""
@@ -42,6 +43,14 @@ CORE_NODE_DIR="$(dirname "$(dirname "$SCRIPT_PATH")")"
 PROJECT_NAME="core_node"
 TIMESTAMP="$(date "+%Y-%m-%d %H:%M:%S")"
 WIN_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/win/win_common"
+
+# SSH key variables
+SSH_DIR="$HOME/.ssh"
+SSH_KEY_NAME="id_ed25519"
+SSH_PUB_NAME="id_ed25519.pub"
+LOCAL_SSH_PUB_JS="$CORE_NODE_DIR/scripts/git/git.ssh.id.ed.pub.js"
+LOCAL_SSH_KEY_JS="$CORE_NODE_DIR/scripts/git/git.ssh.id.ed.js"
+SSH_INSTALL_SCRIPT="$CORE_NODE_DIR/scripts/shells/linux/debian/install_shells/20_install_git_ssh.sh"
 
 # Cache and encryption variables
 SKIP_ENCRYPT_CACHE_DIR="/var/_node_core"
@@ -370,6 +379,138 @@ ensure_ssh_permissions() {
             write_color_text "Failed to fix SSH directory permissions" "Red" >&2
         fi
     fi
+}
+
+# Function to ensure SSH keys are installed (decrypt from encrypted .js files if missing)
+ensure_ssh_keys_installed() {
+    # Only run once per session
+    if [ "$SSH_KEYS_CHECK_COMPLETED" = true ]; then
+        return 0
+    fi
+    SSH_KEYS_CHECK_COMPLETED=true
+
+    # Check if SSH private key already exists in any common location
+    local has_ssh_key=false
+    local check_dirs=("$HOME/.ssh" "/root/.ssh" "/etc/ssh/keys")
+
+    for check_dir in "${check_dirs[@]}"; do
+        if [ -d "$check_dir" ]; then
+            local found_key=""
+            found_key=$(find "$check_dir" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" 2>/dev/null | head -n 1)
+            if [ -n "$found_key" ] && [ -s "$found_key" ]; then
+                has_ssh_key=true
+                write_color_text "SSH key found: $found_key" "Green" >&2
+                break
+            fi
+        fi
+    done
+
+    if [ "$has_ssh_key" = true ]; then
+        write_color_text "SSH keys already installed, skipping installation" "DarkGray" >&2
+        return 0
+    fi
+
+    write_color_text "No SSH private key found, attempting to install..." "Yellow" >&2
+
+    # Method 1: Use the dedicated install script if available
+    if [ -f "$SSH_INSTALL_SCRIPT" ] && [ -x "$SSH_INSTALL_SCRIPT" ]; then
+        write_color_text "Running SSH key installation script: $SSH_INSTALL_SCRIPT" "Cyan" >&2
+        bash "$SSH_INSTALL_SCRIPT"
+        local install_exit_code=$?
+        if [ $install_exit_code -eq 0 ]; then
+            write_color_text "SSH key installation completed via install script" "Green" >&2
+            return 0
+        else
+            write_color_text "SSH key installation script returned exit code: $install_exit_code" "Yellow" >&2
+        fi
+    fi
+
+    # Method 2: Direct decryption from encrypted JS files
+    if [ ! -f "$LOCAL_SSH_PUB_JS" ] || [ ! -f "$LOCAL_SSH_KEY_JS" ]; then
+        write_color_text "Encrypted SSH key files not found, cannot auto-install" "Red" >&2
+        write_color_text "  Expected: $LOCAL_SSH_PUB_JS" "DarkGray" >&2
+        write_color_text "  Expected: $LOCAL_SSH_KEY_JS" "DarkGray" >&2
+        return 1
+    fi
+
+    local node_cmd=""
+    if command -v node >/dev/null 2>&1; then
+        node_cmd="node"
+    elif command -v nodejs >/dev/null 2>&1; then
+        node_cmd="nodejs"
+    else
+        write_color_text "Node.js not found, cannot decrypt SSH keys" "Red" >&2
+        return 1
+    fi
+
+    # Create SSH directory if needed
+    if [ ! -d "$SSH_DIR" ]; then
+        mkdir -p "$SSH_DIR"
+        chmod 700 "$SSH_DIR"
+    fi
+
+    write_color_text "Encrypted SSH key files found, decryption required" "Cyan" >&2
+    write_color_text "Password input is hidden and shows * for each character" "DarkGray" >&2
+
+    # Read password with masked input
+    local password=""
+    local password_confirm=""
+    local old_stty=""
+
+    if [ -t 0 ]; then
+        printf "Enter SSH key password: " >&2
+        old_stty=$(stty -g 2>/dev/null)
+        stty -echo 2>/dev/null
+        IFS= read -r password
+        stty "$old_stty" 2>/dev/null
+        echo >&2
+
+        printf "Confirm password: " >&2
+        stty -echo 2>/dev/null
+        IFS= read -r password_confirm
+        stty "$old_stty" 2>/dev/null
+        echo >&2
+    else
+        write_color_text "Non-interactive terminal, cannot prompt for password" "Yellow" >&2
+        return 1
+    fi
+
+    if [ -z "$password" ] || [ "$password" != "$password_confirm" ]; then
+        write_color_text "Password empty or mismatch, skipping SSH key decryption" "Red" >&2
+        password=""
+        password_confirm=""
+        return 1
+    fi
+
+    # Decrypt public key
+    write_color_text "Decrypting SSH public key..." "Cyan" >&2
+    if ! "$node_cmd" "$LOCAL_SSH_PUB_JS" pwd "$password" "$SSH_DIR" 2>&1; then
+        write_color_text "Failed to decrypt SSH public key" "Red" >&2
+        password=""
+        password_confirm=""
+        return 1
+    fi
+
+    # Decrypt private key
+    write_color_text "Decrypting SSH private key..." "Cyan" >&2
+    if ! "$node_cmd" "$LOCAL_SSH_KEY_JS" pwd "$password" "$SSH_DIR" 2>&1; then
+        write_color_text "Failed to decrypt SSH private key" "Red" >&2
+        password=""
+        password_confirm=""
+        return 1
+    fi
+
+    # Clear password from memory
+    password=""
+    password_confirm=""
+
+    # Set correct permissions
+    chmod 700 "$SSH_DIR" 2>/dev/null
+    find "$SSH_DIR" -name "id_*" -type f ! -name "*.pub" -exec chmod 600 {} \; 2>/dev/null
+    find "$SSH_DIR" -name "*.pub" -type f -exec chmod 644 {} \; 2>/dev/null
+
+    write_color_text "SSH keys installed and permissions set" "Green" >&2
+    return 0
 }
 
 # Function to configure git safe directory
@@ -1140,27 +1281,70 @@ invoke_force_overwrite() {
 check_host_reachable() {
     local url="$1"
     local host=""
+    local port=22
 
     # Extract host from git URL
     if [[ "$url" =~ @([^:]+): ]]; then
         host="${BASH_REMATCH[1]}"
-    elif [[ "$url" =~ //([^/]+) ]]; then
+    elif [[ "$url" =~ //([^/:]+)(:([0-9]+))? ]]; then
         host="${BASH_REMATCH[1]}"
+        if [[ -n "${BASH_REMATCH[3]}" ]]; then
+            port="${BASH_REMATCH[3]}"
+        fi
     else
         # Can't parse host, assume reachable
         return 0
     fi
 
-    write_color_text "Checking connectivity to: $host" "DarkGray"
-
-    # Try ping with 2 second timeout
-    if ping -c 1 -W 2 "$host" >/dev/null 2>&1; then
-        write_color_text "✓ Host $host is reachable" "Green"
-        return 0
-    else
-        write_color_text "✗ Host $host is NOT reachable" "Red"
-        return 1
+    # Determine port from URL scheme
+    if [[ "$url" =~ ^https:// ]]; then
+        port=443
+    elif [[ "$url" =~ ^http:// ]]; then
+        port=80
     fi
+
+    write_color_text "Checking connectivity to: $host (port $port)" "DarkGray"
+
+    # Method 1: Use ssh connection test for SSH (port 22) targets
+    if [[ "$port" -eq 22 ]]; then
+        if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$host" echo 2>&1 | grep -qiE "permission denied|authentication|successfully"; then
+            write_color_text "✓ Host $host is reachable (SSH port open)" "Green"
+            return 0
+        fi
+    fi
+
+    # Method 2: Use nc (netcat) for TCP port check
+    if command -v nc >/dev/null 2>&1; then
+        if nc -z -w 5 "$host" "$port" >/dev/null 2>&1; then
+            write_color_text "✓ Host $host is reachable (port $port open)" "Green"
+            return 0
+        fi
+    fi
+
+    # Method 3: Use bash /dev/tcp (built-in, no extra tools needed)
+    if (echo >/dev/tcp/"$host"/"$port") 2>/dev/null; then
+        write_color_text "✓ Host $host is reachable (port $port open)" "Green"
+        return 0
+    fi
+
+    # Method 4: Use curl for HTTP/HTTPS targets
+    if [[ "$port" -eq 443 || "$port" -eq 80 ]]; then
+        if command -v curl >/dev/null 2>&1; then
+            if curl -s --connect-timeout 5 --max-time 5 -o /dev/null "$url" 2>/dev/null; then
+                write_color_text "✓ Host $host is reachable (HTTP check)" "Green"
+                return 0
+            fi
+        fi
+    fi
+
+    # Method 5: Fallback to ping (may be blocked by firewalls)
+    if ping -c 1 -W 3 "$host" >/dev/null 2>&1; then
+        write_color_text "✓ Host $host is reachable (ICMP)" "Green"
+        return 0
+    fi
+
+    write_color_text "✗ Host $host is NOT reachable (all methods failed)" "Red"
+    return 1
 }
 
 # Function to perform git operations
@@ -1183,6 +1367,9 @@ invoke_git_operations() {
     # Change to project directory
     cd "$CORE_NODE_DIR"
     write_color_text "Changed to: $CORE_NODE_DIR" "DarkCyan"
+
+    # Ensure SSH keys are installed (decrypt if missing, skip if already present)
+    ensure_ssh_keys_installed
 
     # Ensure SSH permissions are correct
     ensure_ssh_permissions
