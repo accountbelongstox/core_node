@@ -29,4 +29,7 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
         Route::post('/release', [AppQyV1AssistController::class, 'release']);
         Route::post('/cover/retry', [AppQyV1AssistController::class, 'coverRetry']);
         Route::get('/status', [AppQyV1AssistController::class, 'status']);
+        // Cheap cache-backed pending snapshot (cover/tts/translation), warmed by
+        // the Octane cover timer — third parties + dashboard poll this freely.
+        Route::get('/pending', [AppQyV1AssistController::class, 'pending']);
     });

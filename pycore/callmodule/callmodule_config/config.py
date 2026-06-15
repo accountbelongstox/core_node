@@ -168,8 +168,13 @@ class Config:
         "TRANSLATION_REVERB_APP_KEY",
         os.getenv("REVERB_APP_KEY", "reverb-key-1769434123"),
     )
-    # Public channel broadcast by Laravel (Phase C contract).
+    # Public channel name (kept for status/back-compat; unused by the SSE transport).
     TRANSLATION_REVERB_CHANNEL = os.getenv("TRANSLATION_REVERB_CHANNEL", "translation-queue")
+    # SSE endpoint path on the Laravel HTTP base (replaces the Reverb /app/<key>
+    # WS path). The translation WS client GETs this with a ?cursor= resume id.
+    TRANSLATION_SSE_PATH = os.getenv(
+        "TRANSLATION_SSE_PATH", "/api/app_qy_v1/ai_tools/translation/queue/stream"
+    )
     # Whether the WS client is enabled on start (real-time signal runs by default);
     # toggle at runtime via /api/heartbeat/disable/translation_ws_client.
     TRANSLATION_WS_ENABLED_ON_START = (
