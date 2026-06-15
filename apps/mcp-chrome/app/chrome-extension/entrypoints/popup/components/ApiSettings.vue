@@ -23,6 +23,104 @@
       </div>
     </div>
 
+    <!-- Endpoint dropdown -->
+    <div ref="dropdownRef" class="relative mb-2">
+      <button
+        class="tk-select w-full flex items-center justify-between gap-1.5 px-2 py-1.5 border rounded-md text-left transition-colors"
+        @click="dropdownOpen = !dropdownOpen"
+      >
+        <span class="flex items-center gap-1.5 min-w-0">
+          <span :class="['w-2 h-2 rounded-full shrink-0', headerDotClass]"></span>
+          <span class="text-[10px] font-medium truncate" style="color: var(--text)">
+            {{ selectedLabel }}
+          </span>
+          <span
+            v-if="autoMode"
+            class="px-1 rounded text-[7px] font-bold shrink-0 bg-indigo-500/15 text-indigo-400"
+          >
+            {{ t('apiAutoTag') }}
+          </span>
+        </span>
+        <span
+          class="text-[9px] shrink-0 transition-transform"
+          :class="{ 'rotate-180': dropdownOpen }"
+          style="color: var(--text-faint)"
+          >▾</span
+        >
+      </button>
+
+      <div
+        v-if="dropdownOpen"
+        class="tk-dropdown absolute left-0 right-0 z-20 mt-1 rounded-md border shadow-lg overflow-hidden"
+      >
+        <!-- Auto (best available by weight) -->
+        <button
+          class="tk-option w-full flex items-center justify-between gap-1.5 px-2 py-1.5 text-left transition-colors"
+          :class="{ 'tk-option-active': autoMode }"
+          @click="selectAuto"
+        >
+          <span class="flex items-center gap-1.5 min-w-0">
+            <span class="w-2 h-2 rounded-full shrink-0 bg-indigo-500"></span>
+            <span class="text-[10px] font-medium truncate" style="color: var(--text)">
+              {{ t('apiAutoMode') }}
+            </span>
+          </span>
+          <span v-if="autoMode" class="text-[9px] shrink-0 text-indigo-400">✓</span>
+        </button>
+
+        <div class="border-t" style="border-color: var(--border)"></div>
+
+        <!-- Concrete endpoints, highest weight first -->
+        <div
+          v-for="endpoint in sortedEndpoints"
+          :key="endpoint.id"
+          class="tk-option px-2 py-1.5 cursor-pointer transition-colors"
+          :class="{ 'tk-option-active': !autoMode && isCurrentEndpoint(endpoint.id) }"
+          @click="selectEndpoint(endpoint.id)"
+        >
+          <div class="flex items-center justify-between gap-1.5">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span :class="['w-2 h-2 rounded-full shrink-0', dotClass(endpoint.id)]"></span>
+              <span class="text-[10px] font-medium truncate" style="color: var(--text)">
+                {{ endpoint.description }}
+              </span>
+              <span v-if="!autoMode && isCurrentEndpoint(endpoint.id)" class="text-[9px] shrink-0 text-indigo-400">✓</span>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span
+                v-if="getStatus(endpoint.id)"
+                class="text-[8px] font-mono"
+                style="color: var(--text-faint)"
+              >
+                {{ formatResponseTime(getStatus(endpoint.id)!.responseTime) }}
+              </span>
+              <button
+                class="tk-btn-test px-1.5 py-0.5 rounded text-[8px] font-bold transition-colors disabled:opacity-50"
+                :disabled="testingId === endpoint.id"
+                @click.stop="testEndpoint(endpoint)"
+              >
+                {{ testingId === endpoint.id ? '...' : t('apiTest') }}
+              </button>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 mt-1 pl-3.5">
+            <span class="text-[8px] font-mono truncate" style="color: var(--text-faint)">
+              {{ endpoint.protocol }}://{{ endpoint.url
+              }}{{ endpoint.port ? ':' + endpoint.port : '' }}
+            </span>
+            <span
+              :class="[
+                'ml-auto px-1 rounded text-[7px] font-bold shrink-0',
+                endpoint.isLocal ? 'bg-emerald-500/15 text-emerald-400' : 'bg-sky-500/15 text-sky-400',
+              ]"
+            >
+              {{ endpoint.isLocal ? t('apiLocalTag') : t('apiRemoteTag') }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Current endpoint summary -->
     <div
       class="px-2 py-1 rounded text-[9px] break-all mb-2"
@@ -30,57 +128,6 @@
     >
       {{ t('apiCurrentLabel') }}
       <strong style="color: var(--text)">{{ currentEndpointUrl }}</strong>
-    </div>
-
-    <!-- Endpoint list -->
-    <div class="flex flex-col gap-1 mb-2">
-      <div
-        v-for="endpoint in sortedEndpoints"
-        :key="endpoint.id"
-        :class="[
-          'group rounded-md border px-2 py-1.5 cursor-pointer transition-colors',
-          isCurrentEndpoint(endpoint.id) ? 'tk-endpoint-active' : 'tk-endpoint',
-        ]"
-        @click="selectEndpoint(endpoint.id)"
-      >
-        <div class="flex items-center justify-between gap-1.5">
-          <div class="flex items-center gap-1.5 min-w-0">
-            <span :class="['w-2 h-2 rounded-full shrink-0', dotClass(endpoint.id)]"></span>
-            <span class="text-[10px] font-medium truncate" style="color: var(--text)">
-              {{ endpoint.description }}
-            </span>
-          </div>
-          <div class="flex items-center gap-1.5 shrink-0">
-            <span
-              v-if="getStatus(endpoint.id)"
-              class="text-[8px] font-mono"
-              style="color: var(--text-faint)"
-            >
-              {{ formatResponseTime(getStatus(endpoint.id)!.responseTime) }}
-            </span>
-            <button
-              class="tk-btn-test px-1.5 py-0.5 rounded text-[8px] font-bold transition-colors disabled:opacity-50"
-              :disabled="testingId === endpoint.id"
-              @click.stop="testEndpoint(endpoint)"
-            >
-              {{ testingId === endpoint.id ? '...' : t('apiTest') }}
-            </button>
-          </div>
-        </div>
-        <div class="flex items-center gap-1 mt-1 pl-3.5">
-          <span class="text-[8px] font-mono truncate" style="color: var(--text-faint)">
-            {{ endpoint.protocol }}://{{ endpoint.url }}{{ endpoint.port ? ':' + endpoint.port : '' }}
-          </span>
-          <span
-            :class="[
-              'ml-auto px-1 rounded text-[7px] font-bold shrink-0',
-              endpoint.isLocal ? 'bg-emerald-500/15 text-emerald-400' : 'bg-sky-500/15 text-sky-400',
-            ]"
-          >
-            {{ endpoint.isLocal ? t('apiLocalTag') : t('apiRemoteTag') }}
-          </span>
-        </div>
-      </div>
     </div>
 
     <!-- Add custom endpoint -->
@@ -143,6 +190,9 @@ const isRefreshing = ref(false);
 const isAutoDetecting = ref(false);
 const testingId = ref<string | null>(null);
 const showCustomForm = ref(false);
+const dropdownOpen = ref(false);
+const autoMode = ref(false);
+const dropdownRef = ref<HTMLElement | null>(null);
 
 const customUrl = ref('');
 const customProtocol = ref<'http' | 'https'>('http');
@@ -164,6 +214,20 @@ const currentEndpointUrl = computed(() => {
 });
 
 const isCurrentEndpoint = (id: string) => currentEndpoint.value?.id === id;
+
+// Dropdown header label: in auto mode show "Auto · <resolved server>", otherwise
+// the manually-selected server's name.
+const selectedLabel = computed(() => {
+  const ep = currentEndpoint.value;
+  if (autoMode.value) {
+    return ep ? `${t('apiAutoMode')} · ${ep.description}` : t('apiAutoMode');
+  }
+  return ep ? ep.description : t('apiNone');
+});
+
+const headerDotClass = computed(() =>
+  currentEndpoint.value ? dotClass(currentEndpoint.value.id) : 'bg-slate-500',
+);
 
 const getStatus = (id: string): EndpointStatus | undefined =>
   endpointStatuses.value.find((s) => s.endpoint.id === id);
@@ -226,8 +290,38 @@ const testEndpoint = async (endpoint: ApiEndpoint) => {
 const selectEndpoint = async (endpointId: string) => {
   const success = await apiManager.setEndpoint(endpointId);
   if (success) {
+    autoMode.value = false;
+    dropdownOpen.value = false;
     currentEndpoint.value = apiManager.getCurrentEndpoint();
     syncAppStore(endpointId);
+    currentBackoff = BASE_INTERVAL_MS;
+  }
+};
+
+// Switch to auto mode: probe in weight order and ride the highest-weight
+// endpoint that answers. The background tick keeps it on the best available.
+const selectAuto = async () => {
+  autoMode.value = true;
+  dropdownOpen.value = false;
+  await apiManager.setAutoMode(true);
+  isAutoDetecting.value = true;
+  try {
+    const best = await apiManager.selectBestAvailable(PROBE_TIMEOUT_MS);
+    endpointStatuses.value = [...apiManager.getAllEndpointStatuses()];
+    if (best) {
+      currentEndpoint.value = best;
+      syncAppStore(best.id);
+    }
+  } finally {
+    isAutoDetecting.value = false;
+    currentBackoff = BASE_INTERVAL_MS;
+  }
+};
+
+const onDocumentClick = (event: MouseEvent) => {
+  if (!dropdownOpen.value) return;
+  if (dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {
+    dropdownOpen.value = false;
   }
 };
 
@@ -261,11 +355,13 @@ const scheduleNext = () => {
   autoDetectTimer = setTimeout(tick, currentBackoff);
 };
 
-// Self-scheduling recovery loop. Each cycle re-probes the CURRENT endpoint (a
-// single cheap check, so failure/recovery is noticed promptly); only when it is
-// actually unreachable do we sweep for a healthy alternative. While everything
-// is down the interval backs off (15s → up to 60s) so an outage can't spin the
-// CPU or flood the log; it resets to the base interval as soon as we recover.
+// Self-scheduling monitor loop. Behaviour depends on the mode:
+//   • Auto mode  — sweep endpoints in weight order and ride the highest-weight
+//     one that answers, upgrading back as better endpoints recover.
+//   • Manual mode — the user pinned a server, so we only re-probe it for status
+//     (red/green dot) and never switch away.
+// While everything is down the interval backs off (15s → up to 60s) so an
+// outage can't spin the CPU or flood the log; it resets on recovery.
 const tick = async () => {
   if (disposed) return;
   if (isRefreshing.value || testingId.value) {
@@ -273,28 +369,31 @@ const tick = async () => {
     return;
   }
   try {
+    if (autoMode.value) {
+      isAutoDetecting.value = true;
+      const best = await apiManager.selectBestAvailable(PROBE_TIMEOUT_MS);
+      endpointStatuses.value = [...apiManager.getAllEndpointStatuses()];
+      if (best) {
+        currentEndpoint.value = best;
+        syncAppStore(best.id);
+        currentBackoff = BASE_INTERVAL_MS;
+      } else {
+        currentBackoff = Math.min(currentBackoff * 1.5, MAX_INTERVAL_MS);
+      }
+      return;
+    }
+
+    // Manual mode: just monitor the pinned endpoint, don't switch away.
     const current = currentEndpoint.value;
     if (current) {
       const status = await apiManager.checkEndpoint(current, PROBE_TIMEOUT_MS);
       upsertStatus(status);
-      if (status.isAvailable) {
-        currentBackoff = BASE_INTERVAL_MS;
-        return;
-      }
-    }
-    // Current endpoint is down (or none selected) — look for a healthy one.
-    isAutoDetecting.value = true;
-    const detected = await apiManager.autoDetectEndpoint(PROBE_TIMEOUT_MS);
-    if (detected) {
-      currentEndpoint.value = detected;
-      syncAppStore(detected.id);
-      await refreshEndpoints();
-      currentBackoff = BASE_INTERVAL_MS;
-    } else {
-      currentBackoff = Math.min(currentBackoff * 1.5, MAX_INTERVAL_MS);
+      currentBackoff = status.isAvailable
+        ? BASE_INTERVAL_MS
+        : Math.min(currentBackoff * 1.5, MAX_INTERVAL_MS);
     }
   } catch (error) {
-    console.error('[API Settings] Auto-detect cycle failed:', error);
+    console.error('[API Settings] Monitor cycle failed:', error);
     currentBackoff = Math.min(currentBackoff * 1.5, MAX_INTERVAL_MS);
   } finally {
     isAutoDetecting.value = false;
@@ -304,13 +403,25 @@ const tick = async () => {
 
 onMounted(async () => {
   await apiManager.initialize({ autoDetect: false });
+  autoMode.value = apiManager.isAutoMode();
   currentEndpoint.value = apiManager.getCurrentEndpoint();
   await refreshEndpoints();
+  // In auto mode, immediately settle on the best available endpoint so the
+  // header reflects the real pick instead of the last provisional one.
+  if (autoMode.value) {
+    const best = await apiManager.selectBestAvailable(PROBE_TIMEOUT_MS);
+    if (best) {
+      currentEndpoint.value = best;
+      syncAppStore(best.id);
+    }
+  }
+  document.addEventListener('click', onDocumentClick);
   scheduleNext();
 });
 
 onUnmounted(() => {
   disposed = true;
+  document.removeEventListener('click', onDocumentClick);
   if (autoDetectTimer !== null) {
     clearTimeout(autoDetectTimer);
     autoDetectTimer = null;
@@ -335,16 +446,22 @@ onUnmounted(() => {
   background: var(--accent);
   color: var(--accent-fg);
 }
-.tk-endpoint {
+.tk-select {
   background: var(--surface-2);
   border-color: var(--border);
 }
-.tk-endpoint:hover {
+.tk-select:hover {
   border-color: var(--border-strong);
 }
-.tk-endpoint-active {
+.tk-dropdown {
+  background: var(--surface-solid, var(--surface));
+  border-color: var(--border);
+}
+.tk-option:hover {
+  background: var(--surface-2);
+}
+.tk-option-active {
   background: var(--accent-soft);
-  border-color: var(--accent);
 }
 .tk-input {
   background: var(--surface-2);

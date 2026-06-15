@@ -15,7 +15,7 @@ import type { LearningStatsData } from '../../core/api/modules/AppQyV1';
 import { commonClasses } from '../../styles/theme';
 import { TRANSLATIONS } from '../../constants';
 import { useAppState } from '../../contexts/AppStateContext';
-import { logError, logInfo } from '../../core/logs/logStore';
+import { logError, logInfo } from '../../core/logstore/logStore';
 
 interface StatisticsPanelProps {
   userId?: string;

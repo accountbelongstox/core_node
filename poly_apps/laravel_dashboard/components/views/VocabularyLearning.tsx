@@ -47,7 +47,7 @@ import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 import { ConfirmModal, useToast } from '../admin';
-import { logError, logInfo, logSuccess } from '../../core/logs/logStore';
+import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
 
 /** Status → text colour for the collapsed-pill latest-entry one-liner. */
 const ttsLogStatusText = (status: string | undefined): string =>

@@ -4,7 +4,7 @@ import { apiManager, HealthCheckResult } from '../services/ApiManager';
 import { recheckApiEndpointsNow } from '../services/ApiHealthRecheck';
 import { ApiEndpoint } from '../config/api-endpoints';
 import { Portal } from './shared';
-import { logError, logSuccess } from '../core/logs/logStore';
+import { logError, logSuccess } from '../core/logstore/logStore';
 
 /**
  * Top-header API endpoint switcher.

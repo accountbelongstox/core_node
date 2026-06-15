@@ -7,7 +7,7 @@ import {
   clearLogs,
   getLogEntries,
   subscribeLogs
-} from '../../core/logs/logStore';
+} from '../../core/logstore/logStore';
 
 /**
  * GlobalLogPanel — FLOATING operation-log dock anchored to the bottom of the

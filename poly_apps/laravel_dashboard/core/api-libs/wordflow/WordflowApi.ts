@@ -31,7 +31,7 @@ import {
   MasterRequestOptions,
   isQueuedError,
 } from '../base';
-import { appendLog } from '../../logs/logStore';
+import { appendLog } from '../../logstore/logStore';
 // Leaf UI module (react + Portal + overlay constants only — it never imports
 // any api-lib), so pulling it into the transport layer cannot create a cycle.
 import { notify } from '../../notify/notify';

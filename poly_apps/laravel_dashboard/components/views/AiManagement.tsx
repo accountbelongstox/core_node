@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../core/api';
 import { useToast } from '../admin';
-import { appendLog } from '../../core/logs/logStore';
+import { appendLog } from '../../core/logstore/logStore';
 import type {
   AiProvider, AiRateStatus, AiGatewayProvider, AiGatewayRecord, AiChatResult,
 } from '../../core/api/modules/AiManagementAPI';
