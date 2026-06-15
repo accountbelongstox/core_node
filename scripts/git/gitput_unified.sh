@@ -381,7 +381,9 @@ ensure_ssh_permissions() {
     fi
 }
 
-# Function to ensure SSH keys are installed (decrypt from encrypted .js files if missing)
+# Function to ensure SSH keys are installed (non-interactive, no password prompts)
+# On Ubuntu/Debian: checks existing keys, generates new ed25519 key if none found,
+# adds to ssh-agent, and starts ssh-agent if not running.
 ensure_ssh_keys_installed() {
     # Only run once per session
     if [ "$SSH_KEYS_CHECK_COMPLETED" = true ]; then
@@ -389,8 +391,27 @@ ensure_ssh_keys_installed() {
     fi
     SSH_KEYS_CHECK_COMPLETED=true
 
-    # Check if SSH private key already exists in any common location
+    # Step 1: Check if openssh-client is installed, install if missing
+    if ! command -v ssh >/dev/null 2>&1; then
+        write_color_text "[SSH] openssh-client not found, installing..." "Yellow" >&2
+        if command -v apt-get >/dev/null 2>&1; then
+            $USE_SUDO apt-get update -qq >/dev/null 2>&1
+            $USE_SUDO apt-get install -y -qq openssh-client >/dev/null 2>&1
+        elif command -v yum >/dev/null 2>&1; then
+            $USE_SUDO yum install -y -q openssh-clients >/dev/null 2>&1
+        elif command -v apk >/dev/null 2>&1; then
+            $USE_SUDO apk add openssh-client >/dev/null 2>&1
+        fi
+        if ! command -v ssh >/dev/null 2>&1; then
+            write_color_text "[SSH] Failed to install openssh-client" "Red" >&2
+            return 1
+        fi
+        write_color_text "[SSH] openssh-client installed" "Green" >&2
+    fi
+
+    # Step 2: Check if SSH private key already exists in any common location
     local has_ssh_key=false
+    local found_key_path=""
     local check_dirs=("$HOME/.ssh" "/root/.ssh" "/etc/ssh/keys")
 
     for check_dir in "${check_dirs[@]}"; do
@@ -399,117 +420,74 @@ ensure_ssh_keys_installed() {
             found_key=$(find "$check_dir" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" 2>/dev/null | head -n 1)
             if [ -n "$found_key" ] && [ -s "$found_key" ]; then
                 has_ssh_key=true
-                write_color_text "SSH key found: $found_key" "Green" >&2
+                found_key_path="$found_key"
+                write_color_text "[SSH] Key found: $found_key" "Green" >&2
                 break
             fi
         fi
     done
 
-    if [ "$has_ssh_key" = true ]; then
-        write_color_text "SSH keys already installed, skipping installation" "DarkGray" >&2
-        return 0
-    fi
+    # Step 3: If no key found, generate a new ed25519 key pair non-interactively
+    if [ "$has_ssh_key" = false ]; then
+        write_color_text "[SSH] No SSH key found, generating new ed25519 key pair..." "Yellow" >&2
 
-    write_color_text "No SSH private key found, attempting to install..." "Yellow" >&2
+        # Create ~/.ssh directory with correct permissions
+        if [ ! -d "$SSH_DIR" ]; then
+            mkdir -p "$SSH_DIR"
+            chmod 700 "$SSH_DIR"
+        fi
 
-    # Method 1: Use the dedicated install script if available
-    if [ -f "$SSH_INSTALL_SCRIPT" ] && [ -x "$SSH_INSTALL_SCRIPT" ]; then
-        write_color_text "Running SSH key installation script: $SSH_INSTALL_SCRIPT" "Cyan" >&2
-        bash "$SSH_INSTALL_SCRIPT"
-        local install_exit_code=$?
-        if [ $install_exit_code -eq 0 ]; then
-            write_color_text "SSH key installation completed via install script" "Green" >&2
-            return 0
+        local key_path="$SSH_DIR/$SSH_KEY_NAME"
+
+        # ssh-keygen: -t type, -f output file, -N passphrase (empty), -q quiet, -C comment
+        if ssh-keygen -t ed25519 -f "$key_path" -N "" -q -C "$(whoami)@$(hostname)-$(date +%Y%m%d)" 2>/dev/null; then
+            chmod 600 "$key_path"
+            chmod 644 "${key_path}.pub"
+            has_ssh_key=true
+            found_key_path="$key_path"
+            write_color_text "[SSH] Key pair generated: $key_path" "Green" >&2
+            write_color_text "[SSH] Public key:" "Cyan" >&2
+            cat "${key_path}.pub" >&2
+            write_color_text "" "" >&2
+            write_color_text "[SSH] *** Add this public key to GitHub/Gitee before pushing ***" "Yellow" >&2
+            write_color_text "[SSH]   GitHub: https://github.com/settings/ssh/new" "DarkGray" >&2
+            write_color_text "[SSH]   Gitee:  https://gitee.com/profile/sshkeys" "DarkGray" >&2
         else
-            write_color_text "SSH key installation script returned exit code: $install_exit_code" "Yellow" >&2
+            write_color_text "[SSH] Failed to generate SSH key pair" "Red" >&2
+            return 1
         fi
     fi
 
-    # Method 2: Direct decryption from encrypted JS files
-    if [ ! -f "$LOCAL_SSH_PUB_JS" ] || [ ! -f "$LOCAL_SSH_KEY_JS" ]; then
-        write_color_text "Encrypted SSH key files not found, cannot auto-install" "Red" >&2
-        write_color_text "  Expected: $LOCAL_SSH_PUB_JS" "DarkGray" >&2
-        write_color_text "  Expected: $LOCAL_SSH_KEY_JS" "DarkGray" >&2
-        return 1
+    # Step 4: Ensure ssh-agent is running and key is loaded
+    if [ "$has_ssh_key" = true ] && [ -n "$found_key_path" ]; then
+        # Start ssh-agent if not already running
+        if [ -z "${SSH_AUTH_SOCK:-}" ]; then
+            eval "$(ssh-agent -s)" >/dev/null 2>&1
+            write_color_text "[SSH] ssh-agent started" "DarkGray" >&2
+        fi
+
+        # Check if key is already loaded in agent
+        if ! ssh-add -l 2>/dev/null | grep -q "$found_key_path"; then
+            ssh-add "$found_key_path" 2>/dev/null
+            if [ $? -eq 0 ]; then
+                write_color_text "[SSH] Key loaded into ssh-agent: $(basename "$found_key_path")" "DarkGray" >&2
+            fi
+        fi
     fi
 
-    local node_cmd=""
-    if command -v node >/dev/null 2>&1; then
-        node_cmd="node"
-    elif command -v nodejs >/dev/null 2>&1; then
-        node_cmd="nodejs"
-    else
-        write_color_text "Node.js not found, cannot decrypt SSH keys" "Red" >&2
-        return 1
+    # Step 5: Set correct permissions on SSH directory
+    if [ -d "$SSH_DIR" ]; then
+        chmod 700 "$SSH_DIR" 2>/dev/null
+        find "$SSH_DIR" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" -exec chmod 600 {} \; 2>/dev/null
+        find "$SSH_DIR" -maxdepth 1 -name "*.pub" -type f -exec chmod 644 {} \; 2>/dev/null
+        if [ -f "$SSH_DIR/authorized_keys" ]; then
+            chmod 600 "$SSH_DIR/authorized_keys" 2>/dev/null
+        fi
+        if [ -f "$SSH_DIR/config" ]; then
+            chmod 600 "$SSH_DIR/config" 2>/dev/null
+        fi
     fi
 
-    # Create SSH directory if needed
-    if [ ! -d "$SSH_DIR" ]; then
-        mkdir -p "$SSH_DIR"
-        chmod 700 "$SSH_DIR"
-    fi
-
-    write_color_text "Encrypted SSH key files found, decryption required" "Cyan" >&2
-    write_color_text "Password input is hidden and shows * for each character" "DarkGray" >&2
-
-    # Read password with masked input
-    local password=""
-    local password_confirm=""
-    local old_stty=""
-
-    if [ -t 0 ]; then
-        printf "Enter SSH key password: " >&2
-        old_stty=$(stty -g 2>/dev/null)
-        stty -echo 2>/dev/null
-        IFS= read -r password
-        stty "$old_stty" 2>/dev/null
-        echo >&2
-
-        printf "Confirm password: " >&2
-        stty -echo 2>/dev/null
-        IFS= read -r password_confirm
-        stty "$old_stty" 2>/dev/null
-        echo >&2
-    else
-        write_color_text "Non-interactive terminal, cannot prompt for password" "Yellow" >&2
-        return 1
-    fi
-
-    if [ -z "$password" ] || [ "$password" != "$password_confirm" ]; then
-        write_color_text "Password empty or mismatch, skipping SSH key decryption" "Red" >&2
-        password=""
-        password_confirm=""
-        return 1
-    fi
-
-    # Decrypt public key
-    write_color_text "Decrypting SSH public key..." "Cyan" >&2
-    if ! "$node_cmd" "$LOCAL_SSH_PUB_JS" pwd "$password" "$SSH_DIR" 2>&1; then
-        write_color_text "Failed to decrypt SSH public key" "Red" >&2
-        password=""
-        password_confirm=""
-        return 1
-    fi
-
-    # Decrypt private key
-    write_color_text "Decrypting SSH private key..." "Cyan" >&2
-    if ! "$node_cmd" "$LOCAL_SSH_KEY_JS" pwd "$password" "$SSH_DIR" 2>&1; then
-        write_color_text "Failed to decrypt SSH private key" "Red" >&2
-        password=""
-        password_confirm=""
-        return 1
-    fi
-
-    # Clear password from memory
-    password=""
-    password_confirm=""
-
-    # Set correct permissions
-    chmod 700 "$SSH_DIR" 2>/dev/null
-    find "$SSH_DIR" -name "id_*" -type f ! -name "*.pub" -exec chmod 600 {} \; 2>/dev/null
-    find "$SSH_DIR" -name "*.pub" -type f -exec chmod 644 {} \; 2>/dev/null
-
-    write_color_text "SSH keys installed and permissions set" "Green" >&2
     return 0
 }
 
