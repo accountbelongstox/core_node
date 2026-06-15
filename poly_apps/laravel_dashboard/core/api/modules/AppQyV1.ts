@@ -253,7 +253,7 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/ai_tools/tts/options', undefined, true, 3600000);
   }
 
-  async generateTTS(data: { text: string; language: string; type?: string; options?: any }): Promise<APIResponse> {
+  async generateTTS(data: { text: string; language: string; type?: string; voice_type?: string; speed?: number; options?: any }): Promise<APIResponse> {
     return this.post('/ai_tools/tts/generate', data);
   }
 
