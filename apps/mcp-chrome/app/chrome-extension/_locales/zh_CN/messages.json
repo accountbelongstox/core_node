@@ -667,6 +667,8 @@
   "apiTesting": { "message": "测试中…" },
   "apiTest": { "message": "测试" },
   "apiCurrentLabel": { "message": "当前：" },
+  "apiAutoMode": { "message": "自动（择优）" },
+  "apiAutoTag": { "message": "自动" },
   "apiNone": { "message": "无" },
   "apiLocalTag": { "message": "本地" },
   "apiRemoteTag": { "message": "远程" },

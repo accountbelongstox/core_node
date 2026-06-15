@@ -192,7 +192,7 @@ function resolveWsUrl(): string {
 function logUnreachableHintOnce() {
   if (unreachableHintLogged) return;
   unreachableHintLogged = true;
-  import('../../logs/logStore')
+  import('../../logstore/logStore')
     .then(({ logWarn }) => {
       let apiHostNote = '';
       try {

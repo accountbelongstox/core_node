@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { pycoreApi } from '../../../core/api-libs/pycore';
 import type { AiProvider, ImageHistoryEntry } from '../../../core/api-libs/pycore';
-import { logInfo, logSuccess, logError } from '../../../core/logs/logStore';
+import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import { PcImageLightbox } from './PcAiShared';
 
 const LOG_SRC = 'pc-ai-studio';

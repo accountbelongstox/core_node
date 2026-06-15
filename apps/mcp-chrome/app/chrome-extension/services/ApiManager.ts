@@ -26,6 +26,9 @@ export class ApiManager {
   private failureStreak: Map<string, number> = new Map();
   private customEndpoints: ApiEndpoint[] = [];
   private lastNoEndpointWarn = 0;
+  // Auto mode: always ride the highest-weight (lowest `priority`) endpoint that
+  // is reachable, upgrading back automatically as better endpoints recover.
+  private autoMode = false;
   private storageKey = 'api_settings';
 
   async initialize(options: { autoDetect?: boolean; timeout?: number } = {}) {
@@ -38,7 +41,12 @@ export class ApiManager {
       ? settings.customEndpoints
       : [];
 
-    if (settings.userSelectedEndpointId) {
+    this.autoMode = settings.autoMode === true;
+
+    // A manual selection only wins while auto mode is OFF. In auto mode we fall
+    // through to the last auto-detected endpoint (a provisional starting point)
+    // and let the caller re-pick the best available.
+    if (!this.autoMode && settings.userSelectedEndpointId) {
       const endpoint = this.resolveEndpoint(settings.userSelectedEndpointId);
       if (endpoint) {
         this.currentEndpoint = endpoint;
@@ -193,6 +201,52 @@ export class ApiManager {
     return null;
   }
 
+  /**
+   * Probe endpoints in weight order and switch to the highest-weight (lowest
+   * `priority` number) one that answers — even if the current endpoint is still
+   * up. This is the "Auto" behaviour: always ride the best available server,
+   * upgrading back as higher-weight endpoints recover. Unlike
+   * `autoDetectEndpoint`, it does NOT short-circuit on the current endpoint, so
+   * it can climb back to a preferred server once it returns.
+   */
+  async selectBestAvailable(timeout: number = 3000): Promise<ApiEndpoint | null> {
+    const sorted = [...this.getAllEndpoints()].sort((a, b) => a.priority - b.priority);
+
+    for (const endpoint of sorted) {
+      const status = await this.checkEndpoint(endpoint, timeout);
+      if (status.isAvailable) {
+        if (this.currentEndpoint?.id !== endpoint.id) {
+          this.currentEndpoint = endpoint;
+          await this.saveSettings({ autoDetectedEndpointId: endpoint.id });
+          console.log(
+            `[API Manager] Auto-selected best endpoint: ${endpoint.id} (${status.responseTime}ms)`,
+          );
+        }
+        return endpoint;
+      }
+    }
+
+    // Nothing reachable — keep the current endpoint so we recover when the
+    // network returns, and rate-limit the warning to avoid log spam.
+    const now = Date.now();
+    if (now - this.lastNoEndpointWarn > NO_ENDPOINT_WARN_INTERVAL_MS) {
+      console.warn('[API Manager] No endpoints reachable; keeping current and will keep retrying');
+      this.lastNoEndpointWarn = now;
+    }
+    return null;
+  }
+
+  isAutoMode(): boolean {
+    return this.autoMode;
+  }
+
+  /** Toggle auto mode and persist it. Selecting a specific endpoint turns it off. */
+  async setAutoMode(enabled: boolean): Promise<void> {
+    this.autoMode = enabled;
+    await this.saveSettings({ autoMode: enabled });
+    console.log('[API Manager] Auto mode:', enabled ? 'on' : 'off');
+  }
+
   async setEndpoint(endpointId: string): Promise<boolean> {
     const endpoint = this.resolveEndpoint(endpointId);
 
@@ -202,9 +256,11 @@ export class ApiManager {
     }
 
     this.currentEndpoint = endpoint;
+    this.autoMode = false; // an explicit pick wins over auto mode
 
     await this.saveSettings({
       userSelectedEndpointId: endpointId,
+      autoMode: false,
     });
 
     console.log('[API Manager] Endpoint manually set to:', endpointId);
@@ -241,6 +297,7 @@ export class ApiManager {
     userSelectedEndpointId: string;
     autoDetectedEndpointId: string;
     customEndpoints: ApiEndpoint[];
+    autoMode: boolean;
   }>) {
     try {
       const currentSettings = await this.loadSettings();
@@ -256,6 +313,7 @@ export class ApiManager {
     userSelectedEndpointId?: string;
     autoDetectedEndpointId?: string;
     customEndpoints?: ApiEndpoint[];
+    autoMode?: boolean;
   }> {
     try {
       const result = await chrome.storage.local.get(this.storageKey);

@@ -19,7 +19,7 @@ import { commonClasses } from '../../../styles/theme';
 import { api } from '../../../core/api';
 import type { CoverStatusData, CoverQueueStats } from '../../../core/api/modules/AppQyV1';
 import { useToast, ConfirmModal } from '../../admin';
-import { logInfo, logError } from '../../../core/logs/logStore';
+import { logInfo, logError } from '../../../core/logstore/logStore';
 import {
   Image as ImageIcon,
   Bot,

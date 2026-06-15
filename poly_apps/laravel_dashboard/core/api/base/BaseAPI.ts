@@ -1,7 +1,7 @@
 import { APIResponse, APIRequestConfig, APIModuleConfig } from '../../types';
 import { apiCache } from './APICache';
 import { htmlErrorManager } from '../../../services/HtmlErrorManager';
-import { appendLog } from '../../logs/logStore';
+import { appendLog } from '../../logstore/logStore';
 
 /**
  * Endpoints excluded from the global log panel: high-frequency background
