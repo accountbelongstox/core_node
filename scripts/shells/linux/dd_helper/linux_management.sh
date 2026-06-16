@@ -498,11 +498,30 @@ remove_desktop_apps() {
     read
 }
 
+# Cap all *.log under /var/_core_node to 10MB each (in place, inode preserved) and
+# install a periodic timer so they stay bounded regardless of the writer. The shared
+# runtime base /var/_core_node is where xrdp_monitor, mcp_chrome, etc. append logs.
+cap_var_core_node_logs() {
+    printf "\033c"
+    echo "=== Cap /var/_core_node log sizes (each *.log > 10MB trimmed) ==="
+    echo ""
+    local guard="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/log_size_cap.sh"
+    if [ -f "$guard" ]; then
+        bash "$guard" /var/_core_node
+        bash "$guard" --install-timer
+    else
+        echo "Error: log_size_cap.sh not found at: $guard"
+    fi
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
 # Slim & Disk Cleanup sub-submenu: groups the disk/bloat tools (scan + the slim
 # actions) so they don't clutter the top Linux Management menu.
 show_slim_disk_submenu() {
     local selected=0
-    local total=7
+    local total=8
     local old_settings=$(stty -g)
     stty -icanon -echo
     trap 'stty "$old_settings"' RETURN
@@ -514,6 +533,7 @@ show_slim_disk_submenu() {
         "Snap Slim (remove dev/desktop snaps + orphan bases)"
         "Remove LibreOffice + code-server"
         "Block & Remove Apache (pin -1 + purge)"
+        "Cap /var/_core_node log sizes (>10MB trim + timer)"
         "Back to Linux Management"
     )
 
@@ -562,7 +582,8 @@ show_slim_disk_submenu() {
                     3) snap_slim ;;
                     4) remove_desktop_apps ;;
                     5) block_and_remove_apache ;;
-                    6) return 0 ;;
+                    6) cap_var_core_node_logs ;;
+                    7) return 0 ;;
                 esac
 
                 stty -icanon -echo

@@ -30,6 +30,21 @@ if [ "${ENABLE_LOG_ROTATION}" = "true" ]; then
     ls -tp "${LOG_DIR}/native_host_stderr_macos_"* 2>/dev/null | tail -n +$((LOG_RETENTION_COUNT + 1)) | xargs -I {} rm -- {}
 fi
 
+# Per-file size cap (in addition to the count retention above): trim any log in
+# LOG_DIR over MAX_LOG_BYTES to its last MAX_LOG_BYTES, preserving the inode. Bounds a
+# single long-running / heavily-erroring session's stderr+wrapper logs.
+MAX_LOG_BYTES=$((20 * 1024 * 1024))
+for _lf in "${LOG_DIR}"/*.log; do
+    [ -f "${_lf}" ] || continue
+    _sz=$(stat -c %s "${_lf}" 2>/dev/null || echo 0)
+    if [ "${_sz:-0}" -gt "${MAX_LOG_BYTES}" ] 2>/dev/null; then
+        if tail -c "${MAX_LOG_BYTES}" "${_lf}" > "${_lf}.cap" 2>/dev/null; then
+            cat "${_lf}.cap" > "${_lf}" 2>/dev/null || true
+        fi
+        rm -f "${_lf}.cap" 2>/dev/null || true
+    fi
+done
+
 # Logging setup
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 WRAPPER_LOG="${LOG_DIR}/native_host_wrapper_macos_${TIMESTAMP}.log"

@@ -19,7 +19,9 @@ for the extraction architecture.
 ## CLI
 
 ```
-pyservice.sh codesync run [--host 0.0.0.0] [--port 59000]   # start the standalone daemon
+pyservice.sh codesync run [--host 0.0.0.0] [--port 59000]   # interactively offer to install as a
+                                                             # systemd service (default Y); decline
+                                                             # -> run the foreground daemon
 pyservice.sh codesync show                                   # role + peers (aligned shape)
 pyservice.sh codesync role [dev|client]                      # print or set this device's role
 pyservice.sh codesync peers list
@@ -30,6 +32,32 @@ pyservice.sh codesync distribute on|off                      # dev only; needs a
 pyservice.sh codesync skip-update on|off                     # client only; needs a running daemon
 pyservice.sh codesync show --port 59055                      # target a non-default port
 ```
+
+## System service (Linux / systemd)
+
+```
+pyservice.sh codesync                 # prompt [Y/n] -> add to systemd + start + show logs
+pyservice.sh codesync install         # install + enable + start (no prompt)
+pyservice.sh codesync start|stop|restart|status
+pyservice.sh codesync uninstall       # stop + disable + remove the unit
+```
+
+`pyservice.sh codesync` with **no subcommand** calls
+`scripts/shells/linux/common/codesync_service.sh` (reusing the shared
+`debian_service_manager.sh`), asks whether to add Code Sync to the system service
+(default **Yes**), then installs + starts the `codesync` systemd unit
+(`ExecStart=/bin/bash <repo>/pyservice.sh codesync run`) and prints how to follow
+the logs:
+
+```
+journalctl -u codesync -f                 # live follow
+journalctl -u codesync -n 200 --no-pager  # last 200 lines
+systemctl status codesync --no-pager      # current status
+# file-sync activity also logs to ~/.core_node/data/code_sync_logs/
+```
+
+On Windows (no systemd) these print a notice + how to run it in the foreground
+(`.\pyservice.ps1 codesync run`, optionally wrapped in Task Scheduler / nssm).
 
 **HTTP-first, file-fallback**: while a daemon (or the full pycore service) is up
 on the target port, edits apply live over HTTP; while it is stopped, role/peers
