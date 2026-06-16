@@ -7,6 +7,7 @@
  * WfUI. Gradient hero overlap card. Faithful to design-reference-{light,dark}.webp. */
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { BookOpen } from 'lucide-react';
 import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
 import type { WordGroup, CourseAnalysis } from '../../../core/api-libs/wordflow/wordflowTypes';
 import { useWfApp } from '../WfAppContext';
@@ -110,8 +111,12 @@ const WfLibraryCourseDetailPage: React.FC = () => {
       <div className="flex-1 overflow-y-auto no-scrollbar pb-32 ds-stack">
         {/* Cover */}
         <div className="flex items-center gap-6 px-1">
-          <div className="ds-media-frame w-24 h-32 shrink-0 flex items-center justify-center">
-            <span className="text-5xl">{group.coverImage || '📚'}</span>
+          <div className="ds-media-frame w-24 h-32 shrink-0 flex items-center justify-center bg-[var(--klein-blue-soft)]/20 rounded-xl border border-[var(--klein-blue-soft)]">
+            {(!group.coverImage || group.coverImage.length <= 2) ? (
+              <BookOpen className="w-12 h-12 text-[var(--klein-blue)] animate-pulse" />
+            ) : (
+              <img src={group.coverImage} referrerPolicy="no-referrer" alt={group.name} className="w-full h-full object-cover rounded-xl" />
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-black text-[var(--color-text-primary)] leading-tight mb-2 line-clamp-2">

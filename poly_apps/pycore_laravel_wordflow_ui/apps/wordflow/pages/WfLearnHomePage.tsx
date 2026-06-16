@@ -26,6 +26,7 @@ import { useWfApp, useWfT } from '../WfAppContext';
 import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
 import { wfRecitationCenter } from '../services/WfRecitationCenter';
 import type { WordGroup } from '../../../core/api-libs/wordflow/wordflowTypes';
+import { motion } from 'framer-motion';
 
 interface HomeStats {
   wordsLearned: number;
@@ -185,24 +186,56 @@ const WfLearnHomePage: React.FC = () => {
     <div className="ds-page ds-section-gap route-fade min-h-screen bg-transparent pb-32">
       {/* Header / greeting */}
       <div className="pt-16 w-full">
-        <div className="px-1">
+        <motion.div
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4 }}
+          className="px-1"
+        >
           <span className="text-sm font-semibold text-[var(--color-text-secondary)]">
             {t('home.welcome') || 'Welcome Back'}
           </span>
-          <h1 className="text-[2rem] leading-[1.15] font-black tracking-tight mt-1 text-[var(--color-text-primary)]">
+          <h1 className="text-[2rem] leading-[1.15] font-black tracking-tight mt-1 text-[var(--color-text-primary)] bg-gradient-to-r from-[var(--color-text-primary)] to-[var(--color-text-secondary)] bg-clip-text text-transparent">
             {userName ? (t('home.hiUser', { name: userName }) || `Hi, ${userName}`) : (t('home.welcomeGuest') || 'Welcome Guest')}
           </h1>
-        </div>
+        </motion.div>
       </div>
 
       <div className="w-full ds-section-gap">
         {/* Today's Progress — Iris gradient hero surface */}
-        <div
-          className="rounded-[var(--radius-card)] p-6 text-[color:var(--klein-on)] relative overflow-hidden"
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05, type: 'spring', damping: 25 }}
+          whileHover={{ y: -2, scale: 1.005 }}
+          className="rounded-[var(--radius-card)] p-6 text-[color:var(--klein-on)] relative overflow-hidden shadow-2xl"
           style={{ background: 'var(--klein-gradient)', boxShadow: 'var(--klein-grad-glow)' }}
         >
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/15 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -bottom-12 -left-8 w-36 h-36 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+          <motion.div
+            animate={{
+              scale: [1, 1.1, 1],
+              opacity: [0.15, 0.25, 0.15]
+            }}
+            transition={{
+              duration: 8,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="absolute -top-10 -right-10 w-40 h-40 bg-white/15 rounded-full blur-2xl pointer-events-none"
+          />
+          <motion.div
+            animate={{
+              scale: [1, 1.15, 1],
+              opacity: [0.1, 0.2, 0.1]
+            }}
+            transition={{
+              duration: 10,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 1
+            }}
+            className="absolute -bottom-12 -left-8 w-36 h-36 bg-white/10 rounded-full blur-3xl pointer-events-none"
+          />
           <div className="relative z-10 space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -212,24 +245,34 @@ const WfLearnHomePage: React.FC = () => {
                 </p>
                 <p className="text-white/80 text-xs mt-1">{t('home.words') || 'words'}</p>
               </div>
-              <div className="w-16 h-16 rounded-full border-4 border-white/40 flex items-center justify-center bg-white/15">
+              <motion.div 
+                whileHover={{ rotate: 15 }}
+                className="w-16 h-16 rounded-full border-4 border-white/40 flex items-center justify-center bg-white/15 backdrop-blur-md shadow-inner"
+              >
                 <span className="text-xl font-bold">{Math.round(progressPercentage)}%</span>
-              </div>
+              </motion.div>
             </div>
             <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
-              <div
-                className="bg-white h-full rounded-full transition-all duration-500"
-                style={{ width: `${progressPercentage}%` }}
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPercentage}%` }}
+                transition={{ duration: 1, ease: 'easeOut' }}
+                className="bg-white h-full rounded-full"
               />
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Daily Recitation (每日背诵) — prominent entry card */}
-        <button
+        <motion.button
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          whileHover={{ y: -3, scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
           type="button"
           onClick={() => navigate(wfPath('learn/daily_recitation'))}
-          className="ds-card ds-card-elevated w-full flex items-center gap-4 p-5 text-left group active:scale-[0.99] transition-transform"
+          className="ds-card ds-card-elevated w-full flex items-center gap-4 p-5 text-left group transition-all"
         >
           {isAuthenticated && recite ? (
             <MiniRing done={recite.done} goal={recite.goal} />
@@ -253,16 +296,22 @@ const WfLearnHomePage: React.FC = () => {
           </div>
           {isAuthenticated && recite && recite.streak > 0 && (
             <span className="shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 bg-orange-500/10 text-orange-500 text-sm font-black">
-              <Flame className="w-4 h-4" aria-hidden />
+              <Flame className="w-4 h-4 text-orange-500" aria-hidden />
               {recite.streak}
             </span>
           )}
           <ChevronRight className="w-5 h-5 text-[var(--color-text-tertiary)] group-hover:text-[var(--klein-blue)] transition-colors flex-shrink-0" />
-        </button>
+        </motion.button>
 
         {/* Quick stats */}
         <div className="ds-grid-breathing grid grid-cols-2">
-          <div className="ds-card p-4 flex items-center gap-3">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+            whileHover={{ y: -3, scale: 1.01 }}
+            className="ds-card p-4 flex items-center gap-3"
+          >
             <div
               className="w-11 h-11 rounded-2xl flex items-center justify-center text-[color:var(--klein-blue)] flex-shrink-0"
               style={{ background: 'var(--klein-blue-soft)' }}
@@ -273,8 +322,14 @@ const WfLearnHomePage: React.FC = () => {
               <p className="text-2xl font-black text-[var(--color-text-primary)] leading-none">{stats.wordsLearned}</p>
               <p className="text-xs text-[var(--color-text-secondary)] mt-1">{t('home.wordsLearned') || 'Words Learned'}</p>
             </div>
-          </div>
-          <div className="ds-card p-4 flex items-center gap-3">
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.14 }}
+            whileHover={{ y: -3, scale: 1.01 }}
+            className="ds-card p-4 flex items-center gap-3"
+          >
             <div
               className="w-11 h-11 rounded-2xl flex items-center justify-center text-[color:var(--klein-blue)] flex-shrink-0"
               style={{ background: 'var(--klein-blue-soft)' }}
@@ -285,14 +340,14 @@ const WfLearnHomePage: React.FC = () => {
               <p className="text-2xl font-black text-[var(--color-text-primary)] leading-none">{stats.currentStreak}</p>
               <p className="text-xs text-[var(--color-text-secondary)] mt-1">{t('home.streak') || 'Day Streak'}</p>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Featured libraries (from WordflowApi) */}
         <div>
           <div className="flex items-center justify-between mb-3 px-1">
             <h2 className="ds-section-title">{t('home.library') || 'Library'}</h2>
-            <button className="ds-link-more" onClick={() => navigate(wfPath('learn/library'))}>
+            <button className="ds-link-more font-bold" onClick={() => navigate(wfPath('learn/library'))}>
               {t('home.viewAll') || 'View All'}
             </button>
           </div>
@@ -319,14 +374,19 @@ const WfLearnHomePage: React.FC = () => {
             </div>
           ) : (
             <div className="ds-stack ds-stack-tight">
-              {groups.map((g) => (
-                <div
+              {groups.map((g, index) => (
+                <motion.div
                   key={g.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 + index * 0.04 }}
+                  whileHover={{ y: -3, scale: 1.005 }}
+                  whileTap={{ scale: 0.995 }}
                   onClick={() => navigate(`${wfPath('learn/practice')}?library=${encodeURIComponent(g.id)}`)}
                   className="ds-row flex items-center gap-4 p-4 cursor-pointer group"
                 >
                   <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-[color:var(--klein-blue)] flex-shrink-0 text-xl"
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-[color:var(--klein-blue)] flex-shrink-0 text-xl font-bold shadow-sm"
                     style={{ background: 'var(--klein-blue-soft)' }}
                   >
                     {g.coverImage && g.coverImage.length <= 2 ? g.coverImage : <BookOpen className="w-6 h-6" />}
@@ -335,12 +395,12 @@ const WfLearnHomePage: React.FC = () => {
                     <p className="font-bold text-[var(--color-text-primary)] truncate group-hover:text-[var(--klein-blue)] transition-colors">
                       {g.name}
                     </p>
-                    <p className="text-sm text-[var(--color-text-secondary)]">
+                    <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
                       {g.count} words · {Math.round(g.progress || 0)}% complete
                     </p>
                   </div>
                   <ChevronRight className="w-5 h-5 text-[var(--color-text-tertiary)] group-hover:text-[var(--klein-blue)] transition-colors flex-shrink-0" />
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
@@ -350,37 +410,53 @@ const WfLearnHomePage: React.FC = () => {
         <div>
           <h2 className="ds-section-title mb-3 px-1">{t('home.startLearning') || 'Start Learning'}</h2>
           <div className="ds-grid-breathing grid grid-cols-2">
-            {learningModes.map((mode) => (
-              <div key={mode.id} className="ds-bento" onClick={() => navigate(mode.route)}>
+            {learningModes.map((mode, index) => (
+              <motion.div
+                key={mode.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 + index * 0.05 }}
+                className="ds-bento"
+                onClick={() => navigate(mode.route)}
+              >
                 <div className="ds-bento-chip mb-3">{mode.icon}</div>
                 <p className="font-bold text-[var(--color-text-primary)]">{mode.title}</p>
                 <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">{mode.subtitle}</p>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>
 
         {/* Quick actions — original pair: Library + Review Words */}
         <div className="ds-grid-breathing grid grid-cols-2">
-          <button
-            className="ds-card p-4 flex items-center justify-center gap-2 font-semibold text-[var(--color-text-primary)]"
+          <motion.button
+            whileHover={{ y: -3, scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            className="ds-card p-4 flex items-center justify-center gap-2 font-semibold text-[var(--color-text-primary)] cursor-pointer"
             onClick={() => navigate(wfPath('learn/library'))}
           >
             <Library className="w-5 h-5 text-[var(--klein-blue)]" />
             <span>{t('home.library') || 'Library'}</span>
-          </button>
-          <button
-            className="ds-card p-4 flex items-center justify-center gap-2 font-semibold text-[var(--color-text-primary)]"
+          </motion.button>
+          <motion.button
+            whileHover={{ y: -3, scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+            className="ds-card p-4 flex items-center justify-center gap-2 font-semibold text-[var(--color-text-primary)] cursor-pointer"
             onClick={() => navigate(wfPath('learn/review'))}
           >
             <Sparkles className="w-5 h-5 text-[var(--klein-blue)]" />
             <span>{t('home.reviewWords') || 'Review Words'}</span>
-          </button>
+          </motion.button>
         </div>
 
         {/* Guest mode prompt — restored from the original Learn/Home */}
         {!isAuthenticated && (
-          <div className="ds-card p-5">
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="ds-card p-5"
+          >
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-lg text-[var(--color-text-primary)]">
@@ -397,7 +473,7 @@ const WfLearnHomePage: React.FC = () => {
                 {t('home.loginNow') || 'Login Now'}
               </Button>
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>
