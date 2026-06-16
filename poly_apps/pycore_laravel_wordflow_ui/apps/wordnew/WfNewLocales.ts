@@ -887,4 +887,8 @@ export function translate(
   let value = LOCALES[code]?.[key] ?? LOCALES.en[key] ?? key;
   if (replacements) {
     Object.entries(replacements).forEach(([k, v]) => {
-      value = value.replace(new RegExp(`\\{${k}\\}`, 'g
+      value = value.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+    });
+  }
+  return value;
+}
