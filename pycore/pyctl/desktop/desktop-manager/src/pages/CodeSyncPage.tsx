@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Code2, RefreshCcw, Server, MonitorSmartphone, Radar, Plus, X, Trash2,
   Pencil, Check, Users, Download, Wifi, WifiOff, PauseCircle, FileText, HardDrive,
+  Filter, RotateCcw, ScrollText, GitBranch,
 } from 'lucide-react';
 import { useApp } from '../state/AppContext';
 import { useLive } from '../state/LiveContext';
 import { pycoreApi } from '../api/pycore';
 import type {
   CodeSyncRole, SelfStatus, PeerStatus, CodeSyncCandidate, CodeStats,
+  SyncSettings, SyncLogEntry,
 } from '../types';
 
 /**
@@ -58,6 +60,12 @@ export default function CodeSyncPage() {
   const [busy, setBusy] = useState(false);
   const pollRef = useRef<number | null>(null);
 
+  // filter settings + sync log
+  const [filters, setFilters] = useState<SyncSettings | null>(null);
+  const [filtersOverridden, setFiltersOverridden] = useState(false);
+  const [filtersDirty, setFiltersDirty] = useState(false);
+  const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>([]);
+
   // discover / add / edit UI state
   const [discovering, setDiscovering] = useState(false);
   const [autoScanning, setAutoScanning] = useState(false);
@@ -79,11 +87,28 @@ export default function CodeSyncPage() {
     } catch { /* backend offline: keep last snapshot */ }
   }, []);
 
+  const loadFilters = useCallback(async () => {
+    try {
+      const r = await pycoreApi.getSyncSettings();
+      if (r?.success) {
+        setFilters((prev) => (filtersDirty && prev ? prev : r.settings));
+        setFiltersOverridden(!!r.overridden);
+      }
+    } catch { /* backend offline */ }
+  }, [filtersDirty]);
+
+  const loadLogs = useCallback(async () => {
+    try {
+      const r = await pycoreApi.getSyncLogs(100);
+      if (r?.success && Array.isArray(r.logs)) setSyncLogs(r.logs);
+    } catch { /* backend offline */ }
+  }, []);
+
   useEffect(() => {
-    loadPeers();
-    pollRef.current = window.setInterval(loadPeers, 5000);
+    loadPeers(); loadFilters(); loadLogs();
+    pollRef.current = window.setInterval(() => { loadPeers(); loadLogs(); }, 5000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [loadPeers]);
+  }, [loadPeers, loadFilters, loadLogs]);
 
   // Live WS tick wins over the poll: merge the snapshot as it arrives.
   useEffect(() => {
