@@ -1,17 +1,24 @@
-import { Word, WordGroup } from './WfNewTypes';
+// Single shared TYPE surface — mock data and the live API use the SAME types.
+import {
+  Word, WordGroup, BentoGroup,
+  SubtitleWord, SubtitleLine, SubtitleCourse,
+  BilingualWord, BilingualSentence,
+  WeeklyActivity, CategoryScore, StudiedTimelineItem, AnalyticsStats,
+} from './api/WfNewApiTypes';
 
-export interface ElegantBentoGroup extends WordGroup {
-  badge: string;
-  gridSpan: string; // Tailwind grid span format e.g. 'col-span-1 md:col-span-2'
-  bgGradient: string; // Light gradient
-  bgGradientDark: string; // Dark gradient
-  decorColor: string; // Neon accent coloring
-  decorativeSvg: 'nebula' | 'matrix' | 'stars' | 'waves' | 'bars' | 'rings';
-  statsLabel: string;
-}
+// Re-export the shared types so existing `from '../WfNewMockDb'` imports keep
+// resolving to the canonical definitions (no parallel/duplicate shapes).
+export type {
+  SubtitleWord, SubtitleLine, SubtitleCourse,
+  BilingualWord, BilingualSentence,
+  WeeklyActivity, AnalyticsStats,
+} from './api/WfNewApiTypes';
+
+/** @deprecated Use `BentoGroup` from ./api/WfNewApiTypes — kept as an alias. */
+export type ElegantBentoGroup = BentoGroup;
 
 // 1. Core Bento Box Word Groups with detailed descriptive parameters
-export const MOCK_BENTO_GROUPS: ElegantBentoGroup[] = [
+export const MOCK_BENTO_GROUPS: BentoGroup[] = [
   {
     id: 'bento-cosmic-1',
     name: 'Astral Nebula Vocab (星云高阶词汇)',
@@ -156,29 +163,8 @@ export const MOCK_WALKMAN_WORDS: Word[] = [
 ];
 
 // 4. Subtitle Interactive Learning Interfaces & Datasets
-export interface SubtitleWord {
-  text: string;
-  translation: string;
-  definition: string;
-  phonetic: string;
-  tags?: string[];
-}
-
-export interface SubtitleLine {
-  startTime: number;
-  endTime: number;
-  text: string;
-  translation: string;
-  words: SubtitleWord[];
-}
-
-export interface SubtitleCourse {
-  id: string;
-  title: string;
-  category: string;
-  subtitles: SubtitleLine[];
-}
-
+// (SubtitleWord / SubtitleLine / SubtitleCourse types are defined once in
+//  ./api/WfNewApiTypes and re-exported above.)
 export const MOCK_SUBTITLE_COURSES: SubtitleCourse[] = [
   {
     id: 'sub-c-1',
@@ -244,20 +230,8 @@ export const MOCK_SUBTITLE_COURSES: SubtitleCourse[] = [
 ];
 
 // 5. Aesthetic Statistical Telemetry Models for learning analytics
-export interface WeeklyActivity {
-  day: string;
-  mins: number;
-}
-
-export interface AnalyticsStats {
-  totalStudyMins: number;
-  retentionRate: number;
-  cumulativeLearned: number;
-  vocabularyTarget: number;
-  streakDays: number;
-  weeklyActivity: WeeklyActivity[];
-}
-
+// (WeeklyActivity / CategoryScore / StudiedTimelineItem / AnalyticsStats types
+//  live once in ./api/WfNewApiTypes and are re-exported above.)
 export const MOCK_ANALYTICS_STATS: AnalyticsStats = {
   totalStudyMins: 482,
   retentionRate: 88,
@@ -265,13 +239,28 @@ export const MOCK_ANALYTICS_STATS: AnalyticsStats = {
   vocabularyTarget: 600,
   streakDays: 8,
   weeklyActivity: [
-    { day: 'Mon', mins: 45 },
-    { day: 'Tue', mins: 60 },
-    { day: 'Wed', mins: 75 },
-    { day: 'Thu', mins: 30 },
-    { day: 'Fri', mins: 90 },
-    { day: 'Sat', mins: 120 },
-    { day: 'Sun', mins: 62 }
+    { day: 'Mon', mins: 45, count: 12 },
+    { day: 'Tue', mins: 60, count: 18 },
+    { day: 'Wed', mins: 75, count: 22 },
+    { day: 'Thu', mins: 30, count: 8 },
+    { day: 'Fri', mins: 90, count: 27 },
+    { day: 'Sat', mins: 120, count: 35 },
+    { day: 'Sun', mins: 62, count: 19 }
+  ],
+  categoryScores: [
+    { name: 'Cosmic & Astronomy', count: 145, score: 72 },
+    { name: 'Silicon Mechanics & AI', count: 84, score: 58 },
+    { name: 'Ephemeral Verses', count: 62, score: 90 },
+    { name: 'Wall Street Strategy', count: 110, score: 35 },
+    { name: 'Neuroscience & Brain', count: 55, score: 42 }
+  ],
+  recentlyStudiedTimeline: [
+    { word: 'Nebula', status: 'Mastered', time: '2m ago' },
+    { word: 'Ephemeral', status: 'Mastered', time: '14m ago' },
+    { word: 'Cognition', status: 'Familiar', time: '38m ago' },
+    { word: 'Supernova', status: 'Learning', time: '1h ago' },
+    { word: 'Leverage', status: 'Learning', time: '3h ago' },
+    { word: 'Synapse', status: 'Familiar', time: '5h ago' }
   ]
 };
 
