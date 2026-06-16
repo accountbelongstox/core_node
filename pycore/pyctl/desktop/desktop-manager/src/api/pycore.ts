@@ -8,6 +8,7 @@ import type {
   VideoExtractCapabilities, PickPathResult, VideoExtractSegmentsResponse,
   SystemResourcesResponse, VideoExtractOpenKind, VideoExtractOpenResponse,
   CodeSyncRole, CodeSyncPeersResponse, CodeSyncCandidate,
+  SyncSettings, SyncSettingsResponse, SyncLogEntry,
   AutostartStatus, AiProbeResponse, AiChatMessage, AiChatResponse,
   TranslationQueueResponse, TranslationQueueActionResponse,
 } from '../types';
@@ -136,6 +137,18 @@ export const pycoreApi = {
   discoverPeers: () =>
     postJSON<{ success: boolean; candidates: CodeSyncCandidate[]; error?: string }>(
       '/pyapi/code-sync/discover', {}),
+
+  // --- code sync filter settings (presets + per-machine .data override) --- #
+  getSyncSettings: () => getJSON<SyncSettingsResponse>('/pyapi/code-sync/settings'),
+  setSyncSettings: (patch: Partial<SyncSettings>) =>
+    postJSON<{ success: boolean; settings: SyncSettings; error?: string }>(
+      '/pyapi/code-sync/settings', patch),
+  resetSyncSettings: () =>
+    postJSON<{ success: boolean; settings: SyncSettings; error?: string }>(
+      '/pyapi/code-sync/settings/reset', {}),
+  getSyncLogs: (limit = 100) =>
+    getJSON<{ success: boolean; role: CodeSyncRole; logs: SyncLogEntry[] }>(
+      `/pyapi/code-sync/logs?limit=${limit}`),
 
   // --- AI provider availability probe ------------------------------------- #
   // GET /api/local/ai/probe (via the /pyapi reverse proxy). `refresh` forces the
