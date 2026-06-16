@@ -57,8 +57,10 @@ class CodeSyncManager:
         self._stats: Dict[str, Any] = {"files": 0, "bytes": 0, "last_modified": 0.0}
         self._start_stats_refresher()
 
-        # Status mesh runs for every role.
-        self.mesh = PeerMeshManager(self.config, self.get_local_peer_status)
+        # Status mesh runs for every role. The mesh also sends our heartbeat to
+        # dev/hub peers and adopts any newer config returned on the response.
+        self.mesh = PeerMeshManager(self.config, self.get_local_peer_status,
+                                    apply_remote_config_fn=self._apply_remote_from_heartbeat)
         self.mesh.start()
 
         # Apply the startup role (client receives by default; dev waits to distribute).
@@ -247,6 +249,21 @@ class CodeSyncManager:
             self._sync_client_targets()
             self._broadcast()
         return {"success": True, "applied": applied, "version": self.config.version()}
+
+    def _apply_remote_from_heartbeat(self, peers: List[Dict[str, Any]],
+                                     version: int, updated_at: float) -> None:
+        """Adopt the dev's peer-config carried back on a heartbeat response."""
+        try:
+            self.apply_remote_config(peers, version, updated_at)
+        except Exception:
+            pass
+
+    def receive_heartbeat(self, payload: Dict[str, Any],
+                          source: Optional[str] = None) -> dict:
+        """Record an inbound heartbeat from a peer and return our current config so
+        the sender (which may be unreachable for a push) converges via LWW."""
+        self.mesh.record_heartbeat(payload, source)
+        return {"success": True, "config": self.config.to_payload()}
 
     def discover(self) -> dict:
         candidates = self.mesh.discover()

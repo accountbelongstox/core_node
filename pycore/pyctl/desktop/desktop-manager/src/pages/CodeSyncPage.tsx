@@ -260,6 +260,23 @@ export default function CodeSyncPage() {
     </span>
   );
 
+  // How the peer is connected (outbound probe vs inbound heartbeat vs both).
+  const viaBadge = (p: PeerStatus) => {
+    if (!p.via) return null;
+    const label = p.via === 'both' ? t.csViaBoth : p.via === 'heartbeat' ? t.csViaHeartbeat : t.csViaProbe;
+    const cls = p.via === 'heartbeat'
+      ? 'bg-sky-500/15 text-sky-500'
+      : p.via === 'both'
+        ? 'bg-emerald-500/15 text-emerald-500'
+        : 'bg-violet-500/15 text-violet-500';
+    return (
+      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase ${cls}`}>
+        {p.via === 'heartbeat' ? <Radar className="w-3 h-3" /> : <Wifi className="w-3 h-3" />}
+        {label}
+      </span>
+    );
+  };
+
   const peerStatusText = (p: PeerStatus): string => {
     const s: any = p.status || {};
     const sum = s.summary || s;
@@ -482,6 +499,7 @@ export default function CodeSyncPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-700 dark:text-zinc-200 truncate">{p.name || p.host}</span>
                         {roleBadge(p.role)}
+                        {viaBadge(p)}
                         {p.pending && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-500/15 text-amber-500">
                             {t.csPending}
@@ -492,6 +510,9 @@ export default function CodeSyncPage() {
                       <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
                         <span className="font-mono">{p.host}:{p.port}</span>
                         {!p.reachable && <span>· {t.csLastSeen} {relTime(p.last_seen, t.csNever)}</span>}
+                        {p.reachable && p.via === 'heartbeat' && p.last_checkin && (
+                          <span>· {t.csLastContact} {relTime(p.last_checkin, t.csNever)}</span>
+                        )}
                         {peerStatusText(p) && <span>· {peerStatusText(p)}</span>}
                       </div>
                       <div className="text-[11px] mt-0.5">

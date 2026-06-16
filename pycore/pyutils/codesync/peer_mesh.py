@@ -1,11 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-Code Sync peer mesh — status probing + config replication.
+Code Sync peer mesh — status probing + reverse heartbeat + config replication.
 
-Every end runs this mesh. On a tick it probes all configured peers
-(GET /code-sync/peer/status), tracks reachability (so the UI can show offline
-peers too), and pushes config changes to peers. Peers that are unreachable at
-push time get the change queued and delivered once they come back online.
+Every end runs this mesh. On a tick it:
+  * PROBES all configured peers (GET /code-sync/peer/status) — the OUTBOUND
+    direction, which only works when this node can open a connection to peer:port
+    (LAN / tailscale / a port-forwarded public host).
+  * SENDS a heartbeat (POST /code-sync/peer/heartbeat with this node's own status)
+    to every configured dev/hub — the INBOUND direction, so a client behind NAT
+    (home laptop, cloud box, phone) that can never be probed still reports its
+    presence + code-stats to the dev. The heartbeat RESPONSE carries the dev's
+    peer-config so even one-directional clients converge config (LWW).
+
+`snapshot()` MERGES both signals per peer: a peer is reachable if it answered a
+probe OR sent a fresh heartbeat; `via` records how it is connected
+(probe / heartbeat / both). This is what lets the UI show each client's contact
+state across WAN, not just on the LAN.
 
 Status snapshots are broadcast to the desktop UI via the existing RPC WebSocket
 by firing a 'code_sync_update' event (no-op in standalone mode).
@@ -28,20 +38,31 @@ from .peer_config import PeerConfig
 
 TICK_SECONDS = 5
 PROBE_TIMEOUT = 1.5
+# A heartbeat counts as "fresh" (peer considered online via heartbeat) for this
+# many seconds after it arrives — a few ticks of slack so a single dropped POST
+# doesn't flap the peer offline.
+HEARTBEAT_STALE_SECONDS = TICK_SECONDS * 3
 
 
 class PeerMeshManager:
     """Periodically probes peers, replicates config, and broadcasts status."""
 
     def __init__(self, config: PeerConfig,
-                 local_status_fn: Callable[[], Dict[str, Any]]):
+                 local_status_fn: Callable[[], Dict[str, Any]],
+                 apply_remote_config_fn: Optional[
+                     Callable[[List[Dict[str, Any]], int, float], Any]] = None):
         self.config = config
         self._local_status_fn = local_status_fn
+        # Applied to the config carried back on a heartbeat response (LWW); lets a
+        # NAT'd client adopt the dev's peer-config without being push-reachable.
+        self._apply_remote_config_fn = apply_remote_config_fn
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.Lock()
-        # peer_id -> {reachable, last_seen, status}
+        # peer_id -> {reachable, last_seen, status}  (OUTBOUND probe results)
         self._peer_state: Dict[str, Dict[str, Any]] = {}
+        # sender_id -> {last_checkin, status, source, lan_ip}  (INBOUND heartbeats)
+        self._heartbeats: Dict[str, Dict[str, Any]] = {}
         # peer_ids that still need the latest config pushed (offline at push time)
         self._pending: set = set()
 
@@ -111,12 +132,82 @@ class PeerMeshManager:
             # Deliver any queued config to a peer that just came back online.
             if reachable and (newly_reachable or has_pending):
                 self._push_config_to(peer)
+        # Reverse direction: announce ourselves to dev/hub peers (NAT-friendly).
+        self._send_heartbeats()
         snap = self.snapshot()
         try:
             emit_event("code_sync_update", snap)
         except Exception:
             pass
         return snap
+
+    # ----- heartbeat (inbound presence; NAT-friendly) --------------------- #
+    def _send_heartbeats(self) -> None:
+        """POST this node's status to every configured dev/hub so a client that
+        cannot be probed (behind NAT) still reports presence. Adopt any newer
+        peer-config returned on the response (LWW)."""
+        self_id = self.config.machine_id
+        try:
+            local = self._local_status_fn() or {}
+        except Exception:
+            return
+        for peer in self.config.list_peers():
+            if peer.get("id") == self_id or peer.get("role") != "dev":
+                continue
+            try:
+                r = requests.post(self._peer_url(peer, "/code-sync/peer/heartbeat"),
+                                  json=local, timeout=PROBE_TIMEOUT)
+                if r.status_code != 200 or not self._apply_remote_config_fn:
+                    continue
+                cfg = (r.json() or {}).get("config")
+                if isinstance(cfg, dict) and isinstance(cfg.get("peers"), list):
+                    self._apply_remote_config_fn(
+                        cfg.get("peers", []),
+                        int(cfg.get("version", 0)),
+                        float(cfg.get("updated_at", 0.0)))
+            except Exception:
+                continue
+
+    def record_heartbeat(self, payload: Dict[str, Any],
+                         source: Optional[str] = None) -> None:
+        """Record an inbound heartbeat from a peer (keyed by its reported id, with
+        source addr / lan_ip kept so snapshot() can match it to a configured peer
+        whose id is a manually-assigned `host:port`)."""
+        if not isinstance(payload, dict):
+            return
+        sender = str(payload.get("id") or source or "").strip()
+        if not sender:
+            return
+        with self._lock:
+            self._heartbeats[sender] = {
+                "last_checkin": time.time(),
+                "status": payload,
+                "source": source,
+                "lan_ip": payload.get("lan_ip"),
+            }
+        # Reflect new presence in the UI immediately (snapshot() takes the lock,
+        # so build it AFTER releasing ours to avoid re-entrancy).
+        try:
+            emit_event("code_sync_update", self.snapshot())
+        except Exception:
+            pass
+
+    def _match_heartbeat(self, peer: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Find a heartbeat belonging to a configured peer. A peer's id may be its
+        machine-id (auto) or `host:port` (manually added), while a heartbeat is
+        keyed by the sender's machine-id — so match on id, source addr, lan_ip, or
+        the id reported inside the heartbeat status."""
+        pid = peer.get("id")
+        host = peer.get("host")
+        for hid, hb in self._heartbeats.items():
+            if hid == pid:
+                return hb
+            if host and (hb.get("source") == host or hb.get("lan_ip") == host):
+                return hb
+            st = hb.get("status") or {}
+            if st.get("id") and st.get("id") == pid:
+                return hb
+        return None
 
     # ----- config replication --------------------------------------------- #
     def _push_config_to(self, peer: Dict[str, Any]) -> bool:
@@ -190,6 +281,7 @@ class PeerMeshManager:
     # ----- snapshot -------------------------------------------------------- #
     def snapshot(self) -> Dict[str, Any]:
         self_id = self.config.machine_id
+        now = time.time()
         peers_out: List[Dict[str, Any]] = []
         with self._lock:
             for peer in self.config.list_peers():
@@ -197,11 +289,36 @@ class PeerMeshManager:
                 if pid == self_id:
                     continue
                 st = self._peer_state.get(pid, {})
+                probe_ok = bool(st.get("reachable", False))
+                probe_seen = st.get("last_seen")
+                probe_status = st.get("status")
+
+                hb = self._match_heartbeat(peer)
+                hb_checkin = hb.get("last_checkin") if hb else None
+                hb_fresh = bool(hb_checkin and (now - hb_checkin) <= HEARTBEAT_STALE_SECONDS)
+
+                # Merge the two directions.
+                reachable = probe_ok or hb_fresh
+                last_seen = max([t for t in (probe_seen, hb_checkin) if t], default=None)
+                # Prefer the fresher status payload.
+                if probe_ok and (not hb_fresh or (probe_seen or 0) >= (hb_checkin or 0)):
+                    status = probe_status
+                elif hb_fresh:
+                    status = hb.get("status")
+                else:
+                    status = probe_status or (hb.get("status") if hb else None)
+                via = ("both" if (probe_ok and hb_fresh)
+                       else "probe" if probe_ok
+                       else "heartbeat" if hb_fresh
+                       else None)
+
                 peers_out.append({
                     **peer,
-                    "reachable": bool(st.get("reachable", False)),
-                    "last_seen": st.get("last_seen"),
-                    "status": st.get("status"),
+                    "reachable": reachable,
+                    "last_seen": last_seen,
+                    "last_checkin": hb_checkin,
+                    "via": via,
+                    "status": status,
                     "pending": pid in self._pending,
                 })
         local = {}

@@ -213,6 +213,20 @@ async def peer_config(request: PeerConfigRequest):
     return manager.apply_remote_config(request.peers, request.version, request.updated_at)
 
 
+@router.post("/peer/heartbeat")
+async def peer_heartbeat(request: Request):
+    """Inbound presence: a peer (often behind NAT) reports its own status here. We
+    record it and return our current peer-config so the sender converges (LWW)."""
+    from pycore.pyutils.codesync import get_code_sync_manager
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    src = request.client.host if request.client else None
+    return get_code_sync_manager().receive_heartbeat(payload, src)
+
+
 @router.get("/peers")
 async def get_peers():
     """Get the current peer list (self + peers + config version)."""

@@ -265,6 +265,11 @@ export interface PeerStatus {
   role: CodeSyncRole;
   reachable: boolean;
   last_seen: number | null;
+  // How this peer is connected: 'probe' = we reached it; 'heartbeat' = it reported
+  // in to us (NAT-friendly); 'both' = both directions; null/absent = offline.
+  via?: 'probe' | 'heartbeat' | 'both' | null;
+  // When the peer last sent us a heartbeat (seconds/ms), independent of last_seen.
+  last_checkin?: number | null;
   pending?: boolean;
   status?: PeerLiveStatus | null;
 }
