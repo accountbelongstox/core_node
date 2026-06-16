@@ -423,19 +423,21 @@ class AiProviderRegistry
             ],
             // ---- image-only providers (no chat; names match pycore) -----------
             'imagen' => [
-                // Google Imagen 3 via the Gemini API key (generativelanguage :predict).
+                // Google Imagen 4 via the Gemini API key (generativelanguage :predict).
+                // Imagen 3 (imagen-3.0-generate-002) was SHUT DOWN on the Gemini API
+                // (HTTP 404), so the default is the current GA model imagen-4.0-generate-001.
                 // Shares GOOGLE_API_KEY; add GOOGLE_API_KEY_IMAGE to isolate its budget.
                 'key_base' => 'GOOGLE_API_KEY',
-                'default_model' => 'imagen-3.0-generate-002',
-                'free_models' => ['imagen-3.0-generate-002'],
-                'limits' => 'Imagen 3 via Gemini API (billed; Vertex $300 trial / paid tier)',
+                'default_model' => 'imagen-4.0-generate-001',
+                'free_models' => ['imagen-4.0-generate-001', 'imagen-4.0-fast-generate-001'],
+                'limits' => 'Imagen 4 via Gemini API (billed; Vertex $300 trial / paid tier)',
                 'tier' => 'paid',
                 'client' => 'imagen',
                 'base_url' => 'https://generativelanguage.googleapis.com/v1beta',
                 'vision' => false,
                 'image' => true,
                 'image_only' => true,
-                'image_model' => 'imagen-3.0-generate-002',
+                'image_model' => 'imagen-4.0-generate-001',
             ],
             'azure' => [
                 // Azure OpenAI DALL-E 3. Needs AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT
@@ -477,8 +479,8 @@ class AiProviderRegistry
                 // VERTEX_ACCESS_TOKEN is also accepted as a fallback (see imageVertex).
                 'key_base' => 'GOOGLE_VERTEX_SA_JSON',
                 'extra_secret' => 'VERTEX_PROJECT_ID',
-                'default_model' => 'imagen-3.0-generate-002',
-                'free_models' => ['imagen-3.0-generate-002', 'imagen-4.0-generate-001'],
+                'default_model' => 'imagen-4.0-generate-001',
+                'free_models' => ['imagen-4.0-generate-001', 'imagen-4.0-fast-generate-001'],
                 'limits' => 'Vertex AI Imagen ($300 new-account credit; service-account OAuth)',
                 'tier' => 'paid',
                 'client' => 'vertex',
@@ -486,7 +488,7 @@ class AiProviderRegistry
                 'vision' => false,
                 'image' => true,
                 'image_only' => true,
-                'image_model' => 'imagen-3.0-generate-002',
+                'image_model' => 'imagen-4.0-generate-001',
                 'aux_secrets' => ['VERTEX_REGION', 'VERTEX_ACCESS_TOKEN'],
             ],
         ];

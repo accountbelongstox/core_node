@@ -208,8 +208,11 @@ class WindowScreenshot:
                 ColorPrint.print_min_interval(f"[SAVED] Screenshot saved: {filepath}", "1min", "green")
                 return filepath
             except Exception as e:
+                # Fallback to pyautogui (None on a headless host without DISPLAY)
+                if pyautogui is None:
+                    ColorPrint.print_min_interval(f"[WARN] PIL capture failed: {e}; pyautogui unavailable (headless/no DISPLAY), cannot capture", "1min", "yellow")
+                    return None
                 ColorPrint.print_min_interval(f"[WARN] PIL capture failed: {e}, trying pyautogui", "1min", "yellow")
-                # Fallback to pyautogui
                 left, top, width, height = rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]
                 screenshot = pyautogui.screenshot(region=(left, top, width, height))
                 screenshot.save(filepath)

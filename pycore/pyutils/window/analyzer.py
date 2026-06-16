@@ -358,13 +358,17 @@ class WindowAnalyzer:
     def take_screenshot(self, window, output_path: str) -> bool:
         """Take a screenshot of the specified window"""
         try:
+            if pyautogui is None:
+                ColorPrint.yellow("⚠️  pyautogui unavailable (headless/no DISPLAY); cannot take screenshot")
+                return False
+
             # Activate window
             window.activate()
             time.sleep(1)  # Wait for window activation
-            
+
             # Get window position and size
             left, top, width, height = window.left, window.top, window.width, window.height
-            
+
             # Take screenshot
             screenshot = pyautogui.screenshot(region=(left, top, width, height))
             screenshot.save(output_path)

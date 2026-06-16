@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Constants\AppKeys;
+use App\Services\MoviePoster\MoviePosterStore;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Media Ingest Service
@@ -78,12 +80,14 @@ class MediaIngestService
                 $sourceResult = $this->ingestBookV2Source($sourceKey, $sourceData);
                 $sentenceResult = $this->ingestSentencesV2('book', $sourceKey, $sentences);
                 $wordResult = $this->ingestWordsV2($words);
+                $posterResult = $this->applyPosterFromSource('book', $sourceKey, $sourceData);
 
                 return [
                     'source_type' => 'book',
                     'model_version' => 2,
                     'source_key' => $sourceKey,
                     'source' => $sourceResult,
+                    'poster' => $posterResult,
                     'sentences' => $sentenceResult['sentences'],
                     'source_sentences' => $sentenceResult['source_sentences'],
                     'words' => $wordResult,
@@ -110,16 +114,66 @@ class MediaIngestService
                 : ['created' => 0, 'filled' => 0];
 
             $sentenceResult = $this->ingestSentences($sourceType, $sourceKey, $sentences);
+            $posterResult = $this->applyPosterFromSource($sourceType, $sourceKey, $sourceData);
 
             return [
                 'source_type' => $sourceType,
                 'source_key' => $sourceKey,
                 'source' => $sourceResult,
+                'poster' => $posterResult,
                 'segments' => $segmentResult,
                 'sentences' => $sentenceResult['sentences'],
                 'source_sentences' => $sentenceResult['source_sentences'],
             ];
         });
+    }
+
+    /**
+     * Decode and store an optional pycore ingest poster payload
+     * (source.poster) for the just-upserted Book / Subtitle row.
+     *
+     * Movie/TV Poster Pipeline (development-guides/MOVIE_POSTER_PIPELINE.md §4):
+     * pycore is the primary fetcher and ships poster bytes inside source.poster
+     * (provider/source_id/mime/image_base64/meta). When present we decode +
+     * save the local file and set the poster_* columns (fill-missing — a row
+     * already poster_status='ready' is left untouched). When absent the row
+     * keeps its default poster_status='pending' so the PHP on-demand fetch can
+     * backfill later. Never throws — a poster failure must not fail the ingest.
+     *
+     * @return array{status:string,applied?:bool,already_done?:bool,error?:string}
+     */
+    private function applyPosterFromSource(string $sourceType, string $sourceKey, array $data): array
+    {
+        $poster = $data['poster'] ?? null;
+        if (!is_array($poster) || count($poster) === 0) {
+            return ['status' => 'pending', 'applied' => false];
+        }
+
+        try {
+            $model = $sourceType === 'subtitle'
+                ? Subtitle::where('source_key', $sourceKey)->first()
+                : Book::where('source_key', $sourceKey)->first();
+
+            if (!$model) {
+                return ['status' => 'pending', 'applied' => false, 'error' => 'source row not found'];
+            }
+
+            $store = app(MoviePosterStore::class);
+            $result = $store->applyIngestPayload($model, $poster);
+
+            return [
+                'status' => $result['status'] ?? 'pending',
+                'applied' => (bool) ($result['ok'] ?? false),
+                'already_done' => (bool) ($result['already_done'] ?? false),
+                'error' => $result['error'] ?? null,
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('[MediaIngest] Poster ingest failed', [
+                'source_key' => $sourceKey,
+                'error' => $e->getMessage(),
+            ]);
+            return ['status' => 'pending', 'applied' => false, 'error' => $e->getMessage()];
+        }
     }
 
     /**

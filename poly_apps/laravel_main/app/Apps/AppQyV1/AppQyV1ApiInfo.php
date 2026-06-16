@@ -537,6 +537,33 @@ class AppQyV1ApiInfo
                 "auth_required" => false,
                 "parameters" => ["language", "type", "filename"]
             ],
+            // Sentence-library audio pipeline (pycore worker + FE resolve).
+            // File on disk is the source of truth; see
+            // development-guides/SENTENCE_AUDIO_GENERATION_PIPELINE.md.
+            [
+                "path" => "/api/app_qy_v1/ai_tools/tts/sentence/claim",
+                "method" => "POST",
+                "feature" => "Claim Sentence Audio",
+                "description" => "Worker claim of sentences needing audio, priority ordered (limit=0 -> counts only)",
+                "auth_required" => false,
+                "parameters" => ["worker_id", "language", "limit"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/ai_tools/tts/sentence/report",
+                "method" => "POST",
+                "feature" => "Report Sentence Audio",
+                "description" => "Worker report of a generated sentence MP3 (multipart on success); idempotent",
+                "auth_required" => false,
+                "parameters" => ["sentence_id", "worker_id", "success", "provider", "audio", "audio_base64", "error"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/ai_tools/tts/sentence/audio",
+                "method" => "GET",
+                "feature" => "Resolve Sentence Audio",
+                "description" => "File-first resolution of one sentence's audio by hash (sentence_id|content_id) or text+language",
+                "auth_required" => false,
+                "parameters" => ["hash", "text", "language"]
+            ],
             [
                 "path" => "/api/app_qy_v1/ai_tools/tts/generate",
                 "method" => "POST",

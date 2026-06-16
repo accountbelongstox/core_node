@@ -78,6 +78,12 @@ class PathMapper
             // data dir. WSL-only concept; kept for parity (Windows uses sqlite).
             'pg_mount' => '/var/lib/postgresql/d',
 
+            // Unified App Manager log namespace ROOT (scripts/app_manager/linux_sh).
+            // Linux-server concept; fixed path mirrors gvar_common.sh +
+            // system_paths.py. Retired predecessor: 'app_manager_logs_old'.
+            'app_manager_logs' => $isWindows ? ($basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'logs' . $separator . '_core_node') : '/opt/_core_node/logs',
+            'app_manager_logs_old' => '/opt/core_node_unified_manager/logs',
+
             // Script paths - same structure, just normalize separators
             'scripts_dir' => str_replace('/', $separator, self::getCoreNodeDir() . '/scripts'),
             'shells_dir' => str_replace('/', $separator, self::getCoreNodeDir() . '/scripts/shells'),

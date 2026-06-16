@@ -1,0 +1,27 @@
+---
+description: "How to author/edit Cursor rules and per-sub-app rules: location, .mdc format, single-source-of-truth, conflict precedence."
+globs: .cursor/rules/**
+alwaysApply: false
+---
+
+# Authoring Cursor rules
+
+Rules load from `.cursor/rules/*.mdc` (plus optional `AGENTS.md` / `CLAUDE.md`). Edit `.mdc` files in the repo and commit so the team shares them; or use `/rules` in a Cursor CLI agent session (`.agents/skills/cursor-agent/SKILL.md`).
+
+**`.mdc` format:** YAML frontmatter + short body.
+- `description`: one-line summary (shown in rule list).
+- `globs`: scope to paths (e.g. `dotapps/**`, `pyapps/<App>/**`); omit to apply project-wide when selected.
+- `alwaysApply`: `false` (matches glob/context) — default; `true` (always on) — use sparingly.
+
+**Single source of truth:** Long specs live in `development-guides/` (or a sub-app's `docs/`). Rule bodies only state scope, reference the canonical doc, and summarize a few obligations — never paste the full spec.
+
+**One concern per rule, scoped by glob.** E.g. `dot.mdc` = layout+language; `dot-ui.mdc` = UI/Presentation; `d3-check.mdc` = that app only. Narrower glob wins for its path.
+
+**Conflict precedence:** On UI/Presentation/Fluent 2, `DOT_ARCHITECTURE.md` and `dot-ui.mdc` win. Any other doc that defines or duplicates UI/Presentation structure must be updated to defer to the canonical spec (e.g. "UI layer: see DOT_ARCHITECTURE.md") — remove in-place redefinitions; do not add alternative UI rules elsewhere.
+
+# Per-sub-app rules
+
+- **One `.mdc` per sub-app**, `globs: pyapps/<App>/**` (or `dotapps/<App>/**`), `alwaysApply: false`, no cross-app glob.
+- Sub-app keeps its canonical standards in its own repo (`docs/PROJECT_STANDARDS.md` etc.); the rule references it. Long instructions can live in `.cursor/skills/<app>/SKILL.md` with the rule referencing it by section. Optional `AGENTS.md` in the sub-app root may point to both.
+- Existing: `pyapps/d3-check` → `d3-check.mdc`; `pyapps/GameAISDK` → `game-aisdk.mdc`; `dotapps/**` UI → `dot-ui.mdc`.
+- **Sub-apps importing pycore** must add the directory containing the `pycore` package to `sys.path` before any pycore import (walk up from `__file__` to the dir holding `pycore`, then `sys.path.insert(0, ...)`).

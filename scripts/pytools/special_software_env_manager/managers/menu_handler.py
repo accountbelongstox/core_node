@@ -59,12 +59,7 @@ class MenuHandler:
                 })
 
             menu_items.extend([
-                {'Text': 'Regenerate All Scripts', 'Action': 'regenerate_all', 'HasSubMenu': False},
-                {'Text': 'Restore Scripts from Secret Storage', 'Action': 'restore_scripts', 'HasSubMenu': False},
                 {'Text': 'View All Environment Variables', 'Action': 'viewall', 'HasSubMenu': False},
-                {'Text': 'Refresh Current Terminal Environment', 'Action': 'refresh', 'HasSubMenu': False},
-                {'Text': 'Gitea Backup Management', 'Action': 'gitea_backup', 'HasSubMenu': False},
-                {'Text': 'Back to dd.sh Main Menu', 'Action': 'back', 'HasSubMenu': False},
                 {'Text': 'Exit', 'Action': 'exit', 'HasSubMenu': False}
             ])
 
@@ -77,20 +72,6 @@ class MenuHandler:
                 handlers['encrypted_constants_manager'].custom_add()
             elif action == 'viewall':
                 handlers['env_var_manager'].show_all_environment_variables(self.config_manager)
-            elif action == 'refresh':
-                handlers['env_var_manager'].refresh_current_terminal_environment()
-            elif action == 'regenerate_all':
-                handlers['script_manager'].regenerate_all_scripts(
-                    self.config_manager, handlers.get('secret_manager_available', False)
-                )
-            elif action == 'restore_scripts':
-                handlers['script_manager'].restore_scripts_from_secrets(
-                    self.config_manager, handlers.get('secret_manager_available', False)
-                )
-            elif action == 'gitea_backup':
-                self._run_gitea_backup_management()
-            elif action == 'back':
-                return
             elif action == 'exit':
                 sys.exit(0)
             else:
@@ -197,30 +178,6 @@ class MenuHandler:
                 handlers['env_var_manager'].restore_configuration(config_name, config)
             elif submenu_action == 'back':
                 return
-
-    def _run_gitea_backup_management(self):
-        """Run the Gitea backup management script"""
-        import subprocess
-        import os
-
-        # Get the script directory (3 levels up from this file)
-        script_dir = Path(__file__).resolve().parent.parent.parent.parent / 'shells' / 'linux' / 'menu_itemshells' / 'gitea_backup'
-        backup_script = script_dir / 'backup_management_main.sh'
-
-        if not backup_script.exists():
-            ColorMessage.write(f"Backup script not found: {backup_script}", 'error')
-            input("Press Enter to continue...")
-            return
-
-        try:
-            # Run the backup management script
-            ColorMessage.write("Starting Gitea Backup Management...", 'info')
-            print()
-            subprocess.run(['bash', str(backup_script)], check=False)
-            print()
-        except Exception as e:
-            ColorMessage.write(f"Error running backup script: {str(e)}", 'error')
-            input("Press Enter to continue...")
 
 
 __all__ = ['MenuHandler']

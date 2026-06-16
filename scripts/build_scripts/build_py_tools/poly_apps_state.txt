@@ -11,8 +11,8 @@ project_name_1	flutter_bloom
 project_path_1	D:\programing\core_node\poly_apps\flutter_bloom
 project_port_1	10001
 project_type_1	unknown
-project_name_2	laravel_dashboard
-project_path_2	D:\programing\core_node\poly_apps\laravel_dashboard
+project_name_2	pycore_laravel_wordflow_ui
+project_path_2	D:\programing\core_node\poly_apps\pycore_laravel_wordflow_ui
 project_port_2	10002
 project_type_2	vite
 project_name_3	laravel_main

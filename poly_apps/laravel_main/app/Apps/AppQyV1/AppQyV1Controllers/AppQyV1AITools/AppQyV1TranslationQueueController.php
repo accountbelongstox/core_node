@@ -470,6 +470,207 @@ class AppQyV1TranslationQueueController extends Controller
     }
 
     /**
+     * GET /api/app_qy_v1/ai_tools/translation/queue/pending-words
+     *
+     * CONTROL plane (no-auth). DICTIONARY-driven pending view used by the
+     * chrome-mcp Bing-assist panel: it reports the words that still need a
+     * translation straight from the per-language dictionary ("sys:init" data) —
+     * a word is PENDING when it has NO translation yet AND is not explicitly
+     * invalid (is_valid stays true for both valid and not-yet-checked rows).
+     *
+     * This differs from controlList (which reports the global_tasks work queue):
+     * controlList shows what is QUEUED, this shows what REMAINS to translate so
+     * the panel can preview real untranslated words even before any task exists.
+     * Clicking Start calls enqueuePending to turn these into worker tasks.
+     *
+     * Query: language?(en) · target_language?(zh) · limit?(1..1000) · page?|offset?
+     * Response shape matches controlList (summary/items/pagination) so the panel
+     * renders it with no changes.
+     */
+    public function controlPendingWords(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'language' => 'nullable|string',
+            'target_language' => 'nullable|string',
+            'limit' => 'nullable|integer|min:1|max:1000',
+            'offset' => 'nullable|integer|min:0',
+            'page' => 'nullable|integer|min:1',
+        ]);
+
+        $language = 'en';
+        if (isset($validated['language']) && $validated['language'] !== '') {
+            $language = $validated['language'];
+        }
+        $targetLanguage = 'zh';
+        if (isset($validated['target_language']) && $validated['target_language'] !== '') {
+            $targetLanguage = $validated['target_language'];
+        }
+        $langCode = AppQyV1DictionaryService::getLanguageCode($language);
+        $targetCode = AppQyV1DictionaryService::getLanguageCode($targetLanguage);
+
+        $limit = 10;
+        if (isset($validated['limit'])) {
+            $limit = (int) $validated['limit'];
+        }
+        $offset = 0;
+        if (isset($validated['page'])) {
+            $offset = ((int) $validated['page'] - 1) * $limit;
+        } elseif (isset($validated['offset'])) {
+            $offset = (int) $validated['offset'];
+        }
+        if ($offset < 0) {
+            $offset = 0;
+        }
+
+        // Dictionary-driven counts. Cached briefly (the panel reloads on demand,
+        // not on a tight interval) so repeated loads reuse one set of table counts.
+        $summary = Cache::remember(
+            'appqyv1:wordtrans_pending_summary:' . $langCode,
+            8,
+            static function () use ($langCode) {
+                $pending = AppQyV1LangDictionaryModel::forLanguage($langCode)
+                    ->where('has_translation', false)
+                    ->where('is_valid', true)
+                    ->count();
+                $completed = AppQyV1LangDictionaryModel::forLanguage($langCode)
+                    ->where('has_translation', true)
+                    ->count();
+                $failed = AppQyV1LangDictionaryModel::forLanguage($langCode)
+                    ->where('is_valid', false)
+                    ->count();
+                $total = AppQyV1LangDictionaryModel::forLanguage($langCode)->count();
+
+                return [
+                    'pending' => $pending,
+                    'completed' => $completed,
+                    'failed' => $failed,
+                    'total' => $total,
+                ];
+            }
+        );
+
+        // Live crawl activity: word_translation tasks currently assigned/processing
+        // for this language pair (real-time, uncached).
+        $processing = GlobalTask::query()
+            ->where('app_name', 'AppQyV1')
+            ->where('task_type', 'word_translation')
+            ->whereIn('status', [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING])
+            ->where('payload->language', $langCode)
+            ->where('payload->target_language', $targetCode)
+            ->count();
+
+        // The requested page of untranslated words to preview (most-queried first).
+        $pageWords = AppQyV1LangDictionaryModel::forLanguage($langCode)
+            ->where('has_translation', false)
+            ->where('is_valid', true)
+            ->orderBy('query_count', 'desc')
+            ->offset($offset)
+            ->limit($limit)
+            ->pluck('content')
+            ->all();
+
+        // One synthetic batch item per page so the existing panel (which renders
+        // item.words) shows the untranslated words without any UI change.
+        $items = [];
+        if (!empty($pageWords)) {
+            $items[] = [
+                'task_id' => 'pending-words:' . $langCode . ':' . $offset,
+                'words' => $pageWords,
+                'word_count' => count($pageWords),
+                'language' => $langCode,
+                'target_language' => $targetCode,
+                'priority' => 0,
+                'status' => 'pending',
+                'created_at' => null,
+                'age_seconds' => 0,
+                'assigned_to' => null,
+            ];
+        }
+
+        $pendingTotal = (int) $summary['pending'];
+
+        return $this->success([
+            'summary' => [
+                'pending' => $pendingTotal,
+                'processing' => $processing,
+                'completed' => (int) $summary['completed'],
+                'failed' => (int) $summary['failed'],
+                'total' => (int) $summary['total'],
+            ],
+            'items' => $items,
+            'pagination' => [
+                'limit' => $limit,
+                'offset' => $offset,
+                'page' => (int) floor($offset / max(1, $limit)) + 1,
+                'total' => $pendingTotal,
+                'has_more' => ($offset + count($pageWords)) < $pendingTotal,
+            ],
+        ], 'Pending words listed');
+    }
+
+    /**
+     * POST /api/app_qy_v1/ai_tools/translation/queue/enqueue-pending
+     *
+     * CONTROL plane (no-auth). Turns dictionary-pending words (no translation,
+     * not invalid) into actual word_translation global tasks at HIGH priority so
+     * a worker that just started pulls them ahead of the background scan's LOW
+     * batches. Called by the chrome-mcp panel on "Confirm & Start". Reuses the
+     * shared stackWords core, so re-clicking is safe (already-queued words are
+     * moved-to-front, already-translated / invalid words are skipped).
+     *
+     * Body: language?(en) · target_language?(zh) · limit?(1..2000, default 200)
+     */
+    public function controlEnqueuePending(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'language' => 'nullable|string',
+            'target_language' => 'nullable|string',
+            'limit' => 'nullable|integer|min:1|max:2000',
+        ]);
+
+        $language = 'en';
+        if (isset($validated['language']) && $validated['language'] !== '') {
+            $language = $validated['language'];
+        }
+        $targetLanguage = 'zh';
+        if (isset($validated['target_language']) && $validated['target_language'] !== '') {
+            $targetLanguage = $validated['target_language'];
+        }
+        $limit = 200;
+        if (isset($validated['limit'])) {
+            $limit = (int) $validated['limit'];
+        }
+
+        $langCode = AppQyV1DictionaryService::getLanguageCode($language);
+
+        $words = AppQyV1LangDictionaryModel::forLanguage($langCode)
+            ->where('has_translation', false)
+            ->where('is_valid', true)
+            ->orderBy('query_count', 'desc')
+            ->limit($limit)
+            ->pluck('content')
+            ->all();
+
+        if (empty($words)) {
+            return $this->success([
+                'queued' => 0,
+                'moved' => 0,
+                'skipped' => 0,
+                'task_ids' => [],
+            ], 'No pending words to enqueue');
+        }
+
+        $outcome = $this->stackWords($words, $language, $targetLanguage, self::PRIORITY_HIGH);
+
+        return $this->success([
+            'queued' => $outcome['queued'],
+            'moved' => $outcome['moved'],
+            'skipped' => $outcome['skipped'],
+            'task_ids' => $outcome['task_ids'],
+        ], 'Pending words enqueued');
+    }
+
+    /**
      * GET /api/app_qy_v1/ai_tools/translation/queue/history
      *
      * CONTROL plane (no-auth, dashboard-reachable). A DETAILED processing-history

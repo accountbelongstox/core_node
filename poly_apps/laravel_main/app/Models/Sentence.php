@@ -43,11 +43,13 @@ class Sentence extends Model
         'grammar',
         'special_usage',
         'audio',
+        'has_audio',
         'occurrence_count',
         'metadata',
     ];
 
     protected $casts = [
+        'has_audio' => 'boolean',
         'occurrence_count' => 'integer',
         'metadata' => 'array',
     ];

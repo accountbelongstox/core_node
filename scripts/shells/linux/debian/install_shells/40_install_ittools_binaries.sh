@@ -136,15 +136,16 @@ create_symlinks_for_pdf_tools() {
 
 install_document_tools() {
     print_step_from_common_functions "Installing document processing tools"
-    
-    local doc_packages=(
-        "libreoffice-writer"
-        "libreoffice-calc"
-        "unoconv"
-        "antiword"
-        "catdoc"
-        "pandoc"
-    )
+
+    # LibreOffice (+unoconv, which depends on it) is ~316M and a desktop suite. Skip it
+    # on a headless server unless explicitly requested - antiword/catdoc/pandoc cover the
+    # common CLI conversions. Force with INSTALL_LIBREOFFICE=true.
+    local doc_packages=("antiword" "catdoc" "pandoc")
+    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ] || [ "${INSTALL_LIBREOFFICE:-false}" = "true" ]; then
+        doc_packages=("libreoffice-writer" "libreoffice-calc" "unoconv" "antiword" "catdoc" "pandoc")
+    else
+        echo "[$SCRIPT_INDEX] No desktop environment: skipping LibreOffice + unoconv (~316M). Set INSTALL_LIBREOFFICE=true to force."
+    fi
     
     for pkg in "${doc_packages[@]}"; do
         if ! dpkg -l | grep -q "^ii  $pkg "; then

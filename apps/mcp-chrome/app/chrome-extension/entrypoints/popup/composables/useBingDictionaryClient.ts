@@ -5,7 +5,10 @@
 
 import { ref, onUnmounted } from 'vue';
 import { apiManager } from '@/services/ApiManager';
+import { logger } from '@/utils/logger';
 import { readJson, writeJson } from './useCacheStore';
+
+const LOG = 'Bing Client';
 
 export type ServiceMode = 'legacy' | 'worker';
 
@@ -19,6 +22,9 @@ export interface ClientConfig {
   mode?: ServiceMode;
   // Worker mode: number of Bing dictionary tabs driven in parallel.
   tabCount?: number;
+  // Worker mode: source language of the words to translate (the dictionary the
+  // pending words live in). Drives the pending-words query + enqueue.
+  sourceLanguage?: string;
   // Worker mode: default target language when a task omits one.
   targetLanguage?: string;
 }
@@ -38,6 +44,8 @@ export interface ClientServiceStats {
   activeTabs?: number;      // Bing tabs currently in the pool
   currentWord?: string | null;   // Word currently being looked up
   currentTaskId?: string | null; // Task currently being processed
+  // Per-tab live activity: which word each parallel Bing tab is translating now.
+  tabActivity?: Array<{ tabId: number; word: string | null }>;
 }
 
 export interface ClientServiceState {
@@ -53,6 +61,7 @@ export function useBingDictionaryClient() {
     batchSize: 10,
     mode: 'worker', // Default to Worker API mode
     tabCount: 3,     // Parallel Bing dictionary tabs (worker mode)
+    sourceLanguage: 'en', // Source language of the pending words
     targetLanguage: 'zh',
   });
   const clientService = ref<ClientServiceState>({
@@ -196,6 +205,8 @@ export function useBingDictionaryClient() {
       next = Number.isFinite(n) ? Math.max(1, Math.min(3600, Math.round(n))) : 5;
     } else if (field === 'targetLanguage' && typeof value === 'string') {
       next = value.trim().toLowerCase();
+    } else if (field === 'sourceLanguage' && typeof value === 'string') {
+      next = value.trim().toLowerCase();
     }
     (clientConfig.value as any)[field] = next;
     // Editing the endpoint invalidates a previous connection test.
@@ -271,6 +282,7 @@ export function useBingDictionaryClient() {
   // Always-on activation for an embedded panel: load saved config, pull the
   // endpoint from Settings, load current service state, and begin polling.
   const initPanel = async () => {
+    await logger.init();
     await loadClientConfig();
     await apiManager.initialize({ autoDetect: false });
     syncEndpointFromSettings();
@@ -286,9 +298,9 @@ export function useBingDictionaryClient() {
   const saveClientConfig = async () => {
     try {
       await chrome.storage.local.set({ bing_dictionary_client_config: clientConfig.value });
-      console.log('[Bing Dictionary] Client config saved');
+      logger.debug(LOG, 'Client config saved');
     } catch (err) {
-      console.error('[Bing Dictionary] Failed to save client config:', err);
+      logger.error(LOG, 'Failed to save client config', err);
     }
   };
 
@@ -299,7 +311,7 @@ export function useBingDictionaryClient() {
         clientConfig.value = { ...clientConfig.value, ...result.bing_dictionary_client_config };
       }
     } catch (err) {
-      console.error('[Bing Dictionary] Failed to load client config:', err);
+      logger.error(LOG, 'Failed to load client config', err);
     }
   };
 
@@ -356,7 +368,7 @@ export function useBingDictionaryClient() {
         error.value = resp?.error || 'Failed to start service';
       }
     } catch (err: any) {
-      console.error('[Bing Dictionary] Service toggle error:', err);
+      logger.error(LOG, 'Service toggle error', err);
       error.value = err.message || 'Failed to toggle service';
     }
   };
@@ -373,7 +385,7 @@ export function useBingDictionaryClient() {
         clientService.value.stats = response.stats;
       }
     } catch (err) {
-      console.error('[Bing Dictionary] Failed to load service state:', err);
+      logger.error(LOG, 'Failed to load service state', err);
     }
   };
 

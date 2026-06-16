@@ -111,7 +111,7 @@
 #     - Code-sync role/peers : pycore/pyutils/device_sync/code_sync_peers.json  (committed)
 #
 # UI vs headless:
-#   `run` serves the unified shell poly_apps\laravel_dashboard (its pycore-manager
+#   `run` serves the unified shell poly_apps\pycore_laravel_wordflow_ui (its pycore-manager
 #   end) at http://localhost:<UiPort>/pycore-manager, loaded by PySide6 via
 #   PYCORE_UI_URL. Backend is rpc_v2 on :59000 with a /pyapi reverse proxy and a
 #   direct ws://host:59000/rpc/ws log stream (a global floating collapsible log
@@ -133,7 +133,11 @@ param(
     [string[]]$Include = @(),
     [switch]$NoUi,
     [switch]$UiBuild,
-    [int]$UiPort = 13054
+    [int]$UiPort = 13054,
+    # Trailing args forwarded to subcommands (e.g. `config ...`, `codesync ...`).
+    # Required because [CmdletBinding()] otherwise rejects extra positional args.
+    [Parameter(ValueFromRemainingArguments=$true)]
+    [string[]]$Rest = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -227,16 +231,50 @@ switch ($Command.ToLowerInvariant()) {
             Write-Host '[X] Python 3 was NOT found; cannot run ''config''.' -ForegroundColor Red
             exit 1
         }
-        $rest = @()
-        if ($args) { $rest = $args }
+        $fwd = @()
+        if ($Rest) { $fwd = $Rest } elseif ($args) { $fwd = $args }
         Push-Location -LiteralPath $PSScriptRoot
         try {
-            & $py.Path -m pycore.pyutils.pyservice_cli config @rest
+            & $py.Path -m pycore.pyutils.pyservice_cli config @fwd
             $cfgCode = $LASTEXITCODE
         } finally {
             Pop-Location
         }
         exit $cfgCode
+    }
+    'codesync' {
+        # Standalone, stdlib-only Code Sync. Dispatched here, before any prereq
+        # logic, and WITHOUT importing the pycore package: the bootstrap is run as
+        # a FILE so `codesync` loads as a top-level name (pycore/__init__.py is
+        # never executed, no third_party). See device_sync/CODESYNC_LITE_DESIGN.md.
+        $py = Resolve-Python
+        if (-not $py) {
+            Write-Host '[X] Python 3 was NOT found; cannot run ''codesync''.' -ForegroundColor Red
+            exit 1
+        }
+        $fwd = @()
+        if ($Rest) { $fwd = $Rest } elseif ($args) { $fwd = $args }
+        $csSub = ''
+        if ($fwd.Count -ge 1) { $csSub = "$($fwd[0])".ToLowerInvariant() }
+        # System-service install is systemd-only. On Windows, the bare command and
+        # the service ops print a notice + how to run it in the foreground.
+        $csServiceOps = @('', 'install', 'uninstall', 'start', 'stop', 'restart', 'status', 'service')
+        if ($csServiceOps -contains $csSub) {
+            Write-Host '[i] Code Sync system-service install is Linux-only (systemd).' -ForegroundColor Yellow
+            Write-Host '    On Windows, run the standalone daemon in the foreground:' -ForegroundColor DarkYellow
+            Write-Host '        .\pyservice.ps1 codesync run' -ForegroundColor DarkYellow
+            Write-Host '    To auto-start at login, wrap that with Task Scheduler or nssm.' -ForegroundColor DarkYellow
+            Write-Host '    View file-sync logs at: %USERPROFILE%\.core_node\data\code_sync_logs\' -ForegroundColor DarkYellow
+            exit 0
+        }
+        Push-Location -LiteralPath $PSScriptRoot
+        try {
+            & $py.Path (Join-Path $PSScriptRoot 'pycore/pyutils/codesync_boot.py') @fwd
+            $csCode = $LASTEXITCODE
+        } finally {
+            Pop-Location
+        }
+        exit $csCode
     }
     { $_ -in @('install', 'start', 'stop', 'restart', 'status', 'uninstall') } {
         Write-Host ("[i] '{0}': systemd service install/management is Linux-only." -f $Command) -ForegroundColor Yellow
@@ -297,11 +335,11 @@ try {
     }
 
     # --- 2) launch the unified dashboard UI (unless -NoUi) ---------------- #
-    # The UI is the pure-Vite shell at poly_apps\laravel_dashboard. It runs as its
+    # The UI is the pure-Vite shell at poly_apps\pycore_laravel_wordflow_ui. It runs as its
     # own dev server (pnpm); PySide6 loads it via PYCORE_UI_URL, which we export
     # here (pointing at the pycore-manager end) so the worker child inherits it.
     if (-not $NoUi) {
-        $uiDir = Join-Path $PSScriptRoot 'poly_apps\laravel_dashboard'
+        $uiDir = Join-Path $PSScriptRoot 'poly_apps\pycore_laravel_wordflow_ui'
         # Prefer pnpm.cmd: Start-Process cannot launch the extensionless pnpm shim.
         $pnpm = Get-Command pnpm.cmd -ErrorAction SilentlyContinue
         if (-not $pnpm) { $pnpm = Get-Command pnpm -ErrorAction SilentlyContinue }

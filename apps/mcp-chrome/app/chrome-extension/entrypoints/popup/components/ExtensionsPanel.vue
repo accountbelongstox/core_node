@@ -79,6 +79,7 @@ import { useExtensionConfig } from '@/composables/useExtensionConfig';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import BingDictionary from './extensions/BingDictionary.vue';
 import NotebookLMPanel from './extensions/NotebookLMPanel.vue';
+import GeminiImage from './extensions/GeminiImage.vue';
 
 // Extension config management. The old in-extension "Local Task Queue" (Process
 // API requests locally) was removed — it duplicated the laravel-aligned Bing
@@ -101,6 +102,7 @@ const activeExtension = computed(
 const registerAllComponents = () => {
   registerComponent('bing-dictionary', BingDictionary);
   registerComponent('notebooklm', NotebookLMPanel);
+  registerComponent('gemini-image', GeminiImage);
 };
 
 onMounted(async () => {

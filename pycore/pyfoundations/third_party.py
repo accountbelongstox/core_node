@@ -285,6 +285,27 @@ WINDOWS_ONLY_PACKAGES = {
 
 # PyTorch CUDA: install this first so "Found installed packages" lists CUDA build (see pytorch.org/get-started/locally)
 PYTORCH_CUDA_INDEX_URL = "https://download.pytorch.org/whl/cu126"
+# CPU-only PyTorch wheels (no nvidia-* CUDA deps). Used on hosts WITHOUT an NVIDIA
+# GPU so torch does not drag in ~4.3G of nvidia-* wheels. See pytorch.org/get-started.
+PYTORCH_CPU_INDEX_URL = "https://download.pytorch.org/whl/cpu"
+
+# GUI/Qt-only packages. On HEADLESS Linux (no DISPLAY/Wayland) there is no display to
+# render them, so they are skipped during the import-time auto-install to avoid heavy
+# desktop deps (PySide6 ~629M, PyQt5 ~202M; labelme/labelImg pull Qt). They still
+# lazy-install on demand via their getters if a desktop feature is actually invoked.
+# Override: PYCORE_FORCE_GUI=1 installs them anyway; PYCORE_HEADLESS=1 forces skip.
+GUI_ONLY_IMPORTS = {"PySide6", "PyQt5", "labelme", "labelImg"}
+
+
+def _is_headless_linux() -> bool:
+    """True on Linux with no GUI display, so Qt/GUI auto-installs should be skipped."""
+    if os.environ.get("PYCORE_FORCE_GUI") == "1":
+        return False
+    if os.environ.get("PYCORE_HEADLESS") == "1":
+        return True
+    if platform.system() != "Linux":
+        return False
+    return not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 # ---------------------------------------------------------------------------
 # Pip / command execution: SINGLE COMMON PATH (per Python subprocess docs)
@@ -421,15 +442,69 @@ def _print_cuda_support_prompt():
     ColorPrint.blue("[CUDA] ---")
 
 
+def _uninstall_orphan_nvidia_wheels():
+    """Reclaim disk after switching torch to CPU on a no-GPU host: pip leaves the
+    nvidia-* CUDA wheels (~4.3G) behind. Uninstall every nvidia-* and triton wheel."""
+    proc = run_third_party_command(
+        [sys.executable, "-m", "pip", "list", "--format=freeze"],
+        capture_output=True,
+        timeout=30,
+    )
+    if proc is None or proc.returncode != 0:
+        return
+    names = []
+    for line in (proc.stdout or "").splitlines():
+        name = line.split("==", 1)[0].strip()
+        low = name.lower()
+        if low.startswith("nvidia-") or low == "triton":
+            names.append(name)
+    if names:
+        run_third_party_command(
+            [sys.executable, "-m", "pip", "uninstall", "-y", *names],
+            "pip uninstall nvidia-* (no GPU)",
+        )
+
+
+def _ensure_torch_cpu_build_when_no_gpu():
+    """No NVIDIA GPU, but a CUDA build of torch is installed -> it dragged in ~4.3G of
+    nvidia-* wheels for nothing. Reinstall the CPU build from the CPU index and remove
+    the orphaned nvidia-* wheels. No-op if torch is absent or already the CPU build.
+    Override: TORCH_FORCE_CUDA=1 leaves it alone."""
+    if os.environ.get("TORCH_FORCE_CUDA") == "1":
+        return
+    if torch is None:
+        return
+    if getattr(torch.version, "cuda", None) is None:
+        return  # already a CPU build
+    ColorPrint.yellow(
+        "[CUDA] No GPU detected, but torch is a CUDA build (pulls ~4.3G nvidia-*). "
+        "Reinstalling the CPU build and removing nvidia-* wheels."
+    )
+    current_platform = platform.system()
+    pip_cmd = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio",
+               "--index-url", PYTORCH_CPU_INDEX_URL, "--force-reinstall"]
+    if current_platform != "Windows":
+        pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
+    else:
+        pip_cmd.append("--no-user")
+    run_pip_install_with_realtime_output(pip_cmd, "torch (CPU, no GPU)")
+    _uninstall_orphan_nvidia_wheels()
+    importlib.invalidate_caches()
+    if "torch" in sys.modules:
+        del sys.modules["torch"]
+
+
 def _ensure_torch_cuda_build_first():
     """
     Run before other package checks. Ensure torch is CUDA build only when system supports CUDA.
     System support: NVIDIA GPU + driver (nvidia-smi or CUDA env). Per PyTorch docs: is_available() for runtime.
+    On a host with NO GPU, ensure torch is the CPU build (not a stray CUDA build).
     """
     _print_cuda_support_prompt()
 
-    # Only skip CUDA install when system does not support CUDA
+    # No CUDA support: make sure any stray CUDA-build torch is switched to CPU.
     if not CUDADetector.is_cuda_available():
+        _ensure_torch_cpu_build_when_no_gpu()
         return
 
     if torch is not None and getattr(torch, "cuda", None) is not None and torch.cuda.is_available():
@@ -671,6 +746,15 @@ def check_and_install_dependencies():
         all_dependencies.update(WINDOWS_ONLY_PACKAGES)
     else:
         ColorPrint.blue(f"[INFO] Skipping Windows-only packages on {current_platform}")
+
+    # Headless Linux (no DISPLAY/Wayland): drop GUI-only Qt packages — there is no
+    # display to use them and they are heavy (PySide6 ~629M, PyQt5 ~202M). They still
+    # lazy-install on demand via their getters if a desktop feature actually runs.
+    if _is_headless_linux():
+        dropped = sorted({p for i, p in all_dependencies.items() if i in GUI_ONLY_IMPORTS})
+        all_dependencies = {i: p for i, p in all_dependencies.items() if i not in GUI_ONLY_IMPORTS}
+        if dropped:
+            ColorPrint.blue(f"[INFO] Headless Linux (no display): skipping GUI-only packages: {', '.join(dropped)}")
 
     # Optional packages are not checked/installed automatically
     ColorPrint.blue("[INFO] Optional packages are not auto-installed")
@@ -992,8 +1076,25 @@ def get_third_package_cv2():
 
 
 def get_third_package_pyautogui():
-    """Get pyautogui package (lazy load)"""
-    return _lazy_import('pyautogui', 'import pyautogui')
+    """Get pyautogui package (lazy load); returns None when unusable.
+
+    On a headless host (no X11 / no DISPLAY) importing pyautogui raises
+    KeyError('DISPLAY') from its mouseinfo dependency — NOT an ImportError — so
+    _lazy_import does not catch it and it would crash the whole worker at module
+    import time. Swallow any such environment error and cache None instead;
+    every caller must handle a None pyautogui.
+    """
+    try:
+        return _lazy_import('pyautogui', 'import pyautogui')
+    except (ImportError, ModuleNotFoundError):
+        # No pip package mapped (or install failed) — treat as unavailable.
+        _PACKAGE_CACHE['pyautogui'] = None
+        return None
+    except Exception as e:
+        # Headless display errors (KeyError('DISPLAY'), Xlib errors, etc.).
+        ColorPrint.yellow(f"[third_party] pyautogui unavailable (headless/no DISPLAY): {e}")
+        _PACKAGE_CACHE['pyautogui'] = None
+        return None
 
 
 def get_third_package_psutil():

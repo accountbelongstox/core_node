@@ -29,6 +29,10 @@ export const HTTP_STATUS = {
   OK: 200,
   NO_CONTENT: 204,
   BAD_REQUEST: 400,
+  // 404 is the MCP Streamable HTTP signal for an unknown/expired session: a
+  // spec-compliant client re-initializes when it sees it (a 400 is NOT treated
+  // as recoverable). Keep them distinct — see the /mcp handlers.
+  NOT_FOUND: 404,
   INTERNAL_SERVER_ERROR: 500,
   GATEWAY_TIMEOUT: 504,
 } as const;
@@ -39,6 +43,9 @@ export const ERROR_MESSAGES = {
   SERVER_NOT_RUNNING: 'Server is not actively running.',
   REQUEST_TIMEOUT: 'Request to extension timed out.',
   INVALID_MCP_REQUEST: 'Invalid MCP request or session.',
+  // Returned (HTTP 404) when a request carries a session id the server no longer
+  // knows — the client should re-initialize a fresh session.
+  SESSION_NOT_FOUND: 'Session not found; reinitialize with an initialize request.',
   INVALID_SESSION_ID: 'Invalid or missing MCP session ID.',
   INTERNAL_SERVER_ERROR: 'Internal Server Error',
   MCP_SESSION_DELETION_ERROR: 'Internal server error during MCP session deletion.',

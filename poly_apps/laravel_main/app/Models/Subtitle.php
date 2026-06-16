@@ -48,6 +48,14 @@ class Subtitle extends Model
         'sentence_count',
         'synced_at',
         'metadata',
+        'poster_filename',
+        'poster_provider',
+        'poster_source_id',
+        'poster_status',
+        'poster_meta',
+        'poster_fetched_at',
+        'assist_claimed_at',
+        'assist_claimed_by',
     ];
 
     protected $casts = [
@@ -58,6 +66,9 @@ class Subtitle extends Model
         'sentence_count' => 'integer',
         'synced_at' => 'datetime',
         'metadata' => 'array',
+        'poster_meta' => 'array',
+        'poster_fetched_at' => 'datetime',
+        'assist_claimed_at' => 'datetime',
     ];
 
     public function segments()

@@ -9,7 +9,7 @@ Two-part design:
      directory (``~/.core_node/data/autostart/PyCore_RPC_Server.ps1``). It runs
      the repo's canonical entry point ``pyservice.ps1 -NoInstall`` so boot starts
      the SAME stack as a manual run: the unified dashboard UI dev server
-     (poly_apps/laravel_dashboard, exported as PYCORE_UI_URL) and then the pycore
+     (poly_apps/pycore_laravel_wordflow_ui, exported as PYCORE_UI_URL) and then the pycore
      worker. Launching the bare worker directly is kept only as a fallback when
      pyservice.ps1 cannot be found (it would skip the UI server, leaving the
      PySide6 webview with nothing to load -> ERR_CONNECTION_REFUSED). The script
@@ -123,7 +123,7 @@ class WindowsStartupManager:
         )
         if self.pyservice_script.exists():
             # Boot runs the SAME entry point as a manual run: pyservice.ps1 starts
-            # the unified dashboard UI dev server (laravel_dashboard, exported as
+            # the unified dashboard UI dev server (pycore_laravel_wordflow_ui, exported as
             # PYCORE_UI_URL) and then the worker; its finally-block tears the UI
             # server down with the worker. -NoInstall skips the heavy prerequisite
             # step at boot (the machine was provisioned when auto-start was set up).

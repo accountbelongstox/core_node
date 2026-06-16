@@ -74,6 +74,28 @@ PG_CONF_ACTUAL=""
 PG_DATA_SRC=""
 ENV_DRIVER_OVERRIDE=""
 
+# Background systemd service options (idempotent registration via debian_service_manager).
+# AS_SERVICE: yes|no|empty(ask). LARAVEL_SERVICE_RUN=1 marks the in-service run so it
+# skips registration and runs the full setup + Octane in the foreground.
+AS_SERVICE="${AS_SERVICE:-}"
+LARAVEL_SERVICE_NAME="ncore-laravel-main"
+LARAVEL_SERVICE_DESC="laravel_main backend (Octane)"
+LARAVEL_SERVICE_CPU="${LARAVEL_SERVICE_CPU:-100%}"
+LARAVEL_SERVICE_MEM="${LARAVEL_SERVICE_MEM:-}"
+LARAVEL_SERVICE_MEM_CAP_MB="${LARAVEL_SERVICE_MEM_CAP_MB:-2048}"
+SERVICE_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/debian_service_manager.sh"
+SELF="${SCRIPT_DIR}/start.sh"
+SERVICE_EXEC_CMD=""
+ARG=""
+
+# Parse service-related arguments (the orchestrator passes these so it never re-prompts).
+for ARG in "$@"; do
+    case "$ARG" in
+        --service) AS_SERVICE="yes" ;;
+        --no-service) AS_SERVICE="no" ;;
+    esac
+done
+
 # Restore initial directory on any exit (normal, error, Ctrl+C)
 trap 'cd "$ORIGINAL_DIR" && echo "" && echo "Restored to initial directory: $ORIGINAL_DIR"' EXIT
 
@@ -248,6 +270,89 @@ ensure_port_free() {
     fi
     return 0
 }
+
+# DEFAULT YES prompt on the controlling TTY; no TTY -> yes.
+ask_default_yes() {
+    local msg="$1" reply=""
+    if [ -t 0 ] && [ -r /dev/tty ]; then
+        printf '%s [Y/n] ' "$msg" > /dev/tty
+        read -r reply < /dev/tty || reply=""
+    fi
+    case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+}
+
+# Echo a systemd memory limit "<n>M" = min(total RAM / 4, cap_mb), floored at 128M.
+compute_mem_limit() {
+    local cap_mb="$1"
+    local total_kb total_mb quarter
+    total_kb=$(grep -m1 MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+    [ -n "$total_kb" ] || total_kb=0
+    total_mb=$(( total_kb / 1024 ))
+    quarter=$(( total_mb / 4 ))
+    [ "$quarter" -lt 128 ] && quarter=128
+    if [ "$quarter" -gt "$cap_mb" ]; then echo "${cap_mb}M"; else echo "${quarter}M"; fi
+}
+
+# Register (or refresh) the laravel_main systemd service via debian_service_manager.
+# Writes /etc/systemd/system -> needs root; falls back to sudo. The unit is composed
+# by create_systemd_service (CPUQuota + MemoryMax/High + auto restart). The manager's
+# top-level side effects (it sources gvar_common.sh) are isolated in a subshell.
+register_laravel_service() {
+    local exec_cmd="$1"
+    if [ ! -f "$SERVICE_MANAGER" ]; then echo "ERROR: debian_service_manager not found: $SERVICE_MANAGER"; return 1; fi
+    if [ "$(id -u)" -eq 0 ]; then
+        (
+            # shellcheck disable=SC1090
+            source "$SERVICE_MANAGER"
+            create_systemd_service "$LARAVEL_SERVICE_NAME" "$LARAVEL_SERVICE_DESC" "$exec_cmd" "$LARAVEL_DIR" "root" "always" "10s" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM"
+        ) || return 1
+        systemctl enable "$LARAVEL_SERVICE_NAME" >/dev/null 2>&1 || true
+        systemctl restart "$LARAVEL_SERVICE_NAME" || return 1
+        systemctl status "$LARAVEL_SERVICE_NAME" --no-pager -l || true
+        return 0
+    fi
+    if command -v sudo >/dev/null 2>&1; then
+        sudo bash -c '
+            source "$1"
+            create_systemd_service "$2" "$3" "$4" "$5" root always 10s "$6" "$7"
+            systemctl enable "$2" >/dev/null 2>&1 || true
+            systemctl restart "$2"
+            systemctl status "$2" --no-pager -l || true
+        ' _ "$SERVICE_MANAGER" "$LARAVEL_SERVICE_NAME" "$LARAVEL_SERVICE_DESC" "$exec_cmd" "$LARAVEL_DIR" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM"
+        return $?
+    fi
+    echo "ERROR: Need root (or sudo) to register a systemd service. Re-run as root."
+    return 1
+}
+
+# --- Optional background service registration (runs BEFORE heavy setup) ---
+# A normal invocation (not the service itself) may install a systemd unit that
+# runs this same idempotent start.sh (full setup + Octane) in the background, then
+# exit. The unit sets LARAVEL_SERVICE_RUN=1 so the in-service run skips this block
+# and proceeds to the foreground setup + server.
+if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
+    if [ -z "$AS_SERVICE" ]; then
+        if ask_default_yes "Add laravel_main to a background systemd service (via debian_service_manager)?"; then
+            AS_SERVICE="yes"
+        else
+            AS_SERVICE="no"
+        fi
+    fi
+    if [ "$AS_SERVICE" = "yes" ]; then
+        [ -n "$LARAVEL_SERVICE_MEM" ] || LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
+        echo "Registering systemd service $LARAVEL_SERVICE_NAME (CPU=$LARAVEL_SERVICE_CPU, Memory=$LARAVEL_SERVICE_MEM, cap ${LARAVEL_SERVICE_MEM_CAP_MB}M)..."
+        SERVICE_EXEC_CMD="LARAVEL_SERVICE_RUN=1 PORT=${PORT} bash ${SELF}"
+        if register_laravel_service "$SERVICE_EXEC_CMD"; then
+            echo "Service $LARAVEL_SERVICE_NAME registered and started (full idempotent setup runs inside the service)."
+            echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_NAME"
+            echo "  Boot:    systemctl is-enabled $LARAVEL_SERVICE_NAME"
+            echo "  Logs:    journalctl -u $LARAVEL_SERVICE_NAME -f"
+            exit 0
+        else
+            echo "Service registration failed; continuing in the foreground."
+        fi
+    fi
+fi
 
 echo "Initial directory (invocation): $ORIGINAL_DIR"
 echo "Working directory (Laravel root): $LARAVEL_DIR"

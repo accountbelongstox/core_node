@@ -81,13 +81,33 @@ def _normalize_rate(rate: Optional[str]) -> str:
 
 
 def _is_retryable_tts_error(err: Exception) -> bool:
-    """403 handshake / rate-limit / transient network errors are worth a retry."""
+    """403 handshake / rate-limit / transient network / our synth timeout are retryable."""
+    # asyncio.wait_for timeout (our per-attempt bound) carries an empty message, so
+    # match it by TYPE, not text.
+    if isinstance(err, (asyncio.TimeoutError, TimeoutError)):
+        return True
     msg = str(err).lower()
     return any(m in msg for m in (
         '403', 'invalid response status', 'handshake', 'timeout', 'timed out',
         'temporarily', 'connection reset', 'connection aborted', 'too many requests',
         '429', 'server disconnected', 'no audio was received', 'no audio received',
     ))
+
+
+def get_synth_timeout() -> float:
+    """Current per-attempt synth timeout (seconds)."""
+    return _SYNTH_TIMEOUT_S
+
+
+def set_synth_timeout(seconds: Any) -> float:
+    """Override the per-attempt synth timeout at runtime (Settings-adjustable).
+    Clamped to [5, 120]s; ignored if not numeric. Returns the value in effect."""
+    global _SYNTH_TIMEOUT_S
+    try:
+        _SYNTH_TIMEOUT_S = max(5.0, min(120.0, float(seconds)))
+    except (TypeError, ValueError):
+        pass
+    return _SYNTH_TIMEOUT_S
 
 
 class EdgeTTSClient:
@@ -269,7 +289,6 @@ class EdgeTTSClient:
             # Serialize ALL edge-tts synthesis (no concurrency -> no 403 storms).
             with _EDGE_SYNTH_LOCK:
                 if edge_tts:
-                    import asyncio
                     try:
                         loop = asyncio.get_event_loop()
                     except RuntimeError:
@@ -282,9 +301,14 @@ class EdgeTTSClient:
                         # Fresh Communicate per attempt; edge-tts is one-shot per save.
                         kwargs = {"proxy": proxy} if proxy else {}
                         communicate = edge_tts.Communicate(text, voice, rate=rate, **kwargs)
-                        await communicate.save(str(output_path))
+                        # Bound each attempt: edge-tts's save() has no timeout, so a
+                        # stalled WebSocket otherwise hangs ~180s (Python socket
+                        # default). wait_for cancels the coroutine + raises on stall.
+                        await asyncio.wait_for(communicate.save(str(output_path)), timeout=_SYNTH_TIMEOUT_S)
                         if subtitle_path:
-                            await communicate.save_subtitles(str(subtitle_path), subtitle_format="srt")
+                            await asyncio.wait_for(
+                                communicate.save_subtitles(str(subtitle_path), subtitle_format="srt"),
+                                timeout=_SUBTITLE_TIMEOUT_S)
 
                     # Retry with backoff: the endpoint 403s under rate-limit/region
                     # blocking even though edge-tts already corrects clock skew.
@@ -359,6 +383,41 @@ class EdgeTTSClient:
         if not edge_tts:
             return None
         return getattr(edge_tts, '__version__', None)
+
+    def peek_availability(self) -> Optional[Dict[str, Any]]:
+        """Last availability result WITHOUT a network probe (None if never run).
+
+        Periodic status polls use this so they never block on a real edge synth
+        round-trip (which can hang for seconds under 403 rate-limiting). A live
+        probe happens only on an explicit user-initiated refresh.
+        """
+        cached = getattr(self, '_avail_cache', None)
+        return {**cached, 'cached': True} if cached else None
+
+    def ensure_background_probe(self) -> None:
+        """Populate the availability cache via a ONE-SHOT background probe.
+
+        Non-blocking: returns immediately. The status poll calls this when the
+        cache is missing/stale so edge availability fills in within a poll cycle
+        WITHOUT the request ever waiting on a network synth. A guard flag keeps
+        at most one probe in flight.
+        """
+        if getattr(self, '_avail_probing', False):
+            return
+        cached = getattr(self, '_avail_cache', None)
+        if cached and (time.time() - cached['checked_at']) < _AVAIL_TTL_S:
+            return
+        self._avail_probing = True
+
+        def _run():
+            try:
+                self.test_availability(force=True)
+            except Exception:
+                pass
+            finally:
+                self._avail_probing = False
+
+        threading.Thread(target=_run, name="edge-tts-probe", daemon=True).start()
 
     def test_availability(self, force: bool = False) -> Dict[str, Any]:
         """

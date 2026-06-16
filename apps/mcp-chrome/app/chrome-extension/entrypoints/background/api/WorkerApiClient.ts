@@ -241,6 +241,78 @@ export class WorkerApiClient extends BaseApiClient {
   }
 
   /**
+   * DICTIONARY-driven pending words: the words that still need a translation
+   * (no translation yet AND not explicitly invalid), straight from laravel_main's
+   * per-language dictionary. This is what the Bing-assist panel previews on
+   * "Load queue" — distinct from getTranslationQueue (the global_tasks queue).
+   * Same response shape so the panel renders it unchanged.
+   */
+  async getPendingWords(
+    options: {
+      language?: string;
+      target_language?: string;
+      limit?: number;
+      page?: number;
+      offset?: number;
+    } = {},
+  ): Promise<
+    ApiResponse<{
+      summary: {
+        pending: number;
+        processing: number;
+        completed: number;
+        failed: number;
+        total: number;
+      };
+      items: Array<{
+        task_id: string;
+        words: string[];
+        word_count: number;
+        language: string;
+        target_language: string;
+        priority: number;
+        status: string;
+        created_at: string | null;
+        age_seconds: number;
+        assigned_to: string | null;
+      }>;
+      pagination?: {
+        limit: number;
+        offset: number;
+        page: number;
+        total: number;
+        has_more: boolean;
+      };
+    }>
+  > {
+    const { language = 'en', target_language = 'zh', limit = 10, page, offset } = options;
+    const params: Record<string, any> = {
+      language,
+      target_language,
+      limit: Math.max(1, Math.min(1000, limit)),
+    };
+    if (page != null) params.page = Math.max(1, Math.floor(page));
+    else if (offset != null) params.offset = Math.max(0, Math.floor(offset));
+    return this.get('/api/app_qy_v1/ai_tools/translation/queue/pending-words', params);
+  }
+
+  /**
+   * Enqueue dictionary-pending words into the shared word_translation queue at
+   * HIGH priority so a worker that just started pulls them first. Called on
+   * "Confirm & Start". Safe to call repeatedly (server dedups / moves-to-front).
+   */
+  async enqueuePending(
+    options: { language?: string; target_language?: string; limit?: number } = {},
+  ): Promise<ApiResponse<{ queued: number; moved: number; skipped: number; task_ids: string[] }>> {
+    const { language = 'en', target_language = 'zh', limit = 500 } = options;
+    return this.post('/api/app_qy_v1/ai_tools/translation/queue/enqueue-pending', {
+      language,
+      target_language,
+      limit: Math.max(1, Math.min(2000, limit)),
+    });
+  }
+
+  /**
    * Get worker statistics
    */
   async getWorkerStats(): Promise<

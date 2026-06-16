@@ -1,0 +1,138 @@
+/**
+ * Global logger (extension-wide).
+ *
+ * One shared, persistent log buffer for the whole extension. Every subsystem
+ * routes its diagnostics through `logger.{debug,info,warn,error}(source, msg,
+ * data?)` instead of calling console directly, so:
+ *   - logs are MIRRORED to the devtools console (same as before), AND
+ *   - kept in a bounded ring buffer (the last MAX_ENTRIES only), AND
+ *   - persisted to chrome.storage.local (the extension's "file cache") so they
+ *     survive an MV3 service-worker restart and can be read from the popup.
+ *
+ * Persistence is debounced and merge-on-init, so multiple contexts (background
+ * SW + popup) sharing the one storage key don't clobber each other's history.
+ */
+
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export interface LogEntry {
+  ts: number; // epoch ms
+  level: LogLevel;
+  source: string; // subsystem tag, e.g. 'Bing Worker'
+  message: string;
+  data?: string; // truncated JSON/string of extra context (optional)
+}
+
+// Keep only the most recent 1000 entries (memory + persisted).
+const MAX_ENTRIES = 1000;
+const STORAGE_KEY = 'mcp_global_logs';
+const MAX_DATA_CHARS = 1000;
+const PERSIST_DEBOUNCE_MS = 800;
+
+class GlobalLogger {
+  private entries: LogEntry[] = [];
+  private loaded = false;
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Load any persisted history into the ring. Idempotent; MERGES stored entries
+   * before whatever this context already buffered so an early log() isn't lost.
+   * Safe to call in any context — a no-op where chrome.storage is unavailable.
+   */
+  async init(): Promise<void> {
+    if (this.loaded) return;
+    this.loaded = true;
+    if (!this.hasStorage()) return;
+    try {
+      const stored = (await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY];
+      if (Array.isArray(stored) && stored.length) {
+        this.entries = [...stored, ...this.entries].slice(-MAX_ENTRIES);
+      }
+    } catch {
+      // Storage unavailable — stay in-memory only.
+    }
+  }
+
+  debug(source: string, message: string, data?: unknown): void {
+    this.add('debug', source, message, data);
+  }
+  info(source: string, message: string, data?: unknown): void {
+    this.add('info', source, message, data);
+  }
+  warn(source: string, message: string, data?: unknown): void {
+    this.add('warn', source, message, data);
+  }
+  error(source: string, message: string, data?: unknown): void {
+    this.add('error', source, message, data);
+  }
+
+  /** Snapshot of the buffered logs (oldest first). */
+  getLogs(): LogEntry[] {
+    return [...this.entries];
+  }
+
+  clearLogs(): void {
+    this.entries = [];
+    this.flush();
+  }
+
+  private add(level: LogLevel, source: string, message: string, data?: unknown): void {
+    const entry: LogEntry = { ts: Date.now(), level, source, message };
+    if (data !== undefined) {
+      entry.data = this.serialize(data);
+    }
+    this.entries.push(entry);
+    if (this.entries.length > MAX_ENTRIES) {
+      this.entries.splice(0, this.entries.length - MAX_ENTRIES);
+    }
+    this.mirror(entry, data);
+    this.schedulePersist();
+  }
+
+  /** Mirror to the devtools console so nothing is lost from the dev experience. */
+  private mirror(entry: LogEntry, data?: unknown): void {
+    const tag = `[${entry.source}] ${entry.message}`;
+    let fn: (...a: any[]) => void = console.log;
+    if (entry.level === 'debug') fn = console.debug;
+    else if (entry.level === 'warn') fn = console.warn;
+    else if (entry.level === 'error') fn = console.error;
+    if (data !== undefined) fn(tag, data);
+    else fn(tag);
+  }
+
+  private serialize(data: unknown): string {
+    try {
+      if (typeof data === 'string') return data.slice(0, MAX_DATA_CHARS);
+      if (data instanceof Error) {
+        return (data.stack || data.message || String(data)).slice(0, MAX_DATA_CHARS);
+      }
+      return JSON.stringify(data).slice(0, MAX_DATA_CHARS);
+    } catch {
+      return String(data).slice(0, MAX_DATA_CHARS);
+    }
+  }
+
+  private hasStorage(): boolean {
+    return typeof chrome !== 'undefined' && !!chrome.storage && !!chrome.storage.local;
+  }
+
+  private schedulePersist(): void {
+    if (!this.hasStorage()) return;
+    if (this.persistTimer) return;
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      this.flush();
+    }, PERSIST_DEBOUNCE_MS);
+  }
+
+  private flush(): void {
+    if (!this.hasStorage()) return;
+    try {
+      chrome.storage.local.set({ [STORAGE_KEY]: this.entries }).catch(() => undefined);
+    } catch {
+      // ignore persistence failures — logging must never throw.
+    }
+  }
+}
+
+export const logger = new GlobalLogger();

@@ -14,6 +14,11 @@
 import { WorkerApiClient, Task, ProcessorType } from '../api/WorkerApiClient';
 import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-dictionary';
 import { mediaCache } from '@/utils/media-cache';
+import { logger } from '@/utils/logger';
+import { BingTabPool, MAX_BING_TABS } from './bing-tab-pool';
+
+// Subsystem tag for the global logger.
+const LOG = 'Bing Worker';
 
 export interface WorkerConfig {
   apiUrl: string;
@@ -23,6 +28,8 @@ export interface WorkerConfig {
   batchSize?: number;
   /** Number of Bing dictionary tabs to drive in parallel. */
   tabCount?: number;
+  /** Source language of the pending words (drives pending query + enqueue). */
+  sourceLanguage?: string;
   /** Default target language when a task payload omits one. */
   targetLanguage?: string;
 }
@@ -42,6 +49,10 @@ export interface WorkerStats {
   // Live activity surfaced in the popup so the user can see work happening.
   currentWord: string | null;
   currentTaskId: string | null;
+  // Per-tab live activity: the word each parallel Bing tab is looking up right
+  // now (one entry per pool slot), so the popup shows "Tab 1 · Translating: x"
+  // for every tab instead of a single overall word.
+  tabActivity: Array<{ tabId: number; word: string | null }>;
 }
 
 interface NormalizedWord {
@@ -62,16 +73,23 @@ interface ResultEntry {
   provider: string;
 }
 
-const MAX_TABS = 8;
 const NO_RESULT_ERROR = 'No results found for this word';
-// Title of the tab group the pool tabs are collected under, so a multi-tab pool
-// does not clutter the tab strip (chrome.tabs.group + chrome.tabGroups.update).
-const TAB_GROUP_TITLE = 'Bing Assist';
+// How many times to re-attempt a word that lands on a non-dict (region/redirect)
+// page before treating it as a persistent region-redirect failure. The helper
+// already reloads the dict home once per attempt, so this is attempts-of-attempts.
+const NONDICT_ATTEMPTS = 3;
 
 // MV3 service workers are terminated after ~30s idle and lose all globals +
 // setInterval timers (https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle).
 // We persist the "assisting" intent and reuse a chrome.alarms watchdog to
-// resurrect the worker after the SW (or the whole browser) restarts.
+// resurrect the worker after the SW is terminated MID-SESSION.
+//
+// IMPORTANT: the intent lives in chrome.storage.SESSION, not .local. Session
+// storage survives SW termination but is wiped when the browser fully closes,
+// so a browser restart never auto-reopens Bing tabs / re-starts crawling. This
+// is the fix for "Bing dict tabs keep opening when I'm not doing anything":
+// crawling is strictly user-initiated each browser session, and silent
+// recovery (focus=false) never steals focus.
 const RUNTIME_STORAGE_KEY = 'bing_worker_runtime';
 const WATCHDOG_ALARM = 'bing-translation-worker-watchdog';
 // 1 min: above the 30s production floor, frequent enough to recover quickly.
@@ -89,8 +107,8 @@ class BingDictionaryWorkerService {
   private pollIntervalId: ReturnType<typeof setInterval> | null = null;
   private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
 
-  // Pool of Bing dictionary tab ids driven in parallel.
-  private tabIds: number[] = [];
+  // Pool of background Bing dictionary tabs driven in parallel (self-healing).
+  private pool = new BingTabPool();
 
   // Task cache to prevent duplicate processing.
   private taskCache = new Set<string>();
@@ -110,14 +128,18 @@ class BingDictionaryWorkerService {
     activeTabs: 0,
     currentWord: null,
     currentTaskId: null,
+    tabActivity: [],
   };
 
-  // Id of the collapsed "Bing Assist" tab group holding the pool tabs.
-  private tabGroupId: number | null = null;
-
-  async start(config: WorkerConfig): Promise<void> {
+  /**
+   * @param surface when true (an explicit user Start) open + reveal the Bing
+   *   tab pool up front. When false (silent recovery after SW termination) do
+   *   NOT eagerly open or focus tabs — they are created lazily, in the
+   *   background, only when a task actually needs them.
+   */
+  async start(config: WorkerConfig, surface = true): Promise<void> {
     if (this.isRunning) {
-      console.warn('[Bing Worker] Service already running');
+      logger.warn(LOG, 'Service already running');
       return;
     }
     if (!config.apiUrl) {
@@ -132,20 +154,32 @@ class BingDictionaryWorkerService {
       pollInterval: config.pollInterval ?? 5,
       heartbeatInterval: config.heartbeatInterval ?? 60,
       batchSize: config.batchSize ?? 5,
-      tabCount: Math.max(1, Math.min(MAX_TABS, config.tabCount ?? 3)),
+      tabCount: Math.max(1, Math.min(MAX_BING_TABS, config.tabCount ?? 3)),
+      sourceLanguage: config.sourceLanguage || 'en',
       targetLanguage: config.targetLanguage || 'zh',
     };
 
-    console.log('[Bing Worker] Starting service with config:', this.config);
+    logger.info(LOG, 'Starting service', this.config);
 
     this.workerClient = new WorkerApiClient(this.config.apiUrl);
 
     await this.registerWorker();
 
-    // Open/reuse the Bing dictionary tab pool up front. focus=true here is the
-    // ONE place we surface Bing to the user (they just clicked Start); per-task
-    // ensureTabs(false) calls never steal focus afterwards.
-    await this.ensureTabs(true);
+    // On an explicit user Start, turn the dictionary-pending words into actual
+    // word_translation tasks so this worker has something to pull. Silent
+    // recovery (surface=false) skips this — it only resumes in-flight work.
+    if (surface) {
+      await this.enqueuePending();
+    }
+
+    // Open/reuse the Bing dictionary tab pool up front ONLY on an explicit user
+    // Start (surface=true) — the one place we reveal Bing to the user. On silent
+    // recovery (surface=false) tabs are created lazily by processTask, in the
+    // background, never stealing focus.
+    if (surface) {
+      await this.pool.ensure(this.config.tabCount, true);
+      this.stats.activeTabs = this.pool.size;
+    }
 
     this.startHeartbeat();
     this.startPolling();
@@ -157,12 +191,12 @@ class BingDictionaryWorkerService {
     await this.persistRuntime(true);
     await this.ensureWatchdog();
 
-    console.log('[Bing Worker] Service started successfully');
+    logger.info(LOG, 'Service started successfully');
   }
 
   stop(): void {
     if (!this.isRunning) {
-      console.warn('[Bing Worker] Service not running');
+      logger.warn(LOG, 'Service not running');
       return;
     }
 
@@ -186,19 +220,25 @@ class BingDictionaryWorkerService {
     this.stats.duplicateTasks = 0;
     this.stats.currentWord = null;
     this.stats.currentTaskId = null;
+    this.stats.tabActivity = [];
 
     // Clear persisted intent + disarm the watchdog so a later SW revival does
     // not auto-restart a service the user explicitly stopped.
     this.persistRuntime(false).catch(() => undefined);
     this.clearWatchdog().catch(() => undefined);
 
-    console.log('[Bing Worker] Service stopped');
+    logger.info(LOG, 'Service stopped');
   }
 
   /**
-   * Re-establish the worker after a service-worker (or browser) restart if the
-   * user had it assisting. Safe to call repeatedly: start() no-ops when already
-   * running. Invoked from the alarm watchdog and runtime startup listeners.
+   * Re-establish the worker after a service-worker restart that happened WHILE
+   * the user had assisting active in the current browser session. Safe to call
+   * repeatedly: start() no-ops when already running. Invoked from the alarm
+   * watchdog and SW-revival hooks.
+   *
+   * The intent is read from session storage, which is wiped on browser close —
+   * so this never auto-resumes after a full browser restart, and recovery is
+   * silent (surface=false: no eager tabs, no focus stealing).
    */
   async resume(): Promise<void> {
     if (this.isRunning) {
@@ -209,22 +249,26 @@ class BingDictionaryWorkerService {
 
     let persisted: PersistedRuntime | null = null;
     try {
-      const result = await chrome.storage.local.get(RUNTIME_STORAGE_KEY);
+      const result = await chrome.storage.session.get(RUNTIME_STORAGE_KEY);
       persisted = result[RUNTIME_STORAGE_KEY] || null;
     } catch (error) {
-      console.warn('[Bing Worker] Failed to read persisted runtime:', error);
+      logger.warn(LOG, 'Failed to read persisted runtime', error);
       return;
     }
 
     if (!persisted || !persisted.running || !persisted.config?.apiUrl) {
+      // No active session to recover (e.g. fresh browser start) — make sure a
+      // stale watchdog alarm from a previous session does not linger and fire
+      // every minute for nothing.
+      await this.clearWatchdog();
       return;
     }
 
     try {
-      console.log('[Bing Worker] Resuming assist after restart');
-      await this.start(persisted.config);
+      logger.info(LOG, 'Resuming assist after SW termination (silent)');
+      await this.start(persisted.config, /* surface */ false);
     } catch (error) {
-      console.error('[Bing Worker] Resume failed:', error);
+      logger.error(LOG, 'Resume failed', error);
     }
   }
 
@@ -238,9 +282,10 @@ class BingDictionaryWorkerService {
       config: running ? this.config : null,
     };
     try {
-      await chrome.storage.local.set({ [RUNTIME_STORAGE_KEY]: payload });
+      // Session storage: survives SW termination, wiped on browser close.
+      await chrome.storage.session.set({ [RUNTIME_STORAGE_KEY]: payload });
     } catch (error) {
-      console.warn('[Bing Worker] Failed to persist runtime:', error);
+      logger.warn(LOG, 'Failed to persist runtime', error);
     }
   }
 
@@ -254,7 +299,7 @@ class BingDictionaryWorkerService {
         });
       }
     } catch (error) {
-      console.warn('[Bing Worker] Failed to arm watchdog alarm:', error);
+      logger.warn(LOG, 'Failed to arm watchdog alarm', error);
     }
   }
 
@@ -262,7 +307,7 @@ class BingDictionaryWorkerService {
     try {
       await chrome.alarms.clear(WATCHDOG_ALARM);
     } catch (error) {
-      console.warn('[Bing Worker] Failed to clear watchdog alarm:', error);
+      logger.warn(LOG, 'Failed to clear watchdog alarm', error);
     }
   }
 
@@ -303,7 +348,7 @@ class BingDictionaryWorkerService {
     if (response.success && response.data) {
       this.stats.workerId = response.data.worker_id;
       this.stats.isOnline = true;
-      console.log('[Bing Worker] Registered successfully:', response.data.worker_id);
+      logger.info(LOG, 'Registered successfully', response.data.worker_id);
     } else {
       throw new Error(response.message || 'Registration failed');
     }
@@ -317,7 +362,7 @@ class BingDictionaryWorkerService {
         await this.workerClient!.heartbeat();
         this.stats.isOnline = true;
       } catch (error) {
-        console.error('[Bing Worker] Heartbeat failed:', error);
+        logger.error(LOG, 'Heartbeat failed', error);
         this.stats.isOnline = false;
       }
     };
@@ -384,7 +429,7 @@ class BingDictionaryWorkerService {
         }
       }
     } catch (error) {
-      console.error('[Bing Worker] Polling error:', error);
+      logger.error(LOG, 'Polling error', error);
     }
   }
 
@@ -399,7 +444,7 @@ class BingDictionaryWorkerService {
     this.stats.currentTaskId = task.task_id;
 
     try {
-      console.log(`[Bing Worker] Processing task: ${task.task_id}`);
+      logger.info(LOG, `Processing task: ${task.task_id}`);
 
       await this.workerClient.acceptTask(task.task_id);
       await this.workerClient.submitResult({
@@ -414,28 +459,59 @@ class BingDictionaryWorkerService {
         throw new Error('No words in task payload');
       }
 
-      // Reuse the existing pool without stealing focus (focus=false).
-      const tabIds = await this.ensureTabs(false);
+      // Reuse the existing pool without stealing focus (surface=false).
+      const tabIds = await this.pool.ensure(this.config.tabCount, false);
+      this.stats.activeTabs = this.pool.size;
+      // Seed per-tab activity (one slot per tab) so the popup can show which
+      // word each parallel tab is translating right now.
+      this.stats.tabActivity = tabIds.map((id) => ({ tabId: id, word: null }));
       const targetLanguage = task.payload.target_language || this.config.targetLanguage;
 
       const translations: ResultEntry[] = [];
       const invalidWords: NormalizedWord[] = [];
+      // Words that persistently landed on a non-dict (region/redirect) page even
+      // after retries. Promoted to region-redirect-invalid only if the batch was
+      // otherwise healthy (see the outage guard after the slots finish).
+      const nonDictWords: NormalizedWord[] = [];
 
       let nextIndex = 0;
       let done = 0;
       let lastReported = 0;
       const total = words.length;
 
-      const runSlot = async (tabId: number): Promise<void> => {
+      const runSlot = async (initialTabId: number, slot: number): Promise<void> => {
+        let tabId = initialTabId;
         while (true) {
           const i = nextIndex++;
           if (i >= total) break;
           const w = words[i];
           this.stats.currentWord = w.word;
+          this.setSlotWord(slot, tabId, w.word);
 
           try {
-            const data = await bingDictionaryTool.lookupInTab(tabId, w.word);
-            const classification = this.classify(data);
+            // Heal a dead/discarded tab transparently and keep the fresh id.
+            let looked = await this.lookupHealing(tabId, w.word);
+            tabId = looked.tabId;
+            this.setSlotWord(slot, tabId, w.word);
+            let data = looked.data;
+            let classification = this.classify(data);
+
+            // Region/redirect ('non-dict') pages are often transient — retry the
+            // word a few times before giving up, so a momentary redirect doesn't
+            // get mistaken for a persistent region-redirect failure.
+            let attempt = 1;
+            while (
+              classification === 'error' &&
+              !!data &&
+              data.pageType === 'non-dict' &&
+              attempt < NONDICT_ATTEMPTS
+            ) {
+              attempt++;
+              looked = await this.lookupHealing(tabId, w.word);
+              tabId = looked.tabId;
+              data = looked.data;
+              classification = this.classify(data);
+            }
 
             if (classification === 'translated') {
               translations.push(await this.buildEntry(w, data));
@@ -444,12 +520,16 @@ class BingDictionaryWorkerService {
               invalidWords.push(w);
               this.stats.invalid++;
             } else {
-              // Transient extraction/network error — leave the word for a later
-              // task rather than wrongly marking it invalid.
               this.stats.failed++;
+              // Persistent non-dict after retries: a region/redirect failure. Hold
+              // it aside — it is only promoted to invalid if the batch was
+              // otherwise healthy (outage guard below).
+              if (data && data.pageType === 'non-dict') {
+                nonDictWords.push(w);
+              }
             }
           } catch (error) {
-            console.error(`[Bing Worker] Failed to translate ${w.word}:`, error);
+            logger.error(LOG, `Failed to translate ${w.word}`, error);
             this.stats.failed++;
           }
 
@@ -467,9 +547,19 @@ class BingDictionaryWorkerService {
               .catch(() => undefined);
           }
         }
+        // Slot drained — mark it idle.
+        this.setSlotWord(slot, tabId, null);
       };
 
-      await Promise.all(tabIds.map((tabId) => runSlot(tabId)));
+      await Promise.all(tabIds.map((tabId, slot) => runSlot(tabId, slot)));
+
+      // Outage guard: only treat persistent non-dict words as region-redirect
+      // invalid when the batch was OTHERWISE healthy (at least one word resolved
+      // — a real dict page or a confirmed "No results" no-entry). If the WHOLE
+      // batch was non-dict it is almost certainly a transient Bing region outage,
+      // so we invalidate nothing and let the words be retried later.
+      const batchHealthy = translations.length > 0 || invalidWords.length > 0;
+      const regionRedirectWords = batchHealthy ? nonDictWords : [];
 
       await this.workerClient.submitResult({
         task_id: task.task_id,
@@ -481,15 +571,19 @@ class BingDictionaryWorkerService {
           provider: 'bing',
           translations,
           invalid_words: invalidWords,
+          // Persistent region/redirect words — backend marks is_valid=false with
+          // validity_source='region-redirect' so they stop being re-queued.
+          region_redirect_words: regionRedirectWords,
         },
       });
 
       this.taskCache.delete(task.task_id);
-      console.log(
-        `[Bing Worker] Task completed: ${task.task_id} (${translations.length} translated, ${invalidWords.length} invalid)`,
+      logger.info(
+        LOG,
+        `Task completed: ${task.task_id} (${translations.length} translated, ${invalidWords.length} invalid, ${regionRedirectWords.length} region-redirect)`,
       );
     } catch (error: any) {
-      console.error('[Bing Worker] Task processing failed:', error);
+      logger.error(LOG, 'Task processing failed', error);
 
       try {
         await this.workerClient.submitResult({
@@ -499,7 +593,7 @@ class BingDictionaryWorkerService {
           error: error?.message || 'Unknown error',
         });
       } catch (submitError) {
-        console.error('[Bing Worker] Failed to submit error status:', submitError);
+        logger.error(LOG, 'Failed to submit error status', submitError);
       }
 
       this.taskCache.delete(task.task_id);
@@ -507,7 +601,51 @@ class BingDictionaryWorkerService {
       // Clear live activity between tasks so the popup shows idle, not a stale word.
       this.stats.currentWord = null;
       this.stats.currentTaskId = null;
+      this.stats.tabActivity = [];
     }
+  }
+
+  /** Update one pool slot's live activity (tab id + word) for the popup. */
+  private setSlotWord(slot: number, tabId: number, word: string | null): void {
+    const arr = this.stats.tabActivity;
+    if (slot < 0) return;
+    arr[slot] = { tabId, word };
+  }
+
+  /**
+   * Look up a word in the slot's tab, transparently healing a tab that died
+   * mid-crawl (closed by the user / discarded by Chrome's memory saver). On a
+   * dead-tab error it swaps in a fresh pool tab and retries the word ONCE, then
+   * returns the (possibly replaced) tab id so the slot keeps using a live tab.
+   */
+  private async lookupHealing(
+    tabId: number,
+    word: string,
+    includeMedia = false,
+  ): Promise<{ data: BingDictionaryResult; tabId: number }> {
+    try {
+      const data = await bingDictionaryTool.lookupInTab(tabId, word, includeMedia);
+      return { data, tabId };
+    } catch (error) {
+      if (!this.isDeadTabError(error)) throw error;
+      logger.warn(LOG, `Tab ${tabId} vanished, replacing and retrying "${word}"`);
+      const fresh = await this.pool.replace(tabId);
+      this.stats.activeTabs = this.pool.size;
+      const data = await bingDictionaryTool.lookupInTab(fresh, word, includeMedia);
+      return { data, tabId: fresh };
+    }
+  }
+
+  /**
+   * A tab the pool was driving no longer exists — Chrome throws
+   * "No tab with id: N" (and the inject path wraps it as a content-script
+   * injection failure). These are recoverable by replacing the tab.
+   */
+  private isDeadTabError(error: unknown): boolean {
+    const msg = error instanceof Error ? error.message : String(error);
+    return /No tab with id|Failed to inject content script|No frame with id|Frame with id/i.test(
+      msg,
+    );
   }
 
   /** Decide what a single Bing lookup result means for the backend. */
@@ -527,10 +665,18 @@ class BingDictionaryWorkerService {
       return 'translated';
     }
 
-    // SAFETY: only a CONFIRMED dictionary page with no entry means the word is
-    // genuinely invalid. A non-dict page (region redirect, web-search fallback,
-    // load failure) must NOT invalidate the word — otherwise a regional Bing
-    // outage would mass-flag the whole queue. Those are transient.
+    // A CONFIRMED "No results found for <word>" page (keyword: "No results") is a
+    // definitive no-entry — the word is invalid regardless of the dict-page
+    // heuristic. The backend marks it is_valid=false and keeps it as a
+    // placeholder so it is never re-queued.
+    if (data.success && data.noEntry) {
+      return 'invalid';
+    }
+
+    // SAFETY: otherwise only a CONFIRMED dictionary page with no entry means the
+    // word is genuinely invalid. A non-dict page (region redirect, web-search
+    // fallback, load failure) must NOT invalidate the word — otherwise a regional
+    // Bing outage would mass-flag the whole queue. Those are transient.
     const isDictPage = data.pageType === undefined || data.pageType === 'dict';
     if (isDictPage && data.success && (data.error === NO_RESULT_ERROR || !hasContent)) {
       return 'invalid';
@@ -597,7 +743,7 @@ class BingDictionaryWorkerService {
       if (!buf || buf.byteLength < 100) return null;
       return this.arrayBufferToBase64(buf);
     } catch (error) {
-      console.warn('[Bing Worker] Audio download failed:', url, error);
+      logger.warn(LOG, 'Audio download failed', { url, error: String(error) });
       return null;
     }
   }
@@ -694,95 +840,6 @@ class BingDictionaryWorkerService {
     return out;
   }
 
-  // ------------------------------------------------------------------
-  // Tab pool
-  // ------------------------------------------------------------------
-
-  /**
-   * Ensure the configured number of Bing dictionary tabs exist. Reuses any
-   * already-tracked or already-open bing.com/dict tabs and creates the rest as
-   * BACKGROUND tabs (never stealing focus), then collects them into a collapsed
-   * "Bing Assist" tab group so a multi-tab pool stays tidy.
-   *
-   * @param focus when true (explicit Start only), surface the group to the user.
-   */
-  private async ensureTabs(focus = false, wantOverride?: number): Promise<number[]> {
-    const want = Math.max(1, Math.min(MAX_TABS, wantOverride ?? this.config?.tabCount ?? 3));
-    const alive: number[] = [];
-
-    // Keep tracked tabs that still exist.
-    for (const id of this.tabIds) {
-      const tab = await this.tabExists(id);
-      if (tab) alive.push(id);
-    }
-
-    // Adopt other open Bing dictionary tabs before creating new ones.
-    if (alive.length < want) {
-      const all = await chrome.tabs.query({});
-      for (const t of all) {
-        if (alive.length >= want) break;
-        if (t.id && t.url && t.url.includes('bing.com/dict') && !alive.includes(t.id)) {
-          alive.push(t.id);
-        }
-      }
-    }
-
-    // Create the remainder as background tabs — never yank the user away.
-    while (alive.length < want) {
-      const created = await chrome.tabs.create({
-        url: 'https://www.bing.com/dict',
-        active: false,
-      });
-      if (created.id) {
-        alive.push(created.id);
-      } else {
-        break;
-      }
-    }
-
-    this.tabIds = alive.slice(0, want);
-    this.stats.activeTabs = this.tabIds.length;
-
-    await this.groupTabs(focus);
-
-    return this.tabIds;
-  }
-
-  /**
-   * Collect the pool tabs into a single collapsed, labelled tab group so they
-   * don't clutter the tab strip. chrome.tabs.group() needs only "tabs";
-   * chrome.tabGroups.update() (title/color/collapsed) needs "tabGroups".
-   * Best-effort: grouping can fail if the API is unavailable or tabs span
-   * windows, which must never break translation.
-   */
-  private async groupTabs(focus: boolean): Promise<void> {
-    if (this.tabIds.length === 0) return;
-    if (!chrome.tabs.group || !chrome.tabGroups) return;
-
-    try {
-      const options: chrome.tabs.GroupOptions = { tabIds: this.tabIds as [number, ...number[]] };
-      if (this.tabGroupId !== null) {
-        options.groupId = this.tabGroupId;
-      }
-      this.tabGroupId = await chrome.tabs.group(options);
-
-      await chrome.tabGroups.update(this.tabGroupId, {
-        title: TAB_GROUP_TITLE,
-        color: 'cyan',
-        // Collapse when running in the background; expand when the user just
-        // pressed Start so they can see Bing.
-        collapsed: !focus,
-      });
-
-      if (focus && this.tabIds[0] !== undefined) {
-        chrome.tabs.update(this.tabIds[0], { active: true }).catch(() => undefined);
-      }
-    } catch (error) {
-      console.warn('[Bing Worker] Tab grouping skipped:', error);
-      this.tabGroupId = null;
-    }
-  }
-
   /**
    * Ad-hoc Bing scrape test driven from the popup. Scrapes the given word(s)
    * live across the configured parallel tab pool WITHOUT pulling from or posting
@@ -825,11 +882,13 @@ class BingDictionaryWorkerService {
     // are words to test — a single-word test must use exactly ONE tab, not the
     // configured max. (The configured tabCount only caps the upper bound.)
     const want = Math.min(words.length, tabCount ?? this.config?.tabCount ?? 3);
-    const tabIds = await this.ensureTabs(true, want);
+    const tabIds = await this.pool.ensure(want, true);
+    this.stats.activeTabs = this.pool.size;
     const results: Array<any> = [];
     let nextIndex = 0;
 
-    const runSlot = async (tabId: number): Promise<void> => {
+    const runSlot = async (initialTabId: number): Promise<void> => {
+      let tabId = initialTabId;
       while (true) {
         const i = nextIndex++;
         if (i >= words.length) break;
@@ -838,7 +897,10 @@ class BingDictionaryWorkerService {
         try {
           // Extraction returns URLs only; the binaries are fetched in-page by the
           // injected BingMediaFetcher class library (includeMedia=false here).
-          const data = await bingDictionaryTool.lookupInTab(tabId, w.word, false);
+          // Heal a dead/discarded tab transparently and keep the fresh id.
+          const looked = await this.lookupHealing(tabId, w.word, false);
+          tabId = looked.tabId;
+          const data = looked.data;
           const classification = this.classify(data);
           if (classification === 'translated' && data) {
             const formatted = this.formatExplanation(data);
@@ -943,25 +1005,35 @@ class BingDictionaryWorkerService {
   }
 
   /**
-   * Translation queue overview: how many words are still untranslated + the
-   * pending task list (with per-task word counts), for the panel to show on Start.
-   * Works whether or not the worker is running (a plain control read). Aligned
-   * with laravel_main /api/app_qy_v1/ai_tools/translation/queue/list.
+   * Translation queue overview: how many words are still untranslated + a
+   * preview of those words, for the panel to show on "Load queue". Reads the
+   * DICTIONARY-driven pending list (words with no translation that are not
+   * invalid) from laravel_main, NOT the global_tasks work queue — so the panel
+   * shows real remaining work even before any task exists. A plain control read
+   * that works whether or not the worker is running.
    */
   async getQueueOverview(
     apiUrl?: string,
     status = 'pending',
     limit = 10,
     page = 1,
+    language = 'en',
+    targetLanguage?: string,
   ): Promise<{ ok: boolean; summary?: any; items?: any[]; pagination?: any; message?: string }> {
     const base = (apiUrl || this.config?.apiUrl || '').trim().replace(/\/+$/, '');
     if (!base) return { ok: false, message: 'No endpoint configured in Settings' };
+    const target = targetLanguage || this.config?.targetLanguage || 'zh';
     try {
       const client =
         this.workerClient && this.config?.apiUrl === base
           ? this.workerClient
           : new WorkerApiClient(base);
-      const resp = await client.getTranslationQueue({ status, limit, page });
+      const resp = await client.getPendingWords({
+        language,
+        target_language: target,
+        limit,
+        page,
+      });
       if (resp.success && resp.data) {
         return {
           ok: true,
@@ -973,6 +1045,30 @@ class BingDictionaryWorkerService {
       return { ok: false, message: resp.message || 'Failed to load queue' };
     } catch (error: any) {
       return { ok: false, message: error?.message || 'Unreachable' };
+    }
+  }
+
+  /**
+   * Enqueue dictionary-pending words into the shared word_translation queue so
+   * this worker has tasks to pull. Best-effort: a failure must not block Start
+   * (the background scan also enqueues, just more slowly).
+   */
+  private async enqueuePending(): Promise<void> {
+    if (!this.workerClient || !this.config) return;
+    try {
+      const resp = await this.workerClient.enqueuePending({
+        language: this.config.sourceLanguage,
+        target_language: this.config.targetLanguage,
+        limit: 500,
+      });
+      if (resp.success && resp.data) {
+        logger.info(
+          LOG,
+          `Enqueued pending words: queued=${resp.data.queued} moved=${resp.data.moved} skipped=${resp.data.skipped}`,
+        );
+      }
+    } catch (error) {
+      logger.warn(LOG, 'enqueuePending failed (background scan will still feed)', error);
     }
   }
 
@@ -997,31 +1093,31 @@ class BingDictionaryWorkerService {
       return { ok: false, message: error?.message || 'Unreachable' };
     }
   }
-
-  private async tabExists(tabId: number): Promise<boolean> {
-    try {
-      await chrome.tabs.get(tabId);
-      return true;
-    } catch {
-      return false;
-    }
-  }
 }
 
 // Singleton instance
 export const bingDictionaryWorkerService = new BingDictionaryWorkerService();
 
 /**
- * Register the MV3 lifecycle hooks that keep the translation assist alive.
+ * Register the MV3 lifecycle hooks that keep the translation assist alive
+ * ACROSS service-worker termination WITHIN a browser session.
  *
  * Per the official service-worker lifecycle guidance, event listeners must be
  * registered synchronously at the top level of the SW so they are present when
  * the worker is revived. This wires:
  *   - chrome.alarms.onAlarm  -> watchdog resurrection (also wakes a terminated SW)
- *   - chrome.runtime.onStartup / onInstalled -> resume after browser restart/update
+ *   - chrome.runtime.onStartup / onInstalled -> recover if a session was active
  * plus an immediate resume() for SWs revived by any other event.
+ *
+ * resume() reads the run intent from session storage (wiped on browser close),
+ * so none of these hooks auto-start crawling or open Bing tabs after a fresh
+ * browser launch — only an explicit user Start does that.
  */
 export function initBingWorkerLifecycle(): void {
+  // Load any persisted global logs so the background buffer continues across
+  // service-worker restarts (best-effort; logging never blocks startup).
+  logger.init().catch(() => undefined);
+
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === WATCHDOG_ALARM) {
       bingDictionaryWorkerService.resume().catch(() => undefined);

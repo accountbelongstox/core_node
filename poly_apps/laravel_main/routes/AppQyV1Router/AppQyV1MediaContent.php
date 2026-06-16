@@ -13,6 +13,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1MediaContentPublicController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1MoviePosterController;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'app_qy_v1';
@@ -26,5 +27,14 @@ Route::prefix($apiVersionPrefix)->group(function () {
     Route::prefix('media')->group(function () {
         Route::get('/content/{type}/{id}', [AppQyV1MediaContentPublicController::class, 'getContent'])
             ->whereNumber('id');
+
+        // On-demand movie/TV poster fetch + backfill (TMDB -> OMDB, PHP).
+        // Canonical contract: development-guides/MOVIE_POSTER_PIPELINE.md §7.
+        Route::post('/poster/fetch', [AppQyV1MoviePosterController::class, 'fetch']);
+
+        // Cheap, no-auth poster-pipeline status snapshot (provider key config +
+        // masked keys + per-type poster_status counts) for the laravel-manager
+        // "Movie Poster" panel. Never throws.
+        Route::get('/poster/status', [AppQyV1MoviePosterController::class, 'status']);
     });
 });

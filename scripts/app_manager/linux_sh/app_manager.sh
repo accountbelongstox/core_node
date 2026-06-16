@@ -11,31 +11,30 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 STATE_FILE="$ROOT_DIR/.app_manager_last_index"
 DEBIAN_SERVICE_MANAGER="$ROOT_DIR/scripts/shells/linux/common/debian_service_manager.sh"
 
+# Config (path constants + budget) must load before we resolve the data dir.
+source "$SCRIPT_DIR/config/app_config.sh"
+source "$SCRIPT_DIR/core/app_scanner.sh"
+source "$SCRIPT_DIR/core/command_generator.sh"
+source "$SCRIPT_DIR/utils/log_budget.sh"
+
 # State + logs (foreground.log, service.log) live under APP_MANAGER_DATA_DIR/logs/namespaces/apps/<name>/
-# Default is NOT under $HOME (root would use /root/.local/... — other users cannot read).
-# Set CORE_NODE_APP_MANAGER_DATA to force a directory. Otherwise pick first writable:
-#   /opt/core_node_unified_manager, /var/tmp/core_node_unified_manager, /tmp/core_node_unified_manager
+# ONE unified dir for all users (canonical path-map key 'app_manager_logs' parent).
+# Not under $HOME (root would use /root/.local/... — other users cannot read).
+# Created world-accessible (0777) so any user can read/write; override only via
+# CORE_NODE_APP_MANAGER_DATA. Old/scattered dirs are purged by cleanup_old_log_dirs().
 resolve_app_manager_data_dir() {
-    local c
-    if [[ -n "${CORE_NODE_APP_MANAGER_DATA:-}" ]]; then
-        printf '%s' "$CORE_NODE_APP_MANAGER_DATA"
-        return 0
-    fi
-    for c in /opt/core_node_unified_manager /var/tmp/core_node_unified_manager /tmp/core_node_unified_manager; do
-        if mkdir -p "$c" 2>/dev/null && [[ -w "$c" ]]; then
-            printf '%s' "$c"
-            return 0
-        fi
-    done
-    printf '%s' "/tmp/core_node_unified_manager"
-    return 0
+    local d
+    d="${CORE_NODE_APP_MANAGER_DATA:-${APP_MANAGER_DATA_DIR_DEFAULT:-/opt/_core_node}}"
+    mkdir -p "$d" 2>/dev/null || true
+    chmod 0777 "$d" 2>/dev/null || true
+    printf '%s' "$d"
 }
 APP_MANAGER_DATA_DIR="$(resolve_app_manager_data_dir)"
 export APP_MANAGER_DATA_DIR
 
-source "$SCRIPT_DIR/config/app_config.sh"
-source "$SCRIPT_DIR/core/app_scanner.sh"
-source "$SCRIPT_DIR/core/command_generator.sh"
+LOG_BUDGET_SCRIPT="$SCRIPT_DIR/utils/log_budget.sh"
+LOG_NAMESPACE_DIR="$APP_MANAGER_DATA_DIR/logs/namespaces/apps"
+LOG_TRIM_STAMP="$APP_MANAGER_DATA_DIR/.log_trim_last"
 
 CURRENT_INDEX=0
 MAX_NAME_WIDTH=8
@@ -68,6 +67,92 @@ service_log_path() {
 
 ensure_app_log_dir() {
     mkdir -p "$(app_logs_dir_for_name "$1")" 2>/dev/null || true
+}
+
+# Trim the unified log namespace to the configured byte budget right now.
+trim_logs_now() {
+    enforce_log_budget "$LOG_NAMESPACE_DIR" \
+        "${APP_MANAGER_LOG_TOTAL_BYTES:-$((50 * 1024 * 1024))}" \
+        "${APP_MANAGER_LOG_FILE_BYTES:-$((10 * 1024 * 1024))}" 2>/dev/null || true
+}
+
+# Reserved cleanup hook: purge retired log roots (formerly core_node_unified_manager,
+# path-map key 'app_manager_logs_old'). Deletes ONLY the known old constant dirs from
+# APP_MANAGER_OLD_DATA_DIRS, never the active data dir. Safe to call repeatedly.
+cleanup_old_log_dirs() {
+    local d
+    for d in ${APP_MANAGER_OLD_DATA_DIRS:-}; do
+        [[ -n "$d" ]] || continue
+        [[ "$d" == "$APP_MANAGER_DATA_DIR" ]] && continue   # never remove the active dir
+        [[ -d "$d" ]] || continue
+        rm -rf "$d" 2>/dev/null || true
+    done
+}
+
+# Throttled trim: invoked on every log-writing event (foreground launch, service
+# install, menu start). Enforces the budget + purges old dirs, but at most once per
+# APP_MANAGER_LOG_TRIM_INTERVAL (default 30min) so frequent writes don't re-scan.
+maybe_trim_logs() {
+    local now last interval
+    interval="${APP_MANAGER_LOG_TRIM_INTERVAL:-1800}"
+    now="$(date +%s 2>/dev/null || echo 0)"
+    last=0
+    if [[ -f "$LOG_TRIM_STAMP" ]]; then
+        read -r last < "$LOG_TRIM_STAMP" 2>/dev/null || last=0
+        [[ "$last" =~ ^[0-9]+$ ]] || last=0
+    fi
+    # now==0 means date failed: fall through and trim (don't get stuck).
+    if (( now > 0 && now - last < interval )); then
+        return 0
+    fi
+    trim_logs_now
+    cleanup_old_log_dirs
+    mkdir -p "$APP_MANAGER_DATA_DIR" 2>/dev/null || true
+    # Write WITH a trailing newline: a no-newline file makes `read` return non-zero
+    # at EOF, and the `|| last=0` above would then clobber the timestamp to 0,
+    # defeating the throttle (it would re-scan on every call).
+    printf '%s\n' "$now" > "$LOG_TRIM_STAMP" 2>/dev/null || true
+}
+
+# Install a systemd timer that caps the log folder on the same throttle interval,
+# so the budget holds even when this interactive menu is not running. systemd
+# "append:" never rotates on its own, so without this a looping unit refills it.
+ensure_log_budget_timer() {
+    command -v systemctl >/dev/null 2>&1 || return 0
+    [[ -d /etc/systemd/system ]] || return 0
+    [[ -w /etc/systemd/system ]] || return 0   # needs root; silently skip otherwise
+
+    local svc="/etc/systemd/system/app-manager-log-trim.service"
+    local tmr="/etc/systemd/system/app-manager-log-trim.timer"
+
+    cat > "$svc" 2>/dev/null <<EOF || return 0
+[Unit]
+Description=App Manager: trim unified log namespace to byte budget
+
+[Service]
+Type=oneshot
+Environment="APP_MANAGER_DATA_DIR=$APP_MANAGER_DATA_DIR"
+Environment="APP_MANAGER_LOG_TOTAL_BYTES=${APP_MANAGER_LOG_TOTAL_BYTES:-$((50 * 1024 * 1024))}"
+Environment="APP_MANAGER_LOG_FILE_BYTES=${APP_MANAGER_LOG_FILE_BYTES:-$((10 * 1024 * 1024))}"
+ExecStart=/usr/bin/env bash $LOG_BUDGET_SCRIPT $LOG_NAMESPACE_DIR
+EOF
+
+    cat > "$tmr" 2>/dev/null <<EOF || return 0
+[Unit]
+Description=App Manager: periodic unified-log trim
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=${APP_MANAGER_LOG_TRIM_INTERVAL:-1800}s
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    systemctl daemon-reload 2>/dev/null || true
+    systemctl enable --now app-manager-log-trim.timer 2>/dev/null || true
 }
 
 trim_line() {
@@ -165,6 +250,7 @@ run_foreground_with_log() {
     local logf
     logf="$(foreground_log_path "$name")"
     ensure_app_log_dir "$name"
+    maybe_trim_logs   # writing logs -> throttled budget check (>=30min since last)
     { echo "===== $(date -Is) foreground ====="; "$@"; } 2>&1 | tee -a "$logf"
     return "${PIPESTATUS[0]}"
 }
@@ -355,7 +441,10 @@ install_service_at_index() {
             ;;
     esac
     if (( install_ok )); then
+        maybe_trim_logs   # new service.log appender -> throttled budget check
+        ensure_log_budget_timer
         print_info "Service log file: $slog"
+        print_info "Log budget: folder capped at ${APP_MANAGER_LOG_TOTAL_BYTES} bytes (trim timer: app-manager-log-trim.timer)"
         # Unit file alone does not run ExecStart — service.log stays empty until the unit is started.
         if command -v systemctl >/dev/null 2>&1; then
             if systemctl enable --now "${service_name}.service" 2>/dev/null; then
@@ -529,6 +618,9 @@ handle_line_input() {
 
 main_loop() {
     mkdir -p "$APP_MANAGER_DATA_DIR/logs/namespaces/apps" 2>/dev/null || true
+    chmod -R a+rwX "$APP_MANAGER_DATA_DIR/logs" 2>/dev/null || true   # all users can access
+    maybe_trim_logs        # throttled budget check + old-dir purge on startup
+    ensure_log_budget_timer
     do_scan || { print_err "Initial application scan failed"; exit 1; }
     while true; do
         show_menu

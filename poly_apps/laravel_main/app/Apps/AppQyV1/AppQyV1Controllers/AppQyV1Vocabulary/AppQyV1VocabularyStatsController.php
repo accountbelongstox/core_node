@@ -47,6 +47,10 @@ class AppQyV1VocabularyStatsController extends Controller
         $validated = $request->validate([
             'language' => 'nullable|string',
             'filter' => 'nullable|string|in:all,with_translation,without_translation,invalid,with_audio,without_audio',
+            // Narrow an `invalid` listing to a single validity_source (e.g.
+            // 'region-redirect' or 'bing-assist') so the dashboard can manage
+            // each class of invalid word separately.
+            'validity_source' => 'nullable|string|max:64',
             'q' => 'nullable|string',
             'start' => 'nullable|integer|min:0',
             'limit' => 'nullable|integer|min:1|max:1000',
@@ -59,6 +63,10 @@ class AppQyV1VocabularyStatsController extends Controller
         $filter = 'all';
         if (isset($validated['filter'])) {
             $filter = $validated['filter'];
+        }
+        $validitySource = '';
+        if (isset($validated['validity_source'])) {
+            $validitySource = trim((string) $validated['validity_source']);
         }
         $search = '';
         if (isset($validated['q'])) {
@@ -93,6 +101,12 @@ class AppQyV1VocabularyStatsController extends Controller
         // newQuery() gives a real Builder so chained where()/clone accumulate.
         $query = AppQyV1LangDictionaryModel::forLanguage($languageCode)->newQuery();
         $this->applyDictionaryFilter($query, $filter);
+
+        // Optional validity_source narrowing (most useful with filter=invalid):
+        // 'region-redirect' = Bing region/redirect words, 'bing-assist' = no entry.
+        if ($validitySource !== '') {
+            $query->where('validity_source', $validitySource);
+        }
 
         if ($search !== '') {
             $needle = '%' . strtolower($search) . '%';
@@ -153,11 +167,79 @@ class AppQyV1VocabularyStatsController extends Controller
             'language' => $language,
             'language_code' => $languageCode,
             'filter' => $filter,
+            'validity_source' => $validitySource,
             'total' => $total,
             'start' => $start,
             'limit' => $limit,
             'items' => $items,
         ], 'Dictionary words retrieved');
+    }
+
+    /**
+     * Validity breakdown for a language's dictionary — powers the dashboard's
+     * "Word Validity" management panel.
+     *
+     * GET /api/app_qy_v1/dictionary/validity-summary?language=
+     *
+     * Returns counts: total, valid, invalid, unchecked, and the invalid rows
+     * grouped by validity_source (region-redirect / bing-assist / other) so the
+     * UI can show how many words each cause invalidated.
+     */
+    public function validitySummary(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'language' => 'nullable|string',
+        ]);
+
+        $language = 'english';
+        if (isset($validated['language']) && $validated['language'] !== '') {
+            $language = $validated['language'];
+        }
+        $languageCode = AppQyV1VocabularyLibraryPublicController::getLanguageCode($language);
+
+        $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
+        $hasTable = Schema::connection($dictModel->getConnectionName())->hasTable($dictModel->getTable());
+        if (!$hasTable) {
+            return $this->success([
+                'language' => $language,
+                'language_code' => $languageCode,
+                'total' => 0,
+                'valid' => 0,
+                'invalid' => 0,
+                'unchecked' => 0,
+                'invalid_by_source' => [],
+            ], 'No dictionary for this language');
+        }
+
+        $total = AppQyV1LangDictionaryModel::forLanguage($languageCode)->newQuery()->count();
+        $invalid = AppQyV1LangDictionaryModel::forLanguage($languageCode)->newQuery()
+            ->where('is_valid', false)->count();
+        $unchecked = AppQyV1LangDictionaryModel::forLanguage($languageCode)->newQuery()
+            ->whereNull('validity_checked_at')->count();
+        $valid = $total - $invalid;
+
+        // Group the invalid rows by validity_source (one grouped query).
+        $grouped = AppQyV1LangDictionaryModel::forLanguage($languageCode)->newQuery()
+            ->where('is_valid', false)
+            ->groupBy('validity_source')
+            ->selectRaw('validity_source, count(*) as total')
+            ->pluck('total', 'validity_source');
+
+        $invalidBySource = [];
+        foreach ($grouped as $source => $count) {
+            $key = (is_string($source) && $source !== '') ? $source : 'other';
+            $invalidBySource[$key] = (int) $count;
+        }
+
+        return $this->success([
+            'language' => $language,
+            'language_code' => $languageCode,
+            'total' => $total,
+            'valid' => $valid,
+            'invalid' => $invalid,
+            'unchecked' => $unchecked,
+            'invalid_by_source' => $invalidBySource,
+        ], 'Validity summary retrieved');
     }
 
     /**

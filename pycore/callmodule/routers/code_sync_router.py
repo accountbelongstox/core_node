@@ -105,7 +105,7 @@ async def register_client(request: RegisterRequest, http_request: Request):
 
     Returns whether client needs initial sync
     """
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
 
@@ -131,7 +131,7 @@ async def register_client(request: RegisterRequest, http_request: Request):
 @router.post("/initial-sync", response_model=InitialSyncResponse)
 async def initial_sync(request: InitialSyncRequest):
     """Get all files for initial sync"""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
 
@@ -153,7 +153,7 @@ async def initial_sync(request: InitialSyncRequest):
 @router.post("/changes", response_model=ChangesResponse)
 async def get_changes(request: ChangesRequest):
     """Get changed files for incremental sync"""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
 
@@ -183,7 +183,7 @@ async def get_changes(request: ChangesRequest):
 @router.get("/status")
 async def get_status():
     """Get full code sync status (role, distributing, peers, version)."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     return get_code_sync_manager().get_status()
 
@@ -198,7 +198,7 @@ async def peer_status():
     Must be fast and never raise - returns a minimal dict on any error.
     """
     try:
-        from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+        from pycore.pyutils.codesync import get_code_sync_manager
         return get_code_sync_manager().get_local_peer_status()
     except Exception as exc:
         return {"role": "client", "distributing": False, "error": str(exc)}
@@ -207,7 +207,7 @@ async def peer_status():
 @router.post("/peer/config")
 async def peer_config(request: PeerConfigRequest):
     """Apply a replicated peer-config update from another peer (last-writer-wins)."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
     return manager.apply_remote_config(request.peers, request.version, request.updated_at)
@@ -216,7 +216,7 @@ async def peer_config(request: PeerConfigRequest):
 @router.get("/peers")
 async def get_peers():
     """Get the current peer list (self + peers + config version)."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     return get_code_sync_manager().get_peers()
 
@@ -224,7 +224,7 @@ async def get_peers():
 @router.post("/peers/add")
 async def add_peer(request: PeerAddRequest):
     """Add a peer to the committed config (replicated across the mesh)."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
     return manager.add_peer(request.name, request.host, request.port, request.role)
@@ -233,7 +233,7 @@ async def add_peer(request: PeerAddRequest):
 @router.post("/peers/remove")
 async def remove_peer(request: PeerRemoveRequest):
     """Remove a peer from the committed config (replicated across the mesh)."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
     return manager.remove_peer(request.id)
@@ -242,7 +242,7 @@ async def remove_peer(request: PeerRemoveRequest):
 @router.post("/peers/update")
 async def update_peer(request: PeerUpdateRequest):
     """Update fields of an existing peer (replicated across the mesh)."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     fields = request.dict(exclude_none=True)
     fields.pop("id", None)
@@ -253,7 +253,7 @@ async def update_peer(request: PeerUpdateRequest):
 @router.post("/role")
 async def set_role(request: RoleRequest):
     """Set this machine's role ('dev' or 'client'); replicated across the mesh."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
     return {"success": True, "role": manager.set_role(request.role)}
@@ -262,7 +262,7 @@ async def set_role(request: RoleRequest):
 @router.post("/distribute")
 async def set_distribute(request: DistributeRequest):
     """Enable/disable code distribution (dev only; OFF by default each startup)."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
     return manager.set_distributing(request.enabled)
@@ -272,7 +272,7 @@ async def set_distribute(request: DistributeRequest):
 async def set_skip_update(request: SkipUpdateRequest):
     """Temporarily reject (skip) incoming code updates on this client; the status
     mesh keeps running so peers still see this node and its skip state."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
     return manager.set_skip_update(request.enabled)
@@ -281,7 +281,7 @@ async def set_skip_update(request: SkipUpdateRequest):
 @router.post("/discover")
 async def discover():
     """Discover candidate peers on the LAN."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     return get_code_sync_manager().discover()
 
@@ -289,7 +289,7 @@ async def discover():
 @router.post("/set-server")
 async def set_server_mode():
     """Deprecated: use POST /role {role:'dev'}. Kept via back-compat shims."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
     manager.set_server_mode()
@@ -300,7 +300,7 @@ async def set_server_mode():
 @router.post("/set-client")
 async def set_client_mode():
     """Deprecated: use POST /role {role:'client'}. Kept via back-compat shims."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
     manager.set_client_mode()
@@ -311,7 +311,7 @@ async def set_client_mode():
 @router.post("/stop")
 async def stop_sync():
     """Deprecated: use POST /distribute {enabled:false}. Kept via back-compat shims."""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
     manager.stop()
@@ -322,7 +322,7 @@ async def stop_sync():
 @router.post("/download")
 async def download_file(request: DownloadRequest):
     """Download file content from server"""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
 
@@ -353,7 +353,7 @@ async def download_file(request: DownloadRequest):
 @router.post("/toggle-backup")
 async def toggle_backup(request: Dict):
     """Toggle backup setting for client"""
-    from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+    from pycore.pyutils.codesync import get_code_sync_manager
 
     manager = get_code_sync_manager()
 

@@ -196,6 +196,13 @@ check_snap() {
 
 # If docker is not installed, try to install with snap. If already installed, print version.
 install_docker_with_snap_if_needed() {
+    # Snap docker is discouraged on servers (confinement issues) and pulls snap bases.
+    # On a headless host skip the snap fallback; the apt/get-docker path covers servers.
+    # Force with ALLOW_SNAP_ON_SERVER=1.
+    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" != "true" ] && [ "${ALLOW_SNAP_ON_SERVER:-0}" != "1" ]; then
+        echo "[$SCRIPT_INDEX] No desktop environment: skipping docker snap fallback (use apt/get-docker). Set ALLOW_SNAP_ON_SERVER=1 to force."
+        return 0
+    fi
     if ! command -v docker &>/dev/null; then
         echo "[$SCRIPT_INDEX] Docker is not installed, trying to install with snap..."
         if check_snap; then
@@ -215,6 +222,11 @@ install_docker_with_snap_if_needed() {
 
 # If docker-compose is not installed, try to install with snap. If already installed, print version.
 install_docker_compose_with_snap_if_needed() {
+    # See install_docker_with_snap_if_needed: skip the snap fallback on a headless host.
+    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" != "true" ] && [ "${ALLOW_SNAP_ON_SERVER:-0}" != "1" ]; then
+        echo "[$SCRIPT_INDEX] No desktop environment: skipping docker-compose snap fallback (use apt/get-docker). Set ALLOW_SNAP_ON_SERVER=1 to force."
+        return 0
+    fi
     if ! command -v docker-compose &>/dev/null; then
         echo "[$SCRIPT_INDEX] Docker Compose is not installed, trying to install with snap..."
         if check_snap; then

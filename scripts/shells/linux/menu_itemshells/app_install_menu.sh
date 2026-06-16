@@ -34,7 +34,7 @@ _resolve_app_install_paths
 # Infra/DB: 45 Redis, 46 PostgreSQL, 47 Docker, 50 MySQL
 # Desktop/App: 35 Chrome, 121 Cursor, 122 VSCode, 126 Antigravity, 127 WeChat, 30 Edge
 # Runtime/Toolchain: 13 Python, 14 faster-whisper, 15 Node 24, 19 UV, 42 Rust, 53 Go, 54 Java, 34 Composer, 38 Flutter, 41 Ruby, 37 .NET
-# Server/Service: 25 Nginx, 26 Certbot, 85 Code Server, 123 Gitea, 124 RustDesk Client, 128 RustDesk Server
+# Server/Service: 25 Nginx, 26 Certbot, 52 Tailscale, 85 Code Server, 123 Gitea, 124 RustDesk Client, 128 RustDesk Server
 # AI: 95 DeepSeek, 96 DeepSeek OCR
 # Setup: 125 GNOME RDP
 SCRIPT_INSTALL_ENTRIES=(
@@ -61,6 +61,7 @@ SCRIPT_INSTALL_ENTRIES=(
     "script:37_install_dotnet.sh|.NET"
     "script:25_install_nginx.sh|Nginx"
     "script:26_install_certbot.sh|Certbot"
+    "script:52_install_tailscale.sh|Tailscale (VPN)"
     "script:85_install_code_server.sh|Code Server"
     "script:123_install_gitea.sh|Gitea"
     "script:124_install_rustdesk_client_1.4.4.sh|RustDesk Client"
@@ -98,6 +99,61 @@ get_all_packages_flat_list() {
     printf '%s\n' "${list[@]}" | sort -t '|' -k2,2 -f
 }
 
+# Install a single "key|Display" entry: a script: entry runs its install_shells
+# script; a package entry goes through the 120 single-package runner. Returns the
+# install command's exit status.
+_run_install_entry() {
+    local entry="$1"
+    local package_key="${entry%%|*}"
+    local display_name="${entry#*|}"
+
+    if [[ "$package_key" == script:* ]]; then
+        local script_name="${package_key#script:}"
+        local script_path="$INSTALL_SHELLS_DIR/$script_name"
+        if [ ! -s "$script_path" ]; then
+            echo "Script not found: $script_path"
+            return 1
+        fi
+        echo ""
+        echo "Running script: $display_name ($script_name)..."
+        echo ""
+        bash "$script_path"
+    else
+        if [ ! -s "$STEP120_SCRIPT" ]; then
+            echo "120 script not found: $STEP120_SCRIPT"
+            return 1
+        fi
+        echo ""
+        echo "Running 120 for package: $display_name ($package_key)..."
+        echo ""
+        bash "$STEP120_SCRIPT" --exact-app "$package_key"
+    fi
+}
+
+# Install EVERY listed entry in order. Heavy + long; continues past failures and
+# prints a summary. Confirmation required.
+install_all_entries() {
+    local entries=("$@")
+    echo ""
+    echo "This installs ALL ${#entries[@]} listed packages. This is heavy and can take a long time."
+    local confirm
+    read -r -p "Type 'yes' to proceed (anything else cancels): " confirm
+    if [ "$confirm" != "yes" ]; then
+        echo "Cancelled."
+        return 0
+    fi
+    local entry ok=0 fail=0
+    for entry in "${entries[@]}"; do
+        if _run_install_entry "$entry"; then
+            ok=$((ok + 1))
+        else
+            fail=$((fail + 1))
+        fi
+    done
+    echo ""
+    echo "Install ALL complete: $ok succeeded, $fail failed/skipped."
+}
+
 show_app_install_menu() {
     local flat_list
     mapfile -t flat_list < <(get_all_packages_flat_list)
@@ -125,10 +181,11 @@ show_app_install_menu() {
             printf "  %3d. %s\n" "$num" "$disp"
         done
         echo ""
+        echo "  A. Install ALL listed packages (heavy; confirmation required)"
         echo "  0. Back"
         echo ""
 
-        read -r -p "Enter number (0 = Back): " input_line
+        read -r -p "Enter number, A = install all (0 = Back): " input_line
         input_trim="${input_line:-}"
         input_trim="${input_trim#"${input_trim%%[![:space:]]*}"}"
         input_trim="${input_trim%"${input_trim##*[![:space:]]}"}"
@@ -136,40 +193,21 @@ show_app_install_menu() {
             return 0
         fi
 
+        if [ "$input_trim" = "a" ] || [ "$input_trim" = "A" ] || [ "$input_trim" = "all" ] || [ "$input_trim" = "ALL" ]; then
+            install_all_entries "${flat_list[@]}"
+            echo ""
+            read -r -p "Press Enter to return to APP Install Menu..."
+            continue
+        fi
+
         if ! [[ "$input_trim" =~ ^[0-9]+$ ]] || [ "$input_trim" -lt 1 ] || [ "$input_trim" -gt "$count" ]; then
-            echo "Invalid input. Enter a number between 1 and $count, or 0 to go back."
+            echo "Invalid input. Enter a number between 1 and $count, A to install all, or 0 to go back."
             read -r -p "Press Enter to continue..."
             continue
         fi
 
         local idx=$((input_trim - 1))
-        local entry="${flat_list[$idx]}"
-        local package_key="${entry%%|*}"
-        local display_name="${entry#*|}"
-
-        if [[ "$package_key" == script:* ]]; then
-            local script_name="${package_key#script:}"
-            local script_path="$INSTALL_SHELLS_DIR/$script_name"
-            if [ ! -s "$script_path" ]; then
-                echo "Script not found: $script_path"
-                read -r -p "Press Enter to continue..."
-                continue
-            fi
-            echo ""
-            echo "Running script: $display_name ($script_name)..."
-            echo ""
-            bash "$script_path"
-        else
-            if [ ! -s "$STEP120_SCRIPT" ]; then
-                echo "120 script not found: $STEP120_SCRIPT"
-                read -r -p "Press Enter to continue..."
-                continue
-            fi
-            echo ""
-            echo "Running 120 for package: $display_name ($package_key)..."
-            echo ""
-            bash "$STEP120_SCRIPT" --exact-app "$package_key"
-        fi
+        _run_install_entry "${flat_list[$idx]}"
 
         echo ""
         read -r -p "Press Enter to return to APP Install Menu..."
