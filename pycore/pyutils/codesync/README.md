@@ -59,6 +59,17 @@ systemctl status codesync --no-pager      # current status
 On Windows (no systemd) these print a notice + how to run it in the foreground
 (`.\pyservice.ps1 codesync run`, optionally wrapped in Task Scheduler / nssm).
 
+## Web panel (standalone)
+
+In standalone mode the daemon serves a **self-contained control panel at `GET /`**
+(`http://<host>:59000/`) — pure HTML + vanilla JS, no build step and no CDN. It
+polls `GET /code-sync/peers` every 5s and drives the same `/code-sync/*` API the
+desktop React app uses: switch role, toggle distribute / skip-update, add / remove
+/ discover peers, and see each peer's reachability + `via` (probe / heartbeat /
+both) + last contact + code stats. This gives a headless box (cloud / VPS) a
+browser UI without the React app. The full-pycore runtime serves its own React UI
+and never starts this stdlib server, so `/` there is owned by pycore.
+
 **HTTP-first, file-fallback**: while a daemon (or the full pycore service) is up
 on the target port, edits apply live over HTTP; while it is stopped, role/peers
 edits are written straight to the committed peer file and take effect next start.
@@ -84,7 +95,7 @@ mgr.get_peers(); mgr.set_role("dev"); mgr.set_distributing(True)
 |---|---|
 | `runtime.py` | stdlib bridge: log shim, urllib HTTP shim, event/shutdown hooks, machine-id, lan-ip, paths, `configure()` |
 | `peer_config.py` | committed peer list (`device_sync/code_sync_peers.json`), LWW replication |
-| `peer_mesh.py` | periodic peer probing + config push/broadcast |
+| `peer_mesh.py` | periodic peer probing + reverse heartbeat (NAT-friendly presence) + config push/broadcast; merges both directions into one snapshot (`via` / `last_checkin`) |
 | `server.py` | dev side: client registry + changed-file computation |
 | `client.py` | client side: pull newest file across dev-ends |
 | `manager.py` | role coordinator; `get_manager()` / `get_code_sync_manager()` |
