@@ -457,7 +457,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                         <div className="pt-4 border-t border-zinc-200/50 dark:border-white/5 mt-2 space-y-3">
                           <p className="text-[10px] font-black font-mono uppercase tracking-widest text-zinc-400 flex items-center gap-1.5 bg-zinc-100 dark:bg-white/2 p-2 px-3.5 rounded-xl border border-zinc-200/50 dark:border-white/5 w-fit select-none">
                             <Sparkles className="w-3 h-3 text-indigo-400 animate-pulse" />
-                            Lexical Analysis (句子中含有的词汇剖析)
+                            {trans('bilingual.lexAnalysis')}
                           </p>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
