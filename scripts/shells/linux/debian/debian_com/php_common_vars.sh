@@ -30,6 +30,7 @@ PHP85_CORE_PACKAGES=(
 # Note: php8.5-cli and php8.5-common are already in PHP85_CORE_PACKAGES, not listed here
 CORE_EXTENSIONS=(
     "php8.5-mysql"
+    "php8.5-pgsql"
     "php8.5-sqlite3"
     "php8.5-xml"
     "php8.5-curl"
@@ -42,6 +43,8 @@ CORE_EXTENSIONS=(
 )
 
 # Extension mapping: package_name -> module_name
+# Note: php8.5-pgsql provides BOTH the pgsql and pdo_pgsql modules; Laravel needs
+# pdo_pgsql on Linux (config/database.php defaults to pgsql), so it is required.
 declare -A EXTENSION_MAP=(
     ["curl"]="curl"
     ["mbstring"]="mbstring"
@@ -49,13 +52,14 @@ declare -A EXTENSION_MAP=(
     ["zip"]="zip"
     ["gd"]="gd"
     ["mysql"]="mysqli"
+    ["pgsql"]="pdo_pgsql"
     ["sqlite3"]="sqlite3"
     ["opcache"]="Zend OPcache"
     ["intl"]="intl"
     ["bcmath"]="bcmath"
 )
 
-REQUIRED_EXTENSIONS=("curl" "mbstring" "xml" "zip" "gd" "mysql" "sqlite3" "opcache" "intl" "bcmath")
+REQUIRED_EXTENSIONS=("curl" "mbstring" "xml" "zip" "gd" "mysql" "pgsql" "sqlite3" "opcache" "intl" "bcmath")
 
 # Laravel Octane Support - PECL Extensions
 OCTANE_PECL_EXTENSIONS=(

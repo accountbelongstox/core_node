@@ -21,10 +21,18 @@ Sync flows only **dev → client**. There is no "only 1 PRIMARY" enforcement.
 
 ## Peer config file
 
-The peer list is the source of truth for the mesh and is **committed in the repo**
-(it is code/config, not user data):
+The peer list has **two tiers** (see `peer_config.py`):
 
-    pycore/pyutils/device_sync/code_sync_peers.json
+- **Baseline (committed default, read-only at runtime):**
+  `pycore/pyutils/device_sync/code_sync_peers.json` — the shipped default, the seed
+  for a fresh machine.
+- **Override (per-machine, writable, gitignored):**
+  `<core_node>/.data/pycore/codesync/code_sync_peers.json` — **every runtime edit
+  lands here**, never in the committed baseline. On load the override wins; if it is
+  absent the baseline is used as the seed and the first edit creates the override.
+  This keeps per-machine role/peers out of the code tree (each machine differs) and
+  stops the committed file from churning. Default role for a machine not in the
+  config is **client** (receives code).
 
 Schema:
 
