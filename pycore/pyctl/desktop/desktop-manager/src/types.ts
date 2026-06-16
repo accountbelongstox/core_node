@@ -296,6 +296,32 @@ export interface CodeSyncCandidate {
   id: string;
 }
 
+// Filter settings: which paths are excluded from the synced/scanned tree.
+export interface SyncSettings {
+  excluded_dirs: string[];            // directory names pruned at any depth
+  excluded_files: string[];           // file names excluded at any depth
+  excluded_extensions: string[];      // file suffixes (".pyc", ".log", ...)
+  excluded_path_substrings: string[]; // exclude any path whose relpath contains this
+  apply_gitignore: boolean;           // also honour the repo root .gitignore
+}
+
+export interface SyncSettingsResponse {
+  success: boolean;
+  settings: SyncSettings;
+  presets: SyncSettings;       // the code-frozen defaults (for "Reset")
+  override_path: string;
+  overridden: boolean;         // true once a per-machine override file exists
+  error?: string;
+}
+
+export interface SyncLogEntry {
+  action?: string;             // received | skipped | error | client | ...
+  file_path?: string;
+  reason?: string;
+  details?: string;
+  timestamp?: number | string | null;
+}
+
 // --- Code sync (legacy server/client/disabled, kept for back-compat) ------ #
 export type CodeSyncMode = 'server' | 'client' | 'disabled';
 
