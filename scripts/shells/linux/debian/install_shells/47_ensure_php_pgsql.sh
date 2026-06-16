@@ -37,6 +37,9 @@ PHP_BIN=""
 PHP_VER=""
 PG_PKG=""
 CANDIDATE=""
+OS_ID_LOCAL=""
+OS_CODENAME_LOCAL=""
+REPO_MANAGER=""
 
 # Source global variables (provides USE_SUDO) and shared print helpers
 source "$GVAR_COMMON"
@@ -81,14 +84,39 @@ print_info_from_common_functions "PHP binary:  $PHP_BIN"
 print_info_from_common_functions "PHP version: $PHP_VER"
 print_info_from_common_functions "Package:     $PG_PKG"
 
-# --- Install the apt package (ondrej PPA was configured by 31_ensure_php85) ---
+# --- Install the apt package. The PHP apt repository is normally configured by
+#     31_ensure_php85_intelligent.sh (Ubuntu -> ondrej PPA, Debian -> Sury), but
+#     make THIS script self-sufficient: if the package is not locatable (the common
+#     Debian failure "Unable to locate package php8.5-pgsql"), set up that repo here
+#     using the shared apt_repository_manager and retry. ---
 print_step_from_common_functions "Installing $PG_PKG via apt..."
 $USE_SUDO apt-get update -qq || true
 if ! $USE_SUDO apt-get install -y "$PG_PKG"; then
-    print_error_from_common_functions "apt failed to install $PG_PKG."
-    echo "  Ensure the ondrej/php PPA is configured (31_ensure_php85_intelligent.sh)."
-    echo "  Manual: sudo apt-get install -y $PG_PKG"
-    exit 1
+    print_step_from_common_functions "$PG_PKG not found -> ensuring the PHP apt repository (Debian Sury / Ubuntu PPA) and retrying..."
+    OS_ID_LOCAL="$( . /etc/os-release 2>/dev/null; echo "$ID" )"
+    OS_CODENAME_LOCAL="$( . /etc/os-release 2>/dev/null; echo "$VERSION_CODENAME" )"
+    REPO_MANAGER="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+    if [ -f "$REPO_MANAGER" ]; then
+        # shellcheck source=/dev/null
+        source "$REPO_MANAGER"
+        if type add_php_repository_permanent_from_apt_repository_manager >/dev/null 2>&1; then
+            # Adds the OS-correct PHP repo permanently (Ubuntu ondrej / Debian Sury).
+            add_php_repository_permanent_from_apt_repository_manager \
+                "$OS_ID_LOCAL" "$OS_CODENAME_LOCAL" "true"
+        else
+            print_error_from_common_functions "apt_repository_manager missing add_php_repository_permanent helper."
+        fi
+    else
+        print_error_from_common_functions "apt_repository_manager.sh not found at $REPO_MANAGER."
+    fi
+    $USE_SUDO apt-get update -qq || true
+    if ! $USE_SUDO apt-get install -y "$PG_PKG"; then
+        print_error_from_common_functions "apt still failed to install $PG_PKG after configuring the PHP repository."
+        echo "  OS: ${OS_ID_LOCAL:-unknown} ${OS_CODENAME_LOCAL:-unknown}"
+        echo "  Debian uses packages.sury.org (NOT the Ubuntu ondrej PPA)."
+        echo "  Manual: sudo apt-get install -y $PG_PKG"
+        exit 1
+    fi
 fi
 
 # --- Enable for all SAPIs (apt usually auto-enables; be explicit for CLI/Octane) ---

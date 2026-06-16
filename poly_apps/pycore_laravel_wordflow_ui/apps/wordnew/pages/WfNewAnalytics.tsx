@@ -10,6 +10,7 @@ import { wfNewApi, type AnalyticsStats } from '../api';
 interface WfNewAnalyticsProps {
   activeTheme: ElementTheme;
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
 // Empty shell shown until the API resolves (keeps every read below safe).
@@ -20,7 +21,8 @@ const EMPTY_STATS: AnalyticsStats = {
 
 export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
   activeTheme,
-  addToast
+  addToast,
+  trans
 }) => {
   const [stats, setStats] = useState<AnalyticsStats>(EMPTY_STATS);
 
@@ -41,7 +43,7 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
   const triggerRecollectionRecall = () => {
     setSynapticStrength(100);
     setDecayDay(1);
-    addToast("Synaptic health restored to 100% via recall!", "success");
+    addToast(trans('analytics.recallRestored'), "success");
   };
 
   const advanceDecayTimeline = () => {
@@ -53,7 +55,7 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
       setSynapticStrength(nextPct);
       return nextDay;
     });
-    addToast("Time elapsed: Synaptic health decayed slightly", "warning");
+    addToast(trans('analytics.healthDecayed'), "warning");
   };
 
   // Find max minutes to compute heights proportionally (guard empty load state)

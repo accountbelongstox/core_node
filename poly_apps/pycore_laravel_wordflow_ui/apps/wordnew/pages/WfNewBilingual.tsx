@@ -10,12 +10,14 @@ import { wfNewApi, type BilingualSentence, type BilingualWord } from '../api';
 interface WfNewBilingualProps {
   activeTheme: ElementTheme;
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
   dark?: boolean;
 }
 
 export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
   activeTheme,
   addToast,
+  trans,
   dark
 }) => {
   // Sync core values with localStorage or settings
@@ -95,7 +97,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
   // Speaks a given piece of text in a specific language
   const speakText = (text: string, langCode: string, onEnd: () => void) => {
     if (!('speechSynthesis' in window)) {
-      addToast("TTS Speech synthesis is not supported on this browser.", "warning");
+      addToast(trans('bilingual.ttsUnsupported'), "warning");
       onEnd();
       return;
     }
@@ -221,13 +223,13 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
   const handleRatioSwitch = (ratio: string) => {
     setBilingualRatio(ratio);
     localStorage.setItem('wf_setting_bilingual_ratio', ratio);
-    addToast(`Recital ratio configured: ${ratio === '1en_1zh' ? '1 Target : 1 Native' : '2 Target : 1 Native'}`, "info");
+    addToast(trans('bilingual.ratioSet', { ratio: trans(ratio === '1en_1zh' ? 'bilingual.ratio_1_1' : 'bilingual.ratio_2_1') }), "info");
   };
 
   const handleOrderSwitch = (order: string) => {
     setRecitalOrder(order);
     localStorage.setItem('wf_setting_recital_order', order);
-    addToast(`Auditory sequence sorted: ${order === 'target_first' ? 'Target Voice First' : 'Mother Tongue First'}`, "info");
+    addToast(trans('bilingual.orderSet', { order: trans(order === 'target_first' ? 'bilingual.order_targetFirst' : 'bilingual.order_nativeFirst') }), "info");
   };
 
   return (

@@ -15,13 +15,15 @@ interface WfNewSubtitlesProps {
   favorites: Word[];
   onToggleFavorite: (word: Word) => void;
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
 export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
   activeTheme,
   favorites,
   onToggleFavorite,
-  addToast
+  addToast,
+  trans
 }) => {
   // Course Selector — courses loaded via the API gateway (mock or real).
   const [courses, setCourses] = useState<SubtitleCourse[]>([]);
@@ -127,7 +129,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
       utterance.rate = 1.0;
       window.speechSynthesis.speak(utterance);
     } else {
-      addToast("SpeechSynthesis unavailable in sandbox environment", "warning");
+      addToast(trans('subtitles.ttsUnavailable'), "warning");
     }
   };
 
@@ -155,7 +157,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
     // Check if duplicate exists
     const duplicate = favorites.some(f => f.text.toLowerCase() === selectedLookupWord.text.toLowerCase());
     if (duplicate) {
-      addToast(`"${selectedLookupWord.text}" already is favorited`, 'info');
+      addToast(trans('subtitles.alreadyFav', { word: selectedLookupWord.text }), 'info');
       return;
     }
 

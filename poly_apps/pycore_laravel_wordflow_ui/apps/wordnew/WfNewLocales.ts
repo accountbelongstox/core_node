@@ -113,7 +113,9 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'walkman.paused': 'Playback paused',
     'walkman.stopped': 'Walkman stopped & reset',
     'subtitles.ttsUnavailable': 'SpeechSynthesis unavailable in this environment',
-    'subtitles.alreadyFav': '"{word}" is already favorited'
+    'subtitles.alreadyFav': '"{word}" is already favorited',
+    'analytics.recallRestored': 'Synaptic health restored to 100% via recall!',
+    'analytics.healthDecayed': 'Time elapsed: synaptic health decayed slightly.'
   },
   zh: {
     'nav.home': '智能主控台',
@@ -223,7 +225,9 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'walkman.paused': '播放已暂停',
     'walkman.stopped': 'Walkman 已停止并重置',
     'subtitles.ttsUnavailable': '当前环境不支持语音合成',
-    'subtitles.alreadyFav': '“{word}” 已在收藏中'
+    'subtitles.alreadyFav': '“{word}” 已在收藏中',
+    'analytics.recallRestored': '通过复习，记忆健康度已恢复到 100%！',
+    'analytics.healthDecayed': '时间流逝：记忆健康度略有衰减。'
   },
   ja: {
     'nav.home': 'ダッシュボード',
@@ -333,7 +337,9 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'walkman.paused': '再生を一時停止しました',
     'walkman.stopped': 'Walkman を停止してリセットしました',
     'subtitles.ttsUnavailable': 'この環境では音声合成を利用できません',
-    'subtitles.alreadyFav': '「{word}」はすでにお気に入りです'
+    'subtitles.alreadyFav': '「{word}」はすでにお気に入りです',
+    'analytics.recallRestored': 'リコールにより記憶の健全度が 100% に回復しました！',
+    'analytics.healthDecayed': '時間経過：記憶の健全度がやや低下しました。'
   },
   ko: {
     'nav.home': '대시보드',
@@ -443,7 +449,9 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'walkman.paused': '재생 일시정지됨',
     'walkman.stopped': 'Walkman 중지 및 초기화됨',
     'subtitles.ttsUnavailable': '이 환경에서는 음성 합성을 사용할 수 없습니다',
-    'subtitles.alreadyFav': '"{word}" 은(는) 이미 즐겨찾기에 있습니다'
+    'subtitles.alreadyFav': '"{word}" 은(는) 이미 즐겨찾기에 있습니다',
+    'analytics.recallRestored': '복습으로 기억 건강도가 100%로 회복되었습니다!',
+    'analytics.healthDecayed': '시간 경과: 기억 건강도가 약간 감소했습니다.'
   }
 };
 

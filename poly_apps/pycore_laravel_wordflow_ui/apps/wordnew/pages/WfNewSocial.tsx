@@ -55,6 +55,7 @@ interface Message {
 interface WfNewSocialProps {
   activeTheme: ElementTheme;
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
   currentUser: {
     nickname: string;
     avatar: string;
@@ -157,7 +158,7 @@ const INITIAL_POSTS: SocialPost[] = [
   }
 ];
 
-export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast, currentUser }) => {
+export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast, trans, currentUser }) => {
   const [partners, setPartners] = useState<LearningPartner[]>(() => {
     const cached = localStorage.getItem('wf_social_partners');
     return cached ? JSON.parse(cached) : INITIAL_PARTNERS;
@@ -224,9 +225,9 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
       if (p.id === partnerId) {
         const updatedStatus = !p.isFriend;
         addToast(
-          updatedStatus 
-            ? `Successfully partnered with ${p.name}! Let's study in sync.` 
-            : `Removed ${p.name} from partners list.`, 
+          updatedStatus
+            ? trans('social.partnered', { name: p.name })
+            : trans('social.unpartnered', { name: p.name }),
           updatedStatus ? 'success' : 'warning'
         );
         return { ...p, isFriend: updatedStatus };
@@ -256,7 +257,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
     }));
     setCommentText('');
     setActiveCommentPostId(null);
-    addToast('Comment synchronized on the cosmos grid!', 'success');
+    addToast(trans('social.commentSynced'), 'success');
   };
 
   // Toggle Likes Action
@@ -278,7 +279,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
   const handlePublishPost = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostContent.trim()) {
-      addToast('Cosmos update cannot be hollow!', 'warning');
+      addToast(trans('social.postEmpty'), 'warning');
       return;
     }
     const newPost: SocialPost = {
@@ -296,7 +297,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
 
     setPosts([newPost, ...posts]);
     setNewPostContent('');
-    addToast('Your learning insight has been published!', 'success');
+    addToast(trans('social.published'), 'success');
   };
 
   // Direct message sending (Text)
@@ -350,7 +351,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
     recordingTimerRef.current = setInterval(() => {
       setRecordSeconds(s => s + 1);
     }, 1000);
-    addToast('Waveform microphone capturing active...', 'info');
+    addToast(trans('social.micActive'), 'info');
   };
 
   // Stop Mic Recording and compile mock audio visual snippet
@@ -386,7 +387,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
       [partnerId]: [...(prev[partnerId] || []), newMsg]
     }));
 
-    addToast('Acoustic voice note transmitted into conversational thread.', 'success');
+    addToast(trans('social.voiceSent'), 'success');
 
     // Partner reply mock
     setTimeout(() => {
@@ -997,7 +998,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                                 <div className="flex items-center gap-2">
                                   <button 
                                     className="p-1 rounded-full bg-white/20 text-white hover:bg-white/30 transition-all cursor-pointer"
-                                    onClick={() => addToast(`Acoustic recital: Playing back ${msg.voiceDuration}s voice capsule.`, 'info')}
+                                    onClick={() => addToast(trans('social.voicePlayback', { sec: msg.voiceDuration }), 'info')}
                                   >
                                     <Volume2 className="w-3.5 h-3.5 text-white" />
                                   </button>
@@ -1107,7 +1108,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                     {/* Quick smile/paperclip attachment buttons */}
                     <button 
                       type="button"
-                      onClick={() => addToast("Bilingual document attachments configured on standard profile.", "info")}
+                      onClick={() => addToast(trans('social.bilingualAttach'), "info")}
                       className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer hidden sm:block"
                     >
                       <Paperclip className="w-4 h-4" />
