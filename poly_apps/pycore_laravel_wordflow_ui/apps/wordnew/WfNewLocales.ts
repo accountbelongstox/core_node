@@ -115,7 +115,20 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'subtitles.ttsUnavailable': 'SpeechSynthesis unavailable in this environment',
     'subtitles.alreadyFav': '"{word}" is already favorited',
     'analytics.recallRestored': 'Synaptic health restored to 100% via recall!',
-    'analytics.healthDecayed': 'Time elapsed: synaptic health decayed slightly.'
+    'analytics.healthDecayed': 'Time elapsed: synaptic health decayed slightly.',
+    'common.home': 'Home',
+    'hdr.walkman': 'Virtual Cyber Walkman',
+    'hdr.walkmanSub': 'Simulated magnetic-tape English speech loops with translation queue',
+    'hdr.subtitles': 'Interactive Subtitles Playroom',
+    'hdr.subtitlesSub': 'Interact with streaming lessons, highlight and look up words on click',
+    'hdr.bilingual': 'Bilingual Cosmos Recital',
+    'hdr.bilingualSub': 'Continuous dual-speech cycle reciting native translation and target texts',
+    'hdr.profile': 'Commander Profile Console',
+    'hdr.profileSub': 'Customize your avatar, track retention speeds and unlock achievements',
+    'hdr.analytics': 'Precision Analytics Board',
+    'hdr.analyticsSub': 'Telemetry curves, active-minutes tracking and Ebbinghaus forgetting-curve modeling',
+    'bc.social': 'Social Loop',
+    'bc.auth': 'Authentication Portal'
   },
   zh: {
     'nav.home': '智能主控台',
@@ -227,7 +240,20 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'subtitles.ttsUnavailable': '当前环境不支持语音合成',
     'subtitles.alreadyFav': '“{word}” 已在收藏中',
     'analytics.recallRestored': '通过复习，记忆健康度已恢复到 100%！',
-    'analytics.healthDecayed': '时间流逝：记忆健康度略有衰减。'
+    'analytics.healthDecayed': '时间流逝：记忆健康度略有衰减。',
+    'common.home': '主页',
+    'hdr.walkman': '虚拟随身听',
+    'hdr.walkmanSub': '模拟磁带式英文语音循环，附带翻译队列',
+    'hdr.subtitles': '互动字幕学习室',
+    'hdr.subtitlesSub': '与流式课程互动，点击高亮并查词',
+    'hdr.bilingual': '双语对照朗读',
+    'hdr.bilingualSub': '连续双语循环朗读母语翻译与目标语文本',
+    'hdr.profile': '个人资料中心',
+    'hdr.profileSub': '自定义头像、追踪记忆速度并解锁成就',
+    'hdr.analytics': '精准统计面板',
+    'hdr.analyticsSub': '统计曲线、活跃时长追踪与艾宾浩斯遗忘曲线建模',
+    'bc.social': '社交圈',
+    'bc.auth': '认证门户'
   },
   ja: {
     'nav.home': 'ダッシュボード',
@@ -339,7 +365,20 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'subtitles.ttsUnavailable': 'この環境では音声合成を利用できません',
     'subtitles.alreadyFav': '「{word}」はすでにお気に入りです',
     'analytics.recallRestored': 'リコールにより記憶の健全度が 100% に回復しました！',
-    'analytics.healthDecayed': '時間経過：記憶の健全度がやや低下しました。'
+    'analytics.healthDecayed': '時間経過：記憶の健全度がやや低下しました。',
+    'common.home': 'ホーム',
+    'hdr.walkman': 'バーチャル・ウォークマン',
+    'hdr.walkmanSub': '翻訳キュー付きの磁気テープ風 英語音声ループ',
+    'hdr.subtitles': 'インタラクティブ字幕プレイルーム',
+    'hdr.subtitlesSub': 'ストリーミング教材と対話し、クリックで単語をハイライト・検索',
+    'hdr.bilingual': 'バイリンガル朗読',
+    'hdr.bilingualSub': '母語訳とターゲット文を連続で二言語朗読',
+    'hdr.profile': 'プロフィールコンソール',
+    'hdr.profileSub': 'アバターをカスタマイズし、定着度を追跡して実績を解除',
+    'hdr.analytics': '精密アナリティクスボード',
+    'hdr.analyticsSub': '統計曲線、アクティブ時間の追跡、エビングハウス忘却曲線モデリング',
+    'bc.social': 'ソーシャルループ',
+    'bc.auth': '認証ポータル'
   },
   ko: {
     'nav.home': '대시보드',
@@ -451,7 +490,20 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'subtitles.ttsUnavailable': '이 환경에서는 음성 합성을 사용할 수 없습니다',
     'subtitles.alreadyFav': '"{word}" 은(는) 이미 즐겨찾기에 있습니다',
     'analytics.recallRestored': '복습으로 기억 건강도가 100%로 회복되었습니다!',
-    'analytics.healthDecayed': '시간 경과: 기억 건강도가 약간 감소했습니다.'
+    'analytics.healthDecayed': '시간 경과: 기억 건강도가 약간 감소했습니다.',
+    'common.home': '홈',
+    'hdr.walkman': '가상 워크맨',
+    'hdr.walkmanSub': '번역 대기열이 있는 자기 테이프식 영어 음성 루프',
+    'hdr.subtitles': '인터랙티브 자막 학습실',
+    'hdr.subtitlesSub': '스트리밍 레슨과 상호작용하고 클릭으로 단어를 강조·검색',
+    'hdr.bilingual': '이중 언어 낭독',
+    'hdr.bilingualSub': '모국어 번역과 대상 문장을 연속 이중 언어로 낭독',
+    'hdr.profile': '프로필 콘솔',
+    'hdr.profileSub': '아바타를 맞춤 설정하고 기억 속도를 추적하며 업적을 해제',
+    'hdr.analytics': '정밀 분석 보드',
+    'hdr.analyticsSub': '통계 곡선, 활성 시간 추적 및 에빙하우스 망각 곡선 모델링',
+    'bc.social': '소셜 루프',
+    'bc.auth': '인증 포털'
   }
 };
 
