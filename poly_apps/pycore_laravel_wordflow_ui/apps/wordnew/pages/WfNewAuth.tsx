@@ -146,11 +146,11 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
             {/* Language profile coordinates summary */}
             <div className="grid grid-cols-2 gap-4 max-w-xs mx-auto py-3.5 bg-slate-900/40 rounded-2xl border border-white/5">
               <div className="text-center">
-                <span className="text-[9px] text-zinc-500 font-mono block uppercase">Native Tongue</span>
+                <span className="text-[9px] text-zinc-500 font-mono block uppercase">{trans('auth.nativeTongue')}</span>
                 <span className="text-xs font-bold text-indigo-400 uppercase font-mono">{currentUser.nativeLang}</span>
               </div>
               <div className="text-center border-l border-white/5">
-                <span className="text-[9px] text-zinc-500 font-mono block uppercase">Target Study</span>
+                <span className="text-[9px] text-zinc-500 font-mono block uppercase">{trans('auth.targetStudy')}</span>
                 <span className="text-xs font-bold text-amber-400 uppercase font-mono">{currentUser.targetLang}</span>
               </div>
             </div>
@@ -158,7 +158,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
             {/* Account Management badges */}
             <div className="flex flex-wrap justify-center gap-1.5 pt-2">
               <span className="text-[8px] font-black font-mono tracking-widest bg-emerald-500/10 text-emerald-400 py-0.5 px-2 rounded-full uppercase">
-                🛡️ Verified Student
+                {trans('auth.badgeVerified')}
               </span>
               <span className="text-[8px] font-black font-mono tracking-widest bg-indigo-500/10 text-indigo-400 py-0.5 px-2 rounded-full uppercase">
                 🌌 Cosmic Pioneer
