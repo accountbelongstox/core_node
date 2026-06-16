@@ -5,7 +5,10 @@ import {
   ArrowLeftRight, Repeat, ArrowRight, RotateCw, ListRestart, HelpCircle, FastForward
 } from 'lucide-react';
 import { ElementTheme, Word } from '../WfNewTypes';
-import { MOCK_SUBTITLE_COURSES, SubtitleLine, SubtitleCourse } from '../WfNewMockDb';
+import { wfNewApi, type SubtitleLine, type SubtitleCourse } from '../api';
+
+// Safe placeholder while courses load (keeps every activeCourse read crash-free).
+const EMPTY_COURSE: SubtitleCourse = { id: '', title: 'Loading…', category: '', subtitles: [] };
 
 interface WfNewSubtitlesProps {
   activeTheme: ElementTheme;
@@ -20,11 +23,23 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
   onToggleFavorite,
   addToast
 }) => {
-  // Course Selector
-  const [selectedCourseId, setSelectedCourseId] = useState<string>(MOCK_SUBTITLE_COURSES[0].id);
+  // Course Selector — courses loaded via the API gateway (mock or real).
+  const [courses, setCourses] = useState<SubtitleCourse[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+  useEffect(() => {
+    let alive = true;
+    wfNewApi.getSubtitleCourses()
+      .then((list) => {
+        if (!alive || !Array.isArray(list)) return;
+        setCourses(list);
+        if (list.length > 0) setSelectedCourseId((id) => id || list[0].id);
+      })
+      .catch(() => { /* leave empty on failure */ });
+    return () => { alive = false; };
+  }, []);
   const activeCourse = useMemo(() => {
-    return MOCK_SUBTITLE_COURSES.find(c => c.id === selectedCourseId) || MOCK_SUBTITLE_COURSES[0];
-  }, [selectedCourseId]);
+    return courses.find(c => c.id === selectedCourseId) || courses[0] || EMPTY_COURSE;
+  }, [selectedCourseId, courses]);
 
   // Video / Audio Play states
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -176,7 +191,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
             }}
             className="bg-slate-950 border border-white/10 rounded-lg px-2.5 py-1.5 text-zinc-300 font-bold focus:outline-none"
           >
-            {MOCK_SUBTITLE_COURSES.map(course => (
+            {courses.map(course => (
               <option key={course.id} value={course.id}>
                 {course.title}
               </option>

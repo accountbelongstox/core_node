@@ -5,7 +5,7 @@ import {
   Settings2, Languages, HelpCircle, BookOpen, RefreshCw, AudioLines
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
-import { MOCK_BILINGUAL_SENTENCES, BilingualSentence, BilingualWord } from '../WfNewMockDb';
+import { wfNewApi, type BilingualSentence, type BilingualWord } from '../api';
 
 interface WfNewBilingualProps {
   activeTheme: ElementTheme;
@@ -62,17 +62,27 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
     };
   }, []);
 
+  // All sentence pairs loaded via the API gateway (mock or real).
+  const [allSentences, setAllSentences] = useState<BilingualSentence[]>([]);
+  useEffect(() => {
+    let alive = true;
+    wfNewApi.getBilingualSentences()
+      .then((list) => { if (alive && Array.isArray(list)) setAllSentences(list); })
+      .catch(() => { /* leave empty on failure */ });
+    return () => { alive = false; };
+  }, []);
+
   // Filter sentences based on selected settings
   const filteredSentences = useMemo((): BilingualSentence[] => {
-    const matches = MOCK_BILINGUAL_SENTENCES.filter(
+    const matches = allSentences.filter(
       s => s.nativeLang === nativeLang && s.targetLang === targetLang
     );
-    // Fallback if no combinations found in Mock DB
+    // Fallback if no combinations found for the chosen language pair
     if (matches.length === 0) {
-      return MOCK_BILINGUAL_SENTENCES.filter(s => s.nativeLang === 'zh' && s.targetLang === 'en');
+      return allSentences.filter(s => s.nativeLang === 'zh' && s.targetLang === 'en');
     }
     return matches;
-  }, [nativeLang, targetLang]);
+  }, [nativeLang, targetLang, allSentences]);
 
   // Expand helper
   const toggleSentenceWords = (id: string) => {

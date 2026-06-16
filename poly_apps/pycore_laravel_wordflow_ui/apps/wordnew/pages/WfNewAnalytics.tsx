@@ -1,22 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  BarChart2, Award, Zap, Clock, BrainCircuit, RefreshCw, Calendar, 
+import {
+  BarChart2, Award, Zap, Clock, BrainCircuit, RefreshCw, Calendar,
   ChevronRight, Smile, TrendingUp, ShieldAlert, CheckCircle, Flame
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
-import { MOCK_ANALYTICS_STATS } from '../WfNewMockDb';
+import { wfNewApi, type AnalyticsStats } from '../api';
 
 interface WfNewAnalyticsProps {
   activeTheme: ElementTheme;
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
 }
 
+// Empty shell shown until the API resolves (keeps every read below safe).
+const EMPTY_STATS: AnalyticsStats = {
+  totalStudyMins: 0, retentionRate: 0, cumulativeLearned: 0, vocabularyTarget: 0,
+  streakDays: 0, weeklyActivity: [], categoryScores: [], recentlyStudiedTimeline: [],
+};
+
 export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
   activeTheme,
   addToast
 }) => {
-  const stats = MOCK_ANALYTICS_STATS;
+  const [stats, setStats] = useState<AnalyticsStats>(EMPTY_STATS);
+
+  useEffect(() => {
+    let alive = true;
+    wfNewApi.getAnalytics()
+      .then((s) => { if (alive && s) setStats(s); })
+      .catch(() => { /* keep EMPTY_STATS on failure */ });
+    return () => { alive = false; };
+  }, []);
 
   // State to simulate Ebbinghaus forgetting Curve decay
   const [synapticStrength, setSynapticStrength] = useState<number>(86);
@@ -42,8 +56,10 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
     addToast("Time elapsed: Synaptic health decayed slightly", "warning");
   };
 
-  // Find max minutes to compute heights proportionally
-  const maxWeeklyMins = Math.max(...stats.weeklyActivity.map(d => d.mins));
+  // Find max minutes to compute heights proportionally (guard empty load state)
+  const maxWeeklyMins = stats.weeklyActivity.length
+    ? Math.max(...stats.weeklyActivity.map(d => d.mins))
+    : 1;
 
   return (
     <div id="analytics-panel-wrapper" className="space-y-8 py-2">

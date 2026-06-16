@@ -265,22 +265,8 @@ export const MOCK_ANALYTICS_STATS: AnalyticsStats = {
 };
 
 // 6. Immersive Multi-lingual Bilingual Sentence comparison database
-export interface BilingualWord {
-  text: string;
-  phonetic: string;
-  translation: string;
-  definition: string;
-}
-
-export interface BilingualSentence {
-  id: string;
-  nativeLang: string; // e.g. "zh", "ja", "ko", "es"
-  targetLang: string; // e.g. "en", "fr", "de", "es"
-  targetText: string;
-  nativeText: string;
-  words: BilingualWord[];
-}
-
+// (BilingualWord / BilingualSentence types live once in ./api/WfNewApiTypes and
+//  are re-exported above.)
 export const MOCK_BILINGUAL_SENTENCES: BilingualSentence[] = [
   // Pair 1: Native "zh" (Simplified Chinese) -> Target "en" (English)
   {

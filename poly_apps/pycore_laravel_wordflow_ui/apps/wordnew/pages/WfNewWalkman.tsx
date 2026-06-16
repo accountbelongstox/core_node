@@ -5,7 +5,7 @@ import {
   RotateCcw, Sparkles, HelpCircle, VolumeX, ListMusic, Layers, RefreshCw
 } from 'lucide-react';
 import { ElementTheme, Word } from '../WfNewTypes';
-import { MOCK_WALKMAN_WORDS } from '../WfNewMockDb';
+import { wfNewApi } from '../api';
 
 interface WfNewWalkmanProps {
   activeTheme: ElementTheme;
@@ -20,8 +20,18 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
   addToast,
   lang
 }) => {
-  // Use either active catalog words or fallback walkman dataset
-  const activeWordsPool = courseWords.length > 0 ? courseWords : MOCK_WALKMAN_WORDS;
+  // Walkman cassette playlist loaded via the API gateway (mock or real).
+  const [walkmanWords, setWalkmanWords] = useState<Word[]>([]);
+  useEffect(() => {
+    let alive = true;
+    wfNewApi.getWalkmanWords()
+      .then((w) => { if (alive && Array.isArray(w)) setWalkmanWords(w); })
+      .catch(() => { /* leave empty on failure */ });
+    return () => { alive = false; };
+  }, []);
+
+  // Use either active catalog words or the loaded walkman dataset
+  const activeWordsPool = courseWords.length > 0 ? courseWords : walkmanWords;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
