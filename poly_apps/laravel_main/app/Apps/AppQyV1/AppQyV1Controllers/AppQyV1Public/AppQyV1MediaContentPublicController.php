@@ -20,6 +20,7 @@ use App\Models\Subtitle;
 use App\Models\SourceSentence;
 use App\Models\Sentence;
 use App\Models\PunctuationMarker;
+use App\Services\MoviePoster\MoviePosterStore;
 use App\Traits\ApiResponse;
 
 /**
@@ -83,6 +84,7 @@ class AppQyV1MediaContentPublicController
             return $this->notFound(ucfirst($type) . ' not found');
         }
 
+        $posterStore = new MoviePosterStore();
         if ($type === 'book') {
             $info = [
                 'id' => $source->id,
@@ -92,6 +94,8 @@ class AppQyV1MediaContentPublicController
                 'sentence_count' => $source->sentence_count,
                 'has_audio' => !empty($source->audio),
                 'synced_at' => $source->synced_at,
+                'image_url' => $posterStore->imageUrlFor($source),
+                'poster_status' => $source->poster_status,
             ];
         } else {
             $info = [
@@ -103,6 +107,8 @@ class AppQyV1MediaContentPublicController
                 'sentence_count' => $source->sentence_count,
                 'segment_count' => $source->segment_count,
                 'synced_at' => $source->synced_at,
+                'image_url' => $posterStore->imageUrlFor($source),
+                'poster_status' => $source->poster_status,
             ];
         }
 

@@ -26,9 +26,12 @@ http://127.0.0.1:9000 — and is user-editable afterwards via the
 ``laravel_api.*`` RPC routes (registered in callmodule/config.py).
 
 Health probe: GET {base}/api/health — laravel_main's liveness-only route
-(routes/api.php; no DB, no auth, heavy middleware stripped) — with a 3.0s
-timeout. Per the dashboard rule ("reachable counts as healthy") any HTTP
-status < 500 is healthy.
+(routes/api.php; no DB, no auth, heavy middleware stripped). The parallel sweep
+uses a 3.0s cap (kept fast across many candidates); the stored-first probe of the
+single known-good endpoint uses a more forgiving 6.0s + one retry so a cold-start
+first hit (Octane worker warm-up ~4-5s) does not needlessly fail the happy path
+and trigger a sweep. Per the dashboard rule ("reachable counts as healthy") any
+HTTP status < 500 is healthy.
 
 Architecture / layering (pycore rules):
   * App layer (callmodule.services.sync), beside the media-sync client that
@@ -57,7 +60,16 @@ USER_DATA_SECTION = "laravel_api"
 # laravel_main's cheap liveness route (no DB, no auth — see routes/api.php).
 HEALTH_PATH = "/api/health"
 # Probe timeout (seconds) — load-bearing, mirrors the dashboard's ~3000ms cap.
+# Used for the PARALLEL sweep, where many candidates must stay fast together.
 PROBE_TIMEOUT = 3.0
+# Stored-first probe is a SINGLE call to the known-good endpoint, so it can afford
+# a more forgiving budget: a cold Octane worker's first /api/health hit after idle
+# can take ~4-5s (worker warm-up) even though the backend is healthy. A short cap
+# here would needlessly fail the happy path and trigger a full LAN sweep.
+STORED_PROBE_TIMEOUT = 6.0
+# Retry the stored-first probe once on failure — the cold first hit warms the
+# worker, so the immediate second hit succeeds.
+STORED_PROBE_RETRIES = 1
 # After a fully-failed sweep, don't re-sweep for this long (avoid hammering a
 # down backend from periodic callers like backend_status).
 FAILED_SWEEP_TTL = 10.0
@@ -136,9 +148,11 @@ class LaravelEndpointManager:
     # ----------------------------------------------------------------- #
     # Probing                                                            #
     # ----------------------------------------------------------------- #
-    def probe(self, url: str) -> Dict[str, Any]:
-        """Probe ONE endpoint via GET {url}/api/health (3.0s timeout).
+    def probe(self, url: str, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """Probe ONE endpoint via GET {url}/api/health.
 
+        ``timeout`` defaults to PROBE_TIMEOUT (sweep budget); callers probing the
+        single known-good endpoint may pass a longer one (STORED_PROBE_TIMEOUT).
         Returns {url, healthy, latency_ms, last_checked, status, error} and
         records the result for lazy reuse by list/add/remove/select. Healthy =
         any HTTP status < 500 (the dashboard's "reachable counts as healthy").
@@ -155,7 +169,7 @@ class LaravelEndpointManager:
         requests = get_third_package_requests()
         started = time.monotonic()
         try:
-            resp = requests.get(u + HEALTH_PATH, timeout=PROBE_TIMEOUT)
+            resp = requests.get(u + HEALTH_PATH, timeout=timeout or PROBE_TIMEOUT)
             result["latency_ms"] = int((time.monotonic() - started) * 1000)
             result["status"] = resp.status_code
             result["healthy"] = resp.status_code < 500
@@ -209,13 +223,21 @@ class LaravelEndpointManager:
             if time.monotonic() - self._failed_sweep_at < FAILED_SWEEP_TTL:
                 return fallback
 
-        # 1) stored-first: try ONLY the persisted choice.
+        # 1) stored-first: try ONLY the persisted choice, with a forgiving budget
+        #    and one retry so a cold-start first hit (worker warm-up ~4-5s) does
+        #    not needlessly fail the happy path and trigger a full LAN sweep.
         if current:
-            res = self.probe(current)
-            if res.get("healthy"):
-                with self._lock:
-                    self._resolved = current
-                return current
+            res = {}
+            for attempt in range(STORED_PROBE_RETRIES + 1):
+                res = self.probe(current, timeout=STORED_PROBE_TIMEOUT)
+                if res.get("healthy"):
+                    with self._lock:
+                        self._resolved = current
+                    return current
+                if attempt < STORED_PROBE_RETRIES:
+                    ColorPrint.yellow(
+                        f"[LaravelEndpoints] Stored endpoint {current} probe "
+                        f"failed ({res.get('error')}); retrying once (warm-up)")
             ColorPrint.yellow(
                 f"[LaravelEndpoints] Stored endpoint {current} unhealthy "
                 f"({res.get('error')}) — sweeping {len(endpoints)} candidate(s)")

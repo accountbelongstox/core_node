@@ -433,6 +433,10 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             # Native ext4 loop-mount target for the PostgreSQL D-drive image (a
             # WSL-only concept; kept here for parity. Not used on Windows).
             'pg_mount': Path('/var/lib/postgresql/d'),
+            # Unified App Manager log namespace (a Linux-server concept; fixed
+            # paths kept here for parity, mirroring gvar_common.sh).
+            'app_manager_logs': Path('/opt/_core_node/logs'),
+            'app_manager_logs_old': Path('/opt/core_node_unified_manager/logs'),
         }
     else:
         # Linux mappings (context-aware)
@@ -485,6 +489,11 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             # postgres-owned, mode-0700 data dir that drvfs cannot provide. The
             # data/image itself lives under 'laravel_db'.
             'pg_mount': Path('/var/lib/postgresql/d'),
+            # Unified App Manager log namespace ROOT (scripts/app_manager/linux_sh).
+            # Kept on the native Linux fs like pg_mount. Retired predecessor:
+            # 'app_manager_logs_old'. MUST stay in sync with gvar_common.sh.
+            'app_manager_logs': Path('/opt/_core_node/logs'),
+            'app_manager_logs_old': Path('/opt/core_node_unified_manager/logs'),
         }
 
     # Get mapped path

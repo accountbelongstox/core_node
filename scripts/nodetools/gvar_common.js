@@ -320,6 +320,16 @@ function mapWebPath(pathKey, subPath) {
         case 'logs':
             mappedPath = '/var/log';
             break;
+        case 'app_manager_logs':
+            // Unified App Manager log namespace ROOT (scripts/app_manager/linux_sh).
+            // Kept on the native Linux fs like 'logs'. Retired predecessor:
+            // 'app_manager_logs_old'. MUST stay in sync with gvar_common.sh.
+            mappedPath = '/opt/_core_node/logs';
+            break;
+        case 'app_manager_logs_old':
+            // Retired App Manager log root (formerly 'core_node_unified_manager').
+            mappedPath = '/opt/core_node_unified_manager/logs';
+            break;
         case 'programing':
             mappedPath = `${basePath}/programing`;
             break;

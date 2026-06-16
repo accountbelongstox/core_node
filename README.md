@@ -22,6 +22,19 @@
 
 **Developer Section (AI Ignore):** The content below this line is for human developers and should be ignored by AI assistants.
 
+## Project Terminology
+
+When reading requirements, interpret the following terms as defined below:
+
+- **ncore**: The overall Node-based project. Its root (the `ncore dir`) is the top-level directory that contains this README, located at `D:\programing\core_node`.
+- **ncore dir**: The top-level root directory, `D:\programing\core_node`.
+- **script dir**: The `scripts` directory under the `ncore dir`.
+- **poly app**: An app built on a different technology stack, located under the `poly_apps` directory.
+- **poly app dir**: The root directory of a `poly app`.
+- **app**: A Node-based app, located under the `apps` directory.
+- **app dir**: The root directory of an `app`.
+- **local mcp**: A service located under the `ncore\mcp_server` directory.
+
 ## Quick Setup
 
 Run in Administrator Command Prompt to deploy development environment:

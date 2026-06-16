@@ -35,6 +35,22 @@
     return !!document.querySelector('.lf_area, .qdef, .cdef, .df_div, .hd_div');
   }
 
+  /**
+   * Detect Bing dictionary's definitive "no entry" page. Bing renders either a
+   * `.no_results` node or the copy "No results found for <word>" (followed by
+   * "Search tips:"). This is a CONFIRMED dictionary response with no entry — the
+   * word is genuinely invalid — distinct from a region-redirect / web-search
+   * fallback. We surface it explicitly so the worker can mark the word invalid.
+   */
+  function detectNoEntry() {
+    if (document.querySelector('.no_results')) return true;
+    // Scope the text probe to the main content area so an unrelated page-chrome
+    // string can't false-positive; fall back to body if the area isn't present.
+    const area = document.querySelector('#content, .lf_area, #smt, .b_content') || document.body;
+    const text = norm(area && area.textContent).slice(0, 4000);
+    return /No results found for\b/i.test(text);
+  }
+
   function setNativeValue(el, value) {
     const proto =
       el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
@@ -90,6 +106,9 @@
       // 'dict'  -> a real Bing dictionary page
       // 'non-dict' -> not a dictionary page (e.g. region-redirected web search)
       pageType: 'non-dict',
+      // True only on a CONFIRMED Bing "No results found for <word>" page — a
+      // definitive no-entry the worker should mark invalid (placeholder word).
+      noEntry: false,
       error: null,
     };
 
@@ -101,8 +120,14 @@
         result.word = wordElement.textContent.trim();
       }
 
-      const noResultElement = document.querySelector('.no_results');
-      if (noResultElement && result.pageType === 'dict') {
+      // A "No results found for <word>" page is a definitive dictionary no-entry
+      // (keyword: "No results"). Treat it as a confirmed dict page with no entry
+      // so the word is reported invalid — even though it lacks .qdef/.hd_div and
+      // would otherwise be misread as a non-dict region redirect.
+      if (detectNoEntry()) {
+        result.pageType = 'dict';
+        result.noEntry = true;
+        result.hasContent = false;
         result.error = 'No results found for this word';
         result.success = true;
         return result;

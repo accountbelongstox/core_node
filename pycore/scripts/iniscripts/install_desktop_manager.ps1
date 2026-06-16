@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    Prerequisite installer for the UNIFIED dashboard UI (poly_apps\laravel_dashboard,
+    Prerequisite installer for the UNIFIED dashboard UI (poly_apps\pycore_laravel_wordflow_ui,
     React/Vite) loaded by the PySide6 webview. Runs `pnpm install` once (idempotent).
 
 .DESCRIPTION
     Auto-discovered and run by prepare.ps1 before the Pycore service launches.
-    Pre-warms the Node dependencies for poly_apps\laravel_dashboard (its
+    Pre-warms the Node dependencies for poly_apps\pycore_laravel_wordflow_ui (its
     pycore-manager end is what the webview loads via PYCORE_UI_URL) so the Vite dev
     server starts fast. The legacy standalone app pycore\pyctl\desktop\desktop-manager
     is SUPERSEDED and no longer installed here (code is kept but unused).
@@ -31,15 +31,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# pycore\scripts\iniscripts  ->  core_node\poly_apps\laravel_dashboard
-$uiDir = Join-Path $PSScriptRoot '..\..\..\poly_apps\laravel_dashboard'
+# pycore\scripts\iniscripts  ->  core_node\poly_apps\pycore_laravel_wordflow_ui
+$uiDir = Join-Path $PSScriptRoot '..\..\..\poly_apps\pycore_laravel_wordflow_ui'
 
 Write-Host '============================================================' -ForegroundColor Cyan
-Write-Host ' Installing Dashboard UI deps (pnpm) - laravel_dashboard' -ForegroundColor Cyan
+Write-Host ' Installing Dashboard UI deps (pnpm) - pycore_laravel_wordflow_ui' -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
 
 if (-not (Test-Path (Join-Path $uiDir 'package.json'))) {
-    Write-Host "[skip] laravel_dashboard not found at $uiDir" -ForegroundColor DarkYellow
+    Write-Host "[skip] pycore_laravel_wordflow_ui not found at $uiDir" -ForegroundColor DarkYellow
     exit 0
 }
 

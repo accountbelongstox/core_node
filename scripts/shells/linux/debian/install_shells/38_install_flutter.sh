@@ -58,8 +58,14 @@ should_install_flutter() {
         "false") return 1;;
         "remove") return 2;;
         *)
-            # auto: install by default (changed from desktop/full only)
-            return 0
+            # auto: DESKTOP ONLY. Flutter installs via classic snap (which pulls
+            # core20/core24/snapd) and is a GUI/dev toolchain - skip on a headless
+            # server. Force with INSTALL_FLUTTER=true or ALLOW_SNAP_ON_SERVER=1.
+            if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ] || [ "${ALLOW_SNAP_ON_SERVER:-0}" = "1" ]; then
+                return 0
+            fi
+            log_message "No desktop environment: skipping Flutter snap (avoids core20/24/snapd). Set INSTALL_FLUTTER=true or ALLOW_SNAP_ON_SERVER=1 to force."
+            return 1
             ;;
     esac
 }

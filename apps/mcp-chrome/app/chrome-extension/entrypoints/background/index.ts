@@ -10,6 +10,7 @@ import { getDeepSeekPollingService } from './deepseek-polling-service';
 import { initBingDictionaryClientListener } from './bing-dictionary-client-listener';
 import { initBingWorkerLifecycle } from './services/bing-dictionary-worker-service';
 import { initNotebookLMListener } from './notebooklm-listener';
+import { initGeminiImageListener } from './gemini-image-listener';
 import { initApiHealthListener } from './api-health-listener';
 import { taskCenter } from './services/task-center/TaskCenter';
 import { initializeProcessors } from './services/task-center/init-processors';
@@ -70,6 +71,8 @@ export default defineBackground(() => {
   initBingWorkerLifecycle();
   // NotebookLM automation bridge for the popup test panel.
   initNotebookLMListener();
+  // Gemini image-generation bridge for the popup "Generate image" button.
+  initGeminiImageListener();
   // Real, CORS-bypassing API health checks on the popup's behalf.
   initApiHealthListener();
 

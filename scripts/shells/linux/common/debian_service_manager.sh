@@ -394,7 +394,7 @@ create_service_file() {
     local memory_high
     case "${memory_limit: -1}" in
         "M"|"m") memory_high="$((${memory_limit%?} * 80 / 100))M" ;;
-        "G"|"g") memory_high="$((${memory_limit%?} * 80 / 100))G" ;;
+        "G"|"g") memory_high="$((${memory_limit%?} * 1024 * 80 / 100))M" ;;
         "K"|"k") memory_high="$((${memory_limit%?} * 80 / 100))K" ;;
         *) memory_high="$((memory_limit * 80 / 100))" ;;
     esac
@@ -466,7 +466,7 @@ apply_resource_limits() {
         local memory_high
         case "${memory_limit: -1}" in
             "M"|"m") memory_high="$((${memory_limit%?} * 80 / 100))M" ;;
-            "G"|"g") memory_high="$((${memory_limit%?} * 80 / 100))G" ;;
+            "G"|"g") memory_high="$((${memory_limit%?} * 1024 * 80 / 100))M" ;;
             "K"|"k") memory_high="$((${memory_limit%?} * 80 / 100))K" ;;
             *) memory_high="$memory_limit" ;;
         esac

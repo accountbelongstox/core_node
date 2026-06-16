@@ -47,6 +47,14 @@ const EXTENSION_REGISTRY: ExtensionRegistry = {
     iconBg: 'bg-sky-100',
     status: 'active',
   },
+  'gemini-image': {
+    id: 'gemini-image',
+    name: 'Gemini Image',
+    description: 'Generate an image on Gemini and capture it as base64',
+    icon: '🎨',
+    iconBg: 'bg-violet-100',
+    status: 'active',
+  },
 };
 
 // ============================================================

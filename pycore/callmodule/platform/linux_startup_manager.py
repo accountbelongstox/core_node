@@ -9,7 +9,7 @@ Mirrors the Windows approach using Linux-native mechanisms:
      (``~/.core_node/data/autostart/PyCore_RPC_Server.sh``). It execs the repo's
      canonical entry point ``pyservice.sh run --no-install`` so boot starts the
      SAME stack as a manual run: the unified dashboard UI dev server
-     (poly_apps/laravel_dashboard, exported as PYCORE_UI_URL) and then the pycore
+     (poly_apps/pycore_laravel_wordflow_ui, exported as PYCORE_UI_URL) and then the pycore
      worker. Exec'ing the bare worker is kept only as a fallback when pyservice.sh
      cannot be found (it would skip the UI server, leaving the PySide6 webview
      with nothing to load). Its CONTENT is regenerated on every ``enable()`` AND
@@ -90,7 +90,7 @@ class LinuxStartupManager:
         )
         if self.pyservice_script.exists():
             # Boot runs the SAME entry point as a manual run: pyservice.sh starts
-            # the unified dashboard UI dev server (laravel_dashboard, exported as
+            # the unified dashboard UI dev server (pycore_laravel_wordflow_ui, exported as
             # PYCORE_UI_URL) and then the worker. --no-install skips the heavy
             # prerequisite step at boot.
             script = str(self.pyservice_script).replace('"', '\\"')

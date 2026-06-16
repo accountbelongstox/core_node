@@ -103,6 +103,50 @@ function Set-CodexHttpServer {
     Set-Content -LiteralPath $script:CODEX_CONFIG_PATH -Value $out -Encoding UTF8
     Write-Host "[OK] Wrote [mcp_servers.$Name] (url + http_headers) to codex config.toml"
 }
+
+function Format-TomlString {
+    # Escape a value for a TOML basic (double-quoted) string: backslashes first,
+    # then double-quotes. Critical for Windows paths (D:\...\python.exe).
+    param([string]$Value)
+    return ($Value -replace '\\', '\\') -replace '"', '\"'
+}
+
+function Set-CodexStdioServer {
+    # Write a local stdio server as [mcp_servers.<Name>] command/args (+ an
+    # [mcp_servers.<Name>.env] table). `codex mcp add` is stdio-capable but
+    # requires a TTY; the installer pipes stdout ("stdout is not a terminal"),
+    # so we write config.toml directly — same approach as the HTTP path, and
+    # idempotent because Remove-CodexServerSection clears any prior table first.
+    param(
+        [Parameter(Mandatory=$true)] [string]$Name,
+        [Parameter(Mandatory=$true)] [string]$Command,
+        [array]$CmdArgs,
+        [hashtable]$Env
+    )
+    Remove-CodexServerSection -Name $Name
+    $out = New-Object System.Collections.Generic.List[string]
+    if (Test-Path -LiteralPath $script:CODEX_CONFIG_PATH) {
+        foreach ($line in @(Get-Content -LiteralPath $script:CODEX_CONFIG_PATH -Encoding UTF8)) {
+            $out.Add($line)
+        }
+    }
+    $out.Add("")
+    $out.Add("[mcp_servers.$Name]")
+    $out.Add("command = `"$(Format-TomlString $Command)`"")
+    if ($CmdArgs -and $CmdArgs.Count -gt 0) {
+        $argsToml = ($CmdArgs | ForEach-Object { "`"$(Format-TomlString ([string]$_))`"" }) -join ", "
+        $out.Add("args = [$argsToml]")
+    }
+    if ($Env -and $Env.Count -gt 0) {
+        $out.Add("")
+        $out.Add("[mcp_servers.$Name.env]")
+        foreach ($eKey in $Env.Keys) {
+            $out.Add("$eKey = `"$(Format-TomlString ([string]$Env[$eKey]))`"")
+        }
+    }
+    Set-Content -LiteralPath $script:CODEX_CONFIG_PATH -Value $out -Encoding UTF8
+    Write-Host "[OK] Wrote [mcp_servers.$Name] (stdio command/args/env) to codex config.toml"
+}
 #endregion
 
 #region Main Logic
@@ -139,23 +183,12 @@ foreach ($config in $configs) {
         Set-CodexHttpServer -Name $name -Url $config.Url -Headers $config.Headers
     }
     else {
-        # Remove any existing stdio entry first so re-runs always apply the latest
-        # config (codex add on an existing name can fail or leave stale values).
-        Write-Host "[CLEAN] codex mcp remove $name"
-        codex mcp remove $name 2>$null
-        $fullArgs = @("mcp", "add", $name)
-        foreach ($eKey in $config.Env.Keys) {
-            $eVal = $config.Env[$eKey]
-            $fullArgs += "--env"
-            $fullArgs += "${eKey}=${eVal}"
-        }
-        $fullArgs += "--"
-        $fullArgs += $config.Command
-        foreach ($a in $config.CmdArgs) {
-            $fullArgs += $a
-        }
-        Write-Host "[CMD] codex $($fullArgs -join ' ')"
-        & codex $fullArgs
+        # stdio servers: write config.toml directly. `codex mcp add` works but
+        # needs a TTY, and the installer pipes stdout (the call failed with
+        # "stdout is not a terminal"), so the CLI path silently dropped this
+        # server. Writing the table directly is TTY-free and idempotent.
+        Write-Host "[CONFIG] Writing stdio server '$name' directly to config.toml (codex mcp add needs a TTY)"
+        Set-CodexStdioServer -Name $name -Command $config.Command -CmdArgs $config.CmdArgs -Env $config.Env
     }
     Write-Host ""
 

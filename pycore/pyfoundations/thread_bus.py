@@ -25,6 +25,7 @@ Usage:
 
 import time
 import threading
+import traceback
 from typing import Any, Dict, List, Optional, Callable
 from collections import deque
 
@@ -679,6 +680,21 @@ class ThreadBus:
             # Or just signal (let threads handle it themselves)
             THREAD_BUS.request_shutdown("User exit", execute_handlers=False)
         """
+        # Shutdown-source diagnostics: print WHO requested the shutdown and the
+        # call stack that led here. This is the single load-bearing line for
+        # answering "why did the process exit" — the reason names the trigger
+        # (singleton takeover / tray / Ctrl+C / UI window / API) and the trimmed
+        # stack pinpoints the exact call site. Cheap (only runs on shutdown).
+        if not self.has_signal('global.shutdown.requested'):
+            current = threading.current_thread()
+            print(f"[ThreadBus] >>> SHUTDOWN REQUESTED <<< reason='{reason}' "
+                  f"thread='{current.name}' (id={threading.get_ident()})")
+            # Drop this frame (extract_stack includes the current line); keep the
+            # last few callers so the originating module:line is obvious.
+            frames = traceback.extract_stack()[:-1]
+            for f in frames[-8:]:
+                print(f"[ThreadBus]     at {f.filename}:{f.lineno} {f.name}()")
+
         self.signal('global.shutdown.requested', {
             'reason': reason,
             'requester_thread_id': threading.get_ident()

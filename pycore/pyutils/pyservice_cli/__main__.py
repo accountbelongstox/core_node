@@ -136,16 +136,30 @@ def cmd_system_set(args):
 # --------------------------------------------------------------------------- #
 # code sync                                                                    #
 # --------------------------------------------------------------------------- #
+def _offline_snapshot(cfg):
+    """Build a peer snapshot from the committed config that matches the shape the
+    running service returns (pycore's mesh snapshot / get_peers): self is reported
+    separately and EXCLUDED from `peers`, and every peer carries the live-status
+    keys with offline defaults. This keeps `show` / `peers list` output identical
+    whether the service is up (service path) or stopped (file path)."""
+    me = cfg.get_self()
+    self_id = me.get("id")
+    peers = [
+        {**p, "reachable": False, "last_seen": None, "status": None, "pending": False}
+        for p in cfg.list_peers() if p.get("id") != self_id
+    ]
+    return me, peers, cfg.version()
+
+
 def cmd_codesync_show(args):
     data = _http_get(args.port, "/code-sync/peers")
     if data is not None:
         _emit({"source": "service", "self": data.get("self"),
                "peers": data.get("peers"), "version": data.get("version")})
         return 0
-    from pycore.pyutils.device_sync.peer_config import get_peer_config
-    cfg = get_peer_config()
-    _emit({"source": "file", "self": cfg.get_self(),
-           "peers": cfg.list_peers(), "version": cfg.version()})
+    from pycore.pyutils.codesync.peer_config import get_peer_config
+    me, peers, version = _offline_snapshot(get_peer_config())
+    _emit({"source": "file", "self": me, "peers": peers, "version": version})
     return 0
 
 
@@ -155,7 +169,7 @@ def cmd_codesync_role(args):
             data = _http_get(args.port, "/code-sync/peers") or {}
             _emit({"source": "service", "role": (data.get("self") or {}).get("role")})
         else:
-            from pycore.pyutils.device_sync.peer_config import get_peer_config
+            from pycore.pyutils.codesync.peer_config import get_peer_config
             _emit({"source": "file", "role": get_peer_config().get_role()})
         return 0
     # set
@@ -166,7 +180,7 @@ def cmd_codesync_role(args):
         res = _http_post(args.port, "/code-sync/role", {"role": args.role})
         _emit({"source": "service", "result": res})
         return 0 if res and res.get("success") else 1
-    from pycore.pyutils.device_sync.peer_config import get_peer_config
+    from pycore.pyutils.codesync.peer_config import get_peer_config
     role = get_peer_config().set_role(args.role)
     _emit({"source": "file", "success": True, "role": role})
     return 0
@@ -178,7 +192,7 @@ def cmd_codesync_peers(args):
     # offline config handle
     cfg = None
     if not up:
-        from pycore.pyutils.device_sync.peer_config import get_peer_config
+        from pycore.pyutils.codesync.peer_config import get_peer_config
         cfg = get_peer_config()
 
     if op == "list":
@@ -186,7 +200,8 @@ def cmd_codesync_peers(args):
             data = _http_get(args.port, "/code-sync/peers") or {}
             _emit({"source": "service", "peers": data.get("peers"), "self": data.get("self")})
         else:
-            _emit({"source": "file", "peers": cfg.list_peers(), "self": cfg.get_self()})
+            me, peers, _ = _offline_snapshot(cfg)
+            _emit({"source": "file", "peers": peers, "self": me})
         return 0
 
     if op == "add":

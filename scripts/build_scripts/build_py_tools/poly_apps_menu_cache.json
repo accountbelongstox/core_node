@@ -21,13 +21,13 @@
       "display_line": "flutter_bloom[10001]  [dev|web]"
     },
     {
-      "project_name": "laravel_dashboard",
-      "project_path": "D:\\programing\\core_node\\poly_apps\\laravel_dashboard",
+      "project_name": "pycore_laravel_wordflow_ui",
+      "project_path": "D:\\programing\\core_node\\poly_apps\\pycore_laravel_wordflow_ui",
       "project_port": 10002,
       "project_type": "vite",
       "build_mode_index": 0,
       "platform_index": 0,
-      "display_line": "laravel_dashboard[10002]  [dev|web]"
+      "display_line": "pycore_laravel_wordflow_ui[10002]  [dev|web]"
     },
     {
       "project_name": "laravel_main",

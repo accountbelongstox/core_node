@@ -208,7 +208,15 @@ install_dotnet_microsoft_repo() {
 # Function to install .NET via snap
 install_dotnet_snap() {
     log_message "Installing .NET via snap as fallback..."
-    
+
+    # The dotnet-sdk snap is classic confinement (pulls core20/core24/snapd). On a
+    # headless server prefer the Microsoft apt repo (tried first) and skip the snap
+    # fallback. Force with ALLOW_SNAP_ON_SERVER=1.
+    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" != "true" ] && [ "${ALLOW_SNAP_ON_SERVER:-0}" != "1" ]; then
+        log_message "No desktop environment: skipping dotnet-sdk snap (avoids core20/24/snapd). Set ALLOW_SNAP_ON_SERVER=1 to force."
+        return 1
+    fi
+
     if ! command_exists snap; then
         log_message "Snap is not installed. Installing snapd..."
         if timeout 600 $USE_SUDO apt install -y snapd; then

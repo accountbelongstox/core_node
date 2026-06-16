@@ -435,11 +435,18 @@ class BooksController:
             cache_files = self._list_files(abs_path, None)[:25] if is_dir else [abs_path]
             cache_set = {os.path.abspath(p) for p in cache_files}
             captured = {}  # abspath -> extracted text (cache_files only)
+            used_fresh = False  # any file needed a fresh extraction (cache miss)?
             for f in files:
                 want_text = os.path.abspath(f) in cache_set
                 sink: List[str] = []
+                # Reuse the text analyze already extracted (single-file sources)
+                # so a big PDF/EPUB is not read off disk a second time. Folders
+                # keep their per-file extraction (the cache holds joined text).
+                reuse = self._cached_full_text(f) if not is_dir else None
+                if reuse is None:
+                    used_fresh = True
                 try:
-                    r = sync_book_source(f, language=lang,
+                    r = sync_book_source(f, language=lang, text=reuse,
                                          on_text=(sink.append if want_text else None))
                 except Exception as e:
                     src_ok = False
@@ -456,13 +463,21 @@ class BooksController:
             # Build the cache in _list_files order so it is byte-for-byte what the
             # lazy _build_lists would produce. Independent of Laravel ingest success
             # (the drill-down is pure local analysis).
-            if captured:
+            # Only (re)build the drill-down cache when something was freshly
+            # extracted; if every file's text was reused from cache, the cache is
+            # already valid and re-tokenizing the whole book would be wasted work.
+            if captured and used_fresh:
                 joined = "\n\n".join(
                     captured[os.path.abspath(p)] for p in cache_files
                     if os.path.abspath(p) in captured)
                 if joined.strip():
                     try:
-                        self._write_list_cache(abs_path, None, 25, self._lists_from_text(joined))
+                        data = self._lists_from_text(joined)
+                        # Preserve the raw text for single-file sources so a later
+                        # submit can again skip re-extraction (folders omit it).
+                        if not is_dir:
+                            data["full_text"] = joined
+                        self._write_list_cache(abs_path, None, 25, data)
                     except OSError as e:
                         ColorPrint.yellow(f"[BooksController] submit precompute cache failed: {e}")
             total_sentences += src_sent
@@ -580,9 +595,37 @@ class BooksController:
         if mode != "file" or fmt_filter is not None or not (text and text.strip()):
             return
         try:
-            self._write_list_cache(path, None, 25, self._lists_from_text(text))
+            data = self._lists_from_text(text)
+            # Keep the raw extracted text alongside the lists so a later submit
+            # can ingest WITHOUT re-extracting the file (see _cached_full_text).
+            data["full_text"] = text
+            self._write_list_cache(path, None, 25, data)
         except OSError as e:
             ColorPrint.yellow(f"[BooksController] precompute list cache failed: {e}")
+
+    def _cached_full_text(self, path: str) -> Optional[str]:
+        """Return the cached extracted text for a single-file source, or None.
+
+        Validates the cache against the file's current fingerprint (size+mtime)
+        so a changed file is re-extracted rather than served stale. Lets submit
+        skip a second (slow) extraction of a file analyze already read.
+        """
+        cache_file = self._list_cache_path(source_key_for(os.path.abspath(path)))
+        if not os.path.isfile(cache_file):
+            return None
+        try:
+            with open(cache_file, "r", encoding="utf-8") as fh:
+                cached = json.load(fh)
+        except Exception:
+            return None
+        if not isinstance(cached, dict):
+            return None
+        text = cached.get("full_text")
+        if not (isinstance(text, str) and text.strip()):
+            return None
+        if cached.get("_fp") != self._source_fingerprint(path, None, 25):
+            return None
+        return text
 
     def list_items(self, path: str, kind: str = "words", start: int = 0,
                    limit: int = 100, formats: Optional[List[str]] = None,
