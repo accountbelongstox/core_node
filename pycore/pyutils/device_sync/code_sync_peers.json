@@ -1,20 +1,27 @@
 {
   "peers": [
     {
-      "host": "10.150.186.10",
-      "id": "aae4a4b2b3f6a69d946945bf9b7d08862e76c15e8481ddce9171a6812b752a7a",
-      "name": "ubuntu-HW15S",
+      "host": "100.101.149.39",
+      "id": "159ec26d49df9c5c3a5a2270108f4a11d307cc2417d154fba5038d6e1c3128b5",
+      "name": "tailscal(本机)",
+      "port": 59000,
+      "role": "dev"
+    },
+    {
+      "host": "43.163.112.77",
+      "id": "43.163.112.77:59000",
+      "name": "腾讯云SG",
       "port": 59000,
       "role": "client"
     },
     {
-      "host": "10.150.186.54",
-      "id": "159ec26d49df9c5c3a5a2270108f4a11d307cc2417d154fba5038d6e1c3128b5",
-      "name": "DESKTOP-1L9K06N",
+      "host": "100.106.85.16",
+      "id": "100.106.85.16:59000",
+      "name": "tailscal(Ace)",
       "port": 59000,
-      "role": "dev"
+      "role": "client"
     }
   ],
-  "updated_at": 1781576946.1140842,
-  "version": 18
+  "updated_at": 1781585402.2860415,
+  "version": 20
 }

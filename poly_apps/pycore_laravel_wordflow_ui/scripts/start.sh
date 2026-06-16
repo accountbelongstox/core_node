@@ -41,8 +41,10 @@ NODE_INSTALL_SCRIPT="${REPO_ROOT}/scripts/shells/linux/debian/install_shells/15_
 SERVICE_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/debian_service_manager.sh"
 SERVICE_NAME="ncore-nexus-dash"
 SERVICE_DESC="Nexus Dash frontend (pycore_laravel_wordflow_ui)"
-SERVICE_CPU="${SERVICE_CPU:-100%}"
-SERVICE_MEM="${SERVICE_MEM:-1G}"
+# CPU cap (overridable). Memory is computed at registration: min(RAM/4, cap).
+SERVICE_CPU="${SERVICE_CPU:-50%}"
+SERVICE_MEM="${SERVICE_MEM:-}"
+SERVICE_MEM_CAP_MB="${SERVICE_MEM_CAP_MB:-1024}"
 LOG_DIR="${REPO_ROOT}/.data/logs"
 LARAVEL_LOG="${LOG_DIR}/laravel_main.start.log"
 PACKAGE_JSON="${APP_ROOT}/package.json"
@@ -82,6 +84,18 @@ trap 'cd "$ORIGINAL_DIR" 2>/dev/null || true' EXIT
 log()  { printf '[nexus-dash] %s\n' "$1"; }
 warn() { printf '[nexus-dash] %s\n' "$1"; }
 err()  { printf '[nexus-dash] %s\n' "$1" >&2; }
+
+# Echo a systemd memory limit "<n>M" = min(total RAM / 4, cap_mb), floored at 128M.
+compute_mem_limit() {
+    local cap_mb="$1"
+    local total_kb total_mb quarter
+    total_kb=$(grep -m1 MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
+    [ -n "$total_kb" ] || total_kb=0
+    total_mb=$(( total_kb / 1024 ))
+    quarter=$(( total_mb / 4 ))
+    [ "$quarter" -lt 128 ] && quarter=128
+    if [ "$quarter" -gt "$cap_mb" ]; then echo "${cap_mb}M"; else echo "${quarter}M"; fi
+}
 
 # --- Prompt helpers (read from the controlling TTY; honor non-interactive) ---
 # DEFAULT YES: empty / anything but n -> yes. No TTY -> yes.
@@ -367,14 +381,21 @@ if [ -n "$RUN_FRONTEND" ]; then
     fi
 fi
 
-# Backend: launch in background (idempotent; laravel start.sh reuses the port).
+# Backend: laravel_main shares the same Y/n service flow. We pass the choice
+# explicitly so it never re-prompts here (no TTY). In service mode it registers
+# its own systemd unit; otherwise it runs in the background under nohup.
 if [ -n "$RUN_BACKEND" ]; then
-    mkdir -p "$LOG_DIR" 2>/dev/null || true
-    log "Launching laravel_main backend in background..."
-    nohup bash "$LARAVEL_START" > "$LARAVEL_LOG" 2>&1 &
-    LARAVEL_PID=$!
-    log "laravel_main backend PID: $LARAVEL_PID  (logs: $LARAVEL_LOG)"
-    log "  Tail: tail -f \"$LARAVEL_LOG\"   Stop: kill $LARAVEL_PID"
+    if [ "$AS_SERVICE" = "yes" ]; then
+        log "Registering laravel_main backend as a systemd service..."
+        bash "$LARAVEL_START" --service || err "Backend service registration reported a failure (continuing)."
+    else
+        mkdir -p "$LOG_DIR" 2>/dev/null || true
+        log "Launching laravel_main backend in background..."
+        nohup bash "$LARAVEL_START" --no-service > "$LARAVEL_LOG" 2>&1 &
+        LARAVEL_PID=$!
+        log "laravel_main backend PID: $LARAVEL_PID  (logs: $LARAVEL_LOG)"
+        log "  Tail: tail -f \"$LARAVEL_LOG\"   Stop: kill $LARAVEL_PID"
+    fi
 fi
 
 # Frontend
@@ -386,6 +407,8 @@ if [ -n "$RUN_FRONTEND" ]; then
         ensure_node_pnpm
         ensure_deps
         [ "$RUN_MODE" = "dist" ] && build_dist
+        [ -n "$SERVICE_MEM" ] || SERVICE_MEM="$(compute_mem_limit "$SERVICE_MEM_CAP_MB")"
+        log "Frontend service limits: CPU=${SERVICE_CPU}, Memory=${SERVICE_MEM} (cap ${SERVICE_MEM_CAP_MB}M)"
         # Compose + register the service that runs ONLY the frontend (--serve).
         EXEC_CMD="bash ${SELF} --serve --${RUN_MODE}"
         log "Registering systemd service ${SERVICE_NAME} (ExecStart: ${EXEC_CMD})..."
