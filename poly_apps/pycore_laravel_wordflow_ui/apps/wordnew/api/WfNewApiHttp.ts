@@ -1,19 +1,23 @@
 /**
  * WfNewApiHttp — live/real implementation of the WfNewApi contract.
  *
- * Delegates to the shared wordflow transport (`wordflowApi`, which talks to the
- * real backend behind the health-checked endpoint manager). It implements the
- * exact same `WfNewApi` interface as WfNewApiMock and returns the exact same
- * types from ./WfNewApiTypes — keep the two in lock-step.
+ * Talks to the AppQyV1 backend (laravel_main, Octane :9000) through the wordnew
+ * endpoint manager (WfNewEndpoints), which picks an available endpoint from the
+ * configured list (STORED-FIRST, availability-first failover). Every request
+ * waits for endpoint detection, then hits the current endpoint's base URL.
+ *
+ * Implements the exact same `WfNewApi` interface as WfNewApiMock and returns the
+ * exact same types from ./WfNewApiTypes — keep the two in lock-step.
  *
  * Coverage note (honest, no silent gaps):
  *   - REAL backend data: getWordGroups / getBentoGroups / getVocabulary /
- *     getUserProfile / getUserStats / searchDictionary / getWalkmanWords.
- *   - The interactive Subtitles / Bilingual / Analytics pages are curated
- *     CONTENT with no dedicated backend endpoint yet, so this impl serves the
- *     same curated datasets the mock uses (logged once). When a real endpoint
- *     lands, swap those three bodies to a wordflowApi call — the interface and
- *     types do not change.
+ *     getUserProfile / getUserStats / getWalkmanWords.
+ *   - searchDictionary has no stable public endpoint here yet, so it returns []
+ *     and the UI fuzzy-filters its loaded word pool (logged once).
+ *   - Subtitles / Bilingual / Analytics are curated CONTENT with no dedicated
+ *     backend endpoint yet, so this impl serves the same curated datasets the
+ *     mock uses (logged once). When real endpoints land, swap those bodies to a
+ *     fetch call — the interface and types do not change.
  *
  * Selected via ./index.ts. See ./README.md.
  */
@@ -21,14 +25,27 @@ import type {
   WfNewApi, Word, WordGroup, BentoGroup, UserProfile, UserStats,
   SubtitleCourse, BilingualSentence, AnalyticsStats,
 } from './WfNewApiTypes';
-import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
+import { wfNewEndpoints } from './WfNewEndpoints';
 import {
   MOCK_SUBTITLE_COURSES, MOCK_BILINGUAL_SENTENCES, MOCK_ANALYTICS_STATS,
 } from '../WfNewMockDb';
 
+// --- transport ------------------------------------------------------------- #
+
+/** GET <currentEndpoint>/path as JSON. Waits for endpoint detection first. */
+async function getJSON<T>(path: string): Promise<T> {
+  await wfNewEndpoints.whenReady();
+  const res = await fetch(wfNewEndpoints.buildUrl(path), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`);
+  return (await res.json()) as T;
+}
+
 // --- mappers --------------------------------------------------------------- #
 
-/** Normalize a backend/wordflow word record into the shared Word shape. */
+/** Normalize a backend word record into the shared Word shape. */
 function toWord(raw: any, i = 0): Word {
   return {
     id: String(raw?.id ?? raw?.word_id ?? raw?.word ?? `w-${i}`),
@@ -46,6 +63,19 @@ function toWord(raw: any, i = 0): Word {
   };
 }
 
+/** Normalize a backend group record into the shared WordGroup shape. */
+function toGroup(raw: any, i = 0): WordGroup {
+  return {
+    id: String(raw?.id ?? raw?.gid ?? `g-${i}`),
+    name: raw?.name ?? raw?.gname ?? 'Untitled',
+    count: Number(raw?.count ?? raw?.total_words ?? 0) || 0,
+    progress: Number(raw?.progress ?? 0) || 0,
+    type: raw?.type ?? undefined,
+    language: raw?.language ?? 'en',
+    description: raw?.description ?? undefined,
+  };
+}
+
 /** Decorative carousel applied to live groups so the bento grid still varies. */
 const BENTO_DECOR: Array<Pick<BentoGroup,
   'gridSpan' | 'bgGradient' | 'bgGradientDark' | 'decorColor' | 'decorativeSvg'>> = [
@@ -59,43 +89,51 @@ const BENTO_DECOR: Array<Pick<BentoGroup,
 
 function decorate(g: WordGroup, i: number): BentoGroup {
   const d = BENTO_DECOR[i % BENTO_DECOR.length];
-  return {
-    ...g,
-    badge: g.type ? `★ ${g.type}` : '★ Pack',
-    statsLabel: 'Synaptic Link Active',
-    ...d,
-  };
+  return { ...g, badge: g.type ? `★ ${g.type}` : '★ Pack', statsLabel: 'Synaptic Link Active', ...d };
+}
+
+/** Unwrap the various list shapes the backend returns. */
+function asArray(res: any, ...keys: string[]): any[] {
+  if (Array.isArray(res)) return res;
+  for (const k of keys) if (Array.isArray(res?.[k])) return res[k];
+  return [];
 }
 
 let contentFallbackLogged = false;
 function logContentFallback(): void {
   if (!contentFallbackLogged) {
     contentFallbackLogged = true;
-    console.info('[WfNewApiHttp] Subtitles/Bilingual/Analytics have no backend endpoint yet — serving curated content.');
+    console.info('[WfNewApiHttp] search / subtitles / bilingual / analytics have no backend endpoint yet — using local content.');
   }
 }
 
 // --- implementation -------------------------------------------------------- #
 
+async function fetchGroups(): Promise<WordGroup[]> {
+  const res = await getJSON<any>('/query_all_groups');
+  return asArray(res, 'groups').map(toGroup);
+}
+
 export const wfNewApiHttp: WfNewApi = {
   async getBentoGroups(): Promise<BentoGroup[]> {
-    const groups = await wordflowApi.getWordGroups();
-    return (groups ?? []).map((g, i) => decorate(g as WordGroup, i));
+    const groups = await fetchGroups();
+    return groups.map((g, i) => decorate(g, i));
   },
 
-  async getWordGroups(): Promise<WordGroup[]> {
-    return (await wordflowApi.getWordGroups()) ?? [];
+  getWordGroups(): Promise<WordGroup[]> {
+    return fetchGroups();
   },
 
   async getVocabulary(groupId: string): Promise<Word[]> {
-    const words = await wordflowApi.getWordsForGroup(groupId);
-    return (words ?? []).map(toWord);
+    const res = await getJSON<any>(`/query_gwords?gid=${encodeURIComponent(groupId)}`);
+    return asArray(res, 'gwords', 'words').map(toWord);
   },
 
   async getUserProfile(): Promise<UserProfile | null> {
     try {
-      const p: any = await wordflowApi.getUserProfile();
-      if (!p) return null;
+      const res = await getJSON<any>('/user/profile');
+      const p = res?.user ?? res;
+      if (!p || typeof p !== 'object') return null;
       return {
         nickname: p.nickname ?? p.name,
         name: p.name,
@@ -123,19 +161,16 @@ export const wfNewApiHttp: WfNewApi = {
   },
 
   async searchDictionary(text: string): Promise<Word[]> {
-    const q = (text || '').trim();
-    if (!q) return [];
-    try {
-      const entries: any[] = await wordflowApi.queryPersonalDictionaryByWords([q]);
-      return (entries ?? []).map(toWord);
-    } catch {
-      return [];
-    }
+    // No stable public dictionary-search endpoint yet — the caller fuzzy-filters
+    // its loaded word pool when this returns empty.
+    if (!text.trim()) return [];
+    logContentFallback();
+    return [];
   },
 
   async getWalkmanWords(): Promise<Word[]> {
-    const words = await wordflowApi.getDailyWords(40);
-    return (words ?? []).map(toWord);
+    const res = await getJSON<any>('/words/daily?count=40');
+    return asArray(res, 'words').map(toWord);
   },
 
   async getSubtitleCourses(): Promise<SubtitleCourse[]> {

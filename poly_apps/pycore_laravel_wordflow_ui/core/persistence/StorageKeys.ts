@@ -25,7 +25,14 @@ export const StorageKeys = {
   SERVER_MANAGER_FILE_ALLOWED_PATHS: `${PREFIX}servermanager_file_allowed_paths`,
   SERVER_MANAGER_UNIFIED_APPS: `${PREFIX}servermanager_unified_apps`,
   SERVER_MANAGER_SCRIPTS: `${PREFIX}servermanager_scripts`,
-  SERVER_MANAGER_CERTBOT_STATUS: `${PREFIX}servermanager_certbot_status`
+  SERVER_MANAGER_CERTBOT_STATUS: `${PREFIX}servermanager_certbot_status`,
+
+  // WordNew (/wordnew) backend endpoint manager
+  WORDNEW_API_CUSTOM_ENDPOINTS: `${PREFIX}wordnew_api_custom_endpoints`,
+  WORDNEW_API_USER_ENDPOINT: `${PREFIX}wordnew_api_user_endpoint`,
+  WORDNEW_API_AUTO_ENDPOINT: `${PREFIX}wordnew_api_auto_endpoint`,
+  WORDNEW_API_CURRENT: `${PREFIX}wordnew_api_current`,
+  WORDNEW_API_RECHECK_INTERVAL_MS: `${PREFIX}wordnew_api_recheck_interval_ms`
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];

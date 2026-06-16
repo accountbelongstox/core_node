@@ -11,12 +11,12 @@ import {
 import { useShell } from '../../shell/ShellContext';
 // Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
 // (swap one import line there). All data shapes come from the same TYPE surface.
-import { wfNewApi } from './api';
+import { wfNewApi, wfNewEndpoints, WFNEW_API_HEALTH_EVENT } from './api';
 import type { Word, WordGroup, BentoGroup } from './api';
 
 // Modular Imports
 import { UserStats, ElementTheme } from './WfNewTypes';
-import { LOCALES } from './WfNewLocales';
+import { translate, getSupportedLanguages } from './WfNewLocales';
 import { CUSTOM_THEMES } from './WfNewThemes';
 import { WfNewSearchOverlay } from './components/WfNewSearchOverlay';
 import { WfNewToast, ToastMessage } from './components/WfNewToast';
@@ -125,7 +125,7 @@ export const WfNewApp: React.FC = () => {
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
-    addToast('Onboarding configuration sequence fully synchronized.', 'success');
+    addToast(trans('toast.onboardSynced'), 'success');
   };
 
   const handleLoginSuccess = (payload: typeof currentUser) => {
@@ -143,7 +143,7 @@ export const WfNewApp: React.FC = () => {
       isLoggedIn: true
     });
     setShowOnboarding(true);
-    addToast('Spacecraft command thread authenticated. Initiating calibration sequence!', 'success');
+    addToast(trans('toast.loginOk'), 'success');
     setActiveTab('profile');
   };
 
@@ -153,15 +153,16 @@ export const WfNewApp: React.FC = () => {
       ...prev,
       isLoggedIn: false
     }));
-    addToast('Logged out of WordFlow spacecraft thread.', 'info');
+    addToast(trans('toast.loggedOut'), 'info');
     setActiveTab('auth');
   };
 
-  // Multilingual translation helper
-  const trans = (key: string) => {
-    const dict = LOCALES[shellLang] || LOCALES['en'];
-    return dict[key] || key;
-  };
+  // Multilingual translation helper (en/zh/ja/ko, key-level English fallback).
+  // Pass replacements for {name} placeholders, e.g. trans('toast.forged', { word }).
+  const trans = (key: string, replacements?: Record<string, string | number>) =>
+    translate(shellLang, key, replacements);
+  // Language picker popover (top-right): open/close + choose a language.
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
 
   // Base API storage structures
   const [gGroups, setGGroups] = useState<WordGroup[]>([]);
@@ -274,6 +275,19 @@ export const WfNewApp: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+  }, []);
+
+  // When the backend endpoint recovers (offline → online, or the user switches
+  // endpoints in Settings), reload content. No-op in mock mode (event never
+  // fires) and when nothing is healthy. The http impl lazily runs endpoint
+  // detection on its first request, so no explicit init is needed here.
+  useEffect(() => {
+    const onHealth = () => {
+      if (wfNewEndpoints.hasHealthyEndpoint()) loadContent();
+    };
+    window.addEventListener(WFNEW_API_HEALTH_EVENT, onHealth);
+    return () => window.removeEventListener(WFNEW_API_HEALTH_EVENT, onHealth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync favorites
@@ -476,7 +490,7 @@ export const WfNewApp: React.FC = () => {
   // Custom forging system
   const handleForgeCustomWord = () => {
     if (!newWordText.trim() || !newWordTransl.trim()) {
-      addToast('Please input spell and translation!', 'warning');
+      addToast(trans('toast.needSpellTransl'), 'warning');
       return;
     }
     const newlyForged: Word = {
@@ -491,7 +505,7 @@ export const WfNewApp: React.FC = () => {
 
     // Prepend to current word shelf list
     setCourseWords(prev => [newlyForged, ...prev]);
-    addToast(`Successfully forged ${newWordText}!`, 'success');
+    addToast(trans('toast.forged', { word: newWordText }), 'success');
     
     // Reset form
     setNewWordText('');
@@ -647,14 +661,33 @@ export const WfNewApp: React.FC = () => {
             {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-purple-400" />}
           </button>
 
-          <button 
-            onClick={() => setShellLang(shellLang === 'en' ? 'zh' : 'en')}
-            className="flex items-center gap-1 bg-white/5 hover:bg-white/10 border border-white/5 px-2.5 py-1.5 rounded-full text-zinc-300 font-bold text-xs"
-            title="Toggle Dialect"
-          >
-            <Languages className="w-3.5 h-3.5 text-indigo-400" />
-            <span>{shellLang === 'en' ? 'EN' : '中文'}</span>
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setLangMenuOpen(o => !o)}
+              className="flex items-center bg-white/5 hover:bg-white/10 border border-white/5 p-1.5 rounded-full text-zinc-300"
+              title="Select language"
+              aria-label="Select language"
+            >
+              <Languages className="w-4 h-4 text-indigo-400" />
+            </button>
+            {langMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setLangMenuOpen(false)} />
+                <div className="absolute right-0 mt-2 z-50 min-w-[150px] rounded-xl border border-white/10 bg-zinc-900/95 backdrop-blur-md shadow-xl py-1">
+                  {getSupportedLanguages().map(cfg => (
+                    <button
+                      key={cfg.code}
+                      onClick={() => { setShellLang(cfg.code); setLangMenuOpen(false); }}
+                      className={`flex items-center gap-2 w-full px-3 py-2 text-left text-xs hover:bg-white/10 ${shellLang === cfg.code ? 'text-indigo-300 font-bold' : 'text-zinc-300'}`}
+                    >
+                      <span>{cfg.flag}</span>
+                      <span>{cfg.nativeName}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -1003,7 +1036,7 @@ export const WfNewApp: React.FC = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                addToast(`[${group.name}] is pinned with 1-Click! Synced with your custom dashboard.`, 'success');
+                                addToast(trans('toast.pinned', { name: group.name }), 'success');
                               }}
                               className="px-2 py-1 text-[9px] font-mono font-bold tracking-tight uppercase bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-650 hover:to-indigo-750 text-white rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer z-20"
                               title="Sync with 1-click"
@@ -1584,7 +1617,7 @@ export const WfNewApp: React.FC = () => {
                         <button
                           onClick={() => {
                             setCourseWords(prev => prev.filter(w => w.id !== word.id));
-                            addToast('Wiped from custom forge list', 'warning');
+                            addToast(trans('toast.wipedForge'), 'warning');
                           }}
                           className="p-1.5 bg-white/5 rounded-lg text-rose-400 hover:bg-rose-500/10"
                         >

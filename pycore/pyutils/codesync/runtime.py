@@ -301,7 +301,16 @@ def get_app_data_dir() -> Path:
     return _ensure_dir(cache / "data")
 
 
-# The committed peer list — single source of truth shared by both modes. Kept at
-# its historical path so existing repo history / full-pycore reads are unchanged.
+# The committed peer list — the SHIPPED DEFAULT (baseline), read-only at runtime.
+# Kept at its historical path so existing repo history / full-pycore reads are
+# unchanged. Runtime edits never write here (see get_peers_override_file).
 def get_peers_config_file() -> Path:
     return get_core_node_root() / "pycore" / "pyutils" / "device_sync" / "code_sync_peers.json"
+
+
+# Per-machine override for the peer list. Gitignored (<root>/.data/...), so every
+# machine keeps its own role/peers/edits here WITHOUT touching the committed
+# baseline. Loaded with priority over the baseline; this is the only file the
+# runtime writes to.
+def get_peers_override_file() -> Path:
+    return get_core_node_root() / ".data" / "pycore" / "codesync" / "code_sync_peers.json"

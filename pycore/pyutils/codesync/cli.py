@@ -86,7 +86,7 @@ def _offline_snapshot(cfg):
 # --------------------------------------------------------------------------- #
 def cmd_run(args):
     from . import daemon
-    return daemon.run(host=args.host, port=args.port)
+    return daemon.run(host=args.host, port=args.port, reload=getattr(args, "reload", False))
 
 
 def cmd_show(args):
@@ -221,6 +221,9 @@ def build_parser():
 
     run = sub.add_parser("run", parents=[common], help="start the standalone code-sync daemon")
     run.add_argument("--host", default="0.0.0.0", help="bind host (default 0.0.0.0)")
+    run.add_argument("--reload", action="store_true",
+                     help="dev hot-reload: re-exec on any codesync .py change "
+                          "(also enabled by CODESYNC_RELOAD=1)")
     run.set_defaults(func=cmd_run)
 
     sub.add_parser("show", parents=[common], help="show role + peers").set_defaults(func=cmd_show)

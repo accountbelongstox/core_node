@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { ElementTheme, UserStats } from '../WfNewTypes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
+import { WfNewApiServerPanel } from '../components/WfNewApiServerPanel';
 
 interface WfNewSettingsProps {
   activeTheme: ElementTheme;
@@ -321,6 +322,9 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
         </div>
 
       </div>
+
+      {/* Backend API endpoint summary — click to open the full manager + test dialog */}
+      <WfNewApiServerPanel activeTheme={activeTheme} />
 
       {/* NEW INTERACTIVE CONTROLS CONTAINER: Dropdown, Switches, Radios, Multi-select checkboxes */}
       <div className={`p-6 sm:p-8 rounded-3xl ${activeTheme.cardClass} space-y-6 shadow-md`}>

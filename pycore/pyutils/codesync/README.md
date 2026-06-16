@@ -19,9 +19,11 @@ for the extraction architecture.
 ## CLI
 
 ```
-pyservice.sh codesync run [--host 0.0.0.0] [--port 59000]   # interactively offer to install as a
+pyservice.sh codesync run [--host 0.0.0.0] [--port 59000] [--reload]
+                                                             # interactively offer to install as a
                                                              # systemd service (default Y); decline
                                                              # -> run the foreground daemon
+                                                             # --reload: dev hot-reload (see below)
 pyservice.sh codesync show                                   # role + peers (aligned shape)
 pyservice.sh codesync role [dev|client]                      # print or set this device's role
 pyservice.sh codesync peers list
@@ -58,6 +60,36 @@ systemctl status codesync --no-pager      # current status
 
 On Windows (no systemd) these print a notice + how to run it in the foreground
 (`.\pyservice.ps1 codesync run`, optionally wrapped in Task Scheduler / nssm).
+
+## Hot-reload (dev)
+
+`pyservice.sh codesync run --reload` (or `CODESYNC_RELOAD=1`) starts a stdlib
+daemon thread that polls every `.py` under `pycore/pyutils/codesync/` (mtime, no
+`watchdog`). On any change it gracefully stops the HTTP server (freeing `:59000`)
+and **re-execs the same command via `os.execv`** — re-reading all Python. The
+`--reload` flag rides through `sys.argv`, so reload stays on across restarts.
+Under systemd (`Restart=always`) the re-exec keeps the same PID; even a plain exit
+would be restarted by the supervisor. This mirrors the full-pycore reloader
+(`pycore/pyutils/common/dev_reload.py`, enabled by `pyservice.sh run --reload` /
+`PYCORE_RELOAD=1`) but is stdlib-only since the daemon never imports pycore.
+
+**As a background systemd service.** Hot-reload works under systemd too: the unit's
+`ExecStart` runs `pyservice.sh codesync run`, which `exec`s the daemon as the
+service's MainPID, so an in-place `os.execv` keeps the same PID and `Restart=always`
+is unaffected. Install with reload baked into the unit so e.g. a `git pull` on the
+server is picked up automatically:
+
+```
+CODESYNC_RELOAD=1 ./pyservice.sh codesync          # (or: codesync install)
+# -> ExecStart=/bin/bash <repo>/pyservice.sh codesync run --reload
+```
+
+To toggle it on an already-installed unit, either re-install with `CODESYNC_RELOAD=1`,
+or edit `ExecStart` in `/etc/systemd/system/codesync.service` to add `--reload` then
+`systemctl daemon-reload && systemctl restart codesync`.
+
+> Leave `--reload` OFF for a normal headless cloud unit unless you want git-pull
+> auto-restart — it adds a 1s polling loop and restarts on any codesync/*.py change.
 
 ## Web panel (standalone)
 

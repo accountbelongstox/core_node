@@ -32,6 +32,18 @@ contract: `apps/wordnew/api/README.md`.
    serves the curated dataset and logs once; never fake success. Swapping to a
    real call later must not change the interface or types.
 7. **English only** for all code, comments, and docs in this layer.
+8. **Endpoint management** lives in `WfNewEndpoints.ts` (functionality modeled on
+   wordflow's `WordflowApiManager`, NOT its UI): default `:9000` list
+   (current-origin + 43.163.112.77 + 127.0.0.1 + 100.101.149.39 + 100.106.85.16),
+   STORED-FIRST auto-select, `/api/health` probe, offline retry until one
+   recovers. The http impl fetches via it; never hardcode a base URL.
+9. **Use the shared `core/` libraries, not ad-hoc state:** `core/persistence`
+   (`StorageManager` + `StorageKeys`) for config; the `useSyncExternalStore`
+   store pattern (`WfNewEndpoints.subscribe`/`getSnapshot` + `useWfNewEndpoints`,
+   same shape as `core/logstore`/`core/notify`); `core/notify` for toasts; and
+   `components/shared/Portal` + `styles/overlay` `OVERLAY_Z` for dialogs (never a
+   raw `fixed inset-0 z-50`). Settings shows a compact summary card that opens
+   `WfNewApiServerDialog` (list + add/remove + test page).
 
 ## AI-assistant behavior
 

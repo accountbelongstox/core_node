@@ -25,3 +25,11 @@ export const wfNewApi: WfNewApi = wfNewApiHttp;
 // Re-export the whole shared type surface so consumers import everything from
 // one place: `import { wfNewApi, type Word, type BentoGroup } from '../api'`.
 export * from './WfNewApiTypes';
+
+// Backend endpoint management (default list, health probe, STORED-FIRST
+// auto-select + offline retry). Used by the Settings → API Server panel and the
+// http impl. Mock mode ignores it (no network).
+export {
+  wfNewEndpoints, WFNEW_API_HEALTH_EVENT, WFNEW_API_PORT, buildEndpointUrl,
+} from './WfNewEndpoints';
+export { useWfNewEndpoints } from './useWfNewEndpoints';
