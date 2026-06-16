@@ -449,10 +449,132 @@ server_slim_all() {
     read
 }
 
+# One-click scan: recursively find directories > 1GB, drilled to depth 5. Each line
+# is tagged with its path level (number of components). Levels 3-5 are the drill-down
+# targets; a big dir shallower than level 3 is shown at its own (minimum) level, and
+# the recursion is capped at level 5 ("max however many levels there are, up to 5").
+# Uses `du -x` (single filesystem) so it skips /proc, /sys, /dev and other mounts.
+scan_large_paths() {
+    printf "\033c"
+    echo "=========================================="
+    echo "Scan Large Paths (> 1GB, depth up to 5)"
+    echo "=========================================="
+    local root="${1:-/}"
+    if ! command -v du >/dev/null 2>&1; then
+        echo "du is not available; cannot scan."
+        echo ""
+        echo "Press Enter to continue..."
+        read
+        return 0
+    fi
+    echo "Root: $root  (single filesystem; apparent disk usage)"
+    echo "Scanning - this can take a while on a large tree ..."
+    echo ""
+    # -x: stay on one filesystem; --threshold=1G: only >= 1GB; --max-depth=5: cap depth.
+    # Sort largest-first; tag each with its level (slash count, root = L0).
+    du -x -h --threshold=1G --max-depth=5 "$root" 2>/dev/null \
+        | sort -rh \
+        | awk -F'\t' '{
+              p=$2; lvl=gsub(/\//,"/",p); if ($2=="/") lvl=0;
+              printf "  [L%d] %-9s %s\n", lvl, $1, $2;
+          }'
+    echo ""
+    echo "Levels 3-5 are the drill-down targets; shallower big dirs show at their own level."
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
+# Remove desktop apps that bloat a server: code-server + LibreOffice. Idempotent.
+remove_desktop_apps() {
+    printf "\033c"
+    echo "=== Remove LibreOffice + code-server (desktop bloat) ==="
+    echo ""
+    _do_remove_code_server
+    echo ""
+    _do_remove_libreoffice
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
+# Slim & Disk Cleanup sub-submenu: groups the disk/bloat tools (scan + the slim
+# actions) so they don't clutter the top Linux Management menu.
+show_slim_disk_submenu() {
+    local selected=0
+    local total=7
+    local old_settings=$(stty -g)
+    stty -icanon -echo
+    trap 'stty "$old_settings"' RETURN
+
+    local menu_items=(
+        "Scan Large Paths (> 1GB, depth up to 5)"
+        "Server Slim - ALL (snaps + code-server + LibreOffice + Apache)"
+        "GPU -> CPU Slim (reclaim CUDA disk on no-GPU hosts)"
+        "Snap Slim (remove dev/desktop snaps + orphan bases)"
+        "Remove LibreOffice + code-server"
+        "Block & Remove Apache (pin -1 + purge)"
+        "Back to Linux Management"
+    )
+
+    while true; do
+        printf "\033c"
+        echo "=========================================="
+        echo "Slim & Disk Cleanup"
+        echo "=========================================="
+        echo "Select an option (Up/Down to move, Enter to select):"
+        echo "Press Ctrl+C to go back"
+        echo ""
+
+        for i in "${!menu_items[@]}"; do
+            if [ "$i" -eq "$selected" ]; then
+                printf "\033[47m\033[30m> %-56s\033[0m\n" "${menu_items[$i]}"
+            else
+                printf "  %-56s\n" "${menu_items[$i]}"
+            fi
+        done
+
+        local char
+        char=$(dd bs=1 count=1 2>/dev/null)
+
+        case "$char" in
+            $'\x1B')
+                read -r -t 0.1 -d '' seq
+                case "$seq" in
+                    '[A')
+                        ((selected--))
+                        [ "$selected" -lt 0 ] && selected=$((total - 1))
+                        ;;
+                    '[B')
+                        ((selected++))
+                        [ "$selected" -ge "$total" ] && selected=0
+                        ;;
+                esac
+                ;;
+            '')
+                stty "$old_settings"
+                printf "\033c"
+
+                case "$selected" in
+                    0) scan_large_paths ;;
+                    1) server_slim_all ;;
+                    2) slim_gpu_to_cpu ;;
+                    3) snap_slim ;;
+                    4) remove_desktop_apps ;;
+                    5) block_and_remove_apache ;;
+                    6) return 0 ;;
+                esac
+
+                stty -icanon -echo
+                ;;
+        esac
+    done
+}
+
 # Function to show Linux management submenu
 show_linux_management_submenu() {
     local selected=0
-    local total=13
+    local total=10
     local old_settings=$(stty -g)
     stty -icanon -echo
     trap 'stty "$old_settings"' RETURN
@@ -466,10 +588,7 @@ show_linux_management_submenu() {
         "Show System Information"
         "RustDesk Server Install Info (Key & Ports)"
         "APP Install"
-        "GPU -> CPU Slim (reclaim CUDA disk on no-GPU hosts)"
-        "Snap Slim (remove dev/desktop snaps + orphan bases)"
-        "Block & Remove Apache (pin -1 + purge)"
-        "Server Slim (snaps + code-server + LibreOffice + Apache)"
+        "Slim & Disk Cleanup (scan + GPU/Snap/Apache/Server slim)"
         "Back to Main Menu"
     )
     
@@ -537,18 +656,9 @@ show_linux_management_submenu() {
                         show_app_install_menu
                         ;;
                     8)
-                        slim_gpu_to_cpu
+                        show_slim_disk_submenu
                         ;;
                     9)
-                        snap_slim
-                        ;;
-                    10)
-                        block_and_remove_apache
-                        ;;
-                    11)
-                        server_slim_all
-                        ;;
-                    12)
                         return 0
                         ;;
                 esac
