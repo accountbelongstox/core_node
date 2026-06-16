@@ -134,6 +134,18 @@ resolve_port_conflict() {
         pids=$(lsof -ti "tcp:${port}" -sTCP:LISTEN 2>/dev/null | sort -u)
     fi
     if [ -n "$pids" ]; then
+        # If EVERY holder is the local PostgreSQL server itself, this is not a
+        # conflict -- it is exactly the cluster we want on this port. Killing it
+        # would tear down the running server and leave the socket gone, so the
+        # follow-up setup_postgresql_user/createdb steps die with
+        # "connection to server on socket ... failed: No such file or directory".
+        # Leave it running and report the port as effectively free for our use.
+        local holder_comms=""
+        holder_comms=$(ps -o comm= -p $pids 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' | sort -u)
+        if [ -n "$holder_comms" ] && ! printf '%s\n' "$holder_comms" | grep -qvE '^(postgres|postmaster)$'; then
+            echo "[$SCRIPT_INDEX] Port $port is held by the local PostgreSQL server (postgres) -> already serving; leaving it running."
+            return 0
+        fi
         echo "[$SCRIPT_INDEX] Held by process PID(s): $pids"
         ps -o pid=,comm= -p $pids 2>/dev/null | sed "s/^/[$SCRIPT_INDEX]   /"
         if prompt_default_no "[$SCRIPT_INDEX] Kill process(es) $pids holding port $port?"; then
@@ -176,10 +188,17 @@ check_postgresql() {
 # Function to check if PostgreSQL service is running.
 # WSL-safe: systemd is often absent, so fall back to pg_isready / pgrep.
 is_postgresql_running() {
-    if command_exists systemctl && systemctl is-active --quiet postgresql 2>/dev/null; then
-        return 0
+    # pg_isready is AUTHORITATIVE: it actually opens a connection on the default
+    # socket -- the same one psql/createdb use here. Prefer it over
+    # `systemctl is-active postgresql`, which on Debian is a meta-service that
+    # stays "active (exited)" even when the real cluster (postgresql@<ver>-main)
+    # is down. Trusting the meta-service made the script run setup against a dead
+    # server and fail with "socket ... No such file or directory".
+    if command_exists pg_isready; then
+        pg_isready -q 2>/dev/null && return 0
+        return 1
     fi
-    if command_exists pg_isready && pg_isready -q 2>/dev/null; then
+    if command_exists systemctl && systemctl is-active --quiet postgresql 2>/dev/null; then
         return 0
     fi
     if pgrep -x postgres >/dev/null 2>&1; then

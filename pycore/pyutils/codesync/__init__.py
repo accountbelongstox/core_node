@@ -15,7 +15,7 @@ Designed to run in TWO modes from ONE codebase:
   the manager then share this exact implementation.
 
 The package NEVER imports `pycore` at module level; all host services arrive via
-`configure()`. See CODESYNC_LITE_DESIGN.md (in device_sync/) for the architecture.
+`configure()`. See CODESYNC_LITE_DESIGN.md (in device_sync/docs/) for the architecture.
 """
 
 from .runtime import configure
