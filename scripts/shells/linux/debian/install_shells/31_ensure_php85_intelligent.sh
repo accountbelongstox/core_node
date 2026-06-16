@@ -937,7 +937,7 @@ setup_php_repository() {
     add_php_repository_permanent_from_apt_repository_manager \
         "$os_id" \
         "$os_codename" \
-        "$USE_SUDO apt install -y php8.5 php8.5-cli php8.5-fpm php8.5-common php8.5-mysql php8.5-zip php8.5-gd php8.5-mbstring php8.5-curl php8.5-xml php8.5-bcmath"
+        "$USE_SUDO apt install -y php8.5 php8.5-cli php8.5-fpm php8.5-common php8.5-mysql php8.5-pgsql php8.5-zip php8.5-gd php8.5-mbstring php8.5-curl php8.5-xml php8.5-bcmath"
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 installed successfully with repository cleanup${NC}"

@@ -1687,8 +1687,9 @@ export const WfNewApp: React.FC = () => {
               <WfNewWalkman 
                 activeTheme={activeTheme} 
                 courseWords={courseWords} 
-                addToast={addToast} 
-                lang={shellLang} 
+                addToast={addToast}
+                trans={trans}
+                lang={shellLang}
               />
             </motion.div>
           )}
@@ -1722,8 +1723,9 @@ export const WfNewApp: React.FC = () => {
               <WfNewSubtitles 
                 activeTheme={activeTheme} 
                 favorites={favorites} 
-                onToggleFavorite={handleToggleFavorite} 
-                addToast={addToast} 
+                onToggleFavorite={handleToggleFavorite}
+                addToast={addToast}
+                trans={trans}
               />
             </motion.div>
           )}
@@ -1756,8 +1758,9 @@ export const WfNewApp: React.FC = () => {
               </div>
               <WfNewBilingual 
                 activeTheme={activeTheme} 
-                addToast={addToast} 
-                dark={dark} 
+                addToast={addToast}
+                trans={trans}
+                dark={dark}
               />
             </motion.div>
           )}
@@ -1788,6 +1791,7 @@ export const WfNewApp: React.FC = () => {
               <WfNewSocial
                 activeTheme={activeTheme}
                 addToast={addToast}
+                trans={trans}
                 currentUser={currentUser}
               />
             </motion.div>
@@ -1820,6 +1824,7 @@ export const WfNewApp: React.FC = () => {
               <WfNewProfile
                 activeTheme={activeTheme}
                 addToast={addToast}
+                trans={trans}
                 currentUser={currentUser}
                 onUpdateProfile={handleUpdateProfile}
                 learnedWordsCount={courseWords.length || 72}
@@ -1853,6 +1858,7 @@ export const WfNewApp: React.FC = () => {
               <WfNewAuth
                 activeTheme={activeTheme}
                 addToast={addToast}
+                trans={trans}
                 currentUser={currentUser}
                 onLoginSuccess={handleLoginSuccess}
                 onLogout={handleLogout}
@@ -1886,9 +1892,10 @@ export const WfNewApp: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <WfNewAnalytics 
-                activeTheme={activeTheme} 
-                addToast={addToast} 
+              <WfNewAnalytics
+                activeTheme={activeTheme}
+                addToast={addToast}
+                trans={trans}
               />
             </motion.div>
           )}

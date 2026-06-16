@@ -11,6 +11,7 @@ interface WfNewWalkmanProps {
   activeTheme: ElementTheme;
   courseWords: Word[];
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
   lang: string;
 }
 
@@ -18,6 +19,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
   activeTheme,
   courseWords,
   addToast,
+  trans,
   lang
 }) => {
   // Walkman cassette playlist loaded via the API gateway (mock or real).
@@ -127,11 +129,11 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
       const nextIdx = prev + 1;
       if (nextIdx >= activeWordsPool.length) {
         if (autoLoopPlaylist) {
-          addToast("Syntopic catalog loop re-started", "info");
+          addToast(trans('walkman.loopRestart'), "info");
           return 0;
         } else {
           setIsPlaying(false);
-          addToast("End of walkman playback pool reached", "success");
+          addToast(trans('walkman.poolEnd'), "success");
           return prev;
         }
       }
@@ -321,7 +323,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
               id="wm-btn-play"
               onClick={() => {
                 setIsPlaying(true);
-                addToast("Walkman active playback streaming", "info");
+                addToast(trans('walkman.playing'), "info");
               }}
               disabled={isPlaying}
               className={`py-3 rounded-xl border-b-4 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group ${
@@ -340,7 +342,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
               id="wm-btn-pause"
               onClick={() => {
                 setIsPlaying(false);
-                addToast("Audio recitation paused", "info");
+                addToast(trans('walkman.paused'), "info");
               }}
               disabled={!isPlaying}
               className={`py-3 rounded-xl border-b-4 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group ${
@@ -373,7 +375,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                 setCurrentIndex(0);
                 setCurrentRepeatIteration(0);
                 window.speechSynthesis.cancel();
-                addToast("Walkman process stopped & reset", "warning");
+                addToast(trans('walkman.stopped'), "warning");
               }}
               className="py-3 bg-zinc-900 hover:bg-zinc-800 active:translate-y-0.5 text-zinc-300 rounded-xl border-b-4 border-zinc-950 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
               title="Stop and Reset"
@@ -452,7 +454,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                     key={n}
                     onClick={() => {
                       setWordRepeatTimes(n);
-                      addToast(`Repeats configured to ${n} times`, "info");
+                      addToast(trans('walkman.repeatsSet', { n }), "info");
                     }}
                     className={`py-1.5 rounded-lg border text-xs font-mono font-bold transition-all ${
                       wordRepeatTimes === n
@@ -476,7 +478,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                 aria-labelledby="trans-speak-lbl"
                 onClick={() => {
                   setSpeakChinese(!speakChinese);
-                  addToast(`Translation voice ${!speakChinese ? 'enabled' : 'disabled'}`, 'info');
+                  addToast(!speakChinese ? trans('walkman.translVoiceOn') : trans('walkman.translVoiceOff'), 'info');
                 }}
                 className={`w-11 h-6 rounded-full p-0.5 transition-colors relative focus:outline-none ${
                   speakChinese ? 'bg-indigo-600' : 'bg-zinc-800'
