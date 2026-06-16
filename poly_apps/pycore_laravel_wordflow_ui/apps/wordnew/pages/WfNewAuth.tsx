@@ -9,6 +9,7 @@ import { ElementTheme } from '../WfNewTypes';
 interface WfNewAuthProps {
   activeTheme: ElementTheme;
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
   onLoginSuccess: (userData: { nickname: string; avatar: string; email: string; nativeLang: string; targetLang: string; bio: string; isLoggedIn: boolean }) => void;
   currentUser: {
     nickname: string;
@@ -23,9 +24,10 @@ interface WfNewAuthProps {
 }
 
 export const WfNewAuth: React.FC<WfNewAuthProps> = ({ 
-  activeTheme, 
-  addToast, 
-  onLoginSuccess, 
+  activeTheme,
+  addToast,
+  trans,
+  onLoginSuccess,
   currentUser,
   onLogout
 }) => {
@@ -46,7 +48,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      addToast('Please complete email and security code credentials.', 'warning');
+      addToast(trans('auth.needEmailCode'), 'warning');
       return;
     }
 
@@ -80,13 +82,13 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
     }
 
     onLoginSuccess(finalProfile);
-    addToast(`Telemetry verified. Welcome back, Commander ${finalProfile.nickname}!`, 'success');
+    addToast(trans('auth.welcomeBack', { name: finalProfile.nickname }), 'success');
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !nickname) {
-      addToast('Nickname, email, and security code are absolute mandates.', 'warning');
+      addToast(trans('auth.needAllFields'), 'warning');
       return;
     }
 
@@ -105,7 +107,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
     
     // Log the user in
     onLoginSuccess(newProfile);
-    addToast('Spacecraft profile synthesized successfully! Logged in.', 'success');
+    addToast(trans('auth.registered'), 'success');
   };
 
   return (
