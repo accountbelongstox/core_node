@@ -1679,8 +1679,8 @@ export const WfNewApp: React.FC = () => {
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                   <div>
-                    <h2 className="text-xl font-bold tracking-tight">Virtual Cyber Walkman (随身听)</h2>
-                    <p className="text-zinc-500 text-xs font-mono">Simulated magnetic tape English speech loops with translation queue</p>
+                    <h2 className="text-xl font-bold tracking-tight">{trans('hdr.walkman')}</h2>
+                    <p className="text-zinc-500 text-xs font-mono">{trans('hdr.walkmanSub')}</p>
                   </div>
                 </div>
               </div>
@@ -1715,8 +1715,8 @@ export const WfNewApp: React.FC = () => {
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                   <div>
-                    <h2 className="text-xl font-bold tracking-tight">Interactive Subtitles Playroom (英文字幕播放学习)</h2>
-                    <p className="text-zinc-500 text-xs font-mono">Interact with streaming lessons, highlight and look up words on click</p>
+                    <h2 className="text-xl font-bold tracking-tight">{trans('hdr.subtitles')}</h2>
+                    <p className="text-zinc-500 text-xs font-mono">{trans('hdr.subtitlesSub')}</p>
                   </div>
                 </div>
               </div>
@@ -1751,8 +1751,8 @@ export const WfNewApp: React.FC = () => {
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                   <div>
-                    <h2 className="text-xl font-bold tracking-tight">Bilingual Cosmos Recital (双语对照朗读学习)</h2>
-                    <p className="text-zinc-500 text-xs font-mono">Continuous dual-speech cycle reciting native translation strings & target texts</p>
+                    <h2 className="text-xl font-bold tracking-tight">{trans('hdr.bilingual')}</h2>
+                    <p className="text-zinc-500 text-xs font-mono">{trans('hdr.bilingualSub')}</p>
                   </div>
                 </div>
               </div>
@@ -1815,8 +1815,8 @@ export const WfNewApp: React.FC = () => {
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                   <div>
-                    <h2 className="text-xl font-bold tracking-tight">Commander Profile Console (个人页)</h2>
-                    <p className="text-zinc-500 text-xs font-mono">Customize space crest decals, track retention speeds and unlock cognitive items</p>
+                    <h2 className="text-xl font-bold tracking-tight">{trans('hdr.profile')}</h2>
+                    <p className="text-zinc-500 text-xs font-mono">{trans('hdr.profileSub')}</p>
                   </div>
                 </div>
               </div>
@@ -1887,8 +1887,8 @@ export const WfNewApp: React.FC = () => {
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                   <div>
-                    <h2 className="text-xl font-bold tracking-tight">Precision Analytics Board (智控统计盘)</h2>
-                    <p className="text-zinc-500 text-xs font-mono">Aesthetic telemetry curves, active mins tracking and Ebbinghaus forgetting rate modeler</p>
+                    <h2 className="text-xl font-bold tracking-tight">{trans('hdr.analytics')}</h2>
+                    <p className="text-zinc-500 text-xs font-mono">{trans('hdr.analyticsSub')}</p>
                   </div>
                 </div>
               </div>
@@ -2034,3 +2034,4 @@ export const WfNewApp: React.FC = () => {
 };
 
 export default WfNewApp;
+                                                                               
