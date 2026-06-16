@@ -1782,9 +1782,9 @@ export const WfNewApp: React.FC = () => {
                   <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div className="flex items-center gap-1.5 font-mono text-xs text-zinc-500">
-                  <span>Home</span>
+                  <span>{trans('common.home')}</span>
                   <span>/</span>
-                  <span className="text-indigo-400">Social Loop</span>
+                  <span className="text-indigo-400">{trans('bc.social')}</span>
                 </div>
               </div>
 
@@ -1849,9 +1849,9 @@ export const WfNewApp: React.FC = () => {
                   <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div className="flex items-center gap-1.5 font-mono text-xs text-zinc-500">
-                  <span>Home</span>
+                  <span>{trans('common.home')}</span>
                   <span>/</span>
-                  <span className="text-indigo-400">Authentication Portal</span>
+                  <span className="text-indigo-400">{trans('bc.auth')}</span>
                 </div>
               </div>
 

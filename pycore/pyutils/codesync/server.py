@@ -76,55 +76,18 @@ class CodeSyncServer:
     - Initial full sync + incremental updates every 5s
     """
 
-    # Directories to exclude from sync
-    EXCLUDED_DIRS = {
-        '__pycache__',
-        '.git',
-        'node_modules',
-        '.next',
-        '.nuxt',
-        'dist',
-        'build',
-        'out',
-        '.cache',
-        '.vite',
-        '.dart_tool',
-        'flutter_build',
-        'venv',
-        'env',
-        '.venv',
-        '.pytest_cache',
-        '.mypy_cache',
-        'target',  # Rust
-        'bin',
-        'obj',  # C#
-        '.idea',
-        '.vscode',
-        'coverage',
-        '.runtime_cache',
-    }
-
-    # Specific filenames to exclude (by name, any directory).
-    # The peer config replicates over the mesh (peer_mesh.py), not the file-sync,
-    # so it must NOT be transferred as a normal code file.
-    EXCLUDED_FILES = {
-        'code_sync_peers.json',
-    }
-
-    # File extensions to exclude
-    EXCLUDED_EXTENSIONS = {
-        '.pyc',
-        '.pyo',
-        '.pyd',
-        '.so',
-        '.dll',
-        '.dylib',
-        '.exe',
-        '.log',
-        '.sqlite',
-        '.db',
-        '.tmp',
-    }
+    # The exclusion lists are now the code-frozen PRESETS in sync_settings.py
+    # (single source of truth), overlaid at runtime by the per-machine .data
+    # override. These class attrs mirror the presets for back-compat with any code
+    # that still reads them directly; live scans use sync_settings.build_excluder().
+    from .sync_settings import (
+        PRESET_EXCLUDED_DIRS as _PD,
+        PRESET_EXCLUDED_FILES as _PF,
+        PRESET_EXCLUDED_EXTENSIONS as _PE,
+    )
+    EXCLUDED_DIRS = set(_PD)
+    EXCLUDED_FILES = set(_PF)
+    EXCLUDED_EXTENSIONS = set(_PE)
 
     def __init__(self, root_dir: str = None, scan_interval: int = 5):
         """
@@ -378,19 +341,20 @@ class CodeSyncServer:
         """
         files = []
 
+        # Live filter settings (presets overlaid by the per-machine .data override:
+        # excluded dirs/files/extensions/path-substrings + optional .gitignore).
+        from .sync_settings import build_excluder
+        excluder = build_excluder(self.root_dir)
+
         for root, dirs, filenames in os.walk(self.root_dir):
-            # Filter excluded directories
-            dirs[:] = [d for d in dirs if d not in self.EXCLUDED_DIRS]
+            # Prune excluded directories (by name at any depth, path-substring, or
+            # .gitignore) so os.walk never descends into them.
+            dirs[:] = [d for d in dirs if not excluder.dir_excluded(d, Path(root) / d)]
 
             for filename in filenames:
-                # Skip excluded filenames (e.g. the mesh-replicated peer config)
-                if filename in self.EXCLUDED_FILES:
-                    continue
-                # Skip excluded extensions
-                if any(filename.endswith(ext) for ext in self.EXCLUDED_EXTENSIONS):
-                    continue
-
                 file_path = Path(root) / filename
+                if excluder.file_excluded(filename, file_path):
+                    continue
                 files.append(file_path)
 
         return files
