@@ -63,7 +63,8 @@
       "Read(//home/laikaicool/test/**)",
       "Read(//home/zhangj7839/1_Projects/**)",
       "Read(//home/zhangj7839/nav_codes/**)",
-      "Bash(chmod +x /www/programing/core_node/scripts/shells/linux/backup_all_projects.sh)"
+      "Bash(chmod +x /www/programing/core_node/scripts/shells/linux/backup_all_projects.sh)",
+      "Bash(chmod +x:*)"
     ]
   }
 }
