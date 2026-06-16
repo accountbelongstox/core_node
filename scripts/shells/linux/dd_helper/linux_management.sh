@@ -329,10 +329,75 @@ slim_gpu_to_cpu() {
     read
 }
 
+# Snap slim: remove the dev/desktop snaps that bloat a server (flutter, dotnet-sdk,
+# docker, chromium, android-studio) plus any orphan base snaps (core20/core24/...).
+# Idempotent: skips snaps that aren't installed; snap itself refuses to remove a base
+# still in use, so only truly-orphan bases are dropped. Never touches snapd / core.
+snap_slim() {
+    printf "\033c"
+    echo "=========================================="
+    echo "Snap Slim (remove dev/desktop snaps + orphan bases)"
+    echo "=========================================="
+    echo ""
+    if ! command -v snap >/dev/null 2>&1; then
+        echo "snap is not installed; nothing to slim."
+        echo ""
+        echo "Press Enter to continue..."
+        read
+        return 0
+    fi
+
+    local SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
+    local s
+    local app_snaps=(flutter dotnet-sdk docker chromium android-studio)
+    for s in "${app_snaps[@]}"; do
+        if snap list "$s" >/dev/null 2>&1; then
+            echo "Removing snap: $s"
+            $SUDO snap remove --purge "$s" 2>/dev/null || $SUDO snap remove "$s" 2>/dev/null || true
+        fi
+    done
+
+    # Orphan base snaps: try to remove core<N> bases. snap REFUSES if a base is still
+    # used by another snap, so this only removes the ones that are now orphan. The
+    # digit-less "core" base and "snapd" are intentionally left alone.
+    local base_snaps
+    base_snaps=$(snap list 2>/dev/null | awk 'NR>1 && $1 ~ /^core[0-9]+$/ {print $1}')
+    for s in $base_snaps; do
+        echo "Attempting to remove base snap (kept if still in use): $s"
+        $SUDO snap remove --purge "$s" 2>/dev/null || $SUDO snap remove "$s" 2>/dev/null || echo "  ($s still in use or busy; kept)"
+    done
+
+    echo ""
+    echo "Snap slim complete. Remaining snaps:"
+    snap list 2>/dev/null || true
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
+# Block & remove Apache via the shared guard (apt pin -1 so it never reinstalls + purge).
+# See common/apache_block_guard.sh.
+block_and_remove_apache() {
+    printf "\033c"
+    echo "=========================================="
+    echo "Block & Remove Apache (nginx is the web server)"
+    echo "=========================================="
+    echo ""
+    local guard="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/apache_block_guard.sh"
+    if [ -f "$guard" ]; then
+        bash "$guard"
+    else
+        echo "Error: apache_block_guard.sh not found at: $guard"
+    fi
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
 # Function to show Linux management submenu
 show_linux_management_submenu() {
     local selected=0
-    local total=10
+    local total=12
     local old_settings=$(stty -g)
     stty -icanon -echo
     trap 'stty "$old_settings"' RETURN
@@ -347,6 +412,8 @@ show_linux_management_submenu() {
         "RustDesk Server Install Info (Key & Ports)"
         "APP Install"
         "GPU -> CPU Slim (reclaim CUDA disk on no-GPU hosts)"
+        "Snap Slim (remove dev/desktop snaps + orphan bases)"
+        "Block & Remove Apache (pin -1 + purge)"
         "Back to Main Menu"
     )
     
@@ -417,6 +484,12 @@ show_linux_management_submenu() {
                         slim_gpu_to_cpu
                         ;;
                     9)
+                        snap_slim
+                        ;;
+                    10)
+                        block_and_remove_apache
+                        ;;
+                    11)
                         return 0
                         ;;
                 esac
