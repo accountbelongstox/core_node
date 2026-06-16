@@ -1,0 +1,39 @@
+---
+description: "/wordnew data layer standard: one shared TYPE, mock + real implementations of the same WfNewApi interface, switched by ONE import line in apps/wordnew/api/index.ts (offline/AI-Studio = mock, shipped = real). Change the API → sync types + both impls + mock data. Use when editing poly_apps/pycore_laravel_wordflow_ui/apps/wordnew."
+globs: poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# /wordnew API — mock ⇄ real, one TYPE, one switch
+
+`/wordnew` is the new UI replacing the legacy `wordflow` app. All of its data
+access goes through a single gateway that can serve **mock** data or make **real**
+API requests, decided by **one import line**. Mirrors the `wordflow` API library
+pattern. Full spec: `poly_apps/pycore_laravel_wordflow_ui/docs/WORDNEW_API_MOCK_PATTERN.md`;
+contract: `apps/wordnew/api/README.md`.
+
+## Mandatory rules
+
+1. **One TYPE surface.** Every data model and the `WfNewApi` interface live once
+   in `apps/wordnew/api/WfNewApiTypes.ts`. `WfNewTypes.ts` and `WfNewMockDb.ts`
+   re-export from it — never redefine a shape.
+2. **Two impls, same contract.** `WfNewApiMock` (offline) and `WfNewApiHttp`
+   (live, delegates to `wordflowApi`) both satisfy `WfNewApi` with those types.
+3. **One switch, by import.** Consumers `import { wfNewApi } from '../api'`.
+   `apps/wordnew/api/index.ts` is the ONLY place mock vs real is chosen:
+   default = `WfNewApiHttp`; offline/AI-Studio = `WfNewApiMock` (swap commented lines).
+4. **Change the API → sync everything together:** the types, `WfNewApiHttp`,
+   `WfNewApiMock`, and the mock data in `WfNewMockDb.ts`. One without the others
+   is incomplete — the mock must return the exact shape the backend returns.
+5. **Avoid replacement conflicts.** Exactly one `import` line and one
+   `export const wfNewApi` line may be active in `index.ts`. Toggle the pair
+   together — two active `export const wfNewApi` is a duplicate-identifier error.
+6. **No silent gaps.** Where the backend has no endpoint yet, the http impl
+   serves the curated dataset and logs once; never fake success. Swapping to a
+   real call later must not change the interface or types.
+7. **English only** for all code, comments, and docs in this layer.
+
+## AI-assistant behavior
+
+- In AI Studio / offline: switch `index.ts` to the **mock** lines.
+- As a shipped app: keep the **http** lines; all data is live.

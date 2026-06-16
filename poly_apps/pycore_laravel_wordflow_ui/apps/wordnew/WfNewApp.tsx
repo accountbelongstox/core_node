@@ -9,8 +9,10 @@ import {
 } from 'lucide-react';
 
 import { useShell } from '../../shell/ShellContext';
-import { wordflowApi } from '../../core/api-libs/wordflow/WordflowApi';
-import type { Word, WordGroup, User } from '../../core/api-libs/wordflow/wordflowTypes';
+// Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
+// (swap one import line there). All data shapes come from the same TYPE surface.
+import { wfNewApi } from './api';
+import type { Word, WordGroup, BentoGroup } from './api';
 
 // Modular Imports
 import { UserStats, ElementTheme } from './WfNewTypes';
@@ -21,9 +23,6 @@ import { WfNewToast, ToastMessage } from './components/WfNewToast';
 import { WfNewBottomDock } from './components/WfNewBottomDock';
 import { CourseBlockCard, WordRowItem } from './components/WfNewCards';
 import { WfNewSettings } from './pages/WfNewSettings';
-
-// Mock DB exclusively for wordnew
-import { MOCK_BENTO_GROUPS, MOCK_VOCABULARY_MAP } from './WfNewMockDb';
 
 // New Custom Study Suites Pages
 import { WfNewWalkman } from './pages/WfNewWalkman';
@@ -166,8 +165,11 @@ export const WfNewApp: React.FC = () => {
 
   // Base API storage structures
   const [gGroups, setGGroups] = useState<WordGroup[]>([]);
+  const [bentoGroups, setBentoGroups] = useState<BentoGroup[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<WordGroup | null>(null);
   const [courseWords, setCourseWords] = useState<Word[]>([]);
+  // General distractor/search word pool (loaded once via the API).
+  const [wordPool, setWordPool] = useState<Word[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [userStats, setUserStats] = useState<UserStats>({
     learned: 432,
@@ -210,35 +212,39 @@ export const WfNewApp: React.FC = () => {
   const [newWordPhon, setNewWordPhon] = useState('');
   const [newWordDef, setNewWordDef] = useState('');
 
-  // Fetch API profile & packages
+  // Fetch profile & packages through the single gateway (mock or real — the
+  // implementation behind ./api decides, this code is identical either way).
   const loadContent = async () => {
     setLoading(true);
     try {
-      const groups = await wordflowApi.getWordGroups();
+      const [bento, groups, profile] = await Promise.all([
+        wfNewApi.getBentoGroups(),
+        wfNewApi.getWordGroups(),
+        wfNewApi.getUserProfile(),
+      ]);
+      setBentoGroups(Array.isArray(bento) ? bento : []);
       setGGroups(Array.isArray(groups) ? groups : []);
-      
-      const profile = await wordflowApi.getUserProfile();
+
       if (profile) {
         if (profile.nickname || profile.name) {
-          setNickname(profile.nickname || profile.name);
+          setNickname(profile.nickname || profile.name || nickname);
         }
         setUserStats({
           learned: profile.learned_words ?? profile.totalLearned ?? 432,
           streak: profile.streak ?? 8,
           dailyGoal: parseInt(localStorage.getItem('wf_new_daily_goal') || '20'),
-          dailyProgress: profile.dailyProgress ?? 12
+          dailyProgress: profile.dailyProgress ?? 12,
         });
       }
+
+      // Seed a general distractor/search pool from the first group's words.
+      const firstId = bento[0]?.id ?? groups[0]?.id;
+      if (firstId) {
+        const pool = await wfNewApi.getVocabulary(firstId);
+        if (Array.isArray(pool) && pool.length > 0) setWordPool(pool);
+      }
     } catch (e) {
-      console.warn('Backend endpoint simulation mode engaged.', e);
-      // Fallback pre-filled groups for gorgeous bento layout and cards
-      setGGroups([
-        ...MOCK_BENTO_GROUPS,
-        { id: 'g-1', name: 'Standard CET-4 Symmetrical Base', count: 64, progress: 45, type: 'Core CET-4', language: 'en', description: 'Excellent general vocabularies featuring frequent occurrence metrics.' },
-        { id: 'g-2', name: 'High-end TOEFL Cosmic Terminology', count: 120, progress: 24, type: 'TOEFL Academic', language: 'en', description: 'Comprehensive advanced spectrum definitions suited for researchers.' },
-        { id: 'g-3', name: 'Celestial Literary Expressions', count: 48, progress: 70, type: 'Literary Suite', language: 'en', description: 'Ephemeral and highly aesthetic terms frequently encountered in editorials.' },
-        { id: 'g-4', name: 'Psychology & Cognitive Mechanics', count: 32, progress: 90, type: 'Humanities', language: 'en', description: 'Deep structural words related to human mind perception systems.' }
-      ]);
+      console.warn('[wordnew] Failed to load content from the API gateway.', e);
     } finally {
       setLoading(false);
     }
@@ -306,40 +312,50 @@ export const WfNewApp: React.FC = () => {
     setSearching(true);
     const trigger = setTimeout(async () => {
       try {
-        const queryResult = await wordflowApi.queryDictionary({ text: searchQuery });
-        if (queryResult && queryResult.word) {
-          const list = Array.isArray(queryResult) ? queryResult : [queryResult.word];
-          setSearchResults(list);
+        const results = await wfNewApi.searchDictionary(searchQuery);
+        if (Array.isArray(results) && results.length > 0) {
+          setSearchResults(results);
         } else {
-          // Fallback fuzzy filter locally
-          const filterRegex = new RegExp(searchQuery, 'i');
-          const defaultPool = getFallbackDataset('all');
-          setSearchResults(defaultPool.filter(w => filterRegex.test(w.text) || filterRegex.test(w.translation)));
+          // No backend hit — fuzzy-filter the loaded local pool.
+          const filterRegex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+          setSearchResults(wordPool.filter(w => filterRegex.test(w.text) || filterRegex.test(w.translation)));
         }
       } catch {
-        const filterRegex = new RegExp(searchQuery, 'i');
-        const defaultPool = getFallbackDataset('all');
-        setSearchResults(defaultPool.filter(w => filterRegex.test(w.text) || filterRegex.test(w.translation)));
+        const filterRegex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        setSearchResults(wordPool.filter(w => filterRegex.test(w.text) || filterRegex.test(w.translation)));
       } finally {
         setSearching(false);
       }
     }, 400);
 
     return () => clearTimeout(trigger);
-  }, [searchQuery]);
+  }, [searchQuery, wordPool]);
 
   const selectBookCourse = async (group: WordGroup) => {
     setSelectedCourse(group);
     try {
-      const response = await wordflowApi.queryWords({ gid: group.id });
-      if (Array.isArray(response) && response.length > 0) {
-        setCourseWords(response);
-      } else {
-        setCourseWords(getFallbackDataset(group.id));
-      }
+      const response = await wfNewApi.getVocabulary(group.id);
+      setCourseWords(Array.isArray(response) ? response : []);
     } catch {
-      setCourseWords(getFallbackDataset(group.id));
+      setCourseWords([]);
     }
+  };
+
+  // Load a group's words then start a practice session (replaces the old
+  // synchronous getFallbackDataset path; data always flows through the API).
+  const startGroupPractice = async (
+    group: WordGroup,
+    mode: 'study' | 'quiz' | 'listening' | 'reading',
+  ) => {
+    setSelectedPracticeGroup(group);
+    try {
+      const words = await wfNewApi.getVocabulary(group.id);
+      setCourseWords(Array.isArray(words) ? words : []);
+    } catch {
+      setCourseWords([]);
+    }
+    setActiveTab('practice');
+    startModePractice(mode);
   };
 
   // Listening continuous loop implementation
@@ -399,7 +415,8 @@ export const WfNewApp: React.FC = () => {
     const translations = new Set<string>();
     translations.add(current.translation);
 
-    const pool = getFallbackDataset('all');
+    // Distractor pool: the loaded general pool, falling back to the course words.
+    const pool = wordPool.length > 4 ? wordPool : courseWords;
     while (translations.size < 4 && pool.length > 4) {
       const randomWord = pool[Math.floor(Math.random() * pool.length)];
       if (randomWord.translation !== current.translation) {
@@ -408,7 +425,7 @@ export const WfNewApp: React.FC = () => {
     }
 
     return Array.from(translations).sort(() => Math.random() - 0.5);
-  }, [practiceMode, practiceIndex, courseWords]);
+  }, [practiceMode, practiceIndex, courseWords, wordPool]);
 
   const handleQuizAnswer = (option: string) => {
     if (quizAnswered) return;
@@ -481,21 +498,6 @@ export const WfNewApp: React.FC = () => {
     setNewWordTransl('');
     setNewWordPhon('');
     setNewWordDef('');
-  };
-
-  // Dictionary pool helpers
-  const getFallbackDataset = (id: string): Word[] => {
-    if (MOCK_VOCABULARY_MAP[id]) {
-      return MOCK_VOCABULARY_MAP[id];
-    }
-    return [
-      { id: 'all-1', text: 'Aesthetics', phonetic: '/esˈθet.ɪks/', translation: '美学，美联审美', definition: 'Concerned with key appreciation of natural beauty structure.', example: 'The architectural grid displays classical Nordic aesthetics.', masteryLevel: 80, tags: ['Aesthetics'] },
-      { id: 'all-2', text: 'Glow', phonetic: '/ɡləʊ/', translation: '发光，产生温暖红光', definition: 'Produce a steady radiation light without active combustion.', example: 'The emerald aurora produced a glowing halo in the sky.', masteryLevel: 95, tags: ['Cosmic'] },
-      { id: 'all-3', text: 'Cognition', phonetic: '/kɒɡˈnɪʃ.ən/', translation: '认知，掌握理解能力', definition: 'The physical mechanism of absorbing environmental metrics.', example: 'AI models replicate parts of human cognition.', masteryLevel: 72, tags: ['Psychology'] },
-      { id: 'all-4', text: 'Nebula', phonetic: '/ˈneb.jə.lə/', translation: '星云', definition: 'A vast cloud of particle gas floating in the outer space.', example: 'The Hubble telescope captured a high-res image of the nebula.', masteryLevel: 65, tags: ['Cosmic'] },
-      { id: 'all-5', text: 'Ephemeral', phonetic: '/ɪˈfem.ər.əl/', translation: '短暂的，虚幻即逝的', definition: 'Existing or remaining for a very temporary timeframe.', example: 'The auroral elements are highly ephemeral spectacles.', masteryLevel: 58, tags: ['Literature'] },
-      { id: 'all-6', text: 'Symmetrical', phonetic: '/sɪˈmet.rɪ.kəl/', translation: '对称的，均称而工整', definition: 'Designed of mirror-like identical components along an axis.', example: 'Symmetrical grid setups feel incredibly restful.', masteryLevel: 90, tags: ['Design'] }
-    ];
   };
 
   return (
@@ -847,12 +849,13 @@ export const WfNewApp: React.FC = () => {
                     <div
                       key={mode.id}
                       onClick={() => {
-                        setSelectedPracticeGroup(gGroups[0] || null);
-                        if (gGroups[0]) {
-                          setCourseWords(getFallbackDataset(gGroups[0].id));
+                        const g = gGroups[0] || bentoGroups[0];
+                        if (g) {
+                          void startGroupPractice(g, mode.id);
+                        } else {
+                          setActiveTab('practice');
+                          startModePractice(mode.id);
                         }
-                        setActiveTab('practice');
-                        startModePractice(mode.id);
                       }}
                       className="p-5 rounded-2xl bg-slate-900/15 border border-white/5 hover:border-indigo-500/25 hover:bg-slate-900/50 cursor-pointer group transition-all duration-300"
                     >
@@ -889,7 +892,7 @@ export const WfNewApp: React.FC = () => {
 
                 {/* Staggered Bento Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-auto">
-                  {MOCK_BENTO_GROUPS.map((group, idx) => {
+                  {bentoGroups.map((group, idx) => {
                     // Match decoration variables
                     const progressVal = group.progress;
                     
@@ -1195,11 +1198,7 @@ export const WfNewApp: React.FC = () => {
                     {gGroups.map(g => (
                       <button
                         key={g.id}
-                        onClick={() => {
-                          setSelectedPracticeGroup(g);
-                          setCourseWords(getFallbackDataset(g.id));
-                          startModePractice('study');
-                        }}
+                        onClick={() => { void startGroupPractice(g, 'study'); }}
                         className={`p-5 rounded-2xl text-left border transition-all ${
                           selectedPracticeGroup?.id === g.id
                             ? 'border-indigo-500 bg-indigo-500/5'

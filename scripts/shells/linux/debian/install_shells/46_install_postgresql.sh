@@ -47,7 +47,10 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 SCRIPT_INDEX="46"
 START_POSTGRESQL=$(get_var "START_POSTGRESQL" "false")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
-POSTGRESQL_VERSION="15"
+# Major version to install on Debian via the official PGDG repo (override with the
+# global var POSTGRESQL_VERSION). On Ubuntu the distro-default `postgresql`
+# metapackage is used and the ACTUAL version is auto-detected after install.
+POSTGRESQL_VERSION="$(get_var "POSTGRESQL_VERSION" "15")"
 # Use compile_dir for database data and logs (auto-selects based on environment)
 POSTGRESQL_DATA_DIR=$(map_web_path "compile_dir" "postgresql/data")
 POSTGRESQL_CONFIG_DIR=""
@@ -331,17 +334,116 @@ create_postgresql_directories() {
     echo "[$SCRIPT_INDEX] Directories prepared"
 }
 
+# Detect the OS id (debian / ubuntu) from /etc/os-release.
+os_release_id() {
+    [ -f /etc/os-release ] || { echo ""; return 0; }
+    ( . /etc/os-release 2>/dev/null; echo "$ID" )
+}
+
+# Resolve the Debian release codename used by the PGDG suite ("<codename>-pgdg"),
+# e.g. bookworm (Debian 12), trixie (Debian 13), bullseye (Debian 11). Prefer the
+# os-release VERSION_CODENAME; fall back to mapping VERSION_ID.
+pg_debian_codename() {
+    local cn="" vid=""
+    if [ -f /etc/os-release ]; then
+        cn="$( . /etc/os-release 2>/dev/null; echo "$VERSION_CODENAME" )"
+        vid="$( . /etc/os-release 2>/dev/null; echo "$VERSION_ID" )"
+    fi
+    if [ -z "$cn" ]; then
+        case "$vid" in
+            13*) cn="trixie" ;;
+            12*) cn="bookworm" ;;
+            11*) cn="bullseye" ;;
+        esac
+    fi
+    echo "$cn"
+}
+
+# Ensure the official PostgreSQL APT (PGDG) repository is configured so a specific
+# PostgreSQL major version is installable on Debian 12 (bookworm) / 13 (trixie),
+# regardless of what the distro ships (bookworm=15, trixie=17 by default).
+# Reference: https://www.postgresql.org/download/linux/debian/
+# Idempotent and best-effort: returns 1 on any failure so the caller falls back to
+# the distro repository. Only acts on Debian (Ubuntu keeps the distro-default path).
+ensure_pgdg_repository() {
+    local codename=""
+    local key_file="/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc"
+    local list_file="/etc/apt/sources.list.d/pgdg.list"
+    local key_url="https://www.postgresql.org/media/keys/ACCC4CF8.asc"
+
+    [ "$(os_release_id)" = "debian" ] || return 1
+
+    codename="$(pg_debian_codename)"
+    if [ -z "$codename" ]; then
+        echo "[$SCRIPT_INDEX] Could not detect Debian codename; skipping PGDG repo."
+        return 1
+    fi
+
+    # Already configured -> nothing to do.
+    if [ -f "$list_file" ] && [ -f "$key_file" ]; then
+        echo "[$SCRIPT_INDEX] PGDG repository already configured (${codename}-pgdg)."
+        return 0
+    fi
+
+    echo "[$SCRIPT_INDEX] Configuring PostgreSQL PGDG repository for Debian ${codename}..."
+    $USE_SUDO apt-get update -qq || true
+    if ! $USE_SUDO apt-get install -y curl ca-certificates gnupg >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] WARN: cannot install curl/ca-certificates; skipping PGDG."
+        return 1
+    fi
+
+    # Fetch the (ASCII-armored) signing key. apt on Debian 12/13 accepts an armored
+    # key directly via signed-by, matching the official .asc setup.
+    $USE_SUDO install -d /usr/share/postgresql-common/pgdg 2>/dev/null || true
+    if ! $USE_SUDO curl -fsSL -o "$key_file" "$key_url"; then
+        echo "[$SCRIPT_INDEX] WARN: failed to fetch PGDG signing key; skipping PGDG."
+        return 1
+    fi
+
+    echo "deb [signed-by=$key_file] https://apt.postgresql.org/pub/repos/apt ${codename}-pgdg main" \
+        | $USE_SUDO tee "$list_file" >/dev/null
+
+    if ! $USE_SUDO apt-get update -qq; then
+        echo "[$SCRIPT_INDEX] WARN: apt update failed after adding PGDG; reverting to distro repo."
+        $USE_SUDO rm -f "$list_file" 2>/dev/null || true
+        return 1
+    fi
+
+    echo "[$SCRIPT_INDEX] PGDG repository ready (${codename}-pgdg)."
+    return 0
+}
+
 # Function to install PostgreSQL
 install_postgresql() {
     echo "[$SCRIPT_INDEX] Installing PostgreSQL $POSTGRESQL_VERSION..."
 
+    local os_id=""
+    local use_pgdg=false
+    os_id="$(os_release_id)"
+
+    # Debian 12/13: prefer the official PGDG repo so a KNOWN major version installs
+    # regardless of what bookworm/trixie ship. Best-effort -> distro repo on failure.
+    if [ "$os_id" = "debian" ]; then
+        if ensure_pgdg_repository; then
+            use_pgdg=true
+        fi
+    fi
+
     # Update package list
     $USE_SUDO apt update
 
-    # Install PostgreSQL and additional packages
-    $USE_SUDO apt install -y postgresql postgresql-contrib postgresql-client
+    # PGDG path: install the pinned version (postgresql-<ver> bundles the contrib
+    # modules; postgresql-client-<ver> + postgresql-common are pulled as deps).
+    if [ "$use_pgdg" = true ]; then
+        if $USE_SUDO apt install -y "postgresql-$POSTGRESQL_VERSION" "postgresql-client-$POSTGRESQL_VERSION"; then
+            echo "[$SCRIPT_INDEX] PostgreSQL $POSTGRESQL_VERSION installed from PGDG (Debian)"
+            return 0
+        fi
+        echo "[$SCRIPT_INDEX] PGDG install failed; falling back to distro packages..."
+    fi
 
-    if [ $? -eq 0 ]; then
+    # Distro default (Ubuntu, or Debian fallback when PGDG is unavailable).
+    if $USE_SUDO apt install -y postgresql postgresql-contrib postgresql-client; then
         echo "[$SCRIPT_INDEX] PostgreSQL installed successfully"
         return 0
     else
