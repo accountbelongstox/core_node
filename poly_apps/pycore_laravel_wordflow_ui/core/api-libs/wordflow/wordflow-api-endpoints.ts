@@ -111,7 +111,7 @@ export const FIXED_API_PORT = 9000;
 export function getCurrentOriginEndpoint(): ApiEndpoint | null {
   if (typeof window === 'undefined' || !window.location) return null;
 
-  const { protocol, hostname } = window.location;
+  const { protocol, hostname, port } = window.location;
   if (protocol !== 'http:' && protocol !== 'https:') return null;
   if (!hostname) return null;
 
@@ -123,8 +123,10 @@ export function getCurrentOriginEndpoint(): ApiEndpoint | null {
     /^10\./.test(hostname) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
 
-  // Always the fixed API port (9000) — never the page's own port.
-  const apiPort = FIXED_API_PORT;
+  // If in sandbox (Vite port 3000, or a Cloud Run deployment on .run.app),
+  // we route requests to the current server/port (so we can mock it).
+  const isSandbox = hostname.includes('run.app') || port === '3000';
+  const apiPort = isSandbox ? (port ? parseInt(port, 10) : undefined) : FIXED_API_PORT;
 
   return {
     id: CURRENT_ORIGIN_ENDPOINT_ID,
@@ -133,7 +135,7 @@ export function getCurrentOriginEndpoint(): ApiEndpoint | null {
     port: apiPort,
     priority: 0, // highest weight — always probed / selected first when healthy
     isLocal,
-    description: `Current site origin (${proto}://${hostname}:${apiPort})`,
+    description: `Current site origin (${proto}://${hostname}${apiPort ? ':' + apiPort : ''})`,
   };
 }
 

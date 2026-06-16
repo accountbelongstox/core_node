@@ -1,13 +1,6 @@
-/* [v4.1-Iris] Login — ported from poly_apps/qy_capacitor/pages/Auth/Login.tsx.
- * Self-contained: wires to useWfApp().login (wordflowApi) and react-router
- * useNavigate + wfPath(). Login/register dual mode faithful to the original:
- * register posts username+password plus optional email/nickname/invite code to
- * wordflowApi.register() (the backend returns the login envelope, so a
- * successful registration logs the user straight in via setToken + setUser).
- * Graceful error messages, keeps the faithful Iris auth look (gradient logo
- * block + glass panel inputs). */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useWfApp, useWfT } from '../WfAppContext';
 import { Button, Badge } from '../WfUI';
 import { wfPath } from '../WfBottomTabNav';
@@ -112,27 +105,51 @@ const WfAuthLoginPage: React.FC = () => {
   };
 
   const inputClass =
-    'w-full p-4 rounded-[var(--radius-button)] ds-glass ds-glass-edge border border-[var(--border-highlight)] outline-none text-[var(--color-text-primary)] transition-all disabled:opacity-50 focus:shadow-[0_0_0_3px_var(--klein-ring)]';
+    'w-full p-4 rounded-[var(--radius-button)] ds-glass ds-glass-edge border border-[var(--border-highlight)] outline-none text-[var(--color-text-primary)] transition-all disabled:opacity-50 focus:shadow-[0_0_0_3px_var(--klein-ring)] focus:border-white/50 bg-white/5 dark:bg-white/[0.03] placeholder-slate-400 dark:placeholder-slate-500';
 
   return (
     <div
       className="flex flex-col min-h-screen bg-transparent route-fade"
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
-      <div className="flex-1 flex flex-col items-center justify-center px-[var(--page-padding-h)] py-[var(--page-padding-v)] pt-16 animate-fade-in">
+      <div className="flex-1 flex flex-col items-center justify-center px-[var(--page-padding-h)] py-[var(--page-padding-v)] pt-16">
         {/* Gradient logo block */}
-        <div
-          className="w-24 h-24 rounded-[var(--radius-card)] mb-10 flex items-center justify-center text-4xl font-bold transform rotate-6"
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0, rotate: -15 }}
+          animate={{ scale: 1, opacity: 1, rotate: 6 }}
+          transition={{ type: 'spring', damping: 15 }}
+          className="w-24 h-24 rounded-[var(--radius-card)] mb-10 flex items-center justify-center text-4xl font-black shadow-2xl relative overflow-hidden group cursor-pointer"
           style={{ background: 'var(--klein-gradient)', color: 'var(--klein-on)', boxShadow: 'var(--klein-grad-glow)' }}
         >
+          {/* Internal specular highlight */}
+          <div className="absolute inset-0 bg-white/20 -skew-x-12 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
           W
-        </div>
-        <h1 className="ds-section-title !text-3xl mb-2 text-center">WordFlow AI</h1>
-        <p className="text-[var(--color-text-secondary)] mb-[var(--space-breath)] text-center">
-          {t('home.welcome')}
-        </p>
+        </motion.div>
 
-        <div className="w-full ds-modal-panel p-6 sm:p-8 max-w-md">
+        <motion.h1
+          initial={{ y: 15, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="ds-section-title !text-3xl mb-2 text-center font-black tracking-tight"
+        >
+          WordFlow AI
+        </motion.h1>
+
+        <motion.p
+          initial={{ y: 15, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.15 }}
+          className="text-[var(--color-text-secondary)] mb-[var(--space-breath)] text-center text-sm font-medium"
+        >
+          {t('home.welcome')}
+        </motion.p>
+
+        <motion.div
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: 'spring', damping: 20 }}
+          className="w-full ds-modal-panel p-6 sm:p-8 max-w-md shadow-2xl"
+        >
           <div className="w-full space-y-5">
             <input
               type="text"
@@ -146,7 +163,11 @@ const WfAuthLoginPage: React.FC = () => {
             />
 
             {mode === 'register' && (
-              <>
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                className="space-y-5 overflow-hidden"
+              >
                 <input
                   type="email"
                   value={email}
@@ -166,7 +187,7 @@ const WfAuthLoginPage: React.FC = () => {
                   disabled={loading}
                   className={inputClass}
                 />
-              </>
+              </motion.div>
             )}
 
             <input
@@ -181,7 +202,9 @@ const WfAuthLoginPage: React.FC = () => {
             />
 
             {mode === 'register' && (
-              <input
+              <motion.input
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -205,7 +228,7 @@ const WfAuthLoginPage: React.FC = () => {
               </div>
             )}
 
-            <Button variant="grad" onClick={handleSubmit} disabled={loading}>
+            <Button variant="grad" onClick={handleSubmit} loading={loading}>
               {loading ? t('common.loading') : mode === 'login' ? t('auth.login') : t('auth.register')}
             </Button>
             <Button
@@ -220,7 +243,7 @@ const WfAuthLoginPage: React.FC = () => {
           <div className="mt-[var(--space-breath)] flex justify-center">
             <Badge tone="neutral">{t('common.info')}: Laravel API v1</Badge>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

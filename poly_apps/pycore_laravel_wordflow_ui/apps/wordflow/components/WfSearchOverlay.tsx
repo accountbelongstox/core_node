@@ -1,22 +1,6 @@
-/* [v4.1-Iris] WfSearchOverlay — the global top-bar search, as a dropdown overlay.
- *
- * Replaces the old "navigate to the dictionary page" behaviour: tapping the glass
- * search pill in WfTopBar now drops a semi-transparent, frosted search panel right
- * under the bar (the bar stays visible/clickable above it). Self-contained search
- * engine (debounced 500ms word lookup via wordflowApi, history + favourites in
- * StorageCenter) — ported from WfSearchDictionaryPage so behaviour is identical.
- *
- * THREE selectable widget styles (the chooser lives top-right of the panel, the
- * pick persists in localStorage `wf.search.style`):
- *   1 — Spotlight : command-palette card that drops straight down from the bar.
- *   2 — Glass Sheet: full-width frosted sheet flush under the bar, gradient header.
- *   3 — Floating Island: rounded floating island with gradient orbs + spring pop.
- *
- * All three share one body and the same engine; only the chrome / motion differ.
- * Styling lives in wf-iris-components.css under `.wf-search-ov`. Every backend
- * call is guarded and degrades to an EmptyState — the overlay never crashes. */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { X, BookOpen, SearchX, Clock, Star, Globe, Sparkles, Volume2, RotateCw, Cloud, CornerDownLeft } from 'lucide-react';
 import { Card, Icons, Spinner, EmptyState, Badge, ProgressBar, Portal } from '../WfUI';
 import { wfPath } from '../WfBottomTabNav';
@@ -145,39 +129,49 @@ const WordResultCard: React.FC<{
     wfAudioCenter.playWord({ audioUrl: word.audioUrl, text: word.text, lang });
   };
   return (
-    <Card
-      className={`wf-search-ov__card animate-fade-in cursor-pointer ${active ? 'is-active' : ''}`}
+    <motion.div
+      layoutId={`card-${word.id}`}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      whileHover={{ y: -3, scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      className={`wf-search-ov__card ds-card ds-card-spot p-4 rounded-[var(--radius-card)] cursor-pointer border border-white/10 dark:border-white/5 bg-white/50 dark:bg-zinc-900/40 backdrop-blur-md shadow-sm transition-[border-color,background-color] hover:bg-white/70 dark:hover:bg-zinc-900/60 ${active ? 'is-active ring-2 ring-[var(--klein-ring)]' : ''}`}
       onClick={onOpen}
     >
       <div ref={innerRef} aria-current={active ? 'true' : undefined} />
       <div className="flex justify-between items-start gap-3">
-        <h3 className="text-lg font-bold text-[var(--color-text-primary)] min-w-0 truncate">{word.text}</h3>
+        <h3 className="text-lg font-extrabold text-[var(--color-text-primary)] min-w-0 truncate">{word.text}</h3>
         <div className="flex items-center gap-1.5 shrink-0">
           {word.tags && word.tags.length > 0 && <Badge tone="klein">{word.tags[0]}</Badge>}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.9 }}
             type="button"
             onClick={speak}
-            className="ds-touch-target flex items-center justify-center rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--klein-blue)] hover:bg-[var(--klein-blue-soft)] transition-colors"
+            className="ds-touch-target w-8 h-8 flex items-center justify-center rounded-full text-[var(--color-text-tertiary)] hover:text-[var(--klein-blue)] hover:bg-[var(--klein-blue-soft)] transition-colors"
             aria-label="Play pronunciation"
             title="Play pronunciation"
           >
-            <Volume2 className="w-5 h-5" />
-          </button>
-          <button
+            <Volume2 className="w-4.5 h-4.5" />
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.9 }}
             type="button"
             onClick={(e) => { e.stopPropagation(); onFav(); }}
-            className="ds-touch-target flex items-center justify-center rounded-lg hover:bg-[var(--klein-blue-soft)] transition-colors"
+            className="ds-touch-target w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--klein-blue-soft)] transition-colors"
             aria-label={favorited ? 'Remove from favorites' : 'Add to favorites'}
           >
-            <Star className={`w-5 h-5 ${favorited ? 'text-yellow-500' : 'text-[var(--color-text-tertiary)]'}`}
+            <Star className={`w-4.5 h-4.5 ${favorited ? 'text-amber-500' : 'text-[var(--color-text-tertiary)]'}`}
               fill={favorited ? 'currentColor' : 'none'} />
-          </button>
+          </motion.button>
         </div>
       </div>
-      {word.phonetic && <div className="text-[var(--klein-blue)] font-mono text-xs mt-1">{word.phonetic}</div>}
-      {word.translation && <p className="text-[var(--color-text-primary)] font-medium mt-1">{word.translation}</p>}
+      {word.phonetic && <div className="text-[var(--klein-blue)] font-mono text-xs mt-1 font-semibold">{word.phonetic}</div>}
+      {word.translation && <p className="text-[var(--color-text-primary)] font-bold mt-1 text-sm">{word.translation}</p>}
       {word.example && (
-        <p className="text-[var(--color-text-secondary)] text-sm italic mt-1">&quot;{word.example}&quot;</p>
+        <p className="text-[var(--color-text-secondary)] text-xs italic mt-1 pb-1">&quot;{word.example}&quot;</p>
       )}
       {word.masteryLevel !== undefined && (
         <div className="mt-2 flex items-center gap-2">
@@ -185,7 +179,7 @@ const WordResultCard: React.FC<{
           <span className="text-xs text-[var(--color-text-secondary)] font-bold">{word.masteryLevel}%</span>
         </div>
       )}
-    </Card>
+    </motion.div>
   );
 };
 
@@ -490,44 +484,103 @@ export const WfSearchOverlay: React.FC<{ open: boolean; onClose: () => void; top
     </>
   );
 
+  const panelVariants = {
+    hidden: style === 1
+      ? { opacity: 0, y: -24, scale: 0.98 }
+      : style === 2
+      ? { opacity: 0, y: -30 }
+      : { opacity: 0, y: 24, scale: 0.92 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: {
+        type: 'spring',
+        damping: style === 3 ? 18 : 24,
+        stiffness: style === 3 ? 240 : 320
+      }
+    },
+    exit: style === 1
+      ? { opacity: 0, y: -16, scale: 0.98, transition: { duration: 0.15 } }
+      : style === 2
+      ? { opacity: 0, y: -20, transition: { duration: 0.15 } }
+      : { opacity: 0, y: 16, scale: 0.94, transition: { duration: 0.15 } }
+  };
+
   return (
     <Portal>
-      <div className={`wf-search-ov ${STYLE_CLASS[style]}`} data-shown={shown} role="dialog" aria-modal="true"
-        aria-label={t('header.searchPlaceholder') || 'Search'}>
-        <div className="wf-search-ov__backdrop" onClick={onClose} aria-hidden />
-        <div className="wf-search-ov__panel" style={{ ['--wf-ov-top' as any]: `${topOffset}px` }}>
-          {/* gradient orbs (style 3) + frosted header accents */}
-          <span className="wf-search-ov__orb wf-search-ov__orb--a" aria-hidden />
-          <span className="wf-search-ov__orb wf-search-ov__orb--b" aria-hidden />
+      <AnimatePresence>
+        {open && (
+          <div className={`wf-search-ov ${STYLE_CLASS[style]}`} role="dialog" aria-modal="true"
+            aria-label={t('header.searchPlaceholder') || 'Search'}>
+            
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="wf-search-ov__backdrop" 
+              onClick={onClose} 
+              aria-hidden 
+            />
 
-          {/* header row: title + style switcher + close */}
-          <div className="wf-search-ov__head">
-            <div className="wf-search-ov__title">
-              <span className="wf-search-ov__title-orb" aria-hidden><Sparkles className="w-4 h-4" /></span>
-              <span>{t('dictionary.title') || 'Smart Search'}</span>
-            </div>
-            <div className="wf-search-ov__styles" role="group" aria-label="Search style">
-              {([1, 2, 3] as SearchStyle[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => pickStyle(s)}
-                  className={`wf-search-ov__style ${style === s ? 'is-active' : ''}`}
-                  title={`Style ${s} — ${STYLE_LABEL[s]}`}
-                  aria-pressed={style === s}
+            {/* Panel */}
+            <motion.div 
+              variants={panelVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="wf-search-ov__panel" 
+              style={{ ['--wf-ov-top' as any]: `${topOffset}px` }}
+            >
+              {/* gradient orbs (style 3) + frosted header accents */}
+              <span className="wf-search-ov__orb wf-search-ov__orb--a" aria-hidden />
+              <span className="wf-search-ov__orb wf-search-ov__orb--b" aria-hidden />
+
+              {/* header row: title + style switcher + close */}
+              <div className="wf-search-ov__head">
+                <div className="wf-search-ov__title">
+                  <span className="wf-search-ov__title-orb text-white" aria-hidden>
+                    <Sparkles className="w-4 h-4 animate-pulse" />
+                  </span>
+                  <span className="font-extrabold tracking-tight bg-gradient-to-r from-[var(--color-text-primary)] to-[var(--color-text-secondary)] bg-clip-text text-transparent">
+                    {t('dictionary.title') || 'Smart Search'}
+                  </span>
+                </div>
+                <div className="wf-search-ov__styles" role="group" aria-label="Search style">
+                  {([1, 2, 3] as SearchStyle[]).map((s) => (
+                    <motion.button
+                      key={s}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      type="button"
+                      onClick={() => pickStyle(s)}
+                      className={`wf-search-ov__style ${style === s ? 'is-active font-black' : ''}`}
+                      title={`Style ${s} — ${STYLE_LABEL[s]}`}
+                      aria-pressed={style === s}
+                    >
+                      {s}
+                    </motion.button>
+                  ))}
+                </div>
+                <motion.button 
+                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileTap={{ scale: 0.9 }}
+                  type="button" 
+                  onClick={onClose} 
+                  className="wf-search-ov__close shadow-sm" 
+                  aria-label={t('common.close') || 'Close'}
                 >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <button type="button" onClick={onClose} className="wf-search-ov__close" aria-label={t('common.close') || 'Close'}>
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+                  <X className="w-4 h-4" />
+                </motion.button>
+              </div>
 
-          {body}
-        </div>
-      </div>
+              {body}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </Portal>
   );
 };
