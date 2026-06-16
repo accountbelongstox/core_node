@@ -133,7 +133,11 @@ param(
     [string[]]$Include = @(),
     [switch]$NoUi,
     [switch]$UiBuild,
-    [int]$UiPort = 13054
+    [int]$UiPort = 13054,
+    # Trailing args forwarded to subcommands (e.g. `config ...`, `codesync ...`).
+    # Required because [CmdletBinding()] otherwise rejects extra positional args.
+    [Parameter(ValueFromRemainingArguments=$true)]
+    [string[]]$Rest = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -227,11 +231,11 @@ switch ($Command.ToLowerInvariant()) {
             Write-Host '[X] Python 3 was NOT found; cannot run ''config''.' -ForegroundColor Red
             exit 1
         }
-        $rest = @()
-        if ($args) { $rest = $args }
+        $fwd = @()
+        if ($Rest) { $fwd = $Rest } elseif ($args) { $fwd = $args }
         Push-Location -LiteralPath $PSScriptRoot
         try {
-            & $py.Path -m pycore.pyutils.pyservice_cli config @rest
+            & $py.Path -m pycore.pyutils.pyservice_cli config @fwd
             $cfgCode = $LASTEXITCODE
         } finally {
             Pop-Location
@@ -248,11 +252,24 @@ switch ($Command.ToLowerInvariant()) {
             Write-Host '[X] Python 3 was NOT found; cannot run ''codesync''.' -ForegroundColor Red
             exit 1
         }
-        $rest = @()
-        if ($args) { $rest = $args }
+        $fwd = @()
+        if ($Rest) { $fwd = $Rest } elseif ($args) { $fwd = $args }
+        $csSub = ''
+        if ($fwd.Count -ge 1) { $csSub = "$($fwd[0])".ToLowerInvariant() }
+        # System-service install is systemd-only. On Windows, the bare command and
+        # the service ops print a notice + how to run it in the foreground.
+        $csServiceOps = @('', 'install', 'uninstall', 'start', 'stop', 'restart', 'status', 'service')
+        if ($csServiceOps -contains $csSub) {
+            Write-Host '[i] Code Sync system-service install is Linux-only (systemd).' -ForegroundColor Yellow
+            Write-Host '    On Windows, run the standalone daemon in the foreground:' -ForegroundColor DarkYellow
+            Write-Host '        .\pyservice.ps1 codesync run' -ForegroundColor DarkYellow
+            Write-Host '    To auto-start at login, wrap that with Task Scheduler or nssm.' -ForegroundColor DarkYellow
+            Write-Host '    View file-sync logs at: %USERPROFILE%\.core_node\data\code_sync_logs\' -ForegroundColor DarkYellow
+            exit 0
+        }
         Push-Location -LiteralPath $PSScriptRoot
         try {
-            & $py.Path (Join-Path $PSScriptRoot 'pycore/pyutils/codesync_boot.py') @rest
+            & $py.Path (Join-Path $PSScriptRoot 'pycore/pyutils/codesync_boot.py') @fwd
             $csCode = $LASTEXITCODE
         } finally {
             Pop-Location

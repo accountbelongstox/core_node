@@ -143,8 +143,10 @@ Subcommands:
   config       Edit/show headless config via the cross-platform Python CLI
                (forwards remaining args to: python -m pycore.pyutils.pyservice_cli config)
   codesync     Standalone Code Sync (stdlib only; no prereqs, no pycore import).
-               run|show|role|peers|distribute|skip-update
-               (e.g. ./pyservice.sh codesync run  /  ./pyservice.sh codesync show)
+               (no subcommand)            -> prompt to add+start the systemd service
+               install|uninstall|start|stop|restart|status -> manage that service
+               run|show|role|peers|distribute|skip-update   -> stdlib CLI
+               (e.g. ./pyservice.sh codesync   /   ./pyservice.sh codesync run)
   install      Install + enable + start the pycore systemd service (Linux only)
   start        Start the pycore systemd service (Linux only)
   stop         Stop the pycore systemd service (Linux only)
@@ -186,18 +188,55 @@ case "${1:-}" in
         print_usage; exit 0 ;;
 esac
 
-# codesync -> hand off to the STANDALONE, stdlib-only Code Sync library.
-# Dispatched HERE, before the prerequisite-install step and without importing the
-# pycore package: the bootstrap is run as a FILE so `codesync` loads as a
-# top-level name (pycore/__init__.py is never executed, no third_party). See
-# pycore/pyutils/device_sync/CODESYNC_LITE_DESIGN.md.
+# codesync -> STANDALONE, stdlib-only Code Sync. Dispatched HERE, before the
+# prerequisite-install step and without importing the pycore package.
+#   * no subcommand          -> offer to add Code Sync to the systemd service
+#                               (prompt, default YES), then start it + show logs.
+#   * install|uninstall|start|stop|restart|status -> manage that systemd service.
+#   * run|show|role|peers|distribute|skip-update  -> the stdlib CLI: the bootstrap
+#     is run as a FILE so `codesync` loads as a top-level name (pycore/__init__.py
+#     is never executed, no third_party). See device_sync/CODESYNC_LITE_DESIGN.md.
 if [[ "$CMD" == "codesync" ]]; then
-    if ! PY="$(resolve_python)"; then
-        echo "[X] Python 3 was NOT found; cannot run 'codesync'." >&2
-        exit 1
-    fi
-    cd "$SCRIPT_DIR"
-    exec "$PY" pycore/pyutils/codesync_boot.py "$@"
+    CS_MGR="$SCRIPT_DIR/scripts/shells/linux/common/codesync_service.sh"
+    case "${1:-}" in
+        "")
+            # No subcommand: prompt to add Code Sync to the system service.
+            exec bash "$CS_MGR" install --prompt
+            ;;
+        install|uninstall|start|stop|restart|status)
+            CS_OP="$1"; shift
+            exec bash "$CS_MGR" "$CS_OP" "$@"
+            ;;
+        run)
+            shift
+            # Interactively offer to install+run as a system service (default YES);
+            # decline -> run the foreground daemon. With NO TTY (the systemd unit's
+            # own ExecStart=`codesync run`) the prompt is skipped -> foreground,
+            # so the service never re-installs itself.
+            # `|| CS_RC=$?` keeps `set -e` from aborting on the non-zero (10) that
+            # run-prompt returns to mean "run in the foreground".
+            CS_RC=0
+            bash "$CS_MGR" run-prompt || CS_RC=$?
+            if [[ "$CS_RC" -ne 10 ]]; then
+                exit "$CS_RC"   # installed as a service (or install error)
+            fi
+            if ! PY="$(resolve_python)"; then
+                echo "[X] Python 3 was NOT found; cannot run 'codesync'." >&2
+                exit 1
+            fi
+            cd "$SCRIPT_DIR"
+            exec "$PY" pycore/pyutils/codesync_boot.py run "$@"
+            ;;
+        *)
+            # show | role | peers | distribute | skip-update -> stdlib CLI.
+            if ! PY="$(resolve_python)"; then
+                echo "[X] Python 3 was NOT found; cannot run 'codesync'." >&2
+                exit 1
+            fi
+            cd "$SCRIPT_DIR"
+            exec "$PY" pycore/pyutils/codesync_boot.py "$@"
+            ;;
+    esac
 fi
 
 # config -> hand off to the cross-platform Python CLI (run from repo root).
