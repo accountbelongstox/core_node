@@ -207,18 +207,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
     };
   }, []);
 
-  const getLangBadgeName = (code: string) => {
-    const langNames: Record<string, string> = {
-      zh: 'Simplified Chinese (简体中文)',
-      en: 'English (美国英语)',
-      fr: 'French (皇家法语)',
-      de: 'German (标准德语)',
-      es: 'Spanish (西班牙语)',
-      ja: 'Japanese (和风日语)',
-      ko: 'Korean (大韩韩语)'
-    };
-    return langNames[code] || code.toUpperCase();
-  };
+  const getLangBadgeName = (code: string) => trans('lang.name.' + code);
 
   const handleRatioSwitch = (ratio: string) => {
     setBilingualRatio(ratio);
@@ -244,24 +233,24 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <span className="p-1 px-2.5 rounded-md font-mono text-[10px] font-bold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 uppercase tracking-widest">
-              Acoustic Suite
+              {trans('bilingual.tagAcoustic')}
             </span>
             <span className="p-1 px-2.5 rounded-md font-mono text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-widest">
-              Bi-Contrast
+              {trans('bilingual.tagBiContrast')}
             </span>
           </div>
           <h2 className="text-2xl font-black tracking-tight mt-2 text-indigo-950 dark:text-white flex items-center gap-2.5">
             <AudioLines className="w-6 h-6 text-indigo-400 animate-pulse" />
-            Bilingual Cosmos Recital (双语对照朗读学习舱)
+            {trans('bilingual.title')}
           </h2>
           <p className="text-zinc-500 text-xs mt-1">
-            Play back fluid speech comparisons between your selected mother-tongue and target parameters. Click on words to study deep syntactic nodes.
+            {trans('bilingual.intro')}
           </p>
         </div>
 
         <div className="flex gap-2 items-center text-[10px] uppercase font-bold font-mono bg-indigo-500/10 dark:bg-zinc-900 border border-indigo-500/15 dark:border-white/5 px-4 py-2.5 rounded-2xl text-indigo-700 dark:text-indigo-400">
           <Languages className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '8s' }} />
-          <span>Active Pair: {nativeLang.toUpperCase()} ↔ {targetLang.toUpperCase()}</span>
+          <span>{trans('bilingual.activePair')}: {nativeLang.toUpperCase()} ↔ {targetLang.toUpperCase()}</span>
         </div>
       </div>
 
@@ -270,16 +259,16 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
         <div className="flex items-center justify-between border-b border-zinc-100 dark:border-white/5 pb-3">
           <h3 className="text-xs font-black font-mono uppercase tracking-widest text-indigo-500 dark:text-indigo-400 flex items-center gap-2">
             <Settings2 className="w-4 h-4 text-indigo-505" />
-            On-Deck Recital Synthesizer
+            {trans('bilingual.synthTitle')}
           </h3>
-          <span className="text-[10px] font-mono text-zinc-400">Synthesizes locally via WebSpeech</span>
+          <span className="text-[10px] font-mono text-zinc-400">{trans('bilingual.synthNote')}</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Paragraph Ratio Logic */}
           <div className="space-y-2">
             <span className="text-[10px] font-bold tracking-wider text-zinc-500 font-mono uppercase block">
-              Recital Loop Proportion Ratio (朗读句型配比比例)
+              {trans('bilingual.ratioLabel')}
             </span>
             <div className="grid grid-cols-2 gap-2.5">
               <button
@@ -290,7 +279,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                     : 'bg-zinc-50 dark:bg-white/5 border-transparent text-zinc-400 hover:text-zinc-100'
                 }`}
               >
-                1 Target : 1 Mother (对照交替)
+                {trans('bilingual.ratioBtn11')}
               </button>
               <button
                 onClick={() => handleRatioSwitch('2en_1zh')}
@@ -300,7 +289,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                     : 'bg-zinc-50 dark:bg-white/5 border-transparent text-zinc-400 hover:text-zinc-100'
                 }`}
               >
-                2 Target : 1 Mother (双句强化)
+                {trans('bilingual.ratioBtn21')}
               </button>
             </div>
           </div>
@@ -308,7 +297,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
           {/* Pronunciation Reading Order Sequence */}
           <div className="space-y-2">
             <span className="text-[10px] font-bold tracking-wider text-zinc-500 font-mono uppercase block">
-              Acoustic Auditory Order (朗读发音先后顺序)
+              {trans('bilingual.orderLabel')}
             </span>
             <div className="grid grid-cols-2 gap-2.5">
               <button
@@ -319,7 +308,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                     : 'bg-zinc-50 dark:bg-white/5 border-transparent text-zinc-400 hover:text-zinc-100'
                 }`}
               >
-                Target first (先朗读目标)
+                {trans('bilingual.orderBtnTarget')}
               </button>
               <button
                 onClick={() => handleOrderSwitch('native_first')}
@@ -329,7 +318,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                     : 'bg-zinc-50 dark:bg-white/5 border-transparent text-zinc-400 hover:text-zinc-100'
                 }`}
               >
-                Native first (先朗读母语)
+                {trans('bilingual.orderBtnNative')}
               </button>
             </div>
           </div>
@@ -338,7 +327,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
         {/* Informative tips */}
         <div className="bg-sky-500/5 border border-sky-500/15 rounded-2xl p-3 flex gap-2 sm:gap-2.5 text-[11px] text-zinc-500 dark:text-sky-400 line-clamp-1">
           <HelpCircle className="w-4 h-4 text-sky-400 flex-shrink-0" />
-          <span>If target synthesizer is muted, confirm your operating system language package supports local TTS for <b>{getLangBadgeName(targetLang)}</b>.</span>
+          <span>{trans('bilingual.ttsTip', { lang: getLangBadgeName(targetLang) })}</span>
         </div>
       </div>
 
@@ -347,7 +336,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
         <div className="flex justify-between items-center px-1">
           <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
             <BookOpen className="w-3.5 h-3.5" />
-            SYNTACTIC SPECIMENS ({filteredSentences.length} CASES)
+            {trans('bilingual.specimens', { n: filteredSentences.length })}
           </h3>
           <span className="text-[10px] text-zinc-500 font-mono">
             {getLangBadgeName(nativeLang)} ↔ {getLangBadgeName(targetLang)}
@@ -396,7 +385,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                   <div className="flex justify-between items-start gap-4">
                     <div className="space-y-1 min-w-0">
                       <span className="text-[9px] font-black font-mono tracking-widest uppercase bg-indigo-500/10 text-indigo-550 dark:text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-500/10">
-                        Specimen #{idx + 1}
+                        {trans('bilingual.specimen', { n: idx + 1 })}
                       </span>
                     </div>
 
@@ -409,7 +398,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                             ? 'bg-indigo-650 hover:bg-indigo-700 text-white animate-spin'
                             : 'bg-indigo-500/5 hover:bg-indigo-500/15 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:scale-105'
                         }`}
-                        title="Start Dual- Contrast Pronunciation"
+                        title={trans('bilingual.playTitle')}
                         style={{ animationDuration: isSpeakingThis ? '3s' : '0s' }}
                       >
                         {isSpeakingThis ? (
@@ -423,7 +412,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                       <button
                         onClick={() => toggleSentenceWords(sentence.id)}
                         className={`w-9 h-9 rounded-full bg-zinc-100 dark:bg-white/5 border dark:border-white/10 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-500 dark:text-zinc-400 flex items-center justify-center transition-all cursor-pointer`}
-                        title="Expand Vocabulary Breakdown"
+                        title={trans('bilingual.expandTitle')}
                       >
                         {wordsExpanded ? (
                           <ChevronUp className="w-4 h-4" />

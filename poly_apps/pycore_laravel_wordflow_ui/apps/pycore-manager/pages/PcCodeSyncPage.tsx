@@ -17,13 +17,14 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Code2, RefreshCcw, Server, MonitorSmartphone, Radar, Plus, X, Trash2,
   Pencil, Check, Users, Download, Wifi, WifiOff, PauseCircle, FileText, HardDrive,
-  AlertTriangle,
+  AlertTriangle, Filter, RotateCcw, ScrollText, GitBranch,
 } from 'lucide-react';
 import {
   pycoreApi, subscribe, connectPycoreWs, onWsStatus,
 } from '../../../core/api-libs/pycore';
 import type {
   CodeSyncRole, SelfStatus, PeerStatus, CodeSyncCandidate, CodeStats,
+  SyncSettings, SyncLogEntry,
 } from '../../../core/api-libs/pycore';
 import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
 
@@ -55,6 +56,45 @@ function formatBytes(n: number | undefined | null): string {
 
 interface PeerDraft { name: string; host: string; port: string; role: CodeSyncRole; }
 
+/** Small tag/chip editor for a string[] filter list (add via Enter or button). */
+const ChipEditor: React.FC<{
+  label: string; icon: React.ReactNode; items: string[];
+  placeholder: string; onChange: (items: string[]) => void;
+}> = ({ label, icon, items, placeholder, onChange }) => {
+  const [draft, setDraft] = useState('');
+  const add = () => {
+    const v = draft.trim();
+    if (!v || items.includes(v)) { setDraft(''); return; }
+    onChange([...items, v]); setDraft('');
+  };
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+        {icon} {label}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {items.map((it) => (
+          <span key={it} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md text-[11px] font-mono bg-slate-200/70 dark:bg-white/10 text-slate-600 dark:text-slate-300">
+            {it}
+            <button onClick={() => onChange(items.filter((x) => x !== it))}
+              className="text-slate-400 hover:text-rose-500"><X className="w-3 h-3" /></button>
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1">
+          <input value={draft} placeholder={placeholder}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+            className="text-[11px] font-mono bg-white/70 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-md px-2 py-1 w-32 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+          <button onClick={add}
+            className="px-2 py-1 rounded-md bg-indigo-500/15 text-indigo-500 text-[10px] font-bold hover:bg-indigo-500/25 transition">
+            Add
+          </button>
+        </span>
+      </div>
+    </div>
+  );
+};
+
 // Backend-owned peer-mesh snapshot kept alive across navigation/reload by the
 // global task layer. All the discover/add/edit UI below stays page-local.
 interface MeshSnapshot { self: SelfStatus | null; peers: PeerStatus[]; }
@@ -64,6 +104,12 @@ const PcCodeSyncPage: React.FC = () => {
   const [wsConnected, setWsConnected] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // filter settings + sync log
+  const [filters, setFilters] = useState<SyncSettings | null>(null);
+  const [filtersOverridden, setFiltersOverridden] = useState(false);
+  const [filtersDirty, setFiltersDirty] = useState(false);
+  const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>([]);
 
   // Continuous-poll view: snapshot + poll loop live in the global provider above
   // the router (survive navigation; reload re-polls GET /code-sync/peers).
@@ -138,6 +184,53 @@ const PcCodeSyncPage: React.FC = () => {
     return () => { offStatus(); offSync(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // --- filter settings + sync log: load on mount, poll logs every 5s ----- #
+  const loadFilters = useCallback(async () => {
+    try {
+      const r = await pycoreApi.getSyncSettings();
+      if (r?.success) {
+        setFilters((prev) => (filtersDirty && prev ? prev : r.settings));
+        setFiltersOverridden(!!r.overridden);
+      }
+    } catch { /* offline */ }
+  }, [filtersDirty]);
+  const loadLogs = useCallback(async () => {
+    try {
+      const r = await pycoreApi.getSyncLogs(100);
+      if (r?.success && Array.isArray(r.logs)) setSyncLogs(r.logs);
+    } catch { /* offline */ }
+  }, []);
+  useEffect(() => {
+    loadFilters(); loadLogs();
+    const id = window.setInterval(loadLogs, 5000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const mutateList = (key: keyof SyncSettings, items: string[]) => {
+    setFilters((f) => (f ? { ...f, [key]: items } : f));
+    setFiltersDirty(true);
+  };
+  const saveFilters = async () => {
+    if (!filters) return;
+    setBusy(true);
+    try {
+      const r = await pycoreApi.setSyncSettings(filters);
+      if (r?.success) { setFilters(r.settings); setFiltersDirty(false); setFiltersOverridden(true); flash('Filter settings saved'); }
+      else flash(r?.error || 'Request failed');
+    } catch (e: any) { flash(`Request failed: ${e.message}`); }
+    finally { setBusy(false); }
+  };
+  const resetFilters = async () => {
+    setBusy(true);
+    try {
+      const r = await pycoreApi.resetSyncSettings();
+      if (r?.success) { setFilters(r.settings); setFiltersDirty(false); setFiltersOverridden(false); flash('Filters reset to defaults'); }
+      else flash(r?.error || 'Request failed');
+    } catch (e: any) { flash(`Request failed: ${e.message}`); }
+    finally { setBusy(false); }
+  };
 
   const role: CodeSyncRole = self?.role ?? 'dev';
   const distributing = !!self?.distributing;
@@ -303,6 +396,20 @@ const PcCodeSyncPage: React.FC = () => {
       <PauseCircle className="w-3 h-3" /> Skipping
     </span>
   );
+
+  // How the peer is connected (outbound probe vs inbound heartbeat vs both).
+  const viaBadge = (p: PeerStatus) => {
+    if (!p.via) return null;
+    const label = p.via === 'both' ? 'probe + heartbeat' : p.via === 'heartbeat' ? 'via heartbeat' : 'via probe';
+    const cls = p.via === 'heartbeat' ? 'bg-sky-500/15 text-sky-500'
+      : p.via === 'both' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-violet-500/15 text-violet-500';
+    return (
+      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase ${cls}`}>
+        {p.via === 'heartbeat' ? <Radar className="w-3 h-3" /> : <Wifi className="w-3 h-3" />}
+        {label}
+      </span>
+    );
+  };
 
   const peerStatusText = (p: PeerStatus): string => {
     const s: any = p.status || {};
@@ -540,6 +647,7 @@ const PcCodeSyncPage: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-700 dark:text-zinc-200 truncate">{p.name || p.host}</span>
                         {roleBadge(p.role)}
+                        {viaBadge(p)}
                         {p.pending && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-500/15 text-amber-500">
                             Pending
@@ -550,6 +658,9 @@ const PcCodeSyncPage: React.FC = () => {
                       <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
                         <span className="font-mono">{p.host}:{p.port}</span>
                         {!p.reachable && <span>· last seen {relTime(p.last_seen)}</span>}
+                        {p.reachable && p.via === 'heartbeat' && p.last_checkin && (
+                          <span>· last contact {relTime(p.last_checkin)}</span>
+                        )}
                         {peerStatusText(p) && <span>· {peerStatusText(p)}</span>}
                       </div>
                       <div className="text-[11px] mt-0.5">
@@ -568,6 +679,84 @@ const PcCodeSyncPage: React.FC = () => {
                     </div>
                   </>
                 )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Filter settings (code presets + per-machine .data override) */}
+      {filters && (
+        <div className="pc-glass p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
+              <Filter className="w-4 h-4" /> Filter settings
+              {filtersOverridden && (
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-sky-500/15 text-sky-500">.data</span>
+              )}
+            </h3>
+            <div className="flex items-center gap-2">
+              <button onClick={resetFilters} disabled={busy}
+                className="px-3 py-2 pc-glass hover:bg-indigo-500/10 text-xs font-bold rounded-xl flex items-center gap-1 transition disabled:opacity-50 text-slate-700 dark:text-slate-200">
+                <RotateCcw className="w-3.5 h-3.5" /> Reset to defaults
+              </button>
+              <button onClick={saveFilters} disabled={busy || !filtersDirty}
+                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-lg shadow-indigo-600/20 transition disabled:opacity-40">
+                <Check className="w-4 h-4" /> Save
+              </button>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-400 mb-4">
+            Folders / files matching these are never synced or counted. Edits save to this machine only (.data), not the code.
+          </p>
+          <div className="space-y-4">
+            <ChipEditor label="Excluded folders" icon={<Code2 className="w-3.5 h-3.5" />}
+              items={filters.excluded_dirs} placeholder="node_modules"
+              onChange={(v) => mutateList('excluded_dirs', v)} />
+            <ChipEditor label="Excluded files" icon={<FileText className="w-3.5 h-3.5" />}
+              items={filters.excluded_files} placeholder="secret.json"
+              onChange={(v) => mutateList('excluded_files', v)} />
+            <ChipEditor label="Excluded extensions" icon={<HardDrive className="w-3.5 h-3.5" />}
+              items={filters.excluded_extensions} placeholder=".log"
+              onChange={(v) => mutateList('excluded_extensions', v)} />
+            <ChipEditor label="Excluded if path contains" icon={<Filter className="w-3.5 h-3.5" />}
+              items={filters.excluded_path_substrings} placeholder="/cache/"
+              onChange={(v) => mutateList('excluded_path_substrings', v)} />
+          </div>
+          <div className={`${stat} mt-4 flex items-center justify-between gap-4`}>
+            <div className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-zinc-200">
+              <GitBranch className="w-4 h-4 text-violet-500" /> Apply repo .gitignore
+            </div>
+            <button role="switch" aria-checked={filters.apply_gitignore} disabled={busy}
+              onClick={() => { setFilters((f) => (f ? { ...f, apply_gitignore: !f.apply_gitignore } : f)); setFiltersDirty(true); }}
+              className={`relative shrink-0 w-12 h-7 rounded-full transition-colors disabled:opacity-50 ${
+                filters.apply_gitignore ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}>
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                filters.apply_gitignore ? 'translate-x-5' : ''}`} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sync log */}
+      <div className="pc-glass p-6">
+        <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2 mb-3">
+          <ScrollText className="w-4 h-4" /> Sync log
+        </h3>
+        {syncLogs.length === 0 ? (
+          <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-2xl">
+            No recent sync activity
+          </div>
+        ) : (
+          <ul className="space-y-1 max-h-64 overflow-y-auto font-mono text-[11px]">
+            {syncLogs.slice().reverse().map((l, i) => (
+              <li key={i} className="flex items-start gap-2 px-2 py-1 rounded-lg hover:bg-slate-100/60 dark:hover:bg-white/5">
+                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                  l.action === 'error' ? 'bg-rose-500/15 text-rose-500'
+                    : l.action === 'skipped' ? 'bg-amber-500/15 text-amber-500'
+                    : 'bg-emerald-500/15 text-emerald-500'}`}>{l.action || 'sync'}</span>
+                <span className="text-slate-600 dark:text-slate-300 break-all">{l.file_path}</span>
+                {l.reason && <span className="text-slate-400 ml-auto pl-2 shrink-0">{l.reason}</span>}
               </li>
             ))}
           </ul>

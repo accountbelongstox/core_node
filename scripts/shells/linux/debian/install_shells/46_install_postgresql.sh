@@ -637,6 +637,25 @@ setup_postgresql_user() {
     echo "[$SCRIPT_INDEX] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)..."
     run_as_postgres psql -d postgres -c "ALTER USER postgres WITH PASSWORD '$pg_password';"
 
+    # Mirror the password into the app's OWN data dir as well. /var/_core_node may be
+    # outside PHP's open_basedir on panel-style servers, so Laravel reads an empty
+    # secret there and migrate fails with "fe_sendauth: no password supplied" -- while
+    # WSL/desktop (no open_basedir) works. The laravel data dir is always inside
+    # open_basedir and resolves cross-OS via the same path mapper App\Support\
+    # CoreNodeSecrets uses (PathMapper 'laravel_data_dir' == map_web_path "laravel_db").
+    # Idempotent: overwrite every run so it stays in sync with the role password.
+    local secret_mirror_dir secret_mirror_file
+    secret_mirror_dir="$(map_web_path "laravel_db" ".core_node_secrets" 2>/dev/null)"
+    if [ -n "$secret_mirror_dir" ]; then
+        $USE_SUDO mkdir -p "$secret_mirror_dir" 2>/dev/null || mkdir -p "$secret_mirror_dir" 2>/dev/null || true
+        secret_mirror_file="$secret_mirror_dir/POSTGRES_PASSWORD"
+        if printf '%s\n' "$pg_password" | $USE_SUDO tee "$secret_mirror_file" >/dev/null 2>&1 \
+            || printf '%s\n' "$pg_password" > "$secret_mirror_file" 2>/dev/null; then
+            $USE_SUDO chmod 666 "$secret_mirror_file" 2>/dev/null || chmod 666 "$secret_mirror_file" 2>/dev/null || true
+            echo "[$SCRIPT_INDEX] Password mirrored to app data dir (open_basedir-safe): $secret_mirror_file"
+        fi
+    fi
+
     # Restrict to localhost only: listen_addresses=localhost and pg_hba scram auth
     # on 127.0.0.1/::1 (the local Unix socket stays on peer so that admin access
     # via `sudo -u postgres psql` keeps working without a password).

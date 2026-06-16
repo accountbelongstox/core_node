@@ -16,6 +16,7 @@ import type {
   VideoExtractCapabilities, PickPathResult, VideoExtractSegmentsResponse,
   SystemResourcesResponse, VideoExtractOpenKind, VideoExtractOpenResponse,
   CodeSyncRole, CodeSyncPeersResponse, CodeSyncCandidate,
+  SyncSettings, SyncSettingsResponse, SyncLogEntry,
   AutostartStatus, AiProbeResponse, AiProvider, AiBalance, AiBalanceResponse, AiRateLimitsResponse, AiChatMessage, AiChatResponse, AiGatewayStatus,
   AiUsageResponse,
   AiImageResponse, ImageHistoryResponse, ImageHistoryClearResponse, ImageHistoryDeleteResponse,
@@ -367,6 +368,18 @@ export const pycoreApi = {
   discoverPeers: () =>
     postJSON<{ success: boolean; candidates: CodeSyncCandidate[]; error?: string }>(
       '/pyapi/code-sync/discover', {}),
+
+  // --- code sync filter settings (presets + per-machine .data override) --- #
+  getSyncSettings: () => getJSON<SyncSettingsResponse>('/pyapi/code-sync/settings'),
+  setSyncSettings: (patch: Partial<SyncSettings>) =>
+    postJSON<{ success: boolean; settings: SyncSettings; error?: string }>(
+      '/pyapi/code-sync/settings', patch),
+  resetSyncSettings: () =>
+    postJSON<{ success: boolean; settings: SyncSettings; error?: string }>(
+      '/pyapi/code-sync/settings/reset', {}),
+  getSyncLogs: (limit = 100) =>
+    getJSON<{ success: boolean; role: CodeSyncRole; logs: SyncLogEntry[] }>(
+      `/pyapi/code-sync/logs?limit=${limit}`),
 
   // --- AI provider catalog (NO network test — cheap, never spends quota) --- #
   // Renders the grid on page load; live availability is tested on demand only.
