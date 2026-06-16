@@ -28,6 +28,7 @@ import WfAddToLibrarySheet, {
   type WfAddToLibraryContent,
 } from '../components/WfAddToLibrarySheet';
 import type { WordGroup } from '../../../core/api-libs/wordflow/wordflowTypes';
+import { motion } from 'framer-motion';
 
 /** Library cover chip with graceful fallback to the book icon on load failure. */
 const LibraryCoverChip: React.FC<{ src: string | null | undefined; alt: string }> = ({ src, alt }) => {
@@ -254,19 +255,30 @@ const WfDashboardHomePage: React.FC = () => {
     <div className="ds-page ds-section-gap route-fade pt-16 pb-32">
       {/* Welcome — app hero greeting + streak chip */}
       <div className="flex items-end justify-between gap-3 px-1 pt-1">
-        <div className="min-w-0">
+        <motion.div
+          initial={{ opacity: 0, x: -12 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4 }}
+          className="min-w-0"
+        >
           <span className="text-sm font-semibold text-[var(--color-text-secondary)]">
             {user ? t('home.startLearning') : t('home.guestMode')}
           </span>
-          <h1 className="text-[2.1rem] leading-[1.05] font-black tracking-tight mt-0.5 text-[var(--color-text-primary)]">
+          <h1 className="text-[2.1rem] leading-[1.05] font-black tracking-tight mt-0.5 text-[var(--color-text-primary)] bg-gradient-to-r from-[var(--color-text-primary)] to-[var(--color-text-secondary)] bg-clip-text text-transparent">
             {user ? `${t('home.hiUser').replace('{name}', getUserDisplayName())}` : t('home.welcomeGuest')}
           </h1>
-        </div>
+        </motion.div>
         {user && displayStreak > 0 && (
-          <div className="shrink-0 flex items-center gap-1.5 rounded-full px-3 py-2 ds-glass ds-glass-edge">
-            <Flame className="w-4 h-4 text-orange-500" aria-hidden />
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', damping: 12 }}
+            whileHover={{ scale: 1.05, y: -1 }}
+            className="shrink-0 flex items-center gap-1.5 rounded-full px-3 py-2 ds-glass ds-glass-edge shadow-md"
+          >
+            <Flame className="w-4 h-4 text-orange-500 animate-pulse" aria-hidden />
             <span className="text-sm font-black text-[var(--color-text-primary)]">{displayStreak}</span>
-          </div>
+          </motion.div>
         )}
       </div>
 
@@ -276,8 +288,9 @@ const WfDashboardHomePage: React.FC = () => {
           { id: 'today', label: t('home.startLearning') || 'Today' },
           { id: 'recommended', label: t('home.recommended') || 'Recommended' },
         ] as const).map((item) => (
-          <button
+          <motion.button
             key={item.id}
+            whileTap={{ scale: 0.96 }}
             type="button"
             role="tab"
             aria-selected={homeFilter === item.id}
@@ -285,14 +298,19 @@ const WfDashboardHomePage: React.FC = () => {
             className={`ds-pill-chip ${homeFilter === item.id ? 'is-active' : ''}`}
           >
             {item.label}
-          </button>
+          </motion.button>
         ))}
       </div>
 
       {/* Language bar — sleek glass pill */}
-      <button
+      <motion.button
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        whileHover={{ y: -2, scale: 1.005 }}
+        whileTap={{ scale: 0.99 }}
         onClick={() => navigate(wfPath('settings_lang'))}
-        className="ds-glass ds-glass-edge w-full flex items-center justify-between gap-3 pl-3 pr-2.5 py-2.5 rounded-full text-left active:scale-[0.99] transition-transform"
+        className="ds-glass ds-glass-edge w-full flex items-center justify-between gap-3 pl-3 pr-2.5 py-2.5 rounded-full text-left transition-all cursor-pointer"
       >
         <div className="min-w-0 flex-1">
           <div className="text-[9px] font-bold text-[var(--color-text-tertiary)] uppercase tracking-wide leading-none mb-0.5">
@@ -302,10 +320,10 @@ const WfDashboardHomePage: React.FC = () => {
             {learningLanguage}
           </div>
         </div>
-        <span className="ds-fab-grad flex-shrink-0 w-9 h-9 [&_svg]:w-4 [&_svg]:h-4" aria-hidden>
+        <span className="ds-fab-grad flex-shrink-0 w-9 h-9 [&_svg]:w-4 [&_svg]:h-4 shadow-lg" aria-hidden>
           <Icons.Settings />
         </span>
-      </button>
+      </motion.button>
 
       {/* Recommended libraries */}
       {homeFilter === 'recommended' && (
@@ -322,16 +340,20 @@ const WfDashboardHomePage: React.FC = () => {
             </div>
           ) : recommended.length > 0 ? (
             <div
-              className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1"
+              className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2 pt-1"
               style={{ marginInline: 'calc(var(--page-padding-h) * -1)', paddingInline: 'var(--page-padding-h)' }}
             >
-              {recommended.map((library) => (
+              {recommended.map((library, idx) => (
                 // No public-library detail surface exists (the vocabulary_library
                 // route is a GROUP page), so the card body is non-navigating; the
                 // "+" (real library id → WfAddToLibrarySheet) is the action.
-                <div
+                <motion.div
                   key={library.id}
-                  className="snap-start shrink-0 w-44 ds-card !p-4 text-left flex flex-col gap-3 relative"
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ delay: idx * 0.04, type: 'spring', damping: 20 }}
+                  whileHover={{ y: -4, scale: 1.02 }}
+                  className="snap-start shrink-0 w-44 ds-card !p-4 text-left flex flex-col gap-3 relative transition-all"
                 >
                   <LibraryCoverChip src={library.image_url} alt={library.name} />
                   <div className="min-w-0 flex-1">
@@ -360,13 +382,13 @@ const WfDashboardHomePage: React.FC = () => {
                         setAddSheetContent({ kind: 'library', id: library.id, name: library.name })
                       );
                     }}
-                    className="ds-glass ds-glass-edge absolute top-2 right-2 w-8 h-8 rounded-full shadow-md flex items-center justify-center text-[color:var(--klein-blue)] hover:bg-[color:var(--klein-blue)] hover:text-[color:var(--klein-on)] transition-all active:scale-95"
+                    className="ds-glass ds-glass-edge absolute top-2 right-2 w-8 h-8 rounded-full shadow-md flex items-center justify-center text-[color:var(--klein-blue)] hover:bg-[color:var(--klein-blue)] hover:text-[color:var(--klein-on)] transition-all active:scale-95 cursor-pointer"
                     title={t('home.selectStudyGroup') || 'Add to group'}
                     aria-label={t('home.selectStudyGroup') || 'Add to group'}
                   >
                     <Plus className="w-4 h-4" aria-hidden />
                   </button>
-                </div>
+                </motion.div>
               ))}
             </div>
           ) : (
@@ -418,9 +440,13 @@ const WfDashboardHomePage: React.FC = () => {
                   language: s.language,
                   counts: `${s.segment_count} ${t('media.segments') || 'segments'} · ${s.sentence_count} ${t('media.sentences') || 'sentences'}`,
                 })),
-              ].map((item) => (
-                <div
+              ].map((item, idx) => (
+                <motion.div
                   key={`${item.kind}-${item.id}`}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.04 }}
+                  whileHover={{ y: -3, scale: 1.005 }}
                   onClick={() => navigate(wfPath(`library/media?type=${item.kind}&id=${encodeURIComponent(String(item.id))}`))}
                   className="ds-row flex items-center justify-between p-4 cursor-pointer group"
                 >
@@ -458,13 +484,13 @@ const WfDashboardHomePage: React.FC = () => {
                         })
                       );
                     }}
-                    className="ds-glass ds-glass-edge w-9 h-9 rounded-full shadow-md flex items-center justify-center text-[color:var(--klein-blue)] hover:bg-[color:var(--klein-blue)] hover:text-[color:var(--klein-on)] transition-all active:scale-95 flex-shrink-0"
+                    className="ds-glass ds-glass-edge w-9 h-9 rounded-full shadow-md flex items-center justify-center text-[color:var(--klein-blue)] hover:bg-[color:var(--klein-blue)] hover:text-[color:var(--klein-on)] transition-all active:scale-95 flex-shrink-0 cursor-pointer"
                     title={t('media.addToLibrary') || 'Add to library'}
                     aria-label={t('media.addToLibrary') || 'Add to library'}
                   >
                     <Plus className="w-4 h-4" aria-hidden />
                   </button>
-                </div>
+                </motion.div>
               ))}
             </div>
           )}
@@ -482,13 +508,15 @@ const WfDashboardHomePage: React.FC = () => {
           />
 
           {/* Daily Recitation (每日背诵) — compact CTA chip into the recite flow */}
-          <button
+          <motion.button
+            whileHover={{ y: -3, scale: 1.005 }}
+            whileTap={{ scale: 0.99 }}
             type="button"
             onClick={() => navigate(wfPath('learn/daily_recitation'))}
-            className="ds-row w-full flex items-center gap-3 p-3 mb-3 text-left group active:scale-[0.99] transition-transform"
+            className="ds-row w-full flex items-center gap-3 p-3 mb-3 text-left group transition-all"
           >
             <div className="w-9 h-9 rounded-xl bg-[var(--klein-blue-soft)] flex items-center justify-center text-[var(--klein-blue)] flex-shrink-0">
-              <CalendarCheck className="w-5 h-5" aria-hidden />
+              <CalendarCheck className="w-5 h-5 animate-pulse" aria-hidden />
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-sm font-bold text-[var(--color-text-primary)] group-hover:text-[var(--klein-blue)] transition-colors">
@@ -502,34 +530,39 @@ const WfDashboardHomePage: React.FC = () => {
             </div>
             {displayStreak > 0 && (
               <span className="shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 bg-orange-500/10 text-orange-500 text-xs font-black">
-                <Flame className="w-3.5 h-3.5" aria-hidden />
+                <Flame className="w-3.5 h-3.5 text-orange-500" aria-hidden />
                 {displayStreak}
               </span>
             )}
             <ChevronRight className="w-4 h-4 text-[var(--color-text-tertiary)] group-hover:text-[var(--klein-blue)] transition-colors flex-shrink-0" aria-hidden />
-          </button>
+          </motion.button>
           {loadingDaily ? (
             <div className="ds-card flex items-center justify-center p-6">
               <Spinner size="sm" />
             </div>
           ) : dailyWords.length > 0 ? (
             <div
-              className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-1"
+              className="flex gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2 pt-1"
               style={{ marginInline: 'calc(var(--page-padding-h) * -1)', paddingInline: 'var(--page-padding-h)' }}
             >
               {dailyWords.map((word, index) => (
-                <button
+                <motion.button
                   key={word.id || index}
                   type="button"
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  transition={{ delay: index * 0.04, type: 'spring', damping: 20 }}
+                  whileHover={{ y: -4, scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => navigate(wfPath(`word_detail?wordId=${encodeURIComponent(word.id ?? '')}`))}
-                  className="snap-start shrink-0 w-40 ds-card !p-4 text-left flex flex-col gap-3 active:scale-[0.97] transition-transform"
+                  className="snap-start shrink-0 w-40 ds-card !p-4 text-left flex flex-col gap-3 transition-all cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
                     <div className="w-11 h-11 rounded-2xl bg-[var(--klein-blue-soft)] flex items-center justify-center shadow-inner border border-white/40 text-[var(--klein-blue)]">
                       <Pencil className="w-5 h-5" aria-hidden />
                     </div>
                     {index === 0 && (
-                      <span className="px-2 py-0.5 text-[9px] font-bold bg-yellow-100 text-yellow-700 rounded-full">
+                      <span className="px-2 py-0.5 text-[9px] font-bold bg-yellow-100 text-yellow-700 rounded-full animate-bounce">
                         {t('home.new') || 'NEW'}
                       </span>
                     )}
@@ -542,7 +575,7 @@ const WfDashboardHomePage: React.FC = () => {
                       {word.translation || word.meaning || t('home.noTranslation') || 'No translation'}
                     </div>
                   </div>
-                </button>
+                </motion.button>
               ))}
             </div>
           ) : (

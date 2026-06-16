@@ -28,7 +28,7 @@ function safeRemove(key: string): void {
 function endFromPath(pathname: string): EndId {
   if (pathname.startsWith('/laravel-manager')) return 'laravel-manager';
   if (pathname.startsWith('/pycore-manager')) return 'pycore-manager';
-  if (pathname.startsWith('/wordflow')) return 'wordflow';
+  if (pathname.startsWith('/wordflow') || pathname.startsWith('/wordnew')) return 'wordflow';
   return 'home';
 }
 

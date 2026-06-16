@@ -197,6 +197,10 @@ function resolveWsUrl(): string {
   // a local (same-machine) service. When the API endpoint points at a remote
   // server, pycore features still require the local pycore service.
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const isSandbox = location.hostname.includes('asia-southeast1.run.app') || location.hostname.includes('run.app') || location.port === '3000';
+  if (isSandbox) {
+    return `${proto}://${location.host}/pyapi/rpc/ws`;
+  }
   return `${proto}://${location.hostname}:59000/rpc/ws`;
 }
 

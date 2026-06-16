@@ -240,8 +240,12 @@ export const pycoreApi = {
   // REST base is always the /pyapi proxy (same convention as PycoreWs).
   getRuntime: (): Promise<RuntimeInfo> => {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const isSandbox = location.hostname.includes('asia-southeast1.run.app') || location.hostname.includes('run.app') || location.port === '3000';
+    const wsUrl = isSandbox
+      ? `${proto}://${location.host}/pyapi/rpc/ws`
+      : `${proto}://${location.hostname}:59000/rpc/ws`;
     return Promise.resolve({
-      wsUrl: `${proto}://${location.hostname}:59000/rpc/ws`,
+      wsUrl,
       apiBase: '/pyapi',
     });
   },

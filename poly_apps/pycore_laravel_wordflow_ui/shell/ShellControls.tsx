@@ -8,8 +8,8 @@
  * Apps / Home / Laravel Manager / theme / language when this panel is open.
  */
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, Home, Bot, Sun, Moon, Languages, Palette, X } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { LayoutGrid, Home, Bot, Sun, Moon, Languages, Palette, X, Sparkles } from 'lucide-react';
 import { useShell } from './ShellContext';
 import { END_META, SHELL_LANGUAGES, ThemeId } from './shellTypes';
 import {
@@ -19,6 +19,7 @@ import {
 
 export const ShellControls: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { end, dark, toggleDark, lang, setLang, themeOverride, setThemeOverride, openChat } = useShell();
   const [open, setOpen] = useState(false);
 
@@ -62,12 +63,19 @@ export const ShellControls: React.FC = () => {
               <button
                 key={id}
                 onClick={() => { navigate(END_META[id].path); setOpen(false); }}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 ${end === id ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-200'}`}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 ${(end === id && !location.pathname.startsWith('/wordnew')) ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-200'}`}
               >
                 <span className="w-4 h-4 rounded-full" style={{ background: 'var(--shell-accent, #6366f1)' }} />
                 {END_META[id].label}
               </button>
             ))}
+            <button
+              onClick={() => { navigate('/wordnew'); setOpen(false); }}
+              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 ${location.pathname.startsWith('/wordnew') ? 'text-fuchsia-600 dark:text-fuchsia-400 font-bold' : 'text-slate-700 dark:text-slate-200'}`}
+            >
+              <span className="w-4 h-4 rounded-full bg-gradient-to-tr from-fuchsia-400 to-indigo-500 animate-pulse animate-duration-1000" />
+              WordNew 🚀
+            </button>
           </div>
 
           <div className="h-px bg-slate-200 dark:bg-slate-700" />

@@ -50,6 +50,12 @@ function diag(level: string, message: string) {
 
 function resolveSseUrl(): string {
   const proto = location.protocol === 'https:' ? 'https' : 'http';
+  const isSandbox = location.hostname.includes('asia-southeast1.run.app') || location.hostname.includes('run.app') || location.port === '3000';
+  if (isSandbox) {
+    let url = `${proto}://${location.host}/pyapi/rpc/sse?client_id=${encodeURIComponent(getClientId())}`;
+    if (lastSeq !== null) url += `&since=${encodeURIComponent(String(lastSeq))}`;
+    return url;
+  }
   let url = `${proto}://${location.hostname}:59000/rpc/sse?client_id=${encodeURIComponent(getClientId())}`;
   if (lastSeq !== null) url += `&since=${encodeURIComponent(String(lastSeq))}`;
   return url;
