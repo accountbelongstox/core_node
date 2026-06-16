@@ -75,7 +75,8 @@
 # PySide6 via PYCORE_UI_URL. Backend is unchanged: rpc_v2 on :59000, a /pyapi
 # reverse proxy, and a direct ws://host:59000/rpc/ws log stream (a global floating
 # collapsible log panel is present on every pycore page). The old standalone React
-# app pycore/pyctl/desktop/desktop-manager (dev server :15654) is superseded/legacy.
+# app pycore/pyctl/desktop/desktop-manager (dev server :15654) was superseded by the
+# unified shell (poly_apps/pycore_laravel_wordflow_ui) and has been removed.
 # Headless Linux (no Node / no display): only the legacy in-process /web/subtitle
 # page is served and no Qt window/tray is created (those are Windows-only), so the
 # worker is effectively an RPC server - configure it with `pyservice config ...`.

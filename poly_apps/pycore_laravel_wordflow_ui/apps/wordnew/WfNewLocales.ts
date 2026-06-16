@@ -212,7 +212,8 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'bilingual.specimens': 'Syntactic Specimens ({n} cases)',
     'bilingual.specimen': 'Specimen #{n}',
     'bilingual.playTitle': 'Start dual-contrast pronunciation',
-    'bilingual.expandTitle': 'Expand vocabulary breakdown'
+    'bilingual.expandTitle': 'Expand vocabulary breakdown',
+    'bilingual.lexAnalysis': 'Lexical Analysis'
   },
   zh: {
     'nav.home': '智能主控台',
@@ -421,7 +422,8 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'bilingual.specimens': '句法样本（{n} 例）',
     'bilingual.specimen': '样本 #{n}',
     'bilingual.playTitle': '开始双语对照朗读',
-    'bilingual.expandTitle': '展开词汇详解'
+    'bilingual.expandTitle': '展开词汇详解',
+    'bilingual.lexAnalysis': '词汇剖析'
   },
   ja: {
     'nav.home': 'ダッシュボード',
@@ -630,7 +632,8 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'bilingual.specimens': '構文サンプル（{n} 件）',
     'bilingual.specimen': 'サンプル #{n}',
     'bilingual.playTitle': '二言語対照の発音を開始',
-    'bilingual.expandTitle': '語彙の内訳を展開'
+    'bilingual.expandTitle': '語彙の内訳を展開',
+    'bilingual.lexAnalysis': '語彙分析'
   },
   ko: {
     'nav.home': '대시보드',
@@ -839,7 +842,8 @@ export const LOCALES: Record<string, Record<string, string>> = {
     'bilingual.specimens': '구문 샘플 ({n}개)',
     'bilingual.specimen': '샘플 #{n}',
     'bilingual.playTitle': '이중 대조 발음 시작',
-    'bilingual.expandTitle': '어휘 분석 펼치기'
+    'bilingual.expandTitle': '어휘 분석 펼치기',
+    'bilingual.lexAnalysis': '어휘 분석'
   }
 };
 
@@ -883,8 +887,4 @@ export function translate(
   let value = LOCALES[code]?.[key] ?? LOCALES.en[key] ?? key;
   if (replacements) {
     Object.entries(replacements).forEach(([k, v]) => {
-      value = value.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
-    });
-  }
-  return value;
-}
+      value = value.replace(new RegExp(`\\{${k}\\}`, 'g

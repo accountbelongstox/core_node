@@ -116,7 +116,8 @@
 #   PYCORE_UI_URL. Backend is rpc_v2 on :59000 with a /pyapi reverse proxy and a
 #   direct ws://host:59000/rpc/ws log stream (a global floating collapsible log
 #   panel is on every pycore page). The old standalone React app
-#   pycore\pyctl\desktop\desktop-manager (dev server :15654) is superseded/legacy.
+#   pycore\pyctl\desktop\desktop-manager (dev server :15654) was superseded by the
+#   unified shell (poly_apps\pycore_laravel_wordflow_ui) and has been removed.
 #   -NoUi falls back to the legacy in-process /web/subtitle page.
 # --------------------------------------------------------------------------- #
 [CmdletBinding()]
