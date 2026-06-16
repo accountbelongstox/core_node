@@ -167,18 +167,19 @@ class CodeSyncManager:
                 time.sleep(0.5)
 
     def _compute_code_stats(self) -> Dict[str, Any]:
-        """Count files / total bytes / newest mtime of the synced tree (excluded
-        dirs/extensions/files match the file-sync), so the UI can show how much
-        code each end holds and when it last changed."""
+        """Count files / total bytes / newest mtime of the synced tree, applying the
+        SAME live filter settings as the file-sync (excluded dirs/files/extensions/
+        path-substrings + optional .gitignore), so the UI's code stats reflect what
+        would actually be distributed."""
+        from .sync_settings import build_excluder
         files = 0
         total = 0
         latest = 0.0
-        ed = CodeSyncServer.EXCLUDED_DIRS
-        ee = tuple(CodeSyncServer.EXCLUDED_EXTENSIONS)  # str.endswith accepts a tuple
-        ef = getattr(CodeSyncServer, "EXCLUDED_FILES", set())
+        root = get_core_node_root()
+        excluder = build_excluder(root)
         # Iterative os.scandir walk: DirEntry.stat() reuses the directory listing's
         # metadata on Windows, avoiding a separate stat() syscall per file.
-        stack = [str(get_core_node_root())]
+        stack = [str(root)]
         while stack:
             d = stack.pop()
             try:
@@ -186,10 +187,10 @@ class CodeSyncManager:
                     for e in it:
                         try:
                             if e.is_dir(follow_symlinks=False):
-                                if e.name not in ed:
+                                if not excluder.dir_excluded(e.name, e.path):
                                     stack.append(e.path)
                             else:
-                                if e.name in ef or e.name.endswith(ee):
+                                if excluder.file_excluded(e.name, e.path):
                                     continue
                                 st = e.stat(follow_symlinks=False)
                                 files += 1
