@@ -13,7 +13,7 @@ codebase**:
   from its FastAPI app. Same implementation, same committed peer file.
 
 Behaviour is unchanged from the previous `device_sync/code_sync_*` modules — see
-`../device_sync/CODE_SYNC_MESH.md` for the model and `../device_sync/CODESYNC_LITE_DESIGN.md`
+`../device_sync/docs/CODE_SYNC_MESH.md` for the model and `../device_sync/docs/CODESYNC_LITE_DESIGN.md`
 for the extraction architecture.
 
 ## CLI

@@ -118,6 +118,27 @@ PANEL_HTML = r"""<!doctype html>
       <button class="primary" onclick="addPeer()">+ Add</button>
     </div>
   </div>
+
+  <div class="card">
+    <div class="row">
+      <strong>Filter settings <span class="badge b-heartbeat" id="filters-src" style="display:none">.data</span></strong>
+      <div class="actions">
+        <button onclick="resetFilters()">↺ Reset to defaults</button>
+        <button class="primary" id="filters-save" onclick="saveFilters()" disabled>✓ Save</button>
+      </div>
+    </div>
+    <div class="sub" style="margin:4px 0 10px">Folders / files matching these are never synced or counted. Edits save to this machine only (.data), not the code.</div>
+    <div id="filters-body" class="muted">loading…</div>
+    <div class="row" style="margin-top:12px">
+      <span class="toggle"><span>Apply repo .gitignore</span></span>
+      <button class="switch" id="gi-switch" onclick="toggleGitignore()"><i></i></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>Sync log</strong>
+    <ul id="synclog" style="max-height:260px;overflow:auto;margin-top:10px"></ul>
+  </div>
 </div>
 
 <script>
@@ -190,6 +211,70 @@ async function load(){
   setConn(true);
   $('#ver').textContent = d.version;
   renderSelf(d.self); renderPeers(d.peers || []);
+  loadFilters(); loadLogs();
+}
+
+// ---- filter settings ----
+let FILTERS = null, FILTERS_DIRTY = false;
+const FKEYS = [
+  ['excluded_dirs','Excluded folders','node_modules'],
+  ['excluded_files','Excluded files','secret.json'],
+  ['excluded_extensions','Excluded extensions','.log'],
+  ['excluded_path_substrings','Excluded if path contains','/cache/'],
+];
+async function loadFilters(){
+  const d = await api('/code-sync/settings');
+  if(!d || !d.success) return;
+  if(!FILTERS_DIRTY) FILTERS = d.settings;
+  $('#filters-src').style.display = d.overridden ? '' : 'none';
+  renderFilters();
+}
+function renderFilters(){
+  if(!FILTERS) return;
+  $('#filters-body').innerHTML = FKEYS.map(function(f){
+    const key=f[0], label=f[1], ph=f[2], items=FILTERS[key]||[];
+    const chips = items.map(function(it,idx){
+      return '<span class="badge" style="background:#1e293b;color:#cbd5e1;font-family:monospace;text-transform:none">'
+        + esc(it) + ' <a href="#" onclick="rmChip(\''+key+'\','+idx+');return false" style="color:#94a3b8;text-decoration:none">×</a></span>';
+    }).join(' ');
+    return '<div style="margin-bottom:10px"><div class="muted" style="font-size:11px;text-transform:uppercase;margin-bottom:4px">'+label
+      + '</div><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">' + chips
+      + '<input id="chip-'+key+'" placeholder="'+ph+'" style="width:140px" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addChip(\''+key+'\')}">'
+      + '<button onclick="addChip(\''+key+'\')">+ Add</button></div></div>';
+  }).join('');
+  $('#gi-switch').className = 'switch' + (FILTERS.apply_gitignore ? ' on' : '');
+  $('#filters-save').disabled = !FILTERS_DIRTY;
+}
+function addChip(key){
+  const el = document.getElementById('chip-'+key); const v=(el.value||'').trim();
+  if(v){ if(!FILTERS[key]) FILTERS[key]=[]; if(FILTERS[key].indexOf(v)<0){ FILTERS[key]=FILTERS[key].concat([v]); FILTERS_DIRTY=true; } }
+  el.value=''; renderFilters();
+}
+function rmChip(key, idx){ (FILTERS[key]||[]).splice(idx,1); FILTERS_DIRTY=true; renderFilters(); }
+function toggleGitignore(){ if(!FILTERS) return; FILTERS.apply_gitignore=!FILTERS.apply_gitignore; FILTERS_DIRTY=true; renderFilters(); }
+async function saveFilters(){
+  if(!FILTERS) return;
+  const d = await api('/code-sync/settings', FILTERS);
+  if(d && d.success){ FILTERS=d.settings; FILTERS_DIRTY=false; $('#filters-src').style.display=''; renderFilters(); }
+}
+async function resetFilters(){
+  const d = await api('/code-sync/settings/reset', {});
+  if(d && d.success){ FILTERS=d.settings; FILTERS_DIRTY=false; $('#filters-src').style.display='none'; renderFilters(); }
+}
+
+// ---- sync log ----
+async function loadLogs(){
+  const d = await api('/code-sync/logs?limit=100');
+  const ul = $('#synclog');
+  if(!d || !d.success || !d.logs || !d.logs.length){ ul.innerHTML = '<li class="muted" style="padding:8px">No recent sync activity</li>'; return; }
+  ul.innerHTML = d.logs.slice().reverse().map(function(l){
+    const a = l.action || 'sync';
+    const cls = (a==='error'||a==='skipped') ? 'b-pending' : 'b-both';
+    return '<li class="peer" style="font-family:monospace;font-size:11px;padding:6px 10px">'
+      + '<span class="badge '+cls+'">'+esc(a)+'</span>'
+      + '<span class="grow" style="margin-left:8px">'+esc(l.file_path||'')+'</span>'
+      + (l.reason ? '<span class="muted">'+esc(l.reason)+'</span>' : '') + '</li>';
+  }).join('');
 }
 async function setRole(r){ await api('/code-sync/role', {role:r}); load(); }
 async function toggleDistribute(on){ await api('/code-sync/distribute', {enabled:on}); load(); }
