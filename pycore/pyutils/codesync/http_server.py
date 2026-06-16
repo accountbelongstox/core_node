@@ -278,6 +278,17 @@ class _Handler(BaseHTTPRequestHandler):
                     return self._send_json({"role": "client", "distributing": False, "error": str(exc)})
             if path == "/code-sync/peers":
                 return self._send_json(_manager().get_peers())
+            if path == "/code-sync/settings":
+                return self._send_json(_manager().get_sync_settings())
+            if path == "/code-sync/logs":
+                limit = 100
+                try:
+                    from urllib.parse import urlparse, parse_qs
+                    q = parse_qs(urlparse(self.path).query)
+                    limit = int((q.get("limit") or ["100"])[0])
+                except Exception:
+                    pass
+                return self._send_json(_manager().get_sync_logs(limit))
             return self._send_json({"detail": "Not found"}, status=404)
         except Exception as exc:
             return self._send_json({"detail": str(exc)}, status=500)
@@ -300,6 +311,10 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/code-sync/peer/heartbeat":
             src = self.client_address[0] if self.client_address else None
             return self._send_json(m.receive_heartbeat(body, src))
+        if path == "/code-sync/settings":
+            return self._send_json(m.set_sync_settings(body))
+        if path == "/code-sync/settings/reset":
+            return self._send_json(m.reset_sync_settings())
         if path == "/code-sync/peers/add":
             return self._send_json(m.add_peer(
                 body.get("name", ""), body.get("host", ""),

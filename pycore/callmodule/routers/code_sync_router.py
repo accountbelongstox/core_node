@@ -235,6 +235,43 @@ async def get_peers():
     return get_code_sync_manager().get_peers()
 
 
+@router.get("/settings")
+async def get_sync_settings():
+    """Filter settings (excluded dirs/files/extensions/path-substrings + gitignore):
+    code presets overlaid by the per-machine .data override."""
+    from pycore.pyutils.codesync import get_code_sync_manager
+
+    return get_code_sync_manager().get_sync_settings()
+
+
+@router.post("/settings")
+async def set_sync_settings(request: Request):
+    """Update filter settings; the patch is written to the per-machine override."""
+    from pycore.pyutils.codesync import get_code_sync_manager
+
+    try:
+        patch = await request.json()
+    except Exception:
+        patch = {}
+    return get_code_sync_manager().set_sync_settings(patch or {})
+
+
+@router.post("/settings/reset")
+async def reset_sync_settings():
+    """Drop the per-machine override -> back to the code presets."""
+    from pycore.pyutils.codesync import get_code_sync_manager
+
+    return get_code_sync_manager().reset_sync_settings()
+
+
+@router.get("/logs")
+async def get_sync_logs(limit: int = 100):
+    """Recent sync activity for the UI log panel."""
+    from pycore.pyutils.codesync import get_code_sync_manager
+
+    return get_code_sync_manager().get_sync_logs(limit)
+
+
 @router.post("/peers/add")
 async def add_peer(request: PeerAddRequest):
     """Add a peer to the committed config (replicated across the mesh)."""
