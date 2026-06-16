@@ -327,8 +327,25 @@ def _tmdb_find(title: str, year: Optional[int], language: str) -> Optional[Dict[
 # --------------------------------------------------------------------------- #
 # OMDB                                                                         #
 # --------------------------------------------------------------------------- #
+# OMDB answers HTTP 401 for exactly two unrecoverable conditions, distinguished
+# only by the JSON ``Error`` field:
+#   * "Invalid API key!"      -> the key is wrong or was never activated (free
+#                                keys must be activated via the emailed link).
+#   * "Request limit reached!" -> the daily quota is spent (free tier = 1000/day).
+# Neither recovers within a run, yet a batch keeps one OMDB call per poster — so
+# a single 401 would otherwise burn the rest of the run (and more quota) for
+# nothing. Latch a process-wide disable on the first 401 (mirrors the AI
+# gateway's 429 cooldown) and short-circuit every later OMDB lookup.
+_omdb_disabled_reason: Optional[str] = None
+_omdb_lock = threading.Lock()
+
+
 def _omdb_find(title: str, year: Optional[int]) -> Optional[Dict[str, Any]]:
     """Query OMDB (?apikey=&t=&y=) and build the poster result object, or None."""
+    global _omdb_disabled_reason
+    if _omdb_disabled_reason is not None:
+        return None
+
     api_key = get_secret_key_indexed("OMDB_API_KEY")
     if not api_key:
         return None
@@ -340,7 +357,25 @@ def _omdb_find(title: str, year: Optional[int]) -> Optional[Dict[str, Any]]:
         requests = get_third_package_requests()
         resp = requests.get(OMDB_URL, params=params, timeout=_HTTP_TIMEOUT)
         if resp.status_code != 200:
-            ColorPrint.yellow(f"[MoviePoster] OMDB HTTP {resp.status_code}")
+            # Pull OMDB's reason out of the body (it 401s with a JSON Error).
+            detail = ""
+            try:
+                detail = (resp.json() or {}).get("Error") or ""
+            except Exception:  # noqa: BLE001 - body may not be JSON
+                detail = (resp.text or "").strip()[:160]
+            if resp.status_code == 401:
+                with _omdb_lock:
+                    if _omdb_disabled_reason is None:
+                        _omdb_disabled_reason = detail or "HTTP 401"
+                ColorPrint.yellow(
+                    f"[MoviePoster] OMDB HTTP 401 ({detail or 'unauthorized'}); "
+                    "disabling OMDB for this run — verify OMDB_API_KEY is valid and "
+                    "activated, and that the daily request limit (free tier = "
+                    "1000/day) is not exhausted")
+            else:
+                ColorPrint.yellow(
+                    f"[MoviePoster] OMDB HTTP {resp.status_code}"
+                    + (f" ({detail})" if detail else ""))
             return None
         data = resp.json() or {}
     except Exception as exc:  # noqa: BLE001 - best-effort
