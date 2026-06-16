@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Inter:wght@400;600;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Syncopate", sans-serif;
+  
+  --color-night-black: #050505;
+  --color-neon-purple: #BC13FE;
+  --color-neon-pink: #FF00E4;
+  --color-neon-cyan: #00F3FF;
+  --color-brand-border: #1A1A1A;
+}
+
+@layer base {
+  body {
+    @apply bg-night-black text-white font-sans;
+  }
+}
+
+/* Page simulation */
+.doc-page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm;
+  margin: 2rem auto;
+  background: #0A0A0A;
+  border: 1px solid #1A1A1A;
+  position: relative;
+  box-shadow: 0 40px 100px -20px rgba(188, 19, 254, 0.1);
+}
+
+/* Print/Export optimizations */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .doc-page {
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: white !important;
+    color: black !important;
+  }
+  .neon-text {
+    color: black !important;
+    text-shadow: none !important;
+  }
+}
+
+.neon-text-purple {
+  text-shadow: 0 0 10px rgba(188, 19, 254, 0.5), 0 0 20px rgba(188, 19, 254, 0.3);
+}
+
+.neon-border-purple {
+  border-color: #BC13FE;
+  box-shadow: 0 0 15px rgba(188, 19, 254, 0.2);
+}

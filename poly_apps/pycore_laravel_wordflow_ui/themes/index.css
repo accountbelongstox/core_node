@@ -113,3 +113,32 @@ html.dark select:not([multiple]):not([size]) {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.7);
 }
+
+/* WfNewApp 3D flip card support */
+.perspective {
+  perspective: 1000px;
+}
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* WfNewApp radial custom atmospheres glows */
+.bg-radial-purple {
+  background: radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+}
+.bg-radial-mint {
+  background: radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+}
+.bg-radial-sunset {
+  background: radial-gradient(circle at 50% 50%, rgba(249, 115, 22, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+}
+.bg-radial-nordic {
+  background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
+}

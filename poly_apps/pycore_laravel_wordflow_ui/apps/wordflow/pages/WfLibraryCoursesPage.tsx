@@ -247,8 +247,12 @@ const WfLibraryCoursesPage: React.FC = () => {
                 onClick={() => navigate(wfPath(`course_detail?groupId=${encodeURIComponent(g.id)}`))}
               >
                 <div className="flex gap-5">
-                  <div className="ds-media-frame w-24 h-32 shrink-0 self-start flex items-center justify-center">
-                    <span className="text-5xl">{g.coverImage || '📚'}</span>
+                  <div className="ds-media-frame w-24 h-32 shrink-0 self-start flex items-center justify-center bg-[var(--klein-blue-soft)]/20 rounded-xl border border-[var(--klein-blue-soft)] overflow-hidden">
+                    {(!g.coverImage || g.coverImage.length <= 2) ? (
+                      <BookOpen className="w-10 h-10 text-[var(--klein-blue)] group-hover:scale-110 transition-transform duration-300" />
+                    ) : (
+                      <img src={g.coverImage} referrerPolicy="no-referrer" alt={g.name} className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-500" />
+                    )}
                   </div>
                   <div className="flex flex-col py-1 flex-1 min-w-0">
                     <div className="flex justify-between items-start gap-2">

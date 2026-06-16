@@ -1,4 +1,5 @@
 import path from 'path';
+import { WebSocketServer } from 'ws';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -53,7 +54,281 @@ export default defineConfig(() => {
           },
         },
       },
-      plugins: [react(), tailwindcss()],
+      plugins: [
+        react(),
+        tailwindcss(),
+        {
+          name: 'pyapi-sandbox-mock-server',
+          configureServer(server) {
+            // Setup WebSocket Mock Server inside Vite Dev Server for Sandbox
+            const wss = new WebSocketServer({ noServer: true });
+            server.httpServer?.on('upgrade', (req, socket, head) => {
+              const url = req.url || '';
+              if (url.includes('/pyapi/rpc/ws')) {
+                wss.handleUpgrade(req, socket, head, (ws) => {
+                  wss.emit('connection', ws, req);
+                });
+              }
+            });
+
+            wss.on('connection', (ws) => {
+              ws.on('message', (message) => {
+                try {
+                  const data = JSON.parse(message.toString());
+                  if (data.type === 'request') {
+                    let result: any = { success: true };
+                    // Handle specific mock routes
+                    if (data.route === 'laravel_api.list') {
+                      result = { endpoints: [] };
+                    } else if (data.route === 'video_extract.backend_status') {
+                      result = { status: 'idle' };
+                    }
+                    ws.send(JSON.stringify({
+                      type: 'response',
+                      id: data.id,
+                      result,
+                      error: null
+                    }));
+                  }
+                } catch (err) {
+                  // Ignore
+                }
+              });
+            });
+
+            server.middlewares.use((req, res, next) => {
+              const fullUrl = req.url || '';
+
+              // INTERCEPT WORD FLOW & GENERAL API PATHS
+              if (fullUrl.startsWith('/api')) {
+                const pathName = fullUrl.split('?')[0];
+
+                res.setHeader('Content-Type', 'application/json');
+
+                if (pathName === '/api/health') {
+                  res.end(JSON.stringify({ status: 'ok', service: 'laravel-mock' }));
+                  return;
+                }
+
+                if (pathName === '/api/app_qy_v1/user/profile' || pathName === '/api/user/profile') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    user: {
+                      id: "u1",
+                      name: "Guest Admin",
+                      email: "admin@example.com",
+                      avatar_url: "https://i.pravatar.cc/150?u=admin",
+                      role: "admin",
+                      nickname: "Admin"
+                    },
+                    data: {
+                      user: {
+                        id: "u1",
+                        name: "Guest Admin",
+                        email: "admin@example.com",
+                        avatar_url: "https://i.pravatar.cc/150?u=admin",
+                        role: "admin",
+                        nickname: "Admin"
+                      }
+                    }
+                  }));
+                  return;
+                }
+
+                if (pathName === '/api/app_qy_v1/group/list' || pathName === '/api/app_qy_v1/group/get_all' || pathName.includes('/group')) {
+                  res.end(JSON.stringify({
+                    success: true,
+                    data: []
+                  }));
+                  return;
+                }
+
+                if (pathName.includes('/learning/collections') || pathName.includes('/collections')) {
+                  res.end(JSON.stringify({
+                    success: true,
+                    data: []
+                  }));
+                  return;
+                }
+
+                if (pathName.includes('/login')) {
+                  res.end(JSON.stringify({
+                    success: true,
+                    token: "mock-jwt-token-xyz-123",
+                    user: {
+                      id: "u1",
+                      name: "Guest Admin",
+                      email: "admin@example.com",
+                      avatar_url: "https://i.pravatar.cc/150?u=admin"
+                    }
+                  }));
+                  return;
+                }
+
+                res.end(JSON.stringify({
+                  success: true,
+                  data: []
+                }));
+                return;
+              }
+
+              // INTERCEPT PYAPI PATHS
+              if (fullUrl.startsWith('/pyapi')) {
+                const parsedUrl = fullUrl.substring(6);
+                const pathName = parsedUrl.split('?')[0];
+
+                if (pathName === '/rpc/sse') {
+                  res.writeHead(200, {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive',
+                  });
+                  res.write(`event: stream.open\ndata: {"seq": 1}\n\n`);
+                  return;
+                }
+
+                res.setHeader('Content-Type', 'application/json');
+
+                if (pathName === '/api/local/user-data/video-extract') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    base_dir: "",
+                    entries: [],
+                    last_options: { subtitle: true, model: "", formats: [], lang: "en" }
+                  }));
+                  return;
+                }
+                if (pathName === '/api/local/ocr/status') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    best: null,
+                    available_count: 0,
+                    engines: []
+                  }));
+                  return;
+                }
+                if (pathName === '/api/local/user-data/system-settings') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    settings: {}
+                  }));
+                  return;
+                }
+                if (pathName === '/api/local/ai/gateway') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    providers: [],
+                    records: []
+                  }));
+                  return;
+                }
+                if (pathName === '/api/local/capabilities/status') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    cuda: {
+                      available: false,
+                      driver_version: null,
+                      cuda_version: null,
+                      gpu_count: 0,
+                      gpus: [],
+                      torch_installed: false,
+                      onnxruntime_installed: false
+                    },
+                    libraries: []
+                  }));
+                  return;
+                }
+                if (pathName === '/ping') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    status: "ok"
+                  }));
+                  return;
+                }
+                if (pathName === '/api/local/tts/status') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    providers: [],
+                    best: null,
+                    active: null,
+                    edge_cooldown_remaining: 0,
+                    engines: []
+                  }));
+                  return;
+                }
+                if (pathName === '/voice-subtitle/queue') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    queue: [],
+                    current_index: 0,
+                    enabled: false
+                  }));
+                  return;
+                }
+                if (pathName === '/voice-subtitle/clipboard-monitor/status') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    enabled: false
+                  }));
+                  return;
+                }
+                if (pathName === '/voice-subtitle/screenshot-monitor/status') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    enabled: false,
+                    interval: 10
+                  }));
+                  return;
+                }
+                if (pathName === '/api/local/video-extract/capabilities') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    models: [],
+                    all_models: [],
+                    installed_models: [],
+                    default_model: "",
+                    languages: [],
+                    default_lang: "en",
+                    ffmpeg_found: false
+                  }));
+                  return;
+                }
+                if (pathName === '/api/local/system/resources') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    cpu_percent: 0,
+                    mem: { used_mb: 0, total_mb: 16384, percent: 0 },
+                    gpus: []
+                  }));
+                  return;
+                }
+                if (pathName === '/api/local/books/state') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    sources: [],
+                    last_options: {}
+                  }));
+                  return;
+                }
+                if (pathName === '/api/local/books/supported-formats') {
+                  res.end(JSON.stringify({
+                    success: true,
+                    formats: ["pdf", "epub", "mobi", "txt"]
+                  }));
+                  return;
+                }
+
+                res.end(JSON.stringify({
+                  success: false,
+                  error: "Pycore backend offline in sandbox"
+                }));
+                return;
+              }
+              next();
+            });
+          }
+        }
+      ],
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
