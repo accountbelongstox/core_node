@@ -123,10 +123,45 @@ build_scan_dirs() {
     fi
 }
 
+# Noise path patterns — tool caches, SDKs, extensions, not real user projects
+is_noise_path() {
+    local p="$1"
+    case "$p" in
+        */.npm/_npx/*)              return 0 ;;  # npm cache
+        */.npm/_cacache/*)          return 0 ;;
+        */.vscode-server/*)         return 0 ;;  # VS Code remote extensions
+        */.vscode/extensions/*)     return 0 ;;
+        */.claude/plugins/*)        return 0 ;;  # Claude marketplace plugins
+        */.codex/*)                 return 0 ;;  # Codex temp
+        */.local/flutter*)          return 0 ;;  # Flutter SDK
+        */snap/flutter/*)           return 0 ;;  # Flutter SDK (snap)
+        */.config/nvim*)            return 0 ;;  # Neovim config backups
+        */.local/share/nvim/*)      return 0 ;;
+        */.local/lib/*)             return 0 ;;  # pip/lib installs
+        */.local/bin/*)             return 0 ;;
+        */.cargo/registry/*)        return 0 ;;  # Cargo registry cache
+        */.rustup/*)                return 0 ;;  # Rustup toolchains
+        */.pyenv/*)                 return 0 ;;
+        */.nvm/*)                   return 0 ;;  # nvm node versions
+        */.sdkman/*)                return 0 ;;
+        */_ubuntu_24/go/*)          return 0 ;;  # Go SDK install
+        */go/pkg/mod/*)             return 0 ;;  # Go module cache
+        */claude-code-*/*)          return 0 ;;  # Downloaded CLI tool
+    esac
+    # A bare home directory (e.g. /home/user) is not a project
+    if [[ "$p" =~ ^/home/[^/]+$ ]] || [[ "$p" == "/root" ]]; then
+        return 0
+    fi
+    # Path is only 1 component under .local (e.g. /home/user/.local) — not a project
+    if [[ "$p" =~ ^/home/[^/]+/\.local$ ]]; then
+        return 0
+    fi
+    return 1
+}
+
 # Find all project root directories
 find_projects() {
     local all_projects=()
-    local seen_paths=()
 
     for scan_dir in "${SCAN_DIRS[@]}"; do
         [[ -d "$scan_dir" ]] || continue
@@ -141,6 +176,14 @@ find_projects() {
             ! -path "*/vendor/*" \
             ! -path "*/.cache/*" \
             ! -path "*/target/*" \
+            ! -path "*/.npm/*" \
+            ! -path "*/.vscode-server/*" \
+            ! -path "*/.claude/plugins/*" \
+            ! -path "*/snap/flutter/*" \
+            ! -path "*/.local/flutter*" \
+            ! -path "*/.cargo/*" \
+            ! -path "*/.rustup/*" \
+            ! -path "*/_ubuntu_24/go/*" \
             2>/dev/null)
 
         # Find standalone projects without .git (by indicator files)
@@ -154,14 +197,21 @@ find_projects() {
                 ! -path "*/vendor/*" \
                 ! -path "*/.cache/*" \
                 ! -path "*/target/*" \
+                ! -path "*/.npm/*" \
+                ! -path "*/.vscode-server/*" \
+                ! -path "*/.claude/plugins/*" \
+                ! -path "*/snap/flutter/*" \
+                ! -path "*/.local/flutter*" \
+                ! -path "*/.cargo/*" \
+                ! -path "*/.rustup/*" \
+                ! -path "*/_ubuntu_24/go/*" \
                 2>/dev/null)
         done
     done
 
-    # Deduplicate and filter: keep only top-level project roots
-    # (remove child dirs if parent is already a project)
+    # Deduplicate, remove noise paths, output sorted
     printf '%s\n' "${all_projects[@]}" | sort -u | while read -r dir; do
-        echo "$dir"
+        is_noise_path "$dir" || echo "$dir"
     done
 }
 
