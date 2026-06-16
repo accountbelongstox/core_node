@@ -598,6 +598,16 @@ echo "Clearing route cache..."
 echo "Listing routes..."
 "$PHP_BIN" artisan route:list
 
+# config/database.php reads a RUNTIME secret (the PG password via CoreNodeSecrets)
+# that must NEVER be frozen into a config cache. A stale bootstrap/cache/config.php
+# left by a prior `artisan config:cache`/`optimize` bakes in the password value as it
+# was AT CACHE TIME (empty, before the secret store existed) and is then used verbatim
+# WITHOUT ever calling CoreNodeSecrets -> migrate dies with "fe_sendauth: no password
+# supplied" even though the store holds the password. The earlier config:clear only
+# fires when .env has DB lines; make it unconditional here so every run reads the live
+# secret. Idempotent and cross-OS (no-op when nothing is cached).
+"$PHP_BIN" artisan config:clear >/dev/null 2>&1 || true
+
 echo "Running migrations..."
 "$PHP_BIN" artisan migrate --force
 

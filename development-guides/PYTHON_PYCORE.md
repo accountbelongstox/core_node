@@ -543,7 +543,8 @@ status = heartbeat.get_status()
 > `poly_apps/pycore_laravel_wordflow_ui` — its **pycore-manager** end, loaded by `pyservice`
 > (`pyservice.ps1` / `pyservice.sh`) at `http://localhost:<UiPort>/pycore-manager`
 > (Vite/pnpm; the shell's `/`→`/pycore-manager` redirect serves it as the default end).
-> The standalone `pycore/pyctl/desktop/desktop-manager` React app is **superseded/legacy**.
+> The standalone `pycore/pyctl/desktop/desktop-manager` React app was **superseded by
+> the unified shell (`poly_apps/pycore_laravel_wordflow_ui`) and has been removed**.
 > Backend unchanged: rpc_v2 on `:59000`, the `/pyapi` proxy, and the direct
 > `ws://host:59000/rpc/ws` channel. The live backend log is now a GLOBAL floating
 > collapsible panel present on every pycore page. The PySide6 webview guidance below

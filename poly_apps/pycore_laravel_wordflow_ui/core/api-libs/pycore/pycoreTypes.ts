@@ -202,6 +202,10 @@ export interface PeerStatus {
   role: CodeSyncRole;
   reachable: boolean;
   last_seen: number | null;
+  // How this peer is connected: 'probe' = we reached it; 'heartbeat' = it reported
+  // in to us (NAT-friendly); 'both' = both directions; null/absent = offline.
+  via?: 'probe' | 'heartbeat' | 'both' | null;
+  last_checkin?: number | null;
   pending?: boolean;
   status?: PeerLiveStatus | null;
 }
@@ -220,6 +224,32 @@ export interface CodeSyncCandidate {
   name: string;
   role: CodeSyncRole;
   id: string;
+}
+
+// Filter settings: which paths are excluded from the synced/scanned tree.
+export interface SyncSettings {
+  excluded_dirs: string[];
+  excluded_files: string[];
+  excluded_extensions: string[];
+  excluded_path_substrings: string[];
+  apply_gitignore: boolean;
+}
+
+export interface SyncSettingsResponse {
+  success: boolean;
+  settings: SyncSettings;
+  presets: SyncSettings;
+  override_path: string;
+  overridden: boolean;
+  error?: string;
+}
+
+export interface SyncLogEntry {
+  action?: string;
+  file_path?: string;
+  reason?: string;
+  details?: string;
+  timestamp?: number | string | null;
 }
 
 // --- Auto-start on boot -------------------------------------------------- #

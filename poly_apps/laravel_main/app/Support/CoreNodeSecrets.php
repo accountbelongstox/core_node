@@ -62,9 +62,26 @@ class CoreNodeSecrets
      */
     private static function candidateDirs(): array
     {
-        $dirs = [self::dir(), '/var/_core_node/global_var'];
+        $dirs = [];
 
-        return array_values(array_unique($dirs));
+        // 1) The app's OWN data dir mirror. Always inside open_basedir and resolved
+        //    per-OS by the path mapper, so it is readable even when /var/_core_node is
+        //    NOT (panel-style servers lock PHP to /www/wwwroot/<site>). The shell
+        //    toolchain (46_install_postgresql.sh) writes the PG password here too.
+        try {
+            if (class_exists(\App\Providers\PathMapper::class)) {
+                $dirs[] = \App\Providers\PathMapper::mapWebPath('laravel_data_dir', '.core_node_secrets');
+            }
+        } catch (\Throwable $e) {
+            // PathMapper unavailable (early boot) -> skip; fall through to the rest.
+        }
+
+        // 2) The env-configured store dir (honors an explicit CORE_NODE_DATA_DIR).
+        // 3) The canonical /var location the bash writer always uses.
+        $dirs[] = self::dir();
+        $dirs[] = '/var/_core_node/global_var';
+
+        return array_values(array_unique(array_filter($dirs)));
     }
 
     /**
