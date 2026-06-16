@@ -1,0 +1,11 @@
+# Unified shell is a single-page app using BrowserRouter. Deep links like
+# /wordflow/learn or /pycore-manager/code-sync must fall back to index.html so
+# the client router can resolve them (otherwise a static host 404s on refresh).
+#
+# This file is copied to the build root (dist/_redirects) and is honoured by
+# Netlify-style hosts. For other servers, configure the equivalent SPA fallback:
+#   - Vite dev / `vite preview`: handled automatically (no config).
+#   - nginx:   try_files $uri /index.html;
+#   - Apache:  FallbackResource /index.html
+#   - Laravel: Route::fallback(fn () => response()->file(public_path('index.html')));
+/*    /index.html   200

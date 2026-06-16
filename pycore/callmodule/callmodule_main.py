@@ -98,6 +98,9 @@ def callmodule_main_entry():
     # Register TTS queue poller callback (idempotent)
     _register_tts_queue_poller()
 
+    # Register TTS sentence-audio worker callback (idempotent)
+    _register_tts_sentence_worker()
+
     # Register translation worker callback (idempotent)
     _register_translation_worker()
 
@@ -177,6 +180,54 @@ def _register_tts_queue_poller():
                     f"{'enabled' if Config.TTS_WORKER_ENABLED_ON_START else 'disabled'}")
     ColorPrint.blue(f"  - Batch size: {Config.TTS_WORKER_BATCH}")
     ColorPrint.blue("  - Control: POST /api/heartbeat/disable/tts_queue_poller")
+
+
+def _register_tts_sentence_worker():
+    """
+    Register the TTS sentence-audio WORKER callback to PyHeartbeat (Idempotent).
+
+    Mirrors _register_tts_queue_poller(), but drives the SENTENCE-library audio
+    queue: it claims pending sentence tasks from laravel_main
+    (/api/app_qy_v1/ai_tools/tts/sentence/claim), merges EVERY claimed task into
+    ONE in-process priority queue (high-priority user requests outrank backfill
+    regardless of claim batch — pipeline §5.3), synthesizes MP3s via the pyutils
+    TTS orchestrator and reports validated results back. Safe to call repeatedly.
+
+    Architecture:
+    - Callback name: 'tts_sentence_worker'
+    - Interval: Config.TTS_SENTENCE_WORKER_INTERVAL (60 seconds)
+    - Initial state: ENABLED by default (Config.TTS_SENTENCE_WORKER_ENABLED_ON_START,
+                     env PYCORE_TTS_SENTENCE_WORKER=0 to disable)
+    - Laravel base URL: resolved by the stored-first LaravelEndpointManager
+      (same resolution the media-sync / word-worker services use)
+    - Control: POST /api/heartbeat/enable|disable/tts_sentence_worker
+    """
+    from pycore.pyheartbeat import get_heartbeat_system
+    from pycore.callmodule.services import get_tts_sentence_worker_service
+    from pycore.callmodule.callmodule_config import Config
+
+    # Get PyHeartbeat system
+    heartbeat = get_heartbeat_system()
+
+    # Get sentence-audio worker singleton (idempotent initialization). No explicit
+    # base URL: it resolves via the LaravelEndpointManager per cycle.
+    worker = get_tts_sentence_worker_service()
+
+    # Register callback (idempotent - overwrites if already registered)
+    heartbeat.register_callback(
+        name='tts_sentence_worker',
+        callback=worker.poll_and_process,
+        interval=Config.TTS_SENTENCE_WORKER_INTERVAL,
+        enabled=Config.TTS_SENTENCE_WORKER_ENABLED_ON_START,
+    )
+
+    ColorPrint.green("[Callmodule] Registered TTS sentence-audio worker callback")
+    ColorPrint.blue("  - Callback name: tts_sentence_worker")
+    ColorPrint.blue(f"  - Interval: {Config.TTS_SENTENCE_WORKER_INTERVAL} seconds")
+    ColorPrint.blue(f"  - Initial state: "
+                    f"{'enabled' if Config.TTS_SENTENCE_WORKER_ENABLED_ON_START else 'disabled'}")
+    ColorPrint.blue(f"  - Batch size: {Config.TTS_SENTENCE_WORKER_BATCH}")
+    ColorPrint.blue("  - Control: POST /api/heartbeat/disable/tts_sentence_worker")
 
 
 def _register_translation_worker():

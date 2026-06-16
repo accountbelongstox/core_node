@@ -63,9 +63,9 @@ class Config:
     LAUNCHER_APP_NAME = "Pycore Module Caller"
 
     # ==================== UI service (Voice Subtitle) ====================
-    # UI FRONTEND = the unified laravel_dashboard shell's pycore end. The PySide6
+    # UI FRONTEND = the unified pycore_laravel_wordflow_ui shell's pycore end. The PySide6
     # webview loads http://localhost:<UiPort>/pycore-manager (PYCORE_UI_URL, set by
-    # pyservice.ps1/.sh which start poly_apps/laravel_dashboard via pnpm). The old
+    # pyservice.ps1/.sh which start poly_apps/pycore_laravel_wordflow_ui via pnpm). The old
     # standalone pycore/pyctl/desktop/desktop-manager is no longer the UI.
     UI_APP_NAME = "Py模块UI界面"
     UI_APP_ID = "voice_subtitle_ui"
@@ -124,6 +124,21 @@ class Config:
     TTS_WORKER_BATCH = int(os.getenv("PYCORE_TTS_WORKER_BATCH", "10"))
     # Heartbeat-callback interval (seconds) for the TTS worker poll loop.
     TTS_WORKER_INTERVAL = int(os.getenv("PYCORE_TTS_WORKER_INTERVAL", "60"))
+
+    # ==================== TTS Sentence-Audio Worker (Laravel sentence-library queue) ====================
+    # The sentence-audio worker claims pending SENTENCE TTS tasks from laravel_main
+    # (/api/app_qy_v1/ai_tools/tts/sentence/claim), merges every claimed task into
+    # ONE in-process priority queue (§5.3), synthesizes MP3s with the pyutils TTS
+    # orchestrator and reports them back (/tts/sentence/report).
+    # ON by default; disable with PYCORE_TTS_SENTENCE_WORKER=0 (or at runtime via
+    # POST /api/heartbeat/disable/tts_sentence_worker).
+    TTS_SENTENCE_WORKER_ENABLED_ON_START = (
+        os.getenv("PYCORE_TTS_SENTENCE_WORKER", "1") in ("1", "true", "True")
+    )
+    # Tasks claimed per tick (server caps the claim at 50).
+    TTS_SENTENCE_WORKER_BATCH = int(os.getenv("PYCORE_TTS_SENTENCE_WORKER_BATCH", "10"))
+    # Heartbeat-callback interval (seconds) for the sentence-audio worker poll loop.
+    TTS_SENTENCE_WORKER_INTERVAL = int(os.getenv("PYCORE_TTS_SENTENCE_WORKER_INTERVAL", "60"))
 
     # ==================== Translation Queue Monitor (Laravel queue API) ====================
     # The monitor + control proxy poll/steer Laravel's translation QUEUE

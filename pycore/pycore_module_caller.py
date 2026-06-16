@@ -52,9 +52,18 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore import ColorPrint, THREAD_BUS
-from pycore.pylauncher import ServiceLauncher
+from pycore.pylauncher import ServiceLauncher, on_singleton_superseded
 from pycore.callmodule.config import build_launcher_config, update_tray_menu_with_singleton
 from pycore.callmodule.event_handlers import register_event_handlers
+
+# Set when a NEWER instance supersedes this (running PRIMARY) one via the
+# singleton port protocol. It drives the PROCESS EXIT CODE: a superseded instance
+# must exit 3 (same contract as the 'yielded_to_newer' path) so pyservice.ps1/.sh
+# LEAVE the shared UI dev server (:13054) running for the new instance. Without
+# this, a superseded PRIMARY returns from main() and exits 0, and its owning
+# pyservice tears down the dev server the newer instance's webview is reusing
+# -> the new webview shows "Load failed: http://localhost:13054/pycore-manager".
+_SUPERSEDED = {'flag': False}
 
 
 def main(host='0.0.0.0', port=59000, debug=False, reload=False):
@@ -99,6 +108,15 @@ def main(host='0.0.0.0', port=59000, debug=False, reload=False):
 
     # 3. Register event handlers (callmodule layer - event handlers via THREAD_BUS)
     register_event_handlers(launcher, port, singleton_port)
+
+    # 3a. Remember if a newer instance takes us over, so the exit code below tells
+    #     pyservice to leave the shared UI dev server up (see _SUPERSEDED note).
+    def _on_superseded(event_data):
+        new_pid = event_data.get('new_pid') if isinstance(event_data, dict) else None
+        ColorPrint.yellow(f"[Main] Superseded by newer instance (PID {new_pid}); "
+                          "will exit 3 to keep the shared UI server running")
+        _SUPERSEDED['flag'] = True
+    on_singleton_superseded(_on_superseded)
 
     # 3b. Self-heal the boot auto-start launcher: if enabled, rewrite its fixed
     #     script so the next boot runs the CURRENT canonical entry point
@@ -195,4 +213,13 @@ if __name__ == '__main__':
             ColorPrint.yellow(f"[Main] os.execv failed ({e}); exiting instead. Please restart manually.")
             os._exit(1)
     else:
+        # Superseded by a newer instance (singleton takeover): exit 3 so
+        # pyservice.ps1/.sh leave the SHARED UI dev server (:13054) running for
+        # the newer instance — the same contract as the 'yielded_to_newer' path.
+        # The event-driven flag is primary; the shutdown-reason string is a
+        # belt-and-suspenders fallback in case the async event lagged.
+        _reason = THREAD_BUS.get_shutdown_reason() or ''
+        if _SUPERSEDED['flag'] or 'Superseded' in _reason:
+            ColorPrint.yellow("[Main] Superseded by newer instance (exit 3; UI server left running)")
+            os._exit(3)
         os._exit(0)

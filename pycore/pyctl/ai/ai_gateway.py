@@ -1271,12 +1271,18 @@ def _generate_image_with_pollinations(
 def _generate_image_with_imagen(
     prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Google Imagen 3 via the Gemini API key (generativelanguage :predict)."""
+    """Google Imagen 4 via the Gemini API key (generativelanguage :predict).
+
+    Imagen 3 (imagen-3.0-generate-002) was SHUT DOWN on the Gemini API (returns
+    HTTP 404 "not found for API version v1beta / not supported for predict"), so
+    the default is the current GA model imagen-4.0-generate-001. Other valid IDs:
+    imagen-4.0-fast-generate-001, imagen-4.0-ultra-generate-001.
+    """
     key = image_first_secret("imagen")
     if not key:
         out["error"] = "No API key configured"
         return out
-    use_model = model or image_model("imagen") or "imagen-3.0-generate-002"
+    use_model = model or image_model("imagen") or "imagen-4.0-generate-001"
     out["model"] = use_model
     requests = get_third_package_requests()
     aspect = size if (size and _ASPECT_RATIO_RE.match(size)) else "1:1"
@@ -1542,11 +1548,18 @@ _IMAGE_DISPATCH = {
 # generate_image() preference: genuinely-FREE image backends first (gemini flash
 # image, zhipu cogview-3-flash, dashscope wanx free-trial, baidu iRAG, iFlytek
 # Spark), then metered/paid ones. Lower rank = tried first; unknown sort last.
+# Genuinely-FREE image backends FIRST. Google has NO free image model as of 2026:
+# gemini-2.5-flash-image / Imagen 4 are PAID-only and the old free
+# gemini-2.0-flash image preview was shut down 2026-06-01 (verified via
+# ai.google.dev/gemini-api/docs/pricing). So the paid Google routes (gemini image,
+# imagen, vertex) — plus openai/azure/stepfun/bedrock — sink BELOW the free ones;
+# keyless Pollinations is the guaranteed free fallback. This makes "free-first"
+# actually hold instead of burning the first slot on a gemini 429 every cycle.
 _IMAGE_PREFERENCE = {
-    "gemini": 0, "zhipuai": 1, "dashscope": 2, "qianfan": 3,
-    "cloudflare": 4, "siliconflow": 5,
-    "pollinations": 6,  # free + NO key -> reliable guaranteed fallback
-    "volcano": 7, "spark": 8, "openrouter": 9,
+    "zhipuai": 0, "dashscope": 1, "qianfan": 2, "cloudflare": 3,
+    "siliconflow": 4,
+    "pollinations": 5,  # free + NO key -> reliable guaranteed fallback
+    "gemini": 6, "openrouter": 7, "volcano": 8, "spark": 9,
     "imagen": 10, "azure": 11, "openai": 12, "stepfun": 13,
     "bedrock": 14, "vertex": 15,
 }

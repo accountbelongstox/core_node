@@ -220,9 +220,29 @@ export class Server {
         // life, so reusing a singleton makes the 2nd client's initialize 500.
         await createMcpServer().connect(transport);
         log('SUCCESS', 'MCP server connected to transport');
+      } else if (sessionId) {
+        // A request bearing a session id we no longer have — almost always the
+        // native server restarted and lost its in-memory transportsMap while the
+        // client kept its old session id. Per the MCP Streamable HTTP spec an
+        // UNKNOWN/EXPIRED session MUST return 404 (JSON-RPC -32001) so a
+        // spec-compliant client transparently re-initializes a fresh session.
+        // (The previous code returned 400 here, which clients do NOT treat as
+        // recoverable, so the connection stayed dead until the client restarted.)
+        log('INFO', `Unknown/expired session, asking client to re-initialize: ${sessionId}`);
+        reply.code(HTTP_STATUS.NOT_FOUND).send({
+          jsonrpc: '2.0',
+          error: { code: -32001, message: ERROR_MESSAGES.SESSION_NOT_FOUND },
+          id: null,
+        });
+        return;
       } else {
-        log('ERROR', 'Invalid MCP request', { sessionId, isInitRequest: isInitializeRequest(request.body) });
-        reply.code(HTTP_STATUS.BAD_REQUEST).send({ error: ERROR_MESSAGES.INVALID_MCP_REQUEST });
+        // No session id AND not an initialize request -> genuinely malformed.
+        log('ERROR', 'Invalid MCP request (no session id, not an initialize request)');
+        reply.code(HTTP_STATUS.BAD_REQUEST).send({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: ERROR_MESSAGES.INVALID_MCP_REQUEST },
+          id: null,
+        });
         return;
       }
 
@@ -248,8 +268,14 @@ export class Server {
         ? (this.transportsMap.get(sessionId) as StreamableHTTPServerTransport)
         : undefined;
       if (!transport) {
-        log('ERROR', `No transport found for session: ${sessionId}`);
-        reply.code(HTTP_STATUS.BAD_REQUEST).send({ error: ERROR_MESSAGES.INVALID_SSE_SESSION });
+        // Unknown/expired session on the SSE stream too -> 404 so the client
+        // re-initializes (consistent with the POST handler above).
+        log('INFO', `No transport found for SSE session, asking client to re-initialize: ${sessionId}`);
+        reply.code(HTTP_STATUS.NOT_FOUND).send({
+          jsonrpc: '2.0',
+          error: { code: -32001, message: ERROR_MESSAGES.SESSION_NOT_FOUND },
+          id: null,
+        });
         return;
       }
 

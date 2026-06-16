@@ -67,7 +67,7 @@ VideoExtractProcessor (pycore)                    laravel_main (:9000, app_qy_v1
 
 进度统一经 THREAD_BUS 事件 `video_extract_sync`(stages: scan/source/ingest/clips/done/error)推到前端 WS。
 
-## 5. 前端状态模型(laravel_dashboard pycore 端)
+## 5. 前端状态模型(pycore_laravel_wordflow_ui pycore 端)
 
 - `PcVideoExtractContext`:run 生命周期 + `syncing` Set(含 `*all*` 哨兵)+ `syncProgress`
   + `autoSync`(localStorage 镜像 + 经 options `auto_sync` 字段持久化到 pycore user-data)。
@@ -210,3 +210,40 @@ VideoExtractProcessor (pycore)                    laravel_main (:9000, app_qy_v1
 | 持久化/历史 | 本地 user-data 来源列表+重开载入 | 入库后的书即durable记录(`/media/books`),上传态短暂 | 上传模型下"已入库的书"就是历史 |
 
 **必须一致(已校齐,见 §8.4)**:句子存储**保留大小写**(仅 content_id 折叠)、词库**小写**、`language` 用**代码**。校齐后**两端对同一句子产出相同 content_id**(已验证),共享库不再因来源不同而出现大小写/语言值/词条重复的分裂。
+
+## 9. Movie/TV poster (TMDB + OMDB)
+
+Canonical contract: `development-guides/MOVIE_POSTER_PIPELINE.md`. pycore is the
+**primary** poster fetcher; it runs at ingest/extract time, downloads poster
+**bytes** (never an external URL), and ships them to laravel.
+
+**pycore client** — `pycore/pyutils/external_apis/movie_poster_client.py`:
+- `parse_title_year(filename_or_title) -> (title, year|None)` — strip
+  release/quality tokens (1080p/x264/BluRay/WEB-DL...), bracketed groups,
+  `SxxExx`, trailing `-GROUP`, extension; dots/underscores→spaces.
+- `find_poster(title, year=None, language="en") -> poster|None` — CJK/non-Latin
+  titles are translated to English first (GoogleTranslator), then TMDB
+  `search/multi` (v4 Bearer token preferred, else v3 `api_key`) → first result
+  with a `poster_path` → download `w780` bytes → base64; on miss/no-key/error
+  falls back to OMDB (`?apikey=&t=&y=`). Returns the §3 result object
+  `{provider, source_id, mime, image_base64, meta}`. Never raises (None on any
+  failure).
+- `save_poster_file(image_base64, mime, dest_path_without_ext) -> path|None` —
+  decode + write a local file (extension from mime). Used by video-extract.
+
+**Books + subtitles ingest** (`callmodule/services/sync/laravel_media_sync.py`):
+`build_book_payload_v2` and the subtitle `build_payload` attach an OPTIONAL
+`source.poster` object (the §4 ingest addition) via `find_poster()` using the
+HUMAN title (book stem / subtitle original filename, parsed with
+`parse_title_year`). The key is **omitted entirely when None** (laravel keeps
+`poster_status='pending'`). Best-effort: a poster failure NEVER breaks ingest.
+Toggle via user-data `media_sync.fetch_poster` (default ON; `_poster_enabled`).
+
+**Video-Extract** (`callmodule/services/processors/video_extract_processor.py`):
+after a video's outputs are produced, parse title+year from the ORIGINAL
+filename, `find_poster()`, and `save_poster_file()` to `poster.jpg`/`.png` in the
+per-video output dir. `mapping.json` gains `files.poster` (relative filename),
+and the per-item result carries a `poster` dict
+(`{file, provider, source_id, meta}`). Gated by the `fetch_poster` request option
+(`VideoExtractRequest.fetch_poster`, default True); best-effort (a failure never
+fails extraction).

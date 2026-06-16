@@ -324,6 +324,16 @@ class PySide6Framework(QObject):
         self.qt_app.setApplicationName(self.config.app_name)
         ColorPrint.blue(f"[PySide6Framework] Set app name: {self.config.app_name}")
 
+        # CRITICAL: this is a tray-resident app whose lifecycle is owned by
+        # THREAD_BUS, NOT by window visibility. Qt defaults quitOnLastWindowClosed
+        # to True, which would end the event loop the moment the last visible
+        # window closes (e.g. user closes the window expecting close_to_tray, or a
+        # transient WebEngine window goes away) — and exec() returning in the UI
+        # worker thread silently kills that thread. Disable it so only an explicit
+        # THREAD_BUS shutdown (tray Exit / singleton takeover / Ctrl+C) tears down.
+        self.qt_app.setQuitOnLastWindowClosed(False)
+        ColorPrint.blue("[PySide6Framework] quitOnLastWindowClosed=False (lifecycle owned by THREAD_BUS)")
+
         # Set Windows AppUserModelID for taskbar icon (Windows only)
         if sys.platform == 'win32':
             try:

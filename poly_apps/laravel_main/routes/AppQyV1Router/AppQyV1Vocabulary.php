@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyExpor
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyLibraryPublicController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyValidityController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyStatsController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1DictionaryWordManagementController;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'app_qy_v1';
@@ -34,6 +35,9 @@ Route::prefix($apiVersionPrefix)->group(function () {
     // Per-language dictionary drill-down (Vocabulary page stats). Read-only,
     // paginated rows from app_qy_v1_tts_cache_<lang> with a coverage filter.
     Route::get('/dictionary/words', [AppQyV1VocabularyStatsController::class, 'dictionaryWords']);
+    // Validity breakdown (valid/invalid/unchecked + invalid-by-source) for the
+    // dashboard's Word Validity management panel.
+    Route::get('/dictionary/validity-summary', [AppQyV1VocabularyStatsController::class, 'validitySummary']);
     // Example sentences from the shared sentence library containing a word
     // (lazy-loaded when a word row is expanded).
     Route::get('/dictionary/sentences', [AppQyV1VocabularyStatsController::class, 'wordSentences']);
@@ -41,6 +45,13 @@ Route::prefix($apiVersionPrefix)->group(function () {
     // TTS queue items drill-down (Vocabulary page stats). Paginated view over
     // the unified TTS queue (canonical tables).
     Route::get('/tts/queue/items', [AppQyV1VocabularyStatsController::class, 'ttsQueueItems']);
+
+    // Dictionary word MANAGEMENT (dashboard Words tab): create / update / delete
+    // a single word and batch actions (delete / mark valid|invalid / requeue tts).
+    Route::post('/dictionary/words', [AppQyV1DictionaryWordManagementController::class, 'create']);
+    Route::post('/dictionary/words/batch', [AppQyV1DictionaryWordManagementController::class, 'batch']);
+    Route::put('/dictionary/words/{md5}', [AppQyV1DictionaryWordManagementController::class, 'update']);
+    Route::delete('/dictionary/words/{md5}', [AppQyV1DictionaryWordManagementController::class, 'destroy']);
 });
 
 // Document re-processing endpoints: documents are stored per user at upload

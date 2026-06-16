@@ -21,6 +21,8 @@ export {
 } from './audio';
 export { bingDictionaryTool } from './bing-dictionary';
 export { notebookLmTool } from './notebooklm';
+export { notebookLmCreateTool } from './notebooklm-create';
+export { geminiImageTool } from './gemini-image';
 export {
   deepseekSendPromptTool,
   deepseekGetTaskStatusTool,

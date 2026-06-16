@@ -220,15 +220,15 @@ class ServerManagerV1ApiInfo
             ],
             [
                 'path' => $apiPrefix . '/unified/start',
-                'feature' => 'auth_required/POST|Start application service|ServerManagerV1UnifiedManagerCtl@startApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+                'feature' => 'auth_required/POST|Start application service|ServerManagerV1UnifiedManagerCtl@startApp|params:app_name(string,required,pycore_laravel_wordflow_ui),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
             ],
             [
                 'path' => $apiPrefix . '/unified/stop',
-                'feature' => 'auth_required/POST|Stop application service|ServerManagerV1UnifiedManagerCtl@stopApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+                'feature' => 'auth_required/POST|Stop application service|ServerManagerV1UnifiedManagerCtl@stopApp|params:app_name(string,required,pycore_laravel_wordflow_ui),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
             ],
             [
                 'path' => $apiPrefix . '/unified/restart',
-                'feature' => 'auth_required/POST|Restart application service|ServerManagerV1UnifiedManagerCtl@restartApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+                'feature' => 'auth_required/POST|Restart application service|ServerManagerV1UnifiedManagerCtl@restartApp|params:app_name(string,required,pycore_laravel_wordflow_ui),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
             ],
             [
                 'path' => $apiPrefix . '/unified/deploy',

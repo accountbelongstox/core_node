@@ -1,7 +1,7 @@
 # Desktop Manager UI (pycore edition) — LEGACY / SUPERSEDED
 
 > **UI (updated — this app is legacy):** The pycore desktop UI is now the unified
-> shell `poly_apps/laravel_dashboard` — its **pycore-manager** end, loaded by
+> shell `poly_apps/pycore_laravel_wordflow_ui` — its **pycore-manager** end, loaded by
 > `pyservice` (`pyservice.ps1` / `pyservice.sh`) at
 > `http://localhost:<UiPort>/pycore-manager` (Vite/pnpm; default end via the shell's
 > `/`→`/pycore-manager` redirect). This standalone `desktop-manager` app (dev server

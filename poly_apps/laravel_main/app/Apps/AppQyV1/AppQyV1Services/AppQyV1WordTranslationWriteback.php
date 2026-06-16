@@ -55,15 +55,21 @@ class AppQyV1WordTranslationWriteback
      * All rich fields are optional and never clobber existing data.
      *
      * $invalidWords is a list of ['word' => ...] (or bare strings) the worker
-     * could not resolve on Bing; each is flagged is_valid=false via markValidity
-     * so the enqueue side stops re-queuing it.
+     * could not resolve on Bing (confirmed no-entry); each is flagged
+     * is_valid=false via markValidity so the enqueue side stops re-queuing it.
      *
-     * @param string $taskId         Originating global task id (logging only)
-     * @param string $language       Source/library language (name or code)
-     * @param string $targetLanguage Target language code (e.g. "zh")
-     * @param string $provider       Translation provider label
-     * @param array  $translations   List of per-word result entries (see above)
-     * @param array  $invalidWords   List of words with no online dictionary entry
+     * $regionRedirectWords is the same shape: words that persistently landed on a
+     * non-dict (region/redirect) page after retries. They are flagged invalid
+     * too, but with validity_source='region-redirect' so the cause is auditable
+     * and distinguishable from a confirmed no-entry.
+     *
+     * @param string $taskId              Originating global task id (logging only)
+     * @param string $language            Source/library language (name or code)
+     * @param string $targetLanguage      Target language code (e.g. "zh")
+     * @param string $provider            Translation provider label
+     * @param array  $translations        List of per-word result entries (see above)
+     * @param array  $invalidWords        Words with no online dictionary entry
+     * @param array  $regionRedirectWords Words stuck on a region/redirect page
      * @return array  ['processed' => int, 'failed' => int, 'invalidated' => int]
      */
     public static function apply(
@@ -72,7 +78,8 @@ class AppQyV1WordTranslationWriteback
         string $targetLanguage,
         string $provider,
         array $translations,
-        array $invalidWords = []
+        array $invalidWords = [],
+        array $regionRedirectWords = []
     ): array {
         $langCode = AppQyV1DictionaryService::getLanguageCode($language);
         $targetCode = AppQyV1DictionaryService::getLanguageCode($targetLanguage);
@@ -334,6 +341,35 @@ class AppQyV1WordTranslationWriteback
                 Log::warning('[AppQyV1WordTranslationWriteback] markValidity failed', [
                     'task_id' => $taskId,
                     'word' => $invalidWord,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Flag words stuck on a Bing region/redirect (non-dict) page after retries
+        // as invalid too, with a distinct source so the cause stays auditable. They
+        // become placeholder rows (is_valid=false, has_translation=false) that the
+        // enqueue side skips, ending the infinite region-redirect re-queue loop.
+        foreach ($regionRedirectWords as $redirect) {
+            $redirectWord = is_array($redirect) ? ($redirect['word'] ?? null) : $redirect;
+            if (!is_string($redirectWord) || $redirectWord === '') {
+                continue;
+            }
+            try {
+                $marked = AppQyV1LangDictionaryModel::markValidity(
+                    $langCode,
+                    md5($redirectWord),
+                    false,
+                    'region-redirect',
+                    'Bing region/redirect — no dictionary page'
+                );
+                if ($marked) {
+                    $invalidated++;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('[AppQyV1WordTranslationWriteback] region-redirect markValidity failed', [
+                    'task_id' => $taskId,
+                    'word' => $redirectWord,
                     'error' => $e->getMessage(),
                 ]);
             }

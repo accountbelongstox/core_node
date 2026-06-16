@@ -2892,6 +2892,35 @@ if (window.__WEB_FETCHER_HELPER_INITIALIZED__) {
   }
 
   /**
+   * Whether an element is actually visible (not display:none / visibility:hidden /
+   * zero-size / hidden). Used to skip invisible iframes during text extraction.
+   * Was referenced in extractIframeContent but never defined — calling it threw
+   * "isElementVisible is not defined", which the per-iframe catch swallowed (so
+   * embedded iframe text was silently dropped and the console spammed warnings).
+   * @param {Element} el
+   * @returns {boolean}
+   */
+  function isElementVisible(el) {
+    if (!el) return false;
+    try {
+      if (el.hidden) return false;
+      const style = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(el) : null;
+      if (
+        style &&
+        (style.display === 'none' ||
+          style.visibility === 'hidden' ||
+          parseFloat(style.opacity || '1') === 0)
+      ) {
+        return false;
+      }
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
    * Clean content text
    * @param {string} text - The text to clean
    * @returns {string} - Cleaned text

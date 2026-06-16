@@ -105,7 +105,7 @@ Add `POST /api/app_qy_v1/assist/cover/retry` (controller
 - NOTE: in pull mode laravel no longer needs to CALL pycore for generation, but
   `isImageCapable()` is still used by status/UI surfaces — keep it correct.
 
-## 4. UI changes REQUIRED (laravel_dashboard)
+## 4. UI changes REQUIRED (pycore_laravel_wordflow_ui)
 
 ### 4a. Capabilities panel bug (#1)
 `apps/pycore-manager/pages/PcSettingsPage.tsx`:

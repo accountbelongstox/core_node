@@ -10,7 +10,7 @@
 
 > **关键设计（2026-06 修复）**：开机启动运行的是与手动启动**完全相同的入口**
 > `pyservice.ps1 -NoInstall`（Linux：`pyservice.sh run --no-install`）——
-> 即先启动统一仪表盘 UI dev server（`poly_apps/laravel_dashboard`，Vite 实时调试，
+> 即先启动统一仪表盘 UI dev server（`poly_apps/pycore_laravel_wordflow_ui`，Vite 实时调试，
 > 默认 `:15654`，导出 `PYCORE_UI_URL=http://localhost:15654/pycore-manager`），
 > 再启动 pycore worker。旧版启动脚本直接拉起裸 worker
 > （`pythonw pycore_module_caller.py`），UI dev server 永远不会启动，
@@ -135,7 +135,7 @@ refresh_startup_launcher()              # 自愈：已启用时就地重写固�
 |------|------|
 | webview ERR_CONNECTION_REFUSED | 固定脚本是否还是旧版“裸 worker”内容？手动跑一次服务（或 `refresh_startup_launcher()`）自愈后重启验证 |
 | 新启动的实例反而退出 | 旧版代码的"后完成检测者踢人"问题；确认 singleton_detector 是否带 `started_at`/`yielded_to_newer`（见上节） |
-| UI 未启动、worker 正常 | 登录会话 PATH 中是否有 `pnpm`（`Get-Command pnpm.cmd`）？`poly_apps/laravel_dashboard/package.json` 是否存在？均无则 pyservice 自动回退旧版 `/web/subtitle` |
+| UI 未启动、worker 正常 | 登录会话 PATH 中是否有 `pnpm`（`Get-Command pnpm.cmd`）？`poly_apps/pycore_laravel_wordflow_ui/package.json` 是否存在？均无则 pyservice 自动回退旧版 `/web/subtitle` |
 | 完全没启动 | 入口（.lnk/.desktop）是否存在；手动运行固定脚本看输出 |
 
 ---

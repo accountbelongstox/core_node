@@ -33,6 +33,9 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+# Idempotent CPU/GPU build guards (single source of truth, also runnable standalone).
+source "$PARENT_DIR_LEVEL_2/common/torch_cpu_guard.sh"
+source "$PARENT_DIR_LEVEL_2/common/onnxruntime_cpu_guard.sh"
 
 # Get Python version (default to 3 if not installed)
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))' 2>/dev/null || echo "3.12")
@@ -950,6 +953,21 @@ check_and_install_python_packages_from_dependency_map() {
     print_info_from_common_functions "Checking and installing packages from pycore/pyfoundations/third_party.py"
     print_info_from_common_functions "Each package will be checked individually, even if others are correct"
 
+    # torch first, with the correct CPU/GPU build, via the shared guard (full mode:
+    # installs the right build when missing). Single source of truth: torch_cpu_guard.sh.
+    tcg_ensure_torch_build
+    # ONNX runtime: on a GPU-less host ensure the CPU runtime (not onnxruntime-gpu).
+    ocg_ensure_onnx_runtime
+
+    # Headless Linux (no desktop): skip GUI-only Qt packages (PySide6 ~629M) — pointless
+    # without a display, and they lazy-install on demand. Force install with FORCE_GUI=1.
+    local gui_only_imports="PySide6"
+    local skip_gui=0
+    if [[ "${FORCE_GUI:-0}" != "1" && "${HAS_DESKTOP_ENVIRONMENT:-false}" != "true" ]]; then
+        skip_gui=1
+        print_info_from_common_functions "[headless] No desktop environment: will skip GUI-only packages ($gui_only_imports)"
+    fi
+
     # Package mapping format: "import_name|pip_package|version_constraint"
     # version_constraint left empty so pip resolves versions automatically
     local packages=(
@@ -964,7 +982,9 @@ check_and_install_python_packages_from_dependency_map() {
 
         # Deep learning - required by opencv
         "numpy|numpy|"
-        "torch|torch|"
+        # torch is installed separately by tcg_ensure_torch_build (torch_cpu_guard.sh,
+        # called below) so a GPU-less host gets the CPU wheel, not the default CUDA build
+        # + ~4.3G nvidia-*. ultralytics (and easyocr) then reuse the already-present torch.
         "ultralytics|ultralytics|"
 
         # Device communication
@@ -1065,6 +1085,11 @@ check_and_install_python_packages_from_dependency_map() {
 
     for package_spec in "${packages[@]}"; do
         IFS='|' read -r import_name pip_package version_constraint <<< "$package_spec"
+
+        if (( skip_gui )) && [[ " $gui_only_imports " == *" $import_name "* ]]; then
+            print_info_from_common_functions "[headless] skipping GUI-only package: $pip_package"
+            continue
+        fi
 
         if check_and_fix_package_version "$import_name" "$pip_package" "$version_constraint"; then
             ((installed++))

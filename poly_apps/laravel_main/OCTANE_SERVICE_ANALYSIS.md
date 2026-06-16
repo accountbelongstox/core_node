@@ -281,10 +281,10 @@ Group=laravel
 ### **Laravel Dashboard 前端服务**
 
 ```bash
-$ systemctl status webapp-laravel_dashboard.service
+$ systemctl status webapp-pycore_laravel_wordflow_ui.service
 ```
 
-**服务文件**: `/etc/systemd/system/webapp-laravel_dashboard.service`
+**服务文件**: `/etc/systemd/system/webapp-pycore_laravel_wordflow_ui.service`
 
 这个服务运行 React 前端（Laravel Dashboard），与 Octane 后端服务独立。
 

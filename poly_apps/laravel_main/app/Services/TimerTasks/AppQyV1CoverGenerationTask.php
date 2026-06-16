@@ -42,6 +42,12 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
 
     private const INTERVAL_SECONDS = 5;
 
+    // Reconcile ready-but-missing cover files every Nth tick (~60s at 5s/tick)
+    // rather than every tick: stat-checking files is cheap but pointless to do
+    // every 5s. Static so it survives however the timer reuses the task.
+    private const RECONCILE_EVERY_TICKS = 12;
+    private static int $tick = 0;
+
     /**
      * @inheritDoc
      */
@@ -76,12 +82,30 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
             ]);
         }
 
-        // Warm the assist pending-work snapshot cache on every tick so third
-        // parties (pycore) and the dashboard poll /assist/pending cheaply without
-        // ever running the aggregate queries themselves. Best-effort: a failure
+        // Dynamic recovery: periodically re-queue covers marked 'ready' whose
+        // file vanished on disk (so a missing cover is always regenerated),
+        // throttled to ~once/minute since it stat-checks files.
+        self::$tick++;
+        if (self::$tick % self::RECONCILE_EVERY_TICKS === 0) {
+            try {
+                $r = (new \App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService())
+                    ->reconcileMissingCovers();
+                if (($r['reset'] ?? 0) > 0) {
+                    $this->logInfo('Cover reconcile re-queued missing-file covers', $r);
+                }
+            } catch (\Throwable $e) {
+                $this->logError('Cover reconcile failed', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // Keep the assist pending-work snapshot cache warm so third parties
+        // (pycore) and the dashboard poll /assist/pending cheaply. We TOUCH it
+        // with fresh=false (not true): Cache::remember recomputes only when the
+        // TTL has expired, so the expensive TTS statistics() aggregate runs at
+        // most once per TTL instead of on every 5s tick. Best-effort: a failure
         // here must never break cover maintenance above.
         try {
-            (new \App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService())->pendingSnapshot(true);
+            (new \App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService())->pendingSnapshot(false);
         } catch (\Throwable $e) {
             $this->logError('Assist pending-snapshot warm failed', ['error' => $e->getMessage()]);
         }

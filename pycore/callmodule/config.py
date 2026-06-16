@@ -24,7 +24,7 @@ except ImportError:
 from pycore import ColorPrint, THREAD_BUS, get_user_data_store
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pylauncher import LauncherConfig
-from pycore.pyutils.device_sync.code_sync_manager import get_code_sync_manager
+from pycore.pyutils.codesync import get_code_sync_manager, configure as configure_codesync
 from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.callmodule.tray_menu import build_tray_menu, tray_menu_to_dicts
 from pycore.callmodule.callmodule_config import Config as CallmoduleConfig
@@ -78,6 +78,7 @@ from pycore.callmodule.routers.local import (
     translation_queue_router,
     task_center_router,
     assist_router,
+    poster_router,
 )
 
 # Import upload layer routers (NEW)
@@ -505,6 +506,16 @@ def _init_rpc_routes(server):
         # clients (which receive code by default) right at startup, instead of
         # lazily on the first UI request.
         try:
+            # Inject pycore's services into the standalone Code Sync library so it
+            # logs through ColorPrint, fires UI events via THREAD_BUS, and honours
+            # the global shutdown — the same library that runs headless under
+            # `pyservice.sh codesync`. Must run BEFORE the first get_manager().
+            configure_codesync(
+                logger=ColorPrint,
+                emit_event=THREAD_BUS.trigger_event,
+                is_shutdown_requested=THREAD_BUS.is_shutdown_requested,
+                register_shutdown_handler=THREAD_BUS.register_shutdown_handler,
+            )
             get_code_sync_manager()
         except Exception as e:
             ColorPrint.yellow(f"[ConfigBuilder] Code Sync manager warm-up failed: {e}")
@@ -608,6 +619,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 translation_queue_router,# Translation queue monitor + control proxy (/api/local/translation/queue)
                 task_center_router,      # Unified task-center aggregate (/api/local/task-center) — mirrors laravel_main /api/task-center/overview
                 assist_router,           # Assist-Laravel worker control (/api/local/assist): status/config/cycle for cover+tts generation
+                poster_router,           # Movie/TV poster status+config+test (/api/local/poster): TMDB/OMDB key status + fetch toggle + lookup preview
 
                 # === Upload Layer Routers ===
                 upload_router,           # Upload task management and server config

@@ -1,0 +1,115 @@
+/**
+ * Unified shell themes + Tailwind (v4 @tailwindcss/vite — see vite.config.ts).
+ *
+ * Three per-end theme layers, selected by `data-theme` on <html> (ShellContext):
+ * nexus | pycore | iris. Global `.dark` toggles dark mode within whichever theme
+ * is active. Each theme file scopes tokens under html[data-theme="..."].
+ */
+@import "tailwindcss";
+
+/* Class-based dark mode (matches ShellContext adding .dark on <html>). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-glass-100: rgba(255, 255, 255, 0.05);
+  --color-glass-200: rgba(255, 255, 255, 0.1);
+  --color-glass-300: rgba(255, 255, 255, 0.15);
+  --color-glass-400: rgba(255, 255, 255, 0.25);
+  --color-glass-dark: rgba(0, 0, 0, 0.05);
+
+  --background-image-holographic-gradient: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
+  --background-image-glow-radial: radial-gradient(
+    circle at center,
+    rgba(56, 189, 248, 0.15) 0%,
+    rgba(0, 0, 0, 0) 70%
+  );
+}
+
+@import './nexus.css';
+@import './pycore.css';
+@import './iris.css';
+
+/* Smooth the cross-end theme swap. */
+html {
+  transition: background-color 0.4s ease;
+}
+
+/* ========================= Native <select> upgrade =========================
+   Scope: SELECT CONTROLS ONLY, across all three ends. Fixes two problems:
+
+   1. The popped-open option list followed the OS default (white) in dark mode
+      — unreadable / zero contrast. Chromium (our webview + Chrome/Edge)
+      honors option background/color and per-element `color-scheme`, so the
+      popup is themed via the tokens below; other engines at least get a
+      correctly-schemed native popup from `color-scheme`.
+   2. The closed control showed the unstyled native arrow — replaced with a
+      consistent themed chevron (appearance:none + inline SVG).
+
+   Token defaults cover nexus; pycore/iris dark tune them to their surfaces. */
+:root {
+  --ui-select-option-bg: #ffffff;
+  --ui-select-option-fg: #0f172a; /* slate-900 */
+}
+html.dark {
+  --ui-select-option-bg: #0f172a; /* slate-900 */
+  --ui-select-option-fg: #e2e8f0; /* slate-200 */
+}
+html[data-theme="pycore"].dark {
+  --ui-select-option-bg: #0b1220; /* --pc-surface */
+}
+html[data-theme="iris"].dark {
+  --ui-select-option-bg: #14142b; /* deep periwinkle, matches iris dark shell */
+  --ui-select-option-fg: #ecedfb;
+}
+
+/* Popup chrome (scrollbar, hover/checked highlight) follows the live scheme. */
+select { color-scheme: light; }
+html.dark select { color-scheme: dark; }
+
+/* Option rows: explicit contrast in both schemes. */
+select option,
+select optgroup {
+  background-color: var(--ui-select-option-bg);
+  color: var(--ui-select-option-fg);
+  padding: 6px 10px;
+}
+select option:disabled { color: #94a3b8; }
+
+/* Closed control: themed chevron instead of the native arrow. Single-line
+   selects only — multiple/size list boxes keep their native rendering.
+   padding-right needs !important to win over Tailwind padding utilities. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 0.95em;
+  padding-right: 2.25rem !important;
+}
+html.dark select:not([multiple]):not([size]) {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.5);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
+}

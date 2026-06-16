@@ -66,6 +66,33 @@ def find_disguise_tool() -> Optional[Path]:
     return None
 
 
+# Env vars that can supply the batch-decryption password non-interactively.
+# A server / CI / systemd unit has no TTY to prompt on, so without one of these
+# the decryption must be SKIPPED (not block on input() and spam errors).
+_PASSWORD_ENV_VARS = (
+    "CORE_NODE_SECRET_PASSWORD",
+    "SECRET_DECRYPT_PASSWORD",
+    "SECRET_PASSWORD",
+)
+
+
+def _password_from_env() -> Optional[str]:
+    """Return a decryption password from a known env var, or None."""
+    for var in _PASSWORD_ENV_VARS:
+        val = os.environ.get(var)
+        if val and val.strip():
+            return val.strip()
+    return None
+
+
+def _is_interactive() -> bool:
+    """True only when there is a real TTY on stdin we can prompt a human on."""
+    try:
+        return bool(sys.stdin) and sys.stdin.isatty()
+    except Exception:
+        return False
+
+
 def _get_password_with_confirmation() -> Optional[str]:
     """
     Prompt for password with confirmation and plain text input
@@ -132,6 +159,18 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
     print(f"[SECRET_MANAGER] Using decryption tool: {disguise_js}")
 
     if not password:
+        password = _password_from_env()
+
+    if not password:
+        # No password supplied and nothing in the env: only prompt if a human is
+        # actually there. On a headless server / CI / systemd unit there is no
+        # TTY, so SKIP cleanly instead of blocking on input() and erroring out.
+        if not _is_interactive():
+            print(
+                "[SECRET_MANAGER] Non-interactive environment (no TTY) and no password "
+                f"env var set ({', '.join(_PASSWORD_ENV_VARS)}); skipping batch decryption."
+            )
+            return False
         password = _get_password_with_confirmation()
 
     if not password:

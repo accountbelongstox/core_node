@@ -94,6 +94,22 @@ def _is_retryable_tts_error(err: Exception) -> bool:
     ))
 
 
+def get_synth_timeout() -> float:
+    """Current per-attempt synth timeout (seconds)."""
+    return _SYNTH_TIMEOUT_S
+
+
+def set_synth_timeout(seconds: Any) -> float:
+    """Override the per-attempt synth timeout at runtime (Settings-adjustable).
+    Clamped to [5, 120]s; ignored if not numeric. Returns the value in effect."""
+    global _SYNTH_TIMEOUT_S
+    try:
+        _SYNTH_TIMEOUT_S = max(5.0, min(120.0, float(seconds)))
+    except (TypeError, ValueError):
+        pass
+    return _SYNTH_TIMEOUT_S
+
+
 class EdgeTTSClient:
     """
     Edge TTS client for text-to-speech conversion
@@ -367,6 +383,41 @@ class EdgeTTSClient:
         if not edge_tts:
             return None
         return getattr(edge_tts, '__version__', None)
+
+    def peek_availability(self) -> Optional[Dict[str, Any]]:
+        """Last availability result WITHOUT a network probe (None if never run).
+
+        Periodic status polls use this so they never block on a real edge synth
+        round-trip (which can hang for seconds under 403 rate-limiting). A live
+        probe happens only on an explicit user-initiated refresh.
+        """
+        cached = getattr(self, '_avail_cache', None)
+        return {**cached, 'cached': True} if cached else None
+
+    def ensure_background_probe(self) -> None:
+        """Populate the availability cache via a ONE-SHOT background probe.
+
+        Non-blocking: returns immediately. The status poll calls this when the
+        cache is missing/stale so edge availability fills in within a poll cycle
+        WITHOUT the request ever waiting on a network synth. A guard flag keeps
+        at most one probe in flight.
+        """
+        if getattr(self, '_avail_probing', False):
+            return
+        cached = getattr(self, '_avail_cache', None)
+        if cached and (time.time() - cached['checked_at']) < _AVAIL_TTL_S:
+            return
+        self._avail_probing = True
+
+        def _run():
+            try:
+                self.test_availability(force=True)
+            except Exception:
+                pass
+            finally:
+                self._avail_probing = False
+
+        threading.Thread(target=_run, name="edge-tts-probe", daemon=True).start()
 
     def test_availability(self, force: bool = False) -> Dict[str, Any]:
         """

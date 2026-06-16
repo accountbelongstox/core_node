@@ -140,21 +140,37 @@ class AppQyV1VocabularyCoverService
     }
 
     /**
-     * Canonical cover prompt for a library. Public because it is shared by
-     * the local generation pipeline AND the assist claim endpoint (pycore
-     * receives this exact prompt so both paths produce equivalent covers).
+     * Cover prompt for a library. Delegates to AppQyV1CoverPromptBuilder, which
+     * produces a TEXT-FREE prompt (image models render letters poorly) with
+     * RANDOMIZED visual variables (style/palette/background/lighting/motif) so
+     * each call — and therefore each regeneration — yields a different image.
+     *
+     * Public because it is shared by the local generation pipeline AND the
+     * assist claim endpoint (pycore receives this exact prompt).
      */
     public function buildPrompt(AppQyV1VocabularyLibraryModel $library): string
     {
-        $category = Str::of($library->category ?? 'general')->replace('_', ' ')->title();
-        $difficulty = Str::of($library->difficulty_level ?? 'intermediate')->title();
+        return AppQyV1CoverPromptBuilder::build($library);
+    }
 
-        return sprintf(
-            "Design a clean, modern 16:9 book cover for a %s vocabulary library named \"%s\". Theme: %s learning. Include abstract educational imagery, warm lighting, subtle typography. Avoid text other than the title. Use professional vector illustration style.",
-            strtolower($difficulty),
-            $library->name,
-            strtolower($category)
-        );
+    /**
+     * Delete the on-disk cover file for a library (if any). Returns true when a
+     * file was actually removed. Never throws — a missing file is a no-op.
+     */
+    public function deleteCoverFile(?string $filename): bool
+    {
+        if ($filename === null || $filename === '') {
+            return false;
+        }
+        $path = $this->getCoverPath($filename);
+        try {
+            if (File::exists($path)) {
+                return File::delete($path);
+            }
+        } catch (\Throwable $e) {
+            // best-effort cleanup; a locked/permission-denied file is not fatal.
+        }
+        return false;
     }
 
     /**

@@ -111,6 +111,22 @@ for installer in "${installers[@]}"; do
     fi
 done
 
+# --- Post-install CPU/GPU guards (key point) ----------------------------------
+# Any installer above can transitively pull CUDA builds (+~4.3G nvidia-*): the
+# default CUDA torch (easyocr / faster-whisper) or onnxruntime-gpu (OCR). On a
+# GPU-less host switch them back to the CPU builds. Repair-only: never install when
+# a minimal box doesn't have them. Both idempotent. Single source of truth: the
+# common/*_cpu_guard.sh "外挂" scripts.
+GUARD_DIR="$SCRIPT_DIR/../../../scripts/shells/linux/common"
+if [[ -f "$GUARD_DIR/torch_cpu_guard.sh" ]]; then
+    echo "[..] torch CPU/GPU guard (repair-only)"
+    TCG_REPAIR_ONLY=1 bash "$GUARD_DIR/torch_cpu_guard.sh" --python "$PYTHON" || true
+fi
+if [[ -f "$GUARD_DIR/onnxruntime_cpu_guard.sh" ]]; then
+    echo "[..] onnxruntime CPU/GPU guard (repair-only)"
+    OCG_REPAIR_ONLY=1 bash "$GUARD_DIR/onnxruntime_cpu_guard.sh" --python "$PYTHON" || true
+fi
+
 if [[ ${#failed[@]} -gt 0 ]]; then
     echo "[!] Some prerequisites did not complete cleanly: ${failed[*]}"
     # Non-fatal: the service can still start; affected features may be degraded.

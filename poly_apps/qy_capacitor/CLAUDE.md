@@ -38,7 +38,7 @@ backend branch app in `poly_apps/laravel_main`:
 |--------------------|------|
 | Backend app code   | `poly_apps/laravel_main/app/Apps/AppQyV1/**` |
 | Backend routes     | `poly_apps/laravel_main/routes/AppQyV1Router/**` |
-| 功能/后端要求   | `poly_apps/laravel_dashboard/apps/wordflow/docs/FEATURES.md` + `BACKEND_REQUIREMENTS.md`(只描述功能与后端行为;接口/路由按需在实现时设计,不在文档固定) |
+| 功能/后端要求   | `poly_apps/pycore_laravel_wordflow_ui/apps/wordflow/docs/FEATURES.md` + `BACKEND_REQUIREMENTS.md`(只描述功能与后端行为;接口/路由按需在实现时设计,不在文档固定) |
 | Backend guide      | `development-guides/LARAVEL_GUIDE.md` |
 
 Rules:
@@ -92,7 +92,7 @@ any UI:
   component/page with visible design, first `Read` both images and verify your
   output matches them; an unverified design change is a defect. Add the
   `/* [v4.1-Iris] … */` marker comment (spec §0) to every file you redesign.
-- Canonical spec: `poly_apps/laravel_dashboard/apps/wordflow/docs/DESIGN_SYSTEM.md`
+- Canonical spec: `poly_apps/pycore_laravel_wordflow_ui/apps/wordflow/docs/DESIGN_SYSTEM.md`
   (迁移自 qy_capacitor/docs,已精简去重;**Part A §0–§6 = visual system** —
   §0 = reference images + parity gate; **Part B §7–§12 = UI/UX interaction
   design** — IA & navigation, app shell, user flows, interaction states,
@@ -138,12 +138,12 @@ any UI:
 
 - This file — per-app + co-development rules for qy_capacitor.
 - `.cursor/rules/wordflow-design.mdc` — design system rule (references this file).
-- `poly_apps/laravel_dashboard/apps/wordflow/docs/DESIGN_SYSTEM.md` — **the**
+- `poly_apps/pycore_laravel_wordflow_ui/apps/wordflow/docs/DESIGN_SYSTEM.md` — **the**
   design contract: Part A (§0–§6) visual system + Part B (§7–§12) UI/UX
   interaction design;组件工作分解并入其 §14。
 - `development-guides/LARAVEL_GUIDE.md` — backend (AppQyV1) conventions.
-- `development-guides/CURSOR_RULES_UPDATE_GUIDE.md` — how to edit rules/specs.
-- `poly_apps/laravel_dashboard/apps/wordflow/docs/README.md` — WordFlow 文档索引
+- `.cursor/rules/cursor-rules.mdc` — how to edit Cursor rules/specs.
+- `poly_apps/pycore_laravel_wordflow_ui/apps/wordflow/docs/README.md` — WordFlow 文档索引
   (2026-06 自 qy_capacitor/docs 迁移并精简)。
 
 Do not duplicate full specs across files; reference the canonical source.
