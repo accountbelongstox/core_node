@@ -50,7 +50,19 @@
       "Bash(php -l app/Services/UserSyncService.php)",
       "Bash(python3 *)",
       "Bash(php:*)",
-      "Bash(chmod +x scripts/shells/linux/debian/install_shells/63_install_tailscale.sh)"
+      "Bash(chmod +x scripts/shells/linux/debian/install_shells/63_install_tailscale.sh)",
+      "Bash(getent passwd:*)",
+      "Bash(awk -F: '$3 >= 1000 || $1 == \"root\" {print $1, $3, $6}')",
+      "Bash(sort -k2 -n)",
+      "Read(//home/laikaicool/data_crawl_and_process/**)",
+      "Read(//home/yark_yao/class/**)",
+      "Read(//var/www/**)",
+      "Read(//srv/**)",
+      "Read(//mnt/**)",
+      "Read(//home/jh20050607/**)",
+      "Read(//home/laikaicool/test/**)",
+      "Read(//home/zhangj7839/1_Projects/**)",
+      "Read(//home/zhangj7839/nav_codes/**)"
     ]
   }
 }
