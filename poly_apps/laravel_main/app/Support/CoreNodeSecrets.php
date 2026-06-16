@@ -49,6 +49,25 @@ class CoreNodeSecrets
     }
 
     /**
+     * Ordered list of store directories to read from. The bash toolchain
+     * (gvar_common.sh) ALWAYS writes to the canonical /var/_core_node/global_var
+     * (it hardcodes CORE_NODE_DATA_DIR=/var/_core_node), whereas dir() honors an
+     * inherited CORE_NODE_DATA_DIR override. When the override points somewhere
+     * the writer never used, the env dir is empty and the secret looks "missing"
+     * (symptom: PostgreSQL "fe_sendauth: no password supplied" at migrate time on
+     * a server where the env var is set, while WSL/desktop with the var unset works).
+     * Reading the env dir FIRST (honor an explicit override) then the canonical dir
+     * makes the reader cross-environment robust regardless of the env var. Deduped,
+     * order preserved.
+     */
+    private static function candidateDirs(): array
+    {
+        $dirs = [self::dir(), '/var/_core_node/global_var'];
+
+        return array_values(array_unique($dirs));
+    }
+
+    /**
      * Read a generated secret/value by its global-var key. Returns $default when
      * the store file is absent, unreadable, or empty (e.g. on Windows, or before
      * the install scripts have run).
@@ -60,19 +79,26 @@ class CoreNodeSecrets
             return $default;
         }
 
-        $path = self::dir() . '/' . $normalized;
-        if (!is_file($path) || !is_readable($path)) {
-            return $default;
+        // Try the env-configured dir first (honors an explicit CORE_NODE_DATA_DIR
+        // override), then the canonical /var/_core_node the bash writer always uses.
+        foreach (self::candidateDirs() as $dir) {
+            $path = $dir . '/' . $normalized;
+            if (!is_file($path) || !is_readable($path)) {
+                continue;
+            }
+
+            $value = @file_get_contents($path);
+            if ($value === false) {
+                continue;
+            }
+
+            $value = trim($value);
+            if ($value !== '') {
+                return $value;
+            }
         }
 
-        $value = @file_get_contents($path);
-        if ($value === false) {
-            return $default;
-        }
-
-        $value = trim($value);
-
-        return $value === '' ? $default : $value;
+        return $default;
     }
 
     /**
