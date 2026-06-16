@@ -1064,6 +1064,82 @@ class ConfigManager:
                 ],
                 'MCPSupport': {'Enabled': False},
                 'SmartRecognition': {'Enabled': False}
+            },
+            'Cloudflare R2': {
+                'Common': 'cloudflare_r2',
+                'DisplayName': 'Cloudflare R2',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'CLOUDFLARE_R2_API_TOKEN',
+                        'DisplayName': 'Cloudflare R2 API Token',
+                        'Description': 'Cloudflare R2 API Token (format: cfat_...)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'CLOUDFLARE_R2_ACCESS_KEY_ID',
+                        'DisplayName': 'Cloudflare R2 Access Key ID',
+                        'Description': 'R2 S3-compatible Access Key ID',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'CLOUDFLARE_R2_SECRET_ACCESS_KEY',
+                        'DisplayName': 'Cloudflare R2 Secret Access Key',
+                        'Description': 'R2 S3-compatible Secret Access Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'CLOUDFLARE_R2_S3_ENDPOINT',
+                        'DisplayName': 'Cloudflare R2 S3 Endpoint',
+                        'Description': 'R2 S3 API endpoint (e.g., https://<account_id>.r2.cloudflarestorage.com)',
+                        'InputType': 'Url',
+                        'Required': True
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'TMDB (The Movie Database)': {
+                'Common': 'tmdb',
+                'DisplayName': 'TMDB (The Movie Database)',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'TMDB_API_KEY',
+                        'DisplayName': 'TMDB API Key (v3)',
+                        'Description': 'TMDB v3 API Key (themoviedb.org, free; used for movie/TV poster lookup)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'TMDB_API_READ_ACCESS_TOKEN',
+                        'DisplayName': 'TMDB API Read Access Token (v4)',
+                        'Description': 'TMDB v4 Bearer token (optional; preferred over the v3 key when present)',
+                        'InputType': 'Token',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'OMDB (omdbapi.com)': {
+                'Common': 'omdb',
+                'DisplayName': 'OMDB (omdbapi.com)',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'OMDB_API_KEY',
+                        'DisplayName': 'OMDB API Key',
+                        'Description': 'OMDB API Key (omdbapi.com, free tier; fallback movie/TV poster lookup)',
+                        'InputType': 'Token',
+                        'Required': True
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
             }
         }
 

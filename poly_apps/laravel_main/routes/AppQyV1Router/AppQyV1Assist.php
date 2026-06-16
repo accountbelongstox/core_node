@@ -28,6 +28,10 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
         Route::post('/submit', [AppQyV1AssistController::class, 'submit']);
         Route::post('/release', [AppQyV1AssistController::class, 'release']);
         Route::post('/cover/retry', [AppQyV1AssistController::class, 'coverRetry']);
+        // Discard unsatisfactory covers (delete file + re-queue) and recover
+        // covers whose file is missing on disk.
+        Route::post('/cover/clear', [AppQyV1AssistController::class, 'coverClear']);
+        Route::post('/cover/reconcile', [AppQyV1AssistController::class, 'coverReconcile']);
         Route::get('/status', [AppQyV1AssistController::class, 'status']);
         // Cheap cache-backed pending snapshot (cover/tts/translation), warmed by
         // the Octane cover timer — third parties + dashboard poll this freely.

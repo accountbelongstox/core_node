@@ -109,7 +109,7 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
         TrayMenuItem.SEPARATOR,
         TrayMenuItem(
             # "PyCore UI" / "PyCore UI 界面" (was "Voice Subtitle Window"): toggles
-            # the same PySide6 webview window (now the laravel_dashboard
+            # the same PySide6 webview window (now the pycore_laravel_wordflow_ui
             # pycore-manager UI).
             text=I18nKeys.TRAY_MENU_PYCORE_UI,
             action_signal="tray_action_toggle_voice_subtitle",

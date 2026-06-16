@@ -298,10 +298,41 @@ show_app_install_menu() {
     read -r -p "Press Enter to continue..."
 }
 
+# Slim GPU->CPU: run the torch + onnxruntime CPU guards (idempotent). On a host with
+# no NVIDIA GPU these switch CUDA builds back to CPU and purge nvidia-* wheels,
+# reclaiming disk; with a GPU (or already CPU) they no-op. See common/*_cpu_guard.sh.
+slim_gpu_to_cpu() {
+    printf "\033c"
+    echo "=========================================="
+    echo "GPU -> CPU Slim (reclaim CUDA disk on no-GPU hosts)"
+    echo "=========================================="
+    echo ""
+    local torch_guard="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/torch_cpu_guard.sh"
+    local onnx_guard="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/onnxruntime_cpu_guard.sh"
+
+    if [ -f "$torch_guard" ]; then
+        echo "[1/2] PyTorch CPU/GPU guard ..."
+        bash "$torch_guard"
+    else
+        echo "Error: torch guard not found at: $torch_guard"
+    fi
+    echo ""
+    if [ -f "$onnx_guard" ]; then
+        echo "[2/2] ONNX Runtime CPU/GPU guard ..."
+        bash "$onnx_guard"
+    else
+        echo "Error: onnxruntime guard not found at: $onnx_guard"
+    fi
+    echo ""
+    echo "GPU -> CPU slim complete."
+    echo "Press Enter to continue..."
+    read
+}
+
 # Function to show Linux management submenu
 show_linux_management_submenu() {
     local selected=0
-    local total=9
+    local total=10
     local old_settings=$(stty -g)
     stty -icanon -echo
     trap 'stty "$old_settings"' RETURN
@@ -315,6 +346,7 @@ show_linux_management_submenu() {
         "Show System Information"
         "RustDesk Server Install Info (Key & Ports)"
         "APP Install"
+        "GPU -> CPU Slim (reclaim CUDA disk on no-GPU hosts)"
         "Back to Main Menu"
     )
     
@@ -382,6 +414,9 @@ show_linux_management_submenu() {
                         show_app_install_menu
                         ;;
                     8)
+                        slim_gpu_to_cpu
+                        ;;
+                    9)
                         return 0
                         ;;
                 esac

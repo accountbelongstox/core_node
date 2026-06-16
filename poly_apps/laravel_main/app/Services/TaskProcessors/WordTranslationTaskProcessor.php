@@ -55,11 +55,16 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
         $provider = $result['provider'] ?? 'unknown';
         $translations = $result['translations'] ?? [];
 
-        // Words the worker could not resolve (e.g. Bing returned no entry) so they
-        // can be flagged is_valid=false and never re-queued.
+        // Words the worker could not resolve (Bing returned a confirmed no-entry)
+        // so they can be flagged is_valid=false and never re-queued.
         $invalidWords = $result['invalid_words'] ?? [];
 
-        if (empty($translations) && empty($invalidWords)) {
+        // Words that persistently landed on a non-dict (region/redirect) page even
+        // after retries. Flagged invalid with a distinct source so the enqueue
+        // side stops re-queuing them (avoids the infinite region-redirect loop).
+        $regionRedirectWords = $result['region_redirect_words'] ?? [];
+
+        if (empty($translations) && empty($invalidWords) && empty($regionRedirectWords)) {
             return;
         }
 
@@ -74,7 +79,8 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
             $targetLanguage,
             $provider,
             $translations,
-            $invalidWords
+            $invalidWords,
+            $regionRedirectWords
         );
     }
 

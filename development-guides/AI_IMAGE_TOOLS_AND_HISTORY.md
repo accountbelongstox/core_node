@@ -55,7 +55,7 @@ Write safety: tmp file + atomic replace + in-process lock (mirror
 
 ## 3. UI — laravel-manager dashboard (unified AI console)
 
-The `#/ai-tools` view (`poly_apps/laravel_dashboard/components/views/AITools.tsx`,
+The `#/ai-tools` view (`poly_apps/pycore_laravel_wordflow_ui/components/views/AITools.tsx`,
 mounted by `ViewType.AI_TOOLS` in `App.tsx`) is the single AI console. ADD these
 capabilities (new left-nav tools alongside the existing Translation/TTS/OCR/
 Prompts/Status) so chat + image live in ONE UI:
@@ -97,5 +97,5 @@ under `/pyapi/api/local/ai/...`, same /pyapi proxy to :59000).
 
 ## 5. Constraints
 All code strings ENGLISH (CJK only in i18n blocks). Laravel runtime paths via
-`PathMapper` only. No build/test of laravel_main / laravel_dashboard. pycore
+`PathMapper` only. No build/test of laravel_main / pycore_laravel_wordflow_ui. pycore
 imports at file top. History bytes are NEVER inlined into the index JSON.

@@ -13,7 +13,25 @@ from ...models.management.system_models import ControlResponse
 from ...platform.startup_manager import get_startup_manager
 
 APIRouter = fastapi.APIRouter
+Request = fastapi.Request
+HTTPException = fastapi.HTTPException
 router = APIRouter(prefix="/api/manage/control", tags=["System Management"])
+
+# Loopback hosts allowed to issue destructive lifecycle actions (stop/restart).
+# The RPC server binds 0.0.0.0, so without this guard any host on the LAN — or
+# any web page via the CORS-* policy — could stop/restart the backend.
+_LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+
+def _require_loopback(request: Request) -> None:
+    """Reject destructive lifecycle calls that don't originate from this machine."""
+    client = request.client
+    host = client.host if client else None
+    if host not in _LOOPBACK_HOSTS:
+        raise HTTPException(
+            status_code=403,
+            detail="stop/restart is restricted to loopback (local) callers"
+        )
 
 
 class AutostartRequest(BaseModel):
@@ -25,22 +43,26 @@ controller = SystemController()
 
 
 @router.post("/restart", response_model=ControlResponse)
-async def restart_service():
+async def restart_service(request: Request):
     """
     Restart the service.
 
     Initiates a graceful restart of the Pycore Module Caller service.
+    Loopback-only (see _require_loopback).
     """
+    _require_loopback(request)
     return controller.control("restart")
 
 
 @router.post("/stop", response_model=ControlResponse)
-async def stop_service():
+async def stop_service(request: Request):
     """
     Stop the service.
 
     Initiates a graceful shutdown of the Pycore Module Caller service.
+    Loopback-only (see _require_loopback).
     """
+    _require_loopback(request)
     return controller.control("stop")
 
 

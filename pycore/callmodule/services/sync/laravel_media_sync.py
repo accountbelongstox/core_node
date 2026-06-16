@@ -59,6 +59,13 @@ from pycore.callmodule.services.processors.book_processor import extract_text
 # v2 structured representation (stripped sentences + md5 content_ids +
 # reconstruction sequence + per-language words). See pycore/docs/pipelines/MEDIA_SYNC_PIPELINE.md §8.
 from pycore.callmodule.services.processors.book_structure import build_book_structure
+# Movie/TV poster fetch (TMDB -> OMDB, CJK title translated first). Best-effort:
+# attaches an OPTIONAL source.poster object to book/subtitle ingest payloads.
+# Canonical: development-guides/MOVIE_POSTER_PIPELINE.md.
+from pycore.pyutils.external_apis.movie_poster_client import (
+    find_poster,
+    parse_title_year,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -93,6 +100,39 @@ _STATUS_MAX_PAGES = 5
 # The user-data store section the Video Extract page persists its state in
 # (same section the /api/local/video-extract/history endpoint serves).
 _USER_DATA_SECTION = "video_extract"
+
+# Poster fetch toggle. Default ON; a user-data setting can disable it without a
+# code change (media_sync.fetch_poster = false). Best-effort: a poster failure
+# NEVER breaks ingest (see _attach_poster).
+_POSTER_USER_DATA_SECTION = "media_sync"
+_POSTER_SETTING_KEY = "fetch_poster"
+
+
+def _poster_enabled() -> bool:
+    """True when poster fetch is enabled (default ON; user-data may disable)."""
+    try:
+        section = get_user_data_store().get_section(_POSTER_USER_DATA_SECTION) or {}
+        if _POSTER_SETTING_KEY in section:
+            return bool(section.get(_POSTER_SETTING_KEY))
+    except Exception:
+        pass
+    return True
+
+
+def _attach_poster(source: Dict[str, Any], title: str, year: Optional[int] = None) -> None:
+    """Best-effort: fetch a movie/TV poster for ``title`` and attach it to
+    ``source['poster']`` (the §4 ingest payload addition). Omits the key entirely
+    when no poster is found or fetch is disabled. NEVER raises — a poster failure
+    must not break ingest.
+    """
+    if not (title and title.strip()) or not _poster_enabled():
+        return
+    try:
+        poster = find_poster(title.strip(), year=year)
+        if poster:
+            source["poster"] = poster
+    except Exception as exc:  # noqa: BLE001 - best-effort, never break ingest
+        ColorPrint.yellow(f"[MediaSync] poster fetch skipped for '{title}' ({exc})")
 
 
 # --------------------------------------------------------------------------- #
@@ -374,6 +414,12 @@ def build_payload(
     _put_if(source, "subtitle_count", len(srt_subs) or None)
     _put_if(source, "segment_count", mapping.get("segment_count") or (len(raw_segments) or None))
     _put_if(source, "sentence_count", len(sentence_rows) or None)
+
+    # Best-effort movie/TV poster (§4 ingest addition). Parse a clean title+year
+    # from the HUMAN filename (original basename, else stem) — not the ascii stem.
+    poster_basename = filename.get("original") or mapping.get("stem") or ""
+    poster_title, poster_year = parse_title_year(poster_basename)
+    _attach_poster(source, poster_title, poster_year)
 
     # ---- segments block ---------------------------------------------------
     segments: List[Dict[str, Any]] = []
@@ -1120,6 +1166,13 @@ def build_book_payload_v2(path: str, full_content: str, language: str = "en") ->
         for lang, rows in (structure.get("words") or {}).items()
     }
     _put_if(source, "sentence_count", structure.get("sentence_count") or None)
+
+    # Best-effort movie/TV poster (§4 ingest addition) using the HUMAN book title
+    # (the stem, not the ascii name). Movie DBs miss for most real documents — the
+    # poster key is then omitted and laravel leaves poster_status='pending'.
+    poster_title, poster_year = parse_title_year(stem)
+    _attach_poster(source, poster_title, poster_year)
+
     source["metadata"] = {
         "primary_language": stats.get("primary_language"),
         "languages": stats.get("languages"),
@@ -1210,6 +1263,7 @@ def sync_book_source(
     base_url: Optional[str] = None,
     progress: Optional[Callable[[str, int, int, str], None]] = None,
     on_text: Optional[Callable[[str], None]] = None,
+    text: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Idempotently ingest ONE book into the shared sentence library.
 
@@ -1222,10 +1276,14 @@ def sync_book_source(
     (scan/ingest/done/error) as the subtitle sync, and streams via ColorPrint.
     Returns {success, source_key, sentences, errors:[]}.
 
-    ``on_text`` (optional): receives the extracted full text once, so a caller
-    (e.g. the Books submit) can reuse it to precompute the local drill-down cache
-    WITHOUT re-extracting the file. It is NOT put on ``result`` to keep the WS
-    progress payload small.
+    ``text`` (optional): the already-extracted full text. When provided, the
+    (potentially very slow) PDF/EPUB extraction is SKIPPED entirely — the Books
+    submit passes the text analyze already extracted so a large book (e.g. a
+    Bible) is never read off disk twice.
+
+    ``on_text`` (optional): receives the full text once, so a caller can reuse it
+    to precompute the local drill-down cache. It is NOT put on ``result`` to keep
+    the WS progress payload small.
     """
     base = resolve_laravel_base_url(base_url)
     errors: List[str] = []
@@ -1263,19 +1321,24 @@ def sync_book_source(
 
     name = os.path.basename(abs_path)
     _progress("scan", 0, 1, name)
-    # 1) Extract text (PDFs/EPUBs can be slow — its own stage so the UI shows it).
-    _progress("extract", 0, 1, f"extracting text: {name}")
-    try:
-        full_content = extract_text(abs_path)
-    except Exception as e:
-        errors.append(f"extract failed: {e}")
-        _progress("error", 0, 1, f"extract failed: {e}")
-        return result
-
-    if not (full_content and full_content.strip()):
-        errors.append("no extractable text")
-        _progress("error", 0, 1, "no extractable text")
-        return result
+    # 1) Obtain the full text. Reuse caller-supplied text when present (analyze
+    #    already extracted it) so a big PDF/EPUB is never read twice; otherwise
+    #    extract now (its own stage, since extraction can be slow).
+    if text and text.strip():
+        full_content = text
+        _progress("extract", 1, 1, f"reused extracted text ({len(full_content):,} chars): {name}")
+    else:
+        _progress("extract", 0, 1, f"extracting text: {name}")
+        try:
+            full_content = extract_text(abs_path)
+        except Exception as e:
+            errors.append(f"extract failed: {e}")
+            _progress("error", 0, 1, f"extract failed: {e}")
+            return result
+        if not (full_content and full_content.strip()):
+            errors.append("no extractable text")
+            _progress("error", 0, 1, "no extractable text")
+            return result
 
     # Hand the extracted text to an optional sink so the caller can precompute the
     # local drill-down cache from it (no second extraction of a big PDF/EPUB).

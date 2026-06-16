@@ -161,6 +161,7 @@ declare -a SOURCE_FIRSTFILES=(
 # Files to be sourced (in order, after first files)
 declare -a SOURCE_FILES=(
     "$DD_HELPER_DIR/cache_functions.sh"
+    "$DD_HELPER_DIR/dev_cache_cleanup.sh"
     "$DD_HELPER_DIR/file_validation.sh"
     "$DD_HELPER_DIR/file_download.sh"
     "$DD_HELPER_DIR/file_processing.sh"
@@ -645,6 +646,9 @@ check_and_download_files() {
 ensure_secret_keys_ready() { return 0; }
 cleanup_behavior_cache() { return 0; }
 cleanup_file_cache() { return 0; }
+dev_cache_cleanup_prompt() { return 0; }
+system_log_limits_apply() { return 0; }
+system_unwanted_paths_cleanup() { return 0; }
 cleanup_directory_processing_cache() { return 0; }
 process_sh_files() { return 0; }
 check_directory_processing_cache() { return 1; }
@@ -734,6 +738,12 @@ main() {
     cleanup_file_cache
     # Clean up expired directory processing cache
     cleanup_directory_processing_cache
+    # Remove unwanted system paths (e.g. /usr/local/qcloud) when present
+    system_unwanted_paths_cleanup
+    # Idempotently cap system log growth (journald + logrotate)
+    system_log_limits_apply
+    # Prompt to clean oversized developer-tool caches (pip/npm/go/rust) and /var/log
+    dev_cache_cleanup_prompt
 
     # Step 3: Process shell files (dos2unix conversion and set +x permissions with cache)
     echo ""

@@ -8,6 +8,8 @@ Adding a provider = one entry here + probe handler + chat handler.
 
 Per provider:
   key_base      : secret base name (indexed _1.._5 then bare)
+  key_base_fallbacks : extra indexed bases tried after key_base (e.g. reuse an
+                  R2 token under CLOUDFLARE_R2_API_TOKEN when no Workers AI token)
   key_names     : legacy explicit precedence
   default_model : fallback when caller passes no model
   free_models   : known free-tier model ids (catalog + probe/chat fallback)
@@ -232,6 +234,12 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "cloudflare": {
         "key_base": "CLOUDFLARE_API_TOKEN",
         "key_names": ("CLOUDFLARE_API_TOKEN_1", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN"),
+        # Reuse the R2 credential set when no dedicated Workers AI token is stored:
+        # the R2 API token (cfat_...) and the account id embedded in the R2 S3
+        # endpoint are saved under CLOUDFLARE_R2_*; see _cloudflare_account_id().
+        # NOTE: an R2-scoped token only authenticates Workers AI if it was issued
+        # with the "Workers AI" permission — otherwise the run call returns 403.
+        "key_base_fallbacks": ("CLOUDFLARE_R2_API_TOKEN",),
         "extra_secret": "CLOUDFLARE_ACCOUNT_ID",
         "client": "cloudflare",
         "default_model": "@cf/meta/llama-3-8b-instruct",
@@ -454,13 +462,14 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "key_base": "GOOGLE_API_KEY",
         "key_names": ("GOOGLE_API_KEY_1", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY"),
         "image_only": True,
-        "default_model": "imagen-3.0-generate-002",
-        "free_models": ("imagen-3.0-generate-002",),
-        "limits": "Imagen 3 via Gemini API (billed; Vertex $300 trial / paid tier)",
+        # Imagen 3 was shut down on the Gemini API (404); use Imagen 4 (GA).
+        "default_model": "imagen-4.0-generate-001",
+        "free_models": ("imagen-4.0-generate-001", "imagen-4.0-fast-generate-001"),
+        "limits": "Imagen 4 via Gemini API (billed; Vertex $300 trial / paid tier)",
         "tier": "paid",
         "vision": False,
         "image": True,
-        "image_model": "imagen-3.0-generate-002",
+        "image_model": "imagen-4.0-generate-001",
     },
     "azure": {
         # Azure OpenAI DALL-E 3. Needs AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT
@@ -499,13 +508,13 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "key_base": "GOOGLE_VERTEX_SA_JSON",
         "extra_required": ("VERTEX_PROJECT_ID",),
         "image_only": True,
-        "default_model": "imagen-3.0-generate-002",
-        "free_models": ("imagen-3.0-generate-002", "imagen-4.0-generate-001"),
+        "default_model": "imagen-4.0-generate-001",
+        "free_models": ("imagen-4.0-generate-001", "imagen-4.0-fast-generate-001"),
         "limits": "Vertex AI Imagen ($300 new-account credit; service-account OAuth)",
         "tier": "paid",
         "vision": False,
         "image": True,
-        "image_model": "imagen-3.0-generate-002",
+        "image_model": "imagen-4.0-generate-001",
     },
 }
 
@@ -540,6 +549,11 @@ def all_secrets(provider: str) -> List[str]:
     base = meta.get("key_base")
     if base:
         for v in get_all_secret_keys_indexed(base):
+            if v not in seen:
+                seen.add(v)
+                keys.append(v)
+    for fallback_base in meta.get("key_base_fallbacks", ()):
+        for v in get_all_secret_keys_indexed(fallback_base):
             if v not in seen:
                 seen.add(v)
                 keys.append(v)
@@ -670,16 +684,37 @@ def key_count(provider: str) -> int:
     return len(all_secrets(provider))
 
 
+def _cloudflare_account_id() -> str:
+    """Cloudflare account id for Workers AI. Prefer an explicit CLOUDFLARE_ACCOUNT_ID,
+    then a bare CLOUDFLARE_R2_ACCOUNT_ID, else derive it from the R2 S3 endpoint
+    (https://<account_id>.r2.cloudflarestorage.com) that ships with the R2 keys."""
+    acct = get_secret_key_indexed("CLOUDFLARE_ACCOUNT_ID") or get_secret_key("CLOUDFLARE_ACCOUNT_ID")
+    if acct:
+        return acct
+    acct = get_secret_key_indexed("CLOUDFLARE_R2_ACCOUNT_ID") or get_secret_key("CLOUDFLARE_R2_ACCOUNT_ID")
+    if acct:
+        return acct
+    endpoint = get_secret_key_indexed("CLOUDFLARE_R2_S3_ENDPOINT") or get_secret_key("CLOUDFLARE_R2_S3_ENDPOINT")
+    if endpoint:
+        host = endpoint.split("://", 1)[-1].split("/", 1)[0]
+        sub = host.split(".", 1)[0]
+        if sub and "r2.cloudflarestorage.com" in host:
+            return sub
+    return ""
+
+
 def extra_secret(provider: str, key_name: Optional[str] = None) -> str:
     """Secondary secret (e.g. CLOUDFLARE_ACCOUNT_ID)."""
     meta = PROVIDERS.get(provider, {})
     name = key_name or meta.get("extra_secret")
-    if not name:
-        return ""
-    val = get_secret_key_indexed(name)
-    if val:
-        return val
-    return get_secret_key(name) or ""
+    if name:
+        val = get_secret_key_indexed(name) or get_secret_key(name)
+        if val:
+            return val
+    # Cloudflare: fall back to the account id carried by the R2 credential set.
+    if provider == "cloudflare" and (key_name is None or key_name == meta.get("extra_secret")):
+        return _cloudflare_account_id()
+    return ""
 
 
 def base_url(provider: str) -> str:

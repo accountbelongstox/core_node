@@ -275,20 +275,57 @@ class TranslationWorkerService:
         return f"pycore-translate-{safe}"
 
     @staticmethod
-    def _build_candidates(primary: str) -> List[str]:
+    def _local_ipv4s() -> List[str]:
+        """Best-effort list of this machine's non-loopback IPv4 addresses, used to
+        decide whether a hardcoded LAN fallback is reachable (same subnet) before
+        adding it as a candidate. Never raises."""
+        ips = set()
+        try:
+            for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+                addr = (info[4] or [None])[0]
+                if addr and not addr.startswith("127."):
+                    ips.add(addr)
+        except Exception:
+            pass
+        return sorted(ips)
+
+    @staticmethod
+    def _host_of(url: str) -> str:
+        """Bare host (no scheme / port / path) from a URL."""
+        host = (url or "").split("://", 1)[-1].split("/", 1)[0]
+        return host.rsplit(":", 1)[0] if ":" in host else host
+
+    @classmethod
+    def _on_local_subnet(cls, url: str, local_ips: List[str]) -> bool:
+        """True when the URL's IPv4 host shares a /24 with one of this machine's
+        local addresses — i.e. the LAN fallback's environment actually exists."""
+        parts = cls._host_of(url).split(".")
+        if len(parts) != 4 or not all(p.isdigit() for p in parts):
+            return False
+        prefix = ".".join(parts[:3]) + "."
+        return any(ip.startswith(prefix) for ip in local_ips)
+
+    @classmethod
+    def _build_candidates(cls, primary: str) -> List[str]:
         """
         Ordered, de-duplicated list of Laravel base URLs to try. The configured
-        ``primary`` is first; the rest are local/LAN fallbacks so a worker on the
-        dev machine still finds Laravel if it binds a different host.
+        ``primary`` is first, then loopback defaults. The hardcoded LAN fallbacks
+        are added ONLY when this machine actually sits on their subnet — otherwise
+        they are unreachable from here and just stall the health sweep (SYN_SENT,
+        timing out), so they are skipped.
         """
-        defaults = [
+        local_defaults = [
             "http://127.0.0.1:9000",
             "http://localhost:9000",
+        ]
+        lan_fallbacks = [
             "http://192.168.50.3:9000",
             "http://192.168.50.2:9000",
         ]
+        local_ips = cls._local_ipv4s()
+        reachable_lan = [u for u in lan_fallbacks if cls._on_local_subnet(u, local_ips)]
         ordered: List[str] = []
-        for url in [primary, *defaults]:
+        for url in [primary, *local_defaults, *reachable_lan]:
             u = (url or "").rstrip("/")
             if u and u not in ordered:
                 ordered.append(u)

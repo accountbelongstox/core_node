@@ -197,6 +197,16 @@ disable_conflicting_web_servers() {
         fi
     done
 
+    # Permanently block Apache: drop the apt pin (Pin-Priority -1) so it can NEVER be
+    # re-pulled as a transitive dep (libapache2-mod-php <- php meta), then purge. The
+    # shared "外挂" guard does pin + purge idempotently; the block below is kept as a
+    # belt-and-suspenders cleanup.
+    if [ -f "$PARENT_DIR_LEVEL_2/common/apache_block_guard.sh" ]; then
+        # shellcheck source=/dev/null
+        source "$PARENT_DIR_LEVEL_2/common/apache_block_guard.sh"
+        abg_block_apache || true
+    fi
+
     # Remove Apache2 packages if installed (they cause conflicts)
     if dpkg -l | grep -q "^ii.*apache2"; then
         echo "[$SCRIPT_INDEX] Apache2 packages detected, removing..."

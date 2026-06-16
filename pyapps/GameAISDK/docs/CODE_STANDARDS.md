@@ -8,4 +8,4 @@
 - **pycore sys.path:** Before any pycore import, add the path that contains the `pycore` package to `sys.path` (e.g. walk up from `__file__` until a dir containing `pycore` exists, then `sys.path.insert(0, _dir)`). Required so imports resolve when running from sub-app or tool entry points.
 - **Docs:** Key points only; no filler.
 
-Rule file: `.cursor/rules/game-aisdk.mdc`. Sub-app convention: repo root `development-guides/CURSOR_SUBAPP_RULES.md`.
+Rule file: `.cursor/rules/game-aisdk.mdc`. Sub-app convention: `.cursor/rules/cursor-rules.mdc`.

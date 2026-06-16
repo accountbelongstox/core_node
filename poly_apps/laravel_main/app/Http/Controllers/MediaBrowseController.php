@@ -8,6 +8,7 @@ use App\Models\MediaSegment;
 use App\Models\SourceSentence;
 use App\Models\Sentence;
 use App\Providers\PathMapper;
+use App\Services\MoviePoster\MoviePosterStore;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -59,7 +60,8 @@ class MediaBrowseController extends Controller
 
         $query->orderByDesc('synced_at');
 
-        $paginator = $query->paginate($perPage)->through(function (Subtitle $subtitle) {
+        $posterStore = new MoviePosterStore();
+        $paginator = $query->paginate($perPage)->through(function (Subtitle $subtitle) use ($posterStore) {
             return [
                 'id' => $subtitle->id,
                 'source_key' => $subtitle->source_key,
@@ -72,6 +74,8 @@ class MediaBrowseController extends Controller
                 'segment_count' => $subtitle->segment_count,
                 'sentence_count' => $subtitle->sentence_count,
                 'synced_at' => $subtitle->synced_at,
+                'image_url' => $posterStore->imageUrlFor($subtitle),
+                'poster_status' => $subtitle->poster_status,
             ];
         });
 
@@ -108,7 +112,8 @@ class MediaBrowseController extends Controller
 
         $query->orderByDesc('synced_at');
 
-        $paginator = $query->paginate($perPage)->through(function (Book $book) {
+        $posterStore = new MoviePosterStore();
+        $paginator = $query->paginate($perPage)->through(function (Book $book) use ($posterStore) {
             return [
                 'id' => $book->id,
                 'source_key' => $book->source_key,
@@ -118,6 +123,8 @@ class MediaBrowseController extends Controller
                 'language' => $book->language,
                 'sentence_count' => $book->sentence_count,
                 'synced_at' => $book->synced_at,
+                'image_url' => $posterStore->imageUrlFor($book),
+                'poster_status' => $book->poster_status,
             ];
         });
 

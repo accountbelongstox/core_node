@@ -80,6 +80,7 @@ from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyfoundations.system_paths import get_user_data_store
 from pycore.pyutils.security.machine_id import get_machine_id
 from pycore.pyutils.tts import tts_orchestrator
+from pycore.pyutils.external_apis.movie_poster_client import find_poster, parse_title_year
 
 
 # ============================================================
@@ -96,7 +97,7 @@ BATCH_LIMIT_MIN, BATCH_LIMIT_MAX = 1, 10
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "enabled": False,
-    "capabilities": {"cover": True, "tts": True, "translation": True},
+    "capabilities": {"cover": True, "tts": True, "translation": True, "poster": True},
     "poll_interval_s": 30,
     "batch_limit": 3,
 }
@@ -192,6 +193,10 @@ def translation_worker_enabled_on_start(legacy_default: bool) -> bool:
 # Gateway aspect-ratio shape (pyctl.ai.ai_gateway._ASPECT_RATIO_RE): "W:H" <=99.
 _ASPECT_RE = re.compile(r"^\d{1,2}:\d{1,2}$")
 _PIXEL_SIZE_RE = re.compile(r"^(\d{2,5})\s*[xX×]\s*(\d{2,5})$")
+# A poster title still "looks raw" (a filename, not a clean title) when it
+# carries a SxxExx / 1x02 season-episode marker — only then do we re-parse it.
+_SXXEXX_LOOKS_RAW_RE = re.compile(
+    r"\b(?:s\d{1,2}\s?e\d{1,3}|\d{1,2}x\d{1,3})\b", re.IGNORECASE)
 # Ratios the image providers actually understand, used when an exact gcd
 # reduction does not fit the gateway's 2-digit "W:H" shape.
 _COMMON_RATIOS: Tuple[Tuple[int, int], ...] = (
@@ -317,7 +322,7 @@ class AssistWorker:
 
     # Claim types this worker can serve (translation rides the existing
     # TranslationWorkerService — never claimed here).
-    CLAIMABLE_TYPES = ("cover", "tts")
+    CLAIMABLE_TYPES = ("cover", "tts", "poster")
 
     # Circuit breaker: consecutive server-side (HTTP 5xx) give-ups before the
     # worker stops claiming for a cooldown (mirrors TranslationWorkerService).
@@ -553,6 +558,8 @@ class AssistWorker:
                     self._handle_cover(base, item, result)
                 elif item_type == "tts":
                     self._handle_tts(base, item, result)
+                elif item_type == "poster":
+                    self._handle_poster(base, item, result)
                 else:
                     self._release(base, str(item_type), item_id,
                                   f"unsupported assist item type '{item_type}'", result)
@@ -646,20 +653,31 @@ class AssistWorker:
         return False
 
     def _release(self, base: str, item_type: str, item_id: Any,
-                 error: str, result: Dict[str, Any]) -> None:
+                 error: str, result: Dict[str, Any],
+                 extra: Optional[Dict[str, Any]] = None) -> None:
         """POST /assist/release for one failed item (best-effort: a lost
-        release just means the 60-minute lease expires server-side)."""
+        release just means the 60-minute lease expires server-side).
+
+        ``extra`` forwards type-specific fields the contract requires on the
+        release body (e.g. poster's ``media_type``) without changing the shape
+        for cover/tts releases.
+        """
         with self._state_lock:
             self._counters["failures"] += 1
             self._last_error = f"{item_type}#{item_id}: {error}"
         result["errors"].append(f"{item_type}#{item_id}: {error}")
         ColorPrint.yellow(f"[AssistWorker] Releasing {item_type}#{item_id}: {error}")
         requests = get_third_package_requests()
+        body: Dict[str, Any] = {
+            "type": item_type, "ids": [item_id],
+            "error": error[:500], "claimer": self.claimer,
+        }
+        if extra:
+            body.update(extra)
         try:
             resp = requests.post(
                 f"{base}{ASSIST_API_PREFIX}/release",
-                json={"type": item_type, "ids": [item_id],
-                      "error": error[:500], "claimer": self.claimer},
+                json=body,
                 timeout=self.RELEASE_TIMEOUT,
             )
             if resp.status_code == 200:
@@ -771,6 +789,65 @@ class AssistWorker:
                 tmp.unlink()
             except OSError:
                 pass
+
+    def _handle_poster(self, base: str, item: Dict[str, Any], result: Dict[str, Any]) -> None:
+        """poster item: payload {title, year:int|null, filename} -> movie/TV
+        poster bytes via the movie_poster_client (TMDB -> OMDB; CJK titles are
+        translated to English internally).
+
+        The Laravel title may already be clean; only run parse_title_year when
+        the title still looks like a raw filename (contains scene tokens / an
+        extension). The year comes from the payload when present, else from the
+        parse. ``media_type`` ('book'|'subtitle') is carried back on BOTH the
+        submit and the release so Laravel can route the result.
+        """
+        item_id = item.get("id")
+        payload = item.get("payload") or {}
+        media_type = (payload.get("media_type") or item.get("media_type") or "").strip()
+        title = (payload.get("title") or "").strip()
+        if not title:
+            self._release(base, "poster", item_id,
+                          "empty poster title", result,
+                          extra={"media_type": media_type})
+            return
+
+        # Year: prefer the payload's explicit year; else parse from the title.
+        year = payload.get("year")
+        try:
+            year = int(year) if year not in (None, "") else None
+        except (TypeError, ValueError):
+            year = None
+
+        # Only re-parse when the title still looks like a raw filename (scene
+        # separators, a known media/doc extension, or season/episode markers);
+        # an already-clean Laravel title is passed straight through.
+        query_title = title
+        looks_raw = ("." in title or "_" in title
+                     or bool(_SXXEXX_LOOKS_RAW_RE.search(title)))
+        if looks_raw:
+            parsed_title, parsed_year = parse_title_year(title)
+            if parsed_title:
+                query_title = parsed_title
+            if year is None and parsed_year is not None:
+                year = parsed_year
+
+        hit = find_poster(query_title, year=year)
+        if hit and hit.get("image_base64"):
+            self._submit(base, {
+                "type": "poster",
+                "media_type": media_type,
+                "id": item_id,
+                "image_base64": hit["image_base64"],
+                "mime": hit.get("mime") or "image/jpeg",
+                "claimer": self.claimer,
+                # Provenance for the poster record on Laravel.
+                "provider": hit.get("provider") or "",
+                "source_id": hit.get("source_id") or "",
+            }, result)
+        else:
+            self._release(base, "poster", item_id,
+                          "poster not found (TMDB/OMDB)", result,
+                          extra={"media_type": media_type})
 
     # -------------------- circuit breaker --------------------
 

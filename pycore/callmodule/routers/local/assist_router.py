@@ -55,6 +55,8 @@ class CapabilitiesPatch(BaseModel):
     # Each capability is optional — omitted keys keep their stored value.
     cover: Optional[bool] = None
     tts: Optional[bool] = None
+    # poster claims movie/TV poster lookups (TMDB -> OMDB) for book/subtitle items.
+    poster: Optional[bool] = None
     # translation gates the EXISTING TranslationWorkerService (no duplicate
     # claiming here — see assist_worker.py's module docstring).
     translation: Optional[bool] = None

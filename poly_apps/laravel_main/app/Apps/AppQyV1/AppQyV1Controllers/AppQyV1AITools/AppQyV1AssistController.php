@@ -69,7 +69,7 @@ class AppQyV1AssistController extends Controller
 
         $validator = Validator::make($request->all(), [
             'types' => 'required|array|min:1',
-            'types.*' => 'string|in:cover,tts',
+            'types.*' => 'string|in:cover,tts,poster',
             'limit' => 'nullable|integer|min:1|max:10',
             'claimer' => 'required|string|min:1|max:56',
         ]);
@@ -94,6 +94,9 @@ class AppQyV1AssistController extends Controller
             if (in_array('tts', $types, true)) {
                 $items = array_merge($items, $this->assist->claimTts($claimer, $limit));
             }
+            if (in_array('poster', $types, true)) {
+                $items = array_merge($items, $this->assist->claimPosters($claimer, $limit));
+            }
         } catch (\Throwable $e) {
             Log::error('[Assist] claim failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during claim'], 500);
@@ -108,8 +111,10 @@ class AppQyV1AssistController extends Controller
 
     /**
      * POST /api/app_qy_v1/assist/submit
-     * Body (cover): { type:'cover', id, image_base64, mime?, claimer? }
-     * Body (tts):   { type:'tts', id, audio_base64, mime?, voice?, claimer? }
+     * Body (cover):  { type:'cover', id, image_base64, mime?, claimer? }
+     * Body (tts):    { type:'tts', id, audio_base64, mime?, voice?, claimer? }
+     * Body (poster): { type:'poster', media_type:'book'|'subtitle', id,
+     *                  image_base64, mime?, claimer?, provider?, source_id? }
      * Response: { ok, status, already_done?, error? }
      */
     public function submit(Request $request): JsonResponse
@@ -119,9 +124,10 @@ class AppQyV1AssistController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'type' => 'required|string|in:cover,tts',
+            'type' => 'required|string|in:cover,tts,poster',
+            'media_type' => 'required_if:type,poster|string|in:book,subtitle',
             'id' => 'required|integer|min:1',
-            'image_base64' => 'required_if:type,cover|string',
+            'image_base64' => 'required_if:type,cover|required_if:type,poster|string',
             'audio_base64' => 'required_if:type,tts|string',
             'mime' => 'nullable|string|max:100',
             'voice' => 'nullable|string|max:100',
@@ -132,6 +138,8 @@ class AppQyV1AssistController extends Controller
             'model' => 'nullable|string|max:128',
             'engine' => 'nullable|string|max:64',
             'latency_ms' => 'nullable|integer|min:0',
+            // Poster provenance: the movie-DB / generator result id.
+            'source_id' => 'nullable|string|max:64',
         ]);
 
         if ($validator->fails()) {
@@ -160,6 +168,15 @@ class AppQyV1AssistController extends Controller
                     $request->input('model'),
                     $latencyMs
                 );
+            } elseif ($type === 'poster') {
+                $result = $this->assist->submitPoster(
+                    (string) $request->input('media_type'),
+                    $id,
+                    (string) $request->input('image_base64'),
+                    $request->input('mime'),
+                    $request->input('provider'),
+                    $request->input('source_id')
+                );
             } else {
                 $result = $this->assist->submitTts(
                     $id,
@@ -185,7 +202,8 @@ class AppQyV1AssistController extends Controller
 
     /**
      * POST /api/app_qy_v1/assist/release
-     * Body: { type:'cover'|'tts', ids: int[], error?: string, claimer?: string }
+     * Body: { type:'cover'|'tts'|'poster', ids: int[], error?: string,
+     *         claimer?: string, media_type?:'book'|'subtitle' (poster only) }
      * Response: { released: int }
      */
     public function release(Request $request): JsonResponse
@@ -195,7 +213,8 @@ class AppQyV1AssistController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'type' => 'required|string|in:cover,tts',
+            'type' => 'required|string|in:cover,tts,poster',
+            'media_type' => 'required_if:type,poster|string|in:book,subtitle',
             'ids' => 'required|array|min:1',
             'ids.*' => 'integer|min:1',
             'error' => 'nullable|string|max:2000',
@@ -215,9 +234,13 @@ class AppQyV1AssistController extends Controller
         $claimer = trim((string) $request->input('claimer', '')) ?: 'unknown';
 
         try {
-            $released = $type === 'cover'
-                ? $this->assist->releaseCovers($ids, $error)
-                : $this->assist->releaseTts($ids, $error, $claimer);
+            if ($type === 'cover') {
+                $released = $this->assist->releaseCovers($ids, $error);
+            } elseif ($type === 'poster') {
+                $released = $this->assist->releasePosters((string) $request->input('media_type'), $ids, $error);
+            } else {
+                $released = $this->assist->releaseTts($ids, $error, $claimer);
+            }
         } catch (\Throwable $e) {
             Log::error('[Assist] release failed', ['type' => $type, 'error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during release'], 500);
@@ -281,22 +304,104 @@ class AppQyV1AssistController extends Controller
     }
 
     /**
+     * POST /api/app_qy_v1/assist/cover/clear
+     * Body: { ids?: int[], all?: bool, failed_only?: bool }
+     * Response: { success, cleared:int, files_deleted:int }
+     *
+     * Deletes the cover image file(s) and re-queues the row(s) to 'pending' with
+     * a fresh randomized prompt, so pycore regenerates them. Use to discard
+     * unsatisfactory covers. failed_only=true narrows to failed/retry rows.
+     */
+    public function coverClear(Request $request): JsonResponse
+    {
+        if (!AppQyV1AssistService::isAssistEnabled()) {
+            return $this->disabledResponse();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'ids' => 'nullable|array',
+            'ids.*' => 'integer|min:1',
+            'all' => 'nullable|boolean',
+            'failed_only' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation failed: ' . $validator->errors()->first(),
+            ], 422);
+        }
+
+        $ids = (array) $request->input('ids', []);
+        $all = (bool) $request->boolean('all');
+        $failedOnly = (bool) $request->boolean('failed_only');
+
+        if (!$all && empty($ids)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Provide ids[] or all=true',
+            ], 422);
+        }
+
+        try {
+            $result = $this->assist->clearCovers($ids, $all, $failedOnly);
+        } catch (\Throwable $e) {
+            Log::error('[Assist] cover clear failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'Internal error during clear'], 500);
+        }
+
+        return response()->json(['success' => true] + $result);
+    }
+
+    /**
+     * POST /api/app_qy_v1/assist/cover/reconcile
+     * Response: { success, reset:int, checked:int }
+     *
+     * Finds covers marked 'ready' whose file is missing on disk and re-queues
+     * them to 'pending' so pycore regenerates them (recovery for lost files).
+     */
+    public function coverReconcile(): JsonResponse
+    {
+        if (!AppQyV1AssistService::isAssistEnabled()) {
+            return $this->disabledResponse();
+        }
+
+        try {
+            $result = $this->assist->reconcileMissingCovers();
+        } catch (\Throwable $e) {
+            Log::error('[Assist] cover reconcile failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'Internal error during reconcile'], 500);
+        }
+
+        return response()->json(['success' => true] + $result);
+    }
+
+    /**
      * GET /api/app_qy_v1/assist/status
      * Response: { success, enabled, mode:'pull',
      *             cover: {pending,retry,processing,ready,failed,total,leased},
      *             tts: {pending,processing,completed,failed,leased},
+     *             poster: {pending,ready,failed,none,total,leased},
      *             lease_minutes: 60 }
      */
     public function status(): JsonResponse
     {
+        // Serve the cover/tts/translation counts from the warm, cached pending
+        // snapshot (same three count methods, kept fresh by the Octane cover
+        // timer). This poll-heavy endpoint — hit by the dashboard strip AND the
+        // pycore assist passthrough every ~15s — no longer recomputes ~40
+        // aggregate COUNT queries on every call.
+        $snapshot = $this->assist->pendingSnapshot(false);
+
         return response()->json([
             'success' => true,
-            'enabled' => AppQyV1AssistService::isAssistEnabled(),
+            'enabled' => $snapshot['enabled'] ?? AppQyV1AssistService::isAssistEnabled(),
             'mode' => 'pull',
-            'cover' => $this->assist->coverCounts(),
-            'tts' => $this->assist->ttsCounts(),
-            'translation' => $this->assist->translationCounts(),
-            'lease_minutes' => AppQyV1AssistService::LEASE_MINUTES,
+            'cover' => $snapshot['cover'],
+            'tts' => $snapshot['tts'],
+            'translation' => $snapshot['translation'],
+            'poster' => $snapshot['poster'] ?? null,
+            'lease_minutes' => $snapshot['lease_minutes'] ?? AppQyV1AssistService::LEASE_MINUTES,
         ]);
     }
 

@@ -2,6 +2,9 @@ import { createErrorResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
+import { logger } from '@/utils/logger';
+
+const LOG = 'Bing Dictionary';
 
 interface BingDictionaryParams {
   word: string;
@@ -49,6 +52,9 @@ export interface BingDictionaryResult {
   // 'dict' = confirmed Bing dictionary page; 'non-dict' = region-redirected /
   // not a dictionary. Only a 'dict' page with no entry means the word is invalid.
   pageType?: 'dict' | 'non-dict';
+  // True on a CONFIRMED Bing "No results found for <word>" page — a definitive
+  // no-entry; the word is invalid (becomes a placeholder), never a transient.
+  noEntry?: boolean;
   error: string | null;
   url?: string;
   tabId?: number;
@@ -71,7 +77,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
       return createErrorResponse('Word parameter is required and cannot be empty');
     }
 
-    console.log(`[Bing Dictionary] Looking up word: "${word}"`);
+    logger.info(LOG, `Looking up word: "${word}"`);
 
     try {
       let tab: chrome.tabs.Tab | undefined;
@@ -100,7 +106,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
         return createErrorResponse('No response from content script');
       }
       if (!translationData.success) {
-        console.warn('[Bing Dictionary] Translation extraction failed:', translationData.error);
+        logger.warn(LOG, 'Translation extraction failed', translationData.error);
       }
 
       return {
@@ -108,7 +114,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
         isError: false,
       };
     } catch (error) {
-      console.error('[Bing Dictionary] Error:', error);
+      logger.error(LOG, 'Lookup error', error);
       return createErrorResponse(
         `Error looking up word in Bing Dictionary: ${error instanceof Error ? error.message : String(error)}`,
       );

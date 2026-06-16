@@ -687,6 +687,29 @@ class SingletonDetector:
                 # STATUS for external monitors, but never blocks a sibling
                 # takeover (that would leave the user's new launch unable to run).
                 new_pid = message.get('pid')
+
+                # Newest-wins guard (receiver side): only yield to a genuinely
+                # NEWER instance. A SHUTDOWN from an OLDER sibling (a late boot-
+                # autostart instance, a stray/duplicate, or a takeover race
+                # against a just-bound PRIMARY) must NOT kill this newer process.
+                # Senders that omit started_at are legacy -> accept (backward
+                # compatible). Strict '<' so an exact tie still allows takeover
+                # (avoids a mutual-reject deadlock on the import-time fallback).
+                sender_started = message.get('started_at')
+                if sender_started is not None and float(sender_started) < self.started_at:
+                    self._log(
+                        f"[REJECT] SHUTDOWN from OLDER instance (PID {new_pid}, started "
+                        f"{float(sender_started):.3f} < ours {self.started_at:.3f}); "
+                        "keeping this newer instance alive", "WARNING")
+                    response = self._create_message(
+                        MessageType.SHUTDOWN_ACK,
+                        accepted=False,
+                        reason="A newer instance is already running"
+                    )
+                    response_data = json.dumps(response).encode('utf-8')
+                    client_socket.sendall(response_data + b'\n')
+                    return
+
                 self._log(f"Takeover SHUTDOWN from PID {new_pid}; yielding to newer instance", "WARNING")
 
                 # Notification interface (the "old instance" side): fire
@@ -743,7 +766,9 @@ class SingletonDetector:
         """
         self._log(f"Sending SHUTDOWN to existing instance on port {existing_port}")
 
-        shutdown_msg = self._create_message(MessageType.SHUTDOWN)
+        # Carry our start time so the receiver can enforce newest-wins on its side:
+        # an OLDER sibling's SHUTDOWN must NOT be able to kill a newer PRIMARY.
+        shutdown_msg = self._create_message(MessageType.SHUTDOWN, started_at=self.started_at)
         response = self._send_message_and_wait_response(existing_port, shutdown_msg, validate=True)
 
         if response and response.get('type') == MessageType.SHUTDOWN_ACK.value:

@@ -1125,6 +1125,18 @@ map_web_path() {
             # Keep logs in Linux filesystem
             mapped_path="/var/log"
             ;;
+        "app_manager_logs")
+            # Unified App Manager log namespace ROOT (scripts/app_manager/linux_sh).
+            # Service stdout/stderr (service.log) and foreground.log live under
+            # <this>/namespaces/apps/<name>/. Kept on the native Linux fs like
+            # "logs". Retired predecessor: see "app_manager_logs_old".
+            mapped_path="/opt/_core_node/logs"
+            ;;
+        "app_manager_logs_old")
+            # Retired App Manager log root (formerly "core_node_unified_manager").
+            # Kept ONLY so cleanup tooling can locate and purge the old 13GB tree.
+            mapped_path="/opt/core_node_unified_manager/logs"
+            ;;
         "pg_mount")
             # Native ext4 loop-mount target for the PostgreSQL D-drive image (WSL
             # persistence). MUST be on the native Linux fs (NOT drvfs): the whole

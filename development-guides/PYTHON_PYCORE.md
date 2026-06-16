@@ -540,7 +540,7 @@ status = heartbeat.get_status()
 ## 11. Native UI / WebView Development
 
 > **UI (updated):** The pycore desktop UI is now the unified shell
-> `poly_apps/laravel_dashboard` — its **pycore-manager** end, loaded by `pyservice`
+> `poly_apps/pycore_laravel_wordflow_ui` — its **pycore-manager** end, loaded by `pyservice`
 > (`pyservice.ps1` / `pyservice.sh`) at `http://localhost:<UiPort>/pycore-manager`
 > (Vite/pnpm; the shell's `/`→`/pycore-manager` redirect serves it as the default end).
 > The standalone `pycore/pyctl/desktop/desktop-manager` React app is **superseded/legacy**.

@@ -33,6 +33,15 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore import ColorPrint
+# Movie/TV poster fetch (TMDB -> OMDB). Best-effort per video: parse title+year
+# from the original filename, fetch a poster, save it into the output dir.
+# Canonical: development-guides/MOVIE_POSTER_PIPELINE.md. This module only imports
+# pyfoundations + the translator (no cycle back into this processor).
+from pycore.pyutils.external_apis.movie_poster_client import (
+    find_poster,
+    parse_title_year,
+    save_poster_file,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -1052,13 +1061,52 @@ class VideoExtractProcessor:
         return count
 
     @staticmethod
+    def _fetch_video_poster(original_filename: str, out_dir: str, log):
+        """Best-effort movie/TV poster for one video. Returns (poster_name, poster_info).
+
+        Parses a clean title + year from ``original_filename`` (strip release/
+        quality tokens, SxxExx, year), fetches a poster via the shared
+        movie_poster_client (TMDB -> OMDB, CJK title translated first), and writes
+        ``poster.jpg``/``.png`` into ``out_dir``. ``poster_name`` is the bare
+        filename (for mapping.files.poster); ``poster_info`` is a small dict
+        ({file, provider, source_id, meta}) for the per-item result. Returns
+        ``(None, None)`` when no poster is found. NEVER raises.
+        """
+        try:
+            title, year = parse_title_year(original_filename)
+            if not (title and title.strip()):
+                return None, None
+            poster = find_poster(title.strip(), year=year)
+            if not poster:
+                return None, None
+            saved = save_poster_file(
+                poster.get("image_base64") or "",
+                poster.get("mime") or "image/jpeg",
+                os.path.join(out_dir, "poster"),
+            )
+            if not saved:
+                return None, None
+            poster_name = os.path.basename(saved)
+            log(f"    poster: saved {poster_name} ({poster.get('provider')})")
+            return poster_name, {
+                "file": poster_name,
+                "provider": poster.get("provider"),
+                "source_id": poster.get("source_id"),
+                "meta": poster.get("meta") or {},
+            }
+        except Exception as exc:  # noqa: BLE001 - never fail extraction
+            log(f"    poster: skipped ({exc})")
+            return None, None
+
+    @staticmethod
     def _write_segments_mapping(seg_dir: str, src: str, root: str, stem: str,
                                 duration: float, segments: List[Dict[str, Any]],
                                 full_mp4: Optional[str] = None,
                                 tiny_mp4: Optional[str] = None,
                                 mp3_path: Optional[str] = None,
                                 srt_path: Optional[str] = None,
-                                original_name: Optional[str] = None) -> str:
+                                original_name: Optional[str] = None,
+                                poster_name: Optional[str] = None) -> str:
         """(Re)write mapping.json describing every segment + its subtitles.
 
         Always overwritten when segments are (re)generated so it reflects the
@@ -1095,11 +1143,15 @@ class VideoExtractProcessor:
                 "ascii": stem,                     # sanitized ascii stem
             },
             # files.* are BARE NAMES in the OUTPUT dir (seg_dir's parent), not seg_dir.
+            # poster is the movie/TV poster filename (poster.jpg/.png) in that same
+            # OUTPUT dir; null when no poster was fetched.
             "files": {
                 "full_mp4": (stem + ".full.mp4") if _exists(full_mp4) else None,
                 "tiny_mp4": (stem + ".mp4") if _exists(tiny_mp4) else None,
                 "audio": {"mp3": (stem + ".mp3") if _exists(mp3_path) else None},
                 "srt": (stem + ".srt") if _exists(srt_path) else None,
+                "poster": poster_name if (poster_name and _exists(
+                    os.path.join(os.path.dirname(seg_dir), poster_name))) else None,
             },
             "duration": float(duration),
             "max_segment_sec": 300,
@@ -1259,6 +1311,8 @@ class VideoExtractProcessor:
         # the .srt is idempotent and resumable, so this is safe to force on.
         want_subtitle = True
         dry_run = bool(config.get("dry_run"))
+        # Movie/TV poster fetch (best-effort, per the request option; default ON).
+        fetch_poster = bool(config.get("fetch_poster", True))
         sample_rate = int(config.get("sample_rate", 22050))
         mono = not bool(config.get("stereo"))
         bitrate_override = config.get("bitrate") or None
@@ -1475,6 +1529,18 @@ class VideoExtractProcessor:
             elif whisper_model is None:
                 log("    srt: SKIPPED — whisper engine failed to load")
 
+            # movie/TV poster — best-effort: parse a clean title+year from the
+            # ORIGINAL filename, fetch a poster (TMDB->OMDB), and save poster.jpg/.png
+            # into this video's output dir. A failure NEVER fails extraction.
+            poster_name: Optional[str] = None
+            poster_info: Optional[Dict[str, Any]] = None
+            if fetch_poster and not dry_run:
+                poster_name, poster_info = self._fetch_video_poster(
+                    os.path.basename(src), target_dir, log)
+                if poster_name:
+                    item["poster"] = poster_info
+                    current["poster"] = poster_name
+
             # smart segmentation — split videos > 5 min into <5-min, subtitle-aligned
             # clips (cut from BOTH the tiny mp4 AND the mp3). Runs EVERY time so any
             # missing clip is (re)produced even when the .srt already exists; idempotent
@@ -1504,7 +1570,8 @@ class VideoExtractProcessor:
                     self._write_segments_mapping(
                         seg_dir, src, root, stem, vid_duration, segments,
                         full_mp4=full_mp4, tiny_mp4=tiny_mp4, mp3_path=mp3_path,
-                        srt_path=srt_path, original_name=os.path.basename(src))
+                        srt_path=srt_path, original_name=os.path.basename(src),
+                        poster_name=poster_name)
                     stats["seg_made"] += seg_stats.get("made", 0)
                     stats["seg_skip"] += seg_stats.get("skipped", 0)
                     current["segments_dir"] = seg_dir

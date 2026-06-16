@@ -404,7 +404,7 @@ public static function sanitizePath(string $path): string
 
 ### 🔴 CRITICAL: Inconsistent Error Handling Patterns
 
-**Location:** `/www/programing/core_node/poly_apps/laravel_dashboard/components/views/ServerManager.tsx`
+**Location:** `/www/programing/core_node/poly_apps/pycore_laravel_wordflow_ui/components/views/ServerManager.tsx`
 
 **Problem - Three Different Error Handling Patterns:**
 
@@ -1245,11 +1245,11 @@ The ServerManager V1 system demonstrates solid security foundations in some area
 - `/www/programing/core_node/poly_apps/laravel_main/routes/ServerManagerV1Router/ServerManagerV1Routes.php`
 
 ### Frontend Components
-- `/www/programing/core_node/poly_apps/laravel_dashboard/components/views/ServerManager.tsx`
+- `/www/programing/core_node/poly_apps/pycore_laravel_wordflow_ui/components/views/ServerManager.tsx`
 
 ### Frontend API
-- `/www/programing/core_node/poly_apps/laravel_dashboard/core/api/modules/ServerManagerV1.ts`
-- `/www/programing/core_node/poly_apps/laravel_dashboard/core/api/base/BaseAPI.ts`
+- `/www/programing/core_node/poly_apps/pycore_laravel_wordflow_ui/core/api/modules/ServerManagerV1.ts`
+- `/www/programing/core_node/poly_apps/pycore_laravel_wordflow_ui/core/api/base/BaseAPI.ts`
 
 ---
 

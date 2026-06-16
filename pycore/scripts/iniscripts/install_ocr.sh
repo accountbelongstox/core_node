@@ -31,6 +31,16 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Shared torch CPU/GPU guard ("外挂"): used to GPU-gate easyocr below. easyocr
+# depends on torch; on a GPU-less host plain install pulls the default CUDA torch +
+# ~4.3G nvidia-*, so we ensure the CPU build first (and repair after). Idempotent.
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
+TORCH_GUARD="$SCRIPT_DIR/../../../scripts/shells/linux/common/torch_cpu_guard.sh"
+run_torch_guard() {
+    [[ -f "$TORCH_GUARD" ]] || return 0
+    bash "$TORCH_GUARD" --python "$PYTHON" "$@" || true
+}
+
 py_has_module() {
     "$PYTHON" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)" 2>/dev/null
 }
@@ -53,10 +63,16 @@ if py_has_module easyocr && [[ "$FORCE" -eq 0 ]]; then
 elif [[ -f "$EASYOCR_SKIP" && "$FORCE" -eq 0 ]]; then
     echo "[skip] easyocr was already attempted and failed (cnocr covers OCR). Use --force to retry."
 else
+    # GPU gate (idempotent): ensure the CORRECT torch build is present BEFORE easyocr.
+    # On a GPU-less host this installs/keeps the CPU build, so easyocr's resolver finds
+    # torch satisfied and does NOT pull the default CUDA torch + ~4.3G nvidia-*.
+    run_torch_guard
     echo "[..] pip install easyocr ..."
     if { "$PYTHON" -m pip install --break-system-packages easyocr 2>/dev/null || "$PYTHON" -m pip install easyocr; } && py_has_module easyocr; then
         echo "[OK] easyocr installed."
         rm -f "$EASYOCR_SKIP" 2>/dev/null || true
+        # Idempotent safety net: if easyocr still forced a CUDA torch, switch it back to CPU.
+        run_torch_guard --repair-only
     else
         mkdir -p "$(dirname "$EASYOCR_SKIP")"
         echo "easyocr install failed; skipped on subsequent boots. Delete this file or use --force to retry." > "$EASYOCR_SKIP"

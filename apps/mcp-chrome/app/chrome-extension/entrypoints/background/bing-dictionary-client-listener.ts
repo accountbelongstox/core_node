@@ -7,6 +7,9 @@
  */
 
 import { bingDictionaryWorkerService, type WorkerConfig } from './services/bing-dictionary-worker-service';
+import { logger } from '@/utils/logger';
+
+const LOG = 'Bing Listener';
 
 /**
  * Initialize message listener for Bing Dictionary Service
@@ -19,7 +22,7 @@ export function initBingDictionaryClientListener() {
     }
   });
 
-  console.log('[Bing Service Listener] Initialized');
+  logger.info(LOG, 'Initialized');
 }
 
 /**
@@ -76,11 +79,16 @@ async function handleBingDictionaryMessage(
         const status = (message as any).status || 'pending';
         const limit = (message as any).limit || 10;
         const page = (message as any).page || 1;
+        // Source/target languages come from the panel config (multi-source aware).
+        const language = cfg?.sourceLanguage || 'en';
+        const targetLanguage = cfg?.targetLanguage || 'zh';
         const overview = await bingDictionaryWorkerService.getQueueOverview(
           cfg?.apiUrl || '',
           status,
           limit,
           page,
+          language,
+          targetLanguage,
         );
         sendResponse({ success: overview.ok, ...overview });
         break;
@@ -116,7 +124,7 @@ async function handleBingDictionaryMessage(
       }
     }
   } catch (error: any) {
-    console.error('[Bing Service Listener] Error:', error);
+    logger.error(LOG, 'Message handler error', error);
     sendResponse({
       success: false,
       error: error.message || 'Unknown error',

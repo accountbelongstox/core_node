@@ -70,7 +70,7 @@
 # ---------------------------------------------------------------------------
 # UI vs headless
 # ---------------------------------------------------------------------------
-# Desktop / with Node: `run` serves the unified shell poly_apps/laravel_dashboard
+# Desktop / with Node: `run` serves the unified shell poly_apps/pycore_laravel_wordflow_ui
 # (its pycore-manager end) at http://localhost:<UI_PORT>/pycore-manager, loaded by
 # PySide6 via PYCORE_UI_URL. Backend is unchanged: rpc_v2 on :59000, a /pyapi
 # reverse proxy, and a direct ws://host:59000/rpc/ws log stream (a global floating
@@ -142,6 +142,9 @@ Subcommands:
   run          Launch the service (default if no subcommand is given)
   config       Edit/show headless config via the cross-platform Python CLI
                (forwards remaining args to: python -m pycore.pyutils.pyservice_cli config)
+  codesync     Standalone Code Sync (stdlib only; no prereqs, no pycore import).
+               run|show|role|peers|distribute|skip-update
+               (e.g. ./pyservice.sh codesync run  /  ./pyservice.sh codesync show)
   install      Install + enable + start the pycore systemd service (Linux only)
   start        Start the pycore systemd service (Linux only)
   stop         Stop the pycore systemd service (Linux only)
@@ -177,11 +180,25 @@ EOF
 # otherwise default to 'run' (so existing flag-first invocations keep working).
 CMD="run"
 case "${1:-}" in
-    run|config|install|start|stop|restart|status|uninstall)
+    run|config|codesync|install|start|stop|restart|status|uninstall)
         CMD="$1"; shift ;;
     help|-h|--help)
         print_usage; exit 0 ;;
 esac
+
+# codesync -> hand off to the STANDALONE, stdlib-only Code Sync library.
+# Dispatched HERE, before the prerequisite-install step and without importing the
+# pycore package: the bootstrap is run as a FILE so `codesync` loads as a
+# top-level name (pycore/__init__.py is never executed, no third_party). See
+# pycore/pyutils/device_sync/CODESYNC_LITE_DESIGN.md.
+if [[ "$CMD" == "codesync" ]]; then
+    if ! PY="$(resolve_python)"; then
+        echo "[X] Python 3 was NOT found; cannot run 'codesync'." >&2
+        exit 1
+    fi
+    cd "$SCRIPT_DIR"
+    exec "$PY" pycore/pyutils/codesync_boot.py "$@"
+fi
 
 # config -> hand off to the cross-platform Python CLI (run from repo root).
 if [[ "$CMD" == "config" ]]; then
@@ -289,7 +306,7 @@ stop_docker_publisher() {
 }
 
 # --- 2) launch the unified dashboard UI (unless --no-ui) ----------------- #
-# The UI is the pure-Vite shell at poly_apps/laravel_dashboard. It runs as its own
+# The UI is the pure-Vite shell at poly_apps/pycore_laravel_wordflow_ui. It runs as its own
 # dev server (pnpm); PySide6 loads it via PYCORE_UI_URL (exported, pointing at the
 # pycore-manager end, so the worker child inherits it). Falls back to the legacy
 # /web/subtitle UI otherwise.
@@ -302,7 +319,7 @@ cleanup_ui() {
 }
 trap cleanup_ui EXIT INT TERM
 
-UI_DIR="$SCRIPT_DIR/poly_apps/laravel_dashboard"
+UI_DIR="$SCRIPT_DIR/poly_apps/pycore_laravel_wordflow_ui"
 if [[ "$NO_UI" -eq 1 ]]; then
     echo "[i] --no-ui: using legacy /web/subtitle UI."
 elif [[ ! -f "$UI_DIR/package.json" ]]; then

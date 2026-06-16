@@ -136,7 +136,7 @@
 
 ## 🎓 实际案例
 
-### laravel_dashboard
+### pycore_laravel_wordflow_ui
 **端点配置**: localhost:9000 (P1) → 192.168.50.3:9000 (P2) → 192.168.50.2:9000 (P3) → https://api.si.12gm.com (P4)
 
 **测试方式**: 发送请求到任何端点，能响应即可用
@@ -182,13 +182,13 @@
 
 > This section is authoritative and **supersedes** the older "60s background
 > check interval" and "select-then-background-test-the-rest" descriptions above
-> for `laravel_dashboard`. The earlier flow caused a redundant-probe storm and a
+> for `pycore_laravel_wordflow_ui`. The earlier flow caused a redundant-probe storm and a
 > ~21s preflight hang; the realized behavior is below.
 >
 > **⚠️ CORRECTION 2026-06-11 — STORED-FIRST detection + per-end all-Offline
 > recheck; supersedes all earlier detection wording in this section (the
 > 2026-05-19 "parallel-all-once / no timers / no retries" note included).
-> Canonical write-up: `poly_apps/laravel_dashboard/EndpointsProcess.md`
+> Canonical write-up: `poly_apps/pycore_laravel_wordflow_ui/EndpointsProcess.md`
 > "Endpoint detection / health-check".** Detection is automatic at app
 > startup, NOT lazy and NOT click-triggered.
 
@@ -246,12 +246,12 @@ one side alone.
 
 ### noise.svg → local data-URI (frontend init hygiene — 2026-05-19)
 
-Separate, **frontend-only** init-hygiene change for `laravel_dashboard` with
+Separate, **frontend-only** init-hygiene change for `pycore_laravel_wordflow_ui` with
 **no backend coupling** (not part of the linked health/CORS contract above): the
 external decorative texture `https://grainy-gradients.vercel.app/noise.svg`
 (which 404'd and triggered N failed cross-origin requests during init) was
 replaced with a fully local inline SVG `feTurbulence` data URI defined once in
-`poly_apps/laravel_dashboard/utils/noiseTexture.ts` and consumed by
+`poly_apps/pycore_laravel_wordflow_ui/utils/noiseTexture.ts` and consumed by
 `BentoCard.tsx` and `tools/HexToRgb.tsx`. No external/CDN dependency remains.
 Not JS-blocking, but removes network/console overhead during init.
 
@@ -328,9 +328,9 @@ Not JS-blocking, but removes network/console overhead during init.
 
 ---
 
-## Master API base client (laravel_dashboard `core/api-libs/base` — 2026-06-12)
+## Master API base client (pycore_laravel_wordflow_ui `core/api-libs/base` — 2026-06-12)
 
-> Authoritative for `poly_apps/laravel_dashboard`. One MASTER HTTP base client
+> Authoritative for `poly_apps/pycore_laravel_wordflow_ui`. One MASTER HTTP base client
 > that the three end API libs inherit:
 > `core/api-libs/base/{MasterApiClient.ts, RequestQueue.ts, index.ts}`.
 > Design parents: `pycore/pyutils/rpc/client/unified_rpc_client.js`
@@ -406,7 +406,7 @@ Not JS-blocking, but removes network/console overhead during init.
 
 ## 🔗 参考实现
 
-- **laravel_dashboard**: `/services/ApiManager.ts` + `/config/api-endpoints.ts`
+- **pycore_laravel_wordflow_ui**: `/services/ApiManager.ts` + `/config/api-endpoints.ts`
 - **wordflow-ai**: `/services/ApiManager.ts` + `/components/ApiEndpointSwitcher.tsx`
 
 开发者可以参考这两个项目的完整实现，根据自己的技术栈进行调整。

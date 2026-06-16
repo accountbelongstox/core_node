@@ -1,29 +1,37 @@
 <template>
   <div class="client-mode-section">
     <div class="client-config-card">
-      <div class="config-header">
-        <span class="config-label">{{ t('bingAssistTitle') }}</span>
-        <div class="config-controls">
-          <!-- Two-step single button:
-               stopped & not prepared -> "Load queue" (fetch + show data, NO start)
-               stopped & prepared      -> "Confirm & Start" (begin crawling)
-               running                 -> "Stop"
-               Colour: blue=load, green=confirm, red=stop. -->
-          <button
-            class="service-toggle"
-            :class="clientService.isRunning ? 'on' : (prepared ? 'ready' : 'off')"
-            @click="onToggleService"
-            :disabled="!currentEndpoint || !!(queueOverview && queueOverview.loading)"
-          >
-            <span class="toggle-dot"></span>
-            <template v-if="queueOverview && queueOverview.loading">Loading…</template>
-            <template v-else-if="clientService.isRunning">Stop</template>
-            <template v-else-if="prepared">Confirm &amp; Start{{
-              queueOverview && queueOverview.summary ? ' · ' + queueOverview.summary.pending + ' pending' : ''
-            }}</template>
-            <template v-else>Load queue</template>
-          </button>
+      <!-- Header: brand + the two-step primary action. -->
+      <div class="ba-header">
+        <div class="ba-brand">
+          <span class="ba-logo">📖</span>
+          <div class="ba-brand-text">
+            <span class="ba-title">{{ t('bingAssistTitle') }}</span>
+            <span class="ba-subtitle">
+              <span :class="['ba-live-dot', clientService.isRunning ? 'on' : 'off']"></span>
+              {{ clientService.isRunning ? 'Crawling translations' : 'Idle — not crawling' }}
+            </span>
+          </div>
         </div>
+        <!-- Two-step single button:
+             stopped & not prepared -> "Load queue" (fetch + show data, NO start)
+             stopped & prepared      -> "Confirm & Start" (begin crawling)
+             running                 -> "Stop"
+             Colour: blue=load, green=confirm, red=stop. -->
+        <button
+          class="service-toggle"
+          :class="clientService.isRunning ? 'on' : (prepared ? 'ready' : 'off')"
+          @click="onToggleService"
+          :disabled="!currentEndpoint || !!(queueOverview && queueOverview.loading)"
+        >
+          <span class="toggle-dot"></span>
+          <template v-if="queueOverview && queueOverview.loading">Loading…</template>
+          <template v-else-if="clientService.isRunning">Stop</template>
+          <template v-else-if="prepared">Confirm &amp; Start{{
+            queueOverview && queueOverview.summary ? ' · ' + queueOverview.summary.pending + ' pending' : ''
+          }}</template>
+          <template v-else>Load queue</template>
+        </button>
       </div>
 
       <div v-if="error" class="assist-error">⚠ {{ error }}</div>
@@ -48,13 +56,31 @@
         </span>
       </div>
 
-      <!-- Two-step hint + empty-queue guard. -->
-      <div v-if="!clientService.isRunning && !prepared" class="be-hint">
-        Click “Load queue” to review the untranslated data, then Confirm & Start.
+      <!-- Two-step flow stepper: makes it explicit that "Load queue" only PULLS
+           and displays the pending data, and crawling starts only on the second
+           "Confirm & Start" click. Hidden once crawling is underway. -->
+      <div v-if="!clientService.isRunning" class="ba-steps">
+        <div class="ba-step" :class="{ active: stepIndex === 0, done: stepIndex >= 1 }">
+          <span class="ba-step-dot">1</span>
+          <div class="ba-step-meta">
+            <span class="ba-step-name">Load queue</span>
+            <span class="ba-step-desc">Pull pending words from the server &amp; preview</span>
+          </div>
+        </div>
+        <span class="ba-step-line" :class="{ done: stepIndex >= 1 }"></span>
+        <div class="ba-step" :class="{ active: stepIndex === 1 }">
+          <span class="ba-step-dot">2</span>
+          <div class="ba-step-meta">
+            <span class="ba-step-name">Confirm &amp; Start</span>
+            <span class="ba-step-desc">Open Bing tabs &amp; begin crawling</span>
+          </div>
+        </div>
       </div>
+
+      <!-- Empty-queue guard. -->
       <div
-        v-else-if="prepared && queueOverview && queueOverview.summary && queueOverview.summary.pending === 0"
-        class="be-hint warn"
+        v-if="prepared && queueOverview && queueOverview.summary && queueOverview.summary.pending === 0"
+        class="ba-note warn"
       >
         No pending words to translate — nothing to crawl.
       </div>
@@ -194,8 +220,30 @@
         </div>
       </div>
 
-      <!-- Live activity -->
-      <div v-if="clientService.isRunning && clientService.stats?.currentWord" class="assist-activity">
+      <!-- Live activity: one row per parallel Bing tab, showing the word each is
+           translating right now (falls back to the single overall word). -->
+      <div
+        v-if="clientService.isRunning && clientService.stats?.tabActivity && clientService.stats.tabActivity.length"
+        class="tab-activity"
+      >
+        <div
+          v-for="(slot, i) in clientService.stats.tabActivity"
+          :key="slot.tabId ?? i"
+          class="ta-row"
+          :class="{ idle: !slot.word }"
+        >
+          <span class="ta-dot"></span>
+          <span class="ta-tab">Tab {{ i + 1 }}</span>
+          <span class="ta-word">
+            <template v-if="slot.word">{{ t('bingAssistTranslatingLabel') }} <strong>{{ slot.word }}</strong></template>
+            <template v-else>idle</template>
+          </span>
+        </div>
+      </div>
+      <div
+        v-else-if="clientService.isRunning && clientService.stats?.currentWord"
+        class="assist-activity"
+      >
         <span class="activity-dot"></span>
         <span class="activity-text">{{ t('bingAssistTranslatingLabel') }} <strong>{{ clientService.stats.currentWord }}</strong></span>
       </div>
@@ -240,9 +288,13 @@
         </div>
       </div>
 
-      <!-- Settings (moved to the bottom). Disabled while the worker is running. -->
+      <!-- Settings (collapsible, at the bottom). Disabled while running. -->
       <div class="settings-block">
-        <div class="settings-title">Settings</div>
+        <button class="settings-toggle" @click="showSettings = !showSettings">
+          <span class="settings-title">Settings</span>
+          <span class="settings-caret" :class="{ open: showSettings }">▸</span>
+        </button>
+        <div v-show="showSettings">
         <div class="config-grid">
           <div class="config-field">
             <label class="form-label">{{ t('bingAssistPollInterval') }}</label>
@@ -257,11 +309,16 @@
             <input :value="clientConfig.tabCount" @input="onConfigChange('tabCount', $event)" type="number" min="1" max="8" class="form-input-small" :disabled="clientService.isRunning" />
           </div>
           <div v-if="clientConfig.mode === 'worker'" class="config-field">
+            <label class="form-label">Source Language</label>
+            <input :value="clientConfig.sourceLanguage" @input="onConfigChange('sourceLanguage', $event)" type="text" placeholder="en" class="form-input-small" :disabled="clientService.isRunning" />
+          </div>
+          <div v-if="clientConfig.mode === 'worker'" class="config-field">
             <label class="form-label">{{ t('bingAssistTargetLang') }}</label>
             <input :value="clientConfig.targetLanguage" @input="onConfigChange('targetLanguage', $event)" type="text" placeholder="zh" class="form-input-small" :disabled="clientService.isRunning" />
           </div>
         </div>
         <div v-if="clientService.isRunning" class="config-hint">{{ t('bingAssistStopToChange') }}</div>
+        </div>
       </div>
     </div>
   </div>
@@ -337,6 +394,18 @@ const onRunScrape = () => emit('run-scrape-test');
 const onRefreshQueue = () => emit('refresh-queue');
 const onSetQueuePage = (page: number) => emit('set-queue-page', page);
 
+// Two-step flow position for the stepper UI:
+//   0 = idle (next click = Load queue)
+//   1 = prepared (queue shown; next click = Confirm & Start)
+//   2 = running (crawling)
+const stepIndex = computed(() => {
+  if (props.clientService.isRunning) return 2;
+  return props.prepared ? 1 : 0;
+});
+
+// Advanced settings are collapsed by default to keep the panel compact.
+const showSettings = ref(false);
+
 // Server-side pagination: `items` is already the current page; the page count
 // comes from the server `total`. The pager emits set-queue-page → server fetch.
 const queueTotalPages = computed(() => {
@@ -370,7 +439,7 @@ const onTestWordsInput = (event: Event) => {
   emit('update-test-words', (event.target as HTMLInputElement).value);
 };
 
-const STRING_FIELDS = ['apiUrl', 'targetLanguage'];
+const STRING_FIELDS = ['apiUrl', 'sourceLanguage', 'targetLanguage'];
 
 const onConfigChange = (field: string, event: Event) => {
   const target = event.target as HTMLInputElement;
@@ -404,6 +473,239 @@ const playAudio = (url?: string) => {
 </script>
 
 <style scoped>
+/* --------------------------------------------------------------------------
+   Base shell + form controls.
+   NOTE: the old client-mode-styles.css that defined these was never imported,
+   so the card/inputs rendered unstyled. They live here now (this block IS
+   loaded) so the panel actually looks designed.
+   -------------------------------------------------------------------------- */
+.client-mode-section {
+  margin-bottom: 16px;
+}
+
+.client-config-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px -16px rgba(0, 0, 0, 0.25);
+}
+
+.form-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.form-input,
+.form-input-small {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.form-input::placeholder,
+.form-input-small::placeholder {
+  color: var(--text-faint);
+}
+
+.form-input:focus,
+.form-input-small:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+/* --------------------------------------------------------------------------
+   Header: brand + live status + primary action.
+   -------------------------------------------------------------------------- */
+.ba-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ba-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.ba-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.ba-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ba-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.ba-subtitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.ba-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ba-live-dot.on {
+  background: #10b981;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #10b981 22%, transparent);
+  animation: assist-pulse 1.4s ease-in-out infinite;
+}
+.ba-live-dot.off {
+  background: var(--text-faint);
+}
+
+/* --------------------------------------------------------------------------
+   Two-step flow stepper.
+   -------------------------------------------------------------------------- */
+.ba-steps {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.ba-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+  opacity: 0.55;
+  transition: opacity 0.2s;
+}
+.ba-step.active,
+.ba-step.done {
+  opacity: 1;
+}
+
+.ba-step-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong, var(--border));
+  color: var(--text-muted);
+}
+.ba-step.active .ba-step-dot {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+.ba-step.done .ba-step-dot {
+  background: #10b981;
+  border-color: #10b981;
+  color: #fff;
+}
+
+.ba-step-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.ba-step-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+}
+.ba-step-desc {
+  font-size: 9px;
+  line-height: 1.3;
+  color: var(--text-faint);
+}
+
+.ba-step-line {
+  align-self: center;
+  width: 16px;
+  height: 2px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--border);
+}
+.ba-step-line.done {
+  background: #10b981;
+}
+
+/* Inline note (replaces the old .be-hint.warn). */
+.ba-note {
+  margin-top: 8px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+.ba-note.warn {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #d97706;
+}
+
+/* --------------------------------------------------------------------------
+   Collapsible settings header.
+   -------------------------------------------------------------------------- */
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.settings-caret {
+  font-size: 10px;
+  color: var(--text-faint);
+  transition: transform 0.18s;
+}
+.settings-caret.open {
+  transform: rotate(90deg);
+}
+
 /* Error keeps semantic danger color (red). */
 .assist-error {
   margin: 8px 0;
@@ -891,6 +1193,59 @@ const playAudio = (url?: string) => {
 .scrape-detail {
   color: var(--text-muted);
   word-break: break-word;
+}
+
+/* Per-tab live activity: one row per parallel Bing tab. */
+.tab-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+}
+.ta-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: #0891b2;
+}
+.ta-row.idle {
+  color: var(--text-faint);
+}
+.ta-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #06b6d4;
+  animation: assist-pulse 1s ease-in-out infinite;
+}
+.ta-row.idle .ta-dot {
+  background: var(--text-faint);
+  animation: none;
+}
+.ta-tab {
+  flex-shrink: 0;
+  min-width: 42px;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+.ta-word {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ta-word strong {
+  color: var(--text);
 }
 
 /* Live activity keeps a semantic cyan info accent. */

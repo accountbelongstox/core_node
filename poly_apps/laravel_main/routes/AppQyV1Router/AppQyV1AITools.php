@@ -7,6 +7,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationStreamC
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSWorkerController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1SentenceAudioController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1AIStatusController;
 use App\Providers\PathMapper;
@@ -82,6 +83,15 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         // canonical dictionary tables + validated result report-back.
         Route::post('/worker/claim', [AppQyV1TTSWorkerController::class, 'claim']);
         Route::post('/worker/report', [AppQyV1TTSWorkerController::class, 'report']);
+
+        // Sentence-library audio surface (pycore worker + FE resolve). File on
+        // disk is the source of truth; see
+        // development-guides/SENTENCE_AUDIO_GENERATION_PIPELINE.md §4.1-§4.3.
+        // Same NO-AUTH trust level as /worker/* — pycore has no user token and
+        // every reported artifact is validated (MP3 magic + on-disk verify).
+        Route::post('/sentence/claim', [AppQyV1SentenceAudioController::class, 'claim']);
+        Route::post('/sentence/report', [AppQyV1SentenceAudioController::class, 'report']);
+        Route::get('/sentence/audio', [AppQyV1SentenceAudioController::class, 'audio']);
     });
 
     Route::prefix('article')->group(function () {
@@ -109,6 +119,11 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
     ->prefix('app_qy_v1/ai_tools/translation/queue')
     ->group(function () {
         Route::get('/list', [AppQyV1TranslationQueueController::class, 'controlList']);
+        // Dictionary-driven pending view (untranslated, non-invalid words) + the
+        // matching enqueue action — feeds the chrome-mcp Bing-assist panel's
+        // two-step "Load queue" / "Confirm & Start" flow.
+        Route::get('/pending-words', [AppQyV1TranslationQueueController::class, 'controlPendingWords']);
+        Route::post('/enqueue-pending', [AppQyV1TranslationQueueController::class, 'controlEnqueuePending']);
         // Real-time SSE stream (replaces Reverb). pycore subscribes here over the
         // same Octane :9000 HTTP port; emits task.queued/task.priority/
         // word.translated/task.completed with a `_id` cursor.
