@@ -329,66 +329,121 @@ slim_gpu_to_cpu() {
     read
 }
 
-# Snap slim: remove the dev/desktop snaps that bloat a server (flutter, dotnet-sdk,
-# docker, chromium, android-studio) plus any orphan base snaps (core20/core24/...).
-# Idempotent: skips snaps that aren't installed; snap itself refuses to remove a base
-# still in use, so only truly-orphan bases are dropped. Never touches snapd / core.
-snap_slim() {
-    printf "\033c"
-    echo "=========================================="
-    echo "Snap Slim (remove dev/desktop snaps + orphan bases)"
-    echo "=========================================="
-    echo ""
+# Run as root (direct if already root, else via sudo). Shared by the slim actions.
+_slim_sudo() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
+
+# --- core cleanups (no prompts; reused by individual items AND Server Slim) ---
+
+# Remove dev/desktop snaps (flutter, dotnet-sdk, docker, chromium, android-studio)
+# + orphan base snaps. Idempotent: skips snaps that aren't installed; snap refuses to
+# remove a base still in use, so only truly-orphan bases drop. Leaves snapd / core.
+_do_snap_slim() {
     if ! command -v snap >/dev/null 2>&1; then
         echo "snap is not installed; nothing to slim."
-        echo ""
-        echo "Press Enter to continue..."
-        read
         return 0
     fi
-
-    local SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
-    local s
-    local app_snaps=(flutter dotnet-sdk docker chromium android-studio)
+    local s app_snaps=(flutter dotnet-sdk docker chromium android-studio)
     for s in "${app_snaps[@]}"; do
         if snap list "$s" >/dev/null 2>&1; then
             echo "Removing snap: $s"
-            $SUDO snap remove --purge "$s" 2>/dev/null || $SUDO snap remove "$s" 2>/dev/null || true
+            _slim_sudo snap remove --purge "$s" 2>/dev/null || _slim_sudo snap remove "$s" 2>/dev/null || true
         fi
     done
-
-    # Orphan base snaps: try to remove core<N> bases. snap REFUSES if a base is still
-    # used by another snap, so this only removes the ones that are now orphan. The
-    # digit-less "core" base and "snapd" are intentionally left alone.
     local base_snaps
     base_snaps=$(snap list 2>/dev/null | awk 'NR>1 && $1 ~ /^core[0-9]+$/ {print $1}')
     for s in $base_snaps; do
         echo "Attempting to remove base snap (kept if still in use): $s"
-        $SUDO snap remove --purge "$s" 2>/dev/null || $SUDO snap remove "$s" 2>/dev/null || echo "  ($s still in use or busy; kept)"
+        _slim_sudo snap remove --purge "$s" 2>/dev/null || _slim_sudo snap remove "$s" 2>/dev/null || echo "  ($s still in use or busy; kept)"
     done
-
-    echo ""
-    echo "Snap slim complete. Remaining snaps:"
-    snap list 2>/dev/null || true
-    echo ""
-    echo "Press Enter to continue..."
-    read
 }
 
-# Block & remove Apache via the shared guard (apt pin -1 so it never reinstalls + purge).
-# See common/apache_block_guard.sh.
-block_and_remove_apache() {
-    printf "\033c"
-    echo "=========================================="
-    echo "Block & Remove Apache (nginx is the web server)"
-    echo "=========================================="
-    echo ""
+# Block + remove Apache via the shared guard (apt pin -1 + purge). Idempotent.
+_do_block_apache() {
     local guard="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/apache_block_guard.sh"
     if [ -f "$guard" ]; then
         bash "$guard"
     else
         echo "Error: apache_block_guard.sh not found at: $guard"
     fi
+}
+
+# Remove code-server (snap or apt), its service, install dirs (/usr/lib/code-server
+# etc.) and per-user data. Idempotent. There is no repo installer (it is installed
+# externally via code-server.dev), so removal is purely a cleanup.
+_do_remove_code_server() {
+    echo "Removing code-server ..."
+    if command -v snap >/dev/null 2>&1 && snap list code-server >/dev/null 2>&1; then
+        _slim_sudo snap remove --purge code-server 2>/dev/null || true
+    fi
+    if command -v dpkg >/dev/null 2>&1 && dpkg -l 2>/dev/null | grep -q "^ii.*code-server"; then
+        _slim_sudo apt-get remove --purge -y code-server 2>/dev/null || true
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+        _slim_sudo systemctl stop code-server 2>/dev/null || true
+        _slim_sudo systemctl disable code-server 2>/dev/null || true
+    fi
+    _slim_sudo rm -rf /usr/lib/code-server /usr/local/lib/code-server /opt/code-server 2>/dev/null || true
+    _slim_sudo rm -f /usr/bin/code-server /usr/local/bin/code-server 2>/dev/null || true
+    rm -rf "$HOME/.config/code-server" "$HOME/.local/share/code-server" 2>/dev/null || true
+    echo "code-server removed."
+}
+
+# Remove LibreOffice (+ unoconv, which depends on it) and drop /usr/lib/libreoffice.
+# Idempotent.
+_do_remove_libreoffice() {
+    echo "Removing LibreOffice + unoconv ..."
+    if command -v dpkg >/dev/null 2>&1 && dpkg -l 2>/dev/null | grep -q "^ii.*libreoffice"; then
+        _slim_sudo apt-get remove --purge -y 'libreoffice*' unoconv 2>/dev/null || true
+        _slim_sudo apt-get autoremove --purge -y 2>/dev/null || true
+    fi
+    _slim_sudo rm -rf /usr/lib/libreoffice 2>/dev/null || true
+    echo "LibreOffice removed."
+}
+
+# --- individual menu wrappers (clear + core + pause) -------------------------
+snap_slim() {
+    printf "\033c"
+    echo "=== Snap Slim (dev/desktop snaps + orphan bases) ==="
+    echo ""
+    _do_snap_slim
+    echo ""
+    echo "Remaining snaps:"; snap list 2>/dev/null || true
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
+block_and_remove_apache() {
+    printf "\033c"
+    echo "=== Block & Remove Apache (nginx is the web server) ==="
+    echo ""
+    _do_block_apache
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
+# One-shot: remove ALL desktop/dev bloat at once (the "同时清理" item).
+server_slim_all() {
+    printf "\033c"
+    echo "=========================================="
+    echo "Server Slim - remove desktop/dev bloat"
+    echo "  snaps + code-server + LibreOffice + Apache"
+    echo "=========================================="
+    echo ""
+    echo "[1/4] Snaps ..."
+    _do_snap_slim
+    echo ""
+    echo "[2/4] code-server ..."
+    _do_remove_code_server
+    echo ""
+    echo "[3/4] LibreOffice ..."
+    _do_remove_libreoffice
+    echo ""
+    echo "[4/4] Apache ..."
+    _do_block_apache
+    echo ""
+    echo "Server slim complete."
     echo ""
     echo "Press Enter to continue..."
     read
@@ -397,7 +452,7 @@ block_and_remove_apache() {
 # Function to show Linux management submenu
 show_linux_management_submenu() {
     local selected=0
-    local total=12
+    local total=13
     local old_settings=$(stty -g)
     stty -icanon -echo
     trap 'stty "$old_settings"' RETURN
@@ -414,6 +469,7 @@ show_linux_management_submenu() {
         "GPU -> CPU Slim (reclaim CUDA disk on no-GPU hosts)"
         "Snap Slim (remove dev/desktop snaps + orphan bases)"
         "Block & Remove Apache (pin -1 + purge)"
+        "Server Slim (snaps + code-server + LibreOffice + Apache)"
         "Back to Main Menu"
     )
     
@@ -490,6 +546,9 @@ show_linux_management_submenu() {
                         block_and_remove_apache
                         ;;
                     11)
+                        server_slim_all
+                        ;;
+                    12)
                         return 0
                         ;;
                 esac
