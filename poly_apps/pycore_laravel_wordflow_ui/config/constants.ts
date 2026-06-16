@@ -29,6 +29,22 @@ export const PYCORE_RPC_PORT = 59000;
 export const PYCORE_DEV_PROXY_TARGET = `http://localhost:${PYCORE_RPC_PORT}`;
 
 /**
+ * Pycore data source switch (dev server).
+ *
+ *   false (DEFAULT) — REAL API: every `/pyapi/*` request is proxied straight to the
+ *                     live pycore backend on :59000. Use this whenever pycore is
+ *                     running (the normal case); writes like CodeSync "Start
+ *                     distributing" reach the real backend.
+ *   true            — MOCK data: the built-in sandbox mock answers `/pyapi/*` with
+ *                     canned responses so the UI still works with NO pycore backend
+ *                     (e.g. another AI / a frontend-only environment).
+ *
+ * >>> To switch, flip THIS ONE constant (no env vars). Default is real API. <<<
+ * The mock code is intentionally kept in vite.config.ts so it stays available.
+ */
+export const PYCORE_SANDBOX_MOCK = false;
+
+/**
  * Default API timeout in milliseconds
  */
 export const DEFAULT_API_TIMEOUT = 30000;

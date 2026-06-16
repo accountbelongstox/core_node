@@ -13,8 +13,50 @@ This mirrors the `wordflow` API library pattern, applied to `/wordnew`.
 | --- | --- |
 | `WfNewApiTypes.ts` | **The single shared TYPE surface.** All data models + the `WfNewApi` interface. The ONLY place shapes are defined. |
 | `WfNewApiMock.ts`  | Offline implementation of `WfNewApi`. Serves curated datasets from `../WfNewMockDb` — zero network. |
-| `WfNewApiHttp.ts`  | Live implementation of `WfNewApi`. Delegates to the shared `wordflowApi` transport (real backend). |
-| `index.ts`         | **The switch.** Exports `wfNewApi` as either the mock or the http impl, plus re-exports every type. |
+| `WfNewApiHttp.ts`  | Live implementation of `WfNewApi`. Fetches the real backend through `WfNewEndpoints`. |
+| `WfNewEndpoints.ts`| **Backend endpoint manager + reactive store** — default `:9000` list, `/api/health` probe, STORED-FIRST auto-select + offline retry. |
+| `useWfNewEndpoints.ts` | React hook (`useSyncExternalStore`) over the endpoint store. |
+| `index.ts`         | **The switch.** Exports `wfNewApi` as either the mock or the http impl, plus re-exports every type + the endpoint manager + hook. |
+
+UI lives in `apps/wordnew/components/`: `WfNewApiServerPanel` (compact Settings
+summary — current URL + status) opens `WfNewApiServerDialog` (full list, add/
+remove, auto-select, **test page**).
+
+### Applied project libraries
+
+This feature uses the shared `core/` libraries rather than ad-hoc state:
+
+- **persistence** (`core/persistence` — `StorageManager` + `StorageKeys`): all
+  endpoint config (`nexus_wordnew_api_*`) instead of raw `localStorage`.
+- **store pattern** (`useSyncExternalStore`, same shape as `core/logstore` /
+  `core/notify`): `wfNewEndpoints.subscribe`/`getSnapshot` + the
+  `useWfNewEndpoints()` hook — UIs react without manual event wiring.
+- **notify** (`core/notify`): probe/selection results as global toasts.
+- **overlay** (`components/shared/Portal` + `styles/overlay` `OVERLAY_Z`): the
+  manager dialog (never a raw `fixed inset-0 z-50`).
+
+## Backend endpoint management (`WfNewEndpoints`)
+
+The http impl does not hardcode a base URL — it asks `wfNewEndpoints` for the
+current one. Functionality mirrors wordflow's `WordflowApiManager` (the
+behaviour, not the UI):
+
+- **Default endpoints** (all port **9000**, the laravel_main / AppQyV1 backend):
+  the page's current origin (host + `:9000`, auto-injected, tried first),
+  `43.163.112.77:9000` (primary), `127.0.0.1:9000`, `100.101.149.39:9000`,
+  `100.106.85.16:9000`. Users can add/remove custom endpoints in
+  **Settings → API Server** (persisted in `localStorage`).
+- **STORED-FIRST selection:** probe ONLY the last working endpoint first and
+  reuse it if healthy; otherwise probe all in parallel and fail over to the
+  best healthy one (availability-first; a user pin only ranks higher).
+- **Continuous retry:** while every endpoint is offline, an interval loop keeps
+  re-testing and stops as soon as one recovers (a healthy backend is never
+  polled). Health = a 2xx JSON `/api/health` body with a `status`/`service`
+  marker.
+- **Events:** `WFNEW_API_HEALTH_EVENT` fires after each pass so the Settings
+  panel and the app refresh; the app reloads content when an endpoint recovers.
+
+Mock mode ignores all of this (no network).
 
 ## How the switch works (depends on the import)
 
@@ -59,14 +101,14 @@ Both implementations implement the **same** `WfNewApi` interface from
 
 ## Coverage (honest, no silent gaps)
 
-- **Real backend data** (http impl calls `wordflowApi`): `getBentoGroups`,
-  `getWordGroups`, `getVocabulary`, `getUserProfile`, `getUserStats`,
-  `searchDictionary`, `getWalkmanWords`.
-- **Curated content** (no dedicated backend endpoint yet): `getSubtitleCourses`,
-  `getBilingualSentences`, `getAnalytics`. The http impl serves the same curated
-  datasets the mock uses and logs this once. When a real endpoint lands, swap
-  those three method bodies to a `wordflowApi` call — **the interface and types
-  do not change.**
+- **Real backend data** (http impl fetches via `WfNewEndpoints`):
+  `getBentoGroups`, `getWordGroups`, `getVocabulary`, `getUserProfile`,
+  `getUserStats`, `getWalkmanWords`.
+- **Curated content / no endpoint yet:** `searchDictionary` (returns `[]`; the UI
+  fuzzy-filters its loaded word pool), `getSubtitleCourses`,
+  `getBilingualSentences`, `getAnalytics` (serve the curated datasets, logged
+  once). When real endpoints land, swap those bodies to a `getJSON(...)` call —
+  **the interface and types do not change.**
 
 ## Usage
 

@@ -24,10 +24,42 @@ All data access for the app lives in `apps/wordnew/api/`:
 apps/wordnew/api/
   WfNewApiTypes.ts   # THE single shared TYPE surface (models + WfNewApi interface)
   WfNewApiMock.ts    # offline impl of WfNewApi (curated data, zero network)
-  WfNewApiHttp.ts    # live impl of WfNewApi (delegates to wordflowApi → backend)
-  index.ts           # THE switch: exports wfNewApi = http | mock, re-exports types
+  WfNewApiHttp.ts    # live impl of WfNewApi (fetches the backend via WfNewEndpoints)
+  WfNewEndpoints.ts  # backend endpoint manager (default :9000 list, health, auto-select)
+  index.ts           # THE switch: exports wfNewApi = http | mock, re-exports types + manager
   README.md          # contract doc co-located with the code
 ```
+
+## Backend endpoint management (functionality from wordflow, not its UI)
+
+The http impl resolves its base URL from `WfNewEndpoints` (modeled on wordflow's
+`WordflowApiManager`):
+
+- **Default endpoints**, all port **9000**: current-origin (`host:9000`,
+  auto-injected, first), `43.163.112.77:9000` (primary), `127.0.0.1:9000`,
+  `100.101.149.39:9000`, `100.106.85.16:9000`. Settings → API Server lets the
+  user view/add/remove/select endpoints (persisted in `localStorage`).
+- **STORED-FIRST + availability-first:** reuse the last working endpoint if it is
+  still healthy; otherwise probe all in parallel and fail over to the best
+  healthy one. While all are offline, retry on an interval until one recovers.
+- Health = a 2xx JSON `/api/health` body with a `status`/`service` marker.
+- Mock mode ignores endpoints entirely (no network).
+
+### Applied project state/store libraries
+
+The endpoint feature uses the shared `core/` libraries (not ad-hoc state):
+
+- **`core/persistence`** (`StorageManager` + `StorageKeys`) for all config
+  (`nexus_wordnew_api_*`) — no raw `localStorage`.
+- **Store pattern** via `useSyncExternalStore` (same shape as `core/logstore`
+  and `core/notify`): `WfNewEndpoints` exposes `subscribe`/`getSnapshot`, and
+  `useWfNewEndpoints()` binds it to React.
+- **`core/notify`** for toasts; **`components/shared/Portal` + `styles/overlay`**
+  for the manager dialog.
+
+UI: Settings shows a compact summary card (current URL + status); clicking opens
+`WfNewApiServerDialog` with the full list, add/remove, auto-select and a test
+page. New apps that need backend selection should follow this same shape.
 
 Curated datasets live in `apps/wordnew/WfNewMockDb.ts` and are typed by the
 shared types (no parallel/duplicate shapes).

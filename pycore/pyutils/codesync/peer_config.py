@@ -33,10 +33,17 @@ from .runtime import (
     get_machine_id,
     get_local_lan_ip,
     get_peers_config_file,
+    get_peers_override_file,
 )
 
-CONFIG_FILE = get_peers_config_file()
-PEERS_FILE_NAME = CONFIG_FILE.name
+# Two-tier storage:
+#   BASELINE_FILE  — committed default (shipped in the repo, read-only at runtime).
+#   OVERRIDE_FILE  — per-machine state under <root>/.data (gitignored). ALL runtime
+#                    edits land here; it is loaded with priority over the baseline,
+#                    so each machine keeps its own role/peers WITHOUT touching code.
+BASELINE_FILE = get_peers_config_file()
+OVERRIDE_FILE = get_peers_override_file()
+PEERS_FILE_NAME = BASELINE_FILE.name  # same basename for both -> one sync-exclusion
 DEFAULT_PORT = 59000
 VALID_ROLES = ("dev", "client")
 
@@ -52,45 +59,67 @@ def _local_lan_ip() -> str:
 class PeerConfig:
     """Thread-safe, file-backed peer list with last-writer-wins replication."""
 
-    def __init__(self, path: Path = CONFIG_FILE, port: int = DEFAULT_PORT):
-        self._path = Path(path)
+    def __init__(self, baseline_path: Path = BASELINE_FILE,
+                 override_path: Path = OVERRIDE_FILE, port: int = DEFAULT_PORT):
+        self._baseline_path = Path(baseline_path)   # committed default (read-only)
+        self._override_path = Path(override_path)   # per-machine state (writable)
         self._port = port
         self._lock = threading.RLock()
         self._data: Optional[Dict[str, Any]] = None
         self.machine_id = _machine_id()
 
     # ----- load / save ----------------------------------------------------- #
+    @staticmethod
+    def _read_json(path: Path) -> Optional[Dict[str, Any]]:
+        try:
+            if path.exists():
+                with path.open("r", encoding="utf-8") as fh:
+                    loaded = json.load(fh)
+                if isinstance(loaded, dict) and isinstance(loaded.get("peers"), list):
+                    return loaded
+        except Exception as exc:
+            ColorPrint.yellow(f"[PeerConfig] Failed to read {path}: {exc}")
+        return None
+
     def _ensure_loaded(self) -> Dict[str, Any]:
         if self._data is not None:
             return self._data
         with self._lock:
             if self._data is not None:
                 return self._data
-            data = {"version": 0, "updated_at": 0.0, "peers": []}
-            try:
-                if self._path.exists():
-                    with self._path.open("r", encoding="utf-8") as fh:
-                        loaded = json.load(fh)
-                    if isinstance(loaded, dict) and isinstance(loaded.get("peers"), list):
-                        data = loaded
-            except Exception as exc:
-                ColorPrint.yellow(f"[PeerConfig] Failed to read {self._path}: {exc}")
+            # Priority: per-machine override (.data) wins; fall back to the committed
+            # baseline as the shipped default; finally an empty config. The baseline
+            # is only the SEED — the first edit writes to the override and from then
+            # on the override is authoritative (so removals/renames/role stick and
+            # the committed file is never churned).
+            data = self._read_json(self._override_path)
+            source = "override"
+            if data is None:
+                data = self._read_json(self._baseline_path)
+                source = "baseline"
+            if data is None:
+                data = {"version": 0, "updated_at": 0.0, "peers": []}
+                source = "default"
             self._data = data
+            ColorPrint.blue(f"[PeerConfig] Loaded peer config from {source} "
+                            f"({len(data.get('peers', []))} peers, v{data.get('version', 0)})")
             # Make sure this machine has an entry (defaults to client = receives).
             self._ensure_self_locked()
             return self._data
 
     def _save_locked(self) -> None:
+        """Always persist to the per-machine OVERRIDE file (never the committed
+        baseline), so edits stay out of the code tree."""
         try:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self._path.with_suffix(self._path.suffix + ".tmp")
+            self._override_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self._override_path.with_suffix(self._override_path.suffix + ".tmp")
             with tmp.open("w", encoding="utf-8") as fh:
                 json.dump(self._data, fh, ensure_ascii=False, indent=2, sort_keys=True)
                 fh.flush()
                 os.fsync(fh.fileno())
-            os.replace(str(tmp), str(self._path))
+            os.replace(str(tmp), str(self._override_path))
         except Exception as exc:
-            ColorPrint.red(f"[PeerConfig] Failed to save {self._path}: {exc}")
+            ColorPrint.red(f"[PeerConfig] Failed to save {self._override_path}: {exc}")
 
     def _bump_locked(self) -> None:
         self._data["version"] = int(self._data.get("version", 0)) + 1

@@ -37,6 +37,11 @@
 #   User=<real desktop user>
 #   Restart=always
 #
+# Hot-reload: install with CODESYNC_RELOAD=1 to bake `--reload` into ExecStart,
+# so the background service watches codesync/*.py and re-execs (same PID) on any
+# change — e.g. a `git pull` on the server is picked up without a manual restart:
+#   CODESYNC_RELOAD=1 ./pyservice.sh codesync          # (or: codesync install)
+#
 # Service name (systemd unit): codesync
 # ============================================================================
 
@@ -46,7 +51,13 @@ CODESYNC_SERVICE_DESC="Code Sync (headless, stdlib-only)"
 CODESYNC_SVC_SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 # This file lives at scripts/shells/linux/common/, so repo root is 4 dirs up.
 CODESYNC_REPO_ROOT="$(cd "$CODESYNC_SVC_SCRIPT_DIR/../../../.." && pwd)"
-CODESYNC_SVC_EXEC_START="/bin/bash $CODESYNC_REPO_ROOT/pyservice.sh codesync run"
+# Bake `--reload` into the unit's ExecStart when installed with CODESYNC_RELOAD=1
+# (or =true) so the headless service hot-reloads on codesync/*.py changes.
+CODESYNC_SVC_RELOAD_FLAG=""
+case "${CODESYNC_RELOAD:-}" in
+    1|true|True|yes|on) CODESYNC_SVC_RELOAD_FLAG=" --reload" ;;
+esac
+CODESYNC_SVC_EXEC_START="/bin/bash $CODESYNC_REPO_ROOT/pyservice.sh codesync run$CODESYNC_SVC_RELOAD_FLAG"
 CODESYNC_SVC_USER=""
 CODESYNC_DEBIAN_MGR="$CODESYNC_SVC_SCRIPT_DIR/debian_service_manager.sh"
 CODESYNC_GVAR_COMMON="$CODESYNC_SVC_SCRIPT_DIR/gvar_common.sh"

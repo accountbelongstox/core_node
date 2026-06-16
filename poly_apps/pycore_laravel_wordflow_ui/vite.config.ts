@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 // Single config source — fixed ports live in config/constants.ts (no env vars).
-import { DEFAULT_FRONTEND_PORT, PYCORE_DEV_PROXY_TARGET } from './config/constants';
+import { DEFAULT_FRONTEND_PORT, PYCORE_DEV_PROXY_TARGET, PYCORE_SANDBOX_MOCK } from './config/constants';
 
 // Unified shell: this single Vite app hosts three ends (laravel-manager,
 // pycore-manager, wordflow). Each end keeps its own API library; the pycore end
@@ -41,13 +41,20 @@ export default defineConfig(() => {
             changeOrigin: true,
             ws: true,
             rewrite: (p) => p.replace(/^\/pyapi/, ''),
-            // Suppress ECONNREFUSED noise during startup (the Python worker takes
-            // a few seconds to bind :59000 after Vite is already serving).
+            // When pycore is not reachable (still starting, or simply not running),
+            // return a clean JSON instead of a raw 502 so the UI shows a friendly
+            // message. If you want the UI to work fully offline, flip
+            // PYCORE_SANDBOX_MOCK=true (config/constants.ts) to use mock data.
             configure: (proxy) => {
               proxy.on('error', (_err, _req, res) => {
-                if (res && 'writeHead' in res && !res.headersSent) {
-                  (res as import('http').ServerResponse).writeHead(502);
-                  (res as import('http').ServerResponse).end();
+                const r = res as import('http').ServerResponse;
+                if (r && 'writeHead' in r && !r.headersSent) {
+                  r.writeHead(503, { 'Content-Type': 'application/json' });
+                  r.end(JSON.stringify({
+                    success: false,
+                    error: 'Pycore backend offline (start pycore on :59000, or set '
+                      + 'PYCORE_SANDBOX_MOCK=true in config/constants.ts for mock data)',
+                  }));
                 }
               });
             },
@@ -60,41 +67,46 @@ export default defineConfig(() => {
         {
           name: 'pyapi-sandbox-mock-server',
           configureServer(server) {
-            // Setup WebSocket Mock Server inside Vite Dev Server for Sandbox
-            const wss = new WebSocketServer({ noServer: true });
-            server.httpServer?.on('upgrade', (req, socket, head) => {
-              const url = req.url || '';
-              if (url.includes('/pyapi/rpc/ws')) {
-                wss.handleUpgrade(req, socket, head, (ws) => {
-                  wss.emit('connection', ws, req);
-                });
-              }
-            });
+            // DATA SOURCE SWITCH (see PYCORE_SANDBOX_MOCK in config/constants.ts):
+            //   default false -> REAL pycore: every /pyapi/* (incl. /pyapi/rpc/ws)
+            //     is proxied to :59000; the pycore mocks below are skipped.
+            //   true -> MOCK: the sandbox WS + HTTP mocks answer /pyapi/* so the UI
+            //     works with NO pycore backend. Mock code is kept here on purpose.
+            // (The /api laravel mock further below is independent of this switch.)
 
-            wss.on('connection', (ws) => {
-              ws.on('message', (message) => {
-                try {
-                  const data = JSON.parse(message.toString());
-                  if (data.type === 'request') {
-                    let result: any = { success: true };
-                    // Handle specific mock routes
-                    if (data.route === 'laravel_api.list') {
-                      result = { endpoints: [] };
-                    } else if (data.route === 'video_extract.backend_status') {
-                      result = { status: 'idle' };
-                    }
-                    ws.send(JSON.stringify({
-                      type: 'response',
-                      id: data.id,
-                      result,
-                      error: null
-                    }));
-                  }
-                } catch (err) {
-                  // Ignore
+            // Setup WebSocket Mock Server inside Vite Dev Server for Sandbox.
+            // Only when mocking — otherwise the /pyapi proxy (ws:true) reaches the
+            // real pycore RPC WebSocket on :59000.
+            if (PYCORE_SANDBOX_MOCK) {
+              const wss = new WebSocketServer({ noServer: true });
+              server.httpServer?.on('upgrade', (req, socket, head) => {
+                const url = req.url || '';
+                if (url.includes('/pyapi/rpc/ws')) {
+                  wss.handleUpgrade(req, socket, head, (ws) => {
+                    wss.emit('connection', ws, req);
+                  });
                 }
               });
-            });
+
+              wss.on('connection', (ws) => {
+                ws.on('message', (message) => {
+                  try {
+                    const data = JSON.parse(message.toString());
+                    if (data.type === 'request') {
+                      let result: any = { success: true };
+                      if (data.route === 'laravel_api.list') {
+                        result = { endpoints: [] };
+                      } else if (data.route === 'video_extract.backend_status') {
+                        result = { status: 'idle' };
+                      }
+                      ws.send(JSON.stringify({ type: 'response', id: data.id, result, error: null }));
+                    }
+                  } catch (err) {
+                    // Ignore
+                  }
+                });
+              });
+            }
 
             server.middlewares.use((req, res, next) => {
               const fullUrl = req.url || '';
@@ -172,8 +184,11 @@ export default defineConfig(() => {
                 return;
               }
 
-              // INTERCEPT PYAPI PATHS
-              if (fullUrl.startsWith('/pyapi')) {
+              // INTERCEPT PYAPI PATHS — only in MOCK mode. With PYCORE_SANDBOX_MOCK
+              // false (default), fall through so the real /pyapi reverse proxy sends
+              // these to the live pycore backend on :59000 (real reads AND writes,
+              // e.g. CodeSync "Start distributing").
+              if (fullUrl.startsWith('/pyapi') && PYCORE_SANDBOX_MOCK) {
                 const parsedUrl = fullUrl.substring(6);
                 const pathName = parsedUrl.split('?')[0];
 
