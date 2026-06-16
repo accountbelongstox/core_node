@@ -9,6 +9,7 @@ import { ElementTheme } from '../WfNewTypes';
 interface WfNewProfileProps {
   activeTheme: ElementTheme;
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
   currentUser: {
     nickname: string;
     avatar: string;
@@ -33,6 +34,7 @@ interface BadgeItem {
 export const WfNewProfile: React.FC<WfNewProfileProps> = ({
   activeTheme,
   addToast,
+  trans,
   currentUser,
   onUpdateProfile,
   learnedWordsCount
@@ -60,7 +62,7 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nickname.trim()) {
-      addToast('Nickname cannot be hollow space!', 'warning');
+      addToast(trans('profile.nickEmpty'), 'warning');
       return;
     }
 
@@ -73,7 +75,7 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
     });
 
     setIsEditing(false);
-    addToast('Profile dimensions updated and transmitted correctly!', 'success');
+    addToast(trans('profile.saved'), 'success');
   };
 
   return (
