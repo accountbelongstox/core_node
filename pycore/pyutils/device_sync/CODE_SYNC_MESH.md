@@ -63,6 +63,7 @@ Endpoints are thin wrappers over `get_code_sync_manager()`.
 |------------------------|-----------------------------------------|-----------------|
 | `GET  /peer/status`    | —                                       | `get_local_peer_status()`. Probed frequently by peers; fast, never raises (returns a minimal dict on error). |
 | `POST /peer/config`    | `{peers, version, updated_at}`          | `apply_remote_config(...)` — adopt a newer config (LWW). |
+| `POST /peer/heartbeat` | sender's `get_local_peer_status()` dict | `receive_heartbeat(payload, src)` — record inbound presence (NAT-friendly); returns `{success, config}` so the sender adopts our config (LWW). |
 | `GET  /peers`          | —                                       | `get_peers()` — `{success, self, peers, version}`. |
 | `POST /peers/add`      | `{name, host, port=59000, role="client"}` | `add_peer(...)`. |
 | `POST /peers/remove`   | `{id}`                                  | `remove_peer(id)`. |
@@ -83,18 +84,41 @@ Endpoints are thin wrappers over `get_code_sync_manager()`.
 `POST /set-server` → `role=dev`, `POST /set-client` → `role=client`,
 `POST /stop` → `distribute=false`. Prefer `/role` and `/distribute`.
 
-## Mesh: probing & replication
+## Mesh: probing, heartbeat & replication
 
-Every end runs the `PeerMeshManager` (`peer_mesh.py`) regardless of role:
+Every end runs the `PeerMeshManager` (`peer_mesh.py`) regardless of role. On each
+tick it works **both directions** so a peer's contact state shows across WAN, not
+only on the LAN:
 
-- **Probing** — on each tick the mesh probes all configured peers (via
-  `GET /peer/status`). Reachable peers report role / distributing / config version;
-  **unreachable peers are still shown** in the snapshot.
+- **Outbound probe** — the mesh probes all configured peers (`GET /peer/status`).
+  Works only when this node can open a connection to `peer:port` (LAN / tailscale /
+  a port-forwarded public host). Reachable peers report role / distributing / code
+  stats; **unreachable peers are still shown** in the snapshot.
+- **Inbound heartbeat** — the mesh also POSTs this node's own status to every
+  configured **dev/hub** (`POST /peer/heartbeat`). This is the NAT-friendly
+  direction: a client behind NAT (home laptop, cloud box, phone) that can never be
+  *probed* still **reports its presence + code stats** to the dev. The heartbeat
+  **response carries the dev's peer-config**, so even a one-directional client
+  converges config (LWW) without being push-reachable.
+- **Merged presence** — `snapshot()` combines both signals per peer:
+  `reachable = probe_ok OR heartbeat_fresh` (fresh = within `HEARTBEAT_STALE_SECONDS`,
+  3 ticks); `last_seen = max(probe, checkin)`; `status` = the fresher payload; and a
+  `via` field (`probe` / `heartbeat` / `both` / `null`) records how the peer is
+  connected. `last_checkin` is exposed separately.
 - **Config replication** — peer-config edits are pushed to peers (`POST /peer/config`)
   and adopted with **last-writer-wins** on `(version, updated_at)`. **Offline peers
-  receive the queued update when they come back online.**
+  receive the queued update when they come back online** (or, if unreachable for a
+  push, on their next heartbeat response).
 - **UI updates** — status is broadcast to the UI over the RPC WebSocket via
-  `THREAD_BUS` event `code_sync_update`.
+  `THREAD_BUS` event `code_sync_update`. The desktop CodeSync page renders the `via`
+  badge + `last_checkin` so each client's connection situation is visible.
+
+> **Topology note.** A heartbeat only helps if the client can reach the dev's
+> configured `host:port` outbound. For the cloud/tailscale ends, the dev entry's
+> host must be an address the clients can reach (e.g. its tailscale IP), and the
+> dev/hub's `:59000` must be open to them. Probing the *other* way additionally
+> needs the client's `:59000` reachable from the dev — which NAT usually blocks, and
+> which the heartbeat is exactly there to work around.
 
 ## UI control flow
 
