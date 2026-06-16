@@ -266,6 +266,57 @@ class CodeSyncManager:
         self.mesh.record_heartbeat(payload, source)
         return {"success": True, "config": self.config.to_payload()}
 
+    # ----- filter settings (presets + per-machine .data override) --------- #
+    def get_sync_settings(self) -> dict:
+        from .sync_settings import get_sync_settings
+        data = get_sync_settings().get_with_source()
+        return {"success": True, **data}
+
+    def set_sync_settings(self, patch: Dict[str, Any]) -> dict:
+        from .sync_settings import get_sync_settings
+        settings = get_sync_settings().update(patch or {})
+        # Recompute local code stats immediately so the UI reflects the new filters,
+        # and let the file server rescan on its next tick.
+        try:
+            self._stats = self._compute_code_stats()
+        except Exception:
+            pass
+        self._broadcast()
+        return {"success": True, "settings": settings}
+
+    def reset_sync_settings(self) -> dict:
+        from .sync_settings import get_sync_settings
+        settings = get_sync_settings().reset()
+        try:
+            self._stats = self._compute_code_stats()
+        except Exception:
+            pass
+        self._broadcast()
+        return {"success": True, "settings": settings}
+
+    # ----- sync logs (recent file activity) ------------------------------- #
+    def get_sync_logs(self, limit: int = 100) -> dict:
+        """Recent sync activity for the UI's log panel. A client reports its per-file
+        pull/skip/error log; a distributing dev reports connected-client stats."""
+        logs: List[Dict[str, Any]] = []
+        try:
+            if self.role == "client":
+                logs = (get_code_sync_client().get_status() or {}).get("logs", []) or []
+            elif self.role == "dev" and self.distributing:
+                server = get_code_sync_server()
+                for cid, c in list(getattr(server, "clients", {}).items()):
+                    st = c.get_status() if hasattr(c, "get_status") else {}
+                    logs.append({
+                        "action": "client",
+                        "file_path": cid,
+                        "reason": f"received {st.get('received_count', 0)}, "
+                                  f"skipped {st.get('skipped_count', 0)}",
+                        "timestamp": st.get("last_seen"),
+                    })
+        except Exception:
+            pass
+        return {"success": True, "role": self.role, "logs": logs[-int(limit or 100):]}
+
     def discover(self) -> dict:
         candidates = self.mesh.discover()
         return {"success": True, "candidates": candidates}
