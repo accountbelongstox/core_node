@@ -104,14 +104,18 @@ class CodeSyncManager:
         """(Re)start the file services to match the role."""
         self._stop_services()
         if role == "client":
+            # A CLIENT is PASSIVE: it never scans the LAN, never dials out to a
+            # dev-end. It only EXPOSES a WS server (the always-on http_server /
+            # FastAPI `/code-sync/ws` receiver) that dev-ends connect INTO and push
+            # code to. The legacy outbound puller (CodeSyncClient: LAN scan + connect
+            # to dev) is intentionally NOT started. Skip-update is enforced at the
+            # receiver (see PushReceiver), not by stopping a puller.
             if self._skip_update:
-                ColorPrint.yellow("[CodeSync Manager] Client role but updates are "
-                                  "skipped (temporarily rejecting code).")
+                ColorPrint.yellow("[CodeSync Manager] Client role; updates are SKIPPED "
+                                  "(WS receiver will reject pushed code).")
             else:
-                client = get_code_sync_client()
-                client.start()
-                self._sync_client_targets()
-                ColorPrint.green("[CodeSync Manager] Receiving code (client role, default on)")
+                ColorPrint.green("[CodeSync Manager] Client role: receiving via WS push "
+                                 "(passive server only — no LAN scan, no outbound connect).")
         else:  # dev
             # Mesh already runs; file distribution stays OFF until enabled.
             ColorPrint.green("[CodeSync Manager] Dev role - distribution OFF "
@@ -146,19 +150,11 @@ class CodeSyncManager:
     def set_skip_update(self, enabled: bool) -> dict:
         with self._lock:
             self._skip_update = bool(enabled)
-            # Pause/resume the file puller (only meaningful for a client). The
-            # status mesh keeps running regardless, so peers still see this node.
-            if self.role == "client":
-                client = get_code_sync_client()
-                if self._skip_update:
-                    client.stop()
-                    msg = "Updates skipped (temporarily rejecting code)"
-                else:
-                    client.start()
-                    self._sync_client_targets()
-                    msg = "Updates resumed (receiving code)"
-            else:
-                msg = "Skip-update flag set"
+            # Enforced at the WS receiver (PushReceiver checks is_skip_update and
+            # drops pushed manifests/files) — there is no outbound puller to stop.
+            # The status mesh keeps running so peers still see this node.
+            msg = ("Updates skipped (rejecting pushed code)" if self._skip_update
+                   else "Updates resumed (receiving pushed code)")
             ColorPrint.yellow(f"[CodeSync Manager] {msg}")
         self._broadcast()
         return {"success": True, "skip_update": self._skip_update, "message": msg}
@@ -427,6 +423,11 @@ class CodeSyncManager:
                 "logs": logs[-int(limit or 100):]}
 
     def discover(self) -> dict:
+        # A client is passive: it never scans the network. LAN discovery is a
+        # dev-side helper for finding clients to add.
+        if self.role == "client":
+            return {"success": True, "candidates": [],
+                    "message": "Discovery disabled on a client (passive node)."}
         candidates = self.mesh.discover()
         return {"success": True, "candidates": candidates}
 

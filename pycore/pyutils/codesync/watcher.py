@@ -30,6 +30,7 @@ from .runtime import (
     get_core_node_root,
 )
 from .sync_settings import build_excluder, get_sync_settings
+from .textnorm import is_binary, normalize_eol
 
 WATCH_TICK = 1.0  # seconds between index refreshes
 
@@ -135,12 +136,21 @@ class WatchManager:
 
     @staticmethod
     def _hash(path: Path) -> str:
+        """Canonical content hash: text files are hashed in their LF-normalized
+        form so the same source produces the same hash on Windows and Linux (and
+        so it matches git's normalized blobs). Binary files are hashed raw, and
+        stay chunked to bound memory."""
         try:
-            m = hashlib.md5()
             with open(path, "rb") as f:
-                for chunk in iter(lambda: f.read(65536), b""):
-                    m.update(chunk)
-            return m.hexdigest()
+                head = f.read(65536)
+                if is_binary(head):
+                    m = hashlib.md5()
+                    m.update(head)
+                    for chunk in iter(lambda: f.read(65536), b""):
+                        m.update(chunk)
+                    return m.hexdigest()
+                rest = f.read()
+            return hashlib.md5(normalize_eol(head + rest)).hexdigest()
         except Exception:
             return ""
 

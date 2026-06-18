@@ -712,6 +712,12 @@ class CodeSyncClient:
         """
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Canonicalize text line endings to LF (binary untouched) so a Windows
+        # dev's CRLF files don't break shell scripts or diverge from git's blobs
+        # on a Linux client. Loop-safe: this path skips by mtime, not hash.
+        from .textnorm import normalize_eol
+        content = normalize_eol(content)
+
         with open(file_path, 'wb') as f:
             f.write(content)
 

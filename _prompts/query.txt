@@ -1,7 +1,7 @@
 mysql
 如何解决。dsss 还有幂等不一致的问题 servermanagerv1: skipped - canonical identity (no per-app users table)， sys：init dd.ddd Words Tab的UI太简单，培强管理功能。 同时每个条目点开后会有一个展示和编译的弹窗查看细节。同时插入，批量管理，图片展示 Vocabulary Statistics
  合并到其中，并大幅增强更多管理UI界面和功能。目前大约 30%，再增加70%功能。
- d
+ d 
  
  
  不要修改API文件结构，功能代码结果 ，不要碰其他路由，只修改 /wordflow路由下的所有UI。同时只修改入美化UI，而不是调整文件d结构和功能，不要碰API代码等。能进行美化吗，/wordflow 路由下的组件等。注意该项目现在3个主题，你只需要美化 /wordflow下面的 /wordflow/*
@@ -14,7 +14,7 @@ mysql
 调整底部菜单，只显示图标，而不要文件。
 调整全局的light模量下的背景和文字的对比度。以及底部菜单，搜索下拉没有跟随light的问题。
 修复下面的菜单，在焦点时，不显示图标只有背景渐变的、修正为背景上面显示图标。d
-顶部的菜单的左边的LOGO移除掉，同时添加一个next/next的APP启动多页，在登陆时显示。d 
+顶部的菜单的左边的LOGO移除掉，同时添加一个next/next的APP启动多页，在登陆时显示。d sssd
 
  1：设计个人页，Profile页、资料修改页。
  2：添加社交系统，设计复杂一点。
