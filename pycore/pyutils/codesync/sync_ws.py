@@ -73,6 +73,31 @@ def _fmt_diff(diff: int) -> str:
     return f"{sign}{_fmt_bytes(abs(int(diff)))}"
 
 
+# Shell/script extensions that should be executable on Linux/macOS.
+_EXEC_EXTS = (".sh", ".bash", ".zsh", ".ksh", ".command")
+
+
+def _restore_exec_bit(target, content: bytes) -> None:
+    """Linux/macOS only: a file received over Code Sync is written fresh, so its
+    executable bit is lost. Restore +x for shell scripts (by extension) and for
+    any file beginning with a shebang ('#!'), so it can be run directly. The exec
+    bit is added only where the read bit is already set (mirrors `chmod +x`'s
+    umask-respecting behavior); no-op on Windows."""
+    if os.name != "posix":
+        return
+    name = target.name.lower()
+    is_exec = name.endswith(_EXEC_EXTS) or content[:2] == b"#!"
+    if not is_exec:
+        return
+    try:
+        mode = os.stat(target).st_mode
+        new_mode = mode | ((mode & 0o444) >> 2)  # r -> x for each of u/g/o
+        if new_mode != mode:
+            os.chmod(target, new_mode)
+    except Exception:
+        pass
+
+
 # --------------------------------------------------------------------------- #
 # CLIENT side -- apply pushed files                                           #
 # --------------------------------------------------------------------------- #
@@ -316,6 +341,10 @@ class PushReceiver:
                     os.utime(target, (mtime, mtime))
                 except Exception:
                     pass
+            # The exec bit is lost in transfer (a fresh file is written), so on
+            # Linux/macOS restore +x for shell scripts and any shebang file so
+            # `./x.sh` works, not just `bash x.sh`.
+            _restore_exec_bit(target, content)
             result["status"] = "written"
             self.m.log_sync("received", rel, reason, details=details,
                             size=new_size, diff=diff, peer=peer,
@@ -479,6 +508,9 @@ class PushSender:
                 last = self._push_deltas(ws, wm, last, client_id, "delta",
                                          client_name, pid=pid)
                 time.sleep(PUSH_TICK)
+                # Keepalive: keeps the NAT/proxy mapping warm during idle ticks and
+                # fails fast (-> reconnect) if the link has silently died.
+                ws.ping()
         except Exception as exc:
             # Back off on connect failures AND mid-sync drops; last_sent is
             # persisted up to the last ack so the next connect resumes cleanly.

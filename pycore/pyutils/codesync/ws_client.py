@@ -21,11 +21,12 @@ from .ws_proto import (
 
 class WSClient:
     def __init__(self, host: str, port: int, path: str = "/code-sync/ws",
-                 timeout: float = 10.0):
+                 timeout: float = 10.0, io_timeout: float = 120.0):
         self.host = host
         self.port = port
         self.path = path
-        self.timeout = timeout
+        self.timeout = timeout          # connect + handshake (short)
+        self.io_timeout = io_timeout    # persistent session reads (generous)
         self._sock = None
         self._leftover = b""
 
@@ -45,6 +46,15 @@ class WSClient:
             raise ConnectionError(f"ws handshake failed: {status_line[:120]!r}")
         # Any bytes past the header terminator are early frame data — keep them.
         self._leftover = resp.split(b"\r\n\r\n", 1)[1]
+        # Switch from the short connect timeout to a generous I/O timeout for the
+        # persistent push session: a large batch or a busy/slow client must not trip
+        # a short read timeout and flap the link. Enable TCP keepalive so a truly
+        # dead peer is still detected at the OS level.
+        try:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        except Exception:
+            pass
+        s.settimeout(self.io_timeout)
         self._sock = s
 
     def _read(self, n: int) -> bytes:
@@ -56,6 +66,12 @@ class WSClient:
 
     def send_text(self, text: str) -> None:
         self._sock.sendall(encode_frame(text.encode("utf-8"), OP_TEXT, mask=True))
+
+    def ping(self) -> None:
+        """Send a WS PING keepalive. Raises on a dead socket so the caller can
+        reconnect promptly; the peer replies PONG (swallowed on the next read).
+        Keeps NAT/proxy mappings warm during idle so the link does not flap."""
+        self._sock.sendall(encode_frame(b"", OP_PING, mask=True))
 
     def recv_text(self):
         """Return the next text message (str), or None on close."""
