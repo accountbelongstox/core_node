@@ -20,10 +20,11 @@ Message protocol (JSON text frames):
   client->dev  {"type":"welcome","client_id","name"}
 
   BATCHED (current):
-  dev->client  {"type":"batch","reason":"delta"|"resume","files":[
-                   {"rel","mtime","hash","size","b64"}, ...]}
+  dev->client  {"type":"batch","reason":"delta"|"resume","dev_id","dev_name","files":[
+                   {"rel","mtime","hash","size","b64"},          # create / modify
+                   {"rel","deleted":true}, ...]}                 # propagated delete
   client->dev  {"type":"batch_ack","results":[
-                   {"rel","status":"written"|"skipped"|"error",
+                   {"rel","status":"written"|"skipped"|"deleted"|"error",
                     "diff":<int>,"size":<int>,"error"?:<str>}, ...]}
 
   LEGACY (kept for back-compat with older peers):
@@ -128,21 +129,52 @@ class PushReceiver:
                               direction="receive")
 
     def _apply_one(self, msg: dict, peer: str = "") -> dict:
-        """Apply one pushed file; return a result row for the batch_ack.
+        """Apply one pushed file (or deletion); return a result row for the ack.
 
-        Result fields: rel, status (written|skipped|error), diff (signed byte
-        delta new_size - old_size), size (new content size), and error on failure.
+        Result fields: rel, status (written|skipped|deleted|error), diff (signed
+        byte delta new_size - old_size), size (new content size), error on failure.
         """
         rel = msg.get("rel")
+        deleted = bool(msg.get("deleted"))
         b64 = msg.get("b64")
         result = {"rel": rel, "status": "error", "diff": 0, "size": 0}
-        if not rel or b64 is None:
+        if not rel or (b64 is None and not deleted):
             result["error"] = "missing rel/b64"
             return result
         rel = str(rel).replace("\\", "/")
         result["rel"] = rel
-        target = self.m.sync_target_root() / rel
+        # Contain every write/delete strictly under the sync root: reject path
+        # traversal ("../") and absolute rels that would escape it (resolve() also
+        # collapses parent symlinks, closing that traversal vector too).
+        root = self.m.sync_target_root().resolve()
         try:
+            target = (root / rel).resolve()
+        except Exception:
+            result["error"] = "bad path"
+            return result
+        if target != root and root not in target.parents:
+            result["error"] = "path escapes sync root"
+            self.m.log_sync("error", rel, "rejected: path escapes sync root",
+                            details="blocked", peer=peer, direction="receive")
+            return result
+        try:
+            if deleted:
+                # Only files the dev previously pushed reach here (sender diffs its
+                # own last_sent), and the path is contained above — so we never
+                # remove a client-local file.
+                if target.exists() and not target.is_dir():
+                    old_size = target.stat().st_size
+                    target.unlink()
+                    result["status"] = "deleted"
+                    result["diff"] = -old_size
+                    self.m.log_sync("deleted", rel, "removed on dev",
+                                    details=_fmt_bytes(old_size), size=0,
+                                    diff=-old_size, peer=peer, direction="receive")
+                else:
+                    result["status"] = "skipped"
+                    self.m.log_sync("skipped", rel, "already absent",
+                                    peer=peer, direction="receive")
+                return result
             content = base64.b64decode(b64)
             new_size = len(content)
             old_size = target.stat().st_size if target.exists() else 0
@@ -165,8 +197,16 @@ class PushReceiver:
                 reason = "new file"
             target.parent.mkdir(parents=True, exist_ok=True)
             tmp = target.with_suffix(target.suffix + ".cs_tmp")
-            tmp.write_bytes(content)
-            os.replace(str(tmp), str(target))
+            try:
+                tmp.write_bytes(content)
+                os.replace(str(tmp), str(target))
+            except Exception:
+                # Don't leak the half-written temp file on a failed replace.
+                try:
+                    tmp.unlink()
+                except Exception:
+                    pass
+                raise
             mtime = msg.get("mtime")
             if mtime:
                 try:
