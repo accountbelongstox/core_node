@@ -53,11 +53,52 @@ def _scan_conflict_markers(pkg_dir):
     return bad
 
 
+def _git(repo, *args, timeout=30):
+    import subprocess
+    try:
+        return subprocess.run(["git", "-C", repo, *args], capture_output=True,
+                              text=True, timeout=timeout)
+    except Exception:
+        return None
+
+
+def _try_autoheal(repo):
+    """NON-destructive self-heal: a conflicted `git pull` leaves an interrupted
+    merge/rebase whose working tree has '<<<<<<<' markers. Aborting it restores the
+    last good committed tree — no committed work is lost. Returns True if it ran an
+    abort. Optionally (CODESYNC_AUTOHEAL_HARD=1) a harder reset to the upstream,
+    for pure clients that only ever RECEIVE code (this DOES discard local edits)."""
+    healed = False
+    # `merge --abort` / `rebase --abort` are harmless no-ops when nothing is in
+    # progress, so we can try both unconditionally and re-scan afterwards.
+    for op in (("merge", "--abort"), ("rebase", "--abort")):
+        r = _git(repo, *op)
+        if r is not None and r.returncode == 0:
+            healed = True
+    if os.environ.get("CODESYNC_AUTOHEAL_HARD", "") in ("1", "true", "True"):
+        # Determine the upstream; fall back to origin/main.
+        up = _git(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+        target = (up.stdout.strip() if up and up.returncode == 0 and up.stdout.strip()
+                  else "origin/main")
+        r = _git(repo, "reset", "--hard", target)
+        if r is not None and r.returncode == 0:
+            healed = True
+    return healed
+
+
 def _preflight():
-    conflicts = _scan_conflict_markers(os.path.join(_HERE, "codesync"))
+    pkg = os.path.join(_HERE, "codesync")
+    conflicts = _scan_conflict_markers(pkg)
     if not conflicts:
         return
     repo = os.path.dirname(os.path.dirname(_HERE))  # <repo>/pycore/pyutils -> <repo>
+    # Try to self-heal a crash-loop: abort an interrupted merge/rebase, re-scan.
+    if _try_autoheal(repo):
+        if not _scan_conflict_markers(pkg):
+            sys.stderr.write("[CodeSync] auto-healed: aborted an interrupted git "
+                             "merge/rebase that had left conflict markers; starting.\n")
+            sys.stderr.flush()
+            return
     msg = ["[CodeSync] ABORT: unresolved git conflict markers in the codesync package:"]
     for p in conflicts:
         msg.append(f"   - {p}")
@@ -67,6 +108,8 @@ def _preflight():
         "[CodeSync] then the service will start cleanly:",
         f"[CodeSync]   cd {repo} && git reset --hard origin/main   # pure client: mirror the dev",
         "[CodeSync]   # or hand-edit each file above, removing the <<<<<<< / ======= / >>>>>>> blocks",
+        "[CodeSync] Or let it self-heal automatically on a pure client (DISCARDS local",
+        "[CodeSync] edits) by setting CODESYNC_AUTOHEAL_HARD=1 in the service environment.",
     ]
     sys.stderr.write("\n".join(msg) + "\n")
     sys.stderr.flush()
