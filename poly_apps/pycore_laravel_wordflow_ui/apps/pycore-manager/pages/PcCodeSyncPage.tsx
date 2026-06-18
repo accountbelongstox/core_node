@@ -18,6 +18,7 @@ import {
   Code2, RefreshCcw, Server, MonitorSmartphone, Radar, Plus, X, Trash2,
   Pencil, Check, Users, Download, Wifi, WifiOff, PauseCircle, FileText, HardDrive,
   AlertTriangle, Filter, RotateCcw, ScrollText, GitBranch,
+  Send, Inbox, CheckCircle2, XCircle, Layers, BarChart3, CircleSlash,
 } from 'lucide-react';
 import {
   pycoreApi, subscribe, connectPycoreWs, onWsStatus,
@@ -53,6 +54,29 @@ function formatBytes(n: number | undefined | null): string {
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
   return `${i === 0 ? v : v.toFixed(1)} ${units[i]}`;
 }
+
+// Normalise a SyncLogEntry timestamp (seconds | ms | numeric-string | null) to ms.
+function tsToMs(ts: number | string | null | undefined): number | null {
+  const n = typeof ts === 'string' ? Number(ts) : ts;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) return null;
+  return n < 1e12 ? n * 1000 : n;
+}
+
+// Short wall-clock label (HH:MM) for chart axis endpoints.
+function clockLabel(ms: number): string {
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+type ChartRangeId = '5m' | '30m' | '1h' | '24h';
+const CHART_RANGES: { id: ChartRangeId; label: string; ms: number }[] = [
+  { id: '5m', label: '5m', ms: 5 * 60 * 1000 },
+  { id: '30m', label: '30m', ms: 30 * 60 * 1000 },
+  { id: '1h', label: '1h', ms: 60 * 60 * 1000 },
+  { id: '24h', label: '24h', ms: 24 * 60 * 60 * 1000 },
+];
 
 interface PeerDraft { name: string; host: string; port: string; role: CodeSyncRole; }
 
@@ -110,6 +134,8 @@ const PcCodeSyncPage: React.FC = () => {
   const [filtersOverridden, setFiltersOverridden] = useState(false);
   const [filtersDirty, setFiltersDirty] = useState(false);
   const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>([]);
+  // Activity-chart time range (default 1h).
+  const [chartRange, setChartRange] = useState<ChartRangeId>('1h');
 
   // Continuous-poll view: snapshot + poll loop live in the global provider above
   // the router (survive navigation; reload re-polls GET /code-sync/peers).
@@ -144,9 +170,9 @@ const PcCodeSyncPage: React.FC = () => {
   const [candidates, setCandidates] = useState<CodeSyncCandidate[]>([]);
   const autoDiscoveredRef = useRef(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [addDraft, setAddDraft] = useState<PeerDraft>({ name: '', host: '', port: String(DEFAULT_PORT), role: 'dev' });
+  const [addDraft, setAddDraft] = useState<PeerDraft>({ name: '', host: '', port: String(DEFAULT_PORT), role: 'client' });
   const [editId, setEditId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<PeerDraft>({ name: '', host: '', port: String(DEFAULT_PORT), role: 'dev' });
+  const [editDraft, setEditDraft] = useState<PeerDraft>({ name: '', host: '', port: String(DEFAULT_PORT), role: 'client' });
 
   // Transient toast-style notice (self-clears). Replaces the original `toast`.
   const flash = useCallback((msg: string) => {
@@ -232,10 +258,19 @@ const PcCodeSyncPage: React.FC = () => {
     finally { setBusy(false); }
   };
 
-  const role: CodeSyncRole = self?.role ?? 'dev';
+  const role: CodeSyncRole = self?.role ?? 'client';
   const distributing = !!self?.distributing;
   const skipUpdate = !!(self?.skip_update ?? self?.summary?.skip_update);
   const selfCode: CodeStats | undefined = self?.code ?? self?.summary?.code;
+
+  // --- derived stats for the icon strip ---------------------------------- #
+  const reachableCount = peers.filter((p) => p.reachable).length;
+  const unreachableCount = peers.length - reachableCount;
+  // Files queued = sum of per-channel counts where this device is actively pushing.
+  const queuedFiles = Object.values(self?.sync_phase?.channels ?? {})
+    .reduce((acc, ch) => acc + (ch?.phase === 'pushing' ? (ch.count || 0) : 0), 0);
+  const syncedCount = syncLogs.filter((l) => l.action === 'sent' || l.action === 'received').length;
+  const errorCount = syncLogs.filter((l) => l.action === 'error').length;
 
   // --- actions ----------------------------------------------------------- #
   const changeRole = async (next: CodeSyncRole) => {
@@ -322,7 +357,7 @@ const PcCodeSyncPage: React.FC = () => {
       role: addDraft.role,
     });
     setShowAdd(false);
-    setAddDraft({ name: '', host: '', port: String(DEFAULT_PORT), role: 'dev' });
+    setAddDraft({ name: '', host: '', port: String(DEFAULT_PORT), role: 'client' });
   };
 
   const removePeer = async (id: string) => {
@@ -375,6 +410,11 @@ const PcCodeSyncPage: React.FC = () => {
   const peerSkipping = (p: PeerStatus): boolean =>
     !!(p.status?.skip_update ?? p.status?.summary?.skip_update);
 
+  // Live phase for a peer row: prefer this device's per-peer push channel,
+  // else the peer's own aggregate sync_phase.
+  const peerPhase = (p: PeerStatus): { phase: string; count: number } | undefined =>
+    self?.sync_phase?.channels?.[p.id] ?? p.status?.sync_phase;
+
   // Compact code-stats line: "<files> files · <size> · updated <relTime>".
   const codeStatsLine = (code?: CodeStats) => {
     if (!code || (!code.files && !code.bytes && !code.last_modified)) {
@@ -398,14 +438,55 @@ const PcCodeSyncPage: React.FC = () => {
   );
 
   // Live WS-push phase pill (idle hidden; pushing/receiving/scanning animated).
+  // "retrying" is a non-spinning amber alert (attempt #); others stay indigo+spin.
   const phaseBadge = (ph?: { phase: string; count: number }) => {
     if (!ph || ph.phase === 'idle' || !ph.phase) return null;
+    const retrying = ph.phase === 'retrying';
+    const cls = retrying ? 'bg-amber-500/15 text-amber-500' : 'bg-indigo-500/15 text-indigo-500';
     return (
-      <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-indigo-500/15 text-indigo-500">
-        <Radar className="w-3 h-3 animate-spin" />
+      <span className={`ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${cls}`}>
+        {retrying
+          ? <RotateCcw className="w-3 h-3" />
+          : <Radar className="w-3 h-3 animate-spin" />}
         {ph.phase}{ph.count ? ` ${ph.count}` : ''}
       </span>
     );
+  };
+
+  // Render the size/diff column for a sync-log row: a signed coloured delta when
+  // a non-zero `diff` is present, else free-text `details`, else the new size.
+  const syncSizeCell = (l: SyncLogEntry): React.ReactNode => {
+    if (typeof l.diff === 'number' && l.diff !== 0) {
+      const up = l.diff > 0;
+      return (
+        <span className={`shrink-0 font-bold ${up ? 'text-emerald-500' : 'text-rose-500'}`}>
+          {up ? '+' : '-'}{formatBytes(Math.abs(l.diff))}
+        </span>
+      );
+    }
+    if (l.details) return <span className="shrink-0 text-slate-400">{l.details}</span>;
+    if (typeof l.size === 'number' && l.size > 0) {
+      return <span className="shrink-0 text-slate-400">{formatBytes(l.size)}</span>;
+    }
+    return null;
+  };
+
+  // SyncLogEntry.timestamp may be a string/null; normalise to ms-number for relTime.
+  const logTime = (ts: SyncLogEntry['timestamp']): string => {
+    const n = typeof ts === 'string' ? Number(ts) : ts;
+    return relTime(typeof n === 'number' && Number.isFinite(n) ? n : null, '');
+  };
+
+  // Action badge colour for a sync-log row.
+  const logActionCls = (action?: string): string => {
+    switch (action) {
+      case 'error': return 'bg-rose-500/15 text-rose-500';
+      case 'skipped': return 'bg-amber-500/15 text-amber-500';
+      case 'reconnect': return 'bg-violet-500/15 text-violet-500';
+      case 'sent':
+      case 'received': return 'bg-emerald-500/15 text-emerald-500';
+      default: return 'bg-emerald-500/15 text-emerald-500';
+    }
   };
 
   // How the peer is connected (outbound probe vs inbound heartbeat vs both).
@@ -433,6 +514,90 @@ const PcCodeSyncPage: React.FC = () => {
       parts.push(`${sum.servers} servers`);
     }
     return parts.join(' · ');
+  };
+
+  // Small inline-SVG activity chart: buckets in-range sync logs into ~26 columns,
+  // stacking success (sent/received/skipped, emerald) over error (rose).
+  const renderActivityChart = (): React.ReactNode => {
+    const rangeMs = (CHART_RANGES.find((r) => r.id === chartRange) ?? CHART_RANGES[2]).ms;
+    const now = Date.now();
+    const start = now - rangeMs;
+    const BUCKETS = 26;
+    const bw = rangeMs / BUCKETS;
+    const ok = new Array(BUCKETS).fill(0);
+    const err = new Array(BUCKETS).fill(0);
+    let total = 0;
+    for (const l of syncLogs) {
+      const ms = tsToMs(l.timestamp);
+      if (ms === null || ms < start || ms > now) continue;
+      let idx = Math.floor((ms - start) / bw);
+      if (idx < 0) idx = 0; if (idx >= BUCKETS) idx = BUCKETS - 1;
+      if (l.action === 'error') err[idx] += 1;
+      else if (l.action === 'sent' || l.action === 'received' || l.action === 'skipped') ok[idx] += 1;
+      else ok[idx] += 1;
+      total += 1;
+    }
+    const max = Math.max(1, ...ok.map((v, i) => v + err[i]));
+
+    return (
+      <div>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <BarChart3 className="w-3.5 h-3.5" /> Activity
+          </span>
+          <div className="flex items-center gap-1">
+            {CHART_RANGES.map((r) => (
+              <button key={r.id} onClick={() => setChartRange(r.id)}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition ${
+                  chartRange === r.id
+                    ? 'bg-indigo-500/15 text-indigo-500'
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {total === 0 ? (
+          <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-2xl">
+            No activity in the last {chartRange}
+          </div>
+        ) : (
+          <div>
+            <svg viewBox="0 0 260 80" preserveAspectRatio="none" className="w-full h-24 overflow-visible">
+              {ok.map((okV, i) => {
+                const errV = err[i];
+                const colW = 260 / BUCKETS;
+                const x = i * colW;
+                const gap = Math.min(1.2, colW * 0.18);
+                const w = colW - gap;
+                const okH = (okV / max) * 76;
+                const errH = (errV / max) * 76;
+                return (
+                  <g key={i}>
+                    {errV > 0 && (
+                      <rect x={x} y={80 - errH} width={w} height={errH}
+                        rx={0.8} className="fill-rose-500" />
+                    )}
+                    {okV > 0 && (
+                      <rect x={x} y={80 - errH - okH} width={w} height={okH}
+                        rx={0.8} className="fill-emerald-500" />
+                    )}
+                  </g>
+                );
+              })}
+            </svg>
+            <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
+              <span>{clockLabel(start)}</span>
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500" /> success</span>
+                <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-500" /> error</span>
+              </span>
+              <span>now</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const ROLES: { id: CodeSyncRole; label: string; desc: string; icon: typeof Server }[] = [
@@ -513,6 +678,52 @@ const PcCodeSyncPage: React.FC = () => {
             <span className="text-[10px] tracking-wider text-slate-500">Config version</span>
             <div className="text-sm font-bold text-slate-700 dark:text-zinc-200">{self?.config_version ?? '-'}</div>
           </div>
+        </div>
+
+        {/* icon stat strip — compact derived stats (no extra API calls) */}
+        <div className="flex flex-wrap items-center gap-2 mt-4">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 text-slate-600 dark:text-slate-300"
+            title={`Role: ${role === 'dev' ? 'Dev' : 'Client'}`}>
+            {role === 'dev' ? <Server className="w-3.5 h-3.5 text-violet-500" /> : <MonitorSmartphone className="w-3.5 h-3.5 text-sky-500" />}
+            {role === 'dev' ? 'Dev' : 'Client'}
+          </span>
+          {role === 'dev' ? (
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 ${distributing ? 'text-emerald-500' : 'text-slate-400'}`}
+              title={`Distributing ${distributing ? 'on' : 'off'}`}>
+              {distributing ? <Send className="w-3.5 h-3.5" /> : <CircleSlash className="w-3.5 h-3.5" />}
+              {distributing ? 'Distributing' : 'Idle'}
+            </span>
+          ) : (
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 ${skipUpdate ? 'text-amber-500' : 'text-emerald-500'}`}
+              title={`Skip update ${skipUpdate ? 'on' : 'off'}`}>
+              {skipUpdate ? <PauseCircle className="w-3.5 h-3.5" /> : <Inbox className="w-3.5 h-3.5" />}
+              {skipUpdate ? 'Skipping' : 'Receiving'}
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 text-slate-600 dark:text-slate-300"
+            title="Total peers">
+            <Users className="w-3.5 h-3.5" /> {peers.length}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 text-emerald-500"
+            title="Reachable peers">
+            <Wifi className="w-3.5 h-3.5" /> {reachableCount}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 text-slate-400"
+            title="Unreachable peers">
+            <WifiOff className="w-3.5 h-3.5" /> {unreachableCount}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 text-indigo-500"
+            title="Files queued for push">
+            <Layers className="w-3.5 h-3.5" /> {queuedFiles}
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 text-slate-600 dark:text-slate-300"
+            title="Synced this session (sent / received)">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> {syncedCount}
+          </span>
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 ${errorCount > 0 ? 'text-rose-500' : 'text-slate-400'}`}
+            title="Sync errors">
+            <XCircle className="w-3.5 h-3.5" /> {errorCount}
+          </span>
         </div>
 
         {/* role-specific control */}
@@ -676,6 +887,7 @@ const PcCodeSyncPage: React.FC = () => {
                           </span>
                         )}
                         {peerSkipping(p) && skippingBadge}
+                        {phaseBadge(peerPhase(p))}
                       </div>
                       <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
                         <span className="font-mono">{p.host}:{p.port}</span>
@@ -768,22 +980,41 @@ const PcCodeSyncPage: React.FC = () => {
         <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2 mb-3">
           <ScrollText className="w-4 h-4" /> Sync log
         </h3>
+
+        {/* time-range activity chart (built only from syncLogs timestamps) */}
+        <div className="mb-4">
+          {renderActivityChart()}
+        </div>
+
         {syncLogs.length === 0 ? (
           <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-2xl">
             No recent sync activity
           </div>
         ) : (
           <ul className="space-y-1 max-h-64 overflow-y-auto font-mono text-[11px]">
-            {syncLogs.slice().reverse().map((l, i) => (
-              <li key={i} className="flex items-start gap-2 px-2 py-1 rounded-lg hover:bg-slate-100/60 dark:hover:bg-white/5">
-                <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                  l.action === 'error' ? 'bg-rose-500/15 text-rose-500'
-                    : l.action === 'skipped' ? 'bg-amber-500/15 text-amber-500'
-                    : 'bg-emerald-500/15 text-emerald-500'}`}>{l.action || 'sync'}</span>
-                <span className="text-slate-600 dark:text-slate-300 break-all">{l.file_path}</span>
-                {l.reason && <span className="text-slate-400 ml-auto pl-2 shrink-0">{l.reason}</span>}
-              </li>
-            ))}
+            {syncLogs.slice().reverse().map((l, i) => {
+              const t = logTime(l.timestamp);
+              return (
+                <li key={i} className="flex items-start gap-2 px-2 py-1 rounded-lg hover:bg-slate-100/60 dark:hover:bg-white/5">
+                  <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${logActionCls(l.action)}`}>
+                    {l.action || 'sync'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    {l.file_path && <span className="text-slate-600 dark:text-slate-300 break-all">{l.file_path}</span>}
+                    {l.peer && (
+                      <span className="text-slate-400 ml-1.5 break-all">
+                        {l.direction === 'receive' || l.action === 'received' ? '←' : '→'} {l.peer}
+                      </span>
+                    )}
+                    {l.reason && (
+                      <span className="text-slate-400 ml-1.5 break-all">{l.reason}</span>
+                    )}
+                  </div>
+                  {syncSizeCell(l)}
+                  {t && <span className="shrink-0 text-slate-400 tabular-nums w-8 text-right">{t}</span>}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

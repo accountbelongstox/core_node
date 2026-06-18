@@ -179,9 +179,20 @@ export interface SelfStatus {
 }
 
 // Live WS-push phase: idle | scanning | pushing | receiving (+ file count).
+// `channels` carries a per-peer breakdown keyed by peer id (this device's
+// push/receive state toward each individual client); optional/back-compat.
+export interface SyncPhaseChannel {
+  phase: string;
+  count: number;
+  name?: string;
+  direction?: 'push' | 'receive' | string;
+  ts?: number;
+}
+
 export interface SyncPhase {
   phase: 'idle' | 'scanning' | 'pushing' | 'receiving' | string;
   count: number;
+  channels?: Record<string, SyncPhaseChannel>;
 }
 
 export interface PeerLiveStatus {
@@ -191,6 +202,7 @@ export interface PeerLiveStatus {
   code?: CodeStats;
   servers?: number;
   clients?: number;
+  sync_phase?: SyncPhase;   // aggregate live phase reported by the peer
   summary?: {
     role?: CodeSyncRole;
     distributing?: boolean;
@@ -259,7 +271,11 @@ export interface SyncLogEntry {
   file_path?: string;
   reason?: string;
   details?: string;
+  size?: number;   // bytes of the new file (0 if n/a)
+  diff?: number;   // signed byte delta vs previous version (new-old); 0 if new/unknown
   timestamp?: number | string | null;
+  peer?: string;        // peer name/id this entry relates to (backend-set)
+  direction?: string;   // 'push' / 'receive' / etc. (backend-set)
 }
 
 // --- Auto-start on boot -------------------------------------------------- #
