@@ -37,6 +37,7 @@ $BACKUP_ENABLED = if ($Backup) { "true" } else { "false" }
 $currentBranch = ""
 $script:CommitMessage = $null
 $script:ForcePushChoice = $null
+$CommitMessageTimeoutSeconds = 3  # Auto-continue with the default commit message after this many idle seconds
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
 $skipEncryptCacheDir = "C:\_node_core"
 $skipEncryptCacheFile = Join-Path $skipEncryptCacheDir "git_skip_encrypt_cache.db"
@@ -239,9 +240,54 @@ function Get-CommitMessage {
     $platformInfo = Get-PlatformInfo
     $defaultMessage = "$platformInfo-$timestamp"
 
-    # Ask user for input
-    Write-ColorText "Enter commit message (press Enter to use: $defaultMessage): " -ForegroundColor Yellow -NoNewline
-    $userInput = Read-Host
+    # Ask user for input. Auto-continue with the default message after
+    # $CommitMessageTimeoutSeconds of no typing (idle), so an unattended push
+    # does not block on this prompt. Any keystroke resets the idle timer so
+    # active typing is never cut off; Enter submits.
+    Write-ColorText "Enter commit message ($CommitMessageTimeoutSeconds`s timeout -> default: $defaultMessage): " -ForegroundColor Yellow -NoNewline
+
+    $userInput = ""
+    $inputBuilder = New-Object System.Text.StringBuilder
+    $timedOut = $false
+    $canReadKeys = $true
+    try { $null = [Console]::KeyAvailable } catch { $canReadKeys = $false }
+
+    if ($canReadKeys) {
+        $idleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($true) {
+            if ([Console]::KeyAvailable) {
+                $keyInfo = [Console]::ReadKey($true)
+                if ($keyInfo.Key -eq [ConsoleKey]::Enter) {
+                    break
+                } elseif ($keyInfo.Key -eq [ConsoleKey]::Backspace) {
+                    if ($inputBuilder.Length -gt 0) {
+                        $inputBuilder.Length = $inputBuilder.Length - 1
+                        Write-Host -NoNewline "`b `b"
+                    }
+                } elseif (-not [char]::IsControl($keyInfo.KeyChar)) {
+                    $null = $inputBuilder.Append($keyInfo.KeyChar)
+                    Write-Host -NoNewline $keyInfo.KeyChar
+                }
+                $idleStopwatch.Restart()
+            } elseif ($idleStopwatch.Elapsed.TotalSeconds -ge $CommitMessageTimeoutSeconds) {
+                $timedOut = $true
+                break
+            } else {
+                Start-Sleep -Milliseconds 50
+            }
+        }
+        Write-Host ""
+        $userInput = $inputBuilder.ToString()
+    } else {
+        # Non-interactive console (no key API): fall back to a blocking read.
+        $userInput = Read-Host
+    }
+
+    if ($timedOut -and [string]::IsNullOrWhiteSpace($userInput)) {
+        $script:CommitMessage = $defaultMessage
+        Write-ColorText "No input for $CommitMessageTimeoutSeconds`s; using default commit message: $defaultMessage" -ForegroundColor Cyan
+        return $script:CommitMessage
+    }
 
     if ([string]::IsNullOrWhiteSpace($userInput)) {
         $script:CommitMessage = $defaultMessage

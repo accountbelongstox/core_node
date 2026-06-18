@@ -65,8 +65,13 @@ PRESET_EXCLUDED_PATH_SUBSTRINGS: List[str] = []
 
 PRESET_APPLY_GITIGNORE: bool = False
 
+# Directories the dev watches/pushes. Empty = the project root (get_core_node_root).
+# Each entry maps to the client under its path relative to the core_node root (a dir
+# outside the root maps under its basename), so subdirs become the client's subdirs.
+PRESET_WATCH_DIRS: List[str] = []
+
 _KEYS = ("excluded_dirs", "excluded_files", "excluded_extensions",
-         "excluded_path_substrings", "apply_gitignore")
+         "excluded_path_substrings", "apply_gitignore", "watch_dirs")
 
 
 def get_sync_settings_file() -> Path:
@@ -81,6 +86,7 @@ def presets() -> Dict[str, Any]:
         "excluded_extensions": sorted(set(PRESET_EXCLUDED_EXTENSIONS)),
         "excluded_path_substrings": list(PRESET_EXCLUDED_PATH_SUBSTRINGS),
         "apply_gitignore": PRESET_APPLY_GITIGNORE,
+        "watch_dirs": list(PRESET_WATCH_DIRS),
     }
 
 
@@ -221,7 +227,8 @@ class SyncSettings:
             for k in _KEYS:
                 if k in ovr and ovr[k] is not None:
                     merged[k] = ovr[k]
-            for k in ("excluded_dirs", "excluded_files", "excluded_extensions", "excluded_path_substrings"):
+            for k in ("excluded_dirs", "excluded_files", "excluded_extensions",
+                      "excluded_path_substrings", "watch_dirs"):
                 merged[k] = sorted({str(x).strip() for x in (merged.get(k) or []) if str(x).strip()})
             merged["apply_gitignore"] = bool(merged.get("apply_gitignore"))
             self._cache = merged

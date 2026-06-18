@@ -617,7 +617,7 @@ export const WfNewApp: React.FC = () => {
           <button
             onClick={() => setIsSearchOverlayOpen(true)}
             className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-300 md:hidden"
-            title="Instant search"
+            title={trans('tip.search')}
           >
             <Search className="w-4 h-4 text-zinc-300" />
           </button>
@@ -628,10 +628,10 @@ export const WfNewApp: React.FC = () => {
             className={`flex items-center gap-1.5 px-3 py-2.5 rounded-full border bg-white/5 hover:bg-indigo-500/10 text-indigo-400 hover:text-indigo-300 transition-all text-xs cursor-pointer ${
               activeTab === 'social' ? 'bg-indigo-500/15 border-indigo-500/30' : 'border-white/5'
             }`}
-            title="Social Corridor & Chat with friends"
+            title={trans('tip.social')}
           >
             <span>🌐</span>
-            <span className="hidden sm:inline font-mono font-bold text-[10px] tracking-tight">Social Loop</span>
+            <span className="hidden sm:inline font-mono font-bold text-[10px] tracking-tight">{trans('bc.social')}</span>
           </button>
 
           {/* Individual Profile Console / Login bubble */}
@@ -640,7 +640,7 @@ export const WfNewApp: React.FC = () => {
             className={`flex items-center gap-2 p-1.5 pr-3 rounded-full border bg-white/5 transition-all cursor-pointer ${
               activeTab === 'profile' || activeTab === 'auth' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-300' : 'text-zinc-300 hover:bg-white/10 border-white/5'
             }`}
-            title="Profile Console or Auth"
+            title={trans('tip.profile')}
           >
             <div className="w-7 h-7 rounded-full bg-slate-900 border border-white/10 flex items-center justify-center text-sm relative select-none">
               {avatarUrl}
@@ -649,14 +649,14 @@ export const WfNewApp: React.FC = () => {
               }`} />
             </div>
             <span className="text-[10px] sm:text-xs font-bold font-mono truncate max-w-[80px]">
-              {currentUser.isLoggedIn ? nickname : 'Login'}
+              {currentUser.isLoggedIn ? nickname : trans('common.login')}
             </span>
           </button>
 
           <button 
             onClick={toggleDark}
             className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-zinc-300"
-            title="Toggle Light/Dark Theme"
+            title={trans('tip.theme')}
           >
             {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-purple-400" />}
           </button>
@@ -665,8 +665,8 @@ export const WfNewApp: React.FC = () => {
             <button
               onClick={() => setLangMenuOpen(o => !o)}
               className="flex items-center bg-white/5 hover:bg-white/10 border border-white/5 p-1.5 rounded-full text-zinc-300"
-              title="Select language"
-              aria-label="Select language"
+              title={trans('tip.language')}
+              aria-label={trans('tip.language')}
             >
               <Languages className="w-4 h-4 text-indigo-400" />
             </button>
@@ -800,10 +800,10 @@ export const WfNewApp: React.FC = () => {
                       <Volume2 className="w-5.5 h-5.5 animate-pulse" />
                     </div>
                     <h4 className="font-extrabold text-sm text-slate-100 group-hover:text-indigo-400 transition-colors">
-                      Cyber Walkman (随身听单词播放)
+                      {trans('home.walkmanTitle')}
                     </h4>
                     <p className="text-xs text-zinc-500 mt-2 font-mono leading-relaxed">
-                      Continuous loop English recital engine featuring dual-language translation speech queues and cassette rotating reel deck.
+                      {trans('home.walkmanDesc')}
                     </p>
                   </div>
 
@@ -819,10 +819,10 @@ export const WfNewApp: React.FC = () => {
                       <Play className="w-5.5 h-5.5" />
                     </div>
                     <h4 className="font-extrabold text-sm text-slate-100 group-hover:text-fuchsia-400 transition-colors">
-                      Interactive Subtitles (英文字幕学习)
+                      {trans('home.subsTitle')}
                     </h4>
                     <p className="text-xs text-zinc-500 mt-2 font-mono leading-relaxed">
-                      Video simulated viewport: click any index word inside active subtitle line to query instant definitions.
+                      {trans('home.subsDesc')}
                     </p>
                   </div>
 
@@ -838,10 +838,10 @@ export const WfNewApp: React.FC = () => {
                       <Languages className="w-5.5 h-5.5 text-amber-400" />
                     </div>
                     <h4 className="font-extrabold text-sm text-slate-100 group-hover:text-amber-400 transition-colors">
-                      Bilingual Recital (双语对照朗读)
+                      {trans('home.bilingualTitle')}
                     </h4>
                     <p className="text-xs text-zinc-500 mt-2 font-mono leading-relaxed">
-                      Proportional target-to-native speech synthesizer compared loops, syllable breakdowns, and customizable reading orders.
+                      {trans('home.bilingualDesc')}
                     </p>
                   </div>
 
@@ -857,10 +857,10 @@ export const WfNewApp: React.FC = () => {
                       <BarChart2 className="w-5.5 h-5.5" />
                     </div>
                     <h4 className="font-extrabold text-sm text-slate-100 group-hover:text-emerald-400 transition-colors">
-                      Precision Stats Board (学习统计面板)
+                      {trans('home.statsTitle')}
                     </h4>
                     <p className="text-xs text-zinc-500 mt-2 font-mono leading-relaxed">
-                      Track active focus mins stats, browse thematic mastery meters and play forgetting curve recall simulators.
+                      {trans('home.statsDesc')}
                     </p>
                   </div>
 
@@ -870,14 +870,14 @@ export const WfNewApp: React.FC = () => {
               {/* Quantum Recitation Portal modes */}
               <div className="space-y-3.5 pt-4">
                 <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 px-1">
-                  Cognitive Accelerator Subsystems
+                  {trans('home.modesHeader')}
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {([
-                    { id: 'study', title: trans('modes.flashcards'), desc: 'Spaced neural grids flip cards', color: 'border-fuchsia-500/25 text-fuchsia-400', bg: 'bg-fuchsia-500/5' },
-                    { id: 'quiz', title: trans('modes.quiz'), desc: 'Spelling target validation arena', color: 'border-emerald-500/25 text-emerald-400', bg: 'bg-emerald-500/5' },
-                    { id: 'listening', title: trans('modes.listening'), desc: 'Auditory sub-conscious play streams', color: 'border-amber-500/25 text-amber-400', bg: 'bg-amber-500/5' },
-                    { id: 'reading', title: trans('modes.reading'), desc: 'Synthesized context helper stream', color: 'border-blue-500/25 text-blue-400', bg: 'bg-blue-500/5' }
+                    { id: 'study', title: trans('modes.flashcards'), desc: trans('home.modeStudyDesc'), color: 'border-fuchsia-500/25 text-fuchsia-400', bg: 'bg-fuchsia-500/5' },
+                    { id: 'quiz', title: trans('modes.quiz'), desc: trans('home.modeQuizDesc'), color: 'border-emerald-500/25 text-emerald-400', bg: 'bg-emerald-500/5' },
+                    { id: 'listening', title: trans('modes.listening'), desc: trans('home.modeListenDesc'), color: 'border-amber-500/25 text-amber-400', bg: 'bg-amber-500/5' },
+                    { id: 'reading', title: trans('modes.reading'), desc: trans('home.modeReadDesc'), color: 'border-blue-500/25 text-blue-400', bg: 'bg-blue-500/5' }
                   ] as const).map(mode => (
                     <div
                       key={mode.id}
@@ -909,17 +909,17 @@ export const WfNewApp: React.FC = () => {
                 <div className="flex justify-between items-center px-1">
                   <div>
                     <h3 className="text-sm font-black font-mono uppercase tracking-widest text-zinc-400">
-                      QUANTUM DOSSIERS (便当盒瀑布流单词组)
+                      {trans('home.dossiersTitle')}
                     </h3>
                     <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
-                      Glassmorphic cognitive capsules with kinetic letter rain backdrops
+                      {trans('home.dossiersDesc')}
                     </p>
                   </div>
                   <button 
                     onClick={() => setActiveTab('shelf')}
                     className="text-xs font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer transition-colors"
                   >
-                    All Classical Packs <ArrowRight className="w-3.5 h-3.5" />
+                    {trans('home.allPacks')} <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
@@ -944,7 +944,7 @@ export const WfNewApp: React.FC = () => {
                             : `bg-white/40 border-zinc-200 hover:border-indigo-400/40 shadow-sm hover:shadow-indigo-100/40`
                         }`}
                       >
-                        {/* A. Premium Photo Backdrops ("带有背景图的界面效果") */}
+                        {/* A. Premium Photo Backdrops */}
                         <div 
                           className="absolute inset-0 bg-cover bg-center mix-blend-overlay opacity-[0.14] dark:opacity-[0.08] pointer-events-none transition-transform duration-700 group-hover:scale-105"
                           style={{
@@ -958,7 +958,7 @@ export const WfNewApp: React.FC = () => {
                           }}
                         />
 
-                        {/* B. Kinetic Text Waterfall Rainfall Backdrop ("背景图文的瀑布流动态效果") */}
+                        {/* B. Kinetic Text Waterfall Rainfall Backdrop */}
                         <div className="absolute inset-0 overflow-hidden opacity-[0.06] dark:opacity-[0.04] pointer-events-none select-none font-mono text-[8px] uppercase tracking-widest leading-none">
                           <div className={`flex flex-col gap-2 ${idx % 2 === 0 ? 'animate-[pulse_4s_infinite]' : 'animate-pulse'}`}>
                             {Array.from({ length: 12 }).map((_, rIdx) => (
@@ -1020,14 +1020,14 @@ export const WfNewApp: React.FC = () => {
                           )}
                         </div>
 
-                        {/* Top Metadata Header with 一键加入 (One-click Enroll) */}
+                        {/* Top Metadata Header with One-click Enroll */}
                         <div className="relative z-10 space-y-1">
                           <div className="flex justify-between items-center gap-2">
                             <div className="flex gap-1.5 items-center">
                               <span className="text-[9px] font-black font-mono uppercase tracking-widest bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/10">
                                 {group.badge}
                               </span>
-                              <span className="text-[9px] font-mono uppercase tracking-wider bg-zinc-500/10 dark:bg-zinc-500/20 text-zinc-600 dark:text-zinc-300 px-1.5 py-0.5 rounded-full border border-zinc-500/10" title="Language code modifier">
+                              <span className="text-[9px] font-mono uppercase tracking-wider bg-zinc-500/10 dark:bg-zinc-500/20 text-zinc-600 dark:text-zinc-300 px-1.5 py-0.5 rounded-full border border-zinc-500/10" title={trans('tip.langCode')}>
                                 lang: {group.language || 'en'}
                               </span>
                             </div>
@@ -1039,10 +1039,10 @@ export const WfNewApp: React.FC = () => {
                                 addToast(trans('toast.pinned', { name: group.name }), 'success');
                               }}
                               className="px-2 py-1 text-[9px] font-mono font-bold tracking-tight uppercase bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-650 hover:to-indigo-750 text-white rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer z-20"
-                              title="Sync with 1-click"
+                              title={trans('tip.sync1click')}
                             >
                               <Sparkles className="w-2.5 h-2.5" />
-                              <span>一键加入</span>
+                              <span>{trans('home.enroll')}</span>
                             </button>
                           </div>
 
@@ -1059,10 +1059,10 @@ export const WfNewApp: React.FC = () => {
                           <div className="flex justify-between items-end text-[10px] font-mono select-none">
                             <div className="space-y-0.5">
                               <span className="text-zinc-600 dark:text-zinc-400 block">{group.statsLabel}</span>
-                              <span className="font-bold text-sky-500 dark:text-indigo-300">{group.count} Lexicons Available</span>
+                              <span className="font-bold text-sky-500 dark:text-indigo-300">{trans('home.lexAvail', { n: group.count })}</span>
                             </div>
                             <div className="text-right">
-                              <span className="font-bold text-emerald-500">{progressVal}% Mastered</span>
+                              <span className="font-bold text-emerald-500">{trans('home.pctMastered', { n: progressVal })}</span>
                             </div>
                           </div>
 
@@ -1108,6 +1108,7 @@ export const WfNewApp: React.FC = () => {
                         theme={activeTheme}
                         onClick={() => selectBookCourse(g)}
                         lang={shellLang}
+                        trans={trans}
                       />
                     ))}
                   </div>
@@ -1127,7 +1128,7 @@ export const WfNewApp: React.FC = () => {
                     </button>
                     <div>
                       <h2 className="text-xl font-bold tracking-tight">{selectedCourse.name}</h2>
-                      <p className="text-zinc-500 text-xs">Examine pronunciations, context models and spelling maps</p>
+                      <p className="text-zinc-500 text-xs">{trans('home.examineSub')}</p>
                     </div>
                   </div>
 
@@ -1140,7 +1141,7 @@ export const WfNewApp: React.FC = () => {
                         </span>
                         
                         <p className="text-xs text-zinc-400 leading-relaxed font-mono">
-                          {selectedCourse.description || 'Synthesizing standard frequency distribution curves tailored dynamically based on your neural memory footprint configuration.'}
+                          {selectedCourse.description || trans('home.courseDescFallback')}
                         </p>
 
                         <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-3 text-center">
@@ -1201,6 +1202,7 @@ export const WfNewApp: React.FC = () => {
                             onPlayAudio={() => playPhoneticSpeech(word)}
                             onClick={() => setSelectedWordDetail(word)}
                             theme={activeTheme}
+                            trans={trans}
                           />
                         ))}
                       </div>
@@ -1304,7 +1306,7 @@ export const WfNewApp: React.FC = () => {
                                   playPhoneticSpeech(courseWords[practiceIndex]);
                                 }}
                                 className="p-2 bg-white/5 rounded-full hover:bg-white/10"
-                                title="Speech pronunciation"
+                                title={trans('tip.speak')}
                               >
                                 <Volume2 className="w-4 h-4" />
                               </button>
@@ -1554,7 +1556,7 @@ export const WfNewApp: React.FC = () => {
                       <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordText')}</label>
                       <input
                         type="text"
-                        placeholder="e.g. Ephemeral"
+                        placeholder={trans('lab.phWord')}
                         value={newWordText}
                         onChange={(e) => setNewWordText(e.target.value)}
                         className={`w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`}
@@ -1565,7 +1567,7 @@ export const WfNewApp: React.FC = () => {
                       <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordTransl')}</label>
                       <input
                         type="text"
-                        placeholder="e.g. 短暂的，瞬息逝去"
+                        placeholder={trans('lab.phTransl')}
                         value={newWordTransl}
                         onChange={(e) => setNewWordTransl(e.target.value)}
                         className={`w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`}
@@ -1577,7 +1579,7 @@ export const WfNewApp: React.FC = () => {
                     <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordPhon')}</label>
                     <input
                       type="text"
-                      placeholder="e.g. /ɪˈfem.ər.əl/"
+                      placeholder={trans('lab.phPhon')}
                       value={newWordPhon}
                       onChange={(e) => setNewWordPhon(e.target.value)}
                       className={`w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`}
@@ -1588,7 +1590,7 @@ export const WfNewApp: React.FC = () => {
                     <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordDef')}</label>
                     <textarea
                       rows={3}
-                      placeholder="Context sentence or lexical mapping rules..."
+                      placeholder={trans('lab.phDef')}
                       value={newWordDef}
                       onChange={(e) => setNewWordDef(e.target.value)}
                       className={`w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none resize-none ${activeTheme.inputClass}`}
@@ -2013,6 +2015,7 @@ export const WfNewApp: React.FC = () => {
         {showOnboarding && (
           <WfNewOnboarding
             onComplete={handleOnboardingComplete}
+            trans={trans}
             activeTheme={activeTheme}
             onSelectTheme={(themeId) => {
               setActiveThemeId(themeId);

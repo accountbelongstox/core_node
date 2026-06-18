@@ -57,6 +57,21 @@ class AppQyV1WordTranslationFillerTask extends OctaneTimerTaskAbstract
         return 45;
     }
 
+    /**
+     * Default OFF: Laravel must NOT proactively call large language models. This
+     * self-filler is the only path that makes Laravel itself hit the AI gateway
+     * (OpenRouter/Gemini/DeepSeek) on a timer -- the source of the recurring
+     * 429 "Rate limit exceeded" errors. With it disabled, word_translation tasks
+     * stay in the queue for pycore (the Google/remote worker) to claim via the
+     * assist protocol, or are processed only when explicitly triggered from the
+     * UI. Flip APPQYV1_WORD_TRANSLATION_FILLER_ENABLED=true ONLY where Laravel is
+     * intentionally allowed to spend AI quota with no pycore worker present.
+     */
+    public function isEnabled(): bool
+    {
+        return (bool) env('APPQYV1_WORD_TRANSLATION_FILLER_ENABLED', false);
+    }
+
     public function exec(): void
     {
         $this->ensureWorkerRegistered();

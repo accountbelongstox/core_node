@@ -87,9 +87,11 @@ pycore/pyutils/codesync_boot.py     # tiny bootstrap run by the launchers (see �
 
 The 5 ported files are near-mechanical moves of the existing
 `device_sync/{peer_config,peer_mesh,code_sync_server,code_sync_client,code_sync_manager}.py`,
-with three substitutions applied (§4). `code_sync_peers.json` is **not moved** —
-the canonical committed path stays `pycore/pyutils/device_sync/code_sync_peers.json`
-(resolved relatively) so both modes and the existing repo history share one file.
+with three substitutions applied (§4). **Update (2026-06-16):** the legacy
+`device_sync/` folder was retired and its committed baseline + these docs were
+folded into `codesync/`; the canonical committed baseline is now
+`pycore/pyutils/codesync/code_sync_peers.json` (per-machine edits live in the
+`.data` override — see CODE_SYNC_MESH.md "Peer config file").
 
 ---
 

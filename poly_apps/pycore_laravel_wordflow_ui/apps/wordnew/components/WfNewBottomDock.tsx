@@ -76,7 +76,7 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
           const isActive = activeTab === tab.id || (tab.id === 'home' && isDeepTab);
           
           if ('isCenter' in tab && tab.isCenter) {
-            // Render the elevated glorious "中间有一个圆" Central Recital Sphere Button
+            // Render the elevated glorious central Recital Sphere Button
             return (
               <div key={tab.id} className="relative flex flex-col items-center justify-center -top-3.5 px-2">
                 {/* Outer Breathing Ring for the Circle */}

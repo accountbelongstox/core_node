@@ -24,7 +24,7 @@ Sync flows only **dev → client**. There is no "only 1 PRIMARY" enforcement.
 The peer list has **two tiers** (see `peer_config.py`):
 
 - **Baseline (committed default, read-only at runtime):**
-  `pycore/pyutils/device_sync/code_sync_peers.json` — the shipped default, the seed
+  `pycore/pyutils/codesync/code_sync_peers.json` — the shipped default, the seed
   for a fresh machine.
 - **Override (per-machine, writable, gitignored):**
   `<core_node>/.data/pycore/codesync/code_sync_peers.json` — **every runtime edit
@@ -127,6 +127,33 @@ only on the LAN:
 > dev/hub's `:59000` must be open to them. Probing the *other* way additionally
 > needs the client's `:59000` reachable from the dev — which NAT usually blocks, and
 > which the heartbeat is exactly there to work around.
+
+## Ports & channels (no conflict)
+
+Three **distinct** channels share two ports — do not conflate them:
+
+| Channel | Endpoint | Purpose |
+| --- | --- | --- |
+| UI ↔ pycore | `:59000` `/rpc/ws` (rpc_v2) + `/code-sync/*` HTTP | the UI talks **directly** to pycore here (status, control, peer mgmt) |
+| pycore ↔ laravel | `:9000` `/api/*` | sync engine target; the UI's **"Laravel endpoint"** picker just tells pycore *which* laravel `:9000` backend to use (see `services/sync/laravel_endpoint_manager.py`) — it is NOT a UI↔laravel link |
+| dev → client file push | `:59000` `/code-sync/ws` | the dev dials INTO each client peer and streams file deltas; the client is the WS **server/receiver** |
+
+So selecting a Laravel endpoint in the UI never touches the codesync mesh, and
+the codesync mesh never touches `:9000` — they only share the host list.
+
+### The `/code-sync/ws` receiver lives in TWO servers
+
+The file-push receiver (`PushReceiver`) is reachable at `/code-sync/ws` from
+**both** server implementations, so a peer accepts pushes regardless of how it
+runs:
+
+- **Standalone daemon** (`http_server.py`, `pyservice codesync`) — serves it
+  directly.
+- **Full pycore** — registered onto the rpc_v2 FastAPI app (`:59000`) by
+  `callmodule/config.py::_register_code_sync_ws`. Full pycore never starts the
+  standalone daemon, so without this the route was missing and every push from
+  the dev failed the handshake with **`HTTP/1.0 404 Not Found`**. If you see
+  that again, the peer's `:59000` server lacks this registration.
 
 ## UI control flow
 

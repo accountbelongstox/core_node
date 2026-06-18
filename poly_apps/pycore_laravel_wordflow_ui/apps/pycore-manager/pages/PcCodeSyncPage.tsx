@@ -397,6 +397,17 @@ const PcCodeSyncPage: React.FC = () => {
     </span>
   );
 
+  // Live WS-push phase pill (idle hidden; pushing/receiving/scanning animated).
+  const phaseBadge = (ph?: { phase: string; count: number }) => {
+    if (!ph || ph.phase === 'idle' || !ph.phase) return null;
+    return (
+      <span className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-indigo-500/15 text-indigo-500">
+        <Radar className="w-3 h-3 animate-spin" />
+        {ph.phase}{ph.count ? ` ${ph.count}` : ''}
+      </span>
+    );
+  };
+
   // How the peer is connected (outbound probe vs inbound heartbeat vs both).
   const viaBadge = (p: PeerStatus) => {
     if (!p.via) return null;
@@ -563,6 +574,17 @@ const PcCodeSyncPage: React.FC = () => {
           <Code2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           {codeStatsLine(selfCode)}
         </div>
+
+        {/* watched root + live push/receive phase */}
+        <div className={`${stat} mt-3 flex items-center gap-2 text-[11px]`}>
+          <Server className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span className="text-slate-500 shrink-0">Watching</span>
+          <span className="font-mono text-slate-600 dark:text-slate-300 truncate"
+            title={(self?.watch_dirs && self.watch_dirs.length ? self.watch_dirs : [self?.watch_root]).join('\n')}>
+            {self?.watch_dirs && self.watch_dirs.length ? self.watch_dirs.join(' · ') : (self?.watch_root || '-')}
+          </span>
+          {phaseBadge(self?.sync_phase)}
+        </div>
       </div>
 
       {/* Peers */}
@@ -710,6 +732,9 @@ const PcCodeSyncPage: React.FC = () => {
             Folders / files matching these are never synced or counted. Edits save to this machine only (.data), not the code.
           </p>
           <div className="space-y-4">
+            <ChipEditor label="Watched directories (empty = project root)" icon={<Server className="w-3.5 h-3.5" />}
+              items={filters.watch_dirs} placeholder={self?.watch_root || 'project root'}
+              onChange={(v) => mutateList('watch_dirs', v)} />
             <ChipEditor label="Excluded folders" icon={<Code2 className="w-3.5 h-3.5" />}
               items={filters.excluded_dirs} placeholder="node_modules"
               onChange={(v) => mutateList('excluded_dirs', v)} />

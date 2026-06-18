@@ -8,13 +8,15 @@ interface CourseBlockCardProps {
   theme: ElementTheme;
   onClick: () => void;
   lang: string;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
 export const CourseBlockCard: React.FC<CourseBlockCardProps> = ({
   group,
   theme,
   onClick,
-  lang
+  lang,
+  trans
 }) => {
   const percentage = Math.round(group.progress || 0);
 
@@ -33,7 +35,7 @@ export const CourseBlockCard: React.FC<CourseBlockCardProps> = ({
             <BookOpen className="w-5 h-5 text-indigo-400" />
           </div>
           <span className="text-[10px] font-mono uppercase bg-white/5 border border-white/5 text-zinc-400 px-2 py-0.5 rounded">
-            {group.type || 'Standard'}
+            {group.type || trans('cards.typeStandard')}
           </span>
         </div>
 
@@ -42,13 +44,13 @@ export const CourseBlockCard: React.FC<CourseBlockCardProps> = ({
           <h4 className="font-extrabold text-base leading-snug text-slate-100 group-hover:text-indigo-400 dark:text-inherit dark:group-hover:text-indigo-500 transition-colors truncate">
             {group.name}
           </h4>
-          <p className="text-xs text-zinc-500 font-mono tracking-wide">{group.count} Lexemes Total</p>
+          <p className="text-xs text-zinc-500 font-mono tracking-wide">{trans('cards.lexemesTotal', { n: group.count })}</p>
         </div>
 
         {/* Progress stats bar */}
         <div className="space-y-2 pt-2 border-t border-white/5">
           <div className="flex justify-between items-center text-[10px] font-mono">
-            <span className="text-zinc-500">Syllabus Mastered</span>
+            <span className="text-zinc-500">{trans('cards.mastered')}</span>
             <span className="font-bold text-indigo-400">{percentage}%</span>
           </div>
           <div className="w-full bg-white/5 dark:bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
@@ -71,6 +73,7 @@ interface WordRowItemProps {
   onPlayAudio: () => void;
   onClick: () => void;
   theme: ElementTheme;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
 export const WordRowItem: React.FC<WordRowItemProps> = ({
@@ -79,7 +82,8 @@ export const WordRowItem: React.FC<WordRowItemProps> = ({
   onToggleFav,
   onPlayAudio,
   onClick,
-  theme
+  theme,
+  trans
 }) => {
   return (
     <motion.div
@@ -111,7 +115,7 @@ export const WordRowItem: React.FC<WordRowItemProps> = ({
         <button
           onClick={onPlayAudio}
           className="w-9 h-9 rounded-full bg-white/5 dark:bg-slate-200/50 hover:bg-white/10 dark:hover:bg-slate-200 flex items-center justify-center text-zinc-300 dark:text-slate-700 transition-transform active:scale-95"
-          title="Play phonetic stream"
+          title={trans('tip.speak')}
         >
           <Volume2 className="w-4 h-4" />
         </button>
@@ -120,7 +124,7 @@ export const WordRowItem: React.FC<WordRowItemProps> = ({
         <button
           onClick={onToggleFav}
           className="w-9 h-9 rounded-full bg-white/5 dark:bg-slate-200/50 hover:bg-white/10 dark:hover:bg-slate-200 flex items-center justify-center transition-transform active:scale-95"
-          title="Toggle favorites star"
+          title={trans('cards.favTitle')}
         >
           <Star className={`w-4 h-4 ${isFav ? 'fill-amber-400 text-amber-400' : 'text-zinc-500 dark:text-slate-400'}`} />
         </button>

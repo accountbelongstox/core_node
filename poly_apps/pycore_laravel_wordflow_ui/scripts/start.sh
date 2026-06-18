@@ -269,6 +269,21 @@ serve_dashboard() {
     fi
 }
 
+# True (0) when this distro is running under WSL (any of the standard markers).
+is_wsl() {
+    grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null \
+        || [ -n "${WSL_DISTRO_NAME:-}" ] || [ -n "${WSL_INTEROP:-}" ]
+}
+
+# True (0) when systemd is the active init (PID 1) and systemctl can actually operate.
+# /run/systemd/system exists ONLY when systemd booted as PID 1; without it systemctl
+# fails with "System has not been booted with systemd as init system" / "Failed to
+# connect to bus" -- common on WSL distros not started with `systemd=true`. Checked up
+# front so we never leak those raw bus errors.
+systemd_available() {
+    [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1
+}
+
 # Register (or update) the dashboard systemd service via debian_service_manager.
 # Writes /etc/systemd/system -> needs root; falls back to sudo. The service file
 # is composed by create_systemd_service (resource limits + auto restart).
@@ -339,21 +354,22 @@ if [ "$ACTION" = "serve" ] || [ "$ACTION" = "prepare" ]; then
 fi
 
 # =====================================================================
-# Default: orchestrate (prompts + backend + frontend).
+# Default: orchestrate. Order is deliberate -> install ALL prerequisites
+# FIRST, and only THEN ask whether to install a background service.
 # =====================================================================
 if [ ! -f "$LARAVEL_START" ]; then
     err "Laravel start script not found: $LARAVEL_START (backend launch will be skipped)"
     RUN_BACKEND=""
 fi
 
-# Resolve the two choices (prompt only when not already set by flag/env).
-if [ -z "$AS_SERVICE" ]; then
-    if ask_default_yes "Add the dashboard to a background systemd service (via debian_service_manager)?"; then
-        AS_SERVICE="yes"
-    else
-        AS_SERVICE="no"
-    fi
+# 1) Frontend prerequisites FIRST: install node/pnpm + dependencies (no prompt).
+if [ -n "$RUN_FRONTEND" ]; then
+    log "Installing frontend prerequisites (node/pnpm + dependencies)..."
+    ensure_node_pnpm
+    ensure_deps
 fi
+
+# 2) Run mode (dist/dev) -- needed to know whether to build. Prompt only if unset.
 if [ -z "$RUN_DIST" ]; then
     if ask_default_no "Build and run the production dist (vite build + vite preview) instead of the dev server?"; then
         RUN_DIST="yes"
@@ -362,34 +378,53 @@ if [ -z "$RUN_DIST" ]; then
     fi
 fi
 if [ "$RUN_DIST" = "yes" ]; then RUN_MODE="dist"; else RUN_MODE="dev"; fi
-
 log "Frontend mode: $( [ "$RUN_MODE" = dist ] && echo 'PRODUCTION dist (vite build -> vite preview)' || echo 'DEV server (vite, hot reload)' )"
-log "Background service: ${AS_SERVICE}"
 
-# Launch plan
-log "Launch plan:"
-IDX=0
-if [ -n "$RUN_BACKEND" ]; then
-    IDX=$((IDX + 1)); log "  [$IDX] laravel_main backend -> $LARAVEL_START  [background -> $LARAVEL_LOG]"
+# 3) Finish prerequisites: build the dist when chosen.
+if [ -n "$RUN_FRONTEND" ] && [ "$RUN_MODE" = "dist" ]; then
+    build_dist
 fi
-if [ -n "$RUN_FRONTEND" ]; then
-    IDX=$((IDX + 1))
-    if [ "$AS_SERVICE" = "yes" ]; then
-        log "  [$IDX] nexus-dash frontend (${RUN_MODE}) -> systemd service ${SERVICE_NAME}"
+
+# 4) AFTER all prerequisites are installed: ask whether to install a background service.
+# A systemd unit is only meaningful when systemd is the active init. If it is not (WSL
+# without `systemd=true`, containers, ...), don't ask and don't attempt it -- that would
+# only emit raw "not been booted with systemd" / bus errors. Show a differentiated hint
+# (WSL-aware) and run in the foreground/background nohup path instead.
+if [ "$AS_SERVICE" != "no" ] && ! systemd_available; then
+    if is_wsl; then
+        log "Background systemd service unavailable: this WSL distro was not booted with systemd."
+        log "  (systemctl would fail with 'System has not been booted with systemd as init system'.)"
+        log "  To enable it (optional): add to /etc/wsl.conf, then 'wsl --shutdown' from Windows and reopen:"
+        log "      [boot]"
+        log "      systemd=true"
+        log "  For now, the dashboard + backend will run without a systemd unit."
     else
-        log "  [$IDX] nexus-dash frontend (${RUN_MODE}) -> foreground"
+        log "Background systemd service unavailable: systemd is not the active init (no /run/systemd/system)."
+        log "  Running under a non-systemd init/container -> no systemd unit will be registered."
+    fi
+    AS_SERVICE="no"
+fi
+if [ -z "$AS_SERVICE" ]; then
+    if ask_default_yes "Prerequisites ready. Add the dashboard to a background systemd service (via debian_service_manager)?"; then
+        AS_SERVICE="yes"
+    else
+        AS_SERVICE="no"
     fi
 fi
+log "Background service: ${AS_SERVICE}"
 
-# Backend: laravel_main shares the same Y/n service flow. We pass the choice
-# explicitly so it never re-prompts here (no TTY). In service mode it registers
-# its own systemd unit; otherwise it runs in the background under nohup.
+# 5) Backend: laravel_main shares the same Y/n flow; we pass the choice so it never
+# re-prompts (no TTY). It runs in the background either way -- in service mode it
+# registers its own unit AFTER its own setup; otherwise it serves under nohup.
 if [ -n "$RUN_BACKEND" ]; then
+    mkdir -p "$LOG_DIR" 2>/dev/null || true
     if [ "$AS_SERVICE" = "yes" ]; then
-        log "Registering laravel_main backend as a systemd service..."
-        bash "$LARAVEL_START" --service || err "Backend service registration reported a failure (continuing)."
+        log "Bringing up laravel_main backend (registers its own service after setup)..."
+        nohup bash "$LARAVEL_START" --service > "$LARAVEL_LOG" 2>&1 &
+        LARAVEL_PID=$!
+        log "laravel_main backend PID: $LARAVEL_PID  (logs: $LARAVEL_LOG)"
+        log "  Tail: tail -f \"$LARAVEL_LOG\""
     else
-        mkdir -p "$LOG_DIR" 2>/dev/null || true
         log "Launching laravel_main backend in background..."
         nohup bash "$LARAVEL_START" --no-service > "$LARAVEL_LOG" 2>&1 &
         LARAVEL_PID=$!
@@ -398,33 +433,23 @@ if [ -n "$RUN_BACKEND" ]; then
     fi
 fi
 
-# Frontend
+# 6) Frontend: register the service (prereqs already done) or serve in the foreground.
 if [ -n "$RUN_FRONTEND" ]; then
     if [ "$AS_SERVICE" = "yes" ]; then
-        # Prerequisites FIRST (node/pnpm via init-ensure, deps, dist build) so the
-        # service start is fast and offline-safe.
-        log "Preparing frontend prerequisites..."
-        ensure_node_pnpm
-        ensure_deps
-        [ "$RUN_MODE" = "dist" ] && build_dist
         [ -n "$SERVICE_MEM" ] || SERVICE_MEM="$(compute_mem_limit "$SERVICE_MEM_CAP_MB")"
         log "Frontend service limits: CPU=${SERVICE_CPU}, Memory=${SERVICE_MEM} (cap ${SERVICE_MEM_CAP_MB}M)"
-        # Compose + register the service that runs ONLY the frontend (--serve).
         EXEC_CMD="bash ${SELF} --serve --${RUN_MODE}"
         log "Registering systemd service ${SERVICE_NAME} (ExecStart: ${EXEC_CMD})..."
         if register_dashboard_service "$EXEC_CMD"; then
             log "Service ${SERVICE_NAME} registered and started."
             log "  Manage: systemctl {status|restart|stop} ${SERVICE_NAME}"
+            log "  Boot:   systemctl is-enabled ${SERVICE_NAME}"
             log "  Logs:   journalctl -u ${SERVICE_NAME} -f"
         else
             err "Service registration failed. Run the frontend manually: bash $SELF --serve --${RUN_MODE}"
             exit 1
         fi
     else
-        # Foreground (Ctrl+C to stop). Skip if a healthy server is already up.
-        ensure_node_pnpm
-        ensure_deps
-        [ "$RUN_MODE" = "dist" ] && build_dist
         if dashboard_healthy; then
             log "Dashboard already running on ${DEV_URL} - skipping launch."
         else

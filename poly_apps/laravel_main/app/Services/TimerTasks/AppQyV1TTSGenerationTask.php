@@ -69,6 +69,12 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
 
     public function isEnabled(): bool
     {
-        return env('APPQYV1_TTS_AUTO_GENERATION', true);
+        // Default OFF: Laravel no longer synthesizes TTS itself. On servers the
+        // edge-tts endpoint 403s (region/rate block) and Laravel should not run an
+        // external TTS engine at all -- pycore is the sole provider via the assist
+        // protocol (tts/worker/claim + tts/worker/report). Flip
+        // APPQYV1_TTS_AUTO_GENERATION=true ONLY on a desktop where Laravel itself
+        // should generate audio (e.g. no pycore worker available).
+        return env('APPQYV1_TTS_AUTO_GENERATION', false);
     }
 }

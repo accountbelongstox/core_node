@@ -164,6 +164,9 @@ export interface SelfStatus {
   config_version: number;
   skip_update?: boolean;
   code?: CodeStats;
+  watch_root?: string;                 // client write root (pushed files land here)
+  watch_dirs?: string[];               // dev's effective watched dirs (empty list = root)
+  sync_phase?: SyncPhase;              // live push/receive phase
   summary: {
     role: CodeSyncRole;
     distributing: boolean;
@@ -173,6 +176,12 @@ export interface SelfStatus {
     clients?: number;
     [k: string]: unknown;
   };
+}
+
+// Live WS-push phase: idle | scanning | pushing | receiving (+ file count).
+export interface SyncPhase {
+  phase: 'idle' | 'scanning' | 'pushing' | 'receiving' | string;
+  count: number;
 }
 
 export interface PeerLiveStatus {
@@ -233,6 +242,7 @@ export interface SyncSettings {
   excluded_extensions: string[];
   excluded_path_substrings: string[];
   apply_gitignore: boolean;
+  watch_dirs: string[];   // dirs the dev watches/pushes; empty = project root
 }
 
 export interface SyncSettingsResponse {

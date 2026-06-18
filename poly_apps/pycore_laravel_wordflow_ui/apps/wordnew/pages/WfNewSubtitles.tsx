@@ -166,9 +166,9 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
       text: selectedLookupWord.text,
       phonetic: selectedLookupWord.phonetic || '/lookup/',
       translation: selectedLookupWord.translation,
-      definition: selectedLookupWord.definition || 'Extracted via subtitles interactive learning.',
-      example: 'Context phrase from subtitle class active file.',
-      tags: selectedLookupWord.tags || ['Subtitle']
+      definition: selectedLookupWord.definition || trans('subtitles.lookupDef'),
+      example: trans('subtitles.lookupEx'),
+      tags: selectedLookupWord.tags || [trans('subtitles.tagSubtitle')]
     };
 
     onToggleFavorite(constructedWord);
@@ -182,7 +182,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
         
         {/* Course video header option list */}
         <div className="flex justify-between items-center bg-slate-900/40 p-3.5 rounded-2xl border border-white/5 font-mono text-xs">
-          <span className="text-zinc-400 font-bold">Select Subtitle Package:</span>
+          <span className="text-zinc-400 font-bold">{trans('subtitles.selectPackage')}</span>
           <select 
             value={selectedCourseId}
             onChange={(e) => {
@@ -268,8 +268,8 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
                               // basic lookup
                               const w = {
                                 text: stripped,
-                                translation: "Fuzzy dictionary tracking online...",
-                                definition: "Standard dictionary definition map database query pending.",
+                                translation: trans('subtitles.fuzzyTracking'),
+                                definition: trans('subtitles.defPending'),
                                 phonetic: "/word/"
                               };
                               handleWordLookupClick(w);
@@ -323,7 +323,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
                   <button
                     onClick={() => setIsPlaying(!isPlaying)}
                     className="p-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white active:scale-95"
-                    title={isPlaying ? "Pause" : "Play"}
+                    title={isPlaying ? trans('common.pause') : trans('common.play')}
                   >
                     {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                   </button>
@@ -331,17 +331,17 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
                   <button
                     onClick={() => {
                       setIsLoopingSentence(!isLoopingSentence);
-                      addToast(isLoopingSentence ? "Sentence loop disabled" : "Looping current sentence bounds active", "info");
+                      addToast(isLoopingSentence ? trans('subtitles.loopOff') : trans('subtitles.loopOn'), "info");
                     }}
                     className={`p-1.5 rounded-lg border text-xs flex items-center gap-1.5 font-mono ${
                       isLoopingSentence
                         ? 'border-indigo-500 text-indigo-300 bg-indigo-500/10'
                         : 'border-white/5 text-zinc-500'
                     }`}
-                    title="Loop current sentence bounds"
+                    title={trans('subtitles.loopTitle')}
                   >
                     <Repeat className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>L-Loop</span>
+                    <span>{trans('subtitles.btnLoop')}</span>
                   </button>
 
                   <button
@@ -351,17 +351,17 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
                         ? 'border-fuchsia-500/40 text-fuchsia-300 bg-fuchsia-500/10'
                         : 'border-white/5 text-zinc-500'
                     }`}
-                    title="Toggle translation lines"
+                    title={trans('subtitles.trTitle')}
                   >
                     <Languages className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>Tr-Zh</span>
+                    <span>{trans('subtitles.btnTr')}</span>
                   </button>
                 </div>
 
                 <div className="flex items-center gap-3.5 font-mono text-[10px]">
                   {/* Speed Controls */}
                   <div className="flex items-center gap-2">
-                    <span className="text-zinc-600">Speed:</span>
+                    <span className="text-zinc-600">{trans('subtitles.speed')}</span>
                     <div className="flex gap-1.5">
                       {[0.8, 1.0, 1.25].map(sp => (
                         <button
@@ -397,7 +397,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
           <div className="flex justify-between items-center border-b border-white/5 pb-2">
             <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-fuchsia-400" />
-              Interactive Word Synapse Lookup
+              {trans('subtitles.lookupTitle')}
             </h3>
           </div>
 
@@ -420,7 +420,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
                     <button
                       onClick={() => speakLookupWord(selectedLookupWord.text)}
                       className="p-2 bg-indigo-500/10 rounded-full hover:bg-indigo-500/20 text-indigo-400"
-                      title="Pronounce Word"
+                      title={trans('subtitles.pronounceTitle')}
                     >
                       <Volume2 className="w-4 h-4" />
                     </button>
@@ -429,13 +429,13 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
 
                 {/* Translation translation */}
                 <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-mono text-zinc-500 block">Translation</span>
+                  <span className="text-[10px] uppercase font-mono text-zinc-500 block">{trans('subtitles.translation')}</span>
                   <p className="text-sm font-bold text-slate-100">{selectedLookupWord.translation}</p>
                 </div>
 
                 {/* Definition details */}
                 <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-mono text-zinc-500 block">En Definition</span>
+                  <span className="text-[10px] uppercase font-mono text-zinc-500 block">{trans('subtitles.definition')}</span>
                   <p className="text-xs text-zinc-400 leading-normal font-sans">{selectedLookupWord.definition}</p>
                 </div>
 
@@ -444,7 +444,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
                   onClick={handleAddLookupToFavorites}
                   className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95"
                 >
-                  <Star className="w-3.5 h-3.5 fill-white" /> Add to Sandbox Favorites
+                  <Star className="w-3.5 h-3.5 fill-white" /> {trans('subtitles.addFav')}
                 </button>
               </motion.div>
             ) : (
@@ -453,9 +453,9 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
                   <Info className="w-5 h-5 text-indigo-400" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="text-xs font-bold text-slate-200">Awaiting Active Lookup</h4>
+                  <h4 className="text-xs font-bold text-slate-200">{trans('subtitles.awaiting')}</h4>
                   <p className="text-[11px] text-zinc-500 max-w-[200px] mx-auto leading-normal">
-                    Click any highlighted word in the running subtitle track to query dictionary details.
+                    {trans('subtitles.awaitingSub')}
                   </p>
                 </div>
               </div>
@@ -466,7 +466,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
         {/* Subtitle track sequence item scrolling navigator */}
         <div className="p-5 rounded-3xl bg-slate-900/40 border border-white/5 space-y-3 flex flex-col h-[280px]">
           <h4 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400">
-            Subtitle Track Index List
+            {trans('subtitles.trackList')}
           </h4>
 
           <div 
@@ -490,7 +490,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
                   }`}
                 >
                   <div className="flex justify-between items-center font-mono text-[9px] text-zinc-500 mb-1">
-                    <span>INDEX {idx + 1}</span>
+                    <span>{trans('walkman.indexLabel')} {idx + 1}</span>
                     <span>{formatTimeHelper(line.startTime)}</span>
                   </div>
                   <p className={`text-xs truncate ${isCurrent ? 'text-indigo-200 font-extrabold' : 'text-slate-300'}`}>{line.text}</p>

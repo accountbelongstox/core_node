@@ -206,9 +206,9 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
             
             {/* Cassette Upper Segment Label */}
             <div className="flex justify-between items-center px-1 font-mono text-[10px] text-zinc-500">
-              <span className="flex items-center gap-1.5"><ListMusic className="w-3.5 h-3.5 text-zinc-400" /> SIDE A</span>
+              <span className="flex items-center gap-1.5"><ListMusic className="w-3.5 h-3.5 text-zinc-400" /> {trans('walkman.sideA')}</span>
               <span className="bg-red-500/20 text-red-500 px-2 py-0.5 rounded animate-pulse font-bold">
-                {isPlaying ? "RECITER LIVE" : "PAUSED"}
+                {isPlaying ? trans('walkman.statusLive') : trans('walkman.statusPaused')}
               </span>
               <span>120m STEREO</span>
             </div>
@@ -233,7 +233,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                 {/* Cassette clear window text */}
                 <div className="text-center font-mono text-[9px] text-zinc-400 pointer-events-none z-10 space-y-0.5">
                   <div className="font-bold tracking-widest text-indigo-300">WORDFLOW</div>
-                  <div>INDEX {currentIndex + 1} / {activeWordsPool.length}</div>
+                  <div>{trans('walkman.indexLabel')} {currentIndex + 1} / {activeWordsPool.length}</div>
                 </div>
 
                 {/* Reel Right */}
@@ -287,7 +287,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                   </motion.div>
                 </AnimatePresence>
               ) : (
-                <span className="text-xs text-zinc-600 font-mono">No active track selected</span>
+                <span className="text-xs text-zinc-600 font-mono">{trans('walkman.noTrack')}</span>
               )}
 
               {/* Progress ribbon */}
@@ -312,10 +312,10 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
               id="wm-btn-prev"
               onClick={handlePrevWord}
               className="py-3 bg-zinc-900 hover:bg-zinc-800 active:translate-y-0.5 text-zinc-300 rounded-xl border-b-4 border-zinc-950 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
-              title="Previous Word"
+              title={trans('walkman.titlePrev')}
             >
               <SkipBack className="w-4 h-4 text-zinc-400 group-hover:scale-110 transition-transform" />
-              <span className="text-[9px] font-mono uppercase text-zinc-500">PREV</span>
+              <span className="text-[9px] font-mono uppercase text-zinc-500">{trans('walkman.btnPrev')}</span>
             </button>
 
             {/* Play Trigger */}
@@ -331,10 +331,10 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                   ? 'bg-indigo-950/40 border-indigo-950 text-indigo-500 opacity-60' 
                   : 'bg-zinc-900 border-zinc-950 text-zinc-300 hover:bg-zinc-800 active:translate-y-0.5'
               }`}
-              title="Play"
+              title={trans('walkman.titlePlay')}
             >
               <Play className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
-              <span className="text-[9px] font-mono uppercase text-zinc-500">PLAY</span>
+              <span className="text-[9px] font-mono uppercase text-zinc-500">{trans('walkman.btnPlay')}</span>
             </button>
 
             {/* Pause Trigger */}
@@ -350,10 +350,10 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                   ? 'bg-zinc-950/20 border-zinc-950 text-zinc-600 opacity-60' 
                   : 'bg-zinc-900 border-zinc-950 text-zinc-300 hover:bg-zinc-850 active:translate-y-0.5'
               }`}
-              title="Pause"
+              title={trans('walkman.titlePause')}
             >
               <Pause className="w-4 h-4 text-zinc-400 group-hover:scale-110 transition-transform" />
-              <span className="text-[9px] font-mono uppercase text-zinc-500">PAUSE</span>
+              <span className="text-[9px] font-mono uppercase text-zinc-500">{trans('walkman.btnPause')}</span>
             </button>
 
             {/* Next Word Trigger */}
@@ -361,10 +361,10 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
               id="wm-btn-next"
               onClick={handleNextWord}
               className="py-3 bg-zinc-900 hover:bg-zinc-800 active:translate-y-0.5 text-zinc-300 rounded-xl border-b-4 border-zinc-950 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
-              title="Next Word"
+              title={trans('walkman.titleNext')}
             >
               <SkipForward className="w-4 h-4 text-zinc-400 group-hover:scale-110 transition-transform" />
-              <span className="text-[9px] font-mono uppercase text-zinc-500">NEXT</span>
+              <span className="text-[9px] font-mono uppercase text-zinc-500">{trans('walkman.btnNext')}</span>
             </button>
 
             {/* Stop/Sound Trigger */}
@@ -378,10 +378,10 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                 addToast(trans('walkman.stopped'), "warning");
               }}
               className="py-3 bg-zinc-900 hover:bg-zinc-800 active:translate-y-0.5 text-zinc-300 rounded-xl border-b-4 border-zinc-950 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group"
-              title="Stop and Reset"
+              title={trans('walkman.titleReset')}
             >
               <RotateCcw className="w-4 h-4 text-rose-400 group-hover:rotate-45 transition-transform" />
-              <span className="text-[9px] font-mono uppercase text-zinc-500">RESET</span>
+              <span className="text-[9px] font-mono uppercase text-zinc-500">{trans('walkman.btnReset')}</span>
             </button>
 
           </div>
@@ -392,18 +392,18 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
         {activeWord && (
           <div className="p-5 rounded-2xl bg-slate-900/40 border border-white/5 space-y-3 font-mono text-xs">
             <div className="flex items-center gap-2 text-indigo-400 font-bold">
-              <Sparkles className="w-4 h-4" /> Contextual Sandbox Guide
+              <Sparkles className="w-4 h-4" /> {trans('walkman.contextGuide')}
             </div>
             <p className="text-zinc-300 leading-relaxed font-sans mt-1">
-              &ldquo;{activeWord.example || 'Example sentence showcasing lexical values.'}&rdquo;
+              &ldquo;{activeWord.example || trans('walkman.exampleFallback')}&rdquo;
             </p>
             {activeWord.definition && (
               <p className="text-[11px] text-zinc-500 leading-normal">
-                <span className="text-indigo-300 font-bold">Lexical Note: </span>{activeWord.definition}
+                <span className="text-indigo-300 font-bold">{trans('walkman.lexNote')}</span>{activeWord.definition}
               </p>
             )}
             <div className="flex gap-2.5 flex-wrap pt-0.5">
-              {(activeWord.tags || ['General']).map((t, idx) => (
+              {(activeWord.tags || [trans('walkman.tagGeneral')]).map((t, idx) => (
                 <span key={idx} className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded text-[10px]">
                   {t}
                 </span>
@@ -421,7 +421,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
         <div className="p-5 rounded-3xl bg-slate-900/30 border border-white/5 space-y-4">
           <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 flex items-center gap-1.5 border-b border-white/5 pb-2">
             <Settings2 className="w-4 h-4 text-indigo-400" />
-            Recital Calibration Parameters
+            {trans('walkman.calibTitle')}
           </h3>
 
           <div className="space-y-4">
@@ -429,7 +429,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
             {/* Speed speechRate selector */}
             <div className="space-y-1.5">
               <div className="flex justify-between font-mono text-xs">
-                <span className="text-zinc-400">Recital Audio Speed Rate</span>
+                <span className="text-zinc-400">{trans('walkman.speedLabel')}</span>
                 <span className="text-indigo-400 font-black">{playRate}x</span>
               </div>
               <div className="flex items-center gap-4">
@@ -447,7 +447,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
 
             {/* Loop Option count */}
             <div className="space-y-2">
-              <span className="text-xs text-zinc-400 font-mono block">Recitation Repeats per Lexeme</span>
+              <span className="text-xs text-zinc-400 font-mono block">{trans('walkman.repeatsLabel')}</span>
               <div className="grid grid-cols-4 gap-2">
                 {[1, 2, 3, 5].map(n => (
                   <button
@@ -471,8 +471,8 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
             {/* Toggle Chinese voice translation switch */}
             <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
               <div className="space-y-0.5">
-                <span id="trans-speak-lbl" className="text-xs font-bold text-slate-100 font-mono block">Chinese Translation Voice</span>
-                <span className="text-[10px] text-zinc-500 font-mono">Speak translation in zh-CN</span>
+                <span id="trans-speak-lbl" className="text-xs font-bold text-slate-100 font-mono block">{trans('walkman.transVoiceLabel')}</span>
+                <span className="text-[10px] text-zinc-500 font-mono">{trans('walkman.transVoiceSub')}</span>
               </div>
               <button
                 aria-labelledby="trans-speak-lbl"
@@ -493,8 +493,8 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
             {/* Loop Playlist automatically */}
             <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
               <div className="space-y-0.5">
-                <span id="auto-loop-lbl" className="text-xs font-bold text-slate-100 font-mono block">Auto Loop Playlist</span>
-                <span className="text-[10px] text-zinc-500 font-mono font-bold">Restart from beginning at end</span>
+                <span id="auto-loop-lbl" className="text-xs font-bold text-slate-100 font-mono block">{trans('walkman.autoLoopLabel')}</span>
+                <span className="text-[10px] text-zinc-500 font-mono font-bold">{trans('walkman.autoLoopSub')}</span>
               </div>
               <button
                 aria-labelledby="auto-loop-lbl"
@@ -517,7 +517,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
         {/* Playlists Active Words tracklists */}
         <div className="p-5 rounded-3xl bg-slate-900/30 border border-white/5 space-y-4">
           <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 flex justify-between items-center">
-            <span>Playlists Track Deck ({activeWordsPool.length})</span>
+            <span>{trans('walkman.playlistTitle', { n: activeWordsPool.length })}</span>
             <span className="text-[10px] px-2 py-0.5 bg-indigo-500/15 text-indigo-400 rounded-full">EN-US</span>
           </h3>
 

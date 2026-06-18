@@ -305,7 +305,7 @@ def get_app_data_dir() -> Path:
 # Kept at its historical path so existing repo history / full-pycore reads are
 # unchanged. Runtime edits never write here (see get_peers_override_file).
 def get_peers_config_file() -> Path:
-    return get_core_node_root() / "pycore" / "pyutils" / "device_sync" / "code_sync_peers.json"
+    return get_core_node_root() / "pycore" / "pyutils" / "codesync" / "code_sync_peers.json"
 
 
 # Per-machine override for the peer list. Gitignored (<root>/.data/...), so every

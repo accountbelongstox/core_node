@@ -107,8 +107,15 @@ def run(host: str = "0.0.0.0", port: int = 59000, reload: bool = False) -> int:
     ColorPrint.green(f"[CodeSync] Standalone daemon up "
                      f"(role={manager.get_role()}, http=:{port}). Ctrl-C to stop.")
 
+    # Hot-reload is DEV-ONLY. A client receives synced code, so its own
+    # codesync/*.py can change under it — reloading there would restart-loop. So
+    # even with --reload / CODESYNC_RELOAD=1, a client never reloads.
     if _reload_enabled(reload):
-        _start_reload_watcher()
+        if manager.get_role() == "dev":
+            _start_reload_watcher()
+        else:
+            ColorPrint.yellow("[CodeSync] reload requested but role=client -> disabled "
+                              "(a receiving client must not restart on synced-file changes)")
 
     def _on_signal(signum, frame):
         ColorPrint.yellow(f"[CodeSync] Shutdown signal ({signum}) received")

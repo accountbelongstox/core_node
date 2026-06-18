@@ -22,6 +22,7 @@ import os
 import socket
 import threading
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .runtime import (
@@ -35,9 +36,11 @@ from .server import CodeSyncServer, get_code_sync_server
 from .client import CodeSyncClient, get_code_sync_client
 from .peer_config import get_peer_config, _local_lan_ip
 from .peer_mesh import PeerMeshManager
+from .sync_ws import PushSender, PushReceiver
 
 VALID_ROLES = ("dev", "client")
 STATS_REFRESH_SECONDS = 60
+SYNC_LOG_MAX = 300
 
 
 class CodeSyncManager:
@@ -62,6 +65,16 @@ class CodeSyncManager:
         self.mesh = PeerMeshManager(self.config, self.get_local_peer_status,
                                     apply_remote_config_fn=self._apply_remote_from_heartbeat)
         self.mesh.start()
+
+        # WS push channel (dev dials clients out; clients accept). The receiver is
+        # used by the WS server endpoint; the sender supervisor only acts while
+        # this node is a distributing dev.
+        self._sync_phase = {"phase": "idle", "count": 0}
+        self._sync_logs = []  # ring of recent push/receive events (newest last)
+        self._sync_lock = threading.Lock()
+        self.push_receiver = PushReceiver(self)
+        self.push_sender = PushSender(self)
+        self.push_sender.start()
 
         # Apply the startup role (client receives by default; dev waits to distribute).
         self._apply_role(self.role)
@@ -294,28 +307,50 @@ class CodeSyncManager:
         self._broadcast()
         return {"success": True, "settings": settings}
 
-    # ----- sync logs (recent file activity) ------------------------------- #
-    def get_sync_logs(self, limit: int = 100) -> dict:
-        """Recent sync activity for the UI's log panel. A client reports its per-file
-        pull/skip/error log; a distributing dev reports connected-client stats."""
-        logs: List[Dict[str, Any]] = []
+    # ----- WS push: phase + sync-log ring (shared by sender & receiver) ---- #
+    def sync_target_root(self) -> Path:
+        """Where a CLIENT writes pushed files (mapped under this root by dest_rel)."""
+        return get_core_node_root()
+
+    def watch_dirs(self) -> List[str]:
+        """The dev's effective watch dirs (configured list, or [root] if empty)."""
         try:
-            if self.role == "client":
-                logs = (get_code_sync_client().get_status() or {}).get("logs", []) or []
-            elif self.role == "dev" and self.distributing:
-                server = get_code_sync_server()
-                for cid, c in list(getattr(server, "clients", {}).items()):
-                    st = c.get_status() if hasattr(c, "get_status") else {}
-                    logs.append({
-                        "action": "client",
-                        "file_path": cid,
-                        "reason": f"received {st.get('received_count', 0)}, "
-                                  f"skipped {st.get('skipped_count', 0)}",
-                        "timestamp": st.get("last_seen"),
-                    })
+            from .watcher import get_watch_manager
+            return get_watch_manager().watch_dirs_str()
+        except Exception:
+            return [str(get_core_node_root())]
+
+    def set_sync_phase(self, phase: str, count: int = 0) -> None:
+        with self._sync_lock:
+            self._sync_phase = {"phase": phase, "count": int(count)}
+        try:
+            emit_event("code_sync_update", self.mesh.snapshot())
         except Exception:
             pass
-        return {"success": True, "role": self.role, "logs": logs[-int(limit or 100):]}
+
+    def get_sync_phase(self) -> Dict[str, Any]:
+        with self._sync_lock:
+            return dict(self._sync_phase)
+
+    def log_sync(self, action: str, file_path: str, reason: str = "") -> None:
+        entry = {"action": action, "file_path": file_path, "reason": reason,
+                 "timestamp": time.time()}
+        with self._sync_lock:
+            self._sync_logs.append(entry)
+            if len(self._sync_logs) > SYNC_LOG_MAX:
+                self._sync_logs = self._sync_logs[-SYNC_LOG_MAX:]
+        try:
+            emit_event("code_sync_log", entry)
+        except Exception:
+            pass
+
+    def get_sync_logs(self, limit: int = 100) -> dict:
+        """Recent push/receive activity for the UI's log panel — the WS-push ring
+        (dev 'sent' + client 'received'/'skipped'/'error'), newest last."""
+        with self._sync_lock:
+            logs = list(self._sync_logs)
+        return {"success": True, "role": self.role, "phase": self.get_sync_phase(),
+                "logs": logs[-int(limit or 100):]}
 
     def discover(self) -> dict:
         candidates = self.mesh.discover()
@@ -349,6 +384,9 @@ class CodeSyncManager:
             "skip_update": self._skip_update,
             "config_version": self.config.version(),
             "code": self.local_code_stats(),
+            "watch_root": str(self.sync_target_root()),
+            "watch_dirs": self.watch_dirs(),
+            "sync_phase": self.get_sync_phase(),
             "summary": summary,
         }
 

@@ -75,8 +75,8 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase block">Total Study Speed</span>
-            <p className="text-xl font-black font-mono mt-0.5">{stats.totalStudyMins} <span className="text-xs font-sans font-normal text-zinc-400">mins</span></p>
+            <span className="text-[10px] font-mono text-zinc-500 uppercase block">{trans('analytics.totalStudy')}</span>
+            <p className="text-xl font-black font-mono mt-0.5">{stats.totalStudyMins} <span className="text-xs font-sans font-normal text-zinc-400">{trans('analytics.minsUnit')}</span></p>
           </div>
         </div>
 
@@ -86,7 +86,7 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
             <BrainCircuit className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase block">Synaptic Retention</span>
+            <span className="text-[10px] font-mono text-zinc-500 uppercase block">{trans('analytics.synRetention')}</span>
             <p className="text-xl font-black font-mono mt-0.5">{stats.retentionRate}%</p>
           </div>
         </div>
@@ -97,7 +97,7 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
             <CheckCircle className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase block">Archived Lexicons</span>
+            <span className="text-[10px] font-mono text-zinc-500 uppercase block">{trans('analytics.archivedLexicons')}</span>
             <p className="text-xl font-black font-mono mt-0.5">{stats.cumulativeLearned} <span className="text-xs font-sans text-zinc-500">/ {stats.vocabularyTarget}</span></p>
           </div>
         </div>
@@ -108,8 +108,8 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
             <Flame className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-mono text-zinc-500 uppercase block">Sustained Streak</span>
-            <p className="text-xl font-black font-mono mt-0.5">{stats.streakDays} <span className="text-xs font-sans text-zinc-500">days</span></p>
+            <span className="text-[10px] font-mono text-zinc-500 uppercase block">{trans('analytics.sustainedStreak')}</span>
+            <p className="text-xl font-black font-mono mt-0.5">{stats.streakDays} <span className="text-xs font-sans text-zinc-500">{trans('stats.days')}</span></p>
           </div>
         </div>
 
@@ -122,12 +122,12 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
           <div className="flex justify-between items-center border-b border-white/5 pb-3">
             <div>
               <h3 className="text-sm font-black font-mono uppercase tracking-widest text-zinc-200">
-                Cognitive Engagement Spectrum
+                {trans('analytics.chartTitle')}
               </h3>
-              <p className="text-[11px] text-zinc-500 font-mono mt-0.5">Focus minutes logged per orbital cycle</p>
+              <p className="text-[11px] text-zinc-500 font-mono mt-0.5">{trans('analytics.chartSub')}</p>
             </div>
             <span className="text-[10px] font-mono px-2.5 py-1 bg-white/5 border border-white/10 rounded-lg text-zinc-400">
-              Weekly Overview
+              {trans('analytics.weeklyOverview')}
             </span>
           </div>
 
@@ -154,8 +154,8 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
                         transition={{ duration: 0.15 }}
                         className="absolute bottom-full mb-1 bg-slate-950 border border-white/10 rounded-lg py-1 px-2.5 text-center text-[10px] font-mono z-20 pointer-events-none shadow-xl min-w-[70px]"
                       >
-                        <p className="text-indigo-400 font-bold">{day.mins} Mins</p>
-                        <p className="text-zinc-500">{day.count} words</p>
+                        <p className="text-indigo-400 font-bold">{day.mins} {trans('analytics.minsUnit')}</p>
+                        <p className="text-zinc-500">{day.count} {trans('profile.wordsUnit')}</p>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -189,15 +189,15 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
           <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/5 text-center text-xs font-mono text-zinc-500">
             <div>
               <p className="text-slate-300 font-bold">1.8h Max</p>
-              <span>Peak Day Log</span>
+              <span>{trans('analytics.peakDay')}</span>
             </div>
             <div>
               <p className="text-slate-300 font-bold">64.2 mins</p>
-              <span>Daily Mean</span>
+              <span>{trans('analytics.dailyMean')}</span>
             </div>
             <div>
               <p className="text-slate-300 font-bold">+28%</p>
-              <span>Weekly Rate change</span>
+              <span>{trans('analytics.weeklyChange')}</span>
             </div>
           </div>
 
@@ -208,9 +208,9 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
           
           <div className="border-b border-white/5 pb-3">
             <h3 className="text-sm font-black font-mono uppercase tracking-widest text-zinc-200">
-              Synaptic Decay Simulator
+              {trans('analytics.decayTitle')}
             </h3>
-            <p className="text-[11px] text-zinc-500 font-mono mt-0.5">Ebbinghaus forgetting rate modeler</p>
+            <p className="text-[11px] text-zinc-500 font-mono mt-0.5">{trans('analytics.decaySub')}</p>
           </div>
 
           {/* Dial container */}
@@ -241,18 +241,18 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col justify-center items-center font-mono">
-                <span className="text-[10px] text-zinc-500 uppercase">SYNAPSE</span>
+                <span className="text-[10px] text-zinc-500 uppercase">{trans('analytics.synapse')}</span>
                 <span className="text-3xl font-black tracking-tight text-white">{synapticStrength}%</span>
-                <span className="text-[9px] text-zinc-500">Day {decayDay} elapsed</span>
+                <span className="text-[9px] text-zinc-500">{trans('analytics.dayElapsed', { n: decayDay })}</span>
               </div>
             </div>
 
             <div className="space-y-1 max-w-[210px]">
               <h4 className="text-xs font-bold text-slate-200">
-                {synapticStrength > 75 ? "Synapse Saturated" : synapticStrength > 50 ? "Traces Fading Slightly" : "Vulnerable Amnesia Bound"}
+                {synapticStrength > 75 ? trans('analytics.synSaturated') : synapticStrength > 50 ? trans('analytics.synFading') : trans('analytics.synVulnerable')}
               </h4>
               <p className="text-[10px] text-zinc-500 leading-normal">
-                Memory traces naturally decay without active recall tests or recitation reviews.
+                {trans('analytics.decayNote')}
               </p>
             </div>
 
@@ -261,16 +261,16 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
               <button
                 onClick={advanceDecayTimeline}
                 className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400 border border-white/5 active:scale-95 transition-all"
-                title="Elapse Time and Trigger forgetting"
+                title={trans('analytics.decayBtnTitle')}
               >
-                +1 Day Decay
+                {trans('analytics.decayBtn')}
               </button>
               <button
                 onClick={triggerRecollectionRecall}
                 className="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-[10px] font-mono font-bold uppercase tracking-wider text-white active:scale-95 transition-all outline-none"
-                title="Review to refresh memory"
+                title={trans('analytics.recallBtnTitle')}
               >
-                Recall Review
+                {trans('analytics.recallBtn')}
               </button>
             </div>
 
@@ -286,14 +286,14 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
         {/* Category breakdown meters */}
         <div className="p-6 rounded-3xl bg-slate-900/40 border border-white/5 space-y-4">
           <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400">
-            Thematic Mastery Breakdown
+            {trans('analytics.categoryTitle')}
           </h3>
 
           <div className="space-y-3.5 pt-1">
             {stats.categoryScores.map((cat, idx) => (
               <div key={idx} className="space-y-1 text-xs">
                 <div className="flex justify-between font-mono text-zinc-400">
-                  <span className="text-slate-200 text-xs truncate max-w-xs">{cat.name} ({cat.count} Words)</span>
+                  <span className="text-slate-200 text-xs truncate max-w-xs">{cat.name} ({cat.count} {trans('profile.wordsUnit')})</span>
                   <span className="font-extrabold text-indigo-400">{cat.score}%</span>
                 </div>
                 <div className="h-1.5 w-full bg-slate-950/40 rounded-full overflow-hidden">
@@ -312,7 +312,7 @@ export const WfNewAnalytics: React.FC<WfNewAnalyticsProps> = ({
         {/* Recently studied timeline */}
         <div className="p-6 rounded-3xl bg-slate-900/40 border border-white/5 space-y-4">
           <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400">
-            Synaptic Logs Timeline
+            {trans('analytics.timelineTitle')}
           </h3>
 
           <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 no-scrollbar pt-1">

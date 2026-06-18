@@ -6,7 +6,7 @@ The peer list is the source of truth for the Code Sync mesh: which machines exis
 their address and their role (dev = distributes code, client = receives code). It
 is the committed file:
 
-    pycore/pyutils/device_sync/code_sync_peers.json
+    pycore/pyutils/codesync/code_sync_peers.json
 
 Schema:
     { "version": <int>, "updated_at": <float>,

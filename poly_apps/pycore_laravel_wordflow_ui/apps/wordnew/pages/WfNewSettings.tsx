@@ -7,6 +7,7 @@ import {
 import { ElementTheme, UserStats } from '../WfNewTypes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
 import { WfNewApiServerPanel } from '../components/WfNewApiServerPanel';
+import { getLanguageConfig } from '../WfNewLocales';
 
 interface WfNewSettingsProps {
   activeTheme: ElementTheme;
@@ -22,7 +23,7 @@ interface WfNewSettingsProps {
   speechRate: number;
   setSpeechRate: (r: number) => void;
   onClearCache: () => void;
-  trans: (key: string) => string;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
 export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
@@ -308,7 +309,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
           <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-white/5 flex justify-between items-center">
             <div className="flex flex-col">
               <span className="text-xs font-bold text-zinc-800 dark:text-slate-200">{trans('lang.selector')}</span>
-              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">EN / 简体中文</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">{getLanguageConfig('en').nativeName} / {getLanguageConfig('zh').nativeName}</span>
             </div>
             
             <button
@@ -316,7 +317,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
               className="flex items-center gap-1.5 text-xs bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 border border-zinc-200 dark:border-white/10 px-4 py-2 rounded-full font-bold transition-all cursor-pointer"
             >
               <Languages className="w-3.5 h-3.5 text-indigo-500" />
-              <span>{lang === 'en' ? 'English' : '简体中文'}</span>
+              <span>{getLanguageConfig(lang).nativeName}</span>
             </button>
           </div>
         </div>
@@ -324,14 +325,14 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
       </div>
 
       {/* Backend API endpoint summary — click to open the full manager + test dialog */}
-      <WfNewApiServerPanel activeTheme={activeTheme} />
+      <WfNewApiServerPanel activeTheme={activeTheme} trans={trans} />
 
       {/* NEW INTERACTIVE CONTROLS CONTAINER: Dropdown, Switches, Radios, Multi-select checkboxes */}
       <div className={`p-6 sm:p-8 rounded-3xl ${activeTheme.cardClass} space-y-6 shadow-md`}>
         <div className="flex items-center gap-2 border-b border-zinc-100 dark:border-white/5 pb-3">
           <Sliders className="w-5 h-5 text-indigo-500" />
           <h3 className="text-base font-extrabold tracking-tight text-indigo-950 dark:text-white">
-            Study Preference Panels (认知与偏好配置)
+            {trans('set.prefTitle')}
           </h3>
         </div>
 
@@ -343,7 +344,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
             {/* 1. Pronunciation Accent Selector (Dropdown) */}
             <div className="space-y-2">
               <label className="text-xs font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 block">
-                [Dropdown Component] TTS Accents Voice (发音人音调选择)
+                {trans('set.accentLabel')}
               </label>
               <div className="relative">
                 <select
@@ -351,31 +352,31 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
                   onChange={(e) => setVoiceAccent(e.target.value)}
                   className={`w-full py-3 pl-4 pr-10 rounded-xl text-xs font-mono outline-none transition-all cursor-pointer appearance-none ${activeTheme.inputClass}`}
                 >
-                  <option value="en-US">🇺🇸 Standard US-Acoustic Male (美式发音 - 默认)</option>
-                  <option value="en-GB">🇬🇧 Classic British RP Female (英式伦敦腔)</option>
-                  <option value="en-CA">🇨🇦 Arctic Breeze Canada (加拿大极爽发音)</option>
-                  <option value="en-AU">🇦🇺 Outback Coral Australia (澳大利亚发音)</option>
+                  <option value="en-US">{trans('set.accentUS')}</option>
+                  <option value="en-GB">{trans('set.accentGB')}</option>
+                  <option value="en-CA">{trans('set.accentCA')}</option>
+                  <option value="en-AU">{trans('set.accentAU')}</option>
                 </select>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
                   <ChevronDown className="w-4 h-4" />
                 </div>
               </div>
               <p className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-relaxed font-mono">
-                Changes speech engines for walkman streams, practice boards, and dictionary card pronunciation queries.
+                {trans('set.accentDesc')}
               </p>
             </div>
 
             {/* 2. Toggle Switches Section */}
             <div className="space-y-3 pt-2">
               <label className="text-xs font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 block">
-                [Switch Components] System Triggers (互动开关)
+                {trans('set.switchesLabel')}
               </label>
 
               {/* Haptic / Animation Switch */}
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/5">
                 <div>
-                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">Auto Speech on Reveal (自动发音)</span>
-                  <span className="text-[10px] text-zinc-400">Read words out loud when card reveals</span>
+                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">{trans('set.autoSpeechLabel')}</span>
+                  <span className="text-[10px] text-zinc-400">{trans('set.autoSpeechDesc')}</span>
                 </div>
                 <button
                   type="button"
@@ -395,8 +396,8 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
               {/* Ambient Atmosphere Haptic switch */}
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/5">
                 <div>
-                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">Force Immersive Haptic Pulse (柔性触感)</span>
-                  <span className="text-[10px] text-zinc-400">Gently vibrate app on correct quiz entries</span>
+                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">{trans('set.hapticLabel')}</span>
+                  <span className="text-[10px] text-zinc-400">{trans('set.hapticDesc')}</span>
                 </div>
                 <button
                   type="button"
@@ -416,8 +417,8 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
               {/* Disable Background Breathing switch */}
               <div className="flex items-center justify-between p-3.5 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/5">
                 <div>
-                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">关闭背景呼吸效果 (Static Gradient Background)</span>
-                  <span className="text-[10px] text-zinc-400">Disable ambient breathing pulse glow effects for static layout ease</span>
+                  <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block">{trans('set.bgBreathLabel')}</span>
+                  <span className="text-[10px] text-zinc-400">{trans('set.bgBreathDesc')}</span>
                 </div>
                 <button
                   type="button"
@@ -440,16 +441,16 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
           {/* Column B: Single Radios & Multi-selection Checkboxes */}
           <div className="space-y-6">
             
-            {/* 3. Review Algorithms (Radio Group / 单选) */}
+            {/* 3. Review Algorithms (Radio Group / single-select) */}
             <div className="space-y-2">
               <label className="text-xs font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 block">
-                [Radio Components] Cognitive Cadence Model (单选：记忆循环算法)
+                {trans('set.algoLabel')}
               </label>
               <div className="space-y-2 pt-1">
                 {[
-                  { id: 'ebbinghaus', title: 'Ebbinghaus Space Decay Model', desc: 'Optimal spacing at 1st, 2nd, 7th day intervals.' },
-                  { id: 'leitner', title: 'Leitner Symmetrical Boxes', desc: 'Push flashcards into higher boxes as memorized.' },
-                  { id: 'rapid', title: 'Tactile Rapid Fire Repetitions', desc: 'High frequency flash-memorization for test prep.' }
+                  { id: 'ebbinghaus', title: trans('set.algoEbbTitle'), desc: trans('set.algoEbbDesc') },
+                  { id: 'leitner', title: trans('set.algoLeitnerTitle'), desc: trans('set.algoLeitnerDesc') },
+                  { id: 'rapid', title: trans('set.algoRapidTitle'), desc: trans('set.algoRapidDesc') }
                 ].map((item) => (
                   <label
                     key={item.id}
@@ -485,17 +486,17 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
               </div>
             </div>
 
-            {/* 4. Filter Tags Checkboxes (Multi-select / 多选) */}
+            {/* 4. Filter Tags Checkboxes (Multi-select) */}
             <div className="space-y-2">
               <label className="text-xs font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 block">
-                [Checkbox Components] Target Content Caches (多选：词汇库专题)
+                {trans('set.fieldsLabel')}
               </label>
               <div className="grid grid-cols-2 gap-3 pt-1">
                 {[
-                  { id: 'tech', label: 'Tech & AI Silicon' },
-                  { id: 'literature', label: 'Ethereal Literature' },
-                  { id: 'business', label: 'Corporate & Strategy' },
-                  { id: 'general', label: 'Daily Conversational' }
+                  { id: 'tech', label: trans('set.fieldTech') },
+                  { id: 'literature', label: trans('set.fieldLit') },
+                  { id: 'business', label: trans('set.fieldBiz') },
+                  { id: 'general', label: trans('set.fieldGeneral') }
                 ].map((option) => {
                   const isChecked = contentFields.includes(option.id);
                   return (
@@ -519,7 +520,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
                 })}
               </div>
               <p className="text-[10px] text-zinc-400 dark:text-zinc-500 leading-relaxed font-mono">
-                Selected topical vocabulary modules will be dynamically queried during system recital sessions.
+                {trans('set.fieldsDesc')}
               </p>
             </div>
 
@@ -528,12 +529,12 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
         </div>
       </div>
 
-      {/* 5. Bilingual Acoustic Recital Preferences Section Card (双语对照朗读参数) */}
+      {/* 5. Bilingual Acoustic Recital Preferences Section Card */}
       <div className={`p-6 sm:p-8 rounded-3xl ${activeTheme.cardClass} space-y-6 shadow-md`}>
         <div className="flex items-center gap-2 border-b border-zinc-100 dark:border-white/5 pb-3">
           <Languages className="w-5 h-5 text-indigo-505" />
           <h3 className="text-base font-extrabold tracking-tight text-indigo-950 dark:text-white">
-            双语对照学习舱设置 (Bilingual Recital Engine)
+            {trans('set.bilingualTitle')}
           </h3>
         </div>
 
@@ -542,13 +543,13 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
           {/* Column A: Selecting Native and Target Languages Dropdowns */}
           <div className="space-y-5">
             <span className="text-xs font-black font-mono uppercase tracking-wider text-indigo-505 dark:text-indigo-400 block border-b border-zinc-100 dark:border-white/5 pb-1">
-              ① Language Coordinates (语言坐标系)
+              {trans('set.langCoords')}
             </span>
 
-            {/* Native Language (母语选择) */}
+            {/* Native Language selector */}
             <div className="space-y-2">
               <label className="text-[11px] font-extrabold uppercase tracking-wider text-zinc-500 font-mono">
-                [Select Native] Choose Native Tongue (选择母语偏好)
+                {trans('set.nativeLabel')}
               </label>
               <div className="relative">
                 <select
@@ -556,10 +557,10 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
                   onChange={(e) => setNativeLang(e.target.value)}
                   className={`w-full py-3 pl-4 pr-10 rounded-xl text-xs font-mono outline-none transition-all cursor-pointer appearance-none ${activeTheme.inputClass}`}
                 >
-                  <option value="zh">🇨🇳 Simplified Chinese (简体中文)</option>
-                  <option value="ja">🇯🇵 Japanese (日本語)</option>
-                  <option value="ko">🇰🇷 Korean (한국어)</option>
-                  <option value="es">🇪🇸 Spanish (Español)</option>
+                  <option value="zh">🇨🇳 {trans('lang.name.zh')}</option>
+                  <option value="ja">🇯🇵 {trans('lang.name.ja')}</option>
+                  <option value="ko">🇰🇷 {trans('lang.name.ko')}</option>
+                  <option value="es">🇪🇸 {trans('lang.name.es')}</option>
                 </select>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
                   <ChevronDown className="w-4 h-4" />
@@ -567,10 +568,10 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
               </div>
             </div>
 
-            {/* Target Language (目标语言选择) */}
+            {/* Target Language selector */}
             <div className="space-y-2">
               <label className="text-[11px] font-extrabold uppercase tracking-wider text-zinc-500 font-mono">
-                [Select Target] Choose Target Study Language (选择目标学习语言)
+                {trans('set.targetLabel')}
               </label>
               <div className="relative">
                 <select
@@ -578,10 +579,10 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
                   onChange={(e) => setTargetLang(e.target.value)}
                   className={`w-full py-3 pl-4 pr-10 rounded-xl text-xs font-mono outline-none transition-all cursor-pointer appearance-none ${activeTheme.inputClass}`}
                 >
-                  <option value="en">🇺🇸 English US (美国英语)</option>
-                  <option value="fr">🇫🇷 French (Français)</option>
-                  <option value="de">🇩🇪 German (Deutsch)</option>
-                  <option value="es">🇪🇸 Spanish (Español)</option>
+                  <option value="en">🇺🇸 {trans('lang.name.en')}</option>
+                  <option value="fr">🇫🇷 {trans('lang.name.fr')}</option>
+                  <option value="de">🇩🇪 {trans('lang.name.de')}</option>
+                  <option value="es">🇪🇸 {trans('lang.name.es')}</option>
                 </select>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
                   <ChevronDown className="w-4 h-4" />
@@ -593,13 +594,13 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
           {/* Column B: Acoustic proportional ratios & reading sequence */}
           <div className="space-y-5">
             <span className="text-xs font-black font-mono uppercase tracking-wider text-indigo-505 dark:text-indigo-400 block border-b border-zinc-100 dark:border-white/5 pb-1">
-              ② Speech Synthesis Cadence (朗读比例与先后)
+              {trans('set.speechCadence')}
             </span>
 
             {/* Playback Sentence Proportions (1en/2en-1zh) */}
             <div className="space-y-2">
               <label className="text-[11px] font-extrabold uppercase tracking-wider text-zinc-500 font-mono">
-                [Recital Ratio] Select Sentence Proportions (一/二句en配一句cn)
+                {trans('set.ratioLabel')}
               </label>
               <div className="relative">
                 <select
@@ -607,8 +608,8 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
                   onChange={(e) => setBilingualRatio(e.target.value)}
                   className={`w-full py-3 pl-4 pr-10 rounded-xl text-xs font-mono outline-none transition-all cursor-pointer appearance-none ${activeTheme.inputClass}`}
                 >
-                  <option value="1en_1zh">⚖️ 1 Target Sentence : 1 Native (一至一交替)</option>
-                  <option value="2en_1zh">🏋️ 2 Target Sentences : 1 Native (二至一双击强化)</option>
+                  <option value="1en_1zh">{trans('set.ratioOpt1')}</option>
+                  <option value="2en_1zh">{trans('set.ratioOpt2')}</option>
                 </select>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
                   <ChevronDown className="w-4 h-4" />
@@ -619,7 +620,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
             {/* Pronunciation Sequence order (Native first vs Target first) */}
             <div className="space-y-2">
               <label className="text-[11px] font-extrabold uppercase tracking-wider text-zinc-500 font-mono">
-                [Temporal Order] Audio Sequence Direction (先读温床母语或学习目标)
+                {trans('set.orderLabel')}
               </label>
               <div className="relative">
                 <select
@@ -627,8 +628,8 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
                   onChange={(e) => setRecitalOrder(e.target.value)}
                   className={`w-full py-3 pl-4 pr-10 rounded-xl text-xs font-mono outline-none transition-all cursor-pointer appearance-none ${activeTheme.inputClass}`}
                 >
-                  <option value="target_first">🎯 Target first (先朗读目标语言)</option>
-                  <option value="native_first">🏠 Mother tongue first (先朗读母语温床)</option>
+                  <option value="target_first">{trans('set.orderTarget')}</option>
+                  <option value="native_first">{trans('set.orderNative')}</option>
                 </select>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
                   <ChevronDown className="w-4 h-4" />
@@ -646,7 +647,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
             {trans('settings.speechSpeed')} ({speechRate}x)
           </h3>
           <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono leading-relaxed">
-            Calibrate speechSynthesis parameters. Affects reading context loops and click-to-sound pronunciations.
+            {trans('set.speedDesc')}
           </p>
           
           <div className="flex items-center gap-3">
@@ -673,7 +674,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
             {trans('settings.reset')}
           </h3>
           <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono leading-relaxed">
-            Erase your customized targets, local learning schedules, favorite book star caches, and reset pilots credentials to defaults.
+            {trans('set.resetDesc')}
           </p>
 
           <button

@@ -194,9 +194,11 @@ codesync_service_install() {
         return 1
     fi
 
-    echo "[codesync-service] Enabling and starting '$CODESYNC_SERVICE_NAME' ..."
+    echo "[codesync-service] Enabling and (re)starting '$CODESYNC_SERVICE_NAME' ..."
     $USE_SUDO systemctl enable "$CODESYNC_SERVICE_NAME" 2>/dev/null || true
-    $USE_SUDO systemctl start "$CODESYNC_SERVICE_NAME"
+    # restart (not start): idempotent — starts if stopped, picks up the freshly
+    # written unit if already running, so re-answering Y always applies changes.
+    $USE_SUDO systemctl restart "$CODESYNC_SERVICE_NAME"
     codesync_service_status
     codesync_print_logs_help
 }

@@ -14,9 +14,10 @@ import { WfNewApiServerDialog } from './WfNewApiServerDialog';
 
 interface WfNewApiServerPanelProps {
   activeTheme: ElementTheme;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
-export const WfNewApiServerPanel: React.FC<WfNewApiServerPanelProps> = ({ activeTheme }) => {
+export const WfNewApiServerPanel: React.FC<WfNewApiServerPanelProps> = ({ activeTheme, trans }) => {
   const { endpoints, health, currentId, ready, testing } = useWfNewEndpoints();
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -31,9 +32,9 @@ export const WfNewApiServerPanel: React.FC<WfNewApiServerPanelProps> = ({ active
     testing || !ready ? 'pending' : currentHealth?.isHealthy ? 'healthy' : 'offline';
 
   const statusStyle = {
-    healthy: { chip: 'bg-emerald-500/10 text-emerald-500', Icon: Wifi, label: `Online · ${currentHealth?.responseTime ?? 0}ms` },
-    offline: { chip: 'bg-rose-500/10 text-rose-500', Icon: WifiOff, label: 'Offline · retrying' },
-    pending: { chip: 'bg-zinc-400/10 text-zinc-400', Icon: Loader2, label: 'Checking…' },
+    healthy: { chip: 'bg-emerald-500/10 text-emerald-500', Icon: Wifi, label: trans('api.statusOnline', { ms: currentHealth?.responseTime ?? 0 }) },
+    offline: { chip: 'bg-rose-500/10 text-rose-500', Icon: WifiOff, label: trans('api.statusOffline') },
+    pending: { chip: 'bg-zinc-400/10 text-zinc-400', Icon: Loader2, label: trans('api.statusChecking') },
   }[status];
   const StatusIcon = statusStyle.Icon;
 
@@ -50,7 +51,7 @@ export const WfNewApiServerPanel: React.FC<WfNewApiServerPanelProps> = ({ active
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-extrabold font-mono uppercase tracking-wider text-indigo-500 dark:text-indigo-400">
-                API Server (后端接口)
+                {trans('api.title')}
               </h3>
               <p className="text-xs font-mono text-zinc-700 dark:text-zinc-200 truncate mt-1">{baseUrl}</p>
             </div>
@@ -65,11 +66,11 @@ export const WfNewApiServerPanel: React.FC<WfNewApiServerPanelProps> = ({ active
           </div>
         </div>
         <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono mt-3">
-          Tap to view, add, select endpoints and run the connection test.
+          {trans('api.tapHint')}
         </p>
       </button>
 
-      <WfNewApiServerDialog open={dialogOpen} onClose={() => setDialogOpen(false)} activeTheme={activeTheme} />
+      <WfNewApiServerDialog open={dialogOpen} onClose={() => setDialogOpen(false)} activeTheme={activeTheme} trans={trans} />
     </>
   );
 };

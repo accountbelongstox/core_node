@@ -4,7 +4,7 @@
  * the global top-bar switcher and Settings page stay in sync.
  */
 import React, {
-  createContext, useCallback, useContext, useEffect, useMemo, useState,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import {
   pycoreLaravelApi, PYCORE_LARAVEL_API_CHANGED_EVENT,
@@ -65,6 +65,25 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     });
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [reload]);
+
+  // Ensure the browser's CURRENT ORIGIN (host, forced to the laravel port 9000)
+  // is a candidate — the backend cannot know the window URL, so the FE adds it
+  // once after the list first loads. Idempotent: the backend dedups, and we
+  // only attempt when the host isn't already present. Skipped while the RPC is
+  // down (no endpoints loaded) so we don't spam a failing add.
+  const currentOriginAddedRef = useRef(false);
+  useEffect(() => {
+    if (currentOriginAddedRef.current || loading) return;
+    if (typeof window === 'undefined' || !window.location?.hostname) return;
+    if (endpoints.length === 0) return; // list not loaded yet / backend offline
+    const originUrl = `http://${window.location.hostname}:9000`;
+    const norm = (u: string) => (u || '').replace(/\/+$/, '');
+    currentOriginAddedRef.current = true; // one-shot regardless of outcome
+    if (!endpoints.some((e) => norm(e.url) === norm(originUrl))) {
+      void addUrl(originUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endpoints, loading]);
 
   const select = useCallback(async (url: string) => {
     if (!url || url === current || switching) return;

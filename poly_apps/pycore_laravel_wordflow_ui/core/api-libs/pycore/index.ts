@@ -20,6 +20,12 @@ export {
 export { connectPycoreSse, isSseConnected } from './PycoreSse';
 
 export {
+  getPycoreTarget, isPycoreRemote, pycoreTargetHost,
+  getPycoreTargetRecent, normalizePycoreHost, setPycoreTarget,
+} from './pycoreTarget';
+export type { PycoreTarget } from './pycoreTarget';
+
+export {
   pycoreLaravelApi, PYCORE_LARAVEL_API_CHANGED_EVENT,
 } from './PycoreLaravelApi';
 export type {

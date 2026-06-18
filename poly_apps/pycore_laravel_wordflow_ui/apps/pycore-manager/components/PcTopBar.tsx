@@ -8,6 +8,7 @@
  */
 import React from 'react';
 import PcLaravelEndpointSwitcher from './PcLaravelEndpointSwitcher';
+import PcPycoreTargetSwitcher from './PcPycoreTargetSwitcher';
 import { shellDockRightGutterPx } from '../../../shell/shellChrome';
 
 /** 12 + 240 + 12 = 264px — clears ShellControls panel when open */
@@ -21,6 +22,7 @@ export const PcTopBar: React.FC = () => (
       paddingRight: `max(1.5rem, ${SHELL_DOCK_GUTTER_PX}px)`,
     }}
   >
+    <PcPycoreTargetSwitcher variant="header" />
     <PcLaravelEndpointSwitcher variant="header" />
   </header>
 );
