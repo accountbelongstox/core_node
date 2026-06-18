@@ -295,9 +295,11 @@ class PushSender:
                 time.sleep(0.5)
 
     # ----- retry/backoff bookkeeping -------------------------------------- #
-    def _note_failure(self, peer: dict, exc) -> None:
+    def _note_failure(self, peer: dict, exc, mid_sync: bool = False) -> None:
         """Schedule the next retry with exponential backoff; log only the FIRST
-        failure of a streak to avoid spam, and surface a 'retrying' phase."""
+        failure of a streak to avoid spam, and surface a 'retrying' phase. Applies
+        to BOTH connect failures and mid-sync drops so a flapping link backs off
+        instead of hot-looping every supervisor tick."""
         pid = peer.get("id")
         host = peer.get("host")
         port = int(peer.get("port", 59000))
@@ -305,18 +307,21 @@ class PushSender:
             retry = self._peer_retry.setdefault(
                 pid, {"attempt": 0, "next_retry_at": 0.0, "logged": False})
             attempt = retry["attempt"]
-            delay = min(MAX_BACKOFF, 2 ** attempt)
+            # Cap the exponent: an offline peer otherwise grows `attempt` without
+            # bound and recomputes an ever-larger 2**attempt every ~30s forever.
+            delay = min(MAX_BACKOFF, 2 ** min(attempt, 16))
             retry["next_retry_at"] = time.time() + delay
-            retry["attempt"] = attempt + 1
+            retry["attempt"] = min(attempt + 1, 16)
             first = not retry["logged"]
             retry["logged"] = True
         if first:
-            ColorPrint.yellow(f"[WsPush] {host}:{port} unreachable ({exc}); "
+            what = "link dropped mid-sync" if mid_sync else "unreachable"
+            ColorPrint.yellow(f"[WsPush] {host}:{port} {what} ({exc}); "
                               f"retrying with backoff (next in {delay}s)")
         # Reflect backoff in the UI as a 'retrying' phase for THIS peer's channel
-        # (attempt is the count).
+        # (channel = peer id, matching the UI's per-peer lookup).
         try:
-            self.m.set_sync_phase("retrying", attempt + 1, channel=pid,
+            self.m.set_sync_phase("retrying", min(attempt + 1, 16), channel=pid,
                                   name=(peer.get("name") or host), direction="push")
         except Exception:
             pass
@@ -377,79 +382,116 @@ class PushSender:
             client_name = peer.get("name") or host
             reason = first_reason
             while self._running and self.m.is_distributing() and not is_shutdown_requested():
-                last = self._push_deltas(ws, wm, last, client_id, reason, client_name)
+                last = self._push_deltas(ws, wm, last, client_id, reason,
+                                         client_name, pid=peer.get("id"))
                 reason = "delta"  # only the first push after (re)connect is special
                 time.sleep(PUSH_TICK)
         except Exception as exc:
-            if not connected:
-                self._note_failure(peer, exc)
-            else:
-                # A mid-sync disconnect after a good connect: stay quiet (last_sent
-                # is persisted up to the last ack, so we resume on the next connect).
-                ColorPrint.yellow(f"[WsPush] {host}:{port} link dropped mid-sync: {exc}")
+            # Back off on connect failures AND mid-sync drops; last_sent is
+            # persisted up to the last ack so the next connect resumes cleanly.
+            self._note_failure(peer, exc, mid_sync=connected)
         finally:
             ws.close()
             with self._lock:
                 self._threads.pop(peer.get("id"), None)
 
     def _push_deltas(self, ws, wm, last: dict, client_id: str, reason: str,
-                     client_name: str = "") -> dict:
+                     client_name: str = "", pid: str = "") -> dict:
         """Diff the shared watcher index against what we last acked for this client;
         push new/modified files in size-bounded BATCHES (one batch_ack round-trip per
-        chunk). Persists the advancing last_sent into supervisor-owned state after
-        every successful batch so a mid-sync disconnect resumes from the last ack.
+        chunk) and propagate deletions. Persists the advancing last_sent into
+        supervisor-owned state after every successful batch so a mid-sync disconnect
+        resumes from the last ack.
 
         Returns the updated 'last' snapshot."""
         cur = wm.snapshot()
         changed = [(dest, meta) for dest, meta in cur.items()
                    if dest not in last or last[dest][1] != meta[1]]  # new or hash changed
-        if not changed:
+        # A path we previously sent that is gone from the watcher index is EITHER a
+        # real deletion OR merely newly excluded (a filter change). Distinguish by
+        # the source still being on disk: truly-gone -> propagate a delete; still
+        # present (just excluded) -> only stop tracking it, never delete it on the
+        # client. We only ever delete what we ourselves pushed, and the receiver
+        # also contains the path, so a client-local file is never removed.
+        deleted = []
+        pruned = False
+        for d in list(last):
+            if d in cur:
+                continue
+            abspath = last[d][2] if len(last[d]) > 2 else None
+            if abspath and Path(abspath).exists():
+                last.pop(d, None)   # excluded now, not deleted: stop tracking
+                pruned = True
+            else:
+                deleted.append(d)
+        if not changed and not deleted:
+            if pruned:
+                with self._lock:
+                    self._client_sent[client_id] = dict(last)
             return last
 
-        queued = len(changed)
+        queued = len(changed) + len(deleted)
         # Identity stamped on every wire message so the receiver can attribute the
-        # phase/log per source dev-end; also used here for the dev-side channel.
+        # phase/log per source dev-end; channel = peer id (matches the UI lookup).
         me = self.m.config.get_self()
         dev_id = self.m.config.machine_id
         dev_name = me.get("name") or ""
+        channel = pid or client_id
         peer_label = client_name or (str(client_id)[:8] if client_id else "")
         # 'resume' surfaces the offline-accumulated backlog before we start pushing.
         if reason == "resume":
             self.m.log_sync("reconnect", "", "resumed after reconnect",
-                            details=f"{queued} file(s) queued",
+                            details=f"{queued} change(s) queued",
                             peer=peer_label, direction="push")
-        self.m.set_sync_phase("pushing", queued, channel=client_id,
+        self.m.set_sync_phase("pushing", queued, channel=channel,
                               name=client_name, direction="push")
 
-        # Split into chunks bounded by cumulative base64 payload size; never split a
-        # single file across batches.
+        def send_batch(entries, batch_reason):
+            ws.send_text(json.dumps({"type": "batch", "reason": batch_reason,
+                                     "dev_id": dev_id, "dev_name": dev_name,
+                                     "files": entries}))
+            ack = ws.recv_text()
+            if not ack:
+                raise ConnectionError("no batch_ack")
+            return (json.loads(ack).get("results")) or []
+
+        chunk_reason = reason  # the first batch (deletes or first chunk) is special
+
+        # 1) Deletions first (tiny — one batch).
+        if deleted:
+            for d in deleted:
+                self.m.log_sync("sent", d, "removed on dev",
+                                details=f"delete -> {peer_label}",
+                                peer=peer_label, direction="push")
+            results = send_batch([{"rel": d, "deleted": True} for d in deleted],
+                                 chunk_reason)
+            chunk_reason = "delta"
+            for r in results:
+                if r.get("status") in ("deleted", "skipped"):
+                    last.pop(r.get("rel"), None)
+            with self._lock:
+                self._client_sent[client_id] = dict(last)
+
+        # 2) Created/modified files in size-bounded chunks; never split one file.
         chunk = []
         chunk_bytes = 0
-        chunk_reason = reason  # the first chunk carries 'resume'/'delta'
-        remaining = queued
+        remaining = len(changed)
 
         def flush_chunk(files, batch_reason, files_meta):
             """Send one 'batch', read one 'batch_ack', advance last_sent for acked
-            files, and emit per-file logs. Returns the number of files in flight."""
-            ws.send_text(json.dumps({"type": "batch", "reason": batch_reason,
-                                     "dev_id": dev_id, "dev_name": dev_name,
-                                     "files": files}))
+            files, and emit per-file logs."""
             for fm in files_meta:
                 dest, fhash, fsize = fm
                 self.m.log_sync(
                     "sent", dest,
                     "new file" if dest not in last else "content changed",
-                    details=f"{_fmt_bytes(fsize)} -> {client_id[:8]}",
+                    details=f"{_fmt_bytes(fsize)} -> {peer_label}",
                     size=fsize, peer=peer_label, direction="push")
-            ack = ws.recv_text()
-            if not ack:
-                raise ConnectionError("no batch_ack")
-            results = (json.loads(ack).get("results")) or []
+            results = send_batch(files, batch_reason)
             # Advance last_sent only for files the client confirmed written/skipped.
             for r in results:
                 rel = r.get("rel")
-                status = r.get("status")
-                if status in ("written", "skipped") and rel in cur:
+                if r.get("status") in ("written", "skipped") and rel in cur:
                     last[rel] = cur[rel]
             with self._lock:
                 self._client_sent[client_id] = dict(last)
@@ -469,7 +511,7 @@ class PushSender:
             if chunk and (chunk_bytes + len(b64)) > MAX_BATCH_BYTES:
                 flush_chunk([c[0] for c in chunk], chunk_reason, [c[1] for c in chunk])
                 remaining -= len(chunk)
-                self.m.set_sync_phase("pushing", remaining, channel=client_id,
+                self.m.set_sync_phase("pushing", remaining, channel=channel,
                                       name=client_name, direction="push")
                 chunk = []
                 chunk_bytes = 0
@@ -480,6 +522,6 @@ class PushSender:
         if chunk:
             flush_chunk([c[0] for c in chunk], chunk_reason, [c[1] for c in chunk])
 
-        self.m.set_sync_phase("idle", 0, channel=client_id, name=client_name,
+        self.m.set_sync_phase("idle", 0, channel=channel, name=client_name,
                               direction="push")
         return last

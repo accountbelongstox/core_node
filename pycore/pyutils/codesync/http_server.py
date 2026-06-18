@@ -17,6 +17,7 @@ import shlex
 import shutil
 import subprocess
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -75,12 +76,29 @@ def _run_service_op_detached(op: str) -> Tuple[bool, str, str]:
     # 1s delay lets the HTTP response flush before systemd stops this process.
     inner = f"sleep 1; bash {shlex.quote(str(script))} codesync {op}"
     sudo = (not _is_root() and shutil.which("sudo") is not None)
+    # If we'll need sudo, verify passwordless sudo NOW so a missing NOPASSWD turns
+    # into a real error the panel can show — instead of a detached process that
+    # silently dies on a password prompt while we report "triggered".
+    if not _is_root() and not sudo:
+        return False, inner, ("not root and sudo not found; run the command "
+                              "manually on the machine")
+    if sudo:
+        try:
+            chk = subprocess.run(["sudo", "-n", "true"], stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, timeout=5)
+            if chk.returncode != 0:
+                return False, inner, ("passwordless sudo required (sudo -n failed); "
+                                      "run the command manually on the machine")
+        except Exception as exc:
+            return False, inner, f"sudo preflight failed: {exc}"
     try:
         sysrun = shutil.which("systemd-run")
         if sysrun:
             # A transient unit runs OUTSIDE this service's cgroup, so the restart
             # completes even after systemd kills us. --collect reaps it after exit.
-            unit = f"codesync-self-{op}-{os.getpid()}"
+            # Unique name (pid + monotonic ns) so a rapid double-trigger never hits
+            # an "--unit already exists" failure.
+            unit = f"codesync-self-{op}-{os.getpid()}-{time.monotonic_ns()}"
             argv = [sysrun, "--quiet", "--collect", f"--unit={unit}",
                     "bash", "-lc", inner]
             if sudo:
@@ -434,7 +452,7 @@ function renderChart(){
     any = true;
     let i = Math.floor((ms - start) / span * N); if(i<0)i=0; if(i>=N)i=N-1;
     const a = l.action||'sync';
-    if(a==='error') err[i]++; else if(a==='sent'||a==='received'||a==='skipped') ok[i]++;
+    if(a==='error') err[i]++; else if(a==='sent'||a==='received'||a==='skipped'||a==='deleted') ok[i]++;
   }
   if(!any){ wrap.innerHTML = '<div class="muted" style="font-size:11px;padding:10px 2px">No activity in this range</div>'; return; }
   let max = 1; for(let i=0;i<N;i++){ const t=ok[i]+err[i]; if(t>max) max=t; }
@@ -508,7 +526,8 @@ async function resetFilters(){
 
 // ---- sync log ----
 function actionClass(a){
-  if(a==='error'||a==='skipped') return 'b-pending';
+  if(a==='error'||a==='deleted') return 'b-pending';
+  if(a==='skipped') return 'b-pending';
   if(a==='reconnect') return 'b-violet';
   if(a==='sent'||a==='received') return 'b-both';
   return 'b-both';
@@ -589,6 +608,12 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+        # Flush now so a service-op response reaches the client BEFORE the detached
+        # restart can stop this very process (the codesync service serves the panel).
+        try:
+            self.wfile.flush()
+        except Exception:
+            pass
 
     def _send_bytes(self, data: bytes, status: int = 200,
                     content_type: str = "application/octet-stream") -> None:
@@ -785,8 +810,17 @@ class _Handler(BaseHTTPRequestHandler):
             if not server:
                 return self._send_json({"detail": "Server not available"}, status=503)
             normalized = str(body.get("file_path", "")).replace("\\", "/")
-            file_path = server.root_dir / normalized
-            if not file_path.exists():
+            # Contain the read strictly under root_dir: reject "../" traversal and
+            # absolute paths (pathlib drops the left side when the right is absolute,
+            # which would otherwise serve any file on disk to an unauthenticated peer).
+            base = Path(server.root_dir).resolve()
+            try:
+                file_path = (base / normalized).resolve()
+            except Exception:
+                return self._send_json({"detail": "Invalid path"}, status=400)
+            if file_path != base and base not in file_path.parents:
+                return self._send_json({"detail": "Invalid path"}, status=400)
+            if not file_path.is_file():
                 return self._send_json({"detail": f"File not found: {normalized}"}, status=404)
             with open(file_path, "rb") as fh:
                 return self._send_bytes(fh.read())
