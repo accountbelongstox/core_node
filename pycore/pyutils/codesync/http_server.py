@@ -16,6 +16,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,6 +28,12 @@ from .manager import get_manager
 from . import ws_proto
 
 SERVICE_NAME = "codesync"
+
+# A client that disconnects mid-response raises one of these on write; they mean
+# "the caller went away", not a server bug, so we drop them quietly. (BrokenPipe /
+# ConnectionReset / ConnectionAborted are all subclasses of ConnectionError; OSError
+# covers the rest, e.g. EPIPE surfacing as a bare OSError.)
+_CONN_ERRORS = (ConnectionError, OSError)
 
 
 def _manager():
@@ -601,35 +608,31 @@ class _Handler(BaseHTTPRequestHandler):
         except Exception:
             return {}
 
+    def _write_response(self, body: bytes, status: int, content_type: str) -> None:
+        """Write a full response, tolerating a client that disconnected mid-flight.
+        A broken pipe / reset just means the caller went away — drop it quietly
+        instead of letting the exception escape and spam a traceback (and, in the
+        error paths, double-fault when the fallback 500 also can't be written)."""
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            self.wfile.flush()
+        except _CONN_ERRORS:
+            pass
+
     def _send_json(self, obj: Any, status: int = 200) -> None:
         body = json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-        # Flush now so a service-op response reaches the client BEFORE the detached
-        # restart can stop this very process (the codesync service serves the panel).
-        try:
-            self.wfile.flush()
-        except Exception:
-            pass
+        self._write_response(body, status, "application/json; charset=utf-8")
 
     def _send_bytes(self, data: bytes, status: int = 200,
                     content_type: str = "application/octet-stream") -> None:
-        self.send_response(status)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        self._write_response(data, status, content_type)
 
     def _send_html(self, html: str, status: int = 200) -> None:
-        body = html.encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        self._write_response(html.encode("utf-8"), status, "text/html; charset=utf-8")
 
     def log_message(self, fmt, *args):  # silence default stderr access log
         return
@@ -639,8 +642,11 @@ class _Handler(BaseHTTPRequestHandler):
         key = self.headers.get("Sec-WebSocket-Key", "")
         if not key:
             return self._send_json({"detail": "missing Sec-WebSocket-Key"}, status=400)
-        self.wfile.write(ws_proto.server_handshake_response(key))
-        self.wfile.flush()
+        try:
+            self.wfile.write(ws_proto.server_handshake_response(key))
+            self.wfile.flush()
+        except _CONN_ERRORS:
+            return  # client dropped before the upgrade completed
 
         def send(text: str) -> None:
             self.wfile.write(ws_proto.encode_frame(text.encode("utf-8"),
@@ -848,6 +854,18 @@ class _Handler(BaseHTTPRequestHandler):
         return self._send_json({"detail": "Not found"}, status=404)
 
 
+class _QuietThreadingHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer that swallows client-disconnect errors instead of
+    dumping a traceback per dropped request (frequent with health probes / the WS
+    push link). Real server errors are still surfaced."""
+
+    def handle_error(self, request, client_address):
+        exc = sys.exc_info()[1]
+        if isinstance(exc, _CONN_ERRORS):
+            return  # client went away — not a server fault, stay quiet
+        super().handle_error(request, client_address)
+
+
 class CodeSyncHTTPServer:
     """Thin lifecycle wrapper around a ThreadingHTTPServer bound to /code-sync/*."""
 
@@ -858,7 +876,7 @@ class CodeSyncHTTPServer:
         self._thread: Optional[threading.Thread] = None
 
     def start(self) -> None:
-        self._httpd = ThreadingHTTPServer((self.host, self.port), _Handler)
+        self._httpd = _QuietThreadingHTTPServer((self.host, self.port), _Handler)
         self._httpd.daemon_threads = True
         self._thread = threading.Thread(target=self._httpd.serve_forever,
                                         daemon=True, name="CodeSync-HTTP")
