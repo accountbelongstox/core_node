@@ -387,10 +387,19 @@ async def download_file(request: DownloadRequest):
     # Normalize file path - convert Windows backslashes to forward slashes
     normalized_path = request.file_path.replace('\\', '/')
 
-    # Get file path
-    file_path = server.root_dir / normalized_path
+    # Contain the read strictly under root_dir: reject "../" traversal and absolute
+    # paths (pathlib drops the left side when the right is absolute, which would
+    # otherwise serve any file on disk to an unauthenticated peer).
+    from pathlib import Path
+    base = Path(server.root_dir).resolve()
+    try:
+        file_path = (base / normalized_path).resolve()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    if file_path != base and base not in file_path.parents:
+        raise HTTPException(status_code=400, detail="Invalid path")
 
-    if not file_path.exists():
+    if not file_path.is_file():
         raise HTTPException(status_code=404, detail=f"File not found: {normalized_path}")
 
     # Read file content

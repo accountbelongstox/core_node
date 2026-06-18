@@ -481,6 +481,7 @@ const PcCodeSyncPage: React.FC = () => {
   const logActionCls = (action?: string): string => {
     switch (action) {
       case 'error': return 'bg-rose-500/15 text-rose-500';
+      case 'deleted': return 'bg-rose-500/15 text-rose-500';
       case 'skipped': return 'bg-amber-500/15 text-amber-500';
       case 'reconnect': return 'bg-violet-500/15 text-violet-500';
       case 'sent':
@@ -531,9 +532,11 @@ const PcCodeSyncPage: React.FC = () => {
       const ms = tsToMs(l.timestamp);
       if (ms === null || ms < start || ms > now) continue;
       let idx = Math.floor((ms - start) / bw);
-      if (idx < 0) idx = 0; if (idx >= BUCKETS) idx = BUCKETS - 1;
+      if (idx < 0) idx = 0;
+      if (idx >= BUCKETS) idx = BUCKETS - 1;
       if (l.action === 'error') err[idx] += 1;
-      else if (l.action === 'sent' || l.action === 'received' || l.action === 'skipped') ok[idx] += 1;
+      else if (l.action === 'sent' || l.action === 'received'
+               || l.action === 'skipped' || l.action === 'deleted') ok[idx] += 1;
       else ok[idx] += 1;
       total += 1;
     }
@@ -717,7 +720,7 @@ const PcCodeSyncPage: React.FC = () => {
             <Layers className="w-3.5 h-3.5" /> {queuedFiles}
           </span>
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 text-slate-600 dark:text-slate-300"
-            title="Synced this session (sent / received)">
+            title="Recent transfers (sent / received, last 100 log entries)">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> {syncedCount}
           </span>
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 ${errorCount > 0 ? 'text-rose-500' : 'text-slate-400'}`}

@@ -264,6 +264,21 @@ class CodeSyncManager:
         applied = self.config.apply_remote(peers, version, updated_at)
         if applied:
             self._sync_client_targets()
+            # Keep the cached self.role consistent with the config after a
+            # mesh-driven change (apply_remote preserves our own role, so this is
+            # normally a no-op, but it guards the self-not-present edge and any
+            # future config mutation from leaving manager.role stale).
+            cfg_role = self.config.get_role()
+            if cfg_role != self.role:
+                self.role = cfg_role
+                if self.role != "dev":
+                    self.distributing = False
+                self._apply_role(self.role)
+            # If apply_remote had to OVERRIDE a remote-claimed self role, it bumped
+            # our version above the incoming one — re-broadcast so the correction
+            # propagates and wins via LWW (otherwise other nodes keep the bad role).
+            if self.config.version() > int(version):
+                self.mesh.broadcast_config()
             self._broadcast()
         return {"success": True, "applied": applied, "version": self.config.version()}
 
@@ -359,7 +374,15 @@ class CodeSyncManager:
         Aggregate phase = the phase of the first non-idle channel by priority
         (pushing/receiving > retrying); "idle" if every channel is idle. Aggregate
         count = sum of counts over the non-idle channels (0 if none)."""
+        now = time.time()
         with self._sync_lock:
+            # Prune here too (not only on write): a channel that goes idle and never
+            # sees another phase event would otherwise linger forever and the UI
+            # would show a phantom idle pill for a long-gone peer.
+            stale = [c for c, row in self._peer_phases.items()
+                     if row.get("phase") == "idle" and (now - row.get("ts", 0)) > self._PHASE_IDLE_TTL]
+            for c in stale:
+                self._peer_phases.pop(c, None)
             channels = {c: dict(row) for c, row in self._peer_phases.items()}
         active = [row for row in channels.values() if row.get("phase") != "idle"]
         if active:

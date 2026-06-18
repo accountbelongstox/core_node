@@ -352,7 +352,8 @@ def main():
         # Determine target remote
         if not args.target:
             write_color_text("No target specified, using all remotes", "Yellow")
-            targets = ["gitee", "github", "local"]
+            # local temporarily disabled (not reachable or not in use); restore with: ["github", "gitee", "local"]
+            targets = ["github", "gitee"]
         else:
             targets = [args.target]
         

@@ -184,9 +184,12 @@ class PeerConfig:
         pid = peer_id or f"{host}:{port}"
         with self._lock:
             self._ensure_loaded()
+            # Match by id, or by host:port — but NEVER coalesce into our own self
+            # entry (that would let "add peer" silently flip this machine's role).
             existing = self._find_locked(pid) or next(
                 (p for p in self._data["peers"]
-                 if p.get("host") == host and int(p.get("port", 0)) == int(port)), None)
+                 if p.get("id") != self.machine_id
+                 and p.get("host") == host and int(p.get("port", 0)) == int(port)), None)
             if existing:
                 existing.update({"name": name or existing.get("name"), "host": host,
                                  "port": int(port), "role": role})
@@ -260,20 +263,31 @@ class PeerConfig:
                 if p.get("id") == self.machine_id:
                     local_self_role = p.get("role")
                     break
+            # If we have no local record of our own role (self pruned / fresh
+            # .data), default to client — NEVER inherit a remote-claimed dev role.
+            if local_self_role not in VALID_ROLES:
+                local_self_role = "client"
             d["peers"] = [dict(p) for p in (peers or [])]
             d["version"] = int(version)
             d["updated_at"] = float(updated_at)
             # Keep our own entry present (we may have been pruned remotely).
             self._ensure_self_locked()
             # Re-assert our own role over whatever the remote claimed for us.
-            if local_self_role in VALID_ROLES:
-                for p in d["peers"]:
-                    if p.get("id") == self.machine_id and p.get("role") != local_self_role:
-                        p["role"] = local_self_role
-                        break
+            corrected = False
+            for p in d["peers"]:
+                if p.get("id") == self.machine_id and p.get("role") != local_self_role:
+                    p["role"] = local_self_role
+                    corrected = True
+                    break
+            # If we actually overrode a remote-claimed role, become NEWER than the
+            # incoming version so the correction propagates and wins via LWW —
+            # otherwise other nodes keep our wrong role at the same version forever.
+            if corrected:
+                self._bump_locked()
             self._save_locked()
             ColorPrint.blue(f"[PeerConfig] Applied remote config v{version} "
-                            f"({len(d['peers'])} peers)")
+                            f"({len(d['peers'])} peers"
+                            f"{', self-role re-asserted' if corrected else ''})")
             return True
 
 

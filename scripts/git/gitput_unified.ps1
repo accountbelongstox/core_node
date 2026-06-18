@@ -1038,7 +1038,8 @@ try {
     # Determine target remote
     if (-not $TargetRemote) {
         Write-ColorText "No target specified, using all remotes" -ForegroundColor Yellow
-        $targets = @("github", "gitee", "local")
+        # local temporarily disabled (not reachable or not in use); restore with: @("github", "gitee", "local")
+        $targets = @("github", "gitee")
     } else {
         $targets = @($TargetRemote)
     }
