@@ -22,6 +22,7 @@ import {
   OfflineRecheckScheduler,
   clampRecheckInterval,
 } from '../../health/OfflineRecheckScheduler';
+import { rewritePycoreEndpoint } from './pycoreTarget';
 
 export interface PycoreHealthState {
   /** null until the first check finishes. */
@@ -71,7 +72,7 @@ export function checkPycoreNow(): Promise<boolean> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), PYCORE_HEALTH_DEFAULTS.timeout);
     try {
-      const response = await fetch('/pyapi/ping', { signal: controller.signal });
+      const response = await fetch(rewritePycoreEndpoint('/pyapi/ping'), { signal: controller.signal });
       up = response.ok;
     } catch {
       up = false;

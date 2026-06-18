@@ -1,5 +1,4 @@
 import path from 'path';
-import { WebSocketServer } from 'ws';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -78,32 +77,40 @@ export default defineConfig(() => {
             // Only when mocking — otherwise the /pyapi proxy (ws:true) reaches the
             // real pycore RPC WebSocket on :59000.
             if (PYCORE_SANDBOX_MOCK) {
-              const wss = new WebSocketServer({ noServer: true });
-              server.httpServer?.on('upgrade', (req, socket, head) => {
-                const url = req.url || '';
-                if (url.includes('/pyapi/rpc/ws')) {
-                  wss.handleUpgrade(req, socket, head, (ws) => {
-                    wss.emit('connection', ws, req);
-                  });
-                }
-              });
-
-              wss.on('connection', (ws) => {
-                ws.on('message', (message) => {
-                  try {
-                    const data = JSON.parse(message.toString());
-                    if (data.type === 'request') {
-                      let result: any = { success: true };
-                      if (data.route === 'laravel_api.list') {
-                        result = { endpoints: [] };
-                      } else if (data.route === 'video_extract.backend_status') {
-                        result = { status: 'idle' };
-                      }
-                      ws.send(JSON.stringify({ type: 'response', id: data.id, result, error: null }));
-                    }
-                  } catch (err) {
-                    // Ignore
+              // Load 'ws' LAZILY, only in mock mode. The real-pycore path (default)
+              // proxies /pyapi/rpc/ws straight to :59000 and never needs 'ws', so it
+              // must NOT be a hard top-level import -- otherwise a server without the
+              // optional 'ws' package installed crash-loops the dev server with
+              // "Cannot find package 'ws'". Deferring the import keeps the common
+              // real-backend path working with no extra dependency.
+              void import('ws').then(({ WebSocketServer }) => {
+                const wss = new WebSocketServer({ noServer: true });
+                server.httpServer?.on('upgrade', (req, socket, head) => {
+                  const url = req.url || '';
+                  if (url.includes('/pyapi/rpc/ws')) {
+                    wss.handleUpgrade(req, socket, head, (ws) => {
+                      wss.emit('connection', ws, req);
+                    });
                   }
+                });
+
+                wss.on('connection', (ws) => {
+                  ws.on('message', (message) => {
+                    try {
+                      const data = JSON.parse(message.toString());
+                      if (data.type === 'request') {
+                        let result: any = { success: true };
+                        if (data.route === 'laravel_api.list') {
+                          result = { endpoints: [] };
+                        } else if (data.route === 'video_extract.backend_status') {
+                          result = { status: 'idle' };
+                        }
+                        ws.send(JSON.stringify({ type: 'response', id: data.id, result, error: null }));
+                      }
+                    } catch (err) {
+                      // Ignore
+                    }
+                  });
                 });
               });
             }

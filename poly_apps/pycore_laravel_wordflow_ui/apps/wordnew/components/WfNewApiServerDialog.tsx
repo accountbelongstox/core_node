@@ -18,9 +18,10 @@ interface WfNewApiServerDialogProps {
   open: boolean;
   onClose: () => void;
   activeTheme: ElementTheme;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
-export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open, onClose, activeTheme }) => {
+export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open, onClose, activeTheme, trans }) => {
   const { endpoints, health, currentId, testing } = useWfNewEndpoints();
 
   const [newHost, setNewHost] = useState('');
@@ -42,47 +43,47 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
 
   const handleTestAll = useCallback(async () => {
     const ok = await wfNewEndpoints.testAll();
-    if (ok) notify.success('A healthy API endpoint is selected.');
-    else notify.warning('No API endpoint is reachable — retrying in the background.');
-  }, []);
+    if (ok) notify.success(trans('api.toastHealthy'));
+    else notify.warning(trans('api.toastNoneReachable'));
+  }, [trans]);
 
   const handleUse = useCallback((id: string) => {
-    if (wfNewEndpoints.setEndpoint(id)) notify.info('Endpoint selected — verifying…');
-  }, []);
+    if (wfNewEndpoints.setEndpoint(id)) notify.info(trans('api.toastSelected'));
+  }, [trans]);
 
   const handleAdd = useCallback(() => {
     const host = newHost.trim();
-    if (!host) { notify.warning('Enter a host or IP (e.g. 192.168.1.10).'); return; }
+    if (!host) { notify.warning(trans('api.toastEnterHost')); return; }
     wfNewEndpoints.addCustomEndpoint({ url: host, port: newPort || WFNEW_API_PORT });
     setNewHost('');
     setNewPort(WFNEW_API_PORT);
-    notify.success(`Added ${host}:${newPort || WFNEW_API_PORT}`);
+    notify.success(trans('api.toastAdded', { target: `${host}:${newPort || WFNEW_API_PORT}` }));
     void wfNewEndpoints.recheckAndFailover();
-  }, [newHost, newPort]);
+  }, [newHost, newPort, trans]);
 
   const handleRemove = useCallback((id: string) => {
     wfNewEndpoints.removeCustomEndpoint(id);
-    notify.info('Endpoint removed.');
+    notify.info(trans('api.toastRemoved'));
     void wfNewEndpoints.recheckAndFailover();
-  }, []);
+  }, [trans]);
 
   // Test page: probe the current endpoint's health, then a real data call.
   const handleRunProbe = useCallback(async () => {
     const ep = wfNewEndpoints.getCurrentEndpoint();
-    if (!ep) { setProbe({ running: false, text: 'No endpoint selected.', ok: false }); return; }
-    setProbe({ running: true, text: `Probing ${ep.url}:${ep.port ?? ''} …`, ok: null });
+    if (!ep) { setProbe({ running: false, text: trans('api.probeNoEp'), ok: false }); return; }
+    setProbe({ running: true, text: trans('api.probing', { target: `${ep.url}:${ep.port ?? ''}` }), ok: null });
     const h = await wfNewEndpoints.checkEndpoint(ep);
     if (!h.isHealthy) {
-      setProbe({ running: false, ok: false, text: `Health: OFFLINE (${h.error ?? 'error'}) in ${h.responseTime}ms` });
+      setProbe({ running: false, ok: false, text: trans('api.probeOffline', { err: h.error ?? 'error', ms: h.responseTime }) });
       return;
     }
     try {
       const groups = await wfNewApi.getWordGroups();
-      setProbe({ running: false, ok: true, text: `Health OK in ${h.responseTime}ms · /query_all_groups → ${groups.length} groups` });
+      setProbe({ running: false, ok: true, text: trans('api.probeOk', { ms: h.responseTime, n: groups.length }) });
     } catch (e: any) {
-      setProbe({ running: false, ok: false, text: `Health OK (${h.responseTime}ms) but data call failed: ${e?.message ?? 'error'}` });
+      setProbe({ running: false, ok: false, text: trans('api.probeDataFail', { ms: h.responseTime, msg: e?.message ?? 'error' }) });
     }
-  }, []);
+  }, [trans]);
 
   if (!open) return null;
 
@@ -98,7 +99,7 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
           <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-200 dark:border-white/10 backdrop-blur bg-inherit rounded-t-3xl">
             <div className="flex items-center gap-2">
               <Server className="w-5 h-5 text-indigo-500" />
-              <h3 className="text-base font-extrabold tracking-tight">API Server (后端接口节点)</h3>
+              <h3 className="text-base font-extrabold tracking-tight">{trans('api.dialogTitle')}</h3>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -107,9 +108,9 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
                 className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-full border border-indigo-500/20 transition-all disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${testing ? 'animate-spin' : ''}`} />
-                {testing ? 'Testing…' : 'Test & select'}
+                {testing ? trans('api.testing') : trans('api.testSelect')}
               </button>
-              <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-500/10" title="Close">
+              <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-500/10" title={trans('api.close')}>
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -117,8 +118,7 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
 
           <div className="p-6 space-y-5">
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono leading-relaxed">
-              The app auto-tests these endpoints and uses the first available one. If the last working
-              endpoint is still reachable it is reused immediately; if none are reachable it keeps retrying.
+              {trans('api.autoDesc')}
             </p>
 
             {/* Endpoint list */}
@@ -140,14 +140,14 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
                         className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center ${
                           !probed ? 'bg-zinc-400/10 text-zinc-400' : healthy ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
                         }`}
-                        title={!probed ? 'Not tested' : healthy ? `Healthy (${h?.responseTime}ms)` : `Offline (${h?.error ?? 'error'})`}
+                        title={!probed ? trans('api.notTested') : healthy ? trans('api.healthyTitle', { ms: h?.responseTime ?? 0 }) : trans('api.offlineTitle', { err: h?.error ?? 'error' })}
                       >
                         {healthy || !probed ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
                       </span>
                       <div className="min-w-0">
                         <p className="text-xs font-mono font-bold truncate">
                           {ep.protocol}://{ep.url}{ep.port ? `:${ep.port}` : ''}
-                          {isCurrent && <span className="ml-2 text-[9px] uppercase text-indigo-500">● in use</span>}
+                          {isCurrent && <span className="ml-2 text-[9px] uppercase text-indigo-500">{trans('api.inUse')}</span>}
                         </p>
                         <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">
                           {ep.description}{probed ? ` · ${healthy ? `${h?.responseTime}ms` : (h?.error ?? 'offline')}` : ''}
@@ -160,11 +160,11 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
                           onClick={() => handleUse(ep.id)}
                           className="flex items-center gap-1 text-[10px] font-mono font-bold uppercase bg-white/5 hover:bg-indigo-500/15 text-indigo-500 px-2.5 py-1.5 rounded-lg border border-indigo-500/20 transition-all"
                         >
-                          <Check className="w-3 h-3" /> Use
+                          <Check className="w-3 h-3" /> {trans('api.use')}
                         </button>
                       )}
                       {ep.custom && (
-                        <button onClick={() => handleRemove(ep.id)} className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-all" title="Remove endpoint">
+                        <button onClick={() => handleRemove(ep.id)} className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-all" title={trans('api.removeTitle')}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -177,21 +177,21 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
             {/* Add custom endpoint */}
             <div className="pt-1 border-t border-slate-200 dark:border-white/5 space-y-2">
               <label className="text-[11px] font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 block">
-                Add custom endpoint (添加自定义节点)
+                {trans('api.addCustom')}
               </label>
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text" value={newHost} onChange={(e) => setNewHost(e.target.value)}
-                  placeholder="host or IP, e.g. 192.168.1.10"
+                  placeholder={trans('api.phHost')}
                   className={`flex-1 py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`}
                 />
                 <input
                   type="number" value={newPort} onChange={(e) => setNewPort(parseInt(e.target.value, 10) || WFNEW_API_PORT)}
-                  placeholder="port"
+                  placeholder={trans('api.phPort')}
                   className={`w-full sm:w-24 py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`}
                 />
                 <button onClick={handleAdd} className="flex items-center justify-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl transition-all">
-                  <Plus className="w-3.5 h-3.5" /> Add
+                  <Plus className="w-3.5 h-3.5" /> {trans('api.add')}
                 </button>
               </div>
             </div>
@@ -200,7 +200,7 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
             <div className="pt-1 border-t border-slate-200 dark:border-white/5 space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 block">
-                  Test page (接口测试)
+                  {trans('api.testPage')}
                 </label>
                 <button
                   onClick={handleRunProbe}
@@ -208,7 +208,7 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
                   className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-full border border-emerald-500/20 transition-all disabled:opacity-50"
                 >
                   <Activity className={`w-3.5 h-3.5 ${probe.running ? 'animate-pulse' : ''}`} />
-                  {probe.running ? 'Running…' : 'Run test'}
+                  {probe.running ? trans('api.running') : trans('api.runTest')}
                 </button>
               </div>
               <div className={`p-3 rounded-xl text-[11px] font-mono leading-relaxed border ${
@@ -216,7 +216,7 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
                   : probe.ok ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400'
                   : 'border-rose-500/30 bg-rose-500/5 text-rose-500'
               }`}>
-                {probe.text || 'Probe the current endpoint health, then make a real /query_all_groups call.'}
+                {probe.text || trans('api.probeHint')}
               </div>
             </div>
           </div>

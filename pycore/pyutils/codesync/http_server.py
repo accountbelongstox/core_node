@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional
 
 from .runtime import log as ColorPrint
 from .manager import get_manager
+from . import ws_proto
 
 
 def _manager():
@@ -104,6 +105,7 @@ PANEL_HTML = r"""<!doctype html>
       <div class="stat"><div class="k">Code</div><div class="v" id="s-code">-</div></div>
     </div>
     <div class="row" id="self-toggle" style="margin-top:12px"></div>
+    <div class="sub" id="self-watch" style="margin-top:10px"></div>
   </div>
 
   <div class="card">
@@ -169,6 +171,7 @@ function setConn(ok){ const c=$('#conn'); c.textContent = ok?'online':'offline';
 let SELF = null;
 function renderSelf(s){
   SELF = s || {};
+  renderWatch(SELF);
   $('#s-name').textContent = s.name || '-';
   $('#s-host').textContent = s.hostname || '-';
   $('#s-ip').textContent   = s.lan_ip || '-';
@@ -217,6 +220,7 @@ async function load(){
 // ---- filter settings ----
 let FILTERS = null, FILTERS_DIRTY = false;
 const FKEYS = [
+  ['watch_dirs','Watched directories (empty = project root)','project root'],
   ['excluded_dirs','Excluded folders','node_modules'],
   ['excluded_files','Excluded files','secret.json'],
   ['excluded_extensions','Excluded extensions','.log'],
@@ -244,6 +248,14 @@ function renderFilters(){
   }).join('');
   $('#gi-switch').className = 'switch' + (FILTERS.apply_gitignore ? ' on' : '');
   $('#filters-save').disabled = !FILTERS_DIRTY;
+}
+function renderWatch(s){
+  const wd = (s.watch_dirs && s.watch_dirs.length) ? s.watch_dirs.join(' · ') : (s.watch_root || '-');
+  const ph = s.sync_phase || {};
+  const phTxt = (ph.phase && ph.phase !== 'idle')
+    ? ' · <b style="color:#818cf8;text-transform:uppercase">' + esc(ph.phase) + (ph.count ? (' ' + ph.count) : '') + '</b>'
+    : '';
+  $('#self-watch').innerHTML = '📂 Watching: <span class="mono">' + esc(wd) + '</span>' + phTxt;
 }
 function addChip(key){
   const el = document.getElementById('chip-'+key); const v=(el.value||'').trim();
@@ -342,10 +354,47 @@ class _Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # silence default stderr access log
         return
 
+    # ---- WebSocket push receiver (this node accepts; the dev pushes) ------ #
+    def _serve_ws(self) -> None:
+        key = self.headers.get("Sec-WebSocket-Key", "")
+        if not key:
+            return self._send_json({"detail": "missing Sec-WebSocket-Key"}, status=400)
+        self.wfile.write(ws_proto.server_handshake_response(key))
+        self.wfile.flush()
+
+        def send(text: str) -> None:
+            self.wfile.write(ws_proto.encode_frame(text.encode("utf-8"),
+                                                   ws_proto.OP_TEXT, mask=False))
+            self.wfile.flush()
+
+        receiver = _manager().push_receiver
+        try:
+            while True:
+                op, payload = ws_proto.read_message(self.rfile.read)
+                if op == ws_proto.OP_CLOSE:
+                    break
+                if op == ws_proto.OP_PING:
+                    self.wfile.write(ws_proto.encode_frame(payload, ws_proto.OP_PONG, mask=False))
+                    self.wfile.flush()
+                    continue
+                if not receiver.handle_text(payload.decode("utf-8"), send):
+                    break
+        except (ConnectionError, OSError):
+            pass
+        except Exception as exc:
+            ColorPrint.yellow(f"[CodeSync WS] receiver error: {exc}")
+
     # ---- routing ---------------------------------------------------------- #
     def do_GET(self):
         path = self.path.split("?", 1)[0].rstrip("/") or "/"
         try:
+            # WS push channel: the dev dials in here and pushes files (this node is
+            # the WS server / receiver). Upgrade then loop applying pushed frames.
+            # NOTE: full pycore does NOT run this standalone server — it serves the
+            # SAME /code-sync/ws receiver on its rpc_v2 app (:59000) via
+            # callmodule/config.py::_register_code_sync_ws. Keep both in sync.
+            if path == "/code-sync/ws" and "websocket" in self.headers.get("Upgrade", "").lower():
+                return self._serve_ws()
             if path == "/":
                 # Standalone mode only: a self-contained, build-free control panel.
                 # (Full pycore serves its React UI instead and never starts this server.)

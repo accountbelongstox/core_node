@@ -30,7 +30,7 @@
             }
         </style>
 
-        <title inertia>{{ config('app.name', 'GolangDict') }}</title>
+        <title inertia>{{ config('app.name', 'LaravelMain') }}</title>
 
         @routes
         @vite(['resources/js/app.ts'])

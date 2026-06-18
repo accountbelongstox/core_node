@@ -15,15 +15,18 @@ Persistence lives in the unified user-data store (user_data.json) under the
 ``laravel_api`` section:
 
     "laravel_api": {
-        "endpoints": ["http://127.0.0.1:9000", "http://localhost:9000", ...],
-        "current": "http://127.0.0.1:9000"        # or null
+        "endpoints": ["http://127.0.0.1:9000", "http://100.101.149.39:9000", ...],
+        "current": "http://127.0.0.1:9000",       # or null
+        "seed_version": 3                          # default-set migration marker
     }
 
-The candidate list is seeded once from today's defaults — the configured
-LARAVEL_WORKER_API_URL plus the translation worker's local/LAN fallbacks
-(TranslationWorkerService._build_candidates) plus http://localhost:9000 and
-http://127.0.0.1:9000 — and is user-editable afterwards via the
-``laravel_api.*`` RPC routes (registered in callmodule/config.py).
+The candidate list is seeded from the defaults below — the loopback
+(http://127.0.0.1:9000; localhost is merged into it) plus the named
+cross-machine hosts (_NAMED_DEFAULTS, all :9000), with an explicitly configured
+LARAVEL_WORKER_API_URL honored first — and is user-editable afterwards via the
+``laravel_api.*`` RPC routes (registered in callmodule/config.py). A SEED_VERSION
+bump migrates an already-persisted list once (prune 192.168.* + merge new
+defaults; see _load).
 
 Health probe: GET {base}/api/health — laravel_main's liveness-only route
 (routes/api.php; no DB, no auth, heavy middleware stripped). The parallel sweep
@@ -41,6 +44,7 @@ Architecture / layering (pycore rules):
 """
 
 import os
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -49,7 +53,6 @@ from typing import Any, Dict, List, Optional
 from pycore import ColorPrint, get_user_data_store
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.callmodule_config.config import Config as CallmoduleConfig
-from pycore.callmodule.services.translation_worker_service import TranslationWorkerService
 
 
 # --------------------------------------------------------------------------- #
@@ -73,18 +76,39 @@ STORED_PROBE_RETRIES = 1
 # After a fully-failed sweep, don't re-sweep for this long (avoid hammering a
 # down backend from periodic callers like backend_status).
 FAILED_SWEEP_TTL = 10.0
-# Baseline local defaults that must always be part of the seed.
-_BASE_DEFAULTS = ["http://localhost:9000", "http://127.0.0.1:9000"]
+# Baseline local default — the loopback (local-first so a laravel on the same
+# box as pycore is the fast happy path). `localhost` is merged into 127.0.0.1
+# by _normalize, so only this single loopback entry ever appears.
+_BASE_DEFAULTS = ["http://127.0.0.1:9000"]
+# Named cross-machine defaults (mesh / cloud), all on the laravel port 9000.
+# These replace the old LAN-only fallbacks (192.168.50.x). Edit here to change
+# the seeded list; the browser's current origin (:9000) is added FE-side
+# (PcLaravelEndpointProvider) since the backend has no window.
+_NAMED_DEFAULTS = [
+    "http://100.101.149.39:9000",  # Dev Machine
+    "http://43.163.112.77:9000",   # Tencent Cloud SG
+    "http://100.106.85.16:9000",   # tailscale (Ace)
+]
+# Bump when the default candidate set changes — triggers a ONE-TIME migration on
+# load (see _load): prune unwanted 192.168.* endpoints + merge new defaults in,
+# without re-adding ones the user has since removed.
+SEED_VERSION = 3
 
 
 def _normalize(url: Optional[str]) -> str:
-    """Normalized endpoint URL: stripped, scheme-prefixed, no trailing slash."""
+    """Normalized endpoint URL: stripped, scheme-prefixed, no trailing slash.
+
+    Also merges ``localhost`` into ``127.0.0.1`` (the same loopback host) so the
+    two never show up as separate endpoints.
+    """
     u = (url or "").strip()
     if not u:
         return ""
     if not (u.startswith("http://") or u.startswith("https://")):
         u = "http://" + u
-    return u.rstrip("/")
+    u = u.rstrip("/")
+    u = re.sub(r"^(https?://)localhost(?=[:/]|$)", r"\g<1>127.0.0.1", u)
+    return u
 
 
 class LaravelEndpointManager:
@@ -102,23 +126,38 @@ class LaravelEndpointManager:
     # ----------------------------------------------------------------- #
     @staticmethod
     def _default_candidates() -> List[str]:
-        """Today's default candidates: configured primary + worker fallbacks."""
-        primary = (getattr(CallmoduleConfig, "LARAVEL_WORKER_API_URL", None)
-                   or os.getenv("LARAVEL_WORKER_API_URL")
-                   or "http://127.0.0.1:9000")
-        try:
-            candidates = TranslationWorkerService._build_candidates(primary)
-        except Exception:
-            candidates = [primary]
+        """Default candidates: optional configured primary, the loopback
+        (127.0.0.1; localhost merged in), then the named cross-machine hosts
+        (all :9000).
+
+        An explicitly configured LARAVEL_WORKER_API_URL (env or callmodule
+        Config) is honored first so a deployment override still wins; otherwise
+        the seed is purely the local + named defaults below. The browser's
+        current origin (:9000) is added FE-side, not here.
+        """
+        configured = (getattr(CallmoduleConfig, "LARAVEL_WORKER_API_URL", None)
+                      or os.getenv("LARAVEL_WORKER_API_URL"))
         ordered: List[str] = []
-        for url in list(candidates) + _BASE_DEFAULTS:
+        seed: List[str] = []
+        if configured:
+            seed.append(configured)
+        seed.extend(_BASE_DEFAULTS)
+        seed.extend(_NAMED_DEFAULTS)
+        for url in seed:
             u = _normalize(url)
             if u and u not in ordered:
                 ordered.append(u)
         return ordered
 
     def _load(self) -> Dict[str, Any]:
-        """Load {endpoints, current} from the store, seeding defaults once."""
+        """Load {endpoints, current} from the store, seeding defaults once.
+
+        On a SEED_VERSION bump, the current defaults are merged ONCE into an
+        already-persisted list (new endpoints appended, existing order kept),
+        so existing installs pick up new defaults without re-adding any the user
+        has since removed. Endpoints that used to be defaults but no longer are
+        (e.g. the old 192.168.50.x) simply become removable ``custom`` rows.
+        """
         section = get_user_data_store().get_section(USER_DATA_SECTION) or {}
         endpoints = [
             _normalize(u) for u in (section.get("endpoints") or []) if _normalize(u)
@@ -130,20 +169,39 @@ class LaravelEndpointManager:
                 seen.append(u)
         endpoints = seen
         current = _normalize(section.get("current")) or None
+        stored_seed_version = int(section.get("seed_version") or 0)
         if not endpoints:
             endpoints = self._default_candidates()
             self._save(endpoints, current)
             ColorPrint.blue(
                 f"[LaravelEndpoints] Seeded {len(endpoints)} default endpoint(s)")
+        elif stored_seed_version < SEED_VERSION:
+            # One-time migration: drop unwanted 192.168.* endpoints (localhost is
+            # already merged into 127.0.0.1 by _normalize), then append any new
+            # defaults missing from the list.
+            pruned = [u for u in endpoints if "//192.168." in u]
+            if pruned:
+                endpoints = [u for u in endpoints if u not in pruned]
+                if current in pruned:
+                    current = None  # stored choice was pruned -> let resolve re-pick
+            added = [u for u in self._default_candidates() if u not in endpoints]
+            if added:
+                endpoints = endpoints + added
+            self._save(endpoints, current)
+            ColorPrint.blue(
+                f"[LaravelEndpoints] Migrated to seed v{SEED_VERSION} "
+                f"(-{len(pruned)} legacy, +{len(added)} default endpoint(s))")
         if current and current not in endpoints:
             endpoints = [current] + endpoints
         return {"endpoints": endpoints, "current": current}
 
     @staticmethod
     def _save(endpoints: List[str], current: Optional[str]) -> None:
-        """Persist {endpoints, current} to user_data.json (atomic store save)."""
+        """Persist {endpoints, current, seed_version} to user_data.json."""
         get_user_data_store().set_section(
-            USER_DATA_SECTION, {"endpoints": list(endpoints), "current": current})
+            USER_DATA_SECTION,
+            {"endpoints": list(endpoints), "current": current,
+             "seed_version": SEED_VERSION})
 
     # ----------------------------------------------------------------- #
     # Probing                                                            #

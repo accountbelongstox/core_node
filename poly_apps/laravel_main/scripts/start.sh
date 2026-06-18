@@ -293,6 +293,21 @@ compute_mem_limit() {
     if [ "$quarter" -gt "$cap_mb" ]; then echo "${cap_mb}M"; else echo "${quarter}M"; fi
 }
 
+# True (0) when this distro is running under WSL (any of the standard markers).
+is_wsl() {
+    grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null \
+        || [ -n "${WSL_DISTRO_NAME:-}" ] || [ -n "${WSL_INTEROP:-}" ]
+}
+
+# True (0) when systemd is the active init (PID 1) and systemctl can actually operate.
+# /run/systemd/system exists ONLY when systemd booted as PID 1; without it systemctl
+# fails with "System has not been booted with systemd as init system" / "Failed to
+# connect to bus" -- common on WSL distros not started with `systemd=true`, and in
+# plain containers. We check this up front so we never leak those raw bus errors.
+systemd_available() {
+    [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1
+}
+
 # Register (or refresh) the laravel_main systemd service via debian_service_manager.
 # Writes /etc/systemd/system -> needs root; falls back to sudo. The unit is composed
 # by create_systemd_service (CPUQuota + MemoryMax/High + auto restart). The manager's
@@ -324,35 +339,6 @@ register_laravel_service() {
     echo "ERROR: Need root (or sudo) to register a systemd service. Re-run as root."
     return 1
 }
-
-# --- Optional background service registration (runs BEFORE heavy setup) ---
-# A normal invocation (not the service itself) may install a systemd unit that
-# runs this same idempotent start.sh (full setup + Octane) in the background, then
-# exit. The unit sets LARAVEL_SERVICE_RUN=1 so the in-service run skips this block
-# and proceeds to the foreground setup + server.
-if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
-    if [ -z "$AS_SERVICE" ]; then
-        if ask_default_yes "Add laravel_main to a background systemd service (via debian_service_manager)?"; then
-            AS_SERVICE="yes"
-        else
-            AS_SERVICE="no"
-        fi
-    fi
-    if [ "$AS_SERVICE" = "yes" ]; then
-        [ -n "$LARAVEL_SERVICE_MEM" ] || LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
-        echo "Registering systemd service $LARAVEL_SERVICE_NAME (CPU=$LARAVEL_SERVICE_CPU, Memory=$LARAVEL_SERVICE_MEM, cap ${LARAVEL_SERVICE_MEM_CAP_MB}M)..."
-        SERVICE_EXEC_CMD="LARAVEL_SERVICE_RUN=1 PORT=${PORT} bash ${SELF}"
-        if register_laravel_service "$SERVICE_EXEC_CMD"; then
-            echo "Service $LARAVEL_SERVICE_NAME registered and started (full idempotent setup runs inside the service)."
-            echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_NAME"
-            echo "  Boot:    systemctl is-enabled $LARAVEL_SERVICE_NAME"
-            echo "  Logs:    journalctl -u $LARAVEL_SERVICE_NAME -f"
-            exit 0
-        else
-            echo "Service registration failed; continuing in the foreground."
-        fi
-    fi
-fi
 
 echo "Initial directory (invocation): $ORIGINAL_DIR"
 echo "Working directory (Laravel root): $LARAVEL_DIR"
@@ -736,6 +722,58 @@ fi
 # server gracefully first (native octane:stop), then frees the port.
 echo "Ensuring port ${PORT} is free..."
 ensure_port_free "$PORT" "$PHP_BIN" || echo "  Continuing; the runtime may fail to bind if the port is truly occupied."
+
+# --- Optional background service registration (AFTER the full prerequisite setup) ---
+# All prerequisites (php/composer/pg/migrate/swoole/node/sys:init/...) are done by
+# this point. Only now do we ask whether to install a background systemd unit. When
+# accepted, register a unit that runs this same idempotent start.sh (it sets
+# LARAVEL_SERVICE_RUN=1, so the in-service run skips this block and goes straight to
+# the server below), then exit. The --service / --no-service flags (and AS_SERVICE
+# env) pre-answer the prompt for non-interactive callers (e.g. the orchestrator).
+if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
+    # A systemd unit is only meaningful when systemd is the active init. If it is not
+    # (WSL without `systemd=true`, containers, ...), don't ask and don't attempt the
+    # registration -- that would only emit raw "not been booted with systemd" / bus
+    # errors. Show a differentiated hint (WSL-aware) and fall through to foreground.
+    if [ "$AS_SERVICE" != "no" ] && ! systemd_available; then
+        echo ""
+        if is_wsl; then
+            echo "ℹ️  Background systemd service unavailable: this WSL distro was not booted with systemd."
+            echo "    (systemctl would fail with 'System has not been booted with systemd as init system'.)"
+            echo "    To enable it (optional): add the following to /etc/wsl.conf, then run 'wsl --shutdown'"
+            echo "    from Windows PowerShell and reopen the distro:"
+            echo "        [boot]"
+            echo "        systemd=true"
+            echo "    For now, laravel_main will run in the FOREGROUND in this terminal (Ctrl+C to stop)."
+        else
+            echo "ℹ️  Background systemd service unavailable: systemd is not the active init (no /run/systemd/system)."
+            echo "    Running under a non-systemd init/container -> laravel_main will run in the FOREGROUND (Ctrl+C to stop)."
+        fi
+        echo ""
+        AS_SERVICE="no"
+    fi
+    if [ -z "$AS_SERVICE" ]; then
+        if ask_default_yes "Prerequisites ready. Add laravel_main to a background systemd service (via debian_service_manager)?"; then
+            AS_SERVICE="yes"
+        else
+            AS_SERVICE="no"
+        fi
+    fi
+    if [ "$AS_SERVICE" = "yes" ]; then
+        [ -n "$LARAVEL_SERVICE_MEM" ] || LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
+        echo "Registering systemd service $LARAVEL_SERVICE_NAME (CPU=$LARAVEL_SERVICE_CPU, Memory=$LARAVEL_SERVICE_MEM, cap ${LARAVEL_SERVICE_MEM_CAP_MB}M)..."
+        SERVICE_EXEC_CMD="LARAVEL_SERVICE_RUN=1 PORT=${PORT} bash ${SELF}"
+        if register_laravel_service "$SERVICE_EXEC_CMD"; then
+            echo "Service $LARAVEL_SERVICE_NAME registered and started."
+            echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_NAME"
+            echo "  Boot:    systemctl is-enabled $LARAVEL_SERVICE_NAME"
+            echo "  Logs:    journalctl -u $LARAVEL_SERVICE_NAME -f"
+            exit 0
+        else
+            echo "Service registration failed; continuing in the foreground."
+        fi
+    fi
+fi
 
 # --- Start runtime ---
 # PRIMARY (Linux/WSL): Laravel Octane on Swoole. Octane is the SINGLE driver for the

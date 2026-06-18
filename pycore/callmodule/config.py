@@ -22,7 +22,7 @@ except ImportError:
     TKINTER_AVAILABLE = False
 
 from pycore import ColorPrint, THREAD_BUS, get_user_data_store
-from pycore.pyfoundations.third_party import get_third_package_requests
+from pycore.pyfoundations.third_party import get_third_package_requests, get_third_package_fastapi
 from pycore.pylauncher import LauncherConfig
 from pycore.pyutils.codesync import get_code_sync_manager, configure as configure_codesync
 from pycore.pyutils.native_ui.step0_i18n import i18n
@@ -184,6 +184,56 @@ def build_tray_service_config(port: int, singleton_port: int = None) -> dict:
         # (Ubuntu). "pystray" forces the cross-platform fallback.
         'backend': CallmoduleConfig.TRAY_BACKEND,
     }
+
+
+def _register_code_sync_ws(app) -> None:
+    """Serve the Code Sync file-push RECEIVER (``/code-sync/ws``) on the rpc_v2
+    FastAPI app (:59000).
+
+    Channel map (see CODE_SYNC_MESH.md): the UI talks to pycore over ``/rpc/ws``
+    (:59000); pycore talks to laravel over :9000 (the "Laravel endpoint"
+    selection); and the dev→client code-sync file push dials INTO each client
+    peer here, at ``/code-sync/ws`` on the SAME :59000 server.
+
+    Previously this WS route existed ONLY in the standalone codesync daemon
+    (``pyutils/codesync/http_server.py``), which full pycore never starts — so a
+    peer running full pycore answered ``WsPush`` handshakes with ``404 Not
+    Found``. Registering it here closes that gap: the receiver runs on the live
+    server every peer already exposes on :59000.
+
+    Bridges Starlette's async WebSocket to the library's SYNC
+    ``PushReceiver.handle_text(text, send)``: each frame is applied on a worker
+    thread (file I/O) and its replies are scheduled back on the server loop.
+    """
+    fastapi_pkg = get_third_package_fastapi()
+    WebSocketDisconnect = fastapi_pkg.WebSocketDisconnect
+
+    @app.websocket("/code-sync/ws")
+    async def code_sync_ws(websocket):
+        await websocket.accept()
+        receiver = get_code_sync_manager().push_receiver
+        loop = asyncio.get_running_loop()
+
+        def send(text: str) -> None:
+            # Called from the worker thread inside handle_text(); hand the reply
+            # back to the server loop (cross-thread safe, fire-and-forget).
+            asyncio.run_coroutine_threadsafe(websocket.send_text(text), loop)
+
+        try:
+            while True:
+                text = await websocket.receive_text()
+                keep = await asyncio.to_thread(receiver.handle_text, text, send)
+                if not keep:
+                    break
+        except WebSocketDisconnect:
+            pass
+        except Exception as exc:
+            ColorPrint.yellow(f"[CodeSync WS] receiver error: {exc}")
+        finally:
+            try:
+                await websocket.close()
+            except Exception:
+                pass
 
 
 def _init_rpc_routes(server):
@@ -517,6 +567,11 @@ def _init_rpc_routes(server):
                 register_shutdown_handler=THREAD_BUS.register_shutdown_handler,
             )
             get_code_sync_manager()
+            # Serve the codesync file-push receiver (/code-sync/ws) on THIS
+            # rpc_v2 server (:59000) so peers running full pycore accept the
+            # dev's pushes — closes the "ws handshake failed: 404" gap where the
+            # route only existed in the never-started standalone daemon.
+            _register_code_sync_ws(server.app)
         except Exception as e:
             ColorPrint.yellow(f"[ConfigBuilder] Code Sync manager warm-up failed: {e}")
         # Live backend output -> UI ('pycore_log') needs NO wiring here: ColorPrint

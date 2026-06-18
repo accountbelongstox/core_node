@@ -277,6 +277,22 @@ class CodeSyncServer:
 
         return changed
 
+    def set_client_baseline(self, client_id: str) -> int:
+        """Mark a client as ALREADY in sync with the CURRENT tree without sending
+        anything — only files created/modified afterwards count as changes. This is
+        the WS-push model: we never bulk-ship the existing tree, we only push deltas
+        (and the receiver skips any file whose hash already matches). Returns the
+        baseline file count."""
+        self._scan_if_needed()
+        with self.file_cache_lock:
+            cache = dict(self.file_cache)
+        with self.clients_lock:
+            c = self.clients.get(client_id)
+            if c is not None:
+                c.mark_files_synced(cache)
+                c.is_initial_sync_done = True
+        return len(cache)
+
     def _scan_if_needed(self):
         """
         Scan files only if needed (on-demand)

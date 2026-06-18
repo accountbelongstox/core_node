@@ -862,7 +862,7 @@ class UserSyncService
 
             if (!$insertPending && !$enrichPending) {
                 if (PHP_SAPI === 'cli') {
-                    echo "      [Step2/promote:{$langCode}] up-to-date ({$stagingTotal} staged, already promoted) -> skip\n";
+                    echo "      [Step2 promote staging->formal:{$langCode}] up-to-date ({$stagingTotal} staged rows already in formal table) -> skip\n";
                     flush();
                 }
                 return ['lang' => $langCode, 'skipped' => true, 'reason' => 'already_promoted', 'staging' => $stagingTotal, 'message' => "{$langCode}: {$stagingTotal} staged rows already promoted"];
@@ -956,13 +956,13 @@ class UserSyncService
             $processed += count($rows);
             $chunkNo++;
             if (PHP_SAPI === 'cli' && ($chunkNo % 10 === 0)) {
-                echo "      [Step2/promote:{$langCode}] processed {$processed}/{$stagingTotal}, inserted {$inserted}, enriched {$enriched}\n";
+                echo "      [Step2 promote staging->formal:{$langCode}] staging->formal {$processed}/{$stagingTotal} (inserted into formal {$inserted}, enriched existing {$enriched})...\n";
                 flush();
             }
         });
 
         if (PHP_SAPI === 'cli') {
-            echo "      [Step2/promote:{$langCode}] processed {$processed}/{$stagingTotal}, inserted {$inserted}, enriched {$enriched} (done)\n";
+            echo "      [Step2 promote staging->formal:{$langCode}] staging->formal {$processed}/{$stagingTotal} (inserted into formal {$inserted}, enriched existing {$enriched}) (done)\n";
             flush();
         }
 
@@ -1098,7 +1098,7 @@ class UserSyncService
                     $batch = [];
                     // Real-time progress (throttled newline; visible in captured logs).
                     if (PHP_SAPI === 'cli' && $processed % 10000 === 0) {
-                        echo "      [Step2/translations] processed {$processed} (updated {$updated}, inserted {$inserted})...\n";
+                        echo "      [Step2 load->staging:translations] enriching staging table: processed {$processed} (updated {$updated}, inserted {$inserted}; still staging, not formal)...\n";
                         flush();
                     }
                 }
@@ -1114,7 +1114,7 @@ class UserSyncService
         fclose($handle);
 
         if (PHP_SAPI === 'cli') {
-            echo "      [Step2/translations] processed {$processed} (updated {$updated}, inserted {$inserted}) (done)\n";
+            echo "      [Step2 load->staging:translations] enriched staging table: processed {$processed} (updated {$updated}, inserted {$inserted}) (done; promote step moves them to formal)\n";
             flush();
         }
         
@@ -1402,7 +1402,7 @@ class UserSyncService
                 $batch = [];
                 // Real-time progress (throttled newline; visible in captured logs).
                 if (PHP_SAPI === 'cli' && ($imported % 10000 === 0)) {
-                    echo "      [Step2/words] staged {$imported} words...\n";
+                    echo "      [Step2 load->staging:words] loaded {$imported} words into staging table (not yet in formal)...\n";
                     flush();
                 }
             }
@@ -1417,7 +1417,7 @@ class UserSyncService
         fclose($handle);
 
         if (PHP_SAPI === 'cli') {
-            echo "      [Step2/words] staged {$imported} words (done)\n";
+            echo "      [Step2 load->staging:words] loaded {$imported} words into staging table (done; promote step moves them to formal)\n";
             flush();
         }
 

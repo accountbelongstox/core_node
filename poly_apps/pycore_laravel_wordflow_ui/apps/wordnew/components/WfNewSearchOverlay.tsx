@@ -14,7 +14,7 @@ interface WfNewSearchOverlayProps {
   onToggleFavorite: (word: Word) => void;
   onSelectWord: (word: Word) => void;
   onPlayAudio: (word: Word) => void;
-  trans: (key: string) => string;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
   activeTheme: ElementTheme;
   dark?: boolean;
 }
@@ -119,16 +119,16 @@ export const WfNewSearchOverlay: React.FC<WfNewSearchOverlayProps> = ({
               </button>
             </div>
 
-            {/* Language filter ribbon wrapper (可以查询并选择搜索语种) */}
+            {/* Language filter ribbon wrapper */}
             <div className={`flex gap-2 mb-4 items-center overflow-x-auto pb-2 select-none no-scrollbar border-b ${dark ? 'border-white/5' : 'border-zinc-200'}`}>
-              <span className={`text-[10px] font-mono font-bold tracking-wider uppercase whitespace-nowrap ${dark ? 'text-zinc-500' : 'text-zinc-500'}`}>Filter Language (搜索语种):</span>
+              <span className={`text-[10px] font-mono font-bold tracking-wider uppercase whitespace-nowrap ${dark ? 'text-zinc-500' : 'text-zinc-500'}`}>{trans('search.filterLang')}:</span>
               <div className="flex gap-1.5 pl-1">
                 {[
-                  { code: 'all', label: 'All 🌐' },
-                  { code: 'en', label: 'English 🇺🇸' },
-                  { code: 'fr', label: 'French 🇫🇷' },
-                  { code: 'de', label: 'German 🇩🇪' },
-                  { code: 'es', label: 'Spanish 🇪🇸' }
+                  { code: 'all', label: `${trans('search.langAll')} 🌐` },
+                  { code: 'en', label: `${trans('lang.name.en')} 🇺🇸` },
+                  { code: 'fr', label: `${trans('lang.name.fr')} 🇫🇷` },
+                  { code: 'de', label: `${trans('lang.name.de')} 🇩🇪` },
+                  { code: 'es', label: `${trans('lang.name.es')} 🇪🇸` }
                 ].map((langItem) => {
                   const isSelected = selectedLangCode === langItem.code;
                   return (
@@ -177,7 +177,7 @@ export const WfNewSearchOverlay: React.FC<WfNewSearchOverlayProps> = ({
 
               {!searching && searchQuery && finalFilteredWords.length === 0 && (
                 <div className="text-zinc-500 text-center py-12 text-xs font-mono">
-                  {trans('search.noresults')} (No match under active {selectedLangCode} selector)
+                  {trans('search.noresults')} {trans('search.noMatchSuffix', { code: selectedLangCode })}
                 </div>
               )}
 
@@ -207,7 +207,7 @@ export const WfNewSearchOverlay: React.FC<WfNewSearchOverlayProps> = ({
                           className={`w-9 h-9 rounded-full flex items-center justify-center transition-transform hover:scale-105 ${
                             dark ? 'bg-white/5 hover:bg-white/10 text-zinc-300' : 'bg-white hover:bg-zinc-200 text-zinc-700 border border-zinc-200'
                           }`}
-                          title="Speak Pronunciation"
+                          title={trans('tip.speak')}
                         >
                           <Volume2 className="w-4 h-4" />
                         </button>
@@ -216,7 +216,7 @@ export const WfNewSearchOverlay: React.FC<WfNewSearchOverlayProps> = ({
                           className={`w-9 h-9 rounded-full flex items-center justify-center transition-transform hover:scale-105 ${
                             dark ? 'bg-white/5 hover:bg-white/10' : 'bg-white hover:bg-zinc-200 border border-zinc-200'
                           }`}
-                          title="Save Bookmark"
+                          title={trans('search.saveBookmark')}
                         >
                           <Star className={`w-4 h-4 ${isFav ? 'fill-amber-400 text-amber-400' : dark ? 'text-zinc-500' : 'text-zinc-400'}`} />
                         </button>

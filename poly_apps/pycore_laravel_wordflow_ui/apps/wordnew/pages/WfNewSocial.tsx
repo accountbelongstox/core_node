@@ -429,13 +429,13 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
           </div>
           <div>
             <h3 className="text-lg font-black text-slate-100 flex items-center gap-2">
-              WordFlow Social Corridor
+              {trans('social.title')}
               <span className="text-[10px] bg-indigo-500/15 text-indigo-300 font-mono py-0.5 px-2 rounded-full border border-indigo-500/5">
                 Beta v2
               </span>
             </h3>
             <p className="text-zinc-500 text-xs font-mono">
-              Synchronize with cosmic bilingual learners, query tags, and trigger acoustic voice message exchanges
+              {trans('social.subtitle')}
             </p>
           </div>
         </div>
@@ -450,7 +450,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            🌌 Moments Feed
+            {trans('social.tabFeed')}
           </button>
           <button
             onClick={() => setActiveSubTab('partners')}
@@ -460,7 +460,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            🧭 Partner Search
+            {trans('social.tabPartners')}
           </button>
           <button
             onClick={() => setActiveSubTab('direct_chat')}
@@ -470,7 +470,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            💬 Active Rooms
+            {trans('social.tabRooms')}
             {activeFriendList.length > 0 && (
               <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -501,24 +501,24 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                     <textarea
                       value={newPostContent}
                       onChange={(e) => setNewPostContent(e.target.value)}
-                      placeholder="Share a multi-lingual linguistic breakthrough, cosmic quote, or learning milestone..."
+                      placeholder={trans('social.composePh')}
                       className="w-full bg-transparent border-0 outline-none resize-none text-xs font-sans text-slate-100 placeholder-zinc-500 h-20"
                     />
                     
                     {/* Tag bar */}
                     <div className="flex justify-between items-center pt-2 border-t border-white/5 flex-wrap gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-zinc-500 font-mono">Attachment tag:</span>
+                        <span className="text-[10px] text-zinc-500 font-mono">{trans('social.attachTag')}</span>
                         <select
                           value={newPostLang}
                           onChange={(e) => setNewPostPostLang(e.target.value)}
                           className="bg-slate-900/80 text-zinc-300 font-mono text-[10px] border border-white/10 rounded-lg py-1 px-2 cursor-pointer outline-none"
                         >
-                          <option value="en">🇺🇸 English</option>
-                          <option value="fr">🇫🇷 French</option>
-                          <option value="ja">🇯🇵 Japanese</option>
-                          <option value="es">🇪🇸 Spanish</option>
-                          <option value="ko">🇰🇷 Korean</option>
+                          <option value="en">🇺🇸 {trans('lang.name.en')}</option>
+                          <option value="fr">🇫🇷 {trans('lang.name.fr')}</option>
+                          <option value="ja">🇯🇵 {trans('lang.name.ja')}</option>
+                          <option value="es">🇪🇸 {trans('lang.name.es')}</option>
+                          <option value="ko">🇰🇷 {trans('lang.name.ko')}</option>
                         </select>
                       </div>
 
@@ -527,7 +527,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                         className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white font-mono text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-1.5"
                       >
                         <Share2 className="w-3.5 h-3.5" />
-                        <span>Broadcast (发布瞬间)</span>
+                        <span>{trans('social.broadcast')}</span>
                       </button>
                     </div>
                   </div>
@@ -580,7 +580,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                           }`}
                         >
                           <Heart className={`w-4 h-4 ${post.likedByUser ? 'fill-current text-rose-500' : ''}`} />
-                          <span>{post.likes} Likes</span>
+                          <span>{trans('social.likes', { n: post.likes })}</span>
                         </button>
 
                         {/* Comments Toggle */}
@@ -593,7 +593,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                           }`}
                         >
                           <MessageSquare className="w-4 h-4" />
-                          <span>{post.comments.length} Comments</span>
+                          <span>{trans('social.comments', { n: post.comments.length })}</span>
                         </button>
                       </div>
 
@@ -622,7 +622,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                               ))}
                               {post.comments.length === 0 && (
                                 <p className="text-zinc-500 text-[10px] text-center font-mono py-2">
-                                  No cosmic comment traces. Write yours now!
+                                  {trans('social.noComments')}
                                 </p>
                               )}
                             </div>
@@ -633,14 +633,14 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                                 type="text"
                                 value={commentText}
                                 onChange={(e) => setCommentText(e.target.value)}
-                                placeholder="Write a gorgeous comment..."
+                                placeholder={trans('social.commentPh')}
                                 className="flex-1 bg-slate-900/80 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-500 text-slate-100 placeholder-zinc-500"
                               />
                               <button
                                 onClick={() => handleAddComment(post.id)}
                                 className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-755 text-white text-xs font-bold transition-all cursor-pointer"
                               >
-                                Send
+                                {trans('social.send')}
                               </button>
                             </div>
                           </motion.div>
@@ -659,20 +659,20 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
               <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/20 to-purple-950/20 border border-indigo-500/10 space-y-4">
                 <h4 className="text-xs font-black font-mono tracking-widest text-indigo-400 uppercase flex items-center gap-1.5">
                   <Activity className="w-4 h-4" />
-                  Linguistic Synergy Dashboard
+                  {trans('social.synergyTitle')}
                 </h4>
                 <div className="space-y-3 font-mono text-[11px]">
                   <div className="flex justify-between text-zinc-400">
-                    <span>Global Online Ratio:</span>
+                    <span>{trans('social.globalRatio')}</span>
                     <span className="text-emerald-400 font-bold">14.8K (Studying)</span>
                   </div>
                   <div className="flex justify-between text-zinc-400">
-                    <span>Active Friends:</span>
-                    <span className="text-slate-200">{activeFriendList.length} partners</span>
+                    <span>{trans('social.activeFriendsLabel')}</span>
+                    <span className="text-slate-200">{activeFriendList.length} {trans('social.partnersUnit')}</span>
                   </div>
                   <div className="flex justify-between text-zinc-400">
-                    <span>Exchange Preference:</span>
-                    <span className="text-purple-400 uppercase font-black">{currentUser.targetLang} Native</span>
+                    <span>{trans('social.exchangePref')}</span>
+                    <span className="text-purple-400 uppercase font-black">{currentUser.targetLang} {trans('social.nativeSuffix')}</span>
                   </div>
                 </div>
 
@@ -681,7 +681,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                     onClick={() => setActiveSubTab('partners')}
                     className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-all text-xs font-bold font-mono border border-white/5 cursor-pointer flex items-center justify-center gap-1"
                   >
-                    <span>🧭 Filter partners by languages</span>
+                    <span>{trans('social.filterByLang')}</span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -691,7 +691,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
               <div className="p-5 rounded-2xl bg-white/2 dark:bg-white/4 border border-white/5 space-y-4">
                 <h4 className="text-xs font-black font-mono tracking-widest text-slate-300 uppercase flex items-center gap-1.5">
                   <Heart className="w-4 h-4 text-rose-450 fill-rose-500/20" />
-                  Active Partners ({activeFriendList.length})
+                  {trans('social.activePartners', { n: activeFriendList.length })}
                 </h4>
                 <div className="space-y-3">
                   {activeFriendList.map(friend => (
@@ -712,7 +712,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                         </div>
                         <div>
                           <p className="text-xs font-bold text-slate-200">{friend.name}</p>
-                          <p className="text-[10px] text-zinc-500 font-mono">Streak: {friend.streak} days</p>
+                          <p className="text-[10px] text-zinc-500 font-mono">{trans('social.streakLabel')} {friend.streak} {trans('stats.days')}</p>
                         </div>
                       </div>
 
@@ -721,12 +721,12 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                   ))}
                   {activeFriendList.length === 0 && (
                     <div className="text-center py-4 space-y-2">
-                      <p className="text-zinc-500 text-[11px] font-mono">No partners added yet.</p>
+                      <p className="text-zinc-500 text-[11px] font-mono">{trans('social.noPartners')}</p>
                       <button
                         onClick={() => setActiveSubTab('partners')}
                         className="text-[11px] font-mono text-indigo-400 font-bold hover:underline cursor-pointer"
                       >
-                        Browse Active Learners →
+                        {trans('social.browseLearners')}
                       </button>
                     </div>
                   )}
@@ -751,32 +751,24 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                   type="text"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
-                  placeholder="Insert name or interest tags..."
+                  placeholder={trans('social.searchPh')}
                   className="w-full bg-slate-900/60 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-200 outline-none placeholder-zinc-500 focus:border-indigo-500/50"
                 />
               </div>
 
               {/* Language Preferences button tag lists */}
               <div className="flex bg-white/2 dark:bg-white/5 p-1 rounded-xl border border-white/5 gap-1 overflow-x-auto w-full sm:w-auto">
-                {[
-                  { code: 'all', label: 'All 🌐' },
-                  { code: 'en', label: 'English' },
-                  { code: 'zh', label: 'Chinese' },
-                  { code: 'ja', label: 'Japanese' },
-                  { code: 'es', label: 'Spanish' },
-                  { code: 'fr', label: 'French' },
-                  { code: 'ko', label: 'Korean' }
-                ].map(langItem => (
+                {['all', 'en', 'zh', 'ja', 'es', 'fr', 'ko'].map(langCode => (
                   <button
-                    key={langItem.code}
-                    onClick={() => setPreferredLang(langItem.code)}
+                    key={langCode}
+                    onClick={() => setPreferredLang(langCode)}
                     className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold whitespace-nowrap transition-all cursor-pointer ${
-                      preferredLang === langItem.code
+                      preferredLang === langCode
                         ? 'bg-indigo-650 text-white shadow'
                         : 'text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
-                    {langItem.label}
+                    {langCode === 'all' ? trans('social.langAll') : trans('lang.name.' + langCode)}
                   </button>
                 ))}
               </div>
@@ -803,7 +795,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                     </div>
                     
                     <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
-                      🔥 {partner.streak}d streak
+                      🔥 {trans('social.streakChip', { n: partner.streak })}
                     </span>
                   </div>
 
@@ -819,7 +811,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                       <div>
                         <h4 className="text-sm font-black text-slate-200">{partner.name}</h4>
                         <p className="text-[10px] text-indigo-400 font-mono">
-                          Native: <span className="uppercase text-slate-300 font-bold">{partner.nativeLang}</span> / Target: <span className="uppercase text-slate-300 font-bold">{partner.targetLang}</span>
+                          {trans('social.nativeLabel')} <span className="uppercase text-slate-300 font-bold">{partner.nativeLang}</span> / {trans('social.targetLabel')} <span className="uppercase text-slate-300 font-bold">{partner.targetLang}</span>
                         </p>
                       </div>
                     </div>
@@ -844,12 +836,12 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                       {partner.isFriend ? (
                         <>
                           <UserCheck className="w-3.5 h-3.5" />
-                          <span>Collaborating (已加好友)</span>
+                          <span>{trans('social.collaborating')}</span>
                         </>
                       ) : (
                         <>
                           <UserPlus className="w-3.5 h-3.5" />
-                          <span>Sync Partner (加好友)</span>
+                          <span>{trans('social.syncPartner')}</span>
                         </>
                       )}
                     </button>
@@ -865,7 +857,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                         setActiveSubTab('direct_chat');
                       }}
                       className="p-2 rounded-xl bg-white/5 hover:bg-indigo-500/20 hover:text-indigo-400 border border-white/5 text-zinc-400 transition-all cursor-pointer"
-                      title="Direct Chat Session"
+                      title={trans('social.directChatTitle')}
                     >
                       <MessageSquare className="w-4 h-4" />
                     </button>
@@ -875,12 +867,12 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
               ))}
               {filteredPartners.length === 0 && (
                 <div className="col-span-full py-16 text-center text-zinc-500 space-y-2">
-                  <p className="text-xs font-mono">No matching bilingual coordinates on our galactic records.</p>
+                  <p className="text-xs font-mono">{trans('social.noPartnersMatch')}</p>
                   <button 
                     onClick={() => { setSearchText(''); setPreferredLang('all'); }}
                     className="px-4 py-2 bg-indigo-650/15 text-indigo-400 rounded-xl text-xs font-mono border border-indigo-505/10 hover:bg-indigo-505/20 cursor-pointer"
                   >
-                    Reset Grid filters
+                    {trans('social.resetFilters')}
                   </button>
                 </div>
               )}
@@ -896,7 +888,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
             {/* Friends list pane (Left 1 Col) */}
             <div className="lg:col-span-1 rounded-2xl bg-white/2 dark:bg-white/3 border border-white/5 flex flex-col overflow-hidden max-h-full">
               <div className="p-3.5 border-b border-white/5">
-                <span className="text-[10px] font-black font-mono uppercase tracking-widest text-zinc-500">Active Rooms ({activeFriendList.length})</span>
+                <span className="text-[10px] font-black font-mono uppercase tracking-widest text-zinc-500">{trans('social.roomsCount', { n: activeFriendList.length })}</span>
               </div>
               <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-1.5">
                 {activeFriendList.map(item => {
@@ -925,7 +917,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                             {item.name}
                           </p>
                           <p className="text-[9px] text-zinc-500 font-mono truncate">
-                            {lastMsg ? (lastMsg.type === 'voice' ? '🎙️ Voice message' : lastMsg.text) : 'Tap to start...'}
+                            {lastMsg ? (lastMsg.type === 'voice' ? trans('social.voiceMsg') : lastMsg.text) : trans('social.tapStart')}
                           </p>
                         </div>
                       </div>
@@ -938,12 +930,12 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                 })}
                 {activeFriendList.length === 0 && (
                   <div className="p-4 text-center text-zinc-500 space-y-2">
-                    <p className="text-[10px] font-mono leading-relaxed">No chat sessions. Browse partners first.</p>
+                    <p className="text-[10px] font-mono leading-relaxed">{trans('social.noSessions')}</p>
                     <button
                       onClick={() => setActiveSubTab('partners')}
                       className="px-3 py-1 bg-indigo-650/20 text-indigo-400 font-serif text-[10px] font-bold rounded-lg hover:underline cursor-pointer"
                     >
-                      Portal Link →
+                      {trans('social.portalLink')}
                     </button>
                   </div>
                 )}
@@ -962,14 +954,14 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                       <div>
                         <h4 className="text-xs font-bold text-slate-200">{selectedFriendChat.name}</h4>
                         <p className="text-[10px] text-zinc-500 font-mono">
-                          {selectedFriendChat.online ? '🟢 Connected online' : '⚫ Offline sleep state'} | Streak: {selectedFriendChat.streak}d
+                          {selectedFriendChat.online ? trans('social.connected') : trans('social.offline')} | {trans('social.streakLabel')} {selectedFriendChat.streak}d
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] font-mono bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded uppercase">
-                        lang exchange: {selectedFriendChat.targetLang}
+                        {trans('social.langExchange')} {selectedFriendChat.targetLang}
                       </span>
                     </div>
                   </div>
@@ -1018,7 +1010,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                                 </div>
                                 {msg.text && (
                                   <div className="text-[9px] opacity-75 italic border-t border-white/10 pt-1 flex items-center gap-1">
-                                    <span>Caption transcript:</span>
+                                    <span>{trans('social.captionTranscript')}</span>
                                     <span>{msg.text}</span>
                                   </div>
                                 )}
@@ -1035,7 +1027,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                     })}
                     {(chatHistories[selectedFriendChat.id] || []).length === 0 && (
                       <div className="text-center py-12 text-zinc-500 font-mono text-[10px]">
-                        Grid session initialized cleanly. Send your first transmitter word!
+                        {trans('social.chatEmpty')}
                       </div>
                     )}
                   </div>
@@ -1051,7 +1043,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                       >
                         <div className="flex items-center gap-2">
                           <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                          <span className="text-[10px] font-mono tracking-widest uppercase text-red-400 animate-pulse">recording: {recordSeconds}s</span>
+                          <span className="text-[10px] font-mono tracking-widest uppercase text-red-400 animate-pulse">{trans('social.recording', { n: recordSeconds })}</span>
                         </div>
 
                         {/* Faux waveform animations to look realistic */}
@@ -1071,7 +1063,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                           type="button"
                           className="px-3 py-1 bg-red-650 hover:bg-red-750 text-white rounded-lg text-[10px] font-mono font-black uppercase cursor-pointer"
                         >
-                          Release & Transmit
+                          {trans('social.releaseTransmit')}
                         </button>
                       </motion.div>
                     )}
@@ -1090,7 +1082,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                       className={`p-2.5 rounded-xl border border-white/5 text-zinc-400 hover:text-indigo-400 transition-all cursor-pointer ${
                         isRecording ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-white/3'
                       }`}
-                      title="Hold to Record Voice (长按录音)"
+                      title={trans('social.recordTitle')}
                     >
                       <Mic className="w-4 h-4" />
                     </button>
@@ -1100,7 +1092,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                       type="text"
                       value={newMessageText}
                       onChange={(e) => setNewMessageText(e.target.value)}
-                      placeholder={isRecording ? 'Capturing audio frequencies...' : 'Transmit vocabulary message or question...'}
+                      placeholder={isRecording ? trans('social.inputRecording') : trans('social.inputPh')}
                       className="flex-1 bg-slate-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-120 outline-none focus:border-indigo-500"
                       disabled={isRecording}
                     />
@@ -1130,16 +1122,16 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                     <MessageSquare className="w-8 h-8" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-200">No Interactive Room Selected</h4>
+                    <h4 className="text-xs font-bold text-slate-200">{trans('social.noRoomSelected')}</h4>
                     <p className="text-zinc-500 text-[11px] font-mono mt-1 max-w-sm">
-                      Select one of your saved study partners from the left panel to begin exchanging acoustic messages and text loops.
+                      {trans('social.noRoomSub')}
                     </p>
                   </div>
                   <button 
                     onClick={() => setActiveSubTab('partners')}
                     className="px-4 py-2 bg-indigo-650 text-white font-mono text-[10px] font-bold rounded-xl hover:opacity-90 transition-all cursor-pointer"
                   >
-                    🧭 Exchange Partner Directory
+                    {trans('social.exchangeDir')}
                   </button>
                 </div>
               )}

@@ -96,7 +96,7 @@ if OCR_AVAILABLE:
 - `group_control` - Group device control
 - `video_stream` - H264, FMP4 encoding/decoding
 - `media_compressor` - Media compression
-- `device_sync` - Device synchronization
+- `codesync` - Code Sync mesh (role-based dev→client distribution; stdlib-only)
 
 ✗ **Optional (may not be available):**
 - `edge_tts_manager` - Edge TTS

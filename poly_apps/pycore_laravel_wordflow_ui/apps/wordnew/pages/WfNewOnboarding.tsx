@@ -9,13 +9,15 @@ interface WfNewOnboardingProps {
   activeTheme: ElementTheme;
   onSelectTheme: (themeId: string) => void;
   onSetGoal: (goal: number) => void;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
 export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
   onComplete,
   activeTheme,
   onSelectTheme,
-  onSetGoal
+  onSetGoal,
+  trans
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedGoal, setSelectedGoal] = useState(20);
@@ -23,35 +25,35 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
 
   const steps = [
     {
-      title: "Step 1/3: Quantum Vocabulary Engine (量子词汇引擎)",
-      description: "Welcome back, Commander! WordFlow has loaded your personalized neural spaceships. Achieve perfect spaced repetition retention across high-contrast reading, subtitles decoding, and bilingual cosmic walkmans.",
+      title: trans('onb.s1Title'),
+      description: trans('onb.s1Desc'),
       icon: <Layout className="w-12 h-12 text-indigo-400" />,
       content: (
         <div className="space-y-4">
           <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/20 space-y-2">
-            <h4 className="text-xs font-mono font-bold text-indigo-400 uppercase tracking-widest">Active Neural Systems:</h4>
+            <h4 className="text-xs font-mono font-bold text-indigo-400 uppercase tracking-widest">{trans('onb.activeSystems')}</h4>
             <ul className="text-xs space-y-1.5 text-zinc-400 font-mono">
               <li className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>Space Walkman Loop Syncing</span>
+                <span>{trans('onb.sys1')}</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>Bilingual Decoding Matrix</span>
+                <span>{trans('onb.sys2')}</span>
               </li>
               <li className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                <span>Cooperative Friend Chat Loop</span>
+                <span>{trans('onb.sys3')}</span>
               </li>
             </ul>
           </div>
-          <p className="text-xs text-zinc-500 italic">Click Next to begin tailoring your cognitive calibration.</p>
+          <p className="text-xs text-zinc-500 italic">{trans('onb.s1Hint')}</p>
         </div>
       )
     },
     {
-      title: "Step 2/3: Set Cognitive Synaptic Goal (校准学术目标)",
-      description: "Define your vocabulary acquisition threshold per flight sequence. Select a daily target to calibrate the recommendation weights.",
+      title: trans('onb.s2Title'),
+      description: trans('onb.s2Desc'),
       icon: <Target className="w-12 h-12 text-pink-400" />,
       content: (
         <div className="space-y-4">
@@ -70,17 +72,17 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
                 }`}
               >
                 <span className="block text-lg font-black">{num}</span>
-                <span className="text-[9px] uppercase font-mono block mt-1">words / day</span>
+                <span className="text-[9px] uppercase font-mono block mt-1">{trans('onb.wordsPerDay')}</span>
               </button>
             ))}
           </div>
-          <p className="text-xs text-zinc-500 font-mono text-center">Current Target: <span className="text-pink-400 font-bold">{selectedGoal} words</span> daily flight path</p>
+          <p className="text-xs text-zinc-500 font-mono text-center">{trans('onb.targetPre')} <span className="text-pink-400 font-bold">{selectedGoal} {trans('profile.wordsUnit')}</span> {trans('onb.targetPost')}</p>
         </div>
       )
     },
     {
-      title: "Step 3/3: Choose Atmospheric Theme (选择视效星体)",
-      description: "Configure your primary atmospheric capsule shielding. Choose an aesthetic color set to matching your learning vibe.",
+      title: trans('onb.s3Title'),
+      description: trans('onb.s3Desc'),
       icon: <Paintbrush className="w-12 h-12 text-amber-400" />,
       content: (
         <div className="space-y-4">
@@ -109,7 +111,7 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
               );
             })}
           </div>
-          <p className="text-xs text-zinc-500 font-mono text-center">Selected aesthetic: <span className="text-amber-400 font-bold">{CUSTOM_THEMES.find(t => t.id === selectedThemeId)?.nameZh}</span></p>
+          <p className="text-xs text-zinc-500 font-mono text-center">{trans('onb.selectedAesthetic')} <span className="text-amber-400 font-bold">{CUSTOM_THEMES.find(t => t.id === selectedThemeId)?.nameZh}</span></p>
         </div>
       )
     }
@@ -146,7 +148,7 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
         <div className="flex justify-between items-center border-b border-white/5 pb-4">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-indigo-500 to-fuchsia-500" />
-            <span className="text-xs font-mono font-bold tracking-widest text-zinc-400">WORDFLOW ONBOARDING</span>
+            <span className="text-xs font-mono font-bold tracking-widest text-zinc-400">{trans('onb.brand')}</span>
           </div>
 
           <div className="flex gap-1.5">
@@ -168,7 +170,7 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
               {activeStepItem.icon}
             </div>
             <div>
-              <h2 className="text-sm font-mono tracking-wider text-indigo-300 uppercase">Mission Startup Sequence</h2>
+              <h2 className="text-sm font-mono tracking-wider text-indigo-300 uppercase">{trans('onb.missionSeq')}</h2>
               <h3 className="text-lg font-black tracking-tight text-white">{activeStepItem.title}</h3>
             </div>
           </div>
@@ -193,14 +195,14 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
                 : 'text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10'
             }`}
           >
-            Prev (上一步)
+            {trans('onb.prev')}
           </button>
 
           <button
             onClick={handleNext}
             className="flex-1 py-3 px-5 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-fuchsia-500 hover:scale-102 active:scale-98 transition-all text-white font-mono text-xs font-black flex items-center justify-center gap-1.5 shadow-lg group cursor-pointer"
           >
-            <span>{currentStep === steps.length - 1 ? 'Launch Flight (进入太空舱)' : 'Next Step (下一步)'}</span>
+            <span>{currentStep === steps.length - 1 ? trans('onb.launch') : trans('onb.next')}</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </button>
         </div>

@@ -28,6 +28,9 @@ TARGET_REMOTE=""
 PULL_MODE=false
 FORCE_OVERWRITE_MODE=false
 
+# Auto-continue with the default commit message after this many idle seconds
+COMMIT_MESSAGE_TIMEOUT_SECONDS=3
+
 # State tracking variables
 ENCRYPTION_CHECK_COMPLETED=false
 FILE_VALIDATION_COMPLETED=false
@@ -812,13 +815,49 @@ get_commit_message() {
     local platform_info=$(get_platform_info)
     local default_message="${platform_info}-${TIMESTAMP}"
 
-    # Ask user for input (first time only)
-    write_color_text "Enter commit message (press Enter to use: $default_message): " "Yellow" >&2
+    # Ask user for input (first time only). Auto-continue with the default
+    # message after COMMIT_MESSAGE_TIMEOUT_SECONDS of no typing (idle), so an
+    # unattended push does not block here. Each keystroke resets the idle timer
+    # (active typing is never cut off); Enter submits.
+    local user_input=""
+    local read_char=""
+    local timed_out=false
+    write_color_text "Enter commit message (${COMMIT_MESSAGE_TIMEOUT_SECONDS}s timeout -> default: $default_message): " "Yellow" >&2
     # Ensure the prompt is fully displayed before accepting input
     sleep 0.1
-    read -r user_input
+    if [ -t 0 ]; then
+        timed_out=true
+        # Read one char at a time with a per-keystroke timeout = idle timeout.
+        while IFS= read -rsn1 -t "$COMMIT_MESSAGE_TIMEOUT_SECONDS" read_char; do
+            if [ -z "$read_char" ]; then
+                # Enter pressed (newline delimiter) -> submit.
+                timed_out=false
+                break
+            elif [ "$read_char" = $'\177' ] || [ "$read_char" = $'\b' ]; then
+                if [ -n "$user_input" ]; then
+                    user_input="${user_input%?}"
+                    printf '\b \b' >&2
+                fi
+            else
+                user_input="${user_input}${read_char}"
+                printf '%s' "$read_char" >&2
+            fi
+        done
+        printf '\n' >&2
+    else
+        # Non-interactive stdin: fall back to a single timed line read.
+        if read -t "$COMMIT_MESSAGE_TIMEOUT_SECONDS" -r user_input; then
+            timed_out=false
+        else
+            timed_out=true
+            user_input=""
+        fi
+    fi
 
-    if [ -z "$user_input" ]; then
+    if [ "$timed_out" = true ] && [ -z "$user_input" ]; then
+        COMMIT_MESSAGE="$default_message"
+        write_color_text "No input for ${COMMIT_MESSAGE_TIMEOUT_SECONDS}s; using default commit message: $default_message" "Cyan" >&2
+    elif [ -z "$user_input" ]; then
         COMMIT_MESSAGE="$default_message"
         write_color_text "Using default commit message: $default_message" "Cyan" >&2
     else

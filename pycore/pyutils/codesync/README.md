@@ -13,7 +13,7 @@ codebase**:
   from its FastAPI app. Same implementation, same committed peer file.
 
 Behaviour is unchanged from the previous `device_sync/code_sync_*` modules — see
-`../device_sync/docs/CODE_SYNC_MESH.md` for the model and `../device_sync/docs/CODESYNC_LITE_DESIGN.md`
+`docs/CODE_SYNC_MESH.md` for the model and `docs/CODESYNC_LITE_DESIGN.md`
 for the extraction architecture.
 
 ## CLI
@@ -126,7 +126,7 @@ mgr.get_peers(); mgr.set_role("dev"); mgr.set_distributing(True)
 | File | Role |
 |---|---|
 | `runtime.py` | stdlib bridge: log shim, urllib HTTP shim, event/shutdown hooks, machine-id, lan-ip, paths, `configure()` |
-| `peer_config.py` | committed peer list (`device_sync/code_sync_peers.json`), LWW replication |
+| `peer_config.py` | committed baseline peer list (`code_sync_peers.json`) + per-machine `.data` override, LWW replication |
 | `peer_mesh.py` | periodic peer probing + reverse heartbeat (NAT-friendly presence) + config push/broadcast; merges both directions into one snapshot (`via` / `last_checkin`) |
 | `server.py` | dev side: client registry + changed-file computation |
 | `client.py` | client side: pull newest file across dev-ends |

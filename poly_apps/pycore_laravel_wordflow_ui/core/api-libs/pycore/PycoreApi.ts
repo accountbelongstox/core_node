@@ -29,6 +29,8 @@ import type {
 } from './pycoreTypes';
 
 import { MasterApiClient } from '../base';
+import type { MasterRequestOptions } from '../base';
+import { rewritePycoreEndpoint } from './pycoreTarget';
 
 /**
  * Structural opt-in on the master API base client (core/api-libs/base) for
@@ -42,6 +44,15 @@ class PycoreMasterClient extends MasterApiClient {
   /** All paths are relative (`/pyapi/*` reverse proxy) — empty base URL. */
   protected resolveBaseUrl(): string {
     return '';
+  }
+
+  /**
+   * Re-point every pycore HTTP call at the selected target (pycoreTarget):
+   * local leaves `/pyapi/*` untouched; a remote target rewrites it to
+   * `http(s)://<host>:59000/...` so the whole pycore-manager manages that node.
+   */
+  async request(endpoint: string, options: MasterRequestOptions = {}): Promise<Response> {
+    return super.request(rewritePycoreEndpoint(endpoint), options);
   }
 }
 export const pycoreMasterClient = new PycoreMasterClient({ defaultCeilingMs: 0 });

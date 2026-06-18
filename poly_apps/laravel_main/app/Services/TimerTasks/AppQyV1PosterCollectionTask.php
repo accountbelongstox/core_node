@@ -3,7 +3,7 @@
 namespace App\Services\TimerTasks;
 
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryTTSCoordinator;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Models\Book;
 use App\Models\Subtitle;
 

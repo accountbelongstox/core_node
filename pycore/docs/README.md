@@ -36,7 +36,7 @@ pycore 的文档导航中心,按主题归类。
 - [Laravel↔MCP 桥目录扫描 OCR](../pyutils/mcp_bridge_with_laravel/SCAN_DIRECTORY_OCR_GUIDE.md)
 
 ## 设备/代码同步 (Code Sync)
-- [代码同步网格 CODE_SYNC_MESH](../pyutils/device_sync/CODE_SYNC_MESH.md) · [统一架构](../pyutils/device_sync/UNIFIED_ARCHITECTURE.md)
+- [代码同步网格 CODE_SYNC_MESH](../pyutils/codesync/docs/CODE_SYNC_MESH.md) · [统一架构](../pyutils/codesync/docs/UNIFIED_ARCHITECTURE.md)
 
 ## 子系统设计 (Subsystems)
 - 浏览器自动化:[设计规范](../pyctl/pybrowserauto/PYBROWSERAUTO_DESIGN_SPEC.md) · [架构](../pyctl/pybrowserauto/ARCHITECTURE.md) · [API 参考](../pyctl/pybrowserauto/API_REFERENCE.md)

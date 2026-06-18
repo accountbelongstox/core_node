@@ -17,6 +17,8 @@
  *   const off2 = onWsStatus((connected) => { ... });
  */
 
+import { pycoreWsUrlOverride } from './pycoreTarget';
+
 type EventHandler = (data: any) => void;
 type StatusHandler = (connected: boolean) => void;
 type DiagHandler = (line: { level: string; message: string }) => void;
@@ -190,6 +192,11 @@ export function dispatchEvent(event: string, data: any): void {
 }
 
 function resolveWsUrl(): string {
+  // Whole-UI remote target (pycoreTarget): when the user points the
+  // pycore-manager at another node's :59000, the RPC WS follows it too. Applied
+  // on (re)connect — switching the target reloads the page (see pycoreTarget).
+  const remote = pycoreWsUrlOverride();
+  if (remote) return remote;
   // Connect DIRECTLY to the pycore backend (same host as the page, backend port
   // 59000). This avoids a same-origin proxy dependency; a page reload alone
   // applies it. (pycore RPC port is 59000.)

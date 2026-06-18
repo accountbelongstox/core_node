@@ -25,6 +25,7 @@
  */
 
 import { getClientId, dispatchEvent, setSseEventsActive } from './PycoreWs';
+import { pycoreSseUrlOverride } from './pycoreTarget';
 
 // Envelope event names that carry only a cursor (never a channel payload).
 const ENVELOPE_OPEN = 'stream.open';
@@ -49,6 +50,9 @@ function diag(level: string, message: string) {
 }
 
 function resolveSseUrl(): string {
+  // Whole-UI remote target (pycoreTarget): SSE follows the selected node too.
+  const remote = pycoreSseUrlOverride(getClientId(), lastSeq);
+  if (remote) return remote;
   const proto = location.protocol === 'https:' ? 'https' : 'http';
   const isSandbox = location.hostname.includes('asia-southeast1.run.app') || location.hostname.includes('run.app') || location.port === '3000';
   if (isSandbox) {
