@@ -214,6 +214,12 @@ class PushReceiver:
         root = self.m.sync_target_root().resolve()
         received = self._load_received()
         need = []
+        hashed = 0
+        # Build the NEW table from only files we can confirm are present+correct now.
+        # Needed files are NOT recorded here — _apply_batch records each as it is
+        # actually written, so an interrupted transfer can't leave the table claiming
+        # a file the client never received (which would wrongly fast-skip it forever).
+        new_table = {}
         for rel, h in files.items():
             srel = str(rel).replace("\\", "/")
             try:
@@ -222,8 +228,26 @@ class PushReceiver:
                 continue
             if target != root and root not in target.parents:
                 continue  # never request/accept a path outside the sync root
-            if not target.exists() or normalized_md5(target.read_bytes()) != h:
+            if not target.exists():
                 need.append(srel)
+                continue
+            have = received.get(srel)
+            if have == h:
+                new_table[srel] = h  # FAST path: table says up-to-date (no re-read)
+                continue
+            if have is None:
+                # Untracked (first sync / a pre-existing tree e.g. fresh git clone):
+                # confirm against the real file ONCE so we don't re-fetch what's
+                # already on disk. Tracked-but-different always needs fetching.
+                try:
+                    if normalized_md5(target.read_bytes()) == h:
+                        hashed += 1
+                        new_table[srel] = h
+                        continue
+                except Exception:
+                    pass
+                hashed += 1
+            need.append(srel)
         # Offline deletions: a file we received before but that is no longer in the
         # manifest was deleted on the dev — remove it locally (only our own files).
         deleted = 0
@@ -245,12 +269,14 @@ class PushReceiver:
                                     peer=peer, direction="receive")
                 except Exception:
                     pass
-        # The new received table is the manifest (needed files arrive next as a
-        # batch; non-needed ones already match on disk).
-        self._save_received(dict(files))
+        # Persist ONLY the confirmed-present files; the needed ones are added to the
+        # table by _apply_batch as they are actually written.
+        self._save_received(new_table)
         if deleted or need:
             self.m.log_sync("reconnect", "", "full sync",
-                            details=f"{len(need)} to fetch, {deleted} removed",
+                            details=f"{len(need)} to fetch, {deleted} removed, "
+                                    f"{len(files) - len(need)} up-to-date "
+                                    f"({hashed} re-hashed)",
                             peer=peer, direction="receive")
         send(json.dumps({"type": "need", "need": need}))
 
