@@ -12,17 +12,108 @@ No third-party deps; no pycore import.
 """
 
 import json
+import os
+import shlex
+import shutil
+import subprocess
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from .runtime import log as ColorPrint
+from .runtime import log as ColorPrint, get_core_node_root
 from .manager import get_manager
 from . import ws_proto
+
+SERVICE_NAME = "codesync"
 
 
 def _manager():
     return get_manager()
+
+
+# --------------------------------------------------------------------------- #
+# Service self-management (Linux/systemd only)                                #
+#                                                                             #
+# The standalone panel can reinstall/restart the codesync systemd service via #
+# the SAME idempotent path as `pyservice.sh codesync` -> codesync_service.sh  #
+# (install rewrites the unit + restart; restart = systemctl restart). Because #
+# THIS daemon IS that service, the op is spawned detached and OUTSIDE the      #
+# unit's cgroup (prefer systemd-run; else setsid) with a 1s delay so the HTTP  #
+# reply flushes before systemd kills us — the panel then shows the log-view    #
+# commands to inspect the (re)start from the machine if it does not come back. #
+# --------------------------------------------------------------------------- #
+def _service_log_commands() -> List[str]:
+    return [
+        f"journalctl -u {SERVICE_NAME} -f",
+        f"journalctl -u {SERVICE_NAME} -n 200 --no-pager",
+        f"systemctl status {SERVICE_NAME} --no-pager",
+    ]
+
+
+def _systemctl_available() -> bool:
+    return shutil.which("systemctl") is not None
+
+
+def _is_root() -> bool:
+    geteuid = getattr(os, "geteuid", None)
+    return geteuid() == 0 if geteuid else False
+
+
+def _run_service_op_detached(op: str) -> Tuple[bool, str, str]:
+    """Spawn `pyservice.sh codesync <op>` fully detached so it survives THIS
+    daemon being restarted by the very operation it triggers. `op` is allow-listed
+    (restart|install). Returns (ok, command, error)."""
+    if op not in ("restart", "install"):
+        return False, "", f"unsupported op: {op}"
+    if not _systemctl_available():
+        return False, "", "systemctl not found; service ops are Linux/systemd only"
+    root = get_core_node_root()
+    script = Path(root) / "pyservice.sh"
+    if not script.exists():
+        return False, "", f"pyservice.sh not found at {script}"
+    # 1s delay lets the HTTP response flush before systemd stops this process.
+    inner = f"sleep 1; bash {shlex.quote(str(script))} codesync {op}"
+    sudo = (not _is_root() and shutil.which("sudo") is not None)
+    try:
+        sysrun = shutil.which("systemd-run")
+        if sysrun:
+            # A transient unit runs OUTSIDE this service's cgroup, so the restart
+            # completes even after systemd kills us. --collect reaps it after exit.
+            unit = f"codesync-self-{op}-{os.getpid()}"
+            argv = [sysrun, "--quiet", "--collect", f"--unit={unit}",
+                    "bash", "-lc", inner]
+            if sudo:
+                argv = ["sudo", "-n", *argv]
+            subprocess.Popen(argv, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+            return True, " ".join(shlex.quote(a) for a in argv), ""
+        # Fallback: detached session shell (best-effort if KillMode reaps it).
+        shell_cmd = f"sudo -n {inner}" if sudo else inner
+        argv = ["setsid", "bash", "-lc", shell_cmd]
+        subprocess.Popen(argv, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+        return True, shell_cmd, ""
+    except Exception as exc:
+        return False, inner, str(exc)
+
+
+def _service_status() -> Dict[str, Any]:
+    out: Dict[str, Any] = {"success": True, "available": _systemctl_available(),
+                           "service": SERVICE_NAME,
+                           "log_commands": _service_log_commands()}
+    if not out["available"]:
+        out["success"] = False
+        out["error"] = "systemctl not found (Linux/systemd only)"
+        return out
+    for key, args in (("active", ["systemctl", "is-active", SERVICE_NAME]),
+                      ("enabled", ["systemctl", "is-enabled", SERVICE_NAME])):
+        try:
+            r = subprocess.run(args, capture_output=True, text=True, timeout=5)
+            out[key] = (r.stdout or r.stderr or "").strip() or "unknown"
+        except Exception as exc:
+            out[key] = f"unknown ({exc})"
+    return out
 
 
 # A single self-contained control panel served at GET / in standalone mode. Pure
@@ -146,6 +237,18 @@ PANEL_HTML = r"""<!doctype html>
   </div>
 
   <div class="card">
+    <div class="row">
+      <strong>Service <span class="badge" id="svc-state">…</span></strong>
+      <div class="actions">
+        <button id="svc-restart" onclick="svcOp('restart')">↻ Restart service</button>
+        <button id="svc-reinstall" class="primary" onclick="svcOp('reinstall')">⤓ Reinstall service</button>
+      </div>
+    </div>
+    <div class="sub" style="margin:4px 0 0">Reinstall is idempotent (same path as <span class="mono">pyservice.sh codesync</span>): it rewrites the unit and restarts. The panel will briefly disconnect during a (re)start.</div>
+    <div id="svc-result" style="display:none;margin-top:12px"></div>
+  </div>
+
+  <div class="card">
     <div class="row"><strong>Sync log</strong>
       <div class="rangebtns" id="range-btns">
         <button data-r="5" onclick="setRange(5)">5m</button>
@@ -243,7 +346,52 @@ async function load(){
   PEERS = d.peers || [];
   renderSelf(d.self); renderPeers(PEERS);
   loadFilters(); await loadLogs();
-  renderStrip(); renderChart();
+  renderStrip(); renderChart(); loadSvcStatus();
+}
+// ---- service self-management (restart / reinstall via pyservice.sh) ----
+async function loadSvcStatus(){
+  const el = $('#svc-state'); if(!el) return;
+  const d = await api('/code-sync/service/status');
+  if(!d || !d.available){
+    el.textContent = 'n/a'; el.className = 'badge b-pending';
+    el.title = (d && d.error) || 'systemd only';
+    return;
+  }
+  const up = d.active === 'active';
+  el.textContent = d.active + (d.enabled ? ' · '+d.enabled : '');
+  el.className = 'badge ' + (up ? 'b-both' : 'b-pending');
+}
+function copyText(btn, text){
+  const done = () => { const o = btn.textContent; btn.textContent = '✓ Copied';
+    setTimeout(()=>{ btn.textContent = o; }, 1200); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done, done); }
+  else { try{ const t=document.createElement('textarea'); t.value=text; document.body.appendChild(t);
+    t.select(); document.execCommand('copy'); document.body.removeChild(t); }catch(e){} done(); }
+}
+function renderSvcResult(d){
+  const box = $('#svc-result'); if(!box) return;
+  const ok = d && d.success;
+  const cmds = (d && d.log_commands) || [];
+  const cmdRow = (c) => '<li class="peer" style="font-family:monospace;font-size:11px;padding:6px 10px">'
+    + '<span class="grow" style="word-break:break-all">'+esc(c)+'</span>'
+    + '<button onclick="copyText(this,\''+esc(c).replace(/'/g,"\\'")+'\')">Copy</button></li>';
+  box.style.display = '';
+  box.innerHTML =
+    '<div class="badge '+(ok?'b-both':'b-pending')+'">'+(ok?'triggered':'failed')+'</div>'
+    + (d && d.command ? '<div class="sub" style="margin:6px 0 2px">Ran: <span class="mono">'+esc(d.command)+'</span></div>' : '')
+    + (d && d.error ? '<div class="sub" style="color:#fbbf24">'+esc(d.error)+'</div>' : '')
+    + (d && d.note ? '<div class="sub" style="margin:6px 0">'+esc(d.note)+'</div>' : '')
+    + (cmds.length ? '<div class="sub" style="margin:8px 0 4px">View the logs on the machine:</div><ul style="margin:0;padding:0">'
+        + cmds.map(cmdRow).join('') + '</ul>' : '');
+}
+async function svcOp(which){
+  const path = which === 'reinstall' ? '/code-sync/service/reinstall' : '/code-sync/service/restart';
+  const br = $('#svc-restart'), bi = $('#svc-reinstall');
+  if(br) br.disabled = true; if(bi) bi.disabled = true;
+  const d = await api(path, {});
+  renderSvcResult(d || {success:false, error:'request failed (the service may already be restarting)',
+    log_commands:['journalctl -u codesync -f','systemctl status codesync --no-pager']});
+  if(br) br.disabled = false; if(bi) bi.disabled = false;
 }
 // ---- icon stat strip ----
 function logCount(action){ let n=0; for(const l of LOGS){ const a=l.action||'sync';
@@ -530,6 +678,8 @@ class _Handler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
                 return self._send_json(_manager().get_sync_logs(limit))
+            if path == "/code-sync/service/status":
+                return self._send_json(_service_status())
             return self._send_json({"detail": "Not found"}, status=404)
         except Exception as exc:
             return self._send_json({"detail": str(exc)}, status=500)
@@ -573,6 +723,29 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send_json(m.set_skip_update(bool(body.get("enabled", False))))
         if path == "/code-sync/discover":
             return self._send_json(m.discover())
+
+        # ---- service self-management (Linux/systemd; reuses pyservice.sh) - #
+        # restart   -> `pyservice.sh codesync restart` (systemctl restart)
+        # reinstall -> `pyservice.sh codesync install` (idempotent: rewrite unit
+        #              + daemon-reload + enable + restart, same path as the
+        #              `pyservice.sh codesync` prompt-YES flow).
+        # Detached + 1s-delayed, so this reply reaches the panel before systemd
+        # stops this very process; the panel then shows the log-view commands.
+        if path in ("/code-sync/service/restart", "/code-sync/service/reinstall"):
+            op = "restart" if path.endswith("restart") else "install"
+            ok, command, err = _run_service_op_detached(op)
+            resp = {
+                "success": ok,
+                "op": op,
+                "command": command,
+                "log_commands": _service_log_commands(),
+                "note": ("The Code Sync service is restarting; this panel will "
+                         "disconnect briefly. If it does not come back, run the "
+                         "log commands on the machine to inspect the (re)start."),
+            }
+            if err:
+                resp["error"] = err
+            return self._send_json(resp, status=200 if ok else 503)
 
         # ---- file transfer (dev AND distributing) ------------------------ #
         if path == "/code-sync/register":

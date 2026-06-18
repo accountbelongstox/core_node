@@ -248,11 +248,29 @@ class PeerConfig:
             incoming = (int(version), float(updated_at))
             if incoming <= local:
                 return False
+            # Preserve THIS machine's OWN role across replication. A machine's role
+            # is locally owned; a remote config must never flip it. This is the root
+            # cause of the "client shown as dev" propagation: a peer added elsewhere
+            # with role=dev (an old UI default) replicated back over the mesh and
+            # overwrote this node's self entry, persisting dev into its .data
+            # override — so on restart it came up as a dev. (.data itself is never
+            # git-tracked nor file-synced; only the peer LIST replicates via LWW.)
+            local_self_role = None
+            for p in d.get("peers", []):
+                if p.get("id") == self.machine_id:
+                    local_self_role = p.get("role")
+                    break
             d["peers"] = [dict(p) for p in (peers or [])]
             d["version"] = int(version)
             d["updated_at"] = float(updated_at)
             # Keep our own entry present (we may have been pruned remotely).
             self._ensure_self_locked()
+            # Re-assert our own role over whatever the remote claimed for us.
+            if local_self_role in VALID_ROLES:
+                for p in d["peers"]:
+                    if p.get("id") == self.machine_id and p.get("role") != local_self_role:
+                        p["role"] = local_self_role
+                        break
             self._save_locked()
             ColorPrint.blue(f"[PeerConfig] Applied remote config v{version} "
                             f"({len(d['peers'])} peers)")
