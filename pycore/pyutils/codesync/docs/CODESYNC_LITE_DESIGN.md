@@ -76,6 +76,7 @@ pycore/pyutils/codesync/
 ├── peer_config.py       # committed peer list  (ported from device_sync/peer_config.py)
 ├── peer_mesh.py         # probing + LWW replication  (ported; requests → http_client)
 ├── server.py            # dev side: client registry + changed-file computation  (ported)
+├── sync_ws.py           # WS file push: dev dials OUT, BATCHED deltas + per-client resume  (see below)
 ├── client.py            # client side: pull newest file across dev-ends  (ported; requests → http_client)
 ├── manager.py           # orchestrator: get_manager(), role/distribute/peers/status  (ported)
 ├── cli.py               # stdlib argparse CLI: show / role / peers / distribute / skip-update
@@ -181,7 +182,7 @@ Add a `'codesync'` arm to the existing `switch ($Command.ToLowerInvariant())`
 pyservice.sh codesync run [--host 0.0.0.0] [--port 59000]   # start the standalone daemon
 pyservice.sh codesync show
 pyservice.sh codesync role [dev|client]
-pyservice.sh codesync peers list|add|remove|update …
+pyservice.sh codesync peers list|add|remove|update …   # add defaults to role=client
 pyservice.sh codesync distribute on|off          # dev: push code (needs a running daemon)
 pyservice.sh codesync skip-update on|off          # client: temporarily reject code
 ```
@@ -212,6 +213,36 @@ POST /code-sync/register  /initial-sync  /changes  /download  (file transfer; de
 
 `code_sync_router.py` is reduced to thin wrappers over `codesync.get_manager()`
 (it already is thin), so there is exactly one implementation behind both servers.
+
+### WS file-push channel (`sync_ws.py`)
+
+The actual file delivery does **not** ride the `POST /…/changes` + `POST /…/download`
+HTTP pull anymore: the dev is NAT'd and dials OUT to each client's
+`/code-sync/ws`, the client being the WS server (canonical: `CODE_SYNC_MESH.md`
+"WS file-push protocol"). Both servers expose `/code-sync/ws`: standalone via the
+`http.server` upgrade, full pycore via the rpc_v2 FastAPI WS — both feed each text
+frame to the same `PushReceiver`. The current design is:
+
+- **Batched push:** a tick's changed files go out as one `{"type":"batch",…}`
+  message answered by one `{"type":"batch_ack",…}`; large deltas split into
+  ~8 MB batches; legacy `file`/`ack` frames still accepted. Round-trips drop from
+  N to ~1 per tick.
+- **Per-client `last_sent` snapshot** that outlives the push thread: first connect
+  baselines (no bulk resend); a reconnect **resumes** (`reason="resume"`, offline
+  changes still delivered) and `last_sent` advances only for acked files — it is
+  **not** reset on reconnect.
+- **Exponential backoff** (2s … 30s) for unreachable clients, first failure logged
+  once; a `retrying` sync phase reaches the UI.
+- **Richer per-file log** `{action,file_path,reason,details,size,diff,timestamp,peer,direction}`
+  — `peer` is the other end's name/id; `direction` is `"push"` or `"receive"`;
+  client computes the signed byte diff.
+- **Per-channel sync phase** — phase is tracked per channel id (dev side: `target_client_id`;
+  client side: `source_dev_id`, carried in every batch/file message as `dev_id`/`dev_name`).
+  `get_sync_phase()` returns `{phase, count, channels:{id:{phase,count,name,direction,ts}}}`:
+  the top-level `phase`/`count` is an aggregate (first non-idle channel, priority
+  `pushing`/`receiving` > `retrying` > `idle`) kept for back-compat; the `channels` map
+  drives per-peer phase pills in the UI. No more global sync_phase that peer connections
+  overwrite.
 
 ---
 

@@ -69,7 +69,10 @@ class CodeSyncManager:
         # WS push channel (dev dials clients out; clients accept). The receiver is
         # used by the WS server endpoint; the sender supervisor only acts while
         # this node is a distributing dev.
-        self._sync_phase = {"phase": "idle", "count": 0}
+        # Per-CHANNEL sync phase: each remote end (the OTHER end's id) gets its own
+        # row so concurrent peers no longer stomp a single global phase. A legacy
+        # caller that passes no channel lands in the "_local" channel.
+        self._peer_phases: Dict[str, Dict[str, Any]] = {}
         self._sync_logs = []  # ring of recent push/receive events (newest last)
         self._sync_lock = threading.Lock()
         self.push_receiver = PushReceiver(self)
@@ -320,20 +323,68 @@ class CodeSyncManager:
         except Exception:
             return [str(get_core_node_root())]
 
-    def set_sync_phase(self, phase: str, count: int = 0) -> None:
+    # Phase priority for the aggregate badge (higher value wins).
+    _PHASE_PRIORITY = {"pushing": 3, "receiving": 3, "retrying": 2, "idle": 0}
+    _PHASE_IDLE_TTL = 60.0  # seconds an idle channel row lingers before pruning
+
+    def set_sync_phase(self, phase: str, count: int = 0, channel: Optional[str] = None,
+                       name: str = "", direction: str = "") -> None:
+        """Record the phase of ONE channel (the other end's id this phase is about).
+
+        `channel` is the target client_id on the dev side, or the source dev_id on
+        the client side. None/"" means the legacy global "_local" channel. Setting
+        phase "idle" marks the channel idle (the row is kept until it is pruned by
+        TTL), so a finished transfer no longer wipes a sibling channel's phase."""
+        ch = channel or "_local"
+        now = time.time()
         with self._sync_lock:
-            self._sync_phase = {"phase": phase, "count": int(count)}
+            self._peer_phases[ch] = {
+                "phase": phase, "count": int(count), "name": name or "",
+                "direction": direction or "", "ts": now,
+            }
+            # Prune idle rows that have been idle for longer than the TTL.
+            stale = [c for c, row in self._peer_phases.items()
+                     if row.get("phase") == "idle" and (now - row.get("ts", 0)) > self._PHASE_IDLE_TTL]
+            for c in stale:
+                self._peer_phases.pop(c, None)
         try:
             emit_event("code_sync_update", self.mesh.snapshot())
         except Exception:
             pass
 
     def get_sync_phase(self) -> Dict[str, Any]:
-        with self._sync_lock:
-            return dict(self._sync_phase)
+        """Aggregate per-channel phases into the single-badge shape the UI expects
+        plus the full per-channel breakdown.
 
-    def log_sync(self, action: str, file_path: str, reason: str = "") -> None:
+        Aggregate phase = the phase of the first non-idle channel by priority
+        (pushing/receiving > retrying); "idle" if every channel is idle. Aggregate
+        count = sum of counts over the non-idle channels (0 if none)."""
+        with self._sync_lock:
+            channels = {c: dict(row) for c, row in self._peer_phases.items()}
+        active = [row for row in channels.values() if row.get("phase") != "idle"]
+        if active:
+            active.sort(key=lambda r: self._PHASE_PRIORITY.get(r.get("phase"), 0),
+                        reverse=True)
+            agg_phase = active[0].get("phase")
+            agg_count = sum(int(r.get("count", 0)) for r in active)
+        else:
+            agg_phase = "idle"
+            agg_count = 0
+        return {"phase": agg_phase, "count": agg_count, "channels": channels}
+
+    def log_sync(self, action: str, file_path: str, reason: str = "",
+                 details: str = "", size: int = 0, diff: int = 0,
+                 peer: str = "", direction: str = "") -> None:
+        """Append one structured sync-log entry.
+
+        Back-compat: existing 3-positional callers (action, file_path, reason)
+        keep working; the optional `details`/`size`/`diff` add a human-readable
+        size string and signed byte delta for the richer UI log panel, and
+        `peer`/`direction` attribute each entry to the other end and the flow
+        ("push" on the dev side, "receive" on the client side)."""
         entry = {"action": action, "file_path": file_path, "reason": reason,
+                 "details": details, "size": int(size), "diff": int(diff),
+                 "peer": peer or "", "direction": direction or "",
                  "timestamp": time.time()}
         with self._sync_lock:
             self._sync_logs.append(entry)

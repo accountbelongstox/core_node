@@ -66,6 +66,13 @@ PANEL_HTML = r"""<!doctype html>
   .b-heartbeat { background: rgba(56,189,248,.15); color: #38bdf8; }
   .b-both { background: rgba(16,185,129,.15); color: #34d399; }
   .b-pending { background: rgba(245,158,11,.15); color: #fbbf24; }
+  .b-violet { background: rgba(139,92,246,.15); color: #a78bfa; }
+  .iconstrip { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 12px; color: #cbd5e1; }
+  .iconstrip span b { color: #e2e8f0; }
+  .delta-up { color: #34d399; } .delta-dn { color: #f87171; }
+  .rangebtns { display: flex; gap: 4px; }
+  .rangebtns button { padding: 3px 8px; font-size: 11px; }
+  .chart { width: 100%; height: 54px; display: block; margin-top: 8px; }
   ul { list-style: none; margin: 12px 0 0; padding: 0; }
   li.peer { background: #0b1424; border: 1px solid #1e293b; border-radius: 10px; padding: 11px;
             margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
@@ -104,6 +111,7 @@ PANEL_HTML = r"""<!doctype html>
       <div class="stat"><div class="k">LAN IP</div><div class="v mono" id="s-ip">-</div></div>
       <div class="stat"><div class="k">Code</div><div class="v" id="s-code">-</div></div>
     </div>
+    <div class="iconstrip" id="self-strip"></div>
     <div class="row" id="self-toggle" style="margin-top:12px"></div>
     <div class="sub" id="self-watch" style="margin-top:10px"></div>
   </div>
@@ -138,7 +146,15 @@ PANEL_HTML = r"""<!doctype html>
   </div>
 
   <div class="card">
-    <strong>Sync log</strong>
+    <div class="row"><strong>Sync log</strong>
+      <div class="rangebtns" id="range-btns">
+        <button data-r="5" onclick="setRange(5)">5m</button>
+        <button data-r="30" onclick="setRange(30)">30m</button>
+        <button data-r="60" onclick="setRange(60)">1h</button>
+        <button data-r="1440" onclick="setRange(1440)">24h</button>
+      </div>
+    </div>
+    <div id="chart-wrap"></div>
     <ul id="synclog" style="max-height:260px;overflow:auto;margin-top:10px"></ul>
   </div>
 </div>
@@ -168,7 +184,7 @@ function viaBadge(v){ if(!v) return ''; const map={probe:'via probe',heartbeat:'
 function setConn(ok){ const c=$('#conn'); c.textContent = ok?'online':'offline';
   c.className = 'badge '+(ok?'b-both':'b-pending'); }
 
-let SELF = null;
+let SELF = null, PEERS = [], LOGS = [], RANGE_MIN = 60;
 function renderSelf(s){
   SELF = s || {};
   renderWatch(SELF);
@@ -189,6 +205,17 @@ function renderSelf(s){
       + '<button class="switch '+(sk?'on':'')+'" onclick="toggleSkip('+(!sk)+')"><i></i></button>';
   }
 }
+function phasePill(ph){
+  if(!ph || !ph.phase || ph.phase==='idle') return '';
+  const cls = (ph.phase==='retrying') ? 'b-pending' : 'b-probe';
+  return ' <span class="badge '+cls+'">'+esc(ph.phase)+(ph.count?(' '+ph.count):'')+'</span>';
+}
+function peerPhase(p){
+  const ch = (SELF && SELF.sync_phase && SELF.sync_phase.channels) || {};
+  if(p.id && ch[p.id]) return ch[p.id];
+  const st = p.status || {};
+  return st.sync_phase || null;
+}
 function renderPeers(peers){
   const ul = $('#peers');
   if(!peers || !peers.length){ ul.innerHTML = '<li class="muted" style="padding:12px">No peers yet.</li>'; return; }
@@ -201,7 +228,7 @@ function renderPeers(peers){
     return '<li class="peer">'
       + '<span class="dot '+(p.reachable?'on':'off')+'"></span>'
       + '<div class="grow"><div>'+esc(p.name||p.host)+' '+roleBadge(p.role)+' '+viaBadge(p.via)
-      +   (p.pending?' <span class="badge b-pending">pending</span>':'')+'</div>'
+      +   (p.pending?' <span class="badge b-pending">pending</span>':'')+phasePill(peerPhase(p))+'</div>'
       + '<div class="meta"><span class="mono">'+esc(p.host)+':'+esc(p.port)+'</span>'
       +   (seen?'<span>· '+seen+'</span>':'')+'<span>· '+codeLine(code)+'</span></div></div>'
       + '<div class="actions"><button class="danger" onclick="removePeer(\''+esc(p.id)+'\')">Remove</button></div>'
@@ -213,8 +240,65 @@ async function load(){
   if(!d || !d.success){ setConn(false); return; }
   setConn(true);
   $('#ver').textContent = d.version;
-  renderSelf(d.self); renderPeers(d.peers || []);
-  loadFilters(); loadLogs();
+  PEERS = d.peers || [];
+  renderSelf(d.self); renderPeers(PEERS);
+  loadFilters(); await loadLogs();
+  renderStrip(); renderChart();
+}
+// ---- icon stat strip ----
+function logCount(action){ let n=0; for(const l of LOGS){ const a=l.action||'sync';
+  if(Array.isArray(action) ? action.indexOf(a)>=0 : a===action) n++; } return n; }
+function renderStrip(){
+  const el = $('#self-strip'); if(!el) return;
+  const s = SELF || {};
+  const ph = s.sync_phase || {};
+  const ch = ph.channels || {};
+  let queued = 0;
+  for(const k in ch){ if(ch[k] && ch[k].phase==='pushing') queued += (ch[k].count||0); }
+  const total = PEERS.length;
+  let reach = 0; for(const p of PEERS){ if(p.reachable) reach++; }
+  const synced = logCount(['sent','received']);
+  const errors = logCount('error');
+  const stateTxt = s.role==='dev'
+    ? (s.distributing ? '<b style="color:#34d399">distributing</b>' : 'idle')
+    : ((s.skip_update||(s.summary&&s.summary.skip_update)) ? '<b style="color:#fbbf24">paused</b>' : 'receiving');
+  el.innerHTML =
+      '<span>🧭 role <b>'+esc(s.role||'-')+'</b></span>'
+    + '<span>'+(s.role==='dev'?'📡':'📥')+' '+stateTxt+'</span>'
+    + '<span>👥 peers <b>'+total+'</b></span>'
+    + '<span>🟢 reachable <b>'+reach+'</b></span>'
+    + '<span>📤 queued <b>'+queued+'</b></span>'
+    + '<span>🔄 synced <b>'+synced+'</b></span>'
+    + '<span>⚠️ errors <b>'+errors+'</b></span>';
+}
+// ---- activity chart ----
+function setRange(m){ RANGE_MIN = m; renderChart(); }
+function logMs(l){ const ts=l.timestamp||0; return ts<1e12 ? ts*1000 : ts; }
+function renderChart(){
+  const wrap = $('#chart-wrap'); if(!wrap) return;
+  $('#range-btns').querySelectorAll('button').forEach(function(b){
+    b.className = (parseInt(b.dataset.r,10)===RANGE_MIN) ? 'active' : ''; });
+  const now = Date.now(), span = RANGE_MIN*60*1000, start = now - span, N = 24;
+  const ok = new Array(N).fill(0), err = new Array(N).fill(0);
+  let any = false;
+  for(const l of LOGS){
+    const ms = logMs(l); if(!ms || ms < start || ms > now) continue;
+    any = true;
+    let i = Math.floor((ms - start) / span * N); if(i<0)i=0; if(i>=N)i=N-1;
+    const a = l.action||'sync';
+    if(a==='error') err[i]++; else if(a==='sent'||a==='received'||a==='skipped') ok[i]++;
+  }
+  if(!any){ wrap.innerHTML = '<div class="muted" style="font-size:11px;padding:10px 2px">No activity in this range</div>'; return; }
+  let max = 1; for(let i=0;i<N;i++){ const t=ok[i]+err[i]; if(t>max) max=t; }
+  const W=820, H=48, gap=2, bw=(W-(N-1)*gap)/N;
+  let bars = '';
+  for(let i=0;i<N;i++){
+    const x = i*(bw+gap);
+    const okh = Math.round(ok[i]/max*H), eh = Math.round(err[i]/max*H);
+    if(okh>0) bars += '<rect x="'+x.toFixed(1)+'" y="'+(H-okh)+'" width="'+bw.toFixed(1)+'" height="'+okh+'" fill="#34d399" rx="1"></rect>';
+    if(eh>0)  bars += '<rect x="'+x.toFixed(1)+'" y="'+(H-okh-eh)+'" width="'+bw.toFixed(1)+'" height="'+eh+'" fill="#f87171" rx="1"></rect>';
+  }
+  wrap.innerHTML = '<svg class="chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+bars+'</svg>';
 }
 
 // ---- filter settings ----
@@ -275,17 +359,40 @@ async function resetFilters(){
 }
 
 // ---- sync log ----
+function actionClass(a){
+  if(a==='error'||a==='skipped') return 'b-pending';
+  if(a==='reconnect') return 'b-violet';
+  if(a==='sent'||a==='received') return 'b-both';
+  return 'b-both';
+}
+function sizeCell(l){
+  if(typeof l.diff === 'number' && l.diff !== 0){
+    const up = l.diff > 0;
+    return '<span class="'+(up?'delta-up':'delta-dn')+'">'+(up?'+':'-')+fmtBytes(Math.abs(l.diff))+'</span>';
+  }
+  if(l.details) return '<span class="muted">'+esc(l.details)+'</span>';
+  return '<span class="muted">'+fmtBytes(l.size||0)+'</span>';
+}
+function peerCell(l){
+  if(!l.peer) return '';
+  const arrow = l.direction==='push' ? '→ ' : (l.direction==='receive' ? '← ' : '');
+  return '<span class="muted" style="margin-left:8px">'+esc(arrow)+esc(l.peer)+'</span>';
+}
 async function loadLogs(){
   const d = await api('/code-sync/logs?limit=100');
+  LOGS = (d && d.success && Array.isArray(d.logs)) ? d.logs : [];
   const ul = $('#synclog');
-  if(!d || !d.success || !d.logs || !d.logs.length){ ul.innerHTML = '<li class="muted" style="padding:8px">No recent sync activity</li>'; return; }
-  ul.innerHTML = d.logs.slice().reverse().map(function(l){
+  if(!LOGS.length){ ul.innerHTML = '<li class="muted" style="padding:8px">No recent sync activity</li>'; return; }
+  ul.innerHTML = LOGS.slice().reverse().map(function(l){
     const a = l.action || 'sync';
-    const cls = (a==='error'||a==='skipped') ? 'b-pending' : 'b-both';
     return '<li class="peer" style="font-family:monospace;font-size:11px;padding:6px 10px">'
-      + '<span class="badge '+cls+'">'+esc(a)+'</span>'
-      + '<span class="grow" style="margin-left:8px">'+esc(l.file_path||'')+'</span>'
-      + (l.reason ? '<span class="muted">'+esc(l.reason)+'</span>' : '') + '</li>';
+      + '<span class="badge '+actionClass(a)+'">'+esc(a)+'</span>'
+      + '<span class="grow" style="margin-left:8px">'+esc(l.file_path||'')
+      +   (l.reason ? ' <span class="muted">'+esc(l.reason)+'</span>' : '') + '</span>'
+      + '<span style="margin-left:8px">'+sizeCell(l)+'</span>'
+      + peerCell(l)
+      + '<span class="muted" style="margin-left:8px">'+relTime(l.timestamp)+'</span>'
+      + '</li>';
   }).join('');
 }
 async function setRole(r){ await api('/code-sync/role', {role:r}); load(); }
