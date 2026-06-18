@@ -44,6 +44,7 @@ from pathlib import Path
 from .runtime import (
     log as ColorPrint, is_shutdown_requested, register_shutdown_handler,
 )
+from .textnorm import normalize_eol, normalized_md5
 
 PUSH_TICK = 1.0          # seconds between incremental delta pushes
 MAX_BATCH_BYTES = 8 * 1024 * 1024  # ~8 MB cap on accumulated base64 payload per batch
@@ -89,10 +90,18 @@ class PushReceiver:
         except Exception:
             return True
         t = msg.get("type")
+        # Skip-update: a client may temporarily reject pushed code. Honor it at the
+        # receiver (there is no outbound puller to stop). Control frames still flow.
+        if t in ("manifest", "batch", "file") and self.m.is_skip_update():
+            if t == "manifest":
+                send(json.dumps({"type": "need", "need": [], "skipped": True}))
+            return True
         if t == "hello":
             me = self.m.config.get_self()
             send(json.dumps({"type": "welcome", "client_id": self.m.config.machine_id,
                              "name": me.get("name")}))
+        elif t == "manifest":
+            self._handle_manifest(msg, send)
         elif t == "batch":
             self._apply_batch(msg, send)
         elif t == "file":  # legacy single-file frame
@@ -121,12 +130,104 @@ class PushReceiver:
         peer = dev_name or (str(dev_id)[:8] if dev_id else "")
         self.m.set_sync_phase("receiving", len(files), channel=dev_id,
                               name=dev_name, direction="receive")
+        received = self._load_received()
         results = []
         for f in files:
-            results.append(self._apply_one(f, peer=peer))
+            r = self._apply_one(f, peer=peer)
+            results.append(r)
+            rel = r.get("rel")
+            if rel:
+                # Keep the small received-table accurate for the next full-sync diff.
+                if r.get("status") in ("written", "skipped") and not f.get("deleted"):
+                    received[rel] = f.get("hash")
+                elif r.get("status") == "deleted" or f.get("deleted"):
+                    received.pop(rel, None)
+        self._save_received(received)
         send(json.dumps({"type": "batch_ack", "results": results}))
         self.m.set_sync_phase("idle", 0, channel=dev_id, name=dev_name,
                               direction="receive")
+
+    # ----- full-sync manifest (sent by the dev on every (re)connect) -------- #
+    def _received_table_path(self) -> Path:
+        return (self.m.sync_target_root() / ".data" / "pycore" / "codesync"
+                / "received_files.json")
+
+    def _load_received(self) -> dict:
+        """The client's SMALL per-sync table {rel: hash} of files it has received,
+        used to scope full-sync deletions to ONLY codesync-delivered files (never a
+        client-local file) and to speed up the manifest compare."""
+        try:
+            p = self._received_table_path()
+            if p.exists():
+                data = json.loads(p.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return data
+        except Exception:
+            pass
+        return {}
+
+    def _save_received(self, table: dict) -> None:
+        try:
+            p = self._received_table_path()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            tmp = p.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(table), encoding="utf-8")
+            os.replace(str(tmp), str(p))
+        except Exception:
+            pass
+
+    def _handle_manifest(self, msg: dict, send) -> None:
+        """A dev sends its FULL file table {rel: canonical_hash} on first connect and
+        on every reconnect. We compare it against our real files, DELETE our
+        previously-received files that are no longer in it (offline deletions, scoped
+        safely), and reply with the list we still NEED (missing or content differs).
+        The dev then pushes exactly those — a full reconcile that bounds drift."""
+        files = msg.get("files") or {}
+        dev_id = msg.get("dev_id") or "_local"
+        dev_name = msg.get("dev_name") or ""
+        peer = dev_name or (str(dev_id)[:8] if dev_id else "")
+        root = self.m.sync_target_root().resolve()
+        received = self._load_received()
+        need = []
+        for rel, h in files.items():
+            srel = str(rel).replace("\\", "/")
+            try:
+                target = (root / srel).resolve()
+            except Exception:
+                continue
+            if target != root and root not in target.parents:
+                continue  # never request/accept a path outside the sync root
+            if not target.exists() or normalized_md5(target.read_bytes()) != h:
+                need.append(srel)
+        # Offline deletions: a file we received before but that is no longer in the
+        # manifest was deleted on the dev — remove it locally (only our own files).
+        deleted = 0
+        for rel in list(received):
+            if rel in files:
+                continue
+            srel = str(rel).replace("\\", "/")
+            try:
+                target = (root / srel).resolve()
+            except Exception:
+                continue
+            if target != root and root not in target.parents:
+                continue
+            if target.exists() and not target.is_dir():
+                try:
+                    target.unlink()
+                    deleted += 1
+                    self.m.log_sync("deleted", srel, "removed on dev (full sync)",
+                                    peer=peer, direction="receive")
+                except Exception:
+                    pass
+        # The new received table is the manifest (needed files arrive next as a
+        # batch; non-needed ones already match on disk).
+        self._save_received(dict(files))
+        if deleted or need:
+            self.m.log_sync("reconnect", "", "full sync",
+                            details=f"{len(need)} to fetch, {deleted} removed",
+                            peer=peer, direction="receive")
+        send(json.dumps({"type": "need", "need": need}))
 
     def _apply_one(self, msg: dict, peer: str = "") -> dict:
         """Apply one pushed file (or deletion); return a result row for the ack.
@@ -183,7 +284,9 @@ class PushReceiver:
             result["diff"] = diff
             details = f"{_fmt_bytes(new_size)} (delta {_fmt_diff(diff)})"
             if target.exists():
-                cur = hashlib.md5(target.read_bytes()).hexdigest()
+                # Compare on the canonical (LF) form so a local CRLF copy is seen
+                # as up-to-date (no rewrite loop), matching the sender's hash.
+                cur = normalized_md5(target.read_bytes())
                 if cur == msg.get("hash"):
                     result["status"] = "skipped"
                     result["diff"] = 0
@@ -357,34 +460,24 @@ class PushSender:
             wm = get_watch_manager()
             wm.start()
 
-            # Decide the diff base + first-push reason:
-            #   * never seen  -> baseline = current tree (NO bulk send), reason "delta"
-            #   * seen before -> reuse stored last_sent (resume offline deltas),
-            #                    first push uses reason "resume"
-            with self._lock:
-                seen = self._client_seen.get(client_id, False)
-                if seen:
-                    last = dict(self._client_sent.get(client_id, {}))
-                else:
-                    last = wm.snapshot()
-                    self._client_sent[client_id] = dict(last)
-                    self._client_seen[client_id] = True
-            first_reason = "resume" if seen else "delta"
-
-            if seen:
-                ColorPrint.green(f"[WsPush] Reconnected to {peer.get('name') or host}; "
-                                 f"resuming from {len(last)} acked files")
-            else:
-                ColorPrint.green(f"[WsPush] Connected to {peer.get('name') or host} "
-                                 f"(baseline {len(last)} files); pushing deltas every "
-                                 f"{PUSH_TICK}s")
-
             client_name = peer.get("name") or host
-            reason = first_reason
+            pid = peer.get("id")
+            # FULL SYNC on EVERY (re)connect (first connect or after any drop): send
+            # the full file manifest, let the client reconcile (fetch what differs,
+            # delete what's gone), and rebuild the per-client table from scratch.
+            # This bounds drift after an offline window. Incremental deltas follow.
+            ColorPrint.green(f"[WsPush] Connected to {client_name}; running full sync")
+            with self._lock:
+                self._client_sent.pop(client_id, None)   # clear the per-peer table
+            last = self._full_sync(ws, wm, client_id, client_name, pid)
+            with self._lock:
+                self._client_sent[client_id] = dict(last)
+            ColorPrint.green(f"[WsPush] {client_name} in sync ({len(last)} files); "
+                             f"pushing deltas every {PUSH_TICK}s")
+
             while self._running and self.m.is_distributing() and not is_shutdown_requested():
-                last = self._push_deltas(ws, wm, last, client_id, reason,
-                                         client_name, pid=peer.get("id"))
-                reason = "delta"  # only the first push after (re)connect is special
+                last = self._push_deltas(ws, wm, last, client_id, "delta",
+                                         client_name, pid=pid)
                 time.sleep(PUSH_TICK)
         except Exception as exc:
             # Back off on connect failures AND mid-sync drops; last_sent is
@@ -394,6 +487,86 @@ class PushSender:
             ws.close()
             with self._lock:
                 self._threads.pop(peer.get("id"), None)
+
+    def _full_sync(self, ws, wm, client_id: str, client_name: str, pid: str) -> dict:
+        """Full reconcile on (re)connect: send the manifest {rel: hash} of every
+        synced file; the client replies with the subset it NEEDs (missing or
+        differing) and deletes its own stale files. Push exactly the needed files in
+        size-bounded batches. Returns the dev's full snapshot, which becomes the
+        incremental baseline. Only what differs crosses the wire, so a reconnect is
+        cheap when little changed yet still guarantees convergence."""
+        snap = wm.snapshot()  # {dest: (mtime, hash, abspath)}
+        # Guard a destructive empty manifest: a blank snapshot here almost always
+        # means the watcher's first scan hasn't finished yet (not "the dev has zero
+        # files"). Sending it would make the client delete everything it received,
+        # so wait briefly for the index to populate.
+        waited = 0.0
+        while not snap and waited < 5.0 and self._running and not is_shutdown_requested():
+            time.sleep(0.5)
+            waited += 0.5
+            snap = wm.snapshot()
+        me = self.m.config.get_self()
+        dev_id = self.m.config.machine_id
+        dev_name = me.get("name") or ""
+        channel = pid or client_id
+        peer_label = client_name or (str(client_id)[:8] if client_id else "")
+        manifest = {dest: meta[1] for dest, meta in snap.items()}
+
+        self.m.set_sync_phase("scanning", len(manifest), channel=channel,
+                              name=client_name, direction="push")
+        ws.send_text(json.dumps({"type": "manifest", "dev_id": dev_id,
+                                 "dev_name": dev_name, "files": manifest}))
+        reply = ws.recv_text()
+        if not reply:
+            raise ConnectionError("no manifest reply")
+        need = [d for d in ((json.loads(reply).get("need")) or []) if d in snap]
+        self.m.log_sync("reconnect", "", "full sync",
+                        details=f"{len(need)}/{len(manifest)} file(s) to send",
+                        peer=peer_label, direction="push")
+        if not need:
+            self.m.set_sync_phase("idle", 0, channel=channel, name=client_name,
+                                  direction="push")
+            return snap
+
+        def send_batch(entries):
+            ws.send_text(json.dumps({"type": "batch", "reason": "full",
+                                     "dev_id": dev_id, "dev_name": dev_name,
+                                     "files": entries}))
+            if not ws.recv_text():
+                raise ConnectionError("no batch_ack")
+
+        self.m.set_sync_phase("pushing", len(need), channel=channel,
+                              name=client_name, direction="push")
+        chunk, chunk_bytes, remaining = [], 0, len(need)
+        for dest in need:
+            meta = snap.get(dest)
+            if not meta:
+                remaining -= 1
+                continue
+            mtime, fhash, abspath = meta
+            try:
+                content = normalize_eol(Path(abspath).read_bytes())
+            except Exception:
+                remaining -= 1
+                continue
+            b64 = base64.b64encode(content).decode("ascii")
+            self.m.log_sync("sent", dest, "full sync",
+                            details=f"{_fmt_bytes(len(content))} -> {peer_label}",
+                            size=len(content), peer=peer_label, direction="push")
+            if chunk and (chunk_bytes + len(b64)) > MAX_BATCH_BYTES:
+                send_batch(chunk)
+                remaining -= len(chunk)
+                self.m.set_sync_phase("pushing", remaining, channel=channel,
+                                      name=client_name, direction="push")
+                chunk, chunk_bytes = [], 0
+            chunk.append({"rel": dest, "mtime": mtime, "hash": fhash,
+                          "size": len(content), "b64": b64})
+            chunk_bytes += len(b64)
+        if chunk:
+            send_batch(chunk)
+        self.m.set_sync_phase("idle", 0, channel=channel, name=client_name,
+                              direction="push")
+        return snap
 
     def _push_deltas(self, ws, wm, last: dict, client_id: str, reason: str,
                      client_name: str = "", pid: str = "") -> dict:
@@ -498,7 +671,9 @@ class PushSender:
 
         for dest, (mtime, fhash, abspath) in changed:
             try:
-                content = Path(abspath).read_bytes()
+                # Canonicalize text to LF on the wire (binary passes through), so
+                # the bytes the client writes match the watcher's canonical hash.
+                content = normalize_eol(Path(abspath).read_bytes())
             except Exception:
                 remaining -= 1
                 continue

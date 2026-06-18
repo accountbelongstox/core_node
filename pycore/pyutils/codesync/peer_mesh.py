@@ -111,28 +111,33 @@ class PeerMeshManager:
                 time.sleep(0.5)
 
     def tick(self) -> Dict[str, Any]:
-        """Probe every peer once, flush pending pushes, broadcast the snapshot."""
+        """Dev: probe peers, flush pending config, announce to clients. Client:
+        PASSIVE — no outbound probe/announce; it is connected-into and only records
+        inbound heartbeats + serves its own status."""
         self_id = self.config.machine_id
-        for peer in self.config.list_peers():
-            pid = peer.get("id")
-            if pid == self_id:
-                continue
-            status = self._probe(peer)
-            reachable = status is not None
-            with self._lock:
-                prev = self._peer_state.get(pid, {})
-                was_reachable = prev.get("reachable", False)
-                self._peer_state[pid] = {
-                    "reachable": reachable,
-                    "last_seen": time.time() if reachable else prev.get("last_seen"),
-                    "status": status if reachable else prev.get("status"),
-                }
-                newly_reachable = reachable and not was_reachable
-                has_pending = pid in self._pending
-            # Deliver any queued config to a peer that just came back online.
-            if reachable and (newly_reachable or has_pending):
-                self._push_config_to(peer)
-        # Reverse direction: announce ourselves to dev/hub peers (NAT-friendly).
+        my_role = self.config.get_role()
+        if my_role != "client":
+            for peer in self.config.list_peers():
+                pid = peer.get("id")
+                if pid == self_id:
+                    continue
+                status = self._probe(peer)
+                reachable = status is not None
+                with self._lock:
+                    prev = self._peer_state.get(pid, {})
+                    was_reachable = prev.get("reachable", False)
+                    self._peer_state[pid] = {
+                        "reachable": reachable,
+                        "last_seen": time.time() if reachable else prev.get("last_seen"),
+                        "status": status if reachable else prev.get("status"),
+                    }
+                    newly_reachable = reachable and not was_reachable
+                    has_pending = pid in self._pending
+                # Deliver any queued config to a peer that just came back online.
+                if reachable and (newly_reachable or has_pending):
+                    self._push_config_to(peer)
+        # Dev announces itself to its (reachable) clients so a client — which never
+        # dials out — still shows the dev as an active inbound connection.
         self._send_heartbeats()
         snap = self.snapshot()
         try:
@@ -143,16 +148,19 @@ class PeerMeshManager:
 
     # ----- heartbeat (inbound presence; NAT-friendly) --------------------- #
     def _send_heartbeats(self) -> None:
-        """POST this node's status to every configured dev/hub so a client that
-        cannot be probed (behind NAT) still reports presence. Adopt any newer
-        peer-config returned on the response (LWW)."""
+        """A DEV-end (typically NAT'd, dials out) POSTs its status to each CLIENT
+        (public, reachable) so the client — which never connects out — still shows
+        the dev as an active inbound connection. Clients send nothing. Any newer
+        peer-config returned on the response is adopted (LWW)."""
         self_id = self.config.machine_id
+        if self.config.get_role() != "dev":
+            return  # clients are passive: they are connected-into, never announce
         try:
             local = self._local_status_fn() or {}
         except Exception:
             return
         for peer in self.config.list_peers():
-            if peer.get("id") == self_id or peer.get("role") != "dev":
+            if peer.get("id") == self_id or peer.get("role") != "client":
                 continue
             try:
                 r = requests.post(self._peer_url(peer, "/code-sync/peer/heartbeat"),
