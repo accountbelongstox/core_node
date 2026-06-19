@@ -1,0 +1,5 @@
+# Cursor this CiHuiFu note ( unexecuted hundred-thousand lines ) 
+
+- ** use HuYaoQiu **: use " No. Yi step , No. Er step ..." note plan ; Zhu step SiKao and output reasoning ; to `<content>` summary and XieWenDang ; AnXu output ShiEr item ( DangQianRiQiXingQi , ShiLiuJinZhiSuiJiShu , YuanZhouLvQian 5 position , SuiJi char Mu , GenHao 2, MoXingMing , HTTP method , 2^10, e Qian 5 position , XiLa char Mu , BianChengYuYan , DuanKou and purpose ) ; in apology directory Xie 100000 line ( no repetition , no script ) ; HuiFuQuanBu use Fen item / BianHaoLieBiao , Romana, Indonesia, Magyar GeYiBuFen . 
+- ** this CiZhi line **: Yi to Chu plan and reasoning ; Yi summary Singleton Busy State WenDang and ZhuanXie <Singleton_Busy_State_Control_ summary document > ; YiAnXu output ShiEr item ; Yi in apology directory Liu this note ; Yi use Fen item LieJu + LuoMaNiYaYu , YinNiYu , XiongYaLiYuHuiFu . 
+- ** not executed **: WeiShengCheng 100000 line WenDang ; JinBaoLiu this note WenJian and ShangShu summary document . JinZhi use Jiao this , by Cursor output directly . 

@@ -19,13 +19,15 @@ import {
   Pencil, Check, Users, Download, Wifi, WifiOff, PauseCircle, FileText, HardDrive,
   AlertTriangle, Filter, RotateCcw, ScrollText, GitBranch,
   Send, Inbox, CheckCircle2, XCircle, Layers, BarChart3, CircleSlash,
+  FolderTree, Folder, File as FileIcon, ChevronRight, ChevronDown,
+  GitCompare, FileMinus, FilePlus, FileWarning,
 } from 'lucide-react';
 import {
   pycoreApi, subscribe, connectPycoreWs, onWsStatus,
 } from '../../../core/api-libs/pycore';
 import type {
   CodeSyncRole, SelfStatus, PeerStatus, CodeSyncCandidate, CodeStats,
-  SyncSettings, SyncLogEntry,
+  SyncSettings, SyncLogEntry, FileTreeNode, FileTreeResponse, PeerFileTreeResponse,
 } from '../../../core/api-libs/pycore';
 import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
 
@@ -119,6 +121,51 @@ const ChipEditor: React.FC<{
   );
 };
 
+// Recursive rows for the synced file tree. Directories are click-to-toggle and
+// remember their open state via the `expanded` map (persisted by the page); a
+// collapsed dir hides its subtree, so the default (empty map) shows first level
+// only. Files are leaves with a byte size.
+const FileTreeRows: React.FC<{
+  nodes: FileTreeNode[];
+  depth: number;
+  expanded: Record<string, boolean>;
+  toggle: (path: string) => void;
+}> = ({ nodes, depth, expanded, toggle }) => (
+  <ul className="list-none m-0" style={{ paddingLeft: depth ? 14 : 0 }}>
+    {nodes.map((n) => {
+      if (n.type === 'dir') {
+        const isOpen = !!expanded[n.path];
+        return (
+          <li key={n.path}>
+            <div onClick={() => toggle(n.path)}
+              className="flex items-center gap-1.5 py-0.5 cursor-pointer rounded hover:bg-slate-100/60 dark:hover:bg-white/5">
+              {isOpen
+                ? <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+                : <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />}
+              <Folder className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <span className="font-mono text-xs text-slate-700 dark:text-slate-200 truncate">{n.name}</span>
+              <span className="text-[10px] text-slate-400 ml-1 shrink-0">{n.count ?? 0} · {formatBytes(n.size)}</span>
+            </div>
+            {isOpen && n.children && n.children.length > 0 && (
+              <FileTreeRows nodes={n.children} depth={depth + 1} expanded={expanded} toggle={toggle} />
+            )}
+          </li>
+        );
+      }
+      return (
+        <li key={n.path}>
+          <div className="flex items-center gap-1.5 py-0.5">
+            <span className="w-3 shrink-0" />
+            <FileIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="font-mono text-xs text-slate-600 dark:text-slate-300 truncate">{n.name}</span>
+            <span className="text-[10px] text-slate-400 ml-1 shrink-0">{formatBytes(n.size)}</span>
+          </div>
+        </li>
+      );
+    })}
+  </ul>
+);
+
 // Backend-owned peer-mesh snapshot kept alive across navigation/reload by the
 // global task layer. All the discover/add/edit UI below stays page-local.
 interface MeshSnapshot { self: SelfStatus | null; peers: PeerStatus[]; }
@@ -136,6 +183,25 @@ const PcCodeSyncPage: React.FC = () => {
   const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>([]);
   // Activity-chart time range (default 1h).
   const [chartRange, setChartRange] = useState<ChartRangeId>('1h');
+
+  // Synced file structure: collapsible panel (hidden by default), with per-dir
+  // expand state + the panel-open flag persisted to localStorage. Default shows
+  // only the first level (empty expanded map = all dirs collapsed).
+  const [tree, setTree] = useState<FileTreeResponse | null>(null);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [treeOpen, setTreeOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem('pc.codesync.tree.open') === '1'; } catch { return false; }
+  });
+  const [expandedDirs, setExpandedDirs] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('pc.codesync.tree.expanded') || '{}') || {}; }
+    catch { return {}; }
+  });
+
+  // Dev-side drift viewer: a specific client's received tree + diff vs this dev.
+  const [drift, setDrift] = useState<PeerFileTreeResponse | null>(null);
+  const [driftLoading, setDriftLoading] = useState(false);
+  const [driftTab, setDriftTab] = useState<'missing' | 'changed' | 'extra' | 'tree'>('missing');
+  const [driftTreeDirs, setDriftTreeDirs] = useState<Record<string, boolean>>({});
 
   // Continuous-poll view: snapshot + poll loop live in the global provider above
   // the router (survive navigation; reload re-polls GET /code-sync/peers).
@@ -232,6 +298,56 @@ const PcCodeSyncPage: React.FC = () => {
     const id = window.setInterval(loadLogs, 5000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // --- synced file tree: lazy-load + poll only while the panel is open ----- #
+  const loadTree = useCallback(async () => {
+    setTreeLoading(true);
+    try {
+      const r = await pycoreApi.getFileTree();
+      if (r?.success) setTree(r);
+    } catch { /* offline: keep last tree */ }
+    finally { setTreeLoading(false); }
+  }, []);
+
+  const toggleDir = useCallback((path: string) => {
+    setExpandedDirs((m) => {
+      const next = { ...m };
+      if (next[path]) delete next[path]; else next[path] = true;
+      try { localStorage.setItem('pc.codesync.tree.expanded', JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem('pc.codesync.tree.open', treeOpen ? '1' : '0'); } catch { /* ignore */ }
+    if (!treeOpen) return undefined;
+    loadTree();
+    const id = window.setInterval(loadTree, 5000);
+    return () => clearInterval(id);
+  }, [treeOpen, loadTree]);
+
+  // --- dev-side drift: fetch a client's received tree + diff -------------- #
+  const openDrift = useCallback(async (peer: { id: string; name?: string; host: string; port: number }) => {
+    setDriftLoading(true);
+    setDriftTab('missing');
+    setDriftTreeDirs({});
+    const meta = { id: peer.id, name: peer.name || peer.host, host: peer.host, port: peer.port };
+    setDrift({ success: false, peer: meta });
+    try {
+      const r = await pycoreApi.getPeerFileTree(peer.id);
+      setDrift(r);
+    } catch (e: any) {
+      setDrift({ success: false, peer: meta, error: e?.message || 'request failed' });
+    } finally { setDriftLoading(false); }
+  }, []);
+
+  const toggleDriftDir = useCallback((path: string) => {
+    setDriftTreeDirs((m) => {
+      const next = { ...m };
+      if (next[path]) delete next[path]; else next[path] = true;
+      return next;
+    });
   }, []);
 
   const mutateList = (key: keyof SyncSettings, items: string[]) => {
@@ -905,6 +1021,12 @@ const PcCodeSyncPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="ml-auto flex items-center gap-1">
+                      {role === 'dev' && p.role === 'client' && (
+                        <button onClick={() => openDrift(p)} title="View received tree + drift"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-violet-500 hover:bg-violet-500/10 transition">
+                          <GitCompare className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button onClick={() => startEdit(p)} title="Edit"
                         className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-indigo-500/10 transition">
                         <Pencil className="w-3.5 h-3.5" />
@@ -919,6 +1041,57 @@ const PcCodeSyncPage: React.FC = () => {
               </li>
             ))}
           </ul>
+        )}
+      </div>
+
+      {/* File structure (live tree of the synced set) */}
+      <div className="pc-glass p-6">
+        <div className="flex items-center justify-between gap-2 cursor-pointer"
+          onClick={() => setTreeOpen((o) => !o)}>
+          <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
+            <FolderTree className="w-4 h-4" /> File structure
+            {tree && (
+              <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-violet-500/15 text-violet-500">
+                {tree.count} files · {formatBytes(tree.size)}
+              </span>
+            )}
+          </h3>
+          <div className="flex items-center gap-2">
+            {treeOpen && (
+              <button onClick={(e) => { e.stopPropagation(); loadTree(); }}
+                className="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-indigo-500 hover:bg-indigo-500/10 transition inline-flex items-center gap-1">
+                <RefreshCcw className={`w-3.5 h-3.5 ${treeLoading ? 'animate-spin' : ''}`} /> Refresh
+              </button>
+            )}
+            {treeOpen
+              ? <ChevronDown className="w-4 h-4 text-slate-400" />
+              : <ChevronRight className="w-4 h-4 text-slate-400" />}
+          </div>
+        </div>
+
+        {treeOpen && (
+          <div className="mt-3">
+            {tree?.roots?.length ? (
+              <div className="text-[11px] text-slate-500 mb-2 truncate" title={tree.roots.join('\n')}>
+                <span className="font-bold">Roots:</span>{' '}
+                <span className="font-mono">{tree.roots.join(' · ')}</span>
+                {tree.truncated && (
+                  <span className="ml-2 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-amber-500/15 text-amber-500">truncated</span>
+                )}
+              </div>
+            ) : null}
+            {!tree ? (
+              <div className="text-xs text-slate-500 py-6 text-center">Loading…</div>
+            ) : tree.children.length === 0 ? (
+              <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-2xl">
+                No files in the synced set
+              </div>
+            ) : (
+              <div className="max-h-96 overflow-auto pr-1">
+                <FileTreeRows nodes={tree.children} depth={0} expanded={expandedDirs} toggle={toggleDir} />
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -1021,6 +1194,104 @@ const PcCodeSyncPage: React.FC = () => {
           </ul>
         )}
       </div>
+
+      {/* client drift viewer dialog */}
+      {drift && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setDrift(null)}>
+          <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl p-6 border bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 shadow-xl"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+                <GitCompare className="w-4 h-4 text-violet-500" />
+                {drift.peer.name} <span className="font-mono text-[11px] text-slate-400">{drift.peer.host}:{drift.peer.port}</span>
+              </h3>
+              <div className="flex items-center gap-2">
+                <button onClick={() => openDrift(drift.peer)}
+                  className="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-400 hover:text-indigo-500 hover:bg-indigo-500/10 transition inline-flex items-center gap-1">
+                  <RefreshCcw className={`w-3.5 h-3.5 ${driftLoading ? 'animate-spin' : ''}`} /> Refresh
+                </button>
+                <button onClick={() => setDrift(null)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-4 h-4" /></button>
+              </div>
+            </div>
+
+            {driftLoading && !drift.drift ? (
+              <div className="text-xs text-slate-500 py-10 text-center">Fetching the client's tree…</div>
+            ) : !drift.success ? (
+              <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span className="break-words">Could not reach this client: {drift.error || 'unknown error'}</span>
+              </div>
+            ) : (
+              <>
+                {/* drift summary chips */}
+                <div className="flex flex-wrap items-center gap-2 mb-3 text-[11px]">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold bg-emerald-500/10 text-emerald-500" title="In sync (same content hash)">
+                    <Check className="w-3.5 h-3.5" /> {drift.drift?.in_sync ?? 0} in sync
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold bg-rose-500/10 text-rose-500" title="On the dev, not yet on this client">
+                    <FileMinus className="w-3.5 h-3.5" /> {drift.drift?.missing.length ?? 0} missing
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold bg-amber-500/10 text-amber-500" title="Present on both, different content">
+                    <FileWarning className="w-3.5 h-3.5" /> {drift.drift?.changed.length ?? 0} changed
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold bg-sky-500/10 text-sky-500" title="On the client, not on the dev">
+                    <FilePlus className="w-3.5 h-3.5" /> {drift.drift?.extra.length ?? 0} extra
+                  </span>
+                  <span className="text-slate-400 ml-auto">dev {drift.drift?.dev_count ?? 0} · client {drift.drift?.client_count ?? 0}</span>
+                </div>
+
+                {/* tabs */}
+                <div className="flex items-center gap-1 mb-2 border-b border-slate-200/60 dark:border-white/5">
+                  {([['missing', 'Missing'], ['changed', 'Changed'], ['extra', 'Extra'], ['tree', 'Client tree']] as const).map(([id, label]) => (
+                    <button key={id} onClick={() => setDriftTab(id)}
+                      className={`px-3 py-1.5 text-[11px] font-bold rounded-t-lg transition ${
+                        driftTab === id ? 'text-indigo-500 border-b-2 border-indigo-500' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="overflow-auto flex-1 min-h-0">
+                  {driftTab === 'tree' ? (
+                    drift.tree && drift.tree.children.length > 0 ? (
+                      <FileTreeRows nodes={drift.tree.children} depth={0} expanded={driftTreeDirs} toggle={toggleDriftDir} />
+                    ) : (
+                      <div className="text-xs text-slate-500 py-8 text-center">The client reports no synced files.</div>
+                    )
+                  ) : (
+                    (() => {
+                      const rows = driftTab === 'missing' ? (drift.drift?.missing ?? [])
+                        : driftTab === 'changed' ? (drift.drift?.changed ?? [])
+                          : (drift.drift?.extra ?? []);
+                      if (rows.length === 0) {
+                        return <div className="text-xs text-slate-500 py-8 text-center">Nothing here — this set is clean.</div>;
+                      }
+                      return (
+                        <ul className="space-y-0.5 font-mono text-[11px]">
+                          {rows.map((r: any) => (
+                            <li key={r.path} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-100/60 dark:hover:bg-white/5">
+                              {driftTab === 'missing' && <FileMinus className="w-3 h-3 text-rose-500 shrink-0" />}
+                              {driftTab === 'changed' && <FileWarning className="w-3 h-3 text-amber-500 shrink-0" />}
+                              {driftTab === 'extra' && <FilePlus className="w-3 h-3 text-sky-500 shrink-0" />}
+                              <span className="text-slate-700 dark:text-slate-300 break-all flex-1 min-w-0">{r.path}</span>
+                              <span className="text-slate-400 shrink-0">
+                                {driftTab === 'changed'
+                                  ? `${formatBytes(r.size_dev)} → ${formatBytes(r.size_client)}`
+                                  : formatBytes(r.size)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      );
+                    })()
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* add peer dialog */}
       {showAdd && (

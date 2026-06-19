@@ -24,11 +24,49 @@
 import type {
   WfNewApi, Word, WordGroup, BentoGroup, UserProfile, UserStats,
   SubtitleCourse, BilingualSentence, AnalyticsStats,
+  WfNewAuthResult, WfNewAuthUser, WfNewRegisterPayload,
 } from './WfNewApiTypes';
 import { wfNewEndpoints } from './WfNewEndpoints';
 import {
   MOCK_SUBTITLE_COURSES, MOCK_BILINGUAL_SENTENCES, MOCK_ANALYTICS_STATS,
 } from '../WfNewMockDb';
+
+// --- auth token ------------------------------------------------------------ #
+
+/** localStorage key for the persisted Sanctum Bearer token. */
+const AUTH_TOKEN_KEY = 'wfnew_auth_token';
+
+function loadToken(): string | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+  } catch {
+    return null;
+  }
+}
+
+let authToken: string | null = loadToken();
+
+function setToken(token: string | null): void {
+  authToken = token;
+  try {
+    if (typeof localStorage === 'undefined') return;
+    if (token) localStorage.setItem(AUTH_TOKEN_KEY, token);
+    else localStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {
+    /* best-effort persistence */
+  }
+}
+
+/** Backend success/error bodies can carry repeated UTF-8 BOMs — strip them all. */
+function stripBom(text: string): string {
+  return text.replace(/^(﻿|ï»¿)+/, '');
+}
+
+/** Merge the Bearer header in when a session token is present. */
+function authHeaders(base: Record<string, string>): Record<string, string> {
+  if (authToken) return { ...base, Authorization: `Bearer ${authToken}` };
+  return base;
+}
 
 // --- transport ------------------------------------------------------------- #
 
@@ -37,10 +75,62 @@ async function getJSON<T>(path: string): Promise<T> {
   await wfNewEndpoints.whenReady();
   const res = await fetch(wfNewEndpoints.buildUrl(path), {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: authHeaders({ Accept: 'application/json' }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`);
   return (await res.json()) as T;
+}
+
+/**
+ * POST <currentEndpoint>/path with a JSON body. BOM-tolerant parse; on a non-2xx
+ * it throws an Error carrying the backend's `message` (Laravel validation / auth
+ * errors) plus `.status`, so callers can branch on it.
+ */
+async function postJSON<T>(path: string, body: Record<string, any>): Promise<T> {
+  await wfNewEndpoints.whenReady();
+  const res = await fetch(wfNewEndpoints.buildUrl(path), {
+    method: 'POST',
+    headers: authHeaders({ Accept: 'application/json', 'Content-Type': 'application/json' }),
+    body: JSON.stringify(body),
+  });
+  const rawText = stripBom(await res.text());
+  let parsed: any = null;
+  if (rawText) {
+    try {
+      parsed = JSON.parse(rawText);
+    } catch {
+      parsed = null;
+    }
+  }
+  if (!res.ok) {
+    let message = `HTTP ${res.status} for ${path}`;
+    if (parsed && typeof parsed.message === 'string' && parsed.message) message = parsed.message;
+    else if (parsed && typeof parsed.error === 'string' && parsed.error) message = parsed.error;
+    const err = new Error(message) as Error & { status: number; body: any };
+    err.status = res.status;
+    err.body = parsed;
+    throw err;
+  }
+  return parsed as T;
+}
+
+/**
+ * Normalize the AppQyV1 login/register envelope into a WfNewAuthResult. The
+ * backend wraps the payload as { success, message, data: { user, login_token,
+ * ... } } (with a legacy top-level `token`); tolerate both unwrapped and raw
+ * shapes and read the Bearer token from login_token first.
+ */
+function toAuthResult(res: any): WfNewAuthResult {
+  const data = res && res.data ? res.data : res;
+  const token: string =
+    (data && data.login_token) ||
+    (res && res.token) ||
+    (data && data.token) ||
+    (data && data.user_token) ||
+    '';
+  const rawUser = data ? data.user : undefined;
+  const user: WfNewAuthUser = rawUser && typeof rawUser === 'object' ? rawUser : {};
+  return { token, user };
 }
 
 // --- mappers --------------------------------------------------------------- #
@@ -115,6 +205,44 @@ async function fetchGroups(): Promise<WordGroup[]> {
 }
 
 export const wfNewApiHttp: WfNewApi = {
+  // ---- Auth ----
+  async login(identifier: string, password: string): Promise<WfNewAuthResult> {
+    // The AppQyV1 login controller authenticates by `username`, but
+    // CommonAuthService matches it against username OR email OR phone — so the
+    // raw identifier the user typed is sent as `username`.
+    const res = await postJSON<any>('/login', { username: identifier, password });
+    const result = toAuthResult(res);
+    if (result.token) setToken(result.token);
+    return result;
+  },
+
+  async register(payload: WfNewRegisterPayload): Promise<WfNewAuthResult> {
+    // avatar is UI-only (emoji) — the backend does not persist it, so it is not
+    // sent. Everything else maps straight onto the registration controller.
+    const res = await postJSON<any>('/register', {
+      username: payload.username,
+      password: payload.password,
+      email: payload.email,
+      nickname: payload.nickname,
+      native_language: payload.native_language,
+      learning_languages: payload.learning_languages,
+      invite_code: payload.invite_code,
+    });
+    const result = toAuthResult(res);
+    if (result.token) setToken(result.token);
+    return result;
+  },
+
+  async logout(): Promise<void> {
+    // Best-effort server-side revoke; the local token is cleared regardless.
+    try {
+      if (authToken) await postJSON('/logout', {});
+    } catch {
+      /* ignore — clearing the local token below is what matters */
+    }
+    setToken(null);
+  },
+
   async getBentoGroups(): Promise<BentoGroup[]> {
     const groups = await fetchGroups();
     return groups.map((g, i) => decorate(g, i));

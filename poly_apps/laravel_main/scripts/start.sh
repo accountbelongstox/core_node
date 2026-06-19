@@ -73,6 +73,9 @@ PG_DATA_ACTUAL=""
 PG_CONF_ACTUAL=""
 PG_DATA_SRC=""
 ENV_DRIVER_OVERRIDE=""
+WIN_SCRIPT_PATH=""
+WIN_DRIVE=""
+WIN_REST=""
 
 # Background systemd service options (idempotent registration via debian_service_manager).
 # AS_SERVICE: yes|no|empty(ask). LARAVEL_SERVICE_RUN=1 marks the in-service run so it
@@ -705,6 +708,41 @@ fi
 echo "Starting Laravel development environment with hot reload..."
 echo "Note: Running in headless API mode - web.php serves only API debug interface"
 echo "Press Ctrl+C to stop all services"
+
+# --- WSL2 reachability hint (Tailscale / external LAN access to :PORT) ---
+# Under WSL2's default NAT networking, octane:start binds 0.0.0.0:PORT on the WSL VM
+# (172.x.x.x), NOT the Windows host. A Tailscale daemon on the Windows host advertises
+# the host's 100.x address, but inbound packets from another Tailscale device land on
+# the host where nothing listens on PORT -- so the service is unreachable from outside
+# even though localhost works. The companion Windows script wsl_port_forward.ps1 sets a
+# netsh portproxy (0.0.0.0:PORT -> WSL_IP:PORT) + firewall rule to bridge this. Only
+# emit the hint under WSL; mirrored networking (Win11 22H2+) makes it unnecessary.
+if is_wsl; then
+    # The hint command is pasted into WINDOWS PowerShell, so present a Windows path.
+    # Convert a /mnt/<drive>/... script dir to '<DRIVE>:\...'; leave non-/mnt paths
+    # (script living on the Linux fs) as-is with a \\wsl$ UNC hint instead.
+    WIN_SCRIPT_PATH=""
+    case "$SCRIPT_DIR" in
+        /mnt/[a-z]/*)
+            WIN_DRIVE="$(printf '%s' "$SCRIPT_DIR" | sed -E 's#^/mnt/([a-z])/.*#\1#' | tr '[:lower:]' '[:upper:]')"
+            WIN_REST="$(printf '%s' "$SCRIPT_DIR" | sed -E 's#^/mnt/[a-z]/##; s#/#\\#g')"
+            WIN_SCRIPT_PATH="${WIN_DRIVE}:\\${WIN_REST}\\wsl_port_forward.ps1"
+            ;;
+        *)
+            WIN_SCRIPT_PATH="\\\\wsl\$\\${WSL_DISTRO_NAME:-<distro>}$(printf '%s' "$SCRIPT_DIR" | sed 's#/#\\#g')\\wsl_port_forward.ps1"
+            ;;
+    esac
+    echo ""
+    echo "ℹ️  WSL detected. To reach http://...:${PORT} from ANOTHER Tailscale/LAN device"
+    echo "    (not just this host's localhost), the Windows host needs a port-forward."
+    echo "    If you launched this via start.ps1, it is set up AUTOMATICALLY -- nothing"
+    echo "    to do. If you started start.sh directly, run ONCE on the WINDOWS host in"
+    echo "    an ELEVATED (Administrator) PowerShell:"
+    echo "        powershell -ExecutionPolicy Bypass -File \"${WIN_SCRIPT_PATH}\" -Port ${PORT}"
+    echo "    Re-run it after every 'wsl --shutdown' / reboot (the WSL IP changes)."
+    echo "    Then use this host's Tailscale IP: http://<host-tailscale-ip>:${PORT}"
+    echo ""
+fi
 
 # --- Ensure node/npx (composer dev / dev:win use 'npx concurrently') ---
 if ! resolve_npx; then

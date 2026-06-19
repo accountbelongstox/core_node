@@ -1,0 +1,5 @@
+# Cursor this CiHuiFu note ( unexecuted hundred-thousand lines ) 
+
+- ** use HuYaoQiu **: to `<content>` summary and XieWenDang ; XianLieChuKeNeng risk or ZhuYiDian ( at least 2 item ) ; Xian output understanding confirmation ; AnXu output ShiEr item ( SuiJiChengShi , YuanZhouLv , this Ji when Qu , SuiJi char Mu , UTC, BianMa , HuaXueYuanSu , SheJiMoShi , SuiJiSan position Shu , Python GuanJian char , SuiJiChengYu , ASCII 65) ; in apology directory Xie 100000 line ( no repetition , no script ) ; HuiFu use DuoJiXiaoBiaoTiFen segment , every segment Yi sub ZhuTi , , Deutsch, GeYiBuFen . 
+- ** this CiZhi line **: Yi summary ZhuTi and YangShi spec and ZhuanXie < ZhuTi and YangShiKaiFa spec _ summary document > ; YiLie 2 item risk and understanding confirmation ; YiAnXu output ShiEr item ; Yi in apology directory Liu this note ; Yi use DuoJiXiaoBiaoTi + WuKeLanYu , DeYu , XiLaYuHuiFu . 
+- ** not executed **: WeiShengCheng 100000 line WenDang ; JinBaoLiu this note WenJian and ShangShu summary document . JinZhi use Jiao this , by Cursor output directly . 

@@ -272,6 +272,25 @@ async def get_sync_logs(limit: int = 100):
     return get_code_sync_manager().get_sync_logs(limit)
 
 
+@router.get("/file-tree")
+async def get_file_tree():
+    """Nested file tree of the live synced set (for the UI file-structure panel)."""
+    from pycore.pyutils.codesync import get_code_sync_manager
+
+    return get_code_sync_manager().get_file_tree()
+
+
+@router.get("/peer-file-tree")
+async def get_peer_file_tree(peer_id: str):
+    """Dev-side view of a specific client's received tree + drift summary vs this
+    dev's synced set (compared by canonical content hash)."""
+    from pycore.pyutils.codesync import get_code_sync_manager
+
+    if not peer_id:
+        raise HTTPException(status_code=400, detail="peer_id required")
+    return get_code_sync_manager().get_peer_file_tree(peer_id)
+
+
 @router.post("/peers/add")
 async def add_peer(request: PeerAddRequest):
     """Add a peer to the committed config (replicated across the mesh)."""

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 import { wfNewApi, type BilingualSentence, type BilingualWord } from '../api';
+import { wfNewSettings } from '../WfNewSettingsStore';
 
 interface WfNewBilingualProps {
   activeTheme: ElementTheme;
@@ -20,19 +21,11 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
   trans,
   dark
 }) => {
-  // Sync core values with localStorage or settings
-  const [nativeLang, setNativeLang] = useState<string>(() => {
-    return localStorage.getItem('wf_setting_native_lang') || 'zh';
-  });
-  const [targetLang, setTargetLang] = useState<string>(() => {
-    return localStorage.getItem('wf_setting_target_lang') || 'en';
-  });
-  const [bilingualRatio, setBilingualRatio] = useState<string>(() => {
-    return localStorage.getItem('wf_setting_bilingual_ratio') || '1en_1zh';
-  });
-  const [recitalOrder, setRecitalOrder] = useState<string>(() => {
-    return localStorage.getItem('wf_setting_recital_order') || 'target_first';
-  });
+  // Sync core values with the shared settings store (WfNewSettingsStore).
+  const [nativeLang, setNativeLang] = useState<string>(() => wfNewSettings.get('settingNativeLang'));
+  const [targetLang, setTargetLang] = useState<string>(() => wfNewSettings.get('settingTargetLang'));
+  const [bilingualRatio, setBilingualRatio] = useState<string>(() => wfNewSettings.get('bilingualRatio'));
+  const [recitalOrder, setRecitalOrder] = useState<string>(() => wfNewSettings.get('recitalOrder'));
 
   // Track expanded sentence word lists
   const [expandedSentenceIds, setExpandedSentenceIds] = useState<Record<string, boolean>>({});
@@ -45,23 +38,14 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load latest settings on tab mount or localStorage updates
+  // Re-read on any settings change (reactive store; no polling / 'storage' event).
   useEffect(() => {
-    const handleStorageChange = () => {
-      setNativeLang(localStorage.getItem('wf_setting_native_lang') || 'zh');
-      setTargetLang(localStorage.getItem('wf_setting_target_lang') || 'en');
-      setBilingualRatio(localStorage.getItem('wf_setting_bilingual_ratio') || '1en_1zh');
-      setRecitalOrder(localStorage.getItem('wf_setting_recital_order') || 'target_first');
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    // Interval check as fallback for single page state synchronization
-    const syncInterval = setInterval(handleStorageChange, 1000);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(syncInterval);
-    };
+    return wfNewSettings.subscribe(() => {
+      setNativeLang(wfNewSettings.get('settingNativeLang'));
+      setTargetLang(wfNewSettings.get('settingTargetLang'));
+      setBilingualRatio(wfNewSettings.get('bilingualRatio'));
+      setRecitalOrder(wfNewSettings.get('recitalOrder'));
+    });
   }, []);
 
   // All sentence pairs loaded via the API gateway (mock or real).
@@ -211,13 +195,13 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
 
   const handleRatioSwitch = (ratio: string) => {
     setBilingualRatio(ratio);
-    localStorage.setItem('wf_setting_bilingual_ratio', ratio);
+    wfNewSettings.setField('bilingualRatio', ratio);
     addToast(trans('bilingual.ratioSet', { ratio: trans(ratio === '1en_1zh' ? 'bilingual.ratio_1_1' : 'bilingual.ratio_2_1') }), "info");
   };
 
   const handleOrderSwitch = (order: string) => {
     setRecitalOrder(order);
-    localStorage.setItem('wf_setting_recital_order', order);
+    wfNewSettings.setField('recitalOrder', order);
     addToast(trans('bilingual.orderSet', { order: trans(order === 'target_first' ? 'bilingual.order_targetFirst' : 'bilingual.order_nativeFirst') }), "info");
   };
 

@@ -16,12 +16,12 @@ import type {
   VideoExtractCapabilities, PickPathResult, VideoExtractSegmentsResponse,
   SystemResourcesResponse, VideoExtractOpenKind, VideoExtractOpenResponse,
   CodeSyncRole, CodeSyncPeersResponse, CodeSyncCandidate,
-  SyncSettings, SyncSettingsResponse, SyncLogEntry,
+  SyncSettings, SyncSettingsResponse, SyncLogEntry, FileTreeResponse, PeerFileTreeResponse,
   AutostartStatus, AiProbeResponse, AiProvider, AiBalance, AiBalanceResponse, AiRateLimitsResponse, AiChatMessage, AiChatResponse, AiGatewayStatus,
   AiUsageResponse,
   AiImageResponse, ImageHistoryResponse, ImageHistoryClearResponse, ImageHistoryDeleteResponse,
   AiKeysResponse, AiKeySetRequest, AiKeySetResponse, AiKeyDeleteResponse, AiKeyResetCooldownResponse,
-  OcrStatus, TtsStatus, TtsSettings, CapabilityStatus, SystemInfo, OpenDirResponse,
+  OcrStatus, TtsStatus, TtsSettings, TtsTestResponse, SttStatus, SttTestResponse, CapabilityStatus, SystemInfo, OpenDirResponse,
   TranslationQueueResponse, TranslationQueueActionResponse,
   LocalTaskDetailResponse, PycoreGlobalTaskDetailResponse,
   AssistStatus, AssistConfigPatch, AssistConfigResponse, AssistCycleResponse,
@@ -392,6 +392,12 @@ export const pycoreApi = {
     getJSON<{ success: boolean; role: CodeSyncRole; logs: SyncLogEntry[] }>(
       `/pyapi/code-sync/logs?limit=${limit}`),
 
+  // --- code sync file structure (live tree of the synced set) ------------- #
+  getFileTree: () => getJSON<FileTreeResponse>('/pyapi/code-sync/file-tree'),
+  // Dev-side: a specific client's received tree + drift vs this dev's synced set.
+  getPeerFileTree: (peerId: string) =>
+    getJSON<PeerFileTreeResponse>(`/pyapi/code-sync/peer-file-tree?peer_id=${encodeURIComponent(peerId)}`),
+
   // --- AI provider catalog (NO network test — cheap, never spends quota) --- #
   // Renders the grid on page load; live availability is tested on demand only.
   getAiCatalog: () => getJSON<AiProbeResponse>('/pyapi/api/local/ai/catalog'),
@@ -508,6 +514,16 @@ export const pycoreApi = {
   getTtsSettings: () => getJSON<TtsSettings>('/pyapi/api/local/tts/settings'),
   setTtsSettings: (patch: { synth_timeout_s?: number; edge_cooldown_s?: number }) =>
     postJSON<TtsSettings>('/pyapi/api/local/tts/settings', patch),
+
+  // --- TTS live per-engine synth test (actually runs the engine) ----------- #
+  testTts: (req: { engine?: string; text?: string; language?: string; rate?: string }) =>
+    postJSON<TtsTestResponse>('/pyapi/api/local/tts/test', req),
+
+  // --- STT engine availability + live recognition test --------------------- #
+  // faster-whisper -> whisper -> vosk -> azure (Azure exposes a free-F0 quota).
+  getSttStatus: () => getJSON<SttStatus>('/pyapi/api/local/stt/status'),
+  testStt: (req: { engine?: string; language?: string }) =>
+    postJSON<SttTestResponse>('/pyapi/api/local/stt/test', req),
 
   // --- Capabilities: CUDA/compute + free-library availability -------------- #
   getCapabilities: () => getJSON<CapabilityStatus>('/pyapi/api/local/capabilities/status'),

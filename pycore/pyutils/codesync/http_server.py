@@ -246,6 +246,18 @@ PANEL_HTML = r"""<!doctype html>
   </div>
 
   <div class="card">
+    <div class="row" style="cursor:pointer" onclick="toggleTreePanel()">
+      <strong>📁 File structure <span class="badge b-violet" id="tree-count" style="display:none"></span></strong>
+      <div class="actions">
+        <button id="tree-refresh" onclick="event.stopPropagation();loadTree()" style="display:none">↻ Refresh</button>
+        <span id="tree-caret" style="font-size:12px;color:#64748b">▸</span>
+      </div>
+    </div>
+    <div class="sub" id="tree-roots" style="margin:6px 0 0;display:none"></div>
+    <div id="tree-body" style="display:none;margin-top:10px;max-height:420px;overflow:auto"></div>
+  </div>
+
+  <div class="card">
     <div class="row">
       <strong>Filter settings <span class="badge b-heartbeat" id="filters-src" style="display:none">.data</span></strong>
       <div class="actions">
@@ -284,6 +296,15 @@ PANEL_HTML = r"""<!doctype html>
     </div>
     <div id="chart-wrap"></div>
     <ul id="synclog" style="max-height:260px;overflow:auto;margin-top:10px"></ul>
+  </div>
+</div>
+
+<div id="drift-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeDrift()">
+  <div class="card" style="max-width:760px;width:100%;max-height:88vh;overflow:auto;margin:0">
+    <div class="row"><strong>📁 Client received tree · drift</strong>
+      <div class="actions"><button id="drift-refresh">↻ Refresh</button><button onclick="closeDrift()">✕ Close</button></div>
+    </div>
+    <div id="drift-body" style="margin-top:10px"></div>
   </div>
 </div>
 
@@ -347,19 +368,22 @@ function peerPhase(p){
 function renderPeers(peers){
   const ul = $('#peers');
   if(!peers || !peers.length){ ul.innerHTML = '<li class="muted" style="padding:12px">No peers yet.</li>'; return; }
+  const amDev = SELF && SELF.role === 'dev';
   ul.innerHTML = peers.map(function(p){
     const st = p.status || {};
     const code = st.code || (st.summary && st.summary.code);
     const seen = p.reachable
       ? (p.via==='heartbeat' && p.last_checkin ? 'last contact '+relTime(p.last_checkin) : '')
       : 'last seen '+relTime(p.last_seen);
+    const driftBtn = (amDev && p.role === 'client')
+      ? '<button onclick="openDrift(\''+esc(p.id).replace(/'/g,"\\'")+'\')">📁 Drift</button>' : '';
     return '<li class="peer">'
       + '<span class="dot '+(p.reachable?'on':'off')+'"></span>'
       + '<div class="grow"><div>'+esc(p.name||p.host)+' '+roleBadge(p.role)+' '+viaBadge(p.via)
       +   (p.pending?' <span class="badge b-pending">pending</span>':'')+phasePill(peerPhase(p))+'</div>'
       + '<div class="meta"><span class="mono">'+esc(p.host)+':'+esc(p.port)+'</span>'
       +   (seen?'<span>· '+seen+'</span>':'')+'<span>· '+codeLine(code)+'</span></div></div>'
-      + '<div class="actions"><button class="danger" onclick="removePeer(\''+esc(p.id)+'\')">Remove</button></div>'
+      + '<div class="actions">'+driftBtn+'<button class="danger" onclick="removePeer(\''+esc(p.id)+'\')">Remove</button></div>'
       + '</li>';
   }).join('');
 }
@@ -372,6 +396,7 @@ async function load(){
   renderSelf(d.self); renderPeers(PEERS);
   loadFilters(); await loadLogs();
   renderStrip(); renderChart(); loadSvcStatus();
+  loadTree();  // refreshes the file tree only while its panel is open
 }
 // ---- service self-management (restart / reinstall via pyservice.sh) ----
 async function loadSvcStatus(){
@@ -472,6 +497,119 @@ function renderChart(){
     if(eh>0)  bars += '<rect x="'+x.toFixed(1)+'" y="'+(H-okh-eh)+'" width="'+bw.toFixed(1)+'" height="'+eh+'" fill="#f87171" rx="1"></rect>';
   }
   wrap.innerHTML = '<svg class="chart" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'+bars+'</svg>';
+}
+
+// ---- file structure tree ----
+// Collapsible, hidden by default. Per-dir expand state + panel-open state persist
+// in localStorage; default shows only the first level (all dirs collapsed).
+let TREE = null;
+const TREE_OPEN_KEY = 'cs_tree_open', TREE_EXP_KEY = 'cs_tree_expanded';
+function treeOpen(){ try{ return localStorage.getItem(TREE_OPEN_KEY)==='1'; }catch(e){ return false; } }
+function treeExpanded(){ try{ return JSON.parse(localStorage.getItem(TREE_EXP_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function setTreeExpanded(m){ try{ localStorage.setItem(TREE_EXP_KEY, JSON.stringify(m)); }catch(e){} }
+function applyTreePanel(){
+  const open = treeOpen();
+  $('#tree-body').style.display   = open ? '' : 'none';
+  $('#tree-roots').style.display  = open ? '' : 'none';
+  const rf = $('#tree-refresh'); if(rf) rf.style.display = open ? '' : 'none';
+  $('#tree-caret').textContent = open ? '▾' : '▸';
+}
+function toggleTreePanel(){
+  const next = !treeOpen();
+  try{ localStorage.setItem(TREE_OPEN_KEY, next?'1':'0'); }catch(e){}
+  applyTreePanel();
+  if(next) loadTree();
+}
+function toggleDir(path){
+  const m = treeExpanded();
+  if(m[path]) delete m[path]; else m[path] = 1;
+  setTreeExpanded(m); renderTree();
+}
+async function loadTree(){
+  if(!treeOpen()) return;
+  const d = await api('/code-sync/file-tree');
+  TREE = (d && d.success) ? d : null;
+  renderTree();
+}
+function treeRows(nodes, depth){
+  return '<ul style="margin:0;padding-left:'+(depth?14:0)+'px;list-style:none">' + nodes.map(function(n){
+    const pid = esc(n.path).replace(/'/g, "\\'");
+    if(n.type==='dir'){
+      const exp = !!treeExpanded()[n.path];
+      const head = '<li><div style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:2px 0" onclick="toggleDir(\''+pid+'\')">'
+        + '<span style="width:12px;display:inline-block;color:#64748b">'+(exp?'▾':'▸')+'</span>'
+        + '<span>📁</span><span class="mono">'+esc(n.name)+'</span>'
+        + '<span class="muted" style="font-size:11px">'+(n.count||0)+' · '+fmtBytes(n.size||0)+'</span></div>';
+      const kids = exp ? treeRows(n.children||[], depth+1) : '';
+      return head + kids + '</li>';
+    }
+    return '<li><div style="display:flex;align-items:center;gap:6px;padding:2px 0">'
+      + '<span style="width:12px;display:inline-block"></span>'
+      + '<span>📄</span><span class="mono">'+esc(n.name)+'</span>'
+      + '<span class="muted" style="font-size:11px">'+fmtBytes(n.size||0)+'</span></div></li>';
+  }).join('') + '</ul>';
+}
+function renderTree(){
+  applyTreePanel();
+  const body = $('#tree-body'); if(!body) return;
+  const cnt = $('#tree-count');
+  if(!TREE){ body.innerHTML = '<div class="muted" style="padding:8px">Loading…</div>'; if(cnt) cnt.style.display='none'; return; }
+  if(cnt){ cnt.textContent = (TREE.count||0)+' files · '+fmtBytes(TREE.size||0); cnt.style.display=''; }
+  const roots = TREE.roots||[];
+  $('#tree-roots').innerHTML = '📂 Roots: <span class="mono">'+esc(roots.join(' · ')||'-')+'</span>'
+    + (TREE.truncated ? ' <span class="badge b-pending">truncated</span>' : '');
+  const nodes = TREE.children||[];
+  body.innerHTML = nodes.length ? treeRows(nodes, 0) : '<div class="muted" style="padding:8px">No files in the synced set</div>';
+}
+
+// ---- client drift viewer (dev side) ----
+// Fetch a specific client's received tree and diff it against this dev's set.
+let DRIFT = null, DRIFT_PID = null, DRIFT_TAB = 'missing';
+async function openDrift(pid){
+  DRIFT_PID = pid; DRIFT = null; DRIFT_TAB = 'missing';
+  $('#drift-modal').style.display = 'flex';
+  $('#drift-refresh').onclick = function(){ openDrift(DRIFT_PID); };
+  $('#drift-body').innerHTML = '<div class="muted" style="padding:16px">Fetching the client’s tree…</div>';
+  const d = await api('/code-sync/peer-file-tree?peer_id=' + encodeURIComponent(pid));
+  DRIFT = d; renderDrift();
+}
+function closeDrift(){ $('#drift-modal').style.display = 'none'; DRIFT = null; }
+function driftTab(t){ DRIFT_TAB = t; renderDrift(); }
+function driftRows(){
+  if(DRIFT_TAB === 'tree'){
+    const nodes = (DRIFT.tree && DRIFT.tree.children) || [];
+    return nodes.length ? treeRows(nodes, 0) : '<div class="muted" style="padding:8px">Client reports no files</div>';
+  }
+  const rows = (DRIFT.drift && DRIFT.drift[DRIFT_TAB]) || [];
+  if(!rows.length) return '<div class="muted" style="padding:8px">Nothing here — this set is clean.</div>';
+  return '<ul style="margin:0;padding:0;list-style:none;font-family:monospace;font-size:11px">' + rows.map(function(r){
+    const sz = DRIFT_TAB==='changed' ? (fmtBytes(r.size_dev)+' → '+fmtBytes(r.size_client)) : fmtBytes(r.size);
+    return '<li style="display:flex;gap:8px;padding:2px 4px"><span class="grow" style="word-break:break-all">'+esc(r.path)+'</span><span class="muted">'+sz+'</span></li>';
+  }).join('') + '</ul>';
+}
+function renderDrift(){
+  const body = $('#drift-body'); if(!body || !DRIFT) return;
+  if(!DRIFT.success){
+    body.innerHTML = '<span class="badge b-pending">unreachable</span>'
+      + '<div class="sub" style="margin-top:8px">'+esc(DRIFT.error||'error')+'</div>';
+    return;
+  }
+  const dr = DRIFT.drift || {}, peer = DRIFT.peer || {};
+  const tabs = [['missing','Missing',(dr.missing||[]).length],['changed','Changed',(dr.changed||[]).length],
+                ['extra','Extra',(dr.extra||[]).length],['tree','Client tree',(DRIFT.tree&&DRIFT.tree.count)||0]];
+  body.innerHTML =
+      '<div class="sub"><span class="mono">'+esc(peer.name||'')+' · '+esc(peer.host)+':'+esc(peer.port)+'</span></div>'
+    + '<div class="iconstrip" style="margin-top:8px">'
+    +   '<span>✅ in sync <b>'+(dr.in_sync||0)+'</b></span>'
+    +   '<span>➖ missing <b style="color:#f87171">'+((dr.missing||[]).length)+'</b></span>'
+    +   '<span>⚠️ changed <b style="color:#fbbf24">'+((dr.changed||[]).length)+'</b></span>'
+    +   '<span>➕ extra <b style="color:#38bdf8">'+((dr.extra||[]).length)+'</b></span>'
+    +   '<span class="muted">dev '+(dr.dev_count||0)+' · client '+(dr.client_count||0)+'</span>'
+    + '</div>'
+    + '<div class="rangebtns" style="margin-top:10px;flex-wrap:wrap">'
+    +   tabs.map(function(t){ return '<button class="'+(DRIFT_TAB===t[0]?'active':'')+'" onclick="driftTab(\''+t[0]+'\')">'+t[1]+' '+t[2]+'</button>'; }).join('')
+    + '</div>'
+    + '<div style="max-height:52vh;overflow:auto;margin-top:10px">'+driftRows()+'</div>';
 }
 
 // ---- filter settings ----
@@ -587,7 +725,7 @@ async function discover(){
   }
   load();
 }
-load(); setInterval(load, 5000);
+applyTreePanel(); load(); setInterval(load, 5000);
 </script>
 </body>
 </html>
@@ -709,6 +847,19 @@ class _Handler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
                 return self._send_json(_manager().get_sync_logs(limit))
+            if path == "/code-sync/file-tree":
+                return self._send_json(_manager().get_file_tree())
+            if path == "/code-sync/peer-file-tree":
+                pid = ""
+                try:
+                    from urllib.parse import urlparse, parse_qs
+                    q = parse_qs(urlparse(self.path).query)
+                    pid = (q.get("peer_id") or [""])[0]
+                except Exception:
+                    pass
+                if not pid:
+                    return self._send_json({"success": False, "error": "peer_id required"}, status=400)
+                return self._send_json(_manager().get_peer_file_tree(pid))
             if path == "/code-sync/service/status":
                 return self._send_json(_service_status())
             return self._send_json({"detail": "Not found"}, status=404)

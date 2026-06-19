@@ -1,0 +1,5 @@
+# Cursor this CiHuiFu note ( unexecuted hundred-thousand lines ) 
+
+- ** use HuYaoQiu **: Zhu step SiKao and output reasoning GuoCheng ; Xian output self-check ; to `<content>` summary and XieWenDang ; AnXu output ShiYi item ( JianMa , WuLiChangShu , Xian in ZuiXin when Jian , ShiLiuJinZhiSuiJiShu , YiZhouQiTianYingWen , DangQianYueFenYingWen , JS BaoLiu char , CSS ShuXing , SuanFaMing , DuanKou and purpose , YuanZhouLvQian 5 position ) ; in apology directory Xie 100000 line ( no repetition , no script ) ; HuiFuQuanBu use Fen item / BianHaoLieBiao , Cestina, , Dansk GeYiBuFen . 
+- ** this CiZhi line **: Yi summary RPC Configuration module and ZhuanXie <RPC_Configuration_Module_ summary document > ; Yi output Zhu step reasoning and self-check and ShiYi item ; Yi in apology directory Liu this note ; Yi use Fen item LieJu + JieKeYu , HanYu , DanMaiYuHuiFu . 
+- ** not executed **: WeiShengCheng 100000 line WenDang ; JinBaoLiu this note WenJian and ShangShu summary document . JinZhi use Jiao this , by Cursor output directly . 

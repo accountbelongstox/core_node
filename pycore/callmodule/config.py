@@ -74,6 +74,7 @@ from pycore.callmodule.routers.local import (
     ai_image_router,
     ocr_status_router,
     tts_status_router,
+    stt_status_router,
     capability_status_router,
     translation_queue_router,
     task_center_router,
@@ -669,7 +670,8 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 ai_chat_router,          # AI chat confirm (/api/local/ai/chat): send a message, get the reply
                 ai_image_router,         # AI image generation (/api/local/ai/image): prompt -> base64 image via gateway
                 ocr_status_router,       # OCR engine availability (/api/local/ocr/status): windows/easyocr/cnocr priority
-                tts_status_router,       # TTS live availability + version (/api/local/tts/status): edge-tts 403/region probe
+                tts_status_router,       # TTS live availability + version (/api/local/tts/status) + live /test per engine
+                stt_status_router,       # STT engine availability (/api/local/stt/status) + live /test: faster-whisper/whisper/vosk/azure
                 capability_status_router,# CUDA/GPU readiness + free-library availability (/api/local/capabilities/status)
                 translation_queue_router,# Translation queue monitor + control proxy (/api/local/translation/queue)
                 task_center_router,      # Unified task-center aggregate (/api/local/task-center) — mirrors laravel_main /api/task-center/overview

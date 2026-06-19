@@ -1,0 +1,5 @@
+# Cursor this CiHuiFu note ( unexecuted hundred-thousand lines ) 
+
+- ** use HuYaoQiu **: use chain-of-thought XianXie reasoning Zai to JieLun ; Xian output understanding confirmation ; to `<content>` summary and XieWenDang ; AnXu output Jiu item (HTML BiaoQian , HuaXueYuanSu , Xian in ZuiXin when Jian , UTC, ZhengZeFuHao , SuiJiDanCi , WenJianKuoZhanMing and purpose , CSS ShuXing , DangQianYueFenYingWen ) ; in apology directory Xie 100000 line ( no repetition , no script ) ; HuiFuAnWenTi - method - JieJueFangAn , , Ri this Yu , Romana GeYiBuFen . 
+- ** this CiZhi line **: Yi to Chu CoT reasoning and JieLun ; Yi summary decode.js and ZhuanXie <decode_EntityDecoder_ summary document > ; Yi output understanding confirmation and Jiu item ; Yi in apology directory Liu this note ; YiAnWenTi - method - JieJueFangAn + HanYu , RiYu , LuoMaNiYaYuHuiFu . 
+- ** not executed **: WeiShengCheng 100000 line WenDang ; JinBaoLiu this note WenJian and ShangShu summary document . JinZhi use Jiao this , by Cursor output directly . 

@@ -26,6 +26,7 @@ from pycore.pyutils.tts import tts_status as orchestrator_status
 from pycore.pyutils.tts.tts_orchestrator import (
     get_edge_cooldown_seconds,
     set_edge_cooldown_seconds,
+    tts_test as orchestrator_test,
 )
 
 router = fastapi.APIRouter(prefix="/api/local/tts", tags=["Local Processing - TTS"])
@@ -102,6 +103,20 @@ def status(refresh: int = 0):
         # Per-engine: name, priority, available, note (+ cooldown_remaining on edge).
         "engines": orch.get("engines", []),
     }
+
+
+class _TtsTestReq(BaseModel):
+    engine: Optional[str] = None
+    text: Optional[str] = None
+    language: str = "en"
+    rate: Optional[str] = None
+
+
+@router.post("/test")
+def test(req: _TtsTestReq):
+    """Live synth test for ONE engine (or the best available): actually runs the
+    engine and reports {success, engine, latency_ms, bytes, error}."""
+    return orchestrator_test(engine=req.engine, text=req.text, language=req.language, rate=req.rate)
 
 
 class _TtsSettingsPatch(BaseModel):

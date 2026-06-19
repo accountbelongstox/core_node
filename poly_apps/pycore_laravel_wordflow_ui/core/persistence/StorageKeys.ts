@@ -27,7 +27,17 @@ export const StorageKeys = {
   SERVER_MANAGER_SCRIPTS: `${PREFIX}servermanager_scripts`,
   SERVER_MANAGER_CERTBOT_STATUS: `${PREFIX}servermanager_certbot_status`,
 
-  // WordNew (/wordnew) backend endpoint manager
+  // WordNew (/wordnew) app settings + profile (one consolidated WfNewSettings object).
+  WORDNEW_SETTINGS: `${PREFIX}wordnew_settings`,
+  // WordNew (/wordnew) social caches (partners / posts / chats).
+  WORDNEW_SOCIAL: `${PREFIX}wordnew_social`,
+  // WordNew (/wordnew) mock account registry (one object keyed by lowercased email).
+  WORDNEW_ACCOUNTS: `${PREFIX}wordnew_accounts`,
+  // WordNew (/wordnew) backend endpoint manager.
+  // Consolidated store (current): one key holds the whole WfNewEndpointPrefs object.
+  WORDNEW_API_PREFS: `${PREFIX}wordnew_api_prefs`,
+  // Legacy split keys (pre-consolidation) — kept only so WfNewEndpointStore can
+  // one-time migrate existing installs into WORDNEW_API_PREFS, then remove them.
   WORDNEW_API_CUSTOM_ENDPOINTS: `${PREFIX}wordnew_api_custom_endpoints`,
   WORDNEW_API_USER_ENDPOINT: `${PREFIX}wordnew_api_user_endpoint`,
   WORDNEW_API_AUTO_ENDPOINT: `${PREFIX}wordnew_api_auto_endpoint`,

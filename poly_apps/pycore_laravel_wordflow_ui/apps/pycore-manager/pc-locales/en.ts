@@ -134,7 +134,7 @@ export const pcEn = {
       readonly: 'Read-only here — to add / rotate / delete keys, open the AI Keys page.',
     },
     pipelines: 'Pipelines',
-    pipelinesRefreshTitle: 'Refresh OCR / TTS status (forces fresh TTS probe)',
+    pipelinesRefreshTitle: 'Refresh OCR / TTS / STT status (forces fresh TTS probe)',
     freeLibraries: 'Free Libraries',
     freeLibrariesHint: 'Offline / no-key libraries the pipelines fall back to.',
     constantsDirs: 'Constants & Directories',
@@ -275,6 +275,7 @@ export const pcEn = {
   },
   pipeline: {
     ocrEngines: 'OCR engines',
+    sttEngines: 'STT engines',
     best: 'best',
     active: 'active',
     fallback: 'fallback',

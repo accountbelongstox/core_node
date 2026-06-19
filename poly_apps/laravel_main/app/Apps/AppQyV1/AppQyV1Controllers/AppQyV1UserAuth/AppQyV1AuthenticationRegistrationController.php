@@ -26,6 +26,7 @@ use App\Services\AvatarService;
 use App\Http\Common\CommonAuthService;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
 
 class AppQyV1AuthenticationRegistrationController extends BaseController
 {
@@ -54,6 +55,12 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             'username' => ['required', 'string', 'max:255'],
             // [Removed] Password 'min:6' validation removed - no minimum requirement
             'password' => ['required', 'string', 'max:255'],
+            // Optional learning-language selection (multi-select) and native
+            // language. Codes are revalidated against the supported-language
+            // catalog below; unknown codes are dropped rather than rejected.
+            'learning_languages' => ['sometimes', 'array'],
+            'learning_languages.*' => ['string', 'max:10'],
+            'native_language' => ['sometimes', 'string', 'max:10'],
         ]);
 
         if (CommonUserGen::checkUsernameIsExist($request->username)) {
@@ -187,6 +194,39 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
                 'role_level' => $roleLevel,
                 'role_name' => $roleName
             ]);
+        }
+
+        // Persist the chosen learning languages (multi-select) and native
+        // language. Each code is validated against the supported-language
+        // catalog (AppQyV1LanguageConfigService); unknown codes are dropped so a
+        // bad value never reaches storage. When none is supplied the downstream
+        // default of ['en'] is used (see below).
+        $supportedLanguages = AppQyV1LanguageConfigService::getTTSLanguages();
+
+        $selectedLearningLanguages = [];
+        if ($request->has('learning_languages') && is_array($request->learning_languages)) {
+            foreach ($request->learning_languages as $languageCodeInput) {
+                if (is_string($languageCodeInput) && isset($supportedLanguages[$languageCodeInput])) {
+                    if (!in_array($languageCodeInput, $selectedLearningLanguages, true)) {
+                        $selectedLearningLanguages[] = $languageCodeInput;
+                    }
+                }
+            }
+        }
+
+        $needsSave = false;
+        if (!empty($selectedLearningLanguages)) {
+            $user->learning_languages = $selectedLearningLanguages;
+            $needsSave = true;
+        }
+        if ($request->has('native_language') && is_string($request->native_language)) {
+            if (isset($supportedLanguages[$request->native_language])) {
+                $user->native_language = $request->native_language;
+                $needsSave = true;
+            }
+        }
+        if ($needsSave) {
+            $user->save();
         }
 
         AppQyV1WordGroupPublicController::ensureDefaultGroupIfNotExist($user->id, $user->username);

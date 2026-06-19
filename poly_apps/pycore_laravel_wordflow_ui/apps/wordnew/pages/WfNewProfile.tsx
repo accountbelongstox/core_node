@@ -5,6 +5,7 @@ import {
   Activity, Shield, Flame, Trash2, Heart, SkipForward, ArrowRight, Save, Clock
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
+import { wfNewSettings } from '../WfNewSettingsStore';
 
 interface WfNewProfileProps {
   activeTheme: ElementTheme;
@@ -124,7 +125,7 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
               <div className="p-3 rounded-xl bg-white/2 border border-white/5 text-center">
                 <span className="text-[9px] text-zinc-500 font-mono block uppercase">{trans('profile.activeStreak')}</span>
                 <span className="text-sm font-black text-orange-400 flex items-center justify-center gap-1">
-                  🔥 {localStorage.getItem('wf_streak_days') || '8'}d
+                  🔥 {wfNewSettings.get('streakDays')}d
                 </span>
               </div>
 

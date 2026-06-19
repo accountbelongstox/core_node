@@ -48,14 +48,39 @@ class WSClient:
         self._leftover = resp.split(b"\r\n\r\n", 1)[1]
         # Switch from the short connect timeout to a generous I/O timeout for the
         # persistent push session: a large batch or a busy/slow client must not trip
-        # a short read timeout and flap the link. Enable TCP keepalive so a truly
-        # dead peer is still detected at the OS level.
+        # a short read timeout and flap the link. Enable + TUNE TCP keepalive so a
+        # SILENTLY dropped link (a NAT/VPN flap that never sends a RST) is detected
+        # by the OS in ~60s instead of the recv hanging until io_timeout (120s) — so
+        # a flapping peer is retried sooner and progress resumes faster.
         try:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            self._tune_keepalive(s, idle=30, interval=10, count=3)
         except Exception:
             pass
         s.settimeout(self.io_timeout)
         self._sock = s
+
+    @staticmethod
+    def _tune_keepalive(sock, idle: int = 30, interval: int = 10, count: int = 3) -> None:
+        """Best-effort, cross-platform TCP keepalive tuning. Detects a dead peer in
+        ~idle + interval*count seconds (~60s) rather than the OS default (often 2h).
+        No-op where a knob/platform is unavailable (wrapped by the caller's try)."""
+        import sys
+        plat = sys.platform
+        try:
+            if plat.startswith("linux"):
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, idle)
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, interval)
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, count)
+            elif plat == "darwin":
+                # macOS: TCP_KEEPALIVE is the idle time in seconds.
+                tcp_keepalive = getattr(socket, "TCP_KEEPALIVE", 0x10)
+                sock.setsockopt(socket.IPPROTO_TCP, tcp_keepalive, idle)
+            elif plat.startswith("win"):
+                # Windows: SIO_KEEPALIVE_VALS = (onoff, idle_ms, interval_ms).
+                sock.ioctl(socket.SIO_KEEPALIVE_VALS, (1, idle * 1000, interval * 1000))
+        except Exception:
+            pass
 
     def _read(self, n: int) -> bytes:
         if self._leftover:

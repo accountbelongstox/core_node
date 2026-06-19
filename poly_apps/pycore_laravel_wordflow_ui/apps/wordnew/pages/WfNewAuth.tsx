@@ -5,6 +5,7 @@ import {
   ChevronRight, CheckCircle2, UserPlus, LogIn, Heart, Star, LogOut
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
+import { wfNewApi, type WfNewAuthUser } from '../api';
 
 interface WfNewAuthProps {
   activeTheme: ElementTheme;
@@ -34,80 +35,108 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
   const [isLoginView, setIsLoginView] = useState(true);
 
   // Form Field Inputs
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [nickname, setNickname] = useState('');
   const [bio, setBio] = useState('Expanding my cognitive neural horizon in WordFlow.');
   const [avatar, setAvatar] = useState('🦁');
   const [nativeLang, setNativeLang] = useState('zh');
   const [targetLang, setTargetLang] = useState('en');
+  const [submitting, setSubmitting] = useState(false);
 
   // Avatar Options
   const AVATAR_POOL = ['🦁', '🦊', '🐈', '🐼', '🐰', '🐯', '🦉', '🛸', '🚀', '👾'];
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      addToast(trans('auth.needEmailCode'), 'warning');
-      return;
-    }
-
-    // Capture or seed mock registration checks
-    const matchedProfileString = localStorage.getItem(`wf_account_${email.toLowerCase()}`);
-    let finalProfile = {
-      nickname: 'WordFlow Commander',
-      avatar: '🦊',
-      email: email,
-      nativeLang: 'zh',
-      targetLang: 'en',
-      bio: 'Linguistic coordinates locked.',
-      isLoggedIn: true
-    };
-
-    if (matchedProfileString) {
-      try {
-        finalProfile = JSON.parse(matchedProfileString);
-      } catch (err) {}
-    } else {
-      // Automatic quick onboarding if not found, making it very user-friendly
-      finalProfile = {
-        nickname: email.split('@')[0],
-        avatar: AVATAR_POOL[Math.floor(Math.random() * AVATAR_POOL.length)],
-        email: email,
-        nativeLang: 'zh',
-        targetLang: 'en',
-        bio: 'Freshly synthesized WordFlow portal profile.',
-        isLoggedIn: true
-      };
-    }
-
-    onLoginSuccess(finalProfile);
-    addToast(trans('auth.welcomeBack', { name: finalProfile.nickname }), 'success');
+  /** Deterministic avatar emoji for a backend user that has no emoji of its own. */
+  const pickEmoji = (seed: string): string => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    return AVATAR_POOL[hash % AVATAR_POOL.length];
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  /** Map the backend-aligned auth user onto the app's session profile shape. */
+  const toSessionProfile = (
+    user: WfNewAuthUser,
+    fallback: { avatar?: string; email?: string; nativeLang?: string; targetLang?: string; bio?: string }
+  ) => {
+    const resolvedEmail = user.email || fallback.email || '';
+    const nick =
+      user.nickname || user.name || user.username ||
+      (resolvedEmail.includes('@') ? resolvedEmail.split('@')[0] : '') || 'Cadet';
+    return {
+      nickname: nick,
+      avatar: fallback.avatar || user.avatar || pickEmoji(user.username || resolvedEmail || nick),
+      email: resolvedEmail,
+      nativeLang: user.native_language || fallback.nativeLang || 'zh',
+      targetLang: (user.learning_languages && user.learning_languages[0]) || fallback.targetLang || 'en',
+      bio: user.bio || fallback.bio || 'Linguistic coordinates locked.',
+      isLoggedIn: true,
+    };
+  };
+
+  /** Surface a backend/mock error message, falling back to a localized default. */
+  const authErrorMessage = (err: any): string => {
+    const msg = typeof err?.message === 'string' ? err.message : '';
+    if (msg && !/^HTTP \d+/.test(msg)) return msg;
+    return trans('auth.authFailed');
+  };
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !nickname) {
-      addToast(trans('auth.needAllFields'), 'warning');
+    if (submitting) return;
+    // Username may be any identifier (username / email / phone) — never email-only.
+    if (!username || !password) {
+      addToast(trans('auth.needUserPass'), 'warning');
       return;
     }
+    setSubmitting(true);
+    try {
+      const { user } = await wfNewApi.login(username.trim(), password);
+      const profile = toSessionProfile(user, {});
+      onLoginSuccess(profile);
+      addToast(trans('auth.welcomeBack', { name: profile.nickname }), 'success');
+    } catch (err) {
+      addToast(authErrorMessage(err), 'warning');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    const newProfile = {
-      nickname,
-      avatar,
-      email,
-      nativeLang,
-      targetLang,
-      bio,
-      isLoggedIn: true
-    };
-
-    // Store in mock db
-    localStorage.setItem(`wf_account_${email.toLowerCase()}`, JSON.stringify(newProfile));
-    
-    // Log the user in
-    onLoginSuccess(newProfile);
-    addToast(trans('auth.registered'), 'success');
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    // Username + password required; email is OPTIONAL; passwords must match.
+    if (!username || !password) {
+      addToast(trans('auth.needUserPass'), 'warning');
+      return;
+    }
+    if (password !== confirmPassword) {
+      addToast(trans('auth.passwordMismatch'), 'warning');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { user } = await wfNewApi.register({
+        username: username.trim(),
+        password,
+        email: email.trim() || undefined,
+        nickname: nickname.trim() || undefined,
+        native_language: nativeLang,
+        // Target study language drives the backend's learning_languages set.
+        learning_languages: [targetLang],
+        bio,
+        avatar,
+      });
+      const profile = toSessionProfile(user, { avatar, email: email.trim(), nativeLang, targetLang, bio });
+      onLoginSuccess(profile);
+      addToast(trans('auth.registered'), 'success');
+    } catch (err) {
+      addToast(authErrorMessage(err), 'warning');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -231,16 +260,33 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
 
             {/* Conditionally rendering form inputs */}
             <form onSubmit={isLoginView ? handleLoginSubmit : handleRegisterSubmit} className="space-y-4">
-              
-              {/* Optional Registration Name */}
+
+              {/* Username / identifier — any characters, NOT email-only (the
+                  backend matches it against username / email / phone). */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.usernameLabel')}</label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                  <input
+                    type="text"
+                    required
+                    autoComplete="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder={trans('auth.usernamePh')}
+                    className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
+                  />
+                </div>
+              </div>
+
+              {/* Optional Registration Nickname */}
               {!isLoginView && (
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.nicknameLabel')}</label>
                   <div className="relative">
-                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                     <input
                       type="text"
-                      required
                       value={nickname}
                       onChange={(e) => setNickname(e.target.value)}
                       placeholder={trans('auth.nicknamePh')}
@@ -250,21 +296,23 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
                 </div>
               )}
 
-              {/* Email Address */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.emailLabel')}</label>
-                <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={trans('auth.emailPh')}
-                    className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
-                  />
+              {/* Email Address — register-only and OPTIONAL. */}
+              {!isLoginView && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.emailLabelOptional')}</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={trans('auth.emailPh')}
+                      autoComplete="email"
+                      className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Security Password */}
               <div className="space-y-1.5">
@@ -277,10 +325,30 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
+                    autoComplete={isLoginView ? 'current-password' : 'new-password'}
                     className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
                   />
                 </div>
               </div>
+
+              {/* Confirm Password — register-only (two-password confirmation). */}
+              {!isLoginView && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.confirmPasswordLabel')}</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Additional parameters if Register view (native/target language coordinate selection) */}
               {!isLoginView && (
@@ -361,9 +429,10 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
               {/* Submit button */}
               <button
                 type="submit"
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-650 hover:to-purple-750 text-white font-mono text-xs font-black uppercase tracking-wider cursor-pointer shadow-lg hover:shadow-indigo-505/20 transition-all flex items-center justify-center gap-2"
+                disabled={submitting}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-650 hover:to-purple-750 text-white font-mono text-xs font-black uppercase tracking-wider cursor-pointer shadow-lg hover:shadow-indigo-505/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <span>{isLoginView ? trans('auth.submitLogin') : trans('auth.submitRegister')}</span>
+                <span>{submitting ? trans('common.loading') : isLoginView ? trans('auth.submitLogin') : trans('auth.submitRegister')}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 

@@ -12,7 +12,9 @@
  *      interval until an endpoint recovers, then stops.
  *
  * Applies the project's shared libraries:
- *   - persistence: `StorageManager` + `StorageKeys` (no raw localStorage),
+ *   - persistence: all settings live in `WfNewEndpointStore` (a subclass of the
+ *     shared `PersistedStore`) under ONE localStorage key — the selection is a
+ *     TYPE token, resolved to a concrete endpoint here at runtime,
  *   - store pattern: a `useSyncExternalStore`-friendly snapshot + subscribe
  *     (same shape as core/logstore + core/notify) so UIs react without polling.
  *
@@ -24,10 +26,12 @@ import {
   OfflineRecheckScheduler,
   clampRecheckInterval,
 } from '../../../core/health/OfflineRecheckScheduler';
-import { StorageManager, StorageKeys } from '../../../core/persistence';
+import { wfNewEndpointStore, CURRENT_URL_TYPE } from './WfNewEndpointStore';
 import type {
   WfNewEndpoint, WfNewEndpointHealth, WfNewEndpointSnapshot,
 } from './WfNewApiTypes';
+
+export { CURRENT_URL_TYPE } from './WfNewEndpointStore';
 
 /** Fired after every detection pass so non-React listeners can refresh. */
 export const WFNEW_API_HEALTH_EVENT = 'wfnew-api-health-changed';
@@ -45,16 +49,14 @@ const DEFAULT_TIMEOUT_MS = 3_000;
  * URL, port pinned to 9000 — see getCurrentOriginEndpoint).
  */
 const DEFAULT_ENDPOINTS: WfNewEndpoint[] = [
-  // Primary default (priority 1). Current-origin (host:9000) is injected at
+  // Primary default (priority 1). Current-url (host:9000) is injected at
   // priority 2 — see getCurrentOriginEndpoint — so 43.163 stays the default,
   // then the page's own origin, then the loopback / mesh nodes.
-  { id: 'remote-primary', url: '43.163.112.77', protocol: 'http', port: WFNEW_API_PORT, priority: 1, isLocal: false, description: 'Primary remote API 43.163.112.77:9000' },
-  { id: 'loopback', url: '127.0.0.1', protocol: 'http', port: WFNEW_API_PORT, priority: 3, isLocal: true, description: 'Loopback 127.0.0.1:9000' },
-  { id: 'tailnet-1', url: '100.101.149.39', protocol: 'http', port: WFNEW_API_PORT, priority: 4, isLocal: true, description: 'Mesh node 100.101.149.39:9000' },
-  { id: 'tailnet-2', url: '100.106.85.16', protocol: 'http', port: WFNEW_API_PORT, priority: 5, isLocal: true, description: 'Mesh node 100.106.85.16:9000' },
+  { id: 'remote-primary', kind: 'default', url: '43.163.112.77', protocol: 'http', port: WFNEW_API_PORT, priority: 1, isLocal: false, description: 'Primary remote API 43.163.112.77:9000' },
+  { id: 'loopback', kind: 'default', url: '127.0.0.1', protocol: 'http', port: WFNEW_API_PORT, priority: 3, isLocal: true, description: 'Loopback 127.0.0.1:9000' },
+  { id: 'tailnet-1', kind: 'default', url: '100.101.149.39', protocol: 'http', port: WFNEW_API_PORT, priority: 4, isLocal: true, description: 'Mesh node 100.101.149.39:9000' },
+  { id: 'tailnet-2', kind: 'default', url: '100.106.85.16', protocol: 'http', port: WFNEW_API_PORT, priority: 5, isLocal: true, description: 'Mesh node 100.106.85.16:9000' },
 ];
-
-const CURRENT_ORIGIN_ID = 'current-origin';
 
 /** Build a base/full URL for an endpoint. */
 export function buildEndpointUrl(ep: WfNewEndpoint, path = ''): string {
@@ -79,7 +81,8 @@ function getCurrentOriginEndpoint(): WfNewEndpoint | null {
     /^192\.168\./.test(hostname) || /^10\./.test(hostname) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) || /^100\./.test(hostname);
   return {
-    id: CURRENT_ORIGIN_ID,
+    id: CURRENT_URL_TYPE,
+    kind: 'current-url',
     url: hostname,
     protocol: proto,
     port: WFNEW_API_PORT,
@@ -87,7 +90,7 @@ function getCurrentOriginEndpoint(): WfNewEndpoint | null {
     // tried before the loopback / mesh nodes.
     priority: 2,
     isLocal,
-    description: `Current site origin (${proto}://${hostname}:${WFNEW_API_PORT})`,
+    description: `Current URL — this site (${proto}://${hostname}:${WFNEW_API_PORT})`,
   };
 }
 
@@ -139,33 +142,45 @@ class WfNewEndpointManager {
     }
   }
 
-  // ---- persistence (StorageManager) ----
+  // ---- persistence (WfNewEndpointStore subclass of PersistedStore) ----
 
   private loadCustom(): WfNewEndpoint[] {
-    const list = StorageManager.get<WfNewEndpoint[]>(StorageKeys.WORDNEW_API_CUSTOM_ENDPOINTS, []);
-    return Array.isArray(list) ? list.map((e) => ({ ...e, custom: true })) : [];
+    return wfNewEndpointStore.customEndpoints;
   }
 
   private saveCustom(list: WfNewEndpoint[]): void {
-    StorageManager.set(StorageKeys.WORDNEW_API_CUSTOM_ENDPOINTS, list);
+    wfNewEndpointStore.setCustomEndpoints(list);
   }
 
-  // ---- endpoint list (defaults + custom + current-origin) ----
+  // ---- endpoint list (defaults + custom + current-url) ----
 
   getAllEndpoints(): WfNewEndpoint[] {
     const list = [...DEFAULT_ENDPOINTS, ...this.loadCustom()];
     const current = getCurrentOriginEndpoint();
-    if (
-      current &&
-      !list.some((e) => e.protocol === current.protocol && e.url === current.url && (e.port ?? null) === (current.port ?? null))
-    ) {
-      list.unshift(current);
+    if (current) {
+      // ALWAYS surface the current-URL endpoint as its own prominent row. If a
+      // default/custom points at the same target, drop that one and keep the
+      // current-url entry (still ONE row per target, but labelled "Current
+      // URL") — never silently fold it into a look-alike default.
+      const same = (e: WfNewEndpoint) =>
+        e.id !== current.id &&
+        e.protocol === current.protocol &&
+        e.url === current.url &&
+        (e.port ?? null) === (current.port ?? null);
+      const filtered = list.filter((e) => !same(e));
+      filtered.unshift(current);
+      return filtered.sort((a, b) => a.priority - b.priority);
     }
     return list.sort((a, b) => a.priority - b.priority);
   }
 
+  /**
+   * Resolve a selection TYPE (endpoint id) to a concrete endpoint. The
+   * 'current-url' type is resolved live from window.location every time, so a
+   * stored selection follows the page origin instead of freezing a stale host.
+   */
   getEndpointById(id: string): WfNewEndpoint | undefined {
-    if (id === CURRENT_ORIGIN_ID) return getCurrentOriginEndpoint() ?? undefined;
+    if (id === CURRENT_URL_TYPE) return getCurrentOriginEndpoint() ?? undefined;
     return this.getAllEndpoints().find((e) => e.id === id);
   }
 
@@ -225,8 +240,8 @@ class WfNewEndpointManager {
   // ---- STORED-FIRST detection ----
 
   private async detectStoredFirst(timeout?: number): Promise<boolean> {
-    const userId = StorageManager.get<string | null>(StorageKeys.WORDNEW_API_USER_ENDPOINT, null);
-    const autoId = StorageManager.get<string | null>(StorageKeys.WORDNEW_API_AUTO_ENDPOINT, null);
+    const userId = wfNewEndpointStore.selectedType;
+    const autoId = wfNewEndpointStore.autoType;
 
     // Stage 1 — stored last-used endpoint only.
     const preferredId = userId ?? autoId;
@@ -256,8 +271,7 @@ class WfNewEndpointManager {
     const best = healthy[0];
     if (best) {
       this.current = best;
-      StorageManager.set(StorageKeys.WORDNEW_API_AUTO_ENDPOINT, best.id);
-      StorageManager.set(StorageKeys.WORDNEW_API_CURRENT, best.id);
+      wfNewEndpointStore.setAuto(best.id);
       return;
     }
     // Nothing healthy — keep a usable base (the highest-priority endpoint) so
@@ -327,8 +341,7 @@ class WfNewEndpointManager {
     if (!ep) return false;
     this.current = ep;
     if (saveAsUserChoice) {
-      StorageManager.set(StorageKeys.WORDNEW_API_USER_ENDPOINT, id);
-      StorageManager.set(StorageKeys.WORDNEW_API_CURRENT, id);
+      wfNewEndpointStore.setSelected(id);
     }
     this.initPromise = null;
     this.emit();
@@ -342,6 +355,7 @@ class WfNewEndpointManager {
     const id = `custom-${host}-${input.port ?? WFNEW_API_PORT}`.replace(/[^a-zA-Z0-9_-]/g, '-');
     const ep: WfNewEndpoint = {
       id,
+      kind: 'custom',
       url: host,
       protocol: input.protocol ?? 'http',
       port: input.port ?? WFNEW_API_PORT,
@@ -359,10 +373,8 @@ class WfNewEndpointManager {
 
   removeCustomEndpoint(id: string): void {
     this.saveCustom(this.loadCustom().filter((e) => e.id !== id));
-    // Drop any persisted reference to a removed endpoint so detection re-picks.
-    for (const key of [StorageKeys.WORDNEW_API_USER_ENDPOINT, StorageKeys.WORDNEW_API_AUTO_ENDPOINT, StorageKeys.WORDNEW_API_CURRENT] as const) {
-      if (StorageManager.get<string | null>(key, null) === id) StorageManager.remove(key);
-    }
+    // Drop any persisted reference to the removed TYPE so detection re-picks.
+    wfNewEndpointStore.forgetType(id);
     if (this.current?.id === id) this.current = null;
     this.emit();
   }
@@ -394,12 +406,12 @@ class WfNewEndpointManager {
   }
 
   getRecheckIntervalMs(): number {
-    const raw = StorageManager.get<number>(StorageKeys.WORDNEW_API_RECHECK_INTERVAL_MS, NaN);
-    return clampRecheckInterval(Number(raw), DEFAULT_RECHECK_INTERVAL_MS);
+    const raw = wfNewEndpointStore.recheckIntervalMs;
+    return clampRecheckInterval(Number(raw ?? NaN), DEFAULT_RECHECK_INTERVAL_MS);
   }
 
   setRecheckIntervalMs(ms: number): void {
-    StorageManager.set(StorageKeys.WORDNEW_API_RECHECK_INTERVAL_MS, clampRecheckInterval(ms, DEFAULT_RECHECK_INTERVAL_MS));
+    wfNewEndpointStore.setRecheckIntervalMs(clampRecheckInterval(ms, DEFAULT_RECHECK_INTERVAL_MS));
   }
 }
 

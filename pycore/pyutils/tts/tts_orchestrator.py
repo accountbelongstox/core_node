@@ -278,10 +278,59 @@ def synthesize(
     }
 
 
+def synthesize_engine(
+    engine: str,
+    text: str,
+    language: Optional[str],
+    output_path: Path,
+    rate: Optional[str] = None,
+) -> bool:
+    """Synthesize with ONE named engine (no fallback). For the UI per-engine test.
+    Returns True only when the engine actually produced non-empty audio."""
+    synth = _SYNTHESIZERS.get(engine)
+    if synth is None:
+        return False
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        ok = synth((text or "").strip(), language, output_path, rate)
+    except Exception as e:  # noqa: BLE001
+        ColorPrint.yellow(f"[tts] {engine} test failed ({e})")
+        return False
+    return bool(ok and output_path.exists() and output_path.stat().st_size > 0)
+
+
+def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
+             language: str = "en", rate: Optional[str] = None) -> Dict[str, Any]:
+    """Live synth test for ONE engine (or the best available). Returns
+    {success, engine, latency_ms, bytes, error}. Skips the edge cooldown so the
+    user's explicit test always runs the engine they asked for."""
+    name = engine or best_engine()
+    if not name:
+        return {"success": False, "engine": None, "latency_ms": 0, "bytes": 0, "error": "no TTS engine available"}
+    if not engine_available(name):
+        return {"success": False, "engine": name, "latency_ms": 0, "bytes": 0, "error": f"{name} unavailable"}
+    out = Path(os.environ.get("TEMP") or "/tmp") / "pycore_tts_test" / f"{name}.mp3"
+    sample = (text or "").strip() or "This is a pycore text to speech test."
+    t0 = time.monotonic()
+    ok = synthesize_engine(name, sample, language, out, rate)
+    latency = round((time.monotonic() - t0) * 1000)
+    size = out.stat().st_size if (ok and out.exists()) else 0
+    return {
+        "success": bool(ok),
+        "engine": name,
+        "latency_ms": latency,
+        "bytes": size,
+        "error": None if ok else f"{name} produced no audio",
+    }
+
+
 __all__ = [
     "TTS_ENGINE_PRIORITY",
     "engine_available",
     "best_engine",
     "tts_status",
     "synthesize",
+    "synthesize_engine",
+    "tts_test",
 ]

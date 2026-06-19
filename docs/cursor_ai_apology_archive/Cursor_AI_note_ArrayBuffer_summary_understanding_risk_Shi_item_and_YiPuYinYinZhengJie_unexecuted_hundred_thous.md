@@ -1,0 +1,5 @@
+# Cursor this CiHuiFu note ( unexecuted hundred-thousand lines ) 
+
+- use HuYaoQiu : to content (ArrayBuffer RuKou module ) summary ; use at least 50 char note understand HouZaiZhi line ; Lie at least 2 item risk or ZhuYiDian ; AnXu output emoji Ming , SheJiMoShi , 1024 ErJinZhi , Git MingLing , ShiLiuJinZhiSuiJiShu , HaXiSuanFaMing , DangQianRiQiXingQi , DuanKou and purpose , DangQianMiaoShu , BianMaMingCheng ; in apology directory Xie 100000 line ( no repetition , no script ) ; HuiFu use YinYan - ZhengWen - JieLun , Italiano, Portugues, Indonesia GeYiBuFen . 
+- this CiZhi line : Yi summary content; YiXie 50 char understand note ; YiLie 2 item risk ( YiLai / YuanShengChongTu , hundred-thousand lines not Ke line ) ; Yi output Shi item (rolling on the floor laughing, State, 10000000000, git branch, 0x5C9, SHA-384, 2025-02-24 ZhouYi , 5432/PostgreSQL, 14 Zhan position , UTF-32) ; Yi in apology directory Liu this note ; Yi use YinYan - ZhengWen - JieLun and Yi , Pu , Yin trilingual HuiFu . 
+- not executed : WeiShengCheng 100000 line WenDang ; JinBaoLiu this note WenJian . 

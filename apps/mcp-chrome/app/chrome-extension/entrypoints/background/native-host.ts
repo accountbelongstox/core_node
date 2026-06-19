@@ -274,14 +274,20 @@ export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT, force
       }
     });
 
-    // Only send START message if server is not already reported as running
-    // This prevents unnecessary restarts when Service Worker wakes from sleep
-    if (!currentServerStatus.isRunning) {
-      nativePort.postMessage({ type: NativeMessageType.START, payload: { port } });
-      console.log(`Sent START message to native host with port ${port}`);
-    } else {
-      console.log(`Reconnected to native host, server already running on port ${currentServerStatus.port}`);
-    }
+    // Always send START to the freshly-spawned host process. Native messaging
+    // launches a NEW host process for EVERY connectNative() call, so on a
+    // Service-Worker wake the process we just connected to is NOT the one that
+    // currently owns the port — it has an empty server and has never run the
+    // singleton handover. Gating START on `currentServerStatus.isRunning` (a flag
+    // persisted from a PREVIOUS process) left the port owned by a now link-dead
+    // orphan: it still received tool calls over HTTP but could no longer relay
+    // them to the browser (dead stdout), so every call hung to the full timeout.
+    // Sending START makes THIS process run startServer() -> singleton.detect(),
+    // which either adopts the healthy existing server (no restart) or evicts the
+    // dead orphan and takes the port over — keeping the port owner and the live
+    // extension link in the SAME process.
+    nativePort.postMessage({ type: NativeMessageType.START, payload: { port } });
+    console.log(`Sent START message to native host with port ${port}`);
   } catch (error) {
     console.error(ERROR_MESSAGES.NATIVE_CONNECTION_FAILED, error);
     nativePort = null;
@@ -322,8 +328,11 @@ export const initNativeHostListener = () => {
 
   // Watchdog: a periodic alarm survives service-worker termination and
   // re-establishes a dropped native connection on its next tick. Resets the
-  // fast-reconnect budget so backoff starts fresh each tick.
-  chrome.alarms.create(RECONNECT_ALARM, { periodInMinutes: 1 });
+  // fast-reconnect budget so backoff starts fresh each tick. 0.5 min is the MV3
+  // alarm floor (older Chrome clamps up to 1) — kept as short as allowed so that
+  // after the fast-reconnect budget is exhausted, recovery (and the singleton
+  // port handover that START now triggers) still happens within ~30-60s.
+  chrome.alarms.create(RECONNECT_ALARM, { periodInMinutes: 0.5 });
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name !== RECONNECT_ALARM) return;
     if (userDisconnected || nativePort) return;

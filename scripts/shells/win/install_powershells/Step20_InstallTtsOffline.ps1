@@ -45,6 +45,12 @@ $modelDir         = Join-Path $env:USERPROFILE '.core_node\cache\tts\sherpa'
 $modelUrl         = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2'
 $modelArchive     = $null
 $tmpExtract       = $null
+# sherpa-onnx CPU/GPU build guard (Windows parity with the Linux guard
+# scripts\shells\linux\common\sherpa_onnx_cpu_guard.sh). CPU is the default wheel;
+# the GPU build is the version-tagged '+cuda' wheel from the CUDA flat index and is
+# opt-in via SHERPA_ONNX_CUDA_SPEC. A CPU host must NEVER end up on the GPU build.
+$sherpaCudaSpec   = $env:SHERPA_ONNX_CUDA_SPEC
+$sherpaCudaIndex  = if ($env:SOG_CUDA_INDEX_URL) { $env:SOG_CUDA_INDEX_URL } else { 'https://k2-fsa.github.io/sherpa/onnx/cuda.html' }
 
 function Resolve-PythonInterpreter {
     param([string]$Preferred = '')
@@ -113,6 +119,64 @@ function Install-SherpaModel {
     return $installed
 }
 
+# 0 if an NVIDIA GPU is usable (or forced via TORCH_FORCE_CUDA / SOG_FORCE_GPU).
+function Get-NvidiaGpuPresent {
+    if ($env:TORCH_FORCE_CUDA -eq '1' -or $env:SOG_FORCE_GPU -eq '1') { return $true }
+    $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
+    if (-not $smi) { return $false }
+    try { & $smi.Source -L *> $null; return ($LASTEXITCODE -eq 0) } catch { return $false }
+}
+
+# Installed sherpa-onnx version string (e.g. '1.13.3+cuda12.cudnn9'), or '' if absent.
+function Get-SherpaOnnxVersion {
+    param([string]$Py)
+    try {
+        $out  = & $Py -m pip show sherpa-onnx 2>$null
+        $line = $out | Where-Object { $_ -match '^Version:' } | Select-Object -First 1
+        if ($line) { return ($line -replace '^Version:\s*', '').Trim() }
+    } catch { }
+    return ''
+}
+
+# Idempotent CPU/GPU build guard for sherpa-onnx:
+#   NO GPU  -> CPU wheel; a stray '+cuda' build is force-reinstalled back to CPU.
+#   GPU + $sherpaCudaSpec -> that exact '+cuda' wheel from the CUDA flat index.
+#   GPU, no spec -> install CPU when missing, else keep current (we never guess a
+#                   CUDA/cuDNN-specific wheel version).
+function Set-SherpaOnnxBuild {
+    param([string]$Py)
+    $gpu       = Get-NvidiaGpuPresent
+    $ver       = Get-SherpaOnnxVersion -Py $Py
+    $installed = [bool]$ver
+    $isCuda    = ($ver -match '\+cuda')
+    if ($gpu) {
+        if ($sherpaCudaSpec) {
+            if ($ver -eq $sherpaCudaSpec) {
+                Write-Host "$SCRIPT_INDEX [OK] GPU present, sherpa-onnx already '$sherpaCudaSpec'." -ForegroundColor Green
+            } else {
+                Write-Host ("$SCRIPT_INDEX [..] GPU present -> installing CUDA build '{0}' from {1}" -f $sherpaCudaSpec, $sherpaCudaIndex) -ForegroundColor Yellow
+                & $Py -m pip install ("sherpa-onnx=={0}" -f $sherpaCudaSpec) -f $sherpaCudaIndex
+            }
+        } elseif (-not $installed) {
+            Write-Host "$SCRIPT_INDEX [..] GPU present, no SHERPA_ONNX_CUDA_SPEC -> installing CPU build (set the env var for the GPU wheel)." -ForegroundColor Yellow
+            & $Py -m pip install --upgrade sherpa-onnx
+        } else {
+            Write-Host "$SCRIPT_INDEX [i] GPU present, no SHERPA_ONNX_CUDA_SPEC -> keeping current build (CPU build runs on GPU too)." -ForegroundColor DarkGray
+        }
+        return
+    }
+    # No GPU -> the CPU build is the only valid one.
+    if ($isCuda) {
+        Write-Host ("$SCRIPT_INDEX [!] No GPU but sherpa-onnx is a CUDA build ({0}) -> switching to the CPU wheel." -f $ver) -ForegroundColor DarkYellow
+        & $Py -m pip install sherpa-onnx --force-reinstall
+    } elseif (-not $installed) {
+        Write-Host "$SCRIPT_INDEX [..] No GPU, sherpa-onnx missing -> installing the CPU build." -ForegroundColor Yellow
+        & $Py -m pip install --upgrade sherpa-onnx
+    } else {
+        Write-Host "$SCRIPT_INDEX [OK] No GPU, sherpa-onnx is the CPU build." -ForegroundColor Green
+    }
+}
+
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host " $SCRIPT_INDEX Installing offline TTS engines (sherpa-onnx + model)" -ForegroundColor Cyan
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -124,17 +188,17 @@ if (-not $resolvedPython) {
 }
 Write-Host ("$SCRIPT_INDEX python : {0}" -f $resolvedPython) -ForegroundColor DarkGray
 
-# --- 1) sherpa-onnx (pure pip, no system deps) --------------------------- #
+# --- 1) sherpa-onnx (CPU build by default; GPU build opt-in, CPU-guarded) - #
+# The CPU/GPU build choice goes through the guard so a CPU host never ends up on a
+# '+cuda' build, and a GPU host with SHERPA_ONNX_CUDA_SPEC gets the GPU wheel.
 if ((Test-PyModule -Py $resolvedPython -Module 'sherpa_onnx') -and -not $Force) {
-    Write-Host "$SCRIPT_INDEX [OK] sherpa-onnx already installed; skipping pip." -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX [OK] sherpa-onnx already installed; verifying CPU/GPU build ..." -ForegroundColor Green
+}
+Set-SherpaOnnxBuild -Py $resolvedPython
+if (Test-PyModule -Py $resolvedPython -Module 'sherpa_onnx') {
+    Write-Host "$SCRIPT_INDEX [OK] sherpa-onnx present (build guarded)." -ForegroundColor Green
 } else {
-    Write-Host "$SCRIPT_INDEX [..] pip install --upgrade sherpa-onnx ..." -ForegroundColor Yellow
-    try { & $resolvedPython -m pip install --upgrade sherpa-onnx; $rc = $LASTEXITCODE } catch { $rc = 1 }
-    if ($rc -eq 0 -and (Test-PyModule -Py $resolvedPython -Module 'sherpa_onnx')) {
-        Write-Host "$SCRIPT_INDEX [OK] sherpa-onnx installed." -ForegroundColor Green
-    } else {
-        Write-Host "$SCRIPT_INDEX [!] sherpa-onnx install failed; offline TTS will fall back to edge/ai." -ForegroundColor DarkYellow
-    }
+    Write-Host "$SCRIPT_INDEX [!] sherpa-onnx not importable; offline TTS will fall back to edge/ai." -ForegroundColor DarkYellow
 }
 
 # --- 2) Kokoro multi-lang (zh/en) model into the model dir --------------- #

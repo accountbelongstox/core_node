@@ -26,6 +26,7 @@ import {
 } from './wordflowTypes';
 import { apiManager, WORDFLOW_API_HEALTH_EVENT } from './WordflowApiManager';
 import { StorageCenter, StorageKey } from './WordflowStorage';
+import { WF_AUTH_USE_MOCK, wordflowAuthMock } from './wordflowAuthMock';
 import {
   MasterApiClient,
   MasterRequestOptions,
@@ -766,6 +767,16 @@ class WordflowApiService {
    * callers must NOT add their own queued-offline toast.
    */
   async request<T>(endpoint: string, options: MasterRequestOptions = {}): Promise<T> {
+    // MOCK switch (wordflowAuthMock.WF_AUTH_USE_MOCK): when on, the auth
+    // endpoints are served entirely offline so the auth UI can be built with no
+    // backend. The mock returns the same already-unwrapped `data` shape this
+    // method yields and throws the same status-bearing errors, so every caller
+    // (login()/register()/getUserProfile() + the forgot/reset pages) is
+    // unchanged. Placed before the try on purpose: a mock error must propagate
+    // with its `.status` intact, exactly like the real path's surfaced error.
+    if (WF_AUTH_USE_MOCK && wordflowAuthMock.handles(endpoint)) {
+      return wordflowAuthMock.handle<T>(endpoint, options);
+    }
     try {
       // FormData bodies must NOT get an explicit Content-Type — the browser sets
       // the multipart boundary itself (needed by /learning/upload). The token +
@@ -904,6 +915,12 @@ class WordflowApiService {
     email?: string;
     nickname?: string;
     invite_code?: string;
+    /** Catalog learning-language codes chosen at sign-up (multi-select). The
+     * backend validates these against /system/supported-languages and persists
+     * them on the user (defaults to ['en'] when omitted). */
+    learning_languages?: string[];
+    /** Native language code (optional; backend defaults to 'zh'). */
+    native_language?: string;
   }) {
     const result = await this.request<any>('/register', {
       method: 'POST',

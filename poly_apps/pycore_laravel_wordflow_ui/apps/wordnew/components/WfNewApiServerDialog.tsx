@@ -12,7 +12,7 @@ import Portal from '../../../components/shared/Portal';
 import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '../../../styles/overlay';
 import { notify } from '../../../core/notify/notify';
 import { ElementTheme } from '../WfNewTypes';
-import { wfNewApi, wfNewEndpoints, useWfNewEndpoints, WFNEW_API_PORT } from '../api';
+import { wfNewApi, wfNewEndpoints, useWfNewEndpoints, WFNEW_API_PORT, CURRENT_URL_TYPE } from '../api';
 
 interface WfNewApiServerDialogProps {
   open: boolean;
@@ -126,13 +126,16 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
               {endpoints.map((ep) => {
                 const h = health[ep.id];
                 const isCurrent = ep.id === currentId;
+                const isCurrentUrl = ep.id === CURRENT_URL_TYPE;
                 const healthy = h?.isHealthy === true;
                 const probed = h !== undefined;
                 return (
                   <div
                     key={ep.id}
                     className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-all ${
-                      isCurrent ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/2'
+                      isCurrent ? 'border-indigo-500 bg-indigo-500/5'
+                        : isCurrentUrl ? 'border-amber-500/50 bg-amber-500/5'
+                        : 'border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/2'
                     }`}
                   >
                     <div className="min-w-0 flex items-center gap-2.5">
@@ -145,9 +148,14 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
                         {healthy || !probed ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
                       </span>
                       <div className="min-w-0">
-                        <p className="text-xs font-mono font-bold truncate">
-                          {ep.protocol}://{ep.url}{ep.port ? `:${ep.port}` : ''}
-                          {isCurrent && <span className="ml-2 text-[9px] uppercase text-indigo-500">{trans('api.inUse')}</span>}
+                        <p className="text-xs font-mono font-bold truncate flex items-center gap-2">
+                          <span className="truncate">{ep.protocol}://{ep.url}{ep.port ? `:${ep.port}` : ''}</span>
+                          {isCurrentUrl && (
+                            <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded-full">
+                              {trans('api.currentUrlBadge')}
+                            </span>
+                          )}
+                          {isCurrent && <span className="shrink-0 text-[9px] uppercase text-indigo-500">{trans('api.inUse')}</span>}
                         </p>
                         <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">
                           {ep.description}{probed ? ` · ${healthy ? `${h?.responseTime}ms` : (h?.error ?? 'offline')}` : ''}

@@ -11,6 +11,7 @@
 import type {
   WfNewApi, Word, WordGroup, BentoGroup, UserProfile, UserStats,
   SubtitleCourse, BilingualSentence, AnalyticsStats,
+  WfNewAuthResult, WfNewAuthUser, WfNewRegisterPayload,
 } from './WfNewApiTypes';
 import {
   MOCK_BENTO_GROUPS, MOCK_VOCABULARY_MAP, MOCK_WALKMAN_WORDS,
@@ -20,6 +21,70 @@ import {
 /** Simulate a little network latency so loading states are exercised. */
 const delay = <T>(value: T, ms = 180): Promise<T> =>
   new Promise((resolve) => setTimeout(() => resolve(value), ms));
+
+// --- mock auth registry ----------------------------------------------------- #
+// A self-contained, localStorage-backed account store so register → login →
+// session works fully offline and BEHAVES like the backend (validates the
+// password, rejects bad creds, surfaces 'Username already exists'). Aligned with
+// the AppQyV1 user shape returned by /login and /register.
+
+const MOCK_AUTH_USERS_KEY = 'wfnew_auth_mock_users';
+
+interface MockAuthRecord extends WfNewAuthUser {
+  password: string;
+}
+
+/** Default seeded account so login works out of the box: demo / demo123. */
+const SEED_AUTH_USERS: MockAuthRecord[] = [
+  {
+    id: '1',
+    username: 'demo',
+    nickname: 'Demo Cadet',
+    name: 'Demo Cadet',
+    email: 'demo@wordflow.test',
+    avatar: '',
+    native_language: 'zh',
+    learning_languages: ['en'],
+    member_type: 'free',
+    bio: 'Offline mock cadet — swap the api/index.ts import to go live.',
+    password: 'demo123',
+  },
+];
+
+function readAuthUsers(): MockAuthRecord[] {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(MOCK_AUTH_USERS_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) return parsed as MockAuthRecord[];
+    }
+  } catch {
+    /* corrupt / denied — fall back to the seed */
+  }
+  writeAuthUsers(SEED_AUTH_USERS);
+  return SEED_AUTH_USERS.map((u) => ({ ...u }));
+}
+
+function writeAuthUsers(users: MockAuthRecord[]): void {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(MOCK_AUTH_USERS_KEY, JSON.stringify(users));
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Strip the password before handing a record back as a WfNewAuthUser. */
+function publicUser(rec: MockAuthRecord): WfNewAuthUser {
+  const { password: _pw, ...user } = rec;
+  return user;
+}
+
+/** Error shaped like the HTTP impl's (carries .status for callers). */
+function mockAuthError(message: string, status: number): Error & { status: number } {
+  const err = new Error(message) as Error & { status: number };
+  err.status = status;
+  return err;
+}
 
 /** Generic dictionary pool used for search + unknown-group fallback. */
 const DEFAULT_WORD_POOL: Word[] = [
@@ -39,6 +104,63 @@ const ALL_MOCK_WORDS: Word[] = [
 ];
 
 export const wfNewApiMock: WfNewApi = {
+  // ---- Auth ----
+  async login(identifier: string, password: string): Promise<WfNewAuthResult> {
+    await delay(null, 220);
+    const id = identifier.trim().toLowerCase();
+    if (!id || !password) throw mockAuthError('Username and password are required', 422);
+    const users = readAuthUsers();
+    const match = users.find(
+      (u) => (u.username || '').toLowerCase() === id || (u.email || '').toLowerCase() === id
+    );
+    // Mirror the backend's generic 422 on any credential mismatch.
+    if (!match || match.password !== password) {
+      throw mockAuthError('The provided credentials are incorrect.', 422);
+    }
+    return { token: `mock_token_${match.id}_${Date.now()}`, user: publicUser(match) };
+  },
+
+  async register(payload: WfNewRegisterPayload): Promise<WfNewAuthResult> {
+    await delay(null, 220);
+    const username = (payload.username || '').trim();
+    const password = payload.password || '';
+    const email = payload.email ? payload.email.trim() : '';
+    if (!username || !password) throw mockAuthError('Username and password are required', 422);
+    const users = readAuthUsers();
+    if (users.some((u) => (u.username || '').toLowerCase() === username.toLowerCase())) {
+      throw mockAuthError('Username already exists', 400);
+    }
+    if (email && users.some((u) => (u.email || '').toLowerCase() === email.toLowerCase())) {
+      throw mockAuthError('Email already exists', 400);
+    }
+    const nextId = String(
+      users.reduce((max, u) => Math.max(max, Number(u.id) || 0), 0) + 1
+    );
+    const learning = Array.isArray(payload.learning_languages) && payload.learning_languages.length
+      ? payload.learning_languages
+      : ['en'];
+    const rec: MockAuthRecord = {
+      id: nextId,
+      username,
+      nickname: payload.nickname || username,
+      name: payload.nickname || username,
+      email: email || `${username}@wordflow.test`,
+      avatar: payload.avatar || '',
+      native_language: payload.native_language || 'zh',
+      learning_languages: learning,
+      member_type: 'free',
+      bio: payload.bio || '',
+      password,
+    };
+    writeAuthUsers([...users, rec]);
+    return { token: `mock_token_${rec.id}_${Date.now()}`, user: publicUser(rec) };
+  },
+
+  async logout(): Promise<void> {
+    // Stateless in mock mode — the session lives in the app's settings store.
+    await delay(null, 60);
+  },
+
   getBentoGroups: () => delay([...MOCK_BENTO_GROUPS] as BentoGroup[]),
 
   getWordGroups: () =>

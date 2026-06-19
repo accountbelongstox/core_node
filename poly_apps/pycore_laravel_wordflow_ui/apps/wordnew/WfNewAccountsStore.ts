@@ -1,0 +1,61 @@
+/**
+ * WfNewAccountsStore — persisted /wordnew mock account registry, a sibling
+ * subclass of the shared `PersistedStore`. Replaces the dynamic raw-localStorage
+ * keys `wf_account_<email>` with ONE consolidated key holding a map of
+ * lowercased-email → profile, accessed via getAccount/setAccount.
+ */
+import { PersistedStore, StorageManager, StorageKeys } from '../../core/persistence';
+
+export interface WfNewAccountProfile {
+  nickname: string;
+  avatar: string;
+  email: string;
+  nativeLang: string;
+  targetLang: string;
+  bio: string;
+  isLoggedIn: boolean;
+}
+
+export interface WfNewAccountsState {
+  accounts: Record<string, WfNewAccountProfile>;
+}
+
+const makeDefaults = (): WfNewAccountsState => ({ accounts: {} });
+
+class WfNewAccountsStore extends PersistedStore<WfNewAccountsState> {
+  constructor() {
+    super(StorageKeys.WORDNEW_ACCOUNTS, makeDefaults);
+    this.migrateLegacyKeys();
+  }
+
+  getAccount(email: string): WfNewAccountProfile | null {
+    return this.get('accounts')[email.toLowerCase()] ?? null;
+  }
+
+  setAccount(email: string, profile: WfNewAccountProfile): void {
+    this.patch({ accounts: { ...this.get('accounts'), [email.toLowerCase()]: profile } });
+  }
+
+  private migrateLegacyKeys(): void {
+    if (StorageManager.has(StorageKeys.WORDNEW_ACCOUNTS)) return;
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    const ls = window.localStorage;
+    const accounts: Record<string, WfNewAccountProfile> = {};
+    const stale: string[] = [];
+    for (let i = 0; i < ls.length; i++) {
+      const key = ls.key(i);
+      if (!key || !key.startsWith('wf_account_')) continue;
+      stale.push(key);
+      try {
+        const profile = JSON.parse(ls.getItem(key) as string);
+        const email = (profile?.email || key.slice('wf_account_'.length)).toLowerCase();
+        accounts[email] = profile;
+      } catch { /* skip unparseable */ }
+    }
+    if (Object.keys(accounts).length > 0) this.patch({ accounts });
+    for (const k of stale) ls.removeItem(k);
+  }
+}
+
+/** Global singleton — the one persisted account registry for /wordnew. */
+export const wfNewAccounts = new WfNewAccountsStore();
