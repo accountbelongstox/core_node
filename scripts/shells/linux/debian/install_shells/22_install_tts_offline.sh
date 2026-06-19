@@ -31,6 +31,10 @@ set -uo pipefail
 PYTHON="python3"
 MELOTTS=0
 FORCE=0
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Single source of truth for the sherpa-onnx CPU/GPU build choice (mirrors the
+# torch/onnxruntime guards): install_shells -> debian -> linux -> common.
+SHERPA_GUARD="$SCRIPT_DIR/../../common/sherpa_onnx_cpu_guard.sh"
 MODEL_DIR="$HOME/.core_node/cache/tts/sherpa"
 # int8-quantized Kokoro (zh/en) — smaller/faster one-time download.
 MODEL_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2"
@@ -113,13 +117,24 @@ if ! PYTHON="$(resolve_python "$PYTHON")"; then
 fi
 echo "  python : $PYTHON"
 
-# --- 1) sherpa-onnx ------------------------------------------------------ #
-if py_has_module sherpa_onnx && [[ "$FORCE" -eq 0 ]]; then
-    echo "[OK] sherpa-onnx already installed; skipping pip."
+# --- 1) sherpa-onnx (CPU build by default; GPU build opt-in, CPU-guarded) ---- #
+# The CPU/GPU build choice goes through sherpa_onnx_cpu_guard.sh (idempotent):
+#   NO GPU -> CPU wheel, and any stray '+cuda' build is switched back to CPU, so a
+#            CPU host NEVER ends up on the GPU build.
+#   GPU + SHERPA_ONNX_CUDA_SPEC=<ver+cuda...> -> that exact GPU wheel from the CUDA
+#            flat index (needs system CUDA Toolkit + cuDNN).
+if [[ -f "$SHERPA_GUARD" ]]; then
+    echo "[..] Ensuring sherpa-onnx CPU/GPU build via guard ..."
+    SOG_PYTHON="$PYTHON" bash "$SHERPA_GUARD" --python "$PYTHON"
+    if py_has_module sherpa_onnx; then
+        echo "[OK] sherpa-onnx present (build guarded)."
+    else
+        echo "[!] sherpa-onnx not importable; offline TTS will fall back to edge/ai."
+    fi
 else
-    echo "[..] pip install --upgrade sherpa-onnx ..."
+    echo "[!] sherpa guard missing ($SHERPA_GUARD); falling back to plain CPU pip."
     if pip_install --upgrade sherpa-onnx && py_has_module sherpa_onnx; then
-        echo "[OK] sherpa-onnx installed."
+        echo "[OK] sherpa-onnx installed (CPU)."
     else
         echo "[!] sherpa-onnx install failed; offline TTS will fall back to edge/ai."
     fi

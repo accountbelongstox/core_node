@@ -133,7 +133,7 @@ export const pcZh: PcTranslationDict = {
       readonly: '此处只读 — 如需添加 / 轮换 / 删除密钥，请前往 AI 密钥页面。',
     },
     pipelines: '流水线',
-    pipelinesRefreshTitle: '刷新 OCR / TTS 状态（强制重新探测 TTS）',
+    pipelinesRefreshTitle: '刷新 OCR / TTS / STT 状态（强制重新探测 TTS）',
     freeLibraries: '免费库',
     freeLibrariesHint: '离线 / 无需密钥的库，流水线会回退使用。',
     constantsDirs: '常量与目录',
@@ -273,6 +273,7 @@ export const pcZh: PcTranslationDict = {
   },
   pipeline: {
     ocrEngines: 'OCR 引擎',
+    sttEngines: 'STT 引擎',
     best: '最佳',
     active: '活跃',
     fallback: '回退',

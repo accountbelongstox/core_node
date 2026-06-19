@@ -6,15 +6,16 @@
  * on either page updates the other. One poll loop, single-flight fetches.
  */
 import { pycoreApi } from './PycoreApi';
-import type { AiGatewayStatus, CapabilityStatus, OcrStatus, TtsStatus } from './pycoreTypes';
+import type { AiGatewayStatus, CapabilityStatus, OcrStatus, TtsStatus, SttStatus } from './pycoreTypes';
 
 export const PYCORE_CAPABILITY_EVENT = 'pycore-capability-changed';
 
-export type CapabilityKey = 'ocr' | 'tts' | 'caps' | 'aiGateway';
+export type CapabilityKey = 'ocr' | 'tts' | 'stt' | 'caps' | 'aiGateway';
 
 export interface PycoreCapabilityState {
   ocr: OcrStatus | null;
   tts: TtsStatus | null;
+  stt: SttStatus | null;
   caps: CapabilityStatus | null;
   aiGateway: AiGatewayStatus | null;
   /** True until the first fetch cycle finishes. */
@@ -31,6 +32,7 @@ const POLL_MS = 20_000;
 let state: PycoreCapabilityState = {
   ocr: null,
   tts: null,
+  stt: null,
   caps: null,
   aiGateway: null,
   loading: true,
@@ -71,10 +73,11 @@ export async function refreshPycoreCapabilities(forceTtsRefresh = false): Promis
 
   inFlight = (async () => {
     const errors: Partial<Record<CapabilityKey, string>> = {};
-    const [gw, oc, tt, cp] = await Promise.allSettled([
+    const [gw, oc, tt, st, cp] = await Promise.allSettled([
       pycoreApi.getAiGateway(),
       pycoreApi.getOcrStatus(),
       pycoreApi.getTtsStatus(forceTtsRefresh),
+      pycoreApi.getSttStatus(),
       pycoreApi.getCapabilities(),
     ]);
 
@@ -102,6 +105,14 @@ export async function refreshPycoreCapabilities(forceTtsRefresh = false): Promis
       errors.tts = tt.status === 'rejected'
         ? (tt.reason?.message || 'fetch failed')
         : (tt.value?.error || 'probe failed');
+    }
+
+    if (st.status === 'fulfilled' && st.value?.success) {
+      next.stt = st.value;
+    } else if (st.status === 'fulfilled' || st.status === 'rejected') {
+      errors.stt = st.status === 'rejected'
+        ? (st.reason?.message || 'fetch failed')
+        : (st.value?.error || 'probe failed');
     }
 
     if (cp.status === 'fulfilled' && cp.value?.success) {

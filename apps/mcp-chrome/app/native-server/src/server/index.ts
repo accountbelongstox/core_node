@@ -60,6 +60,27 @@ export class Server {
       return allow;
     });
 
+    // When an incoming instance wins the port, release it gracefully: end every
+    // open MCP session so its SSE stream closes (an open stream would otherwise
+    // keep fastify.close() pending), then stop the HTTP server. The client sees
+    // a clean stream end / 404-on-reconnect and re-initializes against the new
+    // port owner, instead of the abrupt "transport dropped mid-call" a bare
+    // process.exit() produced.
+    this.singletonHandler.setShutdownCallback(async () => {
+      log('INFO', `Graceful shutdown requested by incoming instance; ending ${this.transportsMap.size} session(s)`);
+      for (const transport of this.transportsMap.values()) {
+        try {
+          (transport as { close?: () => void }).close?.();
+        } catch {
+          /* ignore individual transport close errors */
+        }
+      }
+      this.transportsMap.clear();
+      if (this.isRunning) {
+        await this.stop();
+      }
+    });
+
     this.setupPlugins();
     this.setupRoutes();
   }

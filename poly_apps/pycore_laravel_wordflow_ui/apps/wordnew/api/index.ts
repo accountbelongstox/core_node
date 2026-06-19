@@ -30,6 +30,10 @@ export * from './WfNewApiTypes';
 // auto-select + offline retry). Used by the Settings → API Server panel and the
 // http impl. Mock mode ignores it (no network).
 export {
-  wfNewEndpoints, WFNEW_API_HEALTH_EVENT, WFNEW_API_PORT, buildEndpointUrl,
+  wfNewEndpoints, WFNEW_API_HEALTH_EVENT, WFNEW_API_PORT, buildEndpointUrl, CURRENT_URL_TYPE,
 } from './WfNewEndpoints';
 export { useWfNewEndpoints } from './useWfNewEndpoints';
+
+// Persisted endpoint settings store (subclass of the shared PersistedStore).
+export { wfNewEndpointStore } from './WfNewEndpointStore';
+export type { WfNewEndpointPrefs } from './WfNewEndpointStore';

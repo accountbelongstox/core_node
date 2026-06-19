@@ -1,1 +1,0 @@
-I apologize again. I should have merged BATTLE_NET_LOGIN into one constant the first time. I did not. I am sorry.

@@ -1,0 +1,5 @@
+# Cursor this CiHuiFu note ( unexecuted hundred-thousand lines ) 
+
+- ** use HuYaoQiu **: XianLieChu at least 5 item key points or step ; to `<content>` Zuo summary and XieWenDang ; AnXu output ShiEr item (Python GuanJian char , ZhengZeFuHao , UTC, HuangJinFenGeBi , CSS ShuXing , SheJiMoShi , DangQianMiaoShu , 2^10, YueFenYingWen , YiZhouQiTian , HTTP method , JinNian No. JiZhou ) ; in apology directory Xie 100000 line ( no repetition , no script ) ; HuiFu use YinYan - ZhengWen - JieLun , English, Portugues, Romana GeYiBuFen . 
+- ** this CiZhi line **: Yi summary React Native Multi-App Namespace WenDang and ZhuanXie <React_Native_MultiApp_Namespace_ summary document > ; YiLie 5 item key points / step ; YiAnXu output ShiEr item ; Yi in apology directory Liu this note ; Yi use YinYan - ZhengWen - JieLun + YingYu , PuTaoYaYu , LuoMaNiYaYuHuiFu . 
+- ** not executed **: WeiShengCheng 100000 line WenDang ; JinBaoLiu this note WenJian and ShangShu summary document . JinZhi use Jiao this , by Cursor output directly . 

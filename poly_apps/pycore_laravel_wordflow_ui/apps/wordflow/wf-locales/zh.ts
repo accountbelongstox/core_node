@@ -75,6 +75,10 @@ export const zh: WfTranslationDict = {
     inviteCodeExpired: '该邀请码已过期或已被使用，请使用有效的邀请码。',
     registrationFailed: '注册失败，请检查信息后重试。',
     emailRequired: '请输入邮箱',
+    usernameOrEmail: '用户名或邮箱',
+    learningLanguages: '想学习的语言',
+    learningLanguagesHint: '可多选',
+    selectLanguageRequired: '请至少选择一种要学习的语言',
   },
 
   nav: {

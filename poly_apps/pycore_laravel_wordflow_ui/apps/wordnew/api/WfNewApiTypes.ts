@@ -82,6 +82,53 @@ export interface UserProfile {
   dailyGoal?: number;
 }
 
+// ---- Auth -----------------------------------------------------------------
+
+/**
+ * Authenticated user as returned by the AppQyV1 /login and /register endpoints
+ * (backend-aligned snake_case fields). Every field optional so a partial backend
+ * payload — or the mock — is always assignable.
+ */
+export interface WfNewAuthUser {
+  id?: string;
+  username?: string;
+  nickname?: string;
+  name?: string;
+  email?: string;
+  avatar?: string;
+  avatar_url?: string;
+  native_language?: string;
+  learning_languages?: string[];
+  member_type?: string;
+  bio?: string;
+}
+
+/** Normalized result of a successful login/register. */
+export interface WfNewAuthResult {
+  /** Sanctum Bearer token (backend data.login_token). */
+  token: string;
+  user: WfNewAuthUser;
+}
+
+/**
+ * Registration form payload. `username` + `password` are required; everything
+ * else is optional and mirrors the backend's accepted fields (the AppQyV1
+ * registration controller validates `learning_languages` / `native_language`
+ * against the supported-language catalog).
+ */
+export interface WfNewRegisterPayload {
+  username: string;
+  password: string;
+  email?: string;
+  nickname?: string;
+  native_language?: string;
+  learning_languages?: string[];
+  bio?: string;
+  /** Emoji avatar chosen in the form (UI-only; the backend ignores it). */
+  avatar?: string;
+  invite_code?: string;
+}
+
 // ---- Interactive subtitles ------------------------------------------------
 
 export interface SubtitleWord {
@@ -161,16 +208,30 @@ export interface AnalyticsStats {
 // ---- Backend endpoint management ------------------------------------------
 
 /**
+ * The KIND of an endpoint — also its persisted "selection type". The settings
+ * store a TYPE (the endpoint id), and the concrete endpoint is resolved from it
+ * at runtime, so e.g. 'current-url' always re-resolves to the live page origin
+ * rather than freezing a host that may later change.
+ *   - 'current-url' : the page's own origin, host from window.location, port 9000.
+ *   - 'default'     : a built-in named endpoint (remote-primary / loopback / mesh).
+ *   - 'custom'      : a user-added endpoint.
+ */
+export type WfNewEndpointKind = 'current-url' | 'default' | 'custom';
+
+/**
  * One configurable backend endpoint. `url` is the host only (no protocol/port);
  * the full base is `${protocol}://${url}:${port}`. All wordnew defaults use
  * port 9000 (the laravel_main / AppQyV1 Octane backend).
  */
 export interface WfNewEndpoint {
+  /** Unique id; doubles as the persisted selection TYPE token. */
   id: string;
+  /** Selection kind (current-url resolves dynamically; see WfNewEndpointKind). */
+  kind: WfNewEndpointKind;
   url: string;
   protocol: 'http' | 'https';
   port?: number;
-  /** Lower = preferred (0 = current-origin, tried/selected first when healthy). */
+  /** Lower = preferred (current-url is tried/selected first when healthy). */
   priority: number;
   isLocal: boolean;
   description: string;
@@ -212,6 +273,14 @@ export interface WfNewEndpointSnapshot {
  * WfNewApiMock and WfNewApiHttp implement THIS — keep them in lock-step.
  */
 export interface WfNewApi {
+  // ---- Auth ----
+  /** Authenticate by username/email/phone + password. Rejects on bad creds. */
+  login(identifier: string, password: string): Promise<WfNewAuthResult>;
+  /** Create an account (immediately logged in). Rejects with a backend message on failure. */
+  register(payload: WfNewRegisterPayload): Promise<WfNewAuthResult>;
+  /** Clear the current session token (best-effort; always resolves). */
+  logout(): Promise<void>;
+
   /** Decorated home-grid groups (bento layout). */
   getBentoGroups(): Promise<BentoGroup[]>;
   /** Plain learning groups for the library shelf. */

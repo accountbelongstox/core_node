@@ -23,10 +23,19 @@ interface PendingRequest {
   timeoutId: NodeJS.Timeout;
 }
 
+// How long an orphaned host (extension stdio link gone) may keep squatting the
+// port before it self-destructs to release it. While Chrome is open the
+// singleton handover normally evicts the orphan within ~30-60s; this backstop
+// covers the case where Chrome is fully closed (no Service Worker, no watchdog),
+// so the next browser launch binds a fresh, live-linked process immediately
+// instead of fighting a zombie.
+const ORPHAN_SELF_DESTRUCT_MS = 3 * 60 * 1000;
+
 export class NativeMessagingHost {
   private associatedServer: Server | null = null;
   private pendingRequests: Map<string, PendingRequest> = new Map();
   private keepAliveTimer: NodeJS.Timeout | null = null;
+  private orphanExitTimer: NodeJS.Timeout | null = null;
   // Whether the Chrome extension's stdio link to THIS process is still alive.
   // Goes false when stdin ends (Service Worker disconnected / went idle). An
   // orphaned process can no longer relay tool calls, so it must yield the port
@@ -88,6 +97,20 @@ export class NativeMessagingHost {
       // The extension link is gone; mark orphaned so a fresh instance can take
       // over the port even while this one still has active MCP sessions.
       this.extensionConnected = false;
+      // The stdout pipe to the extension is now dead, so any in-flight tool calls
+      // will never be answered. Reject them immediately instead of letting each
+      // one wait out its full timeout — the MCP client then gets a fast,
+      // actionable error and can retry once the handover completes.
+      if (this.pendingRequests.size > 0) {
+        log('WARN', `Rejecting ${this.pendingRequests.size} pending request(s) - extension link lost`);
+        this.pendingRequests.forEach((pending) => {
+          clearTimeout(pending.timeoutId);
+          pending.reject(
+            new Error('Extension link lost (Service Worker disconnected) before the request was answered.'),
+          );
+        });
+        this.pendingRequests.clear();
+      }
       // Don't call cleanup() - let server continue running
       // Service Worker in MV3 may stop after inactivity, but server should persist
 
@@ -97,6 +120,21 @@ export class NativeMessagingHost {
           // Heartbeat to keep process alive - do nothing
         }, 30000); // 30 seconds
         log('INFO', 'Keep-alive timer started to prevent process exit');
+      }
+
+      // Arm the orphan self-destruct backstop (see ORPHAN_SELF_DESTRUCT_MS). If
+      // the link is still dead when it fires, gracefully release the port.
+      if (!this.orphanExitTimer) {
+        this.orphanExitTimer = setTimeout(() => {
+          this.orphanExitTimer = null;
+          if (!this.extensionConnected) {
+            log(
+              'WARN',
+              'Extension link still dead past grace period; releasing port and exiting (orphan self-destruct)',
+            );
+            this.gracefulExit();
+          }
+        }, ORPHAN_SELF_DESTRUCT_MS);
       }
     });
 
@@ -343,6 +381,25 @@ export class NativeMessagingHost {
   }
 
 
+
+  /**
+   * Gracefully release the port and exit. Closes the HTTP server first so any
+   * connected MCP client gets a clean stream end (and re-initializes against the
+   * next port owner) instead of a raw TCP reset. A hard-exit timer guarantees we
+   * still exit if the close hangs on a long-lived SSE stream.
+   */
+  private gracefulExit(): void {
+    const hardExit = setTimeout(() => process.exit(0), 2000);
+    const done = () => {
+      clearTimeout(hardExit);
+      process.exit(0);
+    };
+    if (this.associatedServer && this.associatedServer.isRunning) {
+      this.associatedServer.stop().then(done).catch(done);
+    } else {
+      done();
+    }
+  }
 
   /**
    * Clean up resources

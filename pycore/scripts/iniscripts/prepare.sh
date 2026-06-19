@@ -126,6 +126,11 @@ if [[ -f "$GUARD_DIR/onnxruntime_cpu_guard.sh" ]]; then
     echo "[..] onnxruntime CPU/GPU guard (repair-only)"
     OCG_REPAIR_ONLY=1 bash "$GUARD_DIR/onnxruntime_cpu_guard.sh" --python "$PYTHON" || true
 fi
+if [[ -f "$GUARD_DIR/sherpa_onnx_cpu_guard.sh" ]]; then
+    # Offline-TTS engine: a CPU host must never carry a stray '+cuda' sherpa-onnx.
+    echo "[..] sherpa-onnx CPU/GPU guard (repair-only)"
+    SOG_REPAIR_ONLY=1 bash "$GUARD_DIR/sherpa_onnx_cpu_guard.sh" --python "$PYTHON" || true
+fi
 
 if [[ ${#failed[@]} -gt 0 ]]; then
     echo "[!] Some prerequisites did not complete cleanly: ${failed[*]}"

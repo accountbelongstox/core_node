@@ -1,0 +1,5 @@
+# Cursor this CiHuiFu note ( unexecuted hundred-thousand lines ) 
+
+- ** use HuYaoQiu **: to `<content>` summary and XieWenDang ; Xian output RenWu breakdown (3 sub step ) ; Xian output understanding confirmation ; AnXu output ShiEr item ( JinRiJieQi , SheJiMoShi , Ban this Hao , YiZhouQiTianYingWen , Git MingLing , ShuXueChangShu , CSS ShuXing , XiLa char Mu , HuaXueYuanSu , Python GuanJian char , GeYan , SuiJiDanCi ) ; in apology directory Xie 100000 line ( no repetition , no script ) ; HuiFuAn when JianShunXuXuShi , Francais, , Turkce GeYiBuFen . 
+- ** this CiZhi line **: Yi summary Agent GongXiangQiYue and ZhuanXie <Agent_Shared_Contracts_ summary document > ; Yi output RenWu breakdown and understanding confirmation and ShiEr item ; Yi in apology directory Liu this note ; YiAn when JianShunXu + FaYu , EYu , TuErQiYuHuiFu . 
+- ** not executed **: WeiShengCheng 100000 line WenDang ; JinBaoLiu this note WenJian and ShangShu summary document . JinZhi use Jiao this , by Cursor output directly . 

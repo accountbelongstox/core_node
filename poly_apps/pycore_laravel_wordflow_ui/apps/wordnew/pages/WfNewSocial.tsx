@@ -7,6 +7,7 @@ import {
   Clock, CheckCircle2, ChevronRight, Volume2, Bookmark, HelpCircle
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
+import { wfNewSocial } from '../WfNewSocialStore';
 
 interface Comment {
   id: string;
@@ -159,15 +160,13 @@ const INITIAL_POSTS: SocialPost[] = [
 ];
 
 export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast, trans, currentUser }) => {
-  const [partners, setPartners] = useState<LearningPartner[]>(() => {
-    const cached = localStorage.getItem('wf_social_partners');
-    return cached ? JSON.parse(cached) : INITIAL_PARTNERS;
-  });
+  const [partners, setPartners] = useState<LearningPartner[]>(
+    () => (wfNewSocial.get('partners') as LearningPartner[] | null) ?? INITIAL_PARTNERS,
+  );
 
-  const [posts, setPosts] = useState<SocialPost[]>(() => {
-    const cached = localStorage.getItem('wf_social_posts');
-    return cached ? JSON.parse(cached) : INITIAL_POSTS;
-  });
+  const [posts, setPosts] = useState<SocialPost[]>(
+    () => (wfNewSocial.get('posts') as SocialPost[] | null) ?? INITIAL_POSTS,
+  );
 
   // State configurations
   const [activeSubTab, setActiveSubTab] = useState<'feed' | 'partners' | 'direct_chat'>('feed');
@@ -185,8 +184,8 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
 
   // Interactive Friends Chat histories
   const [chatHistories, setChatHistories] = useState<Record<string, Message[]>>(() => {
-    const cached = localStorage.getItem('wf_social_chats');
-    if (cached) return JSON.parse(cached);
+    const cached = wfNewSocial.get('chats') as Record<string, Message[]> | null;
+    if (cached) return cached;
 
     // Seed default chat messages
     return {
@@ -208,15 +207,15 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
   const [newMessageText, setNewMessageText] = useState('');
 
   useEffect(() => {
-    localStorage.setItem('wf_social_partners', JSON.stringify(partners));
+    wfNewSocial.setField('partners', partners);
   }, [partners]);
 
   useEffect(() => {
-    localStorage.setItem('wf_social_posts', JSON.stringify(posts));
+    wfNewSocial.setField('posts', posts);
   }, [posts]);
 
   useEffect(() => {
-    localStorage.setItem('wf_social_chats', JSON.stringify(chatHistories));
+    wfNewSocial.setField('chats', chatHistories);
   }, [chatHistories]);
 
   // Friend status toggles

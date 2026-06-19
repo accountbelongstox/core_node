@@ -40,6 +40,9 @@ $VendorAutoload = Join-Path $VendorDir "autoload.php"
 $EnvPath = Join-Path $LaravelDir ".env"
 $EnvExamplePath = Join-Path $LaravelDir ".env.example"
 $Port = 9000
+# Companion Windows-side WSL helper (same scripts dir): sets the netsh portproxy +
+# firewall so other Tailscale/LAN devices can reach the WSL backend on :Port.
+$PortForwardScript = Join-Path $ScriptDir "wsl_port_forward.ps1"
 $IPList = @()
 $phpCmd = $null
 $composerCmd = $null
@@ -105,6 +108,13 @@ $WslPgMode = $false
 $wslOut = $null
 $WslStorePasswordPath = "/var/_core_node/global_var/POSTGRES_PASSWORD"
 $PgPasswordFromWsl = $null
+# WSL-first orchestration state (start.ps1 is the single Windows entry point: it
+# prefers launching the WSL backend over the degraded native-Windows runtime).
+$BackendMode = $null
+$WslDistros = @()
+$WslDefaultDistro = $null
+$WslStartShPath = $null
+$IsAdminPs = $false
 # Laravel runtime directories that MUST exist and be writable. Git does not track
 # empty dirs, so a fresh checkout/restore can miss these -> package:discover fails
 # with "bootstrap/cache directory must be present and writable".
@@ -206,12 +216,130 @@ function Test-WslPgScram {
     return (& $WslExe -e sh -c ("PGPASSWORD='{0}' psql -h 127.0.0.1 -p {1} -U {2} -d postgres -tAc 'SELECT 1'" -f $Password, $PgPort, $PgUser) 2>&1)
 }
 
+# List registered WSL distros (trimmed, empty entries dropped). WSL_UTF8=1 makes
+# recent wsl.exe emit UTF-8; the \0/\r strip keeps older UTF-16 output usable too.
+function Get-WslInstalledDistros {
+    param([string]$WslPath)
+    $prevUtf8 = $env:WSL_UTF8
+    $env:WSL_UTF8 = "1"
+    $raw = $null
+    try {
+        $raw = & $WslPath -l -q 2>$null
+    } catch {
+        $raw = $null
+    } finally {
+        $env:WSL_UTF8 = $prevUtf8
+    }
+    if (-not $raw) { return @() }
+    # Drop empties and Docker Desktop's system distros (they cannot run the backend).
+    # `wsl -l -q` lists the DEFAULT distro first, so [0] downstream is the default.
+    return @($raw |
+        ForEach-Object { ($_ -replace "[\0\r]", "").Trim() } |
+        Where-Object { ($_ -ne "") -and ($_ -notmatch '^docker-desktop') })
+}
+
+# Convert an absolute Windows drive path to its WSL /mnt/<drive>/... form so a
+# Windows-side script path can be handed to bash inside WSL.
+function Convert-WinPathToWsl {
+    param([string]$WinPath)
+    $full = [System.IO.Path]::GetFullPath($WinPath)
+    $drive = $full.Substring(0, 1).ToLower()
+    $rest = ($full.Substring(2)) -replace '\\', '/'
+    return "/mnt/$drive$rest"
+}
+
+# Idempotent y/N prompt defaulting to NO. LARAVEL_ASSUME_YES=1 pre-confirms; a
+# non-interactive session (no console) answers NO so nothing ever blocks.
+function Read-PsYesNoDefaultNo {
+    param([string]$Message)
+    if ($env:LARAVEL_ASSUME_YES -eq '1') { return $true }
+    if (-not [Environment]::UserInteractive) { return $false }
+    $reply = Read-Host "$Message [y/N]"
+    return ($reply -match '^[Yy]')
+}
+
 Write-Host "Initial directory (invocation): $($OriginalDirectory.Path)" -ForegroundColor DarkGray
 Write-Host "Working directory (Laravel root): $LaravelDir" -ForegroundColor DarkGray
 Write-Host ""
 
 try {
     Set-Location -Path $LaravelDir
+
+    # ========================================================================
+    # WSL-first orchestration (single Windows entry point).
+    # ------------------------------------------------------------------------
+    # The PRIMARY runtime is Laravel Octane on Swoole, which has NO Windows build
+    # and runs only on Linux/WSL (scripts/start.sh is that runtime; the native
+    # path below is a degraded, Swoole-less fallback). So when WSL is available we
+    # ORCHESTRATE it from here -- everything the Windows host can invoke directly is
+    # invoked directly:
+    #   1. (host-runnable) Tailscale/LAN port-forward Windows:Port -> WSL:Port, so
+    #      OTHER Tailscale/LAN devices can reach the WSL backend (needs admin -> UAC).
+    #      Under WSL2 NAT, octane:start binds the WSL VM's 0.0.0.0, not the host, so
+    #      without this only the host's own localhost can reach it.
+    #   2. (host-runnable) launch start.sh INSIDE WSL in the foreground.
+    # If WSL is NOT installed we PROMPT (idempotent) to install it, otherwise we fall
+    # through to the native-Windows runtime below. Opt out of WSL with:
+    #   $env:LARAVEL_BACKEND_MODE = 'native'   (force native)  | 'wsl' (force WSL)
+    $BackendMode = $env:LARAVEL_BACKEND_MODE
+    $WslExe = Resolve-WslExe
+    if ($WslExe) {
+        $WslDistros = Get-WslInstalledDistros $WslExe
+    }
+    if ($BackendMode -ne 'native') {
+        if ($WslExe -and ($WslDistros.Count -gt 0)) {
+            $WslDefaultDistro = $WslDistros[0]
+            Write-Host ""
+            Write-Host "WSL detected (distro: $WslDefaultDistro) -> orchestrating the WSL backend (Octane/Swoole)." -ForegroundColor Cyan
+
+            # 1. Tailscale/LAN port-forward (host-runnable; netsh + firewall need admin).
+            if (Test-Path -LiteralPath $PortForwardScript) {
+                Write-Host "Setting Windows->WSL port-forward for :$Port (Tailscale/LAN reachability)..." -ForegroundColor Yellow
+                $IsAdminPs = (New-Object Security.Principal.WindowsPrincipal(
+                    [Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole(
+                    [Security.Principal.WindowsBuiltInRole]::Administrator)
+                if ($IsAdminPs) {
+                    & $PortForwardScript -Port $Port
+                } else {
+                    Write-Host "  (a UAC prompt will appear -- the port-forward needs Administrator for netsh/firewall)" -ForegroundColor DarkGray
+                    Start-Process -FilePath "powershell.exe" -Verb RunAs -Wait -ArgumentList @(
+                        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$PortForwardScript`"", "-Port", "$Port"
+                    )
+                }
+            } else {
+                Write-Host "  Note: $PortForwardScript missing -> skipping port-forward (external access may not work)." -ForegroundColor Yellow
+            }
+
+            # 2. Launch start.sh inside WSL (foreground). start.sh derives all its own
+            #    paths from its location, so only its WSL path is needed. --no-service
+            #    keeps it foreground/non-prompting (this orchestrator owns lifecycle).
+            $WslStartShPath = Convert-WinPathToWsl (Join-Path $ScriptDir "start.sh")
+            Write-Host "Launching backend in WSL: $WslDefaultDistro -> $WslStartShPath" -ForegroundColor Cyan
+            Write-Host "Press Ctrl+C to stop." -ForegroundColor DarkGray
+            Write-Host ""
+            & $WslExe -d $WslDefaultDistro -- env PORT=$Port bash $WslStartShPath --no-service
+            exit $LASTEXITCODE
+        } else {
+            # WSL feature/distro absent -> idempotent prompt, then fall back to native.
+            Write-Host ""
+            if (-not $WslExe) {
+                Write-Host "WSL is not installed on this host (wsl.exe not found)." -ForegroundColor Yellow
+            } else {
+                Write-Host "WSL is installed but no distro is registered." -ForegroundColor Yellow
+            }
+            Write-Host "The PRIMARY runtime (Octane/Swoole) needs WSL. Install it once (a reboot is required):" -ForegroundColor Yellow
+            Write-Host "    wsl --install -d Ubuntu" -ForegroundColor Cyan
+            if (Read-PsYesNoDefaultNo "Run 'wsl --install -d Ubuntu' now? (a reboot will be required)") {
+                wsl --install -d Ubuntu
+                Write-Host "WSL install started. Reboot, finish the Ubuntu first-run setup, then re-run start.ps1." -ForegroundColor Green
+                exit 0
+            }
+            Write-Host "Continuing with the DEGRADED native-Windows runtime (Swoole-less; no Octane timer tasks)." -ForegroundColor Yellow
+            Write-Host ""
+        }
+    }
+    # (Reached only when LARAVEL_BACKEND_MODE='native', or WSL is unavailable and the
+    #  user declined to install it -> the existing native-Windows flow runs below.)
 
     $phpCmd = Get-Command php -ErrorAction SilentlyContinue
     $composerCmd = Get-Command composer -ErrorAction SilentlyContinue

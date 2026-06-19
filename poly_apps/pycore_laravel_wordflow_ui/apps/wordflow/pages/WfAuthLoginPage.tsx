@@ -1,16 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useWfApp, useWfT } from '../WfAppContext';
 import { Button, Badge } from '../WfUI';
 import { wfPath } from '../WfBottomTabNav';
 import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
+import {
+  WF_SUPPORTED_LANGUAGES,
+  type WfSupportedLanguage,
+} from '../../../core/api-libs/wordflow/wordflowLanguages';
 import { notify } from '../../../core/notify/notify';
+
+/** Normalize whatever /system/supported-languages returns into option rows. */
+function normalizeLanguageOptions(raw: any): WfSupportedLanguage[] {
+  const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+  const out: WfSupportedLanguage[] = [];
+  for (const item of list) {
+    const code = typeof item?.code === 'string' ? item.code : '';
+    if (!code) continue;
+    out.push({
+      code,
+      name: typeof item?.name === 'string' && item.name ? item.name : code,
+      native_name:
+        typeof item?.native_name === 'string' && item.native_name ? item.native_name : item?.name || code,
+      icon: typeof item?.icon === 'string' ? item.icon : undefined,
+    });
+  }
+  return out;
+}
 
 const WfAuthLoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login, setUser } = useWfApp();
-  const { t } = useWfT();
+  const { t, lang } = useWfT();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
@@ -19,6 +41,39 @@ const WfAuthLoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Learning-language multi-select (register mode). Options come from the live
+  // /system/supported-languages endpoint (mock or real); WF_SUPPORTED_LANGUAGES
+  // is the offline fallback so the selector never renders empty. Default to the
+  // shell language when it is a known catalog code, else English.
+  const fallbackLang = WF_SUPPORTED_LANGUAGES.some((l) => l.code === lang) ? lang : 'en';
+  const [languageOptions, setLanguageOptions] = useState<WfSupportedLanguage[]>(WF_SUPPORTED_LANGUAGES);
+  const [learningLanguages, setLearningLanguages] = useState<string[]>([fallbackLang]);
+
+  // Load the supported-language catalog once (cached by the API layer). Falls
+  // back silently to the bundled list if the endpoint is unreachable.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await wordflowApi.getSupportedLanguages();
+        if (cancelled) return;
+        const opts = normalizeLanguageOptions(raw);
+        if (opts.length) setLanguageOptions(opts);
+      } catch {
+        // Keep the bundled WF_SUPPORTED_LANGUAGES fallback.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleLearningLanguage = (code: string) => {
+    setLearningLanguages((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
 
   /** Map register-mode backend errors to localized messages (original Login.tsx
    * error-code branches, keyed off the verified backend message strings). */
@@ -54,6 +109,10 @@ const WfAuthLoginPage: React.FC = () => {
       notify.error(t('auth.passwordMismatch'));
       return;
     }
+    if (mode === 'register' && learningLanguages.length === 0) {
+      notify.error(t('auth.selectLanguageRequired'));
+      return;
+    }
 
     setLoading(true);
     try {
@@ -70,6 +129,7 @@ const WfAuthLoginPage: React.FC = () => {
           password,
           email: email || undefined,
           invite_code: inviteCode || undefined,
+          learning_languages: learningLanguages,
         });
         if (result?.token) wordflowApi.setToken(result.token);
         if (result?.user) setUser(result.user);
@@ -156,7 +216,10 @@ const WfAuthLoginPage: React.FC = () => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={t('auth.username')}
+              /* Login accepts any identifier — username, email, or phone (the
+               * backend matches on all three); register treats it as the raw
+               * username. Never constrained to email format. */
+              placeholder={mode === 'login' ? t('auth.usernameOrEmail') : t('auth.username')}
               disabled={loading}
               autoComplete="username"
               className={inputClass}
@@ -187,6 +250,45 @@ const WfAuthLoginPage: React.FC = () => {
                   disabled={loading}
                   className={inputClass}
                 />
+
+                {/* Learning-language multi-select — chip toggles sourced from
+                    /system/supported-languages (backend-aligned catalog). */}
+                <div>
+                  <div className="flex items-baseline justify-between mb-2 px-1">
+                    <label className="text-sm font-semibold text-[var(--color-text-primary)]">
+                      {t('auth.learningLanguages')}
+                    </label>
+                    <span className="text-xs text-[var(--color-text-secondary)]">
+                      {t('auth.learningLanguagesHint')}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto p-1">
+                    {languageOptions.map((opt) => {
+                      const active = learningLanguages.includes(opt.code);
+                      return (
+                        <button
+                          key={opt.code}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => toggleLearningLanguage(opt.code)}
+                          aria-pressed={active}
+                          className={[
+                            'px-3 py-2 rounded-full text-sm font-medium border transition-all disabled:opacity-50',
+                            active
+                              ? 'text-[var(--klein-on)] border-transparent shadow-[var(--klein-grad-glow)]'
+                              : 'ds-glass ds-glass-edge border-[var(--border-highlight)] text-[var(--color-text-primary)] hover:border-white/50',
+                          ].join(' ')}
+                          style={active ? { background: 'var(--klein-gradient)' } : undefined}
+                        >
+                          {opt.native_name}
+                          {opt.native_name !== opt.name ? (
+                            <span className="opacity-70"> · {opt.name}</span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </motion.div>
             )}
 

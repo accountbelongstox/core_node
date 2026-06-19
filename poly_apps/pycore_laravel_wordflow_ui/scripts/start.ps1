@@ -7,107 +7,207 @@
 # VIOLATION IS PROHIBITED.
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Orchestrator: launch laravel_main backend and pycore_laravel_wordflow_ui (nexus-dash
-# frontend) dev servers simultaneously. Each child script runs in its own
-# independent PowerShell window so they start together. Prints every launched
-# script first. Laravel can optionally be debugged in WSL (Linux) instead of a
-# Windows window.
+# Single entry (Windows) for pycore_laravel_wordflow_ui (nexus-dash): the Windows
+# counterpart of start.sh. Needs NO parameters. Idempotently resolves pnpm
+# (PATH -> corepack), installs dependencies (skips when already present), launches
+# the laravel_main backend in its own window, then serves the dashboard dev server
+# in the foreground. Windows is differentiated: it never registers a system service.
 # Run from repo: .\poly_apps\pycore_laravel_wordflow_ui\scripts\start.ps1
+#   Force reinstall: -ForceInstall     Skip backend: -NoBackend
 
 param(
     [Parameter(Mandatory = $false)]
-    [switch]$ForceInstall
+    [switch]$ForceInstall,
+    [Parameter(Mandatory = $false)]
+    [switch]$NoBackend
 )
 
 $OriginalDir = (Get-Location).Path
 $ScriptDir = $PSScriptRoot
-$DashAppRoot = Split-Path -Parent $ScriptDir
-$PolyAppsDir = Split-Path -Parent $DashAppRoot
+$AppRoot = Split-Path -Parent $ScriptDir
+$PolyAppsDir = Split-Path -Parent $AppRoot
 $RepoRoot = Split-Path -Parent $PolyAppsDir
 $LaravelScriptsDir = Join-Path (Join-Path $PolyAppsDir "laravel_main") "scripts"
 $LaravelStart = Join-Path $LaravelScriptsDir "start.ps1"
-$DashStart = Join-Path $ScriptDir "start_dashboard.ps1"
+$NodeModulesPath = Join-Path $AppRoot "node_modules"
+$PackageJsonPath = Join-Path $AppRoot "package.json"
 $PwshExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue)
-$WslExe = (Get-Command wsl.exe -ErrorAction SilentlyContinue)
-$DriveLetter = $RepoRoot.Substring(0, 1).ToLower()
-$PathTail = ($RepoRoot.Substring(2) -replace '\\', '/')
-$WslRepoRoot = "/mnt/$DriveLetter$PathTail"
-$WslLaravelCmd = "cd '$WslRepoRoot' && ./poly_apps/laravel_main/scripts/start.sh"
-$LaravelArgs = $null
-$DashArgs = $null
-$LaunchPlan = @()
-$entry = $null
-$index = 0
-$UseWslAnswer = ""
-$UseWsl = $false
+$NeedInstall = $false
+$hasAnyPackage = $null
+$DevPort = 13054
+$DevUrl = ""
+$OpenUrlJob = $null
+$ExitCode = 0
+$stalePids = @()
+$stalePid = $null
+$stillListening = $null
+$blockerPid = $null
 
-function Write-Info { param([string]$Message) Write-Host "[dashboard-orchestrator] $Message" -ForegroundColor Cyan }
-function Write-Err { param([string]$Message) Write-Host "[dashboard-orchestrator] $Message" -ForegroundColor Red }
+function Write-Info { param([string]$Message) Write-Host "[nexus-dash] $Message" -ForegroundColor Cyan }
+function Write-Success { param([string]$Message) Write-Host "[nexus-dash] $Message" -ForegroundColor Green }
+function Write-Warn { param([string]$Message) Write-Host "[nexus-dash] $Message" -ForegroundColor Yellow }
+function Write-Err { param([string]$Message) Write-Host "[nexus-dash] $Message" -ForegroundColor Red }
+
+# Resolve pnpm onto PATH: direct -> corepack activation. No parameters required.
+function Resolve-Pnpm {
+    if (Get-Command pnpm -ErrorAction SilentlyContinue) { return $true }
+    if (Get-Command corepack -ErrorAction SilentlyContinue) {
+        Write-Info "pnpm not found; activating via corepack..."
+        corepack enable 2>$null | Out-Null
+        corepack prepare pnpm@latest --activate 2>$null | Out-Null
+        if (Get-Command pnpm -ErrorAction SilentlyContinue) { return $true }
+    }
+    return $false
+}
+
+function Test-ViteReady {
+    param([string]$Root)
+    $viteJs = Join-Path $Root "node_modules\vite\bin\vite.js"
+    return (Test-Path -LiteralPath $viteJs)
+}
+
+function Test-DashboardDevServerHealthy {
+    param([int]$Port)
+    try {
+        $html = Invoke-WebRequest "http://localhost:$Port/pycore-manager" -UseBasicParsing -TimeoutSec 2
+        if ($html.StatusCode -ne 200 -or $html.Content -notmatch 'Nexus Dash') { return $false }
+        # Tailwind v4 is compiled via @tailwindcss/vite. A stale v3/PostCSS server
+        # still serves HTML but returns 500 on /themes/index.css (missing autoprefixer).
+        $css = Invoke-WebRequest "http://localhost:$Port/themes/index.css" -UseBasicParsing -TimeoutSec 5
+        if ($css.StatusCode -ne 200) { return $false }
+        if ($css.Content.Length -lt 10000) { return $false }
+        if ($css.Content -match '@tailwind\s+(base|components|utilities)') { return $false }
+        return $true
+    } catch {
+        return $false
+    }
+}
 
 Write-Info "Original directory: $OriginalDir"
+Write-Info "Working directory:  $AppRoot"
 
-if (-not $PwshExe) {
-    Write-Err "powershell.exe not found on PATH."
+# --- 1) Toolchain: resolve pnpm (node must already be installed on Windows) ---
+if (-not (Resolve-Pnpm)) {
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        Write-Err "node not found on PATH. Install Node.js (e.g. winget install OpenJS.NodeJS.LTS), then re-run."
+    } else {
+        Write-Err "pnpm not found on PATH. Install: npm i -g pnpm  or  corepack enable && corepack prepare pnpm@latest --activate"
+    }
+    Set-Location -LiteralPath $OriginalDir
     exit 1
 }
 
-if (-not (Test-Path -LiteralPath $LaravelStart)) {
-    Write-Err "Laravel start script not found: $LaravelStart"
+if (-not (Test-Path -LiteralPath $PackageJsonPath)) {
+    Write-Err "package.json not found at: $PackageJsonPath"
+    Set-Location -LiteralPath $OriginalDir
     exit 1
 }
 
-if (-not (Test-Path -LiteralPath $DashStart)) {
-    Write-Err "pycore_laravel_wordflow_ui start script not found: $DashStart"
+# --- 2) Dependencies: idempotent install (skip when node_modules + vite present) ---
+$NeedInstall = [bool]$ForceInstall
+if (-not $NeedInstall) {
+    if (-not (Test-Path -LiteralPath $NodeModulesPath)) {
+        $NeedInstall = $true
+    } else {
+        $hasAnyPackage = Get-ChildItem -Path $NodeModulesPath -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $hasAnyPackage) {
+            $NeedInstall = $true
+        } elseif (-not (Test-ViteReady -Root $AppRoot)) {
+            Write-Warn "node_modules present but dev toolchain incomplete (e.g. vite missing); running pnpm install."
+            $NeedInstall = $true
+        }
+    }
+}
+
+if ($NeedInstall) {
+    Write-Info "Installing pnpm dependencies (idempotent)..."
+    Push-Location -LiteralPath $AppRoot
+    try {
+        pnpm install
+        if ($LASTEXITCODE -ne 0) {
+            Write-Err "pnpm install failed."
+            Pop-Location
+            Set-Location -LiteralPath $OriginalDir
+            exit 1
+        }
+        if (-not (Test-ViteReady -Root $AppRoot)) {
+            Write-Err "pnpm install finished but vite is still missing. Try removing node_modules and pnpm-lock.yaml, then re-run with -ForceInstall."
+            Pop-Location
+            Set-Location -LiteralPath $OriginalDir
+            exit 1
+        }
+        Write-Success "Dependencies ready."
+    } finally {
+        Pop-Location
+    }
+} else {
+    Write-Info "Dependencies look complete; skipping install. Use -ForceInstall to reinstall."
+}
+
+# --- 3) Backend: launch laravel_main in its own window (parity with start.sh) ---
+if ($NoBackend) {
+    Write-Info "Skipping laravel_main backend (-NoBackend)."
+} elseif (-not $PwshExe) {
+    Write-Warn "powershell.exe not found on PATH; skipping laravel_main backend launch."
+} elseif (-not (Test-Path -LiteralPath $LaravelStart)) {
+    Write-Warn "Laravel start script not found: $LaravelStart (skipping backend launch)."
+} else {
+    Write-Info "Launching laravel_main backend in a new window..."
+    Start-Process -FilePath $PwshExe.Source `
+        -ArgumentList @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", $LaravelStart) `
+        -WorkingDirectory $LaravelScriptsDir
+}
+
+# --- 4) Frontend: dev server in the foreground (fixed port, matches constants.ts) ---
+$DevPort = 13054
+$DevUrl = "http://localhost:$DevPort"
+
+# Skip only if a HEALTHY dashboard dev server is already on this port (HTML +
+# compiled Tailwind CSS). A stale v3/PostCSS process still answers HTML but
+# breaks /themes/index.css - do not reuse it.
+if (Test-DashboardDevServerHealthy -Port $DevPort) {
+    Write-Success "Dashboard already running on $DevUrl - skipping launch."
+    Start-Process $DevUrl
+    Set-Location -LiteralPath $OriginalDir
+    exit 0
+}
+
+# Stale listener on our port (broken CSS or foreign server): free it first.
+$stalePids = @(
+    Get-NetTCPConnection -LocalPort $DevPort -State Listen -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty OwningProcess -Unique
+)
+foreach ($stalePid in $stalePids) {
+    if (-not $stalePid) { continue }
+    Write-Warn "Freeing port $DevPort (pid $stalePid) before starting dashboard..."
+    Stop-Process -Id $stalePid -Force -ErrorAction SilentlyContinue
+}
+Start-Sleep -Milliseconds 500
+$stillListening = Get-NetTCPConnection -LocalPort $DevPort -State Listen -ErrorAction SilentlyContinue
+if ($stillListening) {
+    $blockerPid = ($stillListening | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $_ -ne 0 } | Select-Object -First 1)
+    Write-Err "Port $DevPort is still in use (pid $blockerPid). End that node.exe in Task Manager, or restart pyservice, then re-run this script."
+    Set-Location -LiteralPath $OriginalDir
     exit 1
 }
 
-# --- WSL option for Laravel backend ---
-Write-Host ""
-Write-Info "Laravel backend can be debugged in WSL (Linux) instead of a Windows window."
-Write-Host "  WSL repo path (dynamic): $WslRepoRoot" -ForegroundColor DarkGray
-Write-Host "  Run inside WSL:" -ForegroundColor DarkGray
-Write-Host "    wsl bash -lc `"$WslLaravelCmd`"" -ForegroundColor Yellow
-Write-Host "    (Linux needs php + composer in PATH; see start.sh hints if 'composer: command not found')" -ForegroundColor DarkGray
-if (-not $WslExe) {
-    Write-Host "  Note: wsl.exe not found on PATH; choose 'n' to use the Windows Laravel window." -ForegroundColor DarkGray
-}
-$UseWslAnswer = Read-Host "Use WSL for Laravel directly? (skips the Windows Laravel window) [Y/n]"
-if ($UseWslAnswer -eq "" -or $UseWslAnswer -match '^[Yy]') {
-    $UseWsl = $true
-}
+$OpenUrlJob = Start-Job -ScriptBlock {
+    param($Url, $DelaySeconds)
+    Start-Sleep -Seconds $DelaySeconds
+    Start-Process $Url
+} -ArgumentList $DevUrl, 4
 
-$LaravelArgs = @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", $LaravelStart)
-$DashArgs = @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", $DashStart)
-if ($ForceInstall) {
-    $DashArgs += "-ForceInstall"
+Write-Info "Starting dev server (pnpm exec vite --port $DevPort --strictPort). Browser will open: $DevUrl"
+$ExitCode = 0
+Push-Location -LiteralPath $AppRoot
+try {
+    pnpm exec vite --port $DevPort --strictPort --host 0.0.0.0
+    $ExitCode = $LASTEXITCODE
+} finally {
+    Pop-Location
+    $null = Wait-Job $OpenUrlJob -ErrorAction SilentlyContinue
+    $null = Remove-Job $OpenUrlJob -Force -ErrorAction SilentlyContinue
+    Set-Location -LiteralPath $OriginalDir
+    Write-Info "Restored to original directory: $OriginalDir"
+    exit $ExitCode
 }
-
-$LaunchPlan = @()
-if (-not $UseWsl) {
-    $LaunchPlan += [PSCustomObject]@{ Name = "laravel_main (backend, Windows)"; Path = $LaravelStart; WorkDir = $LaravelScriptsDir; Args = $LaravelArgs }
-}
-$LaunchPlan += [PSCustomObject]@{ Name = "pycore_laravel_wordflow_ui (nexus-dash frontend)"; Path = $DashStart; WorkDir = $ScriptDir; Args = $DashArgs }
-
-Write-Host ""
-if ($UseWsl) {
-    Write-Info "WSL selected: skipping the Windows Laravel window. Run Laravel yourself in WSL:"
-    Write-Host "  wsl bash -lc `"$WslLaravelCmd`"" -ForegroundColor Yellow
-}
-
-Write-Info "Scripts to launch (all):"
-$index = 0
-foreach ($entry in $LaunchPlan) {
-    $index = $index + 1
-    Write-Host ("  [{0}] {1}" -f $index, $entry.Name) -ForegroundColor Cyan
-    Write-Host ("      script : {0}" -f $entry.Path) -ForegroundColor DarkGray
-    Write-Host ("      workdir: {0}" -f $entry.WorkDir) -ForegroundColor DarkGray
-    Write-Host ("      args   : {0}" -f ($entry.Args -join ' ')) -ForegroundColor DarkGray
-}
-Write-Host ""
-
-foreach ($entry in $LaunchPlan) {
-    Write-Info "Launching $($entry.Name) in a new window..."
-    Start-Process -FilePath $PwshExe.Source -ArgumentList $entry.Args -WorkingDirectory $entry.WorkDir
-}
-
-Write-Info "$($LaunchPlan.Count) script(s) launched in separate window(s). This orchestrator window can be closed."

@@ -12,11 +12,11 @@
 # laravel_main backend and the dashboard frontend. Linux counterpart of start.ps1.
 # All paths derived dynamically (no hard-coded paths). Idempotent throughout.
 #
-# Default (orchestrate) asks two questions (defaults in []; overridable for headless):
+# Default (orchestrate) needs NO parameters and asks exactly ONE question at the end:
 #   1. Add the dashboard to a background systemd service (via debian_service_manager)?
-#        default YES.    flags: --service | --no-service     env: AS_SERVICE=yes|no
-#   2. Build and run the production dist (vite build + vite preview) vs the dev server?
-#        default NO (dev). flags: --dist | --dev             env: RUN_DIST=yes|no
+#        default NO.     flags: --service | --no-service     env: AS_SERVICE=yes|no
+# Run mode defaults to the dev server (no prompt). Optional overrides for headless:
+#        --dist | --dev                                       env: RUN_DIST=yes|no
 # Prerequisites (node/pnpm, deps, dist build) are installed/built here, invoking the
 # canonical init-ensure installers under scripts/shells/linux.
 #
@@ -369,14 +369,10 @@ if [ -n "$RUN_FRONTEND" ]; then
     ensure_deps
 fi
 
-# 2) Run mode (dist/dev) -- needed to know whether to build. Prompt only if unset.
-if [ -z "$RUN_DIST" ]; then
-    if ask_default_no "Build and run the production dist (vite build + vite preview) instead of the dev server?"; then
-        RUN_DIST="yes"
-    else
-        RUN_DIST="no"
-    fi
-fi
+# 2) Run mode (dist/dev): default to the dev server with NO prompt (no parameters
+# required). Override only via the --dist/--dev flags or the RUN_DIST env var for
+# headless/production use.
+if [ -z "$RUN_DIST" ]; then RUN_DIST="no"; fi
 if [ "$RUN_DIST" = "yes" ]; then RUN_MODE="dist"; else RUN_MODE="dev"; fi
 log "Frontend mode: $( [ "$RUN_MODE" = dist ] && echo 'PRODUCTION dist (vite build -> vite preview)' || echo 'DEV server (vite, hot reload)' )"
 
@@ -405,7 +401,7 @@ if [ "$AS_SERVICE" != "no" ] && ! systemd_available; then
     AS_SERVICE="no"
 fi
 if [ -z "$AS_SERVICE" ]; then
-    if ask_default_yes "Prerequisites ready. Add the dashboard to a background systemd service (via debian_service_manager)?"; then
+    if ask_default_no "Prerequisites ready. Add the dashboard to a background systemd service (via debian_service_manager)?"; then
         AS_SERVICE="yes"
     else
         AS_SERVICE="no"

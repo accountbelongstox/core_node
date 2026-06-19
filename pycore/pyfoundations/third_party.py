@@ -17,6 +17,7 @@ import os
 import sys
 import importlib
 import importlib.util
+import importlib.metadata
 import platform
 import shutil
 import zipfile
@@ -492,6 +493,47 @@ def _ensure_torch_cpu_build_when_no_gpu():
     importlib.invalidate_caches()
     if "torch" in sys.modules:
         del sys.modules["torch"]
+
+
+_sherpa_onnx_build_checked = False
+
+
+def _ensure_sherpa_onnx_cpu_build_when_no_gpu():
+    """No NVIDIA GPU but a '+cuda' build of sherpa-onnx is installed -> switch to the
+    CPU wheel from PyPI. Unlike torch, the sherpa-onnx CPU wheel is the DEFAULT and
+    pulls no CUDA libs; the '+cuda' build needs the system CUDA Toolkit + cuDNN and
+    is useless (often un-importable) without a GPU. Mirrors the install-time
+    scripts/shells/linux/common/sherpa_onnx_cpu_guard.sh. Runs at most once / process.
+    No-op if sherpa-onnx is absent, already CPU, or a GPU is present.
+    Override: TORCH_FORCE_CUDA=1 / SHERPA_ONNX_FORCE_CUDA=1 leaves it alone."""
+    global _sherpa_onnx_build_checked
+    if _sherpa_onnx_build_checked:
+        return
+    _sherpa_onnx_build_checked = True
+    if os.environ.get("TORCH_FORCE_CUDA") == "1" or os.environ.get("SHERPA_ONNX_FORCE_CUDA") == "1":
+        return
+    try:
+        version = importlib.metadata.version("sherpa-onnx")
+    except Exception:
+        return  # not installed
+    if "+cuda" not in (version or "").lower():
+        return  # already the CPU build
+    if CUDADetector.is_cuda_available():
+        return  # GPU present -> keep the CUDA build
+    ColorPrint.yellow(
+        f"[sherpa] No GPU detected, but sherpa-onnx is a CUDA build ({version}); "
+        "reinstalling the CPU wheel."
+    )
+    pip_cmd = [sys.executable, "-m", "pip", "install", "sherpa-onnx", "--force-reinstall"]
+    if platform.system() != "Windows":
+        pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
+    else:
+        pip_cmd.append("--no-user")
+    run_pip_install_with_realtime_output(pip_cmd, "sherpa-onnx (CPU, no GPU)")
+    importlib.invalidate_caches()
+    for _mod in list(sys.modules.keys()):
+        if _mod == "sherpa_onnx" or _mod.startswith("sherpa_onnx."):
+            del sys.modules[_mod]
 
 
 def _ensure_torch_cuda_build_first():
@@ -2788,6 +2830,9 @@ def get_third_package_sherpa_onnx():
     fall through to the next engine. Pure-pip, identical on Windows/Linux.
     """
     if 'sherpa_onnx' not in _PACKAGE_CACHE:
+        # CPU/GPU build guard: on a GPU-less host a stray '+cuda' wheel is switched
+        # back to CPU before import (runs once; no-op when already CPU / GPU present).
+        _ensure_sherpa_onnx_cpu_build_when_no_gpu()
         try:
             import sherpa_onnx
             _PACKAGE_CACHE['sherpa_onnx'] = sherpa_onnx

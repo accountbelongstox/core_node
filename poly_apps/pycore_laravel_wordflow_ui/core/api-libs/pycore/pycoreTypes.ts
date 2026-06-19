@@ -278,6 +278,47 @@ export interface SyncLogEntry {
   direction?: string;   // 'push' / 'receive' / etc. (backend-set)
 }
 
+// --- Synced file tree (for the file-structure panel) --------------------- #
+export interface FileTreeNode {
+  name: string;
+  path: string;            // posix path relative to the sync root
+  type: 'dir' | 'file';
+  size: number;            // bytes (rolled up for dirs)
+  mtime?: number;          // files only
+  hash?: string;           // files only: canonical (LF) content hash, for drift diff
+  count?: number;          // dirs only: descendant file count
+  children?: FileTreeNode[];
+}
+
+export interface FileTreeResponse {
+  success: boolean;
+  role: CodeSyncRole;
+  roots: string[];         // the effective watch dirs (one or more)
+  children: FileTreeNode[];
+  count: number;           // total files
+  size: number;            // total bytes
+  truncated: boolean;      // hit the max-files cap
+  error?: string;
+}
+
+// Dev-side drift view of one client's received tree vs this dev's synced set.
+export interface DriftSummary {
+  dev_count: number;
+  client_count: number;
+  in_sync: number;
+  missing: { path: string; size: number }[];                       // on dev, absent on client
+  extra: { path: string; size: number }[];                         // on client, not on dev
+  changed: { path: string; size_dev: number; size_client: number }[]; // hash differs
+}
+
+export interface PeerFileTreeResponse {
+  success: boolean;
+  peer: { id: string; name: string; host: string; port: number };
+  tree?: FileTreeResponse;   // the client's actual received tree
+  drift?: DriftSummary;
+  error?: string;
+}
+
 // --- Auto-start on boot -------------------------------------------------- #
 export interface AutostartStatus {
   success?: boolean;
@@ -738,9 +779,64 @@ export interface TtsStatus {
   active?: string | null;
   /** Seconds left on the edge-tts failure cooldown; 0 = not cooling. */
   edge_cooldown_remaining?: number;
-  /** Fallback chain in priority order (edge -> sherpa -> melotts -> gptsovits). */
+  /** Fallback chain in priority order (edge -> sherpa -> melotts -> gptsovits -> azure). */
   engines?: TtsEngine[];
   error?: string;
+}
+
+/** Live per-engine synth test (POST /api/local/tts/test). */
+export interface TtsTestResponse {
+  success: boolean;
+  engine: string | null;
+  latency_ms: number;
+  /** Size of the produced mp3 (0 on failure). */
+  bytes: number;
+  error: string | null;
+}
+
+// --- STT (speech-to-text) engine availability + live test ---------------- #
+/** Quota/balance for a cloud STT engine (only Azure Speech has one). */
+export interface SttQuota {
+  /** 'free-tier'. */
+  kind: string;
+  note: string;
+  /** True when the free quota is exhausted (HTTP 429 seen). */
+  blocked: boolean;
+  error?: string | null;
+}
+
+/**
+ * One entry in the STT fallback chain (priority order:
+ * faster-whisper -> whisper -> vosk -> azure). `quota` is only set on cloud
+ * engines that expose one (azure).
+ */
+export interface SttEngine {
+  name: string;
+  /** 1-based priority (1 = tried first). */
+  priority: number;
+  available: boolean;
+  note?: string;
+  quota?: SttQuota;
+}
+
+export interface SttStatus {
+  success: boolean;
+  /** Highest-priority available engine id, or null when none are ready. */
+  best: string | null;
+  active: string | null;
+  available_count: number;
+  engines: SttEngine[];
+  error?: string;
+}
+
+/** Live recognition round-trip test (POST /api/local/stt/test). */
+export interface SttTestResponse {
+  success: boolean;
+  engine: string | null;
+  /** Recognized text from the generated sample clip. */
+  text: string;
+  latency_ms: number;
+  error: string | null;
 }
 
 /** Settings-adjustable TTS tuning (GET/POST /api/local/tts/settings). */

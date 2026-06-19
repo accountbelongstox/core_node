@@ -12,7 +12,9 @@ from .tts_orchestrator import (
     best_engine,
     engine_available,
     synthesize,
+    synthesize_engine,
     tts_status,
+    tts_test,
 )
 
 __all__ = [
@@ -20,6 +22,8 @@ __all__ = [
     "best_engine",
     "engine_available",
     "synthesize",
+    "synthesize_engine",
     "tts_status",
+    "tts_test",
     "tts_orchestrator",
 ]

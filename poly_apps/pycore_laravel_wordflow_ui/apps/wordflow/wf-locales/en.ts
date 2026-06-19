@@ -76,6 +76,10 @@ export const en = {
     inviteCodeExpired: 'This invite code has expired or has been used. Please use a valid code.',
     registrationFailed: 'Registration failed. Please check your information and try again.',
     emailRequired: 'Email is required',
+    usernameOrEmail: 'Username or Email',
+    learningLanguages: 'Languages you want to learn',
+    learningLanguagesHint: 'Select one or more',
+    selectLanguageRequired: 'Please select at least one language to learn',
   },
 
   nav: {

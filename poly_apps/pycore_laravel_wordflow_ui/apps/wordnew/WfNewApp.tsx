@@ -13,6 +13,7 @@ import { useShell } from '../../shell/ShellContext';
 // (swap one import line there). All data shapes come from the same TYPE surface.
 import { wfNewApi, wfNewEndpoints, WFNEW_API_HEALTH_EVENT } from './api';
 import type { Word, WordGroup, BentoGroup } from './api';
+import { wfNewSettings } from './WfNewSettingsStore';
 
 // Modular Imports
 import { UserStats, ElementTheme } from './WfNewTypes';
@@ -37,10 +38,8 @@ import { WfNewOnboarding } from './pages/WfNewOnboarding';
 export const WfNewApp: React.FC = () => {
   const { lang: shellLang, setLang: setShellLang, dark, toggleDark } = useShell();
 
-  // Selected atmospheric theme state
-  const [activeThemeId, setActiveThemeId] = useState<string>(() => {
-    return localStorage.getItem('wf_new_theme_id') || 'cosmic';
-  });
+  // Selected atmospheric theme state (persisted via the shared settings store)
+  const [activeThemeId, setActiveThemeId] = useState<string>(() => wfNewSettings.get('themeId'));
 
   const activeTheme = useMemo(() => {
     return CUSTOM_THEMES.find(t => t.id === activeThemeId) || CUSTOM_THEMES[0];
@@ -49,30 +48,27 @@ export const WfNewApp: React.FC = () => {
   // Tab navigation states
   const [activeTab, setActiveTab] = useState<'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman' | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth'>('home');
 
-  // Unified global auth user state
+  // Unified global auth user state (persisted via the shared settings store)
   const [currentUser, setCurrentUser] = useState(() => {
     return {
-      nickname: localStorage.getItem('wf_new_nickname') || 'WordFlow Commander',
-      avatar: localStorage.getItem('wf_new_avatar') || '🦊',
-      email: localStorage.getItem('wf_auth_email') || 'commander@wordflow.universe',
-      nativeLang: localStorage.getItem('wf_auth_native_lang') || 'zh',
-      targetLang: localStorage.getItem('wf_auth_target_lang') || 'en',
-      bio: localStorage.getItem('wf_auth_bio') || 'Expanding my cognitive neural horizon in WordFlow.',
-      isLoggedIn: localStorage.getItem('wf_auth_is_logged_in') === 'true'
+      nickname: wfNewSettings.get('nickname'),
+      avatar: wfNewSettings.get('avatar'),
+      email: wfNewSettings.get('email'),
+      nativeLang: wfNewSettings.get('authNativeLang'),
+      targetLang: wfNewSettings.get('authTargetLang'),
+      bio: wfNewSettings.get('bio'),
+      isLoggedIn: wfNewSettings.get('isLoggedIn')
     };
   });
 
-  // Synchronized background breathing toggle state from settings
-  const [disableBgBreathing, setDisableBgBreathing] = useState<boolean>(() => {
-    return localStorage.getItem('wf_setting_disable_bg_breathing') === 'true';
-  });
+  // Background breathing toggle — kept in sync with the settings store (set on
+  // the Settings page), now via the reactive store instead of a 'storage' event.
+  const [disableBgBreathing, setDisableBgBreathing] = useState<boolean>(() => wfNewSettings.get('disableBgBreathing'));
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      setDisableBgBreathing(localStorage.getItem('wf_setting_disable_bg_breathing') === 'true');
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return wfNewSettings.subscribe(() => {
+      setDisableBgBreathing(wfNewSettings.get('disableBgBreathing'));
+    });
   }, []);
 
   // Custom Local Toast notifications
@@ -85,25 +81,18 @@ export const WfNewApp: React.FC = () => {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  // Profile data
-  const [nickname, setNickname] = useState<string>(() => {
-    return localStorage.getItem('wf_new_nickname') || 'WordFlow Commander';
-  });
-  const [avatarUrl, setAvatarUrl] = useState<string>(() => {
-    return localStorage.getItem('wf_new_avatar') || '🦊';
-  });
-  const [speechRate, setSpeechRate] = useState<number>(() => {
-    const r = localStorage.getItem('wf_new_speech_rate');
-    return r ? parseFloat(r) : 1.0;
-  });
+  // Profile data (persisted via the shared settings store)
+  const [nickname, setNickname] = useState<string>(() => wfNewSettings.get('nickname'));
+  const [avatarUrl, setAvatarUrl] = useState<string>(() => wfNewSettings.get('avatar'));
+  const [speechRate, setSpeechRate] = useState<number>(() => wfNewSettings.get('speechRate'));
 
   // Synchronized callback when profile saves
   const handleUpdateProfile = (updated: { nickname: string; avatar: string; nativeLang: string; targetLang: string; bio: string }) => {
     setNickname(updated.nickname);
     setAvatarUrl(updated.avatar);
-    localStorage.setItem('wf_new_nickname', updated.nickname);
-    localStorage.setItem('wf_new_avatar', updated.avatar);
-    
+    wfNewSettings.setField('nickname', updated.nickname);
+    wfNewSettings.setField('avatar', updated.avatar);
+
     setCurrentUser(prev => {
       const copy = {
         ...prev,
@@ -113,9 +102,9 @@ export const WfNewApp: React.FC = () => {
         targetLang: updated.targetLang,
         bio: updated.bio
       };
-      localStorage.setItem('wf_auth_native_lang', updated.nativeLang);
-      localStorage.setItem('wf_auth_target_lang', updated.targetLang);
-      localStorage.setItem('wf_auth_bio', updated.bio);
+      wfNewSettings.setField('authNativeLang', updated.nativeLang);
+      wfNewSettings.setField('authTargetLang', updated.targetLang);
+      wfNewSettings.setField('bio', updated.bio);
       return copy;
     });
   };
@@ -131,13 +120,13 @@ export const WfNewApp: React.FC = () => {
   const handleLoginSuccess = (payload: typeof currentUser) => {
     setNickname(payload.nickname);
     setAvatarUrl(payload.avatar);
-    localStorage.setItem('wf_new_nickname', payload.nickname);
-    localStorage.setItem('wf_new_avatar', payload.avatar);
-    localStorage.setItem('wf_auth_email', payload.email);
-    localStorage.setItem('wf_auth_native_lang', payload.nativeLang);
-    localStorage.setItem('wf_auth_target_lang', payload.targetLang);
-    localStorage.setItem('wf_auth_bio', payload.bio);
-    localStorage.setItem('wf_auth_is_logged_in', 'true');
+    wfNewSettings.setField('nickname', payload.nickname);
+    wfNewSettings.setField('avatar', payload.avatar);
+    wfNewSettings.setField('email', payload.email);
+    wfNewSettings.setField('authNativeLang', payload.nativeLang);
+    wfNewSettings.setField('authTargetLang', payload.targetLang);
+    wfNewSettings.setField('bio', payload.bio);
+    wfNewSettings.setField('isLoggedIn', true);
     setCurrentUser({
       ...payload,
       isLoggedIn: true
@@ -148,7 +137,9 @@ export const WfNewApp: React.FC = () => {
   };
 
   const handleLogout = () => {
-    localStorage.setItem('wf_auth_is_logged_in', 'false');
+    // Best-effort: clear the API session token (real impl); the mock is stateless.
+    void wfNewApi.logout().catch(() => {});
+    wfNewSettings.setField('isLoggedIn', false);
     setCurrentUser(prev => ({
       ...prev,
       isLoggedIn: false
@@ -233,7 +224,7 @@ export const WfNewApp: React.FC = () => {
         setUserStats({
           learned: profile.learned_words ?? profile.totalLearned ?? 432,
           streak: profile.streak ?? 8,
-          dailyGoal: parseInt(localStorage.getItem('wf_new_daily_goal') || '20'),
+          dailyGoal: wfNewSettings.get('dailyGoal'),
           dailyProgress: profile.dailyProgress ?? 12,
         });
       }
@@ -262,19 +253,9 @@ export const WfNewApp: React.FC = () => {
 
   useEffect(() => {
     loadContent();
-    // Load local Favorites and target limits
-    try {
-      const savedFavs = localStorage.getItem('wf_new_favorites');
-      if (savedFavs) {
-        setFavorites(JSON.parse(savedFavs));
-      }
-      const savedGoal = localStorage.getItem('wf_new_daily_goal');
-      if (savedGoal) {
-        setUserStats(prev => ({ ...prev, dailyGoal: parseInt(savedGoal) }));
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    // Load local Favorites and target limits from the shared settings store.
+    setFavorites(wfNewSettings.get('favorites'));
+    setUserStats(prev => ({ ...prev, dailyGoal: wfNewSettings.get('dailyGoal') }));
   }, []);
 
   // When the backend endpoint recovers (offline → online, or the user switches
@@ -290,18 +271,11 @@ export const WfNewApp: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync favorites
+  // Sync favorites (persisted in the shared settings store).
   const handleToggleFavorite = (word: Word) => {
-    let output = [...favorites];
-    if (favorites.some(f => f.id === word.id)) {
-      output = output.filter(f => f.id !== word.id);
-      addToast(trans('toast.removed'), 'warning');
-    } else {
-      output.push(word);
-      addToast(trans('toast.added'), 'success');
-    }
-    setFavorites(output);
-    localStorage.setItem('wf_new_favorites', JSON.stringify(output));
+    const nowFavorited = wfNewSettings.toggleFavorite(word);
+    setFavorites(wfNewSettings.get('favorites'));
+    addToast(nowFavorited ? trans('toast.added') : trans('toast.removed'), nowFavorited ? 'success' : 'warning');
   };
 
   // Perform Speeches robustly with rates
@@ -472,18 +446,14 @@ export const WfNewApp: React.FC = () => {
     }
   };
 
-  // Clear LocalStorage cache helper
+  // Clear cached profile + local learning data (resets the relevant settings).
   const handleClearEverything = () => {
-    localStorage.removeItem('wf_new_favorites');
-    localStorage.removeItem('wf_new_nickname');
-    localStorage.removeItem('wf_new_avatar');
-    localStorage.removeItem('wf_new_daily_goal');
-    localStorage.removeItem('wf_new_speech_rate');
-    setFavorites([]);
-    setNickname('WordFlow Commander');
-    setAvatarUrl('🦊');
-    setSpeechRate(1.0);
-    setUserStats(prev => ({ ...prev, dailyGoal: 20 }));
+    wfNewSettings.clearProfileCache();
+    setFavorites(wfNewSettings.get('favorites'));
+    setNickname(wfNewSettings.get('nickname'));
+    setAvatarUrl(wfNewSettings.get('avatar'));
+    setSpeechRate(wfNewSettings.get('speechRate'));
+    setUserStats(prev => ({ ...prev, dailyGoal: wfNewSettings.get('dailyGoal') }));
     addToast(trans('toast.cacheClear'), 'success');
   };
 
@@ -1644,7 +1614,7 @@ export const WfNewApp: React.FC = () => {
           {activeTab === 'settings' && (
             <WfNewSettings
               activeTheme={activeTheme}
-              saveThemeChoice={setActiveThemeId}
+              saveThemeChoice={(id) => { setActiveThemeId(id); wfNewSettings.setField('themeId', id); }}
               lang={shellLang}
               setLang={setShellLang}
               userStats={userStats}
@@ -2019,10 +1989,11 @@ export const WfNewApp: React.FC = () => {
             activeTheme={activeTheme}
             onSelectTheme={(themeId) => {
               setActiveThemeId(themeId);
-              localStorage.setItem('wf_new_theme_id', themeId);
+              wfNewSettings.setField('themeId', themeId);
             }}
             onSetGoal={(goal) => {
               setUserStats(prev => ({ ...prev, dailyGoal: goal }));
+              wfNewSettings.setField('dailyGoal', goal);
             }}
           />
         )}

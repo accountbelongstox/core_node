@@ -7,6 +7,8 @@ interface WebFetcherToolParams {
   htmlContent?: boolean; // get the visible HTML content of the current page. default: false
   textContent?: boolean; // get the visible text content of the current page. default: true
   url?: string; // optional URL to fetch content from (if not provided, uses active tab)
+  tabId?: number; // optional existing tab ID to fetch from (takes precedence over url/active tab)
+  background?: boolean; // if true, do not activate/focus the target tab while fetching
   selector?: string; // optional CSS selector to get content from a specific element
 }
 
@@ -21,12 +23,16 @@ class WebFetcherTool extends BaseBrowserToolExecutor {
     const htmlContent = args.htmlContent === true;
     const textContent = htmlContent ? false : args.textContent !== false; // Default is true, unless htmlContent is true or textContent is explicitly set to false
     const url = args.url;
+    const tabId = args.tabId;
+    const background = args.background === true;
     const selector = args.selector;
 
     console.log(`Starting web fetcher with options:`, {
       htmlContent,
       textContent,
       url,
+      tabId,
+      background,
       selector,
     });
 
@@ -34,7 +40,17 @@ class WebFetcherTool extends BaseBrowserToolExecutor {
       // Get tab to fetch content from
       let tab;
 
-      if (url) {
+      if (typeof tabId === 'number') {
+        // An explicit tabId takes precedence over url/active tab. Previously this
+        // param was advertised in the schema but ignored here, so callers passing
+        // tabId silently fell through to the active tab and content was scraped
+        // from (or injection failed on) the wrong page.
+        console.log(`Using explicit tabId: ${tabId}`);
+        tab = await this.tryGetTab(tabId);
+        if (!tab) {
+          return createErrorResponse(`No tab found with ID: ${tabId}`);
+        }
+      } else if (url) {
         // If URL is provided, check if it's already open
         console.log(`Checking if URL is already open: ${url}`);
         const allTabs = await chrome.tabs.query({});
@@ -54,7 +70,7 @@ class WebFetcherTool extends BaseBrowserToolExecutor {
         } else {
           // Create new tab with the URL
           console.log(`No existing tab found with URL: ${url}, creating new tab`);
-          tab = await chrome.tabs.create({ url, active: true });
+          tab = await chrome.tabs.create({ url, active: !background });
 
           // Wait for page to load
           console.log('Waiting for page to load...');
@@ -73,8 +89,11 @@ class WebFetcherTool extends BaseBrowserToolExecutor {
         return createErrorResponse('Tab has no ID');
       }
 
-      // Make sure tab is active
-      await chrome.tabs.update(tab.id, { active: true });
+      // Make sure tab is active, unless the caller asked to fetch in the
+      // background (content scripts inject into inactive tabs just fine).
+      if (!background) {
+        await chrome.tabs.update(tab.id, { active: true });
+      }
 
       // Prepare result object
       const result: any = {

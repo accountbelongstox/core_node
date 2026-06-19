@@ -221,9 +221,9 @@ def build_parser():
 
     run = sub.add_parser("run", parents=[common], help="start the standalone code-sync daemon")
     run.add_argument("--host", default="0.0.0.0", help="bind host (default 0.0.0.0)")
-    run.add_argument("--reload", action="store_true",
-                     help="dev hot-reload: re-exec on any codesync .py change "
-                          "(also enabled by CODESYNC_RELOAD=1)")
+    # Deprecated no-op: codesync is resident and never hot-reloads. Kept ONLY so an
+    # old systemd unit whose ExecStart baked `--reload` still parses and starts.
+    run.add_argument("--reload", action="store_true", help=argparse.SUPPRESS)
     run.set_defaults(func=cmd_run)
 
     sub.add_parser("show", parents=[common], help="show role + peers").set_defaults(func=cmd_show)

@@ -8,6 +8,7 @@ import { ElementTheme, UserStats } from '../WfNewTypes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
 import { WfNewApiServerPanel } from '../components/WfNewApiServerPanel';
 import { getLanguageConfig } from '../WfNewLocales';
+import { wfNewSettings } from '../WfNewSettingsStore';
 
 interface WfNewSettingsProps {
   activeTheme: ElementTheme;
@@ -45,98 +46,43 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
   const [goalInput, setGoalInput] = useState<number>(userStats.dailyGoal);
   const [resetting, setResetting] = useState(false);
 
-  // --- Dynamic New Setting States ---
+  // --- Dynamic New Setting States (backed by the shared WfNewSettingsStore) ---
   // A. Dropdown setting (Select) - Accent Engine
-  const [voiceAccent, setVoiceAccent] = useState<string>(() => {
-    return localStorage.getItem('wf_setting_accent') || 'en-US';
-  });
+  const [voiceAccent, setVoiceAccent] = useState<string>(() => wfNewSettings.get('voiceAccent'));
 
   // Background Breathing Filter Toggle
-  const [disableBgBreathing, setDisableBgBreathing] = useState<boolean>(() => {
-    return localStorage.getItem('wf_setting_disable_bg_breathing') === 'true';
-  });
+  const [disableBgBreathing, setDisableBgBreathing] = useState<boolean>(() => wfNewSettings.get('disableBgBreathing'));
 
   // Native & Target Language selects
-  const [nativeLang, setNativeLang] = useState<string>(() => {
-    return localStorage.getItem('wf_setting_native_lang') || 'zh';
-  });
-  const [targetLang, setTargetLang] = useState<string>(() => {
-    return localStorage.getItem('wf_setting_target_lang') || 'en';
-  });
+  const [nativeLang, setNativeLang] = useState<string>(() => wfNewSettings.get('settingNativeLang'));
+  const [targetLang, setTargetLang] = useState<string>(() => wfNewSettings.get('settingTargetLang'));
 
   // Bilingual custom pages parameters
-  const [bilingualRatio, setBilingualRatio] = useState<string>(() => {
-    return localStorage.getItem('wf_setting_bilingual_ratio') || '1en_1zh';
-  });
-  const [recitalOrder, setRecitalOrder] = useState<string>(() => {
-    return localStorage.getItem('wf_setting_recital_order') || 'target_first';
-  });
+  const [bilingualRatio, setBilingualRatio] = useState<string>(() => wfNewSettings.get('bilingualRatio'));
+  const [recitalOrder, setRecitalOrder] = useState<string>(() => wfNewSettings.get('recitalOrder'));
 
   // B. Switch settings (boolean toggles)
-  const [autoSpeech, setAutoSpeech] = useState<boolean>(() => {
-    return localStorage.getItem('wf_setting_autospeech') !== 'false';
-  });
-  const [hapticFeedback, setHapticFeedback] = useState<boolean>(() => {
-    return localStorage.getItem('wf_setting_haptic') === 'true';
-  });
+  const [autoSpeech, setAutoSpeech] = useState<boolean>(() => wfNewSettings.get('autoSpeech'));
+  const [hapticFeedback, setHapticFeedback] = useState<boolean>(() => wfNewSettings.get('hapticFeedback'));
 
   // C. Radio settings (Single Selection) - Study Recurrence Algorithm
-  const [reviewAlgorithm, setReviewAlgorithm] = useState<string>(() => {
-    return localStorage.getItem('wf_setting_algorithm') || 'ebbinghaus';
-  });
+  const [reviewAlgorithm, setReviewAlgorithm] = useState<string>(() => wfNewSettings.get('reviewAlgorithm'));
 
   // D. Multi-select checkboxes (Checklist) - Content Focus Fields
-  const [contentFields, setContentFields] = useState<string[]>(() => {
-    const saved = localStorage.getItem('wf_setting_fields');
-    return saved ? JSON.parse(saved) : ['tech', 'literature'];
-  });
+  const [contentFields, setContentFields] = useState<string[]>(() => wfNewSettings.get('contentFields'));
 
-  // Save states to localStorage when changed
-  useEffect(() => {
-    localStorage.setItem('wf_setting_accent', voiceAccent);
-  }, [voiceAccent]);
-
-  useEffect(() => {
-    localStorage.setItem('wf_setting_disable_bg_breathing', String(disableBgBreathing));
-    // Trigger custom event to notify App.tsx instantly of background breathing updates
-    window.dispatchEvent(new Event('storage'));
-  }, [disableBgBreathing]);
-
-  useEffect(() => {
-    localStorage.setItem('wf_setting_native_lang', nativeLang);
-    window.dispatchEvent(new Event('storage'));
-  }, [nativeLang]);
-
-  useEffect(() => {
-    localStorage.setItem('wf_setting_target_lang', targetLang);
-    window.dispatchEvent(new Event('storage'));
-  }, [targetLang]);
-
-  useEffect(() => {
-    localStorage.setItem('wf_setting_bilingual_ratio', bilingualRatio);
-    window.dispatchEvent(new Event('storage'));
-  }, [bilingualRatio]);
-
-  useEffect(() => {
-    localStorage.setItem('wf_setting_recital_order', recitalOrder);
-    window.dispatchEvent(new Event('storage'));
-  }, [recitalOrder]);
-
-  useEffect(() => {
-    localStorage.setItem('wf_setting_autospeech', String(autoSpeech));
-  }, [autoSpeech]);
-
-  useEffect(() => {
-    localStorage.setItem('wf_setting_haptic', String(hapticFeedback));
-  }, [hapticFeedback]);
-
-  useEffect(() => {
-    localStorage.setItem('wf_setting_algorithm', reviewAlgorithm);
-  }, [reviewAlgorithm]);
-
-  useEffect(() => {
-    localStorage.setItem('wf_setting_fields', JSON.stringify(contentFields));
-  }, [contentFields]);
+  // Persist each setting to the shared store when it changes. The store notifies
+  // every subscriber (WfNewApp, WfNewBilingual, ...) — no manual 'storage' event.
+  useEffect(() => { wfNewSettings.setField('voiceAccent', voiceAccent); }, [voiceAccent]);
+  useEffect(() => { wfNewSettings.setField('disableBgBreathing', disableBgBreathing); }, [disableBgBreathing]);
+  useEffect(() => { wfNewSettings.setField('settingNativeLang', nativeLang); }, [nativeLang]);
+  useEffect(() => { wfNewSettings.setField('settingTargetLang', targetLang); }, [targetLang]);
+  useEffect(() => { wfNewSettings.setField('bilingualRatio', bilingualRatio); }, [bilingualRatio]);
+  useEffect(() => { wfNewSettings.setField('recitalOrder', recitalOrder); }, [recitalOrder]);
+  useEffect(() => { wfNewSettings.setField('autoSpeech', autoSpeech); }, [autoSpeech]);
+  useEffect(() => { wfNewSettings.setField('hapticFeedback', hapticFeedback); }, [hapticFeedback]);
+  useEffect(() => { wfNewSettings.setField('reviewAlgorithm', reviewAlgorithm); }, [reviewAlgorithm]);
+  useEffect(() => { wfNewSettings.setField('contentFields', contentFields); }, [contentFields]);
 
   const saveGoal = (val: number) => {
     setGoalInput(val);
@@ -144,7 +90,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
       ...userStats,
       dailyGoal: val
     });
-    localStorage.setItem('wf_new_daily_goal', String(val));
+    wfNewSettings.setField('dailyGoal', val);
   };
 
   const toggleFieldOption = (fieldId: string) => {
@@ -213,7 +159,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
                   key={avatar}
                   onClick={() => {
                     setAvatarUrl(avatar);
-                    localStorage.setItem('wf_new_avatar', avatar);
+                    wfNewSettings.setField('avatar', avatar);
                   }}
                   className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all bg-zinc-100 dark:bg-white/5 border hover:bg-zinc-200 dark:hover:bg-white/10 ${
                     avatarUrl === avatar 
@@ -237,7 +183,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
               value={nickname}
               onChange={(e) => {
                 setNickname(e.target.value);
-                localStorage.setItem('wf_new_nickname', e.target.value);
+                wfNewSettings.setField('nickname', e.target.value);
               }}
               className={`w-full py-2.5 px-4 text-xs font-mono rounded-xl outline-none transition-all ${activeTheme.inputClass}`}
             />
@@ -661,7 +607,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
               onChange={(e) => {
                 const r = parseFloat(e.target.value);
                 setSpeechRate(r);
-                localStorage.setItem('wf_new_speech_rate', String(r));
+                wfNewSettings.setField('speechRate', r);
               }}
               className="flex-1 accent-indigo-500 h-1 bg-zinc-200 dark:bg-white/10 rounded-lg cursor-pointer"
             />

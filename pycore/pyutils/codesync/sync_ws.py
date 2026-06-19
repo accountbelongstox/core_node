@@ -21,11 +21,14 @@ Message protocol (JSON text frames):
 
   BATCHED (current):
   dev->client  {"type":"batch","reason":"delta"|"resume","dev_id","dev_name","files":[
-                   {"rel","mtime","hash","size","b64"},          # create / modify
-                   {"rel","deleted":true}, ...]}                 # propagated delete
+                   {"rel","mtime","hash","size","b64"[, "enc":"gzip"]}, ...]}  # create / modify
   client->dev  {"type":"batch_ack","results":[
-                   {"rel","status":"written"|"skipped"|"deleted"|"error",
+                   {"rel","status":"written"|"skipped"|"error",
                     "diff":<int>,"size":<int>,"error"?:<str>}, ...]}
+
+  UPDATE-ONLY: the dev no longer sends deletes and the client NEVER removes local
+  files. A legacy `{"rel","deleted":true}` entry from an older dev is acked +
+  ignored (status "skipped"), so the client keeps everything it has.
 
   LEGACY (kept for back-compat with older peers):
   dev->client  {"type":"file","rel","mtime","hash","b64"}
@@ -34,11 +37,13 @@ Message protocol (JSON text frames):
 """
 
 import base64
+import gzip
 import hashlib
 import json
 import os
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .runtime import (
@@ -47,8 +52,20 @@ from .runtime import (
 from .textnorm import normalize_eol, normalized_md5
 
 PUSH_TICK = 1.0          # seconds between incremental delta pushes
-MAX_BATCH_BYTES = 8 * 1024 * 1024  # ~8 MB cap on accumulated base64 payload per batch
+# Cap on accumulated base64 payload per batch. The client persists its
+# received-table after EVERY batch ack, so a SMALLER batch = progress saved more
+# often = a flapping/intermittent link converges (each brief window delivers and
+# keeps more files, instead of losing a big in-flight batch). 3 MB balances that
+# against per-batch round-trip overhead (gzip already packs more files per byte).
+MAX_BATCH_BYTES = 3 * 1024 * 1024
 MAX_BACKOFF = 30         # seconds; backoff is min(MAX_BACKOFF, 2**attempt)
+
+# --- wire transform tuning (the per-file read+compress+encode pipeline) ----- #
+GZIP_LEVEL = 6           # zlib level for compressible files (text/code/config)
+GZIP_MIN_BYTES = 256     # don't bother compressing tiny files (header overhead)
+GZIP_KEEP_RATIO = 0.92   # only ship gzip if it shrinks the file by >8% (else raw)
+ENCODE_WORKERS = 4       # threads that read+normalize+gzip+b64 AHEAD of the network
+ENCODE_LOOKAHEAD = 12    # max files prepared ahead of the consumer (bounds memory)
 
 
 # --------------------------------------------------------------------------- #
@@ -123,8 +140,10 @@ class PushReceiver:
             return True
         if t == "hello":
             me = self.m.config.get_self()
+            # Advertise the wire capabilities we understand so the dev can compress
+            # payloads. Older devs ignore `caps` and keep sending plain base64.
             send(json.dumps({"type": "welcome", "client_id": self.m.config.machine_id,
-                             "name": me.get("name")}))
+                             "name": me.get("name"), "caps": {"gzip": True}}))
         elif t == "manifest":
             self._handle_manifest(msg, send)
         elif t == "batch":
@@ -163,10 +182,10 @@ class PushReceiver:
             rel = r.get("rel")
             if rel:
                 # Keep the small received-table accurate for the next full-sync diff.
+                # Update-only: a written/skipped real file records its hash; a delete
+                # entry is IGNORED (file kept), so we never drop it from the table.
                 if r.get("status") in ("written", "skipped") and not f.get("deleted"):
                     received[rel] = f.get("hash")
-                elif r.get("status") == "deleted" or f.get("deleted"):
-                    received.pop(rel, None)
         self._save_received(received)
         send(json.dumps({"type": "batch_ack", "results": results}))
         self.m.set_sync_phase("idle", 0, channel=dev_id, name=dev_name,
@@ -203,10 +222,12 @@ class PushReceiver:
 
     def _handle_manifest(self, msg: dict, send) -> None:
         """A dev sends its FULL file table {rel: canonical_hash} on first connect and
-        on every reconnect. We compare it against our real files, DELETE our
-        previously-received files that are no longer in it (offline deletions, scoped
-        safely), and reply with the list we still NEED (missing or content differs).
-        The dev then pushes exactly those — a full reconcile that bounds drift."""
+        on every reconnect (the real-time full-update diff). We compare it against our
+        real on-disk files and reply with the list we still NEED — missing files, or
+        files whose content hash differs (a MEANINGFUL update). We NEVER delete: a
+        file we have that the dev no longer lists is KEPT (it may be a dev-only env
+        difference, an excluded artifact, or something the client still needs to run).
+        So the client only ever gains/refreshes files, never loses them."""
         files = msg.get("files") or {}
         dev_id = msg.get("dev_id") or "_local"
         dev_name = msg.get("dev_name") or ""
@@ -248,35 +269,28 @@ class PushReceiver:
                     pass
                 hashed += 1
             need.append(srel)
-        # Offline deletions: a file we received before but that is no longer in the
-        # manifest was deleted on the dev — remove it locally (only our own files).
-        deleted = 0
-        for rel in list(received):
-            if rel in files:
+        # UPDATE-ONLY: the client NEVER deletes. A file we have that is absent from
+        # the dev manifest (removed/excluded on the dev, or a dev-only env file) is
+        # KEPT. We just retain it in our fast-skip table (when still on disk) so a
+        # transient/empty/partial manifest can never make us drop or re-fetch it.
+        for rel, h in received.items():
+            if rel in new_table or rel in files:
                 continue
             srel = str(rel).replace("\\", "/")
             try:
                 target = (root / srel).resolve()
             except Exception:
                 continue
-            if target != root and root not in target.parents:
-                continue
-            if target.exists() and not target.is_dir():
-                try:
-                    target.unlink()
-                    deleted += 1
-                    self.m.log_sync("deleted", srel, "removed on dev (full sync)",
-                                    peer=peer, direction="receive")
-                except Exception:
-                    pass
-        # Persist ONLY the confirmed-present files; the needed ones are added to the
-        # table by _apply_batch as they are actually written.
+            if (target == root or root in target.parents) and target.exists():
+                new_table[rel] = h
+        # Persist the confirmed-present files; needed ones are added by _apply_batch
+        # as they are actually written.
         self._save_received(new_table)
-        if deleted or need:
+        if need:
             self.m.log_sync("reconnect", "", "full sync",
-                            details=f"{len(need)} to fetch, {deleted} removed, "
+                            details=f"{len(need)} to fetch, "
                                     f"{len(files) - len(need)} up-to-date "
-                                    f"({hashed} re-hashed)",
+                                    f"({hashed} re-hashed); update-only, 0 deleted",
                             peer=peer, direction="receive")
         send(json.dumps({"type": "need", "need": need}))
 
@@ -311,23 +325,21 @@ class PushReceiver:
             return result
         try:
             if deleted:
-                # Only files the dev previously pushed reach here (sender diffs its
-                # own last_sent), and the path is contained above — so we never
-                # remove a client-local file.
-                if target.exists() and not target.is_dir():
-                    old_size = target.stat().st_size
-                    target.unlink()
-                    result["status"] = "deleted"
-                    result["diff"] = -old_size
-                    self.m.log_sync("deleted", rel, "removed on dev",
-                                    details=_fmt_bytes(old_size), size=0,
-                                    diff=-old_size, peer=peer, direction="receive")
-                else:
-                    result["status"] = "skipped"
-                    self.m.log_sync("skipped", rel, "already absent",
-                                    peer=peer, direction="receive")
+                # UPDATE-ONLY client: NEVER remove a local file, even when the dev
+                # reports it deleted on its side. The client keeps every file it has
+                # so its own code stays runnable; the two ends are deliberately NOT
+                # forced byte-identical. Ack as "skipped" so the dev can still advance
+                # its bookkeeping. (Newer devs don't send deletes at all; this guard
+                # keeps older devs safe too.)
+                result["status"] = "skipped"
+                self.m.log_sync("skipped", rel, "delete ignored (client is update-only)",
+                                peer=peer, direction="receive")
                 return result
             content = base64.b64decode(b64)
+            # `enc` marks a compressed payload (capability-negotiated in welcome);
+            # absent/unknown -> raw bytes, so legacy frames keep working unchanged.
+            if msg.get("enc") == "gzip":
+                content = gzip.decompress(content)
             new_size = len(content)
             old_size = target.stat().st_size if target.exists() else 0
             diff = new_size - old_size
@@ -428,6 +440,16 @@ class PushSender:
         while self._running and not is_shutdown_requested():
             try:
                 if self.m.is_distributing():
+                    # Start the file index scanning AS SOON AS we are distributing —
+                    # BEFORE any client connects — so a large first scan is already
+                    # done by the time _full_sync needs the manifest. Otherwise the
+                    # watcher would only start on the first connection and the manifest
+                    # could be sent empty (which the client reads as "delete all").
+                    try:
+                        from .watcher import get_watch_manager
+                        get_watch_manager().start()
+                    except Exception:
+                        pass
                     self_id = self.m.config.machine_id
                     now = time.time()
                     for peer in self.m.config.list_peers():
@@ -508,7 +530,11 @@ class PushSender:
             welcome = ws.recv_text()
             if not welcome:
                 raise ConnectionError("no welcome from client")
-            client_id = (json.loads(welcome).get("client_id")) or peer.get("id")
+            wj = json.loads(welcome)
+            client_id = wj.get("client_id") or peer.get("id")
+            # Capability negotiation: only compress on the wire if THIS client
+            # advertised it (older clients omit caps -> plain base64, unchanged).
+            gzip_ok = bool((wj.get("caps") or {}).get("gzip"))
             connected = True
             self._note_success(peer)
 
@@ -521,10 +547,11 @@ class PushSender:
             # the full file manifest, let the client reconcile (fetch what differs,
             # delete what's gone), and rebuild the per-client table from scratch.
             # This bounds drift after an offline window. Incremental deltas follow.
-            ColorPrint.green(f"[WsPush] Connected to {client_name}; running full sync")
+            gz_note = " (gzip)" if gzip_ok else ""
+            ColorPrint.green(f"[WsPush] Connected to {client_name}; running full sync{gz_note}")
             with self._lock:
                 self._client_sent.pop(client_id, None)   # clear the per-peer table
-            last = self._full_sync(ws, wm, client_id, client_name, pid)
+            last = self._full_sync(ws, wm, client_id, client_name, pid, gzip_ok)
             with self._lock:
                 self._client_sent[client_id] = dict(last)
             ColorPrint.green(f"[WsPush] {client_name} in sync ({len(last)} files); "
@@ -532,7 +559,7 @@ class PushSender:
 
             while self._running and self.m.is_distributing() and not is_shutdown_requested():
                 last = self._push_deltas(ws, wm, last, client_id, "delta",
-                                         client_name, pid=pid)
+                                         client_name, pid=pid, gzip_ok=gzip_ok)
                 time.sleep(PUSH_TICK)
                 # Keepalive: keeps the NAT/proxy mapping warm during idle ticks and
                 # fails fast (-> reconnect) if the link has silently died.
@@ -546,23 +573,101 @@ class PushSender:
             with self._lock:
                 self._threads.pop(peer.get("id"), None)
 
-    def _full_sync(self, ws, wm, client_id: str, client_name: str, pid: str) -> dict:
+    # ----- wire transform: read + normalize + compress + encode AHEAD ------- #
+    @staticmethod
+    def _entry_size(item) -> float:
+        """On-disk size of a (dest, (mtime, hash, abspath)) item; unreadable -> inf
+        (sorts last). Used to push SMALL files first so source code converges before
+        large binary assets hog a slow link."""
+        try:
+            return os.path.getsize(item[1][2])
+        except Exception:
+            return float("inf")
+
+    @staticmethod
+    def _prepare_entry(item, gzip_ok: bool):
+        """Turn one (dest, (mtime, hash, abspath)) into its wire entry: read the
+        file, canonicalize text to LF (so the bytes match the watcher hash), gzip
+        it when that actually shrinks it, and base64 the result. Returns
+        (dest, entry|None, fhash, fsize); entry is None if the file can't be read.
+        Compression is per-file and opportunistic: already-compressed blobs
+        (png/jpg/zip) don't shrink, so we keep the raw bytes and skip the gzip tag,
+        while text/code/config collapse 3-5x BEFORE base64 — the real win for a
+        large tree over a slow link."""
+        dest, meta = item
+        mtime, fhash, abspath = meta
+        try:
+            content = normalize_eol(Path(abspath).read_bytes())
+        except Exception:
+            return (dest, None, fhash, 0)
+        fsize = len(content)
+        payload = content
+        enc = None
+        if gzip_ok and fsize >= GZIP_MIN_BYTES:
+            try:
+                gz = gzip.compress(content, compresslevel=GZIP_LEVEL)
+                if len(gz) < fsize * GZIP_KEEP_RATIO:
+                    payload, enc = gz, "gzip"
+            except Exception:
+                payload, enc = content, None
+        entry = {"rel": dest, "mtime": mtime, "hash": fhash, "size": fsize,
+                 "b64": base64.b64encode(payload).decode("ascii")}
+        if enc:
+            entry["enc"] = enc
+        return (dest, entry, fhash, fsize)
+
+    def _encode_ahead(self, items, gzip_ok: bool):
+        """Yield prepared wire entries IN ORDER while a small thread pool reads +
+        compresses + encodes files AHEAD of the consumer. The pool keeps preparing
+        the next ENCODE_LOOKAHEAD files while the consumer is blocked on a
+        batch_ack, so disk + CPU overlap the network round-trip instead of running
+        strictly between round-trips. zlib and the read both drop the GIL, so the
+        workers parallelize for real. Memory is bounded by the look-ahead window."""
+        with ThreadPoolExecutor(max_workers=ENCODE_WORKERS,
+                                thread_name_prefix="CsEnc") as ex:
+            it = iter(items)
+            window = []
+            for _ in range(ENCODE_LOOKAHEAD):
+                try:
+                    window.append(ex.submit(self._prepare_entry, next(it), gzip_ok))
+                except StopIteration:
+                    break
+            while window:
+                fut = window.pop(0)
+                try:
+                    window.append(ex.submit(self._prepare_entry, next(it), gzip_ok))
+                except StopIteration:
+                    pass
+                yield fut.result()
+
+    def _full_sync(self, ws, wm, client_id: str, client_name: str, pid: str,
+                   gzip_ok: bool = False) -> dict:
         """Full reconcile on (re)connect: send the manifest {rel: hash} of every
-        synced file; the client replies with the subset it NEEDs (missing or
-        differing) and deletes its own stale files. Push exactly the needed files in
-        size-bounded batches. Returns the dev's full snapshot, which becomes the
-        incremental baseline. Only what differs crosses the wire, so a reconnect is
-        cheap when little changed yet still guarantees convergence."""
+        synced file; the client diffs it against its real files and replies with the
+        subset it NEEDs (missing or content-differs). Push exactly those in
+        size-bounded batches. The client NEVER deletes — files it has that the dev no
+        longer lists are kept. Returns the dev's full snapshot, the incremental
+        baseline. Only meaningful differences cross the wire, so a reconnect is cheap
+        when little changed; convergence is additive (update-only)."""
         snap = wm.snapshot()  # {dest: (mtime, hash, abspath)}
-        # Guard a destructive empty manifest: a blank snapshot here almost always
-        # means the watcher's first scan hasn't finished yet (not "the dev has zero
-        # files"). Sending it would make the client delete everything it received,
-        # so wait briefly for the index to populate.
+        # Guard a DESTRUCTIVE empty manifest. An empty snapshot here almost always
+        # means the watcher's first scan of a large tree has not finished yet (NOT
+        # "the dev has zero files"). The client treats any path absent from the
+        # manifest as "deleted on the dev", so sending an empty/partial manifest
+        # makes it WIPE every file it received. The watcher swaps its index
+        # atomically (never a partial scan), so the only unsafe state is fully
+        # empty. Wait up to 30s (kept under the client's 120s read timeout); if it
+        # is STILL empty, ABORT this sync rather than send an empty manifest — the
+        # supervisor retries once the index is populated.
         waited = 0.0
-        while not snap and waited < 5.0 and self._running and not is_shutdown_requested():
+        while not snap and waited < 30.0 and self._running and not is_shutdown_requested():
             time.sleep(0.5)
             waited += 0.5
             snap = wm.snapshot()
+        if not snap:
+            raise ConnectionError("watcher index empty (first scan not ready); "
+                                  "aborting full sync to avoid a destructive empty "
+                                  "manifest that would wipe the client")
         me = self.m.config.get_self()
         dev_id = self.m.config.machine_id
         dev_name = me.get("name") or ""
@@ -596,30 +701,28 @@ class PushSender:
         self.m.set_sync_phase("pushing", len(need), channel=channel,
                               name=client_name, direction="push")
         chunk, chunk_bytes, remaining = [], 0, len(need)
-        for dest in need:
-            meta = snap.get(dest)
-            if not meta:
+        items = [(d, snap[d]) for d in need if d in snap]
+        # SMALL files first: over a slow/flapping link the full sync may not drain a
+        # huge tree (GBs of assets) in one connection window, so a tiny late-ordered
+        # file (e.g. a script) would never arrive before the link drops. Sending the
+        # smallest first lets ALL source code converge quickly; big binaries trail.
+        items.sort(key=self._entry_size)
+        for dest, entry, fhash, fsize in self._encode_ahead(items, gzip_ok):
+            if entry is None:
                 remaining -= 1
                 continue
-            mtime, fhash, abspath = meta
-            try:
-                content = normalize_eol(Path(abspath).read_bytes())
-            except Exception:
-                remaining -= 1
-                continue
-            b64 = base64.b64encode(content).decode("ascii")
+            b64len = len(entry["b64"])
             self.m.log_sync("sent", dest, "full sync",
-                            details=f"{_fmt_bytes(len(content))} -> {peer_label}",
-                            size=len(content), peer=peer_label, direction="push")
-            if chunk and (chunk_bytes + len(b64)) > MAX_BATCH_BYTES:
+                            details=f"{_fmt_bytes(fsize)} -> {peer_label}",
+                            size=fsize, peer=peer_label, direction="push")
+            if chunk and (chunk_bytes + b64len) > MAX_BATCH_BYTES:
                 send_batch(chunk)
                 remaining -= len(chunk)
                 self.m.set_sync_phase("pushing", remaining, channel=channel,
                                       name=client_name, direction="push")
                 chunk, chunk_bytes = [], 0
-            chunk.append({"rel": dest, "mtime": mtime, "hash": fhash,
-                          "size": len(content), "b64": b64})
-            chunk_bytes += len(b64)
+            chunk.append(entry)
+            chunk_bytes += b64len
         if chunk:
             send_batch(chunk)
         self.m.set_sync_phase("idle", 0, channel=channel, name=client_name,
@@ -627,41 +730,35 @@ class PushSender:
         return snap
 
     def _push_deltas(self, ws, wm, last: dict, client_id: str, reason: str,
-                     client_name: str = "", pid: str = "") -> dict:
+                     client_name: str = "", pid: str = "", gzip_ok: bool = False) -> dict:
         """Diff the shared watcher index against what we last acked for this client;
         push new/modified files in size-bounded BATCHES (one batch_ack round-trip per
-        chunk) and propagate deletions. Persists the advancing last_sent into
-        supervisor-owned state after every successful batch so a mid-sync disconnect
-        resumes from the last ack.
+        chunk). NEVER propagates deletions — a file removed/excluded on the dev is
+        just dropped from our tracking; the update-only client keeps its copy.
+        Persists the advancing last_sent into supervisor-owned state after every
+        successful batch so a mid-sync disconnect resumes from the last ack.
 
         Returns the updated 'last' snapshot."""
         cur = wm.snapshot()
         changed = [(dest, meta) for dest, meta in cur.items()
                    if dest not in last or last[dest][1] != meta[1]]  # new or hash changed
-        # A path we previously sent that is gone from the watcher index is EITHER a
-        # real deletion OR merely newly excluded (a filter change). Distinguish by
-        # the source still being on disk: truly-gone -> propagate a delete; still
-        # present (just excluded) -> only stop tracking it, never delete it on the
-        # client. We only ever delete what we ourselves pushed, and the receiver
-        # also contains the path, so a client-local file is never removed.
-        deleted = []
+        changed.sort(key=self._entry_size)  # small files first (same rationale as full sync)
+        # A path we previously sent that is gone from the watcher index (deleted OR
+        # newly excluded on the dev) is simply DROPPED from our own tracking — we do
+        # NOT propagate a delete. The client is UPDATE-ONLY: it keeps its local files
+        # so its code stays runnable, and the two ends are never forced identical.
         pruned = False
         for d in list(last):
-            if d in cur:
-                continue
-            abspath = last[d][2] if len(last[d]) > 2 else None
-            if abspath and Path(abspath).exists():
-                last.pop(d, None)   # excluded now, not deleted: stop tracking
+            if d not in cur:
+                last.pop(d, None)
                 pruned = True
-            else:
-                deleted.append(d)
-        if not changed and not deleted:
+        if not changed:
             if pruned:
                 with self._lock:
                     self._client_sent[client_id] = dict(last)
             return last
 
-        queued = len(changed) + len(deleted)
+        queued = len(changed)
         # Identity stamped on every wire message so the receiver can attribute the
         # phase/log per source dev-end; channel = peer id (matches the UI lookup).
         me = self.m.config.get_self()
@@ -686,24 +783,10 @@ class PushSender:
                 raise ConnectionError("no batch_ack")
             return (json.loads(ack).get("results")) or []
 
-        chunk_reason = reason  # the first batch (deletes or first chunk) is special
+        chunk_reason = reason  # the first chunk keeps the 'resume' marker
 
-        # 1) Deletions first (tiny — one batch).
-        if deleted:
-            for d in deleted:
-                self.m.log_sync("sent", d, "removed on dev",
-                                details=f"delete -> {peer_label}",
-                                peer=peer_label, direction="push")
-            results = send_batch([{"rel": d, "deleted": True} for d in deleted],
-                                 chunk_reason)
-            chunk_reason = "delta"
-            for r in results:
-                if r.get("status") in ("deleted", "skipped"):
-                    last.pop(r.get("rel"), None)
-            with self._lock:
-                self._client_sent[client_id] = dict(last)
-
-        # 2) Created/modified files in size-bounded chunks; never split one file.
+        # Created/modified files in size-bounded chunks; never split one file. No
+        # deletions are ever sent (update-only client).
         chunk = []
         chunk_bytes = 0
         remaining = len(changed)
@@ -727,21 +810,16 @@ class PushSender:
             with self._lock:
                 self._client_sent[client_id] = dict(last)
 
-        for dest, (mtime, fhash, abspath) in changed:
-            try:
-                # Canonicalize text to LF on the wire (binary passes through), so
-                # the bytes the client writes match the watcher's canonical hash.
-                content = normalize_eol(Path(abspath).read_bytes())
-            except Exception:
+        # Read + normalize + (gzip) + encode the changed files AHEAD of the network
+        # so the next chunk is being prepared while the current one is in flight.
+        for dest, entry, fhash, fsize in self._encode_ahead(changed, gzip_ok):
+            if entry is None:
                 remaining -= 1
                 continue
-            b64 = base64.b64encode(content).decode("ascii")
-            fsize = len(content)
-            entry = {"rel": dest, "mtime": mtime, "hash": fhash,
-                     "size": fsize, "b64": b64}
+            b64len = len(entry["b64"])
             # Flush before adding if this file would push us over the cap (and the
             # chunk is non-empty, so we never split a single file).
-            if chunk and (chunk_bytes + len(b64)) > MAX_BATCH_BYTES:
+            if chunk and (chunk_bytes + b64len) > MAX_BATCH_BYTES:
                 flush_chunk([c[0] for c in chunk], chunk_reason, [c[1] for c in chunk])
                 remaining -= len(chunk)
                 self.m.set_sync_phase("pushing", remaining, channel=channel,
@@ -750,7 +828,7 @@ class PushSender:
                 chunk_bytes = 0
                 chunk_reason = "delta"  # only the first chunk keeps 'resume'
             chunk.append((entry, (dest, fhash, fsize)))
-            chunk_bytes += len(b64)
+            chunk_bytes += b64len
 
         if chunk:
             flush_chunk([c[0] for c in chunk], chunk_reason, [c[1] for c in chunk])

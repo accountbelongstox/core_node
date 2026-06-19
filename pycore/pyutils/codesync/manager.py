@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional
 
 from .runtime import (
     log as ColorPrint,
+    http as requests,
     emit_event,
     is_shutdown_requested,
     get_core_node_root,
@@ -488,6 +489,176 @@ class CodeSyncManager:
         except Exception:
             pass
         return status
+
+    def get_file_tree(self, max_files: int = 60000) -> dict:
+        """Build a nested file tree of the live synced set for the UI file-structure
+        panel. Source = the watcher's in-memory index (the EXACT files that sync),
+        so it reflects the same filtering the sync uses and updates in real time.
+        Multiple watch roots map under their dest_rel paths, so they appear together
+        as sibling first-level nodes. Returns the FULL tree (all depths); the UI
+        chooses what to expand (default: first level only)."""
+        import os as _os
+        from .watcher import get_watch_manager
+        wm = get_watch_manager()
+        try:
+            wm.start()  # idempotent: ensures the index is populated on this end too
+        except Exception:
+            pass
+        snap = wm.snapshot()  # {dest_rel: (mtime, hash, abspath)}
+        try:
+            roots = wm.watch_dirs_str()
+        except Exception:
+            roots = []
+
+        # Build {name -> node} maps for O(1) insert, then roll up + sort into lists.
+        root_children: Dict[str, Any] = {}
+        truncated = False
+        count = 0
+        for dest, meta in snap.items():
+            if count >= max_files:
+                truncated = True
+                break
+            count += 1
+            try:
+                mtime = float(meta[0]) if meta else 0.0
+            except Exception:
+                mtime = 0.0
+            try:
+                fhash = meta[1] if len(meta) > 1 else ""
+            except Exception:
+                fhash = ""
+            try:
+                abspath = meta[2] if len(meta) > 2 else ""
+            except Exception:
+                abspath = ""
+            try:
+                size = _os.path.getsize(abspath) if abspath else 0
+            except Exception:
+                size = 0
+            parts = [p for p in str(dest).replace("\\", "/").split("/") if p]
+            if not parts:
+                continue
+            cursor = root_children
+            cur_path = ""
+            for i, part in enumerate(parts):
+                cur_path = (cur_path + "/" + part) if cur_path else part
+                if i == len(parts) - 1:
+                    # `hash` is the canonical (LF-normalized) content hash — used for
+                    # CRLF-immune drift comparison against a peer's tree.
+                    cursor[part] = {"name": part, "path": cur_path, "type": "file",
+                                    "size": size, "mtime": mtime, "hash": fhash}
+                else:
+                    node = cursor.get(part)
+                    if not node or node.get("type") != "dir":
+                        node = {"name": part, "path": cur_path, "type": "dir",
+                                "_children": {}}
+                        cursor[part] = node
+                    cursor = node["_children"]
+
+        def _finalize(children_map: Dict[str, Any]):
+            """Convert a {name: node} map into a sorted children list, rolling up
+            size + file-count from descendants. Dirs first, then files; each alpha."""
+            out = []
+            total_size = 0
+            total_files = 0
+            for node in children_map.values():
+                if node.get("type") == "dir":
+                    kids, sz, fc = _finalize(node.pop("_children", {}))
+                    node["children"] = kids
+                    node["size"] = sz
+                    node["count"] = fc
+                    total_size += sz
+                    total_files += fc
+                else:
+                    total_size += int(node.get("size") or 0)
+                    total_files += 1
+                out.append(node)
+            out.sort(key=lambda n: (0 if n.get("type") == "dir" else 1,
+                                    str(n.get("name", "")).lower()))
+            return out, total_size, total_files
+
+        children, total_size, total_files = _finalize(root_children)
+        return {
+            "success": True,
+            "role": self.role,
+            "roots": roots,
+            "children": children,
+            "count": total_files,
+            "size": total_size,
+            "truncated": truncated,
+        }
+
+    def get_peer_file_tree(self, peer_id: str) -> dict:
+        """Dev-side drift view of one CLIENT: fetch its /code-sync/file-tree and diff
+        it against THIS dev's synced set by canonical content hash (CRLF-immune, so a
+        Windows-dev/Linux-client EOL difference is NOT flagged as drift). Returns the
+        client's actual received tree (for display) plus a drift summary:
+          missing  -> on the dev, absent on the client (not yet received / lost)
+          extra    -> on the client, not on the dev (stale / locally added)
+          changed  -> present on both but a different content hash
+        Reaches the client the same way the mesh probe does (host:port)."""
+        peer = None
+        for p in self.config.list_peers():
+            if p.get("id") == peer_id:
+                peer = p
+                break
+        if not peer:
+            return {"success": False, "error": "unknown peer"}
+        host = peer.get("host")
+        port = int(peer.get("port", 59000) or 59000)
+        name = peer.get("name") or host
+        peer_meta = {"id": peer_id, "name": name, "host": host, "port": port}
+        url = f"http://{host}:{port}/code-sync/file-tree"
+        try:
+            r = requests.get(url, timeout=20)
+            code = getattr(r, "status_code", 0)
+            if code != 200:
+                return {"success": False, "peer": peer_meta,
+                        "error": f"peer returned HTTP {code}"}
+            peer_tree = r.json() or {}
+        except Exception as exc:
+            return {"success": False, "peer": peer_meta,
+                    "error": f"unreachable: {exc}"}
+
+        def _flatten(children, into):
+            for n in children or []:
+                if n.get("type") == "dir":
+                    _flatten(n.get("children"), into)
+                else:
+                    into[n.get("path")] = {"hash": n.get("hash") or "",
+                                           "size": int(n.get("size") or 0)}
+
+        client_files: Dict[str, Any] = {}
+        _flatten(peer_tree.get("children"), client_files)
+        dev_files: Dict[str, Any] = {}
+        _flatten(self.get_file_tree().get("children"), dev_files)
+
+        missing, changed = [], []
+        for path, dv in dev_files.items():
+            cv = client_files.get(path)
+            if cv is None:
+                missing.append({"path": path, "size": dv["size"]})
+            elif cv["hash"] != dv["hash"]:
+                changed.append({"path": path, "size_dev": dv["size"],
+                                "size_client": cv["size"]})
+        extra = [{"path": p, "size": v["size"]}
+                 for p, v in client_files.items() if p not in dev_files]
+        missing.sort(key=lambda x: x["path"])
+        extra.sort(key=lambda x: x["path"])
+        changed.sort(key=lambda x: x["path"])
+        return {
+            "success": True,
+            "peer": peer_meta,
+            "tree": peer_tree,
+            "drift": {
+                "dev_count": len(dev_files),
+                "client_count": len(client_files),
+                "in_sync": max(0, len(dev_files) - len(missing) - len(changed)),
+                "missing": missing,
+                "extra": extra,
+                "changed": changed,
+            },
+        }
 
     def _broadcast(self) -> None:
         try:
