@@ -139,18 +139,18 @@ class ConfigManager:
                 'StorageType': 'encrypted_constant',
                 'Variables': [
                     {
-                        'Name': 'AZURE_SPEECH_KEYA',
-                        'DisplayName': 'Azure Speech Key A',
-                        'Description': 'Azure Speech Service API Key A',
+                        'Name': 'AZURE_SPEECH_KEY',
+                        'DisplayName': 'Azure Speech Key',
+                        'Description': 'Azure Speech subscription key (Key A or Key B; either works)',
                         'InputType': 'Token',
                         'Required': True
                     },
                     {
                         'Name': 'AZURE_SPEECH_KEYB',
-                        'DisplayName': 'Azure Speech Key B',
-                        'Description': 'Azure Speech Service API Key B',
+                        'DisplayName': 'Azure Speech Key (backup)',
+                        'Description': 'Optional second Azure Speech key for rotation (Key B)',
                         'InputType': 'Token',
-                        'Required': True
+                        'Required': False
                     },
                     {
                         'Name': 'AZURE_SPEECH_REGION',

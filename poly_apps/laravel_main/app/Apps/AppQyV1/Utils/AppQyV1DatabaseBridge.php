@@ -167,17 +167,6 @@ class AppQyV1DatabaseBridge
     }
 
     /**
-     * Get table name for dictionaries
-     *
-     * @return string
-     */
-    public static function getDictionariesTableName(): string
-    {
-        $appKey = AppKeys::APPQYV1;
-        return AppTablePrefixServiceProvider::buildTableName($appKey, 'dictionaries');
-    }
-
-    /**
      * Get table name for personal dictionaries
      *
      * @return string

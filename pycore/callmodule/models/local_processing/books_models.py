@@ -94,6 +94,23 @@ class BooksScanResponse(BaseModel):
 # --------------------------------------------------------------------------- #
 # Analyze (extract text → stats + preview)                                     #
 # --------------------------------------------------------------------------- #
+class ChapterInfo(BaseModel):
+    """One detected chapter of a book (v3.1 chapter->slot tree, §3.2/§7/§8).
+
+    A book with no detectable headings yields exactly one chapter
+    (``chapter_index=0``, title ``"Chapter 1"``) covering all sentences.
+    """
+    chapter_index: int = Field(0, description="0-based chapter order.")
+    title: str = Field("", description="Primary-language chapter title (back-compat).")
+    titles: Dict[str, Optional[str]] = Field(
+        default_factory=dict,
+        description="Per-language chapter title map {code: title|null}; only the "
+                    "detected primary is filled, every other selected language null.")
+    corr_id: str = Field(
+        "", description="sha1(source_key|chapter|chapter_index) cross-language group id.")
+    sentence_count: int = Field(0, description="Sentence-grain slots under this chapter.")
+
+
 class BookFileAnalysis(BaseModel):
     """Per-file analysis: metadata + multi-language stats + a text preview."""
     path: str
@@ -103,6 +120,14 @@ class BookFileAnalysis(BaseModel):
     size_bytes: int = 0
     stats: Optional[TextStats] = None
     preview: str = Field("", description="First N characters of the extracted text.")
+    chapters: List[ChapterInfo] = Field(
+        default_factory=list,
+        description="Detected chapters (v3): [{chapter_index, title, sentence_count}].")
+    primary_language: str = Field(
+        "und", description="Detected primary language code (L0).")
+    selected_languages: List[str] = Field(
+        default_factory=list,
+        description="The checked language set used for analysis (Lsel, >=1, includes L0).")
     error: Optional[str] = Field(None, description="Set when this file could not be read.")
 
 
@@ -113,6 +138,10 @@ class BooksAnalyzeRequest(BaseModel):
         None, description="Restrict folder scans to these extensions; omit = all supported.")
     language: Optional[str] = Field(
         None, description="Declared primary language; omitted = auto-detect per file.")
+    languages: Optional[List[str]] = Field(
+        None, description="The checked correspondence language set (Lsel, >=1; the "
+                          "detected primary is auto-added and forced first). Omitted "
+                          "= just the detected/declared primary.")
     preview_chars: int = Field(800, ge=0, le=20000, description="Preview length per file.")
     max_files: int = Field(25, ge=1, le=500, description="Cap analyzed files for a folder.")
     persist: bool = Field(False, description="Persist a compact summary to the 'books' state.")
@@ -141,6 +170,11 @@ class BookSourceState(BaseModel):
     mode: str = "file"
     source_key: str = ""
     language: Optional[str] = None
+    source_type: str = Field(
+        "book", description="'book' (default) or 'document' (Add Document sub-tab).")
+    selected_languages: List[str] = Field(
+        default_factory=list,
+        description="Last submitted correspondence language set (Lsel) for this source.")
     submission_state: str = Field("draft", description="'draft' | 'synced'.")
     added_at: Optional[float] = None
     analyzed_at: Optional[float] = None
@@ -170,20 +204,31 @@ class BooksStateRemoveRequest(BaseModel):
 
 
 class BookSubmitItem(BaseModel):
-    """Per-source result of a batch submit."""
+    """Per-source result of a batch submit (v3: chapters + correspondence slots)."""
     path: str
     files: int = 0
     sentences: int = 0
     words: int = 0
+    chapters: int = Field(0, description="Detected chapters ingested for this source.")
+    slots: int = Field(0, description="Correspondence slots ingested (both grains).")
+    selected_languages: List[str] = Field(
+        default_factory=list, description="Effective Lsel used for this source.")
     success: bool = True
     errors: Optional[List[str]] = None
 
 
 class BooksSubmitRequest(BaseModel):
-    """Submit selected sources to laravel_main in one batch (v2 payload)."""
+    """Submit selected sources to laravel_main in one batch (v3 payload)."""
     paths: Optional[List[str]] = Field(
         None, description="Source paths to submit; omit/empty = all persisted sources.")
     language: Optional[str] = None
+    languages: Optional[List[str]] = Field(
+        None, description="The checked correspondence language set (Lsel, >=1; the "
+                          "detected primary is auto-added and forced first). Omitted "
+                          "= just the detected/declared primary.")
+    source_type: str = Field(
+        "book", description="'book' (default) or 'document' (Add Document sub-tab); "
+                            "sets the ingest source_type so rows land in that bucket.")
 
 
 class BooksSubmitResponse(BaseModel):
@@ -192,6 +237,8 @@ class BooksSubmitResponse(BaseModel):
     items: List[BookSubmitItem] = Field(default_factory=list)
     total_sentences: int = 0
     total_words: int = 0
+    total_chapters: int = Field(0, description="Total chapters ingested across sources.")
+    total_slots: int = Field(0, description="Total correspondence slots ingested.")
     error: Optional[str] = None
 
 
@@ -202,15 +249,29 @@ class BooksListRequest(BaseModel):
     """Paginated drill-down into a source's computed lists.
 
     kind: 'words' | 'unique_words' (distinct word-frequency list, shared) |
-          'sentences' (all, in order) | 'unique_sentences' | 'languages'.
+          'sentences' (all, in order) | 'unique_sentences' | 'cues' | 'languages' |
+          'chapters' (the detected chapter tree). When ``chapter_index`` is set for
+          a grain-kind ('sentences'/'unique_sentences'/'cues') the page is the FE
+          ``BookSlot[]`` correspondence shape scoped to that chapter + grain.
     The full lists are built once and cached (per source_key) so paging is cheap.
     """
     path: str
-    kind: str = Field("words", description="words|unique_words|sentences|unique_sentences|languages")
+    kind: str = Field(
+        "words",
+        description="words|unique_words|sentences|unique_sentences|cues|languages|chapters")
     start: int = Field(0, ge=0)
     limit: int = Field(100, ge=1, le=1000)
     formats: Optional[List[str]] = None
     language: Optional[str] = None
+    languages: Optional[List[str]] = Field(
+        None, description="Checked correspondence set (Lsel) for chapter-scoped "
+                          "BookSlot[] responses; primary auto-added + forced first.")
+    chapter_index: Optional[int] = Field(
+        None, ge=0, description="Scope a sentence/cue list to one chapter (v3 tree). "
+                                "With a grain-kind this returns BookSlot[] items.")
+    grain: Optional[str] = Field(
+        None, description="Override grain for chapter scoping: 'cue' | 'sentence' "
+                          "(otherwise derived from kind: cues=>cue, else sentence).")
     refresh: bool = Field(False, description="Rebuild the cached lists from the source.")
     max_files: int = Field(25, ge=1, le=500)
 
@@ -222,8 +283,15 @@ class BooksListResponse(BaseModel):
     total: int = Field(0, description="Total items in the selected list.")
     start: int = 0
     limit: int = 100
-    items: List[dict] = Field(default_factory=list,
-                              description="words:[{word,count}] · sentences:[{seq,text}] · languages:[{script,code,chars,ratio}]")
+    chapter_index: Optional[int] = Field(
+        None, description="Echoed chapter scope when a sentence list was chapter-scoped.")
+    items: List[dict] = Field(
+        default_factory=list,
+        description="words:[{word,count}] · sentences:[{seq,text,chapter_index}] · "
+                    "languages:[{script,code,chars,ratio}] · "
+                    "chapters:[{chapter_index,title,titles:{code:title|null},"
+                    "sentence_count}] · chapter-scoped grain (BookSlot[]):[{corr_id,"
+                    "grain,seq,chapter_index,primary_language,langs:{code:text|null}}]")
     totals: dict = Field(default_factory=dict,
-                         description="{words, unique_words, sentences, unique_sentences, chars}.")
+                         description="{words, unique_words, sentences, unique_sentences, chars, chapters}.")
     error: Optional[str] = None

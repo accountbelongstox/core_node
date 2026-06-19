@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, ArrowRight, Shield, Target, Paintbrush, Play, Layout, CheckCircle2 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
+import { WfNewLogo } from '../WfNewBrand';
 
 interface WfNewOnboardingProps {
   onComplete: () => void;
@@ -146,8 +147,8 @@ export const WfNewOnboarding: React.FC<WfNewOnboardingProps> = ({
       >
         {/* Step Indicator Bullets */}
         <div className="flex justify-between items-center border-b border-white/5 pb-4">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-indigo-500 to-fuchsia-500" />
+          <div className="flex items-center gap-2">
+            <WfNewLogo size={32} className="shadow-md" />
             <span className="text-xs font-mono font-bold tracking-widest text-zinc-400">{trans('onb.brand')}</span>
           </div>
 

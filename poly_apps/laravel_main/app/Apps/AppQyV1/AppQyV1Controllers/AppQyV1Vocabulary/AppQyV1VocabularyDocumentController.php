@@ -7,8 +7,9 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1VocabularyImporter;
 use App\Constants\AppKeys;
 use App\Http\Controllers\Controller;
-use App\Models\Sentence;
+use App\Models\LangSentence;
 use App\Models\SourceSentence;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\MediaIngestService;
 use App\Traits\ApiResponse;
@@ -21,9 +22,9 @@ use Illuminate\Support\Facades\DB;
  * Re-processing of previously uploaded plain-text documents:
  *   - extract-words: idempotently append the document's unique words to the
  *     vocabulary collection created at upload time (same importer path).
- *   - extract-sentences: idempotently ingest the document's sentences into
- *     the SHARED sentence library (app_qy_v1_sentences) with positional
- *     links in app_qy_v1_source_sentences, source_type = 'document'.
+ *   - extract-sentences: idempotently ingest the document's sentences into the
+ *     per-language sentence store (app_qy_v1_sentences_{lang}, content_id-keyed)
+ *     with positional links in app_qy_v1_source_sentences, source_type='document'.
  */
 class AppQyV1VocabularyDocumentController extends Controller
 {
@@ -146,12 +147,10 @@ class AppQyV1VocabularyDocumentController extends Controller
             ], 'No sentences found in document');
         }
 
-        // The shared sentence library stores full language NAMES (media
-        // pipeline default 'english'), so dedupe keys line up across sources.
-        $languageName = AppQyV1VocabularyLibraryPublicController::getLanguageName((string) $document->language);
-        if ($languageName === '') {
-            $languageName = 'english';
-        }
+        // Books v3: sentences live in the per-language store
+        // ({prefix}_sentences_{lang}) keyed by content_id. Resolve the language
+        // CODE for the table; fall back to 'en'.
+        $langCode = $this->resolveLangCodeForSentences((string) $document->language);
 
         $documentId = (int) $document->id;
         $documentName = (string) $document->original_name;
@@ -163,11 +162,14 @@ class AppQyV1VocabularyDocumentController extends Controller
         // One transaction for the whole document (same rationale as
         // MediaIngestService::ingest): thousands of row-by-row writes would
         // otherwise auto-commit individually.
-        DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($sentences, $languageName, $sourceKey, $documentId, $documentName, &$stored, &$skipped) {
+        DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($sentences, $langCode, $sourceKey, $documentId, $documentName, &$stored, &$skipped) {
             foreach ($sentences as $idx => $text) {
-                // Same dedup key the media ingest uses, so document sentences
-                // merge with subtitle/book sentences in the shared library.
-                $sentenceId = MediaIngestService::computeSentenceId($text, $languageName);
+                // content_id is the language-agnostic dedup key shared with media
+                // ingest, so document sentences merge with subtitle/book sentences
+                // in the per-language store.
+                $contentId = MediaIngestService::computeContentId($text);
+                $sentenceId = MediaIngestService::computeSentenceId($text, $langCode);
+                $corrId = MediaIngestService::computeCorrId($sourceKey, self::SENTENCE_GRAIN, $idx);
 
                 $existingLink = SourceSentence::where('source_type', self::SENTENCE_SOURCE_TYPE)
                     ->where('source_key', $sourceKey)
@@ -183,12 +185,15 @@ class AppQyV1VocabularyDocumentController extends Controller
                     continue;
                 }
 
-                $sentenceRow = Sentence::where('sentence_id', $sentenceId)->first();
+                $sentenceRow = LangSentence::onLang($langCode)->where('content_id', $contentId)->first();
                 if (!$sentenceRow) {
-                    Sentence::create([
+                    $newRow = LangSentence::for($langCode);
+                    $newRow->fill([
+                        'content_id' => $contentId,
                         'sentence_id' => $sentenceId,
+                        'corr_id' => $corrId,
                         'text' => $text,
-                        'language' => $languageName,
+                        'language' => $langCode,
                         'occurrence_count' => 1,
                         'metadata' => [
                             'source' => 'vocabulary_document',
@@ -196,9 +201,10 @@ class AppQyV1VocabularyDocumentController extends Controller
                             'document_name' => $documentName,
                         ],
                     ]);
+                    $newRow->save();
                 } else {
-                    // Shared-library dedupe semantics: never rewrite text or
-                    // AI enrichment fields, only bump the occurrence count.
+                    // Per-language dedupe semantics: never rewrite text or AI
+                    // enrichment fields, only bump the occurrence count.
                     $sentenceRow->occurrence_count = (int) $sentenceRow->occurrence_count + 1;
                     $sentenceRow->save();
                 }
@@ -206,9 +212,13 @@ class AppQyV1VocabularyDocumentController extends Controller
                 SourceSentence::create([
                     'source_type' => self::SENTENCE_SOURCE_TYPE,
                     'source_key' => $sourceKey,
-                    'sentence_id' => $sentenceId,
+                    // No sentence_id on source_sentences (Books v3.1 §3.3): the
+                    // per-language link is carried by lang_content_ids.
                     'grain' => self::SENTENCE_GRAIN,
                     'seq' => $idx,
+                    'corr_id' => $corrId,
+                    'primary_language' => $langCode,
+                    'lang_content_ids' => [$langCode => $contentId],
                     'metadata' => [
                         'source' => $documentName,
                         'document_id' => $documentId,
@@ -225,6 +235,30 @@ class AppQyV1VocabularyDocumentController extends Controller
             'stored' => $stored,
             'skipped' => $skipped,
         ], 'Sentences extracted successfully');
+    }
+
+    /**
+     * Resolve a document language (name or code) to the 2/3-letter code used by
+     * the per-language sentence tables. Falls back to 'en'.
+     */
+    private function resolveLangCodeForSentences(string $language): string
+    {
+        $lang = strtolower(trim($language));
+        $nameToCode = [
+            'english' => 'en',
+            'japanese' => 'ja',
+            'korean' => 'ko',
+            'vietnamese' => 'vi',
+            'lao' => 'lo',
+            'chinese' => 'zh',
+        ];
+        if (isset($nameToCode[$lang])) {
+            $lang = $nameToCode[$lang];
+        }
+        if ($lang === '' || !AppQyV1TableMaps::isLanguageSupported($lang)) {
+            return 'en';
+        }
+        return $lang;
     }
 
     /**

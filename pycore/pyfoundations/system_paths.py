@@ -23,6 +23,7 @@ import os
 import re
 import sys
 import json
+import time
 import platform
 import threading
 import configparser
@@ -681,6 +682,60 @@ class UserDataStore:
         """Return a shallow copy of the whole document."""
         with self._lock:
             return dict(self._ensure_loaded())
+
+    # --- content-ingest history (capped ring) ----------------------------- #
+    def record_content_history(self, entry: Dict[str, Any], cap: int = 200) -> None:
+        """Append ONE content-ingest history entry to the capped ring and persist.
+
+        Cross-feature history of book / subtitle / document ingests, stored under
+        the ``content_history`` section as ``{"entries": [...]}`` (newest LAST).
+        Each entry is expected to carry ``{type, source_key, path, title,
+        languages, counts, status, ts}`` but is stored as-given (a missing ``ts``
+        is stamped with the current time). The ring keeps only the last ``cap``
+        entries; same-``source_key``+``type`` is de-duplicated (the newer record
+        replaces the older) so re-syncs update in place rather than growing the
+        ring. Never raises — a bad entry is ignored.
+        """
+        if not isinstance(entry, dict):
+            return
+        with self._lock:
+            data = self._ensure_loaded()
+            section = data.get("content_history")
+            if not isinstance(section, dict):
+                section = {}
+            entries = section.get("entries")
+            if not isinstance(entries, list):
+                entries = []
+            rec = dict(entry)
+            if not rec.get("ts"):
+                rec["ts"] = time.time()
+            key = (rec.get("source_key"), rec.get("type"))
+            if key != (None, None):
+                entries = [e for e in entries
+                           if (e.get("source_key"), e.get("type")) != key]
+            entries.append(rec)
+            if cap and len(entries) > cap:
+                entries = entries[-cap:]
+            section["entries"] = entries
+            data["content_history"] = section
+            self.save()
+
+    def get_content_history(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Return content-ingest history entries (newest FIRST).
+
+        ``limit`` caps the number returned (most-recent first). Returns [] when no
+        history exists.
+        """
+        with self._lock:
+            data = self._ensure_loaded()
+            section = data.get("content_history")
+            entries = section.get("entries") if isinstance(section, dict) else None
+            if not isinstance(entries, list):
+                return []
+            ordered = list(reversed(entries))
+            if limit and limit > 0:
+                return ordered[:limit]
+            return ordered
 
     # --- per-feature differentiated config (json / ini) ------------------- #
     def feature_config_path(self, name: str, ext: str = "json") -> Path:

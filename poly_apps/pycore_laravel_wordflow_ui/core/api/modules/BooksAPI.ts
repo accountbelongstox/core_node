@@ -78,6 +78,33 @@ export interface BooksUploadResponse {
   error?: string;
 }
 
+// ========== Books: chapter → correspondence-slot tree (spec v3 §7/§9) ==========
+
+/** One chapter of a book; a chapterless book is represented by a single "Chapter 1".
+ *  v3.1: `titles` is a per-language title map (code -> title|null); `title` is the
+ *  legacy flat fallback. */
+export interface BookChapter {
+  chapter_index: number;
+  sentence_count?: number;
+  title?: string | null;
+  titles?: Record<string, string | null>;
+}
+
+/**
+ * One correspondence slot (a single sentence position shared across the checked
+ * languages). `langs[code]` holds that language's text, or `null` where the book
+ * has no correspondence (the FE renders a blank). `grain` keeps the prior
+ * sentence typing (cue = source line/paragraph; sentence = re-split on punctuation).
+ */
+export interface BookSlot {
+  corr_id: string;
+  grain: 'cue' | 'sentence';
+  seq: number;
+  chapter_index?: number;
+  primary_language?: string | null;
+  langs: Record<string, string | null>;
+}
+
 // ========== Books: paginated drill-down list ==========
 
 export type BookListKind =
@@ -85,7 +112,9 @@ export type BookListKind =
   | 'unique_words'
   | 'sentences'
   | 'unique_sentences'
-  | 'languages';
+  | 'languages'
+  | 'chapters'
+  | 'cues';
 
 export interface BooksListResponse {
   success: boolean;
@@ -93,9 +122,14 @@ export interface BooksListResponse {
   total: number;
   start: number;
   limit: number;
-  /** words → [{word,count}]; sentences/unique → [{seq,text}]; languages → [{script,code,chars,ratio}]. */
+  /** words → [{word,count}]; sentences/unique → [{seq,text}]; languages → [{script,code,chars,ratio}];
+   *  chapters → BookChapter[]; chapter-scoped sentences/cues → BookSlot[]. */
   items: any[];
   totals?: Partial<BookTotals> & Record<string, number>;
+  /** Present when kind === 'chapters'. */
+  chapters?: BookChapter[];
+  /** Echoes the checked language set so the tree can render every column. */
+  selected_languages?: string[];
   error?: string;
 }
 
@@ -284,10 +318,12 @@ export class BooksAPI extends BaseAPI {
    * returns per-file + aggregate stats keyed by a generated `upload_id` (reused
    * by booksList / booksIngest). BaseAPI auto-handles the FormData body.
    */
-  async booksUpload(files: File[], language?: string): Promise<APIResponse<BooksUploadResponse>> {
+  async booksUpload(files: File[], language?: string, languages?: string[]): Promise<APIResponse<BooksUploadResponse>> {
     const formData = new FormData();
     files.forEach((f) => formData.append('files[]', f));
     if (language) formData.append('language', language);
+    // The checked correspondence set (>=1, includes the detected primary lang).
+    (languages || []).forEach((l) => formData.append('languages[]', l));
     return this.request<BooksUploadResponse>({
       url: '/books/upload',
       method: 'POST',
@@ -297,13 +333,18 @@ export class BooksAPI extends BaseAPI {
 
   /**
    * POST /books/list — one paginated page of a stat drill-down (words / unique
-   * words / sentences / unique sentences / languages) for a prior upload.
+   * words / sentences / unique sentences / languages) for a prior upload, OR the
+   * chapter → sentence tree: kind='chapters' lists BookChapter[]; passing a
+   * chapter_index (with kind='sentences'|'cues') returns that chapter's BookSlot[]
+   * carrying every selected language side by side (blank where null).
    */
   async booksList(payload: {
     upload_id: string;
     kind: BookListKind;
     start: number;
     limit: number;
+    chapter_index?: number;
+    languages?: string[];
   }): Promise<APIResponse<BooksListResponse>> {
     return this.post<BooksListResponse>('/books/list', payload);
   }
@@ -311,9 +352,10 @@ export class BooksAPI extends BaseAPI {
   /**
    * POST /books/ingest — persist an analyzed upload into the sentence/word
    * library. Small docs return {books}; large ones return {task_id} (poll
-   * getTaskStatus for stage + progress).
+   * getTaskStatus for stage + progress). `languages` is the checked
+   * correspondence set submitted to the per-language sentence tables (spec §5).
    */
-  async booksIngest(payload: { upload_id: string; language?: string }): Promise<APIResponse<BooksIngestResponse>> {
+  async booksIngest(payload: { upload_id: string; language?: string; languages?: string[] }): Promise<APIResponse<BooksIngestResponse>> {
     return this.post<BooksIngestResponse>('/books/ingest', payload);
   }
 

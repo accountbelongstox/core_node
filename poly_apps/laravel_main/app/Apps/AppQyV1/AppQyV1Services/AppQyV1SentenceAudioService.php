@@ -2,30 +2,29 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
-use App\Models\Sentence;
+use App\Models\LangSentence;
 use App\Providers\PathMapper;
 use App\Services\MediaIngestService;
 use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Sentence-library audio pipeline (laravel_main side of
- * development-guides/SENTENCE_AUDIO_GENERATION_PIPELINE.md, §2/§3/§4.1-§4.3).
+ * Sentence-library audio pipeline (laravel_main side of the Books v3 unified
+ * model — see development-guides/BOOKS_FEATURE_SPECIFICATION.md §6).
  *
  * The FILE on disk is the source of truth, NOT the DB:
- *   <sentence_sounds>/<language>/<sentence_id>.mp3
+ *   <sentence_sounds>/<language>/<content_id>.mp3
  *   sentence_sounds = PathMapper::getAppQyV1SentenceSoundsDir()
- * The sentences.has_audio + sentences.audio columns are caches only; the
- * resolve route reconciles them from the filesystem and never trusts them
- * over a stat().
+ * The per-language sentence tables ({prefix}_sentences_{lang}) store only a
+ * has_audio flag + audio cache to PREVENT DUPLICATE GENERATION; the resolve
+ * route reconciles them from the filesystem and never trusts them over a stat().
  *
- * Lease model: the assist 60-minute window. The sentences table has no
- * dedicated tts_* claim columns, so the lease is parked inside the JSON
- * `metadata` cache under the `audio_lease` key (lease_at + lease_by). A claim
- * is blocked only by a LIVE lease (younger than LOCK_STALE_MINUTES for a local
- * worker, ASSIST_LEASE_MINUTES for an assist worker). Stale leases are taken
- * over by the next claim, exactly like the dictionary TTS coordinator.
+ * Sentences are keyed by content_id (md5) within their per-language table. The
+ * lease lives in the dedicated tts_locked_at / tts_locked_by columns (a local
+ * worker lease is stale after LOCK_STALE_MINUTES, an assist worker after
+ * ASSIST_LEASE_MINUTES). Stale leases are taken over by the next claim.
  */
 class AppQyV1SentenceAudioService
 {
@@ -38,9 +37,6 @@ class AppQyV1SentenceAudioService
     /** Worker-id prefix marking an assist-protocol claim (longer lease). */
     public const ASSIST_WORKER_PREFIX = AppQyV1DictionaryTTSCoordinator::ASSIST_WORKER_PREFIX;
 
-    /** metadata key the per-sentence audio lease is parked under. */
-    private const LEASE_KEY = 'audio_lease';
-
     /**
      * Extension preference for resolving an existing on-disk audio file.
      * .mp3 is the canonical write target; the rest are accepted on read.
@@ -48,22 +44,17 @@ class AppQyV1SentenceAudioService
     public const AUDIO_EXTENSIONS = ['mp3', 'aac', 'm4a', 'wav'];
 
     // ------------------------------------------------------------------
-    // §4.1  Claim sentences needing audio (priority ordered)
+    // §6  Claim sentences needing audio (priority ordered)
     // ------------------------------------------------------------------
 
     /**
      * Claim up to $limit sentences whose audio is missing (has_audio=false) and
-     * which are not currently leased, ordered by priority DESC, id ASC.
+     * which are not currently leased, ordered by tts_priority DESC,
+     * occurrence_count DESC, id ASC — across the requested language(s).
      *
-     * Priority source: the sentences table has NO priority column, so we derive
-     * one from the existing demand signal `occurrence_count` (how many times a
-     * sentence was ingested) — a user-facing sentence that recurs is generated
-     * sooner than one-off backfill. The priority is surfaced in each task and
-     * is NOT persisted (no schema change). Default is 0 when occurrence_count is
-     * absent.
-     *
-     * When $limit <= 0 the method returns counts only (FE summary), leasing
-     * nothing.
+     * When $language is null the claim sweeps EVERY supported per-language
+     * table. When $limit <= 0 the method returns counts only (FE summary),
+     * leasing nothing.
      *
      * @return array{count:int,pending:int,leased:int,lock_stale_minutes:int,tasks:array<int,array<string,mixed>>}
      */
@@ -85,41 +76,20 @@ class AppQyV1SentenceAudioService
 
         $limit = min(50, $limit);
         $isAssist = str_starts_with($workerId, self::ASSIST_WORKER_PREFIX);
+        $window = $isAssist ? self::ASSIST_LEASE_MINUTES : self::LOCK_STALE_MINUTES;
 
-        $model = new Sentence();
-
-        $tasks = $model->getConnection()->transaction(function () use ($model, $workerId, $language, $limit) {
-            $query = Sentence::query()
-                ->where('has_audio', false)
-                ->when($language, fn ($q) => $q->where('language', $language));
-
-            // Not currently under a LIVE lease. The lease lives in JSON metadata,
-            // which is not portably filterable in SQL across PG/sqlite, so we
-            // over-fetch a bounded candidate window and filter in PHP, then
-            // re-check + write the lease under lockForUpdate for atomicity.
-            $candidates = $query
-                ->orderByDesc('occurrence_count') // priority signal (see docblock)
-                ->orderBy('id')
-                ->limit($limit * 4)
-                ->lockForUpdate()
-                ->get();
-
-            $claimed = [];
-            foreach ($candidates as $sentence) {
-                if (count($claimed) >= $limit) {
-                    break;
-                }
-                if ($this->hasLiveLease($sentence)) {
-                    continue;
-                }
-
-                $this->writeLease($sentence, $workerId);
-
-                $claimed[] = $this->buildTask(count($claimed), $sentence);
+        $tasks = [];
+        foreach ($this->languagesFor($language) as $lang) {
+            if (count($tasks) >= $limit) {
+                break;
             }
-
-            return $claimed;
-        }, 1);
+            $remaining = $limit - count($tasks);
+            $claimed = $this->claimForLanguage($lang, $workerId, $window, $remaining);
+            foreach ($claimed as $task) {
+                $task['task_id'] = count($tasks);
+                $tasks[] = $task;
+            }
+        }
 
         return [
             'count' => count($tasks),
@@ -130,68 +100,113 @@ class AppQyV1SentenceAudioService
         ];
     }
 
-    /** Build the §4.1 task descriptor for one claimed sentence. */
-    private function buildTask(int $taskId, Sentence $sentence): array
+    /**
+     * Claim up to $limit rows for ONE language table under a transaction +
+     * row lock, taking over stale leases. Returns the built task descriptors.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function claimForLanguage(string $lang, string $workerId, float $window, int $limit): array
     {
-        $language = (string) $sentence->language;
-        $sentenceId = (string) $sentence->sentence_id;
+        if ($limit <= 0 || !$this->tableExists($lang)) {
+            return [];
+        }
+
+        $now = time();
+        $cutoff = now()->subMinutes((int) ceil($window));
+        $model = LangSentence::for($lang);
+
+        return $model->getConnection()->transaction(function () use ($lang, $model, $workerId, $cutoff, $limit) {
+            $rows = LangSentence::onLang($lang)
+                ->where('has_audio', false)
+                // Not under a LIVE lease: never locked, OR the lease is stale.
+                ->where(function ($q) use ($cutoff) {
+                    $q->whereNull('tts_locked_at')
+                        ->orWhere('tts_locked_at', '<', $cutoff);
+                })
+                ->orderByDesc('tts_priority')
+                ->orderByDesc('occurrence_count')
+                ->orderBy('id')
+                ->limit($limit)
+                ->lockForUpdate()
+                ->get();
+
+            $tasks = [];
+            foreach ($rows as $row) {
+                $row->tts_locked_at = now();
+                $row->tts_locked_by = mb_substr($workerId, 0, 100);
+                $row->tts_status = 'processing';
+                $row->save();
+
+                $tasks[] = $this->buildTask($lang, $row);
+            }
+            return $tasks;
+        }, 1);
+    }
+
+    /** Build the §6 task descriptor for one claimed sentence. */
+    private function buildTask(string $lang, LangSentence $sentence): array
+    {
+        $contentId = (string) $sentence->content_id;
 
         return [
-            'task_id' => $taskId,
+            'task_id' => 0,
             'type' => 'sentence',
-            'sentence_id' => $sentenceId,
-            'content_id' => $sentence->content_id !== null ? (string) $sentence->content_id : null,
+            // content_id is the canonical key; sentence_id kept for compat.
+            'content_id' => $contentId,
+            'sentence_id' => $sentence->sentence_id !== null ? (string) $sentence->sentence_id : null,
             'content' => (string) $sentence->text,
-            'language' => $language,
-            'audio_relative_path' => $language . '/' . $sentenceId . '.mp3',
-            'priority' => $this->priorityOf($sentence),
+            'language' => $lang,
+            'audio_relative_path' => $lang . '/' . $contentId . '.mp3',
+            'priority' => max(0, (int) ($sentence->tts_priority ?? 0)),
         ];
     }
 
-    /** Derived (non-persisted) priority: demand via occurrence_count, min 0. */
-    private function priorityOf(Sentence $sentence): int
-    {
-        return max(0, (int) ($sentence->occurrence_count ?? 0));
-    }
-
     // ------------------------------------------------------------------
-    // §4.2  Report a generated sentence audio (validated, idempotent)
+    // §6  Report a generated sentence audio (validated, idempotent)
     // ------------------------------------------------------------------
 
     /**
-     * Ingest one worker-reported sentence audio result.
+     * Ingest one worker-reported sentence audio result, keyed by content_id +
+     * language against {prefix}_sentences_{lang}.
      *
-     * Success: validate the MP3 (>=100 bytes, ID3/frame-sync), write it to the
-     * deterministic §2 path, set has_audio=true + audio="{lang}/{hash}.mp3",
-     * clear the lease. Idempotent — if the file is already on disk the report is
-     * acknowledged with already_done=true and the file is never clobbered.
+     * Success: validate the MP3, write it to the deterministic §6 path, set
+     * has_audio=true + audio="{lang}/{content_id}.mp3" + tts_status=completed,
+     * clear the lease. Idempotent — a file already on disk acks already_done and
+     * is never clobbered.
      *
-     * Failure: record the error in metadata, clear the lease so the sentence is
-     * re-claimable.
+     * Failure: record the error, clear the lease so the sentence is re-claimable.
      *
      * @return array{ok:bool,status:string,already_done?:bool,error?:string,http_status:int}
      */
     public function report(
-        string $sentenceId,
+        string $contentId,
+        string $language,
         string $workerId,
         bool $success,
         ?string $audioBinary,
         ?string $provider,
         ?string $error
     ): array {
-        $sentence = Sentence::query()->where('sentence_id', $sentenceId)->first();
+        $language = AppQyV1TableMaps::normalizeLangCode($language);
+        if ($language === '' || !$this->tableExists($language)) {
+            return ['ok' => false, 'status' => 'not_found', 'error' => 'Unknown or missing language', 'http_status' => 422];
+        }
+
+        $sentence = LangSentence::onLang($language)->where('content_id', $contentId)->first();
         if (!$sentence) {
             return ['ok' => false, 'status' => 'not_found', 'error' => 'Sentence not found', 'http_status' => 404];
         }
 
-        $language = (string) $sentence->language;
-        $relativePath = $language . '/' . $sentenceId . '.mp3';
+        $relativePath = $language . '/' . $contentId . '.mp3';
         $fullPath = PathMapper::getAppQyV1SentenceSoundsDir($relativePath);
 
-        // --- Failure path: consume the lease, record the error, re-queueable ---
+        // --- Failure path: clear the lease, record the error, re-queueable ---
         if (!$success) {
             $this->recordError($sentence, $error ?: 'Worker reported failure');
             $this->clearLease($sentence);
+            $sentence->tts_status = 'failed';
+            $sentence->tts_attempts = (int) $sentence->tts_attempts + 1;
             $sentence->save();
             return ['ok' => true, 'status' => 'failed', 'http_status' => 200];
         }
@@ -209,12 +224,14 @@ class AppQyV1SentenceAudioService
         if ($audioBinary === null || strlen($audioBinary) < 100) {
             $this->recordError($sentence, 'Rejected: empty or undersized audio payload');
             $this->clearLease($sentence);
+            $sentence->tts_status = 'failed';
             $sentence->save();
             return ['ok' => false, 'status' => 'invalid', 'error' => 'Audio payload empty or too small (<100 bytes)', 'http_status' => 422];
         }
         if (!AppQyV1DictionaryTTSCoordinator::looksLikeMp3($audioBinary)) {
             $this->recordError($sentence, 'Rejected: payload is not a valid MP3');
             $this->clearLease($sentence);
+            $sentence->tts_status = 'failed';
             $sentence->save();
             return ['ok' => false, 'status' => 'invalid', 'error' => 'Audio payload failed MP3 validation', 'http_status' => 422];
         }
@@ -232,12 +249,14 @@ class AppQyV1SentenceAudioService
 
         $sentence->has_audio = true;
         $sentence->audio = $relativePath;
+        $sentence->tts_status = 'completed';
+        $sentence->tts_completed_at = now();
         $this->recordProvider($sentence, $provider ?: ('worker:' . $workerId));
         $this->clearLease($sentence);
         $sentence->save();
 
         Log::info('[SentenceAudio] Worker result accepted', [
-            'sentence_id' => $sentenceId,
+            'content_id' => $contentId,
             'language' => $language,
             'worker' => $workerId,
             'bytes' => strlen($audioBinary),
@@ -248,40 +267,37 @@ class AppQyV1SentenceAudioService
     }
 
     // ------------------------------------------------------------------
-    // §4.3  Resolve / play one sentence's audio (file-first)
+    // §6  Resolve / play one sentence's audio (file-first)
     // ------------------------------------------------------------------
 
     /**
-     * Resolve a single sentence's audio FROM THE HASH, file-first. Accepts a
-     * sentence_id (sha1) or content_id (md5) hash, or text+language to hash
-     * server-side. Existence is decided by stat-ing the filesystem directly —
-     * the DB is read only to learn the language and to reconcile the cache.
+     * Resolve a single sentence's audio FROM THE content_id, file-first.
+     * Accepts a content_id (md5) hash, or text+language to hash server-side.
+     * Existence is decided by stat-ing the filesystem directly — the DB is read
+     * only to reconcile the cache.
      *
-     * @return array<string,mixed> the JSON body (no http_status; always 200)
+     * @return array<string,mixed> the JSON body
      */
     public function resolve(?string $hash, ?string $text, ?string $language): array
     {
-        $sentence = $this->locate($hash, $text, $language);
+        $resolvedLang = ($language !== null && trim($language) !== '')
+            ? AppQyV1TableMaps::normalizeLangCode($language)
+            : null;
 
-        // Resolve the canonical hash + language used for the on-disk path. When
-        // a row exists we trust its sentence_id + language; otherwise we fall
-        // back to the request hash/language so a not-yet-ingested sentence can
-        // still be probed and (re)queued. With text+language but no hash we
-        // derive the canonical sentence_id so the on-disk filename is correct.
-        $resolvedHash = $sentence?->sentence_id ?? $hash;
-        $resolvedLang = $sentence?->language ?? $language;
-        if (($resolvedHash === null || $resolvedHash === '')
-            && $text !== null && $text !== ''
-            && $resolvedLang !== null && $resolvedLang !== '') {
-            $resolvedHash = MediaIngestService::computeSentenceId($text, (string) $resolvedLang);
+        // Derive the content_id when only text was supplied (language-agnostic).
+        $resolvedHash = ($hash !== null && $hash !== '') ? $hash : null;
+        if ($resolvedHash === null && $text !== null && $text !== '') {
+            $resolvedHash = MediaIngestService::computeContentId($text);
         }
 
         if ($resolvedHash === null || $resolvedHash === '' || $resolvedLang === null || $resolvedLang === '') {
-            return ['success' => false, 'exists' => false, 'error' => 'Provide hash (or text)+language', 'hash' => $resolvedHash];
+            return ['success' => false, 'exists' => false, 'error' => 'Provide hash (content_id) or text, plus language', 'hash' => $resolvedHash];
         }
 
+        $sentence = $this->locate($resolvedHash, $resolvedLang);
+
         // FILE-FIRST: stat the disk, honoring the extension preference order.
-        $found = $this->findOnDisk((string) $resolvedLang, (string) $resolvedHash);
+        $found = $this->findOnDisk($resolvedLang, $resolvedHash);
 
         if ($found !== null) {
             // Reconcile a stale cache to match the filesystem (never the reverse).
@@ -295,8 +311,9 @@ class AppQyV1SentenceAudioService
                 'success' => true,
                 'exists' => true,
                 'url' => AppQyV1SentenceAudioUrl::forRelative($found['relative']),
-                'hash' => (string) $resolvedHash,
-                'language' => (string) $resolvedLang,
+                'hash' => $resolvedHash,
+                'content_id' => $resolvedHash,
+                'language' => $resolvedLang,
             ];
         }
 
@@ -311,21 +328,23 @@ class AppQyV1SentenceAudioService
             'success' => true,
             'exists' => false,
             'queued' => true,
-            'hash' => (string) $resolvedHash,
+            'hash' => $resolvedHash,
+            'content_id' => $resolvedHash,
+            'language' => $resolvedLang,
         ];
     }
 
     /**
-     * Find an existing sentence-audio file on disk for a {language}/{hash},
+     * Find an existing sentence-audio file on disk for a {language}/{content_id},
      * honoring AUDIO_EXTENSIONS preference order. Returns the relative reference
-     * ("{language}/{hash}.ext") and full path, or null when none exists.
+     * ("{language}/{content_id}.ext") and full path, or null when none exists.
      *
      * @return array{relative:string,full:string}|null
      */
-    private function findOnDisk(string $language, string $hash): ?array
+    private function findOnDisk(string $language, string $contentId): ?array
     {
         foreach (self::AUDIO_EXTENSIONS as $ext) {
-            $relative = $language . '/' . $hash . '.' . $ext;
+            $relative = $language . '/' . $contentId . '.' . $ext;
             $full = PathMapper::getAppQyV1SentenceSoundsDir($relative);
             clearstatcache(true, $full);
             if (is_file($full) && filesize($full) > 0) {
@@ -336,132 +355,91 @@ class AppQyV1SentenceAudioService
     }
 
     /**
-     * Locate the sentence row for a resolve request: by sentence_id, then
-     * content_id, then by hashing text+language with the library's own hash
-     * formula (sentence_id = sha1(normalize(text)+'|'+language)).
+     * Locate the sentence row for a resolve request by content_id in the
+     * per-language table. Returns null when the language table is absent or the
+     * row has not yet been ingested (a not-yet-ingested sentence can still be
+     * probed file-first).
      */
-    private function locate(?string $hash, ?string $text, ?string $language): ?Sentence
+    private function locate(string $contentId, string $language): ?LangSentence
     {
-        if ($hash !== null && $hash !== '') {
-            $row = Sentence::query()->where('sentence_id', $hash)->first();
-            if ($row) {
-                return $row;
-            }
-            return Sentence::query()->where('content_id', $hash)->first();
+        if (!$this->tableExists($language)) {
+            return null;
         }
-
-        if ($text !== null && $text !== '' && $language !== null && $language !== '') {
-            // Reuse the canonical shared-library key so a text lookup hashes to
-            // EXACTLY the sentence_id the ingest path stored:
-            //   sentence_id = sha1(normalize(text) + '|' + language).
-            $sentenceId = MediaIngestService::computeSentenceId($text, $language);
-            return Sentence::query()->where('sentence_id', $sentenceId)->first();
-        }
-
-        return null;
+        return LangSentence::onLang($language)->where('content_id', $contentId)->first();
     }
 
     /** Reconcile the cache for a sentence whose file is confirmed present. */
-    private function reconcilePresent(Sentence $sentence, string $relativePath): void
+    private function reconcilePresent(LangSentence $sentence, string $relativePath): void
     {
         if (!$sentence->has_audio || $sentence->audio !== $relativePath) {
             $sentence->has_audio = true;
             $sentence->audio = $relativePath;
         }
+        $sentence->tts_status = 'completed';
+        if ($sentence->tts_completed_at === null) {
+            $sentence->tts_completed_at = now();
+        }
     }
 
     // ------------------------------------------------------------------
-    // Counts (FE summary) + lease bookkeeping (JSON metadata)
+    // Counts (FE summary) + lease bookkeeping (tts_* columns)
     // ------------------------------------------------------------------
 
     /** Sentences still needing audio (has_audio=false), optionally per-language. */
     public function pendingCount(?string $language = null): int
     {
-        return (int) Sentence::query()
-            ->where('has_audio', false)
-            ->when($language, fn ($q) => $q->where('language', $language))
-            ->count();
+        $total = 0;
+        foreach ($this->languagesFor($language) as $lang) {
+            if (!$this->tableExists($lang)) {
+                continue;
+            }
+            $total += (int) LangSentence::onLang($lang)->where('has_audio', false)->count();
+        }
+        return $total;
     }
 
     /**
-     * Sentences currently under a LIVE audio lease. The lease lives in JSON
-     * metadata, so this scans the has_audio=false set in PHP — bounded and
-     * cheap relative to the pending set; only ever called for FE summaries.
+     * Sentences currently under a LIVE audio lease (tts_locked_at younger than
+     * the worker's window), optionally per-language.
      */
     public function leasedCount(?string $language = null): int
     {
-        $count = 0;
-        Sentence::query()
-            ->where('has_audio', false)
-            ->when($language, fn ($q) => $q->where('language', $language))
-            ->select(['id', 'metadata'])
-            ->chunkById(500, function ($rows) use (&$count) {
-                foreach ($rows as $row) {
-                    if ($this->hasLiveLease($row)) {
-                        $count++;
-                    }
-                }
-            });
-        return $count;
-    }
+        $localCutoff = now()->subMinutes((int) ceil(self::LOCK_STALE_MINUTES));
+        $assistCutoff = now()->subMinutes((int) ceil(self::ASSIST_LEASE_MINUTES));
 
-    /** Whether $sentence holds a lease that still blocks a new claim. */
-    private function hasLiveLease(Sentence $sentence): bool
-    {
-        $lease = $this->readLease($sentence);
-        if ($lease === null) {
-            return false;
+        $total = 0;
+        foreach ($this->languagesFor($language) as $lang) {
+            if (!$this->tableExists($lang)) {
+                continue;
+            }
+            // A lease is live when: an assist owner locked it after assistCutoff,
+            // OR any owner locked it after the (stricter) local cutoff.
+            $total += (int) LangSentence::onLang($lang)
+                ->where('has_audio', false)
+                ->whereNotNull('tts_locked_at')
+                ->where(function ($q) use ($localCutoff, $assistCutoff) {
+                    $q->where('tts_locked_at', '>=', $localCutoff)
+                        ->orWhere(function ($q2) use ($assistCutoff) {
+                            $q2->where('tts_locked_at', '>=', $assistCutoff)
+                                ->where('tts_locked_by', 'like', self::ASSIST_WORKER_PREFIX . '%');
+                        });
+                })
+                ->count();
         }
-
-        $leaseAt = $lease['lease_at'] ?? null;
-        $leaseBy = (string) ($lease['lease_by'] ?? '');
-        if (!is_numeric($leaseAt)) {
-            return false;
-        }
-
-        $ageMinutes = (time() - (int) $leaseAt) / 60.0;
-        $window = str_starts_with($leaseBy, self::ASSIST_WORKER_PREFIX)
-            ? self::ASSIST_LEASE_MINUTES
-            : self::LOCK_STALE_MINUTES;
-
-        return $ageMinutes < $window;
+        return $total;
     }
 
-    /** @return array{lease_at:int,lease_by:string}|null */
-    private function readLease(Sentence $sentence): ?array
+    /** Drop the lease columns (in-memory; caller saves). */
+    private function clearLease(LangSentence $sentence): void
     {
-        $metadata = $sentence->metadata;
-        if (!is_array($metadata) || !isset($metadata[self::LEASE_KEY]) || !is_array($metadata[self::LEASE_KEY])) {
-            return null;
-        }
-        return $metadata[self::LEASE_KEY];
+        $sentence->tts_locked_at = null;
+        $sentence->tts_locked_by = null;
     }
 
-    /** Write/refresh the lease into JSON metadata and persist. */
-    private function writeLease(Sentence $sentence, string $workerId): void
+    /** Stamp the last error into metadata + tts_error (in-memory; caller saves). */
+    private function recordError(LangSentence $sentence, string $error): void
     {
-        $metadata = is_array($sentence->metadata) ? $sentence->metadata : [];
-        $metadata[self::LEASE_KEY] = [
-            'lease_at' => time(),
-            'lease_by' => mb_substr($workerId, 0, 64),
-        ];
-        $sentence->metadata = $metadata;
-        $sentence->save();
-    }
-
-    /** Drop the lease from JSON metadata (in-memory; caller saves). */
-    private function clearLease(Sentence $sentence): void
-    {
-        $metadata = is_array($sentence->metadata) ? $sentence->metadata : [];
-        if (isset($metadata[self::LEASE_KEY])) {
-            unset($metadata[self::LEASE_KEY]);
-            $sentence->metadata = $metadata;
-        }
-    }
-
-    /** Stamp the last error into metadata (in-memory; caller saves). */
-    private function recordError(Sentence $sentence, string $error): void
-    {
+        $sentence->tts_error = mb_substr($error, 0, 2000);
         $metadata = is_array($sentence->metadata) ? $sentence->metadata : [];
         $metadata['audio_error'] = mb_substr($error, 0, 2000);
         $metadata['audio_error_at'] = now()->toIso8601String();
@@ -469,8 +447,9 @@ class AppQyV1SentenceAudioService
     }
 
     /** Stamp the generating provider into metadata (in-memory; caller saves). */
-    private function recordProvider(Sentence $sentence, string $provider): void
+    private function recordProvider(LangSentence $sentence, string $provider): void
     {
+        $sentence->tts_error = null;
         $metadata = is_array($sentence->metadata) ? $sentence->metadata : [];
         $metadata['audio_provider'] = mb_substr($provider, 0, 100);
         $metadata['audio_generated_at'] = now()->toIso8601String();
@@ -478,9 +457,43 @@ class AppQyV1SentenceAudioService
         $sentence->metadata = $metadata;
     }
 
-    /** Absolute on-disk path for a "{language}/{hash}.ext" relative reference. */
+    /** Absolute on-disk path for a "{language}/{content_id}.ext" relative reference. */
     public function fullPathFor(string $relativePath): string
     {
         return PathMapper::getAppQyV1SentenceSoundsDir($relativePath);
+    }
+
+    // ------------------------------------------------------------------
+    // Per-language table helpers
+    // ------------------------------------------------------------------
+
+    /**
+     * The language codes to operate on: a single requested language, or every
+     * supported language when null/empty.
+     *
+     * @return array<int,string>
+     */
+    private function languagesFor(?string $language): array
+    {
+        if ($language !== null && trim($language) !== '') {
+            return [AppQyV1TableMaps::normalizeLangCode($language)];
+        }
+        return AppQyV1TableMaps::getSupportedLanguages();
+    }
+
+    /** Whether the per-language sentence table for $lang exists. */
+    private function tableExists(string $lang): bool
+    {
+        static $cache = [];
+        $lang = AppQyV1TableMaps::normalizeLangCode($lang);
+        if (array_key_exists($lang, $cache)) {
+            return $cache[$lang];
+        }
+        $model = LangSentence::for($lang);
+        $exists = $model->getConnection()
+            ->getSchemaBuilder()
+            ->hasTable($model->getTable());
+        $cache[$lang] = $exists;
+        return $exists;
     }
 }

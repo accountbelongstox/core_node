@@ -38,6 +38,7 @@ class Subtitle extends Model
         'original_name',
         'ascii_name',
         'language',
+        'selected_languages',
         'duration_sec',
         'rel_path',
         'output_dir',
@@ -60,6 +61,7 @@ class Subtitle extends Model
 
     protected $casts = [
         'duration_sec' => 'float',
+        'selected_languages' => 'array',
         'files' => 'array',
         'subtitle_count' => 'integer',
         'segment_count' => 'integer',
@@ -79,5 +81,18 @@ class Subtitle extends Model
     public function sourceSentences()
     {
         return $this->hasMany(SourceSentence::class, 'source_key', 'source_key');
+    }
+
+    /**
+     * Per-language chapters of this subtitle (Books v3.1 model). Chapters live in
+     * {prefix}_chapters_{lang}; returns a query against the requested language's
+     * chapter table scoped to this subtitle (source_type='subtitle').
+     */
+    public function chaptersForLang(string $lang)
+    {
+        return \App\Models\LangChapter::onLang($lang)
+            ->where('source_type', 'subtitle')
+            ->where('source_key', $this->source_key)
+            ->orderBy('chapter_index');
     }
 }

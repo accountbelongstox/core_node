@@ -95,20 +95,6 @@ class AppQyV1ApiInfo
                 "auth_required" => false
             ],
             [
-                "path" => "/api/dict/v1/system/process-vocabulary",
-                "method" => "POST",
-                "feature" => "Process Vocabulary",
-                "description" => "Process vocabulary only",
-                "auth_required" => false
-            ],
-            [
-                "path" => "/api/dict/v1/system/vocabulary-status",
-                "method" => "GET",
-                "feature" => "Vocabulary Status",
-                "description" => "Get vocabulary processing status",
-                "auth_required" => false
-            ],
-            [
                 "path" => "/api/dict/v1/system/dictionary-statistics",
                 "method" => "GET",
                 "feature" => "Dictionary Statistics",
@@ -342,52 +328,6 @@ class AppQyV1ApiInfo
                 "description" => "Enhanced word query with full data",
                 "auth_required" => true,
                 "parameters" => ["word"]
-            ],
-            [
-                "path" => "/api/dict/v1/untranslated",
-                "method" => "GET",
-                "feature" => "Untranslated Words",
-                "description" => "Get untranslated words",
-                "auth_required" => true
-            ],
-            [
-                "path" => "/api/dict/v1/untranslated/priority",
-                "method" => "GET",
-                "feature" => "Words by Priority",
-                "description" => "Get words by priority",
-                "auth_required" => true
-            ],
-            [
-                "path" => "/api/dict/v1/word/{word}/translation",
-                "method" => "POST",
-                "feature" => "Submit Translation",
-                "description" => "Submit translation for word",
-                "auth_required" => true,
-                "parameters" => ["word", "translation"]
-            ],
-            [
-                "path" => "/api/dict/v1/word/{word}/audio",
-                "method" => "POST",
-                "feature" => "Submit Audio",
-                "description" => "Submit audio for word",
-                "auth_required" => true,
-                "parameters" => ["word", "audio"]
-            ],
-            [
-                "path" => "/api/dict/v1/word/{word}/images",
-                "method" => "POST",
-                "feature" => "Submit Images",
-                "description" => "Submit images for word",
-                "auth_required" => true,
-                "parameters" => ["word", "images"]
-            ],
-            [
-                "path" => "/api/dict/v1/word/{word}/complete",
-                "method" => "POST",
-                "feature" => "Submit Complete Word Data",
-                "description" => "Submit complete word data",
-                "auth_required" => true,
-                "parameters" => ["word", "data"]
             ],
 
             // User Profile & Stats endpoints (user)

@@ -41,7 +41,6 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [nickname, setNickname] = useState('');
   const [bio, setBio] = useState('Expanding my cognitive neural horizon in WordFlow.');
-  const [avatar, setAvatar] = useState('🦁');
   const [nativeLang, setNativeLang] = useState('zh');
   const [targetLang, setTargetLang] = useState('en');
   const [submitting, setSubmitting] = useState(false);
@@ -56,18 +55,35 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
     return AVATAR_POOL[hash % AVATAR_POOL.length];
   };
 
-  /** Map the backend-aligned auth user onto the app's session profile shape. */
+  /** True only for a short emoji string (NOT a backend avatar path / data URL). */
+  const looksLikeEmoji = (v?: string): boolean =>
+    !!v && v.length <= 6 && !/[a-z0-9]/i.test(v) && !v.includes('/') && !v.startsWith('http');
+
+  /** True for an absolute image URL (http/https/data). */
+  const looksLikeImageUrl = (v?: string): boolean => !!v && (/^https?:\/\//i.test(v) || v.startsWith('data:'));
+
+  /**
+   * Map the backend-aligned auth user onto the app's session profile shape. The
+   * avatar resolves to the backend's AUTO-GENERATED / uploaded image when it has
+   * a usable absolute URL (avatar_url); otherwise an existing emoji is kept, or a
+   * deterministic emoji is derived from the username so the chip is never blank.
+   */
   const toSessionProfile = (
     user: WfNewAuthUser,
-    fallback: { avatar?: string; email?: string; nativeLang?: string; targetLang?: string; bio?: string }
+    fallback: { email?: string; nativeLang?: string; targetLang?: string; bio?: string }
   ) => {
     const resolvedEmail = user.email || fallback.email || '';
     const nick =
       user.nickname || user.name || user.username ||
       (resolvedEmail.includes('@') ? resolvedEmail.split('@')[0] : '') || 'Cadet';
+    let avatar: string;
+    if (looksLikeImageUrl(user.avatar_url)) avatar = user.avatar_url as string;
+    else if (looksLikeImageUrl(user.avatar)) avatar = user.avatar as string;
+    else if (looksLikeEmoji(user.avatar)) avatar = user.avatar as string;
+    else avatar = pickEmoji(user.username || resolvedEmail || nick);
     return {
       nickname: nick,
-      avatar: fallback.avatar || user.avatar || pickEmoji(user.username || resolvedEmail || nick),
+      avatar,
       email: resolvedEmail,
       nativeLang: user.native_language || fallback.nativeLang || 'zh',
       targetLang: (user.learning_languages && user.learning_languages[0]) || fallback.targetLang || 'en',
@@ -127,9 +143,9 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
         // Target study language drives the backend's learning_languages set.
         learning_languages: [targetLang],
         bio,
-        avatar,
+        // No avatar sent — the backend auto-generates one; the UI derives an emoji.
       });
-      const profile = toSessionProfile(user, { avatar, email: email.trim(), nativeLang, targetLang, bio });
+      const profile = toSessionProfile(user, { email: email.trim(), nativeLang, targetLang, bio });
       onLoginSuccess(profile);
       addToast(trans('auth.registered'), 'success');
     } catch (err) {
@@ -353,27 +369,6 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
               {/* Additional parameters if Register view (native/target language coordinate selection) */}
               {!isLoginView && (
                 <div className="space-y-4 pt-2 border-t border-dashed border-white/5">
-                  
-                  {/* Select Avatar emoji */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono block">{trans('auth.avatarLabel')}</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {AVATAR_POOL.map(emoji => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => setAvatar(emoji)}
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center text-md select-none transition-all cursor-pointer ${
-                            avatar === emoji 
-                              ? 'bg-indigo-500/20 border-2 border-indigo-500 scale-105' 
-                              : 'bg-white/3 border border-white/5 hover:bg-white/5'
-                          }`}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
 
                   {/* Languages config */}
                   <div className="grid grid-cols-2 gap-3">

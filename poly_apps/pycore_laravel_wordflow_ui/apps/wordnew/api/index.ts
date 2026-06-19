@@ -26,6 +26,11 @@ export const wfNewApi: WfNewApi = wfNewApiHttp;
 // one place: `import { wfNewApi, type Word, type BentoGroup } from '../api'`.
 export * from './WfNewApiTypes';
 
+// Endpoint list center — the single source of truth for every backend path the
+// app calls (verified against laravel_main routes/AppQyV1Router/*). The http
+// impl routes through it; import it anywhere a raw path would otherwise be typed.
+export { WfNewApiPaths, WFNEW_API_BASE, WFNEW_HEALTH_PATH } from './WfNewApiPaths';
+
 // Backend endpoint management (default list, health probe, STORED-FIRST
 // auto-select + offline retry). Used by the Settings → API Server panel and the
 // http impl. Mock mode ignores it (no network).

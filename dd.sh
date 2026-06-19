@@ -168,6 +168,7 @@ declare -a SOURCE_FILES=(
     "$DD_HELPER_DIR/git_functions.sh"
     "$DD_HELPER_DIR/linuxenvs_sync.sh"
     "$DD_HELPER_DIR/linux_management.sh"
+    "$DD_HELPER_DIR/management_and_backup.sh"
     "$DD_HELPER_DIR/menu_functions.sh"
     "$DD_HELPER_DIR/menu_display.sh"
     "$DD_HELPER_DIR/main_functions.sh"

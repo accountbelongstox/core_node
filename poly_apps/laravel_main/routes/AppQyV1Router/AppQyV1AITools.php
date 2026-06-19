@@ -163,5 +163,7 @@ Route::prefix('app_qy_v1/ai_tools')->middleware('auth:sanctum')->group(function 
     Route::prefix('article')->group(function () {
         Route::post('/submit', [AppQyV1ArticleController::class, 'submitArticle']);
         Route::post('/preview', [AppQyV1ArticleController::class, 'previewParsing']);
+        // Idempotent backfill: map existing article(s) into the shared library (§13.2).
+        Route::post('/backfill-library', [AppQyV1ArticleController::class, 'backfillLibrary']);
     });
 });

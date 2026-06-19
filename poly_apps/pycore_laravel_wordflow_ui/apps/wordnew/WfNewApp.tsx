@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BookOpen, Sparkles, GraduationCap, Flame, ChevronRight, 
   Search, Volume2, Star, Settings, Check, RefreshCw, Layers, 
   CheckCircle, Play, Pause, SkipForward, ArrowRight,
-  Languages, Moon, Sun, Heart, Cpu, Send, Info, Trash2, ArrowLeft, RotateCw,
+  Languages, Moon, Sun, Heart, Send, Info, Trash2, ArrowLeft, RotateCw,
   BarChart2
 } from 'lucide-react';
 
@@ -12,15 +12,17 @@ import { useShell } from '../../shell/ShellContext';
 // Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
 // (swap one import line there). All data shapes come from the same TYPE surface.
 import { wfNewApi, wfNewEndpoints, WFNEW_API_HEALTH_EVENT } from './api';
-import type { Word, WordGroup, BentoGroup } from './api';
+import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewHomeContent, WfNewStatistics, WfNewLanguage } from './api';
 import { wfNewSettings } from './WfNewSettingsStore';
+import { WfNewHomeContent as WfNewHomeContentWidget } from './components/WfNewHomeContent';
 
 // Modular Imports
 import { UserStats, ElementTheme } from './WfNewTypes';
 import { translate, getSupportedLanguages } from './WfNewLocales';
 import { CUSTOM_THEMES } from './WfNewThemes';
 import { WfNewSearchOverlay } from './components/WfNewSearchOverlay';
-import { WfNewToast, ToastMessage } from './components/WfNewToast';
+import { WfNewToast } from './components/WfNewToast';
+import { wfNewNotify, useWfNewToasts } from './WfNewNotify';
 import { WfNewBottomDock } from './components/WfNewBottomDock';
 import { CourseBlockCard, WordRowItem } from './components/WfNewCards';
 import { WfNewSettings } from './pages/WfNewSettings';
@@ -30,10 +32,23 @@ import { WfNewWalkman } from './pages/WfNewWalkman';
 import { WfNewSubtitles } from './pages/WfNewSubtitles';
 import { WfNewAnalytics } from './pages/WfNewAnalytics';
 import { WfNewBilingual } from './pages/WfNewBilingual';
+import { WfNewBookReader } from './pages/WfNewBookReader';
 import { WfNewSocial } from './pages/WfNewSocial';
 import { WfNewAuth } from './pages/WfNewAuth';
 import { WfNewProfile } from './pages/WfNewProfile';
+import { WfNewLanguages } from './pages/WfNewLanguages';
+import { WfNewLearningModel } from './pages/WfNewLearningModel';
+import { WfNewReviewSettings } from './pages/WfNewReviewSettings';
+import { WfNewAvatarView } from './components/WfNewAvatarView';
+import { WfNewHomeDashboard } from './components/WfNewHomeDashboard';
 import { WfNewOnboarding } from './pages/WfNewOnboarding';
+import { WfNewLogo } from './WfNewBrand';
+
+/** Every navigable page/tab in the wordnew shell (drives the history stack). */
+type WfTab =
+  | 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman'
+  | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'languages'
+  | 'learning-model' | 'review-settings' | 'book-reader';
 
 export const WfNewApp: React.FC = () => {
   const { lang: shellLang, setLang: setShellLang, dark, toggleDark } = useShell();
@@ -45,8 +60,68 @@ export const WfNewApp: React.FC = () => {
     return CUSTOM_THEMES.find(t => t.id === activeThemeId) || CUSTOM_THEMES[0];
   }, [activeThemeId]);
 
-  // Tab navigation states
-  const [activeTab, setActiveTab] = useState<'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman' | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth'>('home');
+  // Tab navigation states + a page HISTORY STACK so "back" returns to the page
+  // you came from (not always home). Forward navigations push the page you leave;
+  // goBack() pops to it; goHome() clears the stack and jumps straight home.
+  const [activeTab, setActiveTabRaw] = useState<WfTab>('home');
+  const [navStack, setNavStack] = useState<WfTab[]>([]);
+
+  // Refs mirror the latest values so the navigation callbacks can stay stable
+  // (empty-deps useCallback) without nesting one state setter inside another.
+  const activeTabRef = useRef<WfTab>(activeTab);
+  const navStackRef = useRef<WfTab[]>(navStack);
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => { navStackRef.current = navStack; }, [navStack]);
+
+  /** Navigate forward to a page, pushing the page being left onto the stack. */
+  const setActiveTab = useCallback((tab: WfTab) => {
+    const curr = activeTabRef.current;
+    if (curr !== tab) {
+      setNavStack(s => (s[s.length - 1] === curr ? s : [...s, curr]));
+    }
+    setActiveTabRaw(tab);
+  }, []);
+
+  /** Pop the stack and return to the previous page (home when the stack is empty). */
+  const goBack = useCallback(() => {
+    const s = navStackRef.current;
+    if (s.length === 0) {
+      setActiveTabRaw('home');
+      return;
+    }
+    setActiveTabRaw(s[s.length - 1]);
+    setNavStack(s.slice(0, -1));
+  }, []);
+
+  /** Jump straight to home and clear the history stack. */
+  const goHome = useCallback(() => {
+    setNavStack([]);
+    setActiveTabRaw('home');
+  }, []);
+
+  // URL route reflection: every page shows its route name in the address bar
+  // (#/<tab>). On first mount, restore the tab from the hash (deep-link / refresh
+  // keeps you on the page); on every change, write the hash back. Lightweight
+  // hash routing (no react-router restructure of the whole shell).
+  useEffect(() => {
+    const fromHash = (typeof window !== 'undefined' ? window.location.hash : '').replace(/^#\/?/, '');
+    const ALL: WfTab[] = [
+      'home', 'shelf', 'practice', 'labs', 'settings', 'walkman', 'subtitles',
+      'stats', 'bilingual', 'social', 'profile', 'auth', 'languages',
+      'learning-model', 'review-settings', 'book-reader',
+    ];
+    if (fromHash && (ALL as string[]).includes(fromHash) && fromHash !== 'home') {
+      setActiveTabRaw(fromHash as WfTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const next = `#/${activeTab}`;
+    if (window.location.hash !== next) {
+      window.history.replaceState(null, '', next);
+    }
+  }, [activeTab]);
 
   // Unified global auth user state (persisted via the shared settings store)
   const [currentUser, setCurrentUser] = useState(() => {
@@ -71,20 +146,20 @@ export const WfNewApp: React.FC = () => {
     });
   }, []);
 
-  // Custom Local Toast notifications
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const addToast = (text: string, type: 'success' | 'info' | 'warning' | 'star' = 'info') => {
-    const id = Date.now().toString();
-    setToasts(prev => [...prev, { id, text, type }]);
-  };
-  const handleDismissToast = (id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  };
+  // Notification center (shared store — no per-component state, no prop-drilling
+  // redundancy). `addToast` is a thin compat wrapper over wfNewNotify.push so the
+  // existing callers keep working; new code can import wfNewNotify directly.
+  const toasts = useWfNewToasts();
+  const addToast = useCallback(
+    (text: string, type: 'success' | 'info' | 'warning' | 'star' = 'info') => wfNewNotify.push(text, type),
+    []
+  );
 
   // Profile data (persisted via the shared settings store)
   const [nickname, setNickname] = useState<string>(() => wfNewSettings.get('nickname'));
   const [avatarUrl, setAvatarUrl] = useState<string>(() => wfNewSettings.get('avatar'));
   const [speechRate, setSpeechRate] = useState<number>(() => wfNewSettings.get('speechRate'));
+
 
   // Synchronized callback when profile saves
   const handleUpdateProfile = (updated: { nickname: string; avatar: string; nativeLang: string; targetLang: string; bio: string }) => {
@@ -114,8 +189,32 @@ export const WfNewApp: React.FC = () => {
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
+    // Mark complete so the welcome wizard never auto-shows again.
+    wfNewSettings.setField('onboardingDone', true);
     addToast(trans('toast.onboardSynced'), 'success');
   };
+
+  // Single source of truth for "am I logged in", read by the expiry subscriber
+  // without re-subscribing.
+  const isLoggedInRef = useRef(currentUser.isLoggedIn);
+  useEffect(() => { isLoggedInRef.current = currentUser.isLoggedIn; }, [currentUser.isLoggedIn]);
+
+  /**
+   * Unified logout/expiry reset — clears EVERY piece of user state together
+   * (currentUser + the separate nickname/avatarUrl display state + the persisted
+   * settings) so there is never a half-logged-out UI (e.g. "session expired" yet
+   * the avatar still showing). Optionally routes to the login page.
+   */
+  const clearUserSession = useCallback((routeToAuth: boolean) => {
+    wfNewSettings.setField('isLoggedIn', false);
+    wfNewSettings.setField('nickname', '');
+    wfNewSettings.setField('avatar', '');
+    wfNewSettings.setField('email', '');
+    setNickname('');
+    setAvatarUrl('');
+    setCurrentUser(prev => ({ ...prev, isLoggedIn: false, nickname: '', avatar: '', email: '' }));
+    if (routeToAuth) setActiveTab('auth');
+  }, [setActiveTab]);
 
   const handleLoginSuccess = (payload: typeof currentUser) => {
     setNickname(payload.nickname);
@@ -131,33 +230,82 @@ export const WfNewApp: React.FC = () => {
       ...payload,
       isLoggedIn: true
     });
-    setShowOnboarding(true);
+    // Welcome/onboarding wizard shows only the FIRST time (persisted flag).
+    if (!wfNewSettings.get('onboardingDone')) {
+      setShowOnboarding(true);
+    }
     addToast(trans('toast.loginOk'), 'success');
     setActiveTab('profile');
+
+    // Pull roaming preferences from the backend and apply them (daily goal +
+    // the wordnew theme stored in the opaque app_settings blob). Best-effort:
+    // offline / mock simply keeps the local settings.
+    void (async () => {
+      try {
+        const prefs = await wfNewApi.getPreferences();
+        if (typeof prefs.daily_goal === 'number') {
+          wfNewSettings.setField('dailyGoal', prefs.daily_goal);
+          setUserStats(prev => ({ ...prev, dailyGoal: prefs.daily_goal as number }));
+        }
+        const themeId = prefs.app_settings && (prefs.app_settings as any).themeId;
+        if (typeof themeId === 'string' && themeId) {
+          setActiveThemeId(themeId);
+          wfNewSettings.setField('themeId', themeId);
+        }
+      } catch {
+        /* offline / unauthenticated — keep local settings */
+      }
+    })();
   };
 
   const handleLogout = () => {
     // Best-effort: clear the API session token (real impl); the mock is stateless.
     void wfNewApi.logout().catch(() => {});
-    wfNewSettings.setField('isLoggedIn', false);
-    setCurrentUser(prev => ({
-      ...prev,
-      isLoggedIn: false
-    }));
+    clearUserSession(true);
     addToast(trans('toast.loggedOut'), 'info');
-    setActiveTab('auth');
   };
+
+  // Session integrity: a persisted `isLoggedIn` flag is only trustworthy if the
+  // API actually holds a token. A stale flag (e.g. logged in before the token
+  // existed, or an expired token) makes every authed call 401 — the "already
+  // logged in but upload says login required" bug. On mount, reconcile: if the
+  // UI thinks we're logged in but the API isn't authenticated, drop to logged-out
+  // so a fresh login re-establishes the token. Also subscribe to auth-expiry so a
+  // 401 from ANY endpoint flips the whole app to logged-out + the login screen.
+  useEffect(() => {
+    // Stale/expired session detected on load → clear everything and jump to login
+    // ONCE (the user expects a single redirect when the session has expired).
+    if (currentUser.isLoggedIn && !wfNewApi.isAuthenticated()) {
+      clearUserSession(true);
+      addToast(trans('toast.sessionExpired'), 'warning');
+    }
+    // A 401 from ANY endpoint fires this — already deduped to once per
+    // session-death at the source; the isLoggedInRef guard ensures we never
+    // re-toast / re-route once we're already logged out (single redirect).
+    const unsubscribe = wfNewApi.onAuthExpired(() => {
+      if (!isLoggedInRef.current) return;
+      clearUserSession(true);
+      addToast(trans('toast.sessionExpired'), 'warning');
+    });
+    return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Multilingual translation helper (en/zh/ja/ko, key-level English fallback).
   // Pass replacements for {name} placeholders, e.g. trans('toast.forged', { word }).
   const trans = (key: string, replacements?: Record<string, string | number>) =>
     translate(shellLang, key, replacements);
   // Language picker popover (top-right): open/close + choose a language.
-  const [langMenuOpen, setLangMenuOpen] = useState(false);
 
   // Base API storage structures
   const [gGroups, setGGroups] = useState<WordGroup[]>([]);
   const [bentoGroups, setBentoGroups] = useState<BentoGroup[]>([]);
+  // Multi-category home hub content (word/book/subtitle/document groups) read
+  // from the backend via wfNewApi.getHomeContent — see WfNewHomeContent widget.
+  const [homeContent, setHomeContent] = useState<WfNewHomeContent>({ words: [], books: [], subtitles: [], libraries: [], documents: [] });
+  const [homeContentLoading, setHomeContentLoading] = useState<boolean>(true);
+  // The book currently open in the reader (book -> chapter -> verses surface).
+  const [bookReader, setBookReader] = useState<{ sourceKey: string; title: string } | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<WordGroup | null>(null);
   const [courseWords, setCourseWords] = useState<Word[]>([]);
   // General distractor/search word pool (loaded once via the API).
@@ -169,6 +317,11 @@ export const WfNewApp: React.FC = () => {
     dailyGoal: 20,
     dailyProgress: 12
   });
+
+  // Rich learning statistics (GET /user/statistics) for the home dashboard —
+  // null until loaded / when logged out. Target-language options for its selector.
+  const [statistics, setStatistics] = useState<WfNewStatistics | null>(null);
+  const [languageOptions, setLanguageOptions] = useState<WfNewLanguage[]>([]);
 
   // Search logic
   const [searchQuery, setSearchQuery] = useState('');
@@ -209,13 +362,19 @@ export const WfNewApp: React.FC = () => {
   const loadContent = async () => {
     setLoading(true);
     try {
-      const [bento, groups, profile] = await Promise.all([
+      const [bento, groups, profile, stats, langs] = await Promise.all([
         wfNewApi.getBentoGroups(),
         wfNewApi.getWordGroups(),
         wfNewApi.getUserProfile(),
+        // Rich stats (null when logged out — the dashboard locks that area).
+        wfNewApi.getUserStatistics(),
+        // Target-language options for the dashboard selector (falls back to built-ins).
+        wfNewApi.getSupportedLanguages().catch(() => [] as WfNewLanguage[]),
       ]);
       setBentoGroups(Array.isArray(bento) ? bento : []);
       setGGroups(Array.isArray(groups) ? groups : []);
+      setStatistics(stats ?? null);
+      if (Array.isArray(langs) && langs.length) setLanguageOptions(langs);
 
       if (profile) {
         if (profile.nickname || profile.name) {
@@ -242,6 +401,69 @@ export const WfNewApp: React.FC = () => {
     }
   };
 
+  // Load the home hub's four backend categories (words/books/subtitles/documents)
+  // in one partial-tolerant call — kept separate from loadContent so a slow/empty
+  // media category never blocks the main shelf + profile load.
+  const loadHomeContent = async () => {
+    setHomeContentLoading(true);
+    try {
+      setHomeContent(await wfNewApi.getHomeContent());
+    } catch (e) {
+      console.warn('[wordnew] Failed to load home content groups.', e);
+    } finally {
+      setHomeContentLoading(false);
+    }
+  };
+
+  // Open a home content group — routing depends on the kind: word groups deep-dive
+  // into the shelf course view; books/subtitles jump to their study surfaces;
+  // documents/libraries open the shelf. (Detail pages for media land later.)
+  const openHomeGroup = (group: WfNewContentGroup) => {
+    if (group.kind === 'word') {
+      const match = gGroups.find(g => g.id === group.id);
+      if (match) { setActiveTab('shelf'); selectBookCourse(match); return; }
+    }
+    // book → the book reader (chapters + bilingual verses). Needs the media source_key.
+    if (group.kind === 'book' && group.sourceKey) {
+      setBookReader({ sourceKey: group.sourceKey, title: group.title });
+      setActiveTab('book-reader');
+      return;
+    }
+    if (group.kind === 'subtitle') { setActiveTab('subtitles'); return; }
+    // library / document (and word with no loaded match) → the library shelf.
+    setActiveTab('shelf');
+    addToast(trans('content.opening', { name: group.title }), 'info');
+  };
+
+  // Save the dashboard's editable settings (target language + daily goal). Always
+  // mirrors the local settings store; LOGGED IN → persists to the backend (daily
+  // goal preference + learning language) and refreshes stats. LOGGED OUT → keeps
+  // the local draft but routes to login (per spec: editable, but save needs auth).
+  const handleSaveDashboard = async (next: { targetLang: string; dailyGoal: number }) => {
+    wfNewSettings.setField('settingTargetLang', next.targetLang);
+    wfNewSettings.setField('dailyGoal', next.dailyGoal);
+    setUserStats(prev => ({ ...prev, dailyGoal: next.dailyGoal }));
+
+    if (!currentUser.isLoggedIn) {
+      addToast(trans('dashboard.loginHint'), 'warning');
+      setActiveTab('auth');
+      return;
+    }
+    try {
+      await wfNewApi.updatePreferences({ daily_goal: next.dailyGoal });
+      await wfNewApi.setLearningLanguages({
+        native_language: currentUser.nativeLang || wfNewSettings.get('authNativeLang'),
+        learning_languages: [next.targetLang],
+      });
+      setCurrentUser(prev => ({ ...prev, targetLang: next.targetLang }));
+      const fresh = await wfNewApi.getUserStatistics();
+      if (fresh) setStatistics(fresh);
+      addToast(trans('dashboard.saved'), 'success');
+    } catch (e: any) {
+      addToast(e?.message || trans('dashboard.saveFailed'), 'warning');
+    }
+  };
+
   // Synchronize light/dark state globally to document element for perfect Tailwind operation
   useEffect(() => {
     if (dark) {
@@ -251,12 +473,22 @@ export const WfNewApp: React.FC = () => {
     }
   }, [dark]);
 
+  // Local settings (Favorites + daily goal) once on mount.
   useEffect(() => {
-    loadContent();
-    // Load local Favorites and target limits from the shared settings store.
     setFavorites(wfNewSettings.get('favorites'));
     setUserStats(prev => ({ ...prev, dailyGoal: wfNewSettings.get('dailyGoal') }));
   }, []);
+
+  // Content load, re-run whenever auth state flips (mount / login / logout). UNIFIED
+  // gate: public home categories (books/subtitles/libraries) always load, but the
+  // auth-only content (word groups + profile + vocab) is fetched ONLY when a session
+  // token is present — so nothing 401s before login, and the just-unlocked data
+  // appears immediately after a successful login with no manual navigation.
+  useEffect(() => {
+    loadHomeContent();
+    if (wfNewApi.isAuthenticated()) loadContent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser.isLoggedIn]);
 
   // When the backend endpoint recovers (offline → online, or the user switches
   // endpoints in Settings), reload content. No-op in mock mode (event never
@@ -264,7 +496,7 @@ export const WfNewApp: React.FC = () => {
   // detection on its first request, so no explicit init is needed here.
   useEffect(() => {
     const onHealth = () => {
-      if (wfNewEndpoints.hasHealthyEndpoint()) loadContent();
+      if (wfNewEndpoints.hasHealthyEndpoint()) { loadContent(); loadHomeContent(); }
     };
     window.addEventListener(WFNEW_API_HEALTH_EVENT, onHealth);
     return () => window.removeEventListener(WFNEW_API_HEALTH_EVENT, onHealth);
@@ -556,16 +788,16 @@ export const WfNewApp: React.FC = () => {
           ? 'bg-white/80 dark:bg-slate-950/70' 
           : 'bg-slate-950/40'
       }`}>
-        <div className="flex items-center cursor-pointer" onClick={() => setActiveTab('home')}>
-          <div>
-            <span className="text-base font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-fuchsia-100 to-white">
-              WORDNEW
-            </span>
-            <span className="text-[9px] uppercase tracking-widest font-mono text-zinc-500 block">
-              Omni-Cognition v5.0
-            </span>
-          </div>
-        </div>
+        {/* Brand logo — the real app icon (no wordmark/text), so the header stays
+            compact. Single source of truth: WfNewLogo / generate_wordnew_brand.py. */}
+        <button
+          onClick={goHome}
+          className="flex items-center justify-center w-10 h-10 rounded-2xl overflow-hidden shadow-lg cursor-pointer shrink-0"
+          title="WordNew"
+          aria-label="WordNew home"
+        >
+          <WfNewLogo size={40} rounded={false} className="w-full h-full" />
+        </button>
 
         {/* Real-time search button triggering instant search popup */}
         <div className="relative max-w-sm flex-1 mx-6 hidden md:block">
@@ -607,57 +839,33 @@ export const WfNewApp: React.FC = () => {
           {/* Individual Profile Console / Login bubble */}
           <button
             onClick={() => setActiveTab(currentUser.isLoggedIn ? 'profile' : 'auth')}
-            className={`flex items-center gap-2 p-1.5 pr-3 rounded-full border bg-white/5 transition-all cursor-pointer ${
+            className={`flex items-center p-1.5 rounded-full border bg-white/5 transition-all cursor-pointer ${
               activeTab === 'profile' || activeTab === 'auth' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-300' : 'text-zinc-300 hover:bg-white/10 border-white/5'
             }`}
-            title={trans('tip.profile')}
+            title={currentUser.isLoggedIn ? (nickname || trans('tip.profile')) : trans('common.login')}
+            aria-label={currentUser.isLoggedIn ? (nickname || trans('tip.profile')) : trans('common.login')}
           >
-            <div className="w-7 h-7 rounded-full bg-slate-900 border border-white/10 flex items-center justify-center text-sm relative select-none">
-              {avatarUrl}
+            {/* Avatar only — the username text is intentionally NOT shown so the
+                fixed-width chip never pushes the adjacent icons off-screen. The
+                name is still available via the title/aria-label tooltip. */}
+            <div className="w-7 h-7 rounded-full bg-slate-900 border border-white/10 flex items-center justify-center text-sm relative overflow-visible">
+              <WfNewAvatarView value={avatarUrl} className="text-sm" />
               <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-950 ${
                 currentUser.isLoggedIn ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
               }`} />
             </div>
-            <span className="text-[10px] sm:text-xs font-bold font-mono truncate max-w-[80px]">
-              {currentUser.isLoggedIn ? nickname : trans('common.login')}
-            </span>
           </button>
 
-          <button 
-            onClick={toggleDark}
+          {/* Dark/light + language controls moved into Settings → Appearance to
+              keep the header compact (a quick gear shortcut remains). */}
+          <button
+            onClick={() => setActiveTab('settings')}
             className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 transition-all text-zinc-300"
-            title={trans('tip.theme')}
+            title={trans('nav.settings')}
+            aria-label={trans('nav.settings')}
           >
-            {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-purple-400" />}
+            <Settings className="w-4 h-4 text-zinc-300" />
           </button>
-
-          <div className="relative">
-            <button
-              onClick={() => setLangMenuOpen(o => !o)}
-              className="flex items-center bg-white/5 hover:bg-white/10 border border-white/5 p-1.5 rounded-full text-zinc-300"
-              title={trans('tip.language')}
-              aria-label={trans('tip.language')}
-            >
-              <Languages className="w-4 h-4 text-indigo-400" />
-            </button>
-            {langMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setLangMenuOpen(false)} />
-                <div className="absolute right-0 mt-2 z-50 min-w-[150px] rounded-xl border border-white/10 bg-zinc-900/95 backdrop-blur-md shadow-xl py-1">
-                  {getSupportedLanguages().map(cfg => (
-                    <button
-                      key={cfg.code}
-                      onClick={() => { setShellLang(cfg.code); setLangMenuOpen(false); }}
-                      className={`flex items-center gap-2 w-full px-3 py-2 text-left text-xs hover:bg-white/10 ${shellLang === cfg.code ? 'text-indigo-300 font-bold' : 'text-zinc-300'}`}
-                    >
-                      <span>{cfg.flag}</span>
-                      <span>{cfg.nativeName}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
         </div>
       </header>
 
@@ -674,82 +882,24 @@ export const WfNewApp: React.FC = () => {
               exit={{ opacity: 0, y: -15 }}
               className="space-y-8"
             >
-              <div className="flex justify-between items-end">
-                <div>
-                  <span className="text-xs font-bold text-fuchsia-400 uppercase tracking-widest font-mono">
-                    {trans('welcome.back')}
-                  </span>
-                  <h2 className="text-3xl font-black tracking-tight mt-1 bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-100 to-indigo-400">
-                    {avatarUrl} Commander, {nickname}
-                  </h2>
-                </div>
-                <div className="text-xs text-zinc-500 font-mono hidden sm:block">
-                  Orbital Cycle: {new Date().toLocaleDateString()}
-                </div>
-              </div>
-
-              {/* Dynamic stats dashboards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                {/* Dial progress widget */}
-                <div className={`p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:scale-[1.01] ${activeTheme.glowClass} bg-slate-900/60 border border-white/5`}>
-                  <div className="relative z-10 flex flex-col h-full justify-between gap-6">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 font-mono">
-                          {trans('goal.title')}
-                        </p>
-                        <p className="text-4xl font-black font-mono mt-2 tracking-tight text-white">
-                          {userStats.dailyProgress} <span className="text-lg text-indigo-300 font-medium">/ {userStats.dailyGoal}</span>
-                        </p>
-                      </div>
-                      <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center text-white font-mono font-black text-sm">
-                        {Math.round((userStats.dailyProgress / userStats.dailyGoal) * 100)}%
-                      </div>
-                    </div>
-
-                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-                      <motion.div 
-                        className="h-full bg-gradient-to-r from-indigo-400 to-fuchsia-400 rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.min((userStats.dailyProgress / userStats.dailyGoal) * 100, 100)}%` }}
-                        transition={{ duration: 1.2, ease: 'easeOut' }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Master Count display */}
-                <div className={`p-6 rounded-3xl relative flex justify-between items-center transition-all duration-300 hover:scale-[1.01] ${activeTheme.cardClass}`}>
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest font-mono block">
-                      {trans('stats.learned')}
-                    </span>
-                    <p className="text-3xl font-black font-mono tracking-tight">{userStats.learned}</p>
-                    <p className="text-[10px] text-zinc-500 font-mono">Synaptic storage indices active</p>
-                  </div>
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
-                    <GraduationCap className="w-6 h-6" />
-                  </div>
-                </div>
-
-                {/* Fire Streak Card */}
-                <div className={`p-6 rounded-3xl relative flex justify-between items-center transition-all duration-300 hover:scale-[1.01] ${activeTheme.cardClass}`}>
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest font-mono block">
-                      {trans('stats.streak')}
-                    </span>
-                    <p className="text-3xl font-black font-mono tracking-tight">
-                      {userStats.streak} <span className="text-sm font-sans font-bold text-zinc-400">{trans('stats.days')}</span>
-                    </p>
-                    <p className="text-[10px] text-zinc-500 font-mono">Sustained discipline intact</p>
-                  </div>
-                  <div className="w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 shrink-0">
-                    <Flame className="w-6 h-6 animate-pulse" />
-                  </div>
-                </div>
-
-              </div>
+              {/* Unified learning dashboard — real backend stats + editable settings.
+                  The Commander identity (avatar + name) is embedded in the panel
+                  header. Shown logged in OR out: when out, stats lock behind a CTA and
+                  Save routes to login; when in, stats fill and Save writes to backend. */}
+              <WfNewHomeDashboard
+                activeTheme={activeTheme}
+                trans={trans}
+                isLoggedIn={currentUser.isLoggedIn}
+                nickname={nickname}
+                avatarUrl={avatarUrl}
+                stats={statistics}
+                groupName={gGroups[0]?.name || ''}
+                groupCount={gGroups[0]?.count || 0}
+                targetLang={currentUser.targetLang || wfNewSettings.get('settingTargetLang')}
+                dailyGoal={userStats.dailyGoal}
+                languageOptions={languageOptions}
+                onSave={handleSaveDashboard}
+              />
 
               {/* Omni-Symmetrical Audio-Visual Laboratory */}
               <div className="space-y-3.5 pt-4 animate-fade-in">
@@ -1051,6 +1201,16 @@ export const WfNewApp: React.FC = () => {
                   })}
                 </div>
               </div>
+
+              {/* Multi-category content hub — live backend word / book / subtitle
+                  / document groups (WfNewHomeContent widget reads getHomeContent). */}
+              <WfNewHomeContentWidget
+                content={homeContent}
+                loading={homeContentLoading}
+                theme={activeTheme}
+                trans={trans}
+                onOpen={openHomeGroup}
+              />
             </motion.div>
           )}
 
@@ -1617,6 +1777,8 @@ export const WfNewApp: React.FC = () => {
               saveThemeChoice={(id) => { setActiveThemeId(id); wfNewSettings.setField('themeId', id); }}
               lang={shellLang}
               setLang={setShellLang}
+              dark={dark}
+              toggleDark={toggleDark}
               userStats={userStats}
               setUserStats={setUserStats}
               nickname={nickname}
@@ -1626,8 +1788,54 @@ export const WfNewApp: React.FC = () => {
               speechRate={speechRate}
               setSpeechRate={setSpeechRate}
               onClearCache={handleClearEverything}
+              onOpenLanguages={() => setActiveTab('languages')}
+              onOpenLearningModel={() => setActiveTab('learning-model')}
+              isLoggedIn={currentUser.isLoggedIn}
               trans={trans}
             />
+          )}
+
+          {/* ====== LEARNING LANGUAGES TAB (native + multi-target) ====== */}
+          {activeTab === 'languages' && (
+            <motion.div
+              key="languages"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <WfNewLanguages
+                activeTheme={activeTheme}
+                trans={trans}
+                addToast={addToast}
+                onBack={goBack}
+                onSaved={(sel) => {
+                  wfNewSettings.setField('settingNativeLang', sel.native_language);
+                  if (sel.learning_languages[0]) {
+                    wfNewSettings.setField('settingTargetLang', sel.learning_languages[0]);
+                  }
+                }}
+              />
+            </motion.div>
+          )}
+
+          {/* ====== LEARNING MODEL (memorization mode + walkman params) ====== */}
+          {activeTab === 'learning-model' && (
+            <motion.div key="learning-model" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+              <WfNewLearningModel
+                activeTheme={activeTheme}
+                trans={trans}
+                onBack={goBack}
+                onOpenReview={() => setActiveTab('review-settings')}
+              />
+            </motion.div>
+          )}
+
+          {/* ====== REVIEW SETTINGS (sub-page of Learning Model) ====== */}
+          {activeTab === 'review-settings' && (
+            <motion.div key="review-settings" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+              <WfNewReviewSettings activeTheme={activeTheme} trans={trans} onBack={goBack} />
+            </motion.div>
           )}
 
           {/* ====== CYBERNETIC WALKMAN RECITAL TAB ====== */}
@@ -1643,7 +1851,7 @@ export const WfNewApp: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => {
-                      setActiveTab('home');
+                      goBack();
                       window.speechSynthesis.cancel();
                     }}
                     className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 cursor-pointer"
@@ -1679,7 +1887,7 @@ export const WfNewApp: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => {
-                      setActiveTab('home');
+                      goBack();
                       window.speechSynthesis.cancel();
                     }}
                     className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 cursor-pointer"
@@ -1715,7 +1923,7 @@ export const WfNewApp: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => {
-                      setActiveTab('home');
+                      goBack();
                       window.speechSynthesis.cancel();
                     }}
                     className="p-1.5 md:p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-305 border border-white/5 cursor-pointer"
@@ -1737,6 +1945,26 @@ export const WfNewApp: React.FC = () => {
             </motion.div>
           )}
 
+          {/* ====== BOOK READER (book -> chapter -> bilingual verses) ====== */}
+          {activeTab === 'book-reader' && bookReader && (
+            <motion.div
+              key="book-reader"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+            >
+              <WfNewBookReader
+                sourceKey={bookReader.sourceKey}
+                title={bookReader.title}
+                activeTheme={activeTheme}
+                trans={trans}
+                dark={dark}
+                addToast={addToast}
+                onBack={goBack}
+              />
+            </motion.div>
+          )}
+
           {/* ====== SOCIAL COOPERATIVE CORRIDOR VIEW ====== */}
           {activeTab === 'social' && (
             <motion.div
@@ -1748,7 +1976,7 @@ export const WfNewApp: React.FC = () => {
             >
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setActiveTab('home')}
+                  onClick={goBack}
                   className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -1781,7 +2009,7 @@ export const WfNewApp: React.FC = () => {
               <div className="flex items-center justify-between border-b border-white/5 pb-4">
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => setActiveTab('home')}
+                    onClick={goBack}
                     className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 cursor-pointer"
                   >
                     <ArrowLeft className="w-4 h-4" />
@@ -1799,6 +2027,14 @@ export const WfNewApp: React.FC = () => {
                 trans={trans}
                 currentUser={currentUser}
                 onUpdateProfile={handleUpdateProfile}
+                onAvatarUpdated={(url) => {
+                  // The upload already persisted to the backend — reflect it
+                  // immediately everywhere (top-right chip + big avatar + store)
+                  // without needing a separate profile Save.
+                  setAvatarUrl(url);
+                  wfNewSettings.setField('avatar', url);
+                  setCurrentUser(prev => ({ ...prev, avatar: url }));
+                }}
                 learnedWordsCount={courseWords.length || 72}
               />
             </motion.div>
@@ -1815,7 +2051,7 @@ export const WfNewApp: React.FC = () => {
             >
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setActiveTab('home')}
+                  onClick={goBack}
                   className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -1851,7 +2087,7 @@ export const WfNewApp: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => {
-                      setActiveTab('home');
+                      goBack();
                       window.speechSynthesis.cancel();
                     }}
                     className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/5 cursor-pointer"
@@ -1971,7 +2207,10 @@ export const WfNewApp: React.FC = () => {
       <WfNewBottomDock
         activeTab={activeTab}
         setActiveTab={(tab) => {
-          setActiveTab(tab);
+          // Dock Home is a direct "go home" (clears history); other dock tabs are
+          // forward navigations that push onto the stack.
+          if (tab === 'home') goHome();
+          else setActiveTab(tab as WfTab);
           setSelectedCourse(null);
           setPracticeMode(null);
         }}
@@ -1990,17 +2229,21 @@ export const WfNewApp: React.FC = () => {
             onSelectTheme={(themeId) => {
               setActiveThemeId(themeId);
               wfNewSettings.setField('themeId', themeId);
+              // Roam the theme choice in the backend's opaque app_settings blob.
+              void wfNewApi.updatePreferences({ app_settings: { themeId } }).catch(() => {});
             }}
             onSetGoal={(goal) => {
               setUserStats(prev => ({ ...prev, dailyGoal: goal }));
               wfNewSettings.setField('dailyGoal', goal);
+              // Roam the daily goal in the backend preferences.
+              void wfNewApi.updatePreferences({ daily_goal: goal }).catch(() => {});
             }}
           />
         )}
       </AnimatePresence>
 
       {/* Premium Notification Toasters */}
-      <WfNewToast toasts={toasts} onDismiss={handleDismissToast} />
+      <WfNewToast toasts={toasts} onDismiss={wfNewNotify.dismiss} />
 
       </div>
     </div>

@@ -17,6 +17,8 @@ import fastapi
 from typing import Optional
 from pydantic import BaseModel
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyctl.ai import speech_history
 from pycore.pyutils.stt import stt_status as orchestrator_status, stt_test as orchestrator_test
 
 router = fastapi.APIRouter(prefix="/api/local/stt", tags=["Local Processing - STT"])
@@ -40,5 +42,13 @@ class _SttTestReq(BaseModel):
 
 @router.post("/test")
 def test(req: _SttTestReq):
-    """Live recognition test for ONE engine (or the best available)."""
-    return orchestrator_test(engine=req.engine, language=req.language)
+    """Live recognition test for ONE engine (or the best available). The sample
+    clip is persisted to the shared speech history (record id echoed back)."""
+    result = orchestrator_test(engine=req.engine, language=req.language)
+    try:
+        entry = speech_history.record_test_result("stt", result, source="stt-test")
+        if entry:
+            result["record_id"] = entry["id"]
+    except Exception as e:  # noqa: BLE001 — history is best-effort
+        ColorPrint.yellow(f"[stt] could not record test audio: {e}")
+    return result

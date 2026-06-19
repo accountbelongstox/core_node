@@ -18,8 +18,9 @@ use Illuminate\Http\JsonResponse;
 use App\Models\Book;
 use App\Models\Subtitle;
 use App\Models\SourceSentence;
-use App\Models\Sentence;
+use App\Models\LangSentence;
 use App\Models\PunctuationMarker;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Traits\ApiResponse;
 
@@ -119,7 +120,7 @@ class AppQyV1MediaContentPublicController
         if ($type === 'book') {
             $rawSeq = $source->sentence_seq;
             if (is_array($rawSeq) && count($rawSeq) > 0) {
-                return $this->buildBookV2Content($info, $rawSeq, $pagination);
+                return $this->buildBookV2Content($info, $rawSeq, $pagination, (string) $source->language);
             }
         }
 
@@ -137,16 +138,38 @@ class AppQyV1MediaContentPublicController
             ->orderBy('seq')
             ->skip($pagination['start'])
             ->take($pagination['limit'])
-            ->with('sentence')
             ->get()
             ->map(function (SourceSentence $link) {
+                // Books v3.1: when the slot carries a per-language correspondence
+                // map, resolve text/audio from the per-language sentence tables
+                // ({prefix}_sentences_{lang}); expose every language. The legacy
+                // shared `sentence` relation was removed, so a non-v3 slot falls
+                // back to the per-language primary row (or null), never the
+                // dropped shared table.
+                $v3 = $this->resolveSlotLanguages($link);
+                if ($v3 !== null) {
+                    return [
+                        'seq' => $link->seq,
+                        'corr_id' => $link->corr_id,
+                        'chapter_index' => $link->chapter_index,
+                        'primary_language' => $link->primary_language,
+                        'text' => $v3['text'],
+                        'audio' => $v3['audio'],
+                        'explanation' => $v3['explanation'],
+                        'languages' => $v3['languages'],
+                        'start_sec' => $link->start_sec,
+                        'end_sec' => $link->end_sec,
+                    ];
+                }
+
                 $text = null;
                 $audio = null;
                 $explanation = null;
-                if ($link->sentence) {
-                    $text = $link->sentence->text;
-                    $audio = $link->sentence->audio;
-                    $explanation = $link->sentence->explanation;
+                $sentence = $link->langSentence($link->primary_language ?: 'en');
+                if ($sentence) {
+                    $text = $sentence->text;
+                    $audio = $sentence->audio;
+                    $explanation = $sentence->explanation;
                 }
 
                 return [
@@ -171,6 +194,87 @@ class AppQyV1MediaContentPublicController
     }
 
     /**
+     * Books v3 per-slot resolution: read each correspondence language from its
+     * per-language sentence table ({prefix}_sentences_{lang}) by the content_id
+     * stored in the slot's lang_content_ids. Returns null when the slot has no
+     * v3 correspondence map (so the caller uses the legacy shared library).
+     *
+     * The flat `text`/`audio`/`explanation` keys carry the primary language (or
+     * the first available) for backwards compatibility; `languages` carries the
+     * full per-language map (null where the correspondence is empty).
+     *
+     * @return array{text:?string,audio:?string,explanation:?string,languages:array<string,mixed>}|null
+     */
+    private function resolveSlotLanguages(SourceSentence $link): ?array
+    {
+        $map = $link->lang_content_ids;
+        if (!is_array($map) || count($map) === 0) {
+            return null;
+        }
+
+        $languages = [];
+        $primaryText = null;
+        $primaryAudio = null;
+        $primaryExplanation = null;
+        $primaryLang = $link->primary_language;
+
+        foreach ($map as $lang => $contentId) {
+            if (empty($contentId)) {
+                // Empty correspondence: the slot exists but this language is blank.
+                $languages[$lang] = [
+                    'text' => null,
+                    'audio' => null,
+                    'explanation' => null,
+                    'has_audio' => false,
+                ];
+                continue;
+            }
+
+            $row = LangSentence::onLang((string) $lang)->where('content_id', (string) $contentId)->first();
+            if ($row === null) {
+                $languages[$lang] = [
+                    'text' => null,
+                    'audio' => null,
+                    'explanation' => null,
+                    'has_audio' => false,
+                ];
+                continue;
+            }
+
+            $entry = [
+                'text' => $row->text,
+                'audio' => $row->audio,
+                'explanation' => $row->explanation,
+                'has_audio' => (bool) $row->has_audio,
+            ];
+            $languages[$lang] = $entry;
+
+            $isPrimary = $primaryLang !== null && $primaryLang !== '' && $lang === $primaryLang;
+            if ($isPrimary || $primaryText === null) {
+                $primaryText = $row->text;
+                $primaryAudio = $row->audio;
+                $primaryExplanation = $row->explanation;
+            }
+        }
+
+        return [
+            'text' => $primaryText,
+            'audio' => $primaryAudio,
+            'explanation' => $primaryExplanation,
+            'languages' => $languages,
+        ];
+    }
+
+    /**
+     * Normalize a language name/code to the canonical code used by the
+     * per-language sentence tables (delegates to AppQyV1TableMaps — §2).
+     */
+    private function normalizeLangCodeForLookup(string $language): string
+    {
+        return AppQyV1TableMaps::normalizeLangCode($language);
+    }
+
+    /**
      * Reconstruct a v2 book's punctuated content from book.sentence_seq.
      *
      * sentence_seq is an ordered token list: {"s": content_id} (a sentence) and
@@ -182,8 +286,13 @@ class AppQyV1MediaContentPublicController
      * (newline/paragraph) are skipped in the per-sentence text. Internal punctuation
      * removed during stripping is NOT restored here (exact bytes live in
      * full_content, which is never exposed). Paginated by sentence unit.
+     *
+     * Books v3 stores book sentences in the per-language table
+     * ({prefix}_sentences_{lang}) keyed by content_id, so we resolve content_ids
+     * from the book's primary-language table first and fall back to the
+     * deprecated shared library for genuine v2 books.
      */
-    private function buildBookV2Content(array $info, array $rawSeq, array $pagination): JsonResponse
+    private function buildBookV2Content(array $info, array $rawSeq, array $pagination, string $language = ''): JsonResponse
     {
         $units = [];
         $current = null;
@@ -217,9 +326,18 @@ class AppQyV1MediaContentPublicController
         }
         $ids = array_values(array_unique($ids));
         if (count($ids) > 0) {
-            $rows = Sentence::whereIn('content_id', $ids)->get();
-            foreach ($rows as $row) {
-                $sentenceMap[$row->content_id] = $row;
+            // Books v3.1: resolve content_ids from the per-language sentence table
+            // for the book's primary language ({prefix}_sentences_{lang}). The
+            // shared sentence table is removed; there is no fallback.
+            $langCode = $this->normalizeLangCodeForLookup($language);
+            if ($langCode !== '') {
+                $model = LangSentence::for($langCode);
+                if (\Illuminate\Support\Facades\Schema::connection($model->getConnectionName())->hasTable($model->getTable())) {
+                    $rows = LangSentence::onLang($langCode)->whereIn('content_id', $ids)->get();
+                    foreach ($rows as $row) {
+                        $sentenceMap[$row->content_id] = $row;
+                    }
+                }
             }
         }
 

@@ -72,4 +72,17 @@ class Book extends Model
     {
         return $this->hasMany(SourceSentence::class, 'source_key', 'source_key');
     }
+
+    /**
+     * Per-language chapters of this book (Books v3.1 model). Chapters live in
+     * {prefix}_chapters_{lang}, so this returns a query against the requested
+     * language's chapter table scoped to this book (source_type='book').
+     */
+    public function chaptersForLang(string $lang)
+    {
+        return \App\Models\LangChapter::onLang($lang)
+            ->where('source_type', 'book')
+            ->where('source_key', $this->source_key)
+            ->orderBy('chapter_index');
+    }
 }

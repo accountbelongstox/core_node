@@ -1,10 +1,19 @@
 # -*- coding: utf-8 -*-
 """Video Extract Controller - bridges HTTP requests to the processor + task layer."""
 
-from pycore import get_user_data_store
+import os
+
+from pycore import ColorPrint, get_user_data_store
 from pycore.pyutils.common import system_launcher
 from ...services.processors import VideoExtractProcessor
 from ...services.processors.video_extract_processor import whisper_capabilities, VIDEO_EXTENSIONS
+# v3 multi-language subtitle correspondence view (SAME slot builders the ingest
+# sync uses — bilingual cue split + multi-track time-overlap alignment). The read
+# path and sync share ONE builder; no duplicated alignment logic here.
+from ...services.sync.laravel_media_sync import (
+    build_subtitle_segment_view,
+    _read_text as _read_srt_text,
+)
 from ...models.local_processing.video_extract_models import (
     VideoExtractRequest,
     VideoExtractStartResponse,
@@ -80,13 +89,86 @@ class VideoExtractController:
 
         `request.path` may be the segments dir, the mapping.json file, or any dir
         containing one; the processor resolves it.
+
+        For the v3 multi-language subtitle view (``request.languages``) the mapping
+        is ENRICHED in place: every ``segments[].subtitles[]`` cue gains BookSlot
+        fields (``corr_id``/``grain``/``seq``/``primary_language``/``langs``)
+        alongside the legacy ``text``; the mapping also carries top-level
+        ``selected_languages`` and a flat ``slots`` list (both grains). The slots
+        are built by the SAME ``laravel_media_sync`` builder the ingest sync uses.
         """
         result = self.processor.read_segments(request.path)
+        mapping = result.get("mapping")
+        if result.get("success") and isinstance(mapping, dict):
+            try:
+                self._enrich_segments_v3(mapping, result.get("mapping_file"),
+                                         request.languages)
+            except Exception as e:  # never fail the read on enrichment trouble
+                ColorPrint.yellow(f"[VideoExtract] segments v3 enrich skipped: {e}")
         return VideoExtractSegmentsResponse(
             success=result.get("success", False),
-            mapping=result.get("mapping"),
+            mapping=mapping,
             error=result.get("error"),
         )
+
+    @staticmethod
+    def _enrich_segments_v3(mapping: dict, mapping_file,
+                            languages) -> None:
+        """Attach v3 correspondence-slot fields to a mapping's cues (mutates it).
+
+        Resolves the source video path + sibling .srt from the mapping_file's
+        location (its PARENT dir holds files.* incl. the .srt), builds the v3
+        per-cue view via ``build_subtitle_segment_view`` (bilingual split OR
+        multi-track time-overlap — the same builder the sync uses), then merges
+        each cue slot onto the matching ``segments[].subtitles[]`` entry by SRT
+        index (``idx``), falling back to start-time order. Adds top-level
+        ``selected_languages`` and a flat ``slots`` list. Best-effort: leaves the
+        mapping unchanged if the .srt cannot be located.
+        """
+        if not mapping_file:
+            return
+        seg_dir = os.path.dirname(mapping_file)
+        per_file_dir = os.path.dirname(seg_dir)  # files.* (incl. .srt) live here
+        stem = mapping.get("stem") or os.path.basename(seg_dir).replace("_segments", "")
+        srt_name = (mapping.get("files") or {}).get("srt") or (stem + ".srt")
+        srt_path = os.path.join(per_file_dir, srt_name)
+        srt_text = _read_srt_text(srt_path)
+        if not (srt_text and srt_text.strip()):
+            return
+
+        # Reconstruct the absolute source video path for a stable source_key (the
+        # video sits at <per_file_dir>/<mapping.video-basename> or <stem>.<ext>).
+        rel_video = mapping.get("video") or ""
+        src_abs = (os.path.normpath(os.path.join(per_file_dir, os.path.basename(rel_video)))
+                   if rel_video else os.path.join(per_file_dir, stem))
+
+        view = build_subtitle_segment_view(
+            mapping, srt_text, src_abs, languages=languages,
+            primary_srt_path=srt_path)
+        cue_slots = view.get("cue_slots") or []
+        mapping["selected_languages"] = view.get("selected_languages") or []
+        mapping["primary_language"] = view.get("primary_language")
+        mapping["slots"] = view.get("slots") or []
+
+        # Index cue slots by SRT idx (sub_idx) for a robust per-cue merge; keep an
+        # ordered list as a positional fallback.
+        by_idx = {s.get("sub_idx"): s for s in cue_slots if s.get("sub_idx") is not None}
+        ordered = list(cue_slots)
+        pos = 0
+        for seg in (mapping.get("segments") or []):
+            for sub in (seg.get("subtitles") or []):
+                slot = by_idx.get(sub.get("idx"))
+                if slot is None and pos < len(ordered):
+                    slot = ordered[pos]
+                pos += 1
+                if slot is None:
+                    continue
+                # Attach BookSlot fields; KEEP legacy `text` for back-compat.
+                sub["corr_id"] = slot.get("corr_id")
+                sub["grain"] = "cue"
+                sub["seq"] = slot.get("seq")
+                sub["primary_language"] = slot.get("primary_language")
+                sub["langs"] = slot.get("langs") or {}
 
     def system_resources(self) -> dict:
         """CPU / memory / GPU snapshot for the live resource meters."""

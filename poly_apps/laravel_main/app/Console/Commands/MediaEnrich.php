@@ -8,8 +8,8 @@ use App\Services\SentenceEnrichmentService;
 /**
  * media:enrich
  *
- * On-demand, idempotent AI + TTS enrichment pass over the shared sentence
- * library (app_qy_v1_sentences). Fills empty AI fields (explanation, grammar,
+ * On-demand, idempotent AI + TTS enrichment pass over the per-language sentence
+ * store (app_qy_v1_sentences_{lang}). Fills empty AI fields (explanation, grammar,
  * ai_commentary, special_usage) via the LLM fallback chain and generates
  * per-sentence TTS audio. Fill-missing only; a fully-enriched row is skipped.
  *

@@ -21,7 +21,7 @@ import type {
   AiUsageResponse,
   AiImageResponse, ImageHistoryResponse, ImageHistoryClearResponse, ImageHistoryDeleteResponse,
   AiKeysResponse, AiKeySetRequest, AiKeySetResponse, AiKeyDeleteResponse, AiKeyResetCooldownResponse,
-  OcrStatus, TtsStatus, TtsSettings, TtsTestResponse, SttStatus, SttTestResponse, CapabilityStatus, SystemInfo, OpenDirResponse,
+  OcrStatus, TtsStatus, TtsSettings, TtsTestResponse, SttStatus, SttTestResponse, SpeechHistoryResponse, RevealResponse, CapabilityStatus, SystemInfo, OpenDirResponse,
   TranslationQueueResponse, TranslationQueueActionResponse,
   LocalTaskDetailResponse, PycoreGlobalTaskDetailResponse,
   AssistStatus, AssistConfigPatch, AssistConfigResponse, AssistCycleResponse,
@@ -164,7 +164,28 @@ export interface BooksAnalyzeResponse {
   scanned: number; analyzed: number; truncated_files: boolean; error?: string;
 }
 export interface BooksSupportedFormatsResponse { success: boolean; formats: string[]; error?: string; }
-export interface BooksAnalyzeOptions { formats?: string[]; language?: string; preview_chars?: number; max_files?: number; persist?: boolean; }
+export interface BooksAnalyzeOptions { formats?: string[]; language?: string; languages?: string[]; preview_chars?: number; max_files?: number; persist?: boolean; }
+
+// --- Books chapter -> correspondence-slot tree (spec v3 §7/§9) ----------- #
+// A book is rendered as Chapter[] -> Slot[]. Each slot is a single
+// correspondence cell shared across the checked languages: `langs[code]` is the
+// text for that language, or `null` where the book has no correspondence (the
+// FE renders a blank). `grain` preserves the prior sentence typing (cue/sentence).
+export interface BookChapter {
+  chapter_index: number;
+  sentence_count?: number;
+  // Flat title (legacy) and the v3.1 per-language title map (code -> title|null).
+  title?: string | null;
+  titles?: Record<string, string | null>;
+}
+export interface BookSlot {
+  corr_id: string;
+  grain: 'cue' | 'sentence';
+  seq: number;
+  chapter_index?: number;
+  primary_language?: string | null;
+  langs: Record<string, string | null>;
+}
 export interface BookSourceState {
   path: string; mode: string; source_key: string; language?: string | null;
   submission_state: 'draft' | 'synced'; added_at?: number | null;
@@ -176,7 +197,13 @@ export interface BookSubmitItem { path: string; files: number; sentences: number
 export interface BooksSubmitResponse { success: boolean; items: BookSubmitItem[]; total_sentences: number; total_words: number; error?: string; }
 export interface BooksListResponse {
   success: boolean; kind: string; total: number; start: number; limit: number;
-  items: any[]; totals: Record<string, number>; error?: string;
+  items: any[]; totals: Record<string, number>;
+  // When kind === 'chapters' the items are BookChapter[]; when listing sentences
+  // scoped to a chapter the items are BookSlot[] (selected_languages echoes the
+  // checked language set so the tree can render every column, blank where null).
+  chapters?: BookChapter[];
+  selected_languages?: string[];
+  error?: string;
 }
 
 export const pycoreApi = {
@@ -292,9 +319,11 @@ export const pycoreApi = {
       '/pyapi/api/local/video-extract/open', { kind, path }),
 
   // --- video extract: segment ↔ subtitle map for the current file --------- #
-  getVideoExtractSegments: (path: string) =>
+  // `languages` (>=1 codes, includes the primary) requests the multi-language
+  // correspondence slots per cue; omitted/empty → the legacy single-language map.
+  getVideoExtractSegments: (path: string, languages?: string[]) =>
     postJSON<VideoExtractSegmentsResponse>(
-      '/pyapi/api/local/video-extract/segments', { path }),
+      '/pyapi/api/local/video-extract/segments', { path, languages }),
 
   // --- video extract: pause / resume / cancel a running task -------------- #
   pauseVideoExtractTask: (taskId: string) =>
@@ -333,25 +362,41 @@ export const pycoreApi = {
     postJSON<BooksStateResponse>('/pyapi/api/local/books/state/add', { path, mode, language }),
   booksStateRemove: (path: string) =>
     postJSON<BooksStateResponse>('/pyapi/api/local/books/state/remove', { path }),
-  // One-shot batch submit to laravel_main (builds the v2 payload server-side).
-  booksSubmit: (paths?: string[], language?: string) =>
-    postJSON<BooksSubmitResponse>('/pyapi/api/local/books/submit', { paths, language }),
-  // Paginated drill-down into a source's lists (words/sentences/languages),
-  // cached server-side per source so paging is cheap.
+  // One-shot batch submit to laravel_main (builds the model_version:3 payload
+  // server-side). `languages` is the checked correspondence set (>=1, includes
+  // the detected primary language) — empty slots are emitted as null per spec §5.
+  // `source_type` marks the ingest's media kind (default 'book'; 'document' for
+  // the Add Document flow) so the backend keys the per-language sentence rows by
+  // the right source_type (spec §7). NOTE: pycore /books/submit must honor this
+  // — see the backend-gap report.
+  booksSubmit: (paths?: string[], language?: string, languages?: string[], source_type?: string) =>
+    postJSON<BooksSubmitResponse>('/pyapi/api/local/books/submit', { paths, language, languages, source_type }),
+  // Paginated drill-down into a source's lists (words/sentences/languages), plus
+  // the chapter -> sentence tree: kind='chapters' lists BookChapter[]; passing a
+  // chapter_index (with kind='sentences'|'cues') returns that chapter's BookSlot[]
+  // carrying every selected language side by side (blank where null). Cached
+  // server-side per source so paging is cheap.
   booksList: (
     path: string, kind: string, start = 0, limit = 100,
-    opts: { formats?: string[]; refresh?: boolean; max_files?: number } = {},
+    opts: { formats?: string[]; refresh?: boolean; max_files?: number;
+            chapter_index?: number; languages?: string[] } = {},
   ) => postJSON<BooksListResponse>('/pyapi/api/local/books/list', { path, kind, start, limit, ...opts }),
   // Drag-drop fallback for sandboxed browsers (no File.path): upload the bytes;
   // the backend stages them to disk and returns staged paths + analysis.
+  // `languages` (>=1 codes) requests the per-language correspondence; `source_type`
+  // marks the media kind staged ('book' default, 'document' for the Add Document
+  // flow) so a later booksSubmit ingests it under the right source_type.
   booksAnalyzeUpload: async (
-    files: File[], opts: { language?: string; preview_chars?: number; persist?: boolean } = {},
+    files: File[],
+    opts: { language?: string; languages?: string[]; preview_chars?: number; persist?: boolean; source_type?: string } = {},
   ): Promise<BooksAnalyzeResponse> => {
     const fd = new FormData();
     files.forEach((f) => fd.append('files', f, f.name));
     if (opts.language) fd.append('language', opts.language);
+    (opts.languages || []).forEach((l) => fd.append('languages[]', l));
     if (opts.preview_chars != null) fd.append('preview_chars', String(opts.preview_chars));
     if (opts.persist) fd.append('persist', 'true');
+    if (opts.source_type) fd.append('source_type', opts.source_type);
     // No explicit Content-Type — the browser sets the multipart boundary.
     const r = await pycoreMasterClient.request('/pyapi/api/local/books/analyze-upload', {
       method: 'POST', body: fd,
@@ -502,6 +547,23 @@ export const pycoreApi = {
     deleteJSON<ImageHistoryDeleteResponse>(`/pyapi/api/local/ai/image/history/${encodeURIComponent(id)}`),
   clearImageHistory: () =>
     postJSON<ImageHistoryClearResponse>('/pyapi/api/local/ai/image/history/clear', {}),
+  /** Reveal a generated image's folder in the OS file manager (path resolved by id). */
+  revealImage: (id: string) =>
+    postJSON<RevealResponse>(`/pyapi/api/local/ai/image/history/${encodeURIComponent(id)}/reveal`, {}),
+
+  // --- Speech (TTS/STT) clip history — audio side of the Records timeline --- #
+  getSpeechHistory: (limit = 50) =>
+    getJSON<SpeechHistoryResponse>(`/pyapi/api/local/speech/history?limit=${encodeURIComponent(String(limit))}`),
+  /** Raw-bytes URL for one clip (use directly in an <audio src>). */
+  speechHistoryFileUrl: (id: string): string =>
+    `/pyapi/api/local/speech/history/file/${encodeURIComponent(id)}`,
+  deleteSpeechHistory: (id: string) =>
+    deleteJSON<{ success: boolean }>(`/pyapi/api/local/speech/history/${encodeURIComponent(id)}`),
+  clearSpeechHistory: () =>
+    postJSON<{ success: boolean; removed: number }>('/pyapi/api/local/speech/history/clear', {}),
+  /** Open the clip's folder in the OS file manager (path resolved by id). */
+  revealSpeech: (id: string) =>
+    postJSON<RevealResponse>(`/pyapi/api/local/speech/history/${encodeURIComponent(id)}/reveal`, {}),
 
   // --- OCR engine availability (windows -> easyocr -> cnocr priority) ------ #
   getOcrStatus: () => getJSON<OcrStatus>('/pyapi/api/local/ocr/status'),

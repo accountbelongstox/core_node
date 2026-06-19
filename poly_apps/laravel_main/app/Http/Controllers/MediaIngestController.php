@@ -49,14 +49,20 @@ class MediaIngestController extends Controller
         // Envelope-only validation (see note above). `model_version` selects the
         // book payload schema: v2 (Books Sentence/Word Model) sends a `words` map
         // and per-row content_id; absent/!=2 keeps the legacy v1 path.
+        // `model_version` selects the payload schema: v3 (Books unified model)
+        // sends a chapter -> slot correspondence tree (`chapters` + `slots`); v2
+        // sends a `words` map + per-row content_id; absent/<2 keeps legacy v1.
+        // §1.1/§13.3: the shared sentence library accepts every source type.
         $validated = $request->validate([
-            'source_type' => 'required|string|in:subtitle,book',
+            'source_type' => 'required|string|in:subtitle,book,document,article',
             'model_version' => 'nullable|integer',
             'source' => 'required|array',
             'source.source_key' => 'required|string',
             'segments' => 'nullable|array',
             'sentences' => 'nullable|array',
             'words' => 'nullable|array',
+            'chapters' => 'nullable|array',
+            'slots' => 'nullable|array',
         ]);
 
         $result = $this->mediaIngestService->ingest([
@@ -66,6 +72,8 @@ class MediaIngestController extends Controller
             'segments' => $request->input('segments', []) ?? [],
             'sentences' => $request->input('sentences', []) ?? [],
             'words' => $request->input('words', []) ?? [],
+            'chapters' => $request->input('chapters', []) ?? [],
+            'slots' => $request->input('slots', []) ?? [],
         ]);
 
         return $this->success($result, 'Media ingested successfully');

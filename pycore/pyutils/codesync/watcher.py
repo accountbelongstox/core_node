@@ -41,6 +41,18 @@ class WatchManager:
         self._lock = threading.Lock()
         self._running = False
         self._thread = None
+        # Set once the FIRST scan has completed with a non-empty index. The push
+        # sender gates on this so it never connects + sends an (empty) manifest
+        # before the initial scan of a large tree finishes (which would just abort
+        # and churn the clients).
+        self._first_scan_done = threading.Event()
+
+    def ready(self) -> bool:
+        """True once the initial index scan has populated the snapshot."""
+        return self._first_scan_done.is_set()
+
+    def wait_ready(self, timeout: float = None) -> bool:
+        return self._first_scan_done.wait(timeout)
 
     # ----- config ---------------------------------------------------------- #
     def watch_dirs(self) -> List[Path]:
@@ -133,6 +145,10 @@ class WatchManager:
                     continue
         with self._lock:
             self._index = new_index
+        # Mark ready once we have a real, non-empty index: the push sender waits for
+        # this before connecting, so a (re)start never sends an empty manifest.
+        if new_index:
+            self._first_scan_done.set()
 
     @staticmethod
     def _hash(path: Path) -> str:

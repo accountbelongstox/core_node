@@ -6,7 +6,10 @@ use App\Models\Subtitle;
 use App\Models\Book;
 use App\Models\MediaSegment;
 use App\Models\SourceSentence;
-use App\Models\Sentence;
+use App\Models\LangSentence;
+use App\Models\LangChapter;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
 use App\Providers\PathMapper;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Traits\ApiResponse;
@@ -132,6 +135,70 @@ class MediaBrowseController extends Controller
     }
 
     /**
+     * GET /api/app_qy_v1/media/documents
+     * Paginated list of the AUTHENTICATED user's uploaded documents (the plain-text
+     * docs POSTed to /learning/upload). Documents are USER-SCOPED, so this resolves
+     * the OPTIONAL sanctum bearer user and returns an EMPTY page when unauthenticated
+     * — no 401 — so the public home browse degrades gracefully instead of bouncing to
+     * login. Each row's word_count is the size of the vocabulary library the upload
+     * produced (uploaded_documents.collection_id → vocabulary_libraries.total_words).
+     *
+     * NOTE: this is distinct from /vocabulary/libraries (the public word-library list,
+     * e.g. "English Coca 60000"). Uploaded documents are a user's own files.
+     */
+    public function documents(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1|max:100',
+            'language' => 'nullable|string',
+            'search' => 'nullable|string',
+        ]);
+
+        $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 20;
+
+        // Optional auth — documents belong to a user. No user → empty page (NOT 401),
+        // matching the paginated() envelope so the FE renders an empty state cleanly.
+        $user = auth('sanctum')->user();
+        if (!$user) {
+            return $this->success([
+                'items' => [],
+                'total' => 0,
+                'per_page' => $perPage,
+                'current_page' => 1,
+                'last_page' => 1,
+            ]);
+        }
+
+        $query = AppQyV1UploadedDocumentModel::where('user_id', $user->id);
+
+        if (!empty($validated['language'])) {
+            $query->where('language', $validated['language']);
+        }
+        if (!empty($validated['search'])) {
+            $search = $validated['search'];
+            $query->where('original_name', 'like', "%{$search}%");
+        }
+
+        $query->orderByDesc('created_at');
+
+        $paginator = $query->with('library')->paginate($perPage)->through(function (AppQyV1UploadedDocumentModel $doc) {
+            $library = $doc->library;
+            return [
+                'id' => $doc->id,
+                'title' => $doc->original_name,
+                'language' => $doc->language,
+                // Size of the vocabulary library this document produced (0 if unlinked).
+                'word_count' => $library ? (int) $library->total_words : 0,
+                'collection_id' => $doc->collection_id,
+                'created_at' => $doc->created_at,
+            ];
+        });
+
+        return $this->paginated($paginator);
+    }
+
+    /**
      * GET /api/app_qy_v1/media/subtitles/{source_key}
      * Detail: subtitle row + ordered segments (with clip URLs) + ordered sentences.
      */
@@ -145,6 +212,7 @@ class MediaBrowseController extends Controller
             'grain' => 'nullable|string|in:cue,sentence,all',
             'per_page' => 'nullable|integer|min:1|max:2000',
             'page' => 'nullable|integer|min:1',
+            'chapter_index' => 'nullable|integer|min:0',
         ]);
 
         $subtitle = Subtitle::where('source_key', $source_key)->first();
@@ -172,7 +240,8 @@ class MediaBrowseController extends Controller
 
         $grain = $validated['grain'] ?? 'sentence';
         $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 500;
-        $sentences = $this->buildSentencesPaginator($source_key, $grain, $perPage);
+        $chapterIndex = isset($validated['chapter_index']) ? (int) $validated['chapter_index'] : null;
+        $sentences = $this->buildSentencesPaginator($source_key, $grain, $perPage, $chapterIndex);
 
         return $this->success([
             'source' => $subtitle,
@@ -195,6 +264,8 @@ class MediaBrowseController extends Controller
             'grain' => 'nullable|string|in:cue,sentence,all',
             'per_page' => 'nullable|integer|min:1|max:2000',
             'page' => 'nullable|integer|min:1',
+            // Books v3.1: scope verses to a single chapter (book -> chapter -> verses).
+            'chapter_index' => 'nullable|integer|min:0',
         ]);
 
         $book = Book::where('source_key', $source_key)->first();
@@ -204,11 +275,44 @@ class MediaBrowseController extends Controller
 
         $grain = $validated['grain'] ?? 'sentence';
         $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 500;
-        $sentences = $this->buildSentencesPaginator($source_key, $grain, $perPage);
+        $chapterIndex = isset($validated['chapter_index']) ? (int) $validated['chapter_index'] : null;
+        $sentences = $this->buildSentencesPaginator($source_key, $grain, $perPage, $chapterIndex);
 
         return $this->success([
             'source' => $book,
+            'chapter_index' => $chapterIndex,
             'sentences' => $sentences,
+        ]);
+    }
+
+    /**
+     * GET /api/app_qy_v1/media/books/{source_key}/chapters
+     * Ordered chapter list for a book, MERGED across its per-language chapter
+     * tables (Books v3.1 — app_qy_v1_chapters_{lang}). One entry per chapter_index
+     * with per-language titles (languages a chapter lacks are null = 留空). Gives
+     * the FE a real book -> chapter -> verse tree; verses for one chapter are then
+     * fetched via bookDetail?chapter_index=N. A legacy/unstructured book (no
+     * per-language chapter rows) returns an empty list, not an error.
+     */
+    public function bookChapters(Request $request, string $source_key): JsonResponse
+    {
+        if (!$this->isValidSourceKey($source_key)) {
+            return $this->error('Invalid source key', 404);
+        }
+
+        $book = Book::where('source_key', $source_key)->first();
+        if (!$book) {
+            return $this->error('Book not found', 404);
+        }
+
+        $languages = $this->sourceLanguages('book', $book);
+        $chapters = $this->buildChaptersList('book', $source_key, $languages);
+
+        return $this->success([
+            'source_key' => $source_key,
+            'languages' => $languages,
+            'chapter_count' => count($chapters),
+            'chapters' => $chapters,
         ]);
     }
 
@@ -246,22 +350,37 @@ class MediaBrowseController extends Controller
 
     /**
      * Build an ordered (grain, seq) sentences paginator joining
-     * SourceSentence (for this source_key) -> Sentence.
+     * SourceSentence (for this source_key) -> per-language LangSentence.
      */
-    private function buildSentencesPaginator(string $sourceKey, string $grain, int $perPage)
+    private function buildSentencesPaginator(string $sourceKey, string $grain, int $perPage, ?int $chapterIndex = null)
     {
-        $query = SourceSentence::where('source_key', $sourceKey)
-            ->with('sentence');
+        // Books v3.1: the shared `sentence` relation is gone; per-language text is
+        // resolved per row via resolveSlotPrimary()/langSentence() below.
+        $query = SourceSentence::where('source_key', $sourceKey);
 
         if ($grain !== 'all') {
             $query->where('grain', $grain);
         }
 
+        // Books v3.1: scope to a single chapter (book -> chapter -> verses).
+        if ($chapterIndex !== null) {
+            $query->where('chapter_index', $chapterIndex);
+        }
+
         $query->orderBy('grain')->orderBy('seq');
 
         $paginator = $query->paginate($perPage)->through(function (SourceSentence $link) {
-            $sentence = $link->sentence;
-            return [
+            // Books v3.1: resolve the slot's primary-language sentence from the
+            // per-language store via lang_content_ids; the full per-language map
+            // is exposed under `languages`. The legacy shared `sentence` relation
+            // was removed, so a slot with no v3 correspondence resolves to the
+            // per-language row (or null) — never the dropped shared table.
+            $v3 = $this->resolveSlotPrimary($link);
+            $sentence = $v3 !== null
+                ? $v3['row']
+                : $link->langSentence($link->primary_language ?: 'en');
+
+            $entry = [
                 'grain' => $link->grain,
                 'seq' => $link->seq,
                 'seg_index' => $link->seg_index,
@@ -277,6 +396,12 @@ class MediaBrowseController extends Controller
                 'audio' => $sentence->audio ?? null,
                 'occurrence_count' => $sentence->occurrence_count ?? null,
             ];
+            if ($v3 !== null) {
+                $entry['corr_id'] = $link->corr_id;
+                $entry['chapter_index'] = $link->chapter_index;
+                $entry['languages'] = $v3['languages'];
+            }
+            return $entry;
         });
 
         return [
@@ -286,6 +411,134 @@ class MediaBrowseController extends Controller
             'current_page' => $paginator->currentPage(),
             'last_page' => $paginator->lastPage(),
         ];
+    }
+
+    /**
+     * Books v3 per-slot resolution for the paginator: read each correspondence
+     * language from its per-language sentence table by lang_content_ids, return
+     * the primary-language row (for the flat fields) plus the full per-language
+     * map. Returns null when the slot has no v3 correspondence (legacy path).
+     *
+     * @return array{row:?LangSentence,languages:array<string,mixed>}|null
+     */
+    private function resolveSlotPrimary(SourceSentence $link): ?array
+    {
+        $map = $link->lang_content_ids;
+        if (!is_array($map) || count($map) === 0) {
+            return null;
+        }
+
+        $languages = [];
+        $primaryRow = null;
+        $primaryLang = $link->primary_language;
+
+        foreach ($map as $lang => $contentId) {
+            $row = null;
+            if (!empty($contentId)) {
+                $row = LangSentence::onLang((string) $lang)->where('content_id', (string) $contentId)->first();
+            }
+
+            $languages[$lang] = [
+                'text' => $row->text ?? null,
+                'audio' => $row->audio ?? null,
+                'explanation' => $row->explanation ?? null,
+                'has_audio' => $row !== null ? (bool) $row->has_audio : false,
+            ];
+
+            if ($row !== null) {
+                $isPrimary = $primaryLang !== null && $primaryLang !== '' && $lang === $primaryLang;
+                if ($isPrimary || $primaryRow === null) {
+                    $primaryRow = $row;
+                }
+            }
+        }
+
+        return ['row' => $primaryRow, 'languages' => $languages];
+    }
+
+    /**
+     * The language codes a source carries, for the chapter merge. Prefers the
+     * seed/ingest metadata.seeded_languages; else derives from a sample slot's
+     * lang_content_ids map; else falls back to ['en']. Always normalized codes,
+     * filtered to the supported set.
+     */
+    private function sourceLanguages(string $sourceType, $source): array
+    {
+        $meta = is_array($source->metadata ?? null) ? $source->metadata : [];
+        $raw = isset($meta['seeded_languages']) && is_array($meta['seeded_languages'])
+            ? $meta['seeded_languages']
+            : [];
+
+        if (empty($raw)) {
+            $sample = SourceSentence::where('source_type', $sourceType)
+                ->where('source_key', $source->source_key)
+                ->whereNotNull('lang_content_ids')
+                ->first();
+            if ($sample && is_array($sample->lang_content_ids)) {
+                $raw = array_keys($sample->lang_content_ids);
+            }
+            if ($sample && !empty($sample->primary_language)) {
+                $raw[] = $sample->primary_language;
+            }
+        }
+
+        $out = [];
+        foreach ($raw as $lang) {
+            $code = AppQyV1TableMaps::normalizeLangCode((string) $lang);
+            if ($code !== '' && AppQyV1TableMaps::isLanguageSupported($code) && !in_array($code, $out, true)) {
+                $out[] = $code;
+            }
+        }
+        return empty($out) ? ['en'] : $out;
+    }
+
+    /**
+     * Merge the per-language chapter tables (app_qy_v1_chapters_{lang}) into one
+     * ordered list keyed by chapter_index: each entry carries per-language titles
+     * (null where a language has no row = 留空) and the chapter's sentence_count.
+     * Returns [] for a legacy/unstructured source with no chapter rows.
+     */
+    private function buildChaptersList(string $sourceType, string $sourceKey, array $languages): array
+    {
+        $byIndex = [];
+
+        foreach ($languages as $lang) {
+            $rows = LangChapter::onLang($lang)
+                ->where('source_type', $sourceType)
+                ->where('source_key', $sourceKey)
+                ->orderBy('chapter_index')
+                ->get();
+
+            foreach ($rows as $row) {
+                $ci = (int) $row->chapter_index;
+                if (!isset($byIndex[$ci])) {
+                    $byIndex[$ci] = [
+                        'chapter_index' => $ci,
+                        'corr_id' => $row->corr_id,
+                        'sentence_count' => 0,
+                        'titles' => [],
+                    ];
+                }
+                $byIndex[$ci]['titles'][$lang] = $row->title; // null = 留空
+                $count = (int) $row->sentence_count;
+                if ($count > $byIndex[$ci]['sentence_count']) {
+                    $byIndex[$ci]['sentence_count'] = $count;
+                }
+            }
+        }
+
+        // Ensure every requested language key is present (null where missing).
+        foreach ($byIndex as &$chapter) {
+            foreach ($languages as $lang) {
+                if (!array_key_exists($lang, $chapter['titles'])) {
+                    $chapter['titles'][$lang] = null;
+                }
+            }
+        }
+        unset($chapter);
+
+        ksort($byIndex);
+        return array_values($byIndex);
     }
 
     /**

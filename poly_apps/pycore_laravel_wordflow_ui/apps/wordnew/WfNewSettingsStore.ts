@@ -23,6 +23,8 @@ export interface WfNewSettings {
   authTargetLang: string;
   bio: string;
   isLoggedIn: boolean;
+  /** The post-login welcome/onboarding wizard has been completed once. */
+  onboardingDone: boolean;
   // ---- UI / theme ----
   themeId: string;
   disableBgBreathing: boolean;
@@ -32,12 +34,42 @@ export interface WfNewSettings {
   voiceAccent: string;
   settingNativeLang: string;
   settingTargetLang: string;
+  /** Multi-select learning targets (backend learning_languages). settingTargetLang stays as the primary for legacy reads. */
+  settingTargetLangs: string[];
   bilingualRatio: string;
   recitalOrder: string;
   autoSpeech: boolean;
   hapticFeedback: boolean;
   reviewAlgorithm: string;
   contentFields: string[];
+  // ---- learning model (word memorization) ----
+  /** Memorization mode: 'walkman' (audio loop) or 'cards' (flashcards). Default walkman. */
+  memorizeMode: 'walkman' | 'cards';
+  /** Times each word audio plays in a pass. */
+  wmPlayCount: number;
+  /** Times a word is replayed (a later second pass). */
+  wmReplayCount: number;
+  /** Read the word itself aloud. */
+  wmReadWord: boolean;
+  /** Read the definition/explanation aloud (default off). */
+  wmReadExplanation: boolean;
+  /** Playback speed multiplier (default 0.8). */
+  wmPlaybackSpeed: number;
+  /** Seconds of silence between words (default 0). */
+  wmPlayInterval: number;
+  /** After a word plays, how many words later it is replayed (default 0 = immediate). */
+  wmReplayGapWords: number;
+  /** Replay speed multiplier (default 0.8). */
+  wmReplaySpeed: number;
+  /** Seconds of silence before a replay (default 0). */
+  wmReplayInterval: number;
+  // ---- review settings ----
+  /** Max review cards per day. */
+  reviewDailyLimit: number;
+  /** Review ordering: 'due_first' | 'random' | 'hardest_first'. */
+  reviewOrder: string;
+  /** Mix newly-learned words into the review queue. */
+  reviewIncludeNew: boolean;
   // ---- user data ----
   favorites: Word[];
   streakDays: number;
@@ -51,6 +83,7 @@ const makeDefaults = (): WfNewSettings => ({
   authTargetLang: 'en',
   bio: 'Expanding my cognitive neural horizon in WordFlow.',
   isLoggedIn: false,
+  onboardingDone: false,
   themeId: 'cosmic',
   disableBgBreathing: false,
   dailyGoal: 20,
@@ -58,12 +91,28 @@ const makeDefaults = (): WfNewSettings => ({
   voiceAccent: 'en-US',
   settingNativeLang: 'zh',
   settingTargetLang: 'en',
+  settingTargetLangs: ['en'],
   bilingualRatio: '1en_1zh',
   recitalOrder: 'target_first',
   autoSpeech: true,
   hapticFeedback: false,
   reviewAlgorithm: 'ebbinghaus',
   contentFields: ['tech', 'literature'],
+  // learning model (word memorization)
+  memorizeMode: 'walkman',
+  wmPlayCount: 1,
+  wmReplayCount: 1,
+  wmReadWord: true,
+  wmReadExplanation: false,
+  wmPlaybackSpeed: 0.8,
+  wmPlayInterval: 0,
+  wmReplayGapWords: 0,
+  wmReplaySpeed: 0.8,
+  wmReplayInterval: 0,
+  // review settings
+  reviewDailyLimit: 50,
+  reviewOrder: 'due_first',
+  reviewIncludeNew: false,
   favorites: [],
   streakDays: 8,
 });

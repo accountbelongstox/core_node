@@ -7,7 +7,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
 use App\Constants\AppKeys;
-use App\Models\Sentence;
+use App\Models\LangSentence;
 use App\Http\Controllers\Controller;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Traits\ApiResponse;
@@ -269,12 +269,16 @@ class AppQyV1VocabularyStatsController extends Controller
             return $this->success(['word' => $word, 'language' => $language, 'count' => 0, 'sentences' => []], 'No word');
         }
 
-        $model = new Sentence();
+        // Books v3: examples live in the per-language sentence table
+        // ({prefix}_sentences_{lang}), keyed by content_id. Resolve the language
+        // CODE for the table (the request may send a name like 'english').
+        $langCode = $this->resolveLangCode($language);
+        $model = LangSentence::for($langCode);
         if (!Schema::connection($model->getConnectionName())->hasTable($model->getTable())) {
             return $this->success(['word' => $word, 'language' => $language, 'count' => 0, 'sentences' => []], 'No sentence library');
         }
 
-        $query = Sentence::where('language', $language);
+        $query = LangSentence::onLang($langCode);
         if ($model->getConnection()->getDriverName() === 'pgsql') {
             // \y = word boundary (case-insensitive ~*); escape regex metachars.
             $query->whereRaw('text ~* ?', ['\\y' . preg_quote($word, '/') . '\\y']);
@@ -283,9 +287,10 @@ class AppQyV1VocabularyStatsController extends Controller
         }
 
         $rows = $query->orderByDesc('occurrence_count')->limit($limit)->get();
-        $sentences = $rows->map(static function (Sentence $s) {
+        $sentences = $rows->map(static function (LangSentence $s) {
             return [
-                'id' => $s->sentence_id ?? $s->getKey(),
+                'id' => $s->content_id ?? $s->getKey(),
+                'content_id' => $s->content_id,
                 'text' => $s->text,
                 'explanation' => $s->explanation,
                 'grammar' => $s->grammar,
@@ -302,6 +307,31 @@ class AppQyV1VocabularyStatsController extends Controller
             'count' => $sentences->count(),
             'sentences' => $sentences,
         ], 'Sentences retrieved');
+    }
+
+    /**
+     * Normalize a language name/code to the 2/3-letter code used by the
+     * per-language sentence tables. Already-codes pass through; common full
+     * names are mapped; an unknown value falls back to 'en'.
+     */
+    private function resolveLangCode(string $language): string
+    {
+        $lang = strtolower(trim($language));
+        $nameToCode = [
+            'english' => 'en',
+            'japanese' => 'ja',
+            'korean' => 'ko',
+            'vietnamese' => 'vi',
+            'lao' => 'lo',
+            'chinese' => 'zh',
+        ];
+        if (isset($nameToCode[$lang])) {
+            $lang = $nameToCode[$lang];
+        }
+        if ($lang === '' || !AppQyV1TableMaps::isLanguageSupported($lang)) {
+            return 'en';
+        }
+        return $lang;
     }
 
     /**

@@ -25,13 +25,16 @@ import {
   BookOpen, Plus, Trash2, X, Folder, FileText, FolderOpen, RefreshCw,
   UploadCloud, Library, Sparkles, WifiOff, ListChecks, Filter, Languages,
   Type, Hash, AlignLeft, Eye, EyeOff, ScanText, FileStack,
+  ChevronDown, ChevronRight, Lock, BookMarked,
 } from 'lucide-react';
 import {
   pycoreApi, connectPycoreWs, onWsStatus, callRpc, subscribeWs,
 } from '../../../core/api-libs/pycore';
 import type {
   VideoExtractMode, BooksAnalyzeResponse, BookTextStats, BookSourceState,
+  BookChapter, BookSlot,
 } from '../../../core/api-libs/pycore';
+import { WF_SUPPORTED_LANGUAGES } from '../../../core/api-libs/wordflow/wordflowLanguages';
 
 // i18n labels (single source; the pages use literals, not a `t` object).
 const L = {
@@ -131,6 +134,24 @@ const L = {
   remaining: 'Remaining',                            // 剩余
   enrichFailed: 'Enrichment failed',                 // 丰富失败
   unreachable: 'pycore unreachable — the backend (:59000) may be offline. Connect to sync or analyze.',
+  // language multi-select
+  languages2: 'Languages',                            // 语言
+  languagesHint: 'Pick the languages to build a correspondence for. The detected primary language is checked and locked.',
+  needOneLang: 'Select at least one language',        // 至少选择一种语言
+  primaryLang: 'Primary (locked)',                    // 主语言（锁定）
+  selectedCount: 'selected',                          // 已选
+  // chapter -> sentence tree
+  chapters2: 'Chapters',                              // 章节
+  chaptersHint: 'Chapter → sentence tree. Each row shows every checked language side by side; blank = no correspondence.',
+  viewChapters: 'View chapters',                      // 查看章节
+  hideChapters: 'Hide chapters',                      // 收起章节
+  chapter: 'Chapter',                                 // 章
+  noChapters: 'No chapters analyzed yet.',            // 暂无章节
+  emptyChapter: 'No sentences in this chapter.',      // 本章无句子
+  grainSentence: 'Sentence',                          // 句子
+  grainCue: 'Cue',                                    // 行
+  grainLabel: 'Grain',                                // 粒度
+  blankCorr: '—',                                     // 留空占位
 };
 
 const DEFAULT_BASE = 'D:\\.tmp';
@@ -175,6 +196,23 @@ const PcBooksPage: React.FC = () => {
   >(null);
   // Persisted per-source state (submission_state etc.) keyed by path.
   const [sourceStates, setSourceStates] = useState<Record<string, BookSourceState>>({});
+
+  // --- language multi-select (>=1; primary auto-checked + locked) ---------- #
+  // `selectedLangs` is the checked correspondence set submitted to the backend.
+  // The primary language (detected from the most-recent analysis) is forced on
+  // and cannot be unchecked. Defaults to English so a fresh page is always valid.
+  const [selectedLangs, setSelectedLangs] = useState<Set<string>>(new Set(['en']));
+  const [lockedLang, setLockedLang] = useState<string>('en');
+
+  // --- chapter -> sentence tree (lazy per source) ------------------------- #
+  // Map path -> { open, loading, error, chapters, openChapter (the chapter whose
+  // slots are loaded), slots, grain (cue|sentence toggle) }.
+  interface ChapterTreeState {
+    open: boolean; loading: boolean; error?: string;
+    chapters: BookChapter[]; openChapter: number | null;
+    slots: BookSlot[]; slotsLoading: boolean; grain: 'sentence' | 'cue';
+  }
+  const [trees, setTrees] = useState<Record<string, ChapterTreeState>>({});
 
   // --- sync state -------------------------------------------------------- #
   const [syncing, setSyncing] = useState(false);
@@ -292,7 +330,7 @@ const PcBooksPage: React.FC = () => {
   const analyzeEntry = useCallback(async (path: string) => {
     setAnalyzing((prev) => new Set(prev).add(path));
     try {
-      const r = await pycoreApi.booksAnalyze(path, { formats: activeFormats(), preview_chars: 1200, persist: true });
+      const r = await pycoreApi.booksAnalyze(path, { formats: activeFormats(), languages: selectedLangList(), preview_chars: 1200, persist: true });
       if (r && r.success) {
         setAnalyses((prev) => ({ ...prev, [path]: r }));
         // Refine the entry's folder/file badge from the analysis result.
@@ -307,7 +345,37 @@ const PcBooksPage: React.FC = () => {
     } finally {
       setAnalyzing((prev) => { const n = new Set(prev); n.delete(path); return n; });
     }
-  }, [activeFormats]);
+  }, [activeFormats, selectedLangList]);
+
+  // Derive the detected primary language from the analyses and auto-check +
+  // lock it (spec §9: the primary language is checked and cannot be unchecked).
+  // The most recently analyzed source wins; falls back to 'en' when unknown.
+  useEffect(() => {
+    const valid = new Set(WF_SUPPORTED_LANGUAGES.map((l) => l.code));
+    let primary = '';
+    for (const a of Object.values(analyses)) {
+      const code = a?.aggregate?.primary_language;
+      if (code && valid.has(code)) primary = code;   // last wins
+    }
+    if (!primary) primary = 'en';
+    setLockedLang(primary);
+    setSelectedLangs((prev) => (prev.has(primary) ? prev : new Set(prev).add(primary)));
+  }, [analyses]);
+
+  // --- language multi-select controls ------------------------------------- #
+  const toggleLang = useCallback((code: string) => {
+    if (code === lockedLang) return;                  // primary is locked on
+    setSelectedLangs((prev) => {
+      const n = new Set(prev);
+      n.has(code) ? n.delete(code) : n.add(code);
+      n.add(lockedLang);                              // never drop the primary
+      return n;
+    });
+  }, [lockedLang]);
+  const selectedLangList = useCallback(
+    (): string[] => WF_SUPPORTED_LANGUAGES.map((l) => l.code).filter((c) => selectedLangs.has(c)),
+    [selectedLangs],
+  );
 
   // --- add / remove ------------------------------------------------------ #
   const addEntry = useCallback((path: string, mode: VideoExtractMode, analyze = true) => {
@@ -449,6 +517,8 @@ const PcBooksPage: React.FC = () => {
   const syncBooks = useCallback(async () => {
     const selPaths = activePaths();
     if (!selPaths.length) { setNotice(L.selectFirst); return; }
+    const langs = selectedLangList();
+    if (!langs.length) { setNotice(L.needOneLang); return; }
     if (syncing) return;
     setSyncing(true);
     setSyncProgress({ stage: 'scan', done: 0, total: 0, detail: '' });
@@ -466,7 +536,7 @@ const PcBooksPage: React.FC = () => {
     // One-shot batch submit: pycore builds the v2 payload for each source and
     // ingests it; per-stage progress still streams over `video_extract_sync`.
     try {
-      const r = await pycoreApi.booksSubmit(paths);
+      const r = await pycoreApi.booksSubmit(paths, undefined, langs);
       if (!r || !r.success) {
         const errs = (r?.items || []).flatMap((it) => it.errors || []);
         setNotice(`${L.syncFailed}${errs.length ? ': ' + errs.slice(0, 3).join('; ') : (r?.error ? ': ' + r.error : '')}`);
@@ -480,7 +550,7 @@ const PcBooksPage: React.FC = () => {
       setSyncProgress(null);
       void loadState();   // refresh submission_state badges
     }
-  }, [entries, selected, syncing, resolveSyncPaths, loadState]);
+  }, [entries, selected, syncing, resolveSyncPaths, loadState, selectedLangList]);
 
   // --- enrichment -------------------------------------------------------- #
   const enrichOnce = useCallback(async (): Promise<EnrichResult | null> => {
@@ -558,6 +628,46 @@ const PcBooksPage: React.FC = () => {
   }, []);
   const openList = useCallback((path: string, kind: string) => { void loadListPage(path, kind, 0); }, [loadListPage]);
 
+  // --- chapter -> sentence tree (lazy load over booksList) ---------------- #
+  const CHAPTER_SLOT_LIMIT = 200;
+  // Load a chapter's correspondence slots (every checked language side by side).
+  const loadChapterSlots = useCallback(async (path: string, chapterIndex: number, grain: 'sentence' | 'cue') => {
+    setTrees((prev) => ({ ...prev, [path]: { ...prev[path], openChapter: chapterIndex, slotsLoading: true, slots: [], grain } }));
+    try {
+      const r = await pycoreApi.booksList(path, grain === 'cue' ? 'cues' : 'sentences', 0, CHAPTER_SLOT_LIMIT,
+        { chapter_index: chapterIndex, languages: selectedLangList() });
+      const slots: BookSlot[] = (r && r.success && Array.isArray(r.items)) ? (r.items as BookSlot[]) : [];
+      setTrees((prev) => ({ ...prev, [path]: { ...prev[path], openChapter: chapterIndex, slots, slotsLoading: false,
+        error: r && r.success ? undefined : (r?.error || 'failed') } }));
+    } catch (e: any) {
+      setTrees((prev) => ({ ...prev, [path]: { ...prev[path], openChapter: chapterIndex, slots: [], slotsLoading: false, error: e?.message || 'request failed' } }));
+    }
+  }, [selectedLangList]);
+
+  // Toggle the chapter tree for a source; first open lazily fetches the chapters.
+  const toggleTree = useCallback(async (path: string) => {
+    const cur = trees[path];
+    if (cur?.open) { setTrees((prev) => ({ ...prev, [path]: { ...prev[path], open: false } })); return; }
+    if (cur && cur.chapters.length) { setTrees((prev) => ({ ...prev, [path]: { ...prev[path], open: true } })); return; }
+    setTrees((prev) => ({ ...prev, [path]: { open: true, loading: true, chapters: [], openChapter: null, slots: [], slotsLoading: false, grain: 'sentence' } }));
+    try {
+      const r = await pycoreApi.booksList(path, 'chapters', 0, 500, { languages: selectedLangList() });
+      let chapters: BookChapter[] = (r && r.success)
+        ? (Array.isArray(r.chapters) ? r.chapters : (Array.isArray(r.items) ? (r.items as BookChapter[]) : []))
+        : [];
+      // A book with no detected chapters shows a single "Chapter 1".
+      if (!chapters.length && r && r.success) {
+        chapters = [{ chapter_index: 0, title: 'Chapter 1', sentence_count: 0 }];
+      }
+      setTrees((prev) => ({ ...prev, [path]: { ...prev[path], open: true, loading: false, chapters,
+        error: r && r.success ? undefined : (r?.error || 'failed') } }));
+      // Auto-expand the first chapter for immediate feedback.
+      if (chapters.length) void loadChapterSlots(path, chapters[0].chapter_index, 'sentence');
+    } catch (e: any) {
+      setTrees((prev) => ({ ...prev, [path]: { ...prev[path], open: true, loading: false, error: e?.message || 'request failed' } }));
+    }
+  }, [trees, selectedLangList, loadChapterSlots]);
+
   // --- styling helpers --------------------------------------------------- #
   const inputCls = 'text-xs bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-200 focus:outline-none';
   const allSelected = entries.length > 0 && selected.size === entries.length;
@@ -627,6 +737,167 @@ const PcBooksPage: React.FC = () => {
       </div>
     )
   );
+
+  // --- language multi-select (checkbox group; primary locked on) ---------- #
+  const renderLangSelect = () => (
+    <div className="rounded-2xl p-4 border bg-slate-100/60 dark:bg-black/20 border-slate-200/60 dark:border-white/5">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+          <Languages className="w-3.5 h-3.5" /> {L.languages2}
+          <span className="ml-1 normal-case font-normal text-slate-400">({selectedLangs.size} {L.selectedCount})</span>
+        </h3>
+      </div>
+      <p className="text-[11px] text-slate-400 mb-2">{L.languagesHint}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {WF_SUPPORTED_LANGUAGES.map((l) => {
+          const on = selectedLangs.has(l.code);
+          const locked = l.code === lockedLang;
+          return (
+            <button key={l.code} type="button" onClick={() => toggleLang(l.code)} disabled={locked}
+              title={locked ? L.primaryLang : l.name}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition flex items-center gap-1 ${
+                on
+                  ? 'border-rose-500/60 bg-rose-500/10 text-rose-500'
+                  : 'border-slate-200 dark:border-white/10 text-slate-400 hover:border-slate-300'
+              } ${locked ? 'cursor-default opacity-90' : ''}`}>
+              <span className="font-mono uppercase">{l.code}</span>
+              <span className="font-normal opacity-80">{l.name}</span>
+              {locked && <Lock className="w-3 h-3" />}
+            </button>
+          );
+        })}
+      </div>
+      {selectedLangs.size === 0 && (
+        <p className="mt-2 text-[11px] font-bold text-amber-500">{L.needOneLang}</p>
+      )}
+    </div>
+  );
+
+  // --- chapter -> sentence correspondence tree ---------------------------- #
+  const langName = (code: string): string =>
+    WF_SUPPORTED_LANGUAGES.find((l) => l.code === code)?.name || code.toUpperCase();
+
+  // Chapter title (v3.1): prefer the per-language title for the primary language,
+  // then any non-empty title in the map, then the flat title, then a default.
+  const chapterTitle = (ch: BookChapter): string => {
+    const t = ch.titles;
+    if (t) {
+      const byPrimary = t[lockedLang];
+      if (byPrimary) return byPrimary;
+      const firstNonEmpty = Object.values(t).find((v) => !!v);
+      if (firstNonEmpty) return firstNonEmpty;
+    }
+    return ch.title || `${L.chapter} ${ch.chapter_index + 1}`;
+  };
+
+  const renderTree = (path: string) => {
+    const tree = trees[path];
+    if (!tree || !tree.open) return null;
+    const cols = selectedLangList();
+    return (
+      <div className="mt-2.5 rounded-2xl p-3 border bg-slate-100/40 dark:bg-black/20 border-slate-200/60 dark:border-white/5">
+        <div className="flex items-center gap-1.5 mb-2 text-[11px] text-slate-500">
+          <BookMarked className="w-3.5 h-3.5 text-rose-400" />
+          <span className="font-bold">{L.chapters2}</span>
+          <span className="text-slate-400">· {L.chaptersHint}</span>
+        </div>
+        {tree.loading ? (
+          <div className="py-4 text-center text-[11px] text-slate-400 flex items-center justify-center gap-2">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {L.loadingList}
+          </div>
+        ) : tree.error ? (
+          <div className="py-4 text-center text-[11px] text-amber-500">{tree.error}</div>
+        ) : tree.chapters.length === 0 ? (
+          <div className="py-4 text-center text-[11px] text-slate-400">{L.noChapters}</div>
+        ) : (
+          <div className="space-y-1.5">
+            {tree.chapters.map((ch) => {
+              const isOpen = tree.openChapter === ch.chapter_index;
+              return (
+                <div key={ch.chapter_index} className="rounded-xl border border-slate-200/60 dark:border-white/5 bg-white/40 dark:bg-white/[0.02]">
+                  <button type="button"
+                    onClick={() => isOpen
+                      ? setTrees((prev) => ({ ...prev, [path]: { ...prev[path], openChapter: null } }))
+                      : void loadChapterSlots(path, ch.chapter_index, tree.grain)}
+                    className="w-full flex items-center gap-2 p-2.5 text-left">
+                    {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
+                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate flex-1" title={chapterTitle(ch)}>
+                      {chapterTitle(ch)}
+                    </span>
+                    {(ch.sentence_count ?? 0) > 0 && (
+                      <span className="shrink-0 text-[10px] text-slate-400">{nf(ch.sentence_count)} {L.sentences.toLowerCase()}</span>
+                    )}
+                  </button>
+                  {isOpen && (
+                    <div className="px-2.5 pb-2.5">
+                      {/* grain toggle (cue / sentence) */}
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="text-[10px] uppercase tracking-wide text-slate-400">{L.grainLabel}:</span>
+                        {(['sentence', 'cue'] as const).map((g) => (
+                          <button key={g} type="button"
+                            onClick={() => void loadChapterSlots(path, ch.chapter_index, g)}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                              tree.grain === g
+                                ? 'border-rose-500/60 bg-rose-500/10 text-rose-500'
+                                : 'border-slate-200 dark:border-white/10 text-slate-400 hover:border-slate-300'}`}>
+                            {g === 'cue' ? L.grainCue : L.grainSentence}
+                          </button>
+                        ))}
+                      </div>
+                      {tree.slotsLoading ? (
+                        <div className="py-3 text-center text-[11px] text-slate-400 flex items-center justify-center gap-2">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {L.loadingList}
+                        </div>
+                      ) : tree.slots.length === 0 ? (
+                        <div className="py-3 text-center text-[11px] text-slate-400">{L.emptyChapter}</div>
+                      ) : (
+                        <div className="overflow-auto max-h-72 rounded-lg border border-slate-200/60 dark:border-white/5">
+                          <table className="w-full text-[11px] border-collapse">
+                            <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900">
+                              <tr>
+                                <th className="px-2 py-1 text-right text-slate-400 font-bold w-10">#</th>
+                                <th className="px-2 py-1 text-left text-slate-400 font-bold w-14">{L.grainLabel}</th>
+                                {cols.map((c) => (
+                                  <th key={c} className="px-2 py-1 text-left text-slate-400 font-bold">
+                                    <span className="font-mono uppercase">{c}</span> <span className="font-normal opacity-70">{langName(c)}</span>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {tree.slots.map((slot, i) => (
+                                <tr key={slot.corr_id || `${slot.grain}-${slot.seq}-${i}`} className="border-t border-slate-200/50 dark:border-white/5 align-top">
+                                  <td className="px-2 py-1 text-right tabular-nums text-slate-400">{nf((slot.seq ?? i) + 1)}</td>
+                                  <td className="px-2 py-1">
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                      slot.grain === 'cue' ? 'bg-sky-500/15 text-sky-500' : 'bg-amber-500/15 text-amber-500'}`}>
+                                      {slot.grain === 'cue' ? L.grainCue : L.grainSentence}
+                                    </span>
+                                  </td>
+                                  {cols.map((c) => {
+                                    const txt = slot.langs ? slot.langs[c] : null;
+                                    return (
+                                      <td key={c} className={`px-2 py-1 break-words ${txt ? 'text-slate-700 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 italic'}`}>
+                                        {txt || L.blankCorr}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderAnalysis = (path: string) => {
     const a = analyses[path];
@@ -737,6 +1008,9 @@ const PcBooksPage: React.FC = () => {
           </div>
         )}
 
+        {/* language multi-select (>=1 required; primary auto-checked + locked) */}
+        <div className="mb-4">{renderLangSelect()}</div>
+
         {!wsConnected && (
           <div className="mb-4 flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
             <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
@@ -798,6 +1072,14 @@ const PcBooksPage: React.FC = () => {
                         title={analyses[e.path] ? L.reAnalyze : L.analyze}>
                         {isAnalyzing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ScanText className="w-3.5 h-3.5" />}
                       </button>
+                      <button onClick={() => void toggleTree(e.path)}
+                        className={`p-1.5 rounded-lg transition ${
+                          trees[e.path]?.open
+                            ? 'text-rose-500 bg-rose-500/10'
+                            : 'text-slate-400 hover:text-rose-500 hover:bg-rose-500/10'}`}
+                        title={trees[e.path]?.open ? L.hideChapters : L.viewChapters}>
+                        <BookMarked className="w-3.5 h-3.5" />
+                      </button>
                       <button onClick={() => removeEntry(e.path)}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition" title={L.remove}>
                         <Trash2 className="w-3.5 h-3.5" />
@@ -809,6 +1091,7 @@ const PcBooksPage: React.FC = () => {
                       </div>
                     )}
                     {renderAnalysis(e.path)}
+                    {renderTree(e.path)}
                   </li>
                 );
               })}
@@ -818,11 +1101,14 @@ const PcBooksPage: React.FC = () => {
 
         {/* action row */}
         <div className="flex flex-wrap items-center gap-2 mt-5">
-          <button onClick={syncBooks} disabled={syncing}
+          <button onClick={syncBooks} disabled={syncing || selectedLangs.size === 0}
             className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
             {syncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
             {syncing ? L.syncing : L.syncLaravel}
           </button>
+          {selectedLangs.size === 0 && (
+            <span className="text-[11px] font-bold text-amber-500">{L.needOneLang}</span>
+          )}
         </div>
 
         {notice && (

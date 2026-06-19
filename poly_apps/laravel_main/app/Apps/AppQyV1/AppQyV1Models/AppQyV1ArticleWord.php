@@ -105,20 +105,13 @@ class AppQyV1ArticleWord extends Model
     }
 
     /**
-     * Map language name to code
+     * Normalize a language name OR code to the canonical CODE (§2 — codes only).
+     * Delegates to AppQyV1TableMaps::normalizeLangCode so a code passes through
+     * unchanged (the article pipeline now sends codes); falls back to 'en'.
      */
     private static function mapLanguageToCode(string $language): string
     {
-        $languageMap = [
-            'english' => 'en',
-            'chinese' => 'zh',
-            'spanish' => 'es',
-            'french' => 'fr',
-            'german' => 'de',
-            'japanese' => 'ja',
-            'korean' => 'ko',
-        ];
-
-        return $languageMap[strtolower($language)] ?? 'en';
+        $code = AppQyV1TableMaps::normalizeLangCode($language);
+        return $code !== '' ? $code : 'en';
     }
 }

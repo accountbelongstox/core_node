@@ -30,7 +30,7 @@ import type {
 } from '../../../core/api-libs/pycore';
 import { usePcCapability } from '../PcCapabilityContext';
 import { PcPipelineStatusPanels, PcFreeLibrariesPanel } from './PcPipelineStatusPanels';
-import AiUsagePanel from '../../../components/ai-tools/AiUsagePanel';
+import { PcRecordsPanel } from './PcRecordsPanel';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import { PcCollapse, PcImageLightbox } from './PcAiShared';
 
@@ -841,13 +841,8 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
         )}
       </section>
 
-      {/* ===================== AI Usage (shared) ===================== */}
-      <section className="pc-glass p-2 sm:p-3">
-        <AiUsagePanel
-          title="AI Usage (shared)"
-          fetchUsage={(limit) => pycoreApi.getAiUsage(limit)}
-        />
-      </section>
+      {/* ============= Records (unified: AI usage + image + speech) ========= */}
+      <PcRecordsPanel />
 
       {/* ===================== OCR / TTS pipelines ===================== */}
       <section className="pc-glass p-5 space-y-4">

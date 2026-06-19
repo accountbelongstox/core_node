@@ -106,11 +106,9 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
             action_signal="tray_action_toggle_voice_subtitle",
             state_getter=get_voice_subtitle_state
         ),
-        TrayMenuItem(
-            text=I18nKeys.TRAY_MENU_AUTOSTART,
-            action_signal="tray_action_toggle_startup",
-            state_getter=get_autostart_state
-        ),
+        # Auto-start on boot now lives in the pycore-manager UI (Settings ->
+        # Startup), not the tray. The GET/POST /api/manage/control/autostart API
+        # backs that toggle.
         TrayMenuItem(
             text=I18nKeys.TRAY_MENU_LANGUAGE,
             action_signal="",
@@ -141,8 +139,9 @@ def tray_menu_to_dicts(items: List[TrayMenuItem]) -> List[Dict[str, Any]]:
 
     Dict schema: {separator: bool, text: str, action_signal: str, enabled: bool,
     children?: [...]} — `children` (same schema, recursive) renders as a submenu.
-    Note: state (Code Sync / Auto-Start prefixes) and i18n are already baked into
-    `text` via TrayMenuItem.get_display_text().
+    Note: state ([X]/[ ] prefixes, e.g. PyCore UI visibility and the language
+    radio items) and i18n are already baked into `text` via
+    TrayMenuItem.get_display_text().
     """
     dicts: List[Dict[str, Any]] = []
     for item in items:

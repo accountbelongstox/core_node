@@ -16,10 +16,11 @@ from .ai_keys_router import router as ai_keys_router
 from .ocr_status_router import router as ocr_status_router
 from .tts_status_router import router as tts_status_router
 from .stt_status_router import router as stt_status_router
+from .speech_history_router import router as speech_history_router
 from .capability_status_router import router as capability_status_router
 from .translation_queue_router import router as translation_queue_router
 from .task_center_router import router as task_center_router
 from .assist_router import router as assist_router
 from .poster_router import router as poster_router
 
-__all__ = ["screenshot_router", "image_router", "audio_router", "file_router", "video_router", "video_extract_router", "system_resources_router", "user_data_router", "books_router", "ai_probe_router", "ai_chat_router", "ai_image_router", "ai_keys_router", "ocr_status_router", "tts_status_router", "stt_status_router", "capability_status_router", "translation_queue_router", "task_center_router", "assist_router", "poster_router"]
+__all__ = ["screenshot_router", "image_router", "audio_router", "file_router", "video_router", "video_extract_router", "system_resources_router", "user_data_router", "books_router", "ai_probe_router", "ai_chat_router", "ai_image_router", "ai_keys_router", "ocr_status_router", "tts_status_router", "stt_status_router", "speech_history_router", "capability_status_router", "translation_queue_router", "task_center_router", "assist_router", "poster_router"]

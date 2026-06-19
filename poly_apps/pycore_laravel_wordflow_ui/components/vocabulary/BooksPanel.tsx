@@ -1,12 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen, ChevronDown, ChevronRight, UploadCloud, RefreshCw, FileText,
-  Type, Hash, AlignLeft, Languages, Eye, EyeOff, Filter, Sparkles,
+  Type, Hash, AlignLeft, Languages, Eye, EyeOff, Sparkles,
+  Lock, BookMarked,
 } from 'lucide-react';
 import { api } from '../../core/api';
 import type {
   BookTextStats, BookUploadFile, BookTotals, BookListKind,
+  BookChapter, BookSlot,
 } from '../../core/api/modules/BooksAPI';
+import { WF_SUPPORTED_LANGUAGES } from '../../core/api-libs/wordflow/wordflowLanguages';
 import { commonClasses } from '../../styles/theme';
 import { useToast } from '../admin';
 import { logInfo, logSuccess, logError } from '../../core/logstore/logStore';
@@ -103,9 +106,22 @@ const BooksPanel: React.FC = () => {
   const [openPreview, setOpenPreview] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Supported formats + optional language hint
+  // Supported formats
   const [supportedFormats, setSupportedFormats] = useState<string[]>([]);
-  const [language, setLanguage] = useState<string>('');
+
+  // Language multi-select correspondence set (spec §9): >=1 required, the detected
+  // primary language is auto-checked + locked. Defaults to English so the panel
+  // is always in a valid state before any analysis lands.
+  const [selectedLangs, setSelectedLangs] = useState<Set<string>>(new Set(['en']));
+  const [lockedLang, setLockedLang] = useState<string>('en');
+
+  // Chapter -> sentence tree, lazy per upload_id.
+  interface ChapterTreeState {
+    open: boolean; loading: boolean; error?: string;
+    chapters: BookChapter[]; openChapter: number | null;
+    slots: BookSlot[]; slotsLoading: boolean; grain: 'sentence' | 'cue';
+  }
+  const [trees, setTrees] = useState<Record<string, ChapterTreeState>>({});
 
   // Ingest
   const [ingestingId, setIngestingId] = useState<string | null>(null);
@@ -128,10 +144,56 @@ const BooksPanel: React.FC = () => {
     };
   }, []);
 
+  // Auto-check + lock the detected primary language (most-recent upload wins).
+  useEffect(() => {
+    const valid = new Set(WF_SUPPORTED_LANGUAGES.map((l) => l.code));
+    let primary = '';
+    // docs are newest-first; the first valid primary is the most recent.
+    for (const d of docs) {
+      const code = d.aggregate?.primary_language;
+      if (code && valid.has(code)) { primary = code; break; }
+    }
+    if (!primary) primary = 'en';
+    setLockedLang(primary);
+    setSelectedLangs((prev) => (prev.has(primary) ? prev : new Set(prev).add(primary)));
+  }, [docs]);
+
+  // --- language multi-select controls ------------------------------------- #
+  const toggleLang = useCallback((code: string) => {
+    if (code === lockedLang) return;                  // primary is locked on
+    setSelectedLangs((prev) => {
+      const n = new Set(prev);
+      n.has(code) ? n.delete(code) : n.add(code);
+      n.add(lockedLang);
+      return n;
+    });
+  }, [lockedLang]);
+  const selectedLangList = useCallback(
+    (): string[] => WF_SUPPORTED_LANGUAGES.map((l) => l.code).filter((c) => selectedLangs.has(c)),
+    [selectedLangs],
+  );
+  const langName = (code: string): string =>
+    WF_SUPPORTED_LANGUAGES.find((l) => l.code === code)?.name || code.toUpperCase();
+
+  // Chapter title (v3.1): prefer the primary language's title, then any non-empty
+  // title in the per-language map, then the flat title, then a default.
+  const chapterTitle = (ch: BookChapter): string => {
+    const t = ch.titles;
+    if (t) {
+      const byPrimary = t[lockedLang];
+      if (byPrimary) return byPrimary;
+      const firstNonEmpty = Object.values(t).find((v) => !!v);
+      if (firstNonEmpty) return firstNonEmpty;
+    }
+    return ch.title || `Chapter ${ch.chapter_index + 1}`;
+  };
+
   // --- upload + analyze --------------------------------------------------- #
   const uploadFiles = useCallback(
     async (files: File[]) => {
       if (!files.length) return;
+      const langs = selectedLangList();
+      if (!langs.length) { toast.error('Select at least one language'); return; }
       setUploading(true);
 
       // Optional instant local preview for plain text (labelled "local preview").
@@ -150,7 +212,7 @@ const BooksPanel: React.FC = () => {
 
       logInfo('books', `Uploading ${files.length} file(s) for analysis...`);
       try {
-        const r = await api.books.booksUpload(files, language || undefined);
+        const r = await api.books.booksUpload(files, langs[0], langs);
         // Backend envelope is {success, data:{upload_id, files, aggregate, totals}};
         // gate on the presence of the staged upload_id, not a (nonexistent) inner success.
         if (r.success && r.data && r.data.upload_id) {
@@ -175,7 +237,7 @@ const BooksPanel: React.FC = () => {
         setUploading(false);
       }
     },
-    [language, toast]
+    [selectedLangList, toast]
   );
 
   const onPickUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -248,11 +310,13 @@ const BooksPanel: React.FC = () => {
   const ingest = useCallback(
     async (uploadId: string) => {
       if (ingestingId) return;
+      const langs = selectedLangList();
+      if (!langs.length) { toast.error('Select at least one language'); return; }
       setIngestingId(uploadId);
       setIngestProgress({ stage: 'submitting', percent: 0 });
       logInfo('books', `Ingesting upload ${uploadId} to library...`);
       try {
-        const r = await api.books.booksIngest({ upload_id: uploadId, language: language || undefined });
+        const r = await api.books.booksIngest({ upload_id: uploadId, language: langs[0], languages: langs });
         if (!r.success || !r.data) {
           throw new Error(r.data?.error || r.error || 'Ingest failed');
         }
@@ -278,7 +342,7 @@ const BooksPanel: React.FC = () => {
         logError('books', `Ingest failed for upload ${uploadId}: ${e?.message || 'unknown error'}`);
       }
     },
-    [ingestingId, language, pollTask, toast]
+    [ingestingId, selectedLangList, pollTask, toast]
   );
 
   // --- drill-down list fetcher (shared with PaginatedListModal) ----------- #
@@ -299,6 +363,43 @@ const BooksPanel: React.FC = () => {
     },
     []
   );
+
+  // --- chapter -> sentence tree (lazy load over /books/list) -------------- #
+  const CHAPTER_SLOT_LIMIT = 200;
+  const loadChapterSlots = useCallback(async (uploadId: string, chapterIndex: number, grain: 'sentence' | 'cue') => {
+    setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], openChapter: chapterIndex, slotsLoading: true, slots: [], grain } }));
+    try {
+      const r = await api.books.booksList({
+        upload_id: uploadId, kind: grain === 'cue' ? 'cues' : 'sentences',
+        start: 0, limit: CHAPTER_SLOT_LIMIT, chapter_index: chapterIndex, languages: selectedLangList(),
+      });
+      const slots: BookSlot[] = (r.success && r.data && Array.isArray(r.data.items)) ? (r.data.items as BookSlot[]) : [];
+      setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], openChapter: chapterIndex, slots, slotsLoading: false,
+        error: r.success ? undefined : (r.data?.error || r.error || 'failed') } }));
+    } catch (e: any) {
+      setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], openChapter: chapterIndex, slots: [], slotsLoading: false, error: e?.message || 'request failed' } }));
+    }
+  }, [selectedLangList]);
+
+  const toggleTree = useCallback(async (uploadId: string) => {
+    const cur = trees[uploadId];
+    if (cur?.open) { setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], open: false } })); return; }
+    if (cur && cur.chapters.length) { setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], open: true } })); return; }
+    setTrees((prev) => ({ ...prev, [uploadId]: { open: true, loading: true, chapters: [], openChapter: null, slots: [], slotsLoading: false, grain: 'sentence' } }));
+    try {
+      const r = await api.books.booksList({ upload_id: uploadId, kind: 'chapters', start: 0, limit: 500, languages: selectedLangList() });
+      let chapters: BookChapter[] = (r.success && r.data)
+        ? (Array.isArray(r.data.chapters) ? r.data.chapters : (Array.isArray(r.data.items) ? (r.data.items as BookChapter[]) : []))
+        : [];
+      // A book with no detected chapters shows a single "Chapter 1".
+      if (!chapters.length && r.success) chapters = [{ chapter_index: 0, title: 'Chapter 1', sentence_count: 0 }];
+      setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], open: true, loading: false, chapters,
+        error: r.success ? undefined : (r.data?.error || r.error || 'failed') } }));
+      if (chapters.length) void loadChapterSlots(uploadId, chapters[0].chapter_index, 'sentence');
+    } catch (e: any) {
+      setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], open: true, loading: false, error: e?.message || 'request failed' } }));
+    }
+  }, [trees, selectedLangList, loadChapterSlots]);
 
   const listColumns = useMemo<PaginatedListColumn[] | undefined>(() => {
     if (!listView) return undefined;
@@ -322,12 +423,158 @@ const BooksPanel: React.FC = () => {
     ];
   }, [listView]);
 
-  const kindLabel: Record<BookListKind, string> = {
+  // The drill-down modal only shows the 5 stat kinds; chapters/cues are rendered
+  // by the inline chapter tree, so this label map stays partial.
+  const kindLabel: Partial<Record<BookListKind, string>> = {
     words: 'Words',
     unique_words: 'Unique words',
     sentences: 'Sentences',
     unique_sentences: 'Unique sentences',
     languages: 'Languages',
+  };
+
+  // --- render: language multi-select (primary locked on) ------------------ #
+  const renderLangSelect = () => (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400 mb-1">
+        <Languages className="w-3.5 h-3.5" /> Languages
+        <span className="ml-1 normal-case font-normal">({selectedLangs.size} selected)</span>
+      </div>
+      <p className="text-[11px] text-slate-400 mb-2">
+        Pick the languages to build a correspondence for. The detected primary language is checked and locked.
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {WF_SUPPORTED_LANGUAGES.map((l) => {
+          const on = selectedLangs.has(l.code);
+          const locked = l.code === lockedLang;
+          return (
+            <button key={l.code} type="button" onClick={() => toggleLang(l.code)} disabled={locked}
+              title={locked ? 'Primary (locked)' : l.name}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition flex items-center gap-1 ${
+                on
+                  ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'
+                  : 'border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-300'
+              } ${locked ? 'cursor-default opacity-90' : ''}`}>
+              <span className="font-mono uppercase">{l.code}</span>
+              <span className="font-normal opacity-80">{l.name}</span>
+              {locked && <Lock className="w-3 h-3" />}
+            </button>
+          );
+        })}
+      </div>
+      {selectedLangs.size === 0 && (
+        <p className="mt-2 text-[11px] font-bold text-amber-500">Select at least one language</p>
+      )}
+    </div>
+  );
+
+  // --- render: chapter -> sentence correspondence tree -------------------- #
+  const renderTree = (uploadId: string) => {
+    const tree = trees[uploadId];
+    if (!tree || !tree.open) return null;
+    const cols = selectedLangList();
+    return (
+      <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+        <div className="flex items-center gap-1.5 mb-2 text-[11px] text-slate-500">
+          <BookMarked className="w-3.5 h-3.5 text-rose-400" />
+          <span className="font-bold">Chapters</span>
+          <span className="text-slate-400">· Each row shows every checked language side by side; blank = no correspondence.</span>
+        </div>
+        {tree.loading ? (
+          <div className="py-4 text-center text-[11px] text-slate-400 flex items-center justify-center gap-2">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Loading...
+          </div>
+        ) : tree.error ? (
+          <div className="py-4 text-center text-[11px] text-amber-500">{tree.error}</div>
+        ) : tree.chapters.length === 0 ? (
+          <div className="py-4 text-center text-[11px] text-slate-400">No chapters analyzed yet.</div>
+        ) : (
+          <div className="space-y-1.5">
+            {tree.chapters.map((ch) => {
+              const isOpen = tree.openChapter === ch.chapter_index;
+              return (
+                <div key={ch.chapter_index} className="rounded-lg border border-slate-200/70 dark:border-slate-700/70 bg-slate-50/60 dark:bg-slate-800/30">
+                  <button type="button"
+                    onClick={() => isOpen
+                      ? setTrees((prev) => ({ ...prev, [uploadId]: { ...prev[uploadId], openChapter: null } }))
+                      : void loadChapterSlots(uploadId, ch.chapter_index, tree.grain)}
+                    className="w-full flex items-center gap-2 p-2.5 text-left">
+                    {isOpen ? <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-400" />}
+                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate flex-1" title={chapterTitle(ch)}>
+                      {chapterTitle(ch)}
+                    </span>
+                    {(ch.sentence_count ?? 0) > 0 && (
+                      <span className="flex-shrink-0 text-[10px] text-slate-400">{nf(ch.sentence_count)} sentences</span>
+                    )}
+                  </button>
+                  {isOpen && (
+                    <div className="px-2.5 pb-2.5">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="text-[10px] uppercase tracking-wide text-slate-400">Grain:</span>
+                        {(['sentence', 'cue'] as const).map((g) => (
+                          <button key={g} type="button"
+                            onClick={() => void loadChapterSlots(uploadId, ch.chapter_index, g)}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                              tree.grain === g
+                                ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'
+                                : 'border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-300'}`}>
+                            {g === 'cue' ? 'Cue' : 'Sentence'}
+                          </button>
+                        ))}
+                      </div>
+                      {tree.slotsLoading ? (
+                        <div className="py-3 text-center text-[11px] text-slate-400 flex items-center justify-center gap-2">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Loading...
+                        </div>
+                      ) : tree.slots.length === 0 ? (
+                        <div className="py-3 text-center text-[11px] text-slate-400">No sentences in this chapter.</div>
+                      ) : (
+                        <div className="overflow-auto max-h-72 rounded-lg border border-slate-200/70 dark:border-slate-700/70">
+                          <table className="w-full text-[11px] border-collapse">
+                            <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900">
+                              <tr>
+                                <th className="px-2 py-1 text-right text-slate-400 font-bold w-10">#</th>
+                                <th className="px-2 py-1 text-left text-slate-400 font-bold w-14">Grain</th>
+                                {cols.map((c) => (
+                                  <th key={c} className="px-2 py-1 text-left text-slate-400 font-bold">
+                                    <span className="font-mono uppercase">{c}</span> <span className="font-normal opacity-70">{langName(c)}</span>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {tree.slots.map((slot, i) => (
+                                <tr key={slot.corr_id || `${slot.grain}-${slot.seq}-${i}`} className="border-t border-slate-200/60 dark:border-slate-700/60 align-top">
+                                  <td className="px-2 py-1 text-right tabular-nums text-slate-400">{nf((slot.seq ?? i) + 1)}</td>
+                                  <td className="px-2 py-1">
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                      slot.grain === 'cue' ? 'bg-sky-500/15 text-sky-500' : 'bg-amber-500/15 text-amber-500'}`}>
+                                      {slot.grain === 'cue' ? 'Cue' : 'Sentence'}
+                                    </span>
+                                  </td>
+                                  {cols.map((c) => {
+                                    const txt = slot.langs ? slot.langs[c] : null;
+                                    return (
+                                      <td key={c} className={`px-2 py-1 break-words ${txt ? 'text-slate-700 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 italic'}`}>
+                                        {txt || '—'}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // --- render: aggregate / per-file stat tiles ---------------------------- #
@@ -398,26 +645,11 @@ const BooksPanel: React.FC = () => {
             sentence and word library.
           </p>
 
+          {/* language multi-select (>=1 required; primary auto-checked + locked) */}
+          {renderLangSelect()}
+
           {/* controls row */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-slate-400" />
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className={`${commonClasses.input} text-sm`}
-                title="Optional language hint sent with the upload"
-              >
-                <option value="">Auto language</option>
-                <option value="english">English</option>
-                <option value="chinese">Chinese</option>
-                <option value="japanese">Japanese</option>
-                <option value="korean">Korean</option>
-                <option value="french">French</option>
-                <option value="german">German</option>
-                <option value="spanish">Spanish</option>
-              </select>
-            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -429,8 +661,8 @@ const BooksPanel: React.FC = () => {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}
+              disabled={uploading || selectedLangs.size === 0}
+              className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
               {uploading ? 'Analyzing...' : 'Upload book files'}
@@ -490,15 +722,29 @@ const BooksPanel: React.FC = () => {
                         {doc.files.length} file{doc.files.length === 1 ? '' : 's'}
                         <span className="text-xs font-normal text-slate-400">· {nf(doc.totals?.words)} words</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => ingest(doc.upload_id)}
-                        disabled={busy}
-                        className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5" />}
-                        {busy ? 'Ingesting...' : 'Ingest to library'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void toggleTree(doc.upload_id)}
+                          className={`px-3 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 border transition ${
+                            trees[doc.upload_id]?.open
+                              ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300'}`}
+                          title={trees[doc.upload_id]?.open ? 'Hide chapters' : 'View chapters'}
+                        >
+                          <BookMarked className="w-3.5 h-3.5" />
+                          {trees[doc.upload_id]?.open ? 'Hide chapters' : 'View chapters'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => ingest(doc.upload_id)}
+                          disabled={busy}
+                          className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {busy ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5" />}
+                          {busy ? 'Ingesting...' : 'Ingest to library'}
+                        </button>
+                      </div>
                     </div>
 
                     {/* ingest progress */}
@@ -560,6 +806,9 @@ const BooksPanel: React.FC = () => {
                         })}
                       </div>
                     )}
+
+                    {/* chapter -> sentence correspondence tree */}
+                    {renderTree(doc.upload_id)}
                   </div>
                 );
               })}

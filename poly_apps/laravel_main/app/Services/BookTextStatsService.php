@@ -232,6 +232,258 @@ class BookTextStatsService
     }
 
     /**
+     * Books v3: segment text into chapters and ordered per-chapter slots
+     * (BOOKS_FEATURE_SPECIFICATION.md §7/§8). Mirrors pycore's chapter heuristics.
+     *
+     * Returns:
+     *   chapters: [{chapter_index, title, text, sentence_count}]
+     *   slots:    [{chapter_index, grain, seq, text, language, content_id}]
+     *             — BOTH grains preserved: 'cue' (one source line/paragraph) and
+     *               'sentence' (lines merged then re-split on terminal punctuation).
+     *               seq is per-grain (a running counter for each grain across the
+     *               whole document, chapter order preserved).
+     *
+     * No DB access; deterministic + cacheable like analyze().
+     *
+     * @return array{chapters:array<int,array>, slots:array<int,array>}
+     */
+    public function analyzeChapters(string $text, string $language = ''): array
+    {
+        $text = (string) $text;
+        $primaryLanguage = $this->normalizeLanguageCode($language);
+        if ($primaryLanguage === '') {
+            $primaryLanguage = $this->primaryLanguageCode($this->languageBreakdown($text));
+        }
+
+        $chapterTexts = $this->segmentChapters($text);
+
+        $chapters = [];
+        $slots = [];
+        $cueSeq = 0;
+        $sentenceSeq = 0;
+
+        foreach ($chapterTexts as $chapter) {
+            $chapterIndex = (int) $chapter['chapter_index'];
+            $chapterBody = (string) $chapter['text'];
+
+            $chapterSentenceCount = 0;
+
+            // ---- Grain 'cue': one source line / paragraph ----
+            foreach ($this->splitCues($chapterBody) as $cueRaw) {
+                $stored = $this->collapseSpaces(MediaIngestService::stripPunctuation($cueRaw));
+                if ($stored === '') {
+                    continue;
+                }
+                $slots[] = [
+                    'chapter_index' => $chapterIndex,
+                    'grain' => 'cue',
+                    'seq' => $cueSeq,
+                    'text' => $stored,
+                    'language' => $this->detectLanguageCode($cueRaw),
+                    'content_id' => MediaIngestService::computeContentId($cueRaw),
+                ];
+                $cueSeq++;
+            }
+
+            // ---- Grain 'sentence': merge lines then re-split on terminal punct ----
+            foreach ($this->segmentWithMarkers($chapterBody) as $token) {
+                if ($token['kind'] !== 'sentence') {
+                    continue;
+                }
+                $raw = $token['text'];
+                $stored = $this->collapseSpaces(MediaIngestService::stripPunctuation($raw));
+                if ($stored === '') {
+                    continue;
+                }
+                $slots[] = [
+                    'chapter_index' => $chapterIndex,
+                    'grain' => 'sentence',
+                    'seq' => $sentenceSeq,
+                    'text' => $stored,
+                    'language' => $this->detectLanguageCode($raw),
+                    'content_id' => MediaIngestService::computeContentId($raw),
+                ];
+                $sentenceSeq++;
+                $chapterSentenceCount++;
+            }
+
+            $chapters[] = [
+                'chapter_index' => $chapterIndex,
+                'title' => (string) $chapter['title'],
+                'text' => $chapterBody,
+                'sentence_count' => $chapterSentenceCount,
+            ];
+        }
+
+        return [
+            'chapters' => $chapters,
+            'slots' => $slots,
+        ];
+    }
+
+    /**
+     * Detect chapters in plain text using heading heuristics that mirror
+     * pycore's book_processor.segment_chapters (BOOKS_FEATURE_SPECIFICATION.md §8):
+     *   - ^(Chapter|CHAPTER)\s+[\dIVXLC]+
+     *   - ^第\s*[0-9一二三四五六七八九十百千]+\s*[章回]
+     *   - markdown headings (#, ##)
+     *   - standalone short ALL-CAPS or numbered lines
+     * FALLBACK: a single chapter {chapter_index:0, title:"Chapter 1", text:<all>}.
+     *
+     * @return array<int, array{chapter_index:int, title:string, text:string}>
+     */
+    private function segmentChapters(string $text): array
+    {
+        if (trim($text) === '') {
+            return [[
+                'chapter_index' => 0,
+                'title' => 'Chapter 1',
+                'text' => $text,
+            ]];
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/u', $text);
+        if (!is_array($lines)) {
+            $lines = [$text];
+        }
+
+        $boundaries = [];   // [lineIndex => title]
+        foreach ($lines as $idx => $line) {
+            $title = $this->headingTitle((string) $line);
+            if ($title !== null) {
+                $boundaries[$idx] = $title;
+            }
+        }
+
+        // No heading detected anywhere -> single fallback chapter.
+        if (empty($boundaries)) {
+            return [[
+                'chapter_index' => 0,
+                'title' => 'Chapter 1',
+                'text' => $text,
+            ]];
+        }
+
+        $chapters = [];
+        $boundaryLineNumbers = array_keys($boundaries);
+        sort($boundaryLineNumbers);
+
+        // Any text BEFORE the first heading becomes a leading "Preface" chapter
+        // so no content is lost.
+        $firstBoundary = $boundaryLineNumbers[0];
+        $chapterIndex = 0;
+        if ($firstBoundary > 0) {
+            $preBody = trim(implode("\n", array_slice($lines, 0, $firstBoundary)));
+            if ($preBody !== '') {
+                $chapters[] = [
+                    'chapter_index' => $chapterIndex,
+                    'title' => 'Preface',
+                    'text' => $preBody,
+                ];
+                $chapterIndex++;
+            }
+        }
+
+        $count = count($boundaryLineNumbers);
+        for ($b = 0; $b < $count; $b++) {
+            $startLine = $boundaryLineNumbers[$b];
+            $endLine = ($b + 1 < $count) ? $boundaryLineNumbers[$b + 1] : count($lines);
+
+            // Body excludes the heading line itself; the heading is the title.
+            $bodyLines = array_slice($lines, $startLine + 1, $endLine - $startLine - 1);
+            $body = trim(implode("\n", $bodyLines));
+
+            $chapters[] = [
+                'chapter_index' => $chapterIndex,
+                'title' => $boundaries[$startLine],
+                'text' => $body,
+            ];
+            $chapterIndex++;
+        }
+
+        if (empty($chapters)) {
+            return [[
+                'chapter_index' => 0,
+                'title' => 'Chapter 1',
+                'text' => $text,
+            ]];
+        }
+
+        return $chapters;
+    }
+
+    /**
+     * Return the chapter title when $line is a chapter heading, else null.
+     * Mirrors the pycore heading regex set.
+     */
+    private function headingTitle(string $line): ?string
+    {
+        $trimmed = trim($line);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        // Markdown headings: # / ## ... (level 1-2 treated as chapter heads).
+        if (preg_match('/^#{1,2}\s+(.+)$/u', $trimmed, $m)) {
+            return trim($m[1]);
+        }
+
+        // English "Chapter N" (arabic or roman numerals).
+        if (preg_match('/^(?:Chapter|CHAPTER)\s+[\dIVXLC]+\b.*$/u', $trimmed)) {
+            return $trimmed;
+        }
+
+        // CJK "第 N 章 / 回".
+        if (preg_match('/^第\s*[0-9一二三四五六七八九十百千]+\s*[章回].*$/u', $trimmed)) {
+            return $trimmed;
+        }
+
+        // Standalone short numbered line, e.g. "1.", "12 -", "I.".
+        if (preg_match('/^(?:[\dIVXLC]+)[\.\):\-\s].{0,60}$/u', $trimmed) && mb_strlen($trimmed) <= 64) {
+            return $trimmed;
+        }
+
+        // Standalone short ALL-CAPS line (a likely section/chapter heading).
+        if (mb_strlen($trimmed) >= 2 && mb_strlen($trimmed) <= 48) {
+            $letters = preg_replace('/[^\p{L}]/u', '', $trimmed);
+            if ($letters !== '' && mb_strtoupper($letters) === $letters
+                && preg_match('/\p{Lu}/u', $letters)) {
+                return $trimmed;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Split a chapter body into 'cue' grains: one cue per non-empty line, with
+     * blank-line-separated paragraphs collapsed to single cues when the block is
+     * a single wrapped paragraph. We keep it simple + robust: a cue is one
+     * non-empty source line (a paragraph/line), preserving the prior "cue" grain
+     * semantics (one source line/paragraph).
+     *
+     * @return array<int, string>
+     */
+    private function splitCues(string $text): array
+    {
+        if (trim($text) === '') {
+            return [];
+        }
+        $lines = preg_split('/\r\n|\r|\n/u', $text);
+        if (!is_array($lines)) {
+            return [];
+        }
+        $cues = [];
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+            if ($line !== '') {
+                $cues[] = $line;
+            }
+        }
+        return $cues;
+    }
+
+    /**
      * Tokenize into ordered words. Latin/other-script runs are maximal runs of
      * letters/digits with internal apostrophe or hyphen kept; each CJK Han char
      * is its own one-character word (matching pycore's per-Han tokenization).

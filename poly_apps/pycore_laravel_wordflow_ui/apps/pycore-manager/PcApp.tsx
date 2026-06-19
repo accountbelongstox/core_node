@@ -20,7 +20,7 @@ import { PcLanguageSync } from './PcLanguageSync';
 registerPcLocales();
 import {
   PcVoiceSubtitlePage, PcQueueCenterPage, PcWindowAutomationPage,
-  PcCodeSyncPage, PcVideoExtractPage, PcBooksPage, PcAiPage,
+  PcCodeSyncPage, PcContentPage, PcAiPage,
   PcSettingsPage,
 } from './pcPages';
 
@@ -64,8 +64,11 @@ const PcApp: React.FC = () => {
         <Route path="translation-queue" element={<Navigate to="/pycore-manager/queue-center?tab=translation" replace />} />
         <Route path="window-automation" element={wrap(<PcWindowAutomationPage />)} />
         <Route path="code-sync" element={wrap(<PcCodeSyncPage />)} />
-        <Route path="video-extract" element={wrap(<PcVideoExtractPage />)} />
-        <Route path="books" element={wrap(<PcBooksPage />)} />
+        <Route path="content" element={wrap(<PcContentPage />)} />
+        {/* Legacy routes of the three ingest pages now merged into Content:
+            each old slug lands on the matching sub-tab. */}
+        <Route path="video-extract" element={<Navigate to="/pycore-manager/content?tab=subtitles" replace />} />
+        <Route path="books" element={<Navigate to="/pycore-manager/content?tab=books" replace />} />
         <Route path="ai" element={wrap(<PcAiPage />)} />
         {/* Legacy routes of the three AI pages now merged into the tabbed AI
             page: each old slug lands on the matching sub-tab. */}

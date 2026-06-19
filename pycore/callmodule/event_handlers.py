@@ -14,7 +14,6 @@ from pycore.pylauncher import ServiceLauncher
 from pycore.pythreadpool.starters import start_tray
 from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.callmodule.callmodule_config import Config
-from pycore.callmodule.platform.startup_manager import get_startup_manager
 from pycore.pyctl.assist import translation_worker_enabled_on_start
 from pycore.callmodule.services import (
     get_translation_worker_service,
@@ -81,16 +80,10 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
         if not THREAD_BUS.is_shutdown_requested():
             THREAD_BUS.request_shutdown(reason="Tray exit requested", execute_handlers=True)
 
-    def handle_tray_toggle_startup(event_data):
-        """Toggle auto-start on boot (native per-OS startup manager)."""
-        startup_manager = get_startup_manager()
-        result = startup_manager.toggle()
-
-        if result['success']:
-            status = "enabled" if result['enabled'] else "disabled"
-            ColorPrint.green(f"[Tray] Auto-start {status}")
-        else:
-            ColorPrint.red(f"[Tray] Failed: {result['message']}")
+    # Auto-start on boot is toggled from the pycore-manager UI (Settings ->
+    # Startup) via GET/POST /api/manage/control/autostart, so the tray no longer
+    # carries a toggle and this handler was removed. The boot-time
+    # refresh_startup_launcher() in pycore_module_caller.py is unaffected.
 
     def handle_tray_toggle_voice_subtitle(event_data):
         """Toggle voice subtitle window visibility via THREAD_BUS"""
@@ -138,7 +131,6 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
     THREAD_BUS.register_event_handler('tray_action_open', handle_tray_open)
     THREAD_BUS.register_event_handler('tray_action_restart', handle_tray_restart)
     THREAD_BUS.register_event_handler('tray_action_exit', handle_tray_exit)
-    THREAD_BUS.register_event_handler('tray_action_toggle_startup', handle_tray_toggle_startup)
     THREAD_BUS.register_event_handler('tray_action_toggle_voice_subtitle', handle_tray_toggle_voice_subtitle)
     # Fallback: only fires when the PySide6 backend is selected but no system tray exists
     THREAD_BUS.register_event_handler('tray.native_unavailable', handle_native_tray_unavailable)

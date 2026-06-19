@@ -16,7 +16,7 @@ import {
   Pause, Cpu, MemoryStick, Captions, ChevronDown, ChevronUp, ListChecks,
   SlidersHorizontal, PanelRightClose, Scissors, CornerDownRight, MonitorSmartphone,
   UploadCloud, Film, Grid2x2, Music, Image as ImageIcon,
-  KeyRound, AlertTriangle,
+  KeyRound, AlertTriangle, Languages, Lock,
 } from 'lucide-react';
 import {
   pycoreApi, connectPycoreWs, onWsStatus,
@@ -26,6 +26,7 @@ import type {
   SystemResources, VideoExtractOpenKind,
   PosterStatus, PosterTestResponse, AssistPosterCounts,
 } from '../../../core/api-libs/pycore';
+import { WF_SUPPORTED_LANGUAGES } from '../../../core/api-libs/wordflow/wordflowLanguages';
 import { usePcVideoExtract } from '../PcVideoExtractContext';
 import type { SegWithFull } from '../PcVideoExtractContext';
 import PcLaravelMediaPanel from '../components/PcLaravelMediaPanel';
@@ -50,6 +51,16 @@ const L = {
   veOpenClipDir: 'Open clip dir',     // 打开切片目录
   vePoster: 'Poster',                 // 海报
   veOpenPosterDir: 'Open poster dir', // 打开海报目录
+  // language multi-select + multi-language correspondence
+  veLanguages: 'Languages',                       // 语言
+  veLanguagesHint: 'Pick the languages to build a per-cue correspondence for. The recognition (primary) language is checked and locked.',
+  veNeedOneLang: 'Select at least one language',   // 至少选择一种语言
+  vePrimaryLang: 'Primary (locked)',              // 主语言(锁定)
+  veSelected: 'selected',                          // 已选
+  veGrainLabel: 'Grain',                           // 粒度
+  veGrainCue: 'Cue',                               // 行
+  veGrainSentence: 'Sentence',                     // 句子
+  veBlankCorr: '—',                                // 留空占位
 };
 
 const DEFAULT_BASE = 'D:\\.tmp';
@@ -320,8 +331,18 @@ const PcVideoExtractPage: React.FC = () => {
   const {
     taskId, busy, paused, progress, snapshot, output, mapping, segmentsDir,
     syncing, syncingAll, syncProgress, autoSync, setAutoSync, notice, setNotice,
+    corrLanguages, setCorrLanguages,
     start: startRun, preview: previewRun, stop, togglePause, syncSource, syncAll,
   } = usePcVideoExtract();
+
+  // --- multi-language correspondence selection (spec §12) ---------------- #
+  // Local checkbox state mirrored into the context (which the segments fetch +
+  // sync RPCs read). The recognition language (`options.lang`) is the locked
+  // primary: auto-checked and not removable. >=1 required to sync.
+  const [selectedLangs, setSelectedLangs] = useState<Set<string>>(new Set(corrLanguages.length ? corrLanguages : ['en']));
+  // Display grain for the per-cue correspondence (cue = one source line; sentence
+  // = merged + re-split). When cues carry a `grain` field the view filters to it.
+  const [corrGrain, setCorrGrain] = useState<'cue' | 'sentence'>('sentence');
 
   // --- history / sources ------------------------------------------------- #
   const [baseDir, setBaseDir] = useState(DEFAULT_BASE);
@@ -520,6 +541,45 @@ const PcVideoExtractPage: React.FC = () => {
 
   const activePaths = (): string[] =>
     entries.filter((e) => selected.has(e.path)).map((e) => e.path);
+
+  // --- language multi-select: locked primary + mirror to context --------- #
+  const LANG_CODES = WF_SUPPORTED_LANGUAGES.map((l) => l.code);
+  const LANG_CODE_SET = new Set(LANG_CODES);
+  // The recognition language is the locked primary (codes only; fallback 'en').
+  const lockedLang = (options.lang && LANG_CODE_SET.has(options.lang)) ? options.lang : 'en';
+  const langName = (code: string): string =>
+    WF_SUPPORTED_LANGUAGES.find((l) => l.code === code)?.name || code.toUpperCase();
+  // Stable, code-ordered list of the checked languages (never names).
+  const selectedLangList = (): string[] => LANG_CODES.filter((c) => selectedLangs.has(c));
+
+  // Resolve one cue's text for a language column: prefer the v3 correspondence
+  // slot `langs[code]`; for a legacy single-language cue (no `langs`) fall back
+  // to the flat `text` under the primary (locked) language only.
+  const cueLangText = (sub: { text: string; langs?: Record<string, string | null> }, code: string): string | null => {
+    if (sub.langs) return sub.langs[code] ?? null;
+    return code === lockedLang ? (sub.text || null) : null;
+  };
+  const grainLabel = (g?: string): string => (g === 'cue' ? L.veGrainCue : L.veGrainSentence);
+
+  // Keep the locked primary checked whenever the recognition language changes,
+  // and mirror the checked set into the context (segments fetch + sync RPCs).
+  useEffect(() => {
+    setSelectedLangs((prev) => (prev.has(lockedLang) ? prev : new Set(prev).add(lockedLang)));
+  }, [lockedLang]);
+  useEffect(() => {
+    setCorrLanguages(selectedLangList());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLangs]);
+
+  const toggleLang = (code: string) => {
+    if (code === lockedLang) return;                 // primary is locked on
+    setSelectedLangs((prev) => {
+      const n = new Set(prev);
+      n.has(code) ? n.delete(code) : n.add(code);
+      n.add(lockedLang);                             // never drop the primary
+      return n;
+    });
+  };
 
   const reqBase = () => ({
     subtitle: options.subtitle,
@@ -832,13 +892,52 @@ const PcVideoExtractPage: React.FC = () => {
           <p className="text-[11px] text-slate-500 mb-3">
             Laravel endpoint: use the switcher in the top bar (also in Settings).
           </p>
+
+          {/* language multi-select (>=1 required; recognition lang locked on) */}
+          <div className="mb-3 rounded-2xl p-4 border bg-slate-100/60 dark:bg-black/20 border-slate-200/60 dark:border-white/5">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                <Languages className="w-3.5 h-3.5" /> {L.veLanguages}
+                <span className="ml-1 normal-case font-normal text-slate-400">({selectedLangs.size} {L.veSelected})</span>
+              </h4>
+            </div>
+            <p className="text-[11px] text-slate-400 mb-2">{L.veLanguagesHint}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {WF_SUPPORTED_LANGUAGES.map((l) => {
+                const on = selectedLangs.has(l.code);
+                const locked = l.code === lockedLang;
+                return (
+                  <button key={l.code} type="button" onClick={() => toggleLang(l.code)} disabled={locked}
+                    title={locked ? L.vePrimaryLang : l.name}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition flex items-center gap-1 ${
+                      on
+                        ? 'border-rose-500/60 bg-rose-500/10 text-rose-500'
+                        : 'border-slate-200 dark:border-white/10 text-slate-400 hover:border-slate-300'
+                    } ${locked ? 'cursor-default opacity-90' : ''}`}>
+                    <span className="font-mono uppercase">{l.code}</span>
+                    <span className="font-normal opacity-80">{l.name}</span>
+                    {locked && <Lock className="w-3 h-3" />}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedLangs.size === 0 && (
+              <p className="mt-2 text-[11px] font-bold text-amber-500">{L.veNeedOneLang}</p>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            {/* no args → the backend syncs its full history of sources */}
-            <button onClick={() => syncAll()} disabled={busy || syncingAll || syncing.size > 0}
+            {/* no path args → the backend syncs its full history of sources;
+                the checked language set drives the per-cue correspondence ingest */}
+            <button onClick={() => syncAll(undefined, selectedLangList())}
+              disabled={busy || syncingAll || syncing.size > 0 || selectedLangs.size === 0}
               className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
               {syncingAll ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
               {syncingAll ? L.veSyncing : L.veSyncAll}
             </button>
+            {selectedLangs.size === 0 && (
+              <span className="text-[11px] font-bold text-amber-500">{L.veNeedOneLang}</span>
+            )}
           </div>
           <ul className="space-y-1.5">
             {syncTargets().map((p) => {
@@ -847,7 +946,8 @@ const PcVideoExtractPage: React.FC = () => {
                 <li key={p}
                   className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-100/40 dark:bg-white/[0.02]">
                   <span className="flex-1 text-xs font-mono text-slate-700 dark:text-slate-200 truncate" title={p}>{p}</span>
-                  <button onClick={() => syncSource(p)} disabled={inFlight || busy || syncingAll}
+                  <button onClick={() => syncSource(p, selectedLangList())}
+                    disabled={inFlight || busy || syncingAll || selectedLangs.size === 0}
                     className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition flex items-center gap-1 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
                     {inFlight ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
                     {inFlight ? L.veSyncing : L.veSyncLaravel}
@@ -882,17 +982,32 @@ const PcVideoExtractPage: React.FC = () => {
       {/* Segment ↔ subtitle map for the CURRENT file */}
       {segmentsDir && (
         <section className="pc-glass p-6">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
             <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
               <Scissors className="w-4 h-4 text-rose-500" /> Segments
             </h3>
-            {mapping && (
-              <span className="text-[11px] font-bold text-slate-500">
-                {mapping.segment_count} clip{mapping.segment_count === 1 ? '' : 's'} · {fmtDur(mapping.duration)}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {/* grain (cue / sentence) toggle for the correspondence display */}
+              <span className="text-[10px] uppercase tracking-wide text-slate-400">{L.veGrainLabel}:</span>
+              {(['sentence', 'cue'] as const).map((g) => (
+                <button key={g} type="button" onClick={() => setCorrGrain(g)}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                    corrGrain === g
+                      ? 'border-rose-500/60 bg-rose-500/10 text-rose-500'
+                      : 'border-slate-200 dark:border-white/10 text-slate-400 hover:border-slate-300'}`}>
+                  {g === 'cue' ? L.veGrainCue : L.veGrainSentence}
+                </button>
+              ))}
+              {mapping && (
+                <span className="text-[11px] font-bold text-slate-500 ml-1">
+                  {mapping.segment_count} clip{mapping.segment_count === 1 ? '' : 's'} · {fmtDur(mapping.duration)}
+                </span>
+              )}
+            </div>
           </div>
-          <p className="text-[11px] text-slate-400 mb-3">Click a subtitle to highlight its parent clip.</p>
+          <p className="text-[11px] text-slate-400 mb-3">
+            Click a cue to highlight its parent clip. Each cue shows every checked language side by side; blank = no correspondence.
+          </p>
 
           {/* whole-file outputs (full mp4 / 2×2 mp4 / mp3 / srt) — these live in
               the output dir = parent of segments_dir. Render present ones as
@@ -971,27 +1086,51 @@ const PcVideoExtractPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {seg.subtitles.length > 0 && (
-                      <ul className="mt-2 space-y-1">
-                        {seg.subtitles.map((sub) => {
-                          const on = selectedSub === sub.idx && selectedSubSeg === seg.index;
-                          return (
-                            <li key={sub.idx}>
-                              <button onClick={() => selectSubtitle(sub.idx, seg.index)}
-                                className={`w-full text-left flex gap-2 px-2 py-1 rounded-lg text-[11px] transition ${
-                                  on
-                                    ? 'bg-rose-500/20 text-slate-800 dark:text-slate-100'
-                                    : 'hover:bg-slate-200/50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300'}`}>
-                                <span className="shrink-0 font-mono text-slate-400">
-                                  {fmtClock(sub.start)}
-                                </span>
-                                <span className="flex-1 break-words">{sub.text}</span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
+                    {(() => {
+                      const cols = selectedLangList();
+                      // When cues carry a `grain`, filter to the selected grain;
+                      // legacy cues (no grain) are shown regardless.
+                      const cues = seg.subtitles.filter((s) => !s.grain || s.grain === corrGrain);
+                      if (cues.length === 0) return null;
+                      return (
+                        <ul className="mt-2 space-y-1">
+                          {cues.map((sub) => {
+                            const on = selectedSub === sub.idx && selectedSubSeg === seg.index;
+                            return (
+                              <li key={sub.idx}>
+                                <button onClick={() => selectSubtitle(sub.idx, seg.index)}
+                                  className={`w-full text-left flex gap-2 px-2 py-1.5 rounded-lg text-[11px] transition ${
+                                    on
+                                      ? 'bg-rose-500/20 text-slate-800 dark:text-slate-100'
+                                      : 'hover:bg-slate-200/50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300'}`}>
+                                  <span className="shrink-0 font-mono text-slate-400">
+                                    {fmtClock(sub.start)}
+                                  </span>
+                                  <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase self-start ${
+                                    (sub.grain || corrGrain) === 'cue' ? 'bg-sky-500/15 text-sky-500' : 'bg-amber-500/15 text-amber-500'}`}>
+                                    {grainLabel(sub.grain || corrGrain)}
+                                  </span>
+                                  {/* every checked language side by side; blank where null */}
+                                  <span className="flex-1 grid gap-0.5">
+                                    {cols.map((c) => {
+                                      const txt = cueLangText(sub, c);
+                                      return (
+                                        <span key={c} className="flex gap-1.5">
+                                          <span className="shrink-0 font-mono uppercase text-[9px] text-slate-400 w-6 pt-0.5">{c}</span>
+                                          <span className={`flex-1 break-words ${txt ? '' : 'text-slate-300 dark:text-slate-600 italic'}`}>
+                                            {txt || L.veBlankCorr}
+                                          </span>
+                                        </span>
+                                      );
+                                    })}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      );
+                    })()}
                   </li>
                 );
               })}

@@ -10,6 +10,7 @@ export const pcZh: PcTranslationDict = {
     codeSync: '代码同步',
     videoExtract: '视频提取',
     books: '书籍',
+    content: '内容',
     moviePoster: '电影海报',
     ai: 'AI',
     aiStatus: '功能状态',

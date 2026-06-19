@@ -17,6 +17,8 @@ from ...models.local_processing.user_data_models import (
     SystemSettingsResponse,
     VideoExtractHistoryEntry,
     VideoExtractHistoryResponse,
+    ContentHistoryEntry,
+    ContentHistoryResponse,
     OkResponse,
     PickPathResponse,
 )
@@ -157,6 +159,24 @@ class UserDataController:
         self._ensure_seed()
         self.store.set(VIDEO_EXTRACT_SECTION, "last_options", options)
         return OkResponse(success=True)
+
+    # ----- content-ingest history (books / subtitles / documents) --------- #
+    def get_content_history(self, limit: int = 200) -> ContentHistoryResponse:
+        """Return the cross-feature content-ingest history (newest first)."""
+        rows = self.store.get_content_history(limit=limit)
+        return ContentHistoryResponse(
+            success=True,
+            entries=[ContentHistoryEntry(**r) for r in rows],
+        )
+
+    def record_content(self, entry: dict) -> OkResponse:
+        """Append one content-ingest history entry to the capped ring."""
+        try:
+            self.store.record_content_history(entry)
+            return OkResponse(success=True)
+        except Exception as exc:  # best-effort; history never blocks a sync
+            ColorPrint.yellow(f"[UserData] record_content failed: {exc}")
+            return OkResponse(success=False, error=str(exc))
 
     # ----- native folder/file picker -------------------------------------- #
     def pick_path(self, mode: str = "folder", initial: str = None) -> PickPathResponse:

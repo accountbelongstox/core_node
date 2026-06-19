@@ -500,8 +500,15 @@ class CodeSyncManager:
         import os as _os
         from .watcher import get_watch_manager
         wm = get_watch_manager()
+        scanning = False
         try:
             wm.start()  # idempotent: ensures the index is populated on this end too
+            # Wait briefly for the FIRST scan so a freshly-started watcher does not
+            # return an empty tree (the panel would flash "no files" / drift would
+            # read 0). Bounded; the HTTP server is threaded so this only blocks THIS
+            # request. `scanning` lets the UI show "scanning…" instead of "empty".
+            if not wm.wait_ready(timeout=15):
+                scanning = True
         except Exception:
             pass
         snap = wm.snapshot()  # {dest_rel: (mtime, hash, abspath)}
@@ -586,6 +593,7 @@ class CodeSyncManager:
             "count": total_files,
             "size": total_size,
             "truncated": truncated,
+            "scanning": scanning,   # first index scan still running (tree may be partial)
         }
 
     def get_peer_file_tree(self, peer_id: str) -> dict:
@@ -630,8 +638,13 @@ class CodeSyncManager:
 
         client_files: Dict[str, Any] = {}
         _flatten(peer_tree.get("children"), client_files)
+        dev_tree = self.get_file_tree()
         dev_files: Dict[str, Any] = {}
-        _flatten(self.get_file_tree().get("children"), dev_files)
+        _flatten(dev_tree.get("children"), dev_files)
+        # If EITHER side's first index scan is still running, the diff is provisional
+        # (a partial tree inflates "missing"/"extra"); surface it so the UI can mark
+        # the drift as not-yet-final rather than alarm the user.
+        scanning = bool(peer_tree.get("scanning") or dev_tree.get("scanning"))
 
         missing, changed = [], []
         for path, dv in dev_files.items():
@@ -650,6 +663,7 @@ class CodeSyncManager:
             "success": True,
             "peer": peer_meta,
             "tree": peer_tree,
+            "scanning": scanning,   # dev and/or client index still scanning -> provisional
             "drift": {
                 "dev_count": len(dev_files),
                 "client_count": len(client_files),

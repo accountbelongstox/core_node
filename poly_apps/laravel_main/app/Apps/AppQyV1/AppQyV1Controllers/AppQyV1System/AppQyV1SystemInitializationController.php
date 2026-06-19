@@ -17,13 +17,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Cache;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1DictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
-use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1LegacyDatabaseProcessor;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1AudioFileProcessor;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ImageFileProcessor;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
-use App\Apps\AppQyV1\Utils\AppQyV1VocabularyProcessor\AppQyV1VocabularyProcessor;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
@@ -41,20 +38,16 @@ class AppQyV1SystemInitializationController extends Controller
      */
 
     protected $storageManager;
-    protected $databaseProcessor;
     protected $audioProcessor;
     protected $imageProcessor;
     protected $markerManager;
-    protected $vocabularyProcessor;
 
     public function __construct()
     {
         $this->storageManager = new AppQyV1ExternalStorageManager();
-        $this->databaseProcessor = new AppQyV1LegacyDatabaseProcessor();
         $this->audioProcessor = new AppQyV1AudioFileProcessor();
         $this->imageProcessor = new AppQyV1ImageFileProcessor();
         $this->markerManager = new AppQyV1InitializationMarkerManager();
-        $this->vocabularyProcessor = new AppQyV1VocabularyProcessor();
     }
 
     /**
@@ -175,11 +168,16 @@ class AppQyV1SystemInitializationController extends Controller
      */
     protected function processVocabularyFiles(): array
     {
-            $result = $this->vocabularyProcessor->processVocabularyFiles();
+            // Retired: per-language dictionary tables (tts_cache_{lang}) are
+            // populated by sys:init migrations + UserSyncService, so the legacy
+            // vocabulary-file import is a graceful no-op.
             return [
                 'status' => 'complete',
                 'progress' => 100,
-                'stats' => $result
+                'stats' => [
+                    'status' => 'skipped',
+                    'note' => 'Per-language dictionary tables are populated by sys:init migrations + UserSyncService; the legacy vocabulary-file import is retired.'
+                ]
             ];
     }
 
@@ -191,28 +189,11 @@ class AppQyV1SystemInitializationController extends Controller
      */
     protected function processLegacyDatabase(): array
     {
-        if ($this->markerManager->isDatabaseProcessed()) {
-            return ['status' => 'complete', 'progress' => 100];
-        }
-
-        $legacyDbPath = $this->storageManager->getLegacyDatabasePath();
-        
-        if (!file_exists($legacyDbPath)) {
-            return [
-                'status' => 'download_required',
-                'download_url' => 'https://drive.google.com/file/d/legacy-database-id/view',
-                'message' => 'Please download legacy database from Google Drive'
-            ];
-        }
-
-        // Process legacy database conversion
-        $result = $this->databaseProcessor->convertLegacyDatabase($legacyDbPath);
-        
-        if ($result['success']) {
-            return ['status' => 'complete', 'progress' => 100];
-        } else {
-            return ['status' => 'processing', 'progress' => $result['progress']];
-        }
+        // Retired: the legacy single-table SQLite import is gone. Modern data
+        // comes from sys:init migrations / the per-language tts_cache tables,
+        // so there is nothing to import here. The caller marks the database step
+        // processed when this returns complete.
+        return ['status' => 'complete', 'progress' => 100];
     }
 
     /**
@@ -312,46 +293,6 @@ class AppQyV1SystemInitializationController extends Controller
     }
 
     /**
-     * Process vocabulary files only (separate endpoint)
-     * 
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function processVocabularyOnly()
-    {
-            $result = $this->processVocabularyFiles();
-            
-            if ($result['status'] === 'complete') {
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'Vocabulary processing completed successfully',
-                    'data' => $result['stats']
-                ]);
-            } else {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Vocabulary processing failed',
-                    'error' => $result['error'] ?? 'Unknown error'
-                ], 500);
-            }
-    }
-
-    /**
-     * Get vocabulary processing status
-     * 
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function getVocabularyStatus()
-    {
-            $stats = $this->vocabularyProcessor->getProcessingStats();
-            
-            return response()->json([
-                'status' => 'success',
-                'data' => $stats,
-                'processing_complete' => $this->markerManager->isVocabularyProcessingComplete()
-            ]);
-    }
-
-    /**
      * Get detailed information about storage directories
      * 
      * @return array
@@ -441,8 +382,22 @@ class AppQyV1SystemInitializationController extends Controller
      */
     protected function checkNewDatabaseExists(): bool
     {
-            // Check if we have any dictionary records in the main database
-            return AppQyV1DictionaryModel::count() > 0;
+            // Canonical store is the per-language tts_cache_{lang} tables. Any
+            // populated language means the dictionary database exists. Each count
+            // is guarded so a not-yet-migrated language (missing table) is skipped
+            // rather than throwing.
+            foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
+                try {
+                    if (AppQyV1LangDictionaryModel::forLanguage($lang)->count() > 0) {
+                        return true;
+                    }
+                } catch (\Throwable $e) {
+                    // Missing/not-yet-migrated table for this language; continue.
+                    continue;
+                }
+            }
+
+            return false;
     }
 
     /**
@@ -452,8 +407,7 @@ class AppQyV1SystemInitializationController extends Controller
      */
     protected function checkVocabularyMetadataProcessed(): bool
     {
-            $stats = $this->vocabularyProcessor->getProcessingStats();
-            return isset($stats['processed_files']) && $stats['processed_files'] > 0;
+            return $this->markerManager->isVocabularyProcessingComplete();
     }
 
     /**

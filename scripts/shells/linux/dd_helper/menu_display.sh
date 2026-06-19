@@ -35,11 +35,11 @@ initialize_menu_items() {
     menu_items["Service Manager"]="text=Service Manager (Redis/PostgreSQL/Docker/MySQL/Nginx/SSH);values=default;current=0;key=SERVICE_MANAGER_MENU;action=show_service_manager"
     menu_order+=("Service Manager")
 
-    menu_items["Backup Management"]="text=Backup Management;values=default;current=0;key=BACKUP_MANAGEMENT_MENU;action=show_backup_management"
-    menu_order+=("Backup Management")
-
-    menu_items["Linux Management"]="text=Linux Management;values=default;current=0;key=LINUX_MANAGEMENT_MENU;action=show_linux_management_submenu"
-    menu_order+=("Linux Management")
+    # Merged menu: "Linux Management" + "Backup Management" are grouped under one
+    # entry that opens a dispatcher with both as sub-menus. The dispatcher also
+    # hosts the Python runtime + models + user-data backup.
+    menu_items["Management & Backup"]="text=Management & Backup;values=default;current=0;key=MANAGEMENT_BACKUP_MENU;action=show_management_and_backup"
+    menu_order+=("Management & Backup")
 
     menu_items["AI & MCP Management"]="text=AI & MCP Management (status/install/sync 8 tools);values=default;current=0;key=AI_MCP_MENU;action=show_ai_mcp_management"
     menu_order+=("AI & MCP Management")

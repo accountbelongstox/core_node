@@ -20,11 +20,15 @@ use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\Utils\AppQyV1ArticleTextParser;
 use App\Services\TaskManagerService;
+use App\Services\BookTextStatsService;
+use App\Services\MediaIngestService;
 use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWord;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Support\Facades\Log;
 
 class AppQyV1ArticleController
 {
@@ -32,9 +36,18 @@ class AppQyV1ArticleController
 
     protected $taskManager;
 
-    public function __construct(TaskManagerService $taskManager)
-    {
+    protected BookTextStatsService $stats;
+
+    protected MediaIngestService $ingestService;
+
+    public function __construct(
+        TaskManagerService $taskManager,
+        BookTextStatsService $stats,
+        MediaIngestService $ingestService
+    ) {
         $this->taskManager = $taskManager;
+        $this->stats = $stats;
+        $this->ingestService = $ingestService;
     }
 
     /**
@@ -64,9 +77,14 @@ class AppQyV1ArticleController
      */
     public function submitArticle(Request $request): JsonResponse
     {
+        // §2: language is a CODE; validate against the canonical supported set
+        // (the edge_tts codes that back the per-language tables) so the rule stays
+        // auto-synced and never drifts from a hardcoded list.
+        $languageRule = 'nullable|string|in:' . implode(',', AppQyV1TableMaps::getSupportedLanguages());
+
         $validator = Validator::make($request->all(), [
             'article_text' => 'required|string|min:10|max:50000',
-            'language' => 'nullable|string|in:english,chinese,spanish,french,german,japanese,korean',
+            'language' => $languageRule,
             'generate_sentence_audio' => 'nullable|boolean',
             'generate_word_audio' => 'nullable|boolean',
             'title' => 'nullable|string|max:255',
@@ -86,7 +104,9 @@ class AppQyV1ArticleController
         }
 
         $articleText = $request->input('article_text');
-        $language = 'english';
+        // §2: language is a CODE. Default to the primary 'en'; the normalizer
+        // (AppQyV1TableMaps::normalizeLangCode) remains a safety net downstream.
+        $language = 'en';
         if ($request->has('language')) {
             $language = $request->input('language');
         }
@@ -150,6 +170,13 @@ class AppQyV1ArticleController
                     $language
                 );
             });
+
+            // §1.1/§13.2: map the finalized article body into the ONE shared
+            // multi-language sentence library (sentences_{lang} by content_id) via
+            // source_sentences slots (source_type='article'). The articles row
+            // keeps `content` unchanged. Never let a mapping failure fail the save
+            // (the article + its TTS task still proceed).
+            $this->mapArticleToLibrary($articleId, $articleText, $language);
 
             if ($generateSentenceAudio || $generateWordAudio) {
                 $timeoutSeconds = 120 + (count($parsedResult['sentences']) * 5) + (count($parsedResult['words']) * 2);
@@ -344,9 +371,12 @@ class AppQyV1ArticleController
      */
     public function previewParsing(Request $request): JsonResponse
     {
+        // §2: validate language against the canonical supported set (auto-synced).
+        $languageRule = 'nullable|string|in:' . implode(',', AppQyV1TableMaps::getSupportedLanguages());
+
         $validator = Validator::make($request->all(), [
             'article_text' => 'required|string|min:10|max:50000',
-            'language' => 'nullable|string|in:english,chinese,spanish,french,german,japanese,korean',
+            'language' => $languageRule,
         ]);
 
         if ($validator->fails()) {
@@ -358,7 +388,9 @@ class AppQyV1ArticleController
         }
 
         $articleText = $request->input('article_text');
-        $language = 'english';
+        // §2: language is a CODE. Default to the primary 'en'; the normalizer
+        // (AppQyV1TableMaps::normalizeLangCode) remains a safety net downstream.
+        $language = 'en';
         if ($request->has('language')) {
             $language = $request->input('language');
         }
@@ -373,5 +405,154 @@ class AppQyV1ArticleController
             'total_words' => $parsedResult['total_words'],
             'unique_words' => $parsedResult['unique_words'],
         ], 'Article parsed successfully');
+    }
+
+    /**
+     * Idempotent backfill: map an EXISTING article's body into the shared
+     * multi-language sentence library (§1.1/§13.2). Safe to call repeatedly —
+     * MediaIngestService::ingest is fill-missing/never-clobber. Maps every
+     * article in the table when no article_id is given.
+     *
+     * POST /api/app_qy_v1/ai_tools/article/backfill-library  { article_id? }
+     */
+    public function backfillLibrary(Request $request): JsonResponse
+    {
+        $articleId = $request->input('article_id');
+
+        $query = AppQyV1Article::query();
+        if (is_string($articleId) && $articleId !== '') {
+            $query->where('article_id', $articleId);
+        }
+
+        $mapped = 0;
+        $failed = 0;
+        $query->orderBy('id')->chunkById(200, function ($articles) use (&$mapped, &$failed) {
+            foreach ($articles as $article) {
+                $content = (string) $article->content;
+                if (trim($content) === '') {
+                    continue;
+                }
+                if ($this->mapArticleToLibrary((string) $article->article_id, $content, (string) $article->language)) {
+                    $mapped++;
+                } else {
+                    $failed++;
+                }
+            }
+        });
+
+        return $this->success([
+            'mapped' => $mapped,
+            'failed' => $failed,
+        ], 'Article library backfill completed');
+    }
+
+    /**
+     * Segment an article body into BOTH grains (cue/sentence) via
+     * BookTextStatsService and ingest it into the ONE shared per-language
+     * sentence library through the v3 MediaIngestService path (§1.1/§13.2).
+     *
+     * source_key = the article's stable id (already 'article_<uuid>'). The PHP
+     * parser yields one detected language per slot; selected_languages = the
+     * primary code plus every detected slot language (multilingual articles fill
+     * several langs; monolingual fills only the primary, others null). Codes only.
+     * Never throws — a mapping failure must not fail article creation.
+     *
+     * @return bool True when the ingest ran without error.
+     */
+    private function mapArticleToLibrary(string $articleId, string $content, string $language): bool
+    {
+        try {
+            if (trim($content) === '') {
+                return false;
+            }
+
+            $primaryCode = AppQyV1TableMaps::normalizeLangCode($language);
+            if ($primaryCode === '') {
+                $primaryCode = 'en';
+            }
+
+            // Both-grain segmentation + per-slot language detection (reused from
+            // the books pipeline). Articles use a single default chapter.
+            $tree = $this->stats->analyzeChapters($content, $primaryCode);
+            $cachedSlots = isset($tree['slots']) && is_array($tree['slots']) ? $tree['slots'] : [];
+            if (count($cachedSlots) === 0) {
+                return false;
+            }
+
+            // selected_languages = primary + every detected slot language (codes).
+            $selected = [$primaryCode];
+            foreach ($cachedSlots as $slot) {
+                $code = AppQyV1TableMaps::normalizeLangCode((string) ($slot['language'] ?? ''));
+                if ($code !== '' && !in_array($code, $selected, true)) {
+                    $selected[] = $code;
+                }
+            }
+
+            $sourceKey = $articleId; // already 'article_<uuid>', stable + prefixed.
+
+            // Build v3 slots: each detected language fills its own text; the other
+            // selected languages stay null (留空), exactly like a book sentence.
+            $slots = [];
+            foreach ($cachedSlots as $slot) {
+                $grain = isset($slot['grain']) ? (string) $slot['grain'] : 'sentence';
+                $seq = isset($slot['seq']) ? (int) $slot['seq'] : 0;
+                $text = isset($slot['text']) ? (string) $slot['text'] : '';
+                if (trim($text) === '') {
+                    continue;
+                }
+                $slotLang = AppQyV1TableMaps::normalizeLangCode((string) ($slot['language'] ?? ''));
+                if ($slotLang === '') {
+                    $slotLang = $primaryCode;
+                }
+
+                $langs = [];
+                foreach ($selected as $code) {
+                    $langs[$code] = ($code === $slotLang) ? $text : null;
+                }
+
+                $slots[] = [
+                    'chapter_index' => 0,
+                    'grain' => $grain,
+                    'seq' => $seq,
+                    'corr_id' => MediaIngestService::computeCorrId($sourceKey, $grain, $seq),
+                    'primary_language' => $primaryCode,
+                    'langs' => $langs,
+                    'seg_index' => null,
+                    'sub_idx' => null,
+                    'start_sec' => null,
+                    'end_sec' => null,
+                ];
+            }
+
+            if (count($slots) === 0) {
+                return false;
+            }
+
+            $payload = [
+                'source_type' => 'article',
+                'model_version' => 3,
+                'source' => [
+                    'source_key' => $sourceKey,
+                    'language' => $primaryCode,
+                    'selected_languages' => $selected,
+                    'full_content' => $content,
+                    'metadata' => ['source' => 'article', 'article_id' => $articleId],
+                ],
+                // Single default chapter (per selected language, title null/留空).
+                'chapters' => [
+                    ['chapter_index' => 0, 'sentence_count' => count($slots), 'titles' => []],
+                ],
+                'slots' => $slots,
+            ];
+
+            $this->ingestService->ingest($payload);
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('[AppQyV1Article] Library mapping failed', [
+                'article_id' => $articleId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
     }
 }

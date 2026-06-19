@@ -4,6 +4,7 @@ import {
   SubtitleWord, SubtitleLine, SubtitleCourse,
   BilingualWord, BilingualSentence,
   WeeklyActivity, CategoryScore, StudiedTimelineItem, AnalyticsStats,
+  WfNewContentGroup,
 } from './api/WfNewApiTypes';
 
 // Re-export the shared types so existing `from '../WfNewMockDb'` imports keep
@@ -371,6 +372,35 @@ export const MOCK_BILINGUAL_SENTENCES: BilingualSentence[] = [
       { text: 'gestaltung', phonetic: '/ɡəˈʃtaltʊŋ/', translation: '设计，构造呈现', definition: 'Die Art und Weise, wie etwas künstlerisch oder praktisch geformt ist.' }
     ]
   }
+];
+
+// 7. Home content groups — curated mock for the multi-category home sections
+// (books / subtitles / documents). Word groups are derived from MOCK_BENTO_GROUPS
+// in the mock API, so only the other three categories are seeded here. No
+// imageUrl is set so the card draws its kind-coloured gradient fallback offline.
+export const MOCK_BOOK_GROUPS: WfNewContentGroup[] = [
+  { id: 'book-1', kind: 'book', title: 'The Little Prince (小王子)', count: 412, countUnit: 'sentences', language: 'en', category: 'Fiction', description: 'A poetic tale rich in metaphor and gentle vocabulary.' },
+  { id: 'book-2', kind: 'book', title: 'Sapiens — A Brief History', count: 1280, countUnit: 'sentences', language: 'en', category: 'Non-fiction', description: 'Big-history narrative with dense academic vocabulary.' },
+  { id: 'book-3', kind: 'book', title: 'Le Petit Prince (FR)', count: 388, countUnit: 'sentences', language: 'fr', category: 'Fiction', description: 'Original French edition for intermediate readers.' },
+];
+
+export const MOCK_SUBTITLE_GROUPS: WfNewContentGroup[] = [
+  { id: 'sub-1', kind: 'subtitle', title: 'Interstellar (星际穿越)', count: 1640, countUnit: 'subtitles', language: 'en', category: 'Sci-Fi', description: 'Hard sci-fi dialogue — physics & emotional register.' },
+  { id: 'sub-2', kind: 'subtitle', title: 'Friends — S01E01', count: 540, countUnit: 'subtitles', language: 'en', category: 'Sitcom', description: 'Everyday conversational English and idioms.' },
+  { id: 'sub-3', kind: 'subtitle', title: 'Spirited Away (千と千尋)', count: 720, countUnit: 'subtitles', language: 'ja', category: 'Anime', description: 'Natural spoken Japanese with cultural context.' },
+];
+
+// Public word LIBRARIES (词库) — e.g. frequency / exam vocabulary collections.
+export const MOCK_LIBRARY_GROUPS: WfNewContentGroup[] = [
+  { id: 'lib-1', kind: 'library', title: 'IELTS Core 3000', count: 3000, countUnit: 'words', language: 'en', category: 'Exam', description: 'The essential academic-English word library.' },
+  { id: 'lib-2', kind: 'library', title: 'Business English Pack', count: 850, countUnit: 'words', language: 'en', category: 'Professional', description: 'Meetings, negotiation and email vocabulary.' },
+  { id: 'lib-3', kind: 'library', title: 'JLPT N2 词库', count: 1500, countUnit: 'words', language: 'ja', category: 'Exam', description: 'Intermediate Japanese vocabulary collection.' },
+];
+
+// The user's own uploaded DOCUMENTS (文档) — files turned into a word collection.
+export const MOCK_DOCUMENT_GROUPS: WfNewContentGroup[] = [
+  { id: 'doc-1', kind: 'document', title: 'Research Notes — Cognition.pdf', count: 214, countUnit: 'words', language: 'en', description: 'Uploaded study notes extracted into a vocabulary set.' },
+  { id: 'doc-2', kind: 'document', title: 'Lecture 03 Transcript.txt', count: 96, countUnit: 'words', language: 'en', description: 'Auto-extracted words from an uploaded transcript.' },
 ];
 
 

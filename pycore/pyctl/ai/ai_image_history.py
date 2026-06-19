@@ -237,6 +237,21 @@ def read_image(image_id: str) -> Tuple[bytes, str]:
         return b"", ""
 
 
+def entry_path(image_id: str) -> Optional[str]:
+    """Absolute path of a stored image file (for reveal / show-location), or None."""
+    image_id = (image_id or "").strip()
+    if not image_id:
+        return None
+    with _lock:
+        for e in (_load_index().get("entries") or []):
+            if e.get("id") == image_id and e.get("file"):
+                try:
+                    return str((_state_dir() / e["file"]).resolve())
+                except Exception:
+                    return str(_state_dir() / e["file"])
+    return None
+
+
 def delete_entry(image_id: str) -> bool:
     """Remove one history entry and its image file. True when an entry was removed."""
     image_id = (image_id or "").strip()
@@ -284,5 +299,5 @@ def clear_history() -> int:
 
 
 __all__ = [
-    "record_image", "list_history", "read_image", "delete_entry", "clear_history",
+    "record_image", "list_history", "read_image", "entry_path", "delete_entry", "clear_history",
 ]
