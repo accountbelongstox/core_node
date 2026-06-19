@@ -353,4 +353,178 @@ export function useHaptics(): UseHapticsResult {
   );
 }
 
+// ===========================================================================
+// EXTENDED CAPABILITIES — learning cues, sequences, metronome
+// ===========================================================================
+//
+// A semantic layer mapping wordnew learning moments to haptic cues, a sequence
+// player for richer multi-pulse feedback, and a metronome for rhythm / pacing
+// during shadowing & listening drills.
+
+/** Patterns tuned to specific learning moments (on/off ms). */
+export const LEARNING_PATTERNS: Record<string, CapHapticPattern> = {
+  answerCorrect: [12, 40, 12],
+  answerWrong: [40, 80, 40, 80, 40],
+  almost: [20, 50, 12],
+  cardFlip: [10],
+  reveal: [8, 30, 14],
+  streakMilestone: [10, 30, 10, 30, 30, 30, 45],
+  levelUp: [15, 40, 25, 40, 45],
+  sessionComplete: [20, 60, 20, 60, 40, 60, 60],
+  countdownTick: [6],
+  timeUp: [60, 120, 60],
+};
+
+/**
+ * Semantic learning-event haptics. Thin wrappers over the shared service so UI
+ * code reads intention ("answer correct"), not raw patterns.
+ */
+export const learningHaptics = {
+  answerCorrect: () => capHaptics.pattern(LEARNING_PATTERNS.answerCorrect),
+  answerWrong: () => capHaptics.pattern(LEARNING_PATTERNS.answerWrong),
+  almost: () => capHaptics.pattern(LEARNING_PATTERNS.almost),
+  cardFlip: () => capHaptics.tap('light'),
+  reveal: () => capHaptics.pattern(LEARNING_PATTERNS.reveal),
+  streakMilestone: () => capHaptics.pattern(LEARNING_PATTERNS.streakMilestone),
+  levelUp: () => capHaptics.pattern(LEARNING_PATTERNS.levelUp),
+  sessionComplete: () => capHaptics.pattern(LEARNING_PATTERNS.sessionComplete),
+  countdownTick: () => capHaptics.pattern(LEARNING_PATTERNS.countdownTick),
+  timeUp: () => capHaptics.pattern(LEARNING_PATTERNS.timeUp),
+};
+
+export interface CapHapticStep {
+  /** A named pattern, a raw pattern, or a tap strength. */
+  pattern?: CapHapticPattern | keyof typeof HAPTIC_PATTERNS;
+  tap?: CapTapStrength;
+  /** Gap (ms) AFTER this step before the next. */
+  gapMs?: number;
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Play a sequence of haptic steps with gaps between them. Useful for celebratory
+ * multi-stage cues (e.g. "level up" ladder). Stops early if haptics get disabled.
+ */
+export async function playHapticSequence(steps: CapHapticStep[]): Promise<void> {
+  for (const step of steps) {
+    if (!capHaptics.isEnabled()) return;
+    if (step.tap) await capHaptics.tap(step.tap);
+    else if (typeof step.pattern === 'string') await capHaptics.playNamed(step.pattern);
+    else if (Array.isArray(step.pattern)) await capHaptics.pattern(step.pattern);
+    if (step.gapMs && step.gapMs > 0) await sleep(step.gapMs);
+  }
+}
+
+/**
+ * A haptic metronome: emits a tap on every beat at a given BPM, with an
+ * optional accent on the first beat of each bar. Handy for shadowing / pacing.
+ *
+ *   const m = new CapHapticMetronome();
+ *   m.start(90);   // 90 BPM
+ *   // ...
+ *   m.stop();
+ */
+export class CapHapticMetronome {
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private beat = 0;
+  private beatsPerBar = 4;
+  private onBeat: ((beat: number, isAccent: boolean) => void) | null = null;
+
+  /** Whether the metronome is currently ticking. */
+  isRunning(): boolean {
+    return this.timer != null;
+  }
+
+  /** Subscribe to beat callbacks (for visual sync). Returns unsubscribe. */
+  onTick(fn: (beat: number, isAccent: boolean) => void): () => void {
+    this.onBeat = fn;
+    return () => {
+      if (this.onBeat === fn) this.onBeat = null;
+    };
+  }
+
+  /** Start at `bpm` beats/minute, accenting the first of every `beatsPerBar`. */
+  start(bpm: number, beatsPerBar = 4): void {
+    this.stop();
+    this.beatsPerBar = Math.max(1, beatsPerBar);
+    this.beat = 0;
+    const intervalMs = Math.max(60, Math.round(60000 / Math.max(1, bpm)));
+    const tick = (): void => {
+      const isAccent = this.beat % this.beatsPerBar === 0;
+      void capHaptics.tap(isAccent ? 'medium' : 'light');
+      this.onBeat?.(this.beat, isAccent);
+      this.beat++;
+    };
+    tick(); // immediate first beat
+    this.timer = setInterval(tick, intervalMs);
+  }
+
+  /** Change tempo without resetting the bar counter. */
+  setBpm(bpm: number): void {
+    if (this.isRunning()) this.start(bpm, this.beatsPerBar);
+  }
+
+  stop(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Extended React hooks
+// ---------------------------------------------------------------------------
+
+/** Bound learning-event haptics (stable reference). */
+export function useLearningHaptics(): typeof learningHaptics {
+  return learningHaptics;
+}
+
+/**
+ * A haptic metronome bound to a component. Start/stop and read the live beat.
+ *
+ *   const { running, beat, start, stop } = useHapticMetronome();
+ */
+export function useHapticMetronome(): {
+  running: boolean;
+  beat: number;
+  accent: boolean;
+  start: (bpm: number, beatsPerBar?: number) => void;
+  setBpm: (bpm: number) => void;
+  stop: () => void;
+} {
+  const [running, setRunning] = useState(false);
+  const [beat, setBeat] = useState(0);
+  const [accent, setAccent] = useState(false);
+  const metronome = useMemo(() => new CapHapticMetronome(), []);
+
+  useEffect(() => {
+    const off = metronome.onTick((b, isAccent) => {
+      setBeat(b);
+      setAccent(isAccent);
+    });
+    return () => {
+      off();
+      metronome.stop();
+    };
+  }, [metronome]);
+
+  return {
+    running,
+    beat,
+    accent,
+    start: (bpm: number, beatsPerBar?: number) => {
+      metronome.start(bpm, beatsPerBar);
+      setRunning(true);
+    },
+    setBpm: (bpm: number) => metronome.setBpm(bpm),
+    stop: () => {
+      metronome.stop();
+      setRunning(false);
+    },
+  };
+}
+
 export default capHaptics;
