@@ -44,6 +44,8 @@ class User extends Authenticatable
         'learning_languages',
         'native_language',
         'preferences',
+        'bio',
+        'location',
     ];
 
     /**

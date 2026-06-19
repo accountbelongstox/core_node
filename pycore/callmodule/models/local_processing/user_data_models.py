@@ -76,6 +76,37 @@ class VideoExtractOptionsRequest(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Content-ingest history (books / subtitles / documents)                       #
+# --------------------------------------------------------------------------- #
+class ContentHistoryEntry(BaseModel):
+    """One content-ingest event across the books / subtitle / document features.
+
+    Recorded on analyze/submit/sync completion into the unified user-data store's
+    ``content_history`` capped ring (last 200). ``counts`` carries whichever
+    measures apply to the type (chapters/slots/sentences).
+    """
+    type: Literal["book", "subtitle", "document"] = Field(
+        ..., description="Which content feature produced this entry.")
+    source_key: str = Field("", description="Stable per-source key (sha1 of abs path).")
+    path: str = Field("", description="Absolute source path (file or folder).")
+    title: str = Field("", description="Human title / name of the source.")
+    languages: List[str] = Field(
+        default_factory=list, description="Selected/detected language codes (Lsel).")
+    counts: dict = Field(
+        default_factory=dict, description="{chapters?, slots?, sentences?} as applicable.")
+    status: str = Field("", description="'ok' | 'partial' | 'failed' | ...")
+    ts: Optional[float] = Field(None, description="Unix timestamp of the event.")
+
+
+class ContentHistoryResponse(BaseModel):
+    """The content-ingest history (newest first)."""
+    success: bool
+    entries: List[ContentHistoryEntry] = Field(
+        default_factory=list, description="History entries, most recent first.")
+    error: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
 # Native folder/file picker                                                    #
 # --------------------------------------------------------------------------- #
 class PickPathRequest(BaseModel):

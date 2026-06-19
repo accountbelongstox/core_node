@@ -117,14 +117,6 @@ class AppQyV1ApiDocumentationController extends BaseController
 
             ],
             [
-                'path' => $apiPrefix . '/add_dictionary',
-                'feature' => 'auth_required:client.token/ANY',
-            ],
-            [
-                'path' => $apiPrefix . '/find_non_existing_dictionary',
-                'feature' => 'auth_required:client.token/ANY',
-            ],
-            [
                 'path' => $apiPrefix . '/create_group',
                 'feature' => 'auth_required/ANY',
 

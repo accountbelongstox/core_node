@@ -21,6 +21,7 @@ use Illuminate\Support\Str;
 use Laravolt\Avatar\Avatar;
 use App\Http\Common\CommonAvatarPublic;
 use App\Http\Common\CommonAuthService;
+use App\Models\User;
 use App\Apps\AppQyV1\AppQyV1Gvar\AppQyV1Gvar as Gvar;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
@@ -339,9 +340,21 @@ class AppQyV1AuthenticationLoginController extends BaseController
             $authData = CommonAuthService::authenticateUser($username, $password, 'AppQyV1', $userAuthToken);
             
             if (!$authData) {
-                throw ValidationException::withMessages([
-                    'username' => [__('auth.failed')],
-                ]);
+                // Granular feedback so the UI can show the exact reason. For a
+                // username/password attempt, distinguish a missing account from a
+                // wrong password; a failed user-token stays generic.
+                if ($username && $password) {
+                    $existingUser = User::where(function ($query) use ($username) {
+                        $query->where('username', $username)
+                            ->orWhere('email', $username)
+                            ->orWhere('phone', $username);
+                    })->first();
+                    if (!$existingUser) {
+                        return $this->error('Account does not exist', 422);
+                    }
+                    return $this->error('Incorrect password', 422);
+                }
+                return $this->error('Invalid credentials', 422);
             }
 
             // Ensure default word group exists

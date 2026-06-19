@@ -55,6 +55,49 @@ _SCRIPT_RANGES = {
 _PER_CHAR_SCRIPTS = ("han",)
 _PER_RUN_CJK_SCRIPTS = ("hiragana", "katakana", "hangul")
 
+# Canonical supported language CODES — the pycore mirror of laravel_main's
+# AppQyV1TableMaps::getSupportedLanguages() (= keys of
+# config('edge_tts.lang_code_mapping')). Books' multi-language correspondence
+# (BOOKS_FEATURE_SPECIFICATION.md §2) validates the UI-checked set against THIS
+# set; keep it in sync with config/edge_tts.php when the laravel map changes.
+SUPPORTED_LANGUAGE_CODES = (
+    "af", "am", "ar", "as", "az", "bg", "bn", "bs", "ca", "cs",
+    "cy", "da", "de", "el", "en", "es", "et", "eu", "fa", "fi",
+    "fil", "fr", "ga", "gl", "gu", "he", "hi", "hr", "hu", "hy",
+    "id", "is", "it", "ja", "jv", "ka", "kk", "km", "kn", "ko",
+    "lo", "lt", "lv", "mk", "ml", "mn", "mr", "ms", "mt", "my",
+    "nb", "ne", "nl", "or", "pa", "pl", "ps", "pt", "ro", "ru",
+    "si", "sk", "sl", "so", "sq", "sr", "su", "sv", "sw", "ta",
+    "te", "th", "tr", "uk", "ur", "uz", "vi", "wuu", "yue", "zh",
+    "zu",
+)
+_SUPPORTED_LANGUAGE_SET = frozenset(SUPPORTED_LANGUAGE_CODES)
+
+
+def normalize_language_codes(codes, primary: Optional[str] = None) -> List[str]:
+    """Filter+dedupe a caller's language codes to the canonical supported set.
+
+    Lower-cases and trims each code, keeps only codes in
+    ``SUPPORTED_LANGUAGE_CODES`` (preserving first-seen order), and — when a
+    ``primary`` is given and supported — guarantees it is present and FIRST (the
+    detected primary is auto-checked and cannot be unchecked, §5). Returns ``[]``
+    for no usable codes (callers enforce the ">=1" rule and may fall back to the
+    primary). Never raises.
+    """
+    out: List[str] = []
+    seen: set = set()
+    primary = (primary or "").strip().lower()
+    if primary and primary in _SUPPORTED_LANGUAGE_SET:
+        out.append(primary)
+        seen.add(primary)
+    for code in (codes or []):
+        c = (str(code) if code is not None else "").strip().lower()
+        if c and c in _SUPPORTED_LANGUAGE_SET and c not in seen:
+            out.append(c)
+            seen.add(c)
+    return out
+
+
 # Dominant-script -> ISO-ish language code (heuristic; "primary_language").
 _SCRIPT_TO_LANG = {
     "han": "zh",
@@ -323,11 +366,13 @@ def split_sentences(text: str) -> List[str]:
 
 
 def normalize_sentence_key(sentence: str) -> str:
-    """Dedupe key for a sentence: trimmed, whitespace-collapsed, case-folded.
+    """Dedupe key for a sentence: trimmed, whitespace-collapsed, lowercased.
 
     Mirrors the Laravel sentence-library normalize (mb_strtolower(trim) + single
-    spaces) so "unique sentence" counts here agree with server-side dedup.
+    spaces) so "unique sentence" counts here agree with server-side dedup. Uses
+    ``str.lower()`` (NOT ``casefold``) to match mb_strtolower for non-ASCII
+    (sharp-s, final sigma, Turkish dotted-I) — casefold diverges from the key.
     """
     if not sentence:
         return ""
-    return re.sub(r"\s+", " ", sentence.strip()).casefold()
+    return re.sub(r"\s+", " ", sentence.strip()).lower()

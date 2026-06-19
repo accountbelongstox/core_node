@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { 
+import {
   User, Sparkles, Award, Settings, CheckCircle2, Languages, Globe, BookOpen,
-  Activity, Shield, Flame, Trash2, Heart, SkipForward, ArrowRight, Save, Clock
+  Activity, Shield, Flame, Trash2, Heart, SkipForward, ArrowRight, Save, Clock, Upload
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 import { wfNewSettings } from '../WfNewSettingsStore';
+import { wfNewApi } from '../api';
+import { WfNewAvatarView } from '../components/WfNewAvatarView';
+import { WfNewAvatarCropper } from '../components/WfNewAvatarCropper';
 
 interface WfNewProfileProps {
   activeTheme: ElementTheme;
@@ -21,6 +24,8 @@ interface WfNewProfileProps {
     isLoggedIn: boolean;
   };
   onUpdateProfile: (updatedData: { nickname: string; avatar: string; nativeLang: string; targetLang: string; bio: string }) => void;
+  /** Fired right after a successful avatar upload so the new image shows app-wide immediately. */
+  onAvatarUpdated?: (avatarUrl: string) => void;
   learnedWordsCount: number;
 }
 
@@ -36,6 +41,7 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
   trans,
   currentUser,
   onUpdateProfile,
+  onAvatarUpdated,
   learnedWordsCount
 }) => {
   // Local state for editing the coordinates
@@ -46,8 +52,55 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
   const [nativeLang, setNativeLang] = useState(currentUser.nativeLang);
   const [targetLang, setTargetLang] = useState(currentUser.targetLang);
 
-  // Avatar Selection List
-  const AVATAR_POOL = ['🦁', '🦊', '🐈', '🐼', '🐰', '🐯', '🦉', '🛸', '🚀', '👾', '🪐', '🧠', '👑', '⚡'];
+  // Preset avatars: loaded from the backend (falls back to the built-in set in
+  // the API layer when offline / no preset endpoint). Plus image upload.
+  const [presetAvatars, setPresetAvatars] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isEditing) return;
+    (async () => {
+      try {
+        const presets = await wfNewApi.getPresetAvatars();
+        if (!cancelled && presets.length) setPresetAvatars(presets);
+      } catch {
+        /* API layer already falls back to built-ins; ignore */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isEditing]);
+
+  // Step 1: pick a file → open the cropper (no upload yet).
+  const handlePickAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) setCropFile(file);
+    // Allow re-selecting the same file.
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Step 2: cropper returns a square JPEG → upload it.
+  const handleCropped = async (file: File) => {
+    setCropFile(null);
+    setUploading(true);
+    try {
+      const result = await wfNewApi.uploadAvatar(file);
+      // Prefer the absolute URL; the backend persists the upload server-side.
+      const next = result.avatar_url || result.avatar;
+      if (next) {
+        setAvatar(next);
+        // Reflect the new avatar immediately app-wide (no separate Save needed).
+        onAvatarUpdated?.(next);
+      }
+      addToast(trans('profile.avatarUploaded'), 'success');
+    } catch (err: any) {
+      addToast(err?.message || trans('profile.avatarUploadFailed'), 'warning');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Badges lists
   // Badge text (name/description) is resolved via trans by id (profile.badgeName.* / badgeDesc.*).
@@ -91,8 +144,8 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
           
           {/* Left portion: big avatar */}
           <div className="relative group">
-            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-slate-900 border-2 border-indigo-500/40 flex items-center justify-center text-4xl sm:text-5xl select-none shadow-xl">
-              {currentUser.avatar}
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-slate-900 border-2 border-indigo-500/40 flex items-center justify-center text-4xl sm:text-5xl overflow-hidden shadow-xl">
+              <WfNewAvatarView value={currentUser.avatar} className="text-4xl sm:text-5xl" />
             </div>
             
             <span className="absolute bottom-1 right-1 bg-emerald-500 border border-slate-900 w-4 h-4 rounded-full" />
@@ -196,57 +249,60 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
                     />
                   </div>
 
-                  {/* Native / Target languages selection dropdowns */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.nativeTongue')}</label>
-                      <select
-                        value={nativeLang}
-                        onChange={(e) => setNativeLang(e.target.value)}
-                        className="w-full py-2.5 px-3 rounded-lg text-[10px] bg-slate-900 text-zinc-300 border border-white/10 outline-none cursor-pointer"
-                      >
-                        <option value="zh">{trans('lang.name.zh')}</option>
-                        <option value="ja">{trans('lang.name.ja')}</option>
-                        <option value="es">{trans('lang.name.es')}</option>
-                        <option value="ko">{trans('lang.name.ko')}</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('profile.targetLanguage')}</label>
-                      <select
-                        value={targetLang}
-                        onChange={(e) => setTargetLang(e.target.value)}
-                        className="w-full py-2.5 px-3 rounded-lg text-[10px] bg-slate-900 text-zinc-300 border border-white/10 outline-none cursor-pointer"
-                      >
-                        <option value="en">{trans('lang.name.en')}</option>
-                        <option value="fr">{trans('lang.name.fr')}</option>
-                        <option value="de">{trans('lang.name.de')}</option>
-                        <option value="es">{trans('lang.name.es')}</option>
-                      </select>
-                    </div>
-                  </div>
+                  {/* Language selection lives in Settings → Languages (single source
+                      of truth, backend-synced multi-select), not on the profile editor. */}
+                  <p className="text-[10px] text-zinc-500 font-mono leading-relaxed pt-1">
+                    {trans('profile.languagesMovedHint')}
+                  </p>
 
                 </div>
 
-                {/* Right column: Avatar emoji select pool */}
+                {/* Right column: avatar — current preview, upload, and presets */}
                 <div className="space-y-3">
                   <label className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-500 font-mono block">
                     {trans('profile.pickAvatar')}
                   </label>
-                  <div className="grid grid-cols-5 gap-2 pb-2">
-                    {AVATAR_POOL.map(emoji => (
+
+                  {/* Current avatar preview + upload control */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center text-2xl overflow-hidden shrink-0">
+                      <WfNewAvatarView value={avatar} className="text-2xl" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handlePickAvatar}
+                        className="hidden"
+                      />
                       <button
-                        key={emoji}
                         type="button"
-                        onClick={() => setAvatar(emoji)}
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg select-none transition-all cursor-pointer ${
-                          avatar === emoji 
-                            ? 'bg-indigo-500/20 border-2 border-indigo-500 scale-105' 
+                        disabled={uploading}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono font-bold text-zinc-300 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{uploading ? trans('common.loading') : trans('profile.uploadAvatar')}</span>
+                      </button>
+                      <p className="text-[9px] text-zinc-600 font-mono">{trans('profile.uploadHint')}</p>
+                    </div>
+                  </div>
+
+                  {/* Preset choices (emoji or backend image presets) */}
+                  <div className="grid grid-cols-5 gap-2 pb-2 max-h-40 overflow-y-auto">
+                    {presetAvatars.map(preset => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setAvatar(preset)}
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg overflow-hidden transition-all cursor-pointer ${
+                          avatar === preset
+                            ? 'bg-indigo-500/20 border-2 border-indigo-500 scale-105'
                             : 'bg-white/2 dark:bg-white/4 border border-white/5 hover:bg-white/5'
                         }`}
                       >
-                        {emoji}
+                        <WfNewAvatarView value={preset} className="text-lg" />
                       </button>
                     ))}
                   </div>
@@ -367,6 +423,16 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
         )}
 
       </div>
+
+      {/* Avatar cropper modal (opens after a file is picked) */}
+      {cropFile && (
+        <WfNewAvatarCropper
+          file={cropFile}
+          trans={trans}
+          onCancel={() => setCropFile(null)}
+          onCropped={handleCropped}
+        />
+      )}
 
     </div>
   );

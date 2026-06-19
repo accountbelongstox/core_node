@@ -17,13 +17,12 @@ first of the pluggable free-cloud SDKs; add google_tts_engine.py / polly_engine.
 the same way and append to the orchestrator priority tuple.
 """
 
-import os
 from pathlib import Path
 from typing import Optional
 from xml.sax.saxutils import escape
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.secret_manager import get_secret_key, get_secret_key_indexed
+from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
 
 try:  # optional third-party (already in pycore requirements)
     import azure.cognitiveservices.speech as _speechsdk
@@ -48,22 +47,13 @@ _LOCALE_BY_LANG = {
 
 
 def _key() -> str:
-    # The "Special Software Environment Variables" manager stores the Azure Speech
-    # subscription key under AZURE_SPEECH_KEYA (Key A) / AZURE_SPEECH_KEYB (Key B),
-    # indexed _1.._5 — the SAME names the legacy azure_speech STT reads. Older code
-    # used a bare AZURE_SPEECH_KEY; try the real names first, keep the old as fallback.
-    return (get_secret_key_indexed("AZURE_SPEECH_KEYA")
-            or get_secret_key_indexed("AZURE_SPEECH_KEYB")
-            or get_secret_key_indexed("AZURE_SPEECH_KEY")
-            or get_secret_key("AZURE_SPEECH_KEY")
-            or "")
+    # Single key-reading center (pyutils/common/api_secrets) — same global indexed
+    # loader the AI gateway uses; no hardcoded index, no per-engine duplication.
+    return azure_speech_key()
 
 
 def _region() -> str:
-    return (get_secret_key("AZURE_SPEECH_REGION")
-            or get_secret_key_indexed("AZURE_SPEECH_REGION")
-            or os.environ.get("AZURE_SPEECH_REGION")
-            or "eastus")
+    return azure_speech_region()
 
 
 def available() -> bool:

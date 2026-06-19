@@ -21,7 +21,9 @@ class AppQyV1VocabularyService
      * (membership lives in vocabulary_libraries.word_ids, covers in the
      * cover_* columns), so only the surviving tables are checked.
      * group_word_progress replaced the dropped group_words /
-     * user_word_progress pair (one JSON row per user+group).
+     * user_word_progress pair (one JSON row per user+group). The orphan
+     * user_languages / user_vocabulary_selections tables were dropped
+     * (superseded by users.learning_languages / user_selected_libraries).
      */
     public static function ensureVocabularyTablesExist(): array
     {
@@ -33,8 +35,6 @@ class AppQyV1VocabularyService
         $tables = [
             AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries'),
             AppTablePrefixServiceProvider::buildTableName($appKey, 'group_word_progress'),
-            AppTablePrefixServiceProvider::buildTableName($appKey, 'user_languages'),
-            AppTablePrefixServiceProvider::buildTableName($appKey, 'user_vocabulary_selections'),
         ];
 
         foreach ($tables as $tableName) {

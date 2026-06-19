@@ -20,8 +20,10 @@ Message protocol (JSON text frames):
   client->dev  {"type":"welcome","client_id","name"}
 
   BATCHED (current):
-  dev->client  {"type":"batch","reason":"delta"|"resume","dev_id","dev_name","files":[
+  dev->client  {"type":"batch","reason":"full"|"resume"|"delta","dev_id","dev_name","files":[
                    {"rel","mtime","hash","size","b64"[, "enc":"gzip"]}, ...]}  # create / modify
+                 # reason is informational (the receiver ignores it): "full" = full-
+                 # sync batch, "resume" = first batch after a reconnect, "delta" = live
   client->dev  {"type":"batch_ack","results":[
                    {"rel","status":"written"|"skipped"|"error",
                     "diff":<int>,"size":<int>,"error"?:<str>}, ...]}
@@ -295,10 +297,11 @@ class PushReceiver:
         send(json.dumps({"type": "need", "need": need}))
 
     def _apply_one(self, msg: dict, peer: str = "") -> dict:
-        """Apply one pushed file (or deletion); return a result row for the ack.
+        """Apply one pushed file; return a result row for the ack. A delete entry
+        (legacy dev) is IGNORED — update-only client — and acked as 'skipped'.
 
-        Result fields: rel, status (written|skipped|deleted|error), diff (signed
-        byte delta new_size - old_size), size (new content size), error on failure.
+        Result fields: rel, status (written|skipped|error), diff (signed byte delta
+        new_size - old_size), size (new content size), error on failure.
         """
         rel = msg.get("rel")
         deleted = bool(msg.get("deleted"))
@@ -419,6 +422,7 @@ class PushSender:
         self._client_sent = {}    # client_id -> last_sent snapshot
         self._client_seen = {}    # client_id -> bool
         self._peer_retry = {}     # peer_id -> retry state
+        self._index_wait_logged = False  # one-shot "waiting for first scan" log
         self._lock = threading.Lock()
 
     def start(self) -> None:
@@ -441,32 +445,44 @@ class PushSender:
             try:
                 if self.m.is_distributing():
                     # Start the file index scanning AS SOON AS we are distributing —
-                    # BEFORE any client connects — so a large first scan is already
-                    # done by the time _full_sync needs the manifest. Otherwise the
-                    # watcher would only start on the first connection and the manifest
-                    # could be sent empty (which the client reads as "delete all").
+                    # before any client connects.
+                    from .watcher import get_watch_manager
+                    wm = get_watch_manager()
                     try:
-                        from .watcher import get_watch_manager
-                        get_watch_manager().start()
+                        wm.start()
                     except Exception:
                         pass
-                    self_id = self.m.config.machine_id
-                    now = time.time()
-                    for peer in self.m.config.list_peers():
-                        if peer.get("role") != "client" or peer.get("id") == self_id:
-                            continue
-                        pid = peer.get("id")
-                        with self._lock:
-                            th = self._threads.get(pid)
-                            if th is not None and th.is_alive():
+                    # GATE on the initial scan: do NOT connect/push until the index is
+                    # ready. Connecting during the first scan of a large tree would
+                    # build an empty manifest, hit the abort guard, and churn the
+                    # clients (the "link dropped mid-sync (index empty)" loop). Waiting
+                    # here makes that race structurally impossible.
+                    if not wm.ready():
+                        if not self._index_wait_logged:
+                            ColorPrint.blue("[WsPush] waiting for the initial file-index "
+                                            "scan to finish before connecting to clients…")
+                            self._index_wait_logged = True
+                    else:
+                        if self._index_wait_logged:
+                            ColorPrint.green("[WsPush] file index ready; connecting to clients.")
+                            self._index_wait_logged = False
+                        self_id = self.m.config.machine_id
+                        now = time.time()
+                        for peer in self.m.config.list_peers():
+                            if peer.get("role") != "client" or peer.get("id") == self_id:
                                 continue
-                            retry = self._peer_retry.get(pid)
-                            if retry and now < retry.get("next_retry_at", 0):
-                                continue
-                            t = threading.Thread(target=self._push_to, args=(peer,),
-                                                 daemon=True, name=f"WsPush-{pid}")
-                            self._threads[pid] = t
-                            t.start()
+                            pid = peer.get("id")
+                            with self._lock:
+                                th = self._threads.get(pid)
+                                if th is not None and th.is_alive():
+                                    continue
+                                retry = self._peer_retry.get(pid)
+                                if retry and now < retry.get("next_retry_at", 0):
+                                    continue
+                                t = threading.Thread(target=self._push_to, args=(peer,),
+                                                     daemon=True, name=f"WsPush-{pid}")
+                                self._threads[pid] = t
+                                t.start()
             except Exception as exc:
                 ColorPrint.yellow(f"[WsPush] supervisor error: {exc}")
             for _ in range(6):  # re-check every ~3s
@@ -544,9 +560,10 @@ class PushSender:
             client_name = peer.get("name") or host
             pid = peer.get("id")
             # FULL SYNC on EVERY (re)connect (first connect or after any drop): send
-            # the full file manifest, let the client reconcile (fetch what differs,
-            # delete what's gone), and rebuild the per-client table from scratch.
-            # This bounds drift after an offline window. Incremental deltas follow.
+            # the full file manifest, let the client reconcile (fetch what differs;
+            # it KEEPS everything else — update-only, no deletes), and rebuild the
+            # per-client table from scratch. This bounds drift after an offline
+            # window without ever removing client files. Incremental deltas follow.
             gz_note = " (gzip)" if gzip_ok else ""
             ColorPrint.green(f"[WsPush] Connected to {client_name}; running full sync{gz_note}")
             with self._lock:
@@ -640,6 +657,84 @@ class PushSender:
                     pass
                 yield fut.result()
 
+    # ----- shared batch streaming (full sync AND delta go through this) ------ #
+    def _send_batch(self, ws, entries: list, reason: str, dev_id: str,
+                    dev_name: str) -> list:
+        """Send one 'batch' frame and read its ack; return the ack's results list.
+        Defensive: a missing or MALFORMED ack raises ConnectionError so the caller
+        backs off and retries rather than proceeding on a half-spoken protocol."""
+        ws.send_text(json.dumps({"type": "batch", "reason": reason,
+                                 "dev_id": dev_id, "dev_name": dev_name,
+                                 "files": entries}))
+        ack = ws.recv_text()
+        if not ack:
+            raise ConnectionError("no batch_ack")
+        try:
+            results = (json.loads(ack) or {}).get("results")
+        except (ValueError, TypeError):
+            raise ConnectionError("malformed batch_ack")
+        return results if isinstance(results, list) else []
+
+    def _stream_files(self, ws, items, gzip_ok: bool, *, dev_id, dev_name, channel,
+                      client_name, peer_label, first_reason, log_reason_for, on_acked):
+        """The single push path used by BOTH full sync and delta. Reads + encodes the
+        ordered `items` ((dest, meta) tuples) AHEAD of the network, packs them into
+        size-bounded batches (never splitting one file), sends each batch and reads
+        its ack, logs one 'sent' line per file (reason from log_reason_for(dest)),
+        updates the 'pushing' phase, and calls on_acked(results) after every batch.
+        Wire reason: a 'resume' first-batch marker downgrades to 'delta' for the
+        rest; 'full' and 'delta' persist across all batches (matches pre-refactor).
+        Returns the number of files actually sent.
+
+        Keeping one implementation here is the consistency guarantee: resume,
+        ordering, batching and progress accounting can never drift between the two
+        callers again."""
+        total = len(items)
+        self.m.set_sync_phase("pushing", total, channel=channel, name=client_name,
+                              direction="push")
+        chunk: list = []          # wire entry dicts for the current batch
+        chunk_meta: list = []     # (dest, fhash, fsize) parallel to chunk (for logs)
+        chunk_bytes = 0
+        reason = first_reason
+        remaining = total
+        sent = 0
+
+        def flush():
+            nonlocal chunk, chunk_meta, chunk_bytes, reason, remaining
+            if not chunk:
+                return
+            for dest, _fhash, fsize in chunk_meta:
+                self.m.log_sync("sent", dest, log_reason_for(dest),
+                                details=f"{_fmt_bytes(fsize)} -> {peer_label}",
+                                size=fsize, peer=peer_label, direction="push")
+            results = self._send_batch(ws, chunk, reason, dev_id, dev_name)
+            on_acked(results)
+            remaining -= len(chunk)
+            self.m.set_sync_phase("pushing", max(0, remaining), channel=channel,
+                                  name=client_name, direction="push")
+            chunk, chunk_meta, chunk_bytes = [], [], 0
+            # Only the "resume" marker is first-batch-only (it surfaces the reconnect
+            # backlog, then becomes "delta"). "full" persists across a full sync and
+            # "delta" stays "delta" — matching the pre-refactor wire reason exactly.
+            if reason == "resume":
+                reason = "delta"
+
+        for dest, entry, fhash, fsize in self._encode_ahead(items, gzip_ok):
+            if entry is None:        # unreadable file: skip, but keep counts honest
+                remaining -= 1
+                continue
+            b64len = len(entry["b64"])
+            # Flush the pending chunk BEFORE adding this file if it would exceed the
+            # cap (chunk non-empty, so a single oversized file is never split).
+            if chunk and (chunk_bytes + b64len) > MAX_BATCH_BYTES:
+                flush()
+            chunk.append(entry)
+            chunk_meta.append((dest, fhash, fsize))
+            chunk_bytes += b64len
+            sent += 1
+        flush()
+        return sent
+
     def _full_sync(self, ws, wm, client_id: str, client_name: str, pid: str,
                    gzip_ok: bool = False) -> dict:
         """Full reconcile on (re)connect: send the manifest {rel: hash} of every
@@ -650,15 +745,17 @@ class PushSender:
         baseline. Only meaningful differences cross the wire, so a reconnect is cheap
         when little changed; convergence is additive (update-only)."""
         snap = wm.snapshot()  # {dest: (mtime, hash, abspath)}
-        # Guard a DESTRUCTIVE empty manifest. An empty snapshot here almost always
-        # means the watcher's first scan of a large tree has not finished yet (NOT
-        # "the dev has zero files"). The client treats any path absent from the
-        # manifest as "deleted on the dev", so sending an empty/partial manifest
-        # makes it WIPE every file it received. The watcher swaps its index
-        # atomically (never a partial scan), so the only unsafe state is fully
-        # empty. Wait up to 30s (kept under the client's 120s read timeout); if it
-        # is STILL empty, ABORT this sync rather than send an empty manifest — the
-        # supervisor retries once the index is populated.
+        # Guard against sending an empty manifest. An empty snapshot here almost
+        # always means the watcher's first scan of a large tree has not finished yet
+        # (NOT "the dev has zero files"). A current (update-only) client keeps its
+        # files regardless, but an empty manifest is still WRONG: it makes the client
+        # re-confirm nothing, and an OLDER pre-update-only client would treat absent
+        # paths as deletions and WIPE itself. Defense-in-depth + correctness: never
+        # send it. The watcher swaps its index atomically (never a partial scan), so
+        # the only unsafe state is fully empty. The supervisor already gates on
+        # wm.ready(), so this is belt-and-suspenders; wait up to 30s (under the
+        # client's 120s read timeout) and, if STILL empty, ABORT — the supervisor
+        # retries once the index is populated.
         waited = 0.0
         while not snap and waited < 30.0 and self._running and not is_shutdown_requested():
             time.sleep(0.5)
@@ -666,8 +763,8 @@ class PushSender:
             snap = wm.snapshot()
         if not snap:
             raise ConnectionError("watcher index empty (first scan not ready); "
-                                  "aborting full sync to avoid a destructive empty "
-                                  "manifest that would wipe the client")
+                                  "aborting full sync — never send an empty manifest "
+                                  "(re-confirms nothing; would wipe a legacy client)")
         me = self.m.config.get_self()
         dev_id = self.m.config.machine_id
         dev_name = me.get("name") or ""
@@ -682,49 +779,26 @@ class PushSender:
         reply = ws.recv_text()
         if not reply:
             raise ConnectionError("no manifest reply")
-        need = [d for d in ((json.loads(reply).get("need")) or []) if d in snap]
+        try:
+            need_raw = (json.loads(reply) or {}).get("need")
+        except (ValueError, TypeError):
+            raise ConnectionError("malformed manifest reply")
+        need = [d for d in (need_raw or []) if d in snap]
         self.m.log_sync("reconnect", "", "full sync",
                         details=f"{len(need)}/{len(manifest)} file(s) to send",
                         peer=peer_label, direction="push")
-        if not need:
-            self.m.set_sync_phase("idle", 0, channel=channel, name=client_name,
-                                  direction="push")
-            return snap
-
-        def send_batch(entries):
-            ws.send_text(json.dumps({"type": "batch", "reason": "full",
-                                     "dev_id": dev_id, "dev_name": dev_name,
-                                     "files": entries}))
-            if not ws.recv_text():
-                raise ConnectionError("no batch_ack")
-
-        self.m.set_sync_phase("pushing", len(need), channel=channel,
-                              name=client_name, direction="push")
-        chunk, chunk_bytes, remaining = [], 0, len(need)
-        items = [(d, snap[d]) for d in need if d in snap]
-        # SMALL files first: over a slow/flapping link the full sync may not drain a
-        # huge tree (GBs of assets) in one connection window, so a tiny late-ordered
-        # file (e.g. a script) would never arrive before the link drops. Sending the
-        # smallest first lets ALL source code converge quickly; big binaries trail.
-        items.sort(key=self._entry_size)
-        for dest, entry, fhash, fsize in self._encode_ahead(items, gzip_ok):
-            if entry is None:
-                remaining -= 1
-                continue
-            b64len = len(entry["b64"])
-            self.m.log_sync("sent", dest, "full sync",
-                            details=f"{_fmt_bytes(fsize)} -> {peer_label}",
-                            size=fsize, peer=peer_label, direction="push")
-            if chunk and (chunk_bytes + b64len) > MAX_BATCH_BYTES:
-                send_batch(chunk)
-                remaining -= len(chunk)
-                self.m.set_sync_phase("pushing", remaining, channel=channel,
-                                      name=client_name, direction="push")
-                chunk, chunk_bytes = [], 0
-            chunk.append(entry)
-            chunk_bytes += b64len
-        if chunk:
-            send_batch(chunk)
+        if need:
+            # SMALL files first: over a slow/flapping link a full sync may not drain a
+            # huge tree in one window, so a tiny late-ordered file (e.g. a script)
+            # would never arrive before the link drops. Smallest-first lets ALL source
+            # code converge quickly; big binaries trail.
+            items = [(d, snap[d]) for d in need]
+            items.sort(key=self._entry_size)
+            self._stream_files(
+                ws, items, gzip_ok, dev_id=dev_id, dev_name=dev_name, channel=channel,
+                client_name=client_name, peer_label=peer_label, first_reason="full",
+                log_reason_for=lambda dest: "full sync",
+                on_acked=lambda results: None)  # full sync: baseline is the whole snap
         self.m.set_sync_phase("idle", 0, channel=channel, name=client_name,
                               direction="push")
         return snap
@@ -771,38 +845,10 @@ class PushSender:
             self.m.log_sync("reconnect", "", "resumed after reconnect",
                             details=f"{queued} change(s) queued",
                             peer=peer_label, direction="push")
-        self.m.set_sync_phase("pushing", queued, channel=channel,
-                              name=client_name, direction="push")
 
-        def send_batch(entries, batch_reason):
-            ws.send_text(json.dumps({"type": "batch", "reason": batch_reason,
-                                     "dev_id": dev_id, "dev_name": dev_name,
-                                     "files": entries}))
-            ack = ws.recv_text()
-            if not ack:
-                raise ConnectionError("no batch_ack")
-            return (json.loads(ack).get("results")) or []
-
-        chunk_reason = reason  # the first chunk keeps the 'resume' marker
-
-        # Created/modified files in size-bounded chunks; never split one file. No
-        # deletions are ever sent (update-only client).
-        chunk = []
-        chunk_bytes = 0
-        remaining = len(changed)
-
-        def flush_chunk(files, batch_reason, files_meta):
-            """Send one 'batch', read one 'batch_ack', advance last_sent for acked
-            files, and emit per-file logs."""
-            for fm in files_meta:
-                dest, fhash, fsize = fm
-                self.m.log_sync(
-                    "sent", dest,
-                    "new file" if dest not in last else "content changed",
-                    details=f"{_fmt_bytes(fsize)} -> {peer_label}",
-                    size=fsize, peer=peer_label, direction="push")
-            results = send_batch(files, batch_reason)
-            # Advance last_sent only for files the client confirmed written/skipped.
+        def _on_acked(results):
+            # Advance last_sent only for files the client confirmed written/skipped,
+            # then persist so a mid-sync drop resumes from exactly here.
             for r in results:
                 rel = r.get("rel")
                 if r.get("status") in ("written", "skipped") and rel in cur:
@@ -810,28 +856,14 @@ class PushSender:
             with self._lock:
                 self._client_sent[client_id] = dict(last)
 
-        # Read + normalize + (gzip) + encode the changed files AHEAD of the network
-        # so the next chunk is being prepared while the current one is in flight.
-        for dest, entry, fhash, fsize in self._encode_ahead(changed, gzip_ok):
-            if entry is None:
-                remaining -= 1
-                continue
-            b64len = len(entry["b64"])
-            # Flush before adding if this file would push us over the cap (and the
-            # chunk is non-empty, so we never split a single file).
-            if chunk and (chunk_bytes + b64len) > MAX_BATCH_BYTES:
-                flush_chunk([c[0] for c in chunk], chunk_reason, [c[1] for c in chunk])
-                remaining -= len(chunk)
-                self.m.set_sync_phase("pushing", remaining, channel=channel,
-                                      name=client_name, direction="push")
-                chunk = []
-                chunk_bytes = 0
-                chunk_reason = "delta"  # only the first chunk keeps 'resume'
-            chunk.append((entry, (dest, fhash, fsize)))
-            chunk_bytes += b64len
-
-        if chunk:
-            flush_chunk([c[0] for c in chunk], chunk_reason, [c[1] for c in chunk])
+        # "new file" vs "content changed" is decided against `last` AT LOG TIME (before
+        # this batch's ack advances it) — each dest is unique, so this stays correct
+        # across batches.
+        self._stream_files(
+            ws, changed, gzip_ok, dev_id=dev_id, dev_name=dev_name, channel=channel,
+            client_name=client_name, peer_label=peer_label, first_reason=reason,
+            log_reason_for=lambda dest: "new file" if dest not in last else "content changed",
+            on_acked=_on_acked)
 
         self.m.set_sync_phase("idle", 0, channel=channel, name=client_name,
                               direction="push")

@@ -28,11 +28,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.secret_manager import get_secret_key, get_secret_key_indexed
 from pycore.pyfoundations.third_party import (
     get_third_package_vosk,
     get_third_package_whisper,
 )
+from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
 
 _DEFAULT_PRIORITY = ("faster-whisper", "whisper", "vosk", "azure")
 _SAMPLE_PHRASE = "the quick brown fox jumps over the lazy dog"
@@ -77,20 +77,12 @@ def _vosk_available() -> bool:
 
 
 def _azure_key() -> str:
-    # Same key names the env-var manager stores and azure TTS / legacy STT read:
-    # AZURE_SPEECH_KEYA (Key A) / KEYB (Key B), indexed _1.._5; bare KEY is legacy.
-    return (get_secret_key_indexed("AZURE_SPEECH_KEYA")
-            or get_secret_key_indexed("AZURE_SPEECH_KEYB")
-            or get_secret_key_indexed("AZURE_SPEECH_KEY")
-            or get_secret_key("AZURE_SPEECH_KEY")
-            or "")
+    # Single key-reading center (pyutils/common/api_secrets) — shared with azure TTS.
+    return azure_speech_key()
 
 
 def _azure_region() -> str:
-    return (get_secret_key("AZURE_SPEECH_REGION")
-            or get_secret_key_indexed("AZURE_SPEECH_REGION")
-            or os.environ.get("AZURE_SPEECH_REGION")
-            or "eastus")
+    return azure_speech_region()
 
 
 def _azure_available() -> bool:
@@ -330,10 +322,12 @@ def stt_test(engine: Optional[str] = None, language: str = "en") -> Dict[str, An
         text = transcribe(name, sample, language)
     except Exception as e:  # noqa: BLE001
         return {"success": False, "engine": name, "text": "", "latency_ms": round((time.monotonic() - t0) * 1000),
-                "error": f"{e}"}
+                "path": str(sample), "language": language, "error": f"{e}"}
     latency = round((time.monotonic() - t0) * 1000)
     ok = bool((text or "").strip())
     return {"success": ok, "engine": name, "text": text, "latency_ms": latency,
+            # The sample clip that was recognized (for the caller to persist).
+            "path": str(sample), "language": language,
             "error": None if ok else "engine returned empty text"}
 
 

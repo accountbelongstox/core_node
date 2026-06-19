@@ -2,18 +2,21 @@
 
 namespace App\Services;
 
-use App\Models\Sentence;
+use App\Models\LangSentence;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Sentence Enrichment Service
  *
- * Idempotent AI + TTS enrichment pass over the SHARED sentence library
- * (app_qy_v1_sentences), covering BOTH subtitle- and book-derived sentences.
+ * Idempotent AI + TTS enrichment pass over the per-language sentence store
+ * ({prefix}_sentences_{lang}), covering BOTH subtitle- and book-derived
+ * sentences (Books v3 unified model).
  *
  * For each sentence that still needs work it:
  *   1. Calls an LLM ONCE with a structured prompt that returns a strict JSON
@@ -72,28 +75,42 @@ class SentenceEnrichmentService
             $limit = 1;
         }
 
-        $rows = $this->selectRowsNeedingWork($limit, $language)->get();
-
         $processed = 0;
         $enriched = 0;
         $errors = [];
 
-        foreach ($rows as $sentence) {
-            $processed++;
-            try {
-                if ($this->enrichRow($sentence)) {
-                    $enriched++;
+        // Sweep the requested language, or every supported per-language table,
+        // until the batch limit is filled.
+        foreach ($this->languagesFor($language) as $langCode) {
+            if ($processed >= $limit) {
+                break;
+            }
+            if (!$this->tableExists($langCode)) {
+                continue;
+            }
+
+            $remaining = $limit - $processed;
+            $rows = $this->selectRowsNeedingWork($langCode, $remaining)->get();
+
+            foreach ($rows as $sentence) {
+                $processed++;
+                try {
+                    if ($this->enrichRow($langCode, $sentence)) {
+                        $enriched++;
+                    }
+                } catch (\Throwable $e) {
+                    // One row failing must never abort the batch.
+                    $errors[] = [
+                        'content_id' => $sentence->content_id,
+                        'language' => $langCode,
+                        'error' => $e->getMessage(),
+                    ];
+                    Log::warning('[SentenceEnrichment] Row failed', [
+                        'content_id' => $sentence->content_id,
+                        'language' => $langCode,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
-            } catch (\Throwable $e) {
-                // One row failing must never abort the batch.
-                $errors[] = [
-                    'sentence_id' => $sentence->sentence_id,
-                    'error' => $e->getMessage(),
-                ];
-                Log::warning('[SentenceEnrichment] Row failed', [
-                    'sentence_id' => $sentence->sentence_id,
-                    'error' => $e->getMessage(),
-                ]);
             }
         }
 
@@ -106,17 +123,56 @@ class SentenceEnrichmentService
     }
 
     /**
+     * The language codes to operate on: a single requested language (name or
+     * code, normalized), or every supported language when null/empty.
+     *
+     * @return array<int,string>
+     */
+    private function languagesFor(?string $language): array
+    {
+        if ($language !== null && trim($language) !== '') {
+            return [$this->normalizeLangCode($language)];
+        }
+        return AppQyV1TableMaps::getSupportedLanguages();
+    }
+
+    /** Normalize a language name/code to the per-language table code. */
+    private function normalizeLangCode(string $language): string
+    {
+        $lang = strtolower(trim($language));
+        $nameToCode = [
+            'english' => 'en',
+            'japanese' => 'ja',
+            'korean' => 'ko',
+            'vietnamese' => 'vi',
+            'lao' => 'lo',
+            'chinese' => 'zh',
+        ];
+        if (isset($nameToCode[$lang])) {
+            $lang = $nameToCode[$lang];
+        }
+        return $lang;
+    }
+
+    /** Whether the per-language sentence table for $lang exists. */
+    private function tableExists(string $lang): bool
+    {
+        $model = LangSentence::for($lang);
+        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
+    }
+
+    /**
      * Enrich a single sentence row in place (fill-missing, never clobber).
      *
      * @return bool True if any column was actually filled and saved.
      */
-    private function enrichRow(Sentence $sentence): bool
+    private function enrichRow(string $langCode, LangSentence $sentence): bool
     {
         $changed = false;
 
         // ---- 1. AI detail fields (only if at least one is still empty) ----
         if ($this->needsAiFields($sentence)) {
-            $ai = $this->generateAiFields((string) $sentence->text, (string) $sentence->language);
+            $ai = $this->generateAiFields((string) $sentence->text, $langCode);
             foreach (self::AI_FIELDS as $field) {
                 $incoming = $ai[$field] ?? null;
                 if ($this->isEmptyValue($incoming)) {
@@ -134,12 +190,13 @@ class SentenceEnrichmentService
         // ---- 2. TTS audio (only if currently empty) ----
         if ($this->isEmptyValue($sentence->getAttribute('audio'))) {
             $audioRef = $this->generateAudioReference(
-                (string) $sentence->sentence_id,
+                (string) $sentence->content_id,
                 (string) $sentence->text,
-                (string) $sentence->language
+                $langCode
             );
             if (!$this->isEmptyValue($audioRef)) {
                 $sentence->setAttribute('audio', $audioRef);
+                $sentence->setAttribute('has_audio', true);
                 $changed = true;
             }
         }
@@ -212,13 +269,14 @@ class SentenceEnrichmentService
      * Reuses AppQyV1TTSService to do the actual edge-tts synthesis (and its
      * cache), then copies the produced mp3 into
      * PathMapper::getAppQyV1SentenceSoundsDir() under
-     * "<langCode>/<sentence_id>.mp3" so the shared library has a stable,
-     * sentence-keyed asset.
+     * "<langCode>/<content_id>.mp3" (Books v3 §6) so the per-language store has a
+     * stable, content-keyed asset. Returns the bare relative reference stored on
+     * the audio column ("<langCode>/<content_id>.mp3").
      */
-    private function generateAudioReference(string $sentenceId, string $text, string $language): ?string
+    private function generateAudioReference(string $contentId, string $text, string $language): ?string
     {
         $text = trim($text);
-        if ($text === '' || $sentenceId === '') {
+        if ($text === '' || $contentId === '') {
             return null;
         }
 
@@ -227,32 +285,35 @@ class SentenceEnrichmentService
         $result = $this->ttsService->generateAudio($text, $langCode, 'sentence');
         if (!is_array($result) || ($result['success'] ?? false) !== true) {
             Log::info('[SentenceEnrichment] TTS failed', [
-                'sentence_id' => $sentenceId,
+                'content_id' => $contentId,
                 'language' => $langCode,
                 'error' => $result['error'] ?? 'unknown',
             ]);
             return null;
         }
 
+        // Stable, content-keyed destination under the sentence-sounds dir (§6).
+        $relative = $langCode . '/' . $contentId . '.mp3';
+        $destPath = rtrim(PathMapper::getAppQyV1SentenceSoundsDir(), '/\\')
+            . DIRECTORY_SEPARATOR . $langCode
+            . DIRECTORY_SEPARATOR . $contentId . '.mp3';
+
         // Locate the freshly produced (or cached) source mp3 on disk.
         $sourcePath = $this->ttsService->getAudioPath((string) ($result['audio_path'] ?? ''));
         if ($sourcePath === null || !is_file($sourcePath)) {
-            // Service returned a URL but no readable file; fall back to the URL.
-            return $result['audio_url'] ?? null;
+            // No readable source file; if the asset is already in place use it.
+            if (is_file($destPath) && filesize($destPath) > 0) {
+                return $relative;
+            }
+            return null;
         }
-
-        // Stable, sentence-keyed destination under the sentence-sounds dir.
-        $relative = $langCode . '/' . $sentenceId . '.mp3';
-        $destPath = rtrim(PathMapper::getAppQyV1SentenceSoundsDir(), '/\\')
-            . DIRECTORY_SEPARATOR . $langCode
-            . DIRECTORY_SEPARATOR . $sentenceId . '.mp3';
 
         $destDir = dirname($destPath);
         if (!PathMapper::ensureDirectory($destDir, 0775)) {
             Log::warning('[SentenceEnrichment] Could not create sentence sounds dir', [
                 'dir' => $destDir,
             ]);
-            return $result['audio_url'] ?? null;
+            return null;
         }
 
         // Idempotent copy: only place the file if it is not already present.
@@ -262,12 +323,12 @@ class SentenceEnrichmentService
                     'from' => $sourcePath,
                     'to' => $destPath,
                 ]);
-                return $result['audio_url'] ?? null;
+                return null;
             }
         }
 
-        // Canonical served reference for the sentence-keyed asset.
-        return AppQyV1TtsUrl::forPath($relative);
+        // Bare relative reference stored on the audio column (Books v3 §6).
+        return $relative;
     }
 
     /**
@@ -382,7 +443,7 @@ PROMPT;
     /**
      * Whether any of the four AI detail columns is still empty.
      */
-    private function needsAiFields(Sentence $sentence): bool
+    private function needsAiFields(LangSentence $sentence): bool
     {
         foreach (self::AI_FIELDS as $field) {
             if ($this->isEmptyValue($sentence->getAttribute($field))) {
@@ -393,42 +454,43 @@ PROMPT;
     }
 
     /**
-     * Base query for rows still needing work: any AI field empty OR audio empty.
-     * Optionally filtered by language. Ordered for stable, resumable batching.
+     * Base query (one per-language table) for rows still needing work: any AI
+     * field empty OR audio empty. Ordered for stable, resumable batching.
      */
-    private function selectRowsNeedingWork(int $limit, ?string $language)
+    private function selectRowsNeedingWork(string $langCode, int $limit)
     {
-        $query = Sentence::query()->where(function ($q) {
-            foreach (self::AI_FIELDS as $field) {
-                $q->orWhereNull($field)->orWhere($field, '=', '');
-            }
-            $q->orWhereNull('audio')->orWhere('audio', '=', '');
-        });
-
-        if ($language !== null && $language !== '') {
-            $query->where('language', $language);
-        }
-
-        return $query->orderBy('id')->limit($limit);
+        return LangSentence::onLang($langCode)
+            ->where(function ($q) {
+                foreach (self::AI_FIELDS as $field) {
+                    $q->orWhereNull($field)->orWhere($field, '=', '');
+                }
+                $q->orWhereNull('audio')->orWhere('audio', '=', '');
+            })
+            ->orderBy('id')
+            ->limit($limit);
     }
 
     /**
-     * Count of rows still needing work (post-batch "remaining").
+     * Count of rows still needing work (post-batch "remaining"), summed across
+     * the requested language or every supported per-language table.
      */
     private function countRowsNeedingWork(?string $language): int
     {
-        $query = Sentence::query()->where(function ($q) {
-            foreach (self::AI_FIELDS as $field) {
-                $q->orWhereNull($field)->orWhere($field, '=', '');
+        $total = 0;
+        foreach ($this->languagesFor($language) as $langCode) {
+            if (!$this->tableExists($langCode)) {
+                continue;
             }
-            $q->orWhereNull('audio')->orWhere('audio', '=', '');
-        });
-
-        if ($language !== null && $language !== '') {
-            $query->where('language', $language);
+            $total += (int) LangSentence::onLang($langCode)
+                ->where(function ($q) {
+                    foreach (self::AI_FIELDS as $field) {
+                        $q->orWhereNull($field)->orWhere($field, '=', '');
+                    }
+                    $q->orWhereNull('audio')->orWhere('audio', '=', '');
+                })
+                ->count();
         }
-
-        return (int) $query->count();
+        return $total;
     }
 
     /**

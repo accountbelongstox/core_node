@@ -75,6 +75,7 @@ from pycore.callmodule.routers.local import (
     ocr_status_router,
     tts_status_router,
     stt_status_router,
+    speech_history_router,
     capability_status_router,
     translation_queue_router,
     task_center_router,
@@ -269,6 +270,9 @@ def _init_rpc_routes(server):
         """
         params = params or {}
         language = params.get('language') or 'en'
+        # Checked correspondence language set (Lsel, v3 subtitles). Optional: when
+        # omitted sync_source unions only the detected languages with the primary.
+        languages = params.get('languages')
         paths = params.get('paths')
         single = params.get('source_path')
         # Precondition guard: need at least one usable source path.
@@ -279,10 +283,12 @@ def _init_rpc_routes(server):
 
         try:
             if len(targets) == 1:
-                return await asyncio.to_thread(sync_source, targets[0], language)
+                return await asyncio.to_thread(
+                    sync_source, targets[0], language, None, None, languages)
             results = []
             for p in targets:
-                results.append(await asyncio.to_thread(sync_source, p, language))
+                results.append(await asyncio.to_thread(
+                    sync_source, p, language, None, None, languages))
             return {
                 'success': all(r.get('success') for r in results),
                 'count': len(results),
@@ -322,8 +328,10 @@ def _init_rpc_routes(server):
         """
         params = params or {}
         language = params.get('language') or 'en'
+        languages = params.get('languages')  # checked Lsel (v3 subtitles), optional
         try:
-            return await asyncio.to_thread(sync_all, params.get('paths'), language)
+            return await asyncio.to_thread(
+                sync_all, params.get('paths'), language, None, None, languages)
         except Exception as e:
             ColorPrint.red(f"[ConfigBuilder] video_extract.sync_all failed: {e}")
             return {'success': False, 'error': str(e)}
@@ -339,6 +347,12 @@ def _init_rpc_routes(server):
         """
         params = params or {}
         language = params.get('language') or 'en'
+        # Checked correspondence language set (Lsel, v3). Optional: when omitted
+        # sync_book_source defaults to just the declared/detected primary.
+        languages = params.get('languages')
+        # 'book' (default) or 'document' (Add Document sub-tab) — sets the ingest
+        # source_type so document rows land in the document bucket.
+        source_type = params.get('source_type') or 'book'
         paths = params.get('paths')
         single = params.get('source_path')
         targets = [p for p in (paths or ([single] if single else []))
@@ -362,10 +376,14 @@ def _init_rpc_routes(server):
 
         try:
             if len(targets) == 1:
-                return await asyncio.to_thread(sync_book_source, targets[0], language)
+                return await asyncio.to_thread(
+                    sync_book_source, targets[0], language, None, None, None, None,
+                    languages, 3, source_type)
             results = []
             for p in targets:
-                results.append(await asyncio.to_thread(sync_book_source, p, language))
+                results.append(await asyncio.to_thread(
+                    sync_book_source, p, language, None, None, None, None,
+                    languages, 3, source_type))
             return {
                 'success': all(r.get('success') for r in results),
                 'count': len(results),
@@ -672,6 +690,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 ocr_status_router,       # OCR engine availability (/api/local/ocr/status): windows/easyocr/cnocr priority
                 tts_status_router,       # TTS live availability + version (/api/local/tts/status) + live /test per engine
                 stt_status_router,       # STT engine availability (/api/local/stt/status) + live /test: faster-whisper/whisper/vosk/azure
+                speech_history_router,   # Speech (TTS/STT) clip history (/api/local/speech/history): list/file/reveal/delete/clear for the Records timeline
                 capability_status_router,# CUDA/GPU readiness + free-library availability (/api/local/capabilities/status)
                 translation_queue_router,# Translation queue monitor + control proxy (/api/local/translation/queue)
                 task_center_router,      # Unified task-center aggregate (/api/local/task-center) — mirrors laravel_main /api/task-center/overview

@@ -235,7 +235,11 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         // READ-ONLY browse + media-file serving (dashboard movies/books browser)
         Route::get('subtitles', [\App\Http\Controllers\MediaBrowseController::class, 'subtitles']);
         Route::get('books', [\App\Http\Controllers\MediaBrowseController::class, 'books']);
+        // User-scoped uploaded documents (optional auth; empty when unauthenticated).
+        Route::get('documents', [\App\Http\Controllers\MediaBrowseController::class, 'documents']);
         Route::get('subtitles/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'subtitleDetail']);
+        // Books v3.1: ordered chapter list (book -> chapter -> verses navigation).
+        Route::get('books/{source_key}/chapters', [\App\Http\Controllers\MediaBrowseController::class, 'bookChapters']);
         Route::get('books/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'bookDetail']);
         Route::get('clip/{source_key}/{name}', [\App\Http\Controllers\MediaBrowseController::class, 'clip'])
             ->where('name', '.*');

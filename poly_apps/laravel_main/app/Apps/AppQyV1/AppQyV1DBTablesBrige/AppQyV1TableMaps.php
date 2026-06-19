@@ -67,33 +67,10 @@ class AppQyV1TableMaps
         'updated_at' => 'updated_at'
     ];
     
-    public const app_qy_v1_DICTIONARIES = [
-        'tablename' => 'dictionaries',
-        'fields' => [
-            'id' => 'id',
-            'content' => 'content',
-            'md5' => 'md5',
-            'translation' => 'translation',
-            'isTranslation' => 'isTranslation',
-            'translation_provider' => 'translation_provider',
-            'lastModified' => 'lastModified',
-            'lastInsertTime' => 'lastInsertTime',
-            'lastUpdateTime' => 'lastUpdateTime',
-            'lastQueryTime' => 'lastQueryTime',
-            'queryCount' => 'queryCount',
-            'usPhonetic' => 'usPhonetic',
-            'ukPhonetic' => 'ukPhonetic',
-            'voice_files' => 'voice_files',
-            'image_files' => 'image_files',
-            'isExistLocal' => 'isExistLocal',
-            'voice_files_provider' => 'voice_files_provider',
-            'image_files_provider' => 'image_files_provider',
-            'hasOperations' => 'hasOperations',
-            'created_at' => 'created_at',
-            'updated_at' => 'updated_at',
-            'createdAt' => 'createdAt'
-        ]
-    ];
+    // The legacy single `dictionaries` table was removed (superseded by the
+    // per-language tts_cache_{lang} tables). The DICTIONARY_FIELDS map above is
+    // retained because the `_DICTIONARIES` regex branch in getTableName() /
+    // getFieldName() resolves every lang-prefixed dictionary key to tts_cache.
 
     public const app_qy_v1_PERSONAL_DICTIONARIES = [
         'tablename' => 'personal_dictionaries',
@@ -308,6 +285,72 @@ class AppQyV1TableMaps
     }
 
     /**
+     * Per-language authoritative sentence store (Books v3 unified model).
+     *
+     * Replaces the single shared {prefix}_sentences table. One table per
+     * supported language code, exactly mirroring getDictionaryTableName():
+     * {prefix}_sentences_{lang}. Created by the per-language sentence migration
+     * which loops getSupportedLanguages().
+     */
+    public static function getSentenceTableName(string $langCode): string
+    {
+        $prefix = self::getTablePrefix();
+        $langCode = strtolower($langCode);
+        return "{$prefix}_sentences_{$langCode}";
+    }
+
+    /**
+     * Per-language chapter store (Books v3.1 unified model — see
+     * BOOKS_FEATURE_SPECIFICATION.md §3.2).
+     *
+     * Replaces the removed single shared {prefix}_chapters table. One table per
+     * supported language code, mirroring getSentenceTableName():
+     * {prefix}_chapters_{lang}. Created by the per-language chapter migration
+     * which loops getSupportedLanguages().
+     */
+    public static function getChapterTableName(string $langCode): string
+    {
+        $prefix = self::getTablePrefix();
+        $langCode = strtolower($langCode);
+        return "{$prefix}_chapters_{$langCode}";
+    }
+
+    /**
+     * Normalize any language name or code to the canonical 2/3-letter CODE used
+     * by every per-language table (Books v3.1 §2 — codes only, no name/code dual
+     * lookup). Blank input returns ''.
+     */
+    public static function normalizeLangCode(string $language): string
+    {
+        $lang = strtolower(trim($language));
+        if ($lang === '') {
+            return '';
+        }
+        $nameToCode = [
+            'english' => 'en',
+            'chinese' => 'zh',
+            'japanese' => 'ja',
+            'korean' => 'ko',
+            'vietnamese' => 'vi',
+            'lao' => 'lo',
+            'russian' => 'ru',
+            'greek' => 'el',
+            'arabic' => 'ar',
+            'hebrew' => 'he',
+            'thai' => 'th',
+            'french' => 'fr',
+            'german' => 'de',
+            'spanish' => 'es',
+            'italian' => 'it',
+            'portuguese' => 'pt',
+        ];
+        if (isset($nameToCode[$lang])) {
+            return $nameToCode[$lang];
+        }
+        return $lang;
+    }
+
+    /**
      * Stage-1 staging table for a language. Import pipelines write here;
      * promoteStagingToFormal() copies into getDictionaryTableName($lang).
      */
@@ -338,11 +381,6 @@ class AppQyV1TableMaps
         }
         return $fieldKey;
     }
-    
-    public static function getDictionaryFieldName(string $fieldKey): string
-    {
-        return self::DICTIONARY_FIELDS[$fieldKey] ?? $fieldKey;
-    }
 
     public static function getTableFields(string $tableKey): array
     {
@@ -363,7 +401,6 @@ class AppQyV1TableMaps
     {
         $prefix = self::getTablePrefix();
         $keys = [
-            "{$prefix}_DICTIONARIES",
             "{$prefix}_PERSONAL_DICTIONARIES",
             "{$prefix}_PERSONAL_DICTIONARY_ENTRIES",
             "{$prefix}_WORD_GROUPS",

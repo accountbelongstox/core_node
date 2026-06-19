@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books;
 
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary\AppQyV1VocabularyLibraryPublicController;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Http\Controllers\Controller;
 use App\Models\GlobalTask;
 use App\Providers\PathMapper;
@@ -79,9 +80,17 @@ class AppQyV1BooksController extends Controller
             'files' => 'required|array|min:1',
             'files.*' => 'required|file',
             'language' => 'nullable|string',
+            'languages' => 'nullable|array',
+            'languages.*' => 'string',
         ]);
 
         $language = (string) $request->input('language', '');
+        // Books v3: the checked correspondence languages (>=1). The detected
+        // primary language is auto-included even when the FE omits it.
+        $selectedLanguages = $this->normalizeSelectedLanguages(
+            (array) $request->input('languages', []),
+            $language
+        );
         $uploadId = (string) Str::uuid();
         $stagingDir = PathMapper::getCoreNodeDataDir("appqyv1/books/{$uploadId}");
 
@@ -140,6 +149,14 @@ class AppQyV1BooksController extends Controller
                 $statsOut = $analysis['stats'];
                 $preview = mb_substr($text, 0, self::PREVIEW_CHARS);
 
+                // Books v3: chapter -> slot tree (both grains). The effective
+                // selected languages always include this file's detected primary.
+                $chapterTree = $this->stats->analyzeChapters($text, $language);
+                $fileSelected = $this->normalizeSelectedLanguages(
+                    $selectedLanguages,
+                    (string) $analysis['primary_language']
+                );
+
                 // Cache the full analysis (per-file) + lists for list/ingest.
                 $cachePayload = [
                     'upload_id' => $uploadId,
@@ -148,12 +165,15 @@ class AppQyV1BooksController extends Controller
                     'ext' => $ext,
                     'size' => $size,
                     'language' => $language,
+                    'selected_languages' => $fileSelected,
                     'content_id' => $analysis['content_id'],
                     'primary_language' => $analysis['primary_language'],
                     'stats' => $analysis['stats'],
                     'sentences' => $analysis['sentences'],
                     'sentence_seq' => $analysis['sentence_seq'],
                     'words' => $analysis['words'],
+                    'chapters' => $chapterTree['chapters'],
+                    'slots' => $chapterTree['slots'],
                     'full_content' => $text,
                 ];
                 $this->writeJson(
@@ -223,20 +243,32 @@ class AppQyV1BooksController extends Controller
      * Paginated drill-down over a cached upload's lists.
      *
      * POST /api/app_qy_v1/books/list
-     * { upload_id, kind: words|unique_words|sentences|unique_sentences|languages,
-     *   start?, limit?, ascii_name? }
+     * { upload_id,
+     *   kind: words|unique_words|sentences|unique_sentences|languages|chapters|cues,
+     *   start?, limit?, ascii_name?, chapter_index?, languages? }
      *
      * `ascii_name` optionally scopes to a single uploaded file; otherwise the
      * lists are merged across all files in the upload.
+     *
+     * Books v3 kinds (served from the cached chapter -> slot tree):
+     *   - chapters  -> [{chapter_index, title, sentence_count}]
+     *   - sentences -> BookSlot[] of grain 'sentence'
+     *   - cues      -> BookSlot[] of grain 'cue'
+     *   BookSlot = { corr_id, grain, seq, chapter_index, primary_language,
+     *                langs: { code: text|null } }; honors chapter_index +
+     *   languages[] (the checked correspondence languages).
      */
     public function list(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'upload_id' => 'required|string',
-            'kind' => 'required|string|in:words,unique_words,sentences,unique_sentences,languages',
+            'kind' => 'required|string|in:words,unique_words,sentences,unique_sentences,languages,chapters,cues',
             'start' => 'nullable|integer|min:0',
             'limit' => 'nullable|integer|min:1|max:5000',
             'ascii_name' => 'nullable|string',
+            'chapter_index' => 'nullable|integer|min:0',
+            'languages' => 'nullable|array',
+            'languages.*' => 'string',
         ]);
 
         $uploadId = $this->sanitizeId($validated['upload_id']);
@@ -244,6 +276,14 @@ class AppQyV1BooksController extends Controller
         $start = isset($validated['start']) ? (int) $validated['start'] : 0;
         $limit = isset($validated['limit']) ? (int) $validated['limit'] : 100;
         $asciiName = isset($validated['ascii_name']) ? basename((string) $validated['ascii_name']) : null;
+        $chapterIndex = isset($validated['chapter_index']) ? (int) $validated['chapter_index'] : null;
+        $languages = (array) $request->input('languages', []);
+
+        // Books v3 slot/chapter kinds read the per-file analysis caches directly
+        // (chapter -> slot tree), not the merged display lists.
+        if ($kind === 'chapters' || $kind === 'sentences' || $kind === 'cues') {
+            return $this->listV3($uploadId, $kind, $asciiName, $chapterIndex, $languages, $start, $limit);
+        }
 
         $listsPath = $this->listsPath($uploadId);
         $lists = $this->readJson($listsPath);
@@ -269,6 +309,135 @@ class AppQyV1BooksController extends Controller
     }
 
     /**
+     * Serve the Books v3 chapter / slot kinds from the cached chapter -> slot
+     * tree (file_*.json). 'chapters' returns the chapter list; 'sentences' /
+     * 'cues' return BookSlot[] of the corresponding grain, scoped to a chapter
+     * when chapter_index is given and projected onto the requested languages.
+     *
+     * @param array<int, mixed> $languages
+     */
+    private function listV3(
+        string $uploadId,
+        string $kind,
+        ?string $asciiName,
+        ?int $chapterIndex,
+        array $languages,
+        int $start,
+        int $limit
+    ): JsonResponse {
+        $stagingDir = PathMapper::getCoreNodeDataDir("appqyv1/books/{$uploadId}");
+        $fileCaches = $this->loadFileCaches($stagingDir);
+        if (empty($fileCaches)) {
+            return $this->notFound('Upload not found or expired');
+        }
+
+        // ---- Chapter list (Books v3.1: per-language titles) ----
+        if ($kind === 'chapters') {
+            $chapters = [];
+            foreach ($fileCaches as $cache) {
+                if ($asciiName !== null && (string) ($cache['ascii_name'] ?? '') !== $asciiName) {
+                    continue;
+                }
+                $primaryLanguage = $this->normalizeLangCode((string) ($cache['primary_language'] ?? 'en'));
+                if ($primaryLanguage === '') {
+                    $primaryLanguage = 'en';
+                }
+                $cachedSelected = isset($cache['selected_languages']) && is_array($cache['selected_languages'])
+                    ? $cache['selected_languages']
+                    : [];
+                $selectedLanguages = $this->normalizeSelectedLanguages(
+                    !empty($languages) ? $languages : $cachedSelected,
+                    $primaryLanguage
+                );
+
+                $fileChapters = isset($cache['chapters']) && is_array($cache['chapters']) ? $cache['chapters'] : [];
+                foreach ($fileChapters as $chapter) {
+                    // The PHP parser is monolingual: the primary language carries
+                    // the detected title; other selected languages are null (留空).
+                    $primaryTitle = isset($chapter['title']) ? (string) $chapter['title'] : null;
+                    $titles = [];
+                    foreach ($selectedLanguages as $code) {
+                        $titles[$code] = ($code === $primaryLanguage) ? $primaryTitle : null;
+                    }
+                    $chapters[] = [
+                        'ascii_name' => (string) ($cache['ascii_name'] ?? ''),
+                        'chapter_index' => (int) ($chapter['chapter_index'] ?? 0),
+                        // Resolved primary-language title for FE convenience.
+                        'title' => $primaryTitle,
+                        'primary_language' => $primaryLanguage,
+                        'titles' => $titles,
+                        'sentence_count' => (int) ($chapter['sentence_count'] ?? 0),
+                    ];
+                }
+            }
+            $total = count($chapters);
+            $items = array_slice($chapters, $start, $limit);
+            return $this->success([
+                'kind' => $kind,
+                'total' => $total,
+                'start' => $start,
+                'limit' => $limit,
+                'items' => array_values($items),
+                'totals' => ['total' => $total],
+            ], 'List retrieved');
+        }
+
+        // ---- Slot kinds: 'sentences' (grain sentence) / 'cues' (grain cue) ----
+        $grain = $kind === 'cues' ? 'cue' : 'sentence';
+
+        $slotRows = [];
+        foreach ($fileCaches as $cache) {
+            if ($asciiName !== null && (string) ($cache['ascii_name'] ?? '') !== $asciiName) {
+                continue;
+            }
+            $sourceKey = 'book_' . (string) ($cache['content_id'] ?? '');
+            $primaryLanguage = (string) ($cache['primary_language'] ?? 'en');
+
+            // Effective correspondence languages for projection.
+            $cachedSelected = isset($cache['selected_languages']) && is_array($cache['selected_languages'])
+                ? $cache['selected_languages']
+                : [];
+            $selectedLanguages = $this->normalizeSelectedLanguages(
+                !empty($languages) ? $languages : $cachedSelected,
+                $primaryLanguage
+            );
+
+            $slots = isset($cache['slots']) && is_array($cache['slots']) ? $cache['slots'] : [];
+            foreach ($slots as $slot) {
+                if ((string) ($slot['grain'] ?? '') !== $grain) {
+                    continue;
+                }
+                if ($chapterIndex !== null && (int) ($slot['chapter_index'] ?? 0) !== $chapterIndex) {
+                    continue;
+                }
+
+                $built = $this->buildV3Slot($sourceKey, $slot, $primaryLanguage, $selectedLanguages);
+                $slotRows[] = [
+                    'corr_id' => $built['corr_id'],
+                    'grain' => $built['grain'],
+                    'seq' => $built['seq'],
+                    'chapter_index' => $built['chapter_index'],
+                    'primary_language' => $built['primary_language'],
+                    'langs' => $built['langs'],
+                ];
+            }
+        }
+
+        $total = count($slotRows);
+        $items = array_slice($slotRows, $start, $limit);
+
+        return $this->success([
+            'kind' => $kind,
+            'grain' => $grain,
+            'total' => $total,
+            'start' => $start,
+            'limit' => $limit,
+            'items' => array_values($items),
+            'totals' => ['total' => $total],
+        ], 'List retrieved');
+    }
+
+    /**
      * Ingest a staged upload into the shared sentence library + word
      * dictionaries via the v2 media ingest path.
      *
@@ -283,10 +452,17 @@ class AppQyV1BooksController extends Controller
         $validated = $request->validate([
             'upload_id' => 'required|string',
             'language' => 'nullable|string',
+            'languages' => 'nullable|array',
+            'languages.*' => 'string',
         ]);
 
         $uploadId = $this->sanitizeId($validated['upload_id']);
         $languageOverride = isset($validated['language']) ? (string) $validated['language'] : '';
+        // Books v3: the checked correspondence languages override (>=1 when sent).
+        $languagesOverride = $this->normalizeSelectedLanguages(
+            (array) $request->input('languages', []),
+            $languageOverride
+        );
 
         $stagingDir = PathMapper::getCoreNodeDataDir("appqyv1/books/{$uploadId}");
         $fileCaches = $this->loadFileCaches($stagingDir);
@@ -311,6 +487,7 @@ class AppQyV1BooksController extends Controller
                 'payload' => [
                     'upload_id' => $uploadId,
                     'language' => $languageOverride,
+                    'languages' => $languagesOverride,
                     'total_sentences' => $totalSentences,
                 ],
             ]);
@@ -319,9 +496,9 @@ class AppQyV1BooksController extends Controller
             // so the request returns immediately with the task_id; the frontend
             // polls /task/{id}/status. Failures mark the task FAILED (never leave
             // it stuck in 'processing').
-            app()->terminating(function () use ($fileCaches, $languageOverride, $task) {
+            app()->terminating(function () use ($fileCaches, $languageOverride, $languagesOverride, $task) {
                 try {
-                    $this->runIngest($fileCaches, $languageOverride, $task);
+                    $this->runIngest($fileCaches, $languageOverride, $languagesOverride, $task);
                 } catch (\Throwable $e) {
                     $task->status = GlobalTask::STATUS_FAILED;
                     $task->error = $e->getMessage();
@@ -339,7 +516,7 @@ class AppQyV1BooksController extends Controller
             ], 'Book ingest started');
         }
 
-        $books = $this->runIngest($fileCaches, $languageOverride, null);
+        $books = $this->runIngest($fileCaches, $languageOverride, $languagesOverride, null);
 
         return $this->success([
             'books' => $books,
@@ -348,68 +525,122 @@ class AppQyV1BooksController extends Controller
     }
 
     /**
-     * Build the v2 payload for each staged file and ingest it. When $task is
-     * provided, progress is updated 0-100 as chunks complete and the result is
-     * stored on the task; returns the per-book summary either way.
+     * Build the model_version:3 payload for each staged file and ingest it via
+     * MediaIngestService (which upserts per-language sentence tables, chapters and
+     * correspondence slots). When $task is provided, progress is updated 0-100 as
+     * chunks complete; returns the per-book summary either way.
      *
-     * @param array<int, array> $fileCaches
+     * v3 payload shape (BOOKS_FEATURE_SPECIFICATION.md §7): the first chunk carries
+     * the source (with selected_languages) + chapters[]; every chunk carries an
+     * ordered slot slice. Each slot:
+     *   { chapter_index, grain, seq, corr_id=sha1(source_key|grain|seq),
+     *     primary_language, langs:{code: text|null} } — for a PHP-parsed (single
+     *     language) book only the primary language is filled; the other selected
+     *     languages are null (留空) so the FE renders a blank correspondence.
+     *
+     * @param array<int, array>     $fileCaches
+     * @param array<int, string>    $languagesOverride
      * @return array<int, array{source_key:string, original_name:string, sentences:int, words:int}>
      */
-    private function runIngest(array $fileCaches, string $languageOverride, ?GlobalTask $task): array
+    private function runIngest(array $fileCaches, string $languageOverride, array $languagesOverride, ?GlobalTask $task): array
     {
         $books = [];
 
-        // Total chunks across all files for global progress.
+        // Total chunks across all files for global progress (over slots now).
         $totalChunks = 0;
         foreach ($fileCaches as $cache) {
-            $sentenceCount = count($cache['sentences']);
-            $totalChunks += max(1, (int) ceil($sentenceCount / self::INGEST_CHUNK_SIZE));
+            $slotCount = isset($cache['slots']) && is_array($cache['slots']) ? count($cache['slots']) : 0;
+            $totalChunks += max(1, (int) ceil($slotCount / self::INGEST_CHUNK_SIZE));
         }
         $doneChunks = 0;
 
         foreach ($fileCaches as $cache) {
-            $language = $languageOverride !== '' ? $languageOverride : (string) $cache['primary_language'];
+            $primaryLanguage = $this->normalizeLangCode(
+                $languageOverride !== '' ? $languageOverride : (string) $cache['primary_language']
+            );
+            if ($primaryLanguage === '') {
+                $primaryLanguage = 'en';
+            }
             $sourceKey = 'book_' . $cache['content_id'];
 
-            $sentences = $cache['sentences'];
-            $sentenceCount = count($sentences);
+            // Effective selected correspondence languages: the ingest-call override
+            // when sent, else the cached upload selection, always including primary.
+            $cachedSelected = isset($cache['selected_languages']) && is_array($cache['selected_languages'])
+                ? $cache['selected_languages']
+                : [];
+            $selectedLanguages = $this->normalizeSelectedLanguages(
+                !empty($languagesOverride) ? $languagesOverride : $cachedSelected,
+                $primaryLanguage
+            );
+
+            $slots = isset($cache['slots']) && is_array($cache['slots']) ? $cache['slots'] : [];
+            $sentenceSlots = 0;
+            foreach ($slots as $slot) {
+                if (($slot['grain'] ?? '') === 'sentence') {
+                    $sentenceSlots++;
+                }
+            }
             $wordCount = 0;
             foreach ($cache['words'] as $items) {
                 $wordCount += count($items);
             }
 
-            // First chunk carries the source + word maps + full payload metadata;
-            // subsequent chunks carry only their sentence slice so progress can
-            // advance on large books without one giant transaction.
-            $chunks = array_chunk($sentences, self::INGEST_CHUNK_SIZE);
+            // Books v3.1: chapters carry a per-language titles map. The PHP parser
+            // is monolingual, so only the primary language title is filled; other
+            // selected languages get a null title (留空).
+            $cachedChapters = isset($cache['chapters']) && is_array($cache['chapters']) ? $cache['chapters'] : [];
+            $chapters = [];
+            foreach ($cachedChapters as $chapter) {
+                $titles = [];
+                foreach ($selectedLanguages as $code) {
+                    $titles[$code] = ($code === $primaryLanguage)
+                        ? (isset($chapter['title']) ? (string) $chapter['title'] : null)
+                        : null;
+                }
+                $chapters[] = [
+                    'chapter_index' => (int) ($chapter['chapter_index'] ?? 0),
+                    'sentence_count' => (int) ($chapter['sentence_count'] ?? 0),
+                    'titles' => $titles,
+                ];
+            }
+
+            // First chunk carries the source + chapters; subsequent chunks carry
+            // only their slot slice so progress can advance on large books.
+            $chunks = array_chunk($slots, self::INGEST_CHUNK_SIZE);
             if (empty($chunks)) {
                 $chunks = [[]];
             }
 
             $first = true;
             foreach ($chunks as $chunk) {
+                $payloadSlots = [];
+                foreach ($chunk as $slot) {
+                    $payloadSlots[] = $this->buildV3Slot($sourceKey, $slot, $primaryLanguage, $selectedLanguages);
+                }
+
                 $payload = [
                     'source_type' => 'book',
-                    'model_version' => 2,
+                    'model_version' => 3,
                     'source' => [
                         'source_key' => $sourceKey,
                         'content_id' => $cache['content_id'],
                         'title' => (string) $cache['original_name'],
                         'original_name' => (string) $cache['original_name'],
                         'ascii_name' => (string) $cache['ascii_name'],
-                        'language' => $language,
+                        'language' => $primaryLanguage,
+                        'selected_languages' => $selectedLanguages,
                         'full_content' => $first ? (string) $cache['full_content'] : '',
                         'sentence_seq' => $first ? $cache['sentence_seq'] : [],
                         'word_ids' => $first ? $this->buildWordIds($cache['words']) : [],
-                        'sentence_count' => $sentenceCount,
+                        'sentence_count' => $sentenceSlots,
                         'metadata' => [
                             'source' => 'dashboard_books',
                             'upload_id' => (string) $cache['upload_id'],
                             'ext' => (string) $cache['ext'],
                         ],
                     ],
-                    'sentences' => $chunk,
-                    'words' => $first ? $cache['words'] : [],
+                    'chapters' => $first ? $chapters : [],
+                    'slots' => $payloadSlots,
                 ];
 
                 $this->ingestService->ingest($payload);
@@ -426,7 +657,7 @@ class AppQyV1BooksController extends Controller
             $books[] = [
                 'source_key' => $sourceKey,
                 'original_name' => (string) $cache['original_name'],
-                'sentences' => $sentenceCount,
+                'sentences' => $sentenceSlots,
                 'words' => $wordCount,
             ];
         }
@@ -440,6 +671,82 @@ class AppQyV1BooksController extends Controller
         }
 
         return $books;
+    }
+
+    /**
+     * Build one v3 correspondence slot for the ingest payload from a cached slot.
+     * For a PHP-parsed monolingual book only the primary language is filled; the
+     * other selected languages are null (留空 — empty correspondence).
+     *
+     * @param array<string, mixed> $slot
+     * @param array<int, string>   $selectedLanguages
+     * @return array<string, mixed>
+     */
+    private function buildV3Slot(string $sourceKey, array $slot, string $primaryLanguage, array $selectedLanguages): array
+    {
+        $grain = isset($slot['grain']) ? (string) $slot['grain'] : 'sentence';
+        $seq = isset($slot['seq']) ? (int) $slot['seq'] : 0;
+        $chapterIndex = isset($slot['chapter_index']) ? (int) $slot['chapter_index'] : 0;
+        $text = isset($slot['text']) ? (string) $slot['text'] : '';
+        // The slot's detected language; fall back to the book primary.
+        $slotLang = isset($slot['language']) && $slot['language'] !== '' ? (string) $slot['language'] : $primaryLanguage;
+
+        // The PHP parser yields one language per slot; fill that language, leave
+        // every other selected language null so the slot still renders a blank.
+        $langs = [];
+        foreach ($selectedLanguages as $code) {
+            $langs[$code] = ($code === $slotLang) ? $text : null;
+        }
+        // Guarantee the slot's own language is represented even if not in Lsel.
+        if (!array_key_exists($slotLang, $langs)) {
+            $langs[$slotLang] = $text;
+        }
+
+        return [
+            'chapter_index' => $chapterIndex,
+            'grain' => $grain,
+            'seq' => $seq,
+            'corr_id' => MediaIngestService::computeCorrId($sourceKey, $grain, $seq),
+            'primary_language' => $primaryLanguage,
+            'langs' => $langs,
+            'seg_index' => null,
+            'sub_idx' => null,
+            'start_sec' => null,
+            'end_sec' => null,
+        ];
+    }
+
+    /**
+     * Normalize a checked-languages list to deduped 2/3-letter codes, always
+     * including the (normalized) primary language as the first entry. Accepts
+     * names or codes; an empty selection yields just the primary.
+     *
+     * @param array<int, mixed> $languages
+     * @return array<int, string>
+     */
+    private function normalizeSelectedLanguages(array $languages, string $primary): array
+    {
+        $out = [];
+        $primaryCode = $this->normalizeLangCode($primary);
+        if ($primaryCode !== '') {
+            $out[] = $primaryCode;
+        }
+        foreach ($languages as $lang) {
+            $code = $this->normalizeLangCode((string) $lang);
+            if ($code !== '' && !in_array($code, $out, true)) {
+                $out[] = $code;
+            }
+        }
+        if (empty($out)) {
+            $out[] = 'en';
+        }
+        return $out;
+    }
+
+    /** Normalize a language name/code to a code (delegates to AppQyV1TableMaps — §2). */
+    private function normalizeLangCode(string $language): string
+    {
+        return AppQyV1TableMaps::normalizeLangCode($language);
     }
 
     /**

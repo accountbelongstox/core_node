@@ -22,6 +22,7 @@ from pycore.pyutils.edge_tts.edge_tts_client import (
     get_synth_timeout,
     set_synth_timeout,
 )
+from pycore.pyctl.ai import speech_history
 from pycore.pyutils.tts import tts_status as orchestrator_status
 from pycore.pyutils.tts.tts_orchestrator import (
     get_edge_cooldown_seconds,
@@ -115,8 +116,17 @@ class _TtsTestReq(BaseModel):
 @router.post("/test")
 def test(req: _TtsTestReq):
     """Live synth test for ONE engine (or the best available): actually runs the
-    engine and reports {success, engine, latency_ms, bytes, error}."""
-    return orchestrator_test(engine=req.engine, text=req.text, language=req.language, rate=req.rate)
+    engine and reports {success, engine, latency_ms, bytes, error}. The produced
+    audio is persisted to the shared speech history (record id echoed back)."""
+    result = orchestrator_test(engine=req.engine, text=req.text, language=req.language, rate=req.rate)
+    try:
+        from pycore.pyctl.ai import speech_history
+        entry = speech_history.record_test_result("tts", result, source="tts-test")
+        if entry:
+            result["record_id"] = entry["id"]
+    except Exception as e:  # noqa: BLE001 — history is best-effort
+        ColorPrint.yellow(f"[tts] could not record test audio: {e}")
+    return result
 
 
 class _TtsSettingsPatch(BaseModel):

@@ -83,17 +83,24 @@ class AppQyV1SentenceAudioController extends Controller
     }
 
     /**
-     * POST /api/app_qy_v1/ai_tools/tts/sentence/report  (§4.2)
+     * POST /api/app_qy_v1/ai_tools/tts/sentence/report  (§6)
      *
-     * Multipart (success): { sentence_id, worker_id, success:"true", provider?,
-     *                        audio:<file mp3> }  (or audio_base64 instead).
-     * Form (failure):       { sentence_id, worker_id, success:"false", provider?,
-     *                        error? }.
+     * Sentences are keyed by content_id + language against the per-language
+     * tables {prefix}_sentences_{lang}. `hash` is accepted as an alias for
+     * content_id (legacy `sentence_id` is still accepted as a fallback).
+     *
+     * Multipart (success): { content_id, language, worker_id, success:"true",
+     *                        provider?, audio:<file mp3> }  (or audio_base64).
+     * Form (failure):       { content_id, language, worker_id, success:"false",
+     *                        provider?, error? }.
      */
     public function report(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'sentence_id' => 'required|string|max:64',
+            'content_id' => 'nullable|string|max:64',
+            'hash' => 'nullable|string|max:64',
+            'sentence_id' => 'nullable|string|max:64',
+            'language' => 'required|string|max:20',
             'worker_id' => 'required|string|max:100',
             'success' => 'required',
             'provider' => 'nullable|string|max:100',
@@ -134,9 +141,22 @@ class AppQyV1SentenceAudioController extends Controller
             // (a worker re-reporting a sentence pycore already generated).
         }
 
+        // Canonical key is content_id; accept `hash` / legacy `sentence_id` as
+        // aliases for the same value.
+        $contentId = $request->input('content_id')
+            ?? $request->input('hash')
+            ?? $request->input('sentence_id');
+        if ($contentId === null || $contentId === '') {
+            return response()->json([
+                'success' => false,
+                'error' => 'Provide content_id (or hash)',
+            ], 422);
+        }
+
         try {
             $result = $this->service->report(
-                $request->input('sentence_id'),
+                (string) $contentId,
+                (string) $request->input('language'),
                 $request->input('worker_id'),
                 $success,
                 $audioBinary,
@@ -145,7 +165,8 @@ class AppQyV1SentenceAudioController extends Controller
             );
         } catch (\Throwable $e) {
             Log::error('[SentenceAudio] report failed', [
-                'sentence_id' => $request->input('sentence_id'),
+                'content_id' => $contentId,
+                'language' => $request->input('language'),
                 'error' => $e->getMessage(),
             ]);
             return response()->json(['success' => false, 'error' => 'Internal error ingesting result'], 500);
@@ -161,8 +182,8 @@ class AppQyV1SentenceAudioController extends Controller
     }
 
     /**
-     * GET /api/app_qy_v1/ai_tools/tts/sentence/audio  (§4.3) — FILE-FIRST.
-     * Query: ?hash=<sha1|md5>&language=<lang>  OR  ?text=<sentence>&language=<lang>
+     * GET /api/app_qy_v1/ai_tools/tts/sentence/audio  (§6) — FILE-FIRST.
+     * Query: ?hash=<content_id>&language=<lang>  OR  ?text=<sentence>&language=<lang>
      */
     public function audio(Request $request): JsonResponse
     {

@@ -24,9 +24,15 @@
 import type {
   WfNewApi, Word, WordGroup, BentoGroup, UserProfile, UserStats,
   SubtitleCourse, BilingualSentence, AnalyticsStats,
-  WfNewAuthResult, WfNewAuthUser, WfNewRegisterPayload,
+  WfNewAuthResult, WfNewAuthUser, WfNewRegisterPayload, WfNewPreferences,
+  WfNewLanguage, WfNewLanguageSelection, WfNewAvatarResult,
+  WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity,
+  WfNewContentGroup, WfNewHomeContent, WfNewStatistics,
+  WfNewBookChapters, WfNewBookChapter, WfNewBookVersesPage, WfNewBookVerse,
 } from './WfNewApiTypes';
 import { wfNewEndpoints } from './WfNewEndpoints';
+import { WfNewApiPaths } from './WfNewApiPaths';
+import { WFNEW_BUILTIN_LANGUAGES, WFNEW_BUILTIN_PRESET_AVATARS } from './WfNewApiDefaults';
 import {
   MOCK_SUBTITLE_COURSES, MOCK_BILINGUAL_SENTENCES, MOCK_ANALYTICS_STATS,
 } from '../WfNewMockDb';
@@ -48,6 +54,8 @@ let authToken: string | null = loadToken();
 
 function setToken(token: string | null): void {
   authToken = token;
+  // A fresh, real token re-arms the one-shot expiry notifier for the new session.
+  if (token) expiredNotified = false;
   try {
     if (typeof localStorage === 'undefined') return;
     if (token) localStorage.setItem(AUTH_TOKEN_KEY, token);
@@ -62,23 +70,111 @@ function stripBom(text: string): string {
   return text.replace(/^(﻿|ï»¿)+/, '');
 }
 
-/** Merge the Bearer header in when a session token is present. */
+/** Merge the Bearer header in when a session token is present. CustomAuthenticate
+ *  and auth:sanctum both read this Bearer token, so it covers every authed route. */
 function authHeaders(base: Record<string, string>): Record<string, string> {
   if (authToken) return { ...base, Authorization: `Bearer ${authToken}` };
   return base;
 }
 
+// --- auth-expiry self-heal -------------------------------------------------- #
+// A 401 from any authed call means the session is dead (expired / missing token).
+// We drop the local token and notify subscribers (WfNewApp) so the UI can flip to
+// logged-out and route to the login screen — one handler fixes EVERY endpoint.
+
+const authExpiredSubs = new Set<() => void>();
+
+/**
+ * One-shot guard so a burst of concurrent 401s (a page fires profile + friends +
+ * leaderboard + activities at once) produces a SINGLE "session expired" + logout,
+ * not one per request. Re-armed by setToken() on the next successful login.
+ */
+let expiredNotified = false;
+
+function notifyAuthExpired(): void {
+  for (const cb of authExpiredSubs) {
+    try { cb(); } catch { /* ignore subscriber errors */ }
+  }
+}
+
+/** If a response is a 401, clear the token and notify ONCE. Returns the status' 401-ness.
+ *  Only a token that JUST expired flips the UI to logged-out + toast — a 401 with NO
+ *  token present must never trigger a spurious "session expired" (there was no session). */
+function handleMaybe401(status: number): boolean {
+  if (status !== 401) return false;
+  const hadToken = !!authToken;
+  if (hadToken) setToken(null);
+  if (hadToken && !expiredNotified) {
+    expiredNotified = true;
+    notifyAuthExpired();
+  }
+  return true;
+}
+
+/**
+ * Unwrap the AppQyV1 `{ success, message, data }` envelope to its `data` payload
+ * (the data mappers read groups/words/user off `data`). Raw (non-enveloped)
+ * bodies pass through untouched.
+ */
+function unwrapEnvelope(body: any): any {
+  if (body && typeof body === 'object' && !Array.isArray(body) && 'data' in body) {
+    return body.data;
+  }
+  return body;
+}
+
+/** Resolve a backend-relative media/cover path to an absolute URL on the current endpoint. */
+function absUrl(u?: string): string | undefined {
+  if (!u || typeof u !== 'string') return undefined;
+  if (/^https?:\/\//i.test(u) || u.startsWith('data:')) return u;
+  return wfNewEndpoints.buildUrl(u.startsWith('/') ? u : `/${u}`);
+}
+
+/** Map a backend bookDetail sentence row to a normalized WfNewBookVerse. */
+function toBookVerse(s: any): WfNewBookVerse {
+  const languages: Record<string, { text: string | null; audio: string | null }> = {};
+  if (s && s.languages && typeof s.languages === 'object') {
+    for (const [lang, v] of Object.entries<any>(s.languages)) {
+      languages[lang] = { text: v?.text ?? null, audio: absUrl(v?.audio) ?? null };
+    }
+  }
+  return {
+    grain: String(s?.grain ?? 'sentence'),
+    seq: Number(s?.seq ?? 0),
+    chapterIndex: s?.chapter_index !== undefined && s?.chapter_index !== null ? Number(s.chapter_index) : undefined,
+    text: s?.text ?? null,
+    language: s?.language ?? null,
+    audio: absUrl(s?.audio) ?? null,
+    languages: Object.keys(languages).length ? languages : undefined,
+  };
+}
+
 // --- transport ------------------------------------------------------------- #
 
-/** GET <currentEndpoint>/path as JSON. Waits for endpoint detection first. */
+/** GET <currentEndpoint>/path as JSON (envelope-unwrapped). Waits for detection. */
 async function getJSON<T>(path: string): Promise<T> {
   await wfNewEndpoints.whenReady();
   const res = await fetch(wfNewEndpoints.buildUrl(path), {
     method: 'GET',
     headers: authHeaders({ Accept: 'application/json' }),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`);
-  return (await res.json()) as T;
+  if (!res.ok) {
+    handleMaybe401(res.status);
+    throw new Error(`HTTP ${res.status} for ${path}`);
+  }
+  return unwrapEnvelope(await res.json()) as T;
+}
+
+/**
+ * GET an AUTH-REQUIRED endpoint. With NO session token it short-circuits to
+ * `fallback` WITHOUT issuing the request — so no auth-only call ever fires (and
+ * 401s) before login. This is THE single gate every authed reader goes through;
+ * public endpoints keep calling getJSON directly. Centralizing it here keeps the
+ * "never hit protected APIs while logged out" rule in exactly one place.
+ */
+async function authedGetJSON<T>(path: string, fallback: T): Promise<T> {
+  if (!authToken) return fallback;
+  return getJSON<T>(path);
 }
 
 /**
@@ -103,6 +199,7 @@ async function postJSON<T>(path: string, body: Record<string, any>): Promise<T> 
     }
   }
   if (!res.ok) {
+    handleMaybe401(res.status);
     let message = `HTTP ${res.status} for ${path}`;
     if (parsed && typeof parsed.message === 'string' && parsed.message) message = parsed.message;
     else if (parsed && typeof parsed.error === 'string' && parsed.error) message = parsed.error;
@@ -197,29 +294,116 @@ function logContentFallback(): void {
   }
 }
 
+// --- home content-group mappers -------------------------------------------- #
+// Normalize the THREE distinct backend list shapes (word groups / media sources /
+// vocabulary libraries) into the single WfNewContentGroup the home widget renders.
+
+/** Resolve a possibly-relative backend cover path to an absolute URL (host = current endpoint). */
+function toAbsoluteUrl(url?: string | null): string | undefined {
+  if (!url || typeof url !== 'string') return undefined;
+  if (/^(https?:|data:)/i.test(url)) return url;          // already absolute
+  const base = wfNewEndpoints.getCurrentBaseUrl();          // e.g. http://host:9000
+  if (!base) return url;
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
+/** query_all_groups row → WfNewContentGroup (kind 'word'; carries the group cover when present). */
+function wordRowToContentGroup(raw: any, i = 0): WfNewContentGroup {
+  return {
+    id: String(raw?.gid ?? raw?.id ?? `word-${i}`),
+    kind: 'word',
+    title: raw?.gname ?? raw?.name ?? 'Untitled',
+    count: Number(raw?.total_words ?? raw?.count ?? 0) || 0,
+    countUnit: 'words',
+    language: raw?.language ?? 'en',
+    imageUrl: toAbsoluteUrl(raw?.cover_url ?? raw?.thumbnail_url),
+    category: raw?.cover_category ?? raw?.type ?? undefined,
+    description: raw?.description ?? undefined,
+  };
+}
+
+/** /media/{books|subtitles} row → WfNewContentGroup. `count` follows the kind. */
+function mediaRowToContentGroup(raw: any, kind: 'book' | 'subtitle', i = 0): WfNewContentGroup {
+  const count = kind === 'subtitle'
+    ? Number(raw?.subtitle_count ?? raw?.sentence_count ?? 0) || 0
+    : Number(raw?.sentence_count ?? 0) || 0;
+  return {
+    id: String(raw?.id ?? raw?.source_key ?? `${kind}-${i}`),
+    kind,
+    title: raw?.title ?? raw?.original_name ?? raw?.ascii_name ?? 'Untitled',
+    count,
+    countUnit: kind === 'subtitle' ? 'subtitles' : 'sentences',
+    language: raw?.language ?? undefined,
+    imageUrl: toAbsoluteUrl(raw?.image_url),
+    sourceKey: raw?.source_key ? String(raw.source_key) : undefined,
+    description: undefined,
+  };
+}
+
+/** /vocabulary/libraries row → WfNewContentGroup (kind 'library' — a public word library). */
+function libraryRowToContentGroup(raw: any, i = 0): WfNewContentGroup {
+  return {
+    id: String(raw?.id ?? `lib-${i}`),
+    kind: 'library',
+    title: raw?.name ?? 'Untitled',
+    count: Number(raw?.word_count ?? 0) || 0,
+    countUnit: 'words',
+    language: raw?.language ?? undefined,
+    imageUrl: toAbsoluteUrl(raw?.image_url),
+    category: raw?.category ?? raw?.difficulty ?? undefined,
+    description: raw?.description ?? undefined,
+  };
+}
+
+/** /media/documents row → WfNewContentGroup (kind 'document' — the user's own upload). */
+function documentRowToContentGroup(raw: any, i = 0): WfNewContentGroup {
+  return {
+    id: String(raw?.id ?? `doc-${i}`),
+    kind: 'document',
+    title: raw?.title ?? raw?.original_name ?? 'Untitled',
+    count: Number(raw?.word_count ?? 0) || 0,
+    countUnit: 'words',
+    language: raw?.language ?? undefined,
+    category: undefined,
+    description: undefined,
+  };
+}
+
 // --- implementation -------------------------------------------------------- #
 
 async function fetchGroups(): Promise<WordGroup[]> {
-  const res = await getJSON<any>('/query_all_groups');
+  // Auth-required (user's word groups) — no token -> [] without a request.
+  const res = await authedGetJSON<any>(WfNewApiPaths.queryAllGroups, null);
   return asArray(res, 'groups').map(toGroup);
 }
 
 export const wfNewApiHttp: WfNewApi = {
+  // ---- Session ----
+  isAuthenticated(): boolean {
+    return !!authToken;
+  },
+
+  onAuthExpired(cb: () => void): () => void {
+    authExpiredSubs.add(cb);
+    return () => authExpiredSubs.delete(cb);
+  },
+
   // ---- Auth ----
   async login(identifier: string, password: string): Promise<WfNewAuthResult> {
     // The AppQyV1 login controller authenticates by `username`, but
     // CommonAuthService matches it against username OR email OR phone — so the
     // raw identifier the user typed is sent as `username`.
-    const res = await postJSON<any>('/login', { username: identifier, password });
+    const res = await postJSON<any>(WfNewApiPaths.login, { username: identifier, password });
     const result = toAuthResult(res);
     if (result.token) setToken(result.token);
+    else console.warn('[WfNewApiHttp] login succeeded but no token was found in the response — authed calls will 401.');
     return result;
   },
 
   async register(payload: WfNewRegisterPayload): Promise<WfNewAuthResult> {
     // avatar is UI-only (emoji) — the backend does not persist it, so it is not
     // sent. Everything else maps straight onto the registration controller.
-    const res = await postJSON<any>('/register', {
+    const res = await postJSON<any>(WfNewApiPaths.register, {
       username: payload.username,
       password: payload.password,
       email: payload.email,
@@ -236,11 +420,128 @@ export const wfNewApiHttp: WfNewApi = {
   async logout(): Promise<void> {
     // Best-effort server-side revoke; the local token is cleared regardless.
     try {
-      if (authToken) await postJSON('/logout', {});
+      if (authToken) await postJSON(WfNewApiPaths.logout, {});
     } catch {
       /* ignore — clearing the local token below is what matters */
     }
     setToken(null);
+  },
+
+  async getPreferences(): Promise<WfNewPreferences> {
+    // GET /user/preferences returns the merged defaults+stored set under `data`.
+    return (await authedGetJSON<WfNewPreferences>(WfNewApiPaths.userPreferences, null)) || {};
+  },
+
+  async updatePreferences(patch: WfNewPreferences): Promise<WfNewPreferences> {
+    // POST merges server-side and echoes the full updated set (envelope-wrapped).
+    const res = await postJSON<any>(WfNewApiPaths.userPreferences, patch);
+    return (unwrapEnvelope(res) as WfNewPreferences) || {};
+  },
+
+  async getSupportedLanguages(): Promise<WfNewLanguage[]> {
+    try {
+      const rows = await getJSON<any[]>(WfNewApiPaths.supportedLanguages);
+      const list = Array.isArray(rows) ? rows : [];
+      const mapped: WfNewLanguage[] = list
+        // Only 2-char codes are savable via setUserLanguages (size:2).
+        .filter((r) => typeof r?.code === 'string' && r.code.length === 2)
+        .map((r) => ({
+          code: r.code,
+          name: typeof r.name === 'string' && r.name ? r.name : r.code,
+          native_name: typeof r.native_name === 'string' && r.native_name ? r.native_name : r.name || r.code,
+        }));
+      return mapped.length ? mapped : [...WFNEW_BUILTIN_LANGUAGES];
+    } catch {
+      return [...WFNEW_BUILTIN_LANGUAGES];
+    }
+  },
+
+  async getLearningLanguages(): Promise<WfNewLanguageSelection> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.learningLanguages, null);
+    const learning = Array.isArray(res?.learning_languages) ? res.learning_languages : [];
+    const native = typeof res?.native_language === 'string' && res.native_language ? res.native_language : 'zh';
+    return { native_language: native, learning_languages: learning.length ? learning : ['en'] };
+  },
+
+  async setLearningLanguages(selection: WfNewLanguageSelection): Promise<WfNewLanguageSelection> {
+    const res = await postJSON<any>(WfNewApiPaths.learningLanguages, {
+      learning_languages: selection.learning_languages,
+      native_language: selection.native_language,
+    });
+    const data = unwrapEnvelope(res) || {};
+    return {
+      native_language: data.native_language ?? selection.native_language,
+      learning_languages: Array.isArray(data.learning_languages) ? data.learning_languages : selection.learning_languages,
+    };
+  },
+
+  async uploadAvatar(file: File): Promise<WfNewAvatarResult> {
+    await wfNewEndpoints.whenReady();
+    const form = new FormData();
+    form.append('avatar', file);
+    // No explicit Content-Type — the browser sets the multipart boundary itself.
+    const res = await fetch(wfNewEndpoints.buildUrl(WfNewApiPaths.userAvatar), {
+      method: 'POST',
+      headers: authHeaders({ Accept: 'application/json' }),
+      body: form,
+    });
+    const rawText = stripBom(await res.text());
+    let body: any = null;
+    if (rawText) {
+      try {
+        body = JSON.parse(rawText);
+      } catch {
+        body = null;
+      }
+    }
+    if (!res.ok) {
+      handleMaybe401(res.status);
+      throw new Error(body?.message || `HTTP ${res.status} for avatar upload`);
+    }
+    const data = unwrapEnvelope(body) || {};
+    return { avatar: data.avatar ?? '', avatar_url: data.avatar_url ?? '' };
+  },
+
+  async getPresetAvatars(): Promise<string[]> {
+    // No backend preset gallery exists yet — probe, and fall back to built-ins.
+    try {
+      const res = await getJSON<any>(WfNewApiPaths.avatarPresets);
+      const list = Array.isArray(res) ? res : Array.isArray(res?.presets) ? res.presets : [];
+      const presets = list.filter((v: any) => typeof v === 'string' && v);
+      return presets.length ? presets : [...WFNEW_BUILTIN_PRESET_AVATARS];
+    } catch {
+      return [...WFNEW_BUILTIN_PRESET_AVATARS];
+    }
+  },
+
+  // ---- Social (all auth-required) ----
+  async getFriends(): Promise<WfNewFriend[]> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialFriends, null);
+    return Array.isArray(res?.friends) ? res.friends : Array.isArray(res) ? res : [];
+  },
+
+  async searchUsers(query: string): Promise<WfNewUserSearchResult[]> {
+    if (!query.trim()) return [];
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialSearch(query.trim()), null);
+    return Array.isArray(res?.users) ? res.users : Array.isArray(res) ? res : [];
+  },
+
+  async followUser(userId: number): Promise<void> {
+    await postJSON(WfNewApiPaths.socialFollow, { user_id: userId });
+  },
+
+  async unfollowUser(userId: number): Promise<void> {
+    await postJSON(WfNewApiPaths.socialUnfollow, { user_id: userId });
+  },
+
+  async getLeaderboard(period: 'week' | 'all' = 'all'): Promise<WfNewLeaderboardEntry[]> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialLeaderboard(period), null);
+    return Array.isArray(res?.leaderboard) ? res.leaderboard : Array.isArray(res) ? res : [];
+  },
+
+  async getActivities(): Promise<WfNewActivity[]> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialActivities, null);
+    return Array.isArray(res?.activities) ? res.activities : Array.isArray(res) ? res : [];
   },
 
   async getBentoGroups(): Promise<BentoGroup[]> {
@@ -253,13 +554,13 @@ export const wfNewApiHttp: WfNewApi = {
   },
 
   async getVocabulary(groupId: string): Promise<Word[]> {
-    const res = await getJSON<any>(`/query_gwords?gid=${encodeURIComponent(groupId)}`);
+    const res = await authedGetJSON<any>(WfNewApiPaths.queryGroupWords(groupId), null);
     return asArray(res, 'gwords', 'words').map(toWord);
   },
 
   async getUserProfile(): Promise<UserProfile | null> {
     try {
-      const res = await getJSON<any>('/user/profile');
+      const res = await authedGetJSON<any>(WfNewApiPaths.userProfile, null);
       const p = res?.user ?? res;
       if (!p || typeof p !== 'object') return null;
       return {
@@ -288,6 +589,36 @@ export const wfNewApiHttp: WfNewApi = {
     };
   },
 
+  async getUserStatistics(): Promise<WfNewStatistics | null> {
+    try {
+      // Auth-only — authedGetJSON returns null (no request) when logged out, so the
+      // dashboard never 401s just to render; null/empty -> no stats.
+      const s = await authedGetJSON<any>(WfNewApiPaths.userStatistics, null);
+      if (!s) return null;
+      const weekly = Array.isArray(s?.weekly_progress) ? s.weekly_progress.map((n: any) => Number(n) || 0) : [];
+      return {
+        totalWordsLearned: Number(s?.total_words_learned ?? s?.learned_count ?? 0) || 0,
+        totalWords: Number(s?.total_words ?? 0) || 0,
+        newWords: Number(s?.new_words ?? 0) || 0,
+        learningWords: Number(s?.learning_words ?? s?.studying_count ?? 0) || 0,
+        masteredWords: Number(s?.mastered_words ?? 0) || 0,
+        weakWords: Number(s?.weak_words ?? 0) || 0,
+        needsReview: Number(s?.needs_review ?? s?.review_count ?? s?.review_due ?? 0) || 0,
+        currentStreak: Number(s?.current_streak ?? 0) || 0,
+        longestStreak: Number(s?.longest_streak ?? 0) || 0,
+        averageAccuracy: Number(s?.average_accuracy ?? 0) || 0,
+        dailyAverage: Number(s?.daily_average ?? 0) || 0,
+        studyDays: Number(s?.study_days ?? 0) || 0,
+        weeklyProgress: weekly,
+        todayProgress: Number(s?.today_progress ?? 0) || 0,
+        dailyGoal: Number(s?.daily_goal ?? 20) || 20,
+        completionRate: Number(s?.completion_rate ?? s?.daily_goal_progress ?? s?.completionRate ?? 0) || 0,
+      };
+    } catch {
+      return null;
+    }
+  },
+
   async searchDictionary(text: string): Promise<Word[]> {
     // No stable public dictionary-search endpoint yet — the caller fuzzy-filters
     // its loaded word pool when this returns empty.
@@ -297,7 +628,7 @@ export const wfNewApiHttp: WfNewApi = {
   },
 
   async getWalkmanWords(): Promise<Word[]> {
-    const res = await getJSON<any>('/words/daily?count=40');
+    const res = await authedGetJSON<any>(WfNewApiPaths.dailyWords(40), null);
     return asArray(res, 'words').map(toWord);
   },
 
@@ -314,5 +645,86 @@ export const wfNewApiHttp: WfNewApi = {
   async getBilingualSentences(): Promise<BilingualSentence[]> {
     logContentFallback();
     return [...MOCK_BILINGUAL_SENTENCES];
+  },
+
+  // ---- Home content groups (words / books / subtitles / documents) ----
+
+  async getWordContentGroups(): Promise<WfNewContentGroup[]> {
+    // Auth-required — no token -> [] without a request (home browse works logged out).
+    const res = await authedGetJSON<any>(WfNewApiPaths.queryAllGroups, null);
+    return asArray(res, 'groups').map(wordRowToContentGroup);
+  },
+
+  async getBookGroups(): Promise<WfNewContentGroup[]> {
+    const res = await getJSON<any>(WfNewApiPaths.mediaBooks());
+    return asArray(res, 'items').map((r, i) => mediaRowToContentGroup(r, 'book', i));
+  },
+
+  async getSubtitleGroups(): Promise<WfNewContentGroup[]> {
+    const res = await getJSON<any>(WfNewApiPaths.mediaSubtitles());
+    return asArray(res, 'items').map((r, i) => mediaRowToContentGroup(r, 'subtitle', i));
+  },
+
+  async getLibraryGroups(): Promise<WfNewContentGroup[]> {
+    // Public word-library list (e.g. "English Coca 60000") — word collections, not docs.
+    const res = await getJSON<any>(WfNewApiPaths.vocabularyLibraries());
+    return asArray(res, 'libraries').map(libraryRowToContentGroup);
+  },
+
+  async getDocumentGroups(): Promise<WfNewContentGroup[]> {
+    // The user's OWN uploaded documents — auth-required. No token -> [] without a
+    // request (so logged-out home browse never fires the 401/404 on /media/documents).
+    const res = await authedGetJSON<any>(WfNewApiPaths.mediaDocuments(), null);
+    return asArray(res, 'items').map(documentRowToContentGroup);
+  },
+
+  async getHomeContent(): Promise<WfNewHomeContent> {
+    // All five categories in parallel; PARTIAL-TOLERANT — a category whose endpoint
+    // fails resolves to [] instead of failing the whole home. Auth-only categories
+    // (words, documents) self-gate via authedGetJSON: they resolve to [] WITHOUT a
+    // request when logged out, so the home browse never 401s/404s pre-login while
+    // the public categories (books/subtitles/libraries) still load for everyone.
+    const [words, books, subtitles, libraries, documents] = await Promise.all([
+      this.getWordContentGroups().catch(() => [] as WfNewContentGroup[]),
+      this.getBookGroups().catch(() => [] as WfNewContentGroup[]),
+      this.getSubtitleGroups().catch(() => [] as WfNewContentGroup[]),
+      this.getLibraryGroups().catch(() => [] as WfNewContentGroup[]),
+      this.getDocumentGroups().catch(() => [] as WfNewContentGroup[]),
+    ]);
+    return { words, books, subtitles, libraries, documents };
+  },
+
+  // ---- Book reading (book -> chapter -> verses) ----
+
+  async getBookChapters(sourceKey: string): Promise<WfNewBookChapters> {
+    const res = await getJSON<any>(WfNewApiPaths.mediaBookChapters(sourceKey));
+    const chapters: WfNewBookChapter[] = (Array.isArray(res?.chapters) ? res.chapters : []).map((c: any) => ({
+      chapterIndex: Number(c?.chapter_index ?? 0),
+      corrId: c?.corr_id ?? undefined,
+      sentenceCount: Number(c?.sentence_count ?? 0),
+      titles: c && typeof c.titles === 'object' && c.titles ? c.titles : {},
+    }));
+    return {
+      sourceKey: res?.source_key ?? sourceKey,
+      languages: Array.isArray(res?.languages) ? res.languages : [],
+      chapterCount: Number(res?.chapter_count ?? chapters.length),
+      chapters,
+    };
+  },
+
+  async getBookVerses(
+    sourceKey: string,
+    opts: { chapterIndex?: number; page?: number; perPage?: number; grain?: string } = {},
+  ): Promise<WfNewBookVersesPage> {
+    const res = await getJSON<any>(WfNewApiPaths.mediaBookDetail(sourceKey, opts));
+    const page = res?.sentences ?? {};
+    const items: WfNewBookVerse[] = (Array.isArray(page?.items) ? page.items : []).map(toBookVerse);
+    return {
+      items,
+      total: Number(page?.total ?? items.length),
+      perPage: Number(page?.per_page ?? items.length),
+      currentPage: Number(page?.current_page ?? 1),
+      lastPage: Number(page?.last_page ?? 1),
+    };
   },
 };

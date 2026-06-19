@@ -8,6 +8,7 @@ export const pcEn = {
     codeSync: 'Code Sync',
     videoExtract: 'Video Extract',
     books: 'Books',
+    content: 'Content',
     moviePoster: 'Movie Poster',
     ai: 'AI',
     aiStatus: 'Capability Status',

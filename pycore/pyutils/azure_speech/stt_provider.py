@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.secret_manager import get_secret_key
+from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
 from pycore.pyfoundations.third_party import (
     get_third_package_speechsdk,
     get_third_package_numpy,
@@ -48,14 +48,14 @@ class AzureSpeechRecognitionProvider(BaseSpeechRecognitionProvider):
             ColorPrint.yellow("[AzureSTT] Install with: pip install azure-cognitiveservices-speech")
             return False
 
-        self.speech_key = get_secret_key("AZURE_SPEECH_KEYA_1") or get_secret_key("AZURE_SPEECH_KEYB_1")
+        self.speech_key = azure_speech_key()
         if not self.speech_key:
-            ColorPrint.yellow("[AzureSTT] Azure Speech key not found (AZURE_SPEECH_KEYA_1 / AZURE_SPEECH_KEYB_1)")
+            ColorPrint.yellow("[AzureSTT] Azure Speech key not found (set AZURE_SPEECH_KEY)")
             return False
 
-        self.speech_region = get_secret_key("AZURE_SPEECH_REGION_1")
+        self.speech_region = azure_speech_region()
         if not self.speech_region:
-            ColorPrint.red("[AzureSTT] AZURE_SPEECH_REGION_1 not found")
+            ColorPrint.red("[AzureSTT] AZURE_SPEECH_REGION not found")
             return False
 
         self.speech_config = speechsdk.SpeechConfig(

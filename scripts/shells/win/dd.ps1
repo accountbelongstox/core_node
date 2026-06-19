@@ -255,25 +255,17 @@ $script:MenuItems = @(
         }
     },
     @{
-        Text              = "Windows Management"
+        # Merged menu: "Windows Management" + "Backup Management" are now grouped
+        # under one entry that opens a dispatcher with both as sub-menus. Backup
+        # Management also hosts the Python runtime + models + user-data backup.
+        Text              = "Management & Backup"
         Values            = @("default")
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
-            $windowsManagementScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\WindowsManagementManager.ps1"
-            Write-ColorMessage -Message "Launching Windows Management Menu..." -Type "Info"
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $windowsManagementScript
-        }
-    },
-    @{
-        Text              = "Backup Management"
-        Values            = @("default")
-        CurrentValueIndex = 0
-        Key               = $null
-        Action            = {
-            $backupMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\BackupManager.ps1"
-            Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
+            $managementBackupScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\ManagementAndBackupManager.ps1"
+            Write-ColorMessage -Message "Launching Management & Backup Menu..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $managementBackupScript
         }
     },
     @{

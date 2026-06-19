@@ -83,11 +83,14 @@ class AppQyV1WordGroupMediaSourceController
             ->where('source_key', $sourceKey)
             ->where('grain', $grain)
             ->orderBy('seq')
-            ->with('sentence')
             ->chunk(500, function ($links) use (&$texts) {
                 foreach ($links as $link) {
-                    if ($link->sentence && !empty($link->sentence->text)) {
-                        $texts[] = $link->sentence->text;
+                    // Books v3.1: the shared `sentence` relation was removed;
+                    // resolve the slot's primary-language text from the
+                    // per-language store ({prefix}_sentences_{lang}).
+                    $sentence = $link->langSentence($link->primary_language ?: 'en');
+                    if ($sentence && !empty($sentence->text)) {
+                        $texts[] = $sentence->text;
                     }
                 }
             });

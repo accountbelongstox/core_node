@@ -42,6 +42,30 @@
       ],
       "@capacitor/app": [
         "./shared/capacitor-web-shims/app.ts"
+      ],
+      "@capacitor/geolocation": [
+        "./shared/capacitor-web-shims/geolocation.ts"
+      ],
+      "@capacitor/network": [
+        "./shared/capacitor-web-shims/network.ts"
+      ],
+      "@capacitor/device": [
+        "./shared/capacitor-web-shims/device.ts"
+      ],
+      "@capacitor-community/voice-recorder": [
+        "./shared/capacitor-web-shims/voice-recorder.ts"
+      ],
+      "@capacitor/haptics": [
+        "./shared/capacitor-web-shims/haptics.ts"
+      ],
+      "@capacitor-community/text-to-speech": [
+        "./shared/capacitor-web-shims/text-to-speech.ts"
+      ],
+      "@capacitor-community/speech-recognition": [
+        "./shared/capacitor-web-shims/speech-recognition.ts"
+      ],
+      "@capacitor-community/keep-awake": [
+        "./shared/capacitor-web-shims/keep-awake.ts"
       ]
     },
     "allowImportingTsExtensions": true,

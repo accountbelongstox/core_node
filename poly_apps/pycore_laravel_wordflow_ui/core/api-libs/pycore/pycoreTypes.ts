@@ -98,11 +98,22 @@ export interface SystemResourcesResponse extends Partial<SystemResources> {
 }
 
 // --- Video extract: segment ↔ subtitle mapping --------------------------- #
+// A subtitle cue. `text` is the legacy single-language cue text; the v3
+// multi-language model adds a correspondence slot (BookSlot-shaped, spec §12/§7):
+// `langs[code]` is that language's text or `null` (empty correspondence → the FE
+// renders a blank), shared across the checked languages via `corr_id`. `grain`
+// keeps the cue/sentence typing. Older backends send only `text`; readers fall
+// back to it under the primary language column.
 export interface VideoExtractSubtitle {
   idx: number;
   start: number;
   end: number;
   text: string;
+  corr_id?: string;
+  grain?: 'cue' | 'sentence';
+  seq?: number;
+  primary_language?: string | null;
+  langs?: Record<string, string | null>;
 }
 
 export interface VideoExtractSegment {
@@ -298,6 +309,7 @@ export interface FileTreeResponse {
   count: number;           // total files
   size: number;            // total bytes
   truncated: boolean;      // hit the max-files cap
+  scanning?: boolean;      // first index scan still running (tree may be partial)
   error?: string;
 }
 
@@ -316,6 +328,7 @@ export interface PeerFileTreeResponse {
   peer: { id: string; name: string; host: string; port: number };
   tree?: FileTreeResponse;   // the client's actual received tree
   drift?: DriftSummary;
+  scanning?: boolean;        // dev and/or client index still scanning -> drift provisional
   error?: string;
 }
 
@@ -837,6 +850,45 @@ export interface SttTestResponse {
   text: string;
   latency_ms: number;
   error: string | null;
+  /** Id of the persisted speech-history record (for the Records timeline). */
+  record_id?: string;
+}
+
+// --- Speech (TTS/STT) clip history — the audio side of the Records timeline - #
+export interface SpeechRecord {
+  id: string;
+  ts: number;
+  iso: string;
+  kind: 'tts' | 'stt';
+  /** Engine that produced/recognized the clip (edge/sherpa/whisper/azure…). */
+  engine: string;
+  /** TTS: the synthesized text; STT: the recognized transcript. */
+  text: string;
+  language: string;
+  mime: string;
+  bytes: number;
+  /** Relative store path (informational). */
+  file: string;
+  /** Absolute path on disk — for "show actual location" / Open location. */
+  path?: string;
+  latency_ms: number | null;
+  source: string;
+  origin: 'pycore' | string;
+  ok: boolean;
+}
+
+export interface SpeechHistoryResponse {
+  success: boolean;
+  entries: SpeechRecord[];
+  error?: string;
+}
+
+/** POST …/reveal — opened the file's folder in the OS file manager. */
+export interface RevealResponse {
+  success: boolean;
+  /** Absolute path that was revealed. */
+  path?: string;
+  error?: string;
 }
 
 /** Settings-adjustable TTS tuning (GET/POST /api/local/tts/settings). */

@@ -14,6 +14,7 @@ This mirrors the `wordflow` API library pattern, applied to `/wordnew`.
 | `WfNewApiTypes.ts` | **The single shared TYPE surface.** All data models + the `WfNewApi` interface. The ONLY place shapes are defined. |
 | `WfNewApiMock.ts`  | Offline implementation of `WfNewApi`. Serves curated datasets from `../WfNewMockDb` — zero network. |
 | `WfNewApiHttp.ts`  | Live implementation of `WfNewApi`. Fetches the real backend through `WfNewEndpoints`. |
+| `WfNewApiPaths.ts` | **The endpoint list center** — every backend path the app calls (full `/api/app_qy_v1/...` routes), in one place. |
 | `WfNewEndpoints.ts`| **Backend endpoint manager + reactive store** — default `:9000` list, `/api/health` probe, STORED-FIRST auto-select + offline retry. |
 | `useWfNewEndpoints.ts` | React hook (`useSyncExternalStore`) over the endpoint store. |
 | `index.ts`         | **The switch.** Exports `wfNewApi` as either the mock or the http impl, plus re-exports every type + the endpoint manager + hook. |
@@ -103,18 +104,68 @@ Both implementations implement the **same** `WfNewApi` interface from
 
 - **Real backend data** (http impl fetches via `WfNewEndpoints`):
   `getBentoGroups`, `getWordGroups`, `getVocabulary`, `getUserProfile`,
-  `getUserStats`, `getWalkmanWords`.
+  `getUserStats`, `getWalkmanWords`, and the **home content hub**
+  `getWordContentGroups` / `getBookGroups` / `getSubtitleGroups` /
+  `getLibraryGroups` / `getDocumentGroups` / `getHomeContent` (see next section).
 - **Curated content / no endpoint yet:** `searchDictionary` (returns `[]`; the UI
   fuzzy-filters its loaded word pool), `getSubtitleCourses`,
   `getBilingualSentences`, `getAnalytics` (serve the curated datasets, logged
   once). When real endpoints land, swap those bodies to a `getJSON(...)` call —
   **the interface and types do not change.**
 
+## Home content hub (5 categories: words / books / subtitles / libraries / documents)
+
+The home page reads **five** backend content categories through ONE normalized
+shape, `WfNewContentGroup`, so a single widget renders them all. Endpoints are
+declared in `WfNewApiPaths.ts` (verified against `poly_apps/laravel_main`):
+
+| Category (UI) | API method | Backend route | Array key | Count field | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 词组 Word groups | `getWordContentGroups` | `GET /api/app_qy_v1/query_all_groups` | `data.groups` | `total_words` | **auth required** |
+| 书组 Books | `getBookGroups` | `GET /api/app_qy_v1/media/books` | `data.items` | `sentence_count` | public |
+| 字幕组 Subtitles | `getSubtitleGroups` | `GET /api/app_qy_v1/media/subtitles` | `data.items` | `subtitle_count` | public |
+| 词库 Libraries | `getLibraryGroups` | `GET /api/app_qy_v1/vocabulary/libraries` | `data.libraries` | `word_count` | public word libraries |
+| 文档 Documents | `getDocumentGroups` | `GET /api/app_qy_v1/media/documents` | `data.items` | `word_count` | the user's OWN uploads |
+
+`getHomeContent()` fetches all five **in parallel** and is **partial-tolerant**:
+a category whose endpoint fails resolves to `[]` rather than failing the whole
+home. Backend-relative cover paths → absolute via `toAbsoluteUrl`. Word groups
+are **skipped entirely when unauthenticated** so the home never fires a 401 /
+auth-expired logout just to load.
+
+> **词库 vs 文档 — they are NOT the same.** `vocabulary/libraries` is the PUBLIC
+> word-library list (e.g. "English Coca 60000", a frequency word collection) — a
+> 词库, not a document. `media/documents` lists the user's OWN uploaded files (the
+> `app_qy_v1_uploaded_documents` table). In this backend an uploaded document also
+> *produces* a vocabulary library, which once caused them to be conflated; the home
+> keeps them as two distinct tiles. `media/documents` is **optional-auth**: it
+> returns an empty page (not 401) when logged out, so the public browse degrades
+> gracefully and the Documents tile is simply empty until the user uploads.
+
+### UI widgets (copy-into-a-widget, keep the source as reference)
+
+The hub UI does **not** modify the existing cards. Instead it follows the
+project convention: **copy the good parts of existing components into a new
+combined widget and leave the originals untouched as reference.**
+
+- `components/WfNewContentGroupCard.tsx` — **new** card, combined from
+  `WfNewCards.tsx → CourseBlockCard` (frame, icon chip, count line) + the
+  `WfNewApp.tsx` bento card (cover-image backdrop, badge pills, gradient
+  fallback). Renders any `WfNewContentGroup`; only the accent + icon vary by
+  `kind`. `CourseBlockCard` and the bento card are left **unchanged**.
+- `components/WfNewHomeContent.tsx` — **new** widget: four horizontally-scrolling
+  sections with live counts, a loading skeleton, and an honest empty state. Pure
+  presentation; `WfNewApp` owns the fetch (`getHomeContent`) + click routing.
+
 ## Usage
 
 ```ts
-import { wfNewApi, type Word, type BentoGroup } from '../api';
+import { wfNewApi, type Word, type BentoGroup, type WfNewHomeContent } from '../api';
 
 const groups = await wfNewApi.getBentoGroups();
 const words  = await wfNewApi.getVocabulary(groupId);
+
+// Home hub — all five categories at once (partial-tolerant):
+const home: WfNewHomeContent = await wfNewApi.getHomeContent();
+//   home.words / home.books / home.subtitles / home.libraries / home.documents
 ```

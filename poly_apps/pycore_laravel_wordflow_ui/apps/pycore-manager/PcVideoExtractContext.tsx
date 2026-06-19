@@ -133,13 +133,21 @@ interface PcVideoExtractValue {
   notice: string | null;
   setNotice: (n: string | null) => void;
 
+  // ---- multi-language correspondence selection (spec §12) ----
+  // The checked language CODES (>=1, includes the primary). Drives both the
+  // per-cue correspondence display (segments fetch) and the sync RPC payloads.
+  corrLanguages: string[];
+  setCorrLanguages: (codes: string[]) => void;
+
   // ---- actions ----
   start: (req: VeStartReq) => Promise<void>;
   preview: (req: VeStartReq) => Promise<string>;
   stop: () => void;
   togglePause: () => Promise<void>;
-  syncSource: (sourcePath: string) => void;
-  syncAll: (paths?: string[]) => Promise<void>;
+  // sync calls carry the checked language set; omitted → the context's current
+  // corrLanguages selection is used.
+  syncSource: (sourcePath: string, languages?: string[]) => void;
+  syncAll: (paths?: string[], languages?: string[]) => Promise<void>;
 }
 
 const L = {
@@ -242,6 +250,13 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   // rides the page effect instead of a separate context-side write).
   const [autoSync, setAutoSyncState] = useState<boolean>(readAutoSyncLs);
   const [notice, setNotice] = useState<string | null>(null);
+  // Checked correspondence language codes (>=1, includes the primary). Defaults
+  // to English; the page drives this from its language multi-select.
+  const [corrLanguages, setCorrLanguages] = useState<string[]>(['en']);
+  // Mirror in a ref so the live segments-fetch interval always reads the latest
+  // selection without re-subscribing the interval on every toggle.
+  const corrLangsRef = useRef<string[]>(['en']);
+  useEffect(() => { corrLangsRef.current = corrLanguages; }, [corrLanguages]);
   // pre-start optimistic state (before the first poll returns a task) +
   // preview/error text that isn't part of a backend task.
   const [localOutput, setLocalOutput] = useState<string | null>(null);
@@ -307,14 +322,19 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     if (segMapPollRef.current) { clearInterval(segMapPollRef.current); segMapPollRef.current = null; }
     if (!segmentsDir) { setMapping(null); return; }
     const fetchMap = () => {
-      pycoreApi.getVideoExtractSegments(segmentsDir)
+      // Pass the checked correspondence languages so the backend returns the
+      // per-cue multi-language slots (langs{}); legacy backends ignore it and
+      // return single-language cues (text only).
+      pycoreApi.getVideoExtractSegments(segmentsDir, corrLangsRef.current)
         .then((r) => { if (r?.success && r.mapping) setMapping(r.mapping as MappingWithFiles); })
         .catch(() => { /* keep last mapping */ });
     };
     fetchMap();
     if (busy) segMapPollRef.current = window.setInterval(fetchMap, 3000);
     return () => { if (segMapPollRef.current) { clearInterval(segMapPollRef.current); segMapPollRef.current = null; } };
-  }, [segmentsDir, busy]);
+    // Re-fetch when the language selection changes so the correspondence columns
+    // update immediately (even when not actively extracting).
+  }, [segmentsDir, busy, corrLanguages]);
 
   // ---- live Laravel-sync progress events ------------------------------- #
   // Shared by syncSource AND syncAll: both emit the same `video_extract_sync`
@@ -397,7 +417,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     }
   }, [taskId, paused]);
 
-  const syncSource = useCallback((sourcePath: string) => {
+  const syncSource = useCallback((sourcePath: string, languages?: string[]) => {
     if (!sourcePath) return;
     let alreadyInFlight = false;
     setSyncing((prev) => {
@@ -406,7 +426,8 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     });
     if (alreadyInFlight) return;
     setSyncProgress({ stage: 'scan', done: 0, total: 0, detail: '' });
-    callRpc('video_extract.sync_source', { source_path: sourcePath }, SYNC_RPC_TIMEOUT_MS)
+    const langs = (languages && languages.length) ? languages : corrLangsRef.current;
+    callRpc('video_extract.sync_source', { source_path: sourcePath, languages: langs }, SYNC_RPC_TIMEOUT_MS)
       .catch((e: any) => {
         setNotice(`${L.veSyncFailed}: ${e?.message || 'RPC failed'}`);
         setSyncing((prev) => { const n = new Set(prev); n.delete(sourcePath); return n; });
@@ -418,7 +439,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   // syncSource: skipped while ANY sync (per-source or all) is in flight. The
   // SYNC_ALL_KEY sentinel in `syncing` is the "all" flag; progress + cleanup
   // ride the shared `video_extract_sync` subscription above.
-  const syncAll = useCallback(async (paths?: string[]): Promise<void> => {
+  const syncAll = useCallback(async (paths?: string[], languages?: string[]): Promise<void> => {
     let alreadyInFlight = false;
     setSyncing((prev) => {
       if (prev.size > 0) { alreadyInFlight = true; return prev; }
@@ -426,7 +447,10 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     });
     if (alreadyInFlight) return;
     setSyncProgress({ stage: 'scan', done: 0, total: 0, detail: '' });
-    await callRpc('video_extract.sync_all', paths && paths.length ? { paths } : {}, SYNC_RPC_TIMEOUT_MS)
+    const langs = (languages && languages.length) ? languages : corrLangsRef.current;
+    const payload: Record<string, unknown> = { languages: langs };
+    if (paths && paths.length) payload.paths = paths;
+    await callRpc('video_extract.sync_all', payload, SYNC_RPC_TIMEOUT_MS)
       .catch((e: any) => {
         setNotice(`${L.veSyncFailed}: ${e?.message || 'RPC failed'}`);
         setSyncing(new Set());
@@ -475,6 +499,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     taskId, busy, paused, progress, snapshot, output, mapping, segmentsDir,
     syncing, syncingAll: syncing.has(SYNC_ALL_KEY), syncProgress, ranThisSession,
     autoSync, setAutoSync, notice, setNotice,
+    corrLanguages, setCorrLanguages,
     start, preview, stop, togglePause, syncSource, syncAll,
   };
   return <PcVideoExtractContext.Provider value={value}>{children}</PcVideoExtractContext.Provider>;

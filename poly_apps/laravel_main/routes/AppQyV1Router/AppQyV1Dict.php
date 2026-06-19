@@ -18,8 +18,6 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupLibraryCont
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupMediaSourceController as DGMediaSourceController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupWordController as DGWordController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupProgressController as DGProgressController;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries\AppQyV1DictionaryManagementController as AddDController;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries\AppQyV1DictionaryQueryController as QueryDController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries\AppQyV1DictionaryTaskController as TaskDController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1CoverImageController as CoverImageController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group\AppQyV1WordGroupLanguageController as DGLangController;
@@ -64,10 +62,6 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::post('/group/get_progress_blob', [DGProgressController::class, 'getProgressBlob']);
         Route::get('/word-groups/{gid}/analysis', [DGProgressController::class, 'getCourseAnalysis']);
 
-        // Dictionary Routes
-        // Route::any('/add_dictionary', [AddDController::class, 'addDictionary']);
-        // Route::any('/add_dictionary_list', [AddDController::class, 'addDictionaryList']);
-
         // Dictionary Task Routes
         Route::any('/dictionary/tasks/create-explanation', [TaskDController::class, 'createExplanationTask']);
         Route::any('/dictionary/tasks/untranslated-words', [TaskDController::class, 'getUntranslatedWordsCount']);
@@ -79,10 +73,5 @@ Route::prefix($apiVersionPrefix)->group(function () {
     // Public Routes - No authentication required
     Route::get('/covers/{filename}', [CoverImageController::class, 'serveCoverImage']);
 
-    // Client Token Auth Routes - Protected by client.token middleware
-    Route::middleware(['client.token'])->group(function () {
-        Route::any('/add_dictionary', [AddDController::class, 'filterAndAddDictionaryList']);
-        Route::any('/find_non_existing_dictionary', [QueryDController::class, 'findNonExistingEntries']);
-    });
 });
 

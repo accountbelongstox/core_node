@@ -365,6 +365,19 @@ export default defineConfig(() => {
           '@capacitor/status-bar': capacitorShim('status-bar'),
           '@capacitor/keyboard': capacitorShim('keyboard'),
           '@capacitor/app': capacitorShim('app'),
+          // Capability plugins consumed by shared/capabilities/* (built
+          // primarily for the wordnew mobile APP, with these browser fallbacks
+          // for the web shell). The high-level wrappers branch native<->web on
+          // Capacitor.isNativePlatform(); these aliases keep the web build
+          // resolving and functional.
+          '@capacitor/geolocation': capacitorShim('geolocation'),
+          '@capacitor/network': capacitorShim('network'),
+          '@capacitor/device': capacitorShim('device'),
+          '@capacitor-community/voice-recorder': capacitorShim('voice-recorder'),
+          '@capacitor/haptics': capacitorShim('haptics'),
+          '@capacitor-community/text-to-speech': capacitorShim('text-to-speech'),
+          '@capacitor-community/speech-recognition': capacitorShim('speech-recognition'),
+          '@capacitor-community/keep-awake': capacitorShim('keep-awake'),
         }
       }
     };

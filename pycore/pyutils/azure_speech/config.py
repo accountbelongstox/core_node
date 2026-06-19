@@ -10,7 +10,7 @@ Uses wwwroot namespace for caching (shared with edge_tts).
 from pathlib import Path
 
 from pycore.pyfoundations.system_paths import map_web_path
-from pycore.pyfoundations.secret_manager import get_secret_key
+from pycore.pyutils.common.api_secrets import azure_speech_key, azure_speech_region
 
 
 class AzureSpeechConfig:
@@ -31,11 +31,13 @@ class AzureSpeechConfig:
     AZURE_SPEECH_VOICE_WORD_DIR = AZURE_SPEECH_VOICE_DIR / "words"
     AZURE_SPEECH_VOICE_DOCUMENT_DIR = AZURE_SPEECH_VOICE_DIR / "documents"
     
-    # Configuration defaults. Credentials MUST be retrieved via secret_manager.
-    # Do not change this mechanism to environment variables or other sources.
-    AZURE_SPEECH_KEY1 = get_secret_key("AZURE_SPEECH_KEYA_1") or ''
-    AZURE_SPEECH_KEY2 = get_secret_key("AZURE_SPEECH_KEYB_1") or ''
-    AZURE_SPEECH_REGION = get_secret_key("AZURE_SPEECH_REGION_1") or 'eastus'
+    # Configuration defaults. Credentials MUST be retrieved via the single key
+    # center (pyutils/common/api_secrets -> global get_secret_key_indexed); never
+    # env vars or hardcoded indices. azure_speech_key() already handles rotation +
+    # the legacy KEYA/KEYB fallback, so KEY1 carries it and KEY2 stays empty.
+    AZURE_SPEECH_KEY1 = azure_speech_key()
+    AZURE_SPEECH_KEY2 = ''
+    AZURE_SPEECH_REGION = azure_speech_region()
     AZURE_SPEECH_ENDPOINT = "https://{region}.api.cognitive.microsoft.com/".format(
         region=AZURE_SPEECH_REGION or 'eastus'
     )

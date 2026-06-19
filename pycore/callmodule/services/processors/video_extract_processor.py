@@ -1259,7 +1259,10 @@ class VideoExtractProcessor:
                 mapping = json.load(fh)
         except (OSError, ValueError) as exc:
             return {"success": False, "error": f"could not read mapping.json: {exc}"}
-        return {"success": True, "mapping": mapping}
+        # Expose the resolved mapping.json path so callers can locate the sibling
+        # .srt (its PARENT dir holds files.* incl. the subtitle track) — used by
+        # the v3 multi-language segments view.
+        return {"success": True, "mapping": mapping, "mapping_file": mapping_file}
 
     # ----- full run -------------------------------------------------------- #
     def run(self, config: Dict[str, Any],

@@ -115,13 +115,28 @@ class VideoExtractSegmentsRequest(BaseModel):
     `path` may be the source video's absolute path, its output `<stem>_segments`
     dir, or the `mapping.json` file directly. The backend resolves it to the
     segments' mapping.json.
+
+    `languages` is the UI-checked correspondence set (Lsel) for the v3
+    multi-language subtitle view: each returned cue/subtitle carries a per-cue
+    `langs` map across these languages (primary auto-included + every detected
+    language; the rest null). Omitted = just the detected/primary language.
     """
     path: str = Field(..., description="Absolute path to the source video, its "
                                        "'<stem>_segments' dir, or its mapping.json.")
+    languages: Optional[List[str]] = Field(
+        None, description="Checked correspondence language set (codes) for the "
+                          "v3 per-cue langs map; primary auto-included.")
 
 
 class VideoExtractSegmentsResponse(BaseModel):
-    """The parsed segmentation mapping.json (or an error when there are none)."""
+    """The parsed segmentation mapping.json (or an error when there are none).
+
+    For the v3 multi-language subtitle view the mapping is enriched in place:
+    every ``segments[].subtitles[]`` cue gains BookSlot fields
+    (``corr_id``, ``grain``, ``seq``, ``primary_language``, ``langs``) alongside
+    the legacy ``text``; the mapping also carries top-level ``selected_languages``
+    and a flat ``slots`` list (both grains).
+    """
     success: bool
     mapping: Optional[Dict[str, Any]] = None
     error: Optional[str] = None

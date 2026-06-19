@@ -987,9 +987,11 @@ class InitializeApps extends Command
     /**
      * Initialize the dedicated media ingestion tables (idempotent).
      *
-     * Creates / aligns app_qy_v1_sentences, app_qy_v1_subtitles, app_qy_v1_books,
-     * app_qy_v1_source_sentences and app_qy_v1_media_segments via SafeMigrationHelper
-     * so re-running sys:init only ADDS missing columns/indexes and never drops data.
+     * Creates / aligns app_qy_v1_subtitles, app_qy_v1_books, app_qy_v1_source_sentences,
+     * app_qy_v1_media_segments and the per-language app_qy_v1_sentences_{lang} /
+     * app_qy_v1_chapters_{lang} tables via SafeMigrationHelper so re-running sys:init
+     * only ADDS missing columns/indexes and never drops data. (Books v3.1: the shared
+     * sentences/chapters tables are removed.)
      */
     private function initializeMediaIngestTables()
     {
@@ -1009,7 +1011,7 @@ class InitializeApps extends Command
 
         $mediaStats = \App\Services\MediaIngestTablesInitializer::getTableStats();
         if (!isset($mediaStats['error'])) {
-            $this->line("  <fg=gray>Stats: {$mediaStats['sentences']} sentences, {$mediaStats['subtitles']} subtitles, {$mediaStats['books']} books, {$mediaStats['source_sentences']} source_sentences, {$mediaStats['segments']} segments</>");
+            $this->line("  <fg=gray>Stats: {$mediaStats['sentences']} sentences, {$mediaStats['chapters']} chapters, {$mediaStats['subtitles']} subtitles, {$mediaStats['books']} books, {$mediaStats['source_sentences']} source_sentences, {$mediaStats['segments']} segments</>");
         } else {
             $this->line("  ⚠️  Could not fetch media stats: {$mediaStats['error']}");
         }
@@ -1224,81 +1226,5 @@ class InitializeApps extends Command
         } else {
             $this->error("  ❌ chokidar not found after installation");
         }
-    }
-
-    /**
-     * Clean up conflicting old tables (idempotent operation, data protection)
-     * 
-     * Important: This method only deletes old tables under very specific circumstances and strictly protects data
-     * 
-     * Conditions for deleting old tables (all must be met):
-     * 1. New table (*_dictionaries) exists
-     * 2. New table has data (migration completed) OR old table is empty (no data to lose)
-     * 
-     * Data protection strategy:
-     * - If old table has data but new table is empty, keep old table (do not delete)
-     * - If table check fails, skip deletion (protect data)
-     * - If new table does not exist, keep old table (do not delete)
-     * 
-     * This method ensures data is protected during migration and no data is lost
-     */
-    private function cleanupConflictingTables(): array
-    {
-        $appKey = AppKeys::APPQYV1;
-        $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
-        $connection = $model->getConnection();
-        $schema = $connection->getSchemaBuilder();
-
-        // Learning table list (these tables will not be deleted)
-        $learningTables = ['english', 'lao', 'japanese', 'vietnamese'];
-        $supportedLanguages = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages();
-
-        $deleted = 0;
-        $skipped = 0;
-
-        foreach ($supportedLanguages as $langCode) {
-            // Skip learning tables (these tables will not be deleted)
-            if (in_array($langCode, $learningTables)) {
-                continue;
-            }
-
-            // Build old table name and new table name
-            $oldTableName = AppTablePrefixServiceProvider::buildTableName($appKey, "words_{$langCode}");
-            $newTableName = AppTablePrefixServiceProvider::buildTableName($appKey, "{$langCode}_dictionaries");
-
-            // If old table does not exist, skip
-            if (!$schema->hasTable($oldTableName)) {
-                continue; // Old table does not exist, skip
-            }
-
-            // If new table does not exist, keep old table (do not delete)
-            if (!$schema->hasTable($newTableName)) {
-                $skipped++; // New table does not exist, keep old table
-                continue;
-            }
-
-            // Check data in both tables
-            try {
-                $oldTableCount = $connection->table($oldTableName)->count();
-                $newTableCount = $connection->table($newTableName)->count();
-                
-                // Only delete old table under the following conditions (protect data):
-                // 1. New table has data (migration completed), OR
-                // 2. Old table is empty (no data to lose)
-                if ($newTableCount > 0 || $oldTableCount === 0) {
-                    // Safe deletion: only delete when data migration is confirmed or old table is empty
-                    $schema->drop($oldTableName);
-                    $deleted++;
-                } else {
-                    // Old table has data but new table is empty, keep old table (protect data)
-                    $skipped++;
-                }
-            } catch (\Exception $e) {
-                // Error checking table, skip deletion (protect data)
-                $skipped++;
-            }
-        }
-
-        return ['deleted' => $deleted, 'skipped' => $skipped];
     }
 }

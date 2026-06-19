@@ -24,6 +24,7 @@ class AppQyV1Initializer implements AppInitializerInterface
         'verify_tables' => 'Verify all tables created',
         'create_indexes' => 'Create database indexes',
         'seed_initial_data' => 'Seed initial data if needed',
+        'seed_books' => 'Seed initial book list (shipped corpus)',
     ];
     
     public function __construct()
@@ -208,6 +209,16 @@ class AppQyV1Initializer implements AppInitializerInterface
             }
         }
 
+        if ($step === 'seed_books') {
+            // "Still satisfied" only if the shipped corpus is actually present in
+            // the DB (completion sentinel). A reset/empty DB forces a re-seed.
+            try {
+                return \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1BookSeedImporter::isSeeded();
+            } catch (\Throwable $e) {
+                return true;
+            }
+        }
+
         return true;
     }
 
@@ -231,7 +242,10 @@ class AppQyV1Initializer implements AppInitializerInterface
                 
             case 'seed_initial_data':
                 return $this->seedInitialData();
-                
+
+            case 'seed_books':
+                return $this->seedBooks();
+
             default:
                 return [
                     'status' => 'error',
@@ -374,14 +388,32 @@ class AppQyV1Initializer implements AppInitializerInterface
             
             foreach ($languages as $langCode) {
                 $tableName = AppQyV1TableMaps::getDictionaryTableName($langCode);
-                
+
                 if (Schema::connection($connectionName)->hasTable($tableName)) {
                     $existingTables[] = $tableName;
                 } else {
                     $missingTables[] = $tableName;
                 }
+
+                // Books v3.1: per-language authoritative sentence store
+                // ({prefix}_sentences_{lang}) must exist for every language.
+                $sentenceTable = AppQyV1TableMaps::getSentenceTableName($langCode);
+                if (Schema::connection($connectionName)->hasTable($sentenceTable)) {
+                    $existingTables[] = $sentenceTable;
+                } else {
+                    $missingTables[] = $sentenceTable;
+                }
+
+                // Books v3.1: per-language chapter store
+                // ({prefix}_chapters_{lang}) must exist for every language.
+                $chapterTable = AppQyV1TableMaps::getChapterTableName($langCode);
+                if (Schema::connection($connectionName)->hasTable($chapterTable)) {
+                    $existingTables[] = $chapterTable;
+                } else {
+                    $missingTables[] = $chapterTable;
+                }
             }
-            
+
             if (!empty($missingTables)) {
                 return [
                     'status' => 'warning',
@@ -446,6 +478,26 @@ class AppQyV1Initializer implements AppInitializerInterface
         }
     }
     
+    /**
+     * Seed the initial book list from the shipped, compressed corpus
+     * (database/seed_data/books). Idempotent + fill-missing; decompresses into a
+     * runtime temp dir only (never the code tree). Returns 'warning' (non-fatal,
+     * retried next init) if the corpus cannot be decompressed/seeded, so a fresh
+     * box without xz/tar still completes initialization.
+     */
+    private function seedBooks(): array
+    {
+        try {
+            $importer = new \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1BookSeedImporter();
+            return $importer->import();
+        } catch (\Exception $e) {
+            return [
+                'status' => 'warning',
+                'message' => 'Book seeding failed: ' . $e->getMessage(),
+            ];
+        }
+    }
+
     public function checkInitializationStatus(): array
     {
         $status = $this->loadStatus();

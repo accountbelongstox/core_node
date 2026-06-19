@@ -1,20 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Settings, User, Check, RefreshCw, Star, Languages, Flame, GraduationCap, Compass, 
-  ChevronDown, Sliders, ToggleLeft, VolumeX, Library, BookmarkCheck
+  Settings, User, Check, RefreshCw, Star, Languages, Flame, GraduationCap, Compass,
+  ChevronDown, Sliders, ToggleLeft, VolumeX, Library, BookmarkCheck, ArrowRight, Sun, Moon
 } from 'lucide-react';
 import { ElementTheme, UserStats } from '../WfNewTypes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
 import { WfNewApiServerPanel } from '../components/WfNewApiServerPanel';
-import { getLanguageConfig } from '../WfNewLocales';
+import { getLanguageConfig, getSupportedLanguages } from '../WfNewLocales';
 import { wfNewSettings } from '../WfNewSettingsStore';
+import { wfNewApi, type WfNewLanguage } from '../api';
+import { WfNewLogo } from '../WfNewBrand';
+import { WfNewLanguagePanel } from '../components/WfNewLanguagePanel';
 
 interface WfNewSettingsProps {
   activeTheme: ElementTheme;
   saveThemeChoice: (id: string) => void;
   lang: string;
   setLang: (lang: string) => void;
+  /** Dark/light mode (relocated here from the header). */
+  dark: boolean;
+  toggleDark: () => void;
   userStats: UserStats;
   setUserStats: (stats: UserStats) => void;
   nickname: string;
@@ -24,6 +30,12 @@ interface WfNewSettingsProps {
   speechRate: number;
   setSpeechRate: (r: number) => void;
   onClearCache: () => void;
+  /** Open the dedicated learning-languages page (native + multi-target, backend-synced). */
+  onOpenLanguages: () => void;
+  /** Open the Learning Model sub-page (memorization mode + walkman params). */
+  onOpenLearningModel: () => void;
+  /** Account-bound settings (languages) are hidden when logged out. */
+  isLoggedIn: boolean;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
 }
 
@@ -32,6 +44,8 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
   saveThemeChoice,
   lang,
   setLang,
+  dark,
+  toggleDark,
   userStats,
   setUserStats,
   nickname,
@@ -41,6 +55,9 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
   speechRate,
   setSpeechRate,
   onClearCache,
+  onOpenLanguages,
+  onOpenLearningModel,
+  isLoggedIn,
   trans
 }) => {
   const [goalInput, setGoalInput] = useState<number>(userStats.dailyGoal);
@@ -53,9 +70,41 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
   // Background Breathing Filter Toggle
   const [disableBgBreathing, setDisableBgBreathing] = useState<boolean>(() => wfNewSettings.get('disableBgBreathing'));
 
-  // Native & Target Language selects
+  // Native language (single) + learning targets (MULTI-select, backend-synced).
   const [nativeLang, setNativeLang] = useState<string>(() => wfNewSettings.get('settingNativeLang'));
-  const [targetLang, setTargetLang] = useState<string>(() => wfNewSettings.get('settingTargetLang'));
+  const [targetLangs, setTargetLangs] = useState<string[]>(() => {
+    const stored = wfNewSettings.get('settingTargetLangs');
+    if (Array.isArray(stored) && stored.length) return stored;
+    const legacy = wfNewSettings.get('settingTargetLang');
+    return legacy ? [legacy] : ['en'];
+  });
+  const [langOptions, setLangOptions] = useState<WfNewLanguage[]>([]);
+  const [langPanelOpen, setLangPanelOpen] = useState(false);
+
+  // Load the backend-aligned language catalog (falls back to built-ins offline).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const opts = await wfNewApi.getSupportedLanguages();
+        if (!cancelled && opts.length) setLangOptions(opts);
+      } catch {
+        /* api layer already falls back to the built-in catalog */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  /** Toggle a learning target → persist locally (multi + legacy primary) + sync to backend. */
+  const toggleTargetLang = (code: string) => {
+    const next = targetLangs.includes(code) ? targetLangs.filter((c) => c !== code) : [...targetLangs, code];
+    const final = next.length ? next : targetLangs; // keep at least one
+    setTargetLangs(final);
+    wfNewSettings.setField('settingTargetLangs', final);
+    wfNewSettings.setField('settingTargetLang', final[0]);
+    // Best-effort backend sync (AppQyV1 /learning/languages).
+    void wfNewApi.setLearningLanguages({ native_language: nativeLang, learning_languages: final }).catch(() => {});
+  };
 
   // Bilingual custom pages parameters
   const [bilingualRatio, setBilingualRatio] = useState<string>(() => wfNewSettings.get('bilingualRatio'));
@@ -76,7 +125,6 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
   useEffect(() => { wfNewSettings.setField('voiceAccent', voiceAccent); }, [voiceAccent]);
   useEffect(() => { wfNewSettings.setField('disableBgBreathing', disableBgBreathing); }, [disableBgBreathing]);
   useEffect(() => { wfNewSettings.setField('settingNativeLang', nativeLang); }, [nativeLang]);
-  useEffect(() => { wfNewSettings.setField('settingTargetLang', targetLang); }, [targetLang]);
   useEffect(() => { wfNewSettings.setField('bilingualRatio', bilingualRatio); }, [bilingualRatio]);
   useEffect(() => { wfNewSettings.setField('recitalOrder', recitalOrder); }, [recitalOrder]);
   useEffect(() => { wfNewSettings.setField('autoSpeech', autoSpeech); }, [autoSpeech]);
@@ -251,20 +299,41 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
             ))}
           </div>
 
-          {/* Quick dialect Switcher card */}
+          {/* Dark / light mode — relocated here from the header. */}
+          <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-white/5 flex justify-between items-center">
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-zinc-800 dark:text-slate-200">{trans('set.appearanceMode')}</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">{dark ? trans('set.modeDark') : trans('set.modeLight')}</span>
+            </div>
+            <button
+              onClick={toggleDark}
+              className="flex items-center gap-1.5 text-xs bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 border border-zinc-200 dark:border-white/10 px-4 py-2 rounded-full font-bold transition-all cursor-pointer"
+            >
+              {dark ? <Sun className="w-3.5 h-3.5 text-amber-500" /> : <Moon className="w-3.5 h-3.5 text-purple-500" />}
+              <span>{dark ? trans('set.modeLight') : trans('set.modeDark')}</span>
+            </button>
+          </div>
+
+          {/* Interface language — full selector (moved here from the header). */}
           <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-white/5 flex justify-between items-center">
             <div className="flex flex-col">
               <span className="text-xs font-bold text-zinc-800 dark:text-slate-200">{trans('lang.selector')}</span>
-              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">{getLanguageConfig('en').nativeName} / {getLanguageConfig('zh').nativeName}</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">{getLanguageConfig(lang).nativeName}</span>
             </div>
-            
-            <button
-              onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}
-              className="flex items-center gap-1.5 text-xs bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 border border-zinc-200 dark:border-white/10 px-4 py-2 rounded-full font-bold transition-all cursor-pointer"
-            >
+            <div className="relative flex items-center gap-1.5 bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 px-3 py-2 rounded-full">
               <Languages className="w-3.5 h-3.5 text-indigo-500" />
-              <span>{getLanguageConfig(lang).nativeName}</span>
-            </button>
+              <select
+                value={lang}
+                onChange={(e) => setLang(e.target.value)}
+                className="bg-transparent text-xs font-bold outline-none cursor-pointer text-zinc-800 dark:text-slate-200"
+              >
+                {getSupportedLanguages().map((cfg) => (
+                  <option key={cfg.code} value={cfg.code} className="text-zinc-900">
+                    {cfg.flag} {cfg.nativeName}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -492,49 +561,50 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
               {trans('set.langCoords')}
             </span>
 
-            {/* Native Language selector */}
-            <div className="space-y-2">
-              <label className="text-[11px] font-extrabold uppercase tracking-wider text-zinc-500 font-mono">
-                {trans('set.nativeLabel')}
-              </label>
-              <div className="relative">
-                <select
-                  value={nativeLang}
-                  onChange={(e) => setNativeLang(e.target.value)}
-                  className={`w-full py-3 pl-4 pr-10 rounded-xl text-xs font-mono outline-none transition-all cursor-pointer appearance-none ${activeTheme.inputClass}`}
-                >
-                  <option value="zh">🇨🇳 {trans('lang.name.zh')}</option>
-                  <option value="ja">🇯🇵 {trans('lang.name.ja')}</option>
-                  <option value="ko">🇰🇷 {trans('lang.name.ko')}</option>
-                  <option value="es">🇪🇸 {trans('lang.name.es')}</option>
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
-                  <ChevronDown className="w-4 h-4" />
-                </div>
-              </div>
-            </div>
+            {/* Account-bound language settings — hidden when logged out. */}
+            {!isLoggedIn && (
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 font-mono py-2">
+                {trans('set.loginForLanguages')}
+              </p>
+            )}
 
-            {/* Target Language selector */}
-            <div className="space-y-2">
-              <label className="text-[11px] font-extrabold uppercase tracking-wider text-zinc-500 font-mono">
-                {trans('set.targetLabel')}
-              </label>
-              <div className="relative">
-                <select
-                  value={targetLang}
-                  onChange={(e) => setTargetLang(e.target.value)}
-                  className={`w-full py-3 pl-4 pr-10 rounded-xl text-xs font-mono outline-none transition-all cursor-pointer appearance-none ${activeTheme.inputClass}`}
-                >
-                  <option value="en">🇺🇸 {trans('lang.name.en')}</option>
-                  <option value="fr">🇫🇷 {trans('lang.name.fr')}</option>
-                  <option value="de">🇩🇪 {trans('lang.name.de')}</option>
-                  <option value="es">🇪🇸 {trans('lang.name.es')}</option>
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
-                  <ChevronDown className="w-4 h-4" />
+            {isLoggedIn && (
+              <div className="space-y-3">
+                {/* Compact summary of the current native + target selection. */}
+                <div className="space-y-1.5 p-3.5 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{trans('set.nativeLabel')}</span>
+                    <span className="text-xs font-bold text-zinc-800 dark:text-slate-200">{getLanguageConfig(nativeLang).nativeName}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{trans('set.targetLabel')}</span>
+                    <span className="text-xs font-bold text-zinc-800 dark:text-slate-200 text-right truncate max-w-[60%]">
+                      {targetLangs.map((c) => getLanguageConfig(c).nativeName).join(' · ') || '—'}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Open the SHARED floating language panel (native + multi targets). */}
+                <button
+                  type="button"
+                  onClick={() => setLangPanelOpen(true)}
+                  className="w-full flex items-center justify-between py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono font-bold text-zinc-300 transition-all cursor-pointer"
+                >
+                  <span>{trans('set.selectLanguages')}</span>
+                  <Languages className="w-4 h-4 text-indigo-400" />
+                </button>
               </div>
-            </div>
+            )}
+
+            {/* Learning Model — local device settings (memorization mode + playback). */}
+            <button
+              type="button"
+              onClick={onOpenLearningModel}
+              className="w-full flex items-center justify-between py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono font-bold text-zinc-300 transition-all cursor-pointer"
+            >
+              <span>{trans('set.learningModel')}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Column B: Acoustic proportional ratios & reading sequence */}
@@ -636,6 +706,40 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
           </button>
         </div>
       </div>
+
+      {/* About Us — brand logo + identity (uses the shared WfNewLogo). */}
+      <div className={`p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left`}>
+        <WfNewLogo size={64} className="shrink-0 shadow-lg" />
+        <div className="space-y-1.5">
+          <h3 className="text-sm font-extrabold font-mono uppercase tracking-wider text-indigo-500 dark:text-indigo-400">
+            {trans('about.title')}
+          </h3>
+          <p className="text-lg font-black tracking-tight text-indigo-950 dark:text-white">
+            {trans('about.appName')}
+            <span className="ml-2 text-[10px] font-mono font-bold text-zinc-400 align-middle">{trans('about.version')}</span>
+          </p>
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-prose">
+            {trans('about.desc')}
+          </p>
+        </div>
+      </div>
+
+      {/* Shared floating language panel (native + multi targets). */}
+      <WfNewLanguagePanel
+        open={langPanelOpen}
+        onClose={() => setLangPanelOpen(false)}
+        nativeLang={nativeLang}
+        targetLangs={targetLangs}
+        options={langOptions}
+        onSave={(sel) => {
+          setNativeLang(sel.native_language);
+          setTargetLangs(sel.learning_languages);
+          wfNewSettings.setField('settingNativeLang', sel.native_language);
+          wfNewSettings.setField('settingTargetLangs', sel.learning_languages);
+          wfNewSettings.setField('settingTargetLang', sel.learning_languages[0] || 'en');
+        }}
+        trans={trans}
+      />
     </motion.div>
   );
 };

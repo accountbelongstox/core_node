@@ -16,6 +16,7 @@ The POST returns the gateway's unified IMAGE contract verbatim (UI depends on it
     { success, provider, model, image_base64, mime, latency_ms, error }
 """
 
+import os
 from typing import Optional
 
 import fastapi
@@ -23,6 +24,7 @@ from pydantic import BaseModel
 
 from pycore.pyctl.ai import generate_image
 from pycore.pyctl.ai import ai_image_history
+from pycore.pyutils.common import system_launcher
 
 router = fastapi.APIRouter(prefix="/api/local/ai", tags=["Local Processing - AI"])
 
@@ -106,6 +108,17 @@ def image_history_file(image_id: str):
     if not data:
         raise fastapi.HTTPException(status_code=404, detail="image not found")
     return fastapi.Response(content=data, media_type=mime or "image/png")
+
+
+@router.post("/image/history/{image_id}/reveal")
+def image_history_reveal(image_id: str):
+    """Open the image's containing folder in the OS file manager. Path resolved
+    from the store BY ID (never an arbitrary client path)."""
+    path = ai_image_history.entry_path(image_id)
+    if not path or not os.path.exists(path):
+        return {"success": False, "error": "file not found"}
+    ok = system_launcher.open_dir(os.path.dirname(path))
+    return {"success": bool(ok), "path": path}
 
 
 @router.delete("/image/history/{image_id}")

@@ -87,9 +87,11 @@ def compute_text_stats(
     )
 
     # ---- words ------------------------------------------------------------- #
+    # Distinct-word dedup uses str.lower() (NOT casefold) so unique-word counts +
+    # the word content_id keys agree with laravel's mb_strtolower for non-ASCII.
     tokens = tokenize_words(text)
     base["word_count"] = len(tokens)
-    lowered = [t.casefold() for t in tokens]
+    lowered = [t.lower() for t in tokens]
     counter = collections.Counter(lowered)
     base["unique_word_count"] = len(counter)
     if top_words and top_words > 0:

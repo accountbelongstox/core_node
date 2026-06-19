@@ -321,6 +321,10 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
         "engine": name,
         "latency_ms": latency,
         "bytes": size,
+        # Where the produced mp3 landed (for the caller to persist into history).
+        "path": str(out) if (ok and size > 0) else None,
+        "text": sample,
+        "language": language,
         "error": None if ok else f"{name} produced no audio",
     }
 

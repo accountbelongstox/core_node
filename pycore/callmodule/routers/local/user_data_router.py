@@ -9,6 +9,7 @@ Endpoints (prefix /api/local/user-data):
   POST /video-extract/add        -> add/refresh a source (stacks, dedupes)
   POST /video-extract/remove     -> remove a source by path
   POST /video-extract/options    -> persist last-used extraction options
+  GET  /content-history          -> cross-feature content-ingest history (newest first)
 """
 
 import fastapi
@@ -21,6 +22,7 @@ from ...models.local_processing.user_data_models import (
     VideoExtractAddRequest,
     VideoExtractRemoveRequest,
     VideoExtractOptionsRequest,
+    ContentHistoryResponse,
     PickPathRequest,
     PickPathResponse,
     OkResponse,
@@ -64,6 +66,12 @@ async def remove_video_extract(request: VideoExtractRemoveRequest):
 async def set_options(request: VideoExtractOptionsRequest):
     """Persist the last-used extraction options."""
     return controller.set_options(request.options)
+
+
+@router.get("/content-history", response_model=ContentHistoryResponse)
+async def get_content_history(limit: int = 200):
+    """Return the cross-feature content-ingest history (books/subtitles/documents)."""
+    return controller.get_content_history(limit)
 
 
 @router.post("/pick-path", response_model=PickPathResponse)

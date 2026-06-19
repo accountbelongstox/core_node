@@ -21,6 +21,10 @@ source "$DD_HELPER_DIR/constants.sh"
 # Source linux management functions
 source "$DD_HELPER_DIR/linux_management.sh"
 
+# Source the merged Management & Backup dispatcher (Linux Management +
+# Backup Management + Python runtime/models backup)
+source "$DD_HELPER_DIR/management_and_backup.sh"
+
 # Build full paths from constants
 SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_RELATIVE"
 SERVICE_MANAGER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SERVICE_MANAGER_SCRIPT_RELATIVE"
@@ -83,6 +87,9 @@ handle_menu_action() {
             ;;
         "show_backup_management")
             show_backup_management
+            ;;
+        "show_management_and_backup")
+            show_management_and_backup
             ;;
         "sync_all_mcp")
             echo "Syncing all MCP services..."

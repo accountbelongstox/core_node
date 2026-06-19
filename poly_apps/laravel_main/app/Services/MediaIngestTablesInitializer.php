@@ -6,24 +6,28 @@ use Illuminate\Support\Facades\Schema;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\SafeMigrationHelper;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 
 /**
- * Media Ingest Tables Initializer
+ * Media Ingest Tables Initializer (Books v3.1 unified per-language model).
  *
- * Creates / aligns the five dedicated media ingestion tables for AppQyV1:
- *   - app_qy_v1_sentences        (SHARED, de-duplicated sentence library)
- *   - app_qy_v1_subtitles        (字幕/movie sources)
- *   - app_qy_v1_books            (书籍 sources)
- *   - app_qy_v1_source_sentences (positional link: source -> shared sentence)
- *   - app_qy_v1_media_segments   (subtitle audio+video clip segments)
+ * Creates / aligns the media ingestion tables for AppQyV1:
+ *   - app_qy_v1_subtitles          (字幕/movie sources)
+ *   - app_qy_v1_books              (书籍 sources)
+ *   - app_qy_v1_source_sentences   (language-independent positional slot)
+ *   - app_qy_v1_media_segments     (subtitle audio+video clip segments)
+ *   - app_qy_v1_sentences_{lang}   (per-language authoritative sentence store)
+ *   - app_qy_v1_chapters_{lang}    (per-language chapter store)
  *
- * Idempotent: uses SafeMigrationHelper::alignTableStructureFromArray, so
- * re-running sys:init only ADDS missing columns/indexes and NEVER drops data.
+ * The single shared {prefix}_sentences and {prefix}_chapters tables are REMOVED
+ * (§3.4) and are no longer created here. Idempotent: uses
+ * SafeMigrationHelper::alignTableStructureFromArray, so re-running sys:init only
+ * ADDS missing columns/indexes and NEVER drops data.
  */
 class MediaIngestTablesInitializer
 {
     /**
-     * Create / align all media ingest tables.
+     * Create / align all media ingest tables (incl. the full per-language set).
      *
      * @return array [tableName => 'created'|'updated'|'aligned'|'error: ...']
      */
@@ -33,16 +37,22 @@ class MediaIngestTablesInitializer
         $appKey = AppKeys::APPQYV1;
         $connection = AppTablePrefixServiceProvider::getConnection($appKey);
 
+        // [fullyQualifiedTableName => structure]. The base tables are resolved
+        // from their bare suffix; the per-language tables are already qualified.
         $tables = [
-            'sentences' => self::sentencesStructure(),
-            'subtitles' => self::subtitlesStructure(),
-            'books' => self::booksStructure(),
-            'source_sentences' => self::sourceSentencesStructure(),
-            'media_segments' => self::segmentsStructure(),
+            AppTablePrefixServiceProvider::buildTableName($appKey, 'subtitles') => self::subtitlesStructure(),
+            AppTablePrefixServiceProvider::buildTableName($appKey, 'books') => self::booksStructure(),
+            AppTablePrefixServiceProvider::buildTableName($appKey, 'source_sentences') => self::sourceSentencesStructure(),
+            AppTablePrefixServiceProvider::buildTableName($appKey, 'media_segments') => self::segmentsStructure(),
         ];
 
-        foreach ($tables as $suffix => $structure) {
-            $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, $suffix);
+        // Per-language sentence + chapter tables (one each per supported lang).
+        foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
+            $tables[AppQyV1TableMaps::getSentenceTableName($lang)] = self::sentenceLangStructure($lang);
+            $tables[AppQyV1TableMaps::getChapterTableName($lang)] = self::chapterLangStructure($lang);
+        }
+
+        foreach ($tables as $tableName => $structure) {
             try {
                 $result = SafeMigrationHelper::alignTableStructureFromArray(
                     $connection,
@@ -74,7 +84,6 @@ class MediaIngestTablesInitializer
             $db = \Illuminate\Support\Facades\DB::connection($connection);
 
             $suffixes = [
-                'sentences' => 'sentences',
                 'subtitles' => 'subtitles',
                 'books' => 'books',
                 'source_sentences' => 'source_sentences',
@@ -89,6 +98,22 @@ class MediaIngestTablesInitializer
                     : 0;
             }
 
+            // Per-language sentence + chapter totals (Books v3.1).
+            $sentenceTotal = 0;
+            $chapterTotal = 0;
+            foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
+                $sTable = AppQyV1TableMaps::getSentenceTableName($lang);
+                if (Schema::connection($connection)->hasTable($sTable)) {
+                    $sentenceTotal += $db->table($sTable)->count();
+                }
+                $cTable = AppQyV1TableMaps::getChapterTableName($lang);
+                if (Schema::connection($connection)->hasTable($cTable)) {
+                    $chapterTotal += $db->table($cTable)->count();
+                }
+            }
+            $stats['sentences'] = $sentenceTotal;
+            $stats['chapters'] = $chapterTotal;
+
             return $stats;
         } catch (\Exception $e) {
             return ['error' => $e->getMessage()];
@@ -96,32 +121,74 @@ class MediaIngestTablesInitializer
     }
 
     /**
-     * SHARED authoritative sentence library (used by BOTH subtitles and books).
-     * Mirrors AppQyV1_2026_06_08_000001_create_app_qy_v1_sentences_table.php
+     * Per-language authoritative sentence store {prefix}_sentences_{lang}
+     * (Books v3.1 §3.1). Deduped on content_id within the table; all language
+     * values are codes. Mirrors the per-language sentences migration.
      */
-    private static function sentencesStructure(): array
+    private static function sentenceLangStructure(string $lang): array
     {
+        $idxHash = substr(md5(AppQyV1TableMaps::getSentenceTableName($lang)), 0, 16);
         return [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
-                'sentence_id' => ['type' => 'string', 'length' => 64, 'nullable' => false, 'unique' => true, 'comment' => 'Dedup key = sha1(normalized_text + | + language)'],
-                'content_id' => ['type' => 'string', 'length' => 32, 'nullable' => true, 'unique' => true, 'comment' => 'v2 dedup key = md5(normalize(strip_punctuation(text))); no language'],
-                'text' => ['type' => 'text', 'nullable' => false, 'comment' => 'Sentence text (v2: punctuation-stripped, normalized)'],
-                'language' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'english', 'index' => true, 'comment' => 'Sentence language'],
-                'explanation' => ['type' => 'text', 'nullable' => true, 'comment' => 'AI: explanation (enrich-only)'],
-                'ai_commentary' => ['type' => 'text', 'nullable' => true, 'comment' => 'AI: commentary (enrich-only)'],
-                'grammar' => ['type' => 'text', 'nullable' => true, 'comment' => 'AI: grammar notes (enrich-only)'],
-                'special_usage' => ['type' => 'text', 'nullable' => true, 'comment' => 'AI: special usage (enrich-only)'],
-                'audio' => ['type' => 'string', 'nullable' => true, 'comment' => 'Sentence audio reference (enrich-only)'],
-                'occurrence_count' => ['type' => 'integer', 'nullable' => false, 'default' => 1, 'comment' => 'Times this sentence has been ingested'],
+                'content_id' => ['type' => 'string', 'length' => 32, 'nullable' => false, 'unique' => true, 'comment' => 'md5(normalize(strip_punctuation(text))); language-agnostic, unique here'],
+                'sentence_id' => ['type' => 'string', 'length' => 64, 'nullable' => false, 'index' => true, 'comment' => 'sha1(normalize(text) . | . lang) legacy compat key'],
+                'corr_id' => ['type' => 'string', 'length' => 40, 'nullable' => true, 'index' => true, 'comment' => 'cross-language correspondence group id'],
+                'text' => ['type' => 'text', 'nullable' => false, 'comment' => 'original case, punctuation-stripped + normalized'],
+                'language' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'index' => true, 'comment' => 'lang code (== table suffix)'],
+                'explanation' => ['type' => 'text', 'nullable' => true, 'comment' => 'AI enrich-only'],
+                'ai_commentary' => ['type' => 'text', 'nullable' => true, 'comment' => 'AI enrich-only'],
+                'grammar' => ['type' => 'text', 'nullable' => true, 'comment' => 'AI enrich-only'],
+                'special_usage' => ['type' => 'text', 'nullable' => true, 'comment' => 'AI enrich-only'],
+                'audio' => ['type' => 'string', 'nullable' => true, 'comment' => 'relative path cache {lang}/{content_id}.mp3'],
+                'has_audio' => ['type' => 'boolean', 'nullable' => false, 'default' => false, 'index' => true, 'comment' => 'DB flag only; disk is truth'],
+                'occurrence_count' => ['type' => 'integer', 'nullable' => false, 'default' => 1, 'comment' => 'times ingested'],
+                'metadata' => ['type' => 'json', 'nullable' => true, 'comment' => 'Additional metadata'],
+                'tts_status' => ['type' => 'string', 'length' => 20, 'nullable' => true, 'index' => true],
+                'tts_attempts' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'tts_error' => ['type' => 'text', 'nullable' => true],
+                'tts_locked_at' => ['type' => 'dateTime', 'nullable' => true, 'index' => true],
+                'tts_locked_by' => ['type' => 'string', 'length' => 100, 'nullable' => true],
+                'tts_priority' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'index' => true],
+                'tts_requested_at' => ['type' => 'dateTime', 'nullable' => true],
+                'tts_completed_at' => ['type' => 'dateTime', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['content_id'], 'unique' => true, 'name' => 'uniq_sent_cid_' . $idxHash],
+                ['columns' => ['sentence_id']],
+                ['columns' => ['language']],
+                ['columns' => ['has_audio']],
+            ],
+        ];
+    }
+
+    /**
+     * Per-language chapter store {prefix}_chapters_{lang} (Books v3.1 §3.2).
+     * Unique on (source_type, source_key, chapter_index); language is a code.
+     */
+    private static function chapterLangStructure(string $lang): array
+    {
+        $idxHash = substr(md5(AppQyV1TableMaps::getChapterTableName($lang)), 0, 16);
+        return [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'source_type' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'book', 'index' => true, 'comment' => 'book|subtitle|document|article'],
+                'source_key' => ['type' => 'string', 'length' => 64, 'nullable' => false, 'index' => true, 'comment' => 'FK to books/subtitles source_key'],
+                'chapter_index' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => '0-based order'],
+                'language' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'index' => true, 'comment' => 'lang code (== table suffix)'],
+                'title' => ['type' => 'string', 'nullable' => true, 'comment' => 'chapter title in this language; null where 留空'],
+                'corr_id' => ['type' => 'string', 'length' => 40, 'nullable' => true, 'index' => true, 'comment' => 'sha1(source_key . |chapter| . chapter_index)'],
+                'sentence_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
                 'metadata' => ['type' => 'json', 'nullable' => true, 'comment' => 'Additional metadata'],
                 'created_at' => ['type' => 'timestamp', 'nullable' => true],
                 'updated_at' => ['type' => 'timestamp', 'nullable' => true],
             ],
             'indexes' => [
-                ['columns' => ['sentence_id'], 'unique' => true],
-                ['columns' => ['content_id'], 'unique' => true, 'name' => 'uniq_app_qy_v1_sentences_content_id'],
-                ['columns' => ['language']],
+                ['columns' => ['source_type']],
+                ['columns' => ['source_key']],
+                ['columns' => ['source_type', 'source_key', 'chapter_index'], 'unique' => true, 'name' => 'uniq_chap_pos_' . $idxHash],
             ],
         ];
     }
@@ -194,8 +261,8 @@ class MediaIngestTablesInitializer
     }
 
     /**
-     * Positional link between a source (subtitle|book) and the shared sentence
-     * library. Stores BOTH grains ('cue' / 'sentence').
+     * Positional link between a source (book|subtitle|document|article) and the
+     * shared per-language sentence library. Stores BOTH grains ('cue'/'sentence').
      * Mirrors AppQyV1_2026_06_08_000006_create_app_qy_v1_source_sentences_table.php
      */
     private static function sourceSentencesStructure(): array
@@ -203,9 +270,10 @@ class MediaIngestTablesInitializer
         return [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
-                'source_type' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'subtitle', 'index' => true, 'comment' => 'subtitle|book'],
+                'source_type' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'subtitle', 'index' => true, 'comment' => 'book|subtitle|document|article'],
                 'source_key' => ['type' => 'string', 'length' => 64, 'nullable' => false, 'index' => true, 'comment' => 'Originating source key'],
-                'sentence_id' => ['type' => 'string', 'length' => 64, 'nullable' => false, 'index' => true, 'comment' => 'FK to sentences.sentence_id'],
+                // No sentence_id (Books v3.1 §3.3): the per-language link is carried
+                // by lang_content_ids (content_id refs into sentences_{lang}).
                 'grain' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'cue', 'comment' => 'cue (1 srt cue) | sentence (merged real sentence)'],
                 'seq' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => 'Order within source for that grain'],
                 'seg_index' => ['type' => 'integer', 'nullable' => true, 'comment' => 'Subtitle cue video segment index'],
@@ -213,13 +281,17 @@ class MediaIngestTablesInitializer
                 'start_sec' => ['type' => 'float', 'nullable' => true, 'comment' => 'Start time in seconds'],
                 'end_sec' => ['type' => 'float', 'nullable' => true, 'comment' => 'End time in seconds'],
                 'metadata' => ['type' => 'json', 'nullable' => true, 'comment' => 'Additional metadata'],
+                // Books v3.1 correspondence anchor (§3.3).
+                'chapter_index' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'index' => true, 'comment' => 'which chapter this slot belongs to'],
+                'corr_id' => ['type' => 'string', 'length' => 40, 'nullable' => true, 'index' => true, 'comment' => 'correspondence group id for this slot'],
+                'primary_language' => ['type' => 'string', 'length' => 20, 'nullable' => true, 'comment' => "the source's primary language code"],
+                'lang_content_ids' => ['type' => 'json', 'nullable' => true, 'comment' => '{code: content_id|null} per selected language'],
                 'created_at' => ['type' => 'timestamp', 'nullable' => true],
                 'updated_at' => ['type' => 'timestamp', 'nullable' => true],
             ],
             'indexes' => [
                 ['columns' => ['source_type']],
                 ['columns' => ['source_key']],
-                ['columns' => ['sentence_id']],
                 ['columns' => ['source_type', 'source_key', 'grain', 'seq'], 'unique' => true, 'name' => 'uniq_source_sentence_pos'],
             ],
         ];
