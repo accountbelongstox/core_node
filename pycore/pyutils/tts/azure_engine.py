@@ -48,7 +48,15 @@ _LOCALE_BY_LANG = {
 
 
 def _key() -> str:
-    return get_secret_key_indexed("AZURE_SPEECH_KEY") or get_secret_key("AZURE_SPEECH_KEY") or ""
+    # The "Special Software Environment Variables" manager stores the Azure Speech
+    # subscription key under AZURE_SPEECH_KEYA (Key A) / AZURE_SPEECH_KEYB (Key B),
+    # indexed _1.._5 — the SAME names the legacy azure_speech STT reads. Older code
+    # used a bare AZURE_SPEECH_KEY; try the real names first, keep the old as fallback.
+    return (get_secret_key_indexed("AZURE_SPEECH_KEYA")
+            or get_secret_key_indexed("AZURE_SPEECH_KEYB")
+            or get_secret_key_indexed("AZURE_SPEECH_KEY")
+            or get_secret_key("AZURE_SPEECH_KEY")
+            or "")
 
 
 def _region() -> str:

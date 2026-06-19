@@ -13,7 +13,6 @@ from pycore import THREAD_BUS
 from pycore.pyutils.native_ui.step0_i18n import i18n
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
-from pycore.callmodule.platform.startup_manager import get_startup_manager
 
 IS_WINDOWS = platform.system() == 'Windows'
 
@@ -62,14 +61,6 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
     Returns:
         List of TrayMenuItem objects
     """
-    # State getter for Auto-Start
-    def get_autostart_state():
-        """Get current auto-start state (native per-OS startup manager)."""
-        try:
-            return "[X]" if get_startup_manager().is_enabled() else "[ ]"
-        except Exception:
-            return "[ ]"
-
     # State getter for Voice Subtitle window visibility (published by the UI framework)
     def get_voice_subtitle_state():
         """Get current Voice Subtitle window visibility state"""
