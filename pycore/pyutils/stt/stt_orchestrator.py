@@ -77,7 +77,13 @@ def _vosk_available() -> bool:
 
 
 def _azure_key() -> str:
-    return get_secret_key_indexed("AZURE_SPEECH_KEY") or get_secret_key("AZURE_SPEECH_KEY") or ""
+    # Same key names the env-var manager stores and azure TTS / legacy STT read:
+    # AZURE_SPEECH_KEYA (Key A) / KEYB (Key B), indexed _1.._5; bare KEY is legacy.
+    return (get_secret_key_indexed("AZURE_SPEECH_KEYA")
+            or get_secret_key_indexed("AZURE_SPEECH_KEYB")
+            or get_secret_key_indexed("AZURE_SPEECH_KEY")
+            or get_secret_key("AZURE_SPEECH_KEY")
+            or "")
 
 
 def _azure_region() -> str:
