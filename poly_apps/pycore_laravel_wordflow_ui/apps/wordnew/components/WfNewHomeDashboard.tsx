@@ -94,6 +94,10 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       className={`p-4 sm:p-5 rounded-3xl border border-white/5 shadow-lg bg-slate-900/50 ${activeTheme.glowClass || ''} space-y-5`}
     >
+      {/* The whole stats dashboard renders ONLY when logged in. When logged out
+          it is simply absent (no "log in to unlock" prompt); the learning
+          settings row below stays visible either way. */}
+      {isLoggedIn && (<>
       {/* ── Commander identity: avatar + name embedded in the panel header ── */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -105,7 +109,7 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
               {trans('welcome.back')}
             </p>
             <p className="mt-0.5 text-lg sm:text-2xl font-black tracking-tight truncate bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-100 to-indigo-400">
-              {isLoggedIn ? (nickname || 'Commander') : trans('common.login')}
+              {nickname || 'Commander'}
             </p>
           </div>
         </div>
@@ -173,23 +177,16 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
         </div>
       </div>
 
-      {/* ── KPI grid (real stats) — locked behind a CTA when logged out ── */}
-      <div className="relative">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-          <Kpi icon={<GraduationCap className="w-3 h-3" />} label={trans('stats.learned')} accent="text-indigo-400" value={stats?.totalWordsLearned ?? 0} />
-          <Kpi icon={<Sparkles className="w-3 h-3" />} label={trans('dashboard.mastered')} accent="text-emerald-400" value={stats?.masteredWords ?? 0} />
-          <Kpi icon={<Layers className="w-3 h-3" />} label={trans('dashboard.learning')} accent="text-sky-400" value={stats?.learningWords ?? 0} />
-          <Kpi icon={<RefreshCw className="w-3 h-3" />} label={trans('home.needReview')} accent="text-amber-400" value={stats?.needsReview ?? 0} />
-          <Kpi icon={<TrendingUp className="w-3 h-3" />} label={trans('dashboard.accuracy')} accent="text-fuchsia-400" value={`${stats?.averageAccuracy ?? 0}%`} />
-          <Kpi icon={<CalendarCheck className="w-3 h-3" />} label={trans('dashboard.studyDays')} accent="text-cyan-400" value={stats?.studyDays ?? 0} />
-        </div>
-        {!isLoggedIn && (
-          <div className="absolute inset-0 rounded-2xl bg-slate-900/70 backdrop-blur-[2px] flex flex-col items-center justify-center gap-1.5 text-center">
-            <Lock className="w-5 h-5 text-indigo-300" />
-            <p className="text-[11px] font-mono text-indigo-200">{trans('dashboard.loginToView')}</p>
-          </div>
-        )}
+      {/* ── KPI grid (real stats) ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        <Kpi icon={<GraduationCap className="w-3 h-3" />} label={trans('stats.learned')} accent="text-indigo-400" value={stats?.totalWordsLearned ?? 0} />
+        <Kpi icon={<Sparkles className="w-3 h-3" />} label={trans('dashboard.mastered')} accent="text-emerald-400" value={stats?.masteredWords ?? 0} />
+        <Kpi icon={<Layers className="w-3 h-3" />} label={trans('dashboard.learning')} accent="text-sky-400" value={stats?.learningWords ?? 0} />
+        <Kpi icon={<RefreshCw className="w-3 h-3" />} label={trans('home.needReview')} accent="text-amber-400" value={stats?.needsReview ?? 0} />
+        <Kpi icon={<TrendingUp className="w-3 h-3" />} label={trans('dashboard.accuracy')} accent="text-fuchsia-400" value={`${stats?.averageAccuracy ?? 0}%`} />
+        <Kpi icon={<CalendarCheck className="w-3 h-3" />} label={trans('dashboard.studyDays')} accent="text-cyan-400" value={stats?.studyDays ?? 0} />
       </div>
+      </>)}
 
       {/* ── Settings (always editable) — target language + daily goal + group ── */}
       <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-3">
