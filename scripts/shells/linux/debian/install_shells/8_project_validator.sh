@@ -148,6 +148,15 @@ clean_directory() {
     local dir_path="$1"
 
     if [ -d "$dir_path" ]; then
+        # SAFETY: never wipe a populated core_node tree without the triple-confirm
+        # guard (it also refuses git working trees + non-interactive runs). See
+        # development-guides/CORE_NODE_DELETION_SAFETY.md.
+        if [ -n "$(ls -A "$dir_path" 2>/dev/null)" ]; then
+            if ! confirm_core_node_deletion "$dir_path"; then
+                error "Refusing to delete $dir_path; aborting restore."
+                return 1
+            fi
+        fi
         log "Cleaning directory: $dir_path"
         $USE_SUDO rm -rf "$dir_path"
     fi
@@ -257,9 +266,11 @@ restore_project() {
 }
 
 # Main execution
-# Check if project root exists and has content
-if [ -d "$CORE_NODE_PROJECT_ROOT" ] && [ -f "$CORE_NODE_PROJECT_ROOT/package.json" ] && [ -f "$CORE_NODE_PROJECT_ROOT/main.js" ]; then
-    log "Project correctly positioned at: $CORE_NODE_PROJECT_ROOT"
+# Adopt an existing project as authoritative: a git working tree OR a tree with
+# package.json is real work -> never restore/re-clone over it (broader than the old
+# package.json+main.js gate, so a transiently-incomplete checkout is not wiped).
+if [ -d "$CORE_NODE_PROJECT_ROOT" ] && { [ -e "$CORE_NODE_PROJECT_ROOT/.git" ] || [ -f "$CORE_NODE_PROJECT_ROOT/package.json" ]; }; then
+    log "Project correctly positioned at: $CORE_NODE_PROJECT_ROOT (adopting; no restore)"
     exit 0
 fi
 
