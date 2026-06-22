@@ -16,7 +16,7 @@ import {
   Pause, Cpu, MemoryStick, Captions, ChevronDown, ChevronUp, ListChecks,
   SlidersHorizontal, PanelRightClose, Scissors, CornerDownRight, MonitorSmartphone,
   UploadCloud, Film, Grid2x2, Music, Image as ImageIcon,
-  KeyRound, AlertTriangle, Languages, Lock,
+  KeyRound, AlertTriangle, Languages, Lock, Wand2,
 } from 'lucide-react';
 import {
   pycoreApi, connectPycoreWs, onWsStatus,
@@ -28,8 +28,25 @@ import type {
 } from '../../../core/api-libs/pycore';
 import { WF_SUPPORTED_LANGUAGES } from '../../../core/api-libs/wordflow/wordflowLanguages';
 import { usePcVideoExtract } from '../PcVideoExtractContext';
-import type { SegWithFull } from '../PcVideoExtractContext';
+import type { SegWithFull, VeFlowStep } from '../PcVideoExtractContext';
 import PcLaravelMediaPanel from '../components/PcLaravelMediaPanel';
+
+// Flow-step status → badge color + short label for the "处理流程 / Flow" panel.
+const FLOW_STATUS: Record<string, { dot: string; text: string; label: string }> = {
+  ok:       { dot: 'bg-emerald-500', text: 'text-emerald-500', label: 'OK' },
+  api:      { dot: 'bg-emerald-500', text: 'text-emerald-500', label: 'API' },
+  whisper:  { dot: 'bg-indigo-500',  text: 'text-indigo-500',  label: 'Whisper' },
+  ai:       { dot: 'bg-violet-500',  text: 'text-violet-500',  label: 'AI' },
+  cache:    { dot: 'bg-sky-500',     text: 'text-sky-500',     label: 'Cache' },
+  api_miss: { dot: 'bg-amber-500',   text: 'text-amber-500',   label: 'API miss' },
+  warn:     { dot: 'bg-amber-500',   text: 'text-amber-500',   label: 'Warn' },
+  empty:    { dot: 'bg-slate-400',   text: 'text-slate-400',   label: 'Empty' },
+  miss:     { dot: 'bg-slate-400',   text: 'text-slate-400',   label: 'Miss' },
+  fail:     { dot: 'bg-rose-500',    text: 'text-rose-500',    label: 'Fail' },
+};
+function flowStyle(status: string) {
+  return FLOW_STATUS[status] || { dot: 'bg-slate-400', text: 'text-slate-400', label: status };
+}
 
 // i18n labels for the new sync + clip-variant UI. The rest of this page uses
 // hardcoded English literals (no `t` object exists in pycore-manager), so the
@@ -57,10 +74,21 @@ const L = {
   veNeedOneLang: 'Select at least one language',   // 至少选择一种语言
   vePrimaryLang: 'Primary (locked)',              // 主语言(锁定)
   veSelected: 'selected',                          // 已选
+  veFlowTitle: 'Process / decision / cache flow',  // 处理流程 / 决策 / 缓存
   veGrainLabel: 'Grain',                           // 粒度
   veGrainCue: 'Cue',                               // 行
   veGrainSentence: 'Sentence',                     // 句子
   veBlankCorr: '—',                                // 留空占位
+  // subtitle source (options panel)
+  veSubtitleSource: 'Subtitle source',                                            // 字幕来源
+  veSrcApiFirst: 'API first (OpenSubtitles → Whisper)',                           // 优先 API(OpenSubtitles → Whisper)
+  veSrcWhisper: 'Always Whisper',                                                 // 始终使用 Whisper
+  veSubtitleSourceHint: 'API first tries OpenSubtitles for the primary track, then falls back to Whisper.', // API 优先先尝试 OpenSubtitles,失败再回退 Whisper
+  // fill languages (Laravel-sync section)
+  veFill: 'Fill languages (API → AI)',                                            // 填充语言(API → AI)
+  veFilling: 'Filling…',                                                          // 填充中…
+  veFillHint: 'Filled tracks are cached locally next to each video, then Submit (Sync) sends them.', // 填充的字幕缓存在视频旁,随后点击同步提交
+  veFillStage: 'Stage',                                                           // 阶段
 };
 
 const DEFAULT_BASE = 'D:\\.tmp';
@@ -73,6 +101,7 @@ const FALLBACK_EXTS = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.flv'];
 
 const DEFAULT_OPTIONS: VideoExtractOptions = {
   subtitle: true, model: 'auto', formats: ['mp3'], lang: 'en', extensions: [],
+  subtitle_source: 'api_first', target_languages: ['en', 'zh'],
 };
 
 const fmtMB = (bytes?: number | null): string => {
@@ -330,16 +359,18 @@ const PcVideoExtractPage: React.FC = () => {
   // task instead of resetting. See PcVideoExtractContext for the design.
   const {
     taskId, busy, paused, progress, snapshot, output, mapping, segmentsDir,
-    syncing, syncingAll, syncProgress, autoSync, setAutoSync, notice, setNotice,
+    syncing, syncingAll, syncProgress, filling, fillProgress,
+    autoSync, setAutoSync, notice, setNotice,
     corrLanguages, setCorrLanguages,
     start: startRun, preview: previewRun, stop, togglePause, syncSource, syncAll,
+    fillLanguages,
   } = usePcVideoExtract();
 
   // --- multi-language correspondence selection (spec §12) ---------------- #
   // Local checkbox state mirrored into the context (which the segments fetch +
   // sync RPCs read). The recognition language (`options.lang`) is the locked
   // primary: auto-checked and not removable. >=1 required to sync.
-  const [selectedLangs, setSelectedLangs] = useState<Set<string>>(new Set(corrLanguages.length ? corrLanguages : ['en']));
+  const [selectedLangs, setSelectedLangs] = useState<Set<string>>(new Set(corrLanguages.length ? corrLanguages : ['en', 'zh']));
   // Display grain for the per-cue correspondence (cue = one source line; sentence
   // = merged + re-split). When cues carry a `grain` field the view filters to it.
   const [corrGrain, setCorrGrain] = useState<'cue' | 'sentence'>('sentence');
@@ -358,6 +389,9 @@ const PcVideoExtractPage: React.FC = () => {
   // --- options ----------------------------------------------------------- #
   const [options, setOptions] = useState<VideoExtractOptions>(DEFAULT_OPTIONS);
   const optionsHydrated = useRef(false);
+  // Hydrate the Laravel-sync language multi-select from last_options exactly
+  // once (first history load) so later refreshes never clobber the live choice.
+  const langsHydrated = useRef(false);
 
   // --- backend capabilities ---------------------------------------------- #
   const [allModels, setAllModels] = useState<string[]>(FALLBACK_ALL_MODELS);
@@ -399,8 +433,21 @@ const PcVideoExtractPage: React.FC = () => {
         formats: Array.isArray(lo.formats) && lo.formats.length ? lo.formats : prev.formats,
         lang: typeof lo.lang === 'string' ? lo.lang : prev.lang,
         extensions: Array.isArray(lo.extensions) ? lo.extensions : prev.extensions,
+        subtitle_source: (lo.subtitle_source === 'whisper' || lo.subtitle_source === 'api_first')
+          ? lo.subtitle_source : (prev.subtitle_source ?? 'api_first'),
+        target_languages: (Array.isArray(lo.target_languages) && lo.target_languages.length)
+          ? lo.target_languages : prev.target_languages,
       }));
       if (Array.isArray(lo.extensions) && lo.extensions.length) extsHydrated.current = true;
+      // Hydrate the Laravel-sync language multi-select from persisted
+      // target_languages (fall back to en+zh) — but only once, on first load,
+      // so a later refresh doesn't clobber the user's live selection.
+      if (!langsHydrated.current) {
+        const tl = (Array.isArray(lo.target_languages) && lo.target_languages.length)
+          ? lo.target_languages : ['en', 'zh'];
+        setSelectedLangs(new Set(tl));
+        langsHydrated.current = true;
+      }
       optionsHydrated.current = true;
     } catch {
       setUnreachable(true);
@@ -567,7 +614,14 @@ const PcVideoExtractPage: React.FC = () => {
     setSelectedLangs((prev) => (prev.has(lockedLang) ? prev : new Set(prev).add(lockedLang)));
   }, [lockedLang]);
   useEffect(() => {
-    setCorrLanguages(selectedLangList());
+    const list = selectedLangList();
+    setCorrLanguages(list);
+    // Persist the selection into options.target_languages so it round-trips via
+    // the existing setVideoExtractOptions effect (last_options.target_languages).
+    setOptions((o) => (
+      JSON.stringify(o.target_languages ?? []) === JSON.stringify(list)
+        ? o : { ...o, target_languages: list }
+    ));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLangs]);
 
@@ -590,6 +644,9 @@ const PcVideoExtractPage: React.FC = () => {
     lang: options.lang || 'en',
     extensions: options.extensions && options.extensions.length ? options.extensions : [],
     make_mp4: true,
+    // primary subtitle track source (OpenSubtitles → Whisper, or always
+    // Whisper); default 'api_first'. The backend reads config.subtitle_source.
+    subtitle_source: (options.subtitle_source ?? 'api_first') as 'api_first' | 'whisper',
   });
 
   // --- preview / start --------------------------------------------------- #
@@ -862,6 +919,30 @@ const PcVideoExtractPage: React.FC = () => {
                     <Captions className="w-3 h-3" /> Open subtitle
                   </button>
                 </div>
+                {Array.isArray(snapshot.current.flow) && snapshot.current.flow.length > 0 && (
+                  <div className="pt-2 border-t border-slate-200/60 dark:border-white/5">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1">
+                      <Wand2 className="w-3.5 h-3.5" /> {L.veFlowTitle}
+                    </div>
+                    <ul className="space-y-1">
+                      {snapshot.current.flow.map((s: VeFlowStep, i: number) => {
+                        const st = flowStyle(s.status);
+                        return (
+                          <li key={i} className="flex items-start gap-2 text-[11px] leading-relaxed">
+                            <span className={`mt-[5px] w-2 h-2 rounded-full shrink-0 ${st.dot}`} />
+                            <span className="min-w-0">
+                              <span className="font-semibold text-slate-600 dark:text-slate-300">{s.label || s.step}</span>
+                              {s.lang && <span className="ml-1 font-mono text-slate-400">[{s.lang}]</span>}
+                              <span className={`ml-1.5 font-bold ${st.text}`}>{st.label}</span>
+                              {s.provider && <span className="ml-1 text-slate-400">· {s.provider}</span>}
+                              {s.detail && <span className="ml-1 text-slate-400 break-all">— {s.detail}</span>}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -926,11 +1007,47 @@ const PcVideoExtractPage: React.FC = () => {
             )}
           </div>
 
+          {/* Step 1 — Fill languages: ensure every selected language has a
+              `<stem>.<lang>.srt` sibling (OpenSubtitles when subtitle_source is
+              'api_first' + credentialed, else AI-translated from the primary
+              cues). Writes tracks locally; then Step 2 (Sync) submits them. */}
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <button onClick={() => fillLanguages(syncTargets(), selectedLangList(), options.subtitle_source ?? 'api_first')}
+              disabled={busy || filling || syncingAll || syncing.size > 0 || selectedLangs.size === 0}
+              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+              {filling ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+              {filling ? L.veFilling : L.veFill}
+            </button>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              {(options.subtitle_source ?? 'api_first') === 'api_first' ? 'API → AI' : 'AI only'}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 mb-2">{L.veFillHint}</p>
+
+          {/* live fill progress (mirrors the sync progress UI) */}
+          {fillProgress && (
+            <div className="mb-3">
+              <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                {L.veFillStage}: <span className="font-bold text-slate-700 dark:text-slate-200">{fillProgress.stage}</span>
+                {fillProgress.total > 0 && <span className="text-slate-400">· {fillProgress.done}/{fillProgress.total}</span>}
+                {fillProgress.detail && <span className="truncate text-slate-400" title={fillProgress.detail}>· {fillProgress.detail}</span>}
+              </div>
+              {fillProgress.total > 0 && (
+                <div className="mt-1 bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                  <div className="h-full bg-indigo-500 transition-all"
+                    style={{ width: `${Math.min(100, Math.round((fillProgress.done / fillProgress.total) * 100))}%` }} />
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            {/* no path args → the backend syncs its full history of sources;
-                the checked language set drives the per-cue correspondence ingest */}
+            {/* Step 2 — Submit: no path args → the backend syncs its full history
+                of sources; the checked language set drives the per-cue
+                correspondence ingest and auto-discovers the filled tracks. */}
             <button onClick={() => syncAll(undefined, selectedLangList())}
-              disabled={busy || syncingAll || syncing.size > 0 || selectedLangs.size === 0}
+              disabled={busy || filling || syncingAll || syncing.size > 0 || selectedLangs.size === 0}
               className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
               {syncingAll ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
               {syncingAll ? L.veSyncing : L.veSyncAll}
@@ -947,7 +1064,7 @@ const PcVideoExtractPage: React.FC = () => {
                   className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-100/40 dark:bg-white/[0.02]">
                   <span className="flex-1 text-xs font-mono text-slate-700 dark:text-slate-200 truncate" title={p}>{p}</span>
                   <button onClick={() => syncSource(p, selectedLangList())}
-                    disabled={inFlight || busy || syncingAll || selectedLangs.size === 0}
+                    disabled={inFlight || busy || filling || syncingAll || selectedLangs.size === 0}
                     className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition flex items-center gap-1 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
                     {inFlight ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
                     {inFlight ? L.veSyncing : L.veSyncLaravel}
@@ -1236,6 +1353,26 @@ const PcVideoExtractPage: React.FC = () => {
                     <input type="checkbox" checked readOnly disabled />
                     Generate subtitles <span className="text-[10px] font-bold text-emerald-500">· {options.lang || 'en'}</span>
                   </label>
+
+                  {/* primary subtitle track source: OpenSubtitles → Whisper, or
+                      always Whisper. Bound to options.subtitle_source (default
+                      'api_first'); persisted via the setVideoExtractOptions effect. */}
+                  <div>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400 mb-2">{L.veSubtitleSource}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {([
+                        ['api_first', L.veSrcApiFirst],
+                        ['whisper', L.veSrcWhisper],
+                      ] as ['api_first' | 'whisper', string][]).map(([val, label]) => (
+                        <button key={val} type="button"
+                          onClick={() => setOptions((o) => ({ ...o, subtitle_source: val }))}
+                          className={pill((options.subtitle_source ?? 'api_first') === val)}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-2">{L.veSubtitleSourceHint}</p>
+                  </div>
 
                   <div>
                     <span className="block text-xs text-slate-500 dark:text-slate-400 mb-2">Whisper model</span>

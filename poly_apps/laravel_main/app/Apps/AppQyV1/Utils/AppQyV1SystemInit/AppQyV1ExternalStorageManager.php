@@ -57,11 +57,22 @@ class AppQyV1ExternalStorageManager
             $directories = [
                 $this->externalDataPath,
                 $this->databasesPath,
+                // Canonical word/sentence-TTS audio tree (unified static base):
+                // static/app_qy_v1/audio + its {word,sentence} namespaces, so the
+                // write-back target and the serve route share one pre-created root.
+                \App\Providers\PathMapper::getAppQyV1AudioBaseDir(),
+                \App\Providers\PathMapper::getAppQyV1AudioBaseDir('word'),
+                \App\Providers\PathMapper::getAppQyV1AudioBaseDir('sentence'),
                 $this->audioPath . '/word_sounds',
-                $this->audioPath . '/word_subtitles', 
+                $this->audioPath . '/word_subtitles',
                 $this->audioPath . '/sentence_sounds',
                 $this->audioPath . '/sentence_subtitles',
                 $this->imagesPath . '/word_images',
+                // Canonical word-images location is now the unified static tree
+                // (laravel_db/static/app_qy_v1/word_images) so laravel_db copies
+                // cleanly; pre-create it here too (legacy line kept above for any
+                // host still pinned via DICT_IMAGES_PATH).
+                \App\Providers\PathMapper::getAppQyV1WordImagesDir(),
                 $this->cachePath . '/temp',
                 $this->markersPath
             ];

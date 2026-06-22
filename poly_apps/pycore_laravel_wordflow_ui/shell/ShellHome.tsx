@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Server, Cpu, GraduationCap, ArrowRight } from 'lucide-react';
+import { Server, Cpu, GraduationCap, ArrowRight, Coins, ShoppingBag } from 'lucide-react';
 import { END_META } from './shellTypes';
 
 type Health = 'checking' | 'up' | 'down' | 'unknown';
@@ -46,8 +46,22 @@ const CARDS = [
     id: 'wordflow' as const,
     icon: GraduationCap,
     title: END_META['wordflow'].label,
-    desc: 'The WordFlow learning client: study, libraries, quiz, tools, AI assistant.',
+    desc: 'The WordNew learning client: study, libraries, quiz, tools, AI assistant.',
     accent: 'from-violet-500 to-fuchsia-500',
+  },
+  {
+    id: 'vortex' as const,
+    icon: Coins,
+    title: END_META['vortex'].label,
+    desc: 'Vortex crypto trading arena with 200+ real-time simulated asset pairs & high-frequency ledgers.',
+    accent: 'from-amber-500 to-orange-500',
+  },
+  {
+    id: 'pdd-manager' as const,
+    icon: ShoppingBag,
+    title: END_META['pdd-manager'].label,
+    desc: 'Admin console for the 订多多 (Pinduoduo) SaaS: members, recharge, membership expiry & payment gateways.',
+    accent: 'from-rose-500 to-pink-500',
   },
 ];
 

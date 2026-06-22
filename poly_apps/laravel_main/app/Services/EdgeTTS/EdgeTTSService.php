@@ -91,8 +91,14 @@ class EdgeTTSService
             throw new \Exception('Laravel data directory not found');
         }
 
+        // json_db sidecar stays under the legacy tts_data root (it is a small
+        // cache index, not served), but the AUDIO base moves to the unified
+        // static tree so the write target equals the serve base
+        // (/api/app_qy_v1/ai_tools/tts/audio/{...}) and laravel_db copies
+        // cleanly. Stored tts_files relative paths ({lang}/{type}/{file}) are
+        // unchanged — only the physical base differs.
         $this->dataDir = $laravelDataDir . '/tts_data';
-        $this->audioDir = $this->dataDir . '/audio';
+        $this->audioDir = PathMapper::getAppQyV1AudioBaseDir();
         $jsonDbDir = $this->dataDir . '/json_db';
 
         $this->initializeDirectories();
@@ -532,10 +538,11 @@ class EdgeTTSService
     }
 
     /**
-     * Absolute audio storage root ({laravel_data}/tts_data/audio). External
-     * result ingestion (the worker report endpoint) writes through this +
-     * buildRelativePath so worker-generated files land exactly where
-     * generateAudio would put them.
+     * Absolute audio storage root (PathMapper::getAppQyV1AudioBaseDir() =
+     * <laravel_db>/static/app_qy_v1/audio). External result ingestion (the
+     * worker report endpoint + Bing-assist audio write-back) writes through this
+     * + buildRelativePath so worker-generated files land exactly where
+     * generateAudio would put them and the serve route reads them back.
      */
     public function getAudioBaseDir(): string
     {

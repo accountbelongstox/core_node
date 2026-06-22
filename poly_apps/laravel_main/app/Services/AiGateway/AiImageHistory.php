@@ -160,6 +160,16 @@ class AiImageHistory
             $doc['entries'][] = $entry;
             self::trim($doc);
             self::save($doc);
+            // Mirror to the human-readable TEXT log so every generated image is
+            // traceable (which provider/model produced it) alongside text/vision
+            // calls — the SAME ai_calls.log pycore + AiUsageLog write.
+            AiTextLog::log(
+                $entry['origin'], 'image', $entry['provider'], $entry['model'],
+                $entry['source'], (bool) $entry['ok'],
+                is_numeric($entry['latency_ms']) ? $entry['latency_ms'] + 0.0 : null,
+                null,
+                'file=' . $rel . ' prompt="' . self::textLogPrompt($entry['prompt']) . '"'
+            );
             return $entry;
         });
     }
@@ -270,6 +280,13 @@ class AiImageHistory
         // pycore slices the first 2000 chars (unicode code points). mb_substr
         // matches that; ASCII prompts are identical either way.
         return mb_strlen($prompt) > self::PROMPT_MAX ? mb_substr($prompt, 0, self::PROMPT_MAX) : $prompt;
+    }
+
+    /** First 120 chars, newlines + quotes flattened so the one-line TEXT log stays one line. */
+    private static function textLogPrompt(string $prompt): string
+    {
+        $flat = str_replace(["\r", "\n", '"'], [' ', ' ', "'"], $prompt);
+        return mb_strlen($flat) > 120 ? mb_substr($flat, 0, 120) : $flat;
     }
 
     /**

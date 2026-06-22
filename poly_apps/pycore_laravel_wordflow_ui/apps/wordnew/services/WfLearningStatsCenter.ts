@@ -4,8 +4,8 @@
  * this layer only adds force-refresh (cache invalidation), answer reporting and
  * a 'learning-stats-updated' subscription via wfEventBus. */
 
-import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
-import { StorageCenter, StorageKey } from '../../../core/api-libs/wordflow/WordflowStorage';
+import { wordflowApi } from '../api-libs/wordflow/WordflowApi';
+import { StorageCenter, StorageKey } from '../api-libs/wordflow/WordflowStorage';
 import { wfEventBus } from './WfEventBus';
 
 class WfLearningStatsCenterClass {

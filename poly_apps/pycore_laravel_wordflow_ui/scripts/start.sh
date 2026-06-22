@@ -155,33 +155,51 @@ ensure_node_pnpm() {
 # True when the dev toolchain (vite) is present under node_modules.
 vite_ready() { [ -f "$VITE_BIN" ]; }
 
-# Idempotent dependency install (skips when node_modules + vite are present).
+# Idempotent dependency install. Policy: if node_modules ALREADY EXISTS, UPDATE it in
+# place -- never remove and reinstall it from scratch. An existing tree is updated with a
+# NON-INTERACTIVE `pnpm install`: pnpm only performs its "the modules directory ... will be
+# removed and reinstalled from scratch" purge when it can prompt, so running with stdin from
+# /dev/null makes pnpm KEEP the existing node_modules (on a pnpm major-version modules-format
+# change it refuses to purge instead of wiping). A from-scratch reinstall happens ONLY when
+# node_modules is missing/empty, or when --force-install is passed explicitly.
 ensure_deps() {
     if [ ! -f "$PACKAGE_JSON" ]; then err "package.json not found at: $PACKAGE_JSON"; exit 1; fi
-    NEED_INSTALL="$FORCE_INSTALL"
-    if [ -z "$NEED_INSTALL" ]; then
-        if [ ! -d "$NODE_MODULES" ]; then
-            NEED_INSTALL=1
-        elif [ -z "$(ls -A "$NODE_MODULES" 2>/dev/null)" ]; then
-            NEED_INSTALL=1
-        elif ! vite_ready; then
-            warn "node_modules present but dev toolchain incomplete (vite missing); running pnpm install."
-            NEED_INSTALL=1
+    cd "$APP_ROOT" || exit 1
+
+    local fresh_install=""
+    if [ -n "$FORCE_INSTALL" ]; then
+        log "Force reinstall requested: recreating node_modules from scratch..."
+        # Explicit opt-in to the purge; run non-interactively so it does not block.
+        if ! pnpm install --config.confirm-modules-purge=false; then err "pnpm install failed."; exit 1; fi
+        fresh_install=1
+    elif [ ! -d "$NODE_MODULES" ] || [ -z "$(ls -A "$NODE_MODULES" 2>/dev/null)" ]; then
+        log "node_modules missing -> installing dependencies..."
+        if ! pnpm install; then err "pnpm install failed."; exit 1; fi
+        fresh_install=1
+    else
+        # node_modules EXISTS -> update in place, never wipe (stdin /dev/null => pnpm will not
+        # prompt for nor perform the from-scratch purge; a compatible tree just updates).
+        log "node_modules present -> updating in place (no from-scratch reinstall)..."
+        # confirm-modules-purge=true (default) + non-interactive stdin => pnpm errors instead
+        # of wiping if it considers the tree a breaking change; it never purges unprompted.
+        if pnpm install --config.confirm-modules-purge=true < /dev/null; then
+            log "Dependencies updated in place."
+        else
+            warn "Kept existing node_modules (pnpm wanted a from-scratch reinstall -- likely a pnpm major-version change)."
+            warn "If the dev toolchain is broken below, re-run with --force-install to recreate it."
         fi
     fi
-    if [ -n "$NEED_INSTALL" ]; then
-        log "Installing pnpm dependencies (idempotent)..."
-        cd "$APP_ROOT" || exit 1
-        if ! pnpm install; then err "pnpm install failed."; exit 1; fi
-        if ! vite_ready; then
+
+    if ! vite_ready; then
+        if [ -n "$fresh_install" ]; then
             err "pnpm install finished but vite is still missing. Remove node_modules + pnpm-lock.yaml, then re-run with --force-install."
             exit 1
         fi
-        log "Dependencies ready."
-        cd "$ORIGINAL_DIR" || true
-    else
-        log "Dependencies look complete; skipping install. Use --force-install to reinstall."
+        warn "Dev toolchain (vite) not found under node_modules; keeping node_modules as requested."
+        warn "Run with --force-install if you want node_modules recreated from scratch."
     fi
+    log "Dependencies ready."
+    cd "$ORIGINAL_DIR" || true
 }
 
 # Build the production dist once (only when missing or forced).

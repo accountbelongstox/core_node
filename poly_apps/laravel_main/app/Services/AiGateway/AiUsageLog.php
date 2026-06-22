@@ -112,6 +112,14 @@ class AiUsageLog
             'error' => $error,
         ];
 
+        // Mirror to the human-readable TEXT log (best-effort; covers every text /
+        // vision / probe AI call since they all funnel through here). Shares ONE
+        // ai_calls.log with pycore + AiImageHistory.
+        AiTextLog::log(
+            $entry['runtime'], $kind, $provider, $model,
+            $source, $success, $latencyMs, $error
+        );
+
         self::withLock(static function () use ($entry, $kind, $provider, $ts): void {
             $doc = self::load();
             $doc['entries'][] = $entry;

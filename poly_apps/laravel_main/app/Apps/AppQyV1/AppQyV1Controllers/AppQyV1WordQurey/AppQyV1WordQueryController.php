@@ -96,6 +96,14 @@ class AppQyV1WordQueryController extends BaseController
      */
     private function bumpUntranslatedQuery($dictionary, string $word, string $langCode, ?string $targetLanguage): void
     {
+        // On-query media prioritization (P5): when the queried word lacks IMAGE
+        // OR AUDIO OR TRANSLATION, ensure a 'word_media' global task exists and
+        // bump it (plus the per-resource image/tts priority) to the FRONT. Cheap
+        // and non-blocking — the service swallows its own failures. This runs
+        // even with no target_language (image/audio are language-agnostic).
+        app(\App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService::class)
+            ->bumpQueriedWord($dictionary, $word, $langCode, $targetLanguage);
+
         if ($targetLanguage === null || trim($targetLanguage) === '') {
             return;
         }
@@ -587,6 +595,13 @@ class AppQyV1WordQueryController extends BaseController
     public function searchWords(Request $request, $query)
     {
         $language = $request->input('language', 'en');
+        $targetLanguage = $request->input('target_language');
+
+        // Active search of an exact term: bump THAT term's media to the FRONT
+        // when it lacks image/audio/translation (single bump, not per-result, so
+        // a prefix search stays cheap). P5 on-query prioritization.
+        $exactRow = AppQyV1LangDictionaryModel::findByContent($language, $query);
+        $this->bumpUntranslatedQuery($exactRow, $query, $language, $targetLanguage);
 
         // Case-insensitive prefix match on BOTH drivers: plain LIKE is
         // case-insensitive on sqlite but case-SENSITIVE on pgsql.
@@ -707,8 +722,13 @@ class AppQyV1WordQueryController extends BaseController
     public function publicWordLookup(Request $request, $word)
     {
         $language = $request->input('language', 'en');
+        $targetLanguage = $request->input('target_language');
 
         $row = AppQyV1LangDictionaryModel::findByContent($language, $word);
+
+        // Active single-word public lookup: bump its media to the FRONT when it
+        // lacks image/audio/translation (P5 on-query prioritization).
+        $this->bumpUntranslatedQuery($row, $word, $language, $targetLanguage);
 
         if ($row === null) {
             return $this->success(['word' => $word, 'found' => false], 'Word not found');

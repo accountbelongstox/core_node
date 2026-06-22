@@ -13,6 +13,7 @@ import {
 // Note: This component now uses the new centralized api from core/api
 import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
+import { mediaUrl } from '../../config/constants';
 import {
   Languages,
   ArrowLeftRight,
@@ -53,6 +54,7 @@ import VocabularyWordListModal from '../vocabulary/VocabularyWordListModal';
 import BooksPanel from '../vocabulary/BooksPanel';
 import VocabularyCoverManagerMenu from '../vocabulary/VocabularyCoverManagerMenu';
 import WordsManagerPanel from '../vocabulary/WordsManagerPanel';
+import VocabularyLibraryDetail from '../vocabulary/VocabularyLibraryDetail';
 import PaginatedListModal, { type PaginatedListColumn, type PaginatedListFetcher } from '../vocabulary/PaginatedListModal';
 import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../types';
 import Portal from '../shared/Portal';
@@ -712,14 +714,10 @@ const VocabularyLearning: React.FC = () => {
   // Per-library cover-retry in flight (keyed by library id).
   const [retryingCovers, setRetryingCovers] = useState<Set<number | string>>(new Set());
 
-  // Library Words Viewer State
+  // Library Words Viewer State — the open flag + active library; all paging,
+  // stats and word data now live inside <VocabularyLibraryDetail>.
   const [libraryWordsModalOpen, setLibraryWordsModalOpen] = useState(false);
   const [activeLibrary, setActiveLibrary] = useState<any | null>(null);
-  const [libraryWords, setLibraryWords] = useState<any[]>([]);
-  const [libraryWordsLoading, setLibraryWordsLoading] = useState(false);
-  const [libraryWordsPage, setLibraryWordsPage] = useState(1);
-  const [libraryWordsPerPage, setLibraryWordsPerPage] = useState(100);
-  const [libraryWordsTotal, setLibraryWordsTotal] = useState(0);
 
   // Statistics State
   const [statistics, setStatistics] = useState<any>(null);
@@ -841,7 +839,7 @@ const VocabularyLearning: React.FC = () => {
 
   useEffect(() => {
     if (tts.data?.audio_url && audioRef.current) {
-      audioRef.current.src = tts.data.audio_url;
+      audioRef.current.src = mediaUrl(tts.data.audio_url);
       audioRef.current.load();
     }
   }, [tts.data]);
@@ -1020,77 +1018,14 @@ const VocabularyLearning: React.FC = () => {
   const getLibraryPageCacheKey = (language: string, libraryId: number | string) =>
     `vocab_library_page_${language}_${libraryId}`;
 
-  const loadLibraryWords = async (
-    library: any,
-    page?: number,
-    overridePerPage?: number
-  ) => {
+  // Open the library detail view. Fetching/paging/stats now live inside
+  // <VocabularyLibraryDetail> (virtualized + dashboard + fullscreen); this just
+  // sets the active library and opens the modal. The per-library page cache key
+  // is passed to the detail component so paging still survives reopen.
+  const loadLibraryWords = (library: any) => {
     if (!library) return;
-    const libraryId = library.id;
-    const langKey = selectedLanguage || 'default';
-
-    // Resolve page: prefer explicit param, then cache, then 1
-    let targetPage = page;
-    if (!targetPage) {
-      try {
-        const cacheKey = getLibraryPageCacheKey(langKey, libraryId);
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const parsed = parseInt(cached, 10);
-          if (!isNaN(parsed) && parsed > 0) {
-            targetPage = parsed;
-          }
-        }
-      } catch {
-        // ignore cache errors
-      }
-    }
-    if (!targetPage || targetPage < 1) {
-      targetPage = 1;
-    }
-
-    const perPage = overridePerPage && overridePerPage > 0 ? overridePerPage : libraryWordsPerPage;
-
     setActiveLibrary(library);
     setLibraryWordsModalOpen(true);
-    setLibraryWordsLoading(true);
-
-    try {
-      const response = await api.appQyV1.getLibraryWords(libraryId, {
-        page: targetPage,
-        per_page: perPage,
-      });
-
-      if (response.success && response.data) {
-        const data = response.data as any;
-        const words = Array.isArray(data.words)
-          ? data.words
-          : Array.isArray(data.items)
-          ? data.items
-          : [];
-
-        const pagination = data.pagination || {};
-        const currentPage = Number(pagination.current_page) || targetPage || 1;
-        const perPageNum = Number(pagination.per_page) || perPage;
-        const totalNum = Number(pagination.total) || 0;
-
-        setLibraryWords(words);
-        setLibraryWordsPage(currentPage);
-        setLibraryWordsPerPage(perPageNum);
-        setLibraryWordsTotal(totalNum);
-
-        try {
-          const cacheKey = getLibraryPageCacheKey(langKey, libraryId);
-          localStorage.setItem(cacheKey, String(currentPage));
-        } catch {
-          // ignore
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load library words:', error);
-    } finally {
-      setLibraryWordsLoading(false);
-    }
   };
 
   const loadStatistics = async (filter?: string) => {
@@ -1352,10 +1287,13 @@ const VocabularyLearning: React.FC = () => {
   /** Resolve the dictionary-language for a drill-down (filter 'all' → English). */
   const drillLanguage = (): string => (statsLanguageFilter === 'all' ? 'english' : statsLanguageFilter);
 
-  /** Inline play of a word's pre-rendered audio (drill-down ▶ button + detail panel). */
+  /** Inline play of a word's pre-rendered audio (drill-down ▶ button + detail panel).
+   *  Rebases relative backend URLs onto the API origin (:9000) since the page is
+   *  served cross-origin (:13054); absolute URLs (e.g. resolved sentence audio,
+   *  cached urls) pass through mediaUrl unchanged. Covers every caller. */
   const playWordAudio = (url: string, label?: string) => {
     try {
-      const a = new Audio(url);
+      const a = new Audio(mediaUrl(url));
       a.play().catch((e) => {
         logError('vocab', `Audio play failed${label ? ` for "${label}"` : ''}: ${e?.message || e}`);
         toast.error('Could not play audio');
@@ -1759,9 +1697,13 @@ const VocabularyLearning: React.FC = () => {
     const translations: string[] = Array.isArray(r.translations) ? r.translations : [];
     const images: any[] = Array.isArray(r.image_files) ? r.image_files : [];
     const imageUrl = (img: any): string | null => {
-      if (typeof img === 'string') return img;
-      if (img && typeof img === 'object') return img.url || img.path || img.src || null;
-      return null;
+      // Rebase relative backend paths onto the API origin (:9000); external
+      // absolute URLs (e.g. Bing word images) pass through mediaUrl unchanged.
+      const raw =
+        typeof img === 'string'
+          ? img
+          : (img && typeof img === 'object' ? (img.url || img.path || img.src || null) : null);
+      return raw ? mediaUrl(raw) : null;
     };
     const Field = ({ label, value }: { label: string; value: React.ReactNode }) =>
       value == null || value === '' ? null : (
@@ -1809,7 +1751,7 @@ const VocabularyLearning: React.FC = () => {
               >
                 <Volume2 className="w-3.5 h-3.5" /> Play audio
               </button>
-              <audio controls src={r.audio_url} className="h-8 max-w-[14rem]" />
+              <audio controls src={mediaUrl(r.audio_url)} className="h-8 max-w-[14rem]" />
             </div>
           )}
           {r.word_details != null && (
@@ -2706,7 +2648,7 @@ const VocabularyLearning: React.FC = () => {
                 {library.image_url && (
                   <div className="w-full h-32 mb-3 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
                     <img
-                      src={library.image_url}
+                      src={mediaUrl(library.image_url)}
                       alt={library.name}
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -3301,154 +3243,19 @@ const VocabularyLearning: React.FC = () => {
         }}
       />
 
-      {/* Library Words Modal */}
+      {/* Library Words Modal — upgraded detail view (dashboard + virtualized
+          list + per-row expand + fullscreen). The detail component owns its own
+          fetching/paging/stats; it can go full-viewport (Esc restores/closes). */}
       {libraryWordsModalOpen && activeLibrary && (
         <Portal>
           <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}>
-            <div className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col border border-slate-200/80 dark:border-slate-700/80">
-            {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-              <div className="flex flex-col">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  {activeLibrary.name}
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  {activeLibrary.language} · {activeLibrary.word_count || 0} words · {activeLibrary.difficulty || 'intermediate'}
-                </p>
-              </div>
-              <button
-                onClick={() => setLibraryWordsModalOpen(false)}
-                className="text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full p-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Controls */}
-            <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3">
-                <span className="text-slate-500 dark:text-slate-400">
-                  Page {libraryWordsPage} · {libraryWordsTotal} words
-                </span>
-                <select
-                  className="border border-slate-300 dark:border-slate-700 rounded-md px-2 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
-                  value={libraryWordsPerPage}
-                  onChange={(e) => {
-                    const per = parseInt(e.target.value, 10) || 100;
-                    // update state, then reload page 1 with explicit perPage
-                    setLibraryWordsPerPage(per);
-                    loadLibraryWords(activeLibrary, 1, per);
-                  }}
-                >
-                  <option value={50}>50 / page</option>
-                  <option value={100}>100 / page</option>
-                  <option value={200}>200 / page</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  disabled={libraryWordsPage <= 1 || libraryWordsLoading}
-                  onClick={() => loadLibraryWords(activeLibrary, libraryWordsPage - 1)}
-                  className="px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Prev
-                </button>
-                <button
-                  disabled={
-                    libraryWordsLoading ||
-                    libraryWordsTotal <= libraryWordsPage * libraryWordsPerPage
-                  }
-                  onClick={() => loadLibraryWords(activeLibrary, libraryWordsPage + 1)}
-                  className="px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-
-            {/* Words Table */}
-            <div className="flex-1 overflow-auto">
-              {libraryWordsLoading ? (
-                <div className="flex items-center justify-center py-10 text-slate-500 dark:text-slate-400">
-                  <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-                  Loading words...
-                </div>
-              ) : libraryWords.length === 0 ? (
-                <div className="flex items-center justify-center py-10 text-slate-400 text-sm">
-                  No words found for this library.
-                </div>
-              ) : (
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
-                    <tr>
-                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-14">
-                        #
-                      </th>
-                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-32">
-                        Word
-                      </th>
-                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300 w-32">
-                        Phonetic
-                      </th>
-                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">
-                        Translations
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {libraryWords.map((word: any, idx: number) => {
-                      const index =
-                        (word.index as number | undefined) ??
-                        (word.word_index as number | undefined) ??
-                        idx + 1 + (libraryWordsPage - 1) * libraryWordsPerPage;
-                      const translations: string[] = Array.isArray(word.translations)
-                        ? word.translations
-                        : [];
-                      const shortTranslations =
-                        translations.length === 0
-                          ? ''
-                          : translations.join(', ').slice(0, 80) +
-                            (translations.join(', ').length > 80 ? '…' : '');
-
-                      const fullTranslations = translations.join(', ');
-
-                      return (
-                        <tr key={`${index}-${word.word || idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
-                          <td className="px-3 py-2 text-slate-500 dark:text-slate-400 font-mono">
-                            {index}
-                          </td>
-                          <td className="px-3 py-2 text-slate-900 dark:text-slate-100 font-semibold">
-                            {word.word}
-                          </td>
-                          <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
-                            {word.us_phonetic && (
-                              <span className="mr-2">US: /{word.us_phonetic}/</span>
-                            )}
-                            {word.uk_phonetic && (
-                              <span>UK: /{word.uk_phonetic}/</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
-                            {shortTranslations ? (
-                              <button
-                                type="button"
-                                className="text-left w-full truncate hover:text-indigo-600 dark:hover:text-indigo-400"
-                                title={fullTranslations}
-                              >
-                                {shortTranslations}
-                              </button>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-            </div>
+            <VocabularyLibraryDetail
+              library={activeLibrary}
+              onClose={() => setLibraryWordsModalOpen(false)}
+              playWordAudio={playWordAudio}
+              renderWordDetail={renderWordDetail}
+              pageCacheKey={getLibraryPageCacheKey(selectedLanguage || 'default', activeLibrary.id)}
+            />
           </div>
         </Portal>
       )}

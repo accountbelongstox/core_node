@@ -1,12 +1,17 @@
 /**
  * pycoreTarget — which pycore node the WHOLE pycore-manager talks to.
  *
- * Default = LOCAL (this machine's pycore on :59000, reached via the `/pyapi`
- * proxy + `ws(s)://<page-host>:59000`). A REMOTE target re-points every pycore
- * transport — HTTP (PycoreApi), RPC WebSocket (PycoreWs), SSE (PycoreSse) and
- * the health ping (PycoreHealth) — at `http(s)://<host>:59000`, so EVERY
- * pycore-manager page then manages that remote client. rpc_v2 already sets CORS
- * `allow_origins=["*"]`, so cross-origin calls to a remote :59000 are allowed.
+ * Default = LOCAL = the CURRENT PAGE's host on :59000 (`http(s)://<page-host>:59000`
+ * for HTTP/health, `ws(s)://<page-host>:59000` for RPC WS/SSE) — NOT a literal
+ * 127.0.0.1 and NOT the `/pyapi` proxy. So opening this UI from another machine
+ * (e.g. http://<lan-ip>:13054) manages THAT machine's pycore by default. (Only the
+ * cloud-preview sandbox keeps the same-origin `/pyapi` proxy — :59000 isn't
+ * reachable there.) A REMOTE target re-points every pycore transport — HTTP
+ * (PycoreApi), RPC WebSocket (PycoreWs), SSE (PycoreSse) and the health ping
+ * (PycoreHealth) — at `http(s)://<host>:59000`, so EVERY pycore-manager page then
+ * manages that remote client. rpc_v2 sets CORS `allow_origins=["*"]`, so the
+ * cross-origin call from the UI port to :59000 is allowed. (pycore's :59000 backend
+ * is separate from Laravel's :9000 — different host:port, different endpoint set.)
  *
  * Switching PERSISTS the choice and RELOADS the page: that is the documented way
  * the WS/SSE URLs re-point (see PycoreWs.resolveWsUrl — "a page reload alone
@@ -56,15 +61,44 @@ export function pycoreTargetHost(): string | null {
 }
 
 /**
+ * The cloud-preview sandbox (Cloud Run / the :3000 preview) has NO reachable
+ * pycore :59000 — there the same-origin `/pyapi` proxy is the only path. Mirrors
+ * the identical guard in PycoreWs.resolveWsUrl / PycoreSse.
+ */
+function isSandbox(): boolean {
+  return typeof location !== 'undefined'
+    && (location.hostname.includes('run.app') || location.port === '3000');
+}
+
+/**
+ * The host the LOCAL target resolves to: the CURRENT PAGE's host (so opening this
+ * UI from another machine manages THAT machine's pycore on :59000 — not a literal
+ * 127.0.0.1). Falls back to 127.0.0.1 only off-web.
+ */
+export function localPycoreHost(): string {
+  if (typeof location !== 'undefined' && location.hostname) return location.hostname;
+  return '127.0.0.1';
+}
+
+/** The host pycore actually targets right now: an explicit remote pin, else the
+ *  current page host. (Sandbox uses the /pyapi proxy and has no single host.) */
+export function pycoreEffectiveHost(): string | null {
+  return pycoreTargetHost() || (isSandbox() ? null : localPycoreHost());
+}
+
+/**
  * Rewrite a local `/pyapi/...` endpoint for the current target.
- *   local  → unchanged (`/pyapi/...`, handled by the dev proxy / webview)
- *   remote → `http(s)://<host>:59000/...` (the `/pyapi` proxy prefix stripped)
+ *   remote  → `http(s)://<host>:59000/...`
+ *   local   → `http(s)://<current-page-host>:59000/...` (the DEFAULT is the page's
+ *             own origin host on :59000, consistent with the RPC WS/SSE which
+ *             already use `location.hostname:59000` — NOT the /pyapi→127.0.0.1 proxy)
+ *   sandbox → unchanged `/pyapi/...` (same-origin proxy; :59000 isn't reachable)
  * Absolute URLs are returned untouched.
  */
 export function rewritePycoreEndpoint(endpoint: string): string {
-  const host = pycoreTargetHost();
-  if (!host) return endpoint;
   if (/^https?:\/\//i.test(endpoint)) return endpoint;
+  const host = pycoreEffectiveHost();
+  if (!host) return endpoint;                       // sandbox → keep the /pyapi proxy
   const path = endpoint.replace(/^\/pyapi/, '');
   return `${httpProto()}://${host}:${PORT}${path.startsWith('/') ? path : `/${path}`}`;
 }

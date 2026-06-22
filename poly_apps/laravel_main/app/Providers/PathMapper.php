@@ -59,7 +59,14 @@ class PathMapper
         
         // Path separator based on OS
         $separator = $isWindows ? '\\' : '/';
-        
+
+        // Development-tooling location (node/python/go/...). Linux prefers a local
+        // /opt when the root (/) filesystem has more than DEV_ROOT_MIN_FREE_GB free
+        // (so it is NOT mapped onto the largest secondary disk), else the secondary
+        // disk; Windows mirrors deploy.ps1 (D:\_win{ver}). Mirrors gvar_common.sh.
+        [$compileBase, $devSuffix] = self::getDevCompileParts($isWindows);
+        $compileDir = $compileBase . $separator . '_' . $devSuffix;
+
         // Map paths - structure is the same, only base path differs
         $mappedPath = match($pathKey) {
             'wwwroot' => $basePath . $separator . 'wwwroot',
@@ -67,6 +74,11 @@ class PathMapper
             'shared-data' => $basePath . $separator . 'shared-data',
             'backup' => $basePath . $separator . 'backup',
             'www' => $basePath,
+            // Development tooling roots (node/python/go/...). See getDevCompileParts().
+            'compile_dir' => $compileDir,
+            'dev_system' => $compileDir,
+            'applications_dir' => $compileDir . $separator . 'applications',
+            'npm_global' => $compileDir . $separator . 'npm-global',
             'laravel_data_dir' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db',
             'app_external_data' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'external_data',
             'nginx' => $isWindows ? 'nginx.exe' : self::findActualPath('/etc/nginx'),
@@ -139,6 +151,96 @@ class PathMapper
         
         // Fallback: /www
         return '/www';
+    }
+
+    /**
+     * Detect system name + major version (mirrors gvar_common.sh SYSTEM_NAME /
+     * SYSTEM_VERSION). Reads /etc/os-release ID / VERSION_ID, e.g. ['kali','2026'],
+     * ['ubuntu','24'], ['debian','13']. Falls back to php_uname when unavailable.
+     *
+     * @return array{0:string,1:string} [name, majorVersion]
+     */
+    private static function getSystemNameVersion(): array
+    {
+        $name = '';
+        $version = '';
+
+        if (is_readable('/etc/os-release')) {
+            $lines = @file('/etc/os-release', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+            foreach ($lines as $line) {
+                if ($name === '' && str_starts_with($line, 'ID=')) {
+                    $name = strtolower(trim(substr($line, 3), " \t\"'"));
+                } elseif ($version === '' && str_starts_with($line, 'VERSION_ID=')) {
+                    $version = trim(substr($line, 11), " \t\"'");
+                }
+            }
+        }
+
+        if ($name === '') {
+            $name = strtolower(php_uname('s'));
+        }
+        // Keep only the major version component (24.04 -> 24, 2026.1 -> 2026)
+        if ($version !== '' && str_contains($version, '.')) {
+            $version = explode('.', $version)[0];
+        }
+
+        return [$name, $version];
+    }
+
+    /**
+     * Check whether the root (/) filesystem has more than $minGb free space.
+     * Mirrors gvar_common.sh::root_has_sufficient_free_space. The threshold can
+     * be overridden via the DEV_ROOT_MIN_FREE_GB environment variable.
+     */
+    private static function rootHasSufficientFreeSpace(int $minGb = 50): bool
+    {
+        $envGb = getenv('DEV_ROOT_MIN_FREE_GB');
+        if ($envGb !== false && is_numeric($envGb)) {
+            $minGb = (int) $envGb;
+        }
+        $free = @disk_free_space('/');
+        if ($free === false) {
+            return false;
+        }
+        return $free > $minGb * (1024 ** 3);
+    }
+
+    /**
+     * Compute the development-tooling base directory and its naming suffix.
+     * Mirrors gvar_common.sh get_dev_compile_base() + the compile_dir naming.
+     *
+     * Linux: '/opt' when root (/) has > DEV_ROOT_MIN_FREE_GB free (non-WSL),
+     *        else the largest secondary disk (getBaseDataDirectory()).
+     * Windows: 'D:' with a win{ver} suffix (mirrors deploy.ps1 / system_paths.py).
+     *
+     * @return array{0:string,1:string} [base, suffix] e.g. ['/opt','kali_2026']
+     */
+    private static function getDevCompileParts(bool $isWindows): array
+    {
+        if ($isWindows) {
+            $release = strtolower(php_uname('r'));
+            if (str_contains($release, '11')) {
+                $suffix = 'win11';
+            } elseif (str_contains($release, '10')) {
+                $suffix = 'win10';
+            } else {
+                $suffix = 'win' . $release;
+            }
+            return ['D:', $suffix];
+        }
+
+        [$sysName, $sysVersion] = self::getSystemNameVersion();
+        $suffix = $sysVersion !== '' ? "{$sysName}_{$sysVersion}" : $sysName;
+
+        // WSL keeps its Windows-backed /mnt/d design (root / is the ephemeral vhdx).
+        // STICKY /opt: if the /opt dev dir already exists keep using it regardless
+        // of current root free space; otherwise select /opt when root (/) has more
+        // than DEV_ROOT_MIN_FREE_GB free. Once /opt is chosen, never switch away.
+        if (!self::isWSL() && (is_dir('/opt/_' . $suffix) || self::rootHasSufficientFreeSpace())) {
+            return ['/opt', $suffix];
+        }
+
+        return [self::getBaseDataDirectory(), $suffix];
     }
 
     /**
@@ -429,8 +531,34 @@ class PathMapper
     }
 
     /**
+     * Canonical AppQyV1 word/sentence-TTS audio base directory.
+     *
+     * Single source of truth for where the edge-tts pipeline (EdgeTTSService /
+     * AppQyV1TTSService) and the Bing-assist audio write-back store generated
+     * audio AND where the serve route /api/app_qy_v1/ai_tools/tts/audio/{...}
+     * reads it back — write target == serve base (no split-brain). Files live at
+     *   <laravel_db>/static/app_qy_v1/audio/{lang}/{type}/{file}
+     * with the relative path "{lang}/{type}/{file}" (stored in tts_files[].path)
+     * UNCHANGED — only the physical base moved from tts_data/audio into the
+     * unified static tree so laravel_db copies cleanly as a deployment data dir.
+     */
+    public static function getAppQyV1AudioBaseDir(?string $subPath = ""): string
+    {
+        $relative = 'app_qy_v1/audio';
+        if ($subPath !== null && $subPath !== '') {
+            $relative = $relative . '/' . ltrim($subPath, '/');
+        }
+        return self::getLaravelStaticDir($relative);
+    }
+
+    /**
      * Get AppQyV1 audio directory (word sounds)
      * Based on config('AppQyV1.paths.audio_directory')
+     *
+     * Canonical location is now the unified static audio base
+     * (getAppQyV1AudioBaseDir()) under the word_sounds namespace, so the
+     * write-back target equals the serve base. A pinned config override is still
+     * honored verbatim for hosts that fixed a location.
      */
     public static function getAppQyV1AudioDir(?string $subPath = ""): string
     {
@@ -445,17 +573,22 @@ class PathMapper
             return $basePath;
         }
 
-        // Derive from the unified, mapWebPath-backed external data root.
-        $relative = 'audio/word_sounds';
+        // Unified static tree: static/app_qy_v1/audio/word_sounds/...
+        $relative = 'word_sounds';
         if ($subPath !== null && $subPath !== '') {
             $relative = $relative . '/' . ltrim($subPath, '/');
         }
-        return self::getAppQyV1ExternalDataRoot($relative);
+        return self::getAppQyV1AudioBaseDir($relative);
     }
 
     /**
      * Get AppQyV1 sentence sounds directory
      * Based on config('AppQyV1.paths.sentence_sounds')
+     *
+     * Canonical location is now the unified static audio base
+     * (getAppQyV1AudioBaseDir()) under the sentence_sounds namespace, so the
+     * sentence-library write target equals the serve base. A pinned config
+     * override is still honored verbatim.
      */
     public static function getAppQyV1SentenceSoundsDir(?string $subPath = ""): string
     {
@@ -470,12 +603,43 @@ class PathMapper
             return $basePath;
         }
 
-        // Derive from the unified, mapWebPath-backed external data root.
-        $relative = 'audio/sentence_sounds';
+        // Unified static tree: static/app_qy_v1/audio/sentence_sounds/...
+        $relative = 'sentence_sounds';
         if ($subPath !== null && $subPath !== '') {
             $relative = $relative . '/' . ltrim($subPath, '/');
         }
-        return self::getAppQyV1ExternalDataRoot($relative);
+        return self::getAppQyV1AudioBaseDir($relative);
+    }
+
+    /**
+     * Get AppQyV1 word-images directory (Bing-assist sample images stored as
+     * local files from base64 bytes; the Bing image URLs are not server-fetchable).
+     * Mirrors getAppQyV1AudioDir(): config override, else the unified
+     * mapWebPath-backed external data root under image/word_images. Files live
+     * under a "{lang}/word/{md5}.{ext}" namespace.
+     */
+    public static function getAppQyV1WordImagesDir(?string $subPath = ""): string
+    {
+        $configured = config('AppQyV1.paths.word_images_directory');
+        $default = storage_path('app/external_data/image/word_images');
+        if ($configured !== null && $configured !== '' && $configured !== $default) {
+            $basePath = $configured;
+            if ($subPath !== null && $subPath !== '') {
+                $subPath = ltrim($subPath, '/');
+                $basePath = rtrim($basePath, '/') . '/' . $subPath;
+            }
+            return $basePath;
+        }
+
+        // Canonical location: the UNIFIED static tree under laravel_db/static so
+        // laravel_db copies cleanly as a deployment data dir (no scatter across
+        // external_data / tts_data). Served as /static/app_qy_v1/word_images/...
+        // Files: static/app_qy_v1/word_images/{lang}/word/{md5}.{ext}.
+        $relative = 'app_qy_v1/word_images';
+        if ($subPath !== null && $subPath !== '') {
+            $relative = $relative . '/' . ltrim($subPath, '/');
+        }
+        return self::getLaravelStaticDir($relative);
     }
 
     /**

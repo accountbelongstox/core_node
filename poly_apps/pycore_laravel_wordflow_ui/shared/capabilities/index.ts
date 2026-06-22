@@ -16,6 +16,11 @@
  *   - CapSpeechRecognition spoken input + built-in pronunciation scoring
  *   - CapHaptics          tactile feedback (success/error/tap, custom patterns)
  *   - CapKeepAwake        ref-counted screen wake-lock (Walkman/listening)
+ *   - CapNotifications    local notifications + spaced-repetition review reminders
+ *   - CapFilesystem       file storage + JSON store + OPFS large-blob cache (10-100 GB)
+ *   - CapAppState         app lifecycle (pause/resume), back-button, deep links
+ *   - CapCamera           photo capture / gallery pick / avatar (normalized result)
+ *   - CapDatabase         document/collection DB (IndexedDB web / SQLite native) + raw SQL
  *
  * AUDIENCE
  *   These are PUBLIC — usable by any app/page in pycore_laravel_wordflow_ui —
@@ -222,6 +227,15 @@ export {
   primaryLang,
   pickVoiceForLang,
   useTextToSpeech,
+  // extended: spell-out / read-along / repeat / lang guess
+  RATE_PRESETS,
+  resolveRate,
+  guessLang,
+  toLetters,
+  spellOut,
+  speakSequence,
+  repeatSpeak,
+  useReadAlong,
 } from './CapTextToSpeech';
 export type {
   CapVoice,
@@ -232,6 +246,10 @@ export type {
   CapTTSListener,
   CapTTSOptions,
   UseTextToSpeechResult,
+  CapRatePreset,
+  CapSpeakSequenceItem,
+  CapSpeakSequenceOptions,
+  UseReadAlongResult,
 } from './CapTextToSpeech';
 
 // --- Speech recognition ----------------------------------------------------
@@ -245,6 +263,10 @@ export {
   levenshtein,
   similarity,
   useSpeechRecognition,
+  // extended: word-level analysis + drill
+  analyzePronunciation,
+  bestAttemptScore,
+  usePronunciationDrill,
 } from './CapSpeechRecognition';
 export type {
   CapSTTPermission,
@@ -255,6 +277,9 @@ export type {
   CapSTTListener,
   CapPronunciationScore,
   UseSpeechRecognitionResult,
+  CapWordScore,
+  CapPronunciationAnalysis,
+  UsePronunciationDrillResult,
 } from './CapSpeechRecognition';
 
 // --- Haptics ---------------------------------------------------------------
@@ -266,6 +291,13 @@ export {
   hapticTap,
   HAPTIC_PATTERNS,
   useHaptics,
+  // extended: learning cues / sequence / metronome
+  LEARNING_PATTERNS,
+  learningHaptics,
+  playHapticSequence,
+  CapHapticMetronome,
+  useLearningHaptics,
+  useHapticMetronome,
 } from './CapHaptics';
 export type {
   CapTapStrength,
@@ -273,6 +305,7 @@ export type {
   CapHapticPattern,
   CapHapticsOptions,
   UseHapticsResult,
+  CapHapticStep,
 } from './CapHaptics';
 
 // --- Keep awake (screen wake-lock) -----------------------------------------
@@ -283,8 +316,225 @@ export {
   keepAwakeDuring,
   useKeepAwake,
   useKeepAwakeState,
+  // extended: timed lock + idle-aware session
+  acquireKeepAwakeTimed,
+  CapAwakeSession,
+  useKeepAwakeTimed,
+  useAwakeSession,
 } from './CapKeepAwake';
 export type {
   CapKeepAwakeState,
   CapKeepAwakeListener,
+  CapAwakeSessionOptions,
 } from './CapKeepAwake';
+
+// --- Local notifications ---------------------------------------------------
+export {
+  CapNotificationsService,
+  capNotify,
+  scheduleReviewReminder,
+  scheduleDailyStudyReminder,
+  nextDailyTime,
+  describeSchedule,
+  useNotificationPermission,
+  useNotifications,
+  // extended: quiet hours / SRS planner / badge
+  setQuietHours,
+  isInQuietHours,
+  avoidQuietHours,
+  DEFAULT_SRS_INTERVALS_HOURS,
+  scheduleSrsReminders,
+  cancelSrsReminders,
+  scheduleWeekly,
+  setAppBadge,
+  clearAppBadge,
+  useReviewReminders,
+  registerActionTypes,
+  clearDelivered,
+  MOTIVATION_MESSAGES,
+  messageForToday,
+  scheduleDailyRotating,
+  useDailyReminder,
+} from './CapNotifications';
+export type {
+  CapNotifyPermission,
+  CapNotifyEvery,
+  CapNotifyContent,
+  CapNotifySchedule,
+  CapPendingNotification,
+  CapNotifyAction,
+  CapNotifyChannel,
+  CapQuietHours,
+  CapSrsReminderPlan,
+  CapNotifyActionType,
+  CapDailyReminderSetting,
+} from './CapNotifications';
+
+// --- Filesystem ------------------------------------------------------------
+export {
+  CapFilesystemService,
+  capFs,
+  CapJsonStore,
+  Directory,
+  Encoding,
+  textToBase64,
+  base64ToText,
+  blobToBase64 as fsBlobToBase64,
+  useJsonFile,
+  // extended: tree ops / upload / remote cache / object URL
+  walkFiles,
+  directorySize,
+  copyTree,
+  importFile,
+  cacheRemote,
+  toObjectUrl,
+  bundleForExport,
+  useDirectory,
+  appendJsonl,
+  readJsonl,
+  tailJsonl,
+  writeJsonl,
+  CapFileCache,
+  // large-file / big-cache subsystem (10-100 GB; OPFS + native disk)
+  getStorageEstimate,
+  requestPersistentStorage,
+  isPersistentStorage,
+  CapBlobStore,
+  CapLargeCache,
+  useStorageEstimate,
+} from './CapFilesystem';
+export type {
+  CapFileStat,
+  CapDirEntry,
+  CapFsOptions,
+  UseJsonFileResult,
+  CapCacheOptions,
+  CapFileCacheOptions,
+  CapStorageEstimate,
+  CapBlobPutOptions,
+} from './CapFilesystem';
+
+// --- App lifecycle ---------------------------------------------------------
+export {
+  CapAppStateService,
+  capApp,
+  initAppState,
+  useAppActive,
+  useAppState,
+  useAppLifecycle,
+  useBackButton,
+  useAppUrlOpen,
+  // extended: idle / foreground time / double-back exit
+  CapIdleDetector,
+  useIdle,
+  useForegroundTime,
+  useDoubleBackExit,
+  CapStudySession,
+  useStudySession,
+} from './CapAppState';
+export type {
+  CapBackButtonEvent,
+  CapUrlOpenEvent,
+  CapAppStateEventMap,
+  CapAppStateListener,
+  CapBackHandler,
+  CapDeepLinkRoute,
+  CapIdleOptions,
+  CapStudySessionState,
+  CapStudySessionSnapshot,
+} from './CapAppState';
+
+// --- Camera ----------------------------------------------------------------
+export {
+  CapCameraService,
+  capCamera,
+  takePhoto,
+  pickPhoto,
+  CameraResultType,
+  CameraSource,
+  CameraDirection,
+  stripDataUrl,
+  formatOf,
+  dataUrlToBlob,
+  downscaleDataUrl,
+  squareCropDataUrl,
+  useCamera,
+  // extended: image processing
+  getImageDimensions,
+  generateThumbnail,
+  rotateDataUrl,
+  toGrayscale,
+  documentScan,
+  scanDocument,
+  useAvatarPicker,
+  cropDataUrl,
+  stackImagesVertically,
+  CapDocumentScanner,
+  useDocumentScanner,
+} from './CapCamera';
+export type {
+  CapPhoto,
+  CapPhotoOptions,
+  CapGalleryOptions,
+  CapCameraPermission,
+  UseCameraResult,
+  CapScanOptions,
+} from './CapCamera';
+
+// --- Database (document store: IndexedDB web / SQLite native) ---------------
+export {
+  CapDatabase,
+  CapCollection,
+  capDb,
+  openDatabase,
+  applyQuery,
+  useDatabase,
+  useQuery,
+  useDocument,
+  useCollection,
+  exportCollections,
+  importCollections,
+} from './CapDatabase';
+export type {
+  CapDoc,
+  CapDbBackendKind,
+  CapWhereOp,
+  CapWhere,
+  CapQuery,
+  CapStoredDoc,
+  CapRawResult,
+  CapDbExport,
+} from './CapDatabase';
+
+// --- Auto-store (schema-on-write typed tables over CapDatabase) -------------
+export {
+  CapAutoStore,
+  CapTypeInferrer,
+  capStore,
+  syncTable,
+  useAutoQuery,
+  useAutoInsert,
+} from './CapAutoStore';
+export type {
+  CapColType,
+  CapTableColumns,
+  CapTableSchema,
+  CapAutoTableOptions,
+  CapAutoStoreOptions,
+} from './CapAutoStore';
+
+// --- Social login (Google + GitHub, native + web) ---------------------------
+export {
+  CapSocialAuthService,
+  capSocial,
+  signInWithGoogle,
+  signInWithGitHub,
+  useSocialAuth,
+} from './CapSocialAuth';
+export type {
+  CapSocialProvider,
+  CapSocialConfig,
+  CapSocialCredential,
+  CapSocialError,
+  UseSocialAuthResult,
+} from './CapSocialAuth';

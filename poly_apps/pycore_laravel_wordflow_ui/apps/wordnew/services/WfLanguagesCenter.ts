@@ -6,8 +6,8 @@
  * built-in offline fallback so the list is never empty, an in-memory snapshot
  * with getByCode/getLanguageName conveniences and a force-refresh. */
 
-import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
-import { StorageCenter, StorageKey } from '../../../core/api-libs/wordflow/WordflowStorage';
+import { wordflowApi } from '../api-libs/wordflow/WordflowApi';
+import { StorageCenter, StorageKey } from '../api-libs/wordflow/WordflowStorage';
 
 export interface WfSupportedLanguageInfo {
   code: string;

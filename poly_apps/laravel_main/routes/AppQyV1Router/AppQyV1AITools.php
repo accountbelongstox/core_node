@@ -7,9 +7,11 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationStreamC
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSWorkerController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1WordImageQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1SentenceAudioController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1AIStatusController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TaskEnqueueController;
 use App\Providers\PathMapper;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
@@ -97,6 +99,15 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
     Route::prefix('article')->group(function () {
         Route::get('/task/{taskId}', [AppQyV1ArticleController::class, 'getTaskStatus']);
     });
+
+    // Word-image queue intake (P3). Mirrors the TTS queue batch/add: a re-request
+    // with priority 'front' moves the word to the head (PRIORITY_FRONT=100);
+    // state lives on the canonical dictionary row's image_* columns. Audio
+    // enqueue REUSES the existing tts/queue/batch/add (not duplicated).
+    //   POST /api/app_qy_v1/ai_tools/word_image/queue/add
+    Route::prefix('word_image')->group(function () {
+        Route::post('/queue/add', [AppQyV1WordImageQueueController::class, 'add']);
+    });
 });
 
 // Async word-translation pipeline (FE-facing). Uses custom.authenticate per the
@@ -124,6 +135,12 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
         // two-step "Load queue" / "Confirm & Start" flow.
         Route::get('/pending-words', [AppQyV1TranslationQueueController::class, 'controlPendingWords']);
         Route::post('/enqueue-pending', [AppQyV1TranslationQueueController::class, 'controlEnqueuePending']);
+        // Public chrome-assist intake: the MCP-driven chrome extension pushes
+        // scraped Bing results straight into the dictionary via the canonical
+        // write-back (no global-task worker round-trip). Same no-auth group as
+        // pending-words. Body: { language, target_language?, source?,
+        // translations:[...], invalidWords:[...], regionRedirectWords:[...] }.
+        Route::post('/submit-bing', [AppQyV1TranslationQueueController::class, 'submitBing']);
         // Real-time SSE stream (replaces Reverb). pycore subscribes here over the
         // same Octane :9000 HTTP port; emits task.queued/task.priority/
         // word.translated/task.completed with a `_id` cursor.
@@ -133,6 +150,18 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
         Route::get('/history', [AppQyV1TranslationQueueController::class, 'controlHistory']);
         Route::post('/priority', [AppQyV1TranslationQueueController::class, 'controlPriority']);
         Route::post('/stack', [AppQyV1TranslationQueueController::class, 'controlStack']);
+    });
+
+// Task Center manual enqueue (control plane). Same NO-AUTH trust level as the
+// translation-queue control plane and the /api/worker/* surface — pycore /
+// chrome-mcp callers have no user token, only Sanctum's stateful boot is
+// stripped. Creates AppQyV1 global tasks (notebooklm / gemini_image / word_*)
+// so the chrome Task Center has work to pull.
+//   POST /api/app_qy_v1/ai_tools/task/enqueue
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
+    ->prefix('app_qy_v1/ai_tools/task')
+    ->group(function () {
+        Route::post('/enqueue', [AppQyV1TaskEnqueueController::class, 'enqueue']);
     });
 
 Route::prefix('app_qy_v1/ai_tools')->middleware('auth:sanctum')->group(function () {

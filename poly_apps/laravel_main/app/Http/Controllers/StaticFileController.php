@@ -57,6 +57,43 @@ class StaticFileController extends Controller
             abort(403);
         }
 
+        return $this->respondFile($request, $resolved);
+    }
+
+    /**
+     * Serve a file stored under the Laravel data static dir
+     * (PathMapper::getLaravelStaticDir). Social Center post images/videos are
+     * written there (NOT the external wwwroot static path the generic /static
+     * catch-all serves), so they need this dedicated responder so the SAME
+     * '/static/app_qy_v1/post_images|post_videos/...' URLs resolve under bare
+     * Octane. Mirrors the sentence_sounds / word_images dedicated routes.
+     */
+    public function serveLaravelStatic(Request $request, string $path): Response
+    {
+        $baseDir = PathMapper::getLaravelStaticDir();
+        $baseReal = realpath($baseDir);
+        if ($baseReal === false) {
+            abort(404);
+        }
+
+        $resolved = realpath(PathMapper::getLaravelStaticDir(ltrim($path, '/')));
+        if ($resolved === false || !is_file($resolved)) {
+            abort(404);
+        }
+
+        // SECURITY: realpath() collapsed any ../ or symlink; the result MUST stay
+        // inside the laravel static root.
+        $prefix = rtrim($baseReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        if (!str_starts_with($resolved, $prefix)) {
+            abort(403);
+        }
+
+        return $this->respondFile($request, $resolved);
+    }
+
+    /** Shared conditional-GET + content-type file responder. */
+    private function respondFile(Request $request, string $resolved): Response
+    {
         $size = filesize($resolved);
         $mtime = filemtime($resolved);
         $etag = '"' . md5($size . '|' . $mtime) . '"';

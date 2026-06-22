@@ -1,10 +1,99 @@
+多角色执行结果 — Chrome MCP Task Center
+
+  角色: chrome(重)
+  交付: 把 popup 重构为统一 Task Center 为主界面;NotebookLM +
+    Gemini 从一次性工具升级为 worker
+    处理器(NotebookLMProcessor/GeminiImageProcessor +
+    SimpleWorkerBase,many-to-many);TaskCenter 按 task_type
+    中央派发;所有开关移入 Task
+    Center(总开关/各处理器开关/后端增删/选项),各功能保留功能测
+  试面板(不碰队列),移除了各扩展的"开头";统一历史+缓存+提交记录+
+  状态(task_center_history
+      环形库,per-(task,backend) 提交/ack,Gemini 图走
+    media-cache);tsc 干净
+  状态: ✅ 待 1 行改
+  ────────────────────────────────────────
+  角色: laravel
+  交付: 新增 notebooklm/gemini_image 两个 task_type +
+    结果处理器(NotebookLm→新表,Gemini→复用
+    WordTranslationWriteback 写 image_files)+ 手动入队 POST
+    /ai_tools/task/enqueue;通知机制
+    pending_urgent(pull+heartbeat 回传 priority≥100 计数)+ pull
+
+     长轮询(pullAndAssignTasksLongPoll,新任务即时返回);确认
+    /library/3 打开即把缺媒体词 bump 到 100;overview
+    增加两类;文档 AppQyV1_TASK_CENTER_PIPELINE.md
+  状态: ✅ 待对齐
+  ────────────────────────────────────────
+  角色: pycore
+  交付: 每个 assist
+    功能可单独启用+优先级(word_audio/sentence_audio/cover/poste
+  r/translation),持久化
+      assist_laravel.priority,经 /capabilities/settings 的新
+    assist 块读写;worker 按优先级排序认领、禁用即跳过;overview
+    暴露 + 透传 chrome 的两类;更新 QUEUE_CENTER_PIPELINE.md
+  状态: ✅
+
+  满足你的三点
+
+  1. Task Center 协助:翻译(Bing)、缺图(Bing/Gemini)、NotebookLM
+  生成、Gemini 图片生成 —— 全部进 worker
+  队列;历史/缓存/提交记录/many-to-many/生成状态齐备;开关统一进
+  Task Center;扩展只剩功能测试。
+  2. laravel:主动扫描入队(已有)+ 打开 /library/...?view=table
+  时缺图音的词立即提前(priority 100)+ 长轮询即时通知
+  chrome-mcp。
+  3. pycore:生成音频/封面/海报 + 句子音频,在 Task Center/Queue
+  Center 可设置 + 排优先级;全部写入功能设置文档。
+
+  正在后台收尾(1 处路由对齐)
+
+  四角色并行后发现:notebooklm/gemini_image 若都用
+  remote_client,会和 word_media 抢同一池子(按 execution_type
+  原子认领)→ 错误 worker 抢走任务饿死。正在改为各自独立
+  execution_type(remote_notebooklm/remote_gemini,仿
+  word_audio→remote_audio):laravel 加枚举+映射,chrome
+  两个处理器各注册自己的 processor_type。改完每个 worker
+  只拉自己的类型。
+
+  等这两个后台 agent 返回我做最终核对(execution_type
+  三端一致)。落地:laravel/FE/chrome
+  只写未跑(feedback-no-compile-test,扩展未打包),pycore
+  过了导入/语法+行为校验;新端点/迁移在下次 pyservice/laravel
+  起服务时生效。
+
+ 查看capactor的googlew一键登陆，和github的一键登陆，添加全局
+  库，并在UI中引用在登陆注册入。同时
+  ✽ Sublimating… (2m 8s · ↓ 4.0k tokens) f❯ edit
+  profile同时能修改其他资料，比如个人说明，手机，邮箱认
+    证等f修改密码，google /github登陆绑定等。在代码中注释需要
+  在那里申请KEY来接入GOOGLE一键登陆，并扩展qy
+  app的后端子用户数据表，注
+  意总表是对所有APP通过，当然针对GOOGLE
+  GITHUB等的支持如果有必要就扩展总表，并在sys
+  init中幂等扩展总用户数据表或子APP的用户数据表。d
+ 
+ 查看前端的修改个人介绍 ，后端的支持
+  情况，注意后端的用户数据是子APP扩展主库，如果没有对应的字段在d
+  sys:init要幂等加入，目标语言的设计不要和profile的编辑同一页，d
+  而是设置中。同时设置中一些荐如果不登陆不显示，比如设置native
+  language和目标语言，再说重申目标语言可以选择多个，并同步到用
+  户设置也就是后端，前端也要更新状态。同时扩展整个项目库，添加
+  必要的库，确保每个页都显示在URL路由页名或路由名。学习模型单独
+  设计一个项和一个子设计页，其中有，每日计算学习词，背词模量工dd
+  式：随身听、卡片，默认随身听，随身听时展示子区域的设置，播放
+  一次，复播1次，读单词，读解释（默认不勾），播放速度：默认0.8s
+  ，播放间隔：默认0，复播间隔（播放词后隔多少个后再复播一次），d
+  复揪速率，重播间隔，并加入复习设置的子项和子页。将以上功能更
+  新到功能设计文档，更新代码。
+
 读取代码并写一个部署文档，注意文档先写一个md文件 dochtml目录中
 
 注意是模拟 doc文件一页接一页的往下走，不是左边菜单。同时要像一个夜店网站，而不是文档站。
 
   解压作为一个前端，写一个 scripts/start.ps1在前端项目中，改用pnpm自动安装启动， 之后将文档写到其中，不再介绍ps1等脚本，而是将ps1脚本中的启动要求写为文档中里边，也就是某个傻B用户拿到文档后自己按ps1中的过程折腾，而不是让它直接运行ps1脚本。
   
-  做前后端多层面的闭环验证。d
+  做前后端多层面的闭环验证。dd
   d
   已经调整了项目位置，现在文档写为中文的。
   
@@ -82,4 +171,5 @@ OK没问题。
 默认API为 http://43.163.112.77:9000/ 其中 windows.currentURL : 9000端口，注意端口要修改，之后是127.0.0.1:9000  100.101.149.39 100.106.85.16 端口都是9000
 之后可以在设置中添加一个item，可以查看和设置和修改，同时API自动测试选择可用的，如果上一次选择的可用就直接用，如果都不可用就要一直测试。
 
-扫描一下还有虽的项目吗，本机。不要写脚本，直接用AI能力扫。
+扫描一下还有虽的项目吗，本机。不要写脚本，直接用AI能力扫。sDddddddFSss的代码dsffdddfsddds
+Tesstfff

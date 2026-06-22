@@ -11,6 +11,7 @@ import { MediaQueryAPI } from './modules/MediaQueryAPI';
 import { BooksAPI } from './modules/BooksAPI';
 import { AiStatusAPI } from './modules/AiStatusAPI';
 import { AiManagementAPI } from './modules/AiManagementAPI';
+import { PddAdminAPI } from './modules/PddAdminAPI';
 import { setSharedBaseURL } from './base/BaseAPI';
 import { getDefaultBaseURL, DEFAULT_API_TIMEOUT } from '../../config/constants';
 
@@ -43,6 +44,7 @@ class APIService {
   public books: BooksAPI;
   public aiStatus: AiStatusAPI;
   public aiManagement: AiManagementAPI;
+  public pddAdmin: PddAdminAPI;
 
   private constructor() {
     // Seed the single shared base URL so EVERY module (including
@@ -135,6 +137,13 @@ class APIService {
       prefix: '/api/local/ai',
       timeout: API_CONFIG.timeout
     });
+
+    // 订多多 (Pinduoduo SaaS) admin console — rides the shared :9000 base URL.
+    this.pddAdmin = new PddAdminAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/pdd/admin',
+      timeout: API_CONFIG.timeout
+    });
   }
 
   /**
@@ -164,6 +173,7 @@ class APIService {
     this.books.setHeader('Authorization', bearerToken);
     this.aiStatus.setHeader('Authorization', bearerToken);
     this.aiManagement.setHeader('Authorization', bearerToken);
+    this.pddAdmin.setHeader('Authorization', bearerToken);
   }
 
   /**
@@ -182,6 +192,7 @@ class APIService {
     this.books.removeHeader('Authorization');
     this.aiStatus.removeHeader('Authorization');
     this.aiManagement.removeHeader('Authorization');
+    this.pddAdmin.removeHeader('Authorization');
   }
 
   /**
@@ -200,6 +211,7 @@ class APIService {
     this.books.setHeader(key, value);
     this.aiStatus.setHeader(key, value);
     this.aiManagement.setHeader(key, value);
+    this.pddAdmin.setHeader(key, value);
   }
 
   /**

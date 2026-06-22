@@ -229,16 +229,20 @@ install_dependencies() {
 
     print_info "Step 1: Installing PyTorch (latest) with CUDA 12.6..."
     echo ""
+    # Print the exact command-string before running it (traceability).
+    echo "[96] $python_cmd -m pip install --break-system-packages --no-user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126"
     $python_cmd -m pip install --break-system-packages --no-user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
     echo ""
 
     print_info "Step 2: Installing core dependencies..."
     echo ""
+    echo "[96] $python_cmd -m pip install --break-system-packages --no-user transformers accelerate pillow einops timm sentencepiece protobuf"
     $python_cmd -m pip install --break-system-packages --no-user transformers accelerate pillow einops timm sentencepiece protobuf
     echo ""
 
     print_info "Step 3: Installing flash-attn (latest)..."
     echo ""
+    echo "[96] $python_cmd -m pip install --break-system-packages --no-user flash-attn --no-build-isolation"
     $python_cmd -m pip install --break-system-packages --no-user flash-attn --no-build-isolation
     echo ""
 

@@ -212,32 +212,6 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
       exit={{ opacity: 0, y: -15 }}
       className="space-y-8 pb-24 max-w-4xl mx-auto"
     >
-      {/* Immersive Header Panel with floating cosmic items */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-zinc-200/50 dark:border-white/5 pb-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-1 px-2.5 rounded-md font-mono text-[10px] font-bold bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 uppercase tracking-widest">
-              {trans('bilingual.tagAcoustic')}
-            </span>
-            <span className="p-1 px-2.5 rounded-md font-mono text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-widest">
-              {trans('bilingual.tagBiContrast')}
-            </span>
-          </div>
-          <h2 className="text-2xl font-black tracking-tight mt-2 text-indigo-950 dark:text-white flex items-center gap-2.5">
-            <AudioLines className="w-6 h-6 text-indigo-400 animate-pulse" />
-            {trans('bilingual.title')}
-          </h2>
-          <p className="text-zinc-500 text-xs mt-1">
-            {trans('bilingual.intro')}
-          </p>
-        </div>
-
-        <div className="flex gap-2 items-center text-[10px] uppercase font-bold font-mono bg-indigo-500/10 dark:bg-zinc-900 border border-indigo-500/15 dark:border-white/5 px-4 py-2.5 rounded-2xl text-indigo-700 dark:text-indigo-400">
-          <Languages className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '8s' }} />
-          <span>{trans('bilingual.activePair')}: {nativeLang.toUpperCase()} ↔ {targetLang.toUpperCase()}</span>
-        </div>
-      </div>
-
       {/* Control Deck for the user to optimize ratios directly inside the page view */}
       <div className={`p-5 sm:p-6 rounded-3xl ${activeTheme.cardClass} border border-zinc-100 dark:border-white/5 space-y-4 shadow-sm`}>
         <div className="flex items-center justify-between border-b border-zinc-100 dark:border-white/5 pb-3">

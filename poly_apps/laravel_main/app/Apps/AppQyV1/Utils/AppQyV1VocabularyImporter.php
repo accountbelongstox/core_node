@@ -134,6 +134,54 @@ class AppQyV1VocabularyImporter
      *  - system imports: lowercased name
      *  - user uploads: unique per (owner, language, name)
      */
+    /**
+     * Normalize an explicitly-provided source to the canonical, comparable form:
+     * trimmed + lowercased. Keeps the import upsert and the read-side dedup
+     * (AppQyV1VocabularyLibraryPublicController::canonicalLibraryKey) in
+     * agreement on what "the same library" means.
+     */
+    public static function normalizeSource(string $source): string
+    {
+        return mb_strtolower(trim($source));
+    }
+
+    /**
+     * Derive the canonical NOT-NULL `source` idempotency key when a caller does
+     * not supply one. Deterministic so a re-import always targets the SAME row:
+     *  - system imports: slugified name (lowercase, non-alnum -> single '_').
+     *  - user uploads:   unique per (owner, language, name) via an md5 of the
+     *    normalized name, prefixed with owner + language so different users /
+     *    languages never collide.
+     *
+     * Never returns an empty string (falls back to a language-scoped hash), so a
+     * row created through this path can never have a blank source.
+     */
+    public static function canonicalSource(
+        string $sourceType,
+        string $collectionName,
+        string $langCode,
+        ?int $ownerId = null
+    ): string {
+        $langCode = mb_strtolower(trim($langCode));
+        $normalizedName = mb_strtolower(trim($collectionName));
+
+        if ($sourceType === 'system') {
+            // Slugify: collapse any run of non-alphanumeric chars to one '_'.
+            $slug = preg_replace('/[^a-z0-9]+/u', '_', $normalizedName);
+            $slug = trim((string) $slug, '_');
+            if ($slug === '') {
+                $slug = 'lib_' . md5($normalizedName . '|' . $langCode);
+            }
+            return $slug;
+        }
+
+        $ownerKey = '0';
+        if ($ownerId !== null) {
+            $ownerKey = (string) $ownerId;
+        }
+        return 'user_' . $ownerKey . '_' . $langCode . '_' . md5($normalizedName);
+    }
+
     public function createVocabularyCollection(
         string $collectionName,
         string $langCode,
@@ -153,18 +201,13 @@ class AppQyV1VocabularyImporter
             ];
         }
 
-        if ($source === null) {
-            if ($sourceType === 'system') {
-                $source = strtolower(str_replace(' ', '_', trim($collectionName)));
-            } else {
-                $ownerKey = '0';
-                if ($ownerId !== null) {
-                    $ownerKey = (string) $ownerId;
-                }
-                // Unique per user + language + name; deterministic so the same
-                // upload refreshes its library instead of duplicating it.
-                $source = 'user_' . $ownerKey . '_' . $langCode . '_' . md5(mb_strtolower(trim($collectionName)));
-            }
+        // Canonical NOT-NULL idempotency key. A blank/whitespace-only $source is
+        // treated as "not provided" so a caller passing '' can never create a
+        // row whose source defeats the unique constraint.
+        if ($source === null || trim($source) === '') {
+            $source = self::canonicalSource($sourceType, $collectionName, $langCode, $ownerId);
+        } else {
+            $source = self::normalizeSource($source);
         }
 
         try {
@@ -173,7 +216,26 @@ class AppQyV1VocabularyImporter
             $appended = 0;
 
             DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($collectionName, $langCode, $langName, $sourceType, $ownerId, $isPublic, $description, $source, $words, &$library, &$ensuredCount, &$appended) {
+                // Upsert by canonical source first. As a safety net for legacy
+                // rows created before the NOT-NULL backfill (source NULL/blank),
+                // also adopt a same name+language row so the importer REUSES and
+                // populates it instead of inserting a second one. Whichever row is
+                // adopted gets its source normalized to the canonical key.
                 $library = AppQyV1VocabularyLibraryModel::where('source', $source)->first();
+
+                if (!$library) {
+                    $library = AppQyV1VocabularyLibraryModel::query()
+                        ->where('language', $langName)
+                        ->where('name', $collectionName)
+                        ->where(function ($q) {
+                            $q->whereNull('source')->orWhere('source', '');
+                        })
+                        ->orderBy('id')
+                        ->first();
+                    if ($library) {
+                        $library->source = $source;
+                    }
+                }
 
                 if (!$library) {
                     $library = new AppQyV1VocabularyLibraryModel([

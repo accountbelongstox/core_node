@@ -9,11 +9,14 @@ export const pcEn = {
     videoExtract: 'Video Extract',
     books: 'Books',
     content: 'Content',
+    coreBook: 'CoreBook',
     moviePoster: 'Movie Poster',
-    ai: 'AI',
+    ai: 'AI & Pycore Capabilities',
     aiStatus: 'Capability Status',
     aiImage: 'AI Image',
     aiKeys: 'AI Keys',
+    // translate / imageSearch / subtitleSearch are now tabs inside the AI page.
+    // okxMarket removed — OKX lives only in /vortex (apps/vortex/OkxBacktestPanel.tsx).
     settings: 'Settings',
   },
   common: {
@@ -49,17 +52,39 @@ export const pcEn = {
     checked: 'checked',
   },
   ai: {
-    title: 'AI',
-    subtitle: 'Capabilities, image & chat studio, and provider keys — all in one place.',
+    title: 'AI & Pycore Capabilities',
+    subtitle: 'Capabilities, image & chat studio, provider keys, translate, search & usage history — all in one place.',
     tabs: {
       capability: 'Capability',
       studio: 'Image Studio',
       keys: 'Keys',
+      translate: 'Translate',
+      imageSearch: 'Image Search',
+      subtitleSearch: 'Subtitle Search',
+      history: 'History',
     },
     tabHint: {
       capability: 'Compute, providers, rate budgets, OCR / TTS and free libraries',
       studio: 'Chat-style image & text generation over the AI gateway',
       keys: 'Add, rotate and delete provider keys (KEY1…KEY5 + image budget)',
+      translate: 'Google vs AI translation, side by side',
+      imageSearch: 'SerpApi Google Images vs an AI render of the same query',
+      subtitleSearch: 'Search & download movie / TV subtitles via OpenSubtitles',
+      history: 'Every usage record — AI images, image & subtitle searches, translations',
+    },
+    // Unified usage-history tab.
+    history: {
+      title: 'Usage History',
+      subtitle: 'One feed of every record — AI images, image searches, subtitle searches and translations.',
+      all: 'All',
+      empty: 'No usage records yet.',
+      unreachable: 'pycore unreachable — history could not be loaded.',
+      clearAll: 'Clear all',
+      clearConfirm: 'Delete ALL usage history (images, searches, translations)? This cannot be undone.',
+      clearKind: 'Clear this category',
+      deleteTitle: 'Delete this record',
+      records: '{{n}} records',
+      results: '{{n}} results',
     },
     // Provider card expand/collapse + per-provider image test.
     expand: 'Show key slots & rate',
@@ -293,6 +318,164 @@ export const pcEn = {
     ocr: 'OCR',
     stt: 'Speech-to-Text',
   },
+  queueCenter: {
+    title: 'Queue Center',
+    subtitle: 'All pycore queues in one place — system operations, voice-subtitle tasks, Laravel translations.',
+    tabs: {
+      overview: 'Pending Assist',
+      manager: 'Queue Manager',
+      tasks: 'Task Queue',
+      translation: 'Translation Queue',
+      recent: 'Recent Tasks',
+    },
+    auto: 'Auto',
+    autoOn: 'on',
+    autoOff: 'off',
+    autoOnTitle: 'Auto-refresh on — the active view refreshes every {{sec}}s',
+    autoOffTitle: 'Auto-refresh off',
+    refreshActive: 'Refresh the active view',
+    // Pending-assist overview.
+    overview: {
+      title: 'Pending Assist Overview',
+      hint: 'Every queue category and which end assists it. Chrome handles the missing-translation and word-image queues; pycore and AI handle the rest.',
+      backendOffline: 'Laravel backend offline — categories are listed but counts are unavailable.',
+      reachable: 'Laravel reachable',
+      generatedAt: 'Updated {{time}}',
+      loading: 'Loading overview…',
+      unavailable: 'Queue overview unavailable — pycore (:59000) may be offline.',
+      handler: {
+        chrome: 'chrome',
+        pycore: 'pycore',
+        ai: 'ai',
+      },
+      handlerTitle: {
+        chrome: 'Processed by the chrome extension (MCP host)',
+        pycore: 'Processed locally by pycore',
+        ai: 'Processed via the AI gateway',
+      },
+      pending: 'pending',
+      processing: 'processing',
+      leased: 'leased',
+      total: 'total',
+      byLanguage: 'By language',
+      samples: 'Samples',
+      showSamples: 'Show samples',
+      hideSamples: 'Hide samples',
+      noSamples: 'No sample rows.',
+      empty: 'No categories reported.',
+    },
+    // Workers registry.
+    workers: {
+      title: 'Workers',
+      hint: 'Online chrome / pycore workers and how many items each has claimed.',
+      none: 'No workers registered.',
+      online: 'online',
+      offline: 'offline',
+      claimed: 'claimed',
+      lastSeen: 'last seen {{time}}',
+      processes: 'handles',
+    },
+    // Right-side capability settings drawer.
+    drawer: {
+      open: 'Capability settings',
+      openTitle: 'Open the capability settings drawer (engine priority + options)',
+      close: 'Close',
+      title: 'Capability Settings',
+      subtitle: 'Engine priority + options per capability. Saving applies live on the next dispatch.',
+      unavailable: 'Capability settings unavailable — pycore (:59000) may be offline.',
+      loading: 'Loading capability settings…',
+      reload: 'Reload capability settings',
+      priority: 'Engine priority',
+      priorityHint: 'Tried top → bottom. Re-order with the arrows; omitted engines fall through in default order.',
+      options: 'Options',
+      available: 'available',
+      unavailableEngine: 'unavailable',
+      moveUp: 'Move up',
+      moveDown: 'Move down',
+      synthTimeout: 'Edge synth timeout (s)',
+      synthTimeoutHint: 'How long one edge-tts attempt may run before failing fast to the offline engine.',
+      edgeCooldown: 'Edge failure cooldown (s)',
+      edgeCooldownHint: 'How long to skip edge-tts after it fails, falling back to the offline engine.',
+      noOptions: 'No tunable options for this capability.',
+      save: 'Save',
+      saving: 'Saving…',
+      saved: '{{cap}} settings saved.',
+      saveFailed: 'Save failed: {{error}}',
+      cap: {
+        stt: 'Speech-to-Text',
+        tts: 'Text-to-Speech',
+        image: 'Image generation',
+        translation: 'Translation',
+      },
+    },
+    // Recent Tasks tab — unified cross-end task history (pycore + chrome).
+    recent: {
+      title: 'Recent Tasks',
+      hint: 'Newest-first log of finished task units across both ends (pycore workers + the chrome MCP host). Click a row to expand its full detail.',
+      loading: 'Loading recent tasks…',
+      unavailable: 'Recent tasks unavailable — pycore (:59000) may be offline.',
+      empty: 'No tasks recorded yet.',
+      // summary row
+      total: 'total',
+      success: 'success',
+      failed: 'failed',
+      postedBack: 'posted back',
+      // filters
+      filterEnd: 'End',
+      filterWorker: 'Worker',
+      all: 'all',
+      // table columns
+      colStatus: 'Status',
+      colWorker: 'End / Worker',
+      colTitle: 'Title',
+      colLanguage: 'Lang',
+      colSource: 'Source API',
+      colPosted: 'Returned',
+      colLatency: 'Latency',
+      colTime: 'When',
+      // posted-back badges
+      posted: 'returned',
+      notReturned: 'not returned',
+      // detail labels
+      audioAddress: 'Audio address',
+      audioSize: 'Audio size',
+      imageSize: 'Image size',
+      translation: 'Translation',
+      text: 'Text',
+      provider: 'Provider',
+      model: 'Model',
+      engine: 'Engine',
+      voice: 'Voice',
+      wordCount: 'Word count',
+      audioOk: 'Audio OK',
+      audioFailed: 'Audio failed',
+      mediaType: 'Media type',
+      year: 'Year',
+      filename: 'Filename',
+      words: 'Words',
+      translations: 'Translations',
+      failedWords: 'Failed words',
+      error: 'Error',
+      taskId: 'Task ID',
+      otherDetail: 'More detail',
+      // clear action
+      clear: 'Clear history',
+      clearing: 'Clearing…',
+      cleared: 'History cleared.',
+      clearFailed: 'Clear failed: {{error}}',
+      refresh: 'Refresh recent tasks',
+    },
+  },
 } as const;
 
-export type PcTranslationDict = typeof pcEn;
+/**
+ * Translation dictionary shape. Mirrors `pcEn`'s NESTED key structure exactly (so
+ * other locales are still checked for COMPLETENESS — every key must be present)
+ * but maps each leaf to a plain `string` rather than en's literal. Without this,
+ * `typeof pcEn` forces each translated value to EQUAL en's literal string (e.g. zh
+ * `translate: '翻译'` ≠ the literal `'Translation'`), which produced ~248 false
+ * "type mismatch" errors across zh.ts. Deep-stringifying keeps the structural
+ * check while allowing real translations.
+ */
+type PcDeepStringify<T> = { [K in keyof T]: T[K] extends string ? string : PcDeepStringify<T[K]> };
+export type PcTranslationDict = PcDeepStringify<typeof pcEn>;

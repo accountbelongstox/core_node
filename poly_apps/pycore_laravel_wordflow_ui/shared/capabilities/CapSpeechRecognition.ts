@@ -550,4 +550,169 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
   );
 }
 
+// ===========================================================================
+// EXTENDED CAPABILITIES — word-level analysis + multi-attempt drill
+// ===========================================================================
+//
+// A richer pronunciation analyzer (per-word matched/score for highlighting),
+// a best-of-N scorer for multi-attempt drills, and a React hook that runs a
+// "say the word, get a score, try again" loop the wordnew practice screens use.
+
+export interface CapWordScore {
+  /** The target word. */
+  word: string;
+  /** Whether a heard word matched it closely enough. */
+  matched: boolean;
+  /** 0..100 similarity of the best heard word for this slot. */
+  score: number;
+  /** The heard word that best lined up with this target word (or ''). */
+  heard: string;
+}
+
+export interface CapPronunciationAnalysis {
+  /** Overall 0..100 score (best alternative, phrase-level). */
+  score: number;
+  passed: boolean;
+  /** Per-target-word breakdown (great for coloring each word). */
+  words: CapWordScore[];
+  /** The recognized alternative used for the breakdown. */
+  bestMatch: string;
+}
+
+/**
+ * Analyze pronunciation at the WORD level: aligns the target words to the best
+ * recognized alternative positionally and scores each. Useful to highlight
+ * exactly which words were nailed vs missed in a sentence drill.
+ */
+export function analyzePronunciation(
+  target: string,
+  matches: string[] | CapSTTResult,
+  passThreshold = 80,
+  wordPassThreshold = 70,
+): CapPronunciationAnalysis {
+  const list = Array.isArray(matches) ? matches : matches.matches;
+  const overall = scorePronunciation(target, list, passThreshold);
+  const targetWords = normalizeForCompare(target).split(' ').filter(Boolean);
+  const heardWords = normalizeForCompare(overall.bestMatch).split(' ').filter(Boolean);
+
+  const words: CapWordScore[] = targetWords.map((tw, i) => {
+    // Compare against the positional heard word AND its neighbors (±1) to be
+    // tolerant of small insertions/deletions, taking the best.
+    let best = 0;
+    let bestHeard = '';
+    for (let j = Math.max(0, i - 1); j <= Math.min(heardWords.length - 1, i + 1); j++) {
+      const sim = similarity(tw, heardWords[j] ?? '');
+      if (sim > best) {
+        best = sim;
+        bestHeard = heardWords[j] ?? '';
+      }
+    }
+    const score = Math.round(best * 100);
+    return { word: tw, matched: score >= wordPassThreshold, score, heard: bestHeard };
+  });
+
+  return { score: overall.score, passed: overall.passed, words, bestMatch: overall.bestMatch };
+}
+
+/** Score multiple attempts against a target, returning the best one. */
+export function bestAttemptScore(
+  target: string,
+  attempts: Array<string[] | CapSTTResult>,
+  passThreshold = 80,
+): CapPronunciationScore {
+  let best: CapPronunciationScore = {
+    score: 0,
+    passed: false,
+    bestMatch: '',
+    target: normalizeForCompare(target),
+  };
+  for (const a of attempts) {
+    const s = scorePronunciation(target, a, passThreshold);
+    if (s.score > best.score) best = s;
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------------------
+// Extended React hook — pronunciation drill
+// ---------------------------------------------------------------------------
+
+export interface UsePronunciationDrillResult {
+  listening: boolean;
+  /** Latest analysis (null before the first attempt). */
+  analysis: CapPronunciationAnalysis | null;
+  /** Best score across all attempts this session. */
+  bestScore: number;
+  /** Number of attempts made. */
+  attempts: number;
+  error: CapSTTError | null;
+  /** Run one attempt: listen, score against the target, update state. */
+  attempt: () => Promise<CapPronunciationAnalysis | null>;
+  /** Reset attempts/best for a new target word. */
+  reset: () => void;
+  stop: () => Promise<void>;
+}
+
+/**
+ * "Say the word, get scored, try again" drill bound to a target word/phrase.
+ *
+ *   const { attempt, analysis, bestScore } = usePronunciationDrill('serendipity', { language: 'en-US' });
+ *   <button onClick={attempt}>🎤 Say it</button>
+ */
+export function usePronunciationDrill(
+  target: string,
+  options: CapSTTOptions = {},
+  passThreshold = 80,
+): UsePronunciationDrillResult {
+  const [listening, setListening] = useState(false);
+  const [analysis, setAnalysis] = useState<CapPronunciationAnalysis | null>(null);
+  const [bestScore, setBestScore] = useState(0);
+  const [attempts, setAttempts] = useState(0);
+  const [error, setError] = useState<CapSTTError | null>(null);
+
+  useEffect(() => {
+    const off = capSTT.on('listeningchange', setListening);
+    return off;
+  }, []);
+
+  // Reset whenever the target changes.
+  useEffect(() => {
+    setAnalysis(null);
+    setBestScore(0);
+    setAttempts(0);
+    setError(null);
+  }, [target]);
+
+  const attempt = async (): Promise<CapPronunciationAnalysis | null> => {
+    setError(null);
+    try {
+      const result = await capSTT.listenOnce(options);
+      const a = analyzePronunciation(target, result, passThreshold);
+      setAnalysis(a);
+      setBestScore((prev) => Math.max(prev, a.score));
+      setAttempts((n) => n + 1);
+      return a;
+    } catch (e) {
+      setError(e as CapSTTError);
+      return null;
+    }
+  };
+
+  return {
+    listening,
+    analysis,
+    bestScore,
+    attempts,
+    error,
+    attempt,
+    reset: () => {
+      setAnalysis(null);
+      setBestScore(0);
+      setAttempts(0);
+      setError(null);
+    },
+    stop: () => capSTT.stop(),
+  };
+}
+
 export default capSTT;

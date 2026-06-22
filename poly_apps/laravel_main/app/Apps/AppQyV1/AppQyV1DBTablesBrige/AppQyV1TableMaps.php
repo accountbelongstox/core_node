@@ -201,6 +201,185 @@ class AppQyV1TableMaps
         ]
     ];
 
+    // ---- Social subsystem (SOCIAL_FEATURE_SPECIFICATION.md §1) ----
+
+    public const app_qy_v1_FRIEND_REQUESTS = [
+        'tablename' => 'friend_requests',
+        'fields' => [
+            'id' => 'id',
+            'requester_id' => 'requester_id',
+            'addressee_id' => 'addressee_id',
+            'status' => 'status',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const app_qy_v1_CONVERSATIONS = [
+        'tablename' => 'conversations',
+        'fields' => [
+            'id' => 'id',
+            'type' => 'type',
+            'created_by' => 'created_by',
+            'dkey' => 'dkey',
+            'last_message_at' => 'last_message_at',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const app_qy_v1_CONVERSATION_PARTICIPANTS = [
+        'tablename' => 'conversation_participants',
+        'fields' => [
+            'id' => 'id',
+            'conversation_id' => 'conversation_id',
+            'user_id' => 'user_id',
+            'last_read_message_id' => 'last_read_message_id',
+            'joined_at' => 'joined_at'
+        ]
+    ];
+
+    public const app_qy_v1_MESSAGES = [
+        'tablename' => 'messages',
+        'fields' => [
+            'id' => 'id',
+            'conversation_id' => 'conversation_id',
+            'sender_id' => 'sender_id',
+            'body' => 'body',
+            'type' => 'type',
+            'metadata' => 'metadata',
+            'created_at' => 'created_at'
+        ]
+    ];
+
+    public const app_qy_v1_USER_PRESENCE = [
+        'tablename' => 'user_presence',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'status' => 'status',
+            'last_seen_at' => 'last_seen_at',
+            'updated_at' => 'updated_at'
+        ]
+    ];
+
+    public const app_qy_v1_NOTIFICATIONS = [
+        'tablename' => 'notifications',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'type' => 'type',
+            'payload' => 'payload',
+            'read_at' => 'read_at',
+            'created_at' => 'created_at'
+        ]
+    ];
+
+    public const app_qy_v1_SOCIAL_EVENTS = [
+        'tablename' => 'social_events',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'event' => 'event',
+            'data' => 'data',
+            'created_at' => 'created_at'
+        ]
+    ];
+
+    // ---- Social Center expansion: posts / feed + live ----
+
+    public const app_qy_v1_POSTS = [
+        'tablename' => 'posts',
+        'fields' => [
+            'id' => 'id',
+            'user_id' => 'user_id',
+            'content' => 'content',
+            'post_type' => 'post_type',
+            'video_url' => 'video_url',
+            'external_url' => 'external_url',
+            'cover_image_url' => 'cover_image_url',
+            'visibility' => 'visibility',
+            'like_count' => 'like_count',
+            'comment_count' => 'comment_count',
+            'metadata' => 'metadata',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+            'deleted_at' => 'deleted_at'
+        ]
+    ];
+
+    public const app_qy_v1_POST_IMAGES = [
+        'tablename' => 'post_images',
+        'fields' => [
+            'id' => 'id',
+            'post_id' => 'post_id',
+            'image_url' => 'image_url',
+            'sequence' => 'sequence',
+            'caption' => 'caption',
+            'created_at' => 'created_at'
+        ]
+    ];
+
+    public const app_qy_v1_POST_LIKES = [
+        'tablename' => 'post_likes',
+        'fields' => [
+            'id' => 'id',
+            'post_id' => 'post_id',
+            'user_id' => 'user_id',
+            'created_at' => 'created_at'
+        ]
+    ];
+
+    public const app_qy_v1_POST_COMMENTS = [
+        'tablename' => 'post_comments',
+        'fields' => [
+            'id' => 'id',
+            'post_id' => 'post_id',
+            'user_id' => 'user_id',
+            'parent_comment_id' => 'parent_comment_id',
+            'body' => 'body',
+            'created_at' => 'created_at',
+            'deleted_at' => 'deleted_at'
+        ]
+    ];
+
+    public const app_qy_v1_LIVE_SESSIONS = [
+        'tablename' => 'live_sessions',
+        'fields' => [
+            'id' => 'id',
+            'host_id' => 'host_id',
+            'title' => 'title',
+            'description' => 'description',
+            'status' => 'status',
+            'external_url' => 'external_url',
+            'viewer_count' => 'viewer_count',
+            'started_at' => 'started_at',
+            'ended_at' => 'ended_at',
+            'created_at' => 'created_at'
+        ]
+    ];
+
+    public const app_qy_v1_LIVE_MESSAGES = [
+        'tablename' => 'live_messages',
+        'fields' => [
+            'id' => 'id',
+            'session_id' => 'session_id',
+            'user_id' => 'user_id',
+            'body' => 'body',
+            'created_at' => 'created_at'
+        ]
+    ];
+
+    public const app_qy_v1_LIVE_VIEWERS = [
+        'tablename' => 'live_viewers',
+        'fields' => [
+            'id' => 'id',
+            'session_id' => 'session_id',
+            'user_id' => 'user_id',
+            'last_seen_at' => 'last_seen_at'
+        ]
+    ];
+
     // Global Tables (referenced from app/Providers)
     // Note: Global tables are managed in App\Providers\GlobalTablesMap
     // Use GlobalTablesMap::getTableName('GLOBAL_USERS') and GlobalTablesMap::getFieldName('GLOBAL_USERS', 'field_key')
@@ -408,7 +587,23 @@ class AppQyV1TableMaps
             "{$prefix}_USER_LEARNING_PROGRESS",
             "{$prefix}_USER_FOLLOWS",
             "{$prefix}_DAILY_RECITATION_LOGS",
-            "{$prefix}_USER_SELECTED_LIBRARIES"
+            "{$prefix}_USER_SELECTED_LIBRARIES",
+            // Social subsystem
+            "{$prefix}_FRIEND_REQUESTS",
+            "{$prefix}_CONVERSATIONS",
+            "{$prefix}_CONVERSATION_PARTICIPANTS",
+            "{$prefix}_MESSAGES",
+            "{$prefix}_USER_PRESENCE",
+            "{$prefix}_NOTIFICATIONS",
+            "{$prefix}_SOCIAL_EVENTS",
+            // Social Center expansion
+            "{$prefix}_POSTS",
+            "{$prefix}_POST_IMAGES",
+            "{$prefix}_POST_LIKES",
+            "{$prefix}_POST_COMMENTS",
+            "{$prefix}_LIVE_SESSIONS",
+            "{$prefix}_LIVE_MESSAGES",
+            "{$prefix}_LIVE_VIEWERS"
         ];
 
         foreach (self::getSupportedLanguageCodes() as $langCode) {

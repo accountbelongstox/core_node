@@ -24,25 +24,36 @@ class WorkerManagerService
         array $processorTypes,
         ?string $hostname = null,
         ?string $platform = null,
-        array $metadata = []
+        array $metadata = [],
+        ?array $capabilities = null
     ): Worker {
+        $attributes = [
+            'worker_name' => $workerName,
+            'processor_types' => $processorTypes,
+            'hostname' => $hostname,
+            'platform' => $platform,
+            'metadata' => $metadata,
+            'status' => Worker::STATUS_ONLINE,
+            'last_heartbeat_at' => now(),
+        ];
+
+        // Only overwrite capabilities when the caller actually sent them, so a
+        // legacy worker re-registering without the field keeps any previously
+        // stored capabilities instead of clearing them.
+        if ($capabilities !== null) {
+            $attributes['capabilities'] = array_values(array_filter($capabilities, 'is_string'));
+        }
+
         $worker = Worker::updateOrCreate(
             ['worker_id' => $workerId],
-            [
-                'worker_name' => $workerName,
-                'processor_types' => $processorTypes,
-                'hostname' => $hostname,
-                'platform' => $platform,
-                'metadata' => $metadata,
-                'status' => Worker::STATUS_ONLINE,
-                'last_heartbeat_at' => now(),
-            ]
+            $attributes
         );
 
         Log::info('Worker registered', [
             'worker_id' => $workerId,
             'worker_name' => $workerName,
             'processor_types' => $processorTypes,
+            'capabilities' => $capabilities,
         ]);
 
         return $worker;

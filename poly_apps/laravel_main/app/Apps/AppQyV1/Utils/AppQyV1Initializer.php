@@ -62,6 +62,27 @@ class AppQyV1Initializer implements AppInitializerInterface
             Log::error('[AppQyV1Init] External data migration error: ' . $e->getMessage());
         }
 
+        // Pre-create the unified external/static storage tree (incl. the new
+        // static/app_qy_v1/audio base) so the write-back target and serve route
+        // share one pre-existing root from the very first request.
+        try {
+            (new \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager())
+                ->ensureDirectoryStructure();
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1Init] ensureDirectoryStructure error: ' . $e->getMessage());
+        }
+
+        // Idempotently COPY (never move/delete) legacy word/sentence-TTS audio
+        // from tts_data/audio/** and external_data/audio/** into the new
+        // static/app_qy_v1/audio/** tree at the SAME relative path, so files
+        // produced under the old base stay readable after the Phase-1 move.
+        // Sentinel-guarded -> runs once. Same namespace - no use needed.
+        try {
+            AppQyV1AudioStaticMigrator::migrate();
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1Init] Audio static migration error: ' . $e->getMessage());
+        }
+
         $status = $this->loadStatus();
         $results = [];
         $allSuccess = true;
@@ -177,7 +198,49 @@ class AppQyV1Initializer implements AppInitializerInterface
                 Log::error('[AppQyV1Init] promoteAllStaging error: ' . $e->getMessage());
             }
         }
-        
+
+        // SELF-HEAL: rebuild STRANDED v2 books (full_content present but no
+        // source_sentences — sentences lost when the shared app_qy_v1_sentences
+        // table was dropped). Runs on EVERY init (NOT marker-gated), is CHEAP
+        // when nothing's stranded (one exists() query then skip), SELF-SKIPPING
+        // afterwards (a rebuilt book HAS source_sentences so it no longer matches
+        // — the data state is the guard, no marker needed), FILL-MISSING via
+        // MediaIngestService::ingest (a partial prior run converges next time),
+        // and BEST-EFFORT (try/catch — a rebuild failure must never break init).
+        try {
+            if (\App\Console\Commands\AppQyV1RebuildStrandedBooks::hasStranded()) {
+                $repair = \App\Console\Commands\AppQyV1RebuildStrandedBooks::rebuild(null, false, null);
+                Log::info('[AppQyV1Init] stranded-book self-heal', $repair);
+                $results['repair_stranded_books'] = [
+                    'status' => 'success',
+                    'message' => sprintf(
+                        'Rebuilt %d stranded book(s) (skipped_unrecoverable=%d, failed=%d)',
+                        $repair['rebuilt'],
+                        $repair['skipped_unrecoverable'],
+                        $repair['failed']
+                    ),
+                    'description' => 'Rebuild stranded v2 books from full_content',
+                ];
+                if (PHP_SAPI === 'cli') {
+                    echo "    [AppQyV1] Self-heal: {$results['repair_stranded_books']['message']}\n";
+                }
+            } else {
+                $results['repair_stranded_books'] = [
+                    'status' => 'skipped',
+                    'message' => 'No stranded books',
+                    'description' => 'Rebuild stranded v2 books from full_content',
+                ];
+            }
+        } catch (\Throwable $e) {
+            // Never break init on a repair failure.
+            Log::error('[AppQyV1Init] stranded-book self-heal error: ' . $e->getMessage());
+            $results['repair_stranded_books'] = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'description' => 'Rebuild stranded v2 books from full_content',
+            ];
+        }
+
         return [
             'success' => $allSuccess,
             'app' => $this->getAppName(),

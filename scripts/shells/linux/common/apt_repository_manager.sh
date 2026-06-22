@@ -604,6 +604,212 @@ get_apt_repository_state_from_apt_repository_manager() {
 # COMMON REPOSITORY MANAGEMENT FUNCTIONS
 # ============================================================================
 
+# Resolve a Debian/Ubuntu-family host to the (vendor, codename) the PHP repo actually
+# publishes -- Sury for Debian, ondrej PPA for Ubuntu. Rolling derivatives report
+# ID=kali / VERSION_CODENAME=kali-rolling (Parrot etc. similar), which NEITHER repo
+# hosts, so the raw codename would 404. Map such hosts onto the newest hosted Debian
+# suite (trixie): it both resolves AND matches the derivative's post-t64 ABI
+# (libssl3t64/libcurl4t64/libzip5/libxml2 2.15), whereas pinning to an older suite
+# (bookworm) drags in deps the rolling libs cannot satisfy (libxml2/libzip4 absent --
+# the exact failure on Kali). Echoes "<vendor> <codename>" on stdout.
+# Override the Debian fallback with APT_DEBIAN_CODENAME_DEFAULT.
+resolve_php_suite_from_apt_repository_manager() {
+    local in_id="$1"
+    local in_codename="$2"
+    local vendor=""
+    local id_like=""
+
+    in_id="$(printf '%s' "$in_id" | tr '[:upper:]' '[:lower:]')"
+
+    # Normalize a derivative (kali, parrot, ...) to its base vendor via os-release ID_LIKE.
+    if [ -r /etc/os-release ]; then
+        id_like="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID_LIKE:-}")"
+    fi
+    case "$in_id" in
+        ubuntu) vendor="ubuntu" ;;
+        debian) vendor="debian" ;;
+        *)
+            case " $id_like " in
+                *ubuntu*) vendor="ubuntu" ;;
+                *debian*) vendor="debian" ;;
+                *)        vendor="$in_id" ;;
+            esac
+            ;;
+    esac
+
+    local codename="$in_codename"
+    if [ "$vendor" = "debian" ]; then
+        # Sury publishes only these suites; clamp anything else to the newest hosted one.
+        case "$codename" in
+            bullseye|bookworm|trixie) : ;;
+            *) codename="${APT_DEBIAN_CODENAME_DEFAULT:-trixie}" ;;
+        esac
+    fi
+    # Ubuntu codenames pass through: the ondrej PPA tracks Ubuntu series directly.
+
+    printf '%s %s\n' "$vendor" "$codename"
+}
+
+# Bridge library/SONAME gaps so Sury PHP 8.5 can install AND run on bleeding-edge
+# Debian derivatives (e.g. Kali rolling) that have moved ahead of the suite Sury
+# builds against.
+#
+# Sury's php8.5-* packages (built for Debian <codename>) depend on that suite's library
+# package NAMES -- e.g. php8.5-cli/php8.5-xml -> `libxml2` (libxml2.so.2), php8.5-intl ->
+# `libicu76`. Rolling derivatives that track Debian sid have already bumped those SONAMEs
+# (libxml2 2.15 -> package libxml2-16 / libxml2.so.16; ICU 76 -> libicu77+) and DROPPED
+# the old package names with no virtual Provides, so the dependency is unsatisfiable and
+# the binaries (linked against the old soname) would not load. libxml2 is core,
+# non-disableable PHP, so a missing libxml2 blocks PHP entirely.
+#
+# For each library dependency of the REQUESTED php packages that is unsatisfiable on this
+# host, install Debian <codename>'s build of that exact library (the suite Sury built
+# against -> ABI match). Such libs are SONAME-versioned, so they co-install cleanly next
+# to the distro's newer version (different package name + different .so file). Only libs
+# the requested php packages actually need AND that the host lacks AND that Debian
+# publishes are touched -- never a blanket pull (so libsnmp40t64 for php8.5-snmp is left
+# alone when that extension is not requested). Idempotent.
+#
+# Security: each .deb is fetched over HTTPS and verified against the SHA256 in the same
+# Packages index stanza before it is installed as root; a mismatch discards the file.
+#
+# Opt out with PHP_COMPAT_SHIM=0 -- a gap report is printed and the PHP install is left
+# to fail loudly instead of silently mixing in a library.
+#
+# Args: <vendor: ubuntu|debian> <codename> <space-separated php package list>
+ensure_php_compat_libs_from_apt_repository_manager() {
+    local php_vendor="$1"
+    local php_codename="$2"
+    local php_pkgs="$3"
+
+    # Only the Debian/Sury path is affected; Ubuntu's ondrej PPA tracks Ubuntu libs.
+    [ "$php_vendor" = "debian" ] || return 0
+    [ -n "${php_pkgs// /}" ] || return 0
+
+    case "${PHP_COMPAT_SHIM:-${PHP_LIBXML2_COMPAT_SHIM:-1}}" in
+        0|false|no|off)
+            echo "[php-compat] Compat-lib shim disabled (PHP_COMPAT_SHIM=0); not adjusting libraries." >&2
+            echo "[php-compat] If Sury PHP 8.5 deps are unsatisfiable on this distro, the install will fail." >&2
+            return 0
+            ;;
+    esac
+
+    # Be self-contained regardless of caller order (the shim fetches/unpacks on its own).
+    command -v curl >/dev/null 2>&1 || ensure_packages_from_apt_repository_manager curl >/dev/null 2>&1 || true
+    command -v zcat >/dev/null 2>&1 || ensure_packages_from_apt_repository_manager gzip >/dev/null 2>&1 || true
+
+    local arch
+    arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+
+    local tmp
+    tmp="$(mktemp -d 2>/dev/null)" || {
+        echo "[php-compat] ERROR: mktemp -d failed; refusing a predictable temp path." >&2
+        return 1
+    }
+
+    # 1) Sury index for the resolved suite -> the php8.5-* dependency lists.
+    local sury_idx="$tmp/sury.Packages.gz"
+    if ! curl -fsSL -o "$sury_idx" "https://packages.sury.org/php/dists/${php_codename}/main/binary-${arch}/Packages.gz"; then
+        echo "[php-compat] WARNING: could not fetch Sury ${php_codename} index; skipping compat pre-resolution." >&2
+        rm -rf "$tmp"; return 0
+    fi
+
+    # 2) Union of the lib* deps of the requested php packages (strip version constraints
+    #    and '|' alternatives). index()-based stanza match -> no regex pitfalls.
+    local pkg
+    for pkg in $php_pkgs; do
+        zcat "$sury_idx" 2>/dev/null \
+          | awk -v RS='' -v p="$pkg" 'index($0 "\n", "Package: " p "\n")==1' \
+          | sed -n 's/^Depends: //p'
+    done > "$tmp/depends.txt" 2>/dev/null
+    local libs
+    libs="$(tr ',' '\n' < "$tmp/depends.txt" | sed 's/|.*//; s/^[[:space:]]*//; s/[[:space:]].*//' | grep -E '^lib' | sort -u)"
+
+    # 3) Which of those lib deps are UNsatisfiable on this host?
+    local gaps="" lib cand
+    for lib in $libs; do
+        cand="$(apt-cache policy "$lib" 2>/dev/null | awk '/Candidate:/{print $2}')"
+        if [ -n "$cand" ] && [ "$cand" != "(none)" ]; then continue; fi
+        if dpkg-query -W -f='${Status}' "$lib" 2>/dev/null | grep -q 'install ok installed'; then continue; fi
+        gaps="$gaps $lib"
+    done
+    gaps="$(printf '%s\n' $gaps | sed '/^$/d' | sort -u | tr '\n' ' ')"
+
+    if [ -z "${gaps// /}" ]; then
+        rm -rf "$tmp"; return 0
+    fi
+
+    echo "[php-compat] Sury PHP 8.5 needs libraries this distro no longer provides:${gaps}" >&2
+    echo "[php-compat] (a rolling derivative bumped these SONAMEs past Sury's ${php_codename} build target)" >&2
+
+    # 4) Resolve + integrity-verify each gap lib from Debian <codename> (the suite Sury
+    #    built against), then collect the verified .debs.
+    local deb_idx="$tmp/debian.Packages.gz"
+    if ! curl -fsSL -o "$deb_idx" "https://deb.debian.org/debian/dists/${php_codename}/main/binary-${arch}/Packages.gz"; then
+        echo "[php-compat] ERROR: could not fetch Debian ${php_codename} index; cannot provide compat libs." >&2
+        rm -rf "$tmp"; return 1
+    fi
+
+    local debs="" missing="" stanza fname exp_sha got_sha out
+    for lib in $gaps; do
+        stanza="$(zcat "$deb_idx" 2>/dev/null | awk -v RS='' -v p="$lib" 'index($0 "\n", "Package: " p "\n")==1' | head -c 200000)"
+        fname="$(printf '%s\n' "$stanza" | sed -n 's/^Filename: //p' | head -n1)"
+        exp_sha="$(printf '%s\n' "$stanza" | sed -n 's/^SHA256: //p' | head -n1)"
+        if [ -z "$fname" ]; then
+            echo "[php-compat] NOTE: Debian ${php_codename} has no '${lib}' package; cannot shim it." >&2
+            missing="$missing $lib"; continue
+        fi
+        out="$tmp/${lib}.deb"
+        echo "[php-compat] Fetching ${lib} <- https://deb.debian.org/debian/${fname}" >&2
+        if ! curl -fsSL -o "$out" "https://deb.debian.org/debian/${fname}"; then
+            echo "[php-compat] WARNING: download failed for ${lib}." >&2
+            missing="$missing $lib"; continue
+        fi
+        if [ -z "$exp_sha" ]; then
+            echo "[php-compat] ERROR: no SHA256 in index for ${lib}; refusing to install unverified .deb." >&2
+            missing="$missing $lib"; continue
+        fi
+        got_sha="$(sha256sum "$out" 2>/dev/null | awk '{print $1}')"
+        if [ "$got_sha" != "$exp_sha" ]; then
+            echo "[php-compat] ERROR: SHA256 mismatch for ${lib} (want ${exp_sha}, got ${got_sha}); discarding." >&2
+            missing="$missing $lib"; continue
+        fi
+        debs="$debs $out"
+    done
+
+    # 5) Install all verified compat libs at once (so any inter-deps resolve together),
+    #    non-interactively, keeping existing configs and never letting -f install remove
+    #    packages to "fix" the transaction. Diagnostics are NOT swallowed.
+    if [ -n "${debs// /}" ]; then
+        echo "[php-compat] Installing verified compat libs alongside the distro's newer versions..." >&2
+        if ! $USE_SUDO env DEBIAN_FRONTEND=noninteractive dpkg -i --force-confold $debs; then
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get -f install -y \
+                -o APT::Get::Remove=false -o Dpkg::Options::=--force-confold || true
+        fi
+    fi
+
+    # 6) Verify outcome loudly. A lib that is unshimmable (no Debian package / failed
+    #    verify) is reported but not treated as the whole step failing.
+    local still_missing=""
+    for lib in $gaps; do
+        if dpkg-query -W -f='${Status}' "$lib" 2>/dev/null | grep -q 'install ok installed'; then continue; fi
+        case " $missing " in *" $lib "*) continue ;; esac
+        still_missing="$still_missing $lib"
+    done
+
+    rm -rf "$tmp"
+
+    if [ -n "${still_missing// /}" ]; then
+        echo "[php-compat] WARNING: compat libs still not installed:${still_missing} -- the PHP packages needing them will fail." >&2
+        return 1
+    fi
+    if [ -n "${missing// /}" ]; then
+        echo "[php-compat] NOTE: no verified Debian compat for:${missing} (only extensions needing them are affected)." >&2
+    fi
+    echo "[php-compat] OK: compat libraries provided for ${php_codename}." >&2
+    return 0
+}
+
 # Add PHP repository (Ubuntu/Debian) with automatic backup and restore
 # Ubuntu: uses ppa.launchpadcontent.net and Launchpad PPA signing key (avoids certificate mismatch with ppa.launchpad.net)
 # Debian: uses packages.sury.org and Sury key
@@ -616,6 +822,12 @@ add_php_repository_from_apt_repository_manager() {
         echo "ERROR: OS ID and codename are required" >&2
         return 1
     fi
+
+    # Normalize derivative -> base vendor (kali -> debian) and clamp to a hosted suite.
+    local _resolved
+    _resolved="$(resolve_php_suite_from_apt_repository_manager "$os_id" "$os_codename")"
+    os_id="${_resolved%% *}"
+    os_codename="${_resolved##* }"
 
     local php_key_url=""
     local php_key_file="/usr/share/keyrings/php-archive-keyring.gpg"
@@ -631,6 +843,16 @@ add_php_repository_from_apt_repository_manager() {
         echo "ERROR: Unsupported OS: $os_id" >&2
         return 1
     fi
+
+    # Bridge SONAME/library gaps on rolling derivatives before the PHP install runs.
+    # The package set = php8.5-* named in the install command plus the project's declared
+    # core/extension arrays (extensions installed in a later step -- e.g. php8.5-intl ->
+    # libicu76 -- are covered too). The two `declare -p` guards keep the arrays optional.
+    local php_pkgs
+    php_pkgs="$(printf '%s ' $command_to_execute | grep -oE 'php8\.5[A-Za-z0-9.+-]*' | sort -u | tr '\n' ' ')"
+    declare -p PHP85_CORE_PACKAGES >/dev/null 2>&1 && php_pkgs="$php_pkgs ${PHP85_CORE_PACKAGES[*]}"
+    declare -p CORE_EXTENSIONS    >/dev/null 2>&1 && php_pkgs="$php_pkgs ${CORE_EXTENSIONS[*]}"
+    ensure_php_compat_libs_from_apt_repository_manager "$os_id" "$os_codename" "$php_pkgs"
 
     execute_with_repo_backup_from_apt_repository_manager \
         "php" \
@@ -652,6 +874,12 @@ add_php_repository_permanent_from_apt_repository_manager() {
         echo "ERROR: OS ID and codename are required" >&2
         return 1
     fi
+
+    # Normalize derivative -> base vendor (kali -> debian) and clamp to a hosted suite.
+    local _resolved
+    _resolved="$(resolve_php_suite_from_apt_repository_manager "$os_id" "$os_codename")"
+    os_id="${_resolved%% *}"
+    os_codename="${_resolved##* }"
 
     local php_key_url=""
     local php_key_file="/usr/share/keyrings/php-archive-keyring.gpg"
@@ -681,6 +909,16 @@ add_php_repository_permanent_from_apt_repository_manager() {
 
     echo "Updating apt cache..."
     $USE_SUDO apt update 2>/dev/null || true
+
+    # Bridge SONAME/library gaps on rolling derivatives before the PHP install runs.
+    # Package set = php8.5-* named in the install command plus the project's declared
+    # core/extension arrays (so extensions installed in a later step -- e.g. php8.5-intl
+    # -> libicu76 -- are covered too). The two `declare -p` guards keep the arrays optional.
+    local php_pkgs
+    php_pkgs="$(printf '%s ' $command_to_execute | grep -oE 'php8\.5[A-Za-z0-9.+-]*' | sort -u | tr '\n' ' ')"
+    declare -p PHP85_CORE_PACKAGES >/dev/null 2>&1 && php_pkgs="$php_pkgs ${PHP85_CORE_PACKAGES[*]}"
+    declare -p CORE_EXTENSIONS    >/dev/null 2>&1 && php_pkgs="$php_pkgs ${CORE_EXTENSIONS[*]}"
+    ensure_php_compat_libs_from_apt_repository_manager "$os_id" "$os_codename" "$php_pkgs"
 
     if [ -n "$command_to_execute" ]; then
         echo "Executing: $command_to_execute"

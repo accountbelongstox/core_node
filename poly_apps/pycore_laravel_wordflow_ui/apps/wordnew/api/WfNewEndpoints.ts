@@ -33,6 +33,19 @@ import type {
 
 export { CURRENT_URL_TYPE } from './WfNewEndpointStore';
 
+/**
+ * True for ANY current-origin endpoint id — both the bare type token
+ * (`CURRENT_URL_TYPE`, used as the persisted selection TYPE and by the dialog's
+ * "Current URL" label) and the host-qualified runtime id (`current-url:<host>`)
+ * the live endpoint actually carries (see getCurrentOriginEndpoint). The id is
+ * host-qualified so the cache scope differs per origin on a multi-backend
+ * device; the type token stays stable so a stored selection still re-resolves
+ * to the live page origin regardless of which host it was saved under.
+ */
+export function isCurrentUrlId(id: string | null | undefined): boolean {
+  return id === CURRENT_URL_TYPE || (typeof id === 'string' && id.startsWith(`${CURRENT_URL_TYPE}:`));
+}
+
 /** Fired after every detection pass so non-React listeners can refresh. */
 export const WFNEW_API_HEALTH_EVENT = 'wfnew-api-health-changed';
 
@@ -81,7 +94,11 @@ function getCurrentOriginEndpoint(): WfNewEndpoint | null {
     /^192\.168\./.test(hostname) || /^10\./.test(hostname) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) || /^100\./.test(hostname);
   return {
-    id: CURRENT_URL_TYPE,
+    // Host-qualified IDENTITY so two backends both reached via "current origin"
+    // on the same device get DISTINCT cache scopes (no cross-endpoint bleed).
+    // The cache consumer reads this id; the bare CURRENT_URL_TYPE token stays
+    // the stable persisted selection type (see isCurrentUrlId / getEndpointById).
+    id: `${CURRENT_URL_TYPE}:${hostname}`,
     kind: 'current-url',
     url: hostname,
     protocol: proto,
@@ -110,6 +127,15 @@ class WfNewEndpointManager {
 
   private listeners = new Set<() => void>();
   private snapshot: WfNewEndpointSnapshot = this.buildSnapshot();
+
+  constructor() {
+    // Point at the PERSISTED last-used endpoint synchronously, so a fresh load
+    // (page refresh / front-end restart / dev reload) reuses the last setting
+    // IMMEDIATELY — before the async health probe runs. detectStoredFirst then
+    // confirms it in the background and only fails over if it is unreachable.
+    this.current = this.resolvePersisted();
+    this.snapshot = this.buildSnapshot();
+  }
 
   /** Subscribe to state changes; returns an unsubscribe. */
   subscribe = (listener: () => void): (() => void) => {
@@ -152,6 +178,21 @@ class WfNewEndpointManager {
     wfNewEndpointStore.setCustomEndpoints(list);
   }
 
+  /**
+   * Synchronously resolve the PERSISTED last-used endpoint — user pin →
+   * availability-auto pick → last applied — so the choice survives a refresh /
+   * restart / dev reload and is applied instantly (no wait for the async probe).
+   * Falls back to the priority-first endpoint when nothing is stored yet.
+   */
+  private resolvePersisted(): WfNewEndpoint | null {
+    const storedType =
+      wfNewEndpointStore.selectedType ??
+      wfNewEndpointStore.autoType ??
+      wfNewEndpointStore.currentType;
+    const stored = storedType ? this.getEndpointById(storedType) : undefined;
+    return stored ?? this.getAllEndpoints()[0] ?? null;
+  }
+
   // ---- endpoint list (defaults + custom + current-url) ----
 
   getAllEndpoints(): WfNewEndpoint[] {
@@ -180,7 +221,11 @@ class WfNewEndpointManager {
    * stored selection follows the page origin instead of freezing a stale host.
    */
   getEndpointById(id: string): WfNewEndpoint | undefined {
-    if (id === CURRENT_URL_TYPE) return getCurrentOriginEndpoint() ?? undefined;
+    // Both the stable type token ('current-url') and a host-qualified id
+    // ('current-url:<host>') re-resolve to the LIVE page origin, so a stored
+    // selection follows the current host instead of pinning the one it was
+    // saved under.
+    if (isCurrentUrlId(id)) return getCurrentOriginEndpoint() ?? undefined;
     return this.getAllEndpoints().find((e) => e.id === id);
   }
 
@@ -384,17 +429,20 @@ class WfNewEndpointManager {
   }
 
   getCurrentEndpoint(): WfNewEndpoint | null {
+    // Fall back to the PERSISTED last setting (not just the priority-first
+    // default) so requests before detection completes hit the last-used node.
+    if (!this.current) this.current = this.resolvePersisted();
     return this.current;
   }
 
   getCurrentBaseUrl(): string {
-    if (!this.current) this.current = this.getAllEndpoints()[0] ?? null;
-    return this.current ? buildEndpointUrl(this.current) : '';
+    const ep = this.getCurrentEndpoint();
+    return ep ? buildEndpointUrl(ep) : '';
   }
 
   buildUrl(path: string): string {
-    if (!this.current) this.current = this.getAllEndpoints()[0] ?? null;
-    return this.current ? buildEndpointUrl(this.current, path) : path;
+    const ep = this.getCurrentEndpoint();
+    return ep ? buildEndpointUrl(ep, path) : path;
   }
 
   getHealthResult(id: string): WfNewEndpointHealth | undefined {

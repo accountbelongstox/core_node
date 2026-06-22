@@ -103,26 +103,34 @@ if (-not (Test-Path -LiteralPath $PackageJsonPath)) {
     exit 1
 }
 
-# --- 2) Dependencies: idempotent install (skip when node_modules + vite present) ---
-$NeedInstall = [bool]$ForceInstall
-if (-not $NeedInstall) {
-    if (-not (Test-Path -LiteralPath $NodeModulesPath)) {
-        $NeedInstall = $true
-    } else {
-        $hasAnyPackage = Get-ChildItem -Path $NodeModulesPath -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $hasAnyPackage) {
-            $NeedInstall = $true
-        } elseif (-not (Test-ViteReady -Root $AppRoot)) {
-            Write-Warn "node_modules present but dev toolchain incomplete (e.g. vite missing); running pnpm install."
-            $NeedInstall = $true
-        }
+# --- 2) Dependencies: update in place, never wipe node_modules (parity with start.sh) ---
+# Policy: an EXISTING node_modules is UPDATED in place, never removed and reinstalled from
+# scratch. pnpm's own "... will be removed and reinstalled from scratch" prompt
+# (ERR_PNPM_MODULES_BREAKING_CHANGE) only fires when it can purge; running pnpm
+# non-interactively with confirm-modules-purge left at its default (true) makes pnpm ERROR
+# instead of wiping on a major modules-format change -- so the tree is kept. A from-scratch
+# reinstall happens ONLY when node_modules is missing/empty, or -ForceInstall is passed.
+Push-Location -LiteralPath $AppRoot
+try {
+    $FreshInstall = $false
+    $HaveModules = $false
+    if (Test-Path -LiteralPath $NodeModulesPath) {
+        $HaveModules = [bool](Get-ChildItem -Path $NodeModulesPath -Directory -ErrorAction SilentlyContinue | Select-Object -First 1)
     }
-}
 
-if ($NeedInstall) {
-    Write-Info "Installing pnpm dependencies (idempotent)..."
-    Push-Location -LiteralPath $AppRoot
-    try {
+    if ($ForceInstall) {
+        Write-Info "Force reinstall requested: reinstalling dependencies from scratch..."
+        # Explicit opt-in to the purge; piped (non-interactive) so it cannot block.
+        '' | pnpm install --config.confirm-modules-purge=false
+        if ($LASTEXITCODE -ne 0) {
+            Write-Err "pnpm install failed."
+            Pop-Location
+            Set-Location -LiteralPath $OriginalDir
+            exit 1
+        }
+        $FreshInstall = $true
+    } elseif (-not $HaveModules) {
+        Write-Info "node_modules missing -> installing dependencies..."
         pnpm install
         if ($LASTEXITCODE -ne 0) {
             Write-Err "pnpm install failed."
@@ -130,18 +138,33 @@ if ($NeedInstall) {
             Set-Location -LiteralPath $OriginalDir
             exit 1
         }
-        if (-not (Test-ViteReady -Root $AppRoot)) {
-            Write-Err "pnpm install finished but vite is still missing. Try removing node_modules and pnpm-lock.yaml, then re-run with -ForceInstall."
+        $FreshInstall = $true
+    } else {
+        # node_modules EXISTS -> update in place, never wipe. Piped stdin + default
+        # confirm-modules-purge=true => pnpm aborts rather than purging on a breaking
+        # modules-format change; we then KEEP the tree and warn.
+        Write-Info "node_modules present -> updating in place (no from-scratch reinstall)..."
+        '' | pnpm install --config.confirm-modules-purge=true
+        if ($LASTEXITCODE -eq 0) {
+            Write-Success "Dependencies updated in place."
+        } else {
+            Write-Warn "Kept existing node_modules (pnpm wanted a from-scratch reinstall -- likely a pnpm major-version change)."
+            Write-Warn "If the dev toolchain is broken below, re-run with -ForceInstall to recreate it."
+        }
+    }
+
+    if (-not (Test-ViteReady -Root $AppRoot)) {
+        if ($FreshInstall) {
+            Write-Err "pnpm install finished but vite is still missing. Remove node_modules + pnpm-lock.yaml, then re-run with -ForceInstall."
             Pop-Location
             Set-Location -LiteralPath $OriginalDir
             exit 1
         }
-        Write-Success "Dependencies ready."
-    } finally {
-        Pop-Location
+        Write-Warn "Dev toolchain (vite) not present; keeping node_modules as requested. Run with -ForceInstall to recreate it from scratch."
     }
-} else {
-    Write-Info "Dependencies look complete; skipping install. Use -ForceInstall to reinstall."
+    Write-Success "Dependencies ready."
+} finally {
+    Pop-Location
 }
 
 # --- 3) Backend: launch laravel_main in its own window (parity with start.sh) ---

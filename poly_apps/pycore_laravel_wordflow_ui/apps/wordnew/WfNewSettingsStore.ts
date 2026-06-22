@@ -19,6 +19,10 @@ export interface WfNewSettings {
   nickname: string;
   avatar: string;
   email: string;
+  /** Stable cache-scope identity for the logged-in user (id ?? username ?? email).
+   *  Always present for a logged-in user; '' when logged out. Used to namespace the
+   *  local content cache so logout clears the SAME scope login wrote. */
+  userId: string;
   authNativeLang: string;
   authTargetLang: string;
   bio: string;
@@ -70,6 +74,26 @@ export interface WfNewSettings {
   reviewOrder: string;
   /** Mix newly-learned words into the review queue. */
   reviewIncludeNew: boolean;
+  // ---- subtitle playback settings ----
+  /** Subtitle player playback speed multiplier (default 1.0). */
+  subtitlePlaybackSpeed: number;
+  /** Loop the current subtitle line instead of advancing (default false). */
+  subtitleLoopLine: boolean;
+  /** Show the native/translation line under the subtitle (default true). */
+  subtitleShowTranslation: boolean;
+  /** Auto-advance to the next segment when one finishes (default true). */
+  subtitleAutoNext: boolean;
+  /** Language filter for the word-stats sidebar (default 'english'). */
+  wordListLanguage: string;
+  /** Words per page in the word-stats sidebar (default 30). */
+  wordListPageSize: number;
+  // ---- book reader settings (persisted GLOBALLY; restored on next open) ----
+  /** Reader language mode: bilingual/对照 (several stacked langs per verse) vs
+   *  single/单语. Default false (single). */
+  readerSimul: boolean;
+  /** Preferred reader languages (e.g. ['en','zh']) — intersected with each book's
+   *  actually-available languages on open; empty falls back to the book's primary. */
+  readerLangs: string[];
   // ---- user data ----
   favorites: Word[];
   streakDays: number;
@@ -79,6 +103,7 @@ const makeDefaults = (): WfNewSettings => ({
   nickname: 'WordFlow Commander',
   avatar: '🦊',
   email: 'commander@wordflow.universe',
+  userId: '',
   authNativeLang: 'zh',
   authTargetLang: 'en',
   bio: 'Expanding my cognitive neural horizon in WordFlow.',
@@ -113,6 +138,16 @@ const makeDefaults = (): WfNewSettings => ({
   reviewDailyLimit: 50,
   reviewOrder: 'due_first',
   reviewIncludeNew: false,
+  // subtitle playback settings
+  subtitlePlaybackSpeed: 1.0,
+  subtitleLoopLine: false,
+  subtitleShowTranslation: true,
+  subtitleAutoNext: true,
+  wordListLanguage: 'english',
+  wordListPageSize: 30,
+  // book reader settings
+  readerSimul: false,
+  readerLangs: ['en', 'zh'],
   favorites: [],
   streakDays: 8,
 });

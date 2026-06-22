@@ -16,6 +16,7 @@
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
+    "resolveJsonModule": true,
     "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
@@ -66,6 +67,21 @@
       ],
       "@capacitor-community/keep-awake": [
         "./shared/capacitor-web-shims/keep-awake.ts"
+      ],
+      "@capacitor/local-notifications": [
+        "./shared/capacitor-web-shims/local-notifications.ts"
+      ],
+      "@capacitor/filesystem": [
+        "./shared/capacitor-web-shims/filesystem.ts"
+      ],
+      "@capacitor/camera": [
+        "./shared/capacitor-web-shims/camera.ts"
+      ],
+      "@capacitor-community/sqlite": [
+        "./shared/capacitor-web-shims/community-sqlite.ts"
+      ],
+      "@capacitor/browser": [
+        "./shared/capacitor-web-shims/browser.ts"
       ]
     },
     "allowImportingTsExtensions": true,

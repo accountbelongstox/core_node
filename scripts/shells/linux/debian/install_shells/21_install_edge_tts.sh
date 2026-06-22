@@ -98,7 +98,10 @@ echo "[..] pip install --upgrade edge-tts ..."
 PIP_ARGS=(--upgrade edge-tts)
 [[ "$FORCE" -eq 1 ]] && PIP_ARGS+=(--force-reinstall)
 if [[ "$(uname -s)" != "Darwin" ]]; then PIP_ARGS=(--break-system-packages "${PIP_ARGS[@]}"); fi
+# Print the exact command-string before running it (traceability).
+echo "[21] $PYTHON -m pip install ${PIP_ARGS[*]}"
 if ! "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
+    echo "[21] $PYTHON -m pip install --upgrade edge-tts"
     if ! "$PYTHON" -m pip install --upgrade edge-tts; then
         echo "[!] edge-tts install did not complete cleanly; pycore will install it at import time."
         exit 0

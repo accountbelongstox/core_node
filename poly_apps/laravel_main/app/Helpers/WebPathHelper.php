@@ -76,6 +76,58 @@ class WebPathHelper
     }
 
     /**
+     * Check whether the root (/) filesystem has more than $minGb free space.
+     * Mirrors gvar_common.sh::root_has_sufficient_free_space. The threshold can
+     * be overridden via the DEV_ROOT_MIN_FREE_GB environment variable.
+     */
+    private static function rootHasSufficientFreeSpace(int $minGb = 50): bool
+    {
+        $envGb = getenv('DEV_ROOT_MIN_FREE_GB');
+        if ($envGb !== false && is_numeric($envGb)) {
+            $minGb = (int) $envGb;
+        }
+        $free = @disk_free_space('/');
+        if ($free === false) {
+            return false;
+        }
+        return $free > $minGb * (1024 ** 3);
+    }
+
+    /**
+     * Detect system name + major version from /etc/os-release (distro ID /
+     * VERSION_ID), e.g. ['kali','2026'], ['ubuntu','24']. Mirrors gvar_common.sh
+     * SYSTEM_NAME/SYSTEM_VERSION and PathMapper::getSystemNameVersion. Falls back
+     * to the kernel name only when /etc/os-release is unreadable.
+     *
+     * @return array{0:string,1:string} [name, majorVersion]
+     */
+    private static function getSystemNameVersion(): array
+    {
+        $name = '';
+        $version = '';
+
+        if (is_readable('/etc/os-release')) {
+            $lines = @file('/etc/os-release', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+            foreach ($lines as $line) {
+                if ($name === '' && str_starts_with($line, 'ID=')) {
+                    $name = strtolower(trim(substr($line, 3), " \t\"'"));
+                } elseif ($version === '' && str_starts_with($line, 'VERSION_ID=')) {
+                    $version = trim(substr($line, 11), " \t\"'");
+                }
+            }
+        }
+
+        if ($name === '') {
+            $name = strtolower(php_uname('s'));
+        }
+        if ($version !== '' && str_contains($version, '.')) {
+            $version = explode('.', $version)[0];
+        }
+
+        return [$name, $version];
+    }
+
+    /**
      * Map web path key to actual path (matches map_web_path() in gvar_common.sh)
      */
     public static function mapWebPath(string $pathKey, string $subPath = ''): string
@@ -115,13 +167,20 @@ class WebPathHelper
                 break;
             case 'compile_dir':
                 // Compile directory for development languages
+                // Local /opt: root (/) has > DEV_ROOT_MIN_FREE_GB free (non-WSL)
                 // Development (WSL/Desktop/NTFS): base_dir/_system_version (with underscore prefix)
                 // Production server: /usr/system_version
-                $sysName = php_uname('s');
-                $sysVersion = explode('.', php_uname('r'))[0];
+                // Name from /etc/os-release (distro id + major version), e.g. kali / 2026,
+                // matching gvar_common.sh SYSTEM_NAME/SYSTEM_VERSION (NOT the kernel).
+                [$sysName, $sysVersion] = self::getSystemNameVersion();
 
-                // Check if this is development environment
-                if (self::isWsl() || !self::isProduction()) {
+                $optDir = "/opt/_{$sysName}_{$sysVersion}";
+                if (!self::isWsl() && (is_dir($optDir) || self::rootHasSufficientFreeSpace())) {
+                    // STICKY /opt: if it is already in use keep using it; otherwise
+                    // select it when root (/) has ample space. Once /opt is chosen
+                    // all later installs stay there even if root later shrinks.
+                    $mappedPath = $optDir;
+                } elseif (self::isWsl() || !self::isProduction()) {
                     // Development: base_dir/_system_version (with underscore prefix)
                     $mappedPath = $dataBase . "/_{$sysName}_{$sysVersion}";
                 } else {

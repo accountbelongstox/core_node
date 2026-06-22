@@ -36,9 +36,24 @@ export { WfNewApiPaths, WFNEW_API_BASE, WFNEW_HEALTH_PATH } from './WfNewApiPath
 // http impl. Mock mode ignores it (no network).
 export {
   wfNewEndpoints, WFNEW_API_HEALTH_EVENT, WFNEW_API_PORT, buildEndpointUrl, CURRENT_URL_TYPE,
+  isCurrentUrlId,
 } from './WfNewEndpoints';
 export { useWfNewEndpoints } from './useWfNewEndpoints';
+
+// Social realtime — the SSE push client (separate from the request/response impl).
+// Start/stop app-level on login/logout; pages subscribe to events via subscribeSocial.
+export {
+  startSocialSse, stopSocialSse, subscribeSocial, isSocialSseConnected,
+} from './WfNewSocialSse';
+export type { WfNewSocialEvent } from './WfNewSocialSse';
 
 // Persisted endpoint settings store (subclass of the shared PersistedStore).
 export { wfNewEndpointStore } from './WfNewEndpointStore';
 export type { WfNewEndpointPrefs } from './WfNewEndpointStore';
+
+// ONE responsive grid constant for the whole app (columns-per-width), shared by
+// every page AND used here for ROW-based pagination (page size = columns × rows).
+// Computed at startup, corrected on resize. Never hardcoded per page.
+export {
+  useWfNewGridCols, wfNewGridCols, wfNewPageSize, WFNEW_HOME_ROWS, WFNEW_LIST_ROWS,
+} from './WfNewGrid';

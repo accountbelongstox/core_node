@@ -12,7 +12,7 @@ import Portal from '../../../components/shared/Portal';
 import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '../../../styles/overlay';
 import { notify } from '../../../core/notify/notify';
 import { ElementTheme } from '../WfNewTypes';
-import { wfNewApi, wfNewEndpoints, useWfNewEndpoints, WFNEW_API_PORT, CURRENT_URL_TYPE } from '../api';
+import { wfNewApi, wfNewEndpoints, useWfNewEndpoints, WFNEW_API_PORT, isCurrentUrlId } from '../api';
 
 interface WfNewApiServerDialogProps {
   open: boolean;
@@ -126,7 +126,7 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
               {endpoints.map((ep) => {
                 const h = health[ep.id];
                 const isCurrent = ep.id === currentId;
-                const isCurrentUrl = ep.id === CURRENT_URL_TYPE;
+                const isCurrentUrl = isCurrentUrlId(ep.id);
                 const healthy = h?.isHealthy === true;
                 const probed = h !== undefined;
                 return (

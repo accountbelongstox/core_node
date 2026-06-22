@@ -357,12 +357,12 @@ export class BaseAPI {
           url,
           response.status,
           performance.now() - startedAt,
-          data.error || data.message || 'Request failed'
+          data.error || data.message || data.detail || 'Request failed'
         );
         return {
           success: false,
           data: null,
-          error: data.error || data.message || 'Request failed',
+          error: data.error || data.message || data.detail || 'Request failed',
           status: response.status,
           debugInfo: data,
         };

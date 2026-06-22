@@ -109,6 +109,8 @@ return [
 
         'ittoolsv1' => $polyConnection('it_tools_v1_database'),
 
+        'pddtoolv1' => $polyConnection('pdd_tool_v1_database'),
+
         // NOTE: the mysql / mariadb / sqlsrv entries below are unused Laravel
         // framework stubs kept only for structural completeness. This application
         // never instantiates them (it runs exclusively on the PostgreSQL

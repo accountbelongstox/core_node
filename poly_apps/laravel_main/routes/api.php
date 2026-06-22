@@ -194,6 +194,9 @@ require_once __DIR__ . '/AppQyV1Router/AppQyV1PersonDict.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Social.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1MediaContent.php';
 
+// PddToolV1 (订多多) admin console routes (/api/pdd/admin/*)
+require_once __DIR__ . '/PddToolV1Router/PddToolV1Admin.php';
+
 // McpV1 routes - MCP application
 require_once __DIR__ . '/McpV1Router/api.php';
 
@@ -206,6 +209,10 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         Route::post('create', [TaskController::class, 'create']);
         Route::get('{taskId}/status', [TaskController::class, 'status']);
         Route::post('{taskId}/cancel', [TaskController::class, 'cancel']);
+        // Fast lane + live drilldown control plane.
+        Route::post('{taskId}/bump', [TaskController::class, 'bump']);
+        Route::get('{taskId}/detail', [TaskController::class, 'detail']);
+        Route::get('{taskId}/stream', [TaskController::class, 'stream']);
         Route::get('list', [TaskController::class, 'list']);
         Route::get('stats', [TaskController::class, 'stats']);
         Route::post('clean-invalid', [TaskController::class, 'cleanInvalid']);
@@ -230,6 +237,9 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
     Route::prefix('app_qy_v1/media')->group(function () {
         Route::post('ingest', [\App\Http\Controllers\MediaIngestController::class, 'ingest']);
         Route::post('ingest-clip', [\App\Http\Controllers\MediaIngestController::class, 'ingestClip']);
+        // Claim-free, idempotent bulk sentence-audio upload (CoreBook §5.2): pycore
+        // pushes a locally-generated mp3 keyed by content_id+language (fill-missing).
+        Route::post('audio', [\App\Http\Controllers\MediaIngestController::class, 'audio']);
         Route::post('enrich', [\App\Http\Controllers\MediaIngestController::class, 'enrich']);
 
         // READ-ONLY browse + media-file serving (dashboard movies/books browser)

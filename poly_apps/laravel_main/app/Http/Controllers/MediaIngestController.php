@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
+use App\Models\LangSentence;
 use App\Services\MediaIngestService;
 use App\Services\SentenceEnrichmentService;
 use App\Providers\PathMapper;
@@ -116,6 +119,83 @@ class MediaIngestController extends Controller
             'path' => $targetPath,
             'skipped' => false,
         ], 'Clip stored successfully');
+    }
+
+    /**
+     * Claim-free, idempotent bulk sentence-audio upload (CoreBook §5.2).
+     *
+     * Unlike /ai_tools/tts/sentence/report (which requires a prior worker claim +
+     * task_id), this lets pycore push a locally-generated mp3 straight in, keyed
+     * by content_id + language. Fill-missing, never clobber.
+     *
+     * POST /api/app_qy_v1/media/audio   (multipart, no auth — same trust as ingest)
+     *   language    (required)  per-language sentence table selector
+     *   content_id  (required)  md5 dedup key (PathMapper {lang}/{content_id}.mp3)
+     *   source_key  (optional)  originating record (informational)
+     *   audio       (required)  the mp3 file
+     *
+     * Behaviour:
+     *   - no per-language row for content_id  -> { ok:false, status:'no_sentence' }
+     *   - row exists but already has audio     -> { ok:true,  status:'already_done' }
+     *   - row exists, audio empty              -> store mp3 + has_audio/audio/
+     *                                             tts_completed_at, { ok:true, status:'completed' }
+     */
+    public function audio(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'language' => 'required|string|max:20',
+            'content_id' => 'required|string|max:64',
+            'source_key' => 'nullable|string|max:64',
+            'audio' => 'required|file',
+        ]);
+
+        $language = AppQyV1TableMaps::normalizeLangCode($validated['language']);
+        $contentId = trim($validated['content_id']);
+
+        if ($language === '') {
+            return response()->json(['ok' => false, 'status' => 'invalid', 'error' => 'Unknown language'], 422);
+        }
+
+        $service = new AppQyV1SentenceAudioService();
+
+        // Locate the per-language sentence row first so a not-yet-ingested
+        // sentence reports 'no_sentence' (pycore ingests text first) rather than
+        // the generic worker-report 404.
+        $sentence = LangSentence::onLang($language)
+            ->where('content_id', $contentId)
+            ->first();
+
+        if (!$sentence) {
+            return response()->json(['ok' => false, 'status' => 'no_sentence', 'error' => 'No sentence row for content_id; ingest text first'], 200);
+        }
+
+        // Fill-missing: a row that already carries audio is acknowledged without
+        // overwriting (the service's report() is also file-first idempotent).
+        if (!empty($sentence->has_audio)) {
+            return response()->json(['ok' => true, 'status' => 'already_done']);
+        }
+
+        $binary = @file_get_contents($request->file('audio')->getRealPath());
+        if ($binary === false || $binary === '') {
+            return response()->json(['ok' => false, 'status' => 'invalid', 'error' => 'Empty audio upload'], 422);
+        }
+
+        // Delegate the validated write (MP3 magic + deterministic path + on-disk
+        // verification + has_audio/audio/tts_completed_at) to the shared service.
+        $result = $service->report(
+            $contentId,
+            $language,
+            'media:audio',
+            true,
+            $binary,
+            'media:audio',
+            null
+        );
+
+        $httpStatus = $result['http_status'] ?? 200;
+        unset($result['http_status']);
+
+        return response()->json($result, $httpStatus);
     }
 
     /**
