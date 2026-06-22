@@ -276,7 +276,15 @@
       "allowedVersions": {
         "@electron/rebuild": "*"
       }
-    }
+    },
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "electron",
+      "@electron/rebuild",
+      "better-sqlite3",
+      "sqlite3",
+      "puppeteer"
+    ]
   },
   "exclude": [
     "node_modules"
