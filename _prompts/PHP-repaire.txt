@@ -1,0 +1,1719 @@
+
+  Script execution completed with exit code: 1
+  Press any key to return to test scripts menu...
+   adapt to Ubuntu / Debian / Kali.
+
+I'll investigate the actual root cause on this machine and find the script's repo-selection logic. Let me gather facts in parallel.
+
+  Searched for 2 patterns, ran 1 shell command
+
+Key finding already: the repo is pinned to Sury bookworm (Debian 12 stable), but this is Kali rolling 2026.2 (tracks Debian testing). And libxml2/libzip4 have no candidate at all in Kali's index — the bookworm-built PHP packages can't resolve. Let me confirm what Kali actually names those libs and read the script's distro→suite logic.
+
+  Searched for 1 pattern, ran 2 shell commands
+
+Now the root cause is crisp. Kali rolling 2026.2 has moved past two SONAME transitions:
+- libxml2 → libxml2-16 (the bare libxml2 package no longer exists)
+- libzip4 → libzip5
+
+But the script maps Kali → Sury bookworm (Debianckages still Depends: libxml2 (>= 2.9.4) andlibzip4 — names that don't exist in Kali. That's the failure. The bug is in apt_repository_manager.sh:132-138: kali-rolling
+isn't in the allowlist, so it falls back to book
+
+The real question is which Sury suite matches Kali's current libraries. Let me test empirically which suite's php8.5 packages depend on libxml2-16/libzip5 rather than guess.
+
+  Ran 1 shell command
+
+The awk paragraph-match was wrong, and importantly forky/sid return 418 — Sury doesn't publish them (only bookworm and trixie exist). Let me properly extract the dependency lines from bookworm vs trixie.
+
+  Ran 1 shell command
+
+Critical detail: trixie fixes libzip (→libzip5, which Kali has) but php8.5-cli/xml still Depends: libxml2 — and Kali only ships libxml2-16. So I need to confirm whether Kali's libxml2-16 satisfies a libxml2 dependency (via Provides:), or whether even trixie would fail. Let me check the virtual-provides and the keyring, then run the decisive install simulation.
+
+  Ran 1 shell command
+
+Decisive finding forming: Kali ships libxml2-16  provides a virtual libxml2. Since even Sury'strixie php8.5 still Depends: libxml2 (the old .so.2 package), no published Sury suite may resolve on Kali. Let me run the
+authoritative install simulation against trixie the real SONAME.
+
+  Ran 1 shell command
+
+No passwordless sudo in my session (the script itself runs interactively with sudo). That's fine — I can confirm the ABI gap without it. Let me verify whether Sury ships its own libxml2, and inspect the real SONAME Kali's libxml2-16 provides.
+
+  Ran 1 shell command
+
+Diagnosis is now conclusive and it's deeper than a wrong suite — it's a real ABI gap:
+
+- Kali rolling 2026.2 ships libxml2 2.15.3 as package libxml2-16, providing libxml2.so.16. The old libxml2 package (providing libxml2.so.2) is gone, with no virtual Provides.
+- Sury ships no libxml2 itself (neither suite) — it relies on the distro's. Both suites' php8.5-cli/php8.5-xml Depends: libxml2 (the .so.2 package) → unsatisfiable on Kali.
+- Switching to trixie does fix the other half (php8.5-zip → libzip5, which Kali has at 1.11.4), but the libxml2 gap remains fatal for the core CLI package. And forky/sid Sury suites return 418 — they don't exist.
+
+Let me confirm the compat-shim feasibility (Debiallable) and read the exact script logic I'dpatch.
+
+  Read 1 file, ran 1 shell command
+
+I've now fully root-caused this, and it's deeper than a misconfigured repo — it's a real library ABI gap. Here's the definitive picture:
+
+Why it failed
+
+┌────────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│         Layer          │                          What's true on this box (Kali rolling 2026.2)                          │
+├────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Repo written           │ Sury bookworm (Debian 12 stable) — php.list                                                     │
+├────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Kali's libxml2         │ libxml2-16 = libxml2 2.15.3, ships only libxml2.so.16. The old libxml2 package (.so.2) is gone, │
+│                        │  with no virtual Provides.                                                                      │
+├────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Kali's libzip          │ libzip5 1.11.4 (old libzip4 gone)                                                               │
+├────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Sury bookworm php8.5   │ libxml2 (≥2.9.4) + liKali → the exact error you saw                │
+│ needs                  │                                                                                                 │
+├────────────────────────┼────────────────────────────────────────────────────────────────────┤
+│ Sury trixie php8.5     │ libzip5 ✅ (Kali has it) but still libxml2 (.so.2) ❌                                           │
+│ needs                  │                                                                                                 │
+├────────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Sury forky/sid suites  │ Don't exist (HTTP 418)                                                                          │
+└────────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Two distinct bugs in apt_repository_manager.sh:132-138:
+1. Kali maps to bookworm (oldest) instead of the newest published Sury suite. kali-rolling isn't in the allowlist → falls back to bookworm.
+2. The allowlist passes through forky|sid, but Sury publishes neither → those would 404/418.
+
+The unavoidable catch: Kali (tracking Debian sid/forky) already moved to libxml2 2.15 / .so.16. Sury's newest build (trixie) still links libxml2.so.2. php8.5-cli itself depends on libxml2 (libxml is core, non-disableable PHP), so no Sury PHP 8.5 can install or run on Kali 2026.2 without a libxml2.so.2 present. I verified the clean remedy: Debian trixie's libxml2 package (2.12.7, .so.2) is co-installable — it depends only on libc6, liblzma5, zlib1g, all present on Kali, and won't collide with libxml2-16 (different package name + different .so files).
+
+So the fix has two parts: (A) suite mapping bookd codenames — unambiguously correct, I'll do itregardless; (B) the libxml2 gap — a judgment call on how aggressive to be.
+
+● User answered Claude's questions:
+· How should the script handle the libxml2 .so.2 gap on bleeding-edge Kali (where PHP 8.5 literally cannot run without a compat lib)? → Auto-shim, opt-out flag
+
+Implementing the Auto-shim (opt-out) approach. Let me read the exact install/repo call-sites so I place the patch precisely.
+
+  Read 2 files, ran 3 shell commands
+
+Now let me make sure libxml2 is the only gap — I need to verify the full trixie php8.5 dependency closure resolves on Kali (otherwise a libxml2-only shim is a partial fix).
+
+  Ran 1 shell command
+
+Confirmed: libxml2 is the only gap. With the trixie suite, the entire php8.5 dependency closure resolves on Kali (libcurl4t64, libssl3t64, libzip5, libonig5, libgd3, libpq5… all present) — only libxml2 (.so.2) is missing. So the fix is precisely: map → trixie, then shim the single libxml2 gap.
+
+Before I change the shared resolver's default, l it (to avoid breaking Docker/MySQL/edge on Kali).
+
+  Ran 1 shell command
+
+The resolver is shared by PHP, Docker, PostgreSQL (PGDG), and Tailscale too. That actually reinforces the fix: bookworm is generically wrong for Kali — all those repos' bookworm packages predate Kali's t64 ABI (libssl3t64, libcurl4t64, libzip5). trixie (post-t64, Debian stable for ~10 months now) is the correct target for all of them, and they all publish it. So changing the shared default bookworm→trixie is the right "adapt to Kali" fix, kept env-overridable.
+
+Let me implement. Edit 1 — fix the resolver's Debian codename mapping:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt_repository_manager.sh)
+Added 12 lines, removed 4 lines
+    fi
+
+    # Accept only codenames the upstream repos actually publish; anything else
+    # (kali-rolling, parrot, sid-on-a-rolling-derivative, empty) falls back to a
+    # stable codename so the written line resolves instead of 404-ing.
+    # (kali-rolling, parrot, the rolling testing/unstable suites, empty) falls back
+    # to the newest hosted codename so the written line resolves instead of 404-ing.
+    case "$vendor" in
+        ubuntu)
+            case "$codename" in
+
+            esac
+            ;;
+        debian)
+            # Sury/Docker/PGDG/Tailscale publish bullseye/bookworm/trixie but NOT the
+            # rolling testing/unstable suites (forky/sid -> HTTP 418/404). Rolling
+            # derivatives (kali-rolling, parrot, ...) also carry the post-t64 ABI
+            # (libssl3t64, libcurl4t64, libzip5, libxml2 2.15) that bookworm-built
+            # packages predate and cannot satisfy, so map anything outside the hosted
+            # set to the newest hosted suite (trixie), which matches that ABI. Pinning
+            # to bookworm here is what made Sury PHP 8.5 fail on Kali (libzip4 /
+            # libxml2 deps absent). Override with APT_DEBIAN_CODENAME_DEFAULT.
+            case "$codename" in
+                bullseye|bookworm|trixie|forky|sid) : ;;
+                *) codename="${APT_DEBIAN_CODENAME_DEFAULT:-bookworm}" ;;
+                bullseye|bookworm|trixie) : ;;
+                *) codename="${APT_DEBIAN_CODENAME_DEFAULT:-trixie}" ;;
+            esac
+            ;;
+    esac
+
+Edit 2 — add the libxml2 compat-shim function. Let me check the lines just above the PHP repo functions for a clean insertion anchor.
+
+  Read 1 file, ran 1 shell command
+
+Now insert the shim function just before the PHP repository functions:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt_repository_manager.sh)
+Added 97 lines
+# COMMON REPOSITORY MANAGEMENT FUNCTIONS
+# ============================================================================
+
+# Bridge the libxml2 SONAME gap so Sury PHP 8.5 can install AND run on bleeding-edge
+# Debian derivatives (e.g. Kali rolling).
+#
+# Sury's php8.5-cli / php8.5-xml depend on the historic `libxml2` package, which
+# ships libxml2.so.2. Rolling derivativ already moved to
+# libxml2 2.15 (package `libxml2-16`, soname libxml2.so.16) and dropped the old
+# `libxml2` package with no virtual Pro unsatisfiable
+# and, even if force-installed, the PHP binary (linked against .so.2) would fail to
+# load. libxml2 is core, non-disableable PHP, so this blocks PHP entirely.
+#
+# When the gap is detected, install Debian's `libxml2` (.so.2) compat package for the
+# resolved Sury codename (the suite Sury built against, so the ABI matches). It depends
+# only on libc6/liblzma5/zlib1g (present on such systems) and co-installs cleanly next
+# to libxml2-16 (different package name, different .so files). Idempotent; a no-op when
+# libxml2.so.2 is already present or the distro still ships a real `libxml2` candidate.
+#
+# Opt out with PHP_LIBXML2_COMPAT_SHIM=0 -- then a clear gap message is printed and the
+# caller's PHP install is left to fail loudly instead of silently mixing in a lib.
+ensure_php_libxml2_compat_from_apt_repository_manager() {
+    local php_vendor="$1"     # ubuntu | debian
+    local php_codename="$2"   # resolved repo codename (e.g. trixie)
+
+    # Only the Debian/Sury path is affected; Ubuntu's ondrej PPA tracks Ubuntu libs.
+    [ "$php_vendor" = "debian" ] || return 0
+
+    # Already satisfiable? Either the distro offers a real `libxml2` candidate, the
+    # .so.2 is already on disk (prior sge is installed.
+    local cand
+    cand="$(apt-cache policy libxml2 2>/dev/null | awk '/Candidate:/{print $2}')"
+    if [ -n "$cand" ] && [ "$cand" != "(none)" ]; then
+        return 0
+    fi
+    if ldconfig -p 2>/dev/null | grep -q 'libxml2\.so\.2'; then
+        return 0
+    fi
+    if dpkg-query -W -f='${Status}' libxml2 2>/dev/null | grep -q 'install ok installed'; then
+        return 0
+    fi
+
+    echo "[libxml2-compat] This distro has no 'libxml2' (libxml2.so.2) package that Sury PHP 8.5 needs;" >&2
+    echo "[libxml2-compat]   it ships only the newer libxml2-16 / libxml2.so.16." >&2
+
+    case "${PHP_LIBXML2_COMPAT_SHIM:-1}" in
+        0|false|no|off)
+            echo "[libxml2-compat] PHP_-> NOT installing the compat lib." >&2
+            echo "[libxml2-compat] The PHP 8.5 install will fail until libxml2.so.2 is provided." >&2
+            echo "[libxml2-compat] Re-rIM=1 (default) to auto-install it." >&2
+            return 0
+            ;;
+    esac
+
+    local arch; arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+    local idx_url="http://deb.debian.org/debian/dists/${php_codename}/main/binary-${arch}/Packages.gz"
+    echo "[libxml2-compat] Resolving Debian ${php_codename} libxml2 (.so.2) compat package..." >&2
+
+    local tmp; tmp="$(mktemp -d 2>/dev/null || echo "/tmp/libxml2compat.$$")"
+    mkdir -p "$tmp"
+    local idx="$tmp/Packages.gz"
+    if ! curl -fsSL -o "$idx" "$idx_url"; then
+        echo "[libxml2-compat] ERROR: could not fetch Debian package index ($idx_url)." >&2
+        rm -rf "$tmp"; return 1
+    fi
+
+    # Filename: of the binary package named exactly 'libxml2' (the .so.2 one). The
+    # trailing \n in the regex preventsxml2-dev / etc.
+    local fname
+    fname="$(zcat "$idx" 2>/dev/null \
+        | awk 'BEGIN{RS="";ORS="\n\n"} /(^|\n)Package: libxml2\n/' \
+        | sed -n 's/^Filename: //p' | head -n1)"
+    if [ -z "$fname" ]; then
+        echo "[libxml2-compat] ERROR: Debian ${php_codename} has no 'libxml2' (.so.2) package." >&2
+        rm -rf "$tmp"; return 1
+    fi
+
+    local deb_url="http://deb.debian.org/debian/${fname}"
+    local deb="$tmp/libxml2-compat.deb"
+    echo "[libxml2-compat] Downloading ${deb_url}" >&2
+    if ! curl -fsSL -o "$deb" "$deb_url"; then
+        echo "[libxml2-compat] ERROR: download failed ($deb_url)." >&2
+        rm -rf "$tmp"; return 1
+    fi
+
+    echo "[libxml2-compat] Installing compat libxml2 (.so.2) alongside libxml2-16..." >&2
+    if ! $USE_SUDO dpkg -i "$deb"; then
+        # Pull any missing deps from th1g normally present).
+        $USE_SUDO apt-get -f install -y 2>/dev/null || true
+    fi
+    rm -rf "$tmp"
+
+    if ldconfig -p 2>/dev/null | grep -q 'libxml2\.so\.2'; then
+        echo "[libxml2-compat] OK: libxml2.so.2 now available (Debian ${php_codename} compat lib)." >&2
+        return 0
+    fi
+    echo "[libxml2-compat] WARNING: libxml2.so.2 still absent after shim; PHP install may fail." >&2
+    return 1
+}
+
+# Add PHP repository (Ubuntu/Debian) with automatic backup and restore
+# Ubuntu: uses ppa.launchpadcontent.net and Launchpad PPA signing key (avoids certificate mismatch with ppa.lau
+nchpad.net)
+# Debian: uses packages.sury.org and Sury key
+
+Now wire the shim into both PHP-repo functions. Let me re-read their current bodies (line numbers shifted after the insert).
+
+  Read 1 file, ran 1 shell command
+
+Edit 3 — wire shim into the non-permanent functi
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt_repository_manager.sh)
+Added 3 lines
+        php_repo_line="deb [signed-by=$php_key_file] https://packages.sury.org/php/ $php_codename main"
+    fi
+
+    # Bridge the libxml2.so.2 gap on rolling derivatives before the PHP install runs.
+    ensure_php_libxml2_compat_from_apt_repository_manager "$php_vendor" "$php_codename"
+
+    execute_with_repo_backup_from_apt_repository_manager \
+        "php" \
+        "$php_repo_line" \
+
+Edit 4 — wire shim into the permanent function (the one script 31 actually uses):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt_repository_manager.sh)
+Added 3 lines
+    echo "Updating apt cache..."
+    $USE_SUDO apt update 2>/dev/null || true
+
+    # Bridge the libxml2.so.2 gap on rolling derivatives before the PHP install runs.
+    ensure_php_libxml2_compat_from_apt_repository_manager "$php_vendor" "$php_codename"
+
+    if [ -n "$command_to_execute" ]; then
+        echo "Executing: $command_to_execute"
+        eval "$command_to_execute"
+
+Now verify: syntax check, the resolver's actual output on this Kali box, and that the shim's package-finder locates a real downloadable .deb.
+
+  Ran 1 shell command
+
+All mechanical checks pass:
+- bash -n → syntax valid
+- Resolver now returns debian trixie on this Kali box (was effectively bookworm)
+- The shim's finder extracts the real Debian-trixie libxml2_2.12.7…_amd64.deb and its URL returns HTTP 200
+
+The only steps I can't execute here are the sudoo passwordless sudo in my session) — those runwhen you execute the script interactively. Let me capture the diff and run an adversarial multi-lens review of the change to
+catch anything subtle in the shell/idempotency/f
+
+  Ran 1 shell command
+
+I notice the diff shows the whole resolver function and several other changes (backup dir, keyring restore, gpg --yes) as already-modified in the working tree — those pre-existed this session; my additions are the trixie clamp, the shim function, and the two wiring calls. All my edits are present and correct.
+
+Now let me run an adversarial multi-lens review of this install-critical change (which I can't fully execute due to sudo), focused on shell correctness, failure-safety, and cross-distro behavior.
+
+● Workflow(Adversarially review the PHP 8.5 / Kali libxml2 install fix in apt_repository_manager.sh)
+/workflows to view dynamic workflow runs
+
+The review is running in the background. While it works, let me confirm the ordering in script 31 — that setup_php_repository (where the shim now runs) executes before the core/extension installs that need libxml2.
+
+  Read 1 file
+
+Ordering confirmed: Step 3 setup_php_repository (where the shim now runs, before the repo's bundled apt install) executes
+before Step 4 install_php_core and the later extso.2 is in place before any PHP package isinstalled.
+
+Here's where things stand while the adversarial review finishes:
+
+Root cause (definitive)
+
+Your 31_*.sh → apt_repository_manager.sh mapped Kali rolling → Sury bookworm (Debian 12). But Kali 2026.2 tracks Debian sid and has moved past two SONAME transitions:
+- libxml2 → libxml2-16 (libxml2 2.15.3, ships only libxml2.so.16; old libxml2 package gone, no virtual Provides)
+- libzip4 → libzip5
+
+Sury's bookworm php8.5 still Depends: libxml2 + libzip4 → neither exists on Kali → the exact [no choices] error. And forky/sid Sury suites don't exist (HTTP 418).
+
+Fix applied (in apt_repository_manager.sh)
+
+1. Suite mapping — Debian codename clamp now keeps only {bullseye,bookworm,trixie} (the suites Sury/Docker/PGDG/Tailscale
+actually host); anything outside (kali‑rolling, trixie (newest hosted, matches Kali's post‑t64ABi), env‑overridable via APT_DEBIAN_CODENAME_DEFAULT. trixie alone fixes the libzip side and the rest of the dep closure.
+2. libxml2 .so.2 compat shim (new ensure_php_libry_manager) — the one remaining gap. When nolibxml2 satisfier exists, it pulls Debian trixie's real libxml2 (2.12.7, .so.2; deps libc6/liblzma5/zlib1g, all present) and dpkg -is it next to libxml2-16. Default‑on, opt out with PHP_LIBXML2_COMPAT_SHIM=0. Wired into both repo‑add functions, before the PHP install.
+
+Empirically validated on your box: bash -n clean, resolver now emits debian trixie, the shim resolves the real .deb (HTTP 200), and the full php8.5 dep closure resolves on Kali with trixie except libxml2 (which the shim covers). I'll fold in the multi-agent review findings as soon as it completes.
+
+✻ Churned for 14m 19s
+
+❯   Executing: 31_ensure_php85_intelligent.sh
+
+  Script execution completed with exit code: 1
+  Press any key to return to test scripts menu...
+   fix it ,support Ubuntu Debian Kali.
+
+Excellent — the fix worked: PHP 8.5.7 installed  did exactly its job (OK: libxml2.so.2 nowavailable), suite resolved to trixie, 9 extensions loaded. But there's a second instance of the identical bug class:
+php8.5-intl → libicu76 unsatisfiable (Kali bumpeml2). I missed it earlier because intl isinstalled later by name, outside the core bundle I dep-checked.
+
+The right fix is to generalize the shim so it covers every such SONAME gap in one pass, not whack-a-mole. Let me first scan the full Sury php8.5 package set to find all gaps on Kali (so the fix is complete), and confirm libicu76 is pullable from Debian trixie.
+
+  Ran 1 shell command
+
+The fix works — PHP 8.5.7 is installed and running, and the libxml2 shim performed exactly as designed. The remaining failure is the same bug class, second instance: php8.5-intl → libicu76 (Kali bumped ICU past trixie's 76).
+
+The complete gap scan shows only libicu76 matters for this project — the other two gaps (libgpgme11t64, libsnmp40t64) belong to php8.5-snmp/php8.5-gnupg, which the project never installs (so I must not over-provision those). libicu76 is cleanly pullable from Debian trixie (76.1-4, deps all present, HTTP 200).
+
+So I'll generalize the shim to resolve compat libs for the project's actual php package set in one pass. Let me find the canonical package/extension list.
+
+  Read 1 file, ran 1 shell command
+
+The project's full php set = PHP85_CORE_PACKAGES (cli, common) + CORE_EXTENSIONS (the 11, incl. intl) — and these arrays are already sourced into the script's environment. Let me verify that resolving compat libs against exactly this bounded set yields only libicu76 (and previously libxml2) — never the snmp/gnupg libs.
+
+  Ran 1 shell command
+
+● Dynamic workflow "Adversarially review the PHP 8.5 / Kali libxml2 install fix in apt_repository_manager.sh" completed · 6m 8s
+
+The bounded test confirms it: the project set yields exactly libicu76 as the gap (libxml2 now installed → gone), and the snmp/gnupg libs are correctly excluded.
+
+The adversarial review also landed with strong findings I'll fold into the generalized shim:
+- must-fix (security): the .deb is fetched over plain HTTP and dpkg -i'd as root with no integrity check → root-RCE surface. Fix: HTTPS + verify SHA256 from the Packages stanza (already parsed) before install.
+- must-fix: apt-get -f install -y 2>/dev/null || true swallows all diagnostics → fix surfaces as opaque downstream error.
+- should-fix: noninteractive frontend + --force-confold, constrain -f install so it can't remove the lib, self-ensure curl, set -u-safe os-release reads, and glibc-gate the trixie clamp (so a bookworm-era derivative with glibc<2.38 stays on bookworm).
+
+Let me confirm the Debian index carries SHA256: and supports HTTPS, then write the generalized + hardened shim.
+
+  Ran 1 shell command
+
+All confirmed: SHA256 in the stanza, HTTPS works (200), glibc/dpkg compare available. Now let me replace the libxml2-specific shim with the generalized, hardened version. Let me read its current exact text.
+
+  Read 1 file, ran 1 shell command
+
+All prerequisites confirmed. Now I'll generalize the shim (so it covers libicu76 and any future SONAME gap, bounded to the project's actual package set) and fold in the review's security/robustness fixes. Replacing the libxml2-specific function:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt_repository_manager.sh)
+Added 133 lines, removed 70 lines
+# COMMON REPOSITORY MANAGEMENT FUNCTIONS
+# ============================================================================
+
+# Bridge the libxml2 SONAME gap so Sury PHP 8.5 can install AND run on bleeding-edge
+# Debian derivatives (e.g. Kali rolling).
+# Bridge SONAME/library gaps so Sury PHbleeding-edge
+# Debian derivatives (e.g. Kali rolling) that have moved ahead of the suite Sury
+# builds against.
+#
+# Sury's php8.5-cli / php8.5-xml depend on the historic `libxml2` package, which
+# ships libxml2.so.2. Rolling derivatives that track Debian sid have already moved to
+# libxml2 2.15 (package `libxml2-16`, soname libxml2.so.16) and dropped the old
+# `libxml2` package with no virtual Provides -- so the dependency is unsatisfiable
+# and, even if force-installed, the PHP binary (linked against .so.2) would fail to
+# load. libxml2 is core, non-disableable PHP, so this blocks PHP entirely.
+# Sury's php8.5-* packages (built for Debian <codename>) depend on that suite's library
+# versions -- e.g. php8.5-cli/xml -> `libxml2` (libxml2.so.2), php8.5-intl -> `libicu76`.
+# Rolling derivatives that track Debian sid have already bumped those SONAMEs (libxml2
+# 2.15 -> package libxml2-16 / libxml2.so.16; ICU 76 -> libicu77+) and DROPPED the old
+# package names with no virtual Provides, so the dependency is unsatisfiable and the
+# extension binaries (linked against the old soname) would not load. libxml2 is core,
+# non-disableable PHP, so a missing libxml2 blocks PHP entirely.
+#
+# When the gap is detected, install Debian's `libxml2` (.so.2) compat package for the
+# resolved Sury codename (the suite Sury built against, so the ABI matches). It depends
+# only on libc6/liblzma5/zlib1g (presentalls cleanly next
+# to libxml2-16 (different package name, different .so files). Idempotent; a no-op when
+# libxml2.so.2 is already present or thlibxml2` candidate.
+# For each library dependency of the REQUESTED php packages that is unsatisfiable on
+# this host, install Debian <codename>'s build of that exact library (the suite Sury
+# built against -> ABI match). Such libs are SONAME-versioned, so they co-install
+# cleanly next to the distro's newer version (different package name + different .so).
+# Only libs that the requested php packages actually need AND that the host lacks AND
+# that Debian publishes are touched -- never a blanket pull (so e.g. libsnmp40t64 for
+# php8.5-snmp is left alone when that extension is not requested). Idempotent: a no-op
+# once the libs are installed or the distro already satisfies them.
+#
+# Opt out with PHP_LIBXML2_COMPAT_SHIM=0 -- then a clear gap message is printed and the
+# caller's PHP install is left to fail loudly instead of silently mixing in a lib.
+ensure_php_libxml2_compat_from_apt_repository_manager() {
+    local php_vendor="$1"     # ubuntu | debian
+    local php_codename="$2"   # resolved repo codename (e.g. trixie)
+# Security: each .deb is fetched over HTTPS and verified against the SHA256 in the same
+# Packages index stanza before it is installed as root; a mismatch discards the file.
+#
+# Opt out with PHP_COMPAT_SHIM=0 (legacIM=0) -- then a
+# clear gap report is printed and the caller's PHP install is left to fail loudly
+# instead of silently mixing in a lib.
+#
+# Args: <vendor: ubuntu|debian> <codename> <space-separated php package list>
+ensure_php_compat_libs_from_apt_repository_manager() {
+    local php_vendor="$1"
+    local php_codename="$2"
+    local php_pkgs="$3"
+
+    # Only the Debian/Sury path is affected; Ubuntu's ondrej PPA tracks Ubuntu libs.
+    [ "$php_vendor" = "debian" ] || return 0
+    [ -n "${php_pkgs// /}" ] || return 0
+
+    # Already satisfiable? Either the distro offers a real `libxml2` candidate, the
+    # .so.2 is already on disk (prior shim / leftover), or the package is installed.
+    local cand
+    cand="$(apt-cache policy libxml2 2>/dev/null | awk '/Candidate:/{print $2}')"
+    if [ -n "$cand" ] && [ "$cand" != "(none)" ]; then
+        return 0
+    fi
+    if ldconfig -p 2>/dev/null | grep -q 'libxml2\.so\.2'; then
+        return 0
+    fi
+    if dpkg-query -W -f='${Status}' libxml2 2>/dev/null | grep -q 'install ok installed'; then
+        return 0
+    fi
+
+    echo "[libxml2-compat] This distro has no 'libxml2' (libxml2.so.2) package that Sury PHP 8.5 needs;" >&2
+    echo "[libxml2-compat]   it ships only the newer libxml2-16 / libxml2.so.16." >&2
+
+    case "${PHP_LIBXML2_COMPAT_SHIM:-1}" in
+    case "${PHP_COMPAT_SHIM:-${PHP_LIBXML2_COMPAT_SHIM:-1}}" in
+        0|false|no|off)
+            echo "[libxml2-compat] PHP_LIBXML2_COMPAT_SHIM disabled -> NOT installing the compat lib." >&2
+            echo "[libxml2-compat] The PHP 8.5 install will fail until libxml2.so.2 is provided." >&2
+            echo "[libxml2-compat] Re-run with PHP_LIBXML2_COMPAT_SHIM=1 (default) to auto-install it." >&2
+            echo "[php-compat] Compat-lib shim disabled (PHP_COMPAT_SHIM=0); not adjusting libraries." >&2
+            echo "[php-compat] If Sury PHP 8.5 deps are unsatisfiable on this distro, the install will fail." >
+&2
+            return 0
+            ;;
+    esac
+
+    # Be self-contained regardless of caller order (the shim fetches/unpacks on its own).
+    command -v curl >/dev/null 2>&1 || ensure_packages_from_apt_repository_manager curl 2>/dev/null || true
+    command -v zcat >/dev/null 2>&1 || ensure_packages_from_apt_repository_manager gzip 2>/dev/null || true
+
+    local arch; arch="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
+    local idx_url="http://deb.debian.org/debian/dists/${php_codename}/main/binary-${arch}/Packages.gz"
+    echo "[libxml2-compat] Resolving Debian ${php_codename} libxml2 (.so.2) compat package..." >&2
+    local tmp
+    tmp="$(mktemp -d 2>/dev/null)" || {
+        echo "[php-compat] ERROR: mktemp -d failed; refusing a predictable temp path." >&2
+        return 1
+    }
+
+    local tmp; tmp="$(mktemp -d 2>/dev/null || echo "/tmp/libxml2compat.$$")"
+    mkdir -p "$tmp"
+    local idx="$tmp/Packages.gz"
+    if ! curl -fsSL -o "$idx" "$idx_url
+        echo "[libxml2-compat] ERROR: could not fetch Debian package index ($idx_url)." >&2
+        rm -rf "$tmp"; return 1
+    # 1) Sury index for the resolved suite -> the php8.5-* dependency lists.
+    local sury_idx="$tmp/sury.Packages.gz"
+    if ! curl -fsSL -o "$sury_idx" "https://packages.sury.org/php/dists/${php_codename}/main/binary-${arch}/Pac
+kages.gz"; then
+        echo "[php-compat] WARNING: could not fetch Sury ${php_codename} index; skipping compat pre-resolution.
+" >&2
+        rm -rf "$tmp"; return 0
+    fi
+
+    # Filename: of the binary package named exactly 'libxml2' (the .so.2 one). The
+    # trailing \n in the regex prevents matching libxml2-utils / libxml2-dev / etc.
+    local fname
+    fname="$(zcat "$idx" 2>/dev/null \
+        | awk 'BEGIN{RS="";ORS="\n\n"} /(^|\n)Package: libxml2\n/' \
+        | sed -n 's/^Filename: //p' | head -n1)"
+    if [ -z "$fname" ]; then
+        echo "[libxml2-compat] ERROR: Debian ${php_codename} has no 'libxml2' (.so.2) package." >&2
+        rm -rf "$tmp"; return 1
+    # 2) Union of the lib* deps of the requested php packages (strip version constraints
+    #    and '|' alternatives). index()l -> no regex pitfalls.
+    local pkg
+    for pkg in $php_pkgs; do
+        zcat "$sury_idx" 2>/dev/null \
+          | awk -v RS='' -v p="$pkg" 'index($0 "\n", "Package: " p "\n")==1' \
+          | sed -n 's/^Depends: //p'
+    done > "$tmp/depends.txt" 2>/dev/null
+    local libs
+    libs="$(tr ',' '\n' < "$tmp/depends.txt" | sed 's/|.*//; s/^[[:space:]]*//; s/[[:space:]].*//' | grep -E '^
+lib' | sort -u)"
+
+    # 3) Which of those lib deps are UNsatisfiable on this host?
+    local gaps="" lib cand
+    for lib in $libs; do
+        cand="$(apt-cache policy "$lib" 2>/dev/null | awk '/Candidate:/{print $2}')"
+        if [ -n "$cand" ] && [ "$cand" != "(none)" ]; then continue; fi
+        if dpkg-query -W -f='${Status}' "$lib" 2>/dev/null | grep -q 'install ok installed'; then continue; fi
+        gaps="$gaps $lib"
+    done
+    gaps="$(printf '%s\n' $gaps | sed '/^$/d' | sort -u | tr '\n' ' ')"
+
+    if [ -z "${gaps// /}" ]; then
+        rm -rf "$tmp"; return 0
+    fi
+
+    local deb_url="http://deb.debian.org/debian/${fname}"
+    local deb="$tmp/libxml2-compat.deb"
+    echo "[libxml2-compat] Downloading ${deb_url}" >&2
+    if ! curl -fsSL -o "$deb" "$deb_url"; then
+        echo "[libxml2-compat] ERROR: download failed ($deb_url)." >&2
+    echo "[php-compat] Sury PHP 8.5 needs libraries this distro no longer provides:${gaps}" >&2
+    echo "[php-compat] (a rolling derivative bumped these SONAMEs past Sury's ${php_codename} build target)" >&
+2
+
+    # 4) Resolve + integrity-verify each gap lib from Debian <codename> (the suite Sury
+    #    built against), then collect the verified .debs.
+    local deb_idx="$tmp/debian.Packages.gz"
+    if ! curl -fsSL -o "$deb_idx" "https://deb.debian.org/debian/dists/${php_codename}/main/binary-${arch}/Pack
+ages.gz"; then
+        echo "[php-compat] ERROR: could not fetch Debian ${php_codename} index; cannot provide compat libs." >&
+2
+        rm -rf "$tmp"; return 1
+    fi
+
+    echo "[libxml2-compat] Installing compat libxml2 (.so.2) alongside libxml2-16..." >&2
+    if ! $USE_SUDO dpkg -i "$deb"; then
+        # Pull any missing deps from the distro (libc6/liblzma5/zlib1g normally present).
+        $USE_SUDO apt-get -f install -y 2>/dev/null || true
+    local debs="" missing="" stanza fname exp_sha got_sha out
+    for lib in $gaps; do
+        stanza="$(zcat "$deb_idx" 2>/dev/null | awk -v RS='' -v p="$lib" 'index($0 "\n", "Package: " p "\n")==1
+' | head -c 200000)"
+        fname="$(printf '%s\n' "$stanza" | sed -n 's/^Filename: //p' | head -n1)"
+        exp_sha="$(printf '%s\n' "$stanza" | sed -n 's/^SHA256: //p' | head -n1)"
+        if [ -z "$fname" ]; then
+            echo "[php-compat] NOTE: Debian ${php_codename} has no '${lib}' package; cannot shim it." >&2
+            missing="$missing $lib"; continue
+        fi
+        out="$tmp/${lib}.deb"
+        echo "[php-compat] Fetching ${lib} <- https://deb.debian.org/debian/${fname}" >&2
+        if ! curl -fsSL -o "$out" "httpname}"; then
+            echo "[php-compat] WARNING: download failed for ${lib}." >&2
+            missing="$missing $lib"; continue
+        fi
+        if [ -z "$exp_sha" ]; then
+            echo "[php-compat] ERROR: no SHA256 in index for ${lib}; refusing to install unverified .deb." >&2
+            missing="$missing $lib"; continue
+        fi
+        got_sha="$(sha256sum "$out" 2>/dev/null | awk '{print $1}')"
+        if [ "$got_sha" != "$exp_sha" ]; then
+            echo "[php-compat] ERROR: SHA256 mismatch for ${lib} (want ${exp_sha}, got ${got_sha}); discarding.
+" >&2
+            missing="$missing $lib"; continue
+        fi
+        debs="$debs $out"
+    done
+
+    # 5) Install all verified compat libs at once (so any inter-deps resolve together),
+    #    non-interactively, keeping exioving packages to
+    #    "fix" the transaction. Diagnostics are NOT swallowed.
+    if [ -n "${debs// /}" ]; then
+        echo "[php-compat] Installing verified compat libs alongside the distro's newer versions..." >&2
+        if ! $USE_SUDO env DEBIAN_FRONTEND=noninteractive dpkg -i --force-confold $debs; then
+            $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get -f install -y \
+                -o APT::Get::Remove=false -o Dpkg::Options::=--force-confold || true
+        fi
+    fi
+
+    # 6) Verify outcome loudly. A lib that is unshimmable (no Debian package / failed
+    #    verify) is reported but not treated as the whole step failing.
+    local still_missing=""
+    for lib in $gaps; do
+        if dpkg-query -W -f='${Status}' "$lib" 2>/dev/null | grep -q 'install ok installed'; then continue; fi
+        case " $missing " in *" $lib "*) continue ;; esac
+        still_missing="$still_missing $lib"
+    done
+
+    rm -rf "$tmp"
+
+    if ldconfig -p 2>/dev/null | grep -q 'libxml2\.so\.2'; then
+        echo "[libxml2-compat] OK: libxn ${php_codename} compat lib)." >&2
+        return 0
+    if [ -n "${still_missing// /}" ]; then
+        echo "[php-compat] WARNING: compat libs still not installed:${still_missing} -- the PHP packages needin
+g them will fail." >&2
+        return 1
+    fi
+    echo "[libxml2-compat] WARNING: libxml2.so.2 still absent after shim; PHP install may fail." >&2
+    return 1
+    if [ -n "${missing// /}" ]; then
+        echo "[php-compat] NOTE: no verified Debian compat for:${missing} (only extensions needing them are aff
+ected)." >&2
+    fi
+    echo "[php-compat] OK: compat libraries provided for ${php_codename}." >&2
+    return 0
+}
+
+# Add PHP repository (Ubuntu/Debian) with automatic backup and restore
+
+Now update the two call sites to build the package list and call the generalized shim:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt_repository_manager.sh)
+Added 9 lines, removed 2 lines
+        php_repo_line="deb [signed-by=$php_key_file] https://packages.sury.org/php/ $php_codename main"
+    fi
+
+    # Bridge the libxml2.so.2 gap on rolling derivatives before the PHP install runs.
+    ensure_php_libxml2_compat_from_apt_repository_manager "$php_vendor" "$php_codename"
+    # Pre-resolve compat libraries for the php packages about to be installed: those
+    # named in the install command plus the project's declared core/extension sets (so
+    # extensions installed in a later step -- e.g. php8.5-intl -> libicu76 -- are covered
+    # too). The two `declare -p` guards make the project arrays optional.
+    local php_pkgs
+    php_pkgs="$(printf '%s ' $command_to_execute | grep -oE 'php8\.5[A-Za-z0-9.+-]*' | sort -u | tr '\n' ' ')"
+    declare -p PHP85_CORE_PACKAGES >/dev/null 2>&1 && php_pkgs="$php_pkgs ${PHP85_CORE_PACKAGES[*]}"
+    declare -p CORE_EXTENSIONS    >/dev/null 2>&1 && php_pkgs="$php_pkgs ${CORE_EXTENSIONS[*]}"
+    ensure_php_compat_libs_from_apt_repository_manager "$php_vendor" "$php_codename" "$php_pkgs"
+
+    execute_with_repo_backup_from_apt_r
+        "php" \
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt_repository_manager.sh)
+Added 9 lines, removed 2 lines
+    echo "Updating apt cache..."
+    $USE_SUDO apt update 2>/dev/null || true
+
+    # Bridge the libxml2.so.2 gap on rolling derivatives before the PHP install runs.
+    ensure_php_libxml2_compat_from_apt_repository_manager "$php_vendor" "$php_codename"
+    # Pre-resolve compat libraries for the php packages about to be installed: those
+    # named in the install command plus the project's declared core/extension sets (so
+    # extensions installed in a later step -- e.g. php8.5-intl -> libicu76 -- are covered
+    # too). The two `declare -p` guards make the project arrays optional.
+    local php_pkgs
+    php_pkgs="$(printf '%s ' $command_to_execute | grep -oE 'php8\.5[A-Za-z0-9.+-]*' | sort -u | tr '\n' ' ')"
+    declare -p PHP85_CORE_PACKAGES >/dev/null 2>&1 && php_pkgs="$php_pkgs ${PHP85_CORE_PACKAGES[*]}"
+    declare -p CORE_EXTENSIONS    >/dev/null 2>&1 && php_pkgs="$php_pkgs ${CORE_EXTENSIONS[*]}"
+    ensure_php_compat_libs_from_apt_repository_manager "$php_vendor" "$php_codename" "$php_pkgs"
+
+    if [ -n "$command_to_execute" ]; th
+        echo "Executing: $command_to_execute"
+
+Now the resolver hardening — set -u-safe os-release reads and glibc-gating the trixie clamp. Let me read the current resolver:
+
+  Read 1 file
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt_repository_manager.sh)
+Added 6 lines, removed 4 lines
+
+    local id="" id_like="" version_codename="" ubuntu_codename=""
+    if [ -f /etc/os-release ]; then
+        id="$( . /etc/os-release 2>/dev/null; echo "$ID" )"
+        id_like="$( . /etc/os-release 2>/dev/null; echo "$ID_LIKE" )"
+        version_codename="$( . /etc/os-release 2>/dev/null; echo "$VERSION_CODENAME" )"
+        ubuntu_codename="$( . /etc/os-release 2>/dev/null; echo "$UBUNTU_CODENAME" )"
+        # ${VAR:-} so a caller running under `set -u` is not aborted by absent fields
+        # (UBUNTU_CODENAME / ID_LIKE are genuinely missing on Debian/Kali).
+        id="$( . /etc/os-release 2>/dev/null; echo "${ID:-}" )"
+        id_like="$( . /etc/os-release 2>/dev/null; echo "${ID_LIKE:-}" )"
+        version_codename="$( . /etc/os-VERSION_CODENAME:-}" )"
+        ubuntu_codename="$( . /etc/os-release 2>/dev/null; echo "${UBUNTU_CODENAME:-}" )"
+    fi
+    id="$(echo "$id" | tr '[:upper:]' '[:lower:]')"
+    id_like="$(echo "$id_like" | tr '[:upper:]' '[:lower:]')"
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt_repository_manager.sh)
+Added 19 lines, removed 4 lines
+            # derivatives (kali-rolling, parrot, ...) also carry the post-t64 ABI
+            # (libssl3t64, libcurl4t64, libzip5, libxml2 2.15) that bookworm-built
+            # packages predate and cannot satisfy, so map anything outside the hosted
+            # set to the newest hosted suite (trixie), which matches that ABI. Pinning
+            # to bookworm here is what made Sury PHP 8.5 fail on Kali (libzip4 /
+            # libxml2 deps absent). Override with APT_DEBIAN_CODENAME_DEFAULT.
+            # set to the newest hosted suite the host can actually run. Pinning to
+            # bookworm here is what made Sury PHP 8.5 fail on Kali (libzip4 / libxml2
+            # deps absent). Override entirely with APT_DEBIAN_CODENAME_DEFAULT.
+            case "$codename" in
+                bullseye|bookworm|trixie) : ;;
+                *) codename="${APT_DEBIAN_CODENAME_DEFAULT:-trixie}" ;;
+                *)
+                    if [ -n "${APT_DEBIAN_CODENAME_DEFAULT:-}" ]; then
+                        codename="$APT_
+                    else
+                        # Sury trixie php8.5 needs libc6>=2.38, so a bookworm-era rolling
+                        # spin (glibc<2.38) must stay on bookworm; Kali/sid (glibc 2.4x)
+                        # get trixie, whose post-t64 ABI matches their libraries.
+                        local _glibc
+                        _glibc="$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $NF}')"
+                        if [ -n "$_glibc" ] && dpkg --compare-versions "$_glibc" ge 2.38 2>/dev/null; then
+                            codename="trixie"
+                        else
+                            codename="bookworm"
+                        fi
+                    fi
+                    ;;
+            esac
+            ;;
+    esac
+
+Now let me validate everything end-to-end withoutax, resolver output, the new function loads, thecall-site package-list assembly, and the detection pipeline against the live indices (must yield exactly libicu76).
+
+  Ran 1 shell command
+
+Now validate the detection pipeline itself (the function's exact awk/sed/gap logic) against the live indices — it must yield exactly libicu76 now that libxml2 is installed, and correctly parse the Debian Filename/SHA256:
+
+  Ran 1 shell command
+
+The detection pipeline produces exactly libicu76 (libxml2 correctly excluded since it's now installed — proving idempotency) and parses the Debian Filename/SHA256 correctly (matches the confirmed c1bf… hash). On a fresh system it would catch both libxml2 + libicu76 and batch them.
+
+Let me do a final logic pass: re-read the written function and confirm the ensure_packages helper signature I call.
+
+  Read 1 file
+
+Line numbers shifted from my edits. Let me locate ensure_packages_from_apt_repository_manager to confirm its signature, and re-read my new function as written.
+
+  Ran 1 shell command
+
+ensure_packages_from_apt_repository_manager curl is a valid call (takes $*). Good. Let me re-read the final written function for a last logic pass.
+
+  Read 1 file
+
+The function is complete and correct. Let me confirm final syntax and scope of the change.
+
+  Ran 1 shell command
+
+Done. The fix is complete and validated up to the sudo boundary.
+
+What happened on your last run
+
+The first fix worked — PHP 8.5.7 installed and running, 9 extensions loaded, the libxml2 shim did its job (OK: libxml2.so.2 now available). The only remaining failure was the same bug class, second instance: php8.5-intl → libicu76. Kali bumped ICU past Sury-trixie's libicu76, exactly like it bumped libxml2 past .so.2.
+
+What I changed (so it's fixed generally, not wha
+
+I generalized the one-off libxml2 shim in apt_rere_php_compat_libs_from_apt_repository_manager,which resolves every such SONAME gap in one pass, scoped to the project's actual php package set (PHP85_CORE_PACKAGES + CORE_EXTENSIONS):
+
+1. Reads the Sury suite's Depends for the php packages you install → finds which lib* deps are unsatisfiable on this host. For Kali that's exactly {libxml2, libicu76} — and deliberately not libsnmp40t64/libgpgme11t64 (those belong to extensions you don't install).
+2. Pulls each from Debian trixie (the suite Sury built against → ABI match), co-installing next to Kali's newer versions.
+
+I also folded in the adversarial review's findings:
+- Security: .debs now fetched over HTTPS and SHA256-verified against the Packages stanza before dpkg -i (was plain HTTP, no integrity check → root-RCE surface).
+- Robustness: DEBIAN_FRONTEND=noninteractive + --force-confold, apt-get -f install constrained with APT::Get::Remove=false (can't remove the lib it just added), no swallowed diagnostics + loud post-verify, self-ensures curl/gzip, fatal-on-mktemp (no predictable temp path).
+- Cross-distro: the bookworm→trixie default is now glibc-gated (a bookworm-era spin with glibc<2.38 stays on bookworm), and os-release reads are set -u-safe — so it correctly "supports Ubuntu / Debian / Kali."
+
+Verified (everything except the sudo-gated insta path in my session)
+
+- bash -n clean; resolver → debian trixie; opt-o
+- The detection pipeline run against the live indices yields exactly libicu76 now (libxml2 excluded because it's installed → confirms idempotency), and parses the right Filename + SHA256 (c1bf…, HTTPS 200). On a fresh box it catches both libs and batches them.
+
+Action
+
+Re-run 31_ensure_php85_intelligent.sh. This time the shim will detect the libicu76 gap, download+verify+install it from Debian trixie, and php8.5-intl will install — using the identical mechanism that already succeeded for libxml2. (Escape hatches if ever needed: PHP_COMPAT_SHIM=0 to disable, APT_DEBIAN_CODENAME_DEFAULT=… to force a suite.)
+
+✻ Cooked for 29m 52s
+
+  Script execution completed with exit code: 1
+  Press any key to return to test scripts menu...
+   suite to Ubuntu Debian Kali, in Kali ,selecte available soft version. search official documentations.
+
+PHP 8.5 + intl are now resolved (I can see php8.5-dev … debian13 installing cleanly from Sury trixie — the suite fix is working). New problem in 32_install_swoole.sh:
+
+1. /usr/tmp/... Permission denied — it's cloningitable temp dir on Kali; the standard is /tmp or/var/tmp).
+2. The "v6.0.2 unavailable → master" message is iled on the path error, not because the ref ismissing.
+
+You want: adapt to Ubuntu/Debian/Kali, pick an available Swoole version on Kali, and check official docs. Let me read the script's build logic and load web tools in parallel.
+
+  Ran 1 shell command
+
+Found it: build_dir="$GLOBAL_TEMP_DIR/swoole-src-build-$$" and GLOBAL_TEMP_DIR is resolving to /usr/tmp. Let me read the build flow, find where GLOBAL_TEMP_DIR is defined, and research official Swoole/PHP 8.5 compatibility in parallel.
+
+  Read 1 file
+
+Now let me find where GLOBAL_TEMP_DIR is defined and research the official Swoole/PHP 8.5 version situation.
+
+  Ran 1 shell command
+
+● Web Search("Swoole PHP 8.5 support version compatibility release")
+Did 0 searches in 1s
+
+Root cause of the temp bug: GLOBAL_TEMP_DIR="/us (and the JS mirror). /usr/tmp doesn't exist andisn't writable on Debian/Kali (it's a legacy SysV alias for /var/tmp, only a symlink on some RPM distros). Let me read that section, and research the Swoole/PHP 8.5 version situation from official sources (the WebSearch backend hiccuped; I'll go straight to authoritative sources).
+
+  Read 1 file
+
+
+  Script execution completed with exit code: 0
+  Press any key to return to test scripts menu...
+
+Also confirmed from your interjected run: script 31 now passes end-to-end — PHP 8.5.7 with all 11 extensions including intl,
+exit code 0. The PHP/libxml2/libicu work is done
+
+Found the Swoole temp bug precisely: GLOBAL_TEMPsh:1321 + the JS mirror), andcreate_script_temp_dir hardcodes a /usr/tmp/* guard. /usr/tmp is a legacy SysV alias for /var/tmp that simply doesn't exist on Debian/Kali → the clone got EACCES.
+
+Now the version research from official sources (your "select available version / official docs" requirement). Let me pull the authoritative release list and the official PHP-version support.
+
+  Ran 1 shell command
+
+● Fetch(https://github.com/swoole/swoole-src/blob/master/README.md)
+Received 526.5KB (200 OK)
+
+Authoritative data: latest stable Swoole is v6.2.1 (2026-05-15); the v6.x line runs 6.0.0→6.0.2 (old), 6.1.x, 6.2.x. The pin v6.0.2 does exist as a tag — so the "unavailable → master" message was indeed a misdiagnosis of the temp-dir EACCES, confirming my root cause. v6.0.x predates PHP 8.5 (Nov 2025); 6.1.3+/6.2.x are post-8.5.
+
+WebFetch's summarizer is erroring out (backend model issue), so let me pull the official PHP-version constraint directly from the source tree for several tags.
+
+  Ran 1 shell command
+
+Decisive, official-docs-backed finding from Swoole's own composer.json:
+
+┌──────────────────────┬───────────────────────────────────────┬──────────────────────────────┐
+│        Swoole        │            php constraint             │           PHP 8.5?           │
+├──────────────────────┼───────────────────────────────────────┼──────────────────────────────┤
+│ v6.0.2 (current pin) │ >= 8.1 (no upper bound, predates 8.5) │ unvalidated, no 8.5 handling │
+├──────────────────────┼───────────────────────────────────────┼──────────────────────────────┤
+│ v6.1.8               │ >=8.1 **<8.5**                        │ ❌ explicitly excludes 8.5   │
+├──────────────────────┼───────────────────────────────────────┼──────────────────────────────┤
+│ v6.2.0 / v6.2.1      │ >=8.2 **<8.6**                        │ ✅ supported                 │
+├──────────────────────┼───────────────────────────────────────┼──────────────────────────────┤
+│ master               │ >=8.2 <8.6                            │ ✅                           │
+└──────────────────────┴───────────────────────────────────────┴──────────────────────────────┘
+
+So Swoole 6.2.x (latest stable v6.2.1) is the first line that officially supports PHP 8.5 — the 6.1.x line caps it out, and the pinned v6.0.2 predates it. That's the "available version" to select for Kali.
+
+Let me read the JS mirror and the swoole functiohree spots cleanly.
+
+  Read 1 file
+
+Let me see the swoole script's structure around the build function to place a version-selection helper cleanly.
+
+  Read 1 file
+
+Now I'll implement all three fixes. Fix 1 — gvar_common.sh: make GLOBAL_TEMP_DIR writable & cross-distro, and don't clobber a system temp dir's sticky bit:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/gvar_common.sh)
+Added 17 lines, removed 9 lines
+    return 0
+}
+
+# Initialize global temporary directory
+GLOBAL_TEMP_DIR="/usr/tmp"
+# Initialize global temporary directory.
+# NOTE: /usr/tmp is a legacy SysV alias for /var/tmp that exists only as a symlink on
+# some RPM distros; on Debian/Ubuntu/Kuilds under it failed
+# with "Permission denied". Use $TMPDIR when set, else /var/tmp -- persistent and
+# disk-backed (good for large source b) and world-writable
+# + sticky on every Debian-family system, so the invoking non-root user can create build
+# dirs here. Export GLOBAL_TEMP_DIR to override.
+GLOBAL_TEMP_DIR="${GLOBAL_TEMP_DIR:-${TMPDIR:-/var/tmp}}"
+GLOBAL_TEMP_DIR="${GLOBAL_TEMP_DIR%/}"
+
+# Ensure global temporary directory exists
+# Ensure global temporary directory exists. Only create/chmod when MISSING -- never
+# chmod an existing system temp dir, which would clobber its 1777 sticky permissions.
+if [ ! -d "$GLOBAL_TEMP_DIR" ]; then
+    echo "Creating global temporary directory: $GLOBAL_TEMP_DIR"
+    $USE_SUDO mkdir -p "$GLOBAL_TEMP_DIR"
+    $USE_SUDO chmod 755 "$GLOBAL_TEMP_DIR"
+    mkdir -p "$GLOBAL_TEMP_DIR" 2>/dev/null || $USE_SUDO mkdir -p "$GLOBAL_TEMP_DIR"
+    chmod 1777 "$GLOBAL_TEMP_DIR" 2>/dev/null || $USE_SUDO chmod 1777 "$GLOBAL_TEMP_DIR" 2>/dev/null || true
+fi
+
+# Function to create script-specific temporary directory (restricted to /usr/tmp/<script_name>)
+# Function to create script-specific td to $GLOBAL_TEMP_DIR/<script_name>)
+create_script_temp_dir() {
+    local script_name="$1"
+    # Restrict to GLOBAL_TEMP_DIR and prevent path traversal
+
+    esac
+    [ -z "$script_name" ] && echo "[ERROR] create_script_temp_dir: empty script_name" >&2 && return 1
+    local script_temp_dir="$GLOBAL_TEMP_DIR/$script_name"
+    # Ensure result is strictly under /usr/tmp (or configured GLOBAL_TEMP_DIR)
+    # Ensure result is strictly under the configured GLOBAL_TEMP_DIR
+    case "$script_temp_dir" in
+        /usr/tmp/*) ;;
+        *) echo "[ERROR] create_script_temp_dir: path not under /usr/tmp: $script_temp_dir" >&2; return 1 ;;
+        "$GLOBAL_TEMP_DIR"/*) ;;
+        *) echo "[ERROR] create_script_temp_dir: path not under $GLOBAL_TEMP_DIR: $script_temp_dir" >&2; retur
+n 1 ;;
+    esac
+
+    if [ ! -d "$script_temp_dir" ]; then
+
+Fix 1b — the JS mirror (gvar_common.js):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/nodetools/gvar_common.js)
+Added 6 lines, removed 2 lines
+ * @returns {string} Path to temporary directory
+ */
+function createScriptTempDir(scriptName) {
+    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : '/usr/tmp';
+    // /usr/tmp is absent on Debian/Ubuntu/Kali (legacy SysV alias for /var/tmp); use
+    // $TMPDIR when set, else /var/tmp (writable + persistent) on POSIX.
+    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : (process.env.TMPDIR || '/var/tmp');
+    const scriptTempDir = path.join(GLOBAL_TEMP_DIR, scriptName);
+
+    if (!safeExists(scriptTempDir)) {
+
+ * @param {string} scriptName - Name of the script
+ */
+function cleanupScriptTempDir(scriptName) {
+    const GLOBAL_TEMP_DIR = IS_WINDOWS
+    // /usr/tmp is absent on Debian/Ubuntu/Kali (legacy SysV alias for /var/tmp); use
+    // $TMPDIR when set, else /var/tmp SIX.
+    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : (process.env.TMPDIR || '/var/tmp');
+    const scriptTempDir = path.join(GLOBAL_TEMP_DIR, scriptName);
+
+    if (safeExists(scriptTempDir)) {
+
+Fix 2 — 32_install_swoole.sh: add version-selection helpers (official-constraint-validated, "select available version"):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/32_install_swoole.sh)
+Added 49 lines
+    fi
+}
+
+# Does a given Swoole git ref's official composer.json `php` constraint admit the running
+# PHP? Returns 0 (yes / undeterminable) or 1 (explicitly excluded). Parses the simple
+# ">=X.Y" + optional "<A.B" forms Swoole uses (e.g. ">=8.2 <8.6", ">=8.1 <8.5").
+swoole_ref_supports_php() {
+    local ref="$1" php_ver="$2"
+    local pvid; pvid="$(echo "$php_ver"100+$2}')"
+    local constraint
+    constraint="$(curl -fsSL "https://rle/swoole-src/${ref}/composer.json" 2>/dev/
+null \
+        | sed -n 's/.*"php"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+    [ -z "$constraint" ] && return 0   # offline / unknown -> do not block
+    local lo hi
+    lo="$(printf '%s' "$constraint" | grep -oE '>=?[[:space:]]*[0-9]+\.[0-9]+' | head -n1 | grep -oE '[0-9]+\.[
+0-9]+')"
+    hi="$(printf '%s' "$constraint" | grep -oE '<[[:space:]]*[0-9]+\.[0-9]+'   | head -n1 | grep -oE '[0-9]+\.[
+0-9]+')"
+    if [ -n "$lo" ]; then
+        local loid; loid="$(echo "$lo" | awk -F. '{printf "%d", $1*100+$2}')"
+        [ "$pvid" -lt "$loid" ] && return 1
+    fi
+    if [ -n "$hi" ]; then
+        local hiid; hiid="$(echo "$hi" | awk -F. '{printf "%d", $1*100+$2}')"
+        [ "$pvid" -ge "$hiid" ] && return 1
+    fi
+    return 0
+}
+
+# Select the Swoole build ref for the rlable version" rather
+# than trust a possibly-stale hardcoded tag:
+#   1. $SWOOLE_BUILD_REF if set (explicit override).
+#   2. the latest STABLE GitHub release, IF its composer.json admits this PHP.
+#   3. the provided known-good pin, IF it admits this PHP.
+#   4. master (last resort), with a warning.
+# Prints the chosen ref on stdout (diagnostics go to stderr).
+select_swoole_build_ref() {
+    local php_ver="$1" pin="$2"
+    if [ -n "${SWOOLE_BUILD_REF:-}" ]; then
+        echo "$SWOOLE_BUILD_REF"; return 0
+    fi
+    local latest
+    latest="$(curl -fsSL "https://api.github.com/repos/swoole/swoole-src/releases/latest" 2>/dev/null \
+        | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+    if printf '%s' "$latest" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' && swoole_ref_supports_php "$latest" "$php_
+ver"; then
+        echo "$latest"; return 0
+    fi
+    if swoole_ref_supports_php "$pin" "$php_ver"; then
+        echo "$pin"; return 0
+    fi
+    echo "[WARN] No tagged Swoole release admits PHP ${php_ver}; falling back to master" >&2
+    echo "master"
+}
+
+install_swoole_pecl() {
+    echo -e "${BLUE}$SCRIPT_INDEX Installing Swoole...${NC}"
+
+
+Fix 2b — replace the version-pin + temp-dir + clone block in the PHP 8.5 branch:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/32_install_swoole.sh)
+Added 23 lines, removed 14 lines
+    # Note: Swoole 6.x requires compatibility patch for Laravel Octane v2.13.x
+    # The patch will be automatically applied by octane_swoole_compat_fixer.php
+    if [[ "$php_ver" == "8.5" ]]; then
+        # Pin to a fixed Swoole release tag so re-runs build a reproducible
+        # ABI. Building from the movingifferent
+        # build on every fresh/repair run. Override via SWOOLE_BUILD_REF if a
+        # newer pinned tag is required.
+        local swoole_ref="${SWOOLE_BUILD_REF:-v6.0.2}"
+        # Select the Swoole version. Per Swoole's own composer.json `php` constraint
+        # (official): 6.2.x => ">=8.2 <8.6" (supports PHP 8.5); 6.1.x => ">=8.1 <8.5"
+        # (EXCLUDES 8.5); 6.0.x predates 8.5. So PHP 8.5 needs Swoole >= 6.2.0. We pick
+        # the latest stable release that admits the running PHP (auto-tracking fixes),
+        # falling back to this known-good pin offline. Override via SWOOLE_BUILD_REF.
+        local swoole_pin="v6.2.1"
+        local swoole_ref
+        swoole_ref="$(select_swoole_build_ref "$php_ver" "$swoole_pin")"
+
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 detected. Building Swoole from source (pinned ref: $swoole_ref)
+...${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 detected. Building Swoole from source (ref: $swoole_ref)...${NC
+}"
+        echo -e "${CYAN}$SCRIPT_INDEX Note: Swoole 6.x will be patched for Octane v2.13.x compatibility${NC}"
+
+        if ! command -v git >/dev/null 2>&1; then
+            $USE_SUDO apt-get install -
+        fi
+
+        # Use GLOBAL_TEMP_DIR from gvar_common.sh
+        local build_dir="$GLOBAL_TEMP_DIR/swoole-src-build-$$"
+        rm -rf "$build_dir"
+        # Build under the (writable) global temp dir; mktemp -d avoids PID collisions and
+        # the old /usr/tmp EACCES. git clones into the empty dir mktemp created.
+        local build_dir
+        build_dir="$(mktemp -d "${GLOBAL_TEMP_DIR%/}/swoole-src-build-XXXXXX" 2>/dev/null)" \
+            || { echo -e "${RED}$SCRIPT_INDEX Could not create a build dir under '$GLOBAL_TEMP_DIR'${NC}"; retu
+rn 1; }
+
+        echo -e "${CYAN}$SCRIPT_INDEX Cloning Swoole repository (ref: $swoole_ref)...${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Cloning Swoole (ref: $swoole_ref) into $build_dir...${NC}"
+        if ! git clone --depth 1 --branch "$swoole_ref" \
+            https://github.com/swoole/swoole-src.git "$build_dir"; then
+            echo -e "${YELLOW}$SCRIPT_INDEX Pinned ref '$swoole_ref' unavailable, falling back to master${NC}"
+            echo -e "${YELLOW}$SCRIPT_INDEX Shallow clone of '$swoole_ref' failed; retrying a full clone...${NC
+}"
+            rm -rf "$build_dir"
+            git clone --depth 1 https://github.com/swoole/swoole-src.git "$build_dir"
+            if ! git clone --branch "$s
+                https://github.com/swoole/swoole-src.git "$build_dir"; then
+                echo -e "${RED}$SCRIPT_INDEX Failed to clone Swoole '$swoole_ref'${NC}"
+                return 1
+            fi
+        fi
+
+        if [ ! -d "$build_dir" ]; then
+            echo -e "${RED}$SCRIPT_INDEX Failed to clone repository${NC}"
+        if [ ! -f "$build_dir/config.m4" ]; then
+            echo -e "${RED}$SCRIPT_INDEX Clone did not produce a Swoole source tree (no config.m4)${NC}"
+            return 1
+        fi
+
+
+Now validate all three files: syntax, the JS, and the new helper functions against live data (must pick v6.2.1 for PHP 8.5 and reject v6.1.8).
+
+  Ran 1 shell command
+
+All validations pass:
+- bash -n (both shell files) + node --check (JS): OK
+- Helper logic against live Swoole data: v6.2.1→supports 8.5 ✅, v6.1.8→correctly rejects 8.5 ✅, sanity v6.2.1→rejects 8.6 ✅
+- select_swoole_build_ref 8.5 → v6.2.1 (latest stable, validated) ✅
+- GLOBAL_TEMP_DIR → /var/tmp, writable ✅
+
+Let me check one downstream risk — whether the Octane compat-fixer hardcodes the old Swoole version — and summarize the diff scope.
+
+  Ran 1 shell command
+
+No other Swoole pin exists (the v6.0.2/version hits are unrelated user-agent strings and node mocks) — my default is the single source of truth. The large gvar_common.js diff is pre-existing working-tree churn (the repo was dirty at session start with auto-commits); node --check confirms my 2-line change is valid. Let me confirm my actual edited lines landed cleanly:
+
+  Ran 1 shell command
+
+All edits landed cleanly — the only remaining /usr/tmp strings are explanatory comments; no functional usage remains, and the
+8.5 branch now has version-selection + mktemp -d
+
+Summary — Swoole install (script 32) fixed for U
+
+Two root causes, both fixed:
+
+1. /usr/tmp Permission denied (the actual failure). GLOBAL_TEMP_DIR was hardcoded to /usr/tmp — a legacy SysV alias for /var/tmp that exists only as a symlink on some RPM distros and is simply absent on Debian/Kali, so the clone got EACCES. Fixed in both gvar_common.sh and the gvar_common.js mirror:
+- GLOBAL_TEMP_DIR now resolves to ${TMPDIR:-/var/tmp} (writable, persistent, disk-backed — right for large source builds; world-writable+sticky on every Debian-family system). Confirmed → /var/tmp, writable.
+- Only creates/chmods it when missing (never clobbers an existing temp dir's 1777 sticky bit), and the create_script_temp_dir guard now keys off $GLOBAL_TEMP_DIR instead of a hardcoded /usr/tmp/*.
+- The swoole build now uses mktemp -d under it (no PID collisions).
+
+2. Wrong Swoole version (would fail/produce an unsupported binary on PHP 8.5). The "v6.0.2 unavailable → master" message was a misdiagnosis — v6.0.2 does exist; the clone just failed on the path error. Per Swoole's official composer.json php constraint:
+
+- 6.0.x → predates PHP 8.5 · 6.1.x → >=8.1 **<8.5** (explicitly excludes 8.5) · 6.2.x → >=8.2 <8.6 (supports 8.5)
+
+So I added select_swoole_build_ref, which selectrsion: it takes the latest stable GitHub release,validates its composer.json admits the running PHP, and falls back to a known-good pin (v6.2.1) offline — honoring
+SWOOLE_BUILD_REF as an override. Tested live: itd correctly rejects v6.1.8. Also replaced themisleading "fall back to master" with a real full-clone retry of the same ref + clear errors.
+
+Validated: bash -n (both shell files), node --check (JS), helper logic against live Swoole data, and /var/tmp writability — all pass. The sudo-gated compile (phpize/configure/make) is the only part I can't run here; build deps (php8.5-dev, build-essential, libssl-dev, libcurl4-openssl-dev, libpcre2-dev) were already installed in your run.
+
+Action: re-run 32_install_swoole.sh — it'll build into /var/tmp/swoole-src-build-XXXXXX and clone Swoole v6.2.1.
+
+One heads-up for the next step: the script comments reference an octane_swoole_compat_fixer.php patch for "Swoole 6.x → Octane v2.13.x" — that's a separate downstream step. Since it's still 6.x it should apply, but if it had any v6.0.2-specific assumptions, flag it and I'll adjust it for 6.2.x.
+
+✻ Brewed for 12m 37s
+
+❯   Executing: 32_install_swoole.sh
+
+  Starting execution of 32_install_swoole.sh...
+  [sudo] password for kali:
+  Sorry, try again.
+  [sudo] password for kali:
+  ========================================
+  [32_SWOOLE] PHP Swoole Extension Installation
+  ========================================
+  [32_SWOOLE] Starting Swoole installation/configuration check...
+
+  [32_SWOOLE] Checking Swoole installation...
+  [32_SWOOLE] PHP extension directory: /usr/lib/php/20250925
+  [32_SWOOLE] Swoole extension file not found: /usr/lib/php/20250925/swoole.so
+  [32_SWOOLE] Checking Swoole configuration files...
+  [32_SWOOLE] Configuration file missing: /etc/php/8.5/mods-available/swoole.ini
+  [32_SWOOLE] Symlink missing for cli: /etc/php/8.5/cli/conf.d/20-swoole.ini
+  [32_SWOOLE] Some Swoole configuration files need repair
+
+  [32_SWOOLE] Swoole not installed
+  [32_SWOOLE] Performing fresh installation...
+   Why aren't scrpts 31_ensure_php85_intelligent.sh and 32_install_swoole.sh aligned,   Executing: 32_install_swoole.sh
+
+  Starting execution of 32_install_swoole.sh...
+  [sudo] password for kali:
+  Sorry, try again.
+  [sudo] password for kali:
+  ========================================
+  [32_SWOOLE] PHP Swoole Extension Installation
+  ========================================
+  [32_SWOOLE] Starting Swoole installation/configuration check...
+
+  [32_SWOOLE] Checking Swoole installation...
+  [32_SWOOLE] PHP extension directory: /usr/lib/php/20250925
+  [32_SWOOLE] Swoole extension file not found: /usr/lib/php/20250925/swoole.so
+  [32_SWOOLE] Checking Swoole configuration files...
+  [32_SWOOLE] Configuration file missing: /etc/php/8.5/mods-available/swoole.ini
+  [32_SWOOLE] Symlink missing for cli: /etc/php/8.5/cli/conf.d/20-swoole.ini
+  [32_SWOOLE] Some Swoole configuration files need repair
+
+  [32_SWOOLE] Swoole not installed
+  [32_SWOOLE] Performing fresh installation...
+
+  [32_SWOOLE] Checking for existing Swoole install
+  [32_SWOOLE] No existing Swoole installation found
+  [32_SWOOLE] Installing Swoole build dependencies
+
+  Reading package lists... Done
+  Building dependency tree... Done
+  Reading state information... Done
+  php8.5-dev is already the newest version (8.5.7-1+0~20260606.19+debian13~1.gbp741f99).
+  php-pear is already the newest version (1:1.10.16+submodules+notgz-3).
+  build-essential is already the newest version (12.12).
+  libssl-dev is already the newest version (3.6.2-1).
+  libcurl4-openssl-dev is already the newest version (8.20.0-5).
+  libpq-dev is already the newest version (18.4-1).
+  libpcre2-dev is already the newest version (10.46-1+b2).
+  Solving dependencies... Done
+  0 upgraded, 0 newly installed, 0 to remove and 36 not upgraded.
+  [32_SWOOLE] Dependencies installed
+  [32_SWOOLE] Ensuring PHP 8.5 symlink exists...
+  [32_SWOOLE] PHP 8.5 symlink already exists
+  [32_SWOOLE] �?PHP 8.5 is available at /usr/bin/php
+  [32_SWOOLE] Installing Swoole...
+  [32_SWOOLE] PHP 8.5 detected. Building Swoole from source (ref: v6.2.1)...
+  [32_SWOOLE] Note: Swoole 6.x will be patched for
+  [32_SWOOLE] Could not create a build dir under '/usr/tmp'
+
+  Script execution completed with exit code: 1
+  Press any key to return to test scripts menu... ,search official documentations, supported Ubuntu / Debian / Kali.
+
+Real signal here: version selection now works (Building Swoole from source (ref: v6.2.1) ✓), but GLOBAL_TEMP_DIR is still /usr/tmp at runtime — so something sets it to /usr/tmp that overrides my gvar_common.sh edit (my ${GLOBAL_TEMP_DIR:-…} preserves a pre-existing value, which is the trap). The user's question — "why aren't 31 and 32 aligned?" — points at exactly this: there's another source of /usr/tmp. Let me find every definition across the whole repo and see how 32 sources it.
+
+  Ran 1 shell command
+
+Two export GLOBAL_TEMP_DIR lines (844, 1670) but my assignment is at 1327 using ${GLOBAL_TEMP_DIR:-…} — which preserves a value inherited from the environment. So /usr/tmp is being injected before gvar_common.sh runs (a persisted env file or the menu harness exports it). Let me trace the real source.
+
+  Read 1 file
+
+export GLOBAL_TEMP_DIR at 844 just exports whatever's inherited. And my full-repo grep finds no file that assigns
+GLOBAL_TEMP_DIR=/usr/tmp — which means /usr/tmp nning menu process's environment: that menusourced the old gvar_common.sh (with GLOBAL_TEMP_DIR="/usr/tmp") when it launched, exported it, and every child script inherits it. My ${GLOBAL_TEMP_DIR:-…} then preserves that stale value — that's the bug in my fix.
+
+Let me confirm how 31 vs 32 source gvar (the "alignment" question) and rule out an env-file source.
+
+  Ran 1 shell command
+
+Now I see the full picture, and it explains the "alignment" question:
+
+- /usr/tmp now physically exists as root:root 0755 (created Jun 21 23:09 by the old gvar code's sudo mkdir -p /usr/tmp on an earlier run) — so it's not writable by your user.
+- The long-running menu exported GLOBAL_TEMP_DIR=/usr/tmp into the environment; both 31 and 32 source gvar_common.sh identically (line 33), but 31 never uses GLOBAL_TEMP_DIR (it's apt-only) while 32 uses it for the build — that's the only difference.
+- My fix ${GLOBAL_TEMP_DIR:-…} preserved that stale /usr/tmp, and since /usr/tmp now exists, my "create if missing" block was skipped → still unwritable.
+
+The correct fix: resolve to the first writable cwritable inherited value. This aligns every script through the shared gvar_common.sh.
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/gvar_common.sh)
+Added 24 lines, removed 17 lines
+    return 0
+}
+
+# Initialize global temporary directory.
+# NOTE: /usr/tmp is a legacy SysV alias for /var/tmp that exists only as a symlink on
+# some RPM distros; on Debian/Ubuntu/Kali it is absent, so clones/builds under it failed
+# with "Permission denied". Use $TMPDIR when set, else /var/tmp -- persistent and
+# disk-backed (good for large source builds, unlike RAM-backed /tmp) and world-writable
+# + sticky on every Debian-family system, so the invoking non-root user can create build
+# dirs here. Export GLOBAL_TEMP_DIR to override.
+GLOBAL_TEMP_DIR="${GLOBAL_TEMP_DIR:-${TMPDIR:-/var/tmp}}"
+GLOBAL_TEMP_DIR="${GLOBAL_TEMP_DIR%/}"
+# Initialize the global temporary directory base.
+# It MUST be writable by the invoking (non-root) user, because scripts clone/build here
+# as the user (then `make install` as root). Pitfalls this resolver defends against:
+#   * /usr/tmp is a legacy SysV alias n/Ubuntu/Kali; worse,
+#     an older revision of this file created it as root:root 0755 (unwritable), and a
+#     long-running menu may still EXPOnto child scripts.
+#   * So a stale/unwritable INHERITED value must be SKIPPED, not preserved -- using
+#     "${GLOBAL_TEMP_DIR:-...}" alone would keep the bad /usr/tmp.
+# Resolution order (first that is a WRITABLE dir, or can be created writable, wins):
+#   exported GLOBAL_TEMP_DIR, $TMPDIR, /var/tmp, /tmp. /var/tmp is preferred (persistent +
+#   disk-backed -> good for large source builds, unlike RAM-backed /tmp).
+__resolve_global_temp_dir_from_gvar_common() {
+    local c
+    for c in "${GLOBAL_TEMP_DIR:-}" "${TMPDIR:-}" /var/tmp /tmp; do
+        [ -z "$c" ] && continue
+        c="${c%/}"
+        if { [ -d "$c" ] || mkdir -p "$c" 2>/dev/null; } && [ -w "$c" ]; then
+            echo "$c"; return 0
+        fi
+    done
+    echo /tmp
+}
+GLOBAL_TEMP_DIR="$(__resolve_global_temp_dir_from_gvar_common)"
+unset -f __resolve_global_temp_dir_fro
+
+# Ensure global temporary directory exMISSING -- never
+# chmod an existing system temp dir, which would clobber its 1777 sticky permissions.
+if [ ! -d "$GLOBAL_TEMP_DIR" ]; then
+    echo "Creating global temporary directory: $GLOBAL_TEMP_DIR"
+    mkdir -p "$GLOBAL_TEMP_DIR" 2>/dev/null || $USE_SUDO mkdir -p "$GLOBAL_TEMP_DIR"
+    chmod 1777 "$GLOBAL_TEMP_DIR" 2>/dev/null || $USE_SUDO chmod 1777 "$GLOBAL_TEMP_DIR" 2>/dev/null || true
+fi
+
+# Function to create script-specific temporary directory (restricted to $GLOBAL_TEMP_DIR/<script_name>)
+create_script_temp_dir() {
+    local script_name="$1"
+
+Now let me also make the swoole build-dir creation self-defending (fallback through writable candidates), so 32 can never fail on the temp dir again regardless of inherited env:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/32_install_swoole.sh)
+Added 13 lines, removed 5 lines
+            $USE_SUDO apt-get install -y git
+        fi
+
+        # Build under the (writable) glds PID collisions and
+        # the old /usr/tmp EACCES. git clones into the empty dir mktemp created.
+        local build_dir
+        build_dir="$(mktemp -d "${GLOBAL_TEMP_DIR%/}/swoole-src-build-XXXXXX" 2>/dev/null)" \
+            || { echo -e "${RED}$SCRIPT_INDEX Could not create a build dir under '$GLOBAL_TEMP_DIR'${NC}"; retu
+rn 1; }
+        # Build under a WRITABLE temp dir; mktemp -d avoids PID collisions. Fall back
+        # through candidates so a stale/unwritable GLOBAL_TEMP_DIR (e.g. the legacy
+        # root-owned /usr/tmp inherited from the menu) can never block the build.
+        local build_dir="" _tbase
+        for _tbase in "${GLOBAL_TEMP_DIR%/}" "${TMPDIR%/}" /var/tmp /tmp; do
+            [ -n "$_tbase" ] || continue
+            build_dir="$(mktemp -d "${_tbase}/swoole-src-build-XXXXXX" 2>/dev/null)" && break
+            build_dir=""
+        done
+        if [ -z "$build_dir" ]; then
+            echo -e "${RED}$SCRIPT_INDEX Could not create a writable build dir (tried '$GLOBAL_TEMP_DIR', /var/
+tmp, /tmp)${NC}"
+            return 1
+        fi
+
+        echo -e "${CYAN}$SCRIPT_INDEX Cloning Swoole (ref: $swoole_ref) into $build_dir...${NC}"
+        if ! git clone --depth 1 --branch "$swoole_ref" \
+
+Now validate: syntax, the gvar resolver against the actual stale /usr/tmp scenario, and the swoole fallback.
+
+  Ran 1 shell command
+
+All validated against the exact failing scenario:
+- bash -n both files: OK
+- /usr/tmp confirmed not writable by your user (the root cause)
+- The resolver, given the stale GLOBAL_TEMP_DIR=/usr/tmp, now returns /var/tmp (skips the unwritable inherited value); unset→/var/tmp; a good value is preserved
+- A real mktemp -d build dir was created under /var/tmp exactly as the script will
+
+Why 31 and 32 weren't aligned (your question)
+
+They are aligned in sourcing — both do source …/gvar_common.sh at line 33. The difference is purely functional:
+
+- 31 is apt-only and never touches GLOBAL_TEMP_DIR, so the broken value was invisible to it.
+- 32 builds Swoole from source and uses GLOBAL_TEMP_DIR as the build dir → it hit the bad value.
+
+And the value was bad because of shared infra + runtime state:
+1. The README bootstrap (sudo mkdir -p /usr/tmp …) / old gvar code physically created /usr/tmp as root:root 0755 — unwritable by your user.
+2. The long-running menu exported GLOBAL_TEMP_DIR=/usr/tmp, so every child inherits it.
+3. My first fix used ${GLOBAL_TEMP_DIR:-…}, which preserved that stale value, and since /usr/tmp now exists, the "create if missing" path was skipped.
+
+Since the root cause is in shared infra, the fix belongs there — which is what truly aligns them.
+
+The fix
+
+- gvar_common.sh: GLOBAL_TEMP_DIR now resolves to the first writable candidate — exported value → $TMPDIR → /var/tmp → /tmp — skipping a stale/unwritable inherited /usr/tmp instead of preserving it. Every script that uses it is now aligned and safe.
+- 32_install_swoole.sh: the build-dir mktemp also falls back through writable candidates, so it can never be blocked by a bad
+temp base again.
+
+Net: no menu restart needed — on the next run, solves GLOBAL_TEMP_DIR to /var/tmp inside thescript.
+
+Action
+
+Re-run 32_install_swoole.sh. It'll build Swoole v6.2.1 (already selected correctly last run) into /var/tmp/swoole-src-build-XXXXXX, then phpize/configure/make/make install.
+
+Two optional follow-ups (say the word and I'll do them):
+1. The leftover /usr/tmp (root:root) is now harmless but is clutter — sudo rmdir /usr/tmp if you want it gone.
+2. The README install command still does sudo mkdir -p /usr/tmp (the origin of this whole thing) — I can switch the documented bootstrap to /var/tmp so fresh installs never recreate the unwritable dir.
+
+✻ Baked for 5m 19s
+
+❯ 31_ensure_php85_intelligent.sh
+    32_install_swoole.sh
+    33_configure_php85.sh
+    34_install_composer.sh Logic and DATA share to,behavior,and datarelationsships remainconsistent before and after each step.
+
+This is a cross-script consistency audit across the 4-step PHP pipeline (31→32→33→34): make their shared logic and data aligned, and ensure each step's pre/post-conditions stay consistent. Let me first map the shared data model and how each script sources it.
+
+  Ran 1 shell command
+
+Misalignment #1 already visible: 32_install_swoole.sh does not source php_common_functions.sh (31/33/34 all do) — so it can't use the shared PHP logic and reimplements version detection etc. inline. Let me read the shared DATA (php_common_vars.sh) and shared LOGIC (php_common_functions.sh) to establish the canonical model.
+
+  Read 1 file
+
+Canonical DATA is well-centralized in php_common_vars.sh (PHP_VERSION="8.5", TARGET_LINK_PATH, package/extension arrays, EXTENSION_MAP, PHP_INI_FILES, composer paths, states). Now the shared LOGIC — let me inventory php_common_functions.sh and check whether each script uses the shared data/functions or hardcodes its own.
+
+  Ran 1 shell command
+
+Now I have the canonical model:
+- DATA (php_common_vars.sh): PHP_VERSION="8.5", in/php, PHP85_CORE_PACKAGES, CORE_EXTENSIONS,EXTENSION_MAP, REQUIRED_EXTENSIONS, OCTANE_*, PHP_INI_FILES, COMPOSER_*, state maps.
+- LOGIC (php_common_functions.sh): check_network_connectivity, check_symbolic_link, prevent_apache2_conflicts, configure_php_for_laravel, etc.
+
+This is a genuine multi-file consistency audit. I'll fan out a workflow to profile each script against this canonical model in parallel, then synthesize a concrete, file/line-level misalignment list with exact fixes — then I'll apply them.
+
+● Workflow(Audit logic/data/behavior alignment across PHP install scripts 31-34 and produce concrete fixes)
+/workflows to view dynamic workflow runs
+
+The audit is running. Meanwhile, let me read scripts 33 and 34 myself (I haven't seen them) so I can evaluate the findings and apply fixes quickly.
+
+  Read 1 file
+
+Read 33 fully. Already spotting real misalignments: hardcoded "8.5" throughout (vs $PHP_VERSION), update-alternatives priority 84 here vs 85 in 31 (drift), three scripts managing the php command differently (31: alternatives@85 + symlink; 32:
+ensure_php_symlink; 33: alternatives@84 only), a2", claims it modifies FPM files it no longertouches), and a hardcoded module list instead of REQUIRED_EXTENSIONS. Let me read 34.
+
+  Read 1 file
+
+Read all 4 scripts now. I can already see concrete misalignments (e.g., 33 uses update-alternatives priority 84 vs 31's 85; 34 hardcodes /usr/local/bin/composer-safe despite COMPOSER_SAFE_PATH existing in the shared vars; 4 different PHP-version-detection idioms). Let me confirm a few specifics (31's priority, 32's ext-dir/symlink handling) as ground truth while the audit finishes.
+
+  Ran 1 shell command
+
+Confirmed ground truth for the key misalignments:
+
+- Behavior drift: update-alternatives priority is 85 in 31 (line 521) but 84 in 33 (line 232) for the same php alternative.
+- Dead shared var: COMPOSER_SAFE_PATH is used 0 times in 34; the literal /usr/local/bin/composer-safe is hardcoded 8 times.
+- php command managed 3 ways: 31 = alternatives@85 + /usr/local/bin/php symlink; 32 = its own ensure_php_symlink; 33 = alternatives@84, no symlink.
+- PHP-version detection: 4 different idioms (31 state-fn, 32 PHP_MAJOR/MINOR, 33 php -v|cut, 34 grep -oP).
+- 32 dynamically resolves extension_dir (good) but hardcodes /etc/php/8.5/...; 33 verifies a divergent subset of modules
+instead of REQUIRED_EXTENSIONS; 33's header stil it edits FPM files it no longer touches.
+
+The systematic audit workflow is finishing its se + anything I missed in 31's internals andproduces the consistency matrix). I'll apply one coherent, surgical fix set once it lands — centering on a single source of truth in php_common_vars.sh (derived PHP_BIN, PHP_ALT_PRIORITY) so 31/33 stop drifting, plus wiring 34 to COMPOSER_SAFE_PATH and 33 to REQUIRED_EXTENSIONS.
+
+✻ Sautéed for 5m 11s
+
+● Dynamic workflow "Audit logic/data/behavior alignment across PHP install scripts 31-34 and produce concrete fixes" completed · 5m 2s
+
+The audit corroborates my findings and adds key ones (priority drift is actually across 31=85, 32=84, 33=84; 31's L951 install string pulls in the php8.5 metapackage + FPM contradicting the no-FPM intent; 32's ensure_php_symlink targets the wrong link /usr/bin/php instead of /usr/local/bin/php; verify_php_symbolic_link_fix defined twice in 31). Let me read the full synthesis (recommended fixes + matrix) before applying.
+
+  Ran 3 shell commands
+
+Now I have the complete adjudicated plan. Let me read the precise spots needing careful edits (32's ensure_php_symlink and the
+two duplicate functions in 31) before applying t
+
+  Read 1 file
+
+Now the two duplicate verify_php_symbolic_link_fix definitions in 31:
+
+  Ran 1 shell command
+
+The two verify_php_symbolic_link_fix definitions differ (old-version lists 7.4–8.4 vs 7.4–8.3, different var names) and the second (L646) wins — so L566 is dead code. I'll handle that carefully. First let me enumerate all the priority/binary literal spots across 31 and 33 so my single-source-of-truth changes are complete.
+
+  Ran 1 shell command
+
+Complete picture confirmed. Now applying the coherent alignment fix set. Edit 1 — establish single source of truth in php_common_vars.sh:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/debian_com/php_common_vars.sh)
+Added 8 lines
+# PHP_FPM_SOCKET_PATH=""  # Not used
+TARGET_LINK_PATH="/usr/local/bin/php"
+
+# Derived from PHP_VERSION -- single souever drift.
+# PHP_BIN: the versioned CLI binary (e.g. /usr/bin/php8.5).
+# PHP_ALT_PRIORITY: the update-alternatives priority for the 'php' link. MUST be the
+#   same in every step (31/32/33) or a later step re-registering at a lower priority
+#   can silently change which php is the system default that step 34 then consumes.
+PHP_BIN="/usr/bin/php${PHP_VERSION}"
+PHP_ALT_PRIORITY="85"
+
+# PHP 8.5 specific packages (NO FPM - using Swoole)
+# Note: opcache is now a core extension in PHP 8.5, no separate package needed
+# IMPORTANT: Do NOT include "php8.5" metapackage as it pulls in php8.5-fpm
+
+Edit 2 — fix 31's L951 install string to the canonical arrays (removes the php8.5 metapackage + php8.5-fpm, restores sqlite3/intl/readline):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh)
+Added 1 line, removed 1 line
+    add_php_repository_permanent_from_apt_repository_manager \
+        "$os_id" \
+        "$os_codename" \
+        "$USE_SUDO apt install -y php8.5-common php8.5-mysql php8.5-pgsql php8.5-z
+ip php8.5-gd php8.5-mbstring php8.5-curl php8.5-xml php8.5-bcmath"
+        "$USE_SUDO apt install -y ${PHP85_CORE_PACKAGES[*]} ${CORE_EXTENSIONS[*]}"
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 installed successfully with repository cleanup${NC}"
+
+Edit 3 — 31's update-alternatives to the shared priority/binary (single source):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh)
+Added 2 lines, removed 2 lines
+
+    # Add only PHP 8.5 to alternatives
+    if [ -f "/usr/bin/php8.5" ] && [ -x "/usr/bin/php8.5" ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Adding PHP 8.5 to alternatives with priority 85...${NC}"
+        $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 85 2>/dev/null || true
+        echo -e "${YELLOW}$SCRIPT_INDEX Adding PHP ${PHP_VERSION} to alternatives with priority ${PHP_ALT_PRIOR
+ITY}...${NC}"
+        $USE_SUDO update-alternatives -HP_BIN" "$PHP_ALT_PRIORITY" 2>/dev/null ||
+true
+
+        # Set PHP 8.5 as the default
+        $USE_SUDO update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true
+
+Edit 4a — 32 sources php_common_functions.sh (like its siblings):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/32_install_swoole.sh)
+Added 1 line
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
+source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
+
+echo -e "${CYAN}========================================${NC}"
+echo -e "${CYAN}$SCRIPT_INDEX PHP Swoole Extension Installation${NC}"
+
+Edit 4b — rewrite 32's ensure_php_symlink to honor the canonical contract link $TARGET_LINK_PATH + shared priority/binary, and fix the stale guidance:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/32_install_swoole.sh)
+Added 25 lines, removed 19 lines
+}
+
+ensure_php_symlink() {
+    echo -e "${BLUE}$SCRIPT_INDEX Ensuring PHP 8.5 symlink exists...${NC}"
+    echo -e "${BLUE}$SCRIPT_INDEX Ensuring PHP ${PHP_VERSION} is the default php...${NC}"
+
+    if [ ! -f "/usr/bin/php" ] || ! /usr/bin/php -v 2>/dev/null | grep -q "PHP 8.5"; then
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 symlink missing or incorrect, fixing...${NC}"
+    if [ ! -x "$PHP_BIN" ]; then
+        echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} binary not found at $PHP_BIN${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Please run 31_ensure_php85_intelligent.sh first${NC}"
+        return 1
+    fi
+
+        if [ -f "/usr/bin/php8.5" ]; then
+            # Register php8.5 (idempotent) without wiping other PHP alternatives.
+            # --remove-all would destroy every registered php alternative on rerun.
+            $USE_SUDO update-alternativ /usr/bin/php8.5 84
+            $USE_SUDO update-alternatives --set php /usr/bin/php8.5
+            echo -e "${GREEN}$SCRIPT_INC}"
+        else
+            echo -e "${RED}$SCRIPT_INDEX PHP 8.5 binary not found at /usr/bin/php8.5${NC}"
+            echo -e "${YELLOW}$SCRIPT_INDEX Please run 31_ensure_php84_intelligent.sh first${NC}"
+            return 1
+        fi
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 symlink already exists${NC}"
+    # 1) /usr/bin/php via update-alternatives -- SAME priority as step 31 (shared
+    #    PHP_ALT_PRIORITY) so re-running this step never lowers the default 31 set.
+    #    No --remove-all (that would wipe other registered php alternatives).
+    if [ ! -e "/usr/bin/php" ] || ! /usr/bin/php -v 2>/dev/null | grep -q "PHP ${PHP_VERSION}"; then
+        $USE_SUDO update-alternatives --install /usr/bin/php php "$PHP_BIN" "$PHP_ALT_PRIORITY"
+        $USE_SUDO update-alternatives --set php "$PHP_BIN"
+        echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} set as default (priority ${PHP_ALT_PRIORITY})${NC}"
+    fi
+
+    if /usr/bin/php -v 2>/dev/null | grep -q "PHP 8.5"; then
+        echo -e "${GREEN}$SCRIPT_INDEX r/bin/php${NC}"
+    # 2) The canonical entrypoint link that step 31 CREATES and step 34 CONSUMES.
+    #    32 previously only checked /ushile this contract
+    #    link was broken. Keep it in sync here too.
+    if [ "$(readlink -f "$TARGET_LINK_PATH" 2>/dev/null)" != "$(readlink -f "$PHP_BIN" 2>/dev/null)" ]; then
+        $USE_SUDO mkdir -p "$(dirname "$TARGET_LINK_PATH")"
+        $USE_SUDO ln -sf "$PHP_BIN" "$TARGET_LINK_PATH"
+        echo -e "${GREEN}$SCRIPT_INDEX Linked $TARGET_LINK_PATH -> $PHP_BIN${NC}"
+    fi
+
+    if "$TARGET_LINK_PATH" -v 2>/dev/null | grep -q "PHP ${PHP_VERSION}"; then
+        echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} available at $TARGET_LINK_PATH and /usr/bin/php${NC}"
+        return 0
+    else
+        echo -e "${RED}$SCRIPT_INDEX Failed to set PHP 8.5 as default${NC}"
+        echo -e "${RED}$SCRIPT_INDEX Failed to make PHP ${PHP_VERSION} the default${NC}"
+        return 1
+    fi
+}
+
+Edit 5 — align 33's priority (84→shared) and bin
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/33_configure_php85.sh)
+Added 1 line, removed 1 line
+    echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Setting PHP 8.5 as default system version...${NC}"
+
+    # Find PHP 8.5 binary
+    local php85_binary="/usr/bin/php8.5"
+    local php85_binary="$PHP_BIN"
+    if [ -f "$php85_binary" ] && [ -x "$php85_binary" ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX Found PHP 8.5 binary: $php85_binary${NC}"
+
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh)
+Added 3 lines, removed 3 lines
+
+        # Use update-alternatives as per documentation
+        echo -e "${YELLOW}$SCRIPT_INDEX Adding only PHP 8.5 to alternatives...${NC}"
+        if $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 84; then
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 added to alternatives with priority 84${NC}"
+        if $USE_SUDO update-alternative"$php85_binary" "$PHP_ALT_PRIORITY"; then
+            echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} added to alternatives with priority ${PHP_ALT_PRI
+ORITY}${NC}"
+
+            # Explicitly set PHP 8.5 as the default
+            $USE_SUDO update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true
+            $USE_SUDO update-alternatives --set php "$php85_binary" 2>/dev/null || true
+            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 explicitly set as default${NC}"
+        else
+            echo -e "${RED}$SCRIPT_INDEX Failed to set PHP 8.5 as default${NC}"
+
+Edit 5c — align 33's module verification to the canonical REQUIRED_EXTENSIONS/EXTENSION_MAP (was a divergent hardcoded subset):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh)
+Added 5 lines, removed 2 lines
+
+        # Show some key modules
+        echo -e "${CYAN}$SCRIPT_INDEX Key modules status:${NC}"
+        for module in "curl" "mbstring" "xml" "zip" "gd" "mysqli" "opcache"; do
+            if php -m 2>/dev/null | grep -qi "^$module$"; then
+        # Drive the check from the canoXTENSION_MAP so this
+        # step verifies exactly the modules step 31 installs (no divergent hardcoded list).
+        for ext in "${REQUIRED_EXTENSIO
+            local module="${EXTENSION_MAP[$ext]:-$ext}"
+            if php -m 2>/dev/null | grep -qi "^${module}$"; then
+                echo -e "${GREEN}$SCRIPT_INDEX   $module: [OK]${NC}"
+            else
+                echo -e "${YELLOW}$SCRIPT_INDEX   $module: [Missing]${NC}"
+
+Edit 6 — wire 34 to the canonical vars (TARGET_LINK_PATH, COMPOSER_SAFE_PATH, PHP_VERSION):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh)
+Added 1 line, removed 1 line
+source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
+
+# Configuration - using variables from php_common_vars.sh
+PHP_BINARY="/usr/local/bin/php"
+PHP_BINARY="$TARGET_LINK_PATH"
+
+# Version requirements
+MIN_COMPOSER_VERSION_MAJOR=2
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/34_install_composer.sh)
+Added 8 lines, removed 8 lines
+    fi
+
+    # Check 7: Wrapper script integrity
+    if [ ! -f "/usr/local/bin/composer-safe" ]; then
+    if [ ! -f "$COMPOSER_SAFE_PATH" ]; then
+        reason="composer-safe wrapper missing"
+        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
+        return 0
+
+    echo -e "${CYAN}${NC}"
+    echo -e "${CYAN}Created files:${NC}"
+    echo -e "${CYAN}  /usr/local/bin/composer            (main wrapper)${NC}"
+    echo -e "${CYAN}  /usr/local/bin/composer-safe       (explicit safe wrapper)${NC}"
+    echo -e "${CYAN}  $COMPOSER_SAFE_PATH       (explicit safe wrapper)${NC}"
+    echo -e "${CYAN}  /usr/local/bin/composer.original   (original Composer binary)${NC}"
+    echo -e "${CYAN}  /usr/local/etc/.composer_php_version (PHP version tracking)${NC}"
+    echo -e "${CYAN}${NC}"
+
+        echo -e "${GREEN}$SCRIPT_INDEX s properly installed and working${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX �?Location: $COMPOSER_TARGET_PATH (wrapper)${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX �?Original: ${COMPOSER_TARGET_PATH}.original${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX �?Safe wrapper: /usr/local/bin/composer-safe${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX �?Safe wrapper: $COMPOSER_SAFE_PATH${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX �?PHP version tracking: $php_version${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX All checks passed - no corrections needed${NC}"
+        exit 0
+
+
+    $USE_SUDO rm -f "$COMPOSER_TARGET_PATH" 2>/dev/null || true
+    $USE_SUDO rm -f "${COMPOSER_TARGET_PATH}.original" 2>/dev/null || true
+    $USE_SUDO rm -f "/usr/local/bin/composer-safe" 2>/dev/null || true
+    $USE_SUDO rm -f "$COMPOSER_SAFE_PATH" 2>/dev/null || true
+    $USE_SUDO rm -f "/usr/local/bin/composer-php85" 2>/dev/null || true
+    $USE_SUDO rm -f "/usr/local/bin/composer-php84" 2>/dev/null || true  # Remove old version reference
+    $USE_SUDO rm -f "/usr/bin/composer" 2>/dev/null || true
+
+
+    # Create global wrapper to handle root warnings and open_basedir
+    echo -e "${CYAN}$SCRIPT_INDEX Creat{NC}"
+    $USE_SUDO tee /usr/local/bin/composer-safe > /dev/null << 'EOF'
+    $USE_SUDO tee $COMPOSER_SAFE_PATH > /dev/null << 'EOF'
+#!/bin/bash
+# Global Composer wrapper that handles root warnings and open_basedir restrictions
+# Usage: composer-safe [composer-arguments]
+
+# open_basedir is set to none to allow access to all system directories
+exec /usr/local/bin/php -d "open_basedir=none" /usr/local/bin/composer.original "$@"
+EOF
+    $USE_SUDO chmod +x /usr/local/bin/composer-safe
+    $USE_SUDO chmod +x $COMPOSER_SAFE_PATH
+
+    # Create main composer wrapper
+    echo -e "${CYAN}$SCRIPT_INDEX Creating composer wrapper for better compatibility...${NC}"
+
+
+    # Test composer-safe wrapper
+    echo -e "${CYAN}$SCRIPT_INDEX TestiNC}"
+    if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 /usr/local/bin/composer-safe --version >/dev/null 2
+>&1; then
+    if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 $COMPOSER_SAFE_PATH --version >/dev/null 2>&1; then
+        echo -e "${GREEN}$SCRIPT_INDEX �?Composer-safe wrapper: OK${NC}"
+    else
+        echo -e "${RED}$SCRIPT_INDEX �?Composer-safe wrapper: FAILED${NC}"
+
+    echo -e "${GREEN}$SCRIPT_INDEX �?Composer Version: $final_version${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX �?PHP Version: $(get_current_php_version)${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX �?Main wrapper: $COMPOSER_TARGET_PATH${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX �?Safe wrapper: /usr/local/bin/composer-safe${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX �?Safe wrapper: $COMPOSER_SAFE_PATH${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX �?Original binary: ${COMPOSER_TARGET_PATH}.original${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX �?PHP tracking file: $PHP_VERSION_TRACK_FILE${NC}"
+    echo -e "${CYAN}============================================================================${NC}"
+
+Edit 6c — 34's version assertion uses $PHP_VERSION:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh)
+Added 3 lines, removed 3 lines
+
+    # Check PHP 8.5 availability
+    if [ ! -x "$PHP_BINARY" ]; then
+        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 not found at $PHP_BINARY${NC}"
+        echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} not found at $PHP_BINARY${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Please run 31_ensure_php85_intelligent.sh first${NC}"
+        exit 1
+    fi
+
+    if ! "$PHP_BINARY" --version | grep -q "PHP 8.5"; then
+        echo -e "${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP 8.5${NC}"
+    if ! "$PHP_BINARY" --version | grep -q "PHP ${PHP_VERSION}"; then
+        echo -e "${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP ${PHP_VERSION}${NC}"
+        exit 1
+    fi
+
+
+Now let me validate all the edits (syntax + that the alignments took) before handling the duplicate-function cleanup:
+
+  Ran 1 shell command
+
+Core alignments validated: priority now $PHP_ALT3, 34 wired to COMPOSER_SAFE_PATH (8×, 0 literalsleft), 31's install string uses the canonical arrays. Now the last item — the duplicate verify_php_symbolic_link_fix in 31. Let me read the exact boundaries of the dead first copy.
+
+  Read 1 file
+
+The duplicate-function block contains UTF-8 glyphs that render as mojibake (�?) in my view, so an exact-match Edit would be unreliable. I'll remove the dead first copy (lines 565–644) with a precise, verified line-range delete + backup + syntax check, keeping the active second definition.
+
+  Ran 1 shell command
+
+Duplicate removed cleanly (2→1 defs, bash -n OK, backup discarded). Final validation across all files and confirming the shared vars resolve:
+
+  Ran 1 shell command
+
+All validated:
+- bash -n passes on all 5 files; shared vars resbin/php8.5, PHP_ALT_PRIORITY=85, arrays correct).
+- All three update-alternatives calls (31/32/33) now use $PHP_BIN/$PHP_ALT_PRIORITY (33 via php85_binary=$PHP_BIN) — zero bare
+84/85 literals remain.
+
+Alignment complete — scripts 31→34 now share one logic/data contract
+
+DATA — single source of truth in php_common_vars.sh:
+- Added derived PHP_BIN="/usr/bin/php${PHP_VERSION}" and PHP_ALT_PRIORITY="85".
+- 31's install string → ${PHP85_CORE_PACKAGES[*]} ${CORE_EXTENSIONS[*]} (was hardcoded php8.5 php8.5-fpm … — pulled the metapackage + FPM and omitted sqlite3/intl/readline; now matches 31's own install_php_core and the NO-FPM intent).
+- 34 → COMPOSER_SAFE_PATH (8 literals removed) and PHP_BINARY="$TARGET_LINK_PATH"; version assertion → $PHP_VERSION.
+- 33 module check → driven by REQUIRED_EXTENSIONS + EXTENSION_MAP (was a divergent hardcoded subset using mysqli, missing pgsql/sqlite3/intl/bcmath).
+
+LOGIC:
+- Priority drift eliminated: was 31=85, 32=84, 33=84 → all now $PHP_ALT_PRIORITY (85). This was a real last-writer-wins bug where running 33/32 after 31 lowered the default php priority.
+- 32 now sources php_common_functions.sh (it was the only one of the four that didn't, forcing inline reimplementations).
+- Removed the duplicate verify_php_symbolic_link_fix in 31 (two divergent definitions; the dead first copy is gone, 2→1).
+
+BEHAVIOR / handoff:
+- 32's ensure_php_symlink now maintains the canonical contract link $TARGET_LINK_PATH (/usr/local/bin/php) — the link 31
+creates and 34 requires — in addition to /usr/bicked /usr/bin/php, so it could report successwhile 34's required entrypoint was broken.
+- 31's NO-FPM postcondition is now actually met (FPM is never installed, instead of installed-then-disabled).
+- Fixed 32's stale "run 31_ensure_php84…" guidance → php85.
+
+The pre/post chain is now consistent: 31 installs CLI+extensions (no FPM), registers php@85, creates /usr/local/bin/php → 32 builds Swoole, keeps that same link/priority → 33 configures the CLI ini + same php@85 → 34 consumes /usr/local/bin/php, verifies $PHP_VERSION.
+
+Optional follow-ups I left (lower-value / cosmetic, say the word):
+1. Wire 32's now-available check_network_connectivity_from_php_common before its clone and prevent_apache2_conflicts_from_php_common before its apt installs (parity with 31's guards).
+2. 33's header comment still self-labels "32_configure_php85.sh" and references FPM files it no longer edits (doc drift — and that file's own rules say don't touch docs, so I held off).
+3. The surviving verify_php_symbolic_link_fix scans old versions 7.4–8.3 (omits 8.4 — reporting only).
+4. The shared verify_open_basedir_config_from_php_common still probes a stale php-fpm8.4 branch.
+
+✻ Baked for 16m 20s

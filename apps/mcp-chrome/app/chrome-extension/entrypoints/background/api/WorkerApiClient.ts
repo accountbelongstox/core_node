@@ -14,7 +14,29 @@ export type ProcessorType =
   | 'remote_ocr'
   | 'remote_translation'
   | 'remote_video'
-  | 'remote_io';
+  | 'remote_io'
+  // Unified-task fast lane: a worker that advertises >=1 capability also
+  // subscribes to `remote_fast` so the dispatcher can hand it any fast-tier
+  // task that matches one of its capabilities (see SimpleWorkerBase.withFastLane).
+  | 'remote_fast'
+  // Dedicated lanes Chrome may advertise in the future; minimally the fast lane
+  // above is required today. Kept here so the union mirrors the Laravel
+  // GlobalTask::EXECUTION_TYPES vocabulary exactly.
+  | 'remote_subtitle'
+  | 'remote_poster'
+  | 'remote_sentence_audio';
+
+/**
+ * Capability vocabulary — mirrors Laravel GlobalTask::CAPABILITIES. A worker
+ * advertises the kinds of work it can actually do; the dispatcher matches a
+ * fast-tier task's `capability` against this set before assigning it.
+ */
+export type WorkerCapability =
+  | 'audio'
+  | 'image'
+  | 'translate'
+  | 'sentence_audio'
+  | 'ai_translate';
 
 export type TaskStatus =
   | 'pending'
@@ -29,6 +51,9 @@ export interface WorkerRegistration {
   worker_id: string;
   worker_name: string;
   processor_types: ProcessorType[];
+  // The capability set advertised to the dispatcher. Optional for legacy
+  // single-lane workers; unified workers always send it.
+  capabilities?: WorkerCapability[];
   hostname?: string;
   platform?: string;
   metadata?: Record<string, any>;
@@ -53,6 +78,11 @@ export interface Task {
   };
   timeout_seconds: number;
   priority: number;
+  // Capability the task requires (unified-task routing). null/undefined => any
+  // worker on the lane may take it.
+  capability?: WorkerCapability | null;
+  // True when the task was dispatched on the fast tier (priority>=PRIORITY_FAST).
+  is_fast_tier?: boolean;
   created_at: string;
 }
 
@@ -92,6 +122,13 @@ export interface WorkerInfo {
 
 // ========== Worker API Client ==========
 
+/**
+ * Default priority a fast-tier bump uses. Mirrors Laravel
+ * GlobalTask::PRIORITY_FAST. A task at or above this priority is treated as
+ * fast-tier (is_fast_tier=true) by the dispatcher.
+ */
+export const PRIORITY_FAST = 100;
+
 export class WorkerApiClient extends BaseApiClient {
   private workerId: string | null = null;
 
@@ -111,43 +148,65 @@ export class WorkerApiClient extends BaseApiClient {
   /**
    * Send heartbeat to maintain online status
    */
-  async heartbeat(workerId?: string): Promise<ApiResponse<null>> {
+  async heartbeat(
+    workerId?: string,
+  ): Promise<ApiResponse<{ pending_urgent: number; pending_fast: number }>> {
     const id = workerId || this.workerId;
 
     if (!id) {
       throw new Error('Worker ID not set. Call register() first or provide workerId');
     }
 
-    return this.post<null>('/api/worker/heartbeat', { worker_id: id });
+    return this.post<{ pending_urgent: number; pending_fast: number }>('/api/worker/heartbeat', {
+      worker_id: id,
+    });
   }
 
   /**
-   * Pull tasks with long polling
+   * Pull tasks with long polling.
+   *
+   * `wait` (seconds) MUST be sent: 0 = return immediately (used for fast
+   * re-polls reacting to pending_fast), a positive value asks Laravel to
+   * long-poll up to that many seconds. The response carries the unified-task
+   * backlog signals `pending_urgent` / `pending_fast` so the worker can decide
+   * whether to fire an immediate fast re-poll.
    */
   async pullTasks(
     workerId?: string,
     options: {
       limit?: number;
-      timeout?: number;
+      wait?: number;
     } = {},
-  ): Promise<ApiResponse<{ count: number; tasks: Task[] }>> {
+  ): Promise<
+    ApiResponse<{
+      count: number;
+      pending_urgent: number;
+      pending_fast: number;
+      tasks: Task[];
+    }>
+  > {
     const id = workerId || this.workerId;
 
     if (!id) {
       throw new Error('Worker ID not set. Call register() first or provide workerId');
     }
 
-    const { limit = 5, timeout = 30 } = options;
+    const { limit = 5, wait = 0 } = options;
+    // Clamp: wait 0..30s, limit 1..50.
+    const safeWait = Math.max(0, Math.min(30, Math.floor(wait)));
+    const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
 
-    return this.get<{ count: number; tasks: Task[] }>(
+    return this.get<{ count: number; pending_urgent: number; pending_fast: number; tasks: Task[] }>(
       '/api/worker/tasks/pull',
       {
         worker_id: id,
-        limit: Math.max(1, Math.min(50, limit)),
-        timeout: Math.max(1, Math.min(30, timeout)),
+        // Always send wait; a missing wait makes Laravel long-poll 20s.
+        wait: safeWait,
+        limit: safeLimit,
       },
       {
-        timeout: (timeout + 5) * 1000, // Add buffer to request timeout
+        // Give the request enough headroom over the server-side wait.
+        timeout: (safeWait + 8) * 1000,
         retries: 0, // Don't retry long polling requests
       },
     );
@@ -190,6 +249,31 @@ export class WorkerApiClient extends BaseApiClient {
    */
   async getWorkerList(): Promise<ApiResponse<{ count: number; workers: WorkerInfo[] }>> {
     return this.get<{ count: number; workers: WorkerInfo[] }>('/api/worker/list');
+  }
+
+  /**
+   * Fetch the full detail bundle for a task. Mirrors Laravel
+   * `GET /api/task/{id}/detail` (the same shape the SSE detail stream emits as
+   * its task.detail-initial frame), used by the popup TaskDetailModal drilldown.
+   * A control read — no worker_id required.
+   */
+  async getTaskDetail(taskId: string): Promise<ApiResponse<any>> {
+    return this.get<any>(`/api/task/${encodeURIComponent(taskId)}/detail`);
+  }
+
+  /**
+   * Bump a task onto the fast tier (or to an explicit priority). Mirrors Laravel
+   * `POST /api/task/{id}/bump` body {priority}. Defaults to PRIORITY_FAST so a
+   * single click promotes a queued task to the front of the fast lane.
+   */
+  async bumpTask(
+    taskId: string,
+    priority: number = PRIORITY_FAST,
+  ): Promise<ApiResponse<{ task_id: string; priority: number }>> {
+    return this.post<{ task_id: string; priority: number }>(
+      `/api/task/${encodeURIComponent(taskId)}/bump`,
+      { priority },
+    );
   }
 
   /**

@@ -30,6 +30,7 @@ from .runtime import (
     http as requests,
     emit_event,
     is_shutdown_requested,
+    is_light,
     get_core_node_root,
 )
 
@@ -42,6 +43,8 @@ from .sync_ws import PushSender, PushReceiver
 VALID_ROLES = ("dev", "client")
 STATS_REFRESH_SECONDS = 60
 SYNC_LOG_MAX = 300
+# A light client keeps only a tiny sync-log ring (it barely logs sync activity).
+LIGHT_SYNC_LOG_MAX = 50
 
 
 class CodeSyncManager:
@@ -56,15 +59,33 @@ class CodeSyncManager:
         # status mesh keeps running so peers still see this node and its skip state.
         self._skip_update: bool = False
 
+        # Light mode: a CLIENT that only tracks the mesh (peer status/heartbeats)
+        # and never receives/serves files or scans the tree. Light is IGNORED on a
+        # dev node (a dev's whole job is to distribute), warned once below.
+        self.light: bool = bool(is_light())
+        light_client = self.light and self.role == "client"
+        if self.light and self.role == "dev":
+            ColorPrint.yellow("[CodeSync] light mode ignored on a dev node")
+
+        # Sync-log ring size: tiny for a light client, full otherwise.
+        self._sync_log_max = LIGHT_SYNC_LOG_MAX if light_client else SYNC_LOG_MAX
+
         # Local code stats are computed in the background (never inside the
-        # frequently-probed /peer/status request) so probes stay fast.
-        self._stats: Dict[str, Any] = {"files": 0, "bytes": 0, "last_modified": 0.0}
-        self._start_stats_refresher()
+        # frequently-probed /peer/status request) so probes stay fast. A light
+        # client never scans the tree: it serves static zeroed stats and skips the
+        # background refresher entirely.
+        if light_client:
+            self._stats: Dict[str, Any] = {"files": 0, "bytes": 0,
+                                           "last_modified": 0.0, "light": True}
+        else:
+            self._stats = {"files": 0, "bytes": 0, "last_modified": 0.0}
+            self._start_stats_refresher()
 
         # Status mesh runs for every role. The mesh also sends our heartbeat to
         # dev/hub peers and adopts any newer config returned on the response.
         self.mesh = PeerMeshManager(self.config, self.get_local_peer_status,
-                                    apply_remote_config_fn=self._apply_remote_from_heartbeat)
+                                    apply_remote_config_fn=self._apply_remote_from_heartbeat,
+                                    light=light_client)
         self.mesh.start()
 
         # WS push channel (dev dials clients out; clients accept). The receiver is
@@ -76,14 +97,18 @@ class CodeSyncManager:
         self._peer_phases: Dict[str, Dict[str, Any]] = {}
         self._sync_logs = []  # ring of recent push/receive events (newest last)
         self._sync_lock = threading.Lock()
+        # Construct BOTH the receiver and the sender (so the WS endpoint and the
+        # back-compat surface keep working), but a light client never STARTS the
+        # sender supervisor — it neither pushes nor receives code.
         self.push_receiver = PushReceiver(self)
         self.push_sender = PushSender(self)
-        self.push_sender.start()
+        if not light_client:
+            self.push_sender.start()
 
         # Apply the startup role (client receives by default; dev waits to distribute).
         self._apply_role(self.role)
         ColorPrint.green(f"[CodeSync Manager] Initialized role={self.role} "
-                         f"(distributing={self.distributing})")
+                         f"(distributing={self.distributing}, light={self.light})")
 
     # ----- role ------------------------------------------------------------ #
     def get_role(self) -> str:
@@ -408,8 +433,8 @@ class CodeSyncManager:
                  "timestamp": time.time()}
         with self._sync_lock:
             self._sync_logs.append(entry)
-            if len(self._sync_logs) > SYNC_LOG_MAX:
-                self._sync_logs = self._sync_logs[-SYNC_LOG_MAX:]
+            if len(self._sync_logs) > self._sync_log_max:
+                self._sync_logs = self._sync_logs[-self._sync_log_max:]
         try:
             emit_event("code_sync_log", entry)
         except Exception:
@@ -440,6 +465,7 @@ class CodeSyncManager:
             "role": self.role,
             "distributing": self.is_distributing(),
             "skip_update": self._skip_update,
+            "light": self.light,
             "code": self.local_code_stats(),
         }
         try:
@@ -458,6 +484,7 @@ class CodeSyncManager:
             "lan_ip": _local_lan_ip(),
             "distributing": self.is_distributing(),
             "skip_update": self._skip_update,
+            "light": self.light,
             "config_version": self.config.version(),
             "code": self.local_code_stats(),
             "watch_root": str(self.sync_target_root()),
@@ -476,6 +503,7 @@ class CodeSyncManager:
             "role": self.role,
             "distributing": self.is_distributing(),
             "skip_update": self._skip_update,
+            "light": self.light,
             "code": self.local_code_stats(),
             "version": self.config.version(),
             "self": self.get_local_peer_status(),
@@ -497,6 +525,10 @@ class CodeSyncManager:
         Multiple watch roots map under their dest_rel paths, so they appear together
         as sibling first-level nodes. Returns the FULL tree (all depths); the UI
         chooses what to expand (default: first level only)."""
+        # A light client never scans the tree (no watcher): return an empty,
+        # non-scanning tree so the UI shows "no files" rather than spinning.
+        if self.light and self.role == "client":
+            return {"success": False, "light": True, "scanning": False, "children": []}
         import os as _os
         from .watcher import get_watch_manager
         wm = get_watch_manager()

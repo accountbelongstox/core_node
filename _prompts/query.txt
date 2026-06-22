@@ -1,3 +1,5 @@
+Use multiple roles to cross-validate each other.Use multiple roles to cross-validate each other.
+
 多角色执行结果 — Chrome MCP Task Center
 
   角色: chrome(重)

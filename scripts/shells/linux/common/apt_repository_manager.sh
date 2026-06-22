@@ -333,22 +333,12 @@ restore_apt_sources_from_apt_repository_manager() {
         }
     fi
     
-    # Restore keyrings (directory copy)
-    if [ -d "$backup_path/keyrings" ]; then
-        $USE_SUDO mkdir -p "$APT_KEYRINGS_DIR" 2>/dev/null || true
-        $USE_SUDO cp -rp "$backup_path/keyrings"/* "$APT_KEYRINGS_DIR/" 2>/dev/null || {
-            echo "WARNING: Failed to restore $APT_KEYRINGS_DIR" >&2
-        }
-    fi
-    
-    # Restore trusted keys (directory copy)
-    if [ -d "$backup_path/trusted.gpg.d" ]; then
-        $USE_SUDO mkdir -p "$APT_TRUSTED_KEYS_DIR" 2>/dev/null || true
-        $USE_SUDO cp -rp "$backup_path/trusted.gpg.d"/* "$APT_TRUSTED_KEYS_DIR/" 2>/dev/null || {
-            echo "WARNING: Failed to restore $APT_TRUSTED_KEYS_DIR" >&2
-        }
-    fi
-    
+    # NOTE: We deliberately do NOT restore /usr/share/keyrings or /etc/apt/trusted.gpg.d.
+    # Those hold the distro's OWN signing keys (managed by the distro keyring packages);
+    # overwriting them from a backup could clobber or downgrade system signing keys, which
+    # is forbidden. Only apt source LISTS are restored above. Third-party keys live in their
+    # own dedicated files, re-created idempotently by each repo installer, so need no restore.
+
     # Sanitize restored files to remove any git conflict markers
     sanitize_all_apt_sources_from_apt_repository_manager
 

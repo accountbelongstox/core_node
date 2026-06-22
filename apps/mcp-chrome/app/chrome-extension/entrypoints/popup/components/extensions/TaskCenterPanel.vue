@@ -92,12 +92,19 @@
         </div>
       </div>
     </div>
+
+    <!-- Unified Task Center: live + history task rows from the laravel global
+         queue, each clickable to open the live SSE drilldown (TaskDetailModal). -->
+    <div class="pt-1">
+      <UnifiedTaskCenter />
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { onMounted } from 'vue';
 import { useTaskCenter } from '../../composables/useTaskCenter';
+import UnifiedTaskCenter from './UnifiedTaskCenter.vue';
 
 const { isActive, config, state, saveConfig, startTaskCenter, stopTaskCenter, formatTimestamp, initialize } = useTaskCenter();
 

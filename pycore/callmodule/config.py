@@ -79,6 +79,8 @@ from pycore.callmodule.routers.local import (
     capability_status_router,
     translation_queue_router,
     task_center_router,
+    queue_overview_router,
+    task_history_router,
     assist_router,
     poster_router,
 )
@@ -584,6 +586,10 @@ def _init_rpc_routes(server):
                 emit_event=THREAD_BUS.trigger_event,
                 is_shutdown_requested=THREAD_BUS.is_shutdown_requested,
                 register_shutdown_handler=THREAD_BUS.register_shutdown_handler,
+                # Node-local light-mode toggle (mesh-only client). Passed BEFORE the
+                # first get_code_sync_manager() below so the manager reads it in
+                # __init__; honours the CODESYNC_LIGHT env truthy set.
+                light=os.environ.get('CODESYNC_LIGHT', '') in ('1', 'true', 'True', 'yes', 'on'),
             )
             get_code_sync_manager()
             # Serve the codesync file-push receiver (/code-sync/ws) on THIS
@@ -694,6 +700,8 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 capability_status_router,# CUDA/GPU readiness + free-library availability (/api/local/capabilities/status)
                 translation_queue_router,# Translation queue monitor + control proxy (/api/local/translation/queue)
                 task_center_router,      # Unified task-center aggregate (/api/local/task-center) — mirrors laravel_main /api/task-center/overview
+                queue_overview_router,   # Unified queue overview — never-blind category catalog incl ai_translate+subtitle_search (/api/local/queue/overview)
+                task_history_router,     # Recent-task cross-end log + clear (/api/local/tasks/recent, /clear)
                 assist_router,           # Assist-Laravel worker control (/api/local/assist): status/config/cycle for cover+tts generation
                 poster_router,           # Movie/TV poster status+config+test (/api/local/poster): TMDB/OMDB key status + fetch toggle + lookup preview
 

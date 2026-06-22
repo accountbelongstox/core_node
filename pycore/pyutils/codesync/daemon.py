@@ -18,20 +18,33 @@ import os
 import signal
 import time
 
-from .runtime import log as ColorPrint, request_local_shutdown, is_shutdown_requested
+from .runtime import (
+    log as ColorPrint,
+    request_local_shutdown,
+    is_shutdown_requested,
+    set_light,
+)
 from .http_server import CodeSyncHTTPServer
 from .manager import get_manager
 
 
-def run(host: str = "0.0.0.0", port: int = 59000, reload: bool = False) -> int:
-    httpd = CodeSyncHTTPServer(host=host, port=port)
+def run(host: str = "0.0.0.0", port: int = 59000, reload: bool = False,
+        light: bool = False) -> int:
+    # Light mode: --light flag OR CODESYNC_LIGHT env (same truthy set as RELOAD).
+    # MUST be set BEFORE get_manager() so the manager reads it in __init__.
+    light = light or os.environ.get("CODESYNC_LIGHT", "") in ("1", "true", "True", "yes", "on")
+    set_light(light)
+
+    # In light mode the HTTP server serves a tiny JSON at GET / instead of the
+    # full control panel (the node has nothing to administer locally).
+    httpd = CodeSyncHTTPServer(host=host, port=port, serve_panel=not light)
     httpd.start()
 
     # Creating the manager starts the peer mesh and the role's file service
     # (client puller by default; dev waits for distribute).
     manager = get_manager()
     ColorPrint.green(f"[CodeSync] Standalone daemon up "
-                     f"(role={manager.get_role()}, http=:{port}). Ctrl-C to stop.")
+                     f"(role={manager.get_role()}, light={light}, http=:{port}). Ctrl-C to stop.")
 
     # Hot-reload was removed on purpose: codesync is a resident service. A legacy
     # `--reload` / `CODESYNC_RELOAD=1` is accepted (so old units start) but does

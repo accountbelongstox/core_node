@@ -18,12 +18,14 @@ The package NEVER imports `pycore` at module level; all host services arrive via
 `configure()`. See CODESYNC_LITE_DESIGN.md (in docs/) for the architecture.
 """
 
-from .runtime import configure
+from .runtime import configure, set_light, is_light
 from .manager import get_manager, get_code_sync_manager
 from . import cli, daemon
 
 __all__ = [
     "configure",
+    "set_light",
+    "is_light",
     "get_manager",
     "get_code_sync_manager",
     "cli",

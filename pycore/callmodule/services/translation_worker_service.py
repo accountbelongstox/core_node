@@ -78,8 +78,10 @@ This module never imports rpc_v2 / callmodule routers (no upward layer import).
 """
 
 import asyncio
+import heapq
 import os
 import platform
+import random
 import socket
 import threading
 import time
@@ -179,9 +181,32 @@ class TranslationWorkerService:
     _instance: Optional["TranslationWorkerService"] = None
     _instance_lock = threading.Lock()
 
-    # processor type advertised to Laravel (must match the contract).
-    PROCESSOR_TYPES = ["remote_translation"]
+    # ---- Execution-type lanes (must equal GlobalTask::EXECUTION_TYPES) ----
+    # The shared interactive fast lane both pycore and chrome register for.
+    TRANSLATION_FAST_PROCESSOR_TYPE = "remote_fast"
+    # The legacy dedicated translation lane (still advertised for back-compat).
+    TRANSLATION_PROCESSOR_TYPE = "remote_translation"
+    # Local-TTS audio assist lane (word_audio rides this).
+    AUDIO_EXECUTION_TYPE = "remote_audio"
+    # Dedicated pycore-only retrieval/generation lanes (knob-gated, see config).
+    SUBTITLE_EXECUTION_TYPE = "remote_subtitle"
+    POSTER_EXECUTION_TYPE = "remote_poster"
+    SENTENCE_AUDIO_EXECUTION_TYPE = "remote_sentence_audio"
+
+    # task_type tags carried in payloads on these lanes.
+    AUDIO_TASK_TYPE = "word_audio"
+
+    # Base processor types always advertised (fast + legacy translation). The
+    # dedicated lanes are appended live by _effective_processor_types() when their
+    # Config kill-switch AND layered user-data/assist toggle are on.
+    PROCESSOR_TYPES = [TRANSLATION_FAST_PROCESSOR_TYPE, TRANSLATION_PROCESSOR_TYPE]
+
     DEFAULT_PROVIDER = "google"
+
+    # Fast-drain burst cadence (overridden from Config at init).
+    TRANSLATION_FAST_POLL_INTERVAL = 0.5
+    TRANSLATION_FAST_DRAIN_WINDOW = 4.0
+    TRANSLATION_FAST_POLL_JITTER = 0.25
 
     def __new__(cls, *args, **kwargs):
         """Singleton — one worker per process."""
@@ -241,6 +266,37 @@ class TranslationWorkerService:
         # Default TTL for a done-word entry (seconds); the WS client may override
         # per-call. Kept here so the worker is self-contained if used standalone.
         self._done_word_ttl = 120
+
+        # ---- Unified-task fast lane (2026-06-21) ----
+        # Last advertised processor-type set; re-register fires when it changes
+        # (live toggle of a dedicated lane).
+        self._advertised_processor_types: Optional[List[str]] = None
+        # Per-backend priority heap of CLAIMED-but-unprocessed tasks. heapq is a
+        # min-heap; we push (-priority, seq, task) so the highest priority drains
+        # first. Keyed by api_url so distinct backends never interleave.
+        self._task_heaps: Dict[str, List[Any]] = {}
+        self._heap_seq = 0
+        self._heap_lock = threading.Lock()
+        # Latest fast/urgent counters parsed from pull/heartbeat responses.
+        self._pending_fast = 0
+        self._pending_urgent = 0
+        # Fast-drain burst guard so only ONE burst thread runs at a time.
+        self._fast_drain_active = False
+        self._fast_drain_lock = threading.Lock()
+        # Pull fast-poll knobs from Config (fall back to class defaults).
+        try:
+            from pycore.callmodule.callmodule_config import Config as _Cfg
+            self.TRANSLATION_FAST_POLL_INTERVAL = float(
+                getattr(_Cfg, "TRANSLATION_FAST_POLL_INTERVAL",
+                        self.TRANSLATION_FAST_POLL_INTERVAL))
+            self.TRANSLATION_FAST_DRAIN_WINDOW = float(
+                getattr(_Cfg, "TRANSLATION_FAST_DRAIN_WINDOW",
+                        self.TRANSLATION_FAST_DRAIN_WINDOW))
+            self.TRANSLATION_FAST_POLL_JITTER = float(
+                getattr(_Cfg, "TRANSLATION_FAST_POLL_JITTER",
+                        self.TRANSLATION_FAST_POLL_JITTER))
+        except Exception:
+            pass
 
         self._initialized = True
         ColorPrint.green(
@@ -427,6 +483,109 @@ class TranslationWorkerService:
         with self._done_words_lock:
             return sum(1 for e in self._done_words.values() if e > now)
 
+    # -------------------- capability / lane gating (live toggles) --------------------
+
+    @staticmethod
+    def _cfg():
+        """Lazily fetch the callmodule Config (kill-switch knobs)."""
+        from pycore.callmodule.callmodule_config import Config
+        return Config
+
+    def _ai_translate_enabled(self) -> bool:
+        """True when the ai_translate capability should be advertised (hard knob)."""
+        try:
+            return bool(getattr(self._cfg(), "AI_TRANSLATE_ENABLED", True))
+        except Exception:
+            return True
+
+    def _audio_enabled(self) -> bool:
+        """True when this worker should advertise + process the audio (TTS) lane.
+
+        Layered: the assist master toggle (enabled) AND capabilities.tts. While the
+        assist_laravel section is absent the legacy default (advertise) applies.
+        """
+        try:
+            from pycore.pyctl.assist import assist_settings_exist, load_assist_settings
+            if not assist_settings_exist():
+                return True
+            settings = load_assist_settings()
+            return bool(settings.get("enabled") and
+                        (settings.get("capabilities") or {}).get("tts", True))
+        except Exception:
+            return True
+
+    def _subtitle_enabled(self) -> bool:
+        """True when the dedicated subtitle lane should be advertised (hard knob)."""
+        try:
+            return bool(getattr(self._cfg(), "SUBTITLE_SEARCH_WORKER_ENABLED", True))
+        except Exception:
+            return True
+
+    def _poster_enabled(self) -> bool:
+        """Hard knob AND the live media_sync.fetch_poster user-data toggle."""
+        try:
+            if not bool(getattr(self._cfg(), "POSTER_WORKER_ENABLED", True)):
+                return False
+        except Exception:
+            pass
+        try:
+            from pycore.pyfoundations.system_paths import get_user_data_store
+            section = get_user_data_store().get_section("media_sync") or {}
+            if "fetch_poster" in section:
+                return bool(section.get("fetch_poster"))
+        except Exception:
+            pass
+        return True
+
+    def _sentence_audio_enabled(self) -> bool:
+        """Hard knob AND the live assist sentence_audio feature toggle."""
+        try:
+            if not bool(getattr(self._cfg(), "SENTENCE_AUDIO_WORKER_ENABLED", True)):
+                return False
+        except Exception:
+            pass
+        try:
+            from pycore.pyctl.assist import assist_settings_exist, load_assist_settings
+            if not assist_settings_exist():
+                return True
+            caps = (load_assist_settings().get("capabilities") or {})
+            # sentence_audio rides the assist tts capability (no separate flag yet).
+            return bool(caps.get("sentence_audio", caps.get("tts", True)))
+        except Exception:
+            return True
+
+    def _effective_capabilities(self) -> List[str]:
+        """Capabilities advertised on register AND status: audio,translate (+ai_translate)."""
+        caps = ["audio", "translate"]
+        if self._ai_translate_enabled():
+            caps.append("ai_translate")
+        return caps
+
+    def _effective_processor_types(self) -> List[str]:
+        """The lane set advertised this tick.
+
+        Always include the fast lane + legacy translation lane; append each
+        dedicated lane only while its enable gate is live-on. Re-register fires when
+        this set changes (handled in poll_once).
+        """
+        types = [self.TRANSLATION_FAST_PROCESSOR_TYPE, self.TRANSLATION_PROCESSOR_TYPE]
+        if self._audio_enabled():
+            types.append(self.AUDIO_EXECUTION_TYPE)
+        if self._subtitle_enabled():
+            types.append(self.SUBTITLE_EXECUTION_TYPE)
+        if self._poster_enabled():
+            types.append(self.POSTER_EXECUTION_TYPE)
+        if self._sentence_audio_enabled():
+            types.append(self.SENTENCE_AUDIO_EXECUTION_TYPE)
+        # De-dup preserving order.
+        seen: set = set()
+        ordered: List[str] = []
+        for t in types:
+            if t not in seen:
+                seen.add(t)
+                ordered.append(t)
+        return ordered
+
     # -------------------- Laravel worker API --------------------
 
     def _register(self) -> bool:
@@ -445,6 +604,8 @@ class TranslationWorkerService:
 
         requests = self._requests()
         last_reason = ""
+        processor_types = self._effective_processor_types()
+        capabilities = self._effective_capabilities()
         for base in self._candidates:
             try:
                 resp = requests.post(
@@ -452,7 +613,8 @@ class TranslationWorkerService:
                     json={
                         "worker_id": self.worker_id,
                         "worker_name": self.worker_name,
-                        "processor_types": self.PROCESSOR_TYPES,
+                        "processor_types": processor_types,
+                        "capabilities": capabilities,
                         "hostname": self.hostname,
                         "platform": self.platform,
                     },
@@ -461,6 +623,7 @@ class TranslationWorkerService:
                 if resp.status_code in (200, 201):
                     self.api_url = base
                     self._registered = True
+                    self._advertised_processor_types = list(processor_types)
                     if self._conn_unreachable_warned or self._conn_fail_streak:
                         ColorPrint.green(
                             f"[TranslationWorker] Reconnected to Laravel at {base} "
@@ -488,40 +651,75 @@ class TranslationWorkerService:
             )
         return False
 
+    def _note_fast_signals(self, body: Optional[Dict[str, Any]]) -> None:
+        """Record pending_fast / pending_urgent counters from a pull/heartbeat body.
+
+        These steer the jittered fast-drain burst (pending_fast>0) and surface in
+        get_queue_status() for routers/local.
+        """
+        if not isinstance(body, dict):
+            return
+        try:
+            self._pending_fast = int(body.get("pending_fast") or 0)
+        except (TypeError, ValueError):
+            self._pending_fast = 0
+        try:
+            self._pending_urgent = int(body.get("pending_urgent") or 0)
+        except (TypeError, ValueError):
+            self._pending_urgent = 0
+
     def _heartbeat(self) -> None:
         """Send a worker heartbeat (best-effort; a dropped connection forces
-        re-discovery on the next tick rather than spamming the log)."""
+        re-discovery on the next tick rather than spamming the log).
+
+        The heartbeat also carries the live capabilities (so Laravel keeps the
+        worker's advertised set fresh) and its response carries pending_fast /
+        pending_urgent which we fold into the fast-drain signal.
+        """
         try:
             requests = self._requests()
-            requests.post(
+            resp = requests.post(
                 f"{self.api_url}/api/worker/heartbeat",
-                json={"worker_id": self.worker_id},
+                json={
+                    "worker_id": self.worker_id,
+                    "capabilities": self._effective_capabilities(),
+                },
                 timeout=self._http_timeout,
             )
+            if resp is not None and getattr(resp, "status_code", 0) == 200:
+                data = resp.json() or {}
+                body = data.get("data") if isinstance(data.get("data"), dict) else data
+                self._note_fast_signals(body)
         except Exception as e:
             # Laravel likely went away — drop registration so _register re-discovers
             # (and emits the single "no reachable Laravel" hint) next tick.
             self._registered = False
             ColorPrint.yellow(f"[TranslationWorker] Heartbeat failed ({self._short_err(e)}); will re-discover")
 
-    def _pull_tasks(self) -> List[Dict[str, Any]]:
+    def _pull_tasks(self, base: Optional[str] = None, wait: int = 0) -> List[Dict[str, Any]]:
         """GET pending tasks for this worker. Returns [] on any error.
 
-        PRIORITY-SYNC NOTE: this pull does NOT re-sort tasks locally — it relies on
-        Laravel assigning/returning tasks in ``priority desc`` order. So a task that
-        qyApp bumps to a higher priority is handed to this worker BEFORE lower-priority
-        tasks on the next pull, i.e. high-priority (bumped) words are processed first
-        automatically. Priority-sync to the UI is achieved by two complementary parts:
-          (a) Laravel orders this pull by priority (the worker honours that order), and
-          (b) the QueueMonitorService (queue_monitor_service.py) polls the queue list
-              and surfaces priority bumps to the pycore UI (`recently_bumped`) in real
-              time. No task-processing logic is duplicated between the two.
+        ``wait`` MUST be sent (0 = immediate return; if omitted Laravel long-polls
+        ~20s while the client's 8s HTTP timeout fires first). The fast-drain burst and
+        the heartbeat tick both call this with wait=0 so a pull never blocks the loop.
+
+        PRIORITY-SYNC NOTE: Laravel returns tasks in ``priority desc`` order, but the
+        unified client ALSO folds every claimed task into a per-backend priority heap
+        (so a bumped task drains first even if it arrived in an earlier pull). The pull
+        response's pending_fast / pending_urgent counters are recorded to arm the
+        jittered fast-drain burst, and the QueueMonitorService still surfaces bumps to
+        the UI (`recently_bumped`). No task-processing logic is duplicated.
+
+        Hardening (2026-06-22): only a real ConnectionError de-registers (forces
+        re-discovery). A transient Timeout / other error just logs and stays
+        registered — the next tick retries against the same pinned backend.
         """
+        base = base or self.api_url
         try:
             requests = self._requests()
             resp = requests.get(
-                f"{self.api_url}/api/worker/tasks/pull",
-                params={"worker_id": self.worker_id},
+                f"{base}/api/worker/tasks/pull",
+                params={"worker_id": self.worker_id, "wait": wait},
                 timeout=self._http_timeout,
             )
             if resp.status_code == 200:
@@ -529,12 +727,27 @@ class TranslationWorkerService:
                 # Worker API wraps the payload: { success, data:{ count, tasks }, ... }.
                 # Accept both the wrapped and a bare { tasks } shape.
                 body = data.get("data") if isinstance(data.get("data"), dict) else data
+                self._note_fast_signals(body)
                 tasks = (body or {}).get("tasks", []) or []
                 return tasks
             ColorPrint.yellow(f"[TranslationWorker] Pull returned HTTP {resp.status_code}")
         except Exception as e:
-            self._registered = False
-            ColorPrint.yellow(f"[TranslationWorker] Pull failed ({self._short_err(e)}); will re-discover")
+            # Distinguish a hard connection failure (backend gone -> re-discover)
+            # from a transient blip (timeout / read error -> keep registration).
+            conn_error_cls = None
+            try:
+                conn_error_cls = self._requests().exceptions.ConnectionError
+            except Exception:
+                conn_error_cls = None
+            if conn_error_cls is not None and isinstance(e, conn_error_cls):
+                self._registered = False
+                ColorPrint.yellow(
+                    f"[TranslationWorker] Pull connection failed "
+                    f"({self._short_err(e)}); will re-discover")
+            else:
+                ColorPrint.yellow(
+                    f"[TranslationWorker] Pull transient error "
+                    f"({self._short_err(e)}); will retry next tick")
         return []
 
     # Result-POST retry plan: a lost result leaves the task "assigned" on the
@@ -681,6 +894,98 @@ class TranslationWorkerService:
         """True while the cooldown is active (skip pulling new work)."""
         return time.monotonic() < self._circuit_open_until
 
+    # -------------------- per-backend priority heap --------------------
+
+    @staticmethod
+    def _task_priority(task: Dict[str, Any]) -> int:
+        """Numeric priority of a pulled task (default 0). Higher drains first."""
+        try:
+            return int(task.get("priority") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _enqueue_tasks(self, base: str, tasks: List[Dict[str, Any]]) -> int:
+        """Push claimed tasks onto ``base``'s priority heap (max-by-priority).
+
+        Skips a task already in flight (so a re-pull of an unreleased claim does not
+        double-enqueue). Returns the number actually enqueued.
+        """
+        added = 0
+        with self._heap_lock:
+            heap = self._task_heaps.setdefault(base, [])
+            for task in tasks:
+                task_id = task.get("task_id")
+                with self._inflight_lock:
+                    if task_id in self._inflight:
+                        continue
+                self._heap_seq += 1
+                # min-heap on (-priority, seq) => highest priority, then FIFO.
+                heapq.heappush(heap, (-self._task_priority(task), self._heap_seq, task))
+                added += 1
+        return added
+
+    def _drain_heap(self, base: str) -> None:
+        """Dispatch every queued task for ``base``, highest priority first."""
+        while True:
+            with self._heap_lock:
+                heap = self._task_heaps.get(base)
+                if not heap:
+                    return
+                _neg_pri, _seq, task = heapq.heappop(heap)
+            self._dispatch(task)
+
+    def _heap_depth(self) -> int:
+        """Total queued (claimed-but-undispatched) tasks across all backends."""
+        with self._heap_lock:
+            return sum(len(h) for h in self._task_heaps.values())
+
+    # -------------------- jittered fast-drain burst --------------------
+
+    def _maybe_start_fast_drain(self) -> None:
+        """Arm a fast-drain burst when pending_fast>0 and none is already running."""
+        if self._pending_fast <= 0:
+            return
+        with self._fast_drain_lock:
+            if self._fast_drain_active:
+                return
+            self._fast_drain_active = True
+        threading.Thread(
+            target=self._fast_drain_loop, daemon=True, name="translate-fast-drain",
+        ).start()
+
+    def _fast_drain_loop(self) -> None:
+        """Burst-PULL the fast lane while pending_fast persists.
+
+        This loop ONLY pulls (wait=0) at TRANSLATION_FAST_POLL_INTERVAL with a small
+        random jitter so N workers do not synchronize their pulls — it never sends a
+        heartbeat (the ~12s heartbeat callback keeps the lease/registration fresh;
+        duplicating it here would only add load). Claimed tasks are folded onto the
+        per-backend priority heap and drained immediately. The burst runs for at most
+        TRANSLATION_FAST_DRAIN_WINDOW, then yields back to the heartbeat cadence; a
+        fresh pending_fast signal re-arms it.
+        """
+        try:
+            deadline = time.monotonic() + self.TRANSLATION_FAST_DRAIN_WINDOW
+            while time.monotonic() < deadline:
+                if not self._registered or self._circuit_is_open():
+                    break
+                base = self.api_url
+                tasks = self._pull_tasks(base, wait=0)
+                if tasks:
+                    self._enqueue_tasks(base, tasks)
+                    self._drain_heap(base)
+                    # A productive pull extends the burst window.
+                    deadline = time.monotonic() + self.TRANSLATION_FAST_DRAIN_WINDOW
+                if self._pending_fast <= 0 and not tasks:
+                    break
+                jitter = random.uniform(0, max(0.0, self.TRANSLATION_FAST_POLL_JITTER))
+                time.sleep(self.TRANSLATION_FAST_POLL_INTERVAL + jitter)
+        except Exception as e:
+            ColorPrint.yellow(f"[TranslationWorker] fast-drain loop error: {e}")
+        finally:
+            with self._fast_drain_lock:
+                self._fast_drain_active = False
+
     # -------------------- payload hygiene --------------------
 
     @staticmethod
@@ -743,16 +1048,48 @@ class TranslationWorkerService:
 
     def _process_task(self, task: Dict[str, Any]) -> None:
         """
-        Translate one task and POST its result. Runs on a TaskManager background
-        thread (off the heartbeat thread). Any failure -> POST status 'failed'.
+        Process one claimed task and POST its result. Runs on a TaskManager
+        background thread (off the heartbeat thread). Any failure -> POST 'failed'
+        so Laravel re-routes/re-pends; nothing is ever silently dropped.
+
+        Dispatch order (unified client):
+          - capability == 'ai_translate'  -> _ai_translate_words (shared fast lane;
+                                             task_type stays word_translation)
+          - task_type == 'word_audio'     -> _process_audio_task (assist TTS)
+          - task_type == 'subtitle_search'-> _process_subtitle_search_task
+          - task_type == 'poster'         -> _process_poster_task
+          - task_type == 'sentence_audio' -> _process_sentence_audio_task
+          - task_type word_translation/'' -> google translate (legacy path)
+          - anything else                 -> 'failed' (re-route)
         """
         task_id = task.get("task_id")
         try:
+            task_type = task.get("task_type")
+            capability = task.get("capability")
+
+            # AI-translate capability: race on the shared fast lane. task_type stays
+            # word_translation; only the PATH differs (AI gateway vs Google).
+            if capability == "ai_translate":
+                self._ai_translate_words(task)
+                return
+
+            if task_type == self.AUDIO_TASK_TYPE:
+                self._process_audio_task(task)
+                return
+            if task_type == "subtitle_search":
+                self._process_subtitle_search_task(task)
+                return
+            if task_type == "poster":
+                self._process_poster_task(task)
+                return
+            if task_type == "sentence_audio":
+                self._process_sentence_audio_task(task)
+                return
+
             # The pull claims by execution_type, so a mis-tagged task of another
             # task_type can land here. Translating it would post a result shape
             # its real processor does not understand — report failed instead so
             # Laravel retries it toward the right consumer.
-            task_type = task.get("task_type")
             if task_type not in (None, "", "word_translation"):
                 ColorPrint.yellow(
                     f"[TranslationWorker] Task {task_id} has unsupported "
@@ -825,6 +1162,306 @@ class TranslationWorkerService:
             with self._inflight_lock:
                 self._inflight.discard(task_id)
 
+    # -------------------- AI-translate capability (shared fast lane) --------------------
+
+    def _ai_provider_label(self) -> str:
+        """Best-effort label for the active AI provider (fallback 'ai')."""
+        try:
+            from pycore.pyctl.ai import available_providers
+            providers = available_providers() or []
+            if providers:
+                name = providers[0].get("name")
+                if name:
+                    return str(name)
+        except Exception:
+            pass
+        return "ai"
+
+    def _ai_translate_words(self, task: Dict[str, Any]) -> None:
+        """Translate a word_translation task via the AI gateway (capability=ai_translate).
+
+        Reuses ai_batch_translate.translate_lines; the real answering provider is
+        surfaced into the result's ``provider`` field (best-effort fallback to the
+        first available provider, else 'ai'). On import failure / zero pairs the task
+        is reported 'failed' so it re-routes (e.g. to the chrome web-ai worker).
+        """
+        task_id = task.get("task_id")
+        payload = task.get("payload") or {}
+        words = self._normalize_words(payload.get("words"))
+        target_language = payload.get("target_language") or "en"
+        source_language = payload.get("language") or "auto"
+        if not words:
+            self._post_result(task_id, "failed", error="ai_translate task had no words")
+            return
+        try:
+            from pycore.callmodule.services import ai_batch_translate
+        except ImportError as e:
+            ColorPrint.yellow(
+                f"[TranslationWorker] ai_batch_translate unavailable ({e}); "
+                f"reporting task {task_id} failed for re-route")
+            self._post_result(task_id, "failed", error=f"ai_batch_translate unavailable: {e}")
+            return
+
+        self._post_result(task_id, "processing", progress=5, attempts=1)
+        meta: Dict[str, Any] = {}
+        try:
+            pairs = ai_batch_translate.translate_lines(
+                words, source_language, target_language,
+                domain="text", source="ai_translate_worker", meta_out=meta,
+            )
+        except Exception as e:
+            ColorPrint.red(f"[TranslationWorker] AI translate task {task_id} failed: {e}")
+            self._post_result(task_id, "failed", error=str(e))
+            return
+
+        if not pairs:
+            self._post_result(task_id, "failed",
+                              error="ai_translate produced no translations")
+            return
+
+        provider_label = meta.get("provider") or self._ai_provider_label()
+        result = {
+            "translations": pairs,
+            "target_language": target_language,
+            "provider": provider_label,
+        }
+        self._post_result(task_id, "completed", result=result, progress=100)
+
+    # -------------------- audio (assist TTS) lane --------------------
+
+    def _synthesize_word_audio(self, text: str, language: str) -> Tuple[str, str]:
+        """Synthesize ``text`` -> MP3 bytes (base64) via the pyutils TTS orchestrator.
+
+        Returns (audio_base64, engine). Raises on failure (caller posts 'failed').
+        """
+        import base64
+        import tempfile
+        from pathlib import Path
+        from pycore.pyutils.tts import tts_orchestrator
+
+        fd, tmp_path = tempfile.mkstemp(prefix="worker_tts_", suffix=".mp3")
+        os.close(fd)
+        tmp = Path(tmp_path)
+        try:
+            synth = tts_orchestrator.synthesize(text, language, tmp)
+            if not synth.get("success"):
+                raise RuntimeError(synth.get("error") or "tts synthesis failed")
+            audio = tmp.read_bytes() if tmp.exists() else b""
+            if len(audio) < 100:
+                raise RuntimeError(
+                    f"engine '{synth.get('engine')}' produced {len(audio)} bytes")
+            return base64.b64encode(audio).decode("ascii"), (synth.get("engine") or "unknown")
+        finally:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+
+    def _process_audio_task(self, task: Dict[str, Any]) -> None:
+        """word_audio task: synthesize MP3 via the TTS orchestrator -> {audio_base64}.
+
+        Guarded by _audio_enabled(): if assist TTS is disabled on this worker the task
+        is reported 'failed' (so it re-routes) and recorded locally, never silently
+        dropped.
+        """
+        task_id = task.get("task_id")
+        if not self._audio_enabled():
+            self._post_result(task_id, "failed", error="assist TTS disabled on this worker")
+            self._record_task(task, self.AUDIO_TASK_TYPE, "failed",
+                              posted_back=False, error="assist TTS disabled on this worker")
+            return
+        payload = task.get("payload") or {}
+        text = (payload.get("text") or payload.get("word") or "").strip()
+        language = (payload.get("language") or "en").strip() or "en"
+        if not text:
+            self._post_result(task_id, "failed", error="word_audio task had no text")
+            return
+        self._post_result(task_id, "processing", progress=5, attempts=1)
+        try:
+            audio_b64, engine = self._synthesize_word_audio(text, language)
+        except Exception as e:
+            ColorPrint.red(f"[TranslationWorker] word_audio task {task_id} failed: {e}")
+            self._post_result(task_id, "failed", error=str(e))
+            self._record_task(task, self.AUDIO_TASK_TYPE, "failed",
+                              posted_back=True, error=str(e))
+            return
+        result = {"audio_base64": audio_b64, "mime": "audio/mpeg", "engine": engine}
+        self._post_result(task_id, "completed", result=result, progress=100)
+        self._record_task(task, self.AUDIO_TASK_TYPE, "completed", posted_back=True)
+
+    # -------------------- subtitle-search lane --------------------
+
+    def _process_subtitle_search_task(self, task: Dict[str, Any]) -> None:
+        """subtitle_search task: SubtitleSearchController().search(...) -> {results}.
+
+        SubtitleSearchController is a pycore module lost with the subsystem at this
+        baseline — imported lazily so the worker still compiles/runs. If absent (or
+        the lane is disabled / results empty) the task is reported 'failed' so it
+        re-routes, never silently dropped.
+        """
+        task_id = task.get("task_id")
+        if not self._subtitle_enabled():
+            self._post_result(task_id, "failed", error="subtitle search disabled on this worker")
+            return
+        payload = task.get("payload") or {}
+        query = payload.get("query") or payload.get("title") or ""
+        if not query:
+            self._post_result(task_id, "failed", error="subtitle_search task had no query")
+            return
+        try:
+            from pycore.callmodule.controllers.subtitle_search_controller import (  # type: ignore
+                SubtitleSearchController,
+            )
+        except ImportError as e:
+            ColorPrint.yellow(
+                f"[TranslationWorker] SubtitleSearchController unavailable ({e}); "
+                f"reporting task {task_id} failed for re-route")
+            self._post_result(task_id, "failed", error=f"SubtitleSearchController unavailable: {e}")
+            return
+        self._post_result(task_id, "processing", progress=5, attempts=1)
+        try:
+            results = SubtitleSearchController().search(
+                query=query,
+                languages=payload.get("languages"),
+                year=payload.get("year"),
+                season=payload.get("season"),
+                episode=payload.get("episode"),
+                moviehash=payload.get("moviehash"),
+                limit=payload.get("limit"),
+                record=payload.get("record"),
+            )
+        except Exception as e:
+            ColorPrint.red(f"[TranslationWorker] subtitle_search task {task_id} failed: {e}")
+            self._post_result(task_id, "failed", error=str(e))
+            return
+        # Accept either a bare list or a {results:[...]} shape from the controller.
+        if isinstance(results, dict):
+            rows = results.get("results") or []
+        else:
+            rows = results or []
+        if not rows:
+            self._post_result(task_id, "failed", error="subtitle_search found no results")
+            return
+        self._post_result(task_id, "completed", result={"results": rows}, progress=100)
+
+    # -------------------- poster lane --------------------
+
+    def _process_poster_task(self, task: Dict[str, Any]) -> None:
+        """poster task: resolve title -> movie_poster_client.find_poster ->
+        {image_base64, mime, provider, source_id}. Disabled / no-poster -> 'failed'.
+        """
+        task_id = task.get("task_id")
+        if not self._poster_enabled():
+            self._post_result(task_id, "failed", error="poster fetch disabled on this worker")
+            return
+        payload = task.get("payload") or {}
+        title = (payload.get("title") or "").strip()
+        year = payload.get("year")
+        try:
+            from pycore.pyutils.external_apis.movie_poster_client import (
+                find_poster, parse_title_year,
+            )
+        except ImportError as e:
+            self._post_result(task_id, "failed", error=f"movie_poster_client unavailable: {e}")
+            return
+        if not title:
+            filename = (payload.get("filename") or "").strip()
+            if filename:
+                title, parsed_year = parse_title_year(filename)
+                if year is None:
+                    year = parsed_year
+        if not title:
+            self._post_result(task_id, "failed", error="poster task had no title/filename")
+            return
+        try:
+            year_int = int(year) if year is not None else None
+        except (TypeError, ValueError):
+            year_int = None
+        self._post_result(task_id, "processing", progress=5, attempts=1)
+        try:
+            poster = find_poster(title, year=year_int)
+        except Exception as e:
+            ColorPrint.red(f"[TranslationWorker] poster task {task_id} failed: {e}")
+            self._post_result(task_id, "failed", error=str(e))
+            return
+        if not poster or not poster.get("image_base64"):
+            self._post_result(task_id, "failed",
+                              error=f"no poster found for '{title}'")
+            return
+        result = {
+            "image_base64": poster.get("image_base64"),
+            "mime": poster.get("mime") or "image/jpeg",
+            "provider": poster.get("provider") or "tmdb",
+            "source_id": poster.get("source_id"),
+        }
+        self._post_result(task_id, "completed", result=result, progress=100)
+
+    # -------------------- sentence-audio lane --------------------
+
+    def _process_sentence_audio_task(self, task: Dict[str, Any]) -> None:
+        """sentence_audio task: synthesize MP3 via the TTS orchestrator -> {audio_base64}.
+
+        Reuses _synthesize_word_audio (same edge-tts MP3 path). Disabled / empty /
+        synthesis failure -> 'failed' (re-route).
+        """
+        task_id = task.get("task_id")
+        if not self._sentence_audio_enabled():
+            self._post_result(task_id, "failed", error="sentence audio disabled on this worker")
+            return
+        payload = task.get("payload") or {}
+        text = (payload.get("text") or payload.get("sentence") or "").strip()
+        language = (payload.get("language") or "en").strip() or "en"
+        if not text:
+            self._post_result(task_id, "failed", error="sentence_audio task had no text")
+            return
+        self._post_result(task_id, "processing", progress=5, attempts=1)
+        try:
+            audio_b64, engine = self._synthesize_word_audio(text, language)
+        except Exception as e:
+            ColorPrint.red(f"[TranslationWorker] sentence_audio task {task_id} failed: {e}")
+            self._post_result(task_id, "failed", error=str(e))
+            return
+        result = {"audio_base64": audio_b64, "mime": "audio/mpeg", "engine": engine}
+        self._post_result(task_id, "completed", result=result, progress=100)
+
+    # -------------------- local task accounting --------------------
+
+    def _record_task(
+        self,
+        task: Dict[str, Any],
+        task_type: str,
+        status: str,
+        posted_back: bool = True,
+        error: Optional[str] = None,
+    ) -> None:
+        """Best-effort local accounting hook for a processed task (never raises)."""
+        try:
+            ColorPrint.blue(
+                f"[TranslationWorker] recorded {task_type} task "
+                f"{task.get('task_id')} -> {status}"
+                + (f" (posted_back={posted_back})" if not posted_back else "")
+                + (f" error={error}" if error else "")
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def _local_task_label(task: Dict[str, Any]) -> str:
+        """Map a pulled task to the local TaskManager lane label for the UI.
+
+        Each new unified task_type gets its own lane so the local task-center UI can
+        distinguish them; ai_translate keeps the translation lane (task_type stays
+        word_translation).
+        """
+        if task.get("capability") == "ai_translate":
+            return "remote_ai_translate"
+        return {
+            "word_audio": "remote_audio",
+            "subtitle_search": "remote_subtitle",
+            "poster": "remote_poster",
+            "sentence_audio": "remote_sentence_audio",
+        }.get(task.get("task_type"), "remote_translation")
+
     def _dispatch(self, task: Dict[str, Any]) -> None:
         """
         Hand a task to a background thread via the pyctl desktop TaskManager so the
@@ -845,13 +1482,14 @@ class TranslationWorkerService:
                 "app_name": task.get("app_name"),
                 "task_type": task.get("task_type"),
                 "execution_type": task.get("execution_type"),
+                "capability": task.get("capability"),
                 "words": self._normalize_words(payload.get("words")),
                 "language": payload.get("language"),
                 "target_language": payload.get("target_language"),
                 "priority": task.get("priority"),
             }
             local_task_id = tm.create_task(
-                task_type="remote_translation",
+                task_type=self._local_task_label(task),
                 input_data=input_data,
                 estimated_time=None,
             )
@@ -887,6 +1525,17 @@ class TranslationWorkerService:
             if not self._register():
                 return  # not registered yet (Laravel down) — try again next tick
 
+            # Live-toggle re-registration: if a dedicated lane was enabled/disabled
+            # since the last register, re-advertise the new processor-type set so
+            # Laravel starts/stops handing those lanes to this worker immediately.
+            if (self._advertised_processor_types is not None
+                    and self._effective_processor_types() != self._advertised_processor_types):
+                ColorPrint.blue(
+                    "[TranslationWorker] advertised lane set changed — re-registering")
+                self._registered = False
+                if not self._register():
+                    return
+
             self._heartbeat()
 
             # Circuit breaker: while the backend is persistently rejecting results
@@ -897,18 +1546,22 @@ class TranslationWorkerService:
             if self._circuit_is_open():
                 return
 
-            tasks = self._pull_tasks()
-            if not tasks:
-                return
+            # Pull with wait=0 (immediate). Laravel orders by priority desc; we ALSO
+            # fold the batch into the per-backend priority heap and drain highest
+            # first so a bumped task processes ahead of older lower-priority ones.
+            base = self.api_url
+            tasks = self._pull_tasks(base, wait=0)
+            if tasks:
+                ColorPrint.green(f"[TranslationWorker] Pulled {len(tasks)} task(s)")
+                # Every pulled task is already CLAIMED for this worker by Laravel's
+                # atomic assign — enqueue everything; _process_task answers
+                # unsupported types with 'failed' so they re-route, never leak.
+                self._enqueue_tasks(base, tasks)
+                self._drain_heap(base)
 
-            ColorPrint.green(f"[TranslationWorker] Pulled {len(tasks)} task(s)")
-            for task in tasks:
-                # Every pulled task is already CLAIMED for this worker by
-                # Laravel's atomic assign — silently skipping one would strand it
-                # in "assigned" until the timeout release. Dispatch everything;
-                # _process_task answers unsupported task types with a 'failed'
-                # result so they re-route instead of leaking.
-                self._dispatch(task)
+            # A pending_fast signal (from this pull or the heartbeat) arms a jittered
+            # fast-drain burst so interactive requests are claimed near-instantly.
+            self._maybe_start_fast_drain()
         except Exception as e:
             ColorPrint.red(f"[TranslationWorker] poll_once error: {e}")
 
@@ -922,7 +1575,8 @@ class TranslationWorkerService:
             "service": "Translation Worker",
             "api_url": self.api_url,
             "worker_id": self.worker_id,
-            "processor_types": self.PROCESSOR_TYPES,
+            "processor_types": self._effective_processor_types(),
+            "capabilities": self._effective_capabilities(),
             "provider": self.DEFAULT_PROVIDER,
             "registered": self._registered,
             "inflight_tasks": inflight,
@@ -931,6 +1585,35 @@ class TranslationWorkerService:
             # Circuit breaker: open while the backend persistently rejects results.
             "circuit_open": self._circuit_is_open(),
             "result_5xx_streak": self._result_5xx_streak,
+            # Fast-lane signal snapshot.
+            "pending_fast": self._pending_fast,
+            "pending_urgent": self._pending_urgent,
+            "heap_depth": self._heap_depth(),
+        }
+
+    def get_queue_status(self) -> Dict[str, Any]:
+        """Fast-lane / queue snapshot for routers + local UI.
+
+        Surfaces the latest pending_fast / pending_urgent counters (from pull +
+        heartbeat), the per-backend claimed-task heap depth, the fast-drain burst
+        state, and the advertised lanes/capabilities — so the task-center overview is
+        not blind to the interactive fast lane.
+        """
+        with self._heap_lock:
+            per_backend = {b: len(h) for b, h in self._task_heaps.items()}
+        with self._inflight_lock:
+            inflight = len(self._inflight)
+        return {
+            "api_url": self.api_url,
+            "registered": self._registered,
+            "pending_fast": self._pending_fast,
+            "pending_urgent": self._pending_urgent,
+            "heap_depth": sum(per_backend.values()),
+            "heap_per_backend": per_backend,
+            "fast_drain_active": self._fast_drain_active,
+            "inflight_tasks": inflight,
+            "processor_types": self._effective_processor_types(),
+            "capabilities": self._effective_capabilities(),
         }
 
 

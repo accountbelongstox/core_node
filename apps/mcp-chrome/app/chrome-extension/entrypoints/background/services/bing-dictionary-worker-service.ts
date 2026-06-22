@@ -16,6 +16,7 @@ import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-
 import { mediaCache } from '@/utils/media-cache';
 import { logger } from '@/utils/logger';
 import { BingTabPool, MAX_BING_TABS } from './bing-tab-pool';
+import { CHROME_FAST_CAPABILITIES } from './task-center/SimpleWorkerBase';
 
 // Subsystem tag for the global logger.
 const LOG = 'Bing Worker';
@@ -334,8 +335,13 @@ class BingDictionaryWorkerService {
       worker_name: this.config.workerName,
       // word_translation tasks are dispatched as execution_type
       // `remote_translation`; the worker must register that processor type to be
-      // assigned them.
-      processor_types: ['remote_translation'] as ProcessorType[],
+      // assigned them. It also joins the shared `remote_fast` lane so the
+      // dispatcher can route fast-tier image/translate work here.
+      processor_types: ['remote_translation', 'remote_fast'] as ProcessorType[],
+      // Advertise via the shared fast-capability set: image + translate.
+      // (sentence_audio is dropped — it is generated inline server-side, never
+      // by a Bing tab; ai_translate belongs only to the web-AI worker.)
+      capabilities: CHROME_FAST_CAPABILITIES,
       hostname: 'chrome-extension',
       platform: navigator.userAgent,
       metadata: {
@@ -390,7 +396,9 @@ class BingDictionaryWorkerService {
 
       const response = await this.workerClient.pullTasks(undefined, {
         limit: this.config.batchSize,
-        timeout: Math.min(this.config.pollInterval, 30),
+        // `wait` (server-side long-poll seconds) replaces the old `timeout`
+        // param; cap to the poll interval so this loop stays responsive.
+        wait: Math.min(this.config.pollInterval, 30),
       });
 
       if (!response.success || !response.data || response.data.count === 0) {
@@ -454,7 +462,14 @@ class BingDictionaryWorkerService {
         progress: 0,
       });
 
-      const words = this.normalizeWords(task.payload.words);
+      // Accept either an explicit words[] payload or a single `content` word
+      // (the fast-tier single-word shape). Empty => fail so it re-pends.
+      const rawWords =
+        task.payload.words ??
+        (task.payload.content
+          ? [{ word: task.payload.content, md5: (task.payload as any).md5 }]
+          : []);
+      const words = this.normalizeWords(rawWords as any);
       if (words.length === 0) {
         throw new Error('No words in task payload');
       }
@@ -560,6 +575,25 @@ class BingDictionaryWorkerService {
       // so we invalidate nothing and let the words be retried later.
       const batchHealthy = translations.length > 0 || invalidWords.length > 0;
       const regionRedirectWords = batchHealthy ? nonDictWords : [];
+
+      // Zero-output guard: a batch that produced NO translations AND NO invalid
+      // words is a transient miss (region outage / all redirects), not real
+      // work done. Submit 'failed' so the task re-pends and is retried later,
+      // instead of a fake completed-empty that would mark the words handled.
+      if (translations.length === 0 && invalidWords.length === 0) {
+        await this.workerClient.submitResult({
+          task_id: task.task_id,
+          worker_id: workerId,
+          status: 'failed',
+          error: 'no translations or invalid words produced (transient miss)',
+        });
+        this.taskCache.delete(task.task_id);
+        logger.warn(
+          LOG,
+          `Task ${task.task_id} produced zero output; submitted failed for re-pend`,
+        );
+        return;
+      }
 
       await this.workerClient.submitResult({
         task_id: task.task_id,

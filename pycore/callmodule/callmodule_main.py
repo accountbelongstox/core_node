@@ -62,6 +62,8 @@ from pycore.callmodule.routers.local import (
     ai_keys_router,
     translation_queue_router,
     task_center_router,
+    queue_overview_router,
+    task_history_router,
     assist_router,
 )
 
@@ -279,6 +281,21 @@ def _register_translation_worker():
     ColorPrint.blue(f"  - Initial state: {'enabled' if enabled_on_start else 'disabled'} "
                     f"(assist_laravel gate)")
     ColorPrint.blue(f"  - Laravel API: {Config.LARAVEL_WORKER_API_URL}")
+    # Unified-task client: advertise the shared fast lane + the knob-gated dedicated
+    # lanes (live toggle re-registers on change) and the ai_translate capability.
+    ColorPrint.blue(
+        f"  - Lanes: remote_fast, remote_translation"
+        f"{', remote_audio' if Config.TRANSLATION_WORKER_ENABLED_ON_START else ''}"
+        f"{', remote_subtitle' if Config.SUBTITLE_SEARCH_WORKER_ENABLED else ''}"
+        f"{', remote_poster' if Config.POSTER_WORKER_ENABLED else ''}"
+        f"{', remote_sentence_audio' if Config.SENTENCE_AUDIO_WORKER_ENABLED else ''}"
+        f" (knob-gated; advertised live per tick)")
+    ColorPrint.blue(
+        f"  - Capabilities: audio, translate"
+        f"{', ai_translate' if Config.AI_TRANSLATE_ENABLED else ''}")
+    ColorPrint.blue(
+        f"  - Fast lane: poll {Config.TRANSLATION_FAST_POLL_INTERVAL}s on pending_fast "
+        f"(wait=0 burst-drain, priority heap)")
     ColorPrint.blue("  - Control: POST /api/heartbeat/disable/translation_worker")
 
 
@@ -570,6 +587,8 @@ def start(host='0.0.0.0', port=59000, debug=False):
             ai_keys_router,          # AI provider key management (/api/local/ai/keys)
             translation_queue_router,# Translation queue monitor + control (/api/local/translation/queue)
             task_center_router,      # Unified task-center aggregate (/api/local/task-center)
+            queue_overview_router,   # Unified queue overview — never-blind catalog (/api/local/queue/overview)
+            task_history_router,     # Recent-task cross-end log (/api/local/tasks/recent)
             assist_router,           # Assist-Laravel worker control (/api/local/assist)
             # === Upload Layer (1 router) ===
             upload_router,
