@@ -949,16 +949,29 @@ add_antigravity_repository_from_apt_repository_manager() {
 add_docker_repository_from_apt_repository_manager() {
     local os_codename="$1"
     local command_to_execute="$2"
-    
+
     if [ -z "$os_codename" ]; then
         echo "ERROR: OS codename is required" >&2
         return 1
     fi
-    
-    local docker_key_url="https://download.docker.com/linux/ubuntu/gpg"
+
+    # Resolve to the vendor + a codename Docker actually publishes. Docker hosts pools ONLY
+    # under .../linux/debian and .../linux/ubuntu. A Debian-family derivative (e.g. Kali,
+    # ID=kali) must normalize to vendor=debian with a real Debian codename -- never emit
+    # Docker's "ubuntu" pool or a kali-rolling suite (Docker hosts neither) onto a Debian
+    # box, which would pollute sources with a foreign, non-resolving line. Reuses the shared
+    # suite resolver (returns "vendor codename"); only debian/ubuntu are valid Docker vendors.
+    local _resolved docker_vendor docker_codename os_id
+    os_id="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID:-}")"
+    _resolved="$(resolve_php_suite_from_apt_repository_manager "$os_id" "$os_codename")"
+    docker_vendor="${_resolved%% *}"
+    docker_codename="${_resolved##* }"
+    case "$docker_vendor" in debian|ubuntu) : ;; *) docker_vendor="debian" ;; esac
+
+    local docker_key_url="https://download.docker.com/linux/${docker_vendor}/gpg"
     local docker_key_file="/usr/share/keyrings/docker-archive-keyring.gpg"
-    local docker_repo_line="deb [arch=$(dpkg --print-architecture) signed-by=$docker_key_file] https://download.docker.com/linux/ubuntu $os_codename stable"
-    
+    local docker_repo_line="deb [arch=$(dpkg --print-architecture) signed-by=$docker_key_file] https://download.docker.com/linux/${docker_vendor} ${docker_codename} stable"
+
     execute_with_repo_backup_from_apt_repository_manager \
         "docker" \
         "$docker_repo_line" \
