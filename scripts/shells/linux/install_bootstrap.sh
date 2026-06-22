@@ -415,8 +415,35 @@ ensure_project_cloned() {
     local repo_url="$GITHUB_REPO"
     [ "$REPO_BASE_URL" = "$GITEE_RAW" ] && repo_url="$GITEE_REPO"
 
-    if [ -d "$CORE_NODE_PROJECT_ROOT" ] && [ -f "$CORE_NODE_PROJECT_ROOT/package.json" ] && [ -f "$CORE_NODE_PROJECT_ROOT/main.js" ]; then
-        log_ok "Project already exists at: $CORE_NODE_PROJECT_ROOT"
+    # ADOPT an existing project as authoritative. A git working tree OR a tree with
+    # package.json is real work and must NEVER be deleted/re-cloned (a "partial
+    # clone" verdict must adopt-or-abort). This is broader than the old
+    # package.json+main.js gate so a transiently-incomplete checkout is not wiped.
+    if [ -d "$CORE_NODE_PROJECT_ROOT" ] && { [ -e "$CORE_NODE_PROJECT_ROOT/.git" ] || [ -f "$CORE_NODE_PROJECT_ROOT/package.json" ]; }; then
+        log_ok "Adopting existing core_node project at: $CORE_NODE_PROJECT_ROOT (not re-cloning)"
+        return 0
+    fi
+
+    # The web data base is forced onto a POSIX fs (e.g. /www), but the SOURCE tree
+    # may be checked out elsewhere (e.g. the large /mnt data disk). Before cloning a
+    # duplicate, discover an existing checkout and adopt its location so we align
+    # with where the user actually works instead of re-cloning over /www.
+    local _discovered=""
+    local _cand=""
+    for _cand in \
+        "$(get_base_data_directory 2>/dev/null)/programing/core_node" \
+        "${BASE_DATA_DIR_FILE:+$(head -n1 "$BASE_DATA_DIR_FILE" 2>/dev/null)/programing/core_node}" \
+        /mnt/*/programing/core_node \
+        /www/programing/core_node; do
+        [ -n "$_cand" ] || continue
+        if [ -d "$_cand" ] && { [ -e "$_cand/.git" ] || [ -f "$_cand/package.json" ]; }; then
+            _discovered="$_cand"
+            break
+        fi
+    done
+    if [ -n "$_discovered" ] && [ "$_discovered" != "$CORE_NODE_PROJECT_ROOT" ]; then
+        log_ok "Found an existing core_node checkout; adopting it instead of re-cloning: $_discovered"
+        CORE_NODE_PROJECT_ROOT="$_discovered"
         return 0
     fi
 
