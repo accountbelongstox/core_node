@@ -373,10 +373,13 @@ _fs_is_posix_capable() {
     esac
 }
 
-# Function to get optimal base directory for data storage
-# Priority: WSL -> persisted BASE_DATA_DIR (center) -> largest POSIX disk -> Desktop Windows -> /www
-# NOTE: any candidate on a non-POSIX filesystem (NTFS/exFAT/FUSE) is REJECTED for
-# the web data root (see _fs_is_posix_capable) so bash stays aligned with PHP.
+# Function to get optimal base directory for data storage. This is the PROJECT /
+# CODE base (where the core_node checkout lives); it may be a large NTFS data disk,
+# which is fine for source code, so it is NOT POSIX-restricted. The POSIX-only
+# requirement applies ONLY to the WEB DATA base, which map_web_path derives and
+# guards separately (PostgreSQL/Laravel need ownership). Keeping them separate is
+# why CORE_NODE_PROJECT_ROOT maps to the real /mnt checkout while web data uses /www.
+# Priority: WSL -> persisted BASE_DATA_DIR (center) -> largest NTFS/data disk -> Desktop Windows -> /www
 get_base_data_directory() {
     local base_dir=""
 
@@ -387,13 +390,10 @@ get_base_data_directory() {
         return 0
     fi
 
-    # Priority 2: Use persisted base dir from bootstrap/setup (single source of truth
-    # for project) -- but only if it is on a POSIX filesystem. A stale persisted
-    # value pointing at an NTFS mount is ignored so we never hand the app a base it
-    # cannot chown/permission (and so bash matches PHP's /www fallback).
+    # Priority 2: Use persisted base dir from bootstrap/setup (single source of truth for project)
     if [ -s "$BASE_DATA_DIR_FILE" ]; then
         read_base=$(head -n1 "$BASE_DATA_DIR_FILE" 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        if [ -n "$read_base" ] && [ -d "$read_base" ] && _fs_is_posix_capable "$read_base"; then
+        if [ -n "$read_base" ] && [ -d "$read_base" ]; then
             echo "$read_base"
             return 0
         fi
@@ -424,21 +424,16 @@ get_base_data_directory() {
 
     if [ -n "$chosen_device" ]; then
         path=$(_resolve_device_mount_path "$chosen_device")
-        # Only adopt the disk as the web data base when it is POSIX-capable. The
-        # largest disk is often an NTFS data/share partition (fuseblk) on which
-        # PostgreSQL cannot run and Laravel cannot set ownership -> reject it and
-        # fall through to /www (what PHP PathMapper also returns).
-        if [ -n "$path" ] && _fs_is_posix_capable "$path"; then
+        if [ -n "$path" ]; then
             base_dir="$path"
             echo "$base_dir"
             return 0
         fi
     fi
 
-    # Priority 4: Desktop with Windows drives (these are NTFS/exFAT by definition,
-    # so only usable as a web data base in the rare case they are POSIX-capable).
+    # Priority 4: Desktop with Windows drives
     if [ "$IS_DESKTOP_WITH_WINDOWS" = true ] && [ -n "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
-        if [ -d "$DESKTOP_LARGEST_WINDOWS_PATH" ] && [ -w "$DESKTOP_LARGEST_WINDOWS_PATH" ] && _fs_is_posix_capable "$DESKTOP_LARGEST_WINDOWS_PATH"; then
+        if [ -d "$DESKTOP_LARGEST_WINDOWS_PATH" ] && [ -w "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
             base_dir="$DESKTOP_LARGEST_WINDOWS_PATH"
             echo "$base_dir"
             return 0
@@ -456,12 +451,6 @@ persist_base_data_directory() {
     local base_dir="${1:-$(get_base_data_directory)}"
     local dir_file="${2:-$BASE_DATA_DIR_FILE}"
     local parent_dir
-    # Never persist a non-POSIX base as the source of truth (it would re-poison
-    # Priority 2 on the next run and re-split bash from PHP). Fall back to the
-    # POSIX-guarded resolver result instead.
-    if [ -n "$base_dir" ] && ! _fs_is_posix_capable "$base_dir"; then
-        base_dir="$(get_base_data_directory)"
-    fi
     parent_dir=$(dirname "$dir_file")
     if [ ! -d "$parent_dir" ]; then
         $USE_SUDO mkdir -p "$parent_dir" 2>/dev/null || mkdir -p "$parent_dir" 2>/dev/null || true
@@ -1102,6 +1091,17 @@ map_web_path() {
         fi
     fi
 
+    # WEB DATA must live on a POSIX filesystem: PostgreSQL needs a postgres-owned
+    # 0700 data dir and Laravel must chown/chmod its storage tree. The project/code
+    # base above may legitimately be a large NTFS data disk -- fine for code, but
+    # NOT for web data. If the resolved web base is on NTFS/exFAT/FUSE, fall back to
+    # /www so it matches PHP App\Providers\PathMapper (which also uses /www). This
+    # keeps the CODE root on /mnt while web data (PG secrets, laravel_db) lives on
+    # POSIX /www -- the two are intentionally separate.
+    if ! _fs_is_posix_capable "$base_path"; then
+        base_path="/www"
+    fi
+
     # Map paths using common base path
     case "$path_key" in
         "wwwroot")
@@ -1297,17 +1297,40 @@ ensure_web_directory() {
     return 0
 }
 
-# Initialize global temporary directory
-GLOBAL_TEMP_DIR="/usr/tmp"
+# Initialize the global temporary directory base.
+# It MUST be writable by the invoking (non-root) user, because scripts clone/build here
+# as the user (then `make install` as root). Pitfalls this resolver defends against:
+#   * /usr/tmp is a legacy SysV alias for /var/tmp absent on Debian/Ubuntu/Kali; worse,
+#     an older revision of this file created it as root:root 0755 (unwritable), and a
+#     long-running menu may still EXPORT that stale value onto child scripts.
+#   * So a stale/unwritable INHERITED value must be SKIPPED, not preserved -- using
+#     "${GLOBAL_TEMP_DIR:-...}" alone would keep the bad /usr/tmp.
+# Resolution order (first that is a WRITABLE dir, or can be created writable, wins):
+#   exported GLOBAL_TEMP_DIR, $TMPDIR, /var/tmp, /tmp. /var/tmp is preferred (persistent +
+#   disk-backed -> good for large source builds, unlike RAM-backed /tmp).
+__resolve_global_temp_dir_from_gvar_common() {
+    local c
+    for c in "${GLOBAL_TEMP_DIR:-}" "${TMPDIR:-}" /var/tmp /tmp; do
+        [ -z "$c" ] && continue
+        c="${c%/}"
+        if { [ -d "$c" ] || mkdir -p "$c" 2>/dev/null; } && [ -w "$c" ]; then
+            echo "$c"; return 0
+        fi
+    done
+    echo /tmp
+}
+GLOBAL_TEMP_DIR="$(__resolve_global_temp_dir_from_gvar_common)"
+unset -f __resolve_global_temp_dir_from_gvar_common
 
-# Ensure global temporary directory exists
+# Ensure global temporary directory exists. Only create/chmod when MISSING -- never
+# chmod an existing system temp dir, which would clobber its 1777 sticky permissions.
 if [ ! -d "$GLOBAL_TEMP_DIR" ]; then
     echo "Creating global temporary directory: $GLOBAL_TEMP_DIR"
-    $USE_SUDO mkdir -p "$GLOBAL_TEMP_DIR"
-    $USE_SUDO chmod 755 "$GLOBAL_TEMP_DIR"
+    mkdir -p "$GLOBAL_TEMP_DIR" 2>/dev/null || $USE_SUDO mkdir -p "$GLOBAL_TEMP_DIR"
+    chmod 1777 "$GLOBAL_TEMP_DIR" 2>/dev/null || $USE_SUDO chmod 1777 "$GLOBAL_TEMP_DIR" 2>/dev/null || true
 fi
 
-# Function to create script-specific temporary directory (restricted to /usr/tmp/<script_name>)
+# Function to create script-specific temporary directory (restricted to $GLOBAL_TEMP_DIR/<script_name>)
 create_script_temp_dir() {
     local script_name="$1"
     # Restrict to GLOBAL_TEMP_DIR and prevent path traversal
@@ -1316,10 +1339,10 @@ create_script_temp_dir() {
     esac
     [ -z "$script_name" ] && echo "[ERROR] create_script_temp_dir: empty script_name" >&2 && return 1
     local script_temp_dir="$GLOBAL_TEMP_DIR/$script_name"
-    # Ensure result is strictly under /usr/tmp (or configured GLOBAL_TEMP_DIR)
+    # Ensure result is strictly under the configured GLOBAL_TEMP_DIR
     case "$script_temp_dir" in
-        /usr/tmp/*) ;;
-        *) echo "[ERROR] create_script_temp_dir: path not under /usr/tmp: $script_temp_dir" >&2; return 1 ;;
+        "$GLOBAL_TEMP_DIR"/*) ;;
+        *) echo "[ERROR] create_script_temp_dir: path not under $GLOBAL_TEMP_DIR: $script_temp_dir" >&2; return 1 ;;
     esac
 
     if [ ! -d "$script_temp_dir" ]; then
