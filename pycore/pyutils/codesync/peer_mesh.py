@@ -37,6 +37,8 @@ from .runtime import (
 from .peer_config import PeerConfig
 
 TICK_SECONDS = 5
+# A light client ticks far less often (it only tracks presence, never syncs).
+LIGHT_TICK_SECONDS = 30
 PROBE_TIMEOUT = 1.5
 # A heartbeat counts as "fresh" (peer considered online via heartbeat) for this
 # many seconds after it arrives — a few ticks of slack so a single dropped POST
@@ -50,9 +52,14 @@ class PeerMeshManager:
     def __init__(self, config: PeerConfig,
                  local_status_fn: Callable[[], Dict[str, Any]],
                  apply_remote_config_fn: Optional[
-                     Callable[[List[Dict[str, Any]], int, float], Any]] = None):
+                     Callable[[List[Dict[str, Any]], int, float], Any]] = None,
+                 light: bool = False):
         self.config = config
         self._local_status_fn = local_status_fn
+        # Light client: slower tick (LIGHT_TICK_SECONDS) and a proportionally
+        # looser heartbeat-stale window so a node that checks in every 30s is not
+        # flapped offline between ticks.
+        self._light = bool(light)
         # Applied to the config carried back on a heartbeat response (LWW); lets a
         # NAT'd client adopt the dev's peer-config without being push-reachable.
         self._apply_remote_config_fn = apply_remote_config_fn
@@ -84,6 +91,15 @@ class PeerMeshManager:
             self._thread.join(timeout=2.0)
         ColorPrint.yellow("[PeerMesh] Stopped")
 
+    # ----- tick cadence ---------------------------------------------------- #
+    def _tick_seconds(self) -> int:
+        """Effective tick interval: slow (LIGHT_TICK_SECONDS) for a light client."""
+        return LIGHT_TICK_SECONDS if self._light else TICK_SECONDS
+
+    def _heartbeat_stale_seconds(self) -> float:
+        """A heartbeat stays "fresh" for 3 effective ticks (=90s light, 15s full)."""
+        return self._tick_seconds() * 3
+
     # ----- probing --------------------------------------------------------- #
     def _peer_url(self, peer: Dict[str, Any], path: str) -> str:
         return f"http://{peer.get('host')}:{int(peer.get('port', 59000))}{path}"
@@ -105,7 +121,7 @@ class PeerMeshManager:
                 self.tick()
             except Exception as exc:
                 ColorPrint.yellow(f"[PeerMesh] tick error: {exc}")
-            for _ in range(TICK_SECONDS * 2):
+            for _ in range(self._tick_seconds() * 2):
                 if not self._running or is_shutdown_requested():
                     break
                 time.sleep(0.5)
@@ -303,7 +319,7 @@ class PeerMeshManager:
 
                 hb = self._match_heartbeat(peer)
                 hb_checkin = hb.get("last_checkin") if hb else None
-                hb_fresh = bool(hb_checkin and (now - hb_checkin) <= HEARTBEAT_STALE_SECONDS)
+                hb_fresh = bool(hb_checkin and (now - hb_checkin) <= self._heartbeat_stale_seconds())
 
                 # Merge the two directions.
                 reachable = probe_ok or hb_fresh

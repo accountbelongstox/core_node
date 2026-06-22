@@ -73,6 +73,8 @@ def _offline_snapshot(cfg):
     every peer carrying the live-status keys with offline defaults). Keeps
     show / peers-list output identical whether or not a daemon is running."""
     me = cfg.get_self()
+    # Match the running-service self shape, which always carries a `light` flag.
+    me = {**me, "light": False}
     self_id = me.get("id")
     peers = [
         {**p, "reachable": False, "last_seen": None, "status": None, "pending": False}
@@ -86,7 +88,9 @@ def _offline_snapshot(cfg):
 # --------------------------------------------------------------------------- #
 def cmd_run(args):
     from . import daemon
-    return daemon.run(host=args.host, port=args.port, reload=getattr(args, "reload", False))
+    return daemon.run(host=args.host, port=args.port,
+                      reload=getattr(args, "reload", False),
+                      light=getattr(args, "light", False))
 
 
 def cmd_show(args):
@@ -224,6 +228,10 @@ def build_parser():
     # Deprecated no-op: codesync is resident and never hot-reloads. Kept ONLY so an
     # old systemd unit whose ExecStart baked `--reload` still parses and starts.
     run.add_argument("--reload", action="store_true", help=argparse.SUPPRESS)
+    # Light mode: a client node that only tracks the mesh (peer status/heartbeats)
+    # and never receives/serves files or scans the tree (minimal footprint).
+    run.add_argument("--light", action="store_true",
+                     help="light client mode: mesh-only, no file receive/serve, no tree scan")
     run.set_defaults(func=cmd_run)
 
     sub.add_parser("show", parents=[common], help="show role + peers").set_defaults(func=cmd_show)
