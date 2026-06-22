@@ -26,7 +26,7 @@ source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 
 # Configuration - using variables from php_common_vars.sh
-PHP_BINARY="/usr/local/bin/php"
+PHP_BINARY="$TARGET_LINK_PATH"
 
 # Version requirements
 MIN_COMPOSER_VERSION_MAJOR=2
@@ -213,7 +213,7 @@ needs_correction() {
     fi
 
     # Check 7: Wrapper script integrity
-    if [ ! -f "/usr/local/bin/composer-safe" ]; then
+    if [ ! -f "$COMPOSER_SAFE_PATH" ]; then
         reason="composer-safe wrapper missing"
         echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
         return 0
@@ -262,7 +262,7 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}Created files:${NC}"
     echo -e "${CYAN}  /usr/local/bin/composer            (main wrapper)${NC}"
-    echo -e "${CYAN}  /usr/local/bin/composer-safe       (explicit safe wrapper)${NC}"
+    echo -e "${CYAN}  $COMPOSER_SAFE_PATH       (explicit safe wrapper)${NC}"
     echo -e "${CYAN}  /usr/local/bin/composer.original   (original Composer binary)${NC}"
     echo -e "${CYAN}  /usr/local/etc/.composer_php_version (PHP version tracking)${NC}"
     echo -e "${CYAN}${NC}"
@@ -284,13 +284,13 @@ main() {
 
     # Check PHP 8.5 availability
     if [ ! -x "$PHP_BINARY" ]; then
-        echo -e "${RED}$SCRIPT_INDEX PHP 8.5 not found at $PHP_BINARY${NC}"
+        echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} not found at $PHP_BINARY${NC}"
         echo -e "${YELLOW}$SCRIPT_INDEX Please run 31_ensure_php85_intelligent.sh first${NC}"
         exit 1
     fi
 
-    if ! "$PHP_BINARY" --version | grep -q "PHP 8.5"; then
-        echo -e "${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP 8.5${NC}"
+    if ! "$PHP_BINARY" --version | grep -q "PHP ${PHP_VERSION}"; then
+        echo -e "${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP ${PHP_VERSION}${NC}"
         exit 1
     fi
 
@@ -311,7 +311,7 @@ main() {
         echo -e "${GREEN}$SCRIPT_INDEX �?Composer $current_version is properly installed and working${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX �?Location: $COMPOSER_TARGET_PATH (wrapper)${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX �?Original: ${COMPOSER_TARGET_PATH}.original${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX �?Safe wrapper: /usr/local/bin/composer-safe${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX �?Safe wrapper: $COMPOSER_SAFE_PATH${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX �?PHP version tracking: $php_version${NC}"
         echo -e "${CYAN}$SCRIPT_INDEX All checks passed - no corrections needed${NC}"
         exit 0
@@ -339,7 +339,7 @@ main() {
 
     $USE_SUDO rm -f "$COMPOSER_TARGET_PATH" 2>/dev/null || true
     $USE_SUDO rm -f "${COMPOSER_TARGET_PATH}.original" 2>/dev/null || true
-    $USE_SUDO rm -f "/usr/local/bin/composer-safe" 2>/dev/null || true
+    $USE_SUDO rm -f "$COMPOSER_SAFE_PATH" 2>/dev/null || true
     $USE_SUDO rm -f "/usr/local/bin/composer-php85" 2>/dev/null || true
     $USE_SUDO rm -f "/usr/local/bin/composer-php84" 2>/dev/null || true  # Remove old version reference
     $USE_SUDO rm -f "/usr/bin/composer" 2>/dev/null || true
@@ -429,7 +429,7 @@ main() {
 
     # Create global wrapper to handle root warnings and open_basedir
     echo -e "${CYAN}$SCRIPT_INDEX Creating composer-safe wrapper...${NC}"
-    $USE_SUDO tee /usr/local/bin/composer-safe > /dev/null << 'EOF'
+    $USE_SUDO tee "$COMPOSER_SAFE_PATH" > /dev/null << 'EOF'
 #!/bin/bash
 # Global Composer wrapper that handles root warnings and open_basedir restrictions
 # Usage: composer-safe [composer-arguments]
@@ -443,7 +443,7 @@ export COMPOSER_NO_INTERACTION=1
 # open_basedir is set to none to allow access to all system directories
 exec /usr/local/bin/php -d "open_basedir=none" /usr/local/bin/composer.original "$@"
 EOF
-    $USE_SUDO chmod +x /usr/local/bin/composer-safe
+    $USE_SUDO chmod +x "$COMPOSER_SAFE_PATH"
 
     # Create main composer wrapper
     echo -e "${CYAN}$SCRIPT_INDEX Creating composer wrapper for better compatibility...${NC}"
@@ -481,7 +481,7 @@ EOF
 
     # Test composer-safe wrapper
     echo -e "${CYAN}$SCRIPT_INDEX Testing composer-safe wrapper...${NC}"
-    if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 /usr/local/bin/composer-safe --version >/dev/null 2>&1; then
+    if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_SAFE_PATH" --version >/dev/null 2>&1; then
         echo -e "${GREEN}$SCRIPT_INDEX �?Composer-safe wrapper: OK${NC}"
     else
         echo -e "${RED}$SCRIPT_INDEX �?Composer-safe wrapper: FAILED${NC}"
@@ -521,7 +521,7 @@ EOF
     echo -e "${GREEN}$SCRIPT_INDEX �?Composer Version: $final_version${NC}"
     echo -e "${GREEN}$SCRIPT_INDEX �?PHP Version: $(get_current_php_version)${NC}"
     echo -e "${GREEN}$SCRIPT_INDEX �?Main wrapper: $COMPOSER_TARGET_PATH${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX �?Safe wrapper: /usr/local/bin/composer-safe${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX �?Safe wrapper: $COMPOSER_SAFE_PATH${NC}"
     echo -e "${GREEN}$SCRIPT_INDEX �?Original binary: ${COMPOSER_TARGET_PATH}.original${NC}"
     echo -e "${GREEN}$SCRIPT_INDEX �?PHP tracking file: $PHP_VERSION_TRACK_FILE${NC}"
     echo -e "${CYAN}============================================================================${NC}"

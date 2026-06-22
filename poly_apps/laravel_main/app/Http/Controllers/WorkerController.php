@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Services\WorkerManagerService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
 use App\Traits\ApiResponse;
 
 /**
@@ -37,7 +39,15 @@ class WorkerController extends Controller
             'worker_id' => 'required|string',
             'worker_name' => 'required|string',
             'processor_types' => 'required|array',
-            'processor_types.*' => 'string|in:remote_compute,remote_ocr,remote_translation,remote_video,remote_io,remote_client',
+            // Derive the allowed lane set from the model's canonical EXECUTION_TYPES
+            // so new lanes (remote_subtitle / remote_poster / remote_sentence_audio,
+            // etc.) are accepted automatically and this rule can never drift.
+            'processor_types.*' => ['string', Rule::in(GlobalTask::EXECUTION_TYPES)],
+            // Capability tags for the shared remote_fast lane (NULL = legacy
+            // worker, only claims NULL-capability fast tasks). Derived from the
+            // model's canonical CAPABILITIES vocabulary (drift-proof).
+            'capabilities' => 'nullable|array',
+            'capabilities.*' => ['string', Rule::in(GlobalTask::CAPABILITIES)],
             'hostname' => 'nullable|string',
             'platform' => 'nullable|string',
             'metadata' => 'nullable|array',
@@ -58,13 +68,16 @@ class WorkerController extends Controller
             $metadata = $validated['metadata'];
         }
 
+        $capabilities = $validated['capabilities'] ?? null;
+
         $worker = $this->workerManager->register(
             $validated['worker_id'],
             $validated['worker_name'],
             $validated['processor_types'],
             $hostname,
             $platform,
-            $metadata
+            $metadata,
+            $capabilities
         );
 
         return $this->success([
@@ -89,7 +102,21 @@ class WorkerController extends Controller
             return $this->notFound('Worker not found');
         }
 
-        return $this->success(null, 'Heartbeat received');
+        // Notify signal: number of priority>=100 PENDING tasks waiting for this
+        // worker's processor types. A non-zero value tells the worker to pull
+        // immediately / poll faster (a resolve or library-words query bumps
+        // missing-media tasks to priority 100).
+        $processorTypes = $this->taskManager->workerProcessorTypes($validated['worker_id']);
+        $capabilities = $this->taskManager->workerCapabilities($validated['worker_id']);
+        $pendingUrgent = $this->taskManager->countUrgentPending($processorTypes);
+        $pendingFast = $this->taskManager->countFastPending($processorTypes, $capabilities);
+
+        return $this->success([
+            'pending_urgent' => $pendingUrgent,
+            // Shared fast lane backlog this worker can claim — a non-zero value
+            // tells the client to re-poll immediately (wait=0) and process now.
+            'pending_fast' => $pendingFast,
+        ], 'Heartbeat received');
     }
 
     /**
@@ -103,15 +130,39 @@ class WorkerController extends Controller
         $validated = $request->validate([
             'worker_id' => 'required|string',
             'limit' => 'nullable|integer|min:1|max:50',
+            // Long-poll wait budget (seconds). 0 = legacy immediate return.
+            // Clamped server-side to MAX_LONG_POLL_SECONDS in the manager.
+            'wait' => 'nullable|integer|min:0|max:30',
         ]);
 
         $workerId = $validated['worker_id'];
         $limit = $validated['limit'] ?? 5;
+        // validate()'s `integer` rule checks but does NOT cast query-string params,
+        // so $validated['wait'] arrives as the string "0"; cast before the strict
+        // `=== 0` comparison below or the immediate-return fast path is never taken.
+        $wait = isset($validated['wait']) ? (int) $validated['wait'] : null;
 
-        $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit);
+        // Long-poll by default: hold the request (cheap COUNT polling, no held DB
+        // lock) until a task appears or the wait budget elapses, so a worker idling
+        // on an empty queue is woken promptly the instant a high-priority task is
+        // created. wait=0 restores the legacy immediate-return behavior.
+        if ($wait === 0) {
+            $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit);
+        } else {
+            $tasks = $this->taskManager->pullAndAssignTasksLongPoll($workerId, $limit, $wait);
+        }
+
+        // Notify signal in the pull response too: the urgent backlog STILL waiting
+        // after this pull (other high-priority tasks beyond the returned batch).
+        $processorTypes = $this->taskManager->workerProcessorTypes($workerId);
+        $capabilities = $this->taskManager->workerCapabilities($workerId);
+        $pendingUrgent = $this->taskManager->countUrgentPending($processorTypes);
+        $pendingFast = $this->taskManager->countFastPending($processorTypes, $capabilities);
 
         return $this->success([
             'count' => count($tasks),
+            'pending_urgent' => $pendingUrgent,
+            'pending_fast' => $pendingFast,
             'tasks' => array_map(function ($task) {
                 $createdAt = null;
                 if ($task->created_at) {
@@ -127,6 +178,10 @@ class WorkerController extends Controller
                     'payload' => $task->payload,
                     'timeout_seconds' => $task->timeout_seconds,
                     'priority' => $task->priority,
+                    // Fast-lane routing fields so the worker can sort by priority
+                    // and recognise capability-typed interactive work.
+                    'capability' => $task->capability,
+                    'is_fast_tier' => (bool) $task->is_fast_tier,
                     'created_at' => $createdAt,
                 ];
             }, $tasks),

@@ -3,13 +3,20 @@
 namespace App\Services;
 
 use App\Models\GlobalTask;
+use App\Models\GlobalTaskEvent;
 use App\Models\Worker;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Database\ConnectionInterface;
 use App\Services\TaskProcessors\TaskProcessorRegistry;
 use App\Services\TaskProcessors\DictionaryTaskProcessor;
 use App\Services\TaskProcessors\WordTranslationTaskProcessor;
+use App\Services\TaskProcessors\NotebookLmTaskProcessor;
+use App\Services\TaskProcessors\WordGeminiImageTaskProcessor;
+use App\Services\TaskProcessors\SubtitleSearchTaskProcessor;
+use App\Services\TaskProcessors\PosterTaskProcessor;
+use App\Services\TaskProcessors\SentenceAudioTaskProcessor;
 
 class TaskManagerService
 {
@@ -24,6 +31,54 @@ class TaskManagerService
      * an HTTP 500 that loses a worker's result POST.
      */
     private const TRANSACTION_ATTEMPTS = 3;
+
+    /**
+     * Shared audio in-flight lock (contract item 5). A word+language pair is
+     * claimed before BOTH the word_audio/remote_audio global-task write-back AND
+     * the tts/worker/claim dictionary-column path, so Path A (global tasks) and
+     * Path B (dictionary claim) cannot double-synthesize the same word. The lock
+     * is a Cache atomic add; TTL bounds it so a crashed holder cannot wedge a
+     * word forever.
+     */
+    public const AUDIO_LOCK_PREFIX = 'audio_inflight:';
+    public const AUDIO_LOCK_TTL_SECONDS = 600;
+
+    /**
+     * Cache key for the audio in-flight lock of one (word, language) pair —
+     * md5(word + '|' + language). BOTH audio paths must build the key the same
+     * way, so this is the single source of truth for the key shape.
+     */
+    public static function audioLockKey(string $word, string $language): string
+    {
+        return self::AUDIO_LOCK_PREFIX . md5($word . '|' . $language);
+    }
+
+    /**
+     * Try to claim the audio in-flight lock for (word, language). Returns true
+     * when the caller now owns the lock (atomic add succeeded), false when
+     * another path already holds it. Empty inputs never lock (return true; the
+     * caller has nothing meaningful to guard).
+     */
+    public static function claimAudioLock(string $word, string $language): bool
+    {
+        if ($word === '' || $language === '') {
+            return true;
+        }
+        // Cache::add is atomic add-if-absent across the configured store.
+        return Cache::add(self::audioLockKey($word, $language), 1, self::AUDIO_LOCK_TTL_SECONDS);
+    }
+
+    /**
+     * Release the audio in-flight lock for (word, language). Idempotent — a
+     * missing key is a no-op. Called on report/store completion of either path.
+     */
+    public static function releaseAudioLock(string $word, string $language): void
+    {
+        if ($word === '' || $language === '') {
+            return;
+        }
+        Cache::forget(self::audioLockKey($word, $language));
+    }
 
     protected ?TaskProcessorRegistry $processorRegistry = null;
 
@@ -46,6 +101,20 @@ class TaskManagerService
             // Async word-translation pipeline write-back (word_translation tasks).
             $this->processorRegistry->register(new WordTranslationTaskProcessor($this));
 
+            // Task Center v3 task types (chrome remote_client lane):
+            //   - notebooklm   -> answer text record.
+            //   - gemini_image -> alternative word/cover image generator.
+            $this->processorRegistry->register(new NotebookLmTaskProcessor($this));
+            $this->processorRegistry->register(new WordGeminiImageTaskProcessor($this));
+
+            // Unified task system extension (dedicated pycore-only lanes):
+            //   - subtitle_search -> validate/normalize subtitle hits (remote_subtitle).
+            //   - poster          -> MoviePosterStore writeback (remote_poster).
+            //   - sentence_audio  -> SentenceAudio report writeback (remote_sentence_audio).
+            $this->processorRegistry->register(new SubtitleSearchTaskProcessor($this));
+            $this->processorRegistry->register(new PosterTaskProcessor($this));
+            $this->processorRegistry->register(new SentenceAudioTaskProcessor($this));
+
             // Future processors can be registered here:
             // $this->processorRegistry->register(new ImageTaskProcessor($this));
             // $this->processorRegistry->register(new VideoTaskProcessor($this));
@@ -64,9 +133,29 @@ class TaskManagerService
         array $payload = [],
         int $timeoutSeconds = 120,
         int $priority = 0,
-        int $maxRetries = 3
+        int $maxRetries = 3,
+        bool $interactive = false,
+        ?string $capability = null,
+        array $linkAttributes = []
     ): GlobalTask {
-        $task = GlobalTask::create([
+        // Interactive (FE `interactive=true`) requests jump onto the shared fast
+        // lane at the FAST priority tier, so BOTH clients see them as urgent and
+        // the first idle one claims immediately. The `capability` tag narrows
+        // which client may claim it (NULL = either).
+        if ($interactive) {
+            $executionType = GlobalTask::EXECUTION_REMOTE_FAST;
+            $priority = max($priority, GlobalTask::PRIORITY_FAST);
+        }
+
+        // Phase 5 substrate link fields (dict_row_id / dict_language /
+        // dict_row_table / group_key) ride through here on the dual-write path;
+        // whitelist them so an arbitrary caller cannot mass-assign other columns.
+        $allowedLink = array_intersect_key(
+            $linkAttributes,
+            array_flip(['dict_row_id', 'dict_language', 'dict_row_table', 'group_key'])
+        );
+
+        $task = GlobalTask::create(array_merge([
             'task_id' => 'task_' . Str::uuid(),
             'app_name' => $appName,
             'task_type' => $taskType,
@@ -78,13 +167,18 @@ class TaskManagerService
             'max_retries' => $maxRetries,
             'progress' => 0,
             'retry_count' => 0,
-        ]);
+            'capability' => $capability,
+            'is_fast_tier' => $interactive,
+        ], $allowedLink));
 
         Log::info('Task created', [
             'task_id' => $task->task_id,
             'app_name' => $appName,
             'task_type' => $taskType,
             'execution_type' => $executionType,
+            'capability' => $capability,
+            'is_fast_tier' => $interactive,
+            'priority' => $task->priority,
         ]);
 
         return $task;
@@ -153,6 +247,12 @@ class TaskManagerService
                     $worker->assignTask($task->task_id);
                     $assignedTasks[] = $task;
 
+                    GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::EVENT_ASSIGNED, $workerId, (int) $task->retry_count, [
+                        'worker_id' => $workerId,
+                        'execution_type' => $task->execution_type,
+                        'reason' => 'pull',
+                    ]);
+
                     Log::info('[pullAndAssignTasksForWorker] Task assigned', [
                         'task_id' => $task->task_id,
                         'execution_type' => $task->execution_type,
@@ -161,6 +261,72 @@ class TaskManagerService
                     if (count($assignedTasks) >= $limit) {
                         break 2;
                     }
+                }
+            }
+
+            // --- Shared fast lane (remote_fast) ---
+            // After the per-processor_type lanes, if this worker subscribes to the
+            // shared fast lane and still has capacity, claim capability-matched
+            // fast tasks. The existing assignTo() atomic claim (inside this same
+            // lockForUpdate transaction) guarantees first-idle-wins / runs-exactly-
+            // once across the two heterogeneous clients sharing the lane. Capability
+            // is filtered in PHP after the lock so it behaves identically on
+            // pgsql/sqlite (no JSON_CONTAINS in the WHERE clause). We over-fetch a
+            // little because some locked candidates may be filtered out by capability.
+            if (count($assignedTasks) < $limit
+                && in_array(GlobalTask::EXECUTION_REMOTE_FAST, $worker->processor_types, true)) {
+
+                $workerCaps = $worker->capabilityList();
+                $need = $limit - count($assignedTasks);
+                $fetch = min(32, $need + 8);
+
+                $fastCandidates = GlobalTask::pending()
+                    ->where('execution_type', GlobalTask::EXECUTION_REMOTE_FAST)
+                    ->orderBy('priority', 'desc')
+                    ->orderBy('created_at', 'asc')
+                    ->limit($fetch)
+                    ->lockForUpdate()
+                    ->get();
+
+                // Observability: the over-fetch is capped at 32, so when the
+                // candidate set hits that cap there may be more claimable fast
+                // tasks we silently truncated this round. Log it so a persistent
+                // fast-lane backlog is visible (no behavior change).
+                if ($fastCandidates->count() === 32) {
+                    Log::info('[pullAndAssignTasksForWorker] Fast candidate fetch hit cap', [
+                        'worker_id' => $workerId,
+                        'need' => $need,
+                        'fetch' => $fetch,
+                        'candidate_count' => $fastCandidates->count(),
+                    ]);
+                }
+
+                foreach ($fastCandidates as $task) {
+                    if (count($assignedTasks) >= $limit) {
+                        break;
+                    }
+                    // Skip fast tasks this client's capabilities cannot serve so
+                    // the other client (or a later poll) can claim them.
+                    if (!$task->capabilityMatches($workerCaps)) {
+                        continue;
+                    }
+
+                    $task->assignTo($workerId, $task->timeout_seconds);
+                    $worker->assignTask($task->task_id);
+                    $assignedTasks[] = $task;
+
+                    GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::EVENT_ASSIGNED, $workerId, (int) $task->retry_count, [
+                        'worker_id' => $workerId,
+                        'execution_type' => $task->execution_type,
+                        'capability' => $task->capability,
+                        'reason' => 'pull_fast',
+                    ]);
+
+                    Log::info('[pullAndAssignTasksForWorker] Fast task assigned', [
+                        'task_id' => $task->task_id,
+                        'capability' => $task->capability,
+                        'priority' => $task->priority,
+                    ]);
                 }
             }
 
@@ -173,6 +339,186 @@ class TaskManagerService
         ]);
 
         return $assignedTasks;
+    }
+
+    /**
+     * Long-poll wait threshold (seconds) and granularity (microseconds) used by
+     * the pull endpoint when the queue is momentarily empty. The worker channel
+     * is documented as long-poll; rather than return an empty 200 immediately
+     * (forcing a tight reconnect loop), pull waits up to MAX_LONG_POLL_SECONDS
+     * for a task to appear, re-checking every POLL_INTERVAL_US. The first
+     * iteration always runs, so a non-empty queue returns instantly.
+     */
+    private const MAX_LONG_POLL_SECONDS = 20;
+    private const POLL_INTERVAL_US = 500000; // 0.5s
+
+    /**
+     * Long-poll variant of the pull: assign tasks immediately if any exist,
+     * otherwise wait (cheap COUNT polling, not a held DB lock) up to
+     * MAX_LONG_POLL_SECONDS for work to arrive, then assign and return. Returns
+     * promptly the instant a (high-priority) task is created.
+     *
+     * @return array Array of assigned tasks (possibly empty after the wait).
+     */
+    public function pullAndAssignTasksLongPoll(string $workerId, int $limit = 5, ?int $maxWaitSeconds = null): array
+    {
+        $deadline = microtime(true) + ($maxWaitSeconds ?? self::MAX_LONG_POLL_SECONDS);
+
+        // Resolve the worker's processor types once for the cheap availability
+        // probe between assignment attempts.
+        $worker = Worker::where('worker_id', $workerId)->first(['processor_types']);
+        $processorTypes = ($worker && is_array($worker->processor_types)) ? $worker->processor_types : [];
+
+        do {
+            $tasks = $this->pullAndAssignTasksForWorker($workerId, $limit);
+            if (!empty($tasks)) {
+                return $tasks;
+            }
+
+            // No work: stop waiting once the deadline passes or the worker has no
+            // processor types (nothing could ever match).
+            if (empty($processorTypes) || microtime(true) >= $deadline) {
+                return [];
+            }
+
+            // Cheap unlocked existence probe; sleep before the next assign attempt.
+            usleep(self::POLL_INTERVAL_US);
+
+            $hasPending = GlobalTask::pending()
+                ->whereIn('execution_type', $processorTypes)
+                ->exists();
+            if (!$hasPending) {
+                continue;
+            }
+            // A task appeared — loop straight back to the atomic assign.
+        } while (microtime(true) < $deadline);
+
+        // Final assign attempt right at the deadline (a task may have appeared in
+        // the last interval).
+        return $this->pullAndAssignTasksForWorker($workerId, $limit);
+    }
+
+    /**
+     * Count PENDING tasks with priority >= $minPriority for the given processor
+     * types — the "urgent backlog" signal surfaced as `pending_urgent` in the
+     * pull and heartbeat responses so a worker knows to poll faster. A resolve /
+     * library-words query bumps missing-media tasks to priority 100, so this
+     * count > 0 means user-visible work is waiting.
+     *
+     * @param array<int,string> $processorTypes
+     */
+    public function countUrgentPending(array $processorTypes, int $minPriority = 100): int
+    {
+        $processorTypes = array_values(array_filter($processorTypes, 'is_string'));
+        if (empty($processorTypes)) {
+            return 0;
+        }
+
+        return (int) GlobalTask::pending()
+            ->whereIn('execution_type', $processorTypes)
+            ->where('priority', '>=', $minPriority)
+            ->count();
+    }
+
+    /**
+     * Resolve a worker's processor types (empty array when unknown). Small read
+     * helper for the controller's pending_urgent computation.
+     *
+     * @return array<int,string>
+     */
+    public function workerProcessorTypes(string $workerId): array
+    {
+        $worker = Worker::where('worker_id', $workerId)->first(['processor_types']);
+        if (!$worker || !is_array($worker->processor_types)) {
+            return [];
+        }
+        return array_values(array_filter($worker->processor_types, 'is_string'));
+    }
+
+    /**
+     * Resolve a worker's advertised capability tags (empty when unknown / none).
+     * Companion to workerProcessorTypes() for the pending_fast computation.
+     *
+     * @return array<int,string>
+     */
+    public function workerCapabilities(string $workerId): array
+    {
+        $worker = Worker::where('worker_id', $workerId)->first(['capabilities']);
+        return $worker ? $worker->capabilityList() : [];
+    }
+
+    /**
+     * Count PENDING fast-lane tasks (remote_fast) a worker advertising
+     * $capabilities is eligible to claim — surfaced as `pending_fast` in
+     * pull/heartbeat so a worker reacts immediately (re-poll with wait=0)
+     * instead of waiting out its normal interval. Returns 0 unless the worker
+     * actually subscribes to the shared fast lane. No priority floor is applied:
+     * the pull fast-claim block has none either, so any remote_fast task the
+     * pull WILL claim is counted (otherwise sub-100 fast tasks under-report).
+     *
+     * @param array<int,string> $processorTypes
+     * @param array<int,string> $capabilities
+     */
+    public function countFastPending(array $processorTypes, array $capabilities): int
+    {
+        if (!in_array(GlobalTask::EXECUTION_REMOTE_FAST, $processorTypes, true)) {
+            return 0;
+        }
+
+        $capabilities = array_values(array_filter($capabilities, 'is_string'));
+
+        return (int) GlobalTask::pending()
+            ->where('execution_type', GlobalTask::EXECUTION_REMOTE_FAST)
+            ->where(function ($q) use ($capabilities) {
+                // NULL capability = any worker eligible; otherwise the worker must
+                // advertise the tag. whereIn on a string column is cross-DB safe.
+                $q->whereNull('capability');
+                if (!empty($capabilities)) {
+                    $q->orWhereIn('capability', $capabilities);
+                }
+            })
+            ->count();
+    }
+
+    /**
+     * Bump a task's priority to the front ("jump to task-top"). The single
+     * control-plane action behind POST /api/task/{id}/bump.
+     *
+     * Only a still-PENDING task can be reordered: once assigned/processing there
+     * is no pre-emption, and terminal tasks are immutable. Idempotent — a task
+     * already at or above $newPriority is left unchanged. priority is raised to
+     * max(current, new) so a bump never lowers an already-urgent task.
+     *
+     * @return string One of 'bumped', 'not_found', 'not_pending'
+     */
+    public function bumpTaskPriority(string $taskId, int $newPriority = GlobalTask::PRIORITY_FAST): string
+    {
+        return $this->db()->transaction(function () use ($taskId, $newPriority) {
+            $task = GlobalTask::where('task_id', $taskId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$task) {
+                return 'not_found';
+            }
+
+            if ($task->status !== GlobalTask::STATUS_PENDING) {
+                return 'not_pending';
+            }
+
+            $target = max((int) $task->priority, $newPriority);
+            if ($target !== (int) $task->priority) {
+                $task->priority = $target;
+                $task->save();
+
+                Log::info('Task priority bumped', [
+                    'task_id' => $taskId,
+                    'priority' => $target,
+                ]);
+            }
+
+            return 'bumped';
+        }, self::TRANSACTION_ATTEMPTS);
     }
 
     /**
@@ -219,6 +565,12 @@ class TaskManagerService
             // Assign task
             $task->assignTo($workerId, $task->timeout_seconds);
             $worker->assignTask($taskId);
+
+            GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_ASSIGNED, $workerId, (int) $task->retry_count, [
+                'worker_id' => $workerId,
+                'execution_type' => $task->execution_type,
+                'reason' => 'assign',
+            ]);
 
             Log::info('Task assigned', [
                 'task_id' => $taskId,
@@ -283,6 +635,11 @@ class TaskManagerService
             if ($task->status === GlobalTask::STATUS_PENDING) {
                 $task->assignTo($workerId, $task->timeout_seconds);
                 $worker->assignTask($taskId);
+                GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_ASSIGNED, $workerId, (int) $task->retry_count, [
+                    'worker_id' => $workerId,
+                    'execution_type' => $task->execution_type,
+                    'reason' => 'accept',
+                ]);
                 return 'accepted';
             }
 
@@ -342,6 +699,12 @@ class TaskManagerService
                 }
             }
 
+            GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_CANCELLED, $workerId, (int) $task->retry_count, [
+                'worker_id' => $workerId,
+                'execution_type' => $task->execution_type,
+                'reason' => 'cancelled by control plane',
+            ]);
+
             Log::info('Task cancelled', [
                 'task_id' => $taskId,
                 'revoked_from' => $workerId,
@@ -360,6 +723,12 @@ class TaskManagerService
      * @param float $progress Progress percentage
      * @param array|null $result Result data
      * @param string|null $error Error message
+     * @param array|null $outcome OUT: result-trust summary
+     *        ['status' => final task status string, 'stored_count' => int,
+     *         'failed_count' => int]. Lets the controller return
+     *        {status, stored_count, failed_count} so a worker can tell a real
+     *        completion from an empty/partial one. Untouched on the false return
+     *        paths (unknown worker/task, ownership mismatch).
      * @return bool Success
      */
     public function submitResult(
@@ -368,9 +737,14 @@ class TaskManagerService
         string $status,
         float $progress = 0,
         ?array $result = null,
-        ?string $error = null
+        ?string $error = null,
+        ?array &$outcome = null
     ): bool {
-        $success = $this->db()->transaction(function () use ($taskId, $workerId, $status, $progress, $result, $error) {
+        // Default outcome surfaced even on the early-false paths the controller
+        // maps to 409, so the response shape is always consistent.
+        $outcome = ['status' => $status, 'stored_count' => 0, 'failed_count' => 0];
+
+        $success = $this->db()->transaction(function () use ($taskId, $workerId, $status, $progress, $result, $error, &$outcome) {
             // LOCK ORDER: worker first, then task — the same order
             // pullAndAssignTasksForWorker uses. Locking task->worker here while a
             // concurrent pull locked worker->tasks was a classic lock-ordering
@@ -426,6 +800,7 @@ class TaskManagerService
                 GlobalTask::STATUS_CANCELLED,
             ];
             if (in_array($task->status, $terminalStatuses, true)) {
+                $outcome['status'] = $task->status;
                 Log::info('Result re-delivered for terminal task — acknowledged without reprocessing', [
                     'task_id' => $taskId,
                     'worker_id' => $workerId,
@@ -440,6 +815,22 @@ class TaskManagerService
                 // Check demo mode: priority to frontend-submitted flag
                 $isDemoMode = $result['is_demo_mode'] ?? $task->payload['is_demo_mode'] ?? false;
 
+                // --- RESULT TRUST (contract item 3) ---
+                // Validate the result SHAPE for this execution_type BEFORE marking
+                // the task completed. A "completed" status the worker SHAPE cannot
+                // back (empty translations[], missing audio/image bytes) is not a
+                // real success — it is downgraded to a failure so it is not
+                // silently lost. Demo tasks skip the trust gate (they never write).
+                $shapeError = $isDemoMode ? null : $this->validateResultShape($task, $result ?? []);
+
+                if ($shapeError !== null) {
+                    // Treat a shape-invalid "completed" exactly like a reported
+                    // failure: consume a retry, surface the error, emit a 'failed'
+                    // event. stored_count stays 0.
+                    $this->failTaskInTransaction($task, $worker, $shapeError, $workerId, $outcome, 'invalid_shape');
+                    return true;
+                }
+
                 // Use consistent completion method for both modes
                 if ($isDemoMode) {
                     $task->status = GlobalTask::STATUS_COMPLETED_DEMO;
@@ -451,17 +842,58 @@ class TaskManagerService
                 $task->completed_at = now();
                 $task->save();
 
+                // Process task result within transaction and learn how many
+                // canonical items it actually stored. null => no processor owns
+                // this task type (control-plane / text-only task): trust the
+                // worker's completed status as-is. int => a processor ran; 0
+                // stored items on a non-demo task is an EMPTY success and is
+                // downgraded to failed below.
+                $storedCount = $this->processTaskResultInTransaction($task, $result ?? [], $isDemoMode);
+
+                if (!$isDemoMode && $storedCount !== null && $storedCount <= 0) {
+                    // The write-back persisted nothing (e.g. all entries rejected,
+                    // already-present fill-missing no-ops, or empty payload that
+                    // slipped the shape check). Roll the completion back to a
+                    // failure so the task does not masquerade as done.
+                    $emptyError = 'Worker reported completed but writeback stored 0 items'
+                        . ' (execution_type=' . $task->execution_type . ')';
+                    // Re-fetch a clean failure transition: reset the completion
+                    // fields the success branch set, then fail.
+                    $task->status = GlobalTask::STATUS_PROCESSING; // transient — fail() overwrites
+                    $task->completed_at = null;
+                    $this->failTaskInTransaction($task, $worker, $emptyError, $workerId, $outcome, 'empty_store');
+                    return true;
+                }
+
+                $outcome['status'] = $task->status;
+                $outcome['stored_count'] = $storedCount === null ? 0 : (int) $storedCount;
+                $outcome['failed_count'] = 0;
+
                 $worker->incrementCompleted();
                 $worker->releaseTask();
+
+                GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_COMPLETED, $workerId, (int) $task->retry_count, [
+                    'worker_id' => $workerId,
+                    'execution_type' => $task->execution_type,
+                    'stored_count' => $outcome['stored_count'],
+                    'demo_mode' => (bool) $isDemoMode,
+                ]);
 
                 Log::info('Task completed', [
                     'task_id' => $taskId,
                     'worker_id' => $workerId,
                     'demo_mode' => $isDemoMode,
+                    'stored_count' => $outcome['stored_count'],
                 ]);
 
-                // Process task result within transaction
-                $this->processTaskResultInTransaction($task, $result ?? [], $isDemoMode);
+                // Phase 5 substrate unification: project the completion onto the
+                // linked canonical dictionary row (fill-missing; no-op when the
+                // task is not dict-linked). Best-effort — syncToDictRow swallows
+                // its own errors so it can never fail this result transaction.
+                if (!$isDemoMode && $task->dict_row_id) {
+                    $synced = $task->syncToDictRow();
+                    $outcome['synced_to_dict'] = $synced;
+                }
             } elseif ($status === 'failed') {
                 $failError = $error ?? 'Unknown error';
 
@@ -529,49 +961,108 @@ class TaskManagerService
      */
     public function releaseTimedOutTasks(): int
     {
-        $tasks = GlobalTask::timedOut()->get();
+        // Pluck only the candidate ids first (no full models), then re-fetch and
+        // re-validate each under lockForUpdate inside its own transaction —
+        // mirroring cleanOfflineWorkers(). Without the lock + post-lock recheck,
+        // two concurrent timer ticks (or a tick racing a worker's result POST)
+        // both read the same "timed out" row and double-process it (lost-update).
+        $taskIds = GlobalTask::timedOut()->pluck('task_id')->toArray();
         $count = 0;
 
-        foreach ($tasks as $task) {
-            $workerId = $task->assigned_to;
+        foreach ($taskIds as $taskId) {
+            $released = $this->db()->transaction(function () use ($taskId) {
+                // Re-fetch under lock. LOCK ORDER: when the task is still owned by
+                // a worker we must lock the WORKER first, then the task — the same
+                // order pull/submit use (see submitResult), or a concurrent pull
+                // and reclaim deadlock on opposite orders. We peek the owner with
+                // an unlocked read just to decide whether to take the worker lock.
+                $ownerId = GlobalTask::where('task_id', $taskId)->value('assigned_to');
 
-            if ($task->canRetry()) {
-                $task->retry_count++;
-                $task->releaseAssignment();
+                $worker = null;
+                if ($ownerId) {
+                    $worker = Worker::where('worker_id', $ownerId)
+                        ->lockForUpdate()
+                        ->first();
+                }
 
-                Log::warning('Task timed out and released', [
-                    'task_id' => $task->task_id,
-                    'worker_id' => $workerId,
-                    'retry_count' => $task->retry_count,
-                    'max_retries' => $task->max_retries,
-                ]);
-            } else {
-                $task->status = GlobalTask::STATUS_FAILED;
-                $task->error = 'Timed out '
-                    . ($task->retry_count + 1)
-                    . ' time(s) without a worker result (last worker: '
-                    . ($workerId ?? 'unknown') . ')';
-                $task->assigned_to = null;
-                $task->assigned_at = null;
-                $task->timeout_at = null;
-                $task->save();
+                $task = GlobalTask::where('task_id', $taskId)
+                    ->lockForUpdate()
+                    ->first();
 
-                Log::error('Task failed permanently after repeated timeouts', [
-                    'task_id' => $task->task_id,
-                    'worker_id' => $workerId,
-                    'retry_count' => $task->retry_count,
-                ]);
-            }
+                if (!$task) {
+                    return false;
+                }
 
-            // Update worker status
-            if ($workerId) {
-                $worker = Worker::where('worker_id', $workerId)->first();
+                // Re-validate the timeout precondition AFTER the lock: still a
+                // live worker-owned status, with a timeout_at that is set and
+                // already past. A result/progress POST that won the race will
+                // have moved the task on (terminal, or extended timeout_at), so
+                // we skip it here.
+                $stillLive = in_array($task->status, [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING], true)
+                    && $task->timeout_at !== null
+                    && $task->timeout_at <= now();
+                if (!$stillLive) {
+                    return false;
+                }
+
+                $workerId = $task->assigned_to;
+
+                if ($task->canRetry()) {
+                    $task->retry_count++;
+                    $task->releaseAssignment();
+
+                    GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_TIMEOUT, $workerId, (int) $task->retry_count, [
+                        'worker_id' => $workerId,
+                        'execution_type' => $task->execution_type,
+                        'reason' => 'timeout',
+                    ]);
+                    GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_RECLAIMED, $workerId, (int) $task->retry_count, [
+                        'worker_id' => $workerId,
+                        'execution_type' => $task->execution_type,
+                        'reason' => 'release',
+                    ]);
+
+                    Log::warning('Task timed out and released', [
+                        'task_id' => $task->task_id,
+                        'worker_id' => $workerId,
+                        'retry_count' => $task->retry_count,
+                        'max_retries' => $task->max_retries,
+                    ]);
+                } else {
+                    $task->status = GlobalTask::STATUS_FAILED;
+                    $task->error = 'Timed out '
+                        . ($task->retry_count + 1)
+                        . ' time(s) without a worker result (last worker: '
+                        . ($workerId ?? 'unknown') . ')';
+                    $task->assigned_to = null;
+                    $task->assigned_at = null;
+                    $task->timeout_at = null;
+                    $task->save();
+
+                    GlobalTaskEvent::record($taskId, GlobalTaskEvent::EVENT_FAILED, $workerId, (int) $task->retry_count, [
+                        'worker_id' => $workerId,
+                        'execution_type' => $task->execution_type,
+                        'reason' => 'timeout',
+                    ]);
+
+                    Log::error('Task failed permanently after repeated timeouts', [
+                        'task_id' => $task->task_id,
+                        'worker_id' => $workerId,
+                        'retry_count' => $task->retry_count,
+                    ]);
+                }
+
+                // Update worker status (worker already locked above when owned).
                 if ($worker && $worker->current_task_id === $task->task_id) {
                     $worker->releaseTask();
                 }
-            }
 
-            $count++;
+                return true;
+            }, self::TRANSACTION_ATTEMPTS);
+
+            if ($released) {
+                $count++;
+            }
         }
 
         return $count;
@@ -608,19 +1099,46 @@ class TaskManagerService
                     return;
                 }
 
-                // Release any assigned tasks
-                if ($worker->current_task_id) {
-                    $task = GlobalTask::where('task_id', $worker->current_task_id)
-                        ->lockForUpdate()
-                        ->first();
+                // Release EVERY task still held by this worker, not just the
+                // single current_task_id. A pull assigns up to 'limit' tasks but
+                // Worker.current_task_id only tracks the last one, so a single
+                // offline worker can leave several assigned/processing tasks
+                // stranded until they time out. Bulk-release them here (mirroring
+                // the timeout retry/permanent-fail logic) so they re-queue
+                // immediately. When the worker holds 0/1 tasks this behaves
+                // identically to the old single-task release.
+                $heldTasks = GlobalTask::where('assigned_to', $worker->worker_id)
+                    ->whereIn('status', [GlobalTask::STATUS_ASSIGNED, GlobalTask::STATUS_PROCESSING])
+                    ->lockForUpdate()
+                    ->get();
 
-                    if ($task && $task->status === GlobalTask::STATUS_ASSIGNED) {
+                foreach ($heldTasks as $task) {
+                    if ($task->canRetry()) {
+                        $task->retry_count++;
                         $task->releaseAssignment();
-                        Log::warning('Task released due to worker offline', [
-                            'task_id' => $task->task_id,
-                            'worker_id' => $worker->worker_id,
-                        ]);
+                    } else {
+                        $task->status = GlobalTask::STATUS_FAILED;
+                        $task->error = 'Worker went offline '
+                            . ($task->retry_count + 1)
+                            . ' time(s) without a result (last worker: '
+                            . $worker->worker_id . ')';
+                        $task->assigned_to = null;
+                        $task->assigned_at = null;
+                        $task->timeout_at = null;
+                        $task->save();
                     }
+
+                    GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::EVENT_RECLAIMED, $worker->worker_id, (int) $task->retry_count, [
+                        'worker_id' => $worker->worker_id,
+                        'execution_type' => $task->execution_type,
+                        'reason' => 'worker_offline',
+                    ]);
+
+                    Log::warning('Task released due to worker offline', [
+                        'task_id' => $task->task_id,
+                        'worker_id' => $worker->worker_id,
+                        'retry_count' => $task->retry_count,
+                    ]);
                 }
 
                 $worker->markOffline();
@@ -668,28 +1186,245 @@ class TaskManagerService
     }
 
     /**
-     * Process task result within transaction (extensible processing)
+     * Process task result within transaction (extensible processing).
+     *
+     * Returns how many canonical items the matching processor actually stored,
+     * so submitResult() can enforce result-trust:
+     *   - null => no processor owns this task type (control-plane / text-only
+     *             completion); the worker's "completed" status is trusted as-is.
+     *   - int  => a processor ran; 0 stored items on a non-demo task is an EMPTY
+     *             success and is downgraded to failed by the caller.
      *
      * @param GlobalTask $task Task model (already locked)
      * @param array $result Result data
      * @param bool $isDemoMode Demo mode flag
-     * @return void
+     * @return int|null Stored item count, or null when no processor matched
      */
-    protected function processTaskResultInTransaction(GlobalTask $task, array $result, bool $isDemoMode): void
+    protected function processTaskResultInTransaction(GlobalTask $task, array $result, bool $isDemoMode): ?int
     {
-        if (empty($result)) {
-            return;
-        }
+        // Delegate to the registry, which already returns ?int (the matching
+        // processor's stored count, or null when none claims this task type).
+        // We do NOT short-circuit empty results here: a matching processor must
+        // see the empty result and report 0 so the empty-store gate fires; only
+        // a genuinely unowned type returns null and is trusted.
+        $storedCount = $this->getProcessorRegistry()->process($task, $result, $isDemoMode);
 
-        $registry = $this->getProcessorRegistry();
-        $processed = $registry->process($task, $result, $isDemoMode);
-
-        if (!$processed) {
-            Log::debug('[TaskManager] No processor found for task', [
+        if ($storedCount === null) {
+            Log::debug('[TaskManager] No processor found for task — trusting worker status', [
                 'task_id' => $task->task_id,
                 'app_name' => $task->app_name,
                 'task_type' => $task->task_type,
             ]);
         }
+
+        return $storedCount;
+    }
+
+    /**
+     * Result-trust shape gate (contract item 3).
+     *
+     * Validates that a non-demo "completed" result is STRUCTURALLY capable of
+     * backing a completion for its execution_type, BEFORE the task is marked
+     * completed and the processor runs. Returns a human-readable error string
+     * when the shape is invalid, or null when the result passes (or the type is
+     * not shape-constrained — control-plane / text-only / remote_fast types are
+     * always trusted; the authoritative emptiness check remains the post-write
+     * stored_count<=0 downgrade in submitResult()).
+     *
+     * Deliberately permissive: only execution_types whose processor result keys
+     * are verified here are enforced, so a valid completion is never falsely
+     * rejected. A result that is empty for a known media type fails fast with a
+     * precise message instead of running the processor for nothing.
+     *
+     * @param GlobalTask $task   Task model (already locked)
+     * @param array      $result Worker-reported result payload
+     * @return string|null Error message when the shape is invalid, else null
+     */
+    protected function validateResultShape(GlobalTask $task, array $result): ?string
+    {
+        // Some workers wrap the payload in a {result:{...}} envelope; look at
+        // both the outer and inner shapes so either form passes.
+        $inner = (isset($result['result']) && is_array($result['result'])) ? $result['result'] : $result;
+
+        // task_type-first gate: interactive tasks have execution_type rewritten
+        // to 'remote_fast', so the execution_type switch below never enforces the
+        // precise media shapes on the fast lane. task_type is NEVER rewritten, so
+        // switch on it first and fall through to the execution_type switch as a
+        // fallback for non-fast lanes. Do NOT key on capability (NULL = any).
+        switch ($task->task_type) {
+            case 'word_translation':
+                // Check both the flat (pycore) and the {result:{...}} enveloped
+                // (chrome web-AI) shapes — $inner already unwrapped above.
+                $hasAny = !empty($inner['translations'])
+                    || !empty($result['translations'])
+                    || !empty($inner['invalid_words'])
+                    || !empty($result['invalid_words'])
+                    || !empty($inner['region_redirect_words'])
+                    || !empty($result['region_redirect_words']);
+
+                if (!$hasAny) {
+                    return 'Translation result carried no translations, invalid_words or region_redirect_words';
+                }
+                return null;
+
+            case 'gemini_image':
+                $hasImage = !empty($inner['image_base64'])
+                    || !empty($result['image_base64'])
+                    || !empty($inner['image_url'])
+                    || !empty($result['image_url']);
+
+                if (!$hasImage) {
+                    return 'Image result carried no image_base64/image_url';
+                }
+                return null;
+
+            case 'subtitle_search':
+                // A subtitle search completion must carry at least one hit.
+                $hasResults = (!empty($inner['results']) && is_array($inner['results']))
+                    || (!empty($result['results']) && is_array($result['results']));
+
+                if (!$hasResults) {
+                    return 'Subtitle search result carried no results[]';
+                }
+                return null;
+
+            case 'poster':
+                // A poster completion must carry poster bytes or a URL.
+                $hasPoster = !empty($inner['image_base64'])
+                    || !empty($result['image_base64'])
+                    || !empty($inner['poster_base64'])
+                    || !empty($result['poster_base64'])
+                    || !empty($inner['image_url'])
+                    || !empty($result['image_url'])
+                    || !empty($inner['poster_url'])
+                    || !empty($result['poster_url'])
+                    || !empty($inner['bytes'])
+                    || !empty($result['bytes']);
+
+                if (!$hasPoster) {
+                    return 'Poster result carried no image_base64/image_url/poster_url/bytes';
+                }
+                return null;
+
+            case 'sentence_audio':
+                // A sentence-audio completion must carry audio bytes or a path.
+                $hasAudio = !empty($inner['audio_files'])
+                    || !empty($result['audio_files'])
+                    || !empty($inner['audio_base64'])
+                    || !empty($result['audio_base64'])
+                    || !empty($inner['saved_path'])
+                    || !empty($result['saved_path']);
+
+                if (!$hasAudio) {
+                    return 'Sentence-audio result carried no audio_files/audio_base64/saved_path';
+                }
+                return null;
+        }
+
+        switch ($task->execution_type) {
+            case 'remote_translation':
+                // A translation completion must carry SOME per-word outcome:
+                // actual translations, or explicit invalid / region-redirect
+                // verdicts (an all-invalid batch is still a real result).
+                // Accept both flat (pycore) and {result:{...}} (chrome) shapes.
+                $hasAny = !empty($inner['translations'])
+                    || !empty($result['translations'])
+                    || !empty($inner['invalid_words'])
+                    || !empty($result['invalid_words'])
+                    || !empty($inner['region_redirect_words'])
+                    || !empty($result['region_redirect_words']);
+
+                return $hasAny
+                    ? null
+                    : 'Translation result carried no translations, invalid_words or region_redirect_words';
+
+            case 'remote_gemini':
+                // A gemini image completion must carry image bytes or a URL.
+                $hasImage = !empty($inner['image_base64'])
+                    || !empty($result['image_base64'])
+                    || !empty($inner['image_url'])
+                    || !empty($result['image_url']);
+
+                return $hasImage
+                    ? null
+                    : 'Image result carried no image_base64/image_url';
+
+            default:
+                // remote_client, remote_notebooklm, remote_audio, remote_compute,
+                // remote_ocr, remote_video, remote_io, remote_fast, local_timer,
+                // and any unknown/control-plane type: trust the worker's status;
+                // the stored_count<=0 gate still guards owned task types.
+                return null;
+        }
+    }
+
+    /**
+     * Fail a task from WITHIN the result transaction.
+     *
+     * Used by the result-trust gate to treat a shape-invalid or empty-store
+     * "completed" report exactly like a worker-reported failure: consume a
+     * retry if any remain (re-queueing the task), otherwise fail permanently.
+     * Mirrors the reported-'failed' branch in submitResult() and additionally
+     * records a GlobalTaskEvent so the downgrade is auditable, then fills the
+     * caller's $outcome.
+     *
+     * @param GlobalTask $task     Task model (already locked, already in this tx)
+     * @param Worker     $worker   Owning worker (already locked)
+     * @param string     $error    Human-readable failure reason surfaced to the task
+     * @param string     $workerId Reporting worker id
+     * @param array      $outcome  Caller outcome accumulator (by reference)
+     * @param string     $reason   Short machine reason: 'invalid_shape' | 'empty_store'
+     */
+    protected function failTaskInTransaction(
+        GlobalTask $task,
+        Worker $worker,
+        string $error,
+        string $workerId,
+        array &$outcome,
+        string $reason
+    ): void {
+        // canRetry() must be read BEFORE fail() — fail() increments retry_count.
+        $willRetry = $task->canRetry();
+
+        $task->fail($error);
+
+        // Only a PERMANENT failure counts against the worker's failed tally,
+        // matching the reported-'failed' branch.
+        if (!$willRetry) {
+            $worker->incrementFailed();
+        }
+        $worker->releaseTask();
+
+        if ($willRetry) {
+            // Re-queue for another attempt (sets status back to pending and
+            // clears the assignment).
+            $task->releaseAssignment();
+        }
+
+        GlobalTaskEvent::record(
+            $task->task_id,
+            GlobalTaskEvent::EVENT_FAILED,
+            $workerId,
+            (int) $task->retry_count,
+            [
+                'worker_id' => $workerId,
+                'execution_type' => $task->execution_type,
+                'reason' => $reason,
+                'error' => $error,
+                'will_retry' => $willRetry,
+            ]
+        );
+
+        $outcome['status'] = $task->status;
+        $outcome['stored_count'] = 0;
+        $outcome['failed_count'] = 1;
+
+        Log::warning('Task downgraded to failed by result-trust gate', [
+            'task_id' => $task->task_id,
+            'worker_id' => $workerId,
+            'reason' => $reason,
+            'will_retry' => $willRetry,
+            'error' => $error,
+        ]);
     }
 }
