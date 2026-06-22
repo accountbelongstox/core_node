@@ -372,6 +372,44 @@ run_setting_base_if_desired() {
     return 0
 }
 
+# SAFETY GUARD (mandatory): authorise deletion of a core_node directory ONLY after
+# explicit TRIPLE confirmation, each defaulting to NO. Hard-refuses outright when the
+# target is a system path OR a git working tree (it may be the live, locally-modified
+# project being run -- which is exactly how a re-clone once wiped real work). A
+# non-interactive run (no TTY) ALWAYS refuses. Returns 0 only when deletion is
+# explicitly authorised three times. See development-guides/CORE_NODE_DELETION_SAFETY.md.
+confirm_core_node_deletion() {
+    local target="$1"
+    local i ans
+    case "$target" in
+        ""|"/"|"/usr"|"/usr/"*|"/etc"|"/etc/"*|"/bin"|"/bin/"*|"/sbin"|"/sbin/"*|"/lib"|"/lib/"*|"/var"|"/var/"*|"/home"|"/root"|"/opt"|"/mnt"|"/www"|"/www/"*)
+            log_err "[DELETE-GUARD] Refusing to delete a system/critical path: '$target'"
+            return 1 ;;
+    esac
+    if [ -e "$target/.git" ]; then
+        log_err "[DELETE-GUARD] '$target' is a git repository (a working tree, possibly with"
+        log_err "[DELETE-GUARD] uncommitted changes). REFUSING to delete it automatically."
+        log_err "[DELETE-GUARD] If you must replace it, move/rename it MANUALLY, then re-run."
+        return 1
+    fi
+    if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
+        log_err "[DELETE-GUARD] No interactive terminal; refusing to delete '$target' (default = NO)."
+        return 1
+    fi
+    log_warn "[DELETE-GUARD] About to DELETE the core_node directory: $target"
+    log_warn "[DELETE-GUARD] This is IRREVERSIBLE and destroys any local changes there."
+    for i in 1 2 3; do
+        printf '[DELETE-GUARD] Confirmation %d of 3 - permanently delete "%s"? [N/y]: ' "$i" "$target" > /dev/tty
+        read -r ans < /dev/tty || ans=""
+        case "$ans" in
+            [Yy]) : ;;
+            *) log_info "[DELETE-GUARD] Deletion cancelled at step $i (default No). Nothing was removed."; return 1 ;;
+        esac
+    done
+    log_warn "[DELETE-GUARD] All three confirmations received; proceeding to delete $target"
+    return 0
+}
+
 # Step 6: Check if project exists at CORE_NODE_PROJECT_ROOT; if not or incomplete, clone full project
 ensure_project_cloned() {
     local repo_url="$GITHUB_REPO"
@@ -386,16 +424,17 @@ ensure_project_cloned() {
 
     if [ -d "$CORE_NODE_PROJECT_ROOT" ]; then
         if [ -n "$(ls -A "$CORE_NODE_PROJECT_ROOT" 2>/dev/null)" ]; then
-            log_warn "Directory is not empty. Remove it and clone fresh? (y/n)"
-            read -r confirm
-            if [[ "$confirm" =~ ^[Yy] ]]; then
-                log_info "Removing $CORE_NODE_PROJECT_ROOT"
-                echo "  $USE_SUDO rm -rf $CORE_NODE_PROJECT_ROOT"
-                $USE_SUDO rm -rf "$CORE_NODE_PROJECT_ROOT"
-            else
-                log_err "Aborted. Empty or remove the directory manually and run again."
+            # NEVER silently wipe a populated core_node dir: it may be the live,
+            # locally-modified working tree. Require the triple-confirm guard, which
+            # also hard-refuses git repos and non-interactive runs.
+            if ! confirm_core_node_deletion "$CORE_NODE_PROJECT_ROOT"; then
+                log_err "Aborted: not deleting $CORE_NODE_PROJECT_ROOT."
+                log_err "Back up/move it, or clone into an empty directory, then run again."
                 return 1
             fi
+            log_info "Removing $CORE_NODE_PROJECT_ROOT"
+            echo "  $USE_SUDO rm -rf $CORE_NODE_PROJECT_ROOT"
+            $USE_SUDO rm -rf "$CORE_NODE_PROJECT_ROOT"
         fi
     fi
 
