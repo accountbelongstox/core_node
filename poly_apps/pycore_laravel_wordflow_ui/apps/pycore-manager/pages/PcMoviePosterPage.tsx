@@ -46,6 +46,11 @@ const L = {
   fetchHint: 'When on, the ingest pipeline looks up and downloads a poster for each media title.',
   enabled: 'Enabled',                                              // 已启用
   disabled: 'Disabled',                                            // 已禁用
+  reuseTitle: 'Poster source',                                     // 海报来源
+  reuseHint: 'How posters were obtained at ingest — local reuse of the extract poster.jpg vs a fresh TMDB/OMDB fetch.',
+  reused: 'Local reuse',                                           // 本地复用
+  fetched: 'Re-fetched',                                           // 重新抓取
+  reset: 'Reset',                                                  // 重置
   testTitle: 'Test poster lookup',                                  // 测试海报查找
   testHint: 'Enter a movie / TV title (CJK titles are translated to English first), with an optional year, then run a one-off lookup.',
   titlePlaceholder: 'e.g. Spirited Away',                           // 例如 Spirited Away
@@ -114,6 +119,20 @@ export default function PcMoviePosterPage() {
     }
   }, [status, saving]);
 
+  const resetStats = useCallback(async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const next = await pycoreApi.resetPosterStats();
+      setStatus(next);
+      setOffline(false);
+    } catch {
+      setOffline(true);
+    } finally {
+      setSaving(false);
+    }
+  }, [saving]);
+
   const runTest = useCallback(async () => {
     const clean = title.trim();
     if (!clean || testing) return;
@@ -170,6 +189,30 @@ export default function PcMoviePosterPage() {
             <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transform transition ${
               status?.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
+        </div>
+
+        {/* poster source — local reuse vs re-fetch counters */}
+        <div className="mt-3 rounded-2xl p-4 border bg-white/40 dark:bg-white/5 border-slate-300/35 dark:border-white/5">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <div className="text-sm font-bold text-slate-700 dark:text-slate-200">{L.reuseTitle}</div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 max-w-xl">{L.reuseHint}</p>
+            </div>
+            <button onClick={() => void resetStats()} disabled={!status || saving}
+              className="px-3 py-1.5 text-[11px] font-bold rounded-lg border border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300 disabled:opacity-50 shrink-0 flex items-center gap-1">
+              <RefreshCw className={`w-3.5 h-3.5 ${saving ? 'animate-spin' : ''}`} /> {L.reset}
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl p-3 bg-emerald-500/5 border border-emerald-500/15 text-center">
+              <div className="text-2xl font-black text-emerald-500">{status?.stats?.reused ?? 0}</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-1">{L.reused}</div>
+            </div>
+            <div className="rounded-xl p-3 bg-rose-500/5 border border-rose-500/15 text-center">
+              <div className="text-2xl font-black text-rose-500">{status?.stats?.fetched ?? 0}</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mt-1">{L.fetched}</div>
+            </div>
+          </div>
         </div>
       </section>
 

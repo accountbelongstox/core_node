@@ -52,6 +52,21 @@ const SYNC_RPC_TIMEOUT_MS = 600_000;
 
 // run snapshot shape (loose: backend-owned). Kept here as the source of truth;
 // the page imports it from the context.
+// One structured decision step in a video's processing flow (the backend emits
+// these on `current.flow`/`item.flow`): title-translate, the subtitle provider
+// chain + cache decisions, per-language API/Whisper/AI, poster. Rendered as the
+// "处理流程 / Flow" panel so the decision + cache process is visible.  // 处理流程步骤
+export interface VeFlowStep {
+  step: string;                 // title | subtitle_primary | subtitle_lang | poster
+  status: string;               // ok|api|whisper|ai|cache|api_miss|empty|miss|fail
+  label?: string;
+  lang?: string;
+  provider?: string | null;
+  detail?: string;
+  en?: string | null;
+  year?: number | null;
+}
+
 export interface VeSnapshot {
   processed?: number;
   total?: number;
@@ -70,6 +85,10 @@ export interface VeSnapshot {
     file_elapsed?: number | null;
     mp4?: boolean;
     audios?: { size?: number }[];
+    // collect-info pre-pass + per-decision flow (see VeFlowStep).
+    title_en?: string | null;
+    lang_tracks?: Record<string, string>;
+    flow?: VeFlowStep[];
   } | null;
 }
 
@@ -89,6 +108,10 @@ export type MappingWithFiles = VideoExtractMapping & { files?: VeWholeFiles };
 
 export interface VeProgress { pct: number; text: string }
 export interface VeSyncProgress { stage: string; done: number; total: number; detail: string }
+// Live progress for the subtitle-language fill (mirrors VeSyncProgress; carries
+// the same stage/done/total/detail streamed over the `subtitle_language_fill`
+// THREAD_BUS event).  // 字幕语言填充进度
+export interface VeFillProgress { stage: string; done: number; total: number; detail: string }
 
 // minimal info persisted so a reload knows what to re-attach to (the `saved`
 // payload of the persistent task).
@@ -107,6 +130,12 @@ export interface VeReqBase {
   lang: string;
   extensions: string[];
   make_mp4: boolean;
+  // primary subtitle track source: 'api_first' (OpenSubtitles → Whisper) or
+  // 'whisper' (always local). Default 'api_first' (backend honors it).  // 字幕来源
+  subtitle_source?: 'api_first' | 'whisper';
+  // Correspondence languages to build subtitle tracks for THIS run (the multi-
+  // select). Injected by start() from corrLanguages; primary auto-included.  // 所选语言
+  selected_languages?: string[];
 }
 // the page passes reqBase + the selected paths
 export type VeStartReq = VeReqBase & { paths: string[]; path: string };
@@ -124,6 +153,11 @@ interface PcVideoExtractValue {
   syncing: Set<string>;
   syncingAll: boolean;
   syncProgress: VeSyncProgress | null;
+  // ---- subtitle-language fill (video_extract.fill_languages) ----
+  // `filling` while a fill RPC is in flight; `fillProgress` streams the live
+  // stage/done/total over the `subtitle_language_fill` event.
+  filling: boolean;
+  fillProgress: VeFillProgress | null;
   ranThisSession: boolean;
   // auto-sync toggle: when on, a run that COMPLETES in this session triggers an
   // idempotent syncAll([root]) automatically (once per run).
@@ -148,12 +182,19 @@ interface PcVideoExtractValue {
   // corrLanguages selection is used.
   syncSource: (sourcePath: string, languages?: string[]) => void;
   syncAll: (paths?: string[], languages?: string[]) => Promise<void>;
+  // Ensure each requested language has a `<stem>.<lang>.srt` sibling track
+  // (OpenSubtitles when strategy='api_first' + credentialed, else AI-translated
+  // from the primary cues). Omitted languages/strategy → the current selection.
+  // Writes tracks locally; the user then clicks the existing Sync/Submit.
+  fillLanguages: (paths?: string[], languages?: string[], strategy?: 'api_first' | 'whisper') => Promise<void>;
 }
 
 const L = {
   veSyncDone: 'Synced to Laravel',                              // 已同步到 Laravel
   veSyncFailed: 'Sync failed',                                  // 同步失败
   veAutoSyncStarted: 'Auto-sync to Laravel started (idempotent)', // 已自动开始同步到 Laravel(幂等)
+  veFillDone: 'Language tracks filled',                         // 语言字幕已填充
+  veFillFailed: 'Fill failed',                                  // 填充失败
 };
 
 // localStorage helpers — sync APIs can't be `.catch`-guarded, and localStorage
@@ -239,6 +280,10 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   const [ranThisSession, setRanThisSession] = useState(false);
   const [syncing, setSyncing] = useState<Set<string>>(new Set());
   const [syncProgress, setSyncProgress] = useState<VeSyncProgress | null>(null);
+  // Subtitle-language fill (video_extract.fill_languages): in-flight flag + live
+  // progress streamed over the `subtitle_language_fill` event (mirrors sync).
+  const [filling, setFilling] = useState(false);
+  const [fillProgress, setFillProgress] = useState<VeFillProgress | null>(null);
   // AUTO-SYNC PERSISTENCE (chosen approach, documented per the FE/BE contract):
   // the context owns the state + a localStorage mirror (read once on init,
   // written on change) so the toggle hydrates instantly and survives pycore
@@ -251,11 +296,11 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   const [autoSync, setAutoSyncState] = useState<boolean>(readAutoSyncLs);
   const [notice, setNotice] = useState<string | null>(null);
   // Checked correspondence language codes (>=1, includes the primary). Defaults
-  // to English; the page drives this from its language multi-select.
-  const [corrLanguages, setCorrLanguages] = useState<string[]>(['en']);
+  // to English + Chinese; the page drives this from its language multi-select.
+  const [corrLanguages, setCorrLanguages] = useState<string[]>(['en', 'zh']);
   // Mirror in a ref so the live segments-fetch interval always reads the latest
   // selection without re-subscribing the interval on every toggle.
-  const corrLangsRef = useRef<string[]>(['en']);
+  const corrLangsRef = useRef<string[]>(['en', 'zh']);
   useEffect(() => { corrLangsRef.current = corrLanguages; }, [corrLanguages]);
   // pre-start optimistic state (before the first poll returns a task) +
   // preview/error text that isn't part of a backend task.
@@ -366,6 +411,36 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     }
   }), []);
 
+  // ---- live subtitle-language-fill progress events --------------------- #
+  // Mirrors the `video_extract_sync` subscription above: the fill RPC streams
+  // `subtitle_language_fill` stages; 'done'/'error' clear the in-flight flag and
+  // progress. The summary (filled/skipped/failed counts) is surfaced as a notice.
+  useEffect(() => subscribeWs('subtitle_language_fill', (d: any) => {
+    const stage = String(d?.stage ?? '');
+    setFillProgress({
+      stage,
+      done: Number(d?.done ?? 0),
+      total: Number(d?.total ?? 0),
+      detail: String(d?.detail ?? ''),
+    });
+    if (stage === 'done') {
+      const s = d?.summary || {};
+      const parts = [
+        s.filled != null ? `${s.filled} filled` : null,
+        s.skipped != null ? `${s.skipped} skipped` : null,
+        s.failed != null ? `${s.failed} failed` : null,
+      ].filter(Boolean).join(' · ');
+      setNotice(`${L.veFillDone}${parts ? ' — ' + parts : ''}`);
+      setFilling(false);
+      setFillProgress(null);
+    } else if (stage === 'error') {
+      const errs = Array.isArray(d?.errors) ? d.errors.join('; ') : '';
+      setNotice(`${L.veFillFailed}${d?.detail ? ': ' + d.detail : errs ? ': ' + errs : ''}`);
+      setFilling(false);
+      setFillProgress(null);
+    }
+  }), []);
+
   // ---- actions ---------------------------------------------------------- #
   const preview = useCallback(async (req: VeStartReq): Promise<string> => {
     const r: any = await pycoreApi.pyPost(`${VE}/preview`, { ...req, dry_run: true })
@@ -387,7 +462,11 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     finishedRef.current = null;
     settledTaskRef.current = null;
     task.set(null); // clear any prior finished snapshot so the UI shows "starting"
-    const r: any = await pycoreApi.pyPost(`${VE}/start`, req)
+    // Inject the checked correspondence languages so the backend builds EVERY
+    // selected language's subtitle track inline this run (provider chain → AI),
+    // not just the primary. Primary is auto-included; this is the multi-select.
+    const startReq = { ...req, selected_languages: corrLangsRef.current };
+    const r: any = await pycoreApi.pyPost(`${VE}/start`, startReq)
       .catch((e: any) => ({ success: false, error: e?.message || 'request failed' }));
     setStarting(false);
     if (!r.success || !r.task_id) {
@@ -458,6 +537,29 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
       });
   }, []);
 
+  // Fill every requested language with a `<stem>.<lang>.srt` sibling track.
+  // Writes tracks locally (cached); the user then clicks the existing Sync to
+  // submit them. Guarded like the sync actions: skipped while a fill is already
+  // in flight; progress + cleanup ride the `subtitle_language_fill` subscription
+  // above. Generous timeout (same as sync) — OpenSubtitles fetch + AI-translate
+  // of full cue sets far exceeds callRpc's 30s default.
+  const fillLanguages = useCallback(async (
+    paths?: string[], languages?: string[], strategy: 'api_first' | 'whisper' = 'api_first',
+  ): Promise<void> => {
+    if (filling) return;
+    setFilling(true);
+    setFillProgress({ stage: 'scan', done: 0, total: 0, detail: '' });
+    const langs = (languages && languages.length) ? languages : corrLangsRef.current;
+    const payload: Record<string, unknown> = { languages: langs, strategy };
+    if (paths && paths.length) payload.paths = paths;
+    await callRpc('video_extract.fill_languages', payload, SYNC_RPC_TIMEOUT_MS)
+      .catch((e: any) => {
+        setNotice(`${L.veFillFailed}: ${e?.message || 'RPC failed'}`);
+        setFilling(false);
+        setFillProgress(null);
+      });
+  }, [filling]);
+
   const setAutoSync = useCallback((v: boolean) => {
     autoSyncTouchedRef.current = true;
     setAutoSyncState(v);
@@ -497,10 +599,11 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
 
   const value: PcVideoExtractValue = {
     taskId, busy, paused, progress, snapshot, output, mapping, segmentsDir,
-    syncing, syncingAll: syncing.has(SYNC_ALL_KEY), syncProgress, ranThisSession,
+    syncing, syncingAll: syncing.has(SYNC_ALL_KEY), syncProgress,
+    filling, fillProgress, ranThisSession,
     autoSync, setAutoSync, notice, setNotice,
     corrLanguages, setCorrLanguages,
-    start, preview, stop, togglePause, syncSource, syncAll,
+    start, preview, stop, togglePause, syncSource, syncAll, fillLanguages,
   };
   return <PcVideoExtractContext.Provider value={value}>{children}</PcVideoExtractContext.Provider>;
 }

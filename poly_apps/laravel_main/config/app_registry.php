@@ -61,5 +61,12 @@ return [
         'connection' => 'ittoolsv1',
         'current_version' => 'v1',
     ],
+
+    'pddtoolv1' => [
+        'name' => 'PddToolV1',
+        'table_prefix' => 'pdd_tool_v1',
+        'connection' => 'pddtoolv1',
+        'current_version' => 'v1',
+    ],
 ];
 

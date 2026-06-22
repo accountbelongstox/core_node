@@ -167,7 +167,9 @@ export const ShellControls: React.FC = () => {
             >
               <Home className="w-4 h-4" /> Home
             </button>
-            {(Object.keys(END_META) as (keyof typeof END_META)[]).map((id) => (
+            {/* 'wordflow' is the word-end identity wordnew reuses for its theme; the
+                dedicated "WordNew 🚀" button below is its single list entry, so skip it here. */}
+            {(Object.keys(END_META) as (keyof typeof END_META)[]).filter((id) => id !== 'wordflow').map((id) => (
               <button
                 key={id}
                 onClick={() => { navigate(END_META[id].path); setOpen(false); }}
@@ -182,7 +184,7 @@ export const ShellControls: React.FC = () => {
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 ${location.pathname.startsWith('/wordnew') ? 'text-fuchsia-600 dark:text-fuchsia-400 font-bold' : 'text-slate-700 dark:text-slate-200'}`}
             >
               <span className="w-4 h-4 rounded-full bg-gradient-to-tr from-fuchsia-400 to-indigo-500 animate-pulse animate-duration-1000" />
-              WordNew 🚀
+              WordNew
             </button>
           </div>
 

@@ -215,14 +215,31 @@ class MediaIngestTablesInitializer
                 'subtitle_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => 'Number of subtitle entries'],
                 'segment_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => 'Number of segments'],
                 'sentence_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => 'Number of sentences'],
+                // Mirrors AppQyV1_2026_06_19_000005_add_selected_languages_to_subtitles.php — the
+                // checked correspondence language codes (JSON array). Without this, sys:init builds
+                // the table missing the column and every ingest INSERT fails with PG 42703.
+                'selected_languages' => ['type' => 'json', 'nullable' => true, 'comment' => 'Checked correspondence language codes'],
                 'synced_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'Last sync timestamp'],
                 'metadata' => ['type' => 'json', 'nullable' => true, 'comment' => 'Additional metadata'],
+                // Movie/TV poster — mirrors AppQyV1_2026_06_15_000001_add_poster_columns_to_media_tables.php
+                // (MOVIE_POSTER_PIPELINE.md §5). Without these, a sys:init-built table drifts from the migrations.
+                'poster_filename' => ['type' => 'string', 'length' => 255, 'nullable' => true, 'comment' => 'Local poster filename under static/app_qy_v1/posters'],
+                'poster_provider' => ['type' => 'string', 'length' => 32, 'nullable' => true, 'comment' => 'Poster provider: tmdb | omdb | ai'],
+                'poster_source_id' => ['type' => 'string', 'length' => 64, 'nullable' => true, 'comment' => 'Provider result id, e.g. tmdb:movie:603 | imdb:tt0133093'],
+                'poster_status' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'pending', 'comment' => 'Poster lifecycle: pending|ready|failed|none'],
+                'poster_meta' => ['type' => 'json', 'nullable' => true, 'comment' => 'Provider meta: year, original_title, overview, poster_url'],
+                'poster_fetched_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'When the poster was last fetched/stored'],
+                // Poster assist lease — mirrors AppQyV1_2026_06_15_000002_add_assist_lease_columns_to_media_tables.php.
+                'assist_claimed_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'Poster assist lease start (60-minute lease)'],
+                'assist_claimed_by' => ['type' => 'string', 'length' => 64, 'nullable' => true, 'comment' => 'Assist claimer identity (e.g. pycore worker id)'],
                 'created_at' => ['type' => 'timestamp', 'nullable' => true],
                 'updated_at' => ['type' => 'timestamp', 'nullable' => true],
             ],
             'indexes' => [
                 ['columns' => ['source_key'], 'unique' => true],
                 ['columns' => ['language']],
+                // Same name the migration uses → safeAddIndex is idempotent-by-name (no duplicate).
+                ['columns' => ['assist_claimed_at'], 'name' => 'idx_subtitles_assist_claimed_at'],
             ],
         ];
     }
@@ -249,6 +266,17 @@ class MediaIngestTablesInitializer
                 'sentence_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => 'Number of sentences'],
                 'synced_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'Last sync timestamp'],
                 'metadata' => ['type' => 'json', 'nullable' => true, 'comment' => 'Additional metadata'],
+                // Movie/TV poster — mirrors AppQyV1_2026_06_15_000001_add_poster_columns_to_media_tables.php
+                // (poster columns are added to BOTH the books and subtitles media tables).
+                'poster_filename' => ['type' => 'string', 'length' => 255, 'nullable' => true, 'comment' => 'Local poster filename under static/app_qy_v1/posters'],
+                'poster_provider' => ['type' => 'string', 'length' => 32, 'nullable' => true, 'comment' => 'Poster provider: tmdb | omdb | ai'],
+                'poster_source_id' => ['type' => 'string', 'length' => 64, 'nullable' => true, 'comment' => 'Provider result id, e.g. tmdb:movie:603 | imdb:tt0133093'],
+                'poster_status' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'default' => 'pending', 'comment' => 'Poster lifecycle: pending|ready|failed|none'],
+                'poster_meta' => ['type' => 'json', 'nullable' => true, 'comment' => 'Provider meta: year, original_title, overview, poster_url'],
+                'poster_fetched_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'When the poster was last fetched/stored'],
+                // Poster assist lease — mirrors AppQyV1_2026_06_15_000002_add_assist_lease_columns_to_media_tables.php.
+                'assist_claimed_at' => ['type' => 'timestamp', 'nullable' => true, 'comment' => 'Poster assist lease start (60-minute lease)'],
+                'assist_claimed_by' => ['type' => 'string', 'length' => 64, 'nullable' => true, 'comment' => 'Assist claimer identity (e.g. pycore worker id)'],
                 'created_at' => ['type' => 'timestamp', 'nullable' => true],
                 'updated_at' => ['type' => 'timestamp', 'nullable' => true],
             ],
@@ -256,6 +284,8 @@ class MediaIngestTablesInitializer
                 ['columns' => ['source_key'], 'unique' => true],
                 ['columns' => ['content_id'], 'unique' => true, 'name' => 'uniq_app_qy_v1_books_content_id'],
                 ['columns' => ['language']],
+                // Same name the migration uses → safeAddIndex is idempotent-by-name (no duplicate).
+                ['columns' => ['assist_claimed_at'], 'name' => 'idx_books_assist_claimed_at'],
             ],
         ];
     }

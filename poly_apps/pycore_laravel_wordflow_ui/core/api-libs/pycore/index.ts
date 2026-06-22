@@ -10,18 +10,23 @@ export type {
   BooksSupportedFormatsResponse, BooksAnalyzeOptions,
   BookSourceState, BooksStateResponse, BookSubmitItem, BooksSubmitResponse,
   BooksListResponse, BookChapter, BookSlot,
+  CoreBookCompletenessLang, CoreBookMissing, CoreBookCompleteness,
+  CoreBookSummary, CoreBookListResponse, CoreBookConvertRequest, CoreBookConvertResponse,
+  CoreBookGetResponse, CoreBookDeleteResponse, CoreBookAddLanguageRequest,
+  CoreBookFillAudioRequest, CoreBookEnrichResponse, CoreBookSubmitRequest, CoreBookSubmitResponse,
 } from './PycoreApi';
 
 export {
   connectPycoreWs, subscribe, subscribeWs, callRpc, onWsStatus, onWsDiag,
-  isWsConnected, getClientId,
+  isWsConnected, getClientId, setPycoreActive,
 } from './PycoreWs';
 
-export { connectPycoreSse, isSseConnected } from './PycoreSse';
+export { connectPycoreSse, isSseConnected, setPycoreSseActive } from './PycoreSse';
 
 export {
   getPycoreTarget, isPycoreRemote, pycoreTargetHost,
   getPycoreTargetRecent, normalizePycoreHost, setPycoreTarget,
+  localPycoreHost, pycoreEffectiveHost,
 } from './pycoreTarget';
 export type { PycoreTarget } from './pycoreTarget';
 

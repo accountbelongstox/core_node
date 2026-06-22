@@ -24,7 +24,7 @@ import {
   type WfRecitationSummary,
   type WfRecitationToday,
   type WfRecitationTodayPlan,
-} from '../../../core/api-libs/wordflow/WordflowApi';
+} from '../api-libs/wordflow/WordflowApi';
 import { isQueuedError } from '../../../core/api-libs/base';
 import { wfEventBus } from './WfEventBus';
 

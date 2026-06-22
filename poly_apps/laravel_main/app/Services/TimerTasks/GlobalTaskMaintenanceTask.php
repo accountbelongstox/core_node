@@ -64,14 +64,18 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
         $retagged = $this->retagLegacyDictionaryTasks();
         $purged = $this->purgeExpiredTerminalTasks();
         $workersPurged = $this->purgeStaleWorkers();
+        // Anti-starvation: nudge long-waiting background tasks up so the FAST
+        // interactive tier cannot indefinitely starve them (capped below FAST).
+        $aged = app(\App\Services\PriorityAgeService::class)->ageTasksPriority();
 
-        if ($released > 0 || $cleaned > 0 || $retagged > 0 || $purged > 0 || $workersPurged > 0) {
+        if ($released > 0 || $cleaned > 0 || $retagged > 0 || $purged > 0 || $workersPurged > 0 || $aged > 0) {
             $this->logInfo('Maintenance cycle', [
                 'tasks_released' => $released,
                 'workers_marked_offline' => $cleaned,
                 'legacy_tasks_retagged' => $retagged,
                 'terminal_tasks_purged' => $purged,
                 'stale_workers_purged' => $workersPurged,
+                'tasks_aged' => $aged,
             ]);
         }
     }

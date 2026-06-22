@@ -35,6 +35,94 @@ export interface GlobalTaskDetail extends GlobalTaskItem {
   completed_at?: string | null;
 }
 
+// ==================== Live task drilldown (detail / events / SSE stream) ====================
+// laravel_main control-plane routes (no-auth), NOT under /api/app_qy_v1:
+//   GET  /api/task/{id}/detail        — full detail snapshot (task + events + phase)
+//   POST /api/task/{id}/bump          — raise priority (default 100 = fast lane)
+//   GET  /api/task/{id}/stream        — SSE: task.detail-initial / task.event / ping / stream.close
+// These power the QueuePanel live drilldown modal + "Bump to top".
+
+/** Interactive fast-lane capability tag (EXACT, fixed vocabulary). null = either client may serve. */
+export type FastCapability = 'audio' | 'image' | 'translate' | 'sentence_audio' | null;
+
+/** The richer task object returned by GET /api/task/{id}/detail (data.task). */
+export interface GlobalTaskDetailFull {
+  task_id: string;
+  app_name: string;
+  task_type: string;
+  execution_type: string;
+  capability: FastCapability;
+  is_fast_tier: boolean;
+  status: string;
+  priority: number;
+  progress: number;
+  payload: any;
+  result: any;
+  error: string | null;
+  assigned_to: string | null;
+  assigned_at: string | null;
+  timeout_at: string | null;
+  completed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** One status-transition row in a task's event timeline. */
+export interface GlobalTaskEvent {
+  id: number | string;
+  /** Present on streamed `task.event` frames (the resume cursor); absent in the initial snapshot. */
+  _id?: number | string;
+  task_id?: string;
+  event: string;
+  worker_id: string | null;
+  attempt: number | null;
+  detail: any;
+  created_at: string | null;
+}
+
+/** What the worker is doing right now (phase + elapsed). */
+export interface GlobalTaskPhase {
+  phase: string | null;
+  worker_id: string | null;
+  elapsed_seconds: number | null;
+}
+
+/** Retry / timeout bookkeeping. */
+export interface GlobalTaskMeta {
+  total_attempts: number;
+  max_retries: number;
+  will_retry: boolean;
+  estimated_timeout_in_seconds: number | null;
+}
+
+/** Full GET /api/task/{id}/detail payload (envelope already unwrapped). Also the
+ *  EXACT shape pushed on the SSE `task.detail-initial` event. */
+export interface GlobalTaskDetailBundle {
+  task: GlobalTaskDetailFull;
+  events: GlobalTaskEvent[];
+  current_phase: GlobalTaskPhase;
+  metadata: GlobalTaskMeta;
+}
+
+/** Handlers for subscribeTaskDetail()'s EventSource lifecycle. */
+export interface TaskDetailStreamHandlers {
+  /** SSE `task.detail-initial` — the full detail bundle on open (and on each reconnect). */
+  onInitial?: (bundle: GlobalTaskDetailBundle) => void;
+  /** SSE `task.event` — one new status transition. */
+  onEvent?: (event: GlobalTaskEvent) => void;
+  /** SSE `ping` keep-alive (carries the cursor). */
+  onPing?: (cursor: string | null) => void;
+  /** SSE `stream.close` — server closed; the helper auto-reconnects from the cursor. */
+  onClose?: (cursor: string | null) => void;
+  /** Transport error (the browser EventSource auto-reconnects). */
+  onError?: (err: Event) => void;
+}
+
+/** Handle returned by subscribeTaskDetail(); call close() to tear the stream down. */
+export interface TaskDetailStreamHandle {
+  close: () => void;
+}
+
 /** GET /api/task/stats → data.stats (covers the full status vocabulary). */
 export interface GlobalTaskStats {
   total: number;
@@ -120,6 +208,37 @@ export interface TaskCenterOverview {
   };
   relations: TaskCenterRelation[];
   timestamp: string;
+}
+
+// ==================== Assist requests (CoreBook §6) ====================
+// Record-scoped assist-request layer on top of the worker-pull assist pool.
+// Real /api routes under /api/app_qy_v1/assist/requests (no-auth, same trust
+// level as media/ingest). The Task Center "Assist Requests" panel + per-record
+// modal drive these.
+
+/** A record-scoped assist request row. */
+export interface AssistRequestItem {
+  id: number;
+  record_type: 'book' | 'subtitle' | string;
+  source_key: string;
+  request_type: 'add_language' | 'fill_audio' | 'cover' | 'poster' | string;
+  language: string | null;
+  status: 'pending' | 'claimed' | 'processing' | 'completed' | 'failed' | string;
+  priority: number;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  payload: any;
+  result: any;
+  error: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** One item in a create request: which gap to fill for the record. */
+export interface AssistRequestCreateItem {
+  request_type: 'add_language' | 'fill_audio' | 'cover' | 'poster';
+  language?: string | null;
+  payload?: any;
 }
 
 /**
@@ -260,6 +379,155 @@ export class ServerManagerAPI extends BaseAPI {
     return this.post(`/task/${encodeURIComponent(taskId)}/cancel`, {});
   }
 
+  // ==================== Live task drilldown (detail / events / bump / SSE) ====================
+
+  /**
+   * Full live detail for one global task — the richer bundle (task + event
+   * timeline + current phase + retry/timeout metadata) that powers the queue
+   * drilldown modal. GET /api/task/{taskId}/detail.
+   *
+   * NOTE: distinct from getGlobalTaskDetail() (GET …/status), which returns the
+   * leaner single-task row used by the table.
+   */
+  async getTaskDetail(taskId: string): Promise<APIResponse<GlobalTaskDetailBundle>> {
+    return this.get(`/task/${encodeURIComponent(taskId)}/detail`);
+  }
+
+  /**
+   * Raise a pending task's priority (default 100 = the interactive fast lane),
+   * bumping it to the front of the queue. POST /api/task/{taskId}/bump.
+   * 404 if unknown, 409 if the task is no longer pending.
+   */
+  async bumpTaskPriority(
+    taskId: string,
+    priority: number = 100,
+  ): Promise<APIResponse<{ task_id: string; priority: number; status: string }>> {
+    return this.post(`/task/${encodeURIComponent(taskId)}/bump`, { priority });
+  }
+
+  /**
+   * Enqueue a USER-INITIATED single request on the interactive fast lane.
+   * POST /api/task/create with `interactive:true` so the created GlobalTask
+   * lands on `remote_fast` at priority 100. `capability` tags which lane-subset
+   * may claim it ("audio" | "image" | "translate" | "sentence_audio" | null for
+   * either client). Batch/scan enqueues stay interactive:false (the default) and
+   * MUST NOT use this method.
+   */
+  async createInteractiveTask(data: {
+    app_name: string;
+    task_type: string;
+    payload: any;
+    capability?: FastCapability;
+    execution_type?: string;
+    timeout_seconds?: number;
+  }): Promise<APIResponse<{ task_id: string; status: string; priority: number }>> {
+    return this.post('/task/create', {
+      ...data,
+      interactive: true,
+      capability: data.capability ?? null,
+    });
+  }
+
+  /**
+   * Subscribe to a task's live event stream over SSE (EventSource).
+   * GET /api/task/{taskId}/stream?cursor=<lastEventId>.
+   *
+   * Frames:
+   *   - "task.detail-initial" → onInitial(bundle)  (the EXACT getTaskDetail shape)
+   *   - "task.event"          → onEvent(event)      (one status transition; carries _id)
+   *   - "ping"                → onPing(cursor)       (keep-alive)
+   *   - "stream.close"        → onClose(cursor)      (server close → we reconnect with ?cursor=)
+   *
+   * The browser EventSource auto-reconnects on transport error; on an explicit
+   * server `stream.close` we close + reopen from the last `_id` seen so no event
+   * is dropped. Returns a handle whose close() tears everything down.
+   *
+   * NOTE: EventSource cannot send custom headers; this stream is a no-auth
+   * control-plane route, so the module's resolved base URL is sufficient.
+   */
+  subscribeTaskDetail(taskId: string, handlers: TaskDetailStreamHandlers): TaskDetailStreamHandle {
+    let source: EventSource | null = null;
+    let cursor: string | null = null;
+    let closed = false;
+    let terminal = false;
+
+    const buildUrl = (): string => {
+      const base = `${this.baseURL}/api/task/${encodeURIComponent(taskId)}/stream`;
+      return cursor !== null ? `${base}?cursor=${encodeURIComponent(cursor)}` : base;
+    };
+
+    const parse = (raw: string): any => {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    };
+
+    const open = (): void => {
+      if (closed || typeof EventSource === 'undefined') return;
+
+      const es = new EventSource(buildUrl());
+      source = es;
+
+      es.addEventListener('task.detail-initial', (ev) => {
+        const data = parse((ev as MessageEvent).data) as GlobalTaskDetailBundle | null;
+        if (data) handlers.onInitial?.(data);
+      });
+
+      es.addEventListener('task.event', (ev) => {
+        const data = parse((ev as MessageEvent).data) as GlobalTaskEvent | null;
+        if (!data) return;
+        // Advance the resume cursor (server keys reconnects by `_id`).
+        const id = data._id ?? data.id;
+        if (id !== undefined && id !== null) cursor = String(id);
+        // Track terminal arrival locally (belt-and-suspenders for the SSE close
+        // contract). Deliberately NOT 'failed'/'timeout', which may be retryable.
+        if (data.event === 'completed' || data.event === 'cancelled') terminal = true;
+        handlers.onEvent?.(data);
+      });
+
+      es.addEventListener('ping', (ev) => {
+        const data = parse((ev as MessageEvent).data);
+        if (data && data.cursor != null) cursor = String(data.cursor);
+        handlers.onPing?.(cursor);
+      });
+
+      es.addEventListener('stream.close', (ev) => {
+        const data = parse((ev as MessageEvent).data);
+        if (data && data.cursor != null) cursor = String(data.cursor);
+        handlers.onClose?.(cursor);
+        // SSE close contract: reopen ONLY when the task is still live. `done:true`
+        // means a terminal status (completed/completed_demo/failed/cancelled) —
+        // do NOT reconnect. `done!==true` means the ~25-50s Octane lifetime cap
+        // closed a still-running task, so resume from the cursor.
+        try { es.close(); } catch { /* ignore */ }
+        source = null;
+        if (!closed && data?.done !== true && !terminal) open();
+      });
+
+      es.onerror = (err) => {
+        handlers.onError?.(err);
+        // The browser EventSource will auto-reconnect to buildUrl()'s URL; since
+        // `cursor` is captured per-open in the URL it would resume from the old
+        // cursor. That is acceptable (the server de-dupes by cursor), so we let
+        // the native reconnect run rather than tearing down here.
+      };
+    };
+
+    open();
+
+    return {
+      close: () => {
+        closed = true;
+        if (source) {
+          try { source.close(); } catch { /* ignore */ }
+          source = null;
+        }
+      },
+    };
+  }
+
   /**
    * List registered workers.
    * GET /api/worker/list
@@ -283,6 +551,97 @@ export class ServerManagerAPI extends BaseAPI {
    */
   async getTaskCenterOverview(): Promise<APIResponse<TaskCenterOverview>> {
     return this.get('/task-center/overview');
+  }
+
+  // ==================== Assist requests (CoreBook §6) ====================
+  // Record-scoped assist requests under /api/app_qy_v1/assist/requests.
+  // Same no-auth trust level as media/ingest (server-side caller).
+
+  /**
+   * List assist requests with optional filters (Task Center panel).
+   * GET /api/app_qy_v1/assist/requests
+   */
+  async listAssistRequests(params?: {
+    record_type?: string;
+    source_key?: string;
+    status?: string;
+    request_type?: string;
+    per_page?: number;
+  }): Promise<APIResponse<{
+    success: boolean;
+    items: AssistRequestItem[];
+    total: number;
+    per_page: number;
+    current_page: number;
+    last_page: number;
+  }>> {
+    return this.get('/app_qy_v1/assist/requests', params);
+  }
+
+  /**
+   * File assist requests for ONE record (idempotent upsert per item).
+   * POST /api/app_qy_v1/assist/requests
+   */
+  async createAssistRequests(data: {
+    record_type: string;
+    source_key: string;
+    priority?: number;
+    items: AssistRequestCreateItem[];
+  }): Promise<APIResponse<{
+    success: boolean;
+    created: number;
+    existing: number;
+    items: AssistRequestItem[];
+  }>> {
+    return this.post('/app_qy_v1/assist/requests', data);
+  }
+
+  /**
+   * Worker lease pull (60-minute lease).
+   * POST /api/app_qy_v1/assist/requests/claim
+   */
+  async claimAssistRequests(data: {
+    types: string[];
+    limit?: number;
+    claimer: string;
+  }): Promise<APIResponse<{
+    success: boolean;
+    items: AssistRequestItem[];
+    lease_minutes: number;
+  }>> {
+    return this.post('/app_qy_v1/assist/requests/claim', data);
+  }
+
+  /**
+   * Report a request result (completed / failed / processing).
+   * POST /api/app_qy_v1/assist/requests/submit
+   */
+  async submitAssistRequest(data: {
+    id: number;
+    status: 'completed' | 'failed' | 'processing';
+    result?: any;
+    error?: string;
+  }): Promise<APIResponse<{ ok: boolean; status: string; already_done?: boolean }>> {
+    return this.post('/app_qy_v1/assist/requests/submit', data);
+  }
+
+  /**
+   * Release leased request(s) back to pending.
+   * POST /api/app_qy_v1/assist/requests/release
+   */
+  async releaseAssistRequests(data: {
+    ids: number[];
+    error?: string;
+  }): Promise<APIResponse<{ success: boolean; released: number }>> {
+    return this.post('/app_qy_v1/assist/requests/release', data);
+  }
+
+  /**
+   * Delete one assist request.
+   * DELETE /api/app_qy_v1/assist/requests/{id}
+   */
+  async deleteAssistRequest(id: number): Promise<APIResponse<{ success: boolean; deleted: number }>> {
+    return this.delete(`/app_qy_v1/assist/requests/${encodeURIComponent(String(id))}`);
   }
 
   /**

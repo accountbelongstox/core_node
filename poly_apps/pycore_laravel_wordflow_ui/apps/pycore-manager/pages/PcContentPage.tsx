@@ -1,56 +1,90 @@
 /**
- * PcContentPage — the unified "Content" page, merging the three former ingest
- * pages into ONE tabbed surface:
- *   - Books        (PcBooksPage)        — add book files/folders, analyze,
- *                  language multi-select + chapter→sentence correspondence tree,
- *                  sync to Laravel as source_type='book'.
+ * PcContentPage — the single laravel_main DATA-INGEST surface. ONE sidebar tab
+ * hosting every "add data to Laravel" feature as sub-tabs:
  *   - Subtitles    (PcVideoExtractPage) — video → subtitle (.srt) extraction,
- *                  language multi-select + per-cue multi-language correspondence,
- *                  sync to Laravel as source_type='subtitle'.
+ *                  per-cue multi-language correspondence, sync as source_type='subtitle'.
+ *   - Books        (PcBooksPage)        — add book files/folders, analyze,
+ *                  chapter→sentence correspondence tree, sync as source_type='book';
+ *                  also hosts the advanced CoreBook enrichment (PcCoreBookPanel:
+ *                  open/convert a portable book, add a language (batched AI), fill
+ *                  audio (TTS), submit to laravel_main) as a collapsible section.
  *   - Add Document (PcAddDocumentView)  — upload a doc/text file → analyze →
  *                  ingest into the shared sentence library as source_type='document'.
+ *   - Movie Poster (PcMoviePosterPage)  — TMDB/OMDB/SerpApi poster status + lookup
+ *                  test for the Books/Subtitles cover pipeline.
  *
- * The active sub-tab is reflected in the URL (?tab=books|subtitles|document) so
- * the legacy routes /books and /video-extract can redirect here with the matching
- * ?tab= (see PcApp.tsx). Sub-tab switching is animated with framer-motion; only
- * the active sub-view is mounted (each owns its own polling/WS). Labels are
- * hardcoded English to match the Books/Video pages (no `t` object on those pages).
+ * STATE RETENTION (the requirement): the active sub-tab is reflected in the URL
+ * (?tab=…) AND mirrored to localStorage, so the legacy routes (/books,
+ * /video-extract, /corebook→books, /movie-poster) redirect here with the matching ?tab=
+ * and a page refresh restores the same sub-tab. Crucially, sub-views are KEEP-ALIVE
+ * mounted: once a sub-tab has been visited it stays mounted (just hidden via
+ * `display:none`) instead of unmounting, so in-progress UI (selections, analysis
+ * results, running jobs, sync progress) is preserved when switching sub-tabs.
+ * Across a FULL reload each sub-view additionally re-hydrates its progress from the
+ * backend idempotently (Books getBooksState, Video-Extract task re-attach, CoreBook
+ * library fetch, Poster status), so the page returns to where the user left off.
+ *
+ * Labels are hardcoded English to match the embedded pages (no `t` object).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Library, BookOpen, Captions, FileText, type LucideIcon } from 'lucide-react';
-import { SUBTAB_MOTION } from '../components/PcAiShared';
+import { motion } from 'framer-motion';
+import {
+  Library, BookOpen, Captions, FileText, Clapperboard, type LucideIcon,
+} from 'lucide-react';
 import PcBooksPage from './PcBooksPage';
 import PcVideoExtractPage from './PcVideoExtractPage';
 import PcAddDocumentView from '../components/PcAddDocumentView';
+import PcMoviePosterPage from './PcMoviePosterPage';
 
-type ContentTab = 'books' | 'subtitles' | 'document';
+type ContentTab = 'subtitles' | 'books' | 'document' | 'poster';
 
 const TAB_KEY = 'pc_content_tab';
+const TAB_ORDER: ContentTab[] = ['subtitles', 'books', 'document', 'poster'];
 
 const isTab = (v: string | null): v is ContentTab =>
-  v === 'books' || v === 'subtitles' || v === 'document';
+  v != null && (TAB_ORDER as string[]).includes(v);
 
 interface TabDef { key: ContentTab; label: string; hint: string; Icon: LucideIcon; }
 
 const TABS: TabDef[] = [
-  { key: 'books', label: 'Books', hint: 'Add book files or folders, analyze them, and sync to Laravel as a sentence source.', Icon: BookOpen },
   { key: 'subtitles', label: 'Subtitles', hint: 'Extract subtitles from video and sync the per-cue multi-language correspondence to Laravel.', Icon: Captions },
+  { key: 'books', label: 'Books', hint: 'Add book files or folders, analyze them, and sync to Laravel — plus the advanced CoreBook enrichment (AI languages, audio, whole/partial submit).', Icon: BookOpen },
   { key: 'document', label: 'Add Document', hint: 'Upload a document or text file, analyze it, and ingest it into the shared sentence library.', Icon: FileText },
+  { key: 'poster', label: 'Movie Poster', hint: 'Poster providers (TMDB / OMDB / SerpApi) status and a lookup test for the Books/Subtitles cover pipeline.', Icon: Clapperboard },
 ];
+
+// Each sub-view's own outer chrome: Books / Video-Extract / Movie-Poster render
+// their own `p-6 md:p-8` padding; Add-Document does not, so it gets a padded
+// wrapper here. (CoreBook now lives inside Books as an advanced section.)
+const renderSubView = (key: ContentTab): React.ReactNode => {
+  switch (key) {
+    case 'subtitles': return <PcVideoExtractPage />;
+    case 'books': return <PcBooksPage />;
+    case 'document': return <div className="p-6 md:p-8"><PcAddDocumentView /></div>;
+    case 'poster': return <PcMoviePosterPage />;
+  }
+};
 
 const PcContentPage: React.FC = () => {
   // Initial tab: ?tab= (set by the legacy-route redirects) wins over the
   // last-used tab persisted in localStorage.
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState<ContentTab>(() => {
+  const initialTab = ((): ContentTab => {
     const fromUrl = searchParams.get('tab');
     if (isTab(fromUrl)) return fromUrl;
     const saved = localStorage.getItem(TAB_KEY);
-    return isTab(saved) ? saved : 'books';
-  });
+    return isTab(saved) ? saved : 'subtitles';
+  })();
+  const [tab, setTab] = useState<ContentTab>(initialTab);
   useEffect(() => { localStorage.setItem(TAB_KEY, tab); }, [tab]);
+
+  // Keep-alive set: a sub-tab is mounted once visited and never unmounted, so its
+  // in-progress UI survives switching to another sub-tab (it is only hidden).
+  const [mounted, setMounted] = useState<Set<ContentTab>>(() => new Set([initialTab]));
+  useEffect(() => {
+    setMounted((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)));
+  }, [tab]);
 
   // A legacy-slug redirect can land here while the page is ALREADY mounted
   // (only ?tab= changes, no remount) — keep the tab in sync with the URL.
@@ -81,7 +115,7 @@ const PcContentPage: React.FC = () => {
         </div>
 
         {/* sub-tab bar */}
-        <div className="flex rounded-xl pc-glass overflow-hidden w-full sm:w-auto self-start">
+        <div className="flex flex-wrap rounded-xl pc-glass overflow-hidden w-full sm:w-auto self-start">
           {TABS.map(({ key, label, Icon }) => (
             <button
               key={key}
@@ -104,18 +138,13 @@ const PcContentPage: React.FC = () => {
         </div>
       </div>
 
-      {/* animated sub-view swap; only the active sub-view is mounted */}
-      <AnimatePresence mode="wait">
-        <motion.div key={tab} {...SUBTAB_MOTION}>
-          {tab === 'books' && <PcBooksPage />}
-          {tab === 'subtitles' && <PcVideoExtractPage />}
-          {tab === 'document' && (
-            <div className="p-6 md:p-8">
-              <PcAddDocumentView />
-            </div>
-          )}
-        </motion.div>
-      </AnimatePresence>
+      {/* Keep-alive sub-views: every visited tab stays mounted (hidden when
+          inactive) so its progress/working UI is preserved across switches. */}
+      {TAB_ORDER.filter((key) => mounted.has(key)).map((key) => (
+        <div key={key} className={tab === key ? '' : 'hidden'} aria-hidden={tab !== key}>
+          {renderSubView(key)}
+        </div>
+      ))}
     </div>
   );
 };

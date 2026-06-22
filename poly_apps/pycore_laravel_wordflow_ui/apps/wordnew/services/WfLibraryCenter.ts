@@ -8,7 +8,7 @@
  * media-source mutations with a 'group-sources-changed' broadcast via
  * wfEventBus. */
 
-import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
+import { wordflowApi } from '../api-libs/wordflow/WordflowApi';
 import type {
   VocabularyRecommendation,
   WfPublicLibrary,
@@ -16,8 +16,8 @@ import type {
   WfSubtitleListResult,
   WfAddMediaSourceResult,
   WfGroupSourcesResult,
-} from '../../../core/api-libs/wordflow/WordflowApi';
-import { StorageCenter, StorageKey } from '../../../core/api-libs/wordflow/WordflowStorage';
+} from '../api-libs/wordflow/WordflowApi';
+import { StorageCenter, StorageKey } from '../api-libs/wordflow/WordflowStorage';
 import { wfEventBus } from './WfEventBus';
 
 class WfLibraryCenterClass {

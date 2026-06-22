@@ -23,6 +23,9 @@ class AppQyV1BatchAddTTSTasksRequest extends AppQyV1BaseRequest
             'tasks.*.type' => 'nullable|string|in:word,sentence,article',
             'tasks.*.priority' => 'nullable|integer|min:0|max:100',
             'default_priority' => 'nullable|integer|min:0|max:100',
+            // FE fast-track flag: when true the batch jumps to the front of the
+            // audio queue (handled in the controller).
+            'interactive' => 'nullable|boolean',
         ];
     }
 

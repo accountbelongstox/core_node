@@ -82,8 +82,15 @@ class AppQyV1VocabularyService
             $meta = self::buildLibraryMetadata($filename);
 
             try {
-                $existing = AppQyV1VocabularyLibraryModel::where('source', $meta['source'])->first();
+                // Normalize the lookup key to match the importer's canonical
+                // source so this skip-check and the upsert agree on identity.
+                $canonicalSource = AppQyV1VocabularyImporter::normalizeSource($meta['source']);
+                $existing = AppQyV1VocabularyLibraryModel::where('source', $canonicalSource)->first();
 
+                // Only skip when the row is ALREADY fully populated. A
+                // partially-created (empty word_ids) row falls through to
+                // createVocabularyCollection, which REUSES (upserts) it rather
+                // than inserting a duplicate.
                 if ($existing && count($existing->getWordIdsArray()) > 0) {
                     $results['libraries'][$filename] = 'already imported';
                     $results['skipped']++;

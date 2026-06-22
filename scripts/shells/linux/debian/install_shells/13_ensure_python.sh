@@ -297,15 +297,22 @@ run_pip_install_realtime() {
 
     # Build command array for safe execution
     local cmd_args=("$python_cmd" "-m" "pip" "install")
-    
+
     # Split package_spec into words and add to cmd_args
     # This handles cases like "--upgrade package1 package2"
     local IFS=' '
     read -ra package_words <<< "$package_spec"
     cmd_args+=("${package_words[@]}")
-    
-    # Add standard flags
-    cmd_args+=("--index-url" "https://pypi.org/simple/" "--break-system-packages" "--no-user")
+
+    # Add standard flags. The PEP 668 escape flags (--break-system-packages /
+    # --no-user) are needed ONLY for an externally-managed SYSTEM python; inside a
+    # venv they are unnecessary, so add them only when $python_cmd is NOT a venv
+    # interpreter (detected via pyvenv.cfg). This is what lets installs targeting
+    # $VENV_PYTHON3 land cleanly in the venv instead of scattering to ~/.local.
+    cmd_args+=("--index-url" "https://pypi.org/simple/")
+    if [ ! -f "$(dirname "$python_cmd")/../pyvenv.cfg" ]; then
+        cmd_args+=("--break-system-packages" "--no-user")
+    fi
     
     # Add additional flags if provided
     if [ -n "$additional_flags" ]; then

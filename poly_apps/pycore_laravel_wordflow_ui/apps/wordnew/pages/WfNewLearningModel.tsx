@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Headphones, Layers, Target, Volume2, Minus, Plus, ChevronRight } from 'lucide-react';
+import { Headphones, Layers, Volume2, Minus, Plus, ChevronRight } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 import { wfNewSettings } from '../WfNewSettingsStore';
 
@@ -16,7 +16,6 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 interface WfNewLearningModelProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
-  onBack: () => void;
   onOpenReview: () => void;
 }
 
@@ -71,7 +70,7 @@ const Toggle: React.FC<{ on: boolean; onChange: (v: boolean) => void }> = ({ on,
   </button>
 );
 
-export const WfNewLearningModel: React.FC<WfNewLearningModelProps> = ({ activeTheme, trans, onBack, onOpenReview }) => {
+export const WfNewLearningModel: React.FC<WfNewLearningModelProps> = ({ activeTheme, trans, onOpenReview }) => {
   const [dailyGoal, setDailyGoal] = useState<number>(() => wfNewSettings.get('dailyGoal'));
   const [mode, setMode] = useState<'walkman' | 'cards'>(() => wfNewSettings.get('memorizeMode'));
   const [playCount, setPlayCount] = useState<number>(() => wfNewSettings.get('wmPlayCount'));
@@ -90,20 +89,6 @@ export const WfNewLearningModel: React.FC<WfNewLearningModelProps> = ({ activeTh
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={onBack} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 transition-all cursor-pointer">
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div>
-          <h2 className="text-lg font-black text-slate-100 flex items-center gap-2">
-            <Target className="w-5 h-5 text-indigo-400" />
-            {trans('lm.title')}
-          </h2>
-          <p className="text-zinc-500 text-xs mt-0.5">{trans('lm.sub')}</p>
-        </div>
-      </div>
-
       {/* Daily target */}
       <div className={`p-6 rounded-3xl ${activeTheme.cardClass} border border-white/5 shadow-lg`}>
         <Row label={trans('lm.dailyWords')} hint={trans('onb.wordsPerDay')}>

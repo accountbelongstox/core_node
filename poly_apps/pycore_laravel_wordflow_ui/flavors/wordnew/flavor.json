@@ -1,0 +1,13 @@
+{
+  "id": "wordnew",
+  "name": "WordNew",
+  "shortName": "WordNew",
+  "appId": "com.corenode.wordnew",
+  "version": "1.0.0",
+  "rootRoute": "/wordnew",
+  "themeColor": "#4f46e5",
+  "backgroundColor": "#0f172a",
+  "description": "WordNew — AI vocabulary learning client (study, libraries, walkman, social).",
+  "icon": "icon.svg",
+  "splash": "splash.png"
+}

@@ -45,8 +45,15 @@ export const WfNewApiPaths = {
   logout: p('/logout'), // auth required
   forgotPassword: p('/forgot-password'),
   resetPassword: p('/reset-password'),
+  /** One-click social login/register (Google/GitHub) — backend exchanges the OAuth code. */
+  socialLogin: p('/auth/social'),
   /** Current authenticated user (echo) — GET, auth required. */
   currentUser: p('/user'),
+  /** Link / unlink a social provider to the current account (auth:sanctum). */
+  socialBind: p('/user/social/bind'),
+  socialUnbind: p('/user/social/unbind'),
+  /** Change password for the current account (auth:sanctum). */
+  changePassword: p('/user/change-password'),
 
   // ---- User profile (AppQyV1User.php — prefix app_qy_v1/user, auth:sanctum) ----
   userProfile: p('/user/profile'), // GET read / POST update
@@ -93,6 +100,18 @@ export const WfNewApiPaths = {
   },
   /** Subtitle/movie sources (data.items[]): + duration_sec, subtitle_count, sentence_count. */
   mediaSubtitles: (page = 1, perPage = 24): string => p(`/media/subtitles?page=${page}&per_page=${perPage}`),
+  /** Subtitle detail = source + segments[] (clip mp3/mp4 urls) + paginated sentences
+   *  (data.sentences.items[] with per-language text/audio). For the player + line list. */
+  mediaSubtitleDetail: (
+    sourceKey: string,
+    opts: { page?: number; perPage?: number; grain?: string } = {},
+  ): string => {
+    const page = opts.page ?? 1;
+    const perPage = opts.perPage ?? 500;
+    let q = `?page=${page}&per_page=${perPage}`;
+    if (opts.grain) q += `&grain=${encodeURIComponent(opts.grain)}`;
+    return p(`/media/subtitles/${encodeURIComponent(sourceKey)}${q}`);
+  },
   /** The user's own uploaded documents (data.items[]): id, title, language, word_count.
    *  Optional-auth: returns an empty page when unauthenticated (no 401). */
   mediaDocuments: (page = 1, perPage = 24): string => p(`/media/documents?page=${page}&per_page=${perPage}`),
@@ -102,6 +121,29 @@ export const WfNewApiPaths = {
   // collections (词库), distinct from a user's uploaded documents (mediaDocuments).
   /** Vocabulary libraries (data.libraries[]): id, name, word_count, language, category, image_url. */
   vocabularyLibraries: (page = 1, perPage = 24): string => p(`/vocabulary/libraries?page=${page}&per_page=${perPage}`),
+  /** Words of ONE public library (paginated): data.{library, words[], stats, pagination}.
+   *  Each word: word, md5, translations[], phonetic, explanation, images[{url}], audio_url. */
+  vocabularyLibraryWords: (libraryId: string, page = 1, perPage = 100): string =>
+    p(`/vocabulary/libraries/${encodeURIComponent(libraryId)}/words?page=${page}&per_page=${perPage}`),
+
+  // ---- Word media on-demand (AppQyV1 — file-first resolve + enqueue, PUBLIC) ----
+  /** Resolve a word's media + dictionary detail by (lang, word). File-first:
+   *  returns current image_url/audio_url + image_status/audio_status, and
+   *  ENQUEUES+prioritizes generation for whatever is still 'pending'. */
+  wordMedia: (lang: string, word: string): string =>
+    p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/media`),
+
+  // ---- Dictionary words (AppQyV1Vocabulary.php — paginated, PUBLIC) ----
+  /** Paginated dictionary words with audio + translation for the word-stats sidebar.
+   *  data.{words[], total, start, limit, language}. `filter` e.g. 'all'|'has_audio'. */
+  dictionaryWords: (opts: { language?: string; start?: number; limit?: number; filter?: string } = {}): string => {
+    const params = new URLSearchParams();
+    if (opts.language) params.set('language', opts.language);
+    params.set('start', String(opts.start ?? 0));
+    params.set('limit', String(opts.limit ?? 30));
+    if (opts.filter) params.set('filter', opts.filter);
+    return p(`/vocabulary/dictionary/words?${params.toString()}`);
+  },
 
   // ---- Words (AppQyV1Words.php — prefix app_qy_v1/words, auth:sanctum) ----
   dailyWords: (count: number): string => p(`/words/daily?count=${count}`),
@@ -112,11 +154,115 @@ export const WfNewApiPaths = {
 
   // ---- Social (AppQyV1Social.php — prefix app_qy_v1/social, custom.authenticate) ----
   socialFriends: p('/social/friends'),
-  socialSearch: (query: string): string => p(`/social/friends/search?q=${encodeURIComponent(query)}`),
+  socialSearch: (query: string, opts: { native?: string; target?: string } = {}): string => {
+    const params = new URLSearchParams();
+    params.set('q', query);
+    if (opts.native) params.set('native', opts.native);
+    if (opts.target) params.set('target', opts.target);
+    return p(`/social/friends/search?${params.toString()}`);
+  },
   socialFollow: p('/social/friends/follow'),
   socialUnfollow: p('/social/friends/unfollow'),
   socialLeaderboard: (period: 'week' | 'all'): string => p(`/social/leaderboard?period=${period}`),
   socialActivities: p('/social/activities'),
+
+  // ---- Social v2: discover / friend-requests / chat / presence / notifications ----
+  /** Language-partner discovery (GET): ?native=&target=&q=&limit=. */
+  socialDiscover: (opts: { native?: string; target?: string; q?: string; limit?: number } = {}): string => {
+    const params = new URLSearchParams();
+    if (opts.native) params.set('native', opts.native);
+    if (opts.target) params.set('target', opts.target);
+    if (opts.q) params.set('q', opts.q);
+    if (opts.limit != null) params.set('limit', String(opts.limit));
+    const qs = params.toString();
+    return p(`/social/discover${qs ? `?${qs}` : ''}`);
+  },
+  socialFriendRequest: p('/social/friends/request'),
+  socialFriendRespond: p('/social/friends/respond'),
+  socialFriendRequests: (direction: 'incoming' | 'outgoing' = 'incoming'): string =>
+    p(`/social/friends/requests?direction=${direction}`),
+  socialBlock: p('/social/friends/block'),
+
+  // Chat
+  socialConversations: p('/social/conversations'),
+  socialConversationMessages: (conversationId: number, cursor?: number | null): string => {
+    const params = new URLSearchParams();
+    params.set('limit', '50');
+    if (cursor != null) params.set('cursor', String(cursor));
+    return p(`/social/conversations/${conversationId}/messages?${params.toString()}`);
+  },
+  socialConversationSend: (conversationId: number): string => p(`/social/conversations/${conversationId}/messages`),
+  socialConversationRead: (conversationId: number): string => p(`/social/conversations/${conversationId}/read`),
+
+  // Presence
+  socialPresenceHeartbeat: p('/social/presence/heartbeat'),
+  socialPresence: (userIds: number[]): string => p(`/social/presence?user_ids=${userIds.join(',')}`),
+
+  // Notifications
+  socialNotifications: (cursor?: number | null, unreadOnly?: boolean): string => {
+    const params = new URLSearchParams();
+    if (cursor != null) params.set('cursor', String(cursor));
+    if (unreadOnly) params.set('unread', '1');
+    const qs = params.toString();
+    return p(`/social/notifications${qs ? `?${qs}` : ''}`);
+  },
+  socialNotificationsUnreadCount: p('/social/notifications/unread-count'),
+  socialNotificationRead: p('/social/notifications/read'),
+
+  /** Per-user SSE stream (GET, custom.authenticate); ?cursor= resumes from last _id. */
+  socialStream: (cursor?: number | null): string =>
+    p(`/social/stream${cursor != null ? `?cursor=${cursor}` : ''}`),
+
+  // ---- Social Center: posts / comments (AppQyV1Social.php — prefix app_qy_v1/social) ----
+  /** Plaza posts list (GET, PUBLIC): ?cursor=&limit=&filter=all|images|videos|following.
+   *  `author` is an OPTIONAL user-id scope for the profile page — the backend may
+   *  not honor it yet (see WfNewApiHttp.getPosts); sent only when provided. */
+  socialPosts: (opts: { cursor?: number | null; limit?: number; filter?: string; author?: number } = {}): string => {
+    const params = new URLSearchParams();
+    if (opts.cursor != null) params.set('cursor', String(opts.cursor));
+    params.set('limit', String(opts.limit ?? 20));
+    if (opts.filter && opts.filter !== 'all') params.set('filter', opts.filter);
+    if (opts.author != null) params.set('author', String(opts.author));
+    return p(`/social/posts?${params.toString()}`);
+  },
+  /** Create post (POST). */
+  socialPostsCreate: p('/social/posts'),
+  /** One post by id (GET) / delete (DELETE). */
+  socialPost: (postId: number): string => p(`/social/posts/${postId}`),
+  /** Like / unlike a post (POST). */
+  socialPostLike: (postId: number): string => p(`/social/posts/${postId}/like`),
+  socialPostUnlike: (postId: number): string => p(`/social/posts/${postId}/unlike`),
+  /** Post comments list (GET, PUBLIC) / add (POST). */
+  socialPostComments: (postId: number, cursor?: number | null): string => {
+    const params = new URLSearchParams();
+    if (cursor != null) params.set('cursor', String(cursor));
+    const qs = params.toString();
+    return p(`/social/posts/${postId}/comments${qs ? `?${qs}` : ''}`);
+  },
+  /** Delete one comment (DELETE). */
+  socialPostComment: (postId: number, commentId: number): string =>
+    p(`/social/posts/${postId}/comments/${commentId}`),
+  /** Attach images (POST multipart images[]) / a video clip (POST multipart video). */
+  socialPostImages: (postId: number): string => p(`/social/posts/${postId}/images`),
+  socialPostVideo: (postId: number): string => p(`/social/posts/${postId}/video`),
+
+  // ---- Social Center: live (AppQyV1Social.php — prefix app_qy_v1/social) ----
+  /** Live sessions list (GET, PUBLIC): ?status=live|all. */
+  socialLive: (status: 'live' | 'all' = 'live'): string => p(`/social/live?status=${status}`),
+  /** Start a live session (POST). */
+  socialLiveCreate: p('/social/live'),
+  /** End a live session (POST). */
+  socialLiveEnd: (liveId: number): string => p(`/social/live/${liveId}/end`),
+  /** Viewer heartbeat (POST) → { viewer_count }. */
+  socialLiveHeartbeat: (liveId: number): string => p(`/social/live/${liveId}/heartbeat`),
+  /** Live room chat list (GET, PUBLIC) / send (POST). */
+  socialLiveChat: (liveId: number, cursor?: number | null): string => {
+    const params = new URLSearchParams();
+    if (cursor != null) params.set('cursor', String(cursor));
+    const qs = params.toString();
+    return p(`/social/live/${liveId}/chat${qs ? `?${qs}` : ''}`);
+  },
+  socialLiveChatSend: (liveId: number): string => p(`/social/live/${liveId}/chat`),
 } as const;
 
 /**

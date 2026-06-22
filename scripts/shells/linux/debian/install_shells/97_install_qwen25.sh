@@ -100,11 +100,14 @@ install_dependencies() {
     if [[ "$has_gpu" == true ]]; then
         print_info "Uninstalling incompatible torch versions..."
         echo ""
+        # Print the exact command-string before running it (traceability).
+        echo "[97] $python_cmd -m pip uninstall --break-system-packages -y torch torchvision torchaudio"
         $python_cmd -m pip uninstall --break-system-packages -y torch torchvision torchaudio 2>/dev/null || true
         echo ""
 
         print_info "Installing GPU-enabled torch and dependencies..."
         echo ""
+        echo "[97] $python_cmd -m pip install --break-system-packages --no-user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124"
         $python_cmd -m pip install --break-system-packages --no-user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
         echo ""
     else
@@ -115,6 +118,7 @@ install_dependencies() {
 
     print_info "Installing transformers and accelerate..."
     echo ""
+    echo "[97] $python_cmd -m pip install --break-system-packages --no-user --upgrade transformers accelerate"
     $python_cmd -m pip install --break-system-packages --no-user --upgrade transformers accelerate
     echo ""
 

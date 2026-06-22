@@ -23,13 +23,13 @@
 import {
   wordflowApi,
   expandProgressEntry,
-} from '../../../core/api-libs/wordflow/WordflowApi';
+} from '../api-libs/wordflow/WordflowApi';
 import type {
   GroupProgressStats,
   WfGroupProgressBlob,
   WfGroupProgressUpdate,
   WfProgressEntry,
-} from '../../../core/api-libs/wordflow/WordflowApi';
+} from '../api-libs/wordflow/WordflowApi';
 import { wfEventBus } from './WfEventBus';
 
 /** Short TTL — every study action changes the blob, so hold it briefly. */

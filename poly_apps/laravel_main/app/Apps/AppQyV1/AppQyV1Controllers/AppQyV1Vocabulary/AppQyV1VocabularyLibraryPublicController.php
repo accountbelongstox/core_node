@@ -5,6 +5,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1ImageUrl;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Http\Controllers\Controller;
 use App\Providers\PathMapper;
@@ -37,19 +38,98 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         $limit = (int) $request->query('limit', 10);
         $limit = max(1, min($limit, 50));
 
-        $libraries = AppQyV1VocabularyLibraryModel::query()
-            ->public()
-            ->forLanguage($language)
-            ->where('is_recommended', true)
-            ->orderByDesc('total_words')
-            ->limit($limit)
-            ->get()
+        // Over-fetch then dedup: duplicate library rows (same canonical key)
+        // must collapse to one BEFORE the limit is applied, or the limit could
+        // be filled entirely by duplicates of fewer than $limit real libraries.
+        // The DB cap (limit * 4, floored) keeps the over-fetch bounded.
+        $fetchCap = max($limit * 4, 50);
+
+        $libraries = self::dedupLibraryCollection(
+            AppQyV1VocabularyLibraryModel::query()
+                ->public()
+                ->forLanguage($language)
+                ->where('is_recommended', true)
+                ->orderByDesc('total_words')
+                ->orderBy('id')
+                ->limit($fetchCap)
+                ->get()
+        )
+            ->take($limit)
             ->map(fn ($library) => $this->transformLibrary($library))
             ->values();
 
         return $this->success([
             'libraries' => $libraries,
         ]);
+    }
+
+    /**
+     * Collapse duplicate library rows to one per canonical key.
+     *
+     * The canonical key is the row's `source` when present, else a derived
+     * name+language slug (covers legacy rows whose source was left NULL/blank
+     * before the NOT-NULL backfill migration ran). Among duplicates the SURVIVOR
+     * is the row with the LOWEST id; if a later duplicate carries a larger
+     * total_words it is treated as the survivor's word_count (the lowest-id row
+     * is kept as the identity, but the richer count wins) so the visible count is
+     * never under-reported. Input order is otherwise preserved.
+     *
+     * @param \Illuminate\Support\Collection $rows
+     * @return \Illuminate\Support\Collection
+     */
+    public static function dedupLibraryCollection($rows)
+    {
+        $byKey = [];
+        $order = [];
+
+        foreach ($rows as $row) {
+            $key = self::canonicalLibraryKey($row);
+
+            if (!isset($byKey[$key])) {
+                $byKey[$key] = $row;
+                $order[] = $key;
+                continue;
+            }
+
+            $kept = $byKey[$key];
+
+            // Keep the LOWEST id as the surviving identity.
+            if ((int) $row->id < (int) $kept->id) {
+                // Carry the larger total_words forward onto the new survivor.
+                if ((int) $kept->total_words > (int) $row->total_words) {
+                    $row->total_words = (int) $kept->total_words;
+                }
+                $byKey[$key] = $row;
+            } elseif ((int) $row->total_words > (int) $kept->total_words) {
+                // Survivor stays, but adopt the larger count.
+                $kept->total_words = (int) $row->total_words;
+            }
+        }
+
+        $deduped = new \Illuminate\Support\Collection();
+        foreach ($order as $key) {
+            $deduped->push($byKey[$key]);
+        }
+
+        return $deduped;
+    }
+
+    /**
+     * Canonical dedup key for a library row: lowercased, slugified `source`
+     * when present, else "name|language" slugified. Mirrors the source-key
+     * derivation in AppQyV1VocabularyImporter so read-side dedup and write-side
+     * upsert agree on identity.
+     */
+    public static function canonicalLibraryKey(AppQyV1VocabularyLibraryModel $library): string
+    {
+        $source = trim((string) $library->source);
+        if ($source !== '') {
+            return mb_strtolower($source);
+        }
+
+        $name = mb_strtolower(trim((string) $library->name));
+        $language = mb_strtolower(trim((string) $library->language));
+        return $name . '|' . $language;
     }
 
     public function getStatistics(Request $request): JsonResponse
@@ -210,15 +290,27 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             });
         }
 
-        $total = (clone $query)->count();
-        $lastPage = max(1, (int) ceil($total / $perPage));
-
-        $libraries = $query
+        // Dedup-then-paginate: duplicate library rows (same canonical key) must
+        // collapse BEFORE slicing the page, or the total/last_page counts and the
+        // page contents would both double-count. The full filtered set is fetched
+        // in stable order, deduped in memory (the system catalogue is small ~tens
+        // of rows), and only then sliced — so the pagination math is over the
+        // DISTINCT set. word_ids is excluded from the fetch (heavy JSON, unused
+        // here).
+        $allRows = $query
             ->orderByDesc('is_recommended')
             ->orderBy('difficulty_level')
             ->orderByDesc('total_words')
-            ->forPage($page, $perPage)
-            ->get()
+            ->orderBy('id')
+            ->get();
+
+        $deduped = self::dedupLibraryCollection($allRows);
+
+        $total = $deduped->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+
+        $libraries = $deduped
+            ->slice(($page - 1) * $perPage, $perPage)
             ->map(fn ($library) => $this->transformLibrary($library))
             ->values();
 
@@ -267,6 +359,13 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
 
         $lastPage = max(1, (int) ceil($total / $perPage));
 
+        // On-page media prioritization (P5): bump the page's words that still
+        // lack image OR audio to the FRONT of the word_media queue so the visible
+        // page resolves first. Capped + non-blocking; the service swallows its
+        // own failures. The dictionary rows are already hydrated, so the
+        // missing-media check adds no extra queries.
+        $this->bumpPageMediaToFront($dictRows, $library->languageCode());
+
         return $this->success([
             'library' => [
                 'id' => (int) $library->id,
@@ -275,6 +374,9 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
                 'language' => $library->language,
             ],
             'words' => $words,
+            // Whole-library coverage (over the library's word_ids set, NOT just
+            // this page). Cheap aggregate count queries, no full hydration.
+            'stats' => self::buildLibraryWordStats($library),
             'pagination' => [
                 'current_page' => $page,
                 'per_page' => $perPage,
@@ -283,6 +385,121 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
                 'has_more' => $page < $lastPage,
             ],
         ]);
+    }
+
+    /**
+     * Bump the page's words that lack image OR audio to the FRONT of the
+     * word_media queue (P5 on-query prioritization). Operates on the already
+     * hydrated dictionary rows (no extra read), capped at MAX_PAGE_MEDIA_BUMP so
+     * a large page never floods the queue. Non-blocking: per-word failures are
+     * swallowed by the service.
+     *
+     * @param iterable $dictRows Hydrated AppQyV1LangDictionaryModel rows.
+     * @param string|null $langCode Library language code (null -> skip).
+     */
+    private function bumpPageMediaToFront($dictRows, ?string $langCode): void
+    {
+        if ($langCode === null) {
+            return;
+        }
+
+        $service = app(\App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService::class);
+        $maxBump = 50;
+        $bumped = 0;
+
+        foreach ($dictRows as $row) {
+            if ($bumped >= $maxBump) {
+                break;
+            }
+            // Invalid placeholder words are never re-queued.
+            $isValid = $row->is_valid === null ? true : (bool) $row->is_valid;
+            if (!$isValid) {
+                continue;
+            }
+
+            $hasImage = $service->resolveImageUrl($row) !== null;
+            $hasAudio = $service->resolveAudioUrl($row) !== null;
+            if ($hasImage && $hasAudio) {
+                continue;
+            }
+
+            // No target language at the page level; image/audio are language
+            // agnostic and translation coverage is bumped by per-word lookups.
+            $service->bumpQueriedWord($row, (string) $row->content, $langCode, null);
+            $bumped++;
+        }
+    }
+
+    /**
+     * Whole-library word coverage over the library's word_ids set:
+     *   { total, translated, with_audio, with_image, invalid }.
+     *
+     * Efficient: aggregate COUNT/SUM queries against the per-language dictionary
+     * table scoped to the library's id set (chunked WHERE IN), never hydrating
+     * rows. `total` is the membership count (word_ids length); the per-flag counts
+     * are over the rows that actually resolve in the dictionary. Invalid words are
+     * counted (they remain library-member placeholders), not excluded.
+     */
+    public static function buildLibraryWordStats(AppQyV1VocabularyLibraryModel $library): array
+    {
+        $ids = $library->getWordIdsArray();
+        $stats = [
+            'total' => count($ids),
+            'translated' => 0,
+            'with_audio' => 0,
+            'with_image' => 0,
+            'invalid' => 0,
+        ];
+
+        if (empty($ids)) {
+            return $stats;
+        }
+
+        $langCode = $library->languageCode();
+        if ($langCode === null) {
+            return $stats;
+        }
+
+        $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
+        $connectionName = $dictModel->getConnectionName();
+        $table = $dictModel->getTable();
+        if (!Schema::connection($connectionName)->hasTable($table)) {
+            return $stats;
+        }
+
+        $hasValidity = Schema::connection($connectionName)->hasColumn($table, 'is_valid');
+
+        // Booleans compared with true/false so the raw SQL is portable across
+        // pgsql (real boolean) and sqlite (true/false map to 1/0).
+        $selects = [
+            "SUM(CASE WHEN has_translation = true OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]') THEN 1 ELSE 0 END) as translated",
+            'SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as with_audio',
+            "SUM(CASE WHEN image_files IS NOT NULL AND image_files <> '' AND image_files <> '{}' AND image_files <> '[]' THEN 1 ELSE 0 END) as with_image",
+        ];
+        if ($hasValidity) {
+            $selects[] = 'SUM(CASE WHEN is_valid = false THEN 1 ELSE 0 END) as invalid';
+        } else {
+            $selects[] = '0 as invalid';
+        }
+        $selectSql = implode(', ', $selects);
+
+        // Chunk the id set so the WHERE IN never exceeds driver bind limits.
+        foreach (array_chunk($ids, 1000) as $chunk) {
+            $row = DB::connection($connectionName)
+                ->table($table)
+                ->whereIn('id', $chunk)
+                ->selectRaw($selectSql)
+                ->first();
+            if ($row === null) {
+                continue;
+            }
+            $stats['translated'] += (int) $row->translated;
+            $stats['with_audio'] += (int) $row->with_audio;
+            $stats['with_image'] += (int) $row->with_image;
+            $stats['invalid'] += (int) $row->invalid;
+        }
+
+        return $stats;
     }
 
     private function buildWordsForLanguage(string $language, int $page, int $perPage): array
@@ -422,25 +639,40 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
     }
 
     /**
-     * Shared word-entry tail built straight from a dictionary row:
-     * translations / phonetics / word_details / audio. word_details carries
-     * image_files (the previous SQL selected `d.image_files as word_details`),
-     * and the audio check uses the row's own tts_files (no extra md5 lookup).
+     * Shared word-entry tail built straight from a dictionary row (the contract
+     * the vocab library detail page relies on): md5, translations, phonetics,
+     * explanation, audio (url + available + has_audio flag), images (usable
+     * URLs), and the coverage/validity flags (has_translation / has_image /
+     * is_valid / validity_note).
+     *
+     * The audio check uses the row's own tts_files (no extra md5 lookup); images
+     * resolve every image_files entry through AppQyV1ImageUrl (Bing images are
+     * stored as LOCAL files, so the stored relative paths get the word-image
+     * serve-route prefix; absolute http(s) URLs pass through as a defensive
+     * fallback).
+     *
+     * INVALID words (is_valid=false) are LIBRARY MEMBERS and are KEPT here as
+     * placeholders (the FE greys them); they are never filtered out of this list.
      */
     public static function buildWordEntryFromDictionaryRow(AppQyV1LangDictionaryModel $row): array
     {
         $translations = self::simpleTranslationsFromDecoded($row->translations);
         $hasTranslation = $translations !== null;
 
-        $wordDetails = null;
-        if (is_array($row->image_files)) {
-            $wordDetails = $row->image_files;
-        }
+        // image_files -> usable { url } list (local relative paths mapped to the
+        // word-image serve route; absolute URLs pass through defensively).
+        $imageFiles = is_array($row->image_files) ? $row->image_files : [];
+        $images = AppQyV1ImageUrl::listFrom($imageFiles);
+        $hasImage = count($images) > 0;
 
+        // File-first audio: only report an audio_url when the file is on disk.
         $audioUrl = null;
         $audioAvailable = false;
         if (!empty($row->tts_files)) {
-            $audioBasePath = PathMapper::getLaravelDataDir() . '/tts_data/audio/';
+            // File-first: resolve against the canonical audio base (write target
+            // == serve base). PathMapper::getAppQyV1AudioBaseDir is the single
+            // source of truth for the static/app_qy_v1/audio tree.
+            $audioBasePath = PathMapper::getAppQyV1AudioBaseDir() . '/';
             foreach ($row->tts_files as $ttsFile) {
                 if (isset($ttsFile['path'])) {
                     $fullPath = $audioBasePath . $ttsFile['path'];
@@ -453,14 +685,35 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             }
         }
 
+        // Validity is externally asserted: only an explicit is_valid=false flags
+        // an invalid (placeholder) word; never-checked rows are valid.
+        $isValid = $row->is_valid === null ? true : (bool) $row->is_valid;
+
+        // Optional explanation: the dictionary has no dedicated column; when an
+        // AI explanation task has filled it, it lives under word_details. Surface
+        // a string explanation when present, else null.
+        $explanation = null;
+        if (is_array($row->word_details) && isset($row->word_details['explanation']) && is_string($row->word_details['explanation'])) {
+            $explanation = $row->word_details['explanation'];
+        }
+
         return [
+            'md5' => $row->md5,
             'translations' => $translations,
+            'phonetic' => $row->phonetic,
             'us_phonetic' => $row->us_phonetic,
             'uk_phonetic' => $row->uk_phonetic,
-            'word_details' => $wordDetails,
-            'has_translation' => $hasTranslation,
+            'explanation' => $explanation,
+            // word_details kept for backward compatibility (was image_files).
+            'word_details' => count($imageFiles) > 0 ? $imageFiles : null,
+            'images' => $images,
             'audio_url' => $audioUrl,
             'audio_available' => $audioAvailable,
+            'has_translation' => $hasTranslation,
+            'has_audio' => (bool) $row->has_audio,
+            'has_image' => $hasImage,
+            'is_valid' => $isValid,
+            'validity_note' => $row->validity_note,
         ];
     }
 

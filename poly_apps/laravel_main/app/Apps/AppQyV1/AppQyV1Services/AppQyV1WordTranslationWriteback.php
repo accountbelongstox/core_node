@@ -16,6 +16,8 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Events\WordTranslatedEvent;
 use App\Events\TranslationTaskCompletedEvent;
+use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -48,11 +50,17 @@ class AppQyV1WordTranslationWriteback
      * translation is never lost.
      *
      * Each entry is ['word' => ..., 'translation' => ...] plus optional rich
-     * fields produced by the Bing assist worker:
-     *   - 'phonetic' / 'us_phonetic' / 'uk_phonetic' (strings, fill-missing)
-     *   - 'image_urls'  (list of Bing sample-image URLs, fill-missing)
-     *   - 'audio_base64' (base64 mp3 of Bing's pronunciation, fill-missing)
-     * All rich fields are optional and never clobber existing data.
+     * fields produced by the Bing assist worker. AUDIO and IMAGES are
+     * BINARY/BASE64 only — the Bing media URLs are not fetchable server-side, so
+     * the chrome side captures the bytes in-page; there is NO server-side URL
+     * fetch here. All rich fields are optional and never clobber existing data
+     * (fill-missing):
+     *   - 'phonetic' / 'us_phonetic' / 'uk_phonetic' (strings)
+     *   - 'image_base64' (Bing sample images: base64 string list, or a list of
+     *     { base64, mime? }) -> decoded, validated by magic bytes, stored as
+     *     LOCAL files; their relative paths go into image_files
+     *   - 'audio_base64' (base64 mp3 of Bing's pronunciation) -> stored via
+     *     AppQyV1DictionaryTTSCoordinator::storeWordAudioBytes
      *
      * $invalidWords is a list of ['word' => ...] (or bare strings) the worker
      * could not resolve on Bing (confirmed no-entry); each is flagged
@@ -91,6 +99,10 @@ class AppQyV1WordTranslationWriteback
         // transaction commits (collected as [md5 => raw mp3 bytes]).
         $audioQueue = [];
 
+        // Image writes also do file I/O; deferred to after-commit, collected as
+        // [md5 => ['content' => word, 'images' => [base64 entries]]].
+        $imageQueue = [];
+
         // Map each word to its md5 once (was a findByMd5 per word).
         $md5ByWord = [];
         foreach ($translations as $item) {
@@ -127,7 +139,8 @@ class AppQyV1WordTranslationWriteback
             &$processed,
             &$failed,
             &$broadcastQueue,
-            &$audioQueue
+            &$audioQueue,
+            &$imageQueue
         ) {
             // Pre-load every word's dictionary row in ONE locked query. Enqueue
             // already created these rows, so they almost always exist; a rare miss
@@ -145,10 +158,17 @@ class AppQyV1WordTranslationWriteback
                 $translationText = $item['translation'] ?? null;
                 $hasTranslation = is_string($translationText) && $translationText !== '';
 
-                $imageUrls = $item['image_urls'] ?? [];
-                if (!is_array($imageUrls)) {
-                    $imageUrls = [];
-                }
+                // Images are BASE64-ONLY (same rule as audio): the Bing image URLs
+                // are not fetchable server-side, so the chrome side captures the
+                // bytes in-page and submits image_base64. Each entry is a base64
+                // string or { base64, mime? }. No image-URL fetch anywhere.
+                $imageBase64 = self::normalizeImageBase64($item);
+                $hasImages = !empty($imageBase64);
+
+                // Audio is BASE64-ONLY: the Bing pronunciation URL is not openable
+                // server-side (it requires the live page referrer/session), so the
+                // chrome side captures the bytes in-page and submits audio_base64.
+                // No audio_url download anywhere.
                 $audioBase64 = $item['audio_base64'] ?? null;
                 $hasPhonetic = !empty($item['phonetic']) || !empty($item['us_phonetic']) || !empty($item['uk_phonetic']);
                 $hasAudio = is_string($audioBase64) && $audioBase64 !== '';
@@ -156,7 +176,7 @@ class AppQyV1WordTranslationWriteback
                 // An entry must carry at least one usable field. A bare word with
                 // nothing attached is a no-op, not a translation.
                 if ($word === null || $word === '' ||
-                    (!$hasTranslation && !$hasPhonetic && !$imageUrls && !$hasAudio)) {
+                    (!$hasTranslation && !$hasPhonetic && !$hasImages && !$hasAudio)) {
                     $failed++;
                     continue;
                 }
@@ -246,14 +266,15 @@ class AppQyV1WordTranslationWriteback
                         $dirty = true;
                     }
 
-                    // --- Images (fill-missing — store Bing sample-image URLs) ---
-                    if (!empty($imageUrls) && empty($entry->image_files)) {
-                        $entry->image_files = array_values(array_filter(
-                            $imageUrls,
-                            static fn ($u) => is_string($u) && $u !== ''
-                        ));
-                        $entry->image_provider = 'bing';
-                        $dirty = true;
+                    // --- Images: queue base64 for after-commit file storage ---
+                    // Fill-missing — only when the row has no images yet; the
+                    // decode/validate/write-file + image_files update happens after
+                    // the lock is released (file I/O must not run under the lock).
+                    if ($hasImages && empty($entry->image_files)) {
+                        $imageQueue[$entry->md5] = [
+                            'content' => $entry->content,
+                            'images' => $imageBase64,
+                        ];
                     }
 
                     if ($dirty) {
@@ -314,6 +335,24 @@ class AppQyV1WordTranslationWriteback
                         'error' => $e->getMessage(),
                     ]);
                 }
+            }
+        }
+
+        // Persist Bing sample images after the lock is released — file I/O must
+        // not run inside the row-lock transaction. Each queued image is decoded,
+        // validated by magic bytes, written to the local word-images dir, and the
+        // resulting LOCAL relative paths are stored into image_files (fill-missing,
+        // re-checked: only when the row still has no images). Best-effort: an image
+        // failure never fails translation.
+        foreach ($imageQueue as $md5 => $payload) {
+            try {
+                self::storeWordImages($langCode, (string) $md5, $payload['content'] ?? '', $payload['images'] ?? []);
+            } catch (\Throwable $e) {
+                Log::warning('[AppQyV1WordTranslationWriteback] image store failed', [
+                    'task_id' => $taskId,
+                    'md5' => $md5,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 
@@ -405,6 +444,174 @@ class AppQyV1WordTranslationWriteback
             'failed' => $failed,
             'invalidated' => $invalidated,
         ];
+    }
+
+    /**
+     * Normalize an entry's image payload into a flat list of base64 strings.
+     * Accepts `image_base64` as a list of base64 strings OR a list of
+     * { base64, mime? } objects (mime is advisory only — the real type is
+     * decided by magic bytes at store time). Returns [] when absent/empty.
+     *
+     * @return array<int, string>  base64 strings
+     */
+    private static function normalizeImageBase64(array $item): array
+    {
+        $raw = $item['image_base64'] ?? null;
+        if ($raw === null) {
+            return [];
+        }
+        if (is_string($raw)) {
+            $raw = [$raw];
+        }
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($raw as $img) {
+            if (is_string($img) && $img !== '') {
+                $out[] = $img;
+            } elseif (is_array($img) && isset($img['base64']) && is_string($img['base64']) && $img['base64'] !== '') {
+                $out[] = $img['base64'];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Decode + validate + store a word's Bing sample images as LOCAL files, then
+     * write their relative paths into image_files (fill-missing).
+     *
+     * Mirrors AppQyV1DictionaryTTSCoordinator::storeWordAudioBytes: the row is
+     * re-read here (after the lock released), and images are written ONLY when the
+     * row still has none — existing images are never clobbered. Each base64 entry
+     * is decoded, validated by image magic bytes (PNG/JPEG/GIF/WebP), and written
+     * to PathMapper::getAppQyV1WordImagesDir("{lang}/word/{md5}_{i}.{ext}"). The
+     * stored image_files value is the list of bare relative paths (served via
+     * AppQyV1ImageUrl). No external image-URL fetch anywhere.
+     *
+     * @param array<int, string> $base64List
+     */
+    private static function storeWordImages(string $langCode, string $md5, string $content, array $base64List): void
+    {
+        if ($md5 === '' || empty($base64List)) {
+            return;
+        }
+
+        $entry = AppQyV1LangDictionaryModel::forLanguage($langCode)
+            ->where('md5', $md5)
+            ->first();
+        if (!$entry) {
+            return;
+        }
+        // Fill-missing: never clobber existing images.
+        if (!empty($entry->image_files)) {
+            return;
+        }
+
+        $baseDir = PathMapper::getAppQyV1WordImagesDir($langCode . '/word');
+        FileSystemManager::ensureDirectoryExists($baseDir);
+
+        $relativePaths = [];
+        $index = 0;
+        foreach ($base64List as $b64) {
+            // Strip an optional data-URI prefix ("data:image/png;base64,....").
+            if (is_string($b64) && str_starts_with($b64, 'data:')) {
+                $comma = strpos($b64, ',');
+                if ($comma !== false) {
+                    $b64 = substr($b64, $comma + 1);
+                }
+            }
+            $bytes = base64_decode((string) $b64, true);
+            if ($bytes === false || $bytes === '' || strlen($bytes) < 64) {
+                continue;
+            }
+
+            $ext = self::imageExtFromMagic($bytes);
+            if ($ext === null) {
+                // Not a recognized image (PNG/JPEG/GIF/WebP) — reject.
+                continue;
+            }
+
+            $suffix = $index === 0 ? '' : ('_' . $index);
+            $relative = $langCode . '/word/' . $md5 . $suffix . '.' . $ext;
+            $fullPath = PathMapper::getAppQyV1WordImagesDir($relative);
+            FileSystemManager::ensureDirectoryExists(dirname($fullPath));
+
+            if (@file_put_contents($fullPath, $bytes) === false) {
+                continue;
+            }
+            clearstatcache(true, $fullPath);
+            if (!file_exists($fullPath) || filesize($fullPath) !== strlen($bytes)) {
+                @unlink($fullPath);
+                continue;
+            }
+
+            $relativePaths[] = $relative;
+            $index++;
+        }
+
+        if (empty($relativePaths)) {
+            return;
+        }
+
+        // Re-check fill-missing right before the write (a concurrent path may have
+        // filled images between the read above and now).
+        $entry->refresh();
+        if (!empty($entry->image_files)) {
+            return;
+        }
+        $entry->image_files = $relativePaths;
+        $entry->image_provider = 'bing';
+
+        // Reflect queue completion on the image_* process-state columns (mirrors
+        // the tts_* completion transition) so the image queue/coordinator sees
+        // the row as done. Guarded with hasAttribute-style isset so a host whose
+        // image_* migration has not run yet still stores images without error.
+        if (\Illuminate\Support\Facades\Schema::connection($entry->getConnectionName())
+            ->hasColumn($entry->getTable(), 'image_status')) {
+            $entry->image_status = 'completed';
+            $entry->image_completed_at = now();
+            $entry->image_locked_at = null;
+            $entry->image_locked_by = null;
+        }
+
+        $entry->save();
+
+        Log::info('[AppQyV1WordTranslationWriteback] Word images stored', [
+            'language' => $langCode,
+            'md5' => $md5,
+            'count' => count($relativePaths),
+        ]);
+    }
+
+    /**
+     * Decide an image file extension from magic bytes. Returns null when the
+     * bytes are not a recognized raster image (PNG / JPEG / GIF / WebP).
+     */
+    private static function imageExtFromMagic(string $bytes): ?string
+    {
+        $len = strlen($bytes);
+        if ($len < 12) {
+            return null;
+        }
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if (substr($bytes, 0, 8) === "\x89PNG\x0d\x0a\x1a\x0a") {
+            return 'png';
+        }
+        // JPEG: FF D8 FF
+        if (substr($bytes, 0, 3) === "\xff\xd8\xff") {
+            return 'jpg';
+        }
+        // GIF: "GIF87a" / "GIF89a"
+        if (substr($bytes, 0, 6) === 'GIF87a' || substr($bytes, 0, 6) === 'GIF89a') {
+            return 'gif';
+        }
+        // WebP: "RIFF"...."WEBP"
+        if (substr($bytes, 0, 4) === 'RIFF' && substr($bytes, 8, 4) === 'WEBP') {
+            return 'webp';
+        }
+        return null;
     }
 
     /**

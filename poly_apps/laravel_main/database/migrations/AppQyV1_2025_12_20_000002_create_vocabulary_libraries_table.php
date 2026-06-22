@@ -55,9 +55,14 @@ return new class extends Migration
                     'nullable' => true,
                 ],
                 'source' => [
+                    // Canonical NOT-NULL idempotency key (name+language derived
+                    // when not explicitly given). NOT NULL + the unique index
+                    // below make a duplicate library row impossible. On existing
+                    // installs the NOT-NULL flip + backfill is done by
+                    // AppQyV1_2026_06_20_200002 (after the 200001 dedup).
                     'type' => 'string',
                     'length' => 100,
-                    'nullable' => true,
+                    'nullable' => false,
                 ],
                 'difficulty_level' => [
                     'type' => 'string',

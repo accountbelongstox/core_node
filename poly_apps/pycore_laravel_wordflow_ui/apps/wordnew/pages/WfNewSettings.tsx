@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Settings, User, Check, RefreshCw, Star, Languages, Flame, GraduationCap, Compass,
-  ChevronDown, Sliders, ToggleLeft, VolumeX, Library, BookmarkCheck, ArrowRight, Sun, Moon
+import {
+  Check, RefreshCw, Star, Languages, Flame, GraduationCap, Compass,
+  ChevronDown, Sliders, ToggleLeft, VolumeX, Library, BookmarkCheck, ArrowRight, Sun, Moon, Play,
+  Database, Trash2, Sparkles,
 } from 'lucide-react';
 import { ElementTheme, UserStats } from '../WfNewTypes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
@@ -12,6 +13,7 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { wfNewApi, type WfNewLanguage } from '../api';
 import { WfNewLogo } from '../WfNewBrand';
 import { WfNewLanguagePanel } from '../components/WfNewLanguagePanel';
+import { WfNewCacheManager } from '../components/WfNewCacheManager';
 
 interface WfNewSettingsProps {
   activeTheme: ElementTheme;
@@ -34,6 +36,12 @@ interface WfNewSettingsProps {
   onOpenLanguages: () => void;
   /** Open the Learning Model sub-page (memorization mode + walkman params). */
   onOpenLearningModel: () => void;
+  /** Open the subtitle Playback Settings sub-page. */
+  onOpenPlaybackSettings: () => void;
+  /** Open the AI Lab (custom word forge) — relocated off the bottom dock. */
+  onOpenLabs: () => void;
+  /** Navigate to the dedicated About page. */
+  onOpenAbout: () => void;
   /** Account-bound settings (languages) are hidden when logged out. */
   isLoggedIn: boolean;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
@@ -57,11 +65,18 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
   onClearCache,
   onOpenLanguages,
   onOpenLearningModel,
+  onOpenPlaybackSettings,
+  onOpenLabs,
+  onOpenAbout,
   isLoggedIn,
   trans
 }) => {
   const [goalInput, setGoalInput] = useState<number>(userStats.dailyGoal);
   const [resetting, setResetting] = useState(false);
+
+  // Cache section now opens the dedicated Cache Manager (per-item / all clear)
+  // instead of clearing directly — see WfNewCacheManager.
+  const [cacheManagerOpen, setCacheManagerOpen] = useState(false);
 
   // --- Dynamic New Setting States (backed by the shared WfNewSettingsStore) ---
   // A. Dropdown setting (Select) - Accent Engine
@@ -163,9 +178,6 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
     }, 1200);
   };
 
-  const AVATARS = [
-    '🤖', '🦁', '🦊', '🦉', '🎓', '🛸', '🚀', '⭐', '✨'
-  ];
 
   return (
     <motion.div
@@ -173,69 +185,16 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
       animate={{ opacity: 1, scale: 1 }}
       className="space-y-8 pb-24 max-w-4xl mx-auto"
     >
-      {/* Page Title */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-200/50 dark:border-white/5 pb-5">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-indigo-950 dark:text-white flex items-center gap-2">
-            <Settings className="w-6 h-6 text-indigo-500 animate-spin" style={{ animationDuration: '6s' }} />
-            {trans('settings.title')}
-          </h2>
-          <p className="text-zinc-500 text-xs mt-1">{trans('settings.sub')}</p>
-        </div>
-        <div className="text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-full border border-indigo-500/15 w-fit">
-          ENGINE: v5.24 SECURE SHELL
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         
         {/* Vessel Pilot credentials settings */}
         <div className={`p-6 rounded-3xl ${activeTheme.cardClass} space-y-5 shadow-sm`}>
           <h3 className="text-sm font-extrabold font-mono uppercase tracking-wider text-indigo-500 dark:text-indigo-400 flex items-center gap-2 border-b border-zinc-100 dark:border-white/5 pb-2">
-            <User className="w-4 h-4" />
-            {trans('settings.profile')}
+            <GraduationCap className="w-4 h-4" />
+            {trans('settings.goal')}
           </h3>
 
-          {/* Avatar pick items */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
-              {trans('settings.avatar')}
-            </label>
-            <div className="flex gap-2 flex-wrap pt-1">
-              {AVATARS.map(avatar => (
-                <button
-                  key={avatar}
-                  onClick={() => {
-                    setAvatarUrl(avatar);
-                    wfNewSettings.setField('avatar', avatar);
-                  }}
-                  className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all bg-zinc-100 dark:bg-white/5 border hover:bg-zinc-200 dark:hover:bg-white/10 ${
-                    avatarUrl === avatar 
-                      ? 'border-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/10 scale-105' 
-                      : 'border-transparent'
-                  }`}
-                >
-                  {avatar}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Nickname input */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">
-              {trans('settings.nickname')}
-            </label>
-            <input
-              type="text"
-              value={nickname}
-              onChange={(e) => {
-                setNickname(e.target.value);
-                wfNewSettings.setField('nickname', e.target.value);
-              }}
-              className={`w-full py-2.5 px-4 text-xs font-mono rounded-xl outline-none transition-all ${activeTheme.inputClass}`}
-            />
-          </div>
+          {/* Avatar + nickname live in Edit Profile (not duplicated here). */}
 
           {/* Daily standard target selection dial */}
           <div className="space-y-2">
@@ -605,6 +564,26 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
               <span>{trans('set.learningModel')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
+
+            {/* Playback Settings — subtitle player preferences sub-page. */}
+            <button
+              type="button"
+              onClick={onOpenPlaybackSettings}
+              className="w-full flex items-center justify-between py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono font-bold text-zinc-300 transition-all cursor-pointer"
+            >
+              <span className="flex items-center gap-2"><Play className="w-3.5 h-3.5 text-indigo-400" />{trans('set.playbackSettings')}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+
+            {/* AI Lab — custom word forge (relocated off the bottom dock). */}
+            <button
+              type="button"
+              onClick={onOpenLabs}
+              className="w-full flex items-center justify-between py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono font-bold text-zinc-300 transition-all cursor-pointer"
+            >
+              <span className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-amber-400" />{trans('set.aiLab')}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Column B: Acoustic proportional ratios & reading sequence */}
@@ -707,21 +686,42 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
         </div>
       </div>
 
-      {/* About Us — brand logo + identity (uses the shared WfNewLogo). */}
-      <div className={`p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left`}>
-        <WfNewLogo size={64} className="shrink-0 shadow-lg" />
-        <div className="space-y-1.5">
-          <h3 className="text-sm font-extrabold font-mono uppercase tracking-wider text-indigo-500 dark:text-indigo-400">
-            {trans('about.title')}
+      {/* Cache — opens the dedicated Cache Manager (clear one / several / all). */}
+      <div className={`p-6 sm:p-8 rounded-3xl ${activeTheme.cardClass} space-y-4 shadow-md`}>
+        <div className="flex items-center gap-2 border-b border-zinc-100 dark:border-white/5 pb-3">
+          <Database className="w-5 h-5 text-indigo-500" />
+          <h3 className="text-base font-extrabold tracking-tight text-indigo-950 dark:text-white">
+            {trans('cache.title')}
           </h3>
-          <p className="text-lg font-black tracking-tight text-indigo-950 dark:text-white">
-            {trans('about.appName')}
-            <span className="ml-2 text-[10px] font-mono font-bold text-zinc-400 align-middle">{trans('about.version')}</span>
-          </p>
-          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-prose">
-            {trans('about.desc')}
-          </p>
         </div>
+        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono leading-relaxed">
+          {trans('cache.desc')}
+        </p>
+        <button
+          onClick={() => setCacheManagerOpen(true)}
+          className="w-full text-xs font-mono font-bold uppercase tracking-widest bg-rose-500/10 hover:bg-rose-500/25 text-rose-500 dark:text-rose-400 py-3 rounded-2xl border border-rose-500/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+        >
+          <Trash2 className="w-4 h-4" />
+          {trans('cache.clearBtn')}
+        </button>
+      </div>
+
+      <WfNewCacheManager open={cacheManagerOpen} onClose={() => setCacheManagerOpen(false)} trans={trans} />
+
+      {/* About — a settings item whose ICON is the brand LOGO; tapping it
+          NAVIGATES to the dedicated About page (rich multilingual description). */}
+      <div className={`rounded-3xl ${activeTheme.cardClass} shadow-sm overflow-hidden`}>
+        <button
+          onClick={onOpenAbout}
+          className="w-full flex items-center gap-3 px-5 py-4 hover:bg-black/[0.03] dark:hover:bg-white/5 transition-colors cursor-pointer"
+        >
+          <WfNewLogo size={32} className="shrink-0" />
+          <span className="flex-1 text-left text-sm font-extrabold tracking-tight text-indigo-950 dark:text-white">
+            {trans('about.title')}
+          </span>
+          <span className="text-[11px] font-mono font-bold text-zinc-400">{trans('about.version')}</span>
+          <ArrowRight className="w-4 h-4 text-zinc-400" />
+        </button>
       </div>
 
       {/* Shared floating language panel (native + multi targets). */}

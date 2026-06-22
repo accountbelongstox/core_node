@@ -99,6 +99,8 @@ install_dependencies() {
     # Note: NLLB-200 works well with CPU, no need for GPU-specific torch
     print_info "Installing transformers, sentencepiece, and protobuf..."
     echo ""
+    # Print the exact command-string before running it (traceability).
+    echo "[98] $python_cmd -m pip install --break-system-packages --no-user --upgrade transformers sentencepiece protobuf sacremoses"
     $python_cmd -m pip install --break-system-packages --no-user --upgrade transformers sentencepiece protobuf sacremoses
     echo ""
 

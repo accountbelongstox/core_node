@@ -46,6 +46,14 @@ class User extends Authenticatable
         'preferences',
         'bio',
         'location',
+        'phone',
+        // OAuth / social-login identity (shared across all apps) — see
+        // global_2026_06_20_000001_add_oauth_to_users_table.php.
+        'google_id',
+        'github_id',
+        'oauth_provider',
+        'oauth_avatar',
+        'phone_verified_at',
     ];
 
     /**

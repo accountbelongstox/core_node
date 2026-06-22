@@ -20,7 +20,7 @@ import {
   AlertTriangle, Filter, RotateCcw, ScrollText, GitBranch,
   Send, Inbox, CheckCircle2, XCircle, Layers, BarChart3, CircleSlash,
   FolderTree, Folder, File as FileIcon, ChevronRight, ChevronDown,
-  GitCompare, FileMinus, FilePlus, FileWarning,
+  GitCompare, FileMinus, FilePlus, FileWarning, Feather,
 } from 'lucide-react';
 import {
   pycoreApi, subscribe, connectPycoreWs, onWsStatus,
@@ -377,6 +377,8 @@ const PcCodeSyncPage: React.FC = () => {
   const role: CodeSyncRole = self?.role ?? 'client';
   const distributing = !!self?.distributing;
   const skipUpdate = !!(self?.skip_update ?? self?.summary?.skip_update);
+  // Start-time RECEIVE-ONLY light mode: read-only indicator (no toggle).
+  const light = !!(self?.light ?? self?.summary?.light);
   const selfCode: CodeStats | undefined = self?.code ?? self?.summary?.code;
 
   // --- derived stats for the icon strip ---------------------------------- #
@@ -525,6 +527,9 @@ const PcCodeSyncPage: React.FC = () => {
   };
   const peerSkipping = (p: PeerStatus): boolean =>
     !!(p.status?.skip_update ?? p.status?.summary?.skip_update);
+  // Peer's start-time RECEIVE-ONLY light mode (read-only indicator).
+  const peerLight = (p: PeerStatus): boolean =>
+    !!(p.status?.light ?? p.status?.summary?.light);
 
   // Live phase for a peer row: prefer this device's per-peer push channel,
   // else the peer's own aggregate sync_phase.
@@ -550,6 +555,14 @@ const PcCodeSyncPage: React.FC = () => {
   const skippingBadge = (
     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-500/15 text-amber-500">
       <PauseCircle className="w-3 h-3" /> Skipping
+    </span>
+  );
+
+  // Read-only start-time light-mode badge (no toggle); shared self + per-peer.
+  const lightBadge = (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-teal-500/15 text-teal-500"
+      title="Light mode — receive-only (set at startup)">
+      <Feather className="w-3 h-3" /> Light
     </span>
   );
 
@@ -819,6 +832,12 @@ const PcCodeSyncPage: React.FC = () => {
               {skipUpdate ? 'Skipping' : 'Receiving'}
             </span>
           )}
+          {light && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 text-teal-500"
+              title="Light mode — receive-only (set at startup, read-only)">
+              <Feather className="w-3.5 h-3.5" /> Light
+            </span>
+          )}
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white/40 dark:bg-white/5 border border-slate-300/35 dark:border-white/5 text-slate-600 dark:text-slate-300"
             title="Total peers">
             <Users className="w-3.5 h-3.5" /> {peers.length}
@@ -1006,6 +1025,7 @@ const PcCodeSyncPage: React.FC = () => {
                           </span>
                         )}
                         {peerSkipping(p) && skippingBadge}
+                        {peerLight(p) && lightBadge}
                         {phaseBadge(peerPhase(p))}
                       </div>
                       <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">

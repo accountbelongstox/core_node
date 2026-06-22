@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Languages, Globe, Target, Check, X, Save } from 'lucide-react';
+import { Languages, Globe, Target, Check, X, Save, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import Portal from '../../../components/shared/Portal';
 import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '../../../styles/overlay';
 import { wfNewApi, type WfNewLanguage } from '../api';
+import { WFNEW_BUILTIN_LANGUAGES } from '../api/WfNewApiDefaults';
+
+/** Most-studied languages, shown first; the rest hide behind "show all". */
+const COMMON_CODES = ['en', 'zh', 'ja', 'ko', 'es', 'fr', 'de', 'ru', 'ar', 'pt', 'it', 'hi'];
 
 /**
  * WfNewLanguagePanel — the SHARED floating language picker, usable anywhere.
@@ -27,15 +31,30 @@ interface WfNewLanguagePanelProps {
   trans: (key: string, replacements?: Record<string, string | number>) => string;
   /** Optional toast for validation/feedback. */
   addToast?: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
+  /** Hide the native/source section (e.g. registration only needs targets). */
+  hideNative?: boolean;
+  /** Skip the backend sync on Save and just hand the selection to onSave — for
+   *  PRE-AUTH use (registration) where there is no session to persist against. */
+  localOnly?: boolean;
 }
 
 export const WfNewLanguagePanel: React.FC<WfNewLanguagePanelProps> = ({
-  open, onClose, nativeLang, targetLangs, options, onSave, trans, addToast,
+  open, onClose, nativeLang, targetLangs, options, onSave, trans, addToast, hideNative, localOnly,
 }) => {
   const [opts, setOpts] = useState<WfNewLanguage[]>(options || []);
   const [native, setNative] = useState(nativeLang);
   const [targets, setTargets] = useState<string[]>(targetLangs);
   const [saving, setSaving] = useState(false);
+  // Per-section search query + "show all" expansion (collapsed → common only).
+  const [nativeSearch, setNativeSearch] = useState('');
+  const [targetSearch, setTargetSearch] = useState('');
+  const [nativeExpanded, setNativeExpanded] = useState(false);
+  const [targetExpanded, setTargetExpanded] = useState(false);
+
+  // Reset search/expansion whenever the panel re-opens.
+  useEffect(() => {
+    if (open) { setNativeSearch(''); setTargetSearch(''); setNativeExpanded(false); setTargetExpanded(false); }
+  }, [open]);
 
   // Reset the draft to the host's values each time the panel opens.
   useEffect(() => {
@@ -71,11 +90,55 @@ export const WfNewLanguagePanel: React.FC<WfNewLanguagePanelProps> = ({
   const labelFor = (l: WfNewLanguage) =>
     l.native_name && l.native_name !== l.name ? `${l.native_name} · ${l.name}` : l.name;
 
+  const matches = (l: WfNewLanguage, q: string) => {
+    const s = q.trim().toLowerCase();
+    if (!s) return true;
+    return l.code.toLowerCase().includes(s) ||
+      (l.name || '').toLowerCase().includes(s) ||
+      (l.native_name || '').toLowerCase().includes(s);
+  };
+
+  /**
+   * The chips to render for a section: while searching → every match; otherwise →
+   * the common set PLUS anything already selected (so a non-common pick stays
+   * visible), expanding to the full catalog when "show all" is on.
+   */
+  // Always have a non-empty catalog so BOTH sections render even if the live
+  // fetch / passed options came back empty (falls back to the built-in list).
+  const catalog: WfNewLanguage[] = opts.length ? opts : WFNEW_BUILTIN_LANGUAGES;
+
+  const visibleFor = (search: string, expanded: boolean, selected: string[]): WfNewLanguage[] => {
+    const q = search.trim();
+    if (q) return catalog.filter((l) => matches(l, q));
+    if (expanded) return catalog;
+    const common = new Set(COMMON_CODES);
+    const sel = new Set(selected);
+    return catalog.filter((l) => common.has(l.code) || sel.has(l.code));
+  };
+
+  const hiddenCount = (search: string, expanded: boolean, selected: string[]) =>
+    search.trim() || expanded ? 0 : catalog.length - visibleFor(search, false, selected).length;
+
+  const searchBox = (value: string, onChange: (v: string) => void) => (
+    <div className="relative">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={trans('lang.searchPh')}
+        className="w-full py-2 pl-9 pr-3 rounded-xl text-xs bg-white/5 border border-white/10 text-slate-100 outline-none focus:border-indigo-500/50 placeholder-zinc-500"
+      />
+    </div>
+  );
+
   const handleSave = async () => {
     if (saving) return;
     if (targets.length === 0) { addToast?.(trans('lang.needTarget'), 'warning'); return; }
-    setSaving(true);
     const sel = { native_language: native, learning_languages: targets };
+    // Pre-auth (registration): no session to sync against — hand the selection
+    // straight back to the host and close, skipping the backend call.
+    if (localOnly) { onSave(sel); onClose(); return; }
+    setSaving(true);
     try {
       const saved = await wfNewApi.setLearningLanguages(sel);
       onSave(saved);
@@ -105,13 +168,16 @@ export const WfNewLanguagePanel: React.FC<WfNewLanguagePanelProps> = ({
             </button>
           </div>
 
-          {/* Native / source language (single) */}
+          {/* Native / source language (single) — search + common-first.
+              Hidden when the host only needs learning targets (e.g. registration). */}
+          {!hideNative && (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-400">
               <Globe className="w-3.5 h-3.5" /><span>{trans('lang.sourceTitle')}</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {opts.map((l) => (
+            {searchBox(nativeSearch, setNativeSearch)}
+            <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto">
+              {visibleFor(nativeSearch, nativeExpanded, [native]).map((l) => (
                 <button
                   key={`n-${l.code}`}
                   type="button"
@@ -123,8 +189,18 @@ export const WfNewLanguagePanel: React.FC<WfNewLanguagePanelProps> = ({
                   {labelFor(l)}
                 </button>
               ))}
+              {nativeSearch.trim() && visibleFor(nativeSearch, nativeExpanded, [native]).length === 0 && (
+                <span className="text-[11px] text-zinc-500 font-mono py-1">{trans('lang.noMatch')}</span>
+              )}
             </div>
+            {!nativeSearch.trim() && (hiddenCount(nativeSearch, nativeExpanded, [native]) > 0 || nativeExpanded) && (
+              <button type="button" onClick={() => setNativeExpanded((v) => !v)}
+                className="flex items-center gap-1 text-[10px] font-mono font-bold text-indigo-400 hover:text-indigo-300 cursor-pointer">
+                {nativeExpanded ? <><ChevronUp className="w-3 h-3" />{trans('lang.collapse')}</> : <><ChevronDown className="w-3 h-3" />{trans('lang.showAll', { count: hiddenCount(nativeSearch, false, [native]) })}</>}
+              </button>
+            )}
           </div>
+          )}
 
           {/* Learning targets (multi) */}
           <div className="space-y-2">
@@ -134,8 +210,9 @@ export const WfNewLanguagePanel: React.FC<WfNewLanguagePanelProps> = ({
               </div>
               <span className="text-[10px] text-zinc-500 font-mono">{trans('lang.selectedCount', { count: targets.length })}</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {opts.map((l) => {
+            {searchBox(targetSearch, setTargetSearch)}
+            <div className="flex flex-wrap gap-2 max-h-44 overflow-y-auto">
+              {visibleFor(targetSearch, targetExpanded, targets).map((l) => {
                 const active = targets.includes(l.code);
                 return (
                   <button
@@ -150,7 +227,16 @@ export const WfNewLanguagePanel: React.FC<WfNewLanguagePanelProps> = ({
                   </button>
                 );
               })}
+              {targetSearch.trim() && visibleFor(targetSearch, targetExpanded, targets).length === 0 && (
+                <span className="text-[11px] text-zinc-500 font-mono py-1">{trans('lang.noMatch')}</span>
+              )}
             </div>
+            {!targetSearch.trim() && (hiddenCount(targetSearch, targetExpanded, targets) > 0 || targetExpanded) && (
+              <button type="button" onClick={() => setTargetExpanded((v) => !v)}
+                className="flex items-center gap-1 text-[10px] font-mono font-bold text-indigo-400 hover:text-indigo-300 cursor-pointer">
+                {targetExpanded ? <><ChevronUp className="w-3 h-3" />{trans('lang.collapse')}</> : <><ChevronDown className="w-3 h-3" />{trans('lang.showAll', { count: hiddenCount(targetSearch, false, targets) })}</>}
+              </button>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-1">

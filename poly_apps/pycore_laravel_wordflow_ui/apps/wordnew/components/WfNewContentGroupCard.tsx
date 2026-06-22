@@ -46,6 +46,8 @@ interface WfNewContentGroupCardProps {
   theme: ElementTheme;
   onClick: () => void;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
+  /** Grid mode: fill the cell width instead of the fixed rail width (w-56/60). */
+  fullWidth?: boolean;
 }
 
 export const WfNewContentGroupCard: React.FC<WfNewContentGroupCardProps> = ({
@@ -53,6 +55,7 @@ export const WfNewContentGroupCard: React.FC<WfNewContentGroupCardProps> = ({
   theme,
   onClick,
   trans,
+  fullWidth = false,
 }) => {
   const style = WFNEW_KIND_STYLES[group.kind];
   const { Icon } = style;
@@ -65,7 +68,7 @@ export const WfNewContentGroupCard: React.FC<WfNewContentGroupCardProps> = ({
       onClick={onClick}
       whileHover={{ y: -4, scale: 1.01 }}
       whileTap={{ scale: 0.98 }}
-      className={`w-56 sm:w-60 shrink-0 rounded-3xl cursor-pointer group overflow-hidden transition-all duration-300 ${theme.cardClass}`}
+      className={`${fullWidth ? 'w-full' : 'w-56 sm:w-60 shrink-0'} rounded-3xl cursor-pointer group overflow-hidden transition-all duration-300 ${theme.cardClass}`}
     >
       {/* Cover: real poster when present, else a kind-coloured gradient + icon. */}
       <div className="relative h-28 w-full overflow-hidden">

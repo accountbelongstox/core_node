@@ -17,7 +17,7 @@ import type {
   SystemResourcesResponse, VideoExtractOpenKind, VideoExtractOpenResponse,
   CodeSyncRole, CodeSyncPeersResponse, CodeSyncCandidate,
   SyncSettings, SyncSettingsResponse, SyncLogEntry, FileTreeResponse, PeerFileTreeResponse,
-  AutostartStatus, AiProbeResponse, AiProvider, AiBalance, AiBalanceResponse, AiRateLimitsResponse, AiChatMessage, AiChatResponse, AiGatewayStatus,
+  AutostartStatus, AutostartTarget, AiProbeResponse, AiProvider, AiBalance, AiBalanceResponse, AiRateLimitsResponse, AiChatMessage, AiChatResponse, AiGatewayStatus,
   AiUsageResponse,
   AiImageResponse, ImageHistoryResponse, ImageHistoryClearResponse, ImageHistoryDeleteResponse,
   AiKeysResponse, AiKeySetRequest, AiKeySetResponse, AiKeyDeleteResponse, AiKeyResetCooldownResponse,
@@ -26,6 +26,18 @@ import type {
   LocalTaskDetailResponse, PycoreGlobalTaskDetailResponse,
   AssistStatus, AssistConfigPatch, AssistConfigResponse, AssistCycleResponse,
   PosterStatus, PosterTestResponse,
+  TranslateStatus, TranslateResponse, TranslateAiResponse,
+  ImageSearchStatus, ImageSearchResponse, ImageSearchCompareResponse,
+  ImageSearchHistoryResponse, ImageSearchHistoryDeleteResponse, ImageSearchHistoryClearResponse,
+  SubtitleSearchStatus, SubtitleSearchProbe, SubtitleSearchOptions, SubtitleSearchResponse,
+  SubtitleDownloadResponse, SubtitleSearchHistoryResponse,
+  SubtitleSearchHistoryDeleteResponse, SubtitleSearchHistoryClearResponse,
+  SubtitleProvidersResponse, SubtitleProviderProbe,
+  SubtitleCacheStats, SubtitleCacheClearResponse,
+  TranslateHistoryResponse, TranslateHistoryDeleteResponse, TranslateHistoryClearResponse,
+  PcQueueOverview, PcCapabilitySettings, PcCapabilityKey,
+  PcCapabilitySaveResponse, PcCapabilityOptions,
+  PcTaskRecentResponse, PcTaskClearResponse,
 } from './pycoreTypes';
 
 import { MasterApiClient } from '../base';
@@ -205,6 +217,51 @@ export interface BooksListResponse {
   selected_languages?: string[];
   error?: string;
 }
+
+// --- CoreBook portable format (pycore /api/local/corebook) ---------------- #
+export interface CoreBookCompletenessLang { text: number; audio: number; }
+export interface CoreBookMissing { kind: 'language' | 'audio'; language: string; count: number; }
+export interface CoreBookCompleteness {
+  languages: Record<string, CoreBookCompletenessLang>;
+  missing: CoreBookMissing[];
+}
+export interface CoreBookSummary {
+  source_key?: string;
+  source_type: string;
+  title?: string;
+  language?: string;
+  selected_languages: string[];
+  chapter_count: number;
+  slot_count: number;
+  completeness: CoreBookCompleteness;
+  updated_at?: number;
+}
+export interface CoreBookListResponse { success: boolean; items: CoreBookSummary[]; error?: string; }
+export interface CoreBookConvertRequest {
+  path: string; language?: string; languages?: string[]; source_type?: string; text?: string;
+}
+export interface CoreBookConvertResponse { success: boolean; summary?: CoreBookSummary; error?: string; }
+export interface CoreBookGetResponse {
+  success: boolean; summary?: CoreBookSummary;
+  source: Record<string, unknown>; chapters: BookChapter[]; slots: BookSlot[];
+  total_slots: number; start: number; limit: number; error?: string;
+}
+export interface CoreBookDeleteResponse { success: boolean; removed: boolean; error?: string; }
+export interface CoreBookAddLanguageRequest {
+  source_key: string; target_language: string; source_language?: string;
+  provider?: string; chunk_size?: number; grain?: string;
+}
+export interface CoreBookFillAudioRequest {
+  source_key: string; languages: string[]; rate?: string; grain?: string;
+}
+export interface CoreBookEnrichResponse {
+  success: boolean; result: Record<string, any>; summary?: CoreBookSummary; error?: string;
+}
+export interface CoreBookSubmitRequest {
+  source_key: string; upload_audio?: boolean; request_assist?: boolean;
+  assist_items?: { request_type: string; language?: string }[];
+}
+export interface CoreBookSubmitResponse { success: boolean; result: Record<string, any>; error?: string; }
 
 export const pycoreApi = {
   // --- queue (pycore /voice-subtitle, mapped via mapQueueSnapshot) --------- #
@@ -402,6 +459,31 @@ export const pycoreApi = {
       method: 'POST', body: fd,
     });
     return (await r.json()) as BooksAnalyzeResponse;
+  },
+
+  // --- CoreBook portable format (pycore /api/local/corebook) -------------- #
+  // Convert a document -> a saved CoreBook (1 book / N chapters / multi-language
+  // / per-language audio), enrich it (add a language via batched AI translation;
+  // fill audio locally via TTS) and submit it (whole or partial) to laravel_main.
+  corebookList: () =>
+    getJSON<CoreBookListResponse>('/pyapi/api/local/corebook/list'),
+  corebookConvert: (req: CoreBookConvertRequest) =>
+    postJSON<CoreBookConvertResponse>('/pyapi/api/local/corebook/convert', req),
+  corebookGet: (source_key: string, start = 0, limit = 0) =>
+    getJSON<CoreBookGetResponse>(
+      `/pyapi/api/local/corebook/get?source_key=${encodeURIComponent(source_key)}`
+      + `&start=${start}&limit=${limit}`),
+  corebookAddLanguage: (req: CoreBookAddLanguageRequest) =>
+    postJSON<CoreBookEnrichResponse>('/pyapi/api/local/corebook/add-language', req),
+  corebookFillAudio: (req: CoreBookFillAudioRequest) =>
+    postJSON<CoreBookEnrichResponse>('/pyapi/api/local/corebook/fill-audio', req),
+  corebookSubmit: (req: CoreBookSubmitRequest) =>
+    postJSON<CoreBookSubmitResponse>('/pyapi/api/local/corebook/submit', req),
+  corebookDelete: async (source_key: string): Promise<CoreBookDeleteResponse> => {
+    const r = await pycoreMasterClient.request(
+      `/pyapi/api/local/corebook/delete?source_key=${encodeURIComponent(source_key)}`,
+      { method: 'DELETE' });
+    return (await r.json()) as CoreBookDeleteResponse;
   },
 
   // --- code sync (peer mesh: dev/client roles + peer list) ---------------- #
@@ -629,6 +711,22 @@ export const pycoreApi = {
   runAssistCycle: () =>
     postJSON<AssistCycleResponse>('/pyapi/api/local/assist/cycle', {}),
 
+  // --- Recent tasks (unified cross-end task history: pycore + chrome) ------- #
+  // Newest-first log of finished task units across both ends, with roll-up
+  // stats. Optional filters (end / worker / task_type) are applied server-side;
+  // the FE also filters client-side for the chip UI. Clear wipes the ring + the
+  // on-disk text log.
+  getRecentTasks: (params: { limit?: number; end?: string; worker?: string; task_type?: string } = {}) => {
+    const q = new URLSearchParams();
+    q.set('limit', String(params.limit ?? 100));
+    if (params.end) q.set('end', params.end);
+    if (params.worker) q.set('worker', params.worker);
+    if (params.task_type) q.set('task_type', params.task_type);
+    return getJSON<PcTaskRecentResponse>(`/pyapi/api/local/tasks/recent?${q.toString()}`);
+  },
+  clearRecentTasks: () =>
+    postJSON<PcTaskClearResponse>('/pyapi/api/local/tasks/clear', {}),
+
   // --- Movie / TV poster (TMDB + OMDB key status + fetch toggle + lookup) -- #
   // status: masked provider keys + the ingest fetch flag (media_sync.fetch_poster).
   // config: persist that same flag. test: one poster lookup with the base64 image
@@ -639,11 +737,112 @@ export const pycoreApi = {
   testPoster: (title: string, year?: number) =>
     postJSON<PosterTestResponse>('/pyapi/api/local/poster/test',
       year != null ? { title, year } : { title }),
+  /** Zero the local-reuse-vs-fetch counters; returns the fresh status. */
+  resetPosterStats: () =>
+    postJSON<PosterStatus>('/pyapi/api/local/poster/stats/reset', {}),
+
+  // --- Google Translate (free googletrans + AI comparison on one input) --- #
+  // status: googletrans availability/version + cache info. translate: the free
+  // lib path ({error} on failure, never throws). translateAi: the SAME text
+  // through the unified AI gateway so the UI can compare Google vs AI.
+  getTranslateStatus: () => getJSON<TranslateStatus>('/pyapi/api/local/translate/status'),
+  translate: (text: string, src = 'auto', dest = 'en', useCache = true) =>
+    postJSON<TranslateResponse>('/pyapi/api/local/translate',
+      { text, src, dest, use_cache: useCache }),
+  translateAi: (text: string, src = 'auto', dest = 'en') =>
+    postJSON<TranslateAiResponse>('/pyapi/api/local/translate/ai', { text, src, dest }),
+
+  // --- Image search (SerpApi Google-Images + AI comparison + history) ----- #
+  // status: SerpApi key present + engine + history count. search: real Google
+  // images for a query (records history). searchAi: an AI render of the SAME
+  // query (unified IMAGE contract). compare: both in one call + a combined
+  // history record. Plus the search-history list/delete/clear. This is the same
+  // SerpApi capability the poster pipeline now prefers as its first source.
+  getImageSearchStatus: () => getJSON<ImageSearchStatus>('/pyapi/api/local/image-search/status'),
+  searchImages: (query: string, num = 12, country?: string, record = true) =>
+    postJSON<ImageSearchResponse>('/pyapi/api/local/image-search',
+      { query, num, country, record }),
+  searchImagesAi: (query: string, size?: string, model?: string) =>
+    postJSON<AiImageResponse>('/pyapi/api/local/image-search/ai', { query, size, model }),
+  compareImages: (query: string, num = 12, country?: string, size?: string, model?: string) =>
+    postJSON<ImageSearchCompareResponse>('/pyapi/api/local/image-search/compare',
+      { query, num, country, size, model }),
+  getImageSearchHistory: (limit = 50) =>
+    getJSON<ImageSearchHistoryResponse>(`/pyapi/api/local/image-search/history?limit=${encodeURIComponent(String(limit))}`),
+  deleteImageSearchHistory: (id: string) =>
+    deleteJSON<ImageSearchHistoryDeleteResponse>(`/pyapi/api/local/image-search/history/${encodeURIComponent(id)}`),
+  clearImageSearchHistory: () =>
+    postJSON<ImageSearchHistoryClearResponse>('/pyapi/api/local/image-search/history/clear', {}),
+
+  // --- Subtitle search (OpenSubtitles search + download + history) -------- #
+  // status: OpenSubtitles key present + authenticated state + history count.
+  // probe: a lightweight reachability/latency check. search: subtitles for a
+  // movie/TV title (records history). download: pull one result's file (inline
+  // .srt content or a saved path). Plus the search-history list/delete/clear.
+  getSubtitleSearchStatus: () =>
+    getJSON<SubtitleSearchStatus>('/pyapi/api/local/subtitle-search/status'),
+  probeSubtitleSearch: () =>
+    getJSON<SubtitleSearchProbe>('/pyapi/api/local/subtitle-search/probe'),
+  // Provider fallback chain (ordered) + a live per-provider probe.
+  getSubtitleProviders: () =>
+    getJSON<SubtitleProvidersResponse>('/pyapi/api/local/subtitle-search/providers'),
+  testSubtitleProvider: (name: string) =>
+    postJSON<SubtitleProviderProbe>(`/pyapi/api/local/subtitle-search/providers/${encodeURIComponent(name)}/test`, {}),
+  // Download cache: cached subtitle downloads are reused so a rate/quota-limited
+  // provider file is never pulled twice. Stats are local (no network); clear wipes it.
+  getSubtitleCacheStats: () => getJSON<SubtitleCacheStats>('/pyapi/api/local/subtitle-search/cache'),
+  clearSubtitleCache: () => postJSON<SubtitleCacheClearResponse>('/pyapi/api/local/subtitle-search/cache/clear', {}),
+  searchSubtitles: (query: string, opts: SubtitleSearchOptions = {}) =>
+    postJSON<SubtitleSearchResponse>('/pyapi/api/local/subtitle-search',
+      { query, ...opts }),
+  downloadSubtitle: (file_id: number | string, record = true) =>
+    postJSON<SubtitleDownloadResponse>('/pyapi/api/local/subtitle-search/download',
+      { file_id, record }),
+  getSubtitleSearchHistory: (limit = 50) =>
+    getJSON<SubtitleSearchHistoryResponse>(`/pyapi/api/local/subtitle-search/history?limit=${encodeURIComponent(String(limit))}`),
+  deleteSubtitleSearchHistory: (id: string) =>
+    deleteJSON<SubtitleSearchHistoryDeleteResponse>(`/pyapi/api/local/subtitle-search/history/${encodeURIComponent(id)}`),
+  clearSubtitleSearchHistory: () =>
+    postJSON<SubtitleSearchHistoryClearResponse>('/pyapi/api/local/subtitle-search/history/clear', {}),
+
+  // --- translate history (Google / AI translate usage records) ------------ #
+  getTranslateHistory: (limit = 50) =>
+    getJSON<TranslateHistoryResponse>(`/pyapi/api/local/translate/history?limit=${encodeURIComponent(String(limit))}`),
+  deleteTranslateHistory: (id: string) =>
+    deleteJSON<TranslateHistoryDeleteResponse>(`/pyapi/api/local/translate/history/${encodeURIComponent(id)}`),
+  clearTranslateHistory: () =>
+    postJSON<TranslateHistoryClearResponse>('/pyapi/api/local/translate/history/clear', {}),
+
+  // --- Queue Center: unified overview (contract A) ------------------------ #
+  // pycore is the hub: it fans out to the selected Laravel endpoint for the
+  // per-category counts + worker registry and merges its own engine status. All
+  // 8 categories are always present (zeros when empty); laravel_reachable:false
+  // means the counts are zeroed but the categories + local engines still report.
+  getQueueOverview: () =>
+    getJSON<PcQueueOverview>('/pyapi/api/local/queue/overview'),
+
+  // --- Queue Center: capability settings (contract B) --------------------- #
+  // Read all four capability blocks (priority + availability + options).
+  getCapabilitySettings: () =>
+    getJSON<PcCapabilitySettings>('/pyapi/api/local/capabilities/settings'),
+  // Persist ONE capability's priority/options and live-apply; returns the
+  // updated block. `priority` re-orders the engine chain (omitted engines are
+  // appended in default order server-side, so a save can never silence it);
+  // `options` carries the TTS tuning (synth_timeout_s / edge_cooldown_s).
+  saveCapabilitySettings: (
+    capability: PcCapabilityKey,
+    patch: { priority?: string[]; options?: PcCapabilityOptions },
+  ) =>
+    postJSON<PcCapabilitySaveResponse>('/pyapi/api/local/capabilities/settings', {
+      capability, ...patch,
+    }),
 
   // --- auto-start on boot (native OS startup entry) ----------------------- #
   getAutostart: () => getJSON<AutostartStatus>('/pyapi/api/manage/control/autostart'),
-  setAutostart: (enabled: boolean) =>
-    postJSON<AutostartStatus>('/pyapi/api/manage/control/autostart', { enabled }),
+  // target/mechanism are optional; the backend falls back to the persisted
+  // preference, so a bare enable keeps the historical behavior.
+  setAutostart: (enabled: boolean, target?: AutostartTarget, mechanism?: string) =>
+    postJSON<AutostartStatus>('/pyapi/api/manage/control/autostart', { enabled, target, mechanism }),
 };
 
 export type PycoreApi = typeof pycoreApi;

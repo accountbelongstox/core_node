@@ -380,6 +380,10 @@ class MediaBrowseController extends Controller
                 ? $v3['row']
                 : $link->langSentence($link->primary_language ?: 'en');
 
+            // Slot metadata carries the verse's real reference (e.g. "1:1") + book
+            // for sources seeded as one book with chapter-per-sub-book (the Bible).
+            $meta = is_array($link->metadata) ? $link->metadata : [];
+
             $entry = [
                 'grain' => $link->grain,
                 'seq' => $link->seq,
@@ -387,6 +391,8 @@ class MediaBrowseController extends Controller
                 'sub_idx' => $link->sub_idx,
                 'start_sec' => $link->start_sec,
                 'end_sec' => $link->end_sec,
+                'ref' => $meta['ref'] ?? null,
+                'book' => $meta['book'] ?? null,
                 'text' => $sentence->text ?? null,
                 'language' => $sentence->language ?? null,
                 'explanation' => $sentence->explanation ?? null,

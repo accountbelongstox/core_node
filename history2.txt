@@ -1,0 +1,2597 @@
+
+❯ e following installation scripts will be executed in order:
+    - 1_stop_aliyun.sh
+    - 2_setting_base.sh
+    - 3_stop_aliyun_cloudmonitor.sh
+    - 4_stop_huawei_cloudmonitor.sh
+    - 5_stop_tencent_cloudmonitor.sh
+    - 6_set_mirrors.sh
+    - 7_auto_clean_journal.sh
+    - 8_project_validator.sh
+    - 9_disable_ubuntu_auto_updates.sh
+    - 10_fix_dns.sh
+    - 11_install_sudo.she following installation scripts will be executed in order:
+    - 1_stop_aliyun.sh
+    - 2_setting_base.sh
+    - 3_stop_aliyun_cloudmonitor.sh
+    - 4_stop_huawei_cloudmonitor.sh
+    - 5_stop_tencent_cloudmonitor.sh
+    - 6_set_mirrors.sh
+    - 7_auto_clean_journal.sh
+    - 8_project_validator.sh
+    - 9_disable_ubuntu_auto_updates.sh
+    - 10_fix_dns.sh
+    - 11_install_sudo.sh
+    - 3_stop_aliyun_cloudmonitor.sh
+    - 4_stop_huawei_cloudmonitor.sh
+    - 5_stop_tencent_cloudmonitor.sh  - 3_stop_aliyun_cloudmonitor.sh
+    - 4_stop_huawei_cloudmonitor.sh
+    - 5_stop_tencent_cloudmonitor.sh
+   merge to index 3,and rename,add new scripts ,set If desktop-system ,like Ubuntu DEbian Kali ,set power ,no sleepy,no close displed,no stop harddisk,etc. search office documentations.thend 6_set_mirrors.sh
+    - 7_auto_clean_journal.sh6_set_mirrors.sh
+    - 7_auto_clean_journal.sh and index 9 disbal ubunto auto updates
+   merge to one. encure indempotent process.if Ok step,skip it.
+
+I'll start by finding these installation scripts and understan
+
+  Searched for 1 pattern, ran 6 shell commands
+
+I now understand the structure: install.sh discovers scripts purely by numeric prefix and runs them in sorted order, so merging = combine contents + renumber + delete the absorbed files. Let me check a couple more things (system/desktop detection helpers already in the codebase, and the docker_compose
+variant numbering) and ground the desktop-power settings in of
+
+  Searched for 2 patterns, ran 2 shell commands
+
+Desktop detection is auto-run on sourcing gvar_common.sh (HAS_DESKTOP_ENVIRONMENT, ACTUAL_DESKTOP_USER, ACTUAL_DESKTOP_USER_HOME). Now let me ground the power settings in official docs as requested.
+
+● Web Search("GNOME gsettings disable suspend screen blank power sleep-inactive-ac-type idle-delay dconf system-wide")
+Did 1 search in 8s
+
+● Web Search("systemd mask sleep.target suspend.target hibernate.target logind.conf IdleAction ignore disable suspend")
+Did 1 search in 12s
+
+All grounded. The settings I'll use are confirmed by official/canonical sources. Let me set up task tracking and write the files.
+
+Now writing the merged cloud-monitors script (index 3):
+
+● Write(scripts/shells/linux/debian/install_shells/3_stop_cloud_monitors.sh)
+Wrote 211 lines to scripts/shells/linux/debian/install_shells/3_stop_cloud_monitors.sh
+#!/bin/bash
+# Include common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
+source "$COMMON_DIR/common_functions.sh"
+
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+… +205 lines
+
+  Searched for 2 patterns, read 1 file
+
+Good, my usage is fine. Now delete the absorbed scripts and create the desktop-power script:
+
+  Ran 1 shell command
+
+● Write(scripts/shells/linux/debian/install_shells/4_set_desktop_power.sh)
+Wrote 302 lines to scripts/shells/linux/debian/install_shells/4_set_desktop_power.sh
+#!/bin/bash
+# Include common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
+source "$COMMON_DIR/common_functions.sh"
+
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+… +293 lines
+
+Now the merged maintenance script (index 6):
+
+● Write(scripts/shells/linux/debian/install_shells/6_system_maintenance.sh)
+Wrote 213 lines to scripts/shells/linux/debian/install_shells/6_system_maintenance.sh
+#!/bin/bash
+# Include common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
+source "$COMMON_DIR/common_functions.sh"
+
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+… +204 lines
+
+Now delete the absorbed scripts, make new ones executable, and syntax-check:
+
+  Ran 2 shell commands
+
+All three pass syntax and the run order is clean. Let me confirm nothing else hardcodes the old filenames, and run shellcheck if available:
+
+  Ran 1 shell command
+
+A stale reference remains in dd_helper/constants.sh. Let me check how it's used:
+
+  Read 1 file, ran 1 shell command
+
+This menu action runs the standalone disable-auto-updates script, which I merged into 6_system_maintenance.sh. I'll repoint the constant to the merged
+script (idempotent, still disables auto-updates):
+
+● Update(scripts/shells/linux/dd_helper/constants.sh)
+File must be read first
+
+  Read 1 file
+
+● Update(scripts/shells/linux/dd_helper/constants.sh)
+Added 3 lines, removed 1 line
+SYSTEM_INFO_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/system_info_display.sh"
+UNIFIED_MANAGER_SCRIPT_RELATIVE="scripts/app_manager/linux_sh/app_manager.sh"
+ROUTER_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/101_lnxrouter.sh"
+DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh"
+# 9_disable_ubuntu_auto_updates.sh was merged into the idempotent 6_system_maintenance.sh
+# (mirrors + journal cleanup + disable auto-updates); it still disables auto-updates.
+DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/6_system_maintenance.sh"
+SYNC_ALL_MCP_SCRIPT_RELATIVE="scripts/ai_shtools/sync_all_mcp_servers.sh"
+AI_MCP_MANAGEMENT_MENU_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh"
+
+
+Now let me do a final verification pass — confirm no remainingted filename, and that the new scripts mark task completion:
+
+  Ran 1 shell command
+
+The only remaining references are in auto-generated *_tree.md files, which project rule 3 forbids me from editing. Both menus (install.sh, install_test_menu.sh) discover scripts dynamically, so they pick up the changes automatically.
+
+Let me fix one correctness issue I spotted in script 4: $USE_SUDO -u "$USER" breaks when running as root (empty $USE_SUDO). Let me make the run-as-user invocation robust:
+
+  Read 1 file
+
+● Update(scripts/shells/linux/debian/install_shells/4_set_desktop_power.sh)
+Added 13 lines, removed 2 lines
+        return 0
+    fi
+    echo "[$SCRIPT_INDEX] Applying live GNOME settings for user '$DESKTOP_USER'..."
+    local run_gs="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$DESKTOP_USER_UID/bus gsettings"
+    $USE_SUDO -u "$DESKTOP_USER" env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$DESKTOP_USER_UID/bus" \
+    # Choose a privilege-drop runner: when already that user, run directly; when
+    # root (USE_SUDO may be empty), use sudo -u or ru
+    local -a run_as
+    if [ "$(id -un 2>/dev/null)" = "$DESKTOP_USER" ]; then
+        run_as=()
+    elif command -v sudo >/dev/null 2>&1; then
+        run_as=(sudo -u "$DESKTOP_USER")
+    elif command -v runuser >/dev/null 2>&1; then
+        run_as=(runuser -u "$DESKTOP_USER" --)
+    else
+        return 0
+    fi
+    "${run_as[@]}" env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$DESKTOP_USER_UID/bus" \
+        bash -c '
+            gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type "nothing"
+            gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type "nothing"
+
+  Ran 1 shell command
+
+Now mark tasks complete:
+
+Done. Here's what changed in scripts/shells/linux/debian/instain install.sh/install_test_menu.sh discovers scripts dynamically by numeric prefix, so renumbering is all that's needed — no manifest to edit).
+
+1. Merged the three cloud-monitor stops → 3_stop_cloud_monitors.sh
+
+- Combined 3_stop_aliyun_cloudmonitor.sh + 4_stop_huawei_cloudmonitor.sh + 5_stop_tencent_cloudmonitor.sh into one renamed script with three functions (Aliyun/Aegis, Huawei/Hostguard, Tencent/Sgagent·Barad·YunJing·TAT).
+- Idempotent / skip-if-OK: each section starts with a presence check and returns early if nothing is installed; all removals are guarded.
+- Dropped script 4's hard id -u … exit 1 (it would abort the whole install run) in favor of the project's $USE_SUDO convention; Aliyun downloads now run in a temp dir instead of CWD.
+- Deleted the old 3/4/5.
+
+2. New 4_set_desktop_power.sh (desktop power: never sleep)
+
+Runs only if a graphical desktop is detected (HAS_DESKTOP_ENVIRONMENT OR on-disk evidence — gnome-shell, /usr/share/{x,wayland}sessions, a display-manager unit), else skips cleanly on servers. Settings grounded in official/canonical docs:
+- No suspend/hibernate: systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target + a logind.conf.d drop-in (IdleAction=ignore, HandleLidSwitch=ignore, …).
+- No display blank / no screensaver: system-wide GNOME defaults via the dconf local system db (idle-delay=0, sleep-inactive-*-type='nothing', screensaver lock off) + best-effort live gsettings for the active user.
+- No disk spindown: best-effort hdparm -S 0 -B 254 on fixed (nd to /etc/hdparm.conf.
+- Idempotent throughout (compares current state, re-asserts only on drift).
+
+3. Merged mirrors + journal + auto-updates → 6_system_maintenance.sh
+
+- Combined 6_set_mirrors.sh + 7_auto_clean_journal.sh + 9_disable_ubuntu_auto_updates.sh.
+- Made it fully non-interactive (removed the old read -t 10 prompt) and idempotent; honors the APT-repo policy (never deletes distro-shipped sources).
+- Deleted the old 7 and 9; repointed the menu reference DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE in dd_helper/constants.sh to the merged script.
+
+Resulting run order: 1 → 2 → 3_stop_cloud_monitors → 4_set_desktop_power → 6_system_maintenance → 8_project_validator → 10 → 11 …
+
+All three new scripts pass bash -n. The only lingering references to the old names are in auto-generated *_tree.md snapshots, which I left untouched per the repo's "never edit *.md" rule (they regenerate from tooling).
+
+One judgment call to flag: the "disable auto-updates" menu item now runs the full 6_system_maintenance.sh (mirrors + journal + updates). It still disables auto-updates and everything is idempotent, but it does slightly more than its label. Say the word if you'd rather that menu action stay narrowly scoped and I'll split it back out.
+
+✻ Cooked for 8m 33s
+
+❯ dd.sh -> AI & MCP Management (status/install/sync 8 tools)AI &ll/sync 8 tools)
+   Install Claude Code (native) + link all users + claudeteam, up claudetem.sh add new feature claude --settings "{\"ultracode\": true}"claude --settings "{\"ultracode\": true}" and skip permisionns. and windows
+
+  Searched for 3 patterns, read 1 file, ran 2 shell commands
+
+I now have the full picture. The Linux flow: linuxenvs/*.sh are auto-symlinked into /usr/local/bin as both name and name.sh by sync_linuxenvs_to_bin, and claude_code_install.sh additionally links claudeteam explicitly. On Windows, winenvs/claude*.ps1 are exposed as commands. So I'll add a claudeultra launcher on both sides and wire it into the installer + menu label.
+
+Let me create the Linux launcher:
+
+● Write(scripts/linuxenvs/claudeultra.sh)
+Wrote 69 lines to scripts/linuxenvs/claudeultra.sh
+#!/bin/bash
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve
+ absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+… +60 lines
+
+Now the Windows launcher, mirroring claudeteam.ps1:
+
+● Write(scripts/winenvs/claudeultra.ps1)
+Wrote 80 lines to scripts/winenvs/claudeultra.ps1
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve
+ absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+… +71 lines
+
+Now wire claudeultra into the installer. Add the source path:
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 1 line
+CCI_EXEC="claude"
+CCI_NATIVE_INSTALL_URL="https://claude.ai/install.sh"
+CCI_TEAM_SRC="$CCI_LINUXENVS_DIR/claudeteam.sh"
+CCI_ULTRA_SRC="$CCI_LINUXENVS_DIR/claudeultra.sh"
+
+# Fallback print_color when run standalone (the main menu provides the real one).
+if ! command -v print_color >/dev/null 2>&1; then
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 12 lines
+    fi
+}
+
+# Link the claudeultra launcher (and its .sh alias) for all users. claudeultra
+# runs: claude --settings '{"ultracode":true}' --dang
+cci_setup_claudeultra() {
+    if [ -s "$CCI_ULTRA_SRC" ]; then
+        cci_link_into_bin "$CCI_ULTRA_SRC" "claudeultra"
+        cci_link_into_bin "$CCI_ULTRA_SRC" "claudeultra.sh"
+    else
+        echo "[WARN] claudeultra.sh not found at: $CCI_ULTRA_SRC"
+        return 1
+    fi
+}
+
+# Main entry: install (native, idempotent) -> link claude for all users -> link claudeteam.
+claude_code_install() {
+    local existing=""
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 3 lines, removed 2 lines
+    fi
+    echo ""
+
+    # Step 3: link the claudeteam launcher for all us
+    print_color "[STEP 3/3] Link claudeteam launcher into $CCI_BIN_DIR (all users)" "Info"
+    # Step 3: link the claudeteam + claudeultra launchers for all users.
+    print_color "[STEP 3/3] Link claudeteam + claudeultra launchers into $CCI_BIN_DIR (all users)" "Info"
+    cci_setup_claudeteam
+    cci_setup_claudeultra
+    echo ""
+
+    if timeout 10 "$CCI_BIN_DIR/$CCI_EXEC" --version >/dev/null 2>&1; then
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 4 lines, removed 2 lines
+#      already works.
+#   2. Link the claude binary into /usr/local/bin so EVERY user gets it (that
+#      directory is on every user's PATH).
+#   3. Link the claudeteam launcher (scripts/linuxenvs/claudeteam.sh, the Linux
+#      mirror of scripts/winenvs/claudeteam.ps1) into /usr/local/bin too.
+#   3. Link the claudeteam launcher (scripts/linuxenvs/claudeteam.sh) and the
+#      claudeultra launcher (scripts/linuxenvs/claudeultra.sh, which runs
+#      claude --settings '{"ultracode":true}' --dangerously-skip-permissions),
+#      the Linux mirrors of the winenvs *.ps1 scripts,
+#
+# Privilege model:
+#   - root / writable bin dir : link directly (root is already in sudo mode).
+
+Now update the menu label to reflect the new launcher:
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+File must be read first
+
+  Read 1 file
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+Added 1 line, removed 1 line
+show_ai_mcp_management_menu() {
+    local -a menu_items=(
+        "header:== AI Management (per-tool env/command setup) =========="
+        "claude_env:  Install Claude Code (native) + link all users + claudeteam"
+        "claude_env:  Install Claude Code (native) + link all users + claudeteam + claudeultra"
+        "droid_env:  Droid env/command setup"
+        "openai_env:  OpenAI env/command setup"
+        "header:== MCP: Inspect ========================================"
+
+Now make the launcher executable and validate syntax of all changed scripts:
+
+  Ran 1 shell command
+
+All syntax checks pass. The EUID test error is just my test shell (EUID is readonly) — the script reads $EUID, which is correct. Let me re-verify the arg-building logic with a renamed var and check PowerShell parse if available:
+
+  Ran 1 shell command
+
+The Linux arg logic is correct (root drops skip-permissions; user keeps it). My pwsh check had a harness bug — let me re-run it cleanly:
+
+  Ran 1 shell command
+
+❯ not ultra ,just on claudeteam,defaulg enable multiple roles and ultracode ,and winodws.
+
+Got it — the user wants claudeteam itself to default-enable multiple roles (agent teams, already on) and ultracode, not a separate claudeultra command. Let me revert the claudeultra additions and instead modify claudeteam on both Linux and Windows.
+
+First, delete the separate launchers and revert the installer/menu wiring:
+
+  Ran 1 shell command
+
+Now revert the four edits in claude_code_install.sh:
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Removed 1 line
+CCI_EXEC="claude"
+CCI_NATIVE_INSTALL_URL="https://claude.ai/install.sh"
+CCI_TEAM_SRC="$CCI_LINUXENVS_DIR/claudeteam.sh"
+CCI_ULTRA_SRC="$CCI_LINUXENVS_DIR/claudeultra.sh"
+
+# Fallback print_color when run standalone (the main menu provides the real one).
+if ! command -v print_color >/dev/null 2>&1; then
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Removed 12 lines
+    fi
+}
+
+# Link the claudeultra launcher (and its .sh alias) for all users. claudeultra
+# runs: claude --settings '{"ultracode":true}' --dangerously-skip-permissions.
+cci_setup_claudeultra() {
+    if [ -s "$CCI_ULTRA_SRC" ]; then
+        cci_link_into_bin "$CCI_ULTRA_SRC" "claudeultra"
+        cci_link_into_bin "$CCI_ULTRA_SRC" "claudeultra.sh"
+    else
+        echo "[WARN] claudeultra.sh not found at: $CCI_ULTRA_SRC"
+        return 1
+    fi
+}
+
+# Main entry: install (native, idempotent) -> link claude for all users -> link claudeteam.
+claude_code_install() {
+    local existing=""
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 2 lines, removed 3 lines
+    fi
+    echo ""
+
+    # Step 3: link the claudeteam + claudeultra launchers for all users.
+    print_color "[STEP 3/3] Link claudeteam + claudeultra launchers into $CCI_BIN_DIR (all users)" "Info"
+    # Step 3: link the claudeteam launcher for all users.
+    print_color "[STEP 3/3] Link claudeteam launcher into $CCI_BIN_DIR (all users)" "Info"
+    cci_setup_claudeteam
+    cci_setup_claudeultra
+    echo ""
+
+    if timeout 10 "$CCI_BIN_DIR/$CCI_EXEC" --version >/dev/null 2>&1; then
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 4 lines, removed 4 lines
+#      already works.
+#   2. Link the claude binary into /usr/local/bin so EVERY user gets it (that
+#      directory is on every user's PATH).
+#   3. Link the claudeteam launcher (scripts/linuxenvs/claudeteam.sh) and the
+#      claudeultra launcher (scripts/linuxenvs/claudeultra.sh, which runs
+#      claude --settings '{"ultracode":true}' --danger
+#      the Linux mirrors of the winenvs *.ps1 scripts, into /usr/local/bin too.
+#   3. Link the claudeteam launcher (scripts/linuxenvs/claudeteam.sh, the Linux
+#      mirror of scripts/winenvs/claudeteam.ps1) into /usr/local/bin too.
+#      claudeteam launches Claude Code with multiple roles (experimental agent
+#      teams) and ultracode enabled by default.
+#
+# Privilege model:
+#   - root / writable bin dir : link directly (root is already in sudo mode).
+
+Revert the menu label:
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+Added 1 line, removed 1 line
+show_ai_mcp_management_menu() {
+    local -a menu_items=(
+        "header:== AI Management (per-tool env/command setup) =========="
+        "claude_env:  Install Claude Code (native) + link all users + claudeteam + claudeultra"
+        "claude_env:  Install Claude Code (native) + link all users + claudeteam"
+        "droid_env:  Droid env/command setup"
+        "openai_env:  OpenAI env/command setup"
+        "header:== MCP: Inspect ========================================"
+
+Now modify the Linux claudeteam.sh to default-enable ultracode (multiple roles already on via the teams env). Reading it first:
+
+  Read 1 file
+
+Now update the docs and invocation in claudeteam.sh:
+
+● Update(scripts/linuxenvs/claudeteam.sh)
+Added 7 lines, removed 4 lines
+# =============================================================================
+#
+# Synopsis:
+#     Launches Claude Code with experimental agent teams enabled (Linux).
+#     Launches Claude Code with multiple roles (experimental agent teams) and
+#     ultracode enabled by default (Linux).
+#
+# Description:
+#     Linux mirror of scripts/winenvs/claudeteam.ps1. Sets
+#     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the c
+#         claude --dangerously-skip-permissions [args...]
+#     Any script arguments are appended to that command line.
+#     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
+#     roles), then runs:
+#         claude --settings '{"ultracode":true}' --dangerously-skip-permissions [args...]
+#     The --settings flag turns on ultracode via inline JSON. Any script
+#     arguments are appended to that command line.
+#
+#     Root safety: when running as root, the --dangerously-skip-permissions flag
+#     is dropped (root already has full permissions and Claude Code refuses that
+
+● Update(scripts/linuxenvs/claudeteam.sh)
+Added 17 lines, removed 9 lines
+set -e
+
+# Variable declarations (declared at the beginning of the file)
+claude_command=""
+ultra_settings_json='{"ultracode":true}'
+claude_args=()
+claude_invoke_display=""
+claude_team_args_display=""
+
+# Multiple roles: enable experimental agent teams for the session.
+export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
+
+# Default-enable ultracode via inline JSON settings. Built as an array so the
+# JSON value is always passed as a single argument (string-splitting would break
+# it if the JSON ever contained spaces).
+claude_args+=(--settings "$ultra_settings_json")
+
+# Check if running as root - skip --dangerously-skip-permissions flag for root
+if [ "$EUID" -eq 0 ]; then
+    claude_command="claude"
+else
+    claude_command="claude --dangerously-skip-permissions"
+# (root already has full permissions and Claude Code refuses that flag as root).
+if [ "$EUID" -ne 0 ]; then
+    claude_args+=(--dangerously-skip-permissions)
+fi
+
+claude_invoke_display="claude ${claude_args[*]}"
+if [ "$#" -gt 0 ]; then
+    claude_team_args_display=" $*"
+fi
+
+echo "============================================================"
+echo "claudeteam.sh"
+echo "============================================================"
+echo "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session)"
+echo "[INFO] Invoking: ${claude_command}${claude_team_args_display}"
+echo "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)"
+echo "[INFO] Ultracode settings: --settings ${ultra_settings_json}"
+echo "[INFO] Invoking: ${claude_invoke_display}${claude_team_args_display}"
+echo "============================================================"
+echo ""
+
+# shellcheck disable=SC2086
+exec $claude_command "$@"
+exec claude "${claude_args[@]}" "$@"
+
+Now the Windows claudeteam.ps1. Reading the relevant sections:
+
+  Read 1 file
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 6 lines, removed 3 lines
+
+<#
+.SYNOPSIS
+    Launches Claude Code with experimental agent teams and teammate mode (in-process).
+    Launches Claude Code with multiple roles (experimental agent teams) and
+    ultracode enabled by default.
+
+.DESCRIPTION
+    Sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session, then runs:
+    claude --dangerously-skip-permissions --teammate-mode in-process
+    Sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
+    roles), then runs:
+    claude --settings '{"ultracode":true}' --dangerously-skip-permissions
+    The --settings flag turns on ultracode via inline
+    Any script arguments are appended to that command line.
+
+.EXAMPLE
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 1 line
+$shellsWinPath = $null
+$winCommonDirPath = $null
+$windowsPathFunctionScript = $null
+$ultraSettingsJson = $null
+$exitCode = 0
+$claudeInvokeDisplayArgs = $null
+
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 4 lines
+
+$env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+
+# Default-enable ultracode via inline JSON settings (c
+# native-argument quoting stays safe).
+$ultraSettingsJson = '{"ultracode":true}'
+
+$claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
+    [string]::Format(" {0}", ($args -join " "))
+} else {
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 3 lines, removed 2 lines
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "claudeteam.ps1" -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session)" -ForegroundColor Green
+Write-Host "[INFO] Invoking: claude --dangerously-skip-permissions$claudeInvokeDisplayArgs" -ForegroundColor Green
+Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)" -ForegroundColor Green
+Write-Host "[INFO] Ultracode settings: --settings $ultraSettingsJson" -ForegroundColor Green
+Write-Host "[INFO] Invoking: claude --settings $ultraSettingsJson --dangerously-skip-permissions$claudeInvokeDisplayArgs" -ForegroundColor G
+reen
+if ($args.Count -gt 0) {
+    Write-Host "[INFO] Extra arguments ($($args.Count)roundColor DarkGray
+} else {
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 2 lines, removed 2 lines
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host ""
+
+# & claude --dangerously-skip-permissions --teammate-mode in-process @args
+& claude --dangerously-skip-permissions @args
+# & claude --settings $ultraSettingsJson --dangerously-skip-permissions --teammate-mode in-process @args
+& claude --settings $ultraSettingsJson --dangerously-skip-permissions @args
+$exitCode = $LASTEXITCODE
+if ($null -eq $exitCode) {
+    $exitCode = 0
+
+Now validate everything and confirm no stray claudeultra references remain:
+
+  Ran 1 shell command
+
+Done. I reverted the separate claudeultra approach and insteadlt-enable multiple roles + ultracode, on both Linux and Windows.
+
+What changed
+
+scripts/linuxenvs/claudeteam.sh (Linux launcher)
+- Keeps CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (multiple roles).
+- Now also passes --settings '{"ultracode":true}' by default.
+- Rebuilt the invocation as an args array (claude "${claude_args[@]}" "$@") so the JSON is always one argument — the old unquoted-string-split pattern was fragile for JSON.
+- Root safety preserved: --dangerously-skip-permissions is added only for non-root.
+
+scripts/winenvs/claudeteam.ps1 (Windows launcher)
+- Same change: sets the teams env, adds $ultraSettingsJson = '{"ultracode":true}', and invokes & claude --settings $ultraSettingsJson --dangerously-skip-permissions @args.
+- Updated banner/synopsis to match.
+
+Reverted the claudeultra additions from the prior step: deleted linuxenvs/claudeultra.sh and winenvs/claudeultra.ps1, and restored claude_code_install.sh (back to linking just claudeteam, with an updated comment noting it now launches with multiple roles + ultracode) and the menu label.
+
+Effective command now
+
+- non-root / Windows: claude --settings '{"ultracode":true}' --dangerously-skip-permissions [args…]
+- root: claude --settings '{"ultracode":true}' [args…] (skip-permissions dropped, as Claude Code refuses it as root)
+
+Verification
+
+- bash -n passes for all three touched shell scripts.
+- Arg simulation confirms the JSON passes as a single token and root vs. user branching is correct.
+- pwsh parses claudeteam.ps1 cleanly.
+- No leftover claudeultra references anywhere.
+
+Wiring is unchanged: sync_linuxenvs_to_bin keeps claudeteam/claudeteam.sh symlinked into /usr/local/bin for all users, the "Install Claude Code" menu action still links it, and on Windows claudeteam.ps1 is exposed via the existing winenvs/claudelist.ps1 mechanism — so every existing claudeteam entry point now gets ultracode + multiple roles automatically.
+
+One note: I left --teammate-mode in-process commented out in the Windows script exactly as it already was — say the word if you want that re-enabled alongside the multiple-roles default.
+
+✻ Baked for 6m 33s
+
+❯   Executing: 4_set_desktop_power.sh
+
+  Starting execution of 4_set_desktop_power.sh...
+  [4] Desktop power policy: keep system fully awake...
+  [4] Desktop detected (DE: XFCE). Applying no-sleep policy.
+
+  [4] Masking systemd sleep targets...
+  [4]   Masked: sleep.target suspend.target hibernate.target hybrid-sleep.target
+  [4] Configuring systemd-logind to ignore idle/lid...
+  [4]   Wrote /etc/systemd/logind.conf.d/10-core-node-no-sleep.conf
+
+  [4] Writing system-wide GNOME power defaults via dconf...
+  [4]   Updated dconf system database.
+  [4] Applying live GNOME settings for user 'kali'...
+
+
+  [4] Desktop power policy applied: no suspend, no display blank, no disk spindown.
+
+  Script execution completed with exit code: 0
+  Press any key to return to test scripts menu...
+
+
+
+
+  h
+    4_set_desktop_power.shh
+    4_set_desktop_power.sh
+  to 2_setting_base.sh merge to 2_setting_base.sh
+
+The script ran successfully on your XFCE system. Now let me merge it into 2_setting_base.sh. First, let me understand the structure of 2_setting_base.sh:
+
+  Ran 1 shell command
+
+2_setting_base.sh already has a desktop-config section. Let me read it and main():
+
+  Read 1 file
+
+This is a clean fit — 2_setting_base.sh already has a "Step 3: Desktop system optimization" with per-DE screen-lock config, but lacks the DE-agnostic system-level pieces (systemd sleep mask, logind, dconf system-db, disk spindown) that 4_set_desktop_power.sh provides. Let me check the file header for set -e and the variable block:
+
+  Read 1 file
+
+set -e is active, so the ported logic must be guarded against any non-zero command aborting the script. Let me insert the DE-agnostic power-policy functions after configure_desktop_system and wire them into main():
+
+● Update(scripts/shells/linux/debian/install_shells/2_setting_base.sh)
+Added 211 lines
+}
+
+# =============================================================================
+# Desktop Power Policy (merged from former 4_set_desktop_power.sh)
+# Keep a graphical desktop fully awake: never suspend/hibernate, never blank or
+# power off the display, never spin down disks. DE-agnostic system-level pieces
+# (systemd + logind + hdparm) complement the per-DE screen-lock config above.
+# All steps are idempotent and guarded for `set -e`.
+# References (official / canonical):
+#   - systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+#   - systemd-logind: IdleAction=ignore, HandleLidSwitch=ignore (logind.conf.d drop-in)
+#   - GNOME defaults via the dconf system db (/etc/dconf/db/local.d)
+# ==================================================
+
+# Robust desktop detection: gvar_common's HAS_DESKTOP_ENVIRONMENT relies on
+# session env vars that are often absent during a root install, so OR it with
+# on-disk evidence. Returns 0 when this is a graphical desktop.
+power_is_desktop_system() {
+    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
+        return 0
+    fi
+    if command -v gnome-shell >/dev/null 2>&1 \
+        || command -v plasmashell >/dev/null 2>&1 \
+        || command -v xfce4-session >/dev/null 2>&1 \
+        || command -v mate-session >/dev/null 2>&1 \
+        || command -v cinnamon-session >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ -d /usr/share/xsessions ] && ls -A /usr/share/xsessions 2>/dev/null | grep -q .; then
+        return 0
+    fi
+    if [ -d /usr/share/wayland-sessions ] && ls -A /usr/share/wayland-sessions 2>/dev/null | grep -q .; then
+        return 0
+    fi
+    if command -v systemctl >/dev/null 2>&1 \
+        && [ "$(systemctl get-default 2>/dev/null || true)" = "graphical.target" ] \
+        && [ -e /etc/systemd/system/display-manager.service ]; then
+        return 0
+    fi
+    return 1
+}
+
+# systemd: never auto-suspend / hibernate (DE-agnostic).
+power_disable_systemd_sleep() {
+    local sleep_targets="sleep.target suspend.target hibernate.target hybrid-sleep.target"
+    local logind_dropin_dir="/etc/systemd/logind.conf.d"
+    local logind_dropin_file="/etc/systemd/logind.conf.d/10-core-node-no-sleep.conf"
+    local already_masked="true"
+    local t=""
+    local desired=""
+
+    info "Masking systemd sleep targets..."
+    for t in $sleep_targets; do
+        if [ "$(systemctl is-enabled "$t" 2>/dev/null || true)" != "masked" ]; then
+            already_masked="false"
+        fi
+    done
+    if [ "$already_masked" = "true" ]; then
+        info "Sleep targets already masked, skipping."
+    else
+        $USE_SUDO systemctl mask $sleep_targets 2>/dev/null || true
+        log "Masked: $sleep_targets"
+    fi
+
+    info "Configuring systemd-logind to ignore idle/lid..."
+    $USE_SUDO mkdir -p "$logind_dropin_dir" 2>/dev/null || true
+    desired="$(cat <<'EOF'
+# Managed by core_node 2_setting_base.sh -- keep desktop awake.
+[Login]
+IdleAction=ignore
+IdleActionSec=0
+HandleLidSwitch=ignore
+HandleLidSwitchExternalPower=ignore
+HandleLidSwitchDocked=ignore
+HandleSuspendKey=ignore
+HandleHibernateKey=ignore
+EOF
+)"
+    if [ -f "$logind_dropin_file" ] && [ "$(cat "$logind_dropin_file" 2>/dev/null || true)" = "$desired" ]; then
+        info "logind drop-in already up to date, skipping."
+    else
+        echo "$desired" | $USE_SUDO tee "$logind_dropin_file" >/dev/null 2>&1 || true
+        log "Wrote $logind_dropin_file"
+        # Reloading logind can drop the active graphical session; only re-exec
+        # when no session is currently logged in (safe during install).
+        if ! who 2>/dev/null | grep -q .; then
+            $USE_SUDO systemctl kill -s HUP systemd-logind 2>/dev/null || true
+        fi
+    fi
+}
+
+# GNOME: never blank display / never sleep / no screensaver lock, applied
+# system-wide via the dconf "local" system database
+power_disable_gnome_blanking() {
+    local dconf_profile="/etc/dconf/profile/user"
+    local dconf_db_dir="/etc/dconf/db/local.d"
+    local dconf_db_file="/etc/dconf/db/local.d/00-core-node-power"
+    local dconf_locks_dir="/etc/dconf/db/local.d/locks"
+    local dconf_locks_file="/etc/dconf/db/local.d/locks/core-node-power"
+    local db_desired=""
+    local locks_desired=""
+    local changed="false"
+
+    if ! command -v dconf >/dev/null 2>&1; then
+        info "dconf not installed; skipping system-wide GNOME defaults."
+        return 0
+    fi
+    info "Writing system-wide GNOME power defaults via dconf..."
+    $USE_SUDO mkdir -p "$dconf_db_dir" "$dconf_locks_dir" "$(dirname "$dconf_profile")" 2>/dev/null || true
+
+    if [ ! -f "$dconf_profile" ] || ! grep -q "^system-db:local" "$dconf_profile" 2>/dev/null; then
+        printf 'user-db:user\nsystem-db:local\n' | $USE_SUDO tee "$dconf_profile" >/dev/null 2>&1 || true
+        info "Configured $dconf_profile"
+    fi
+
+    db_desired="$(cat <<'EOF'
+# Managed by core_node 2_setting_base.sh -- desktop stays awake.
+[org/gnome/settings-daemon/plugins/power]
+sleep-inactive-ac-type='nothing'
+sleep-inactive-battery-type='nothing'
+sleep-inactive-ac-timeout=0
+sleep-inactive-battery-timeout=0
+idle-dim=false
+
+[org/gnome/desktop/session]
+idle-delay=uint32 0
+
+[org/gnome/desktop/screensaver]
+idle-activation-enabled=false
+lock-enabled=false
+EOF
+)"
+    locks_desired="$(cat <<'EOF'
+/org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-type
+/org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-type
+/org/gnome/desktop/session/idle-delay
+/org/gnome/desktop/screensaver/idle-activation-enabled
+/org/gnome/desktop/screensaver/lock-enabled
+EOF
+)"
+
+    if [ ! -f "$dconf_db_file" ] || [ "$(cat "$dconf_db_file" 2>/dev/null || true)" != "$db_desired" ]; then
+        echo "$db_desired" | $USE_SUDO tee "$dconf_db_file" >/dev/null 2>&1 || true
+        changed="true"
+    fi
+    if [ ! -f "$dconf_locks_file" ] || [ "$(cat "$dconf_locks_file" 2>/dev/null || true)" != "$locks_desired" ]; then
+        echo "$locks_desired" | $USE_SUDO tee "$dconf_locks_file" >/dev/null 2>&1 || true
+        changed="true"
+    fi
+
+    if [ "$changed" = "true" ]; then
+        $USE_SUDO dconf update 2>/dev/null || true
+        log "Updated dconf system database."
+    else
+        info "GNOME dconf defaults already in place, skipping."
+    fi
+}
+
+# Disks: keep fixed (non-removable) ATA/SATA disks spinning; persist in
+# /etc/hdparm.conf. USB/removable disks are skipped.
+power_disable_disk_spindown() {
+    local hdparm_conf="/etc/hdparm.conf"
+    local marker="# core_node: keep disk spinning"
+    local disk="" dev="" rm=""
+    local persisted_any="false"
+
+    if ! command -v hdparm >/dev/null 2>&1; then
+        info "hdparm not installed; skipping disk spindown control."
+        return 0
+    fi
+    for disk in /sys/block/sd*; do
+        [ -e "$disk" ] || continue
+        dev="/dev/$(basename "$disk")"
+        rm="$(cat "$disk/removable" 2>/dev/null || echo 0)"
+        if [ "$rm" = "1" ]; then
+            continue
+        fi
+        info "Disabling standby/spindown on $dev (-S 0, -B 254)..."
+        $USE_SUDO hdparm -S 0 "$dev" >/dev/null 2>&1 || true
+        $USE_SUDO hdparm -B 254 "$dev" >/dev/null 2>&1 || true
+        if ! grep -q "^${dev} {" "$hdparm_conf" 2>/dev/null && ! grep -Fq "$dev $marker" "$hdparm_conf" 2>/dev/null; then
+            {
+                echo ""
+                echo "$dev $marker"
+                echo "$dev {"
+                echo "    spindown_time = 0"
+                echo "    apm = 254"
+                echo "}"
+            } | $USE_SUDO tee -a "$hdparm_conf" >/dev/null 2>&1 || true
+            persisted_any="true"
+        fi
+    done
+    if [ "$persisted_any" = "true" ]; then
+        log "Persisted disk no-spindown settings in $hdparm_conf."
+    fi
+}
+
+# Orchestrator: apply the keep-awake policy on a graphical desktop (skip on
+# headless/server). Uses robust detection so it still runs when a root install
+# leaves HAS_DESKTOP_ENVIRONMENT unset.
+configure_desktop_power_policy() {
+    if ! power_is_desktop_system; then
+        info "No graphical desktop detected (headless/server); skipping desktop power policy"
+        return 0
+    fi
+    log "Applying desktop power policy: no suspend, no display blank, no disk spindown"
+    power_disable_systemd_sleep
+    power_disable_gnome_blanking
+    power_disable_disk_spindown
+    log "Desktop power policy applied"
+    return 0
+}
+
+# =============================================================================
+# Main Function
+# =============================================================================
+
+
+Now wire it into main()'s Step 3:
+
+● Update(scripts/shells/linux/debian/install_shells/2_setting_base.sh)
+Added 3 lines
+    echo ""
+    log "Step 3: Desktop system optimization"
+    configure_desktop_system
+    # Keep the desktop fully awake (merged from former 4_set_desktop_power.sh):
+    # no suspend/hibernate, no display blank, no disk spindown.
+    configure_desktop_power_policy
+
+    log "Base system setup completed!"
+
+
+Now delete the standalone script and validate:
+
+  Ran 1 shell command
+
+❯ 120_install_desktop_applications.sh claude code if exsitst , idempotent with dd.sh Ai install cluade code install workflow, and merge script to dd.sh workflow ,then AI & MCP Management (status/install/sync 8 tools) can call install script from shells/debian/* some install scritps.
+
+The merge of 4_set_desktop_power.sh into 2_setting_base.sh is complete and validated (the two remaining matches are just my explanatory comments noting the merge origin — intentional).
+
+Now let me investigate the new request about 120_install_desktop_applications.sh and Claude Code. First, what does 120 do with Claude Code today?
+
+  Searched for 2 patterns, read 1 file
+
+This is a multi-part refactor touching a 1758-line installer and the menu. Let me gather the key facts before deciding — where the shared workflow lives and how 120 currently installs claude:
+
+  Ran 3 shell commands
+
+I now have the full picture. There are two distinct Claude install paths today:
+- 120_install_desktop_applications.sh installs claude via npm/de) → launch scripts in /usr/local/super_scripts + symlinks.
+- dd.sh AI menu uses scripts/ai_shtools/claude_code_install.sh (official native installer + link-all-users + claudeteam).
+
+Your request unifies these and wires the menu to debian install scripts — but there are a couple of design choices that materially change what I build, so let me confirm direction before refactoring a 1758-line installer.
+
+● User answered Claude's questions:
+· How should 120_install_desktop_applications.sh install Claude Code, to make it idempotent and consistent with the dd.sh AI workflow? → Delegate to native workflow
+· How should the AI & MCP Management menu be able to call the shells/debian install scripts? → add an nwe script ,install claude code ,like this 121_install_cursor.sh,anywhere call this. No at 120 desktop apps.
+
+Understood:
+- Q1: Delegate to the native workflow (single source of truth).
+- Q2: Create a new standalone install script in install_shells/ (like 121_install_cursor.sh) that installs Claude Code via the native workflow and can be called from anywhere — not inside 120 desktop apps.
+
+So: new 12x_install_claude_code.sh delegating to claude_code_install.sh; remove claude from 120's flow; wire the menu to call the new script. Let me inspect the app registry to remove claude from 120 safely, and check the cursor script + free numbers:
+
+  Ran 1 shell command
+
+Number 129 is free. Let me verify what uses AI_PACKAGE_LIST and claude_groups before removing claude from 120's flow:
+
+  Read 1 file, ran 1 shell command
+
+Confirmed: removing "claude" from AI_PACKAGE_LIST (line 349) takes it out of 120's install selection, and removing it from the npm_packages relink array completes the removal. The registry entry can stay (harmless). Now let me build it.
+
+1. Create the new standalone installer 129_install_claude_code.sh:
+
+● Write(scripts/shells/linux/debian/install_shells/129_install_claude_code.sh)
+Wrote 65 lines to scripts/shells/linux/debian/install_shells/129_install_claude_code.sh
+#!/bin/bash
+# Claude Code Installation Script
+#
+# Usage:
+#   ./129_install_claude_code.sh   # Install Claude Code (official native method)
+#
+# Installs Claude Code via the OFFICIAL NATIVE installer and links it for all
+# users + the claudeteam launcher. This is a thin insta
+# the canonical dd.sh AI workflow (scripts/ai_shtools/claude_code_install.sh),
+# so there is a single source of truth and the same logic runs whether invoked
+… +56 lines
+
+2. Remove claude from 120's flow — registry list and the npm relink array:
+
+  Read 1 file
+
+● Update(scripts/shells/linux/common/linux_applications_list.sh)
+Added 4 lines, removed 1 line
+    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop"
+)
+
+# NOTE: "claude" is intentionally NOT installed here. Claude Code is installed by
+# the dedicated install_shells/129_install_claude_code.sh step (official native
+# installer), the single source of truth shared with the dd.sh AI workflow.
+AI_PACKAGE_LIST=(
+    "gemini" "claude" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"
+    "gemini" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"
+)
+
+MCP_PACKAGE_LIST=(
+
+  Read 1 file
+
+● Update(scripts/shells/linux/debian/install_shells/120_install_desktop_applications.sh)
+Added 4 lines, removed 2 lines
+
+    log_message "NPM global bin directory: $pnpm_global_bin/bin"
+
+    # Process all AI packages that use npm installation method
+    local npm_packages=("gemini" "claude" "codex" "auggie")
+    # Process all AI packages that use npm installation method.
+    # NOTE: "claude" is excluded here on purpose -- Claude Code is installed and
+    # linked by install_shells/129_install_claude_code.sh (native workflow).
+    local npm_packages=("gemini" "codex" "auggie")
+
+    for package in "${npm_packages[@]}"; do
+        local exec_name=$(get_app_property "$package" "exec")
+
+3. Wire the AI & MCP Management menu to call the new install script. Let me update the menu's source line and the claude_env action:
+
+  Read 1 file
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+Added 3 lines
+# core_node root: menu_func -> menu_itemshells -> linux -> shells -> scripts -> root
+AIMCP_CORE_NODE_DIR="$(cd "$AIMCP_DIR/../../../../.." && pwd)"
+AIMCP_SHTOOLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/ai_shtools"
+# Debian install_shells dir: the menu can call install scripts from here (e.g.
+# the dedicated Claude Code installer 129_install_claude_code.sh).
+AIMCP_INSTALL_SHELLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/shells/linux/debian/install_shells"
+# Canonical engine + status live in scripts/ai_shtools (shared with the main-menu
+# "Sync All MCP" action), so there is a single source of truth.
+# shellcheck source=/dev/null
+
+Now add a helper to run install scripts and point claude_env at the new script:
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+Added 13 lines
+    fi
+}
+
+# Run an install script from scripts/shells/linux/debian/install_shells.
+aimcp_run_install_script() {
+    local script_name="$1" label="$2"
+    local script_path="$AIMCP_INSTALL_SHELLS_DIR/$script_name"
+    if [ -s "$script_path" ]; then
+        [ -x "$script_path" ] || chmod +x "$script_path" 2>/dev/null || true
+        bash "$script_path"
+    else
+        clear
+        echo "[INFO] $label not found at: $script_path"
+    fi
+}
+
+show_ai_mcp_management_menu() {
+    local -a menu_items=(
+        "header:== AI Management (per-tool env/command setup) =========="
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+Added 1 line, removed 1 line
+                IFS=':' read -r action text <<< "${menu_items[$selected_index]}"
+                case "$action" in
+                    header) ;;
+                    claude_env)       clear; aimcp_run_submenu claude_code_install "Claude Code installer"; aimcp_pause ;;
+                    claude_env)       clear; aimcp_run_install_script "129_install_claude_code.sh" "Claude Code installer"; aimcp_pause ;;
+                    droid_env)        aimcp_run_submenu show_droid_submenu "Droid env setup" ;;
+                    openai_env)       aimcp_run_submenu show_openai_submenu "OpenAI env setup" ;;
+                    dryrun)           clear; mcp_show_planned; aimcp_pause ;;
+
+Now make the new script executable and validate everything:
+
+  Ran 1 shell command
+
+All green. Let me verify the new script's path resolution correctly locates the shared workflow (without triggering a real install):
+
+  Ran 1 shell command
+
+Path resolution is correct. Everything is wired and validated.
+
+Summary
+
+Per your answers — delegate to the native workflow, and a dedicated install script (like 121_install_cursor.sh) callable anywhere, not inside 120 desktop apps:
+
+1. New install_shells/129_install_claude_code.sh (free slot after 128)
+- Thin, idempotent install_shells step that sources the canonical scripts/ai_shtools/claude_code_install.sh and calls claude_code_install → official native installer + link claude for all users + claudeteam.
+- Single source of truth: same logic whether run from the full install pass (auto-discovered by install.sh), from dd.sh, or from the AI & MCP menu.
+- Idempotent ("if exists" skip) — the shared workflow already skips the native install when claude works and only fixes missing/wrong symlinks.
+- Self-contained path resolution (verified it locates the shared workflow), so it can be called from anywhere.
+
+2. Removed Claude from 120 desktop apps (no duplicate path)
+- common/linux_applications_list.sh: dropped "claude" from AI_PACKAGE_LIST (so group-based install in 120 no longer selects it) with a NOTE pointing to 129. The registry claude_* entry stays as harmless metadata.
+- 120_install_desktop_applications.sh: dropped "claude" from the npm relink array in refresh_environment, with a NOTE.
+
+3. AI & MCP Management menu now calls the install script from shells/debian/*
+- Added AIMCP_INSTALL_SHELLS_DIR + an aimcp_run_install_script
+- The "Install Claude Code (native) + link all users + claudeteam" entry now runs 129_install_claude_code.sh instead of calling the function inline.
+
+Validation: bash -n passes on all four touched files; run order places 129_install_claude_code.sh correctly between 128 and 131; no bare "claude" install-list entries remain (only the registry claude_exec value and the explanatory NOTEs); 129's path resolution resolves to the real shared workflow.
+
+One note: because install.sh auto-discovers numbered scripts, 129_install_claude_code.sh will now run during a full install too (after the desktop-app installers), replacing the old npm path with the native one. It's idempotent, so re-runs are safe. Say the word if you'd rather it be menu/standalone-only and excluded from the unattended full run (I can rename it to a non-numeric prefix so the discovery loop skips it).
+
+✻ Sautéed for 8m 29s
+
+❯ 129_install_claude_code.sh Can install MCP,sync claudeteam.sh to all user's bin,and sync Claude code bin to all users's, include regular users/root user,togther all funcs.native install, and anywher call this scripts, dd.sh AI & MCP Management (status/install/sync 8 tools)AI & MCP Management (status/install/sync 8 tools)
+   Dose too. aware idempotent.If in root that to regular users, fix permission.
+
+Let me look at the MCP engine functions and exactly how claude_code_install.sh handles the root/all-users access today, so I can add MCP install + the root→all-users permission fix:
+
+  Ran 1 shell command
+
+Let me inspect the actual native install layout on this machine to handle the root/all-users copy correctly:
+
+  Ran 1 shell command
+
+This is the key finding: the native claude is a single self-contained ELF binary (~/.local/bin/claude → ~/.local/share/claude/versions/X). And crucially, /home/kali itself is mode 700 — so a symlink in /usr/local/bin is unreachable by other users even for a regular-user install, not just root. The robust fix for true all-users access is to copy the self-contained binary into /usr/local/bin (works for everyone, no home traversal needed).
+
+Let me read the current step-2 block in claude_code_install.sh to replace it:
+
+  Read 1 file
+
+Now I'll add an all-users install helper that copies the self-contained binary when a symlink wouldn't be reachable, and replace the step-2 logic:
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 49 lines
+    return 1
+}
+
+# Make claude usable by EVERY user (regular users + root), fixing the common
+# permission problem: the native installer is per-user (~/.local/...) and the
+# resolved binary lives under a mode-700 home (/root or /home/<user>), so a
+# /usr/local/bin symlink is unreachable by anyone but the owner.
+#
+# The modern native build is a single self-contained executable, so when the
+# resolved target is not world-reachable we COPY it into /usr/local/bin (0755) --
+# that works for all users without exposing the owner's home. When the target IS
+# already world-reachable we keep a symlink so native auto-updates are tracked.
+# Idempotent: skips when the shared copy is already identical.
+cci_install_claude_all_users() {
+    local src="$1"
+    local resolved=""
+    local dest="$CCI_BIN_DIR/$CCI_EXEC"
+
+    resolved="$(readlink -f "$src" 2>/dev/null || echo "$src")"
+
+    if cci_others_can_access "$resolved"; then
+        # Reachable by everyone: symlink to the stable launcher (tracks updates).
+        cci_link_into_bin "$src" "$CCI_EXEC" "keep"
+        echo "[OK] claude reachable by all users via symlink: $dest -> $resolved"
+        return 0
+    fi
+
+    echo "[FIX] claude lives under a non-world-readable home ($resolved);"
+    echo "      installing a shared copy in $CCI_BIN_DIR so every user can run it."
+    if [ ! -f "$resolved" ]; then
+        echo "[WARN] Resolved claude is not a regular file; linking instead (may be owner-only)."
+        cci_link_into_bin "$src" "$CCI_EXEC" "keep"
+        return 1
+    fi
+
+    # Idempotent: nothing to do when the shared binary already matches.
+    if [ -f "$dest" ] && [ ! -L "$dest" ] && cmp -s "$resolved" "$dest"; then
+        echo "[OK] Shared claude already up to date: $dest"
+        return 0
+    fi
+
+    cci_bin_sudo mkdir -p "$CCI_BIN_DIR"
+    cci_bin_sudo rm -f "$dest"
+    if cci_bin_sudo cp -f "$resolved" "$dest" && cci_bin_sudo chmod 0755 "$dest"; then
+        echo "[COPY] Installed shared claude for all users: $dest"
+        echo "       (self-contained native binary; re-run this installer to refresh after updates)"
+        return 0
+    fi
+    echo "[ERROR] Failed to install shared claude at $dest"
+    return 1
+}
+
+# Link the claudeteam launcher (and its .sh alias) for all users.
+cci_setup_claudeteam() {
+    if [ -s "$CCI_TEAM_SRC" ]; then
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 5 lines, removed 17 lines
+    fi
+    echo ""
+
+    # Step 2: link the claude binary into /usr/local/bin for all users.
+    print_color "[STEP 2/3] Link claude into $CCI_BIN
+    # Step 2: make claude usable by all users (regular users + root), fixing
+    # permissions / mode-700 home issues by copying the self-contained binary
+    # into the shared bin when a symlink would not be reachable.
+    print_color "[STEP 2/3] Install claude into $CCI_BIN_DIR for all users" "Info"
+    bin_path="$(cci_find_claude || true)"
+    if [ -z "$bin_path" ]; then
+        echo "[ERROR] Could not locate the claude binary after installation."
+    else
+        echo "[FOUND] claude binary: $bin_path"
+        # Link to the stable launcher path (keep), so native updates are tracked.
+        cci_link_into_bin "$bin_path" "$CCI_EXEC" "keep"
+        # The native installer is per-user (~/.local/bin). When run as root that
+        # is /root/.local (mode 700) -> unreachable by other users, so the
+        # "all users" link would silently fail for everyone but the owner.
+        if cci_others_can_access "$bin_path"; then
+            echo "[OK] $bin_path is reachable and executable by all users."
+        else
+            echo "[WARNING] $bin_path is NOT traversable/executable by other users"
+            echo "          (likely under a mode-700 home such as /root/.local/bin)."
+            echo "          $CCI_BIN_DIR/$CCI_EXEC wi that path."
+            echo "          For true all-user access, install claude into a shared prefix"
+            echo "          (e.g. 'npm install -g @anthropic-ai/claude-code') or deliberately"
+            echo "          relax the path permissions."
+        fi
+        cci_install_claude_all_users "$bin_path"
+    fi
+    echo ""
+
+
+Now make 129 the all-in-one orchestrator — add MCP install/sync on top of the native claude install + all-users + claudeteam:
+
+● Update(scripts/shells/linux/debian/install_shells/129_install_claude_code.sh)
+Added 15 lines, removed 7 lines
+# Usage:
+#   ./129_install_claude_code.sh   # Install Claude Code (official native method)
+#
+# Installs Claude Code via the OFFICIAL NATIVE installer and links it for all
+# users + the claudeteam launcher. This is a thin install_shells wrapper around
+# the canonical dd.sh AI workflow (scripts/ai_shtools/claude_code_install.sh),
+# so there is a single source of truth and the same lo
+# from the full install run, dd.sh, or the AI & MCP Management menu.
+# All-in-one Claude Code provisioning (single source of truth, callable anywhere
+# -- full install run, dd.sh, or the AI & MCP Management menu). It runs ALL of:
+#   1. Official NATIVE install of Claude Code.
+#   2. Make claude usable by EVERY user (regular users + root): when the native
+#      per-user binary sits under a mode-700 home, the self-contained binary is
+#      COPIED into /usr/local/bin (0755) so all users can run it (permission fix
+#      for the root -> regular-users case); otherwise it is symlinked.
+#   3. Sync the claudeteam launcher into /usr/local/bin for all users.
+#   4. Install MCP servers and sync MCP config to all AI tools.
+# Steps 1-3 are delegated to the canonical scripts/ai_shtools/claude_code_install.sh;
+# step 4 is delegated to scripts/ai_shtools/mcp_sync_engine.sh. The dd.sh AI & MCP
+# Management menu calls this same script, so both do the same thing.
+#
+# Idempotent: the shared workflow skips the native install when claude already
+# works and only (re)creates symlinks that are missing or wrong.
+# Idempotent: the native install is skipped when claude already works, the shared
+# copy is skipped when already identical, symlinks are only (re)created when
+# missing/wrong, and MCP install/sync re-asserts existing config.
+#
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+
+● Update(scripts/shells/linux/debian/install_shells/129_install_claude_code.sh)
+Added 1 line
+# install_shells -> debian -> linux -> shells -> scripts -> core_node root
+CORE_NODE_ROOT="$(cd "$PARENT_DIR_LEVEL_2/../../.." && pwd)"
+CLAUDE_CODE_INSTALL_LIB="$CORE_NODE_ROOT/scripts/ai_shtools/claude_code_install.sh"
+MCP_SYNC_ENGINE_LIB="$CORE_NODE_ROOT/scripts/ai_shtools/mcp_sync_engine.sh"
+
+# Source global variables
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+
+● Update(scripts/shells/linux/debian/install_shells/129_install_claude_code.sh)
+Added 24 lines, removed 1 line
+echo "[$SCRIPT_INDEX] Install Claude Code (official native) -> all users + claudeteam"
+echo "[$SCRIPT_INDEX] ============================================================"
+
+# --- Steps 1-3: native install + all-users binary + claudeteam ---------------
+# Delegate to the canonical native workflow (single so
+if [ -s "$CLAUDE_CODE_INSTALL_LIB" ]; then
+    # shellcheck source=/dev/null
+
+    exit 1
+fi
+
+echo "[$SCRIPT_INDEX] Claude Code installation step completed."
+# --- Step 4: install MCP servers + sync MCP config to all AI tools -----------
+# Best-effort: MCP problems must not fail the Claude Code install step.
+echo ""
+echo "[$SCRIPT_INDEX] ============================================================"
+echo "[$SCRIPT_INDEX] Install MCP servers + sync to all AI tools"
+echo "[$SCRIPT_INDEX] ============================================================"
+if [ -s "$MCP_SYNC_ENGINE_LIB" ]; then
+    # shellcheck source=/dev/null
+    source "$MCP_SYNC_ENGINE_LIB"
+    if command -v mcp_install_all >/dev/null 2>&1; then
+        # mcp_install_all installs Chrome + Context7 MCP then syncs all tools.
+        mcp_install_all || echo "[$SCRIPT_INDEX] WARNING: MCP install/sync reported errors (continuing)."
+    elif command -v mcp_sync_all >/dev/null 2>&1; then
+        mcp_sync_all || echo "[$SCRIPT_INDEX] WARNING: MCP sync reported errors (continuing)."
+    else
+        echo "[$SCRIPT_INDEX] WARNING: MCP engine functions not found; skipping MCP step."
+    fi
+else
+    echo "[$SCRIPT_INDEX] WARNING: MCP sync engine not found at: $MCP_SYNC_ENGINE_LIB; skipping MCP step."
+fi
+
+echo ""
+echo "[$SCRIPT_INDEX] Claude Code provisioning completed (native install + all-users bin + claudeteam + MCP)."
+
+Now validate all changed files:
+
+  Ran 1 shell command
+
+The simulation confirms the fix works exactly as intended: on this machine claude resolves to a self-contained ELF under a mode-700 home, so the logic correctly chooses to copy the binary into /usr/local/bin — making it runnable by all users (regular + root). All syntax checks pass.
+
+Summary
+
+129_install_claude_code.sh is now the all-in-one, idempotent, call-anywhere Claude Code provisioner, and the dd.sh AI & MCP Management menu calls the same script — so both do all of it:
+
+1. Native install — delegates to claude_code_install.sh (official claude.ai/install.sh), skipped when claude already works.
+
+2. Sync claude bin to ALL users (regular + root) — with the permission fix (the core of your request). New cci_install_claude_all_users in claude_code_install.sh:
+- The native build is a single self-contained ELF binary, and per-user homes are mode 700 — so a symlink in /usr/local/bin is unreachable by other users (true for a root install and a regular-user install).
+- When the resolved binary isn't world-reachable, it copies the binary into /usr/local/bin/claude (0755) → works for every user without exposing anyone's home. When it is reachable, it symlinks (so native auto-updates track).
+- Idempotent: skips the copy when the shared binary is already identical (cmp -s); re-run refreshes after an update.
+
+3. Sync claudeteam.sh to all users' bin — unchanged cci_setup_claudeteam links claudeteam + claudeteam.sh into /usr/local/bin.
+
+4. Install MCP + sync to all AI tools — 129 now also sources mcp_sync_engine.sh and runs mcp_install_all (Chrome + Context7 MCP, then sync to all tools), best-effort so MCP issues never fail the claude step.
+
+Idempotency throughout: native install skipped if present, shared copy skipped if identical, symlinks only (re)created when missing/wrong, MCP re-asserts
+config.
+
+Wiring: the menu's "Install Claude Code…" entry runs 129_install_claude_code.sh (callable from the full install pass, dd.sh, or the menu — single source of truth). claude was already removed from 120 in the previous step.
+
+Files changed: scripts/ai_shtools/claude_code_install.sh (all-users copy/permission-fix), scripts/shells/linux/debian/install_shells/129_install_claude_code.sh (added MCP step + docs). All pass bash -n.
+
+One heads-up: since 129 auto-runs in the full install pass and now also installs MCP, that pass will trigger the Chrome MCP build (it runs after node/pnpm at step 15/28, so deps are present; it's guarded || true). If you'd prefer MCP not to run during the unattended full install (only when invoked from the menu), I can gate step 4 behind a flag/arg — just say so.
+
+✻ Cogitated for 4m 29s
+
+❯ ncore/utils/mcp_chrome rename dir to ncore/utils/jsmcptools
+
+I'll rename that directory and update references. Let me first look at the directory and find everything that references it.
+
+  Searched for 2 patterns, ran 1 shell command
+
+Two real directory references to update (start_mcp_chrome.js,  apps/mcp-chrome/..., /var/_core_node/mcp_chrome/logs, andcomment/filename matches are unrelated. Let me verify the #@ncore alias mapping and check the dir's own files for self-path references before renaming:
+
+  Searched for 1 pattern
+
+The #@ncore/* alias is a wildcard, so it resolves automatically after rename — no package.json change needed. I'll rename the dir and update: the 2 external requires, plus internal path references in mcp-server-stdio.js (comment example) and STDIO_SETUP.txt. I'll leave unrelated matches (apps/mcp-chrome, /var/_core_node/mcp_chrome/logs, service name mcp-chrome-server).
+
+  Ran 1 shell command
+
+Now update the two external require references:
+
+  Read 2 files
+
+● Update(start_mcp_chrome.js)
+Added 1 line, removed 1 line
+process.chdir(__dirname);
+
+// Use relative path to avoid alias issues
+const { startMCPChromeServer } = require('./ncore/util
+const { startMCPChromeServer } = require('./ncore/utils/jsmcptools/index.js');
+
+async function main() {
+    try {
+
+● Update(ncore/callmodule/app.js)
+Added 1 line, removed 1 line
+    }
+
+    // Start MCP Chrome Server
+    const { startMCPChromeServer } = require('#@ncore/utils/mcp_chrome');
+    const { startMCPChromeServer } = require('#@ncore/utils/jsmcptools');
+    startMCPChromeServer({
+        port: 12306,
+        host: '127.0.0.1'
+
+Now update the internal path references in the renamed dir (mcp-server-stdio.js comment + STDIO_SETUP.txt paths), leaving the unrelated apps/mcp-chrome and mcp-chrome-server service name:
+
+  Ran 1 shell command
+
+Those two remaining matches are exactly the unrelated ones (logical service name + the separate apps/mcp-chrome directory) — correct to leave. Final verification across the whole repo and a require-resolution sanity check:
+
+  Ran 1 shell command
+
+Done. Renamed ncore/utils/mcp_chrome → ncore/utils/jsmcptools and updated all references.
+
+What changed
+
+- git mv ncore/utils/mcp_chrome ncore/utils/jsmcptools — all 6 files moved with history preserved.
+- start_mcp_chrome.js — require('./ncore/utils/mcp_chrome/index.js') → .../jsmcptools/index.js.
+- ncore/callmodule/app.js — require('#@ncore/utils/mcp_chrome') → #@ncore/utils/jsmcptools.
+- Internal path references in mcp-server-stdio.js (config comment) and STDIO_SETUP.txt (setup paths) updated to the new dir name.
+
+Left unchanged (intentionally — not this directory)
+
+- apps/mcp-chrome/... (a separate app) and its /var/_core_node/mcp_chrome/logs runtime log path.
+- server.js service name mcp-chrome-server (a logical name, not a path).
+- Comment/filename matches in log_size_cap.sh, linux_managemeny (runtime logs / unrelated filename string).
+
+Verification
+
+- No remaining references to the old utils/mcp_chrome path anywhere in the repo.
+- The #@ncore/* import alias is a wildcard (./ncore/*), so it resolves to the new path automatically — no package.json change needed.
+- node resolves both the relative require and confirms the alias target exists.
+
+The git status shows all six files as renames (R). Want me to commit this, or leave it staged?
+
+✻ Worked for 1m 55s
+
+❯ tart_mcp_chrome.js)tart_mcp_chrome.js) rename to start_js_mcp.js
+
+I'll rename start_mcp_chrome.js → start_js_mcp.js and update any references.
+
+  Ran 1 shell command
+
+No references anywhere (searched with and without extension). Renaming:
+
+  Ran 1 shell command
+
+Done. Renamed start_mcp_chrome.js → start_js_mcp.js (via git mv, history preserved). There were no references to the old filename anywhere in the repo, so nothing else needed updating. The file parses cleanly, and its internal require('./ncore/utils/jsmcptools/index.js') is already correct from the previous rename.
+
+✻ Crunched for 20s
+
+❯ Downloading smmap-5.0.3-py3-none-any.whl (24 kB)
+  Downloading sentry_sdk-2.63.0-py3-none-any.whl (495 kB)
+  Installing collected packages: mpmath, cuda-toolkit, triton, smmap, shellingham, shapely, sentry-sdk, pyclipper, protobuf, polars-runtime-32, omegaconf, nvidia-nvtx, nvidia-nvshmem-cu13, nvidia-nvjitlink, nvidia-nccl-cu13, nvidia-curand, nvidia-cufile, nvidia-cuda-runtime, nvidia-cuda-nvrtc, nvidia-cuda-cupti, ml_dtypes, lightning-utilities, hf-xet, fsspec, cuda-pathfinder, colorlog, click, rapidocr, polars, onnxruntime, onnx, nvidia-cusparse, nvidia-cufft, nvidia-cublas, cuda-bindings, typer, seaborn, nvidia-cusolver, nvidia-cudnn-cu13, wandb, huggingface-hub, torch, ultralytics-thop, torchvision, torchmetrics, ultralytics, pytorch-lightning, cnstd, cnocr
+    Attempting uninstall: mpmath
+      Found existing installation: mpmath 1.4.1
+  error: uninstall-no-record-file
+
+  × Cannot uninstall mpmath 1.4.1
+  ╰─> The package's contents are unknown: no RECORD file was fou
+
+  hint: The package was installed by debian. You should check if it can uninstall the package.
+  >>> Installing pdfplumber...
+  [13] python3 -m pip install pdfplumber --index-url https://pypi.org/simple/ --break-system-packages --no-user Upgrading: 0, Installing: 0, Removing: 0, Not Upgrading: 22
+  Essential packages installed.
+  Configuring system parameters...
+  fs.inotify.max_user_watches = 524288
+  Performing final cleanup...
+  Setup completed successfully!
+
+  Executing: 13_cuda_nvidia_prereq.sh
+
+  ==================================================
+   NVIDIA driver + CUDA toolkit prerequisite
+  ==================================================
+  [nvidia-cuda] NVIDIA GPU detected.
+  [nvidia-cuda] Driver already active: GPU 0: NVIDIA GeForce RTX 4060 Laptop GPU (UUID: GPU-72b5aefd-720d-2046-95cc-d4746c34fa84)
+  [nvidia-cuda] nvidia-smi is working -> the torch guard (13_ensure_python.sh) will pick the GPU build.
+  [nvidia-cuda] Ensuring CUDA toolkit (idempotent; skips if nvcc/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/install_cuda_toolkit.sh ...
+  ============================================================
+   CUDA Toolkit prerequisite installer (pinned 12.2.2)
+  ============================================================
+  [SKIP] CUDA toolkit already installed: /usr/local/cuda-12.2/bin/nvcc
+         nvcc: NVIDIA (R) Cuda compiler driver
+         Copyright (c) 2005-2023 NVIDIA Corporation
+         Built on Tue_Aug_15_22:02:13_PDT_2023
+         Cuda compilation tools, release 12.2, V
+  ──── (794 lines hidden) ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 719.8/719.8 kB 1.8 MB/s  0:00:00
+  Downloading hf_xet-1.5.1-cp37-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.5 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 1.8 MB/s  0:00:02
+  Downloading typer-0.25.1-py3-none-any.whl (58 kB)
+  Downloading click-8.4.1-py3-none-any.whl (116 kB)
+  Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+  Downloading omegaconf-2.3.1-py3-none-any.whl (79 kB)
+  Downloading onnx-1.22.0-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (19.1 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 19.1/19.1 MB 2.4 MB/s  0:00:08
+  Downloading ml_dtypes-0.5.4-cp313-cp313-manylinux_2_27_x86_64.0 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.0/5.0 MB 3.6 MB/s  0:00:01
+  Downloading protobuf-7.35.1-cp310-abi3-manylinux2014_x86_64.whl (327 kB)
+  Downloading onnxruntime-1.27.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (18.7 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 18.7/18.7 MB 2.7 MB/s  0:00:06
+  Downloading seaborn-0.13.2-py3-none-any.whl (294 kB)
+  Downloading ultralytics-8.4.75-py3-none-any.whl (1.3 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 3.2 MB/s  0:00:00
+  Downloading polars-1.41.2-py3-none-any.whl (833 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 833.4/833.4 kB 3.9 MB/s  0:00:00
+  Downloading polars_runtime_32-1.41.2-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (56.4 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 56.4/56.4 MB 3.2 MB/s  0:00:17
+  Downloading ultralytics_thop-2.0.20-py3-none-any.whl (28 kB)
+  Downloading wandb-0.27.2-py3-none-manylinux_2_28_x86_64.whl (26.4 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 26.4/26.4 MB 3.3 MB/s  0:00:07
+  Downloading smmap-5.0.3-py3-none-any.whl (24 kB)
+  Downloading sentry_sdk-2.63.0-py3-none-any.whl (495 kB)
+  Installing collected packages: mpmath, cuda-toolkit, triton, smmap, shellingham, shapely, sentry-sdk, pyclipper, protobuf, polars-runtime-32, omegaconf, nvidia-nvtx, nvidia-nvshmem-cu13, nvidia-nvjitlink, nvidia-nccl-cu13, nvidia-curand, nvidia-cufile, nvidia-cuda-runtime, nvidia-cuda-nvrtc, nvidia-cuda-cupti, ml_dtypes, lightning-utilities, hf-xet, fsspec, cuda-pathfinder, colorlog, click, rapidocr, polars, onnxruntime, onnx, nvidia-cusparse,
+  nvidia-cufft, nvidia-cublas, cuda-bindings, typer, seaborn, nve extralcode mode, and workflow,search offical documentations, support debian ubuntu kalios.ensure You can repair, then up code.
+
+This is a real install failure I should fix in 13_ensure_python.sh: pip can't install torch (and ultralytics, cnocr) because they need mpmath<1.4, but Debian/Kali ships mpmath 1.4.1 in /usr/lib/python3/dist-packages with no RECORD file, so pip aborts with uninstall-no-record-file.
+
+Let me investigate the script and confirm the canonical fix from official docs in parallel.
+
+  Ran 1 shell command
+
+● Web Search("pip "uninstall-no-record-file" "no RECORD file was found" installed by debian cannot uninstall fix --ignore-installed")
+Did 1 search in 10s
+
+Research confirms the issue and the safe fix. Let me read the actual pip-install plumbing in the script to wire in an idempotent repair:
+
+  Read 1 file
+
+torch is installed by tcg_ensure_torch_build (from torch_cpu_guard.sh), separate from the per-package loop — both hit the same mpmath error. Let me see how the torch guard and check_and_fix_package_version invoke pip, to decide where the repair belongs:
+
+  Ran 1 shell command
+
+Now I see both code paths. The per-package loop uses run_pip_install_realtime (central), but the GPU torch path in torch_cpu_guard.sh:108 calls pip directly without --ignore-installed — that's the exact line that failed in your log. Let me read that guard fully:
+
+  Read 1 file
+
+Now I have the complete picture. The failure is torch_cpu_guard.sh:108 (the GPU "torch missing" path) — it's the only pip call in that guard missing --ignore-installed, which is exactly what its sibling functions (lines 81/88) use to avoid uninstalling the distro mpmath. And the per-package loop (ultralytics, cnocr) goes through run_pip_install_realtime, which has no repair.
+
+Per the official-docs research, the safe, dpkg-respecting fix is to install the needed version as a pip-managed copy in /usr/local/.../dist-packages (which shadows /usr/lib/.../dist-packages via sys.path precedence) without uninstalling the apt copy — i.e. --ignore-installed. Let me apply both fixes.
+
+Fix 1 — the torch guard (the line that actually failed):
+
+● Update(scripts/shells/linux/common/torch_cpu_guard.sh)
+Added 7 lines, removed 1 line
+                    echo "[torch-guard] GPU present, torch not installed (repair-only) -> nothing to repair."
+                else
+                    echo "[torch-guard] GPU present, efault (CUDA) build."
+                    "$py" -m pip install --break-system-packages --no-user torch torchvision torchaudio || true
+                    # --ignore-installed: torch needs mpmath<1.4 but Debian/Ubuntu/Kali ship
+                    # mpmath 1.4.x in /usr/lib/python3/dist-packages with NO RECORD file, so a
+                    # plain install aborts with "uninstall-no-record-file" trying to remove it.
+                    # Ignoring installed packages makes pip drop the required mpmath into
+                    # /usr/local/.../dist-packages (which shadows the apt copy) without touching
+                    # the dpkg-owned files. Matches tcg_install_cpu/cuda_torch above.
+                    "$py" -m pip install --break-system-packages --no-user --ignore-installed torch torchvision torchaudio || true
+                fi
+                ;;
+            "None")
+
+Fix 2 — a general, surgical auto-repair in run_pip_install_realtime (covers ultralytics, cnocr, and any future package hitting a distro no-RECORD blocker):
+
+● Update(scripts/shells/linux/debian/install_shells/13_ensure_python.sh)
+Added 45 lines
+    return 0
+}
+
+# Repair the Debian/Ubuntu/Kali "no RECORD file" unin
+#
+# apt installs some Python packages (e.g. mpmath, a sympy dependency) into
+# /usr/lib/python3/dist-packages WITHOUT a RECORD file. When a PyPI package needs
+# a DIFFERENT version of such a package (e.g. torch requires mpmath<1.4 but the
+# distro ships 1.4.x), pip tries to uninstall the distro copy, cannot (no RECORD),
+# and aborts the whole install with "uninstall-no-record-file".
+#
+# Fix (dpkg-safe, idempotent): for each blocked package, install the required
+# version pip-side with --ignore-installed --no-deps into /usr/local/.../dist-packages,
+# which shadows the apt copy via sys.path precedence WITHOUT removing dpkg-owned
+# files. The caller then retries the original install, which now sees the
+# constraint satisfied and performs no uninstall. Returns 0 if a shadow was applied.
+# Args: $1=python_cmd  $2=pip output log file.
+pip_repair_no_record_blocker() {
+    local python_cmd="$1"
+    local log="$2"
+    local sysflags=()
+    local applied=1
+    local blockers b constraint
+
+    # System interpreter (not a venv) needs the PEP 668 escape flags.
+    if [ ! -f "$(dirname "$python_cmd")/../pyvenv.cfg" ]; then
+        sysflags=("--break-system-packages" "--no-user")
+    fi
+
+    # Packages pip refused to uninstall: "no RECORD file was found for <pkg>."
+    blockers="$(grep -oiE "no RECORD file was found for [A-Za-z0-9._-]+" "$log" 2>/dev/null \
+        | awk '{print $NF}' | sed 's/\.$//' | sort -u)"
+    [ -z "$blockers" ] && return 1
+
+    for b in $blockers; do
+        # Recover the version constraint pip was resolving, e.g.
+        #   "Collecting mpmath<1.4,>=1.1.0 (from sympy>=1.13.3->torch)".
+        constraint="$(grep -oiE "Collecting ${b}[<>=!,0-9. ]*" "$log" 2>/dev/null \
+            | head -1 | sed "s/^[Cc]ollecting ${b}//; s/[[:space:]].*//")"
+        echo "[13] Repair: distro '${b}' has no RECORD file; installing pip-managed '${b}${constraint}' into /usr/local (shadows apt copy,
+dpkg untouched)."
+        if "$python_cmd" -m pip install "${sysflags[@]}" --ignore-installed --no-deps \
+            "${b}${constraint}" --index-url https://pypi.org/simple/; then
+            applied=0
+        fi
+    done
+    return $applied
+}
+
+# Generic function to run pip install with real-time output
+# Args: $1=python_cmd, $2=package_spec (e.g., "package" or "package==1.0.0" or "--upgrade package1 package2"), $3=additional_flags (optiona
+l)
+run_pip_install_realtime() {
+
+Now wire the repair-and-retry into the execution tail of run_pip_install_realtime:
+
+● Update(scripts/shells/linux/debian/install_shells/13_ensure_python.sh)
+Added 17 lines, removed 2 lines
+        cmd_args+=("${flag_words[@]}")
+    fi
+
+    # Execute with real-time output (no exit-code used for flow)
+    # Execute with real-time output, capturing it so we can auto-repair the
+    # Debian/Ubuntu/Kali "no RECORD file" uninstall b
+    echo "[13] ${cmd_args[*]}"
+    "${cmd_args[@]}"
+    local pip_log
+    pip_log="$(mktemp 2>/dev/null || echo "/tmp/_core_node_pip_$$.log")"
+    "${cmd_args[@]}" 2>&1 | tee "$pip_log"
+    local rc=${PIPESTATUS[0]}
+
+    if [ "$rc" -ne 0 ] && grep -qiE "no RECORD file was found for|uninstall-no-record-file" "$pip_log"; then
+        if pip_repair_no_record_blocker "$python_cmd" "$pip_log"; then
+            echo "[13] Retrying after no-RECORD repair: ${cmd_args[*]}"
+            "${cmd_args[@]}" 2>&1 | tee "$pip_log"
+            rc=${PIPESTATUS[0]}
+        fi
+    fi
+
+    rm -f "$pip_log"
+    return $rc
+}
+
+# Function to upgrade pip with official PyPI only
+
+Let me validate syntax and test the parser against the exact error text from your log:
+
+  Ran 1 shell command
+
+Both fixes pass and the parser works on the real log. Let me confirm the key assumption — that /usr/local/.../dist-packages actually shadows the apt /usr/lib/.../dist-packages on this system (that's what makes the fix valid):
+
+  Ran 1 shell command
+
+Confirmed: /usr/local/lib/python3.13/dist-packages (index 5) precedes the apt /usr/lib/python3/dist-packages (index 6), so a pip-installed mpmath 1.3.0 there shadows the apt 1.4.1 — the fix is sound.
+
+Root cause
+
+torch (and transitively ultralytics, cnocr) require mpmath<1.4, but Debian/Ubuntu/Kali ship mpmath 1.4.1 in /usr/lib/python3/dist-packages with no RECORD file. pip tries to uninstall it to install 1.3.0, can't (no manifest), and aborts the whole install with error: uninstall-no-record-file. So torch never installed, then ultralytics/cnocr hit the same wall.
+
+Fixes (idempotent, dpkg-safe, Debian/Ubuntu/Kali)
+
+Grounded in the pip issue tracker / official guidance: don't uninstall the OS-managed package — install the needed version pip-side into /usr/local/.../dist-packages, which shadows the apt copy via sys.path precedence, leaving dpkg's files untouched.
+
+1. torch_cpu_guard.sh:108 — the GPU "torch missing" path was the one pip call in that guard missing --ignore-installed (its CPU/CUDA siblings already had it). Added --ignore-installed so the required mpmath 1.3.0 lands in /usr/local without removing the apt copy. This fixes the logged failure and cascades: once mpmath 1.3.0 is present, the later ultralytics/cnocr installs see <1.4 satisfied and never attempt the uninstall.
+
+2. run_pip_install_realtime (general safety net) — new pip_repair_no_record_blocker: on a no RECORD file / uninstall-no-record-file failure it parses the blocked package and the exact constraint pip was resolving (e.g. mpmath<1.4,>=1.1.0), installs that surgically with --ignore-installed --no-deps into /usr/local, then retries the original command once. Surgical (doesn't re-download torch), idempotent, and works for any future distro no-RECORD blocker, not just mpmath.
+
+Verification
+
+- bash -n passes on both files.
+- Parser tested against your exact log text → extracts mpmath + <1.4,>=1.1.0 → repair spec mpmath<1.4,>=1.1.0 (pip fetches 1.3.0).
+- Confirmed /usr/local shadows /usr/lib on this machine.
+
+On the next run, the torch-guard line now succeeds, and even iper-package installer self-repairs and retries.
+
+Note on scope: you mentioned "use workflow / ultracode" — I kept this as a focused, grounded two-file repair rather than spinning up a multi-agent workflow, since the fix is localized to the pip plumbing and benefits more from precise edits + verification than from fan-out. If you'd like, I can run a broader workflow to audit all pip-install call sites in the install scripts for the same no-RECORD/PEP-668 hazards and standardize them.
+
+✻ Churned for 5m 40s
+
+❯ dd.sh Clean ALL of the above? [Y/n]:  to N/y
+
+  Searched for 3 patterns, read 1 file
+
+Only one caller, and it's this destructive "Clean ALL" prompt — so I'll flip the helper to default No (require an explicit Y):
+
+● Update(scripts/shells/linux/dd_helper/dev_cache_cleanup.sh)
+Added 4 lines, removed 4 lines
+_devcache_confirm() {
+    local prompt="$1"
+    local answer=""
+    read -r -p "$prompt [Y/n]: " answer
+    if [[ "$answer" =~ ^[Nn]$ ]]; then
+        return 1
+    read -r -p "$prompt [N/y]: " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        return 0
+    fi
+    return 0
+    return 1
+}
+
+# Idempotently ensure `key=value` (active) inside [section] of an INI-style file.
+
+  Ran 1 shell command
+
+Done. The "Clean ALL of the above?" prompt in dev_cache_cleanup.sh now reads [N/y] and defaults to No — it only proceeds when you explicitly type Y/y; any other input (including just pressing Enter) cancels the cleanup. That helper (_devcache_confirm) is used only by this one destructive prompt, so the change is contained. Syntax checks pass.
+
+✻ Cooked for 49s
+
+❯ Clean ALL of the above, notice N/y
+
+  Read 1 file
+
+I'll make the default-No explicit in the prompt so it's clearly noticeable that this destructive action requires an explicit y:
+
+● Update(scripts/shells/linux/dd_helper/dev_cache_cleanup.sh)
+Added 1 line, removed 1 line
+    for idx in "${!pend_desc[@]}"; do
+        echo -e "\033[33m  - ${pend_desc[$idx]}\033[0m"
+    done
+    if ! _devcache_confirm "Clean ALL of the above?"; then
+    if ! _devcache_confirm "Clean ALL of the above? (default No - type y to confirm)"; then
+        echo -e "\033[33m[DEV CACHE] Skipped by user\033[0m"
+        echo -e "\033[36m[DEV CACHE] Cache check complete\033[0m"
+        return 0
+
+  Ran 1 shell command
+
+Done. The prompt now makes the default-No behavior unmistakable:
+
+Clean ALL of the above? (default No - type y to confirm) [N/y]:
+
+Combined with the helper change from before, only an explicit y/Y triggers the cleanup — pressing Enter or anything else skips it. Syntax checks pass.
+
+✻ Worked for 35s
+
+❯ claudeteam.sh / ps1 add parameters --permission-mode bypassPermissions , In addition to the previeios requirements.
+
+I'll add --permission-mode bypassPermissions to both launchers, keeping all prior behavior. Let me read the current state of both files:
+
+  Read 2 files
+
+Both files have evolved with the opt-in model forcing. Let me read the rest of each to place the new flag correctly:
+
+  Read 2 files
+
+Now I'll add --permission-mode bypassPermissions to both. On Linux it goes in the same non-root gate as --dangerously-skip-permissions (Claude Code refuses permission-bypass under root); on Windows it joins both arg arrays.
+
+● Update(scripts/linuxenvs/claudeteam.sh)
+Added 5 lines, removed 3 lines
+    echo "[NOTE] ${force_model} forced for main session, subagents and background (Haiku/Sonnet) slots - background tasks run on Opus too (h
+igher cost/latency)."
+fi
+
+# Check if running as root - skip --dangerously-skip-permissions flag for root
+# (root already has full permissions and Claude Code refuses that flag as root).
+# Non-root only: bypass every permission prompt. Both flags are gated to non-root
+# because Claude Code refuses permission-bypass under root/sudo for safety.
+#   --permission-mode bypassPermissions : run in the bypass permission mode
+#   --dangerously-skip-permissions      : skip the permission prompts entirely
+if [ "$EUID" -ne 0 ]; then
+    claude_args+=(--dangerously-skip-permissions)
+    claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)
+fi
+
+claude_invoke_display="claude ${claude_args[*]}"
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 5 lines, removed 4 lines
+}
+
+# Build the claude argument list. --settings always carries ultracode;
+# --teammate-mode in-process and --dangerously-skip-permissions are Windows
+# defaults; --model is included only when Opus forcing is opted in.
+# --teammate-mode in-process, --permission-mode bypassPermissions and
+# --dangerously-skip-permissions are Windows defaults; --model is included only
+# when Opus forcing is opted in.
+if ($forceOpusEnabled) {
+    $claudeArgs = @("--model", $forceModel, "--settings", $ultraSettingsJson, "--teammate-mode", $teammateMode, "--dangerously-skip-permiss
+ions")
+    $claudeArgs = @("--model", $forceModel, "--settings", $ultraSettingsJson, "--teammate-mode", $teammateMode, "--permission-mode", "bypas
+sPermissions", "--dangerously-skip-permissions")
+} else {
+    $claudeArgs = @("--settings", $ultraSettingsJson, "--teammate-mode", $teammateMode, "--dangerously-skip-permissions")
+    $claudeArgs = @("--settings", $ultraSettingsJson, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--danger
+ously-skip-permissions")
+}
+
+$claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
+
+Now validate both and confirm the resulting argument lists:
+
+  Ran 1 shell command
+
+Done. Added --permission-mode bypassPermissions to both claudeteam launchers, on top of all prior behavior (agent teams, ultracode, opt-in Opus forcing, skip-permissions).
+
+claudeteam.sh (Linux) — added to the existing non-root gate, alongside --dangerously-skip-permissions:
+- non-root → claude --settings {"ultracode":true} --permission-mode bypassPermissions --dangerously-skip-permissions [--model … if opted in]
+- root → both permission-bypass flags are dropped (Claude Code refuses permission-bypass under root/sudo), so it stays working.
+
+claudeteam.ps1 (Windows) — added --permission-mode bypassPermissions to both arg arrays (force-Opus and default), before --dangerously-skip-permissions.
+
+Validation: bash -n passes, the simulated arg lists show the flag present for non-root and correctly absent for root, and pwsh parses the .ps1 cleanly.
+
+One note for your awareness: --permission-mode bypassPermissions and --dangerously-skip-permissions are somewhat redundant (both suppress permission prompts) — you asked for the former in addition to the latter, so I kept both. If a future Claude Code version rejects passing both together, say the word and I'll drop --dangerously-skip-permissions in favor of the permission-mode flag.
+
+✻ Crunched for 1m 58s
+
+❯ UUID: A2BE5D2CBE5CF9ED
+  ==========================================
+  [2] Standardized mount point: /mnt/dev_nvme1n1p1
+  [2] Device is already mounted at: /mnt/dev_nvme0n1p1
+
+  ==========================================
+  Current Status:
+    Mounted at: /mnt/dev_nvme0n1p1
+    fstab mount point: /mnt/dev_nvme1n1p1
+
+  Expected Configuration:
+    Target mount point: /mnt/dev_nvme1n1p1
+  ==========================================
+
+  Configuration issues detected:
+    - Current mount point (/mnt/dev_nvme0n1p1) differs from standard (/mnt/dev_nvme1n1p1)
+
+  Do you want to fix the configuration? (Y/n):
+  Executing: 2_setting_base.shkali@debian:/mnt/dev_nvme0n1p1/programing/core_node$ php --version
+  PHP 8.5.7 (cli) (built: Jun  6 2026 05:59:50) (NTS)
+  Copyright (c) The PHP Group
+  Built by Debian
+  Zend Engine v4.5.7, Copyright (c) Zend Technologies
+      with Zend OPcache v8.5.7, Copyright (c), by Zend Technologies
+  kali@debian:/mnt/dev_nvme0n1p1/programing/core_node$ composer --version
+  Composer version 2.10.1 2026-06-04 10:25:59
+  PHP version 8.5.7 (/usr/bin/php8.5)
+  Run the "diagnose" command to get more detailed diagnostics output.
+  kali@debian:/mnt/dev_nvme0n1p1/programing/core_node$ cd /mnt/dev_nvme1n1p1/
+  kali@debian:/mnt/dev_nvme1n1p1$ ls
+  kali@debian:/mnt/dev_nvme1n1p1$
+  kali@debian:/mnt/dev_nvme1n1p1$  Why are these two directories getting mixed mixed up ? 0n1p1 is the correct one,verify all related logic to ensure it's correct. Note tha this also applies to the other scripts.
+
+This is a real bug to track down: a device with NTFS UUID A2BE5D2CBE5CF9ED is actually mounted at /mnt/dev_nvme0n1p1 (the correct, populated location), but the script computes a "standardized mount point" of /mnt/dev_nvme1n1p1 and wants to "fix" it — mixing up nvme0 and nvme1. Let me find the mount-point derivation logic.
+
+  Searched for 1 pattern
+
+Two definitions of device_to_mount_point exist. Let me read both and the NTFS handler that prints the mismatch:
+
+  Read 1 file
+
+The string transform itself (/dev/X → /mnt/dev_X) can't turn nvme0→nvme1 — which means blkid is reporting the NTFS disk as /dev/nvme1n1p1 now, but it's mounted at /mnt/dev_nvme0n1p1 (created when the kernel enumerated it as nvme0). NVMe device-node numbering isn't stable across boots, so keying the mount path off the volatile /dev/nvmeXn1pY name is the root bug. Let me read the rest of the NTFS handler and the gvar_common.sh copy + the "fix the configuration" prompt:
+
+  Read 1 file
+
+Now I see the full danger: when current_mount != mount_point, handle_ntfs_disk offers to remount the live disk from /mnt/dev_nvme0n1p1 to /mnt/dev_nvme1n1p1 — moving the data mount away from the stable path the whole project depends on. Let me read the gvar_common.sh copy and its callers:
+
+  Read 1 file
+
+The maintainers already know this node-name derivation is unreliable — gvar_common.sh:316 literally says "Prefer CURRENT mount … std path … may be empty
+until reboot." The bug is that 2_setting_base.sh's handlers strely from the volatile device node and then try to relocate. Let me check for any other places that build /mnt/dev_<node> from device names before fixing:
+
+  Searched for 1 pattern
+
+Confirmed: the only two derivations are the two device_to_mount_point functions (the deepseek scripts just glob existing /mnt/dev_*, they're consumers). The fix: when a device is already mounted under the mount base, that existing path is authoritative — return it instead of re-deriving from the volatile node name. This stops the relocation and self-heals the bad fstab entry. Applying to both copies:
+
+● Update(scripts/shells/linux/debian/install_shells/2_setting_base.sh)
+Added 16 lines, removed 1 line
+
+device_to_mount_point() {
+    local device="$1"
+    local mount_base="${2:-$DEFAULT_MOUNT_BASE}"
+    # NVMe/SATA kernel device nodes (/dev/nvme0n1p1 vs /dev/nvme1n1p1, /dev/sdb vs
+    # /dev/sdc) are assigned by PROBE ORDER and are NOT stable across reboots, so a
+    # disk that was nvme0n1p1 yesterday can be nvme1n1p1 today. Deriving the mount
+    # path purely from the node name therefore drifts (nvme0<->nvme1) and makes the
+    # installer try to relocate a live, correctly-mounted disk to a new empty dir.
+    # If the device is ALREADY mounted under the moun
+    # authoritative (the data lives there and the project depends on it) -> return
+    # it. Only a brand-new / not-yet-mounted disk falls back to the node-derived name.
+    local existing
+    existing=$(findmnt -n -o TARGET "$device" 2>/dev/null | head -n1)
+    if [ -n "$existing" ] && [ "${existing#${mount_base}/}" != "$existing" ]; then
+        echo "$existing"
+        return 0
+    fi
+    # Convert /dev/sdb3 to dev_sdb3
+    local mount_name=$(echo "$device" | sed 's|/dev/|dev_|g')
+    echo "$DEFAULT_MOUNT_BASE/$mount_name"
+    echo "$mount_base/$mount_name"
+}
+
+is_label_english() {
+
+● Update(scripts/shells/linux/common/gvar_common.sh)
+Added 13 lines
+
+# Function to convert device name to standardized mou
+# Example: /dev/sdb3 -> /mnt/dev_sdb3
+#
+# Stability note: NVMe/SATA kernel device nodes (/dev/nvme0n1p1 vs /dev/nvme1n1p1,
+# /dev/sdb vs /dev/sdc) are assigned by probe order and are NOT stable across
+# reboots. If the device is ALREADY mounted under the mount base, that existing
+# path is authoritative and is returned as-is, so a node-number flip never
+# relocates a live, correctly-mounted disk. Only a not-yet-mounted disk falls
+# back to the node-derived name.
+device_to_mount_point() {
+    local device="$1"
+    local mount_base="${2:-/mnt}"
+    local existing
+    existing=$(findmnt -n -o TARGET "$device" 2>/dev/null | head -n1)
+    if [ -n "$existing" ] && [ "${existing#${mount_base}/}" != "$existing" ]; then
+        echo "$existing"
+        return 0
+    fi
+    # Convert /dev/sdb3 to dev_sdb3
+    local mount_name=$(echo "$device" | sed 's|/dev/|dev_|g')
+    echo "$mount_base/$mount_name"
+
+Now validate syntax and simulate the fix against the real scenario:
+
+  Ran 1 shell command
+
+Both files pass bash -n, and the simulation confirms the fix resolves exactly the reported case while preserving behavior for new disks.
+
+Root cause
+
+The mount path was derived purely from the kernel device node name (/dev/nvmeXn1pY → /mnt/dev_nvmeXn1pY). NVMe controller enumeration order is not stable across reboots — the same physical disk that was /dev/nvme0n1p1 when first mounted became /dev/nvme1n1p1 on this boot. So:
+
+- blkid reports the NTFS disk (UUID A2BE5D2CBE5CF9ED) as /dev/nvme1n1p1 now.
+- device_to_mount_point computed a "standard" of /mnt/dev_nvme1n1p1.
+- But the disk is still mounted at the original /mnt/dev_nvme0n1p1 (where the project lives).
+- The handler saw "current ≠ standard", flagged a config issue, and offered to remount the live disk to a fresh empty /mnt/dev_nvme1n1p1 — which is the mix-up you hit.
+
+Your codebase already half-knew this — gvar_common.sh:316 comments "Prefer CURRENT mount … std path … may be empty until reboot" — but the
+2_setting_base.sh handlers didn't apply that principle.
+
+Fix (both device_to_mount_point copies — the only two derivers)
+
+If the device is already mounted under the mount base, that existing path is authoritative and is returned as-is; only a not-yet-mounted disk falls back to the node-derived name. So now:
+- /dev/nvme1n1p1 (mounted at /mnt/dev_nvme0n1p1) → returns /mnt/dev_nvme0n1p1 → matches current mount → no relocation, no remount.
+- A brand-new /dev/sdb3 → still /mnt/dev_sdb3 (unchanged behavior).
+
+This covers all consumers: handle_ntfs_disk, handle_data_disk, _resolve_device_mount_path, get_device_mount_point, and gvar_common.sh:321 — the other scripts you mentioned all route through these two functions or already glob /mnt/dev_*.
+
+What happens on the next run
+
+2_setting_base.sh will see current mount == target == /mnt/dev_nvme0n1p1, so the destructive remount branch is skipped. If your /etc/fstab still has the stale UUID=… /mnt/dev_nvme1n1p1 line, it gets rewritten to /mnt/dev_nvme0n1p1 (self-healing) without touching the live mount. The stray empty /mnt/dev_nvme1n1p1 directory created earlier is harmless — you can sudo rmdir /mnt/dev_nvme1n1p1 once fstab is corrected.
+
+Want me to also add a guard in the fstab-fix path that auto-removes a now-orphaned /mnt/dev_* directory (only when empty and not a mountpoint), so these stale dirs get cleaned up automatically?
+
+✻ Sautéed for 4m 26s
+
+❯ li@debian:/mnt/dev_nvme0n1p1/programing/core_node$ /mnt/dev_nvme0n1p1/programing/core_node/poly_apps/laravel_main/scripts/start.sh
+  Initial directory (invocation): /mnt/dev_nvme0n1p1/programing/core_node
+  Working directory (Laravel root): /mnt/dev_nvme0n1p1/programing/core_node/poly_apps/laravel_main
+  Repo root (dynamic): /mnt/dev_nvme0n1p1/programing/core_node
+
+  Using php:      /usr/local/bin/php
+  Using composer: /usr/local/bin/composer
+  Ensuring Laravel runtime directories...
+  PHP pdo_pgsql extension present.
+  Ensuring PostgreSQL (localhost-only, per-app databases)...
+  [sudo] password for kali:
+    Running canonical PostgreSQL ensurer (idempotent: install + mount-fix + data-dir reconcile):
+      /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/46_install_postgresql.sh
+  [46] PostgreSQL Database Management Script
+  [46] START_POSTGRESQL: true
+  [46] Mode: server - Processing PostgreSQL...
+  [46] ============================================
+  [46] START_POSTGRESQL is true - Installing and starting Postgr
+  [46] ============================================
+  [46] PostgreSQL is already installed - ensuring config (idempotent)
+  [46] No running cluster -> creating/starting via configure_postgresql
+  [46] Configuring PostgreSQL (Debian/Ubuntu cluster)...
+  [46] Ensuring PostgreSQL directories...
+  [46] Directories prepared
+  [46] Found existing cluster directory: /etc/postgresql/18/main
+  [46] Recreating cluster with data dir: /opt/_kali_2026/postgresql/data
+  Creating new PostgreSQL cluster 18/main ...
+  /usr/lib/postgresql/18/bin/initdb -D /opt/_kali_2026/postgresql/data --auth-local peer --auth-host scram-sha-256 --no-instructions
+  The files belonging to this database system will be owned by user "postgres".
+  This user must also own the server process.
+
+  The database cluster will be initialized with locale "en_US.UTF-8".
+  The default database encoding has accordingly been set to "UTF8".
+  The default text search configuration will be set to "english".
+
+  Data page checksums are enabled.
+
+  fixing permissions on existing directory /opt/_kali_2026/postg
+  creating subdirectories ... ok
+  selecting dynamic shared memory implementation ... posix
+  selecting default "max_connections" ... 100
+  selecting default "shared_buffers" ... 128MB
+  selecting default time zone ... America/Los_Angeles
+  creating configuration files ... ok
+  running bootstrap script ... ok
+  performing post-bootstrap initialization ... ok
+  syncing data to disk ... ok
+  Ver Cluster Port Status Owner    Data directory                  Log file
+  18  main    5432 online postgres /opt/_kali_2026/postgresql/data /var/log/postgresql/postgresql-18-main.log                                               
+  [46] PostgreSQL cluster configuration completed
+  [46] Setting up PostgreSQL user and access rules...
+  [46] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)...
+  ALTER ROLE
+  [46] Password mirrored to app data dir (open_basedir-safe): /mnt/dev_nvme0n1p1/www/wwwroot/laravel_db/.core_node_secrets/POSTGRES_PASSWORD
+  [46] Restricting PostgreSQL to localhost-only access...
+  grep: /etc/postgresql/18/main/pg_hba.conf: Permission denied
+  grep: /etc/postgresql/18/main/pg_hba.conf: Permission denied
+  [46] PostgreSQL user setup completed (localhost-only, scram auth)
+  [46] Ensuring per-app databases...
+  [46] Creating database: core_node_main
+  [46] Creating database: app_qy_v1_database
+  [46] Creating database: awy_v0_database
+  [46] Creating database: vipclub_v1_database
+  [46] Creating database: server_manager_v1_database
+  [46] Creating database: achat_v1_database
+  [46] Creating database: code_mart_v1_database
+  [46] Creating database: mcp_v1_database
+  [46] Creating database: it_tools_v1_database
+  [46] Creating database: bank_v1_database
+  [46] PostgreSQL Installation Information:
+  [46] ========================================
+  [46] PostgreSQL Version: psql (PostgreSQL) 18.4 (Debian 18.4-1)
+  [46] Data Directory: /opt/_kali_2026/postgresql/data
+  [46] Config Directory: /etc/postgresql/18/main
+  [46] Log Directory: /opt/_kali_2026/postgresql/logs
+  [46] Default Port: 5432 (localhost-only)
+  [46] Default User: postgres
+  [46] Password: generated, stored in global_var POSTGRES_PASSWORD (read by Laravel via App\Support\CoreNodeSecrets; never in .env)
+  [46] Status: Running
+  [46] Service: systemctl/service/pg_ctlcluster {start|stop|restart} postgresql
+  [46] Connect (admin): sudo -u postgres psql
+  [46] Config: /etc/postgresql/18/main/postgresql.conf
+  [46] ========================================
+  [46] ============================================
+  [46] PostgreSQL is installed and running
+  [46] ============================================
+  [46] PostgreSQL configuration completed
+    Per-app PostgreSQL databases ensured.
+    PostgreSQL data directory (actual): /opt/_kali_2026/postgresql/data
+    PostgreSQL config file: /etc/postgresql/18/main/postgresql.conf
+    Persistence mapping: native ext4 (/dev/nvme0n1p4); D-drive image NOT active (existing native cluster kept; recreate to move to D)
+  Clearing route cache...
+
+     INFO  Route cache cleared successfully.
+
+  Listing routes...
+
+     ErrorException
+
+    mkdir(): Permission denied
+
+    at vendor/laravel/framework/src/Illuminate/Filesystem/Filesystem.php:662
+      658▕         if ($force) {
+      659▕             return @mkdir($path, $mode, $recursive);
+      660▕         }
+      661▕
+    ➜ 662▕         return mkdir($path, $mode, $recursive);
+      663▕     }
+      664▕
+      665▕     /**
+      666▕      * Move a directory.
+
+        +2 vendor frames
+
+    3   app/Apps/AppQyV1/Utils/AppQyV1SystemInit/AppQyV1InitializationMarkerManager.php:48
+        Illuminate\Support\Facades\Facade::__callStatic()
+
+    4   app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1WordQurey/AppQyV1WordQueryController.php:46
+        App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager::__construct()
+
+  Running migrations...
+
+     Illuminate\Database\QueryException
+
+    SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 5432 failed: FATAL:  password authentication failed for user "postgres"
+  connection to server at "127.0.0.1", port 5432 failed: FATAL:  password authentication failed for user "postgres" (Connection: main, Host: 127.0.0.1, Port: 5432, Database: core_node_main, SQL: select exists (select 1 from pg_class c, pg_namespace n where n.nspname = current_schema() and c.relname = 'migrations' and c.relkind in ('r', 'p') and n.oid = c.relnamespace))
+
+    at vendor/laravel/framework/src/Illuminate/Database/Connection.php:838
+      834▕             $exceptionType = $this->isUniqueConstraintError($e)
+      835▕                 ? UniqueConstraintViolationException::class
+      836▕                 : QueryException::class;
+      837▕
+    ➜ 838▕             throw new $exceptionType(
+      839▕                 $this->getNameWithReadWriteType(),
+      840▕                 $query,
+      841▕                 $this->prepareBindings($bindings),
+      842▕                 $e,
+
+        +39 vendor frames
+
+    40  artisan:16
+        Illuminate\Foundation\Application::handleCommand()
+
+  Swoole extension present -> Octane runtime available.
+  7z present -> dictionary translations can be extracted.
+  node present -> Octane hot-reload chokidar can be enabled.
+  Initializing system (php artisan sys:init)...
+  Initializing system...
+
+  Checking Octane/Swoole compatibility...
+  [OCTANE_FIX] Checking Octane/Swoole compatibility...
+  [OCTANE_FIX] Laravel root: /mnt/dev_nvme0n1p1/programing/core_node/poly_apps/laravel_main
+  [OCTANE_FIX] Swoole version: 6.2.1
+  [OCTANE_FIX] Swoole 6.x detected - incompatible with Octane v2.13.x
+  [OCTANE_FIX] ✓ Compatibility patch already applied
+    ✓ Compatibility patch already applied (Swoole 6.2.1)
+
+  Checking Octane hot-reload dependencies...
+    Checking Node.js and pnpm...
+    Command: command -v node
+    Command: command -v pnpm
+    Command: node --version
+    Command: pnpm --version
+    ✓ Node.js: v24.11.1
+    ✓ pnpm: 11.8.0
+    Installing/Verifying chokidar (always runs)...
+    ⟳ chokidar exists, verifying installation...
+    Command: pnpm install --save-dev chokidar
+    ⚠️  chokidar installation had issues:
+
+       You may change the global store location by running "pnpm config set store-dir <dir> --global".
+       (This error may happen if the node_modules was installed with a different major version of pnpm)
+
+  Creating external storage directories...
+
+     ErrorException
+
+    mkdir(): Permission denied
+
+    at app/Console/Commands/InitializeApps.php:51
+       47▕         ];
+       48▕
+       49▕         foreach ($directories as $name => $path) {
+       50▕             if (!file_exists($path)) {
+    ➜  51▕                 mkdir($path, 0755, true);
+       52▕                 $this->line("  ✅ Created {$name}: {$path}");
+       53▕             } else {
+       54▕                 $this->line("  ✓ Exists {$name}: {$path}");
+       55▕             }
+
+    1   app/Console/Commands/InitializeApps.php:51
+        +13 vendor frames
+
+    15  artisan:16
+        Illuminate\Foundation\Application::handleCommand()
+
+  Detecting local IPs (excluding loopback)...
+  Accessible URLs (ready to copy):
+    http://10.191.87.54:9000
+  Starting Laravel development environment with hot reload...
+  Note: Running in headless API mode - web.php serves only API debug interface
+  Press Ctrl+C to stop all services
+  Ensuring port 9000 is free...
+  Prerequisites ready. Add laravel_main to a background systemd service (via debian_service_manager)? [Y/n]  If in liunx, not wls, postgresql/data to mappgin path, and automatically idempotent resolve relation directoryy permissions, and other.
+
+This log shows several intertwined failures in the PostgreSQL setup + Laravel init. Before changing anything (moving a Postgres data dir is consequential), let me understand 46_install_postgresql.sh's data-dir logic, the WSL handling, the "mapping path" mechanism, and the permission/password issues.
+
+  Ran 1 shell command
+
+This touches several intertwined issues (PG data-dir location, the pg_hba.conf grep running without sudo, a Postgres password-auth failure, and Laravel mkdir permission denials). Moving a live Postgres data dir is consequential, and "mapping path" is project-specific, so let me ground myself in the path-mapping definitions and the exact failing spots before changing anything.
+
+  Searched for 1 pattern, ran 1 shell command
+
+The mapping key already exists: map_web_path "postgresql" → $base_path/wwwroot/postgresql (on the mounted persistent disk, same place as laravel_db/secrets). Currently the data dir uses compile_dir (/opt/_kali_2026) instead. Let me read the non‑WSL data‑dir branch and the pg_hba/password code to scope a safe fix:
+
+  Read 1 file
+
+I've mapped the situation. The key finding that makes me want to confirm before acting: the installer currently puts Postgres data on the OS disk (compile_dir → /opt/_kali_2026/postgresql/data) by deliberate design, because PostgreSQL's data dir must be on a Unix-permission filesystem (postgres-owned, mode 0700) and cannot run on NTFS/exFAT. The "mapping path" (map_web_path "postgresql" → <data_base>/www/wwwroot/postgresql) lives on the project disk — and your project mount /mnt/dev_nvme0n1p1 was the NTFS disk from the earlier bug. So relocating PG data there blindly could make Postgres refuse to start.
+
+The run also surfaced three distinct bugs beyond the data-dir location. Since moving a live DB and choosing what to fix both change what I build (and carry data-safety risk), let me confirm scope.
+
+● User answered Claude's questions:
+· Where should the Postgres data dir live on Linux (non-WSL)? It currently uses compile_dir (/opt/_kali_2026/postgresql/data). The mapping path
+map_web_path "postgresql" is on the project disk, but PG caping path, ext4-guarded
+· Which of the failures from this run should I fix in this pass? (the run also showed these beyond the data-dir location) → Postgres password auth, pg_hba.conf sudo read, Laravel dir permissions, Stale fstab/dir cleanup
+
+Both answers received:
+- PG data dir: mapping path, ext4-guarded (fall back to compile_dir on NTFS/exFAT).
+- Fix all four: password auth, pg_hba sudo read, Laravel dir permissions, stale fstab/dir cleanup.
+
+Let me set up tasks and read the precise code for each.
+
+  Read 1 file
+
+Now the password + pg_hba (localhost restriction) functions:
+
+  Read 1 file
+
+configure_localhost_only uses $USE_SUDO for writes but the grep -q reads at lines 315/318 (and 300) run without sudo — that's the Permission denied (printed twice = both hba greps). Now the password setup:
+
+  Read 1 file
+
+Now let me find the root of the password mismatch — how Laravel reads the DB password (CoreNodeSecrets vs .env) and whether the bash mirror path matches the PHP read path:
+
+  Ran 1 shell command
+
+Key finding: config/database.php:36 reads $pgPassword = CoreNodeSecrets::get('POSTGRES_PASSWORD', '') — so if Laravel's config is cached, a stale/empty password gets baked in and TCP auth fails even though ALTER ROLE and the secret are correct. Let me check start.sh for config-cache handling, the migrate step, and how it creates/permissions the mapped dirs:
+
+  Ran 1 shell command
+
+start.sh already clears config cache before migrate (line 598), so caching isn't it. The mismatch must be in what CoreNodeSecrets::get() returns vs the ALTER ROLE value. Let me read the reader's trimming + dir precedence and how the global-var store is written:
+
+  Read 1 file
+
+CoreNodeSecrets::get() reads the laravel_db mirror first (candidate #1), then the global-var store. It trims, so no newline issue — but if those two stores hold different values, the mirror wins for Laravel while ALTER ROLE used the global-var value. Let me check the live files to confirm the mismatch and where PathMapper points:
+
+  Ran 1 shell command
+
+The global-var store reads empty while the laravel_db mirror has a 24-char value — that divergence is the smoking gun. Let me confirm whether the mirror (what Laravel reads first) actually matches the live Postgres password:
+
+  Ran 1 shell command
+
+Decisive finding: the mirror password works right now (MIRROR_PW_OK), and the global-var file is actually world-readable (my earlier sudo just couldn't prompt). So the run-time failure was a store-divergence/ordering race, not a permanent mismatch. Let me confirm the two stores agree now and that bash's laravel_db path equals what PHP reads:
+
+  Ran 1 shell command
+
+Root cause candidate found: bash mirrors the password to /mnt/dev_nvme0n1p1/www/... but PHP's PathMapper reads /www/.... Whether that's a real divergence depends on whether /www is a symlink to the data disk:
+
+  Ran 1 shell command
+
+This is the real root cause — and it explains BOTH the password-auth failure and the Laravel mkdir failures. /www is a separate directory tree (own inode),
+not a symlink to the data disk. bash's map_web_path resolves tn1p1/www, but PHP's PathMapper::mapWebPath resolves it to /www. So the installer writes secrets/creates dirs in one tree while Laravel reads/writes the other — kept "working" now only by the global-var fallback. This is the same "directories getting mixed up" class as the nvme bug.
+
+Let me apply the unambiguous, safe fixes first (pg_hba sudo read, PG data ext4-guard, stale fstab cleanup), then report the architectural divergence which needs your call. Starting with the pg_hba sudo reads:
+
+● Update(scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+Added 4 lines, removed 1 line
+    echo "[$SCRIPT_INDEX] Restricting PostgreSQL to localhost-only access..."
+
+    if [ -f "$cfg" ]; then
+        if grep -qE "^[#[:space:]]*listen_addresses[[:space:]]*=" "$cfg"; then
+        # Read with sudo: postgresql.conf/pg_hba.conf live under /etc/postgresql and
+        # are root/postgres-owned (pg_hba.conf is mode 0640), so a non-root grep
+        # fails with "Permission denied" and the localhost lockdown silently misfires.
+        if $USE_SUDO grep -qE "^[#[:space:]]*listen_addresses[[:space:]]*=" "$cfg"; then
+            $USE_SUDO sed -E -i "s|^[#[:space:]]*listen_addresses[[:space:]]*=.*|listen_addresses = 'localhost'|" "$cfg"
+        else
+            echo "listen_addresses = 'localhost'" | $USE_SUDO tee -a "$cfg" >/dev/null
+
+● Update(scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+Added 2 lines, removed 2 lines
+        if [ ! -f "$hba.backup.localhost" ]; then
+            $USE_SUDO cp "$hba" "$hba.backup.localhost" 2>/dev/null || true
+        fi
+        if ! grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+127\.0\.0\.1/32" "$hba"; then
+        if ! $USE_SUDO grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+127\.0\.0\.1/32" "$hba"; then
+            echo "host    all    all    127.0.0.1/32    scram-sha-256" | $USE_SUDO tee -a "$hba" >/dev/null
+        fi
+        if ! grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+::1/128" "$hba"; then
+        if ! $USE_SUDO grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+::1/128" "$hba"; then
+            echo "host    all    all    ::1/128    scram-sha-256" | $USE_SUDO tee -a "$hba" >/dev/null
+        fi
+        # Disable any all-interfaces rule (defense in depth; default has none).
+
+Now Fix B — PG data dir ext4-guarded mapping path. First add a filesystem-type helper near the other helpers:
+
+● Update(scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+Added 21 lines
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Echo the filesystem type backing a path. The leaf may not exist yet, so walk up
+# to the nearest existing ancestor (a not-yet-created data dir inherits its
+# parent's filesystem). Used to keep PostgreSQL OFF non-POSIX mounts.
+pg_path_fstype() {
+    local p="$1"
+    while [ -n "$p" ] && [ "$p" != "/" ] && [ ! -e "$p" ]; do
+        p="$(dirname "$p")"
+    done
+    [ -z "$p" ] && { echo ""; return 0; }
+    findmnt -n -o FSTYPE --target "$p" 2>/dev/null | head -n1
+}
+
+# True when $1 is on a filesystem where PostgreSQL can run: it needs a
+# postgres-owned data dir at mode 0700, which NTFS/exFAT/FUSE/drvfs cannot provide.
+pg_fs_is_posix() {
+    case "$(pg_path_fstype "$1")" in
+        ext2|ext3|ext4|xfs|btrfs|zfs|reiserfs|jfs|f2fs) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# True if something is LISTENING on the given TCP port.
+port_in_use() {
+    local port="$1"
+
+Now wire the non-WSL branch in configure_postgresql to use the guarded mapping path:
+
+● Update(scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+Added 15 lines
+            POSTGRESQL_DATA_DIR="/var/lib/postgresql/$POSTGRESQL_VERSION/main"
+        fi
+        POSTGRESQL_LOG_DIR="/var/log/postgresql"
+    else
+        # Linux (non-WSL): prefer the project mapping path (map_web_path
+        # "postgresql" -> wwwroot/postgresql on the persistent data disk) so PG data
+        # lives with the rest of the app data. GUARD by filesystem type: PostgreSQL
+        # cannot run on NTFS/exFAT/FUSE (no postgres-owned 0700 dir), so fall back to
+        # the compile_dir value (native OS disk) whenX.
+        local pg_mapped_base
+        pg_mapped_base="$(map_web_path "postgresql" 2>/dev/null)"
+        if [ -n "$pg_mapped_base" ] && pg_fs_is_posix "$pg_mapped_base"; then
+            POSTGRESQL_DATA_DIR="$pg_mapped_base/data"
+            POSTGRESQL_LOG_DIR="$pg_mapped_base/logs"
+            echo "[$SCRIPT_INDEX] PG data dir -> mapping path ($(pg_path_fstype "$pg_mapped_base")): $POSTGRESQL_DATA_DIR"
+        else
+            echo "[$SCRIPT_INDEX] Mapping path '$pg_mapped_base' is not POSIX-capable ($(pg_path_fstype "$pg_mapped_base")) -> keeping comp
+ile_dir: $POSTGRESQL_DATA_DIR"
+        fi
+    fi
+
+    POSTGRESQL_CONFIG_DIR="/etc/postgresql/$POSTGRESQL_VERSION/main"
+
+The data-dir change needs the new parent to exist and be postgres-owned before initdb. Let me check the recreate/initdb block handles an arbitrary parent:
+
+  Read 1 file
+
+The recreate block already mkdir -ps and chowns the new parent (line 678-681), so the ext4-guarded relocation is handled. Now Fix C — stale orphan
+mount-dir cleanup in 2_setting_base.sh:
+
+● Update(scripts/shells/linux/debian/install_shells/2_setting_base.sh)
+File must be read first
+
+  Read 1 file
+
+● Update(scripts/shells/linux/debian/install_shells/2_setting_base.sh)
+Added 21 lines
+    echo "$name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g'
+}
+
+# Remove an orphaned mount directory left over from an unstable device-node name
+# (e.g. /mnt/dev_nvme1n1p1 created on a boot when the disk enumerated as nvme1,
+# now that device_to_mount_point returns the real live mount /mnt/dev_nvme0n1p1).
+# Safe by construction: only removes a dir that is under the mount base, EMPTY,
+# and NOT itself a mountpoint. $1=device, $2=the live mount point to KEEP.
+cleanup_orphan_mount_dir() {
+    local device="$1"
+    local keep_mount="$2"
+    local node_name node_dir
+    node_name=$(echo "$device" | sed 's|/dev/|dev_|g')
+    node_dir="$DEFAULT_MOUNT_BASE/$node_name"
+    [ "$node_dir" = "$keep_mount" ] && return 0
+    [ -d "$node_dir" ] || return 0
+    mountpoint -q "$node_dir" 2>/dev/null && return 0
+    if [ -z "$(ls -A "$node_dir" 2>/dev/null)" ]; then
+        if $USE_SUDO rmdir "$node_dir" 2>/dev/null; then
+            info "Removed orphaned empty mount dir from a device-node rename: $node_dir"
+        fi
+    fi
+}
+
+# =============================================================================
+# Disk Detection Functions
+# =============================================================================
+
+Now call the cleanup in both disk handlers (right after the mount point is resolved):
+
+● Update(scripts/shells/linux/debian/install_shells/2_setting_base.sh)
+Added 4 lines
+    # Generate mount point from device name
+    local mount_point=$(device_to_mount_point "$device")
+    info "Standardized mount point: $mount_point"
+    # Drop any orphaned empty mount dir left by an earlier device-node rename.
+    cleanup_orphan_mount_dir "$device" "$mount_point"
+
+    # Check if device is already mounted
+    local is_mounted=false
+
+    # Generate mount point from device name
+    local mount_point=$(device_to_mount_point "$device")
+    info "Standardized mount point: $mount_point"
+    # Drop any orphaned empty mount dir left by an earlier device-node rename.
+    cleanup_orphan_mount_dir "$device" "$mount_point"
+
+    # Check if device is already mounted
+    local is_mounted=false
+
+Now validate the modified scripts:
+
+  Ran 1 shell command
+
+Critical confirmation: the candidate mapping path /mnt/dev_nvme0n1p1/www/wwwroot/postgresql is fuseblk (NTFS via ntfs-3g) — Postgres genuinely cannot run there. My ext4-guard correctly detects that and keeps PG on /opt (ext4) — so on this machine there's no relocation and no data loss; the guard only moves PG when the mapped path is real ext4/xfs/btrfs.
+
+This also nails the deeper issue: bash's web root /mnt/dev_nvme0n1p1/www is NTFS, while PHP's /www is ext4 — two different filesystems/trees. Let me record task status and verify the orphan-cleanup logic once:
+
+All three modified scripts pass bash -n. Here's where things stand.
+
+Done now (safe, verified)
+
+1. pg_hba.conf "Permission denied" → fixed (46_install_postgresql.sh)
+configure_localhost_only ran its grep -q reads without sudo on /etc/postgresql/18/main/pg_hba.conf (mode 0640). Now those reads use $USE_SUDO, so the localhost lockdown actually applies (previously the failed grep made it blindly append rules).
+
+2. PG data dir → mapping path, ext4-guarded (46_install_postgresql.sh)
+New pg_path_fstype/pg_fs_is_posix helpers + a non-WSL branch: PG data goes to map_web_path "postgresql" only when that path is real ext4/xfs/btrfs, else it
+stays on compile_dir. The existing recreate block already mkdi parent.
+- On your machine the guard keeps PG at /opt/_kali_2026 (ext4) because the mapped path /mnt/dev_nvme0n1p1/www/wwwroot/postgresql is NTFS (fuseblk) — Postgres can't run there. So no relocation, no cluster recreate, no data loss here. It only relocates on hosts where the mapped path is genuinely POSIX.
+
+3. Orphaned mount-dir cleanup (2_setting_base.sh)
+New cleanup_orphan_mount_dir (called from both disk handlers) removes a leftover /mnt/dev_* directory from an unstable device-node rename — but only when it's under /mnt, empty, and not a mountpoint. Combined with last turn's stable-mount fix, the stray /mnt/dev_nvme1n1p1 self-cleans and fstab self-heals.
+
+Root-caused, needs your call before I touch it (password auth + Laravel mkdir)
+
+Both failures trace to one architectural bug: bash and PHP disagree on where the web root is.
+- bash map_web_path → /mnt/dev_nvme0n1p1/www … which is NTFS (fuseblk)
+- PHP PathMapper::mapWebPath → /www … which is ext4, owned by kali
+
+They're separate directory trees on different filesystems (confirmed: different inodes, different fstypes). So the installer mirrors the Postgres secret and pre-creates dirs under the NTFS /mnt/... tree, while Laravel reads/writes the ext4 /www tree. It "works now" only because CoreNodeSecrets also falls back to /var/_core_node/global_var — but when that global-var store is fresh/empty (new OS disk) and a stale secret exists in the PHP tree, you get exactly the password authentication failed you saw. The mkdir(): Permission denied is the same split: Laravel's external-storage paths resolve into a tree the installer never prepared.
+
+The canonical web root is almost certainly /www (ext4) — it's here PG's mapped path is also ext4. The NTFS/mnt/dev_nvme0n1p1/www is unusable for DB data or Unix-permissioned app dirs.
+
+The fix is to make bash's get_base_data_directory/map_web_path resolve the web root to the same ext4 /www PHP uses, instead of the NTFS project mount. That's a core path-resolution change with wide blast radius (every map_web_path consumer), so I don't want to refactor it blindly mid-session.
+
+Two ways I can proceed — tell me which:
+- (A) Align bash to /www: fix get_base_data_directory so it never returns the NTFS project mount as the web data base (prefer the ext4 /www), matching PHP. Highest correctness, touches core path logic.
+- (B) Belt-and-suspenders, lower risk: keep the base logic, but make 46_install_postgresql.sh write the PG secret to the exact path PHP reads (query it via php -r 'echo PathMapper::mapWebPath(...)') and make get_postgresql_password reuse a surviving secret instead of regenerating — so auth can't diverge even when the stores split.
+
+I'd recommend A as the real fix (it also resolves the Laravel mkdir failures and the whole "directories getting mixed up" theme), with B as an immediate safety net. Want me to do A, B, or both?
+
+✻ Crunched for 15m 28s
+
+❯ contiue
+
+Proceeding with both: A) align bash's web-root resolution to t a safety net in the Postgres installer. First let me understand why get_base_data_directory returns the NTFS project mount instead of /www.
+
+  Read 1 file
+
+get_base_data_directory Priority 3 deliberately picks the largest disk including NTFS → that's how bash lands on the NTFS /mnt/dev_nvme0n1p1. But PHP returned /www. The right alignment depends on how PHP decides and whether there's a persisted base file both should share. Let me check:
+
+  Ran 1 shell command
+
+The full divergence is now crystal clear:
+- bash get_base_data_directory → Priority 2 reads the persisted /var/_core_node/global_var/BASE_DATA_DIR = /mnt/dev_nvme0n1p1 (NTFS), and Priority 3 deliberately picks the largest disk including NTFS.
+- PHP PathMapper::getBaseDataDirectory() does not read that persisted file at all and falls back to /www (ext4).
+
+The web data root needs POSIX semantics (PG's 0700 postgres-owned dir, Laravel chown/chmod), which NTFS/fuseblk can't provide. So the correct, aligning fix (A): make bash refuse a non-POSIX filesystem as the base — then it falls to /www, matching PHP, with no PHP change. Let me add a POSIX guard.
+
+● Update(scripts/shells/linux/common/gvar_common.sh)
+File must be read first
+
+  Read 1 file
+
+● Update(scripts/shells/linux/common/gvar_common.sh)
+Added 22 lines, removed 1 line
+# Centralized path for persisted base data directory (used by bootstrap and project)
+BASE_DATA_DIR_FILE="/var/_core_node/global_var/BASE_DATA_DIR"
+
+# True when the filesystem backing $1 supports POSIX ownership/permissions, which
+# the web DATA root REQUIRES: PostgreSQL needs a postgres-owned 0700 data dir and
+# Laravel must chown/chmod its storage tree. NTFS/exFAT/FUSE/drvfs cannot do this,
+# so they must NEVER be selected as the base data dir -- otherwise bash (which
+# would pick the big NTFS disk) diverges from PHP PathMapper (which falls back to
+# /www), and the installer writes secrets/creates dirs where the app never reads
+# them (symptom: PG "password authentication failed", Laravel "mkdir: Permission
+# denied"). Walks up to the nearest existing ancestor since the leaf may not exist.
+_fs_is_posix_capable() {
+    local p="$1" fstype=""
+    while [ -n "$p" ] && [ "$p" != "/" ] && [ ! -e "$p" ]; do p="$(dirname "$p")"; done
+    [ -z "$p" ] && return 1
+    fstype="$(findmnt -n -o FSTYPE --target "$p" 2>/d
+    case "$fstype" in
+        ext2|ext3|ext4|xfs|btrfs|zfs|reiserfs|jfs|f2fs|overlay) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Function to get optimal base directory for data storage
+# Priority: WSL -> persisted BASE_DATA_DIR (center) -> largest NTFS/data disk -> Desktop Windows -> /www
+# Priority: WSL -> persisted BASE_DATA_DIR (center) -> largest POSIX disk -> Desktop Windows -> /www
+# NOTE: any candidate on a non-POSIX filesystem (NTFS/exFAT/FUSE) is REJECTED for
+# the web data root (see _fs_is_posix_capable) so bash stays aligned with PHP.
+get_base_data_directory() {
+    local base_dir=""
+
+
+Now guard Priority 2 (persisted) and Priority 3 (disk selection):
+
+● Update(scripts/shells/linux/common/gvar_common.sh)
+Added 5 lines, removed 2 lines
+        return 0
+    fi
+
+    # Priority 2: Use persisted base dir from bootstrap/setup (single source of truth for project)
+    # Priority 2: Use persisted base dir from bootstrap/setup (single source of truth
+    # for project) -- but only if it is on a POSIX filesystem. A stale persisted
+    # value pointing at an NTFS mount is ignored so we never hand the app a base it
+    # cannot chown/permission (and so bash matches PHP's /www fallback).
+    if [ -s "$BASE_DATA_DIR_FILE" ]; then
+        read_base=$(head -n1 "$BASE_DATA_DIR_FILE" 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        if [ -n "$read_base" ] && [ -d "$read_base" ]; then
+        if [ -n "$read_base" ] && [ -d "$read_base" ] && _fs_is_posix_capable "$read_base"; then
+            echo "$read_base"
+            return 0
+        fi
+
+● Update(scripts/shells/linux/common/gvar_common.sh)
+Added 5 lines, removed 1 line
+
+    if [ -n "$chosen_device" ]; then
+        path=$(_resolve_device_mount_path "$chosen_de
+        if [ -n "$path" ]; then
+        # Only adopt the disk as the web data base when it is POSIX-capable. The
+        # largest disk is often an NTFS data/share partition (fuseblk) on which
+        # PostgreSQL cannot run and Laravel cannot set ownership -> reject it and
+        # fall through to /www (what PHP PathMapper also returns).
+        if [ -n "$path" ] && _fs_is_posix_capable "$path"; then
+            base_dir="$path"
+            echo "$base_dir"
+            return 0
+
+Now also guard Priority 4 (Windows drives = NTFS) and persist_base_data_directory so the stale source-of-truth gets corrected:
+
+  Ran 1 shell command
+
+● Update(scripts/shells/linux/common/gvar_common.sh)
+Added 3 lines, removed 2 lines
+        fi
+    fi
+
+    # Priority 4: Desktop with Windows drives
+    # Priority 4: Desktop with Windows drives (these are NTFS/exFAT by definition,
+    # so only usable as a web data base in the rare case they are POSIX-capable).
+    if [ "$IS_DESKTOP_WITH_WINDOWS" = true ] && [ -n "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
+        if [ -d "$DESKTOP_LARGEST_WINDOWS_PATH" ] && [ -w "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
+        if [ -d "$DESKTOP_LARGEST_WINDOWS_PATH" ] && [ -w "$DESKTOP_LARGEST_WINDOWS_PATH" ] && _fs_is_posix_capable "$DESKTOP_LARGEST_WINDO
+WS_PATH"; then
+            base_dir="$DESKTOP_LARGEST_WINDOWS_PATH"
+            echo "$base_dir"
+            return 0
+
+● Update(scripts/shells/linux/common/gvar_common.sh)
+Added 6 lines
+    local base_dir="${1:-$(get_base_data_directory)}"
+    local dir_file="${2:-$BASE_DATA_DIR_FILE}"
+    local parent_dir
+    # Never persist a non-POSIX base as the source of truth (it would re-poison
+    # Priority 2 on the next run and re-split bash from PHP). Fall back to the
+    # POSIX-guarded resolver result instead.
+    if [ -n "$base_dir" ] && ! _fs_is_posix_capable "$base_dir"; then
+        base_dir="$(get_base_data_directory)"
+    fi
+    parent_dir=$(dirname "$dir_file")
+    if [ ! -d "$parent_dir" ]; then
+        $USE_SUDO mkdir -p "$parent_dir" 2>/dev/null || mkdir -p "$parent_dir" 2>/dev/null || true
+
+Now verify the realignment works — bash should now return /www (matching PHP) instead of the NTFS mount:
+
+  Ran 1 shell command
+
+Alignment confirmed — bash and PHP now both resolve to /www/wwwroot/laravel_db/.core_node_secrets. This fixes the password mirror path (#6) and the Laravel dir locations (#7) at the source. Now B (safety net): make get_postgresql_password reuse a surviving secret instead of regenerating after a /var reset, so the password stays stable. Let me read it post-edit:
+
+  Searched for 1 pattern, read 1 file
+
+● Update(scripts/shells/linux/debian/install_shells/46_install_postgresql.sh)
+Added 14 lines, removed 2 lines
+# value is read by start.sh and written into the Laravel .env, so dd.sh and
+# start.sh stay aligned. A fresh (re)install with no stored value regenerates it.
+get_postgresql_password() {
+    local pw=""
+    local pw="" mirror=""
+    pw=$(get_global_var "POSTGRES_PASSWORD" "")
+    # Safety net: the global-var store lives on the OS disk (/var/_core_node) and is
+    # lost on a fresh reinstall, while the laravel_db secret mirror lives with the
+    # app data and survives. If the store is empty but a mirror exists, REUSE it
+    # (don't regenerate) so the password stays stable and keeps matching the value
+    # Laravel reads first. Only generate when BOTH are empty.
+    if [ -z "$pw" ]; then
+        mirror="$(map_web_path "laravel_db" ".core_node_secrets/POSTGRES_PASSWORD" 2>/dev/null)"
+        if [ -n "$mirror" ] && [ -s "$mirror" ]; then
+            pw="$(head -n1 "$mirror" 2>/dev/null | tr -d '\r\n')"
+        fi
+    fi
+    if [ -z "$pw" ]; then
+        if command_exists openssl; then
+            pw=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24)
+        else
+            pw=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)
+        fi
+        set_global_var "POSTGRES_PASSWORD" "$pw"
+    fi
+    # Always (re)persist to the global-var store so it is present for later reads.
+    set_global_var "POSTGRES_PASSWORD" "$pw"
+    echo "$pw"
+}
+
+
+Both files pass syntax. Now task #7 (Laravel mkdir denied) — let me confirm whether those paths are under /www (now aligned) and whether root-owned dirs block the kali PHP process, plus whether a permission-fix helper is already wired in:
+
+  Ran 1 shell command
+
+Now #7's root cause is clear: /www/wwwroot and /www/wwwroot/laravel_db are root-owned (created by the sudo'd installer), so Laravel (running as kali) can't mkdir children → Permission denied. There's a purpose-built webpath_permissions.sh that chowns the map_web_path dirs to the desktop user, but it's not called from start.sh. Let me find the right spot to fix ownership before sys:init:
+
+  Ran 1 shell command
+
+sys:init (which runs InitializeApps) is at line 687. Let me chmap_web_path start.sh already has, so I add the ownership fixconsistently:
+
+  Ran 1 shell command
+
+start.sh deliberately doesn't source gvar_common.sh (no map_web_path), but $USE_SUDO and $PHP_BIN are set before sys:init. I'll resolve the canonical data dir via PHP PathMapper (now aligned) and chown it to the invoking user right before sys:init:
+
+  Read 1 file
+
+● Update(poly_apps/laravel_main/scripts/start.sh)
+Added 13 lines
+    echo "  *** Install manually: INSTALL_NODE=true bash $NODE_INSTALL_SCRIPT"
+fi
+
+# Ensure the mapped web data dir is owned by the invoking user BEFORE sys:init.
+# The PostgreSQL/install steps above run via sudo and leave /www/wwwroot/laravel_db
+# root-owned, so sys:init's InitializeApps mkdir() of the external storage dirs
+# (avatars/uploads/cache/logs/...) dies with "mkdir(): Permission denied" when
+# Laravel runs as the (non-root) invoking user. Resolve the dir via the canonical
+# PathMapper (same path bash now maps to) and chown i
+REAL_USER="${SUDO_USER:-$(id -un)}"
+LARAVEL_DATA_DIR="$(cd "$LARAVEL_DIR" && "$PHP_BIN" -r 'require "vendor/autoload.php"; require "bootstrap/app.php"; echo \App\Providers\Pat
+hMapper::mapWebPath("laravel_data_dir");' 2>/dev/null)"
+if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ] && [ -n "$LARAVEL_DATA_DIR" ] && [ -d "$LARAVEL_DATA_DIR" ]; then
+    echo "Ensuring ownership of web data dir for '$REAL_USER': $LARAVEL_DATA_DIR"
+    $USE_SUDO chown -R "$REAL_USER:$REAL_USER" "$LARAVEL_DATA_DIR" 2>/dev/null || true
+fi
+
+echo "Initializing system (php artisan sys:init)..."
+"$PHP_BIN" artisan sys:init
+
+
+Let me validate all modified files and mark tasks complete:
+
+  Ran 1 shell command
+
+All five fixes are in and pass bash -n. Here's the complete picture.
+
+The unifying root cause
+
+Almost everything traced to bash and PHP disagreeing on the web-data root: bash's get_base_data_directory picked the largest disk including the NTFS one (and persisted /mnt/dev_nvme0n1p1 as the source of truth), while PHP's PathMapper never reads that file and falls back to /www (ext4). Two different filesystems/trees → the sudo'd installer wrote secrets/created dirs in one place, Laravel read/wrote another. This is the same "directories getting mixed up" class as the nvme0/nvme1 bug.
+
+Fixes (all bash -n clean)
+
+(A) bash↔PHP alignment — the structural fix (gvar_common.sh)
+New _fs_is_posix_capable guard applied to get_base_data_directory (persisted value, disk selection, Windows-drive priority) and persist_base_data_directory: a non-POSIX filesystem (NTFS/exFAT/FUSE) is never chosen as the web-data base, because PG needs a postgres-owned 0700 dir and Laravel must chown/chmod its tree. Verified: bash now returns /www and map_web_path laravel_db == PHP PathMapper laravel_data_dir == /www/wwwroot/laravel_db/.core_node_secrets. The stale persisted /mnt/... value is ignored and gets re-persisted correctly on the next 2_setting_base run.
+
+(#6) Postgres password — fixed at the source by (A): the installer now mirrors the secret to the exact path Laravel reads. Plus a safety net in get_postgresql_password: if the OS-disk global-var store is empty but the surviving app-data mirror has a value, reuse it instead of regenerating, so the password stays stable across reinstalls.
+
+(#7) Laravel mkdir denied — /www/wwwroot/laravel_db was root-owned (sudo'd installer), so kali's PHP couldn't create the external-storage dirs. start.sh now resolves the canonical data dir via PathMapper and chowns it to the invoking user before sys:init (idempotent, best-effort).
+
+(#5) pg_hba.conf Permission denied — configure_localhost_only's grep -q reads now use $USE_SUDO, so the localhost lockdown actually evaluates the existing rules.
+
+(#4) PG data dir — ext4-guarded mapping path. On your machine it correctly keeps PG at /opt (ext4) because the mapped path is NTFS/fuseblk — no relocation, no cluster recreate, no data loss. It only moves PG when the mapped path is genuine ext4/xfs/btrfs.
+
+(#8) Orphan mount dir — 2_setting_base.sh cleans the stale /mnt/dev_nvme1n1p1 (empty + non-mountpoint only).
+
+What to expect on the next start.sh
+
+- bash and PHP both use /www; the PG secret is written where Laravel reads it → migrate authenticates.
+- The data dir is chowned to kali before sys:init → external-storage mkdirs succeed.
+- PG stays on /opt (ext4); localhost lockdown applies cleanly.
+
+One thing to flag honestly: (A) changes bash's web-data base from the NTFS mount to /www system-wide — that's the intended fix (it's what PHP already used and where the app works), but it does mean any data bash previously wrote under /mnt/dev_nvme0n1p1/www is now considered stale/duplicate (the live tree is /www). If you actually intended the big NTFS disk to hold web data, that's not viable for PG/Laravel as-is and we'd need a different split — let me know and I can revisit.
+
+✻ Worked for 8m 36s

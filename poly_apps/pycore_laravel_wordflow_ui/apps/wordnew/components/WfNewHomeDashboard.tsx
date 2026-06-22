@@ -25,11 +25,12 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Languages, BookOpen, RefreshCw, GraduationCap, Flame, CalendarCheck,
-  Target, Sparkles, Lock, Save, TrendingUp, Layers,
+  Target, Sparkles, Save, TrendingUp, Layers,
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 import { getLanguageConfig } from '../WfNewLocales';
-import { WfNewAvatarView } from './WfNewAvatarView';
+import { WfNewLanguagePanel } from './WfNewLanguagePanel';
+import { wfNewSettings } from '../WfNewSettingsStore';
 import type { WfNewStatistics, WfNewLanguage } from '../api';
 
 interface WfNewHomeDashboardProps {
@@ -76,6 +77,16 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
 
   const langCfg = getLanguageConfig(draftLang);
 
+  // Shared floating language panel (native + MULTIPLE targets) — same component
+  // used in Settings. The panel syncs to the backend itself; here we mirror the
+  // result into the local draft + the settings store.
+  const [langPanelOpen, setLangPanelOpen] = useState(false);
+  const [nativeLang, setNativeLang] = useState<string>(() => wfNewSettings.get('settingNativeLang'));
+  const [targetLangs, setTargetLangs] = useState<string[]>(() => {
+    const stored = wfNewSettings.get('settingTargetLangs');
+    return Array.isArray(stored) && stored.length ? stored : [targetLang];
+  });
+
   // Live figures (real when logged in, otherwise 0 / draft goal).
   const goal = isLoggedIn && stats ? stats.dailyGoal || draftGoal : draftGoal;
   const today = isLoggedIn && stats ? stats.todayProgress : 0;
@@ -98,31 +109,31 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
           it is simply absent (no "log in to unlock" prompt); the learning
           settings row below stays visible either way. */}
       {isLoggedIn && (<>
-      {/* ── Commander identity: avatar + name embedded in the panel header ── */}
+      {/* ── Header: the original date stays on the LEFT; the logged-in user
+            greeting moves to the RIGHT and shows the USERNAME ONLY (no avatar —
+            the top nav bar already renders the avatar). ── */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden ring-2 ring-indigo-500/30 bg-white/5 flex items-center justify-center">
-            <WfNewAvatarView value={avatarUrl} className="text-2xl" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-fuchsia-400 truncate">
-              {trans('welcome.back')}
-            </p>
-            <p className="mt-0.5 text-lg sm:text-2xl font-black tracking-tight truncate bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-100 to-indigo-400">
-              {nickname || 'Commander'}
-            </p>
-          </div>
-        </div>
-        <div className="text-[10px] text-zinc-500 font-mono hidden sm:block shrink-0">
+        <div className="text-[10px] text-zinc-500 font-mono shrink-0">
           {new Date().toLocaleDateString()}
+        </div>
+        <div className="min-w-0 text-right">
+          <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-fuchsia-400 truncate">
+            {trans('welcome.back')}
+          </p>
+          <p className="mt-0.5 text-base sm:text-xl font-black tracking-tight truncate bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-indigo-100 to-white">
+            {nickname || 'Commander'}
+          </p>
         </div>
       </div>
 
-      {/* ── Top: Today's Command ring + check-in strip ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Today's Study Command (ring) */}
-        <div className="relative p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-950/40 to-fuchsia-950/20 border border-indigo-500/10 flex items-center gap-4 sm:gap-5">
-          <div className="relative shrink-0 w-[88px] h-[88px]">
+      {/* ── BENTO stats grid — a hero "Today's Command" tile (ring left, big
+            number on the RIGHT) spanning 2×2, KPI tiles + a wide check-in strip
+            filling the rest. ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 auto-rows-[84px] sm:auto-rows-[92px] gap-2.5 sm:gap-3">
+        {/* HERO: Today's Study Command — col-span-2, row-span-2 */}
+        <div className="col-span-2 row-span-2 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-950/40 to-fuchsia-950/20 border border-indigo-500/10 flex items-center justify-between gap-3">
+          {/* progress ring (left) */}
+          <div className="relative shrink-0 w-[92px] h-[92px] sm:w-[104px] sm:h-[104px]">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
               <circle cx="40" cy="40" r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" />
               <motion.circle
@@ -141,28 +152,35 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
               <span className="text-[8px] font-mono text-indigo-300 uppercase">{trans('goal.title')}</span>
             </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-              <Target className="w-3.5 h-3.5" /> {trans('home.todayRecite')}
+          {/* recited count + streak (RIGHT) */}
+          <div className="min-w-0 text-right">
+            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-300 flex items-center justify-end gap-1.5">
+              {trans('home.todayRecite')} <Target className="w-3.5 h-3.5" />
             </p>
-            <p className="mt-1 text-2xl sm:text-3xl font-black font-mono text-white">
-              {today} <span className="text-base text-indigo-300 font-medium">/ {goal}</span>
+            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-white leading-none">
+              {today}<span className="text-lg sm:text-xl text-indigo-300 font-medium"> / {goal}</span>
             </p>
-            <div className="mt-2 flex items-center gap-3 text-[11px] font-mono">
+            <div className="mt-2 flex items-center justify-end gap-3 text-[11px] font-mono">
               <span className="flex items-center gap-1 text-orange-400"><Flame className="w-3.5 h-3.5" /> {streak}{trans('stats.days')}</span>
               <span className="flex items-center gap-1 text-emerald-400"><GraduationCap className="w-3.5 h-3.5" /> {stats?.totalWordsLearned ?? 0}</span>
             </div>
           </div>
         </div>
 
-        {/* Check-in 7-day strip (weekly_progress) */}
-        <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+        {/* KPI tiles fill the 2×2 block beside the hero */}
+        <Kpi icon={<GraduationCap className="w-3 h-3" />} label={trans('stats.learned')} accent="text-indigo-400" value={stats?.totalWordsLearned ?? 0} />
+        <Kpi icon={<Sparkles className="w-3 h-3" />} label={trans('dashboard.mastered')} accent="text-emerald-400" value={stats?.masteredWords ?? 0} />
+        <Kpi icon={<Layers className="w-3 h-3" />} label={trans('dashboard.learning')} accent="text-sky-400" value={stats?.learningWords ?? 0} />
+        <Kpi icon={<RefreshCw className="w-3 h-3" />} label={trans('home.needReview')} accent="text-amber-400" value={stats?.needsReview ?? 0} />
+
+        {/* Check-in 7-day strip — wide tile (col-span-2) */}
+        <div className="col-span-2 p-4 rounded-2xl bg-white/5 border border-white/5 flex flex-col justify-center">
           <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-300">
             <CalendarCheck className="w-3.5 h-3.5" />
             <span>{trans('home.checkIn')}</span>
             <span className="ml-auto text-amber-400">🔥 {streak}{trans('stats.days')}</span>
           </div>
-          <div className="mt-3 flex items-end justify-between gap-1.5 h-14">
+          <div className="mt-2 flex items-end justify-between gap-1.5 h-10">
             {weekly.map((n, i) => (
               <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
                 <div
@@ -170,19 +188,12 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
                   style={{ height: `${Math.max(14, Math.round((n / weekMax) * 100))}%` }}
                   title={`${n}`}
                 />
-                <span className="text-[8px] font-mono text-zinc-500">{i + 1}</span>
               </div>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* ── KPI grid (real stats) ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-        <Kpi icon={<GraduationCap className="w-3 h-3" />} label={trans('stats.learned')} accent="text-indigo-400" value={stats?.totalWordsLearned ?? 0} />
-        <Kpi icon={<Sparkles className="w-3 h-3" />} label={trans('dashboard.mastered')} accent="text-emerald-400" value={stats?.masteredWords ?? 0} />
-        <Kpi icon={<Layers className="w-3 h-3" />} label={trans('dashboard.learning')} accent="text-sky-400" value={stats?.learningWords ?? 0} />
-        <Kpi icon={<RefreshCw className="w-3 h-3" />} label={trans('home.needReview')} accent="text-amber-400" value={stats?.needsReview ?? 0} />
+        {/* Remaining KPIs fill the last row beside the check-in strip */}
         <Kpi icon={<TrendingUp className="w-3 h-3" />} label={trans('dashboard.accuracy')} accent="text-fuchsia-400" value={`${stats?.averageAccuracy ?? 0}%`} />
         <Kpi icon={<CalendarCheck className="w-3 h-3" />} label={trans('dashboard.studyDays')} accent="text-cyan-400" value={stats?.studyDays ?? 0} />
       </div>
@@ -194,20 +205,21 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
           <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> {trans('dashboard.settingsTitle')}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Target language */}
-          <label className="block">
+          {/* Target language(s) — opens the SHARED floating language panel. */}
+          <div className="block">
             <span className="text-[9px] font-mono uppercase tracking-wider text-indigo-400 flex items-center gap-1"><Languages className="w-3 h-3" /> {trans('home.targetLang')}</span>
-            <select
-              value={draftLang}
-              onChange={(e) => setDraftLang(e.target.value)}
-              className={`mt-1.5 w-full py-2 px-3 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`}
+            <button
+              type="button"
+              onClick={() => setLangPanelOpen(true)}
+              className={`mt-1.5 w-full py-2 px-3 text-xs font-mono rounded-xl outline-none text-left flex items-center justify-between gap-2 cursor-pointer ${activeTheme.inputClass}`}
             >
-              {(languageOptions.length ? languageOptions : [{ code: draftLang, name: draftLang, native_name: langCfg.nativeName }]).map((l) => {
-                const cfg = getLanguageConfig(l.code);
-                return <option key={l.code} value={l.code}>{cfg.flag} {l.native_name || l.name || l.code}</option>;
-              })}
-            </select>
-          </label>
+              <span className="truncate">
+                {getLanguageConfig(targetLangs[0] || draftLang).flag}{' '}
+                {targetLangs.map((c) => getLanguageConfig(c).nativeName).join(' · ') || langCfg.nativeName}
+              </span>
+              <Languages className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            </button>
+          </div>
 
           {/* Daily goal stepper */}
           <label className="block">
@@ -229,19 +241,40 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2">
-          {!isLoggedIn && <span className="text-[10px] font-mono text-amber-400 mr-auto">{trans('dashboard.loginHint')}</span>}
+        <div className="space-y-2">
+          {!isLoggedIn && <span className="block text-center text-[10px] font-mono text-amber-400">{trans('dashboard.loginHint')}</span>}
           <button
             type="button"
             onClick={() => onSave({ targetLang: draftLang, dailyGoal: draftGoal })}
             disabled={isLoggedIn && !dirty}
-            className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl transition-all"
+            className="w-full flex items-center justify-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl transition-all"
           >
             <Save className="w-3.5 h-3.5" />
             {isLoggedIn ? trans('dashboard.save') : trans('dashboard.saveLogin')}
           </button>
         </div>
       </div>
+
+      {/* Shared floating language panel (native + multi targets), same as Settings. */}
+      <WfNewLanguagePanel
+        open={langPanelOpen}
+        onClose={() => setLangPanelOpen(false)}
+        nativeLang={nativeLang}
+        targetLangs={targetLangs}
+        options={languageOptions}
+        onSave={(sel) => {
+          setNativeLang(sel.native_language);
+          setTargetLangs(sel.learning_languages);
+          const primary = sel.learning_languages[0] || draftLang;
+          setDraftLang(primary);
+          wfNewSettings.setField('settingNativeLang', sel.native_language);
+          wfNewSettings.setField('settingTargetLangs', sel.learning_languages);
+          wfNewSettings.setField('settingTargetLang', primary);
+          // Propagate the primary target up so the host (WfNewApp) updates too.
+          onSave({ targetLang: primary, dailyGoal: draftGoal });
+        }}
+        trans={trans}
+      />
     </motion.div>
   );
 };

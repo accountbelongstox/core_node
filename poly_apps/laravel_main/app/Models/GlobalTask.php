@@ -31,6 +31,15 @@ class GlobalTask extends Model
         'error',
         'queue_item_id',
         'completed_at',
+        // Phase 2 — shared fast lane + capability routing.
+        'capability',
+        'is_fast_tier',
+        // Phase 5 — substrate unification link back to the canonical dict row.
+        'dict_row_id',
+        'dict_language',
+        'dict_row_table',
+        'sync_to_dict_at',
+        'group_key',
     ];
 
     protected $casts = [
@@ -45,6 +54,10 @@ class GlobalTask extends Model
         'retry_count' => 'integer',
         'max_retries' => 'integer',
         'timeout_seconds' => 'integer',
+        // Phase 2 / Phase 5 additions.
+        'is_fast_tier' => 'boolean',
+        'dict_row_id' => 'integer',
+        'sync_to_dict_at' => 'datetime',
     ];
 
     // Task status constants
@@ -64,6 +77,192 @@ class GlobalTask extends Model
     const EXECUTION_REMOTE_TRANSLATION = 'remote_translation';
     const EXECUTION_REMOTE_VIDEO = 'remote_video';
     const EXECUTION_REMOTE_IO = 'remote_io';
+    // Local-TTS audio assist lane (pycore). word_audio tasks ride this so the
+    // pycore audio worker can register/pull a dedicated audio queue, separate
+    // from the chrome Bing assist (remote_client) lane.
+    const EXECUTION_REMOTE_AUDIO = 'remote_audio';
+    // Dedicated chrome Task Center lanes. The chrome side runs a SEPARATE worker
+    // per processor type, and pull assigns by execution_type with an atomic
+    // claim — so notebooklm / gemini_image MUST NOT share remote_client with
+    // word_media, or the NotebookLM/Gemini workers would claim word_media tasks
+    // (and each other's) and starve them until timeout. Each gets its own lane.
+    const EXECUTION_REMOTE_NOTEBOOKLM = 'remote_notebooklm';
+    const EXECUTION_REMOTE_GEMINI = 'remote_gemini';
+
+    // Dedicated pycore-only retrieval/generation lanes. Kept OFF remote_fast so
+    // they never starve the interactive fast lane; claimed via the normal
+    // per-processor_type pull loop (a dedicated worker registers each lane).
+    const EXECUTION_REMOTE_SUBTITLE = 'remote_subtitle';
+    const EXECUTION_REMOTE_POSTER = 'remote_poster';
+    const EXECUTION_REMOTE_SENTENCE_AUDIO = 'remote_sentence_audio';
+
+    // Shared interactive fast lane. BOTH pycore and chrome-mcp register for this
+    // single lane; the existing atomic pull (lockForUpdate + assignTo) already
+    // guarantees first-idle-wins / runs-exactly-once. Which of the two actually
+    // claims a given fast task is narrowed by the task's `capability` tag
+    // (see capabilityMatches()).
+    const EXECUTION_REMOTE_FAST = 'remote_fast';
+
+    // The ONE canonical list of every execution_type lane. Validators derive
+    // their allowed-value set from this array (Rule::in(EXECUTION_TYPES)) so a
+    // newly-added lane const is automatically accepted everywhere and the two
+    // request validators can never silently drift from the model.
+    const EXECUTION_TYPES = [
+        self::EXECUTION_LOCAL_TIMER,
+        self::EXECUTION_REMOTE_CLIENT,
+        self::EXECUTION_REMOTE_COMPUTE,
+        self::EXECUTION_REMOTE_OCR,
+        self::EXECUTION_REMOTE_TRANSLATION,
+        self::EXECUTION_REMOTE_VIDEO,
+        self::EXECUTION_REMOTE_IO,
+        self::EXECUTION_REMOTE_AUDIO,
+        self::EXECUTION_REMOTE_NOTEBOOKLM,
+        self::EXECUTION_REMOTE_GEMINI,
+        self::EXECUTION_REMOTE_FAST,
+        self::EXECUTION_REMOTE_SUBTITLE,
+        self::EXECUTION_REMOTE_POSTER,
+        self::EXECUTION_REMOTE_SENTENCE_AUDIO,
+    ];
+
+    // Priority tiers (single integer `priority` column, ordered DESC on pull).
+    // FAST == the existing "front of queue" value (resolve / library-words bumps
+    // already use 100 and pending_urgent already counts it), so an interactive
+    // request deterministically outranks background scans (0) and normal
+    // enqueues without inventing a new range.
+    const PRIORITY_FAST = 100;
+
+    // Capability vocabulary (the ONE canonical set). A task's `capability` is one
+    // of these or NULL (any). A worker advertises a subset via workers.capabilities.
+    const CAPABILITY_AUDIO = 'audio';            // TTS / word_audio / article_audio — pycore
+    const CAPABILITY_IMAGE = 'image';            // word_media / gemini_image — chrome
+    const CAPABILITY_TRANSLATE = 'translate';    // word_translation — either client
+    const CAPABILITY_SENTENCE_AUDIO = 'sentence_audio'; // chrome web-audio assist
+    // BOTH pycore + chrome advertise ai_translate -> intelligent first-idle-wins
+    // race on the shared fast lane (task_type stays word_translation).
+    const CAPABILITY_AI_TRANSLATE = 'ai_translate';
+    const CAPABILITY_SUBTITLE = 'subtitle';      // pycore-only subtitle retrieval
+    const CAPABILITY_POSTER = 'poster';          // pycore-only movie poster (DISTINCT from 'image' = word art)
+
+    const CAPABILITIES = [
+        self::CAPABILITY_AUDIO,
+        self::CAPABILITY_IMAGE,
+        self::CAPABILITY_TRANSLATE,
+        self::CAPABILITY_SENTENCE_AUDIO,
+        self::CAPABILITY_AI_TRANSLATE,
+        self::CAPABILITY_SUBTITLE,
+        self::CAPABILITY_POSTER,
+    ];
+
+    /**
+     * Whether a worker advertising $workerCapabilities is eligible to claim this
+     * task on the shared fast lane. A NULL/empty task capability means ANY worker
+     * may claim it (back-compat); otherwise the worker must advertise the tag.
+     * Matching is done in PHP (after the lockForUpdate pull) so it behaves
+     * identically on pgsql and sqlite — no JSON_CONTAINS in the WHERE clause.
+     *
+     * @param array<int,string> $workerCapabilities
+     */
+    public function capabilityMatches(array $workerCapabilities): bool
+    {
+        if ($this->capability === null || $this->capability === '') {
+            return true;
+        }
+        return in_array($this->capability, $workerCapabilities, true);
+    }
+
+    /**
+     * Scope: tasks on the shared fast lane (the remote_fast execution_type).
+     */
+    public function scopeFastLane($query)
+    {
+        return $query->where('execution_type', self::EXECUTION_REMOTE_FAST);
+    }
+
+    /**
+     * Scope: tasks linked to a specific canonical dictionary row (Phase 5).
+     */
+    public function scopeByDictRow($query, string $language, int $rowId)
+    {
+        return $query->where('dict_language', $language)->where('dict_row_id', $rowId);
+    }
+
+    /**
+     * Phase 5 — project this task's completion back onto its linked canonical
+     * dictionary row (the substrate-B status columns) so the dict row stays in
+     * sync during the dual-write window. FILL-MISSING and idempotent: it never
+     * clobbers a row already marked complete (has_audio / has_image true or
+     * status already 'completed'), and it is wrapped so it can never fail the
+     * caller's result transaction. No-op when the task is not dict-linked.
+     *
+     * The actual media file persistence stays the responsibility of the existing
+     * writeback/timer path; this only reflects completion STATUS. Double audio
+     * synthesis is separately guarded by TaskManagerService::claimAudioLock().
+     */
+    public function syncToDictRow(): bool
+    {
+        if (empty($this->dict_row_id) || empty($this->dict_row_table) || empty($this->dict_language)) {
+            return false;
+        }
+
+        try {
+            $conn = \App\Providers\AppTablePrefixServiceProvider::getConnection(\App\Constants\AppKeys::APPQYV1);
+            $schema = \Illuminate\Support\Facades\Schema::connection($conn);
+            $table = $this->dict_row_table;
+
+            if (!$schema->hasTable($table)) {
+                return false;
+            }
+
+            $db = \Illuminate\Support\Facades\DB::connection($conn);
+            $row = $db->table($table)->where('id', $this->dict_row_id)->first();
+            if (!$row) {
+                return false;
+            }
+
+            $update = [];
+            $isAudio = $this->capability === self::CAPABILITY_AUDIO
+                || in_array($this->task_type, ['word_audio', 'article_audio'], true);
+            $isImage = $this->capability === self::CAPABILITY_IMAGE
+                || in_array($this->task_type, ['word_media', 'gemini_image'], true);
+
+            if ($isAudio && $schema->hasColumn($table, 'tts_status')) {
+                $hasAudio = isset($row->has_audio) ? (bool) $row->has_audio : false;
+                $ttsStatus = $row->tts_status ?? null;
+                if (!$hasAudio && $ttsStatus !== 'completed') {
+                    $update['tts_status'] = 'completed';
+                    if ($schema->hasColumn($table, 'tts_completed_at')) {
+                        $update['tts_completed_at'] = now();
+                    }
+                }
+            } elseif ($isImage && $schema->hasColumn($table, 'image_status')) {
+                $hasImage = isset($row->has_image) ? (bool) $row->has_image : false;
+                $imageStatus = $row->image_status ?? null;
+                if (!$hasImage && $imageStatus !== 'completed') {
+                    $update['image_status'] = 'completed';
+                    if ($schema->hasColumn($table, 'image_completed_at')) {
+                        $update['image_completed_at'] = now();
+                    }
+                }
+            }
+
+            if (!empty($update)) {
+                $db->table($table)->where('id', $this->dict_row_id)->update($update);
+            }
+
+            $this->sync_to_dict_at = now();
+            $this->save();
+
+            return true;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[GlobalTask] syncToDictRow failed', [
+                'task_id' => $this->task_id,
+                'dict_row_id' => $this->dict_row_id,
+                'dict_row_table' => $this->dict_row_table,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
 
     /**
      * Assign task to a worker

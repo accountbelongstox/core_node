@@ -394,6 +394,10 @@ class AppQyV1UnifiedTTSQueueService
 
         $status = $this->markRowPending($dictEntry, $position);
 
+        // Phase 5 dual-write: mirror the pending audio row as a linked GlobalTask
+        // (flag-gated, best-effort) so the unified task system tracks it.
+        $this->maybeCreateGlobalAudioTask($dictEntry, $language, 'word_audio');
+
         $this->clearQueueCache();
 
         return [
@@ -431,6 +435,9 @@ class AppQyV1UnifiedTTSQueueService
         }
 
         $status = $this->markRowPending($article, $position);
+
+        // Phase 5 dual-write (flag-gated, best-effort).
+        $this->maybeCreateGlobalAudioTask($article, $language, 'article_audio');
 
         $this->clearQueueCache();
 
@@ -507,6 +514,75 @@ class AppQyV1UnifiedTTSQueueService
         $row->save();
 
         return $status;
+    }
+
+    /**
+     * Phase 5 dual-write: when APPQYV1_DUAL_WRITE_GLOBAL is enabled, mirror a
+     * pending audio row as a linked GlobalTask on the pycore audio lane so the
+     * unified task system tracks it alongside the canonical dict row. Best-effort
+     * and idempotent — it never throws into the enqueue path and skips when an
+     * active linked task already exists. The legacy dict-row timer remains the
+     * canonical generator during the dual-write window; on completion the worker
+     * path's syncToDictRow() projects status back (fill-missing), and double
+     * synthesis is guarded by TaskManagerService::claimAudioLock().
+     *
+     * @param mixed  $row      AppQyV1LangDictionaryModel (word) or article model
+     * @param string $language Language code
+     * @param string $taskType 'word_audio' | 'article_audio'
+     */
+    private function maybeCreateGlobalAudioTask($row, string $language, string $taskType): void
+    {
+        if (!(bool) env('APPQYV1_DUAL_WRITE_GLOBAL', false)) {
+            return;
+        }
+
+        try {
+            // Skip when an active linked global task already exists for this row.
+            if (!empty($row->tts_global_task_id)) {
+                $active = \App\Models\GlobalTask::where('task_id', $row->tts_global_task_id)
+                    ->whereIn('status', [
+                        \App\Models\GlobalTask::STATUS_PENDING,
+                        \App\Models\GlobalTask::STATUS_ASSIGNED,
+                        \App\Models\GlobalTask::STATUS_PROCESSING,
+                    ])
+                    ->exists();
+                if ($active) {
+                    return;
+                }
+            }
+
+            $task = app(\App\Services\TaskManagerService::class)->createTask(
+                'AppQyV1',
+                $taskType,
+                \App\Models\GlobalTask::EXECUTION_REMOTE_AUDIO,
+                [
+                    'language' => $language,
+                    'content' => $row->content ?? null,
+                    'md5' => $row->md5 ?? null,
+                ],
+                300,
+                (int) ($row->tts_priority ?? 0),
+                3,
+                false,
+                \App\Models\GlobalTask::CAPABILITY_AUDIO,
+                [
+                    'dict_row_id' => (int) $row->id,
+                    'dict_language' => $language,
+                    'dict_row_table' => $row->getTable(),
+                    'group_key' => $row->md5 ?? null,
+                ]
+            );
+
+            // Direct property set persists even if the column is not in $fillable.
+            $row->tts_global_task_id = $task->task_id;
+            $row->save();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[AppQyV1UnifiedTTSQueueService] dual-write global audio task failed', [
+                'dict_row_id' => $row->id ?? null,
+                'language' => $language,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

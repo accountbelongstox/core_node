@@ -76,7 +76,9 @@ py_has_module() {
 pip_install() {
     PIP_ARGS=("$@")
     if [[ "$(uname -s)" != "Darwin" ]]; then PIP_ARGS=(--break-system-packages "${PIP_ARGS[@]}"); fi
-    "$PYTHON" -m pip install "${PIP_ARGS[@]}" || "$PYTHON" -m pip install "$@"
+    # Print the exact command-string before running it (traceability).
+    echo "[22] $PYTHON -m pip install ${PIP_ARGS[*]}"
+    "$PYTHON" -m pip install "${PIP_ARGS[@]}" || { echo "[22] $PYTHON -m pip install $*"; "$PYTHON" -m pip install "$@"; }
 }
 
 # Extract a .tar.bz2 archive into the model dir and write the sentinel on

@@ -32,23 +32,25 @@ class TaskProcessorRegistry
     }
 
     /**
-     * Process task result using registered processors
+     * Process task result using registered processors.
      *
      * @param GlobalTask $task
      * @param array $result
      * @param bool $isDemoMode
-     * @return bool Whether a processor handled the task
+     * @return int|null Number of items the matching processor stored, or null
+     *                  when NO processor handled the task (so the caller can tell
+     *                  "nobody owns this task type" apart from "owned but stored
+     *                  0 items" — only the latter is a result-trust failure).
      */
-    public function process(GlobalTask $task, array $result, bool $isDemoMode): bool
+    public function process(GlobalTask $task, array $result, bool $isDemoMode): ?int
     {
         foreach ($this->processors as $processor) {
             if ($processor->canProcess($task)) {
-                $processor->processResult($task, $result, $isDemoMode);
-                return true;
+                return $processor->processResult($task, $result, $isDemoMode);
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
