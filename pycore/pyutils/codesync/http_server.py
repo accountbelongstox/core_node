@@ -820,6 +820,12 @@ class _Handler(BaseHTTPRequestHandler):
             if path == "/code-sync/ws" and "websocket" in self.headers.get("Upgrade", "").lower():
                 return self._serve_ws()
             if path == "/":
+                # Light mode: there is nothing to administer locally, so serve a
+                # tiny JSON identity blob instead of the full control panel.
+                if getattr(self.server, "serve_panel", True) is False:
+                    m = _manager()
+                    return self._send_json({"service": "code-sync", "light": True,
+                                            "role": m.get_role(), "reachable": True})
                 # Standalone mode only: a self-contained, build-free control panel.
                 # (Full pycore serves its React UI instead and never starts this server.)
                 return self._send_html(PANEL_HTML)
@@ -1020,14 +1026,19 @@ class _QuietThreadingHTTPServer(ThreadingHTTPServer):
 class CodeSyncHTTPServer:
     """Thin lifecycle wrapper around a ThreadingHTTPServer bound to /code-sync/*."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 59000):
+    def __init__(self, host: str = "0.0.0.0", port: int = 59000,
+                 serve_panel: bool = True):
         self.host = host
         self.port = port
+        # When False (light mode), GET / returns a tiny JSON blob instead of the
+        # full control panel. Stashed on the httpd so _Handler can read it.
+        self.serve_panel = serve_panel
         self._httpd: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
 
     def start(self) -> None:
         self._httpd = _QuietThreadingHTTPServer((self.host, self.port), _Handler)
+        self._httpd.serve_panel = self.serve_panel
         self._httpd.daemon_threads = True
         self._thread = threading.Thread(target=self._httpd.serve_forever,
                                         daemon=True, name="CodeSync-HTTP")

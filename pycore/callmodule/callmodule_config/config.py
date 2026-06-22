@@ -111,6 +111,63 @@ class Config:
         os.getenv("TRANSLATION_WORKER_ENABLED_ON_START", "1") in ("1", "true", "True")
     )
 
+    # ---- Unified-task client (2026-06-21) — capabilities + fast lane ----
+    # Base capability vocabulary the worker ADVERTISES to Laravel on register +
+    # status (must be a subset of GlobalTask::CAPABILITIES). 'ai_translate' is
+    # added dynamically by the worker when AI_TRANSLATE_ENABLED (see below) — it
+    # is intentionally NOT baked into this default so the kill-switch wins.
+    TRANSLATION_WORKER_CAPABILITIES = os.getenv(
+        "TRANSLATION_WORKER_CAPABILITIES", "audio,translate"
+    )
+    # The shared interactive fast-lane execution_type (GlobalTask::EXECUTION_REMOTE_FAST).
+    # BOTH pycore and chrome register for it; the per-task `capability` tag narrows
+    # who actually claims a given fast task.
+    TRANSLATION_FAST_PROCESSOR_TYPE = "remote_fast"
+    # Fast-drain re-poll cadence (seconds): while pending_fast>0 the worker bursts a
+    # short jittered loop of wait=0 pulls at this interval so interactive requests are
+    # claimed near-instantly instead of waiting for the ~12s heartbeat tick.
+    TRANSLATION_FAST_POLL_INTERVAL = float(
+        os.getenv("PYCORE_TRANSLATION_FAST_POLL_INTERVAL", "0.5")
+    )
+    # How long (seconds) a single fast-drain burst runs before yielding back to the
+    # heartbeat cadence (a fresh pending_fast signal re-arms it).
+    TRANSLATION_FAST_DRAIN_WINDOW = float(
+        os.getenv("PYCORE_TRANSLATION_FAST_DRAIN_WINDOW", "4.0")
+    )
+    # Random jitter (seconds, uniform [0, jitter]) added to each fast re-poll so N
+    # workers do not synchronize their wait=0 pulls into a thundering herd.
+    TRANSLATION_FAST_POLL_JITTER = float(
+        os.getenv("PYCORE_TRANSLATION_FAST_POLL_JITTER", "0.25")
+    )
+
+    # ---- Unified-task client (2026-06-22) — dedicated lane enable knobs ----
+    # Each flag is a HARD kill-switch (env off => the worker never advertises the
+    # lane). Layered user-data / assist toggles (read live by the worker) allow
+    # enable/disable WITHOUT a restart while the Config flag is on.
+    #
+    # AI-translate capability (shared fast lane; task_type stays word_translation).
+    AI_TRANSLATE_ENABLED = (
+        os.getenv("PYCORE_AI_TRANSLATE", "1") in ("1", "true", "True", "yes", "on")
+    )
+    # Dedicated subtitle-retrieval lane (remote_subtitle).
+    SUBTITLE_SEARCH_WORKER_ENABLED = (
+        os.getenv("PYCORE_SUBTITLE_SEARCH_WORKER", "1") in ("1", "true", "True", "yes", "on")
+    )
+    # Dedicated movie-poster lane (remote_poster). Layered under the existing
+    # media_sync.fetch_poster user-data toggle the worker checks live.
+    POSTER_WORKER_ENABLED = (
+        os.getenv("PYCORE_POSTER_WORKER", "1") in ("1", "true", "True", "yes", "on")
+    )
+    # Dedicated sentence-audio lane (remote_sentence_audio). Layered under the
+    # assist sentence_audio feature the worker checks live.
+    SENTENCE_AUDIO_WORKER_ENABLED = (
+        os.getenv("PYCORE_SENTENCE_AUDIO_WORKER", "1") in ("1", "true", "True", "yes", "on")
+    )
+    # Dedicated-lane execution_type names (must equal GlobalTask::EXECUTION_TYPES).
+    SUBTITLE_PROCESSOR_TYPE = "remote_subtitle"
+    POSTER_PROCESSOR_TYPE = "remote_poster"
+    SENTENCE_AUDIO_PROCESSOR_TYPE = "remote_sentence_audio"
+
     # ==================== TTS Queue Worker (Laravel word-generation queue) ====================
     # The TTS worker claims pending word TTS tasks from laravel_main
     # (/api/app_qy_v1/ai_tools/tts/worker/claim), synthesizes MP3s with the

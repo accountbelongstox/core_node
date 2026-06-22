@@ -46,15 +46,38 @@ _external_logger = None  # e.g. pycore.ColorPrint
 _local_shutdown = threading.Event()           # standalone stop signal
 _local_shutdown_handlers: List[Dict[str, Any]] = []
 
+# Light mode: a CLIENT node that only tracks the mesh (peer status / heartbeats)
+# and never receives/serves files or scans the tree. Precedence:
+#   explicit set_light()/configure(light=) > env CODESYNC_LIGHT > default OFF.
+# None means "not explicitly set" -> fall back to the env var.
+_LIGHT_TRUTHY = ("1", "true", "True", "yes", "on")
+_light: Optional[bool] = None
+
+
+def set_light(value) -> None:
+    """Explicitly set light mode (overrides the CODESYNC_LIGHT env var)."""
+    global _light
+    _light = bool(value)
+
+
+def is_light() -> bool:
+    """Return the effective light-mode flag: the explicitly-set value if any,
+    else the CODESYNC_LIGHT env var (truthy set), else False."""
+    if _light is not None:
+        return _light
+    return os.environ.get("CODESYNC_LIGHT", "") in _LIGHT_TRUTHY
+
 
 def configure(*, logger=None, emit_event=None, is_shutdown_requested=None,
               register_shutdown_handler=None, machine_id=None, lan_ip=None,
-              core_node_root=None, app_data_dir=None):
+              core_node_root=None, app_data_dir=None, light=None):
     """Inject the host runtime's services. Called once by full pycore at startup;
     never called in standalone mode (stdlib defaults stay in effect)."""
     global _external_logger
     if logger is not None:
         _external_logger = logger
+    if light is not None:
+        set_light(light)
     for key, val in (("emit_event", emit_event),
                      ("is_shutdown_requested", is_shutdown_requested),
                      ("register_shutdown_handler", register_shutdown_handler),

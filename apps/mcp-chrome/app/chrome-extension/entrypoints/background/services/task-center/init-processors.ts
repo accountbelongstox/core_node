@@ -8,6 +8,7 @@ import { taskCenter } from './TaskCenter';
 import { bingDictionaryProcessor } from './processors/BingDictionaryProcessor';
 import { deepSeekProcessor } from './processors/DeepSeekProcessor';
 import { googleNewsProcessor } from './processors/GoogleNewsProcessor';
+import { webAiTranslateProcessor } from './processors/WebAiTranslateProcessor';
 
 /**
  * Initialize and register all task processors
@@ -23,6 +24,10 @@ export function initializeProcessors(): void {
 
   // Register Google News Processor (enabled by default for testing)
   taskCenter.registerProcessor(googleNewsProcessor, true);
+
+  // Register Web-AI Translate Processor (disabled by default, opt-in — like
+  // NotebookLM / Gemini). Advertises capability ai_translate (remote_fast lane).
+  taskCenter.registerProcessor(webAiTranslateProcessor, false);
 
   console.log('[TaskCenter] Processors initialized');
 }
