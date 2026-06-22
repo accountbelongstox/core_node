@@ -172,6 +172,27 @@ sanitize_mount_name() {
     echo "$name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g'
 }
 
+# Remove an orphaned mount directory left over from an unstable device-node name
+# (e.g. /mnt/dev_nvme1n1p1 created on a boot when the disk enumerated as nvme1,
+# now that device_to_mount_point returns the real live mount /mnt/dev_nvme0n1p1).
+# Safe by construction: only removes a dir that is under the mount base, EMPTY,
+# and NOT itself a mountpoint. $1=device, $2=the live mount point to KEEP.
+cleanup_orphan_mount_dir() {
+    local device="$1"
+    local keep_mount="$2"
+    local node_name node_dir
+    node_name=$(echo "$device" | sed 's|/dev/|dev_|g')
+    node_dir="$DEFAULT_MOUNT_BASE/$node_name"
+    [ "$node_dir" = "$keep_mount" ] && return 0
+    [ -d "$node_dir" ] || return 0
+    mountpoint -q "$node_dir" 2>/dev/null && return 0
+    if [ -z "$(ls -A "$node_dir" 2>/dev/null)" ]; then
+        if $USE_SUDO rmdir "$node_dir" 2>/dev/null; then
+            info "Removed orphaned empty mount dir from a device-node rename: $node_dir"
+        fi
+    fi
+}
+
 # =============================================================================
 # Disk Detection Functions
 # =============================================================================
@@ -338,6 +359,8 @@ handle_ntfs_disk() {
     # Generate mount point from device name
     local mount_point=$(device_to_mount_point "$device")
     info "Standardized mount point: $mount_point"
+    # Drop any orphaned empty mount dir left by an earlier device-node rename.
+    cleanup_orphan_mount_dir "$device" "$mount_point"
 
     # Check if device is already mounted
     local is_mounted=false
@@ -513,6 +536,8 @@ handle_data_disk() {
     # Generate mount point from device name
     local mount_point=$(device_to_mount_point "$device")
     info "Standardized mount point: $mount_point"
+    # Drop any orphaned empty mount dir left by an earlier device-node rename.
+    cleanup_orphan_mount_dir "$device" "$mount_point"
 
     # Check if device is already mounted
     local is_mounted=false

@@ -33,6 +33,10 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+# Shared venv resolution + print-command-string wrappers (single source of truth
+# for the venv path and for "echo the command before running it"). Sourced AFTER
+# gvar_common.sh so it can derive the venv path from COMPILE_DIR.
+source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 # Idempotent CPU/GPU build guards (single source of truth, also runnable standalone).
 source "$PARENT_DIR_LEVEL_2/common/torch_cpu_guard.sh"
 source "$PARENT_DIR_LEVEL_2/common/onnxruntime_cpu_guard.sh"
@@ -168,21 +172,42 @@ install_python_essentials() {
     print_info_from_common_functions "Detected Python version: ${py_version}"
     print_info_from_common_functions "Version-specific tkinter package: ${version_specific_tk}"
 
-    # Install GUI and system packages with version-specific tk (real-time output)
+    # Install GUI and system packages (real-time output). The AppIndicator GIR
+    # package was renamed: modern Debian/Kali/Ubuntu ship the Ayatana fork
+    # (gir1.2-ayatanaappindicator3-0.1); older Ubuntu used gir1.2-appindicator3-0.1.
+    # Pick whichever the apt index actually offers, and install only packages that
+    # have a real candidate, so one missing name cannot abort the whole batch
+    # (a single apt-get invocation aborts entirely on an uninstallable package).
     print_step_from_common_functions "Installing GUI and system packages..."
-    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-tk ${version_specific_tk} tk-dev tcl-dev python3-gi python3-gi-cairo python3-pil python3-pil.imagetk gir1.2-appindicator3-0.1 gir1.2-gtk-3.0 --no-install-recommends"
+    local gui_pkgs=(python3-tk "${version_specific_tk}" tk-dev tcl-dev python3-gi python3-gi-cairo python3-pil python3-pil.imagetk gir1.2-gtk-3.0)
+    local appind_cand=""
+    local cand
+    for cand in gir1.2-ayatanaappindicator3-0.1 gir1.2-appindicator3-0.1; do
+        if apt-cache show "$cand" >/dev/null 2>&1; then
+            appind_cand="$cand"
+            gui_pkgs+=("$cand")
+            break
+        fi
+    done
+    [ -z "$appind_cand" ] && print_warning_from_common_functions "No AppIndicator GIR package in apt index (system-tray icon optional); continuing"
+
+    # Keep only packages that actually have an install candidate, so one missing
+    # name (e.g. a version-specific tk that does not exist) cannot abort the batch.
+    local gui_installable=()
+    local gp
+    for gp in "${gui_pkgs[@]}"; do
+        if apt-cache policy "$gp" 2>/dev/null | grep -qE 'Candidate: [^(]'; then
+            gui_installable+=("$gp")
+        else
+            print_warning_from_common_functions "Skipping unavailable GUI package: $gp"
+        fi
+    done
+
+    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y ${gui_installable[*]} --no-install-recommends"
     $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        python3-tk \
-        ${version_specific_tk} \
-        tk-dev \
-        tcl-dev \
-        python3-gi \
-        python3-gi-cairo \
-        python3-pil \
-        python3-pil.imagetk \
-        gir1.2-appindicator3-0.1 \
-        gir1.2-gtk-3.0 \
-        --no-install-recommends
+        "${gui_installable[@]}" \
+        --no-install-recommends \
+        || print_warning_from_common_functions "Some GUI packages failed to install (non-fatal; core tkinter comes from python3-tk)"
 
     # Verify and show Python3
     print_success_from_common_functions "Python3: $(python3 -V 2>&1)"
@@ -214,6 +239,51 @@ install_python_essentials() {
     return 0
 }
 
+# Repair the Debian/Ubuntu/Kali "no RECORD file" uninstall blocker.
+#
+# apt installs some Python packages (e.g. mpmath, a sympy dependency) into
+# /usr/lib/python3/dist-packages WITHOUT a RECORD file. When a PyPI package needs
+# a DIFFERENT version of such a package (e.g. torch requires mpmath<1.4 but the
+# distro ships 1.4.x), pip tries to uninstall the distro copy, cannot (no RECORD),
+# and aborts the whole install with "uninstall-no-record-file".
+#
+# Fix (dpkg-safe, idempotent): for each blocked package, install the required
+# version pip-side with --ignore-installed --no-deps into /usr/local/.../dist-packages,
+# which shadows the apt copy via sys.path precedence WITHOUT removing dpkg-owned
+# files. The caller then retries the original install, which now sees the
+# constraint satisfied and performs no uninstall. Returns 0 if a shadow was applied.
+# Args: $1=python_cmd  $2=pip output log file.
+pip_repair_no_record_blocker() {
+    local python_cmd="$1"
+    local log="$2"
+    local sysflags=()
+    local applied=1
+    local blockers b constraint
+
+    # System interpreter (not a venv) needs the PEP 668 escape flags.
+    if [ ! -f "$(dirname "$python_cmd")/../pyvenv.cfg" ]; then
+        sysflags=("--break-system-packages" "--no-user")
+    fi
+
+    # Packages pip refused to uninstall: "no RECORD file was found for <pkg>."
+    blockers="$(grep -oiE "no RECORD file was found for [A-Za-z0-9._-]+" "$log" 2>/dev/null \
+        | awk '{print $NF}' | sed 's/\.$//' | sort -u)"
+    [ -z "$blockers" ] && return 1
+
+    for b in $blockers; do
+        # Recover the version constraint pip was resolving, e.g.
+        #   "Collecting mpmath<1.4,>=1.1.0 (from sympy>=1.13.3->torch)".
+        constraint="$(grep -oiE "Collecting ${b}[<>=!,0-9. ]*" "$log" 2>/dev/null \
+            | head -1 | sed "s/^[Cc]ollecting ${b}//; s/[[:space:]].*//")"
+        echo "[13] Repair: distro '${b}' has no RECORD file; installing pip-managed '${b}${constraint}' into /usr/local (shadows apt copy, dpkg untouched)."
+        if "$python_cmd" -m pip install "${sysflags[@]}" --ignore-installed --no-deps \
+            "${b}${constraint}" --index-url https://pypi.org/simple/; then
+            applied=0
+        fi
+    done
+    return $applied
+}
+
 # Generic function to run pip install with real-time output
 # Args: $1=python_cmd, $2=package_spec (e.g., "package" or "package==1.0.0" or "--upgrade package1 package2"), $3=additional_flags (optional)
 run_pip_install_realtime() {
@@ -243,9 +313,24 @@ run_pip_install_realtime() {
         cmd_args+=("${flag_words[@]}")
     fi
 
-    # Execute with real-time output (no exit-code used for flow)
+    # Execute with real-time output, capturing it so we can auto-repair the
+    # Debian/Ubuntu/Kali "no RECORD file" uninstall blocker and retry once.
     echo "[13] ${cmd_args[*]}"
-    "${cmd_args[@]}"
+    local pip_log
+    pip_log="$(mktemp 2>/dev/null || echo "/tmp/_core_node_pip_$$.log")"
+    "${cmd_args[@]}" 2>&1 | tee "$pip_log"
+    local rc=${PIPESTATUS[0]}
+
+    if [ "$rc" -ne 0 ] && grep -qiE "no RECORD file was found for|uninstall-no-record-file" "$pip_log"; then
+        if pip_repair_no_record_blocker "$python_cmd" "$pip_log"; then
+            echo "[13] Retrying after no-RECORD repair: ${cmd_args[*]}"
+            "${cmd_args[@]}" 2>&1 | tee "$pip_log"
+            rc=${PIPESTATUS[0]}
+        fi
+    fi
+
+    rm -f "$pip_log"
+    return $rc
 }
 
 # Function to upgrade pip with official PyPI only
@@ -317,6 +402,46 @@ EOF
     return 0
 }
 
+# Establish the command contract on PATH (/usr/local/bin precedes /usr/bin):
+#   pythonorigin                      -> the ORIGINAL system interpreter
+#                                        (/usr/bin/python3), preserved under a
+#                                        stable name (never renamed/removed).
+#   python, python3, python3.<minor>  -> the VENV interpreter.
+#   pip, pip3                         -> the VENV pip.
+# /usr/bin/python3 itself is NEVER modified (dpkg-managed; system/maintainer
+# scripts that hardcode #!/usr/bin/python3 keep working). Idempotent. This is the
+# SINGLE source of truth for the python/pip symlinks (it replaces the three
+# previously contradictory symlink behaviors). Returns 1 if the venv is absent.
+link_commands_to_venv() {
+    [ -x "$VENV_PYTHON3" ] || return 1
+    local sys_python3="/usr/bin/python3"
+    local venv_pyver link
+    venv_pyver="$("$VENV_PYTHON3" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
+
+    # Preserve the original system interpreter as 'pythonorigin'.
+    if [ -x "$sys_python3" ]; then
+        echo "[13] $USE_SUDO ln -sf $sys_python3 /usr/local/bin/pythonorigin"
+        $USE_SUDO ln -sf "$sys_python3" /usr/local/bin/pythonorigin
+    fi
+
+    # python / python3 / python3.<minor> -> venv interpreter.
+    for link in /usr/local/bin/python /usr/local/bin/python3 ${venv_pyver:+/usr/local/bin/python${venv_pyver}}; do
+        echo "[13] $USE_SUDO ln -sf $VENV_PYTHON3 $link"
+        $USE_SUDO ln -sf "$VENV_PYTHON3" "$link"
+    done
+
+    # pip / pip3 -> venv pip.
+    if [ -f "$VENV_PIP3" ]; then
+        [ -e "$VENV_PIP" ] || ln -sf pip3 "$VENV_PIP" 2>/dev/null || true
+        for link in /usr/local/bin/pip /usr/local/bin/pip3; do
+            echo "[13] $USE_SUDO ln -sf $VENV_PIP3 $link"
+            $USE_SUDO ln -sf "$VENV_PIP3" "$link"
+        done
+    fi
+    print_success_from_common_functions "Linked python/python3${venv_pyver:+/python${venv_pyver}} + pip/pip3 -> venv; system python preserved as 'pythonorigin'"
+    return 0
+}
+
 # Function to fix Python symlinks
 fix_python_links() {
     print_step_from_common_functions "Fixing Python symlinks in /usr/local/bin..."
@@ -327,47 +452,30 @@ fix_python_links() {
         return 1
     fi
 
-    local python3_path=$(command -v python3)
-    local pip3_path=$(command -v pip3 2>/dev/null)
-
-    # Create python -> python3 symlink
-    if [ ! -e /usr/local/bin/python ]; then
-        print_step_from_common_functions "Creating symlink: /usr/local/bin/python -> $python3_path"
-        echo "[13] $USE_SUDO ln -sf $python3_path /usr/local/bin/python"
-        $USE_SUDO ln -sf "$python3_path" /usr/local/bin/python
-        print_success_from_common_functions "Created python symlink"
-    elif [ -L /usr/local/bin/python ]; then
-        local current_target=$(readlink -f /usr/local/bin/python)
-        if [ "$current_target" != "$python3_path" ]; then
-            print_step_from_common_functions "Updating python symlink to point to $python3_path"
-            echo "[13] $USE_SUDO ln -sf $python3_path /usr/local/bin/python"
-            $USE_SUDO ln -sf "$python3_path" /usr/local/bin/python
-            print_success_from_common_functions "Updated python symlink"
-        else
-            print_success_from_common_functions "python symlink already correct"
-        fi
+    # Once the venv exists, the whole contract (python / python3 / python3.x +
+    # pip / pip3 -> venv, system python preserved as pythonorigin) is owned by
+    # link_commands_to_venv(). This is what lets fix_python_links run before AND
+    # after venv setup without clobbering the venv link.
+    if [ -x "$VENV_PYTHON3" ]; then
+        link_commands_to_venv
+        return 0
     fi
 
-    # Create pip -> pip3 symlink if pip3 exists
-    if [ -n "$pip3_path" ]; then
-        if [ ! -e /usr/local/bin/pip ]; then
-            print_step_from_common_functions "Creating symlink: /usr/local/bin/pip -> $pip3_path"
-            echo "[13] $USE_SUDO ln -sf $pip3_path /usr/local/bin/pip"
-            $USE_SUDO ln -sf "$pip3_path" /usr/local/bin/pip
-            print_success_from_common_functions "Created pip symlink"
-        elif [ -L /usr/local/bin/pip ]; then
-            local current_target=$(readlink -f /usr/local/bin/pip)
-            if [ "$current_target" != "$pip3_path" ]; then
-                print_step_from_common_functions "Updating pip symlink to point to $pip3_path"
-                echo "[13] $USE_SUDO ln -sf $pip3_path /usr/local/bin/pip"
-                $USE_SUDO ln -sf "$pip3_path" /usr/local/bin/pip
-                print_success_from_common_functions "Updated pip symlink"
-            else
-                print_success_from_common_functions "pip symlink already correct"
-            fi
-        fi
+    # First run (no venv yet): provisionally link `python`/`pip` to the system
+    # interpreter so the commands exist; create_python_venv_and_replace_system
+    # repoints them at the venv once it is built.
+    local sys_python3 sys_pip3
+    sys_python3=$(command -v python3)
+    sys_pip3=$(command -v pip3 2>/dev/null)
+    if [ -n "$sys_python3" ]; then
+        echo "[13] $USE_SUDO ln -sf $sys_python3 /usr/local/bin/python"
+        $USE_SUDO ln -sf "$sys_python3" /usr/local/bin/python
     fi
-
+    if [ -n "$sys_pip3" ]; then
+        echo "[13] $USE_SUDO ln -sf $sys_pip3 /usr/local/bin/pip"
+        $USE_SUDO ln -sf "$sys_pip3" /usr/local/bin/pip
+    fi
+    print_info_from_common_functions "venv not present yet; python/pip provisionally -> system (switches to venv after venv creation)"
     return 0
 }
 
@@ -481,6 +589,27 @@ check_venv_needs_rebuild() {
     return 0
 }
 
+# Ensure the venv is writable by the invoking (non-root) user. The venv is
+# created WITHOUT sudo (user-owned by design), but a venv left over from an
+# earlier sudo run can be root-owned -- then pip prints "site-packages not
+# writeable" and silently falls back to ~/.local, scattering packages and later
+# colliding with dpkg/system dirs. Repair the ownership here so every venv pip
+# install lands IN the venv. Same on Debian/Ubuntu/Kali.
+ensure_venv_user_writable() {
+    [ -d "$VENV_DIR" ] || return 0
+    local owner_user="${SUDO_USER:-$(id -un)}"
+    [ "$owner_user" = "root" ] && return 0   # pure-root run: root-owned venv is writable
+    local cur
+    cur="$(stat -c '%U' "$VENV_DIR" 2>/dev/null || echo "")"
+    if [ -n "$cur" ] && [ "$cur" != "$owner_user" ]; then
+        local owner_group
+        owner_group="$(id -gn "$owner_user" 2>/dev/null || echo "$owner_user")"
+        print_step_from_common_functions "Repairing venv ownership ($cur -> $owner_user) so pip installs land in the venv, not ~/.local..."
+        echo "[13] $USE_SUDO chown -R $owner_user:$owner_group $VENV_DIR"
+        $USE_SUDO chown -R "$owner_user:$owner_group" "$VENV_DIR" 2>/dev/null || true
+    fi
+}
+
 # Function to create Python venv and replace system commands
 create_python_venv_and_replace_system() {
     print_step_from_common_functions "Creating Python virtual environment and replacing system commands..."
@@ -542,8 +671,18 @@ create_python_venv_and_replace_system() {
             print_step_from_common_functions "Creating new Python virtual environment in: $VENV_DIR"
         fi
 
+        # Build the venv with the SYSTEM interpreter explicitly. After this script
+        # has run once, /usr/local/bin/python3 points at the venv, so a bare
+        # `python3 -m venv` on a rebuild would try to use the very venv being
+        # replaced (moved to a backup first -> dangling). Use the original system
+        # python (pythonorigin if present, else /usr/bin/python3) so rebuilds are
+        # always sound and never circular.
+        local sys_py=/usr/local/bin/pythonorigin
+        [ -x "$sys_py" ] || sys_py=/usr/bin/python3
+        [ -x "$sys_py" ] || sys_py="$(command -v python3)"
+
         # Ensure python3-venv is installed (real-time output)
-        if ! python3 -m venv --help >/dev/null 2>&1; then
+        if ! "$sys_py" -m venv --help >/dev/null 2>&1; then
             print_warning_from_common_functions "python3-venv module not available, installing..."
             echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip --no-install-recommends"
             $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip --no-install-recommends
@@ -551,8 +690,8 @@ create_python_venv_and_replace_system() {
 
         # Create the virtual environment WITH system-site-packages (real-time output)
         print_step_from_common_functions "Creating venv with --system-site-packages (allows access to system tkinter, PIL, etc.)..."
-        echo "[13] python3 -m venv --system-site-packages $VENV_DIR"
-        python3 -m venv --system-site-packages "$VENV_DIR"
+        echo "[13] $sys_py -m venv --system-site-packages $VENV_DIR"
+        "$sys_py" -m venv --system-site-packages "$VENV_DIR"
         print_success_from_common_functions "Virtual environment created with system-site-packages"
 
         # Upgrade pip in venv - always run to ensure latest version
@@ -566,6 +705,10 @@ create_python_venv_and_replace_system() {
     else
         print_info_from_common_functions "Virtual environment already exists and is up-to-date: $VENV_DIR"
     fi
+
+    # Repair a stale (root-owned) venv back to the invoking user BEFORE any venv
+    # pip runs, so installs land in the venv instead of falling back to ~/.local.
+    ensure_venv_user_writable
 
     # IMPORTANT: Always upgrade pip and essential packages, even if venv was not rebuilt
     # This ensures pip is always up-to-date and packages are fixed on every run
@@ -581,73 +724,28 @@ create_python_venv_and_replace_system() {
         return 1
     fi
 
-    # IMPORTANT: Always refresh symlinks, even if venv was not rebuilt
-    # This ensures that 'python' and 'pip' always point to the correct venv,
-    # even if system packages were updated or symlinks were modified manually
-    print_step_from_common_functions "Refreshing Python command symlinks..."
+    # IMPORTANT: Always refresh symlinks, even if venv was not rebuilt. This
+    # ensures python/python3/python3.x + pip/pip3 always point at the venv, even
+    # if system packages were updated or symlinks were modified manually.
+    #
+    # Establish the command contract: python / python3 / python3.<minor> +
+    # pip / pip3 -> venv; the original system interpreter is preserved as
+    # 'pythonorigin'. /usr/bin/python3 itself is never touched. Single source of
+    # truth: link_commands_to_venv() (replaces the previously contradictory
+    # per-command symlink blocks).
+    print_step_from_common_functions "Pointing python / python3 / pip at the venv (system python preserved as 'pythonorigin')..."
+    link_commands_to_venv
 
-    # ============================================================================
-    # IMPORTANT: python3 command stays as system default
-    # We do NOT create /usr/local/bin/python3 symlink
-    # System's /usr/bin/python3 will be used when user runs 'python3'
-    # ============================================================================
-
-    # Clean up any old python3 symlink if it exists (from previous versions of this script)
-    if [ -L /usr/local/bin/python3 ]; then
-        print_warning_from_common_functions "Removing old python3 symlink (python3 should use system default)"
-        echo "[13] $USE_SUDO rm -f /usr/local/bin/python3"
-        $USE_SUDO rm -f /usr/local/bin/python3
-        print_info_from_common_functions "python3 command will now use system Python: /usr/bin/python3"
-    fi
-
-    # ============================================================================
-    # Handle 'python' command - ALWAYS refresh, pointing to venv
-    # ============================================================================
-    print_step_from_common_functions "Refreshing 'python' command to point to venv..."
-
-    # Always remove and recreate (refresh every time)
-    echo "[13] $USE_SUDO rm -f /usr/local/bin/python"
-    $USE_SUDO rm -f /usr/local/bin/python
-    echo "[13] $USE_SUDO ln -sf $VENV_PYTHON3 /usr/local/bin/python"
-    $USE_SUDO ln -sf "$VENV_PYTHON3" /usr/local/bin/python
-    print_success_from_common_functions "Created symlink: python -> $VENV_PYTHON3"
-
-    # ============================================================================
-    # Handle 'pip' and 'pip3' commands
-    # Same as python: pip3 stays system default, pip points to venv
-    # ============================================================================
-
-    # Create pip -> pip3 symlink inside venv if it doesn't exist
-    if [ -f "$VENV_PIP3" ] && [ ! -e "$VENV_PIP" ]; then
-        ln -sf pip3 "$VENV_PIP"
-    fi
-
-    # Clean up any old pip3 symlink if it exists
-    if [ -L /usr/local/bin/pip3 ]; then
-        print_warning_from_common_functions "Removing old pip3 symlink (pip3 should use system default)"
-        echo "[13] $USE_SUDO rm -f /usr/local/bin/pip3"
-        $USE_SUDO rm -f /usr/local/bin/pip3
-        print_info_from_common_functions "pip3 command will now use system pip3"
-    fi
-
-    # Handle 'pip' command - ALWAYS refresh, pointing to venv
-    if [ -f "$VENV_PIP3" ]; then
-        print_step_from_common_functions "Refreshing 'pip' command to point to venv..."
-        echo "[13] $USE_SUDO rm -f /usr/local/bin/pip"
-        $USE_SUDO rm -f /usr/local/bin/pip
-        echo "[13] $USE_SUDO ln -sf $VENV_PIP3 /usr/local/bin/pip"
-        $USE_SUDO ln -sf "$VENV_PIP3" /usr/local/bin/pip
-        print_success_from_common_functions "Created symlink: pip -> $VENV_PIP3"
-    fi
+    local venv_pyver_disp
+    venv_pyver_disp="$("$VENV_PYTHON3" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
 
     print_success_from_common_functions "Python venv setup and system command replacement complete!"
     print_info_from_common_functions "Virtual environment: $VENV_DIR"
     print_info_from_common_functions ""
     print_info_from_common_functions "Command mapping:"
-    print_info_from_common_functions "  python3  -> System Python (/usr/bin/python3)"
-    print_info_from_common_functions "  python   -> Venv Python ($VENV_PYTHON3)"
-    print_info_from_common_functions "  pip3     -> System pip3"
-    print_info_from_common_functions "  pip      -> Venv pip ($VENV_PIP3)"
+    print_info_from_common_functions "  pythonorigin                       -> System Python (/usr/bin/python3)"
+    print_info_from_common_functions "  python / python3${venv_pyver_disp:+ / python${venv_pyver_disp}}   -> Venv Python ($VENV_PYTHON3)"
+    print_info_from_common_functions "  pip / pip3                         -> Venv pip ($VENV_PIP3)"
 
     return 0
 }
@@ -890,8 +988,11 @@ check_urllib3_for_certbot() {
     print_step_from_common_functions "Fixing urllib3 compatibility for certbot..."
     print_info_from_common_functions "Installing urllib3 (pip will resolve version)..."
 
-    # Remove incompatible versions
+    # Remove incompatible versions. NOTE: certbot runs on the SYSTEM interpreter
+    # (/usr/bin/python3), so its urllib3 must be repaired system-side, not in the
+    # venv -- keep this targeting the system pip3/python3 on purpose.
     echo ">>> Uninstalling existing urllib3..."
+    echo "[13] $USE_SUDO pip3 uninstall -y urllib3"
     $USE_SUDO pip3 uninstall -y urllib3 2>&1 || true
 
     # Install (no version pin; pip resolves)
@@ -922,18 +1023,27 @@ check_and_fix_package_version() {
     local pip_package="$2"
     local version_constraint="$3"
 
+    # Install INTO the venv (the design's `python`), not the externally-managed
+    # system python3. Targeting $VENV_PYTHON3 makes run_pip_install_realtime
+    # detect the venv (pyvenv.cfg) and drop --break-system-packages/--no-user, so
+    # packages land in the venv site-packages instead of ~/.local or /usr/local --
+    # which is what caused the dpkg / "Permission denied" failures on Kali. Fall
+    # back to system python3 if the venv does not exist yet.
+    local py="$VENV_PYTHON3"
+    [ -x "$py" ] || py="python3"
+
     # Special handling for packages with dots in import name (e.g., azure.cognitiveservices.speech)
     local import_cmd="import $import_name"
 
     # Check if package is installed
-    if ! python3 -c "$import_cmd" 2>/dev/null; then
+    if ! "$py" -c "$import_cmd" 2>/dev/null; then
         # Package not installed
         if [ -n "$version_constraint" ]; then
             echo ">>> Installing $pip_package$version_constraint..."
-            run_pip_install_realtime "python3" "$pip_package$version_constraint" "" || true
+            run_pip_install_realtime "$py" "$pip_package$version_constraint" "" || true
         else
             echo ">>> Installing $pip_package..."
-            run_pip_install_realtime "python3" "$pip_package" "" || true
+            run_pip_install_realtime "$py" "$pip_package" "" || true
         fi
         return 0
     fi
@@ -941,7 +1051,7 @@ check_and_fix_package_version() {
     # Package is installed
     if [ -n "$version_constraint" ]; then
         echo ">>> Verifying $pip_package version constraint: $version_constraint"
-        run_pip_install_realtime "python3" "$pip_package$version_constraint" "--force-reinstall" || true
+        run_pip_install_realtime "$py" "$pip_package$version_constraint" "--force-reinstall" || true
     fi
 
     return 0
