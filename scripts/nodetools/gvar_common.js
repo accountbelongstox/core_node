@@ -574,7 +574,9 @@ function ensureWebDirectory(pathKey, permissions = '755', owner) {
  * @returns {string} Path to temporary directory
  */
 function createScriptTempDir(scriptName) {
-    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : '/usr/tmp';
+    // /usr/tmp is absent on Debian/Ubuntu/Kali (legacy SysV alias for /var/tmp); use
+    // $TMPDIR when set, else /var/tmp (writable + persistent) on POSIX.
+    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : (process.env.TMPDIR || '/var/tmp');
     const scriptTempDir = path.join(GLOBAL_TEMP_DIR, scriptName);
     
     if (!safeExists(scriptTempDir)) {
@@ -592,7 +594,9 @@ function createScriptTempDir(scriptName) {
  * @param {string} scriptName - Name of the script
  */
 function cleanupScriptTempDir(scriptName) {
-    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : '/usr/tmp';
+    // /usr/tmp is absent on Debian/Ubuntu/Kali (legacy SysV alias for /var/tmp); use
+    // $TMPDIR when set, else /var/tmp (writable + persistent) on POSIX.
+    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : (process.env.TMPDIR || '/var/tmp');
     const scriptTempDir = path.join(GLOBAL_TEMP_DIR, scriptName);
     
     if (safeExists(scriptTempDir)) {

@@ -202,7 +202,7 @@ setup_php_default() {
     echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Setting PHP 8.5 as default system version...${NC}"
 
     # Find PHP 8.5 binary
-    local php85_binary="/usr/bin/php8.5"
+    local php85_binary="$PHP_BIN"
     if [ -f "$php85_binary" ] && [ -x "$php85_binary" ]; then
         echo -e "${GREEN}$SCRIPT_INDEX Found PHP 8.5 binary: $php85_binary${NC}"
 
@@ -211,12 +211,12 @@ setup_php_default() {
         $USE_SUDO update-alternatives --remove-all php 2>/dev/null || true
 
         # Use update-alternatives as per documentation
-        echo -e "${YELLOW}$SCRIPT_INDEX Adding only PHP 8.5 to alternatives...${NC}"
-        if $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 84; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 added to alternatives with priority 84${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Adding only PHP ${PHP_VERSION} to alternatives...${NC}"
+        if $USE_SUDO update-alternatives --install /usr/bin/php php "$php85_binary" "$PHP_ALT_PRIORITY"; then
+            echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} added to alternatives with priority ${PHP_ALT_PRIORITY}${NC}"
 
             # Explicitly set PHP 8.5 as the default
-            $USE_SUDO update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true
+            $USE_SUDO update-alternatives --set php "$php85_binary" 2>/dev/null || true
             echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 explicitly set as default${NC}"
         else
             echo -e "${RED}$SCRIPT_INDEX Failed to set PHP 8.5 as default${NC}"
@@ -260,9 +260,12 @@ setup_php_default() {
         echo -e "${GREEN}$SCRIPT_INDEX Active PHP modules count: $module_count${NC}"
 
         # Show some key modules
+        # Drive the check from the canonical REQUIRED_EXTENSIONS/EXTENSION_MAP so this
+        # step verifies exactly the modules step 31 installs (no divergent hardcoded list).
         echo -e "${CYAN}$SCRIPT_INDEX Key modules status:${NC}"
-        for module in "curl" "mbstring" "xml" "zip" "gd" "mysqli" "opcache"; do
-            if php -m 2>/dev/null | grep -qi "^$module$"; then
+        for ext in "${REQUIRED_EXTENSIONS[@]}"; do
+            local module="${EXTENSION_MAP[$ext]:-$ext}"
+            if php -m 2>/dev/null | grep -qi "^${module}$"; then
                 echo -e "${GREEN}$SCRIPT_INDEX   $module: [OK]${NC}"
             else
                 echo -e "${YELLOW}$SCRIPT_INDEX   $module: [Missing]${NC}"

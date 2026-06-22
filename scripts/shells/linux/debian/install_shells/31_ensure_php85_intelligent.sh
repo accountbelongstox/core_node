@@ -506,8 +506,8 @@ cleanup_old_php_versions() {
 
     # Add only PHP 8.5 to alternatives
     if [ -f "/usr/bin/php8.5" ] && [ -x "/usr/bin/php8.5" ]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Adding PHP 8.5 to alternatives with priority 85...${NC}"
-        $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 85 2>/dev/null || true
+        echo -e "${YELLOW}$SCRIPT_INDEX Adding PHP ${PHP_VERSION} to alternatives with priority ${PHP_ALT_PRIORITY}...${NC}"
+        $USE_SUDO update-alternatives --install /usr/bin/php php "$PHP_BIN" "$PHP_ALT_PRIORITY" 2>/dev/null || true
 
         # Set PHP 8.5 as the default
         $USE_SUDO update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true
@@ -547,86 +547,6 @@ cleanup_old_php_versions() {
         return 0
     else
         echo -e "${YELLOW}$SCRIPT_INDEX Cleanup completed with $cleanup_errors warnings${NC}"
-        return 1
-    fi
-}
-
-# 1.8 Comprehensive verification after symbolic link fix
-verify_php_symbolic_link_fix() {
-    echo -e "${BLUE}$SCRIPT_INDEX [VERIFY] Verifying PHP symbolic link fix...${NC}"
-
-    local target_link="/usr/local/bin/php"
-    local expected_binary="/usr/bin/php8.5"
-    local verification_passed=true
-
-    # Test 1: Check if symbolic link exists and points to correct target
-    if [ -L "$target_link" ]; then
-        local actual_target=$(readlink "$target_link")
-        if [ "$actual_target" = "$expected_binary" ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX �?Symbolic link correct: $target_link -> $actual_target${NC}"
-        else
-            echo -e "${RED}$SCRIPT_INDEX �?Symbolic link incorrect: $target_link -> $actual_target (expected: $expected_binary)${NC}"
-            verification_passed=false
-        fi
-    else
-        echo -e "${RED}$SCRIPT_INDEX �?Symbolic link missing: $target_link${NC}"
-        verification_passed=false
-    fi
-
-    # Test 2: Check if php command works and returns correct version
-    if command -v php >/dev/null 2>&1; then
-        local php_version=$(php -v 2>/dev/null | head -n 1 | grep -oP 'PHP \K[0-9]+\.[0-9]+' || echo "unknown")
-        if [[ "$php_version" == "8.5"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX �?PHP command version correct: $php_version${NC}"
-        else
-            echo -e "${RED}$SCRIPT_INDEX �?PHP command version incorrect: $php_version (expected: 8.5.x)${NC}"
-            verification_passed=false
-        fi
-    else
-        echo -e "${RED}$SCRIPT_INDEX �?PHP command not available${NC}"
-        verification_passed=false
-    fi
-
-    # Test 3: Check if which php returns the correct path
-    local which_php=$(which php 2>/dev/null || echo "not_found")
-    if [ "$which_php" = "$target_link" ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX �?'which php' returns correct path: $which_php${NC}"
-    else
-        echo -e "${RED}$SCRIPT_INDEX �?'which php' returns incorrect path: $which_php (expected: $target_link)${NC}"
-        verification_passed=false
-    fi
-
-    # Test 4: Check if old PHP versions are no longer in PATH
-    local old_versions_found=false
-    for old_version in 7.4 8.0 8.1 8.2 8.3 8.4; do
-        if command -v "php${old_version}" >/dev/null 2>&1; then
-            local old_php_path=$(which "php${old_version}" 2>/dev/null)
-            if [[ "$old_php_path" == "/usr/local/bin/"* ]]; then
-                echo -e "${RED}$SCRIPT_INDEX �?Old PHP version still in /usr/local/bin: $old_php_path${NC}"
-                old_versions_found=true
-            fi
-        fi
-    done
-
-    if ! $old_versions_found; then
-        echo -e "${GREEN}$SCRIPT_INDEX �?No old PHP versions found in /usr/local/bin${NC}"
-    else
-        verification_passed=false
-    fi
-
-    # Test 5: Check if PHP alternatives are clean
-    if update-alternatives --query php >/dev/null 2>&1; then
-        echo -e "${YELLOW}$SCRIPT_INDEX �?PHP alternatives still configured (may be intentional)${NC}"
-    else
-        echo -e "${GREEN}$SCRIPT_INDEX �?PHP alternatives are clean${NC}"
-    fi
-
-    # Final result
-    if $verification_passed; then
-        echo -e "${GREEN}$SCRIPT_INDEX [SUCCESS] PHP symbolic link verification PASSED${NC}"
-        return 0
-    else
-        echo -e "${RED}$SCRIPT_INDEX [FAILED] PHP symbolic link verification FAILED${NC}"
         return 1
     fi
 }
@@ -898,6 +818,19 @@ setup_php_repository() {
 
     echo -e "${CYAN}$SCRIPT_INDEX Detected OS: $os_id $os_codename${NC}"
 
+    # Source the repository manager up front so the suite resolver is available, then
+    # normalize a rolling derivative to its base vendor + a hosted suite (e.g. Kali:
+    # kali/kali-rolling -> debian/trixie). Without this, Kali (os_id=kali) would hit the
+    # "Unsupported OS" gate below and Sury PHP 8.5 would never install.
+    source "$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+    if declare -f resolve_php_suite_from_apt_repository_manager >/dev/null 2>&1; then
+        local _resolved
+        _resolved="$(resolve_php_suite_from_apt_repository_manager "$os_id" "$os_codename")"
+        os_id="${_resolved%% *}"
+        os_codename="${_resolved##* }"
+        echo -e "${CYAN}$SCRIPT_INDEX Resolved PHP repo suite: $os_id $os_codename${NC}"
+    fi
+
     # Step 1: Update APT package index
     echo -e "${YELLOW}$SCRIPT_INDEX Step 1: Updating APT package index...${NC}"
     $USE_SUDO apt update
@@ -928,16 +861,14 @@ setup_php_repository() {
         return 1
     fi
 
-    # Source repository manager directly (trust-based programming)
-    local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
-    source "$repo_manager_script"
-    
+    # Repository manager already sourced above (for the suite resolver); functions ready.
+
     # Use PHP repository manager: add repo permanently so install_php_core and re-runs work (idempotent).
     echo -e "${YELLOW}$SCRIPT_INDEX Using PHP repository manager (permanent repo for idempotent repair)...${NC}"
     add_php_repository_permanent_from_apt_repository_manager \
         "$os_id" \
         "$os_codename" \
-        "$USE_SUDO apt install -y php8.5 php8.5-cli php8.5-fpm php8.5-common php8.5-mysql php8.5-pgsql php8.5-zip php8.5-gd php8.5-mbstring php8.5-curl php8.5-xml php8.5-bcmath"
+        "$USE_SUDO apt install -y ${PHP85_CORE_PACKAGES[*]} ${CORE_EXTENSIONS[*]}"
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 installed successfully with repository cleanup${NC}"
