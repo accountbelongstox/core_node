@@ -354,8 +354,29 @@ export -f safe_path_for_recursive_chown
 # Centralized path for persisted base data directory (used by bootstrap and project)
 BASE_DATA_DIR_FILE="/var/_core_node/global_var/BASE_DATA_DIR"
 
+# True when the filesystem backing $1 supports POSIX ownership/permissions, which
+# the web DATA root REQUIRES: PostgreSQL needs a postgres-owned 0700 data dir and
+# Laravel must chown/chmod its storage tree. NTFS/exFAT/FUSE/drvfs cannot do this,
+# so they must NEVER be selected as the base data dir -- otherwise bash (which
+# would pick the big NTFS disk) diverges from PHP PathMapper (which falls back to
+# /www), and the installer writes secrets/creates dirs where the app never reads
+# them (symptom: PG "password authentication failed", Laravel "mkdir: Permission
+# denied"). Walks up to the nearest existing ancestor since the leaf may not exist.
+_fs_is_posix_capable() {
+    local p="$1" fstype=""
+    while [ -n "$p" ] && [ "$p" != "/" ] && [ ! -e "$p" ]; do p="$(dirname "$p")"; done
+    [ -z "$p" ] && return 1
+    fstype="$(findmnt -n -o FSTYPE --target "$p" 2>/dev/null)"
+    case "$fstype" in
+        ext2|ext3|ext4|xfs|btrfs|zfs|reiserfs|jfs|f2fs|overlay) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # Function to get optimal base directory for data storage
-# Priority: WSL -> persisted BASE_DATA_DIR (center) -> largest NTFS/data disk -> Desktop Windows -> /www
+# Priority: WSL -> persisted BASE_DATA_DIR (center) -> largest POSIX disk -> Desktop Windows -> /www
+# NOTE: any candidate on a non-POSIX filesystem (NTFS/exFAT/FUSE) is REJECTED for
+# the web data root (see _fs_is_posix_capable) so bash stays aligned with PHP.
 get_base_data_directory() {
     local base_dir=""
 
@@ -366,10 +387,13 @@ get_base_data_directory() {
         return 0
     fi
 
-    # Priority 2: Use persisted base dir from bootstrap/setup (single source of truth for project)
+    # Priority 2: Use persisted base dir from bootstrap/setup (single source of truth
+    # for project) -- but only if it is on a POSIX filesystem. A stale persisted
+    # value pointing at an NTFS mount is ignored so we never hand the app a base it
+    # cannot chown/permission (and so bash matches PHP's /www fallback).
     if [ -s "$BASE_DATA_DIR_FILE" ]; then
         read_base=$(head -n1 "$BASE_DATA_DIR_FILE" 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        if [ -n "$read_base" ] && [ -d "$read_base" ]; then
+        if [ -n "$read_base" ] && [ -d "$read_base" ] && _fs_is_posix_capable "$read_base"; then
             echo "$read_base"
             return 0
         fi
@@ -400,16 +424,21 @@ get_base_data_directory() {
 
     if [ -n "$chosen_device" ]; then
         path=$(_resolve_device_mount_path "$chosen_device")
-        if [ -n "$path" ]; then
+        # Only adopt the disk as the web data base when it is POSIX-capable. The
+        # largest disk is often an NTFS data/share partition (fuseblk) on which
+        # PostgreSQL cannot run and Laravel cannot set ownership -> reject it and
+        # fall through to /www (what PHP PathMapper also returns).
+        if [ -n "$path" ] && _fs_is_posix_capable "$path"; then
             base_dir="$path"
             echo "$base_dir"
             return 0
         fi
     fi
 
-    # Priority 4: Desktop with Windows drives
+    # Priority 4: Desktop with Windows drives (these are NTFS/exFAT by definition,
+    # so only usable as a web data base in the rare case they are POSIX-capable).
     if [ "$IS_DESKTOP_WITH_WINDOWS" = true ] && [ -n "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
-        if [ -d "$DESKTOP_LARGEST_WINDOWS_PATH" ] && [ -w "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
+        if [ -d "$DESKTOP_LARGEST_WINDOWS_PATH" ] && [ -w "$DESKTOP_LARGEST_WINDOWS_PATH" ] && _fs_is_posix_capable "$DESKTOP_LARGEST_WINDOWS_PATH"; then
             base_dir="$DESKTOP_LARGEST_WINDOWS_PATH"
             echo "$base_dir"
             return 0
@@ -427,6 +456,12 @@ persist_base_data_directory() {
     local base_dir="${1:-$(get_base_data_directory)}"
     local dir_file="${2:-$BASE_DATA_DIR_FILE}"
     local parent_dir
+    # Never persist a non-POSIX base as the source of truth (it would re-poison
+    # Priority 2 on the next run and re-split bash from PHP). Fall back to the
+    # POSIX-guarded resolver result instead.
+    if [ -n "$base_dir" ] && ! _fs_is_posix_capable "$base_dir"; then
+        base_dir="$(get_base_data_directory)"
+    fi
     parent_dir=$(dirname "$dir_file")
     if [ ! -d "$parent_dir" ]; then
         $USE_SUDO mkdir -p "$parent_dir" 2>/dev/null || mkdir -p "$parent_dir" 2>/dev/null || true
@@ -1886,3 +1921,41 @@ export UPSMON_CONF
 export MCP_SOURCE_DIR
 export MCP_SERVER_DIR
 export MCP_LOCAL_DIR
+
+# =============================================================================
+# core_node deletion safety guard (mandatory; see
+# development-guides/CORE_NODE_DELETION_SAFETY.md). Authorise deletion of a
+# core_node directory ONLY after explicit TRIPLE confirmation (default NO each),
+# and hard-refuse system paths, git working trees, and non-interactive runs.
+# Returns 0 only when deletion is explicitly authorised three times.
+# =============================================================================
+confirm_core_node_deletion() {
+    local target="$1"
+    local i=0
+    local ans=""
+    case "$target" in
+        ""|"/"|"/usr"|"/usr/"*|"/etc"|"/etc/"*|"/bin"|"/bin/"*|"/sbin"|"/sbin/"*|"/lib"|"/lib/"*|"/var"|"/var/"*|"/home"|"/root"|"/opt"|"/mnt"|"/www"|"/www/"*)
+            echo -e "\033[31m[DELETE-GUARD] Refusing to delete a system/critical path: '$target'\033[0m" >&2
+            return 1 ;;
+    esac
+    if [ -e "$target/.git" ]; then
+        echo -e "\033[31m[DELETE-GUARD] '$target' is a git working tree (possible uncommitted work). Refusing to delete it.\033[0m" >&2
+        echo -e "\033[31m[DELETE-GUARD] Move/rename it MANUALLY if you must replace it, then re-run.\033[0m" >&2
+        return 1
+    fi
+    if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
+        echo -e "\033[31m[DELETE-GUARD] No interactive terminal; refusing to delete '$target' (default = NO).\033[0m" >&2
+        return 1
+    fi
+    echo -e "\033[33m[DELETE-GUARD] About to DELETE the core_node directory: $target (IRREVERSIBLE)\033[0m" >&2
+    for i in 1 2 3; do
+        printf '[DELETE-GUARD] Confirmation %d of 3 - permanently delete "%s"? [N/y]: ' "$i" "$target" > /dev/tty
+        read -r ans < /dev/tty || ans=""
+        case "$ans" in
+            [Yy]) : ;;
+            *) echo -e "\033[36m[DELETE-GUARD] Cancelled at step $i (default No). Nothing removed.\033[0m" >&2; return 1 ;;
+        esac
+    done
+    echo -e "\033[33m[DELETE-GUARD] All three confirmations received; proceeding to delete $target\033[0m" >&2
+    return 0
+}
