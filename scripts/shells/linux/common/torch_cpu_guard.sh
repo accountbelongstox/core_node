@@ -94,7 +94,13 @@ tcg_ensure_torch_build() {
     if tcg_gpu_present; then
         if [[ -z "$state" && "$repair_only" != "1" ]]; then
             echo "[torch-guard] GPU present, torch missing -> installing default (CUDA) build."
-            "$py" -m pip install --break-system-packages --no-user torch torchvision torchaudio || true
+            # --ignore-installed: torch needs mpmath<1.4 but Debian/Ubuntu/Kali ship
+            # mpmath 1.4.x in /usr/lib/python3/dist-packages with NO RECORD file, so a
+            # plain install aborts with "uninstall-no-record-file" trying to remove it.
+            # Ignoring installed packages makes pip drop the required mpmath into
+            # /usr/local/.../dist-packages (which shadows the apt copy) without touching
+            # the dpkg-owned files. Matches tcg_install_cpu_torch above.
+            "$py" -m pip install --break-system-packages --no-user --ignore-installed torch torchvision torchaudio || true
         else
             echo "[torch-guard] GPU present, torch state='${state:-absent}'; no change."
         fi

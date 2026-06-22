@@ -33,7 +33,23 @@ POSTGRESQL_SERVICE_NAME="postgresql"
 # wsl_mount_pg_image). Resolved from the central mapping (map_web_path "pg_mount")
 # AFTER gvar_common.sh is sourced -- never hardcoded here.
 PG_D_MOUNT=""
-APP_DATABASES="core_node_main app_qy_v1_database awy_v0_database vipclub_v1_database server_manager_v1_database achat_v1_database code_mart_v1_database mcp_v1_database it_tools_v1_database bank_v1_database"
+# Per-app databases to provision. SOURCE OF TRUTH: Laravel's config/database.php
+# (its polyConnection('NAME') calls), so adding an app there auto-creates its DB here
+# and this list cannot drift -- it previously omitted pdd_tool_v1_database, which made
+# that app's migrations fail with 'database "pdd_tool_v1_database" does not exist'. We
+# union the config-declared names with core_node_main plus the legacy DBs that predate
+# config (awy_v0/bank_v1/vipclub_v1); if the config is unreadable we fall back to a
+# fixed (corrected) list. Same on WSL/Debian/Ubuntu/Kali.
+APP_DATABASES="$(
+    _cfg="$SCRIPT_DIR/../../../../../poly_apps/laravel_main/config/database.php"
+    if [ -f "$_cfg" ]; then
+        printf '%s\n' \
+            $(grep -oE "polyConnection\('[a-z0-9_]+'\)" "$_cfg" | grep -oE "'[a-z0-9_]+'" | tr -d "'") \
+            core_node_main awy_v0_database bank_v1_database vipclub_v1_database \
+            | sort -u | tr '\n' ' '
+    fi
+)"
+[ -z "${APP_DATABASES// /}" ] && APP_DATABASES="core_node_main app_qy_v1_database awy_v0_database vipclub_v1_database server_manager_v1_database achat_v1_database code_mart_v1_database mcp_v1_database it_tools_v1_database bank_v1_database pdd_tool_v1_database"
 
 # Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,6 +81,27 @@ echo "[$SCRIPT_INDEX] START_POSTGRESQL: $START_POSTGRESQL"
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+# Echo the filesystem type backing a path. The leaf may not exist yet, so walk up
+# to the nearest existing ancestor (a not-yet-created data dir inherits its
+# parent's filesystem). Used to keep PostgreSQL OFF non-POSIX mounts.
+pg_path_fstype() {
+    local p="$1"
+    while [ -n "$p" ] && [ "$p" != "/" ] && [ ! -e "$p" ]; do
+        p="$(dirname "$p")"
+    done
+    [ -z "$p" ] && { echo ""; return 0; }
+    findmnt -n -o FSTYPE --target "$p" 2>/dev/null | head -n1
+}
+
+# True when $1 is on a filesystem where PostgreSQL can run: it needs a
+# postgres-owned data dir at mode 0700, which NTFS/exFAT/FUSE/drvfs cannot provide.
+pg_fs_is_posix() {
+    case "$(pg_path_fstype "$1")" in
+        ext2|ext3|ext4|xfs|btrfs|zfs|reiserfs|jfs|f2fs) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 # True if something is LISTENING on the given TCP port.
@@ -268,16 +305,28 @@ create_app_databases() {
 # value is read by start.sh and written into the Laravel .env, so dd.sh and
 # start.sh stay aligned. A fresh (re)install with no stored value regenerates it.
 get_postgresql_password() {
-    local pw=""
+    local pw="" mirror=""
     pw=$(get_global_var "POSTGRES_PASSWORD" "")
+    # Safety net: the global-var store lives on the OS disk (/var/_core_node) and is
+    # lost on a fresh reinstall, while the laravel_db secret mirror lives with the
+    # app data and survives. If the store is empty but a mirror exists, REUSE it
+    # (don't regenerate) so the password stays stable and keeps matching the value
+    # Laravel reads first. Only generate when BOTH are empty.
+    if [ -z "$pw" ]; then
+        mirror="$(map_web_path "laravel_db" ".core_node_secrets/POSTGRES_PASSWORD" 2>/dev/null)"
+        if [ -n "$mirror" ] && [ -s "$mirror" ]; then
+            pw="$(head -n1 "$mirror" 2>/dev/null | tr -d '\r\n')"
+        fi
+    fi
     if [ -z "$pw" ]; then
         if command_exists openssl; then
             pw=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 24)
         else
             pw=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)
         fi
-        set_global_var "POSTGRES_PASSWORD" "$pw"
     fi
+    # Always (re)persist to the global-var store so it is present for later reads.
+    set_global_var "POSTGRES_PASSWORD" "$pw"
     echo "$pw"
 }
 
@@ -292,7 +341,11 @@ configure_localhost_only() {
     echo "[$SCRIPT_INDEX] Restricting PostgreSQL to localhost-only access..."
 
     if [ -f "$cfg" ]; then
-        if grep -qE "^[#[:space:]]*listen_addresses[[:space:]]*=" "$cfg"; then
+        # Read with sudo: postgresql.conf/pg_hba.conf live under /etc/postgresql and
+        # are root/postgres-owned (pg_hba.conf is mode 0640), so a non-root grep
+        # fails with "Permission denied" and the localhost lockdown silently misfires
+        # (the failed read makes the rule look absent and we blindly append).
+        if $USE_SUDO grep -qE "^[#[:space:]]*listen_addresses[[:space:]]*=" "$cfg"; then
             $USE_SUDO sed -E -i "s|^[#[:space:]]*listen_addresses[[:space:]]*=.*|listen_addresses = 'localhost'|" "$cfg"
         else
             echo "listen_addresses = 'localhost'" | $USE_SUDO tee -a "$cfg" >/dev/null
@@ -301,10 +354,10 @@ configure_localhost_only() {
 
     if [ -f "$hba" ]; then
         $USE_SUDO cp "$hba" "$hba.backup.localhost" 2>/dev/null || true
-        if ! grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+127\.0\.0\.1/32" "$hba"; then
+        if ! $USE_SUDO grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+127\.0\.0\.1/32" "$hba"; then
             echo "host    all    all    127.0.0.1/32    scram-sha-256" | $USE_SUDO tee -a "$hba" >/dev/null
         fi
-        if ! grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+::1/128" "$hba"; then
+        if ! $USE_SUDO grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+::1/128" "$hba"; then
             echo "host    all    all    ::1/128    scram-sha-256" | $USE_SUDO tee -a "$hba" >/dev/null
         fi
         # Disable any all-interfaces rule (defense in depth; default has none).
@@ -517,6 +570,21 @@ configure_postgresql() {
             POSTGRESQL_DATA_DIR="/var/lib/postgresql/$POSTGRESQL_VERSION/main"
         fi
         POSTGRESQL_LOG_DIR="/var/log/postgresql"
+    else
+        # Linux (non-WSL): prefer the project mapping path (map_web_path
+        # "postgresql" -> wwwroot/postgresql on the persistent data disk) so PG data
+        # lives with the rest of the app data. GUARD by filesystem type: PostgreSQL
+        # cannot run on NTFS/exFAT/FUSE (no postgres-owned 0700 dir), so fall back to
+        # the compile_dir value (native OS disk) when the mapped path is not POSIX.
+        local pg_mapped_base
+        pg_mapped_base="$(map_web_path "postgresql" 2>/dev/null)"
+        if [ -n "$pg_mapped_base" ] && pg_fs_is_posix "$pg_mapped_base"; then
+            POSTGRESQL_DATA_DIR="$pg_mapped_base/data"
+            POSTGRESQL_LOG_DIR="$pg_mapped_base/logs"
+            echo "[$SCRIPT_INDEX] PG data dir -> mapping path ($(pg_path_fstype "$pg_mapped_base")): $POSTGRESQL_DATA_DIR"
+        else
+            echo "[$SCRIPT_INDEX] Mapping path '$pg_mapped_base' is not POSIX-capable ($(pg_path_fstype "$pg_mapped_base")) -> keeping compile_dir: $POSTGRESQL_DATA_DIR"
+        fi
     fi
 
     POSTGRESQL_CONFIG_DIR="/etc/postgresql/$POSTGRESQL_VERSION/main"

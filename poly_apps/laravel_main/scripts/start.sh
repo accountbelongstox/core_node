@@ -683,6 +683,19 @@ else
     echo "  *** Install manually: INSTALL_NODE=true bash $NODE_INSTALL_SCRIPT"
 fi
 
+# Ensure the mapped web data dir is owned by the invoking user BEFORE sys:init.
+# The PostgreSQL/install steps above run via sudo and leave /www/wwwroot/laravel_db
+# root-owned, so sys:init's InitializeApps mkdir() of the external storage dirs
+# (avatars/uploads/cache/logs/...) dies with "mkdir(): Permission denied" when
+# Laravel runs as the (non-root) invoking user. Resolve the dir via the canonical
+# PathMapper (same path bash now maps to) and chown it. Idempotent; best-effort.
+REAL_USER="${SUDO_USER:-$(id -un)}"
+LARAVEL_DATA_DIR="$(cd "$LARAVEL_DIR" && "$PHP_BIN" -r 'require "vendor/autoload.php"; require "bootstrap/app.php"; echo \App\Providers\PathMapper::mapWebPath("laravel_data_dir");' 2>/dev/null)"
+if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ] && [ -n "$LARAVEL_DATA_DIR" ] && [ -d "$LARAVEL_DATA_DIR" ]; then
+    echo "Ensuring ownership of web data dir for '$REAL_USER': $LARAVEL_DATA_DIR"
+    $USE_SUDO chown -R "$REAL_USER:$REAL_USER" "$LARAVEL_DATA_DIR" 2>/dev/null || true
+fi
+
 echo "Initializing system (php artisan sys:init)..."
 "$PHP_BIN" artisan sys:init
 
