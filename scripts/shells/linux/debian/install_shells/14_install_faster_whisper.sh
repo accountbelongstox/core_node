@@ -125,7 +125,10 @@ else
     echo "[..] pip install --upgrade faster-whisper ..."
     PIP_ARGS=(--upgrade faster-whisper)
     if [[ "$(uname -s)" != "Darwin" ]]; then PIP_ARGS=(--break-system-packages "${PIP_ARGS[@]}"); fi
+    # Print the exact command-string before running it (traceability).
+    echo "[14] $PYTHON -m pip install ${PIP_ARGS[*]}"
     if ! "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
+        echo "[14] $PYTHON -m pip install --upgrade faster-whisper"
         if ! "$PYTHON" -m pip install --upgrade faster-whisper; then
             echo "[X] faster-whisper install failed." >&2
             exit 1
@@ -143,6 +146,8 @@ if has_cuda; then
     echo "[..] NVIDIA GPU detected -> pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* ..."
     GPU_ARGS=('nvidia-cublas-cu12' 'nvidia-cudnn-cu12==9.*')
     if [[ "$(uname -s)" != "Darwin" ]]; then GPU_ARGS=(--break-system-packages "${GPU_ARGS[@]}"); fi
+    # Print the exact command-string before running it (traceability).
+    echo "[14] $PYTHON -m pip install ${GPU_ARGS[*]}"
     if ! "$PYTHON" -m pip install "${GPU_ARGS[@]}"; then
         echo "[!] GPU lib install failed; whisper will fall back to CPU (int8)."
     else
@@ -155,6 +160,7 @@ fi
 # --- 4) optional model pre-download -------------------------------------- #
 if [[ -n "$MODEL" && "$MODEL" != "auto" ]]; then
     echo "[..] Pre-downloading faster-whisper model '$MODEL' ..."
+    echo "[14] $PYTHON -c \"from faster_whisper import download_model; download_model('$MODEL'); print('cached')\""
     if "$PYTHON" -c "from faster_whisper import download_model; download_model('$MODEL'); print('cached')"; then
         echo "[OK] model '$MODEL' ready."
     else

@@ -34,7 +34,7 @@ import {
 import { RoleBadge, StatusBadge, formatUptime, formatLastRunAgo } from './shared';
 import CoverStatusCard from './CoverStatusCard';
 
-export type TaskCenterTab = 'overview' | 'scheduler' | 'queue' | 'workers';
+export type TaskCenterTab = 'overview' | 'scheduler' | 'queue' | 'workers' | 'assist';
 
 interface OverviewPanelProps {
   lang: Language;

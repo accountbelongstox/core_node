@@ -25,7 +25,7 @@ import {
   getPycoreRecheckIntervalMs, setPycoreRecheckIntervalMs,
 } from '../../../core/api-libs/pycore';
 import type {
-  AutostartStatus, PycoreHealthState, AssistCapabilities, AssistStatus, TtsSettings,
+  AutostartStatus, AutostartTarget, PycoreHealthState, AssistCapabilities, AssistStatus, TtsSettings,
 } from '../../../core/api-libs/pycore';
 import PcLaravelEndpointSwitcher from '../components/PcLaravelEndpointSwitcher';
 
@@ -90,6 +90,8 @@ const PcSettingsPage: React.FC = () => {
 
   const [autostart, setAutostart] = useState<AutostartStatus | null>(null);
   const [autostartBusy, setAutostartBusy] = useState(false);
+  // Desired launch target; mirrors the backend once known, drives the selector.
+  const [autostartTarget, setAutostartTarget] = useState<AutostartTarget>('pyservice');
 
   // --- pycore reachability (frontend-local, not backend-persisted) --------- #
   const [pcHealth, setPcHealth] = useState<PycoreHealthState>(getPycoreHealth());
@@ -253,7 +255,10 @@ const PcSettingsPage: React.FC = () => {
     loadSettings();
     loadAssist();
     loadTtsTuning();
-    pycoreApi.getAutostart().then(setAutostart).catch(() => { /* offline */ });
+    pycoreApi.getAutostart().then((s) => {
+      setAutostart(s);
+      if (s?.target) setAutostartTarget(s.target);
+    }).catch(() => { /* offline */ });
   }, [loadSettings, loadAssist, loadTtsTuning]);
 
   // Persist a settings patch to the backend (optimistic update).
@@ -272,17 +277,26 @@ const PcSettingsPage: React.FC = () => {
   }, [settings]);
 
   // --- auto-start on boot ------------------------------------------------- #
-  const toggleAutostart = async (enabled: boolean) => {
+  const toggleAutostart = async (enabled: boolean, target?: AutostartTarget) => {
+    const useTarget = target ?? autostartTarget;
     setAutostartBusy(true);
     try {
-      const r = await pycoreApi.setAutostart(enabled);
+      const r = await pycoreApi.setAutostart(enabled, enabled ? useTarget : undefined);
       const s = await pycoreApi.getAutostart();
       setAutostart(s);
+      if (s?.target) setAutostartTarget(s.target);
       if (r?.success === false) setNotice(r.message || 'Failed to update auto-start');
-      else setNotice(enabled ? 'Auto-start enabled' : 'Auto-start disabled');
+      else setNotice(enabled ? `Auto-start enabled (${useTarget})` : 'Auto-start disabled');
     } catch (e: any) {
       setNotice('Request failed: ' + (e?.message || 'pycore unreachable'));
     } finally { setAutostartBusy(false); }
+  };
+
+  // Pick what boots. If auto-start is already on, re-apply immediately so the
+  // generated entry reflects the new target; otherwise just remember the choice.
+  const selectAutostartTarget = (target: AutostartTarget) => {
+    setAutostartTarget(target);
+    if (autostart?.enabled) toggleAutostart(true, target);
   };
 
   const toggle = (on: boolean, busy = false, onClick?: () => void) => (
@@ -672,6 +686,34 @@ const PcSettingsPage: React.FC = () => {
           </div>
           {toggle(!!autostart?.enabled, autostartBusy || autostart?.supported === false,
             () => toggleAutostart(!autostart?.enabled))}
+        </div>
+
+        {/* what to launch at boot */}
+        <div className="mt-3">
+          <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">What to launch</div>
+          <div className="inline-flex rounded-xl p-0.5 bg-slate-100/60 dark:bg-white/5 border border-slate-300/35 dark:border-white/5">
+            {(autostart?.targets ?? (['pyservice', 'launcher', 'both'] as AutostartTarget[])).map((t) => {
+              const labels: Record<string, string> = { pyservice: 'Pyservice', launcher: 'Terminal launcher', both: 'Both' };
+              const active = autostartTarget === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={autostartBusy || autostart?.supported === false}
+                  onClick={() => selectAutostartTarget(t)}
+                  className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${active
+                    ? 'bg-sky-500 text-white shadow'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-white/10'}`}
+                >
+                  {labels[t] ?? t}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-slate-400 mt-1.5">
+            Pyservice = RPC + dashboard UI. Terminal launcher arranges terminals across the display (needs a graphical session). Both runs the launcher, then pyservice.
+            {autostart?.mechanism ? ` · mechanism: ${autostart.mechanism}` : ''}
+          </p>
         </div>
       </section>
 

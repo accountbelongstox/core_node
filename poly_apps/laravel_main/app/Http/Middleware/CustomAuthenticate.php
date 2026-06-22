@@ -79,6 +79,18 @@ class CustomAuthenticate extends Middleware
             return $next($request);
         }
 
+        // PddToolV1 (订多多) ROOT-level SaaS surface must emit the FastAPI
+        // {"detail":"Could not validate credentials"} shape the Chrome extension
+        // reads, instead of the generic {success:false} envelope below.
+        $pddPaths = [
+            'login', 'register', 'users/me', 'users/me/*',
+            'batch-orders', 'batch-orders/*', 'convert-order-link',
+            'recharge', 'recharge/*', 'pay/*', 'erp/*', 'pdd/health',
+        ];
+        if ($request->is(...$pddPaths)) {
+            return response()->json(['detail' => 'Could not validate credentials'], 401);
+        }
+
         return response()->json([
             'success' => false,
             'message' => 'Unauthenticated. Please login first.',

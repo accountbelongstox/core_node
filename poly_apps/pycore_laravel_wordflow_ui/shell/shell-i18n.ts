@@ -6,7 +6,7 @@
  */
 import i18n from '../core/i18n';
 
-export type EndNamespace = 'lm' | 'pc' | 'wf';
+export type EndNamespace = 'lm' | 'pc' | 'wf' | 'pdd';
 
 /**
  * Register an end's translations under its namespace, for every language it ships.

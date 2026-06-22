@@ -1,0 +1,13 @@
+{
+  "id": "vortex",
+  "name": "Vortex Sandbox",
+  "shortName": "Vortex",
+  "appId": "com.corenode.vortex",
+  "version": "1.0.0",
+  "rootRoute": "/vortex",
+  "themeColor": "#f59e0b",
+  "backgroundColor": "#0f172a",
+  "description": "Vortex — crypto trading sandbox with 200+ simulated asset pairs.",
+  "icon": "icon.svg",
+  "splash": "splash.png"
+}

@@ -3,7 +3,7 @@
  * records persist via WordflowStorage (QUIZ_HISTORY key, ISO date strings,
  * last 100 kept), completion broadcast via wfEventBus('quiz-completed'). */
 
-import { StorageCenter, StorageKey } from '../../../core/api-libs/wordflow/WordflowStorage';
+import { StorageCenter, StorageKey } from '../api-libs/wordflow/WordflowStorage';
 import { wfEventBus } from './WfEventBus';
 
 export interface WfQuizRecord {

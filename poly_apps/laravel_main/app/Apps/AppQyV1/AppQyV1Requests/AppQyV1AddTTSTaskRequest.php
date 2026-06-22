@@ -21,6 +21,9 @@ class AppQyV1AddTTSTaskRequest extends AppQyV1BaseRequest
             'language' => 'required|string|max:10',
             'type' => 'nullable|string|in:word,sentence,article',
             'priority' => 'nullable|integer|min:0|max:100',
+            // FE fast-track flag: when true the row jumps to the front of the
+            // audio queue (handled in the controller).
+            'interactive' => 'nullable|boolean',
         ];
     }
 

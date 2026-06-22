@@ -25,7 +25,7 @@ import {
   BookOpen, Plus, Trash2, X, Folder, FileText, FolderOpen, RefreshCw,
   UploadCloud, Library, Sparkles, WifiOff, ListChecks, Filter, Languages,
   Type, Hash, AlignLeft, Eye, EyeOff, ScanText, FileStack,
-  ChevronDown, ChevronRight, Lock, BookMarked,
+  ChevronDown, ChevronRight, Lock, BookMarked, Workflow,
 } from 'lucide-react';
 import {
   pycoreApi, connectPycoreWs, onWsStatus, callRpc, subscribeWs,
@@ -35,6 +35,7 @@ import type {
   BookChapter, BookSlot,
 } from '../../../core/api-libs/pycore';
 import { WF_SUPPORTED_LANGUAGES } from '../../../core/api-libs/wordflow/wordflowLanguages';
+import { PcCoreBookPanel } from './PcCoreBookPage';
 
 // i18n labels (single source; the pages use literals, not a `t` object).
 const L = {
@@ -152,15 +153,38 @@ const L = {
   grainCue: 'Cue',                                    // 行
   grainLabel: 'Grain',                                // 粒度
   blankCorr: '—',                                     // 留空占位
+  // advanced — embedded CoreBook panel
+  advanced: 'Advanced — AI languages · audio · whole/partial submit (CoreBook)',
+  advancedHint: 'The simple flow above ingests sources as-is. This advanced section converts a document to a portable CoreBook to AI-translate languages, synthesize audio, and submit it whole or partial.',
+  // one-click auto-flow (convert → translate → voice → submit)
+  runPipeline: 'Run pipeline',                       // 一键流水线
+  pipelineHint: 'One click runs the full CoreBook pipeline for the selected target languages — convert, AI-translate, synthesize audio, and submit to Laravel.',
+  pipelineRunning: 'Pipeline running…',              // 流水线运行中…
+  pipelineDone: 'Pipeline done',                      // 流水线完成
+  pipelineFailed: 'Pipeline failed',                  // 流水线失败
+  pipelineBusy: 'Another pipeline is running — wait for it to finish',
+  // auto-flow stage labels
+  flConvert: 'Converting',                            // 转换中
+  flTranslate: 'Translating',                         // 翻译中
+  flVoice: 'Synthesizing audio',                      // 合成语音
+  flAudio: 'Synthesizing audio',                      // 合成语音
+  flAudioUpload: 'Uploading audio',                   // 上传语音
+  flSubmit: 'Submitting',                             // 提交中
+  flDone: 'Done',                                     // 完成
+  flError: 'Error',                                   // 错误
 };
 
 const DEFAULT_BASE = 'D:\\.tmp';
 // Cap the "run until empty" loop so a stuck backend can never spin forever.
 const MAX_LOOP_ITERATIONS = 50;
+// The auto-flow chains convert + translate + TTS + ingest — all slow; give it a
+// long ceiling so the RPC never times out before the engine finishes.
+const AUTOFLOW_RPC_TIMEOUT_MS = 600_000;   // 10 min
 
 interface BookEntry { path: string; mode: VideoExtractMode; }
 interface SyncProgress { stage: string; done: number; total: number; detail: string; }
 interface EnrichResult { processed: number; enriched: number; remaining: number; errors?: string[]; }
+interface FlowProgress { stage: string; done: number; total: number; detail: string; }
 
 const nf = (n: number | undefined | null) => (typeof n === 'number' ? n.toLocaleString() : '0');
 
@@ -218,6 +242,14 @@ const PcBooksPage: React.FC = () => {
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
 
+  // --- one-click auto-flow (convert → translate → voice → submit) -------- #
+  // `flowPath` is the source currently running the pipeline (one at a time);
+  // `flowProgress` is the live THREAD_BUS `corebook_autoflow` event; `flowResult`
+  // keeps the last outcome per source path for a compact pass/fail badge.
+  const [flowPath, setFlowPath] = useState<string | null>(null);
+  const [flowProgress, setFlowProgress] = useState<FlowProgress | null>(null);
+  const [flowResult, setFlowResult] = useState<Record<string, { success: boolean; errors: number }>>({});
+
   // --- enrichment state -------------------------------------------------- #
   const [limit, setLimit] = useState(50);
   const [enriching, setEnriching] = useState(false);
@@ -228,6 +260,8 @@ const PcBooksPage: React.FC = () => {
   // --- shared ----------------------------------------------------------- #
   const [notice, setNotice] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  // Advanced CoreBook section disclosure (collapsed by default).
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Effective format filter: undefined when "all supported" are checked (the
   // backend then uses its full set), else the explicit subset to scan.
@@ -267,7 +301,21 @@ const PcBooksPage: React.FC = () => {
         setSyncProgress(null);
       }
     });
-    return () => { offStatus(); offSync(); };
+    // Auto-flow progress: the engine broadcasts a `corebook_autoflow` event per
+    // stage (convert/translate/voice/submit + sub-steps audio/audio_upload). We
+    // mirror it into `flowProgress`; the runPipeline() resolve handles the final
+    // notice + state, so here we just clear progress on the terminal stages.
+    const offFlow = subscribeWs('corebook_autoflow', (d: any) => {
+      const stage = String(d?.stage ?? '');
+      setFlowProgress({
+        stage,
+        done: Number(d?.done ?? 0),
+        total: Number(d?.total ?? 0),
+        detail: String(d?.detail ?? ''),
+      });
+      if (stage === 'done' || stage === 'error') setFlowProgress(null);
+    });
+    return () => { offStatus(); offSync(); offFlow(); };
   }, []);
 
   // Load the supported-formats list (drives the filter sidebar); default all on.
@@ -326,6 +374,15 @@ const PcBooksPage: React.FC = () => {
 
   useEffect(() => { void loadState(); }, [loadState]);
 
+  // The selected language codes (hoisted ABOVE analyzeEntry: it lists this in its
+  // dependency array, and a useCallback dep array is evaluated DURING render — a
+  // `const` declared later would be in the temporal dead zone → "Cannot access
+  // 'selectedLangList' before initialization" crash).
+  const selectedLangList = useCallback(
+    (): string[] => WF_SUPPORTED_LANGUAGES.map((l) => l.code).filter((c) => selectedLangs.has(c)),
+    [selectedLangs],
+  );
+
   // --- analyze a source (file or folder) --------------------------------- #
   const analyzeEntry = useCallback(async (path: string) => {
     setAnalyzing((prev) => new Set(prev).add(path));
@@ -353,7 +410,7 @@ const PcBooksPage: React.FC = () => {
   useEffect(() => {
     const valid = new Set(WF_SUPPORTED_LANGUAGES.map((l) => l.code));
     let primary = '';
-    for (const a of Object.values(analyses)) {
+    for (const a of Object.values(analyses) as BooksAnalyzeResponse[]) {
       const code = a?.aggregate?.primary_language;
       if (code && valid.has(code)) primary = code;   // last wins
     }
@@ -372,10 +429,6 @@ const PcBooksPage: React.FC = () => {
       return n;
     });
   }, [lockedLang]);
-  const selectedLangList = useCallback(
-    (): string[] => WF_SUPPORTED_LANGUAGES.map((l) => l.code).filter((c) => selectedLangs.has(c)),
-    [selectedLangs],
-  );
 
   // --- add / remove ------------------------------------------------------ #
   const addEntry = useCallback((path: string, mode: VideoExtractMode, analyze = true) => {
@@ -552,6 +605,36 @@ const PcBooksPage: React.FC = () => {
     }
   }, [entries, selected, syncing, resolveSyncPaths, loadState, selectedLangList]);
 
+  // --- one-click auto-flow: convert → translate → voice → submit --------- #
+  // Fires the backend `corebook.autoflow` RPC for ONE source; per-stage progress
+  // streams over the `corebook_autoflow` WS event (wired above). One flow at a
+  // time; the .catch keeps it offline-safe (callRpc rejects when the WS is down).
+  const runPipeline = useCallback(async (path: string) => {
+    if (flowPath) { setNotice(L.pipelineBusy); return; }
+    const langs = selectedLangList();
+    if (!langs.length) { setNotice(L.needOneLang); return; }
+    setFlowPath(path);
+    setFlowProgress({ stage: 'convert', done: 0, total: 0, detail: '' });
+    setNotice(null);
+    const r: any = await callRpc(
+      'corebook.autoflow',
+      { path, languages: langs, source_type: 'book' },
+      AUTOFLOW_RPC_TIMEOUT_MS,
+    ).catch((e: any) => ({ success: false, errors: [e?.message || 'failed'] }));
+    const errCount = Array.isArray(r?.errors) ? r.errors.length : 0;
+    setFlowResult((prev) => ({ ...prev, [path]: { success: !!r?.success, errors: errCount } }));
+    if (r?.success) {
+      const title = r.title ? ` — ${r.title}` : '';
+      setNotice(`${L.pipelineDone}${title}${errCount ? ` · ${errCount} ${L.stError.toLowerCase()}` : ''}`);
+    } else {
+      const errs = Array.isArray(r?.errors) && r.errors.length ? `: ${r.errors.slice(0, 3).join('; ')}` : '';
+      setNotice(`${L.pipelineFailed}${errs}`);
+    }
+    setFlowPath(null);
+    setFlowProgress(null);
+    void loadState();   // refresh submission_state badges after submit
+  }, [flowPath, selectedLangList, loadState]);
+
   // --- enrichment -------------------------------------------------------- #
   const enrichOnce = useCallback(async (): Promise<EnrichResult | null> => {
     const lim = Math.max(1, Math.floor(limit) || 1);
@@ -678,6 +761,12 @@ const PcBooksPage: React.FC = () => {
   const stageLabel = (stage: string): string => ({
     scan: L.stScan, source: L.stSource, extract: L.stExtract, build: L.stBuild,
     ingest: L.stIngest, clips: L.stClips, done: L.stDone, error: L.stError,
+  } as Record<string, string>)[stage] || stage;
+  // Friendly labels for the auto-flow stages (incl. engine sub-steps).
+  const flowStageLabel = (stage: string): string => ({
+    convert: L.flConvert, translate: L.flTranslate, voice: L.flVoice,
+    audio: L.flAudio, audio_upload: L.flAudioUpload, submit: L.flSubmit,
+    done: L.flDone, error: L.flError,
   } as Record<string, string>)[stage] || stage;
   const busyAny = enriching || looping;
   const filterLabel = useMemo(() => {
@@ -1033,6 +1122,9 @@ const PcBooksPage: React.FC = () => {
             )}
           </div>
           <p className="text-[11px] text-slate-400">{L.pick}</p>
+          <p className="text-[11px] text-slate-400 flex items-center gap-1">
+            <Workflow className="w-3 h-3 text-rose-400 shrink-0" /> {L.pipelineHint}
+          </p>
 
           {entries.length === 0 ? (
             <div className={`text-xs py-8 text-center border border-dashed rounded-2xl transition ${
@@ -1072,6 +1164,15 @@ const PcBooksPage: React.FC = () => {
                         title={analyses[e.path] ? L.reAnalyze : L.analyze}>
                         {isAnalyzing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ScanText className="w-3.5 h-3.5" />}
                       </button>
+                      <button onClick={() => void runPipeline(e.path)}
+                        disabled={!!flowPath || selectedLangs.size === 0}
+                        className={`p-1.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                          flowPath === e.path
+                            ? 'text-rose-500 bg-rose-500/10'
+                            : 'text-slate-400 hover:text-rose-500 hover:bg-rose-500/10'}`}
+                        title={`${L.runPipeline}: ${L.flConvert} → ${L.flTranslate} (${selectedLangList().join(', ') || '—'}) → ${L.flVoice} → ${L.flSubmit}`}>
+                        {flowPath === e.path ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Workflow className="w-3.5 h-3.5" />}
+                      </button>
                       <button onClick={() => void toggleTree(e.path)}
                         className={`p-1.5 rounded-lg transition ${
                           trees[e.path]?.open
@@ -1088,6 +1189,30 @@ const PcBooksPage: React.FC = () => {
                     {isAnalyzing && !analyses[e.path] && (
                       <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-1.5">
                         <RefreshCw className="w-3 h-3 animate-spin" /> {L.analyzing}
+                      </div>
+                    )}
+                    {/* live auto-flow progress for THIS source */}
+                    {flowPath === e.path && (
+                      <div className="mt-2 text-[11px] text-rose-500 flex items-center gap-1.5 flex-wrap">
+                        <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
+                        <span className="font-bold">{flowProgress ? flowStageLabel(flowProgress.stage) : L.pipelineRunning}</span>
+                        {flowProgress && flowProgress.total > 0 && (
+                          <span className="text-slate-400">· {flowProgress.done}/{flowProgress.total}</span>
+                        )}
+                        {flowProgress?.detail && (
+                          <span className="truncate max-w-[60%] text-slate-400" title={flowProgress.detail}>· {flowProgress.detail}</span>
+                        )}
+                      </div>
+                    )}
+                    {/* last auto-flow outcome badge (when not currently running) */}
+                    {flowPath !== e.path && flowResult[e.path] && (
+                      <div className={`mt-2 text-[11px] flex items-center gap-1.5 ${
+                        flowResult[e.path].success ? 'text-emerald-500' : 'text-amber-500'}`}>
+                        <Workflow className="w-3 h-3 shrink-0" />
+                        {flowResult[e.path].success ? L.pipelineDone : L.pipelineFailed}
+                        {flowResult[e.path].errors > 0 && (
+                          <span className="text-slate-400">· {flowResult[e.path].errors} {L.stError.toLowerCase()}</span>
+                        )}
                       </div>
                     )}
                     {renderAnalysis(e.path)}
@@ -1187,6 +1312,26 @@ const PcBooksPage: React.FC = () => {
               <div className="text-slate-400 uppercase tracking-wide">{L.remaining}</div>
               <div className="text-lg font-bold text-slate-700 dark:text-slate-200">{enrichResult.remaining}</div>
             </div>
+          </div>
+        )}
+      </section>
+
+      {/* Advanced — embedded CoreBook panel (collapsible, default collapsed).
+          Mounted once opened and only HIDDEN when collapsed, so its in-progress
+          state (library selection, convert/enrich forms) survives toggling. */}
+      <section className="pc-glass p-6">
+        <button type="button" onClick={() => setShowAdvanced((v) => !v)}
+          className="w-full flex items-center gap-2 text-left">
+          {showAdvanced ? <ChevronDown className="w-4 h-4 text-rose-500 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+          <BookMarked className="w-4 h-4 text-amber-500 shrink-0" />
+          <div className="min-w-0">
+            <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">{L.advanced}</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">{L.advancedHint}</p>
+          </div>
+        </button>
+        {showAdvanced && (
+          <div className="mt-4 rounded-2xl p-4 border bg-slate-950/40 dark:bg-black/30 border-slate-200/60 dark:border-white/5">
+            <PcCoreBookPanel embedded />
           </div>
         )}
       </section>

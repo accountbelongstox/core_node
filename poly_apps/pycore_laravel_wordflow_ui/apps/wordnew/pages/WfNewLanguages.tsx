@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Languages, Globe, Check, Save, ArrowLeft, Target } from 'lucide-react';
+import { Languages, Globe, Check, Save, Target } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 import { wfNewApi, type WfNewLanguage } from '../api';
 
@@ -17,7 +17,6 @@ interface WfNewLanguagesProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
-  onBack: () => void;
   /** Mirror the saved selection back into the app (e.g. update the active target). */
   onSaved?: (selection: { native_language: string; learning_languages: string[] }) => void;
 }
@@ -26,7 +25,6 @@ export const WfNewLanguages: React.FC<WfNewLanguagesProps> = ({
   activeTheme,
   trans,
   addToast,
-  onBack,
   onSaved,
 }) => {
   const [options, setOptions] = useState<WfNewLanguage[]>([]);
@@ -90,24 +88,6 @@ export const WfNewLanguages: React.FC<WfNewLanguagesProps> = ({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 transition-all cursor-pointer"
-          aria-label={trans('common.back')}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div>
-          <h2 className="text-lg font-black text-slate-100 flex items-center gap-2">
-            <Languages className="w-5 h-5 text-indigo-400" />
-            {trans('lang.title')}
-          </h2>
-          <p className="text-zinc-500 text-xs mt-0.5">{trans('lang.sub')}</p>
-        </div>
-      </div>
-
       {/* Source / native language */}
       <div className={`p-6 rounded-3xl ${activeTheme.cardClass} border border-white/5 shadow-lg space-y-3`}>
         <div className="flex items-center gap-2">

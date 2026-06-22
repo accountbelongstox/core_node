@@ -44,6 +44,10 @@ let started = false;
 let lastSeq: number | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let manualClose = false;
+// Route-scoped gate (driven by PycoreWs.setPycoreActive via setPycoreSseActive):
+// when a non-pycore end is active the stream is closed and (re)opens become
+// no-ops, so an inactive route never reconnect-spams :59000/rpc/sse.
+let suspended = false;
 
 function diag(level: string, message: string) {
   (level === 'error' ? console.error : console.log)(`[pycore-sse] ${message}`);
@@ -82,6 +86,7 @@ function parseData(ev: MessageEvent): any {
 }
 
 function scheduleReconnect() {
+  if (suspended) return;            // route inactive — do not reconnect
   if (reconnectTimer) return;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
@@ -98,6 +103,7 @@ function closeSource() {
 }
 
 function openSource() {
+  if (suspended) return;            // route inactive — do not open
   // Never stack streams.
   if (source && (source.readyState === EventSource.OPEN || source.readyState === EventSource.CONNECTING)) return;
   if (typeof EventSource === 'undefined') {
@@ -170,5 +176,24 @@ export function isSseConnected(): boolean {
 export function connectPycoreSse(): void {
   if (started) return;
   started = true;
+  if (suspended) return;            // deferred until the route is active again
   openSource();
+}
+
+/**
+ * Route-scoped gate for the SSE broadcast stream. Called by PycoreWs.setPycoreActive
+ * so WS + SSE suspend/resume together. Suspending closes the stream and stops
+ * reconnects; resuming reopens it (from the last cursor) when a consumer had asked
+ * for it. Idempotent.
+ */
+export function setPycoreSseActive(active: boolean): void {
+  if (active === !suspended) return;
+  suspended = !active;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  if (active) {
+    if (started) openSource();
+  } else {
+    closeSource();
+    setSseEventsActive(false);      // let WS resume event dispatch if it reconnects
+  }
 }

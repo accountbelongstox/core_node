@@ -83,6 +83,12 @@ let connected = false;
 let started = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempts = 0;
+// Route-scoped gate: when the active shell end does NOT use pycore (e.g. /wordnew),
+// the bus is SUSPENDED — the socket is closed and all (re)connect attempts become
+// no-ops, so an inactive end never reconnect-spams :59000. Resumed when a pycore
+// end (pycore-manager / vortex) becomes active again. Driven by ShellContext via
+// setPycoreActive(). See shellTypes.END_USES_PYCORE.
+let suspended = false;
 
 const RECONNECT_MS = 3000;
 const CALL_TIMEOUT_MS = 30000;
@@ -250,6 +256,7 @@ function logUnreachableHintOnce() {
 }
 
 function scheduleReconnect() {
+  if (suspended) return;            // route inactive — do not reconnect
   if (reconnectTimer) return;
   // Don't reconnect if a socket is already live — avoids stacking/churn.
   if (socket && socket.readyState === WebSocket.OPEN) return;
@@ -261,6 +268,7 @@ function scheduleReconnect() {
 }
 
 function openSocket() {
+  if (suspended) return;            // route inactive — do not open
   // Never stack connections: if a socket is already open or still connecting, keep
   // it. Opening a 2nd socket with the same client_id makes the server SUPERSEDE the
   // first (closes it), whose close handler then reconnects — the connect/disconnect
@@ -365,10 +373,16 @@ export function callRpc(method: string, params: any = {}, timeoutMs: number = CA
   return nativeCall(method, params, timeoutMs);
 }
 
-/** Open the singleton connection (idempotent). Auto-reconnects on close/error. */
+/** Open the singleton connection (idempotent). Auto-reconnects on close/error.
+ *  When the route gate is suspended (a non-pycore end is active) this records the
+ *  intent (started=true) but defers the actual open until setPycoreActive(true). */
 export function connectPycoreWs(): void {
   if (started) return;
   started = true;
+  if (suspended) {
+    diag('info', 'connect requested while route inactive — deferring until a pycore end is active');
+    return;
+  }
   // Broadcast events migrate to SSE (RPC stays on WS). Started lazily here so
   // every existing consumer that calls connectPycoreWs() also gets SSE, with no
   // change to their subscribe()/onWsStatus() calls. Lazy import keeps this
@@ -380,5 +394,46 @@ export function connectPycoreWs(): void {
   } else {
     diag('info', 'shared rpc client not loaded — using native socket');
     openSocket();
+  }
+}
+
+/**
+ * Route-scoped gate for the whole pycore live bus (WS + SSE). The shell calls
+ * this on every end change: active=true for ends that use pycore (pycore-manager,
+ * vortex), active=false for every other end (wordnew / wordflow / laravel-manager
+ * / home). Suspending CLOSES the socket and stops all reconnect attempts so an
+ * inactive route never reconnect-spams :59000; resuming reopens it when a consumer
+ * had asked for it (started). Idempotent — repeated same-state calls are no-ops.
+ */
+export function setPycoreActive(active: boolean): void {
+  if (active === !suspended) return;      // already in the requested state
+  suspended = !active;
+  if (active) {
+    diag('info', 'route active — resuming pycore bus');
+    reconnectAttempts = 0;
+    import('./PycoreSse').then(({ setPycoreSseActive }) => { setPycoreSseActive(true); }).catch(() => { /* best-effort */ });
+    if (started) {
+      if (sharedClient && typeof sharedClient.connect === 'function') {
+        try { sharedClient.connect(); } catch { /* ignore */ }
+      } else {
+        openSocket();
+      }
+    }
+  } else {
+    diag('info', 'route inactive — suspending pycore bus (closing WS/SSE)');
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    if (sharedClient && typeof sharedClient.disconnect === 'function') {
+      try { sharedClient.disconnect(); } catch { /* ignore */ }
+    }
+    if (socket) {
+      const s = socket;
+      socket = null;
+      // Detach handlers so the close we trigger does not schedule a reconnect.
+      s.onopen = null; s.onmessage = null; s.onerror = null; s.onclose = null;
+      try { s.close(); } catch { /* ignore */ }
+    }
+    rejectAllPendingCalls('pycore bus suspended (route inactive)');
+    setConnected(false);
+    import('./PycoreSse').then(({ setPycoreSseActive }) => { setPycoreSseActive(false); }).catch(() => { /* best-effort */ });
   }
 }

@@ -55,6 +55,15 @@ class AppQyV1LangDictionaryModel extends Model
         'tts_priority',
         'tts_requested_at',
         'tts_completed_at',
+        // Word-image generation process state (queue-less coordination — the
+        // image queue's job, carried on the canonical row; mirrors tts_*).
+        'image_status',
+        'image_priority',
+        'image_locked_at',
+        'image_locked_by',
+        'image_attempts',
+        'image_requested_at',
+        'image_completed_at',
     ];
 
     protected $casts = [
@@ -78,6 +87,11 @@ class AppQyV1LangDictionaryModel extends Model
         'tts_locked_at' => 'datetime',
         'tts_requested_at' => 'datetime',
         'tts_completed_at' => 'datetime',
+        'image_attempts' => 'integer',
+        'image_priority' => 'integer',
+        'image_locked_at' => 'datetime',
+        'image_requested_at' => 'datetime',
+        'image_completed_at' => 'datetime',
     ];
 
     public function __construct(array $attributes = [])

@@ -8,8 +8,8 @@
  *   - a Web Speech API (speechSynthesis) fallback helper, as used by the
  *     listening player and word detail. */
 
-import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
-import { apiManager } from '../../../core/api-libs/wordflow/WordflowApiManager';
+import { wordflowApi } from '../api-libs/wordflow/WordflowApi';
+import { apiManager } from '../api-libs/wordflow/WordflowApiManager';
 import { wfEventBus } from './WfEventBus';
 
 /** Resolved-URL cache lifetime (~24 hours, matching the backend audio TTL). */

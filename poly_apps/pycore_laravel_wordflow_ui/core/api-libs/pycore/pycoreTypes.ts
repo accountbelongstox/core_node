@@ -48,6 +48,13 @@ export interface VideoExtractOptions {
   formats: string[];
   lang: string;
   extensions?: string[];
+  // Primary subtitle track source for a run: 'api_first' tries OpenSubtitles
+  // then falls back to Whisper; 'whisper' always transcribes locally. The
+  // processor reads `config.subtitle_source` (default 'api_first').  // 字幕来源
+  subtitle_source?: 'api_first' | 'whisper';
+  // Persisted multi-language correspondence selection (the Laravel-sync
+  // language multi-select); defaults to en+zh when absent.  // 目标语言集合
+  target_languages?: string[];
 }
 
 export interface VideoExtractHistory {
@@ -141,6 +148,44 @@ export interface VideoExtractSegmentsResponse {
   error?: string;
 }
 
+// --- Subtitle language fill (video_extract.fill_languages RPC) ----------- #
+// Ensures every requested language has a `<stem>.<lang>.srt` sibling track
+// (OpenSubtitles when strategy='api_first' + credentialed, else AI-translated
+// from the primary cues). Per-source outcome.  // 每个源的填充结果
+export interface SubtitleFillSourceResult {
+  source: string;
+  filled: Record<string, string>;  // lang -> written track path
+  skipped: string[];               // langs already present
+  failed: Record<string, string>;  // lang -> error
+}
+
+// The RPC returns EITHER a single-source summary (flat fields) OR a multi-path
+// aggregate (`count` + nested `results` summaries). Both shapes are unioned via
+// optional fields so the FE can read whichever the backend sent.  // 填充响应
+export interface SubtitleFillResponse {
+  success: boolean;
+  // single-source summary fields
+  base_dir?: string | null;
+  sources?: number;
+  filled?: number;
+  skipped?: number;
+  failed?: number;
+  results?: SubtitleFillSourceResult[] | SubtitleFillResponse[];
+  errors?: string[];
+  // multi-path aggregate field
+  count?: number;
+}
+
+// Live progress for the fill, streamed over the `subtitle_language_fill`
+// THREAD_BUS event (mirrors `video_extract_sync`).  // 字幕填充进度
+export interface SubtitleFillProgress {
+  stage: string;
+  done: number;
+  total: number;
+  detail: string;
+  summary?: Record<string, unknown>;
+}
+
 export type VideoExtractOpenKind =
   | 'output' | 'file' | 'file_dir' | 'file_output_dir' | 'subtitle';
 
@@ -174,6 +219,7 @@ export interface SelfStatus {
   distributing: boolean;
   config_version: number;
   skip_update?: boolean;
+  light?: boolean;                     // start-time RECEIVE-ONLY light mode (read-only indicator)
   code?: CodeStats;
   watch_root?: string;                 // client write root (pushed files land here)
   watch_dirs?: string[];               // dev's effective watched dirs (empty list = root)
@@ -182,6 +228,7 @@ export interface SelfStatus {
     role: CodeSyncRole;
     distributing: boolean;
     skip_update?: boolean;
+    light?: boolean;
     code?: CodeStats;
     servers?: number;
     clients?: number;
@@ -210,6 +257,7 @@ export interface PeerLiveStatus {
   role?: CodeSyncRole;
   distributing?: boolean;
   skip_update?: boolean;
+  light?: boolean;          // peer's start-time RECEIVE-ONLY light mode (read-only)
   code?: CodeStats;
   servers?: number;
   clients?: number;
@@ -218,6 +266,7 @@ export interface PeerLiveStatus {
     role?: CodeSyncRole;
     distributing?: boolean;
     skip_update?: boolean;
+    light?: boolean;
     code?: CodeStats;
     servers?: number;
     clients?: number;
@@ -333,6 +382,9 @@ export interface PeerFileTreeResponse {
 }
 
 // --- Auto-start on boot -------------------------------------------------- #
+/** What an autostart entry launches at boot. */
+export type AutostartTarget = 'pyservice' | 'launcher' | 'both';
+
 export interface AutostartStatus {
   success?: boolean;
   enabled: boolean;
@@ -342,6 +394,13 @@ export interface AutostartStatus {
   location?: string;
   message?: string;
   error?: string;
+  /** Current launch target: pyservice (full stack), launcher (terminals), both. */
+  target?: AutostartTarget;
+  /** Valid targets advertised by the backend (for the UI selector). */
+  targets?: AutostartTarget[];
+  /** Linux mechanism backing the entry: 'xdg' (.desktop) or 'systemd' (--user unit). */
+  mechanism?: string;
+  mechanisms?: string[];
 }
 
 // --- AI status (provider availability probe) ----------------------------- #
@@ -1144,6 +1203,9 @@ export interface PosterStatus {
     TMDB_API_READ_ACCESS_TOKEN: string;
     OMDB_API_KEY: string;
   };
+  /** How posters were obtained at ingest: local reuse of the extract poster.jpg
+   *  vs a fresh TMDB/OMDB fetch (cumulative since the last reset). */
+  stats?: { reused: number; fetched: number };
 }
 export interface PosterMeta {
   title?: string;
@@ -1160,4 +1222,484 @@ export interface PosterTestResponse {
   meta?: PosterMeta;
   image_base64?: string;
   error?: string;
+}
+
+// --- Google Translate (free googletrans status + translate + AI comparison) - #
+export interface TranslateStatus {
+  /** True when the free googletrans library is importable. */
+  available: boolean;
+  library: 'googletrans' | string;
+  /** Best-effort installed version, or null when unknown. */
+  version: string | null;
+  service_url: string;
+  cache_dir: string;
+  /** Number of cached translation .json files on disk. */
+  cache_count: number;
+  recommended_version: string;
+}
+export interface TranslateResponse {
+  translated_text?: string;
+  src?: string;
+  dest?: string;
+  pronunciation?: string | null;
+  from_cache?: boolean;
+  provider: 'google';
+  error?: string;
+}
+export interface TranslateAiResponse {
+  translated_text?: string;
+  provider: 'ai';
+  model?: string | null;
+  error?: string;
+}
+
+// --- Image search (SerpApi Google-Images + AI comparison + history) -------- #
+export interface ImageSearchStatus {
+  /** True when a SerpApi key is configured. */
+  available: boolean;
+  provider: 'serpapi' | string;
+  engine: 'google_images' | string;
+  service_url: string;
+  key_name: string;
+  history_count: number;
+  default_num: number;
+  max_num: number;
+}
+export interface ImageSearchResult {
+  /** Full-resolution image URL (use directly in <img src>). */
+  url: string;
+  thumbnail?: string | null;
+  title?: string | null;
+  source?: string | null;
+  /** Page the image was found on. */
+  link?: string | null;
+}
+export interface ImageSearchResponse {
+  provider: 'serpapi' | string;
+  engine?: string;
+  query?: string;
+  count?: number;
+  results: ImageSearchResult[];
+  history_id?: string | null;
+  error?: string;
+}
+/** A combined search + AI render for one query (the "evaluate alongside AI" view). */
+export interface ImageSearchCompareResponse {
+  query: string;
+  search: {
+    provider: string;
+    engine?: string;
+    count: number;
+    results: ImageSearchResult[];
+    error?: string | null;
+  };
+  ai: AiImageResponse;
+}
+/** The base64-free AI reference stored on a history record. */
+export interface ImageSearchHistoryAiRef {
+  provider?: string | null;
+  model?: string | null;
+  mime?: string | null;
+}
+export interface ImageSearchHistoryEntry {
+  id: string;
+  ts: number;
+  iso: string;
+  query: string;
+  engine: string;
+  country?: string | null;
+  result_count: number;
+  results: ImageSearchResult[];
+  ai?: ImageSearchHistoryAiRef | null;
+  origin: string;
+}
+export interface ImageSearchHistoryResponse {
+  success: boolean;
+  entries: ImageSearchHistoryEntry[];
+}
+export interface ImageSearchHistoryClearResponse {
+  success: boolean;
+  removed: number;
+}
+export interface ImageSearchHistoryDeleteResponse {
+  success: boolean;
+}
+
+// --- Subtitle search (OpenSubtitles search + download + history) ----------- #
+export interface SubtitleSearchStatus {
+  /** True when an OpenSubtitles key is configured. */
+  available: boolean;
+  provider: 'opensubtitles' | string;
+  service_url: string;
+  key_name: string;
+  /** Whether the provider session is authenticated (token obtained). */
+  authenticated: boolean;
+  history_count: number;
+  default_languages: string[];
+  max_results: number;
+}
+/** Lightweight reachability probe (latency + language catalog size). */
+export interface SubtitleSearchProbe {
+  configured: boolean;
+  available: boolean;
+  latency_ms: number | null;
+  error?: string | null;
+  languages_count?: number | null;
+}
+export interface SubtitleResult {
+  /** Download handle used by /download (numeric or string id). */
+  file_id: number | string;
+  subtitle_id?: string;
+  title?: string | null;
+  release?: string | null;
+  language?: string | null;
+  year?: number | null;
+  season?: number | null;
+  episode?: number | null;
+  format?: string | null;
+  downloads?: number | null;
+  rating?: number | null;
+  uploader?: string | null;
+  hearing_impaired?: boolean | null;
+  fps?: number | null;
+  url?: string | null;
+}
+/** Optional search filters (everything but the query is optional). */
+export interface SubtitleSearchOptions {
+  languages?: string;
+  year?: number;
+  season?: number;
+  episode?: number;
+  moviehash?: string;
+  limit?: number;
+  record?: boolean;
+}
+export interface SubtitleSearchResponse {
+  provider: 'opensubtitles' | string;
+  query: string;
+  count: number;
+  results: SubtitleResult[];
+  history_id?: string | null;
+  error?: string;
+}
+export interface SubtitleDownloadResponse {
+  success: boolean;
+  file_name?: string | null;
+  format?: string | null;
+  language?: string | null;
+  /** Inline subtitle text (offer as a .srt Blob), when the backend returns it. */
+  content?: string | null;
+  /** Where the backend saved the file, when it persisted it instead. */
+  saved_path?: string | null;
+  /** Direct download link, when the provider returns one. */
+  link?: string | null;
+  error?: string | null;
+}
+export interface SubtitleSearchHistoryEntry {
+  id: string;
+  ts: number;
+  iso: string;
+  query: string;
+  languages: string[];
+  year?: number | null;
+  result_count: number;
+  results: SubtitleResult[];
+  origin: string;
+}
+export interface SubtitleSearchHistoryResponse {
+  success: boolean;
+  entries: SubtitleSearchHistoryEntry[];
+}
+export interface SubtitleSearchHistoryClearResponse {
+  success: boolean;
+  removed: number;
+}
+export interface SubtitleSearchHistoryDeleteResponse {
+  success: boolean;
+}
+
+// --- Subtitle provider fallback chain -------------------------------------- #
+// The subtitle side tries these providers IN ORDER (by `order`), then falls
+// back to Whisper generation. #1 is the primary; the scraper lanes are
+// best-effort/outdated (`fallback`=true).
+export interface SubtitleProvider {
+  /** Stable id used by the /{name}/test probe. */
+  name: string;
+  /** Human label, e.g. "OpenSubtitles". */
+  label: string;
+  /** Chain position (1=primary). */
+  order: number;
+  /** Usable right now. */
+  available: boolean;
+  /** Required key/config present. */
+  configured: boolean;
+  /** Install/config hint shown when not available (e.g. "pip install subliminal"). */
+  needs: string;
+  /** True for the outdated/best-effort scraper lanes. */
+  fallback: boolean;
+  /** Short description of the provider. */
+  note: string;
+}
+export interface SubtitleProvidersResponse {
+  success: boolean;
+  providers: SubtitleProvider[];
+}
+/** Result of a live per-provider probe (may hit the network). */
+export interface SubtitleProviderProbe {
+  name: string;
+  label?: string;
+  available: boolean;
+  latency_ms: number | null;
+  error: string | null;
+}
+
+// --- Subtitle download cache (reuse a rate/quota-limited download) ---------- #
+// GET /api/local/subtitle-search/cache — on-disk cache of already-downloaded
+// subtitles so the same provider file is never pulled twice (the provider
+// caps free downloads per day). `downloads` = cached files; `fetches` = keyed
+// fetch entries; `bytes` = total cache size on disk. No network call.
+export interface SubtitleCacheStats {
+  success: boolean;
+  dir: string;
+  downloads: number;
+  fetches: number;
+  bytes: number;
+  error?: string;
+}
+/** POST /api/local/subtitle-search/cache/clear — wipe the cache (count removed). */
+export interface SubtitleCacheClearResponse {
+  success: boolean;
+  removed: number;
+}
+
+// --- Queue Center: unified overview (contract A) --------------------------- #
+// GET /api/local/queue/overview. pycore is the hub: it fans out to Laravel for
+// the per-category counts + worker registry, and merges its own local engine
+// status. Eight categories are ALWAYS present (zeros when empty), even when
+// laravel_reachable is false.
+
+/** Who actually processes a queue category's work. */
+export type PcQueueHandler = 'chrome' | 'pycore' | 'ai';
+
+/** One sample row for a category (loose — only a few fields are present). */
+export interface PcQueueSample {
+  word?: string;
+  language?: string;
+  source_key?: string;
+  title?: string;
+  id?: string | number;
+  [k: string]: unknown;
+}
+
+/** One queue category card. `by_language` / `sample` are optional. */
+export interface PcQueueCategory {
+  key: string;
+  label: string;
+  handler: PcQueueHandler;
+  pending: number;
+  processing: number;
+  leased: number;
+  total: number;
+  /** Per-language pending breakdown (lang code -> count), when reported. */
+  by_language?: Record<string, number>;
+  /** A few sample rows (preview of what is waiting), when reported. */
+  sample?: PcQueueSample[];
+}
+
+/** A registered worker (chrome/pycore) draining one or more categories. */
+export interface PcQueueWorker {
+  id: string;
+  kind: 'chrome' | 'pycore' | string;
+  processor_types: string[];
+  online: boolean;
+  last_seen: string | null;
+  claimed: number;
+}
+
+/** pycore-local engine status per capability (always reported). */
+export interface PcQueueEngines {
+  tts?: { active?: string | null; priority: string[] };
+  stt?: { priority: string[] };
+  image?: { priority: string[] };
+  translation?: { priority: string[] };
+}
+
+export interface PcQueueOverview {
+  success: boolean;
+  generated_at?: string;
+  laravel_reachable: boolean;
+  categories: PcQueueCategory[];
+  workers: PcQueueWorker[];
+  engines: PcQueueEngines;
+  error?: string;
+}
+
+// --- Queue Center: capability settings (contract B) ------------------------ #
+// GET/POST /api/local/capabilities/settings. Each capability block carries the
+// engine PRIORITY chain (re-orderable), an availability map, and its options
+// (TTS has synth_timeout_s + edge_cooldown_s; the others are typically empty).
+
+export interface PcCapabilityOptions {
+  synth_timeout_s?: number;
+  edge_cooldown_s?: number;
+  [k: string]: unknown;
+}
+
+/** One capability's settings block. */
+export interface PcCapabilityBlock {
+  /** Ordered engine chain (index 0 = tried first). */
+  priority: string[];
+  /** Per-engine availability (engine id -> ready). */
+  available: Record<string, boolean>;
+  /** Tuning options (TTS: synth_timeout_s / edge_cooldown_s). */
+  options: PcCapabilityOptions;
+}
+
+/** GET /api/local/capabilities/settings — all four capability blocks. */
+export interface PcCapabilitySettings {
+  success: boolean;
+  stt: PcCapabilityBlock;
+  tts: PcCapabilityBlock;
+  image: PcCapabilityBlock;
+  translation: PcCapabilityBlock;
+  error?: string;
+}
+
+/** The four capability ids the drawer manages. */
+export type PcCapabilityKey = 'stt' | 'tts' | 'image' | 'translation';
+
+/** POST /api/local/capabilities/settings response — the updated block. */
+export interface PcCapabilitySaveResponse extends Partial<PcCapabilityBlock> {
+  success: boolean;
+  capability?: PcCapabilityKey;
+  error?: string;
+}
+
+// --- Recent tasks (cross-end task history: pycore + chrome) ---------------- #
+// GET /api/local/tasks/recent — a unified, newest-first log of finished task
+// units across both ends (pycore workers + the chrome MCP host). Each record is
+// a single processed item (a word, a TTS synth, an image fetch, a translation
+// batch, …). `detail` is free-form per task_type; the common keys are typed but
+// any extra keys may appear.
+
+/** One word entry inside a batch task's detail (per-word audio/engine info). */
+export interface PcTaskDetailWord {
+  word: string;
+  audio_bytes?: number;
+  engine?: string;
+  [k: string]: unknown;
+}
+
+/** One translation pair inside a batch task's detail. */
+export interface PcTaskDetailTranslation {
+  word: string;
+  translation: string;
+  [k: string]: unknown;
+}
+
+/** Free-form per-task detail. Common keys typed; extras allowed. */
+export interface PcTaskDetail {
+  text?: string;
+  translation?: string;
+  provider?: string;
+  model?: string;
+  engine?: string;
+  voice?: string;
+  /** The produced audio file address (path or URL). */
+  audio_path?: string;
+  audio_bytes?: number;
+  image_bytes?: number;
+  mime?: string;
+  size?: string;
+  word_count?: number;
+  /** word_translation: count translated this batch (NOT a boolean). */
+  translated?: number;
+  /** word_translation: count skipped (already-done) this batch. */
+  skipped?: number;
+  /** word_audio: count of words whose audio synthesized OK. */
+  audio_ok?: number;
+  /** word_audio: count of words whose audio synthesis failed. */
+  audio_failed?: number;
+  words?: PcTaskDetailWord[];
+  translations?: PcTaskDetailTranslation[];
+  failed_words?: string[];
+  media_type?: string;
+  year?: number | null;
+  filename?: string;
+  [k: string]: unknown;
+}
+
+/** A single finished task unit (newest-first in the recent log). */
+export interface PcTaskRecord {
+  ts: string;
+  seq: number;
+  /** Which end ran it. */
+  end: 'pycore' | 'chrome' | string;
+  worker: string;
+  task_type: string;
+  task_id: string;
+  /** Base URL of the API the task came from. */
+  source_api: string;
+  /** The word / text / title the task was about. */
+  title: string;
+  language: string;
+  /** submitted | already_done | completed | skipped | released | failed | … */
+  status: string;
+  success: boolean;
+  /** Whether the result was returned to the originating API. */
+  posted_back: boolean;
+  latency_ms: number | null;
+  error: string | null;
+  detail: PcTaskDetail;
+}
+
+/** Roll-up stats for the recent-task ring. */
+export interface PcTaskRecentStats {
+  total: number;
+  success: number;
+  failed: number;
+  posted_back: number;
+  /** Ring buffer capacity. */
+  ring_max: number;
+  /** Path of the on-disk text log. */
+  log_path: string;
+}
+
+/** GET /api/local/tasks/recent — recent task history + roll-up stats. */
+export interface PcTaskRecentResponse {
+  success: boolean;
+  records: PcTaskRecord[];
+  count: number;
+  stats: PcTaskRecentStats;
+  error?: string;
+}
+
+/** POST /api/local/tasks/clear — wipe history + truncate the text log. */
+export interface PcTaskClearResponse {
+  ok: boolean;
+  error?: string;
+}
+
+// --- Translate history (Google / AI translate usage records) --------------- #
+export interface TranslateHistoryEntry {
+  id: string;
+  ts: number;
+  iso: string;
+  source: string;
+  target: string;
+  text: string;
+  engine: 'google' | 'ai' | string;
+  result: string;
+  origin: string;
+}
+export interface TranslateHistoryResponse {
+  success: boolean;
+  entries: TranslateHistoryEntry[];
+}
+export interface TranslateHistoryClearResponse {
+  success: boolean;
+  removed: number;
+}
+export interface TranslateHistoryDeleteResponse {
+  success: boolean;
 }

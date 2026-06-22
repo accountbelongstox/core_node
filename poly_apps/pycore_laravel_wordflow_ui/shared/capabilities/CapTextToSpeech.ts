@@ -553,4 +553,194 @@ export function useTextToSpeech(): UseTextToSpeechResult {
   );
 }
 
+// ===========================================================================
+// EXTENDED CAPABILITIES — spell-out, read-along sequences, repeat, lang guess
+// ===========================================================================
+//
+// Higher-level pronunciation helpers for the wordnew study flows: spell a word
+// letter-by-letter, read a list of words/sentences in order with per-item
+// callbacks (for highlighting), and a heuristic language guesser so callers can
+// auto-pick a voice when the content language isn't explicitly known.
+
+/** Speaking-rate presets (multipliers); 'slow' is great for new vocabulary. */
+export const RATE_PRESETS = {
+  verySlow: 0.6,
+  slow: 0.78,
+  normal: 0.95,
+  fast: 1.15,
+  veryFast: 1.4,
+} as const;
+
+export type CapRatePreset = keyof typeof RATE_PRESETS;
+
+/** Resolve a preset name OR a raw number to a rate value. */
+export function resolveRate(rate: CapRatePreset | number | undefined, fallback = RATE_PRESETS.normal): number {
+  if (typeof rate === 'number') return rate;
+  if (rate && rate in RATE_PRESETS) return RATE_PRESETS[rate];
+  return fallback;
+}
+
+/**
+ * Heuristically guess a BCP-47 language tag from text (script-based). Returns
+ * 'und' when undecided so callers can fall back to a configured default.
+ */
+export function guessLang(text: string): string {
+  if (!text) return 'und';
+  if (/[぀-ゟ゠-ヿ]/.test(text)) return 'ja-JP'; // kana
+  if (/[가-힯]/.test(text)) return 'ko-KR'; // hangul
+  if (/[一-鿿]/.test(text)) return 'zh-CN'; // han (default zh)
+  if (/[Ѐ-ӿ]/.test(text)) return 'ru-RU'; // cyrillic
+  if (/[؀-ۿ]/.test(text)) return 'ar'; // arabic
+  if (/[฀-๿]/.test(text)) return 'th-TH'; // thai
+  if (/[a-z]/i.test(text)) return 'en-US';
+  return 'und';
+}
+
+/** Split a word into letters for spell-out (keeps combining marks together). */
+export function toLetters(word: string): string[] {
+  return Array.from(word.normalize('NFC')).filter((ch) => ch.trim().length > 0);
+}
+
+export interface CapSpeakSequenceItem {
+  text: string;
+  lang?: string;
+  rate?: CapRatePreset | number;
+}
+
+export interface CapSpeakSequenceOptions {
+  /** Gap (ms) between items. Default 250. */
+  gapMs?: number;
+  /** Called as each item starts (index into the array). */
+  onItem?: (index: number, item: CapSpeakSequenceItem) => void;
+  /** Default lang for items without one. */
+  defaultLang?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Extended service-level helpers (free functions over the singleton)
+// ---------------------------------------------------------------------------
+
+const ttsSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Speak a word letter-by-letter ("c — a — t"). Resolves when done. */
+export async function spellOut(word: string, lang?: string, perLetterRate: CapRatePreset | number = 'slow'): Promise<void> {
+  const letters = toLetters(word);
+  const rate = resolveRate(perLetterRate);
+  for (let i = 0; i < letters.length; i++) {
+    await capTTS.speak(letters[i], { lang, rate, flush: i === 0 });
+    await ttsSleep(120);
+  }
+}
+
+/**
+ * Speak a list of items in order, calling `onItem` as each begins. Returns a
+ * stop function (also stops the underlying TTS). Great for read-along lists.
+ */
+export function speakSequence(
+  items: CapSpeakSequenceItem[],
+  options: CapSpeakSequenceOptions = {},
+): { promise: Promise<void>; stop: () => void } {
+  let cancelled = false;
+  const gap = options.gapMs ?? 250;
+  const promise = (async () => {
+    for (let i = 0; i < items.length; i++) {
+      if (cancelled) return;
+      const item = items[i];
+      options.onItem?.(i, item);
+      await capTTS.speak(item.text, {
+        lang: item.lang ?? options.defaultLang,
+        rate: resolveRate(item.rate),
+        flush: i === 0,
+      });
+      if (cancelled) return;
+      if (gap > 0) await ttsSleep(gap);
+    }
+  })();
+  return {
+    promise,
+    stop: () => {
+      cancelled = true;
+      void capTTS.stop();
+    },
+  };
+}
+
+/** Speak the same text `times` times with a gap between repeats. */
+export async function repeatSpeak(
+  text: string,
+  times: number,
+  options: CapTTSSpeakOptions & { gapMs?: number } = {},
+): Promise<void> {
+  const gap = options.gapMs ?? 400;
+  for (let i = 0; i < Math.max(1, times); i++) {
+    await capTTS.speak(text, { ...options, flush: i === 0 });
+    if (i < times - 1 && gap > 0) await ttsSleep(gap);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Extended React hooks
+// ---------------------------------------------------------------------------
+
+export interface UseReadAlongResult {
+  /** The text split into words. */
+  words: string[];
+  /** Index of the word currently being spoken (-1 when idle). */
+  activeWord: number;
+  speaking: boolean;
+  /** Start reading the text aloud (word highlighting via boundary events). */
+  read: (options?: CapTTSSpeakOptions) => Promise<void>;
+  stop: () => Promise<void>;
+}
+
+/**
+ * Read-along hook: speaks `text` and reports which WORD is active, derived from
+ * the web boundary char index. (On native, no boundaries → activeWord stays -1
+ * but speaking still works.)
+ *
+ *   const { words, activeWord, read } = useReadAlong(sentence);
+ */
+export function useReadAlong(text: string, lang?: string): UseReadAlongResult {
+  const [activeWord, setActiveWord] = useState(-1);
+  const [speaking, setSpeaking] = useState(false);
+
+  // Precompute word spans [start,end) over the source text.
+  const { words, spans } = useMemo(() => {
+    const w: string[] = [];
+    const s: Array<[number, number]> = [];
+    const re = /\S+/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      w.push(m[0]);
+      s.push([m.index, m.index + m[0].length]);
+    }
+    return { words: w, spans: s };
+  }, [text]);
+
+  useEffect(() => {
+    const offBoundary = capTTS.on('boundary', (b) => {
+      if (b.text !== text) return;
+      const idx = spans.findIndex(([start, end]) => b.charIndex >= start && b.charIndex < end);
+      if (idx >= 0) setActiveWord(idx);
+    });
+    const offSpeak = capTTS.on('speakingchange', (s) => {
+      setSpeaking(s);
+      if (!s) setActiveWord(-1);
+    });
+    return () => {
+      offBoundary();
+      offSpeak();
+    };
+  }, [text, spans]);
+
+  return {
+    words,
+    activeWord,
+    speaking,
+    read: (options?: CapTTSSpeakOptions) =>
+      capTTS.speak(text, { lang: lang ?? (guessLang(text) === 'und' ? undefined : guessLang(text)), ...options }),
+    stop: () => capTTS.stop(),
+  };
+}
+
 export default capTTS;

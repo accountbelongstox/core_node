@@ -6,12 +6,10 @@
 import { AiChatAdapter } from '../../../shell/shellTypes';
 import { pycoreChatAdapter } from './pycoreChatAdapter';
 import { laravelChatAdapter } from './laravelChatAdapter';
-import { wordflowChatAdapter } from './wordflowChatAdapter';
 
 export const CHAT_ADAPTERS: AiChatAdapter[] = [
   pycoreChatAdapter,
   laravelChatAdapter,
-  wordflowChatAdapter,
 ];
 
 export function getChatAdapter(id: string): AiChatAdapter {

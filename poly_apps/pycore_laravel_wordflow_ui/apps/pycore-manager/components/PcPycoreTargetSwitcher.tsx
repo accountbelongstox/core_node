@@ -13,6 +13,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Globe } from 'lucide-react';
 import {
   getPycoreTarget, getPycoreTargetRecent, normalizePycoreHost, setPycoreTarget,
+  localPycoreHost,
 } from '../../../core/api-libs/pycore';
 
 interface Props {
@@ -23,6 +24,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const target = getPycoreTarget();           // read once; switching reloads anyway
   const recent = getPycoreTargetRecent();
   const isRemote = target.mode === 'remote';
+  const localHost = localPycoreHost();        // current page host — the local default
   const label = isRemote ? (target.host as string) : 'Local';
 
   const [open, setOpen] = useState(false);
@@ -74,8 +76,9 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
               !isRemote ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
             }`}
           >
-            <span className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
-              <MonitorSmartphone className="w-4 h-4 text-indigo-500" /> Local (this machine)
+            <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
+              <span className="flex items-center gap-2"><MonitorSmartphone className="w-4 h-4 text-indigo-500" /> Local (this machine)</span>
+              <span className="text-[10px] font-mono text-slate-400 pl-6">{localHost}:59000</span>
             </span>
             {!isRemote && <Check className="w-4 h-4 text-indigo-500" />}
           </button>
@@ -123,8 +126,10 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
               </button>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Port is always 59000. Switching reloads the UI; it then controls that node's
-              pycore (CodeSync, queues, AI, settings). The remote must allow this origin.
+              Local targets this page's host on :59000 ({localHost}:59000) — the pycore
+              backend (NOT Laravel's :9000). Port is always 59000. Switching reloads the
+              UI; it then controls that node's pycore (CodeSync, queues, AI, settings).
+              The remote must allow this origin.
             </p>
           </div>
         </div>

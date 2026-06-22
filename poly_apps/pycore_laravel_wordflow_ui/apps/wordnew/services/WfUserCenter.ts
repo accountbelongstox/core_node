@@ -7,10 +7,10 @@
  * clear() the app context calls on logout/login so a stale profile never leaks
  * across sessions. */
 
-import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
-import { apiManager } from '../../../core/api-libs/wordflow/WordflowApiManager';
-import { StorageCenter, StorageKey } from '../../../core/api-libs/wordflow/WordflowStorage';
-import type { User } from '../../../core/api-libs/wordflow/wordflowTypes';
+import { wordflowApi } from '../api-libs/wordflow/WordflowApi';
+import { apiManager } from '../api-libs/wordflow/WordflowApiManager';
+import { StorageCenter, StorageKey } from '../api-libs/wordflow/WordflowStorage';
+import type { User } from '../api-libs/wordflow/wordflowTypes';
 
 /** In-memory profile cache lifetime (mirrors the API layer's 5-min TTL). */
 const PROFILE_TTL_MS = 5 * 60 * 1000;

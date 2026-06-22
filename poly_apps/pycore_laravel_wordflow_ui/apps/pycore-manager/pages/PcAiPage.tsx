@@ -1,17 +1,22 @@
 /**
- * PcAiPage — the unified "AI" page, merging the three former AI pages into ONE
- * tabbed surface:
- *   - Capability  (PcAiCapabilityView)  — compute, providers, rate budgets,
- *                 OCR/TTS, free libraries + per-provider image test.
- *   - Image Studio (PcAiStudioView)     — chat-style image & text generation.
- *   - Keys        (PcAiKeysView)        — add / rotate / delete provider keys.
+ * PcAiPage — the unified "AI & Pycore Capabilities" page. It merges the three
+ * former AI pages AND the standalone Translate / Image Search / Subtitle Search
+ * pages into ONE tabbed surface, plus a unified usage-history tab:
+ *   - Capability     (PcAiCapabilityView) — compute, providers, rate budgets,
+ *                    OCR/TTS, free libraries + per-provider image test.
+ *   - Image Studio   (PcAiStudioView)     — chat-style image & text generation.
+ *   - Keys           (PcAiKeysView)       — add / rotate / delete provider keys.
+ *   - Translate      (PcTranslatePage)    — Google vs AI side-by-side translate.
+ *   - Image Search   (PcImageSearchPage)  — SerpApi images vs AI render.
+ *   - Subtitle Search(PcSubtitleSearchPage)— OpenSubtitles search + download.
+ *   - History        (PcAiHistoryView)    — one feed of ALL usage records.
  *
- * The active sub-tab is reflected in the URL (?tab=capability|studio|keys) so
- * the legacy routes /ai-status, /ai-image and /ai-keys can redirect here with
- * the matching ?tab= (see PcApp.tsx). Sub-tab switching is animated with
- * framer-motion; only the active sub-view is mounted (its polling is the only
- * one running). A shared sticky header carries the title, an "Open AI chat"
- * hand-off and a Refresh button that signals the active sub-view to reload.
+ * The active sub-tab is reflected in the URL (?tab=…) so the legacy routes
+ * (/ai-status, /ai-image, /ai-keys, /translate, /image-search, /subtitle-search)
+ * redirect here with the matching ?tab= (see PcApp.tsx). Sub-tab switching is
+ * animated; only the active sub-view is mounted. The three folded-in pages bring
+ * their own page padding, so they render inside a `-m-6 md:-m-8` wrapper that
+ * cancels this page's outer padding (single correct inset, like a standalone page).
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,20 +24,27 @@ import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Sparkles, Activity, ImagePlay, KeyRound, MessageSquare, RefreshCcw,
+  Languages, ScanSearch, Captions, History,
   type LucideIcon,
 } from 'lucide-react';
 import { useShell } from '../../../shell/ShellContext';
 import PcAiCapabilityView from '../components/PcAiCapabilityView';
 import PcAiStudioView from '../components/PcAiStudioView';
 import PcAiKeysView from '../components/PcAiKeysView';
+import PcAiHistoryView from '../components/PcAiHistoryView';
+import PcTranslatePage from './PcTranslatePage';
+import PcImageSearchPage from './PcImageSearchPage';
+import PcSubtitleSearchPage from './PcSubtitleSearchPage';
 import { SUBTAB_MOTION } from '../components/PcAiShared';
 
-type AiTab = 'capability' | 'studio' | 'keys';
+type AiTab = 'capability' | 'studio' | 'keys' | 'translate' | 'imageSearch' | 'subtitleSearch' | 'history';
 
 const TAB_KEY = 'pc_ai_tab';
 
+const ALL_TABS: AiTab[] = ['capability', 'studio', 'keys', 'translate', 'imageSearch', 'subtitleSearch', 'history'];
+
 const isTab = (v: string | null): v is AiTab =>
-  v === 'capability' || v === 'studio' || v === 'keys';
+  v != null && (ALL_TABS as string[]).includes(v);
 
 interface TabDef { key: AiTab; labelKey: string; hintKey: string; Icon: LucideIcon; }
 
@@ -40,6 +52,10 @@ const TABS: TabDef[] = [
   { key: 'capability', labelKey: 'ai.tabs.capability', hintKey: 'ai.tabHint.capability', Icon: Activity },
   { key: 'studio', labelKey: 'ai.tabs.studio', hintKey: 'ai.tabHint.studio', Icon: ImagePlay },
   { key: 'keys', labelKey: 'ai.tabs.keys', hintKey: 'ai.tabHint.keys', Icon: KeyRound },
+  { key: 'translate', labelKey: 'ai.tabs.translate', hintKey: 'ai.tabHint.translate', Icon: Languages },
+  { key: 'imageSearch', labelKey: 'ai.tabs.imageSearch', hintKey: 'ai.tabHint.imageSearch', Icon: ScanSearch },
+  { key: 'subtitleSearch', labelKey: 'ai.tabs.subtitleSearch', hintKey: 'ai.tabHint.subtitleSearch', Icon: Captions },
+  { key: 'history', labelKey: 'ai.tabs.history', hintKey: 'ai.tabHint.history', Icon: History },
 ];
 
 const PcAiPage: React.FC = () => {
@@ -71,7 +87,7 @@ const PcAiPage: React.FC = () => {
 
   // Per-tab refresh signal — bumping it tells the active sub-view to reload.
   const [refreshTick, setRefreshTick] = useState<Record<AiTab, number>>({
-    capability: 0, studio: 0, keys: 0,
+    capability: 0, studio: 0, keys: 0, translate: 0, imageSearch: 0, subtitleSearch: 0, history: 0,
   });
   const refreshActive = useCallback(() => {
     setRefreshTick((prev) => ({ ...prev, [tab]: prev[tab] + 1 }));
@@ -111,13 +127,13 @@ const PcAiPage: React.FC = () => {
           </div>
         </div>
 
-        {/* sub-tab bar */}
-        <div className="flex rounded-xl pc-glass overflow-hidden w-full sm:w-auto self-start">
+        {/* sub-tab bar (7 tabs — scrolls horizontally on narrow screens) */}
+        <div className="flex rounded-xl pc-glass overflow-x-auto max-w-full self-start no-scrollbar">
           {TABS.map(({ key, labelKey, Icon }) => (
             <button
               key={key}
               onClick={() => switchTab(key)}
-              className={`relative px-4 py-2 text-xs font-bold flex items-center gap-1.5 transition ${
+              className={`relative px-4 py-2 text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
                 tab === key
                   ? 'text-indigo-500'
                   : 'text-slate-500 hover:bg-slate-200/40 dark:hover:bg-white/5'
@@ -141,6 +157,11 @@ const PcAiPage: React.FC = () => {
           {tab === 'capability' && <PcAiCapabilityView refreshSignal={refreshTick.capability} />}
           {tab === 'studio' && <PcAiStudioView refreshSignal={refreshTick.studio} />}
           {tab === 'keys' && <PcAiKeysView refreshSignal={refreshTick.keys} />}
+          {/* folded-in former standalone pages bring their own p-6 — cancel ours */}
+          {tab === 'translate' && <div className="-m-6 md:-m-8"><PcTranslatePage /></div>}
+          {tab === 'imageSearch' && <div className="-m-6 md:-m-8"><PcImageSearchPage /></div>}
+          {tab === 'subtitleSearch' && <div className="-m-6 md:-m-8"><PcSubtitleSearchPage /></div>}
+          {tab === 'history' && <PcAiHistoryView refreshSignal={refreshTick.history} />}
         </motion.div>
       </AnimatePresence>
     </div>

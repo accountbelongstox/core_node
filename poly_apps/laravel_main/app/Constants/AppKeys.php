@@ -16,6 +16,7 @@ class AppKeys
     const ACHATV1 = 'achatv1';
     const CODEMARTV1 = 'codemartv1';
     const ITTOOLSV1 = 'ittoolsv1';
+    const PDDTOOLV1 = 'pddtoolv1';
 
     /**
      * Get all app keys
@@ -31,6 +32,7 @@ class AppKeys
             self::ACHATV1,
             self::CODEMARTV1,
             self::ITTOOLSV1,
+            self::PDDTOOLV1,
         ];
     }
 

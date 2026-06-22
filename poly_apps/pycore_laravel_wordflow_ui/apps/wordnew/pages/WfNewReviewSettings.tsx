@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, RefreshCw, Minus, Plus } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 import { wfNewSettings } from '../WfNewSettingsStore';
 
@@ -11,13 +11,12 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 interface WfNewReviewSettingsProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
-  onBack: () => void;
 }
 
 const ORDERS = ['due_first', 'random', 'hardest_first'] as const;
 const ALGORITHMS = ['ebbinghaus', 'sm2', 'leitner'] as const;
 
-export const WfNewReviewSettings: React.FC<WfNewReviewSettingsProps> = ({ activeTheme, trans, onBack }) => {
+export const WfNewReviewSettings: React.FC<WfNewReviewSettingsProps> = ({ activeTheme, trans }) => {
   const [dailyLimit, setDailyLimit] = useState<number>(() => wfNewSettings.get('reviewDailyLimit'));
   const [order, setOrder] = useState<string>(() => wfNewSettings.get('reviewOrder'));
   const [algorithm, setAlgorithm] = useState<string>(() => wfNewSettings.get('reviewAlgorithm'));
@@ -32,19 +31,6 @@ export const WfNewReviewSettings: React.FC<WfNewReviewSettingsProps> = ({ active
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <button onClick={onBack} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 transition-all cursor-pointer">
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <div>
-          <h2 className="text-lg font-black text-slate-100 flex items-center gap-2">
-            <RefreshCw className="w-5 h-5 text-indigo-400" />
-            {trans('rev.title')}
-          </h2>
-          <p className="text-zinc-500 text-xs mt-0.5">{trans('rev.sub')}</p>
-        </div>
-      </div>
-
       <div className={`p-6 rounded-3xl ${activeTheme.cardClass} border border-white/5 shadow-lg space-y-1 divide-y divide-white/5`}>
         {/* Daily limit */}
         <div className="flex items-center justify-between py-3">

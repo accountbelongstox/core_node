@@ -1,21 +1,28 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   Lock, Mail, User, Shield, Sparkles, Languages, Compass, ArrowRight,
-  ChevronRight, CheckCircle2, UserPlus, LogIn, Heart, Star, LogOut
+  ChevronRight, CheckCircle2, UserPlus, LogIn, Heart, Star, LogOut, Github
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 import { wfNewApi, type WfNewAuthUser } from '../api';
+import { useSocialAuth, type CapSocialProvider } from '@/shared/capabilities/CapSocialAuth';
+import { WfNewLanguagePanel } from '../components/WfNewLanguagePanel';
+import { WfNewAgreementModal } from '../components/WfNewAgreementModal';
+import { getLanguageConfig } from '../WfNewLocales';
 
 interface WfNewAuthProps {
   activeTheme: ElementTheme;
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
-  onLoginSuccess: (userData: { nickname: string; avatar: string; email: string; nativeLang: string; targetLang: string; bio: string; isLoggedIn: boolean }) => void;
+  /** Current UI language — used as the default native language + agreement language. */
+  lang: string;
+  onLoginSuccess: (userData: { nickname: string; avatar: string; email: string; userId: string; nativeLang: string; targetLang: string; bio: string; isLoggedIn: boolean }) => void;
   currentUser: {
     nickname: string;
     avatar: string;
     email: string;
+    userId: string;
     nativeLang: string;
     targetLang: string;
     bio: string;
@@ -24,26 +31,34 @@ interface WfNewAuthProps {
   onLogout: () => void;
 }
 
-export const WfNewAuth: React.FC<WfNewAuthProps> = ({ 
+export const WfNewAuth: React.FC<WfNewAuthProps> = ({
   activeTheme,
   addToast,
   trans,
+  lang,
   onLoginSuccess,
   currentUser,
   onLogout
 }) => {
   const [isLoginView, setIsLoginView] = useState(true);
 
-  // Form Field Inputs
+  // Form Field Inputs. Registration is intentionally MINIMAL: identifier +
+  // password only. Nickname / email / native language / personal bio are NOT
+  // collected (the backend auto-generates the profile); the learning target is
+  // picked with the shared language panel and a User-Agreement consent is required.
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [nickname, setNickname] = useState('');
-  const [bio, setBio] = useState('Expanding my cognitive neural horizon in WordFlow.');
-  const [nativeLang, setNativeLang] = useState('zh');
-  const [targetLang, setTargetLang] = useState('en');
+  const [targetLangs, setTargetLangs] = useState<string[]>(['en']);
+  const [agreed, setAgreed] = useState(false);
+  const [langPanelOpen, setLangPanelOpen] = useState(false);
+  const [agreementOpen, setAgreementOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // One-click social login (Google / GitHub) — credential is acquired by the
+  // shared CapSocialAuth lib and handed to the backend (wfNewApi.socialLogin),
+  // which exchanges the OAuth code and returns a real session.
+  const social = useSocialAuth();
 
   // Avatar Options
   const AVATAR_POOL = ['🦁', '🦊', '🐈', '🐼', '🐰', '🐯', '🦉', '🛸', '🚀', '👾'];
@@ -81,10 +96,15 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
     else if (looksLikeImageUrl(user.avatar)) avatar = user.avatar as string;
     else if (looksLikeEmoji(user.avatar)) avatar = user.avatar as string;
     else avatar = pickEmoji(user.username || resolvedEmail || nick);
+    // Stable cache-scope identity: a logged-in user ALWAYS has an id or username
+    // (the login form treats the identifier as username/email/phone — never
+    // email-only), so never key the private content cache on the optional email.
+    const userId = user.id != null ? String(user.id) : (user.username || user.email || '');
     return {
       nickname: nick,
       avatar,
       email: resolvedEmail,
+      userId,
       nativeLang: user.native_language || fallback.nativeLang || 'zh',
       targetLang: (user.learning_languages && user.learning_languages[0]) || fallback.targetLang || 'en',
       bio: user.bio || fallback.bio || 'Linguistic coordinates locked.',
@@ -97,6 +117,32 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
     const msg = typeof err?.message === 'string' ? err.message : '';
     if (msg && !/^HTTP \d+/.test(msg)) return msg;
     return trans('auth.authFailed');
+  };
+
+  /**
+   * One-click social sign-in. Acquires a provider credential (CapSocialAuth) and
+   * exchanges it via the backend; the same flow logs in OR registers (the backend
+   * creates the account on first sign-in). Cancellation is silent.
+   */
+  const handleSocial = async (provider: CapSocialProvider) => {
+    if (social.busy || submitting) return;
+    if (!social.configured[provider]) {
+      // Keys not provisioned yet → tell the user it's COMING SOON (即将上线)
+      // rather than surfacing a technical "not configured" message. Wire the
+      // OAuth client IDs (capSocial.configure / config/constants.ts) to enable it.
+      addToast(trans('auth.socialComingSoon'), 'info');
+      return;
+    }
+    try {
+      const cred = provider === 'google' ? await social.signInGoogle() : await social.signInGitHub();
+      if (!cred) return; // user cancelled
+      const { user } = await wfNewApi.socialLogin(cred);
+      const profile = toSessionProfile(user, {});
+      onLoginSuccess(profile);
+      addToast(trans('auth.welcomeBack', { name: profile.nickname }), 'success');
+    } catch (err) {
+      addToast(authErrorMessage(err), 'warning');
+    }
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -123,7 +169,8 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    // Username + password required; email is OPTIONAL; passwords must match.
+    // Minimal registration: identifier + matching passwords + at least one
+    // learning target + User-Agreement consent.
     if (!username || !password) {
       addToast(trans('auth.needUserPass'), 'warning');
       return;
@@ -132,20 +179,26 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
       addToast(trans('auth.passwordMismatch'), 'warning');
       return;
     }
+    if (targetLangs.length === 0) {
+      addToast(trans('lang.needTarget'), 'warning');
+      return;
+    }
+    if (!agreed) {
+      addToast(trans('auth.mustAgree'), 'warning');
+      return;
+    }
     setSubmitting(true);
     try {
       const { user } = await wfNewApi.register({
         username: username.trim(),
         password,
-        email: email.trim() || undefined,
-        nickname: nickname.trim() || undefined,
-        native_language: nativeLang,
-        // Target study language drives the backend's learning_languages set.
-        learning_languages: [targetLang],
-        bio,
-        // No avatar sent — the backend auto-generates one; the UI derives an emoji.
+        // Native language is not asked at registration — default it to the app's
+        // current UI language; the chosen targets drive learning_languages.
+        native_language: lang,
+        learning_languages: targetLangs,
+        // No email / nickname / bio / avatar — the backend auto-generates the profile.
       });
-      const profile = toSessionProfile(user, { email: email.trim(), nativeLang, targetLang, bio });
+      const profile = toSessionProfile(user, { nativeLang: lang, targetLang: targetLangs[0] });
       onLoginSuccess(profile);
       addToast(trans('auth.registered'), 'success');
     } catch (err) {
@@ -295,41 +348,6 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
                 </div>
               </div>
 
-              {/* Optional Registration Nickname */}
-              {!isLoginView && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.nicknameLabel')}</label>
-                  <div className="relative">
-                    <Sparkles className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <input
-                      type="text"
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      placeholder={trans('auth.nicknamePh')}
-                      className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Email Address — register-only and OPTIONAL. */}
-              {!isLoginView && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.emailLabelOptional')}</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder={trans('auth.emailPh')}
-                      autoComplete="email"
-                      className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
-                    />
-                  </div>
-                </div>
-              )}
-
               {/* Security Password */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.passwordLabel')}</label>
@@ -366,52 +384,25 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
                 </div>
               )}
 
-              {/* Additional parameters if Register view (native/target language coordinate selection) */}
+              {/* Target language — picked with the SHARED floating language panel
+                  (same component the home dashboard uses). Native language, nickname,
+                  email and bio are intentionally NOT collected at registration. */}
               {!isLoginView && (
-                <div className="space-y-4 pt-2 border-t border-dashed border-white/5">
-
-                  {/* Languages config */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.nativeTongue')}</label>
-                      <select
-                        value={nativeLang}
-                        onChange={(e) => setNativeLang(e.target.value)}
-                        className="w-full py-2 px-3 rounded-lg text-[10px] bg-slate-900/80 text-zinc-300 border border-white/10 outline-none cursor-pointer"
-                      >
-                        <option value="zh">🇨🇳 {trans('lang.name.zh')}</option>
-                        <option value="ja">🇯🇵 {trans('lang.name.ja')}</option>
-                        <option value="es">🇪🇸 {trans('lang.name.es')}</option>
-                        <option value="ko">🇰🇷 {trans('lang.name.ko')}</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.targetStudy')}</label>
-                      <select
-                        value={targetLang}
-                        onChange={(e) => setTargetLang(e.target.value)}
-                        className="w-full py-2 px-3 rounded-lg text-[10px] bg-slate-900/80 text-zinc-300 border border-white/10 outline-none cursor-pointer"
-                      >
-                        <option value="en">🇺🇸 {trans('lang.name.en')}</option>
-                        <option value="fr">🇫🇷 {trans('lang.name.fr')}</option>
-                        <option value="de">🇩🇪 {trans('lang.name.de')}</option>
-                        <option value="es">🇪🇸 {trans('lang.name.es')}</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Bio motto */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.bioLabel')}</label>
-                    <input
-                      type="text"
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      placeholder={trans('auth.bioPh')}
-                      className="w-full py-2 px-3 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
-                    />
-                  </div>
+                <div className="space-y-1.5 pt-2 border-t border-dashed border-white/5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 font-mono">{trans('auth.targetLangLabel')}</label>
+                  <button
+                    type="button"
+                    onClick={() => setLangPanelOpen(true)}
+                    className="w-full py-2.5 pl-10 pr-4 relative rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 text-left flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <Languages className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <span className="truncate">
+                      {targetLangs.length
+                        ? `${getLanguageConfig(targetLangs[0]).flag} ${targetLangs.map((c) => getLanguageConfig(c).nativeName).join(' · ')}`
+                        : trans('auth.pickTargetLang')}
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" />
+                  </button>
                 </div>
               )}
 
@@ -421,10 +412,33 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
                 <span>{trans('auth.secNote')}</span>
               </div>
 
+              {/* User-Agreement consent — REQUIRED to register. */}
+              {!isLoginView && (
+                <label className="flex items-start gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={agreed}
+                    onChange={(e) => setAgreed(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-indigo-500 cursor-pointer shrink-0"
+                  />
+                  <span className="text-[10px] text-zinc-400 font-mono leading-relaxed">
+                    {trans('auth.agreePrefix')}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); setAgreementOpen(true); }}
+                      className="text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+                    >
+                      {trans('auth.agreementLink')}
+                    </button>
+                    {trans('auth.agreeSuffix')}
+                  </span>
+                </label>
+              )}
+
               {/* Submit button */}
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || (!isLoginView && !agreed)}
                 className="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-650 hover:to-purple-750 text-white font-mono text-xs font-black uppercase tracking-wider cursor-pointer shadow-lg hover:shadow-indigo-505/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span>{submitting ? trans('common.loading') : isLoginView ? trans('auth.submitLogin') : trans('auth.submitRegister')}</span>
@@ -432,6 +446,63 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
               </button>
 
             </form>
+
+            {/* Shared language panel (targets only, local — no pre-auth backend
+                sync) + the multi-language User Agreement modal. */}
+            <WfNewLanguagePanel
+              open={langPanelOpen}
+              onClose={() => setLangPanelOpen(false)}
+              nativeLang={lang}
+              targetLangs={targetLangs}
+              hideNative
+              localOnly
+              onSave={(sel) => setTargetLangs(sel.learning_languages)}
+              trans={trans}
+              addToast={addToast}
+            />
+            <WfNewAgreementModal
+              open={agreementOpen}
+              onClose={() => setAgreementOpen(false)}
+              lang={lang}
+              trans={trans}
+            />
+
+            {/* One-click social login (Google / GitHub) — login + register both. */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-mono">
+                  {trans('auth.orContinueWith')}
+                </span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleSocial('google')}
+                  disabled={social.busy || submitting}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white text-slate-800 font-mono text-xs font-bold border border-white/10 hover:bg-zinc-100 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {/* Google "G" mark (inline; lucide has no Google icon). */}
+                  <svg className="w-4 h-4" viewBox="0 0 48 48" aria-hidden="true">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                  </svg>
+                  <span>{social.pending === 'google' ? trans('common.loading') : 'Google'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSocial('github')}
+                  disabled={social.busy || submitting}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-800 text-white font-mono text-xs font-bold border border-white/10 hover:bg-slate-700 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Github className="w-4 h-4" />
+                  <span>{social.pending === 'github' ? trans('common.loading') : 'GitHub'}</span>
+                </button>
+              </div>
+            </div>
 
             {/* Fast Quick login trigger helper for easy preview */}
             {isLoginView && (

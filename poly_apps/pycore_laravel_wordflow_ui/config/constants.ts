@@ -69,6 +69,24 @@ export const getDefaultBaseURL = (): string => {
 };
 
 /**
+ * Resolve a backend MEDIA URL to an absolute, fetchable URL.
+ *
+ * The API is CROSS-ORIGIN: the page is served on the frontend port (13054) but
+ * the backend (audio / static images) lives on the API port (9000, see
+ * getDefaultBaseURL). A relative path like `/api/app_qy_v1/.../audio` or
+ * `/static/...` used in `new Audio(...)` / `<img src>` would otherwise resolve
+ * against the PAGE origin and 404. This rebases relative paths onto the API
+ * origin while leaving already-absolute URLs (external Bing images, `//cdn`,
+ * `http(s)://`, `data:`/`blob:`) untouched.
+ */
+export const mediaUrl = (u?: string | null): string => {
+  if (!u) return u ?? '';
+  if (/^(https?:)?\/\//i.test(u) || /^(data|blob):/i.test(u)) return u; // absolute → as-is
+  if (u.startsWith('/')) return getDefaultBaseURL() + u;                 // root-relative → API origin
+  return u;                                                             // anything else → leave as-is
+};
+
+/**
  * Get current origin URL (frontend URL)
  */
 export const getOriginUrl = (): string => {

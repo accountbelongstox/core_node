@@ -1,57 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Users, MessageSquare, Mic, Send, Share2, Heart, Smile, UserPlus, 
-  UserCheck, Image, Languages, Phone, Shield, Award, Activity, 
-  Sparkle, Plus, Search, Compass, Paperclip, Music, Globe, Eye,
-  Clock, CheckCircle2, ChevronRight, Volume2, Bookmark, HelpCircle
+import { List, type RowComponentProps } from 'react-window';
+import {
+  Users, MessageSquare, Send, UserPlus, UserCheck, Search,
+  Activity, Trophy, Check, X, Clock, ChevronRight,
 } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
-import { wfNewSocial } from '../WfNewSocialStore';
-
-interface Comment {
-  id: string;
-  author: string;
-  avatar: string;
-  text: string;
-  time: string;
-}
-
-interface SocialPost {
-  id: string;
-  authorName: string;
-  authorAvatar: string;
-  authorBadge: string;
-  content: string;
-  likes: number;
-  likedByUser: boolean;
-  comments: Comment[];
-  timestamp: string;
-  languageTag: string;
-}
-
-interface LearningPartner {
-  id: string;
-  name: string;
-  avatar: string;
-  nativeLang: string;
-  targetLang: string;
-  bio: string;
-  online: boolean;
-  streak: number;
-  isFriend: boolean;
-  badges: string[];
-}
-
-interface Message {
-  id: string;
-  sender: 'me' | 'them';
-  type: 'text' | 'voice';
-  text?: string;
-  voiceDuration?: number; // seconds
-  timestamp: string;
-  audioWaves?: number[];
-}
+import {
+  wfNewApi,
+  subscribeSocial,
+  type WfNewActivity,
+  type WfNewDiscoverUser,
+  type WfNewFriendRequest,
+  type WfNewConversation,
+  type WfNewMessage,
+  type WfNewLeaderboardEntry,
+  type WfNewPresenceStatus,
+  type WfNewPost,
+  type WfNewPostFilter,
+} from '../api';
+import { WfNewSocialPlaza } from '../components/WfNewSocialPlaza';
+import { WfNewSocialComposer } from '../components/WfNewSocialComposer';
+import { WfNewSocialGallery } from '../components/WfNewSocialGallery';
+import { WfNewSocialVideo } from '../components/WfNewSocialVideo';
+import { WfNewSocialLive } from '../components/WfNewSocialLive';
 
 interface WfNewSocialProps {
   activeTheme: ElementTheme;
@@ -62,365 +34,432 @@ interface WfNewSocialProps {
     avatar: string;
     nativeLang: string;
     targetLang: string;
+    isLoggedIn?: boolean;
   };
+  /** Route to the auth screen when a logged-out user triggers a gated action. */
+  onRequireAuth?: () => void;
 }
 
-// Simulated initial partners in the WordFlow network
-const INITIAL_PARTNERS: LearningPartner[] = [
-  {
-    id: 'partner-1',
-    name: 'Aiden Vance',
-    avatar: '🦁',
-    nativeLang: 'en',
-    targetLang: 'zh',
-    bio: 'Software engineer from Seattle studying Chinese literature. Let\'s exchange English/Mandarin!',
-    online: true,
-    streak: 42,
-    isFriend: true,
-    badges: ['🌌 Cosmic Elite', '☕ Coffee Addict']
-  },
-  {
-    id: 'partner-2',
-    name: 'Yuki Sato (佐藤雄輝)',
-    avatar: '🐈',
-    nativeLang: 'ja',
-    targetLang: 'en',
-    bio: 'TOEFL learner working on cosmic aerospace physics terms. 宇宙が好きです！',
-    online: true,
-    streak: 19,
-    isFriend: false,
-    badges: ['⚡ Tech Core', '🔭 stargazer']
-  },
-  {
-    id: 'partner-3',
-    name: 'Charlotte Dubois',
-    avatar: '🦊',
-    nativeLang: 'fr',
-    targetLang: 'es',
-    bio: 'French aesthetic writer investigating romance languages & classical street slang.',
-    online: false,
-    streak: 104,
-    isFriend: true,
-    badges: ['❧ Literary Fine', '🎨 Artist']
-  },
-  {
-    id: 'partner-4',
-    name: 'Carlos Ruiz',
-    avatar: '🐼',
-    nativeLang: 'es',
-    targetLang: 'en',
-    bio: 'Biomedical student preparing for clinical resonance exams. Looking to build durable synapse links.',
-    online: true,
-    streak: 8,
-    isFriend: false,
-    badges: ['🧠 Bio-Cognitive']
-  },
-  {
-    id: 'partner-5',
-    name: 'Kim Min-jun (김민준)',
-    avatar: '🐰',
-    nativeLang: 'ko',
-    targetLang: 'fr',
-    bio: 'Aesthetic designer studying French. Let\'s practice together!',
-    online: false,
-    streak: 27,
-    isFriend: false,
-    badges: ['🎨 Artist', '🍕 Foodie']
-  }
-];
+type SubTab = 'plaza' | 'post' | 'gallery' | 'video' | 'live' | 'partners' | 'chat' | 'leaderboard';
 
-// Initial timeline posts/moments
-const INITIAL_POSTS: SocialPost[] = [
-  {
-    id: 'post-1',
-    authorName: 'Aiden Vance',
-    authorAvatar: '🦁',
-    authorBadge: '🌌 Cosmic Elite',
-    content: 'Just learned "Nebula" and "Ethereal" today on WordFlow! It beautifully matches my astrophysics paper outline about galactic stardust expansions. 🌌🚀 Highly sophisticated cognitive reasoning!',
-    likes: 12,
-    likedByUser: false,
-    comments: [
-      { id: 'c-1', author: 'Charlotte Dubois', avatar: '🦊', text: 'Stardust is indeed such an ephemeral yet resplendent concept! ❧', time: '1h ago' }
-    ],
-    timestamp: '2 hours ago',
-    languageTag: 'en'
-  },
-  {
-    id: 'post-2',
-    authorName: 'Yuki Sato',
-    authorAvatar: '🐈',
-    authorBadge: '🔭 stargazer',
-    content: '今日も宇宙構造の単語「Supernova」(超新星) を暗記しました。大脳皮質の「Synapse」に強固な接続が構築された気がします！🧠✨',
-    likes: 8,
-    likedByUser: true,
-    comments: [],
-    timestamp: '4 hours ago',
-    languageTag: 'ja'
-  }
-];
+// ---- Relative-time helper (native Intl, no third-party dep) ----------------
+const RTF = typeof Intl !== 'undefined' && Intl.RelativeTimeFormat
+  ? new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+  : null;
 
-export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast, trans, currentUser }) => {
-  const [partners, setPartners] = useState<LearningPartner[]>(
-    () => (wfNewSocial.get('partners') as LearningPartner[] | null) ?? INITIAL_PARTNERS,
+function relativeTime(value?: string | null): string {
+  if (!value) return '';
+  const then = new Date(value).getTime();
+  if (Number.isNaN(then)) return String(value);
+  const diffMs = then - Date.now();
+  const abs = Math.abs(diffMs);
+  if (!RTF) return new Date(then).toLocaleString();
+  const min = 60_000, hr = 3_600_000, day = 86_400_000;
+  if (abs < min) return RTF.format(Math.round(diffMs / 1000), 'second');
+  if (abs < hr) return RTF.format(Math.round(diffMs / min), 'minute');
+  if (abs < day) return RTF.format(Math.round(diffMs / hr), 'hour');
+  if (abs < day * 30) return RTF.format(Math.round(diffMs / day), 'day');
+  return new Date(then).toLocaleDateString();
+}
+
+// ---- Presence dot ----------------------------------------------------------
+const PRESENCE_DOT: Record<WfNewPresenceStatus, string> = {
+  online: 'bg-emerald-500',
+  studying: 'bg-indigo-500',
+  away: 'bg-amber-500',
+  offline: 'bg-zinc-500',
+};
+
+function presenceClass(status?: WfNewPresenceStatus): string {
+  return PRESENCE_DOT[status || 'offline'] || PRESENCE_DOT.offline;
+}
+
+// ---- Virtualized message list ----------------------------------------------
+interface MessageRowData {
+  messages: WfNewMessage[];
+  peerId: number;
+}
+
+const MessageRow = ({ index, style, messages, peerId }: RowComponentProps<MessageRowData>) => {
+  const msg = messages[index];
+  if (!msg) return <div style={style} />;
+  // sender_id === peer.id ⇒ THEM, otherwise ME (no self-id needed).
+  const isMe = msg.sender_id !== peerId;
+  return (
+    <div style={style} className="px-1">
+      <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} py-1.5`}>
+        <div
+          className={`max-w-[80%] rounded-2xl px-3 py-2 space-y-1 shadow-sm border ${
+            isMe
+              ? 'bg-gradient-to-br from-indigo-600/90 to-purple-600/90 text-white border-indigo-500/20 rounded-tr-none'
+              : 'bg-white/5 text-slate-100 border-white/5 rounded-tl-none'
+          }`}
+        >
+          <p className="text-[11px] leading-relaxed font-sans break-words">{msg.body}</p>
+          <span className="block text-[8px] font-mono text-right opacity-60">
+            {relativeTime(msg.created_at)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast, trans, currentUser, onRequireAuth }) => {
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>('plaza');
+
+  const isLoggedIn = !!currentUser.isLoggedIn;
+  // Gated actions (post / like / comment / chat / go-live) route logged-out users
+  // to the auth screen — mirrors the rest of the app's self-gating.
+  const requireAuth = useCallback(() => {
+    addToast(trans('social.loginRequired'), 'info');
+    onRequireAuth?.();
+  }, [addToast, trans, onRequireAuth]);
+
+  // Presence map (id → status), seeded + updated live across the whole page.
+  const [presence, setPresence] = useState<Record<number, WfNewPresenceStatus>>({});
+
+  // ---------------------------------------------------------------- PLAZA ----
+  // The post timeline (NEW). Held here so SSE post.* events update it live and the
+  // composer can prepend a freshly-created post.
+  const [posts, setPosts] = useState<WfNewPost[]>([]);
+  const [plazaLoading, setPlazaLoading] = useState(true);
+  const [plazaFilter, setPlazaFilter] = useState<WfNewPostFilter>('all');
+
+  useEffect(() => {
+    let alive = true;
+    setPlazaLoading(true);
+    wfNewApi.getPosts({ filter: plazaFilter, limit: 20 })
+      .then(page => { if (alive) setPosts(page.items); })
+      .catch(() => { if (alive) setPosts([]); })
+      .finally(() => { if (alive) setPlazaLoading(false); });
+    return () => { alive = false; };
+  }, [plazaFilter]);
+
+  // ---------------------------------------------------------------- FEED -----
+  // (legacy activity feed — still loaded but folded under the leaderboard tab's
+  // "recent activity" use; kept to avoid losing the followed-users digest.)
+  const [activities, setActivities] = useState<WfNewActivity[]>([]);
+  const [feedLoading, setFeedLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setFeedLoading(true);
+    wfNewApi.getActivities()
+      .then(rows => { if (alive) setActivities(Array.isArray(rows) ? rows : []); })
+      .catch(() => { if (alive) setActivities([]); })
+      .finally(() => { if (alive) setFeedLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  // ------------------------------------------------------------ PARTNERS -----
+  const [discover, setDiscover] = useState<WfNewDiscoverUser[]>([]);
+  const [discoverLoading, setDiscoverLoading] = useState(true);
+  const [partnerSearch, setPartnerSearch] = useState('');
+  const [ribbonLang, setRibbonLang] = useState<string>('all');
+  const [pendingIds, setPendingIds] = useState<Record<number, boolean>>({});
+  const [incoming, setIncoming] = useState<WfNewFriendRequest[]>([]);
+
+  const refreshRequests = useCallback(() => {
+    wfNewApi.getFriendRequests('incoming')
+      .then(rows => setIncoming(Array.isArray(rows) ? rows : []))
+      .catch(() => setIncoming([]));
+  }, []);
+
+  // Discover on mount + whenever the ribbon / search changes (debounced).
+  useEffect(() => {
+    let alive = true;
+    setDiscoverLoading(true);
+    const native = currentUser.nativeLang || undefined;
+    // The ribbon overrides the target; 'all' clears it (falls back to user's target).
+    const target = ribbonLang === 'all' ? (currentUser.targetLang || undefined) : ribbonLang;
+    const handle = setTimeout(() => {
+      wfNewApi.discoverByLanguage({ native, target, q: partnerSearch.trim() || undefined, limit: 50 })
+        .then(rows => {
+          if (!alive) return;
+          const list = Array.isArray(rows) ? rows : [];
+          setDiscover(list);
+          // Seed partner-card dots from the backend's per-row presence (M2).
+          setPresence(prev => {
+            const next = { ...prev };
+            for (const u of list) if (u.presence) next[u.id] = u.presence;
+            return next;
+          });
+        })
+        .catch(() => { if (alive) setDiscover([]); })
+        .finally(() => { if (alive) setDiscoverLoading(false); });
+    }, 350);
+    return () => { alive = false; clearTimeout(handle); };
+  }, [ribbonLang, partnerSearch, currentUser.nativeLang, currentUser.targetLang]);
+
+  useEffect(() => { refreshRequests(); }, [refreshRequests]);
+
+  const handleAddFriend = useCallback((user: WfNewDiscoverUser) => {
+    setPendingIds(prev => ({ ...prev, [user.id]: true }));
+    wfNewApi.sendFriendRequest(user.id)
+      .then(() => addToast(trans('social.requestSent', { name: user.nickname }), 'success'))
+      .catch(() => {
+        setPendingIds(prev => { const next = { ...prev }; delete next[user.id]; return next; });
+        addToast(trans('social.requestFailed'), 'warning');
+      });
+  }, [addToast, trans]);
+
+  const handleRespond = useCallback((req: WfNewFriendRequest, action: 'accept' | 'reject') => {
+    wfNewApi.respondFriendRequest(req.id, action)
+      .then(() => {
+        addToast(action === 'accept' ? trans('social.requestAccepted') : trans('social.requestRejected'), action === 'accept' ? 'success' : 'info');
+        refreshRequests();
+      })
+      .catch(() => addToast(trans('social.requestFailed'), 'warning'));
+  }, [addToast, trans, refreshRequests]);
+
+  // --------------------------------------------------------------- CHAT ------
+  const [conversations, setConversations] = useState<WfNewConversation[]>([]);
+  const [convLoading, setConvLoading] = useState(true);
+  const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<WfNewMessage[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const selectedConvIdRef = useRef<number | null>(null);
+  useEffect(() => { selectedConvIdRef.current = selectedConvId; }, [selectedConvId]);
+
+  // Refs mirror the id sources so the periodic presence poll (M1) reads the latest
+  // visible ids without re-arming the interval on every list change.
+  const conversationsRef = useRef<WfNewConversation[]>([]);
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+  const discoverRef = useRef<WfNewDiscoverUser[]>([]);
+  useEffect(() => { discoverRef.current = discover; }, [discover]);
+
+  // M1: periodic presence re-poll. The backend never pushes friend.offline /
+  // presence.update (offline is read-derived via the 60s-stale rule), so without
+  // this dots would stay "online" forever. Every 45s, batch getPresence over the
+  // union of visible ids (conversation peers + discover partners) and merge the
+  // result — this is how the server's 60s-stale→offline surfaces in the UI. The
+  // friend.online SSE push still updates instantly between polls.
+  useEffect(() => {
+    let alive = true;
+    const poll = () => {
+      const ids = new Set<number>();
+      for (const c of conversationsRef.current) { const id = c.peer?.id; if (typeof id === 'number') ids.add(id); }
+      for (const u of discoverRef.current) { if (typeof u.id === 'number') ids.add(u.id); }
+      if (!ids.size) return;
+      wfNewApi.getPresence(Array.from(ids))
+        .then(map => {
+          if (!alive || !map) return;
+          setPresence(prev => {
+            const next = { ...prev };
+            for (const [id, info] of Object.entries(map)) next[Number(id)] = info.status;
+            return next;
+          });
+        })
+        .catch(() => {});
+    };
+    const interval = setInterval(poll, 45000);
+    return () => { alive = false; clearInterval(interval); };
+  }, []);
+
+  const selectedConv = useMemo(
+    () => conversations.find(c => c.id === selectedConvId) || null,
+    [conversations, selectedConvId],
   );
 
-  const [posts, setPosts] = useState<SocialPost[]>(
-    () => (wfNewSocial.get('posts') as SocialPost[] | null) ?? INITIAL_POSTS,
-  );
+  const loadConversations = useCallback(() => {
+    setConvLoading(true);
+    return wfNewApi.getConversations()
+      .then(rows => { const list = Array.isArray(rows) ? rows : []; setConversations(list); return list; })
+      .catch(() => { setConversations([]); return [] as WfNewConversation[]; })
+      .finally(() => setConvLoading(false));
+  }, []);
 
-  // State configurations
-  const [activeSubTab, setActiveSubTab] = useState<'feed' | 'partners' | 'direct_chat'>('feed');
-  const [searchText, setSearchText] = useState('');
-  const [preferredLang, setPreferredLang] = useState<string>('all');
-  const [selectedFriendChat, setSelectedFriendChat] = useState<LearningPartner | null>(null);
+  useEffect(() => { void loadConversations(); }, [loadConversations]);
 
-  // Moment posting inputs
-  const [newPostContent, setNewPostContent] = useState('');
-  const [newPostLang, setNewPostPostLang] = useState('en');
+  // Open a conversation: load messages, mark read, zero its unread badge.
+  const openConversation = useCallback((conv: WfNewConversation) => {
+    setSelectedConvId(conv.id);
+    setMessagesLoading(true);
+    setMessages([]);
+    wfNewApi.getMessages(conv.id)
+      .then(page => {
+        const list = Array.isArray(page?.messages) ? page.messages : [];
+        setMessages(list);
+        const lastId = list.length ? list[list.length - 1].id : 0;
+        if (lastId) void wfNewApi.markConversationRead(conv.id, lastId).catch(() => {});
+      })
+      .catch(() => setMessages([]))
+      .finally(() => setMessagesLoading(false));
+    setConversations(prev => prev.map(c => (c.id === conv.id ? { ...c, unread_count: 0 } : c)));
+  }, []);
 
-  // Comment adding inputs
-  const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
-  const [commentText, setCommentText] = useState('');
-
-  // Interactive Friends Chat histories
-  const [chatHistories, setChatHistories] = useState<Record<string, Message[]>>(() => {
-    const cached = wfNewSocial.get('chats') as Record<string, Message[]> | null;
-    if (cached) return cached;
-
-    // Seed default chat messages
-    return {
-      'partner-1': [
-        { id: 'm1', sender: 'them', type: 'text', text: 'Hey there! How is your vocabulary training going today in WordFlow? 🚀', timestamp: '10:35 AM' },
-        { id: 'm2', sender: 'me', type: 'text', text: 'Incredibly smooth! I just calibrated my bilingual acoustic recital ratio parameters in the Settings panel.', timestamp: '10:37 AM' },
-        { id: 'm3', sender: 'them', type: 'voice', voiceDuration: 4, timestamp: '10:38 AM', audioWaves: [12, 28, 48, 55, 30, 15, 20, 35, 60, 40, 20, 8] }
-      ],
-      'partner-3': [
-        { id: 'm4', sender: 'them', type: 'text', text: 'Bonjour friend! Did you look up "Ephemeral" under our literary pack? Quite stunning aesthetic melancholy.', timestamp: 'Yesterday' }
-      ]
-    };
-  });
-
-  // Voice recording states
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
-  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [newMessageText, setNewMessageText] = useState('');
-
-  useEffect(() => {
-    wfNewSocial.setField('partners', partners);
-  }, [partners]);
-
-  useEffect(() => {
-    wfNewSocial.setField('posts', posts);
-  }, [posts]);
-
-  useEffect(() => {
-    wfNewSocial.setField('chats', chatHistories);
-  }, [chatHistories]);
-
-  // Friend status toggles
-  const handleAddFriend = (partnerId: string) => {
-    setPartners(prev => prev.map(p => {
-      if (p.id === partnerId) {
-        const updatedStatus = !p.isFriend;
-        addToast(
-          updatedStatus
-            ? trans('social.partnered', { name: p.name })
-            : trans('social.unpartnered', { name: p.name }),
-          updatedStatus ? 'success' : 'warning'
-        );
-        return { ...p, isFriend: updatedStatus };
-      }
-      return p;
-    }));
-  };
-
-  // Add Comment Action
-  const handleAddComment = (postId: string) => {
-    if (!commentText.trim()) return;
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        const newComment: Comment = {
-          id: `comment-${Date.now()}`,
-          author: currentUser.nickname + ' (You)',
-          avatar: currentUser.avatar,
-          text: commentText,
-          time: 'Just now'
-        };
-        return {
-          ...p,
-          comments: [...p.comments, newComment]
-        };
-      }
-      return p;
-    }));
-    setCommentText('');
-    setActiveCommentPostId(null);
-    addToast(trans('social.commentSynced'), 'success');
-  };
-
-  // Toggle Likes Action
-  const handleToggleLike = (postId: string) => {
-    setPosts(prev => prev.map(p => {
-      if (p.id === postId) {
-        const isNowLiked = !p.likedByUser;
-        return {
-          ...p,
-          likedByUser: isNowLiked,
-          likes: isNowLiked ? p.likes + 1 : p.likes - 1
-        };
-      }
-      return p;
-    }));
-  };
-
-  // Post new moment update
-  const handlePublishPost = (e: React.FormEvent) => {
+  const handleSend = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostContent.trim()) {
-      addToast(trans('social.postEmpty'), 'warning');
-      return;
-    }
-    const newPost: SocialPost = {
-      id: `post-${Date.now()}`,
-      authorName: currentUser.nickname,
-      authorAvatar: currentUser.avatar,
-      authorBadge: '🌌 WordFlow Pioneer',
-      content: newPostContent,
-      likes: 1,
-      likedByUser: true,
-      comments: [],
-      timestamp: 'Just now',
-      languageTag: newPostLang
+    const body = draft.trim();
+    if (!body || !selectedConvId) return;
+    setDraft('');
+    wfNewApi.sendMessage(selectedConvId, body)
+      .then(msg => {
+        setMessages(prev => [...prev, msg]);
+        setConversations(prev => prev.map(c => (c.id === selectedConvId ? { ...c, last_message: msg.body, last_message_at: msg.created_at } : c)));
+      })
+      .catch(() => addToast(trans('social.sendFailed'), 'warning'));
+  }, [draft, selectedConvId, addToast, trans]);
+
+  // Partners → "Message": open/create the conversation and jump to Chat.
+  const handleMessageUser = useCallback((user: WfNewDiscoverUser) => {
+    wfNewApi.openConversation(user.id)
+      .then(conv => {
+        setConversations(prev => (prev.some(c => c.id === conv.id) ? prev.map(c => (c.id === conv.id ? conv : c)) : [conv, ...prev]));
+        setActiveSubTab('chat');
+        openConversation(conv);
+      })
+      .catch(() => addToast(trans('social.sendFailed'), 'warning'));
+  }, [openConversation, addToast, trans]);
+
+  // ------------------------------------------------------- LEADERBOARD -------
+  const [leaderboard, setLeaderboard] = useState<WfNewLeaderboardEntry[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [period, setPeriod] = useState<'week' | 'all'>('all');
+
+  useEffect(() => {
+    let alive = true;
+    setLeaderboardLoading(true);
+    wfNewApi.getLeaderboard(period)
+      .then(rows => { if (alive) setLeaderboard(Array.isArray(rows) ? rows : []); })
+      .catch(() => { if (alive) setLeaderboard([]); })
+      .finally(() => { if (alive) setLeaderboardLoading(false); });
+    return () => { alive = false; };
+  }, [period]);
+
+  // ----------------------------------------------------------- PRESENCE ------
+  // Seed presence for every conversation peer once they are loaded.
+  useEffect(() => {
+    const ids = conversations.map(c => c.peer?.id).filter((n): n is number => typeof n === 'number');
+    if (!ids.length) return;
+    let alive = true;
+    wfNewApi.getPresence(ids)
+      .then(map => {
+        if (!alive || !map) return;
+        setPresence(prev => {
+          const next = { ...prev };
+          for (const [id, info] of Object.entries(map)) next[Number(id)] = info.status;
+          return next;
+        });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [conversations]);
+
+  // ------------------------------------------------------- SSE WIRING --------
+  useEffect(() => {
+    const setPresenceFor = (payload: any, status: WfNewPresenceStatus) => {
+      const id = Number(payload?.user_id ?? payload?.id);
+      if (Number.isFinite(id)) setPresence(prev => ({ ...prev, [id]: payload?.status || status }));
     };
 
-    setPosts([newPost, ...posts]);
-    setNewPostContent('');
-    addToast(trans('social.published'), 'success');
-  };
+    const unsubs = [
+      subscribeSocial('message.new', (payload: any) => {
+        // The backend emits message.new NESTED: { conversation_id, message: {...} }.
+        // Read the inner row (never the flat payload) so the bubble, dedupe id and
+        // markConversationRead all use the real message fields.
+        const raw = payload?.message;
+        if (!raw) return;
+        const convId = Number(payload?.conversation_id ?? raw?.conversation_id);
+        if (!Number.isFinite(convId)) return;
+        const incomingMsg: WfNewMessage = {
+          id: Number(raw?.id ?? 0),
+          conversation_id: convId,
+          sender_id: Number(raw?.sender_id ?? 0),
+          body: raw?.body ?? '',
+          type: (raw?.type === 'image' || raw?.type === 'voice') ? raw.type : 'text',
+          metadata: raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : null,
+          created_at: raw?.created_at ?? new Date().toISOString(),
+        };
+        if (!incomingMsg.id) return; // no usable id → skip (avoids undefined dedupe / read)
+        if (selectedConvIdRef.current === convId) {
+          setMessages(prev => (prev.some(m => m.id === incomingMsg.id) ? prev : [...prev, incomingMsg]));
+          void wfNewApi.markConversationRead(convId, incomingMsg.id).catch(() => {});
+          setConversations(prev => prev.map(c => (c.id === convId ? { ...c, last_message: incomingMsg.body, last_message_at: incomingMsg.created_at } : c)));
+        } else {
+          setConversations(prev => prev.map(c => (
+            c.id === convId
+              ? { ...c, unread_count: (c.unread_count || 0) + 1, last_message: incomingMsg.body, last_message_at: incomingMsg.created_at }
+              : c
+          )));
+        }
+      }),
+      subscribeSocial('friend.request', () => { refreshRequests(); }),
+      subscribeSocial('friend.accept', (payload: any) => {
+        addToast(trans('social.requestAccepted'), 'success');
+        refreshRequests();
+        setPresenceFor(payload, 'online');
+      }),
+      subscribeSocial('friend.online', (payload: any) => setPresenceFor(payload, 'online')),
+      subscribeSocial('friend.offline', (payload: any) => setPresenceFor(payload, 'offline')),
+      subscribeSocial('presence.update', (payload: any) => setPresenceFor(payload, 'online')),
 
-  // Direct message sending (Text)
-  const handleSendTextMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessageText.trim() || !selectedFriendChat) return;
+      // ---- Social Center: plaza posts ----
+      // A newly created post (by anyone) prepends to the live plaza (dedupe by id).
+      subscribeSocial('post.created', (payload: any) => {
+        const raw = payload?.post ?? payload;
+        const id = Number(raw?.id);
+        if (!Number.isFinite(id)) return;
+        setPosts(prev => (prev.some(p => p.id === id) ? prev : [raw as WfNewPost, ...prev]));
+      }),
+      // A like elsewhere updates the counter on the matching plaza card.
+      subscribeSocial('post.liked', (payload: any) => {
+        const id = Number(payload?.post_id ?? payload?.id);
+        if (!Number.isFinite(id)) return;
+        setPosts(prev => prev.map(p => (
+          p.id === id && typeof payload?.like_count === 'number' ? { ...p, like_count: payload.like_count } : p
+        )));
+      }),
+      // A new comment elsewhere bumps the matching card's comment counter.
+      subscribeSocial('post.comment', (payload: any) => {
+        const id = Number(payload?.post_id ?? payload?.comment?.post_id);
+        if (!Number.isFinite(id)) return;
+        setPosts(prev => prev.map(p => (p.id === id ? { ...p, comment_count: p.comment_count + 1 } : p)));
+      }),
+      // 'live.started' / 'live.chat.new' are handled inside WfNewSocialLive (room-scoped).
+    ];
+    return () => { for (const u of unsubs) u(); };
+  }, [addToast, trans, refreshRequests]);
 
-    const partnerId = selectedFriendChat.id;
-    const newMsg: Message = {
-      id: `m-${Date.now()}`,
-      sender: 'me',
-      type: 'text',
-      text: newMessageText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
+  // Presence heartbeat: while logged in + on the social page, beat every 30s so the
+  // backend keeps me 'online' (mirrors SOCIAL_FEATURE_SPECIFICATION presence rule).
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let alive = true;
+    const beat = () => { void wfNewApi.presenceHeartbeat('online').catch(() => {}); };
+    beat();
+    const interval = setInterval(() => { if (alive) beat(); }, 30000);
+    return () => { alive = false; clearInterval(interval); };
+  }, [isLoggedIn]);
 
-    setChatHistories(prev => ({
-      ...prev,
-      [partnerId]: [...(prev[partnerId] || []), newMsg]
-    }));
-
-    setNewMessageText('');
-
-    // Trigger mock auto-reply simulation to demonstrate conversational logic
-    setTimeout(() => {
-      const responses = [
-        "Incredible feedback! Let's schedule a synchronous walkman listening loop session soon. 🎧",
-        "That is highly sophisticated. I loved studying your latest shared deck tags!",
-        "Yes, the neural connection seems to grow stronger with every bento box we clear out.",
-        "Exactly. Let's practice pronouncing this tricky vocabulary string together."
-      ];
-      const randomReply = responses[Math.floor(Math.random() * responses.length)];
-      const replyMsg: Message = {
-        id: `m-reply-${Date.now()}`,
-        sender: 'them',
-        type: 'text',
-        text: randomReply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setChatHistories(p => ({
-        ...p,
-        [partnerId]: [...(p[partnerId] || []), replyMsg]
-      }));
-    }, 1500);
-  };
-
-  // Start Mic Recording simulation
-  const handleStartRecording = () => {
-    setIsRecording(true);
-    setRecordSeconds(0);
-    recordingTimerRef.current = setInterval(() => {
-      setRecordSeconds(s => s + 1);
-    }, 1000);
-    addToast(trans('social.micActive'), 'info');
-  };
-
-  // Stop Mic Recording and compile mock audio visual snippet
-  const handleStopRecording = () => {
-    if (recordingTimerRef.current) {
-      clearInterval(recordingTimerRef.current);
+  // ---- match badge accents ----
+  const matchBadge = (match: WfNewDiscoverUser['match']) => {
+    if (match === 'exchange') {
+      return { label: trans('social.matchExchange'), cls: 'bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white border-fuchsia-400/30' };
     }
-    setIsRecording(false);
-    
-    if (!selectedFriendChat) return;
-    const partnerId = selectedFriendChat.id;
-    const duration = recordSeconds <= 0 ? 3 : recordSeconds;
-
-    // Generate random mock audio waveform blocks
-    const waveVals: number[] = [];
-    for (let i = 0; i < 15; i++) {
-      waveVals.push(Math.floor(Math.random() * 50) + 10);
+    if (match === 'native') {
+      return { label: trans('social.matchNative'), cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/20' };
     }
-
-    const newMsg: Message = {
-      id: `m-voice-${Date.now()}`,
-      sender: 'me',
-      type: 'voice',
-      voiceDuration: duration,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      audioWaves: waveVals,
-      // Provide translation transcript caption for real fidelity
-      text: "[Voice Note] Synthesizing acoustic pronunciation..."
-    };
-
-    setChatHistories(prev => ({
-      ...prev,
-      [partnerId]: [...(prev[partnerId] || []), newMsg]
-    }));
-
-    addToast(trans('social.voiceSent'), 'success');
-
-    // Partner reply mock
-    setTimeout(() => {
-      const replyMsg: Message = {
-        id: `m-voice-reply-${Date.now()}`,
-        sender: 'them',
-        type: 'voice',
-        voiceDuration: 5,
-        audioWaves: [8, 15, 35, 45, 50, 42, 30, 20, 25, 40, 52, 28, 12, 5],
-        text: "[Voice reply] Understood perfectly! Your phonetics sound pristine.",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setChatHistories(p => ({
-        ...p,
-        [partnerId]: [...(p[partnerId] || []), replyMsg]
-      }));
-    }, 2000);
+    return { label: trans('social.matchTarget'), cls: 'bg-sky-500/15 text-sky-300 border-sky-500/20' };
   };
 
-  // Filtering partners list
-  const filteredPartners = partners.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchText.toLowerCase()) || 
-                          p.bio.toLowerCase().includes(searchText.toLowerCase());
-    
-    if (preferredLang === 'all') return matchesSearch;
-    return matchesSearch && (p.targetLang === preferredLang || p.nativeLang === preferredLang);
-  });
-
-  const activeFriendList = partners.filter(p => p.isFriend);
+  const subTabs: { id: SubTab; label: string }[] = [
+    { id: 'plaza', label: trans('social.tabPlaza') },
+    { id: 'post', label: trans('social.tabPost') },
+    { id: 'gallery', label: trans('social.tabGallery') },
+    { id: 'video', label: trans('social.tabVideo') },
+    { id: 'live', label: trans('social.tabLive') },
+    { id: 'partners', label: trans('social.tabPartners') },
+    { id: 'chat', label: trans('social.tabChat') },
+    { id: 'leaderboard', label: trans('social.tabLeaderboard') },
+  ];
 
   return (
     <div className={`p-4 md:p-6 rounded-3xl ${activeTheme.cardClass} shadow-xl max-w-5xl mx-auto border border-white/5`}>
-      
-      {/* 1. Header Toolbar with Dynamic Social Sub-Tabs */}
+      {/* Header + sub-tab bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-5">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-2xl">
@@ -430,341 +469,146 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
             <h3 className="text-lg font-black text-slate-100 flex items-center gap-2">
               {trans('social.title')}
               <span className="text-[10px] bg-indigo-500/15 text-indigo-300 font-mono py-0.5 px-2 rounded-full border border-indigo-500/5">
-                Beta v2
+                Center v3
               </span>
             </h3>
-            <p className="text-zinc-500 text-xs font-mono">
-              {trans('social.subtitle')}
-            </p>
+            <p className="text-zinc-500 text-xs font-mono">{trans('social.subtitle')}</p>
           </div>
         </div>
 
-        {/* Action Switch buttons */}
-        <div className="flex bg-white/2 dark:bg-white/5 p-1 rounded-2xl border border-white/5 self-start">
-          <button
-            onClick={() => setActiveSubTab('feed')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer ${
-              activeSubTab === 'feed'
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            {trans('social.tabFeed')}
-          </button>
-          <button
-            onClick={() => setActiveSubTab('partners')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer ${
-              activeSubTab === 'partners'
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            {trans('social.tabPartners')}
-          </button>
-          <button
-            onClick={() => setActiveSubTab('direct_chat')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold font-mono transition-all cursor-pointer relative ${
-              activeSubTab === 'direct_chat'
-                ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            {trans('social.tabRooms')}
-            {activeFriendList.length > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-            )}
-          </button>
+        <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 self-start overflow-x-auto">
+          {subTabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSubTab(tab.id)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold font-mono whitespace-nowrap transition-all cursor-pointer ${
+                activeSubTab === tab.id
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* 2. Content Sections Grid / Feed */}
       <div className="mt-6">
-
-        {/* ====== SUBTAB: FEED ====== */}
-        {activeSubTab === 'feed' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Left: Compose and Feed stream */}
-            <div className="lg:col-span-2 space-y-6">
-              
-              {/* Compose New Moment Post */}
-              <form onSubmit={handlePublishPost} className="p-5 rounded-2xl bg-white/2 dark:bg-white/4 border border-white/5 space-y-4">
-                <div className="flex gap-3">
-                  <div className="w-10 h-10 rounded-full bg-indigo-500/15 flex items-center justify-center text-lg select-none">
-                    {currentUser.avatar}
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <textarea
-                      value={newPostContent}
-                      onChange={(e) => setNewPostContent(e.target.value)}
-                      placeholder={trans('social.composePh')}
-                      className="w-full bg-transparent border-0 outline-none resize-none text-xs font-sans text-slate-100 placeholder-zinc-500 h-20"
-                    />
-                    
-                    {/* Tag bar */}
-                    <div className="flex justify-between items-center pt-2 border-t border-white/5 flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-zinc-500 font-mono">{trans('social.attachTag')}</span>
-                        <select
-                          value={newPostLang}
-                          onChange={(e) => setNewPostPostLang(e.target.value)}
-                          className="bg-slate-900/80 text-zinc-300 font-mono text-[10px] border border-white/10 rounded-lg py-1 px-2 cursor-pointer outline-none"
-                        >
-                          <option value="en">🇺🇸 {trans('lang.name.en')}</option>
-                          <option value="fr">🇫🇷 {trans('lang.name.fr')}</option>
-                          <option value="ja">🇯🇵 {trans('lang.name.ja')}</option>
-                          <option value="es">🇪🇸 {trans('lang.name.es')}</option>
-                          <option value="ko">🇰🇷 {trans('lang.name.ko')}</option>
-                        </select>
-                      </div>
-
-                      <button
-                        type="submit"
-                        className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white font-mono text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-1.5"
-                      >
-                        <Share2 className="w-3.5 h-3.5" />
-                        <span>{trans('social.broadcast')}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </form>
-
-              {/* Feed Stream */}
-              <div className="space-y-4">
-                {posts.map(post => {
-                  const isActiveCommentOpen = activeCommentPostId === post.id;
-                  return (
-                    <motion.div
-                      layout
-                      key={post.id}
-                      className="p-5 rounded-2xl bg-white/2 dark:bg-white/3 border border-white/5 hover:border-white/10 transition-all space-y-4"
-                    >
-                      {/* Post Header */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-md select-none">
-                            {post.authorAvatar}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-200">{post.authorName}</span>
-                              <span className="text-[9px] font-mono tracking-widest text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded">
-                                {post.authorBadge}
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-zinc-500 font-mono">{post.timestamp}</span>
-                          </div>
-                        </div>
-
-                        <span className="text-[9px] font-mono uppercase bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded border border-white/5">
-                          lang: {post.languageTag}
-                        </span>
-                      </div>
-
-                      {/* Post Content */}
-                      <p className="text-xs text-zinc-300 leading-relaxed font-sans">{post.content}</p>
-
-                      {/* Interactive Buttons footer */}
-                      <div className="flex items-center gap-4 pt-2 border-t border-white/5 text-zinc-500 font-mono text-[11px] select-none">
-                        
-                        {/* Likes button */}
-                        <button
-                          onClick={() => handleToggleLike(post.id)}
-                          className={`flex items-center gap-1 hover:text-rose-400 transition-colors ${
-                            post.likedByUser ? 'text-rose-500 font-bold' : ''
-                          }`}
-                        >
-                          <Heart className={`w-4 h-4 ${post.likedByUser ? 'fill-current text-rose-500' : ''}`} />
-                          <span>{trans('social.likes', { n: post.likes })}</span>
-                        </button>
-
-                        {/* Comments Toggle */}
-                        <button
-                          onClick={() => {
-                            setActiveCommentPostId(isActiveCommentOpen ? null : post.id);
-                          }}
-                          className={`flex items-center gap-1 hover:text-indigo-400 transition-colors ${
-                            isActiveCommentOpen ? 'text-indigo-400 font-bold' : ''
-                          }`}
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                          <span>{trans('social.comments', { n: post.comments.length })}</span>
-                        </button>
-                      </div>
-
-                      {/* Comments Area */}
-                      <AnimatePresence>
-                        {isActiveCommentOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="space-y-3 pt-3 border-t border-dashed border-white/5"
-                          >
-                            {/* Comments List */}
-                            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                              {post.comments.map(comment => (
-                                <div key={comment.id} className="p-2.5 rounded-xl bg-slate-900/60 border border-white/5 flex gap-2">
-                                  <span className="text-sm select-none">{comment.avatar}</span>
-                                  <div className="flex-1">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-[10px] font-bold text-zinc-300">{comment.author}</span>
-                                      <span className="text-[9px] text-zinc-500 font-mono">{comment.time}</span>
-                                    </div>
-                                    <p className="text-[11px] text-zinc-400 mt-0.5">{comment.text}</p>
-                                  </div>
-                                </div>
-                              ))}
-                              {post.comments.length === 0 && (
-                                <p className="text-zinc-500 text-[10px] text-center font-mono py-2">
-                                  {trans('social.noComments')}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Add Comment Field */}
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                value={commentText}
-                                onChange={(e) => setCommentText(e.target.value)}
-                                placeholder={trans('social.commentPh')}
-                                className="flex-1 bg-slate-900/80 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-500 text-slate-100 placeholder-zinc-500"
-                              />
-                              <button
-                                onClick={() => handleAddComment(post.id)}
-                                className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-755 text-white text-xs font-bold transition-all cursor-pointer"
-                              >
-                                {trans('social.send')}
-                              </button>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Right Side: Quick Stats and Online Friends */}
-            <div className="space-y-6">
-              
-              {/* Daily dynamic partners telemetry card */}
-              <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/20 to-purple-950/20 border border-indigo-500/10 space-y-4">
-                <h4 className="text-xs font-black font-mono tracking-widest text-indigo-400 uppercase flex items-center gap-1.5">
-                  <Activity className="w-4 h-4" />
-                  {trans('social.synergyTitle')}
-                </h4>
-                <div className="space-y-3 font-mono text-[11px]">
-                  <div className="flex justify-between text-zinc-400">
-                    <span>{trans('social.globalRatio')}</span>
-                    <span className="text-emerald-400 font-bold">14.8K (Studying)</span>
-                  </div>
-                  <div className="flex justify-between text-zinc-400">
-                    <span>{trans('social.activeFriendsLabel')}</span>
-                    <span className="text-slate-200">{activeFriendList.length} {trans('social.partnersUnit')}</span>
-                  </div>
-                  <div className="flex justify-between text-zinc-400">
-                    <span>{trans('social.exchangePref')}</span>
-                    <span className="text-purple-400 uppercase font-black">{currentUser.targetLang} {trans('social.nativeSuffix')}</span>
-                  </div>
-                </div>
-
-                <div className="border-t border-white/5 pt-3">
-                  <button 
-                    onClick={() => setActiveSubTab('partners')}
-                    className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-all text-xs font-bold font-mono border border-white/5 cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    <span>{trans('social.filterByLang')}</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Quick Online Partners bar */}
-              <div className="p-5 rounded-2xl bg-white/2 dark:bg-white/4 border border-white/5 space-y-4">
-                <h4 className="text-xs font-black font-mono tracking-widest text-slate-300 uppercase flex items-center gap-1.5">
-                  <Heart className="w-4 h-4 text-rose-450 fill-rose-500/20" />
-                  {trans('social.activePartners', { n: activeFriendList.length })}
-                </h4>
-                <div className="space-y-3">
-                  {activeFriendList.map(friend => (
-                    <div 
-                      key={friend.id} 
-                      onClick={() => {
-                        setSelectedFriendChat(friend);
-                        setActiveSubTab('direct_chat');
-                      }}
-                      className="flex items-center justify-between p-2 rounded-xl hover:bg-white/5 transition-all cursor-pointer border border-transparent hover:border-white/5"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="relative">
-                          <span className="text-lg select-none">{friend.avatar}</span>
-                          <span className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-slate-950 ${
-                            friend.online ? 'bg-emerald-500' : 'bg-zinc-500'
-                          }`} />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-200">{friend.name}</p>
-                          <p className="text-[10px] text-zinc-500 font-mono">{trans('social.streakLabel')} {friend.streak} {trans('stats.days')}</p>
-                        </div>
-                      </div>
-
-                      <MessageSquare className="w-4 h-4 text-zinc-500 hover:text-indigo-400 transition-colors" />
-                    </div>
-                  ))}
-                  {activeFriendList.length === 0 && (
-                    <div className="text-center py-4 space-y-2">
-                      <p className="text-zinc-500 text-[11px] font-mono">{trans('social.noPartners')}</p>
-                      <button
-                        onClick={() => setActiveSubTab('partners')}
-                        className="text-[11px] font-mono text-indigo-400 font-bold hover:underline cursor-pointer"
-                      >
-                        {trans('social.browseLearners')}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-            </div>
-          </div>
+        {/* ====== PLAZA / FEED (post timeline) ====== */}
+        {activeSubTab === 'plaza' && (
+          <WfNewSocialPlaza
+            activeTheme={activeTheme}
+            trans={trans}
+            addToast={addToast}
+            isLoggedIn={isLoggedIn}
+            requireAuth={requireAuth}
+            posts={posts}
+            setPosts={setPosts}
+            loading={plazaLoading}
+            filter={plazaFilter}
+            setFilter={setPlazaFilter}
+          />
         )}
 
-        {/* ====== SUBTAB: PARTNERS (Discovery Portal) ====== */}
+        {/* ====== POST (composer: text + images) ====== */}
+        {activeSubTab === 'post' && (
+          <WfNewSocialComposer
+            activeTheme={activeTheme}
+            trans={trans}
+            addToast={addToast}
+            isLoggedIn={isLoggedIn}
+            requireAuth={requireAuth}
+            onPosted={(post) => {
+              setPosts(prev => [post, ...prev.filter(p => p.id !== post.id)]);
+              setActiveSubTab('plaza');
+            }}
+          />
+        )}
+
+        {/* ====== GALLERY (image-only feed + lightbox) ====== */}
+        {activeSubTab === 'gallery' && (
+          <WfNewSocialGallery activeTheme={activeTheme} trans={trans} />
+        )}
+
+        {/* ====== VIDEO (uploaded clips + external embeds) ====== */}
+        {activeSubTab === 'video' && (
+          <WfNewSocialVideo
+            activeTheme={activeTheme}
+            trans={trans}
+            addToast={addToast}
+            isLoggedIn={isLoggedIn}
+            requireAuth={requireAuth}
+          />
+        )}
+
+        {/* ====== LIVE (sessions list + viewer + go-live) ====== */}
+        {activeSubTab === 'live' && (
+          <WfNewSocialLive
+            activeTheme={activeTheme}
+            trans={trans}
+            addToast={addToast}
+            isLoggedIn={isLoggedIn}
+            requireAuth={requireAuth}
+          />
+        )}
+
+        {/* ====== PARTNERS ====== */}
         {activeSubTab === 'partners' && (
           <div className="space-y-6">
-            
-            {/* Filter ribbons toolbar */}
-            <div className="p-4 rounded-2xl bg-white/2 dark:bg-white/3 border border-white/5 flex flex-col sm:flex-row gap-4 justify-between items-center">
-              
-              {/* Keyword Query Bar */}
+            {/* Incoming friend requests strip */}
+            {incoming.length > 0 && (
+              <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/10 space-y-3">
+                <h4 className="text-[11px] font-black font-mono tracking-widest text-indigo-400 uppercase">
+                  {trans('social.incomingRequests', { n: incoming.length })}
+                </h4>
+                <div className="flex gap-3 overflow-x-auto pb-1">
+                  {incoming.map(req => (
+                    <div key={req.id} className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/4 border border-white/5 shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center overflow-hidden text-sm select-none">
+                        {req.avatar_url
+                          ? <img src={req.avatar_url} alt="" className="w-full h-full object-cover" />
+                          : <span>{(req.name || req.username || '?').slice(0, 1)}</span>}
+                      </div>
+                      <span className="text-xs font-bold text-slate-200 max-w-[100px] truncate">{req.name || req.username}</span>
+                      <button
+                        onClick={() => handleRespond(req, 'accept')}
+                        className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-all cursor-pointer"
+                        title={trans('social.accept')}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleRespond(req, 'reject')}
+                        className="p-1.5 rounded-lg bg-rose-500/15 text-rose-400 hover:bg-rose-500/25 transition-all cursor-pointer"
+                        title={trans('social.reject')}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Filter ribbon + search */}
+            <div className="p-4 rounded-2xl bg-white/3 border border-white/5 flex flex-col sm:flex-row gap-4 justify-between items-center">
               <div className="relative w-full sm:max-w-xs">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   type="text"
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
+                  value={partnerSearch}
+                  onChange={e => setPartnerSearch(e.target.value)}
                   placeholder={trans('social.searchPh')}
                   className="w-full bg-slate-900/60 border border-white/10 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-200 outline-none placeholder-zinc-500 focus:border-indigo-500/50"
                 />
               </div>
-
-              {/* Language Preferences button tag lists */}
-              <div className="flex bg-white/2 dark:bg-white/5 p-1 rounded-xl border border-white/5 gap-1 overflow-x-auto w-full sm:w-auto">
+              <div className="flex bg-white/5 p-1 rounded-xl border border-white/5 gap-1 overflow-x-auto w-full sm:w-auto">
                 {['all', 'en', 'zh', 'ja', 'es', 'fr', 'ko'].map(langCode => (
                   <button
                     key={langCode}
-                    onClick={() => setPreferredLang(langCode)}
+                    onClick={() => setRibbonLang(langCode)}
                     className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold whitespace-nowrap transition-all cursor-pointer ${
-                      preferredLang === langCode
-                        ? 'bg-indigo-650 text-white shadow'
-                        : 'text-zinc-400 hover:text-zinc-200'
+                      ribbonLang === langCode ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
                     {langCode === 'all' ? trans('social.langAll') : trans('lang.name.' + langCode)}
@@ -773,343 +617,203 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
               </div>
             </div>
 
-            {/* Partners Catalog grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredPartners.map(partner => (
-                <div 
-                  key={partner.id}
-                  className="p-5 rounded-2xl bg-white/2 dark:bg-white/3 border border-white/5 hover:border-white/10 hover:scale-[1.01] transition-all flex flex-col justify-between space-y-4 relative"
-                >
-                  {/* Streak & Badge label overlay to show active credentials */}
-                  <div className="flex justify-between items-start">
-                    <div className="flex gap-1 items-center flex-wrap max-w-[70%]">
-                      {partner.badges.map((badge, bIdx) => (
-                        <span 
-                          key={bIdx}
-                          className="text-[8px] font-black font-mono tracking-wider bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded"
-                        >
-                          {badge}
+            {/* Discover grid */}
+            {discoverLoading && (
+              <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.discoverLoading')}</div>
+            )}
+
+            {!discoverLoading && discover.length === 0 && (
+              <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.noDiscover')}</div>
+            )}
+
+            {!discoverLoading && discover.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {discover.map(user => {
+                  const badge = matchBadge(user.match);
+                  const isPending = pendingIds[user.id];
+                  return (
+                    <div
+                      key={user.id}
+                      className="p-5 rounded-2xl bg-white/3 border border-white/5 hover:border-white/10 transition-all flex flex-col justify-between space-y-4"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="relative">
+                            <div className="w-11 h-11 rounded-full bg-zinc-800 flex items-center justify-center text-xl select-none overflow-hidden">
+                              {/^https?:/i.test(user.avatar)
+                                ? <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+                                : <span>{user.avatar || (user.nickname || '?').slice(0, 1)}</span>}
+                            </div>
+                            <span className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-950 ${presenceClass(presence[user.id] || user.presence)}`} />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-black text-slate-200 truncate">{user.nickname}</h4>
+                            <p className="text-[10px] text-indigo-400 font-mono">
+                              <span className="uppercase text-slate-300 font-bold">{user.native_language}</span>
+                              {' → '}
+                              <span className="uppercase text-slate-300 font-bold">{(user.learning_languages || []).join(', ')}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <span className={`text-[8px] font-black font-mono tracking-wider px-1.5 py-0.5 rounded border shrink-0 ${badge.cls}`}>
+                          {badge.label}
                         </span>
-                      ))}
-                    </div>
-                    
-                    <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
-                      🔥 {trans('social.streakChip', { n: partner.streak })}
-                    </span>
-                  </div>
-
-                  {/* Body part details */}
-                  <div className="space-y-2 pt-2">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <span className="text-2xl select-none">{partner.avatar}</span>
-                        <span className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-950 ${
-                          partner.online ? 'bg-emerald-500' : 'bg-zinc-500'
-                        }`} />
                       </div>
-                      <div>
-                        <h4 className="text-sm font-black text-slate-200">{partner.name}</h4>
-                        <p className="text-[10px] text-indigo-400 font-mono">
-                          {trans('social.nativeLabel')} <span className="uppercase text-slate-300 font-bold">{partner.nativeLang}</span> / {trans('social.targetLabel')} <span className="uppercase text-slate-300 font-bold">{partner.targetLang}</span>
-                        </p>
-                      </div>
-                    </div>
 
-                    <p className="text-[11px] text-zinc-400 font-sans line-clamp-3 leading-relaxed">
-                      {partner.bio}
-                    </p>
-                  </div>
-
-                  {/* Bottom partner action row */}
-                  <div className="flex gap-2.5 pt-3 border-t border-white/5">
-                    
-                    {/* Add Friend button */}
-                    <button
-                      onClick={() => handleAddFriend(partner.id)}
-                      className={`flex-1 py-1.5 rounded-xl text-[11px] font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
-                        partner.isFriend 
-                          ? 'bg-zinc-805/40 border-zinc-700 text-indigo-400' 
-                          : 'bg-indigo-600/90 hover:bg-indigo-705 border-indigo-500/20 text-white'
-                      }`}
-                    >
-                      {partner.isFriend ? (
-                        <>
-                          <UserCheck className="w-3.5 h-3.5" />
-                          <span>{trans('social.collaborating')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="w-3.5 h-3.5" />
-                          <span>{trans('social.syncPartner')}</span>
-                        </>
+                      {user.stats && (
+                        <div className="flex gap-3 text-[10px] font-mono text-zinc-400">
+                          {typeof user.stats.learned === 'number' && <span>{trans('social.statsLearned', { n: user.stats.learned })}</span>}
+                          {typeof user.stats.streak === 'number' && <span>{trans('social.statsStreak', { n: user.stats.streak })}</span>}
+                        </div>
                       )}
-                    </button>
 
-                    {/* Chat messaging launcher button */}
-                    <button
-                      onClick={() => {
-                        setSelectedFriendChat(partner);
-                        if (!partner.isFriend) {
-                          // Auto add as friend to enable chat smoothly
-                          setPartners(prev => prev.map(p => p.id === partner.id ? { ...p, isFriend: true } : p));
-                        }
-                        setActiveSubTab('direct_chat');
-                      }}
-                      className="p-2 rounded-xl bg-white/5 hover:bg-indigo-500/20 hover:text-indigo-400 border border-white/5 text-zinc-400 transition-all cursor-pointer"
-                      title={trans('social.directChatTitle')}
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                </div>
-              ))}
-              {filteredPartners.length === 0 && (
-                <div className="col-span-full py-16 text-center text-zinc-500 space-y-2">
-                  <p className="text-xs font-mono">{trans('social.noPartnersMatch')}</p>
-                  <button 
-                    onClick={() => { setSearchText(''); setPreferredLang('all'); }}
-                    className="px-4 py-2 bg-indigo-650/15 text-indigo-400 rounded-xl text-xs font-mono border border-indigo-505/10 hover:bg-indigo-505/20 cursor-pointer"
-                  >
-                    {trans('social.resetFilters')}
-                  </button>
-                </div>
-              )}
-            </div>
-
+                      <div className="flex gap-2.5 pt-3 border-t border-white/5">
+                        {user.is_friend ? (
+                          <span className="flex-1 py-1.5 rounded-xl text-[11px] font-mono font-bold tracking-wider flex items-center justify-center gap-1.5 border bg-zinc-800/40 border-zinc-700 text-indigo-400">
+                            <UserCheck className="w-3.5 h-3.5" /> {trans('social.alreadyFriend')}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleAddFriend(user)}
+                            disabled={isPending}
+                            className={`flex-1 py-1.5 rounded-xl text-[11px] font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                              isPending
+                                ? 'bg-zinc-800/40 border-zinc-700 text-zinc-400'
+                                : 'bg-indigo-600/90 hover:bg-indigo-600 border-indigo-500/20 text-white'
+                            }`}
+                          >
+                            <UserPlus className="w-3.5 h-3.5" />
+                            <span>{isPending ? trans('social.pending') : trans('social.addFriend')}</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleMessageUser(user)}
+                          className="p-2 rounded-xl bg-white/5 hover:bg-indigo-500/20 hover:text-indigo-400 border border-white/5 text-zinc-400 transition-all cursor-pointer"
+                          title={trans('social.message')}
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
-        {/* ====== SUBTAB: DIRECT CHAT (Room Corridor) ====== */}
-        {activeSubTab === 'direct_chat' && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[550px] relative">
-            
-            {/* Friends list pane (Left 1 Col) */}
-            <div className="lg:col-span-1 rounded-2xl bg-white/2 dark:bg-white/3 border border-white/5 flex flex-col overflow-hidden max-h-full">
+        {/* ====== CHAT ====== */}
+        {activeSubTab === 'chat' && (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[550px]">
+            {/* Conversation list */}
+            <div className="lg:col-span-1 rounded-2xl bg-white/3 border border-white/5 flex flex-col overflow-hidden max-h-full">
               <div className="p-3.5 border-b border-white/5">
-                <span className="text-[10px] font-black font-mono uppercase tracking-widest text-zinc-500">{trans('social.roomsCount', { n: activeFriendList.length })}</span>
+                <span className="text-[10px] font-black font-mono uppercase tracking-widest text-zinc-500">
+                  {trans('social.chatTitle')}
+                </span>
               </div>
-              <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-1.5">
-                {activeFriendList.map(item => {
-                  const isSelected = selectedFriendChat?.id === item.id;
-                  const chatLogs = chatHistories[item.id] || [];
-                  const lastMsg = chatLogs[chatLogs.length - 1];
+              <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+                {convLoading && (
+                  <p className="text-zinc-500 text-[10px] text-center font-mono py-4">{trans('social.loading')}</p>
+                )}
+                {!convLoading && conversations.length === 0 && (
+                  <p className="text-zinc-500 text-[10px] text-center font-mono py-4 leading-relaxed">{trans('social.noConversations')}</p>
+                )}
+                {conversations.map(conv => {
+                  const isSelected = conv.id === selectedConvId;
+                  const peerStatus = presence[conv.peer?.id] || conv.peer?.presence;
                   return (
                     <div
-                      key={item.id}
-                      onClick={() => setSelectedFriendChat(item)}
-                      className={`p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between border ${
-                        isSelected 
-                          ? 'bg-indigo-500/10 border-indigo-500/30' 
-                          : 'bg-transparent border-transparent hover:bg-white/3 hover:border-white/5'
+                      key={conv.id}
+                      onClick={() => openConversation(conv)}
+                      className={`p-3 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                        isSelected ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-transparent border-transparent hover:bg-white/5 hover:border-white/5'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="relative">
-                          <span className="text-lg select-none">{item.avatar}</span>
-                          <span className={`absolute -bottom-1 -right-1 w-2 rounded-full border border-slate-950 h-2 ${
-                            item.online ? 'bg-emerald-500' : 'bg-zinc-500'
-                          }`} />
+                        <div className="relative shrink-0">
+                          <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-sm select-none overflow-hidden">
+                            {/^https?:/i.test(conv.peer?.avatar || '')
+                              ? <img src={conv.peer.avatar} alt="" className="w-full h-full object-cover" />
+                              : <span>{conv.peer?.avatar || (conv.peer?.nickname || '?').slice(0, 1)}</span>}
+                          </div>
+                          <span className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-slate-950 ${presenceClass(peerStatus)}`} />
                         </div>
                         <div className="min-w-0">
                           <p className={`text-xs font-bold truncate ${isSelected ? 'text-indigo-300' : 'text-slate-200'}`}>
-                            {item.name}
+                            {conv.peer?.nickname}
                           </p>
                           <p className="text-[9px] text-zinc-500 font-mono truncate">
-                            {lastMsg ? (lastMsg.type === 'voice' ? trans('social.voiceMsg') : lastMsg.text) : trans('social.tapStart')}
+                            {conv.last_message || trans('social.tapStart')}
                           </p>
                         </div>
                       </div>
-
-                      {item.online && (
-                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                      {conv.unread_count > 0 && (
+                        <span className="shrink-0 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold font-mono">
+                          {conv.unread_count}
+                        </span>
                       )}
                     </div>
                   );
                 })}
-                {activeFriendList.length === 0 && (
-                  <div className="p-4 text-center text-zinc-500 space-y-2">
-                    <p className="text-[10px] font-mono leading-relaxed">{trans('social.noSessions')}</p>
-                    <button
-                      onClick={() => setActiveSubTab('partners')}
-                      className="px-3 py-1 bg-indigo-650/20 text-indigo-400 font-serif text-[10px] font-bold rounded-lg hover:underline cursor-pointer"
-                    >
-                      {trans('social.portalLink')}
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Conversation Body Area (Right 3 Cols) */}
-            <div className="lg:col-span-3 rounded-2xl bg-white/1.5 dark:bg-slate-950/40 border border-white/5 flex flex-col justify-between overflow-hidden relative max-h-full">
-              
-              {selectedFriendChat ? (
+            {/* Message pane */}
+            <div className="lg:col-span-3 rounded-2xl bg-slate-950/40 border border-white/5 flex flex-col overflow-hidden max-h-full">
+              {selectedConv ? (
                 <>
-                  {/* Chat Sub-Header */}
-                  <div className="p-4 bg-white/2 dark:bg-white/3 border-b border-white/5 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl select-none">{selectedFriendChat.avatar}</span>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-200">{selectedFriendChat.name}</h4>
-                        <p className="text-[10px] text-zinc-500 font-mono">
-                          {selectedFriendChat.online ? trans('social.connected') : trans('social.offline')} | {trans('social.streakLabel')} {selectedFriendChat.streak}d
-                        </p>
+                  <div className="p-4 bg-white/3 border-b border-white/5 flex items-center gap-3">
+                    <div className="relative">
+                      <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-sm select-none overflow-hidden">
+                        {/^https?:/i.test(selectedConv.peer?.avatar || '')
+                          ? <img src={selectedConv.peer.avatar} alt="" className="w-full h-full object-cover" />
+                          : <span>{selectedConv.peer?.avatar || (selectedConv.peer?.nickname || '?').slice(0, 1)}</span>}
                       </div>
+                      <span className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-slate-950 ${presenceClass(presence[selectedConv.peer?.id] || selectedConv.peer?.presence)}`} />
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-mono bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded uppercase">
-                        {trans('social.langExchange')} {selectedFriendChat.targetLang}
-                      </span>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-200">{selectedConv.peer?.nickname}</h4>
+                      <p className="text-[10px] text-zinc-500 font-mono">
+                        {trans('social.status.' + (presence[selectedConv.peer?.id] || selectedConv.peer?.presence || 'offline'))}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Chat Message Scrolling List */}
-                  <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-3.5 bg-slate-900/10">
-                    {(chatHistories[selectedFriendChat.id] || []).map(msg => {
-                      const isMe = msg.sender === 'me';
-                      return (
-                        <div 
-                          key={msg.id} 
-                          className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div className={`max-w-[80%] rounded-2xl p-3 space-y-1.5 shadow-sm border ${
-                            isMe 
-                              ? 'bg-gradient-to-br from-indigo-600/90 to-purple-650/90 text-white border-indigo-500/20 rounded-tr-none' 
-                              : 'bg-white/4 dark:bg-white/5 text-slate-105 border-white/5 rounded-tl-none'
-                          }`}>
-                            
-                            {/* Message dynamic type rendering */}
-                            {msg.type === 'text' ? (
-                              <p className="text-[11px] leading-relaxed font-sans">{msg.text}</p>
-                            ) : (
-                              // Voice Message rendering with beautiful audio waves!
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <button 
-                                    className="p-1 rounded-full bg-white/20 text-white hover:bg-white/30 transition-all cursor-pointer"
-                                    onClick={() => addToast(trans('social.voicePlayback', { sec: msg.voiceDuration }), 'info')}
-                                  >
-                                    <Volume2 className="w-3.5 h-3.5 text-white" />
-                                  </button>
-                                  
-                                  {/* Waves display */}
-                                  <div className="flex items-end gap-0.5 h-6">
-                                    {(msg.audioWaves || [10, 20, 15, 30, 45, 20, 12]).map((barH, hIdx) => (
-                                      <div 
-                                        key={hIdx}
-                                        className={`w-0.75 rounded-full ${isMe ? 'bg-indigo-200' : 'bg-indigo-400'}`}
-                                        style={{ height: `${(barH / 50) * 100}%` }}
-                                      />
-                                    ))}
-                                  </div>
-
-                                  <span className="text-[9px] font-mono opacity-80 pl-1">{msg.voiceDuration}s</span>
-                                </div>
-                                {msg.text && (
-                                  <div className="text-[9px] opacity-75 italic border-t border-white/10 pt-1 flex items-center gap-1">
-                                    <span>{trans('social.captionTranscript')}</span>
-                                    <span>{msg.text}</span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Timestamp */}
-                            <span className={`block text-[8px] font-mono text-right opacity-60`}>
-                              {msg.timestamp}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {(chatHistories[selectedFriendChat.id] || []).length === 0 && (
-                      <div className="text-center py-12 text-zinc-500 font-mono text-[10px]">
+                  {/* Virtualized message list (react-window v2 List) */}
+                  <div className="flex-1 min-h-0 bg-slate-900/10">
+                    {messagesLoading ? (
+                      <div className="h-full flex items-center justify-center text-zinc-500 font-mono text-[10px]">
+                        {trans('social.loading')}
+                      </div>
+                    ) : messages.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-zinc-500 font-mono text-[10px]">
                         {trans('social.chatEmpty')}
                       </div>
+                    ) : (
+                      <List
+                        rowComponent={MessageRow}
+                        rowCount={messages.length}
+                        rowHeight={72}
+                        rowProps={{ messages, peerId: selectedConv.peer?.id } as MessageRowData}
+                        style={{ height: '100%' }}
+                        className="p-3"
+                      />
                     )}
                   </div>
 
-                  {/* Continuous Recording State Overlay */}
-                  <AnimatePresence>
-                    {isRecording && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 15 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 15 }}
-                        className="absolute bottom-[60px] left-1/2 -translate-x-1/2 bg-slate-950/95 border border-red-500/35 p-3 px-6 rounded-2xl flex items-center gap-4 z-40 shadow-2xl"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                          <span className="text-[10px] font-mono tracking-widest uppercase text-red-400 animate-pulse">{trans('social.recording', { n: recordSeconds })}</span>
-                        </div>
-
-                        {/* Faux waveform animations to look realistic */}
-                        <div className="flex items-center gap-1.5">
-                          {[1, 2, 3, 4, 5, 6].map(i => (
-                            <motion.div 
-                              className="w-[3px] bg-indigo-500 rounded-full"
-                              key={i}
-                              animate={{ height: [10, Math.random() * 25 + 10, 10] }}
-                              transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.1 }}
-                            />
-                          ))}
-                        </div>
-
-                        <button
-                          onClick={handleStopRecording}
-                          type="button"
-                          className="px-3 py-1 bg-red-650 hover:bg-red-750 text-white rounded-lg text-[10px] font-mono font-black uppercase cursor-pointer"
-                        >
-                          {trans('social.releaseTransmit')}
-                        </button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Chat Input form bar with Voice trigger and attachment drawer */}
-                  <form onSubmit={handleSendTextMessage} className="p-3.5 bg-white/2 dark:bg-white/4 border-t border-white/5 flex gap-2 items-center">
-                    
-                    {/* Voice Recording Toggle button */}
-                    <button
-                      type="button"
-                      onMouseDown={handleStartRecording}
-                      onMouseUp={handleStopRecording}
-                      onTouchStart={handleStartRecording}
-                      onTouchEnd={handleStopRecording}
-                      className={`p-2.5 rounded-xl border border-white/5 text-zinc-400 hover:text-indigo-400 transition-all cursor-pointer ${
-                        isRecording ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-white/3'
-                      }`}
-                      title={trans('social.recordTitle')}
-                    >
-                      <Mic className="w-4 h-4" />
-                    </button>
-
-                    {/* text inputs */}
+                  <form onSubmit={handleSend} className="p-3.5 bg-white/4 border-t border-white/5 flex gap-2 items-center">
                     <input
                       type="text"
-                      value={newMessageText}
-                      onChange={(e) => setNewMessageText(e.target.value)}
-                      placeholder={isRecording ? trans('social.inputRecording') : trans('social.inputPh')}
-                      className="flex-1 bg-slate-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-120 outline-none focus:border-indigo-500"
-                      disabled={isRecording}
+                      value={draft}
+                      onChange={e => setDraft(e.target.value)}
+                      placeholder={trans('social.messagePh')}
+                      className="flex-1 bg-slate-900/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-100 outline-none focus:border-indigo-500 placeholder-zinc-500"
                     />
-
-                    {/* Quick smile/paperclip attachment buttons */}
-                    <button 
-                      type="button"
-                      onClick={() => addToast(trans('social.bilingualAttach'), "info")}
-                      className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer hidden sm:block"
-                    >
-                      <Paperclip className="w-4 h-4" />
-                    </button>
-
-                    {/* Send button */}
                     <button
                       type="submit"
-                      className="p-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center"
-                      disabled={isRecording || !newMessageText.trim()}
+                      disabled={!draft.trim()}
+                      className="p-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 disabled:opacity-40 text-white rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center"
                     >
                       <Send className="w-4 h-4" />
                     </button>
@@ -1121,26 +825,108 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
                     <MessageSquare className="w-8 h-8" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-200">{trans('social.noRoomSelected')}</h4>
-                    <p className="text-zinc-500 text-[11px] font-mono mt-1 max-w-sm">
-                      {trans('social.noRoomSub')}
-                    </p>
+                    <h4 className="text-xs font-bold text-slate-200">{trans('social.selectConv')}</h4>
+                    <p className="text-zinc-500 text-[11px] font-mono mt-1 max-w-sm">{trans('social.selectConvSub')}</p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setActiveSubTab('partners')}
-                    className="px-4 py-2 bg-indigo-650 text-white font-mono text-[10px] font-bold rounded-xl hover:opacity-90 transition-all cursor-pointer"
+                    className="px-4 py-2 bg-indigo-600 text-white font-mono text-[10px] font-bold rounded-xl hover:opacity-90 transition-all cursor-pointer flex items-center gap-1"
                   >
-                    {trans('social.exchangeDir')}
+                    {trans('social.tabPartners')} <ChevronRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
-
             </div>
           </div>
         )}
 
-      </div>
+        {/* ====== LEADERBOARD ====== */}
+        {activeSubTab === 'leaderboard' && (
+          <div className="space-y-5 max-w-2xl mx-auto">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black font-mono tracking-widest text-amber-400 uppercase flex items-center gap-1.5">
+                <Trophy className="w-4 h-4" />
+                {trans('social.leaderboardTitle')}
+              </h4>
+              <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+                {(['week', 'all'] as const).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer ${
+                      period === p ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    {p === 'week' ? trans('social.week') : trans('social.allTime')}
+                  </button>
+                ))}
+              </div>
+            </div>
 
+            {/* Recent activity digest of followed users (legacy feed, folded in here). */}
+            {!feedLoading && activities.length > 0 && (
+              <div className="p-4 rounded-2xl bg-white/3 border border-white/5 space-y-3">
+                <h5 className="text-[10px] font-black font-mono tracking-widest text-indigo-400 uppercase flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5" /> {trans('social.feedTitle')}
+                </h5>
+                {activities.slice(0, 5).map(act => (
+                  <div key={act.id} className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-full bg-zinc-800 flex items-center justify-center text-sm select-none overflow-hidden shrink-0">
+                      {act.avatar_url
+                        ? <img src={act.avatar_url} alt="" className="w-full h-full object-cover" />
+                        : <span>{(act.user_name || '?').slice(0, 1)}</span>}
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-200 truncate">{act.user_name}</span>
+                    <span className="text-[10px] text-zinc-500 truncate flex-1">{act.action || trans('social.feedDefaultAction')}</span>
+                    <span className="text-[9px] text-zinc-600 font-mono shrink-0 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {relativeTime(act.time)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {leaderboardLoading && (
+              <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.leaderboardLoading')}</div>
+            )}
+
+            {!leaderboardLoading && leaderboard.length === 0 && (
+              <div className="py-16 text-center text-zinc-500 font-mono text-xs">{trans('social.leaderboardEmpty')}</div>
+            )}
+
+            {!leaderboardLoading && leaderboard.map(entry => (
+              <div
+                key={entry.user_id}
+                className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
+                  entry.is_current_user
+                    ? 'bg-indigo-500/10 border-indigo-500/30'
+                    : 'bg-white/3 border-white/5 hover:border-white/10'
+                }`}
+              >
+                <span className={`w-8 text-center font-black font-mono text-sm ${
+                  entry.rank === 1 ? 'text-amber-400' : entry.rank === 2 ? 'text-slate-300' : entry.rank === 3 ? 'text-orange-400' : 'text-zinc-500'
+                }`}>
+                  #{entry.rank}
+                </span>
+                <div className="w-9 h-9 rounded-full bg-zinc-800 flex items-center justify-center text-sm select-none overflow-hidden shrink-0">
+                  {entry.avatar_url
+                    ? <img src={entry.avatar_url} alt="" className="w-full h-full object-cover" />
+                    : <span>{(entry.name || entry.username || '?').slice(0, 1)}</span>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-bold truncate ${entry.is_current_user ? 'text-indigo-300' : 'text-slate-200'}`}>
+                    {entry.name || entry.username}
+                    {entry.is_current_user && <span className="ml-2 text-[9px] font-mono text-indigo-400">{trans('social.you')}</span>}
+                  </p>
+                </div>
+                <span className="text-xs font-black font-mono text-emerald-400 shrink-0">
+                  {trans('social.xp', { n: entry.xp })}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

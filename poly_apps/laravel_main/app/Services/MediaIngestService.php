@@ -284,6 +284,18 @@ class MediaIngestService
         }
 
         $changed = $this->mergeFill($source, $incoming);
+        // `title` is pycore-authoritative (the canonical ENGLISH display title — CJK
+        // filenames are translated upstream). Refresh it on re-sync even when already
+        // present, so legacy raw-CJK titles update to English. Other columns remain
+        // fill-missing via mergeFill.
+        if (!empty($incoming['title']) && $source->getAttribute('title') !== $incoming['title']
+            && preg_match('/[A-Za-z]/', (string) $incoming['title'])) {
+            // Only refresh to a title that carries Latin letters (a real translated
+            // English title) — a transient translation failure falls back to the
+            // cleaned CJK, which must NOT downgrade an already-English title.
+            $source->setAttribute('title', $incoming['title']);
+            $changed = true;
+        }
         $source->synced_at = now();
         $source->save();
 
@@ -320,6 +332,17 @@ class MediaIngestService
         }
 
         $changed = $this->mergeFill($source, $incoming);
+        // `title` is pycore-authoritative (canonical ENGLISH display title); refresh
+        // on re-sync even when present so legacy raw-CJK titles update. Others stay
+        // fill-missing.
+        if (!empty($incoming['title']) && $source->getAttribute('title') !== $incoming['title']
+            && preg_match('/[A-Za-z]/', (string) $incoming['title'])) {
+            // Only refresh to a title that carries Latin letters (a real translated
+            // English title) — a transient translation failure falls back to the
+            // cleaned CJK, which must NOT downgrade an already-English title.
+            $source->setAttribute('title', $incoming['title']);
+            $changed = true;
+        }
         $source->synced_at = now();
         $source->save();
 
@@ -520,6 +543,37 @@ class MediaIngestService
                 $sCreated += $stat['created'];
                 $sFilled += $stat['filled'];
                 $sDeduped += $stat['deduped'];
+            }
+
+            // Defense-in-depth: if EVERY language was dropped (e.g. upstream sent an
+            // unsupported code like "other" from a script the source-side guesser
+            // couldn't map) but the slot DID carry text, store it under a supported
+            // fallback rather than leaving the line empty. Without this, a single bad
+            // language code silently renders the line as a timestamp with no text.
+            $hasContent = false;
+            foreach ($langContentIds as $cid) {
+                if ($cid !== null) { $hasContent = true; break; }
+            }
+            if (!$hasContent) {
+                $rawText = '';
+                foreach ($langs as $candidate) {
+                    $cand = is_string($candidate) ? $candidate : (is_scalar($candidate) ? (string) $candidate : '');
+                    if (!$this->isEmptyValue($cand)) { $rawText = $cand; break; }
+                }
+                if ($rawText !== '') {
+                    $fallbackLang = ($primaryLanguage !== '' && AppQyV1TableMaps::isLanguageSupported($primaryLanguage))
+                        ? $primaryLanguage : 'en';
+                    $contentId = self::computeContentId($rawText);
+                    $langContentIds[$fallbackLang] = $contentId;
+                    $stat = $this->upsertLangSentence($fallbackLang, $contentId, $rawText, $corrId);
+                    $sCreated += $stat['created'];
+                    $sFilled += $stat['filled'];
+                    $sDeduped += $stat['deduped'];
+                    Log::warning('[MediaIngest] slot had only unsupported language codes; stored text under fallback', [
+                        'source_key' => $sourceKey, 'grain' => $grain, 'seq' => $seq,
+                        'dropped_langs' => array_keys($langs), 'fallback' => $fallbackLang,
+                    ]);
+                }
             }
 
             // ---- Language-independent positional slot row ----

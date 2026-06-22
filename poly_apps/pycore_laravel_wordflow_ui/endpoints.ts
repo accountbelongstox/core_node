@@ -832,5 +832,41 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
             { name: 'username', type: 'string', required: true, path: true },
             { name: 'connection', type: 'string', required: true }
         ]
+    },
+
+    // --- Global Tasks (distributed worker queue, control-plane no-auth) ---
+    {
+        id: 'gtask_create', method: 'POST', path: '/api/task/create',
+        description: 'Create a global task (interactive:true → remote_fast fast lane @priority 100)', section: 'Global Tasks',
+        params: [
+            { name: 'app_name', type: 'string', required: true },
+            { name: 'task_type', type: 'string', required: true },
+            { name: 'payload', type: 'string', required: true, description: 'JSON object' },
+            { name: 'interactive', type: 'boolean', required: false, description: 'User-initiated fast lane' },
+            { name: 'capability', type: 'string', required: false, options: ['audio', 'image', 'translate', 'sentence_audio'] }
+        ]
+    },
+    {
+        id: 'gtask_detail', method: 'GET', path: '/api/task/{taskId}/detail',
+        description: 'Full task detail: task + event timeline + current phase + retry metadata', section: 'Global Tasks',
+        params: [
+            { name: 'taskId', type: 'string', required: true, path: true }
+        ]
+    },
+    {
+        id: 'gtask_bump', method: 'POST', path: '/api/task/{taskId}/bump',
+        description: 'Bump a pending task priority (default 100); 404 unknown, 409 if not pending', section: 'Global Tasks',
+        params: [
+            { name: 'taskId', type: 'string', required: true, path: true },
+            { name: 'priority', type: 'integer', required: false, default: 100 }
+        ]
+    },
+    {
+        id: 'gtask_stream', method: 'GET', path: '/api/task/{taskId}/stream',
+        description: 'SSE live stream: task.detail-initial / task.event / ping / stream.close (reconnect via ?cursor=)', section: 'Global Tasks',
+        params: [
+            { name: 'taskId', type: 'string', required: true, path: true },
+            { name: 'cursor', type: 'string', required: false, description: 'Last event _id seen (resume)' }
+        ]
     }
 ];

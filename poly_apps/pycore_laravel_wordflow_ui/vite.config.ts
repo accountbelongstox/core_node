@@ -23,7 +23,41 @@ export default defineConfig(() => {
     const capacitorShim = (name: string) =>
       path.resolve(__dirname, 'shared/capacitor-web-shims', name + '.ts');
 
+    // Flavor/native build switch (set by build_app.ps1 / scripts/flavor):
+    //   VITE_BUILD_TARGET=native  → use the REAL @capacitor plugins (mobile app
+    //                               packaged via Capacitor), so DON'T alias to shims.
+    //   anything else (web)       → keep the browser shims (the default shell/web build).
+    const useNativeCapacitor = process.env.VITE_BUILD_TARGET === 'native';
+    const capacitorAliases = useNativeCapacitor ? {} : {
+      '@capacitor/core': capacitorShim('core'),
+      '@capacitor/preferences': capacitorShim('preferences'),
+      '@capacitor/dialog': capacitorShim('dialog'),
+      '@capacitor/toast': capacitorShim('toast'),
+      '@capacitor/status-bar': capacitorShim('status-bar'),
+      '@capacitor/keyboard': capacitorShim('keyboard'),
+      '@capacitor/app': capacitorShim('app'),
+      '@capacitor/geolocation': capacitorShim('geolocation'),
+      '@capacitor/network': capacitorShim('network'),
+      '@capacitor/device': capacitorShim('device'),
+      '@capacitor-community/voice-recorder': capacitorShim('voice-recorder'),
+      '@capacitor/haptics': capacitorShim('haptics'),
+      '@capacitor-community/text-to-speech': capacitorShim('text-to-speech'),
+      '@capacitor-community/speech-recognition': capacitorShim('speech-recognition'),
+      '@capacitor-community/keep-awake': capacitorShim('keep-awake'),
+      '@capacitor/local-notifications': capacitorShim('local-notifications'),
+      '@capacitor/filesystem': capacitorShim('filesystem'),
+      '@capacitor/camera': capacitorShim('camera'),
+      '@capacitor-community/sqlite': capacitorShim('community-sqlite'),
+      '@capacitor/browser': capacitorShim('browser'),
+    };
+
     return {
+      // Flavor selection for the multi-app build (build_app.ps1 sets the env var).
+      // Read from process.env (NOT import.meta.env) to honor the project's
+      // "no import.meta.env" convention; replaced into shell/flavor.ts at build.
+      define: {
+        __APP_FLAVOR__: JSON.stringify(process.env.VITE_APP_FLAVOR || 'shell'),
+      },
       server: {
         // Canonical pycore UI port (matches pyservice $UiPort / UI_PORT default,
         // callmodule/config.py + capabilities.py, and start_dashboard.ps1).
@@ -354,30 +388,13 @@ export default defineConfig(() => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
-          // WordFlow (qy_capacitor) was a Capacitor app. In this web shell its
-          // native plugin imports resolve to thin web shims (localStorage /
-          // window dialogs / no-ops). WordFlow's services already guard native
-          // calls behind Capacitor.isNativePlatform(), which the shim reports false.
-          '@capacitor/core': capacitorShim('core'),
-          '@capacitor/preferences': capacitorShim('preferences'),
-          '@capacitor/dialog': capacitorShim('dialog'),
-          '@capacitor/toast': capacitorShim('toast'),
-          '@capacitor/status-bar': capacitorShim('status-bar'),
-          '@capacitor/keyboard': capacitorShim('keyboard'),
-          '@capacitor/app': capacitorShim('app'),
-          // Capability plugins consumed by shared/capabilities/* (built
-          // primarily for the wordnew mobile APP, with these browser fallbacks
-          // for the web shell). The high-level wrappers branch native<->web on
-          // Capacitor.isNativePlatform(); these aliases keep the web build
-          // resolving and functional.
-          '@capacitor/geolocation': capacitorShim('geolocation'),
-          '@capacitor/network': capacitorShim('network'),
-          '@capacitor/device': capacitorShim('device'),
-          '@capacitor-community/voice-recorder': capacitorShim('voice-recorder'),
-          '@capacitor/haptics': capacitorShim('haptics'),
-          '@capacitor-community/text-to-speech': capacitorShim('text-to-speech'),
-          '@capacitor-community/speech-recognition': capacitorShim('speech-recognition'),
-          '@capacitor-community/keep-awake': capacitorShim('keep-awake'),
+          // WordFlow/wordnew were Capacitor apps. In the web shell their native
+          // plugin imports resolve to thin web shims (localStorage / window
+          // dialogs / no-ops); services guard native calls behind
+          // Capacitor.isNativePlatform() (the shim reports false). A native
+          // flavor build (VITE_BUILD_TARGET=native) drops these so the REAL
+          // @capacitor plugins are bundled — see `capacitorAliases` above.
+          ...capacitorAliases,
         }
       }
     };

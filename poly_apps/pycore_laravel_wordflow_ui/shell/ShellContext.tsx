@@ -9,7 +9,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import i18n from '../core/i18n';
-import { EndId, ThemeId, END_THEME, ShellContextValue } from './shellTypes';
+import { setPycoreActive } from '../core/api-libs/pycore/PycoreWs';
+import { EndId, ThemeId, END_THEME, END_USES_PYCORE, ShellContextValue } from './shellTypes';
 
 const LS_DARK = 'shell_dark';
 const LS_LANG = 'shell_lang';
@@ -28,7 +29,9 @@ function safeRemove(key: string): void {
 function endFromPath(pathname: string): EndId {
   if (pathname.startsWith('/laravel-manager')) return 'laravel-manager';
   if (pathname.startsWith('/pycore-manager')) return 'pycore-manager';
-  if (pathname.startsWith('/wordflow') || pathname.startsWith('/wordnew')) return 'wordflow';
+  if (pathname.startsWith('/wordnew')) return 'wordflow';
+  if (pathname.startsWith('/vortex')) return 'vortex';
+  if (pathname.startsWith('/pdd-manager')) return 'pdd-manager';
   return 'home';
 }
 
@@ -81,6 +84,14 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     if (i18n.language !== lang) i18n.changeLanguage(lang);
   }, [lang]);
+
+  // Per-app live-service gate: scope the pycore live bus (WS/SSE :59000) to the
+  // ends that use it. On every other route it is SUSPENDED so an inactive end
+  // (e.g. /wordnew) never reconnect-spams the pycore backend; returning to a
+  // pycore end (pycore-manager / vortex) resumes it. See END_USES_PYCORE.
+  useEffect(() => {
+    setPycoreActive(END_USES_PYCORE[end]);
+  }, [end]);
 
   const setDark = useCallback((v: boolean) => {
     setDarkState(v);

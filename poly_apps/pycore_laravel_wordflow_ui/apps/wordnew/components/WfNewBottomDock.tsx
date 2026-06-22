@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Cpu, Library, GraduationCap, Sparkles, Settings } from 'lucide-react';
+import { Cpu, Library, GraduationCap, Users, Settings } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 
 interface WfNewBottomDockProps {
@@ -23,12 +23,12 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
     { id: 'home', icon: <Cpu className="w-5 h-5" />, label: trans('nav.home'), color: 'from-blue-500 to-indigo-500', activeTextColor: 'text-blue-500 dark:text-blue-400', pulseColor: 'rgba(59,130,246,0.35)' },
     { id: 'shelf', icon: <Library className="w-5 h-5" />, label: trans('nav.library'), color: 'from-emerald-500 to-teal-500', activeTextColor: 'text-emerald-500 dark:text-emerald-400', pulseColor: 'rgba(16,185,129,0.35)' },
     { id: 'practice', icon: <GraduationCap className="w-6 h-6 text-white" />, label: trans('nav.practice'), color: 'from-fuchsia-500 via-rose-500 to-pink-500', activeTextColor: 'text-white', pulseColor: 'rgba(236,72,153,0.45)', isCenter: true },
-    { id: 'labs', icon: <Sparkles className="w-5 h-5" />, label: trans('nav.tools'), color: 'from-amber-500 to-orange-500', activeTextColor: 'text-amber-500 dark:text-amber-400', pulseColor: 'rgba(245,158,11,0.35)' },
+    { id: 'social', icon: <Users className="w-5 h-5" />, label: trans('nav.social'), color: 'from-fuchsia-500 to-pink-500', activeTextColor: 'text-fuchsia-500 dark:text-fuchsia-400', pulseColor: 'rgba(236,72,153,0.35)' },
     { id: 'settings', icon: <Settings className="w-5 h-5" />, label: trans('nav.settings'), color: 'from-indigo-500 to-violet-600', activeTextColor: 'text-indigo-500 dark:text-indigo-450', pulseColor: 'rgba(99,102,241,0.35)' }
   ] as const;
 
   // Render a secondary bar that guides users back to active suites if we are deep in a tool
-  const isDeepTab = ['walkman', 'subtitles', 'stats', 'bilingual', 'social', 'profile', 'auth'].includes(activeTab);
+  const isDeepTab = ['walkman', 'subtitles', 'stats', 'bilingual', 'labs', 'profile', 'auth'].includes(activeTab);
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-xl pointer-events-none flex flex-col items-center gap-2">

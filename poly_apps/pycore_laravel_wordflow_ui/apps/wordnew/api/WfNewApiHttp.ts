@@ -27,8 +27,17 @@ import type {
   WfNewAuthResult, WfNewAuthUser, WfNewRegisterPayload, WfNewPreferences,
   WfNewLanguage, WfNewLanguageSelection, WfNewAvatarResult,
   WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity,
+  WfNewDiscoverUser, WfNewFriendRequest, WfNewConversation, WfNewMessage,
+  WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo,
+  WfNewPresenceStatus,
+  WfNewSocialActor, WfNewPostImage, WfNewPost, WfNewPostPage, WfNewPostComment,
+  WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewPostFilter,
+  WfNewPostType, WfNewPostVisibility, WfNewLive, WfNewLiveStatus, WfNewCreateLivePayload,
+  WfNewLiveMsg, WfNewLiveMsgPage,
   WfNewContentGroup, WfNewHomeContent, WfNewStatistics,
-  WfNewBookChapters, WfNewBookChapter, WfNewBookVersesPage, WfNewBookVerse,
+  WfNewBookChapters, WfNewBookChapter, WfNewBookVersesPage, WfNewBookVerse, WfNewBookVerseLang,
+  WfNewSubtitleDetail, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewDictWord, WfNewWordPage,
+  WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordMedia,
 } from './WfNewApiTypes';
 import { wfNewEndpoints } from './WfNewEndpoints';
 import { WfNewApiPaths } from './WfNewApiPaths';
@@ -130,22 +139,146 @@ function absUrl(u?: string): string | undefined {
   return wfNewEndpoints.buildUrl(u.startsWith('/') ? u : `/${u}`);
 }
 
-/** Map a backend bookDetail sentence row to a normalized WfNewBookVerse. */
+/** Map a backend bookDetail sentence row to a normalized WfNewBookVerse. Each
+ *  per-language cell carries text + audio + the has_audio flag + optional
+ *  explanation (audio is filled over time by the pycore sentence-TTS worker). */
 function toBookVerse(s: any): WfNewBookVerse {
-  const languages: Record<string, { text: string | null; audio: string | null }> = {};
+  const languages: Record<string, WfNewBookVerseLang> = {};
   if (s && s.languages && typeof s.languages === 'object') {
     for (const [lang, v] of Object.entries<any>(s.languages)) {
-      languages[lang] = { text: v?.text ?? null, audio: absUrl(v?.audio) ?? null };
+      const audio = absUrl(v?.audio) ?? null;
+      languages[lang] = {
+        text: v?.text ?? null,
+        audio,
+        hasAudio: v?.has_audio != null ? !!v.has_audio : !!audio,
+        explanation: v?.explanation ?? null,
+      };
     }
   }
   return {
     grain: String(s?.grain ?? 'sentence'),
     seq: Number(s?.seq ?? 0),
     chapterIndex: s?.chapter_index !== undefined && s?.chapter_index !== null ? Number(s.chapter_index) : undefined,
+    ref: s?.ref ?? null,
+    book: s?.book ?? null,
     text: s?.text ?? null,
     language: s?.language ?? null,
     audio: absUrl(s?.audio) ?? null,
+    corrId: s?.corr_id ?? undefined,
     languages: Object.keys(languages).length ? languages : undefined,
+  };
+}
+
+/** Clamp any backend presence string to the 4 allowed values (default offline). */
+function normPresence(s: any): WfNewPresenceStatus {
+  return (s === 'online' || s === 'away' || s === 'studying' || s === 'offline') ? s : 'offline';
+}
+
+/** Map a backend message row → WfNewMessage. */
+function toMessage(m: any): WfNewMessage {
+  return {
+    id: Number(m?.id ?? 0),
+    conversation_id: Number(m?.conversation_id ?? 0),
+    sender_id: Number(m?.sender_id ?? 0),
+    body: m?.body ?? '',
+    type: (m?.type === 'image' || m?.type === 'voice') ? m.type : 'text',
+    metadata: m?.metadata && typeof m.metadata === 'object' ? m.metadata : null,
+    created_at: m?.created_at ?? new Date().toISOString(),
+  };
+}
+
+/** Map a backend notification row → WfNewNotification. */
+function toNotification(n: any): WfNewNotification {
+  return {
+    id: Number(n?.id ?? 0),
+    type: n?.type ?? '',
+    payload: n?.payload && typeof n.payload === 'object' ? n.payload : null,
+    read_at: n?.read_at ?? null,
+    created_at: n?.created_at ?? new Date().toISOString(),
+  };
+}
+
+// --- Social Center mappers (posts / comments / live) ----------------------- #
+// Image/video/cover urls are ROOT-RELATIVE from the backend — absUrl() them here
+// so components can render directly (mediaUrl() in the UI is then a no-op).
+
+/** Map a backend actor block → WfNewSocialActor. avatar_url is left as-is for
+ *  emoji avatars; mediaUrl() in the UI rebases a root-relative path. */
+function toActor(a: any): WfNewSocialActor {
+  return {
+    id: Number(a?.id ?? 0),
+    name: a?.name ?? a?.nickname ?? a?.username ?? '',
+    avatar_url: a?.avatar_url ?? a?.avatar ?? '',
+  };
+}
+
+function toPostImage(im: any, i = 0): WfNewPostImage {
+  return {
+    id: Number(im?.id ?? i),
+    url: absUrl(im?.url) ?? (im?.url ?? ''),
+    caption: im?.caption ?? null,
+    sequence: Number(im?.sequence ?? i),
+  };
+}
+
+/** Map a backend post row → WfNewPost (media urls resolved to absolute). */
+function toPost(raw: any, i = 0): WfNewPost {
+  const post_type: WfNewPostType =
+    (raw?.post_type === 'images' || raw?.post_type === 'video' || raw?.post_type === 'live')
+      ? raw.post_type : 'text';
+  const visibility: WfNewPostVisibility =
+    (raw?.visibility === 'friends' || raw?.visibility === 'private') ? raw.visibility : 'public';
+  const images = Array.isArray(raw?.images) ? raw.images.map(toPostImage) : [];
+  return {
+    id: Number(raw?.id ?? i),
+    author: toActor(raw?.author ?? {}),
+    content: raw?.content ?? '',
+    post_type,
+    images,
+    video_url: absUrl(raw?.video_url) ?? (raw?.video_url ?? null),
+    external_url: raw?.external_url ?? null,
+    cover_url: absUrl(raw?.cover_url) ?? (raw?.cover_url ?? null),
+    like_count: Number(raw?.like_count ?? 0) || 0,
+    comment_count: Number(raw?.comment_count ?? 0) || 0,
+    liked_by_me: !!raw?.liked_by_me,
+    visibility,
+    created_at: raw?.created_at ?? new Date().toISOString(),
+  };
+}
+
+function toComment(raw: any, i = 0): WfNewPostComment {
+  return {
+    id: Number(raw?.id ?? i),
+    post_id: Number(raw?.post_id ?? 0),
+    parent_id: raw?.parent_id != null ? Number(raw.parent_id) : null,
+    author: toActor(raw?.author ?? {}),
+    body: raw?.body ?? '',
+    created_at: raw?.created_at ?? new Date().toISOString(),
+  };
+}
+
+function toLive(raw: any, i = 0): WfNewLive {
+  const status: WfNewLiveStatus =
+    (raw?.status === 'ended' || raw?.status === 'scheduled') ? raw.status : 'live';
+  return {
+    id: Number(raw?.id ?? i),
+    host: toActor(raw?.host ?? {}),
+    title: raw?.title ?? '',
+    description: raw?.description ?? null,
+    status,
+    external_url: raw?.external_url ?? null,
+    cover_url: absUrl(raw?.cover_url) ?? (raw?.cover_url ?? null),
+    viewer_count: Number(raw?.viewer_count ?? 0) || 0,
+    started_at: raw?.started_at ?? null,
+  };
+}
+
+function toLiveMsg(raw: any, i = 0): WfNewLiveMsg {
+  return {
+    id: Number(raw?.id ?? i),
+    user: toActor(raw?.user ?? {}),
+    body: raw?.body ?? '',
+    created_at: raw?.created_at ?? new Date().toISOString(),
   };
 }
 
@@ -209,6 +342,49 @@ async function postJSON<T>(path: string, body: Record<string, any>): Promise<T> 
     throw err;
   }
   return parsed as T;
+}
+
+/**
+ * POST a multipart/form-data body (file uploads). NEVER sets Content-Type — the
+ * browser writes the multipart boundary itself; the Bearer header is still merged.
+ * Same BOM-tolerant parse + 401 self-heal + `.status`/message error shape as postJSON.
+ */
+async function postMultipart<T>(path: string, form: FormData): Promise<T> {
+  await wfNewEndpoints.whenReady();
+  const res = await fetch(wfNewEndpoints.buildUrl(path), {
+    method: 'POST',
+    headers: authHeaders({ Accept: 'application/json' }),
+    body: form,
+  });
+  const rawText = stripBom(await res.text());
+  let parsed: any = null;
+  if (rawText) {
+    try { parsed = JSON.parse(rawText); } catch { parsed = null; }
+  }
+  if (!res.ok) {
+    handleMaybe401(res.status);
+    let message = `HTTP ${res.status} for ${path}`;
+    if (parsed && typeof parsed.message === 'string' && parsed.message) message = parsed.message;
+    const err = new Error(message) as Error & { status: number; body: any };
+    err.status = res.status;
+    err.body = parsed;
+    throw err;
+  }
+  return parsed as T;
+}
+
+/**
+ * DELETE <currentEndpoint>/path. Same 401 self-heal as the other transports. */
+async function deleteJSON(path: string): Promise<void> {
+  await wfNewEndpoints.whenReady();
+  const res = await fetch(wfNewEndpoints.buildUrl(path), {
+    method: 'DELETE',
+    headers: authHeaders({ Accept: 'application/json' }),
+  });
+  if (!res.ok) {
+    handleMaybe401(res.status);
+    throw new Error(`HTTP ${res.status} for ${path}`);
+  }
 }
 
 /**
@@ -427,6 +603,57 @@ export const wfNewApiHttp: WfNewApi = {
     setToken(null);
   },
 
+  // ---- Social login + account management ----
+  async socialLogin(cred): Promise<WfNewAuthResult> {
+    // The frontend only forwards the OAuth code; the backend (POST /auth/social)
+    // exchanges it with the server-side client secret, verifies the provider
+    // profile, finds-or-creates the user (matching users.google_id/github_id),
+    // and returns the normal login envelope.
+    const res = await postJSON<any>(WfNewApiPaths.socialLogin, {
+      provider: cred.provider,
+      code: cred.code,
+      id_token: cred.idToken,
+      redirect_uri: cred.redirectUri,
+      state: cred.state,
+      code_verifier: cred.codeVerifier,
+    });
+    const result = toAuthResult(res);
+    if (result.token) setToken(result.token);
+    else console.warn('[WfNewApiHttp] socialLogin succeeded but no token was found — authed calls will 401.');
+    return result;
+  },
+
+  async bindProvider(cred): Promise<void> {
+    await postJSON(WfNewApiPaths.socialBind, {
+      provider: cred.provider,
+      code: cred.code,
+      id_token: cred.idToken,
+      redirect_uri: cred.redirectUri,
+      state: cred.state,
+      code_verifier: cred.codeVerifier,
+    });
+  },
+
+  async unbindProvider(provider): Promise<void> {
+    await postJSON(WfNewApiPaths.socialUnbind, { provider });
+  },
+
+  async changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    await postJSON(WfNewApiPaths.changePassword, {
+      old_password: oldPassword,
+      new_password: newPassword,
+      new_password_confirmation: newPassword,
+    });
+  },
+
+  async updateProfile(patch): Promise<WfNewAuthUser> {
+    // POST /user/profile accepts { nickname, name, bio, location, phone, email }.
+    const res = await postJSON<any>(WfNewApiPaths.userProfile, patch);
+    const data = (unwrapEnvelope(res) as any) || {};
+    const user = data.user && typeof data.user === 'object' ? data.user : data;
+    return (user && typeof user === 'object' ? user : {}) as WfNewAuthUser;
+  },
+
   async getPreferences(): Promise<WfNewPreferences> {
     // GET /user/preferences returns the merged defaults+stored set under `data`.
     return (await authedGetJSON<WfNewPreferences>(WfNewApiPaths.userPreferences, null)) || {};
@@ -520,9 +747,11 @@ export const wfNewApiHttp: WfNewApi = {
     return Array.isArray(res?.friends) ? res.friends : Array.isArray(res) ? res : [];
   },
 
-  async searchUsers(query: string): Promise<WfNewUserSearchResult[]> {
-    if (!query.trim()) return [];
-    const res = await authedGetJSON<any>(WfNewApiPaths.socialSearch(query.trim()), null);
+  async searchUsers(query: string, opts: { native?: string; target?: string } = {}): Promise<WfNewUserSearchResult[]> {
+    const q = query.trim();
+    // A language-filtered search may run with an empty q (browse by language).
+    if (!q && !opts.native && !opts.target) return [];
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialSearch(q, opts), null);
     return Array.isArray(res?.users) ? res.users : Array.isArray(res) ? res : [];
   },
 
@@ -542,6 +771,257 @@ export const wfNewApiHttp: WfNewApi = {
   async getActivities(): Promise<WfNewActivity[]> {
     const res = await authedGetJSON<any>(WfNewApiPaths.socialActivities, null);
     return Array.isArray(res?.activities) ? res.activities : Array.isArray(res) ? res : [];
+  },
+
+  // ---- Social v2: discover / friend-requests / chat / presence / notifications ----
+  async discoverByLanguage(opts: { native?: string; target?: string; q?: string; limit?: number } = {}): Promise<WfNewDiscoverUser[]> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialDiscover(opts), null);
+    const rows = Array.isArray(res?.users) ? res.users : Array.isArray(res) ? res : [];
+    return rows.map((u: any) => ({
+      id: Number(u?.id ?? 0),
+      nickname: u?.nickname ?? u?.name ?? u?.username ?? '',
+      avatar: u?.avatar ?? u?.avatar_url ?? '',
+      native_language: u?.native_language ?? '',
+      learning_languages: Array.isArray(u?.learning_languages) ? u.learning_languages : [],
+      is_following: !!u?.is_following,
+      is_friend: !!u?.is_friend,
+      match: (u?.match === 'exchange' || u?.match === 'native' || u?.match === 'target') ? u.match : 'target',
+      presence: normPresence(u?.presence ?? u?.presence_status ?? u?.status),
+      stats: u?.stats && typeof u.stats === 'object' ? u.stats : undefined,
+    }));
+  },
+
+  async sendFriendRequest(userId: number): Promise<void> {
+    await postJSON(WfNewApiPaths.socialFriendRequest, { user_id: userId });
+  },
+
+  async respondFriendRequest(requestId: number, action: 'accept' | 'reject'): Promise<void> {
+    await postJSON(WfNewApiPaths.socialFriendRespond, { request_id: requestId, action });
+  },
+
+  async getFriendRequests(direction: 'incoming' | 'outgoing' = 'incoming'): Promise<WfNewFriendRequest[]> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialFriendRequests(direction), null);
+    const rows = Array.isArray(res?.requests) ? res.requests : Array.isArray(res) ? res : [];
+    // The backend rows are { request_id, direction, status, user:{id,nickname,avatar}, created_at };
+    // map onto the FLAT WfNewFriendRequest the page + mock use (id === request_id, so
+    // respondFriendRequest(req.id) targets the right row). The OTHER party is `user`.
+    return rows.map((r: any): WfNewFriendRequest => {
+      const rid = Number(r?.request_id ?? r?.id ?? 0);
+      const otherId = Number(r?.user?.id ?? r?.requester_id ?? r?.addressee_id ?? 0);
+      const incoming = (r?.direction ?? direction) !== 'outgoing';
+      return {
+        id: rid,
+        requester_id: r?.requester_id != null ? Number(r.requester_id) : (incoming ? otherId : 0),
+        addressee_id: r?.addressee_id != null ? Number(r.addressee_id) : (incoming ? 0 : otherId),
+        status: (r?.status === 'accepted' || r?.status === 'rejected' || r?.status === 'blocked') ? r.status : 'pending',
+        username: r?.user?.username ?? r?.username ?? undefined,
+        name: r?.user?.nickname ?? r?.user?.name ?? r?.name ?? undefined,
+        avatar_url: absUrl(r?.user?.avatar ?? r?.user?.avatar_url ?? r?.avatar_url) ?? (r?.user?.avatar ?? undefined),
+        created_at: r?.created_at ?? undefined,
+      };
+    });
+  },
+
+  async blockUser(userId: number): Promise<void> {
+    await postJSON(WfNewApiPaths.socialBlock, { user_id: userId });
+  },
+
+  async getConversations(): Promise<WfNewConversation[]> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialConversations, null);
+    const rows = Array.isArray(res?.conversations) ? res.conversations : Array.isArray(res) ? res : [];
+    return rows.map((c: any) => ({
+      id: Number(c?.id ?? 0),
+      type: c?.type === 'group' ? 'group' : 'direct',
+      peer: {
+        id: Number(c?.peer?.id ?? 0),
+        nickname: c?.peer?.nickname ?? c?.peer?.name ?? c?.peer?.username ?? '',
+        avatar: absUrl(c?.peer?.avatar ?? c?.peer?.avatar_url) ?? (c?.peer?.avatar ?? ''),
+        presence: normPresence(c?.peer?.presence),
+      },
+      last_message: c?.last_message ?? null,
+      unread_count: Number(c?.unread_count ?? 0) || 0,
+      last_message_at: c?.last_message_at ?? null,
+    }));
+  },
+
+  async openConversation(userId: number): Promise<WfNewConversation> {
+    const res = await postJSON<any>(WfNewApiPaths.socialConversations, { user_id: userId });
+    const c = unwrapEnvelope(res) ?? {};
+    return {
+      id: Number(c?.id ?? 0),
+      type: c?.type === 'group' ? 'group' : 'direct',
+      peer: {
+        id: Number(c?.peer?.id ?? userId),
+        nickname: c?.peer?.nickname ?? c?.peer?.name ?? c?.peer?.username ?? '',
+        avatar: absUrl(c?.peer?.avatar ?? c?.peer?.avatar_url) ?? (c?.peer?.avatar ?? ''),
+        presence: normPresence(c?.peer?.presence),
+      },
+      last_message: c?.last_message ?? null,
+      unread_count: Number(c?.unread_count ?? 0) || 0,
+      last_message_at: c?.last_message_at ?? null,
+    };
+  },
+
+  async getMessages(conversationId: number, cursor?: number | null): Promise<WfNewMessagePage> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialConversationMessages(conversationId, cursor), null);
+    const rows = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
+    return {
+      messages: rows.map(toMessage),
+      next_cursor: res?.next_cursor != null ? Number(res.next_cursor) : null,
+    };
+  },
+
+  async sendMessage(conversationId: number, body: string, type: 'text' | 'image' | 'voice' = 'text', metadata?: Record<string, any>): Promise<WfNewMessage> {
+    const res = await postJSON<any>(WfNewApiPaths.socialConversationSend(conversationId), { body, type, metadata });
+    return toMessage(unwrapEnvelope(res) ?? {});
+  },
+
+  async markConversationRead(conversationId: number, messageId: number): Promise<void> {
+    await postJSON(WfNewApiPaths.socialConversationRead(conversationId), { message_id: messageId });
+  },
+
+  async presenceHeartbeat(status?: WfNewPresenceStatus): Promise<void> {
+    if (!authToken) return; // no session → nothing to heartbeat
+    await postJSON(WfNewApiPaths.socialPresenceHeartbeat, status ? { status } : {});
+  },
+
+  async getPresence(userIds: number[]): Promise<Record<number, WfNewPresenceInfo>> {
+    if (!userIds.length) return {};
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialPresence(userIds), null);
+    const map = (res && typeof res === 'object') ? (res.presence ?? res) : {};
+    const out: Record<number, WfNewPresenceInfo> = {};
+    for (const [k, v] of Object.entries<any>(map)) {
+      const id = Number(k);
+      if (!Number.isFinite(id)) continue;
+      out[id] = { status: normPresence(v?.status), last_seen_at: v?.last_seen_at ?? null };
+    }
+    return out;
+  },
+
+  async getNotifications(cursor?: number | null, unreadOnly?: boolean): Promise<WfNewNotificationPage> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialNotifications(cursor, unreadOnly), null);
+    const rows = Array.isArray(res?.notifications) ? res.notifications : Array.isArray(res) ? res : [];
+    return {
+      notifications: rows.map(toNotification),
+      next_cursor: res?.next_cursor != null ? Number(res.next_cursor) : null,
+    };
+  },
+
+  async getUnreadCount(): Promise<number> {
+    const res = await authedGetJSON<any>(WfNewApiPaths.socialNotificationsUnreadCount, null);
+    return Number(res?.count ?? 0) || 0;
+  },
+
+  async markNotificationRead(idOrAll: number | 'all'): Promise<void> {
+    await postJSON(WfNewApiPaths.socialNotificationRead, idOrAll === 'all' ? { all: true } : { id: idOrAll });
+  },
+
+  // ---- Social Center: posts / comments / live ----
+  async getPosts(opts: { cursor?: number | null; limit?: number; filter?: WfNewPostFilter; author?: number } = {}): Promise<WfNewPostPage> {
+    // PUBLIC read — getJSON (not authedGetJSON) so the plaza loads logged-out.
+    // `author` is passed through for the user-profile feed; if the backend ignores
+    // it the page client-side filters the returned items by author id as a fallback.
+    const res = await getJSON<any>(WfNewApiPaths.socialPosts(opts));
+    const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+    let items: WfNewPost[] = rows.map(toPost);
+    if (opts.author != null) items = items.filter(p => p.author.id === opts.author);
+    return { items, next_cursor: res?.next_cursor != null ? Number(res.next_cursor) : null };
+  },
+
+  async getPost(postId: number): Promise<WfNewPost> {
+    const res = await getJSON<any>(WfNewApiPaths.socialPost(postId));
+    return toPost(unwrapEnvelope(res) ?? res ?? {});
+  },
+
+  async createPost(payload: WfNewCreatePostPayload): Promise<WfNewPost> {
+    const res = await postJSON<any>(WfNewApiPaths.socialPostsCreate, {
+      content: payload.content,
+      post_type: payload.post_type,
+      external_url: payload.external_url,
+      visibility: payload.visibility,
+    });
+    return toPost(unwrapEnvelope(res) ?? {});
+  },
+
+  async deletePost(postId: number): Promise<void> {
+    await deleteJSON(WfNewApiPaths.socialPost(postId));
+  },
+
+  async likePost(postId: number): Promise<WfNewPostLikeResult> {
+    const res = await postJSON<any>(WfNewApiPaths.socialPostLike(postId), {});
+    const d = unwrapEnvelope(res) ?? {};
+    return { like_count: Number(d?.like_count ?? 0) || 0, liked_by_me: d?.liked_by_me !== false };
+  },
+
+  async unlikePost(postId: number): Promise<WfNewPostLikeResult> {
+    const res = await postJSON<any>(WfNewApiPaths.socialPostUnlike(postId), {});
+    const d = unwrapEnvelope(res) ?? {};
+    return { like_count: Number(d?.like_count ?? 0) || 0, liked_by_me: !!d?.liked_by_me };
+  },
+
+  async getComments(postId: number, cursor?: number | null): Promise<WfNewPostCommentPage> {
+    const res = await getJSON<any>(WfNewApiPaths.socialPostComments(postId, cursor));
+    const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+    return { items: rows.map(toComment), next_cursor: res?.next_cursor != null ? Number(res.next_cursor) : null };
+  },
+
+  async addComment(postId: number, body: string, parentId?: number): Promise<WfNewPostComment> {
+    const res = await postJSON<any>(WfNewApiPaths.socialPostComments(postId), { body, parent_id: parentId });
+    return toComment(unwrapEnvelope(res) ?? {});
+  },
+
+  async deleteComment(postId: number, commentId: number): Promise<void> {
+    await deleteJSON(WfNewApiPaths.socialPostComment(postId, commentId));
+  },
+
+  async uploadPostImages(postId: number, files: File[]): Promise<WfNewPost> {
+    const form = new FormData();
+    for (const f of files) form.append('images[]', f);
+    const res = await postMultipart<any>(WfNewApiPaths.socialPostImages(postId), form);
+    return toPost(unwrapEnvelope(res) ?? {});
+  },
+
+  async uploadPostVideo(postId: number, file: File): Promise<WfNewPost> {
+    const form = new FormData();
+    form.append('video', file);
+    const res = await postMultipart<any>(WfNewApiPaths.socialPostVideo(postId), form);
+    return toPost(unwrapEnvelope(res) ?? {});
+  },
+
+  async getLiveSessions(status: 'live' | 'all' = 'live'): Promise<WfNewLive[]> {
+    const res = await getJSON<any>(WfNewApiPaths.socialLive(status));
+    const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+    return rows.map(toLive);
+  },
+
+  async createLive(payload: WfNewCreateLivePayload): Promise<WfNewLive> {
+    const res = await postJSON<any>(WfNewApiPaths.socialLiveCreate, {
+      title: payload.title,
+      description: payload.description,
+      external_url: payload.external_url,
+    });
+    return toLive(unwrapEnvelope(res) ?? {});
+  },
+
+  async endLive(liveId: number): Promise<void> {
+    await postJSON(WfNewApiPaths.socialLiveEnd(liveId), {});
+  },
+
+  async liveHeartbeat(liveId: number): Promise<number> {
+    const res = await postJSON<any>(WfNewApiPaths.socialLiveHeartbeat(liveId), {});
+    const d = unwrapEnvelope(res) ?? {};
+    return Number(d?.viewer_count ?? 0) || 0;
+  },
+
+  async getLiveChat(liveId: number, cursor?: number | null): Promise<WfNewLiveMsgPage> {
+    const res = await getJSON<any>(WfNewApiPaths.socialLiveChat(liveId, cursor));
+    const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : [];
+    return { items: rows.map(toLiveMsg), next_cursor: res?.next_cursor != null ? Number(res.next_cursor) : null };
+  },
+
+  async sendLiveChat(liveId: number, body: string): Promise<WfNewLiveMsg> {
+    const res = await postJSON<any>(WfNewApiPaths.socialLiveChatSend(liveId), { body });
+    return toLiveMsg(unwrapEnvelope(res) ?? {});
   },
 
   async getBentoGroups(): Promise<BentoGroup[]> {
@@ -655,20 +1135,20 @@ export const wfNewApiHttp: WfNewApi = {
     return asArray(res, 'groups').map(wordRowToContentGroup);
   },
 
-  async getBookGroups(): Promise<WfNewContentGroup[]> {
-    const res = await getJSON<any>(WfNewApiPaths.mediaBooks());
-    return asArray(res, 'items').map((r, i) => mediaRowToContentGroup(r, 'book', i));
+  async getBookGroups(page = 1, perPage = 24): Promise<WfNewContentGroup[]> {
+    const res = await getJSON<any>(WfNewApiPaths.mediaBooks(page, perPage));
+    return asArray(res, 'items').map((r, i) => mediaRowToContentGroup(r, 'book', (page - 1) * perPage + i));
   },
 
-  async getSubtitleGroups(): Promise<WfNewContentGroup[]> {
-    const res = await getJSON<any>(WfNewApiPaths.mediaSubtitles());
-    return asArray(res, 'items').map((r, i) => mediaRowToContentGroup(r, 'subtitle', i));
+  async getSubtitleGroups(page = 1, perPage = 24): Promise<WfNewContentGroup[]> {
+    const res = await getJSON<any>(WfNewApiPaths.mediaSubtitles(page, perPage));
+    return asArray(res, 'items').map((r, i) => mediaRowToContentGroup(r, 'subtitle', (page - 1) * perPage + i));
   },
 
-  async getLibraryGroups(): Promise<WfNewContentGroup[]> {
+  async getLibraryGroups(page = 1, perPage = 24): Promise<WfNewContentGroup[]> {
     // Public word-library list (e.g. "English Coca 60000") — word collections, not docs.
-    const res = await getJSON<any>(WfNewApiPaths.vocabularyLibraries());
-    return asArray(res, 'libraries').map(libraryRowToContentGroup);
+    const res = await getJSON<any>(WfNewApiPaths.vocabularyLibraries(page, perPage));
+    return asArray(res, 'libraries').map((r, i) => libraryRowToContentGroup(r, (page - 1) * perPage + i));
   },
 
   async getDocumentGroups(): Promise<WfNewContentGroup[]> {
@@ -719,12 +1199,180 @@ export const wfNewApiHttp: WfNewApi = {
     const res = await getJSON<any>(WfNewApiPaths.mediaBookDetail(sourceKey, opts));
     const page = res?.sentences ?? {};
     const items: WfNewBookVerse[] = (Array.isArray(page?.items) ? page.items : []).map(toBookVerse);
+    const currentPage = Number(page?.current_page ?? opts.page ?? 1);
+    const perPage = Number(page?.per_page ?? items.length);
+    const total = Number(page?.total ?? items.length);
+    const lastPage = Number(page?.last_page ?? (perPage > 0 ? Math.max(1, Math.ceil(total / perPage)) : 1));
     return {
       items,
-      total: Number(page?.total ?? items.length),
-      perPage: Number(page?.per_page ?? items.length),
-      currentPage: Number(page?.current_page ?? 1),
-      lastPage: Number(page?.last_page ?? 1),
+      total,
+      perPage,
+      currentPage,
+      lastPage,
+      hasMore: page?.has_more != null ? !!page.has_more : currentPage < lastPage,
+    };
+  },
+
+  // ---- Subtitle playback + word stats ----
+
+  async getSubtitleDetail(
+    sourceKey: string,
+    opts: { page?: number; perPage?: number; grain?: string } = {},
+  ): Promise<WfNewSubtitleDetail> {
+    const res = await getJSON<any>(WfNewApiPaths.mediaSubtitleDetail(sourceKey, opts));
+    const src = res?.source ?? {};
+    const segments: WfNewSubtitleSegment[] = (Array.isArray(res?.segments) ? res.segments : []).map((s: any) => ({
+      segIndex: Number(s?.seg_index ?? 0),
+      startSec: Number(s?.start_sec ?? 0),
+      endSec: Number(s?.end_sec ?? 0),
+      subtitleCount: Number(s?.subtitle_count ?? 0) || undefined,
+      mp3Url: absUrl(s?.mp3_url) ?? null,
+      mp4Url: absUrl(s?.mp4_url) ?? null,
+      fullMp4Url: absUrl(s?.full_mp4_url) ?? null,
+    }));
+    const page = res?.sentences ?? {};
+    const items: WfNewSubtitleSentence[] = (Array.isArray(page?.items) ? page.items : []).map((v: any) => ({
+      grain: v?.grain ?? 'sentence',
+      seq: Number(v?.seq ?? 0),
+      segIndex: v?.seg_index ?? undefined,
+      startSec: v?.start_sec ?? undefined,
+      endSec: v?.end_sec ?? undefined,
+      text: v?.text ?? null,
+      language: v?.language ?? null,
+      audio: absUrl(v?.audio) ?? null,
+      languages: v && typeof v.languages === 'object' && v.languages
+        ? Object.fromEntries(Object.entries(v.languages).map(([k, val]: [string, any]) => [k, { text: val?.text ?? null, audio: absUrl(val?.audio) ?? null }]))
+        : undefined,
+    }));
+    return {
+      sourceKey: src?.source_key ?? sourceKey,
+      title: src?.title ?? src?.original_name ?? sourceKey,
+      language: src?.language ?? undefined,
+      durationSec: src?.duration_sec ?? undefined,
+      segments,
+      sentences: {
+        items,
+        total: Number(page?.total ?? items.length),
+        perPage: Number(page?.per_page ?? items.length),
+        currentPage: Number(page?.current_page ?? 1),
+        lastPage: Number(page?.last_page ?? 1),
+      },
+    };
+  },
+
+  async getDictionaryWords(
+    opts: { language?: string; start?: number; limit?: number; filter?: string } = {},
+  ): Promise<WfNewWordPage> {
+    const res = await getJSON<any>(WfNewApiPaths.dictionaryWords(opts));
+    const rows = Array.isArray(res?.words) ? res.words : [];
+    const words: WfNewDictWord[] = rows.map((w: any) => {
+      // translations can be a map/array/string — pick the first usable text.
+      let translation: string | undefined;
+      const t = w?.translations;
+      if (typeof t === 'string') translation = t;
+      else if (Array.isArray(t)) translation = t.find((x) => typeof x === 'string') ?? (t[0]?.translation ?? t[0]?.text);
+      else if (t && typeof t === 'object') translation = (Object.values(t).find((x) => typeof x === 'string') as string) ?? undefined;
+      return {
+        content: w?.content ?? '',
+        md5: w?.md5 ?? '',
+        phonetic: w?.phonetic ?? w?.us_phonetic ?? w?.uk_phonetic ?? undefined,
+        usPhonetic: w?.us_phonetic ?? undefined,
+        ukPhonetic: w?.uk_phonetic ?? undefined,
+        translation,
+        hasTranslation: !!w?.has_translation,
+        audioUrl: absUrl(w?.audio_url) ?? null,
+        ttsStatus: w?.tts_status ?? undefined,
+      };
+    });
+    return {
+      words,
+      total: Number(res?.total ?? words.length),
+      start: Number(res?.start ?? opts.start ?? 0),
+      limit: Number(res?.limit ?? opts.limit ?? words.length),
+      language: res?.language ?? opts.language ?? 'english',
+    };
+  },
+
+  async getLibraryWords(
+    libraryId: string,
+    opts: { page?: number; perPage?: number } = {},
+  ): Promise<WfNewLibraryWordsPage> {
+    const page = Math.max(1, Number(opts.page ?? 1));
+    const perPage = Math.min(2000, Math.max(1, Number(opts.perPage ?? 100)));
+    const res = await getJSON<any>(WfNewApiPaths.vocabularyLibraryWords(libraryId, page, perPage));
+    const lib = res?.library ?? {};
+    const rows = Array.isArray(res?.words) ? res.words : [];
+    const words: WfNewLibraryWord[] = rows.map((w: any) => {
+      const t = w?.translations;
+      const translations: string[] = Array.isArray(t)
+        ? t.filter((x: any) => typeof x === 'string')
+        : (typeof t === 'string' && t ? [t] : []);
+      const images: string[] = Array.isArray(w?.images)
+        ? w.images.map((im: any) => absUrl(typeof im === 'string' ? im : im?.url)).filter(Boolean) as string[]
+        : [];
+      return {
+        index: Number(w?.index ?? 0),
+        word: w?.word ?? '',
+        md5: w?.md5 ?? '',
+        phonetic: w?.phonetic ?? w?.us_phonetic ?? w?.uk_phonetic ?? undefined,
+        usPhonetic: w?.us_phonetic ?? undefined,
+        ukPhonetic: w?.uk_phonetic ?? undefined,
+        explanation: w?.explanation ?? undefined,
+        translations,
+        images,
+        audioUrl: absUrl(w?.audio_url) ?? null,
+        hasTranslation: !!w?.has_translation || translations.length > 0,
+        hasAudio: !!w?.has_audio || !!w?.audio_available,
+        hasImage: !!w?.has_image || images.length > 0,
+        isValid: w?.is_valid !== false,
+      };
+    });
+    const pg = res?.pagination ?? {};
+    const st = res?.stats ?? {};
+    return {
+      library: {
+        id: String(lib?.id ?? libraryId),
+        name: lib?.name ?? '',
+        totalWords: Number(lib?.total_words ?? pg?.total ?? 0) || 0,
+        language: lib?.language ?? 'english',
+      },
+      words,
+      stats: {
+        total: Number(st?.total ?? pg?.total ?? words.length) || 0,
+        translated: Number(st?.translated ?? 0) || 0,
+        withAudio: Number(st?.with_audio ?? 0) || 0,
+        withImage: Number(st?.with_image ?? 0) || 0,
+        invalid: Number(st?.invalid ?? 0) || 0,
+      },
+      pagination: {
+        currentPage: Number(pg?.current_page ?? page) || page,
+        perPage: Number(pg?.per_page ?? perPage) || perPage,
+        total: Number(pg?.total ?? words.length) || 0,
+        lastPage: Number(pg?.last_page ?? 1) || 1,
+        hasMore: !!pg?.has_more,
+      },
+    };
+  },
+
+  async getWordMedia(language: string, word: string): Promise<WfNewWordMedia> {
+    const res = await getJSON<any>(WfNewApiPaths.wordMedia(language, word));
+    const t = res?.translations;
+    const translations: string[] = Array.isArray(t)
+      ? t.filter((x: any) => typeof x === 'string')
+      : (typeof t === 'string' && t ? [t] : []);
+    return {
+      word: res?.word ?? word,
+      md5: res?.md5 ?? '',
+      language: res?.language ?? language,
+      imageUrl: absUrl(res?.image_url) ?? null,
+      audioUrl: absUrl(res?.audio_url) ?? null,
+      imageStatus: res?.image_status === 'ready' ? 'ready' : 'pending',
+      audioStatus: res?.audio_status === 'ready' ? 'ready' : 'pending',
+      translations,
+      explanation: res?.explanation ?? undefined,
+      phonetic: res?.phonetic ?? undefined,
+      usPhonetic: res?.us_phonetic ?? undefined,
+      ukPhonetic: res?.uk_phonetic ?? undefined,
     };
   },
 };

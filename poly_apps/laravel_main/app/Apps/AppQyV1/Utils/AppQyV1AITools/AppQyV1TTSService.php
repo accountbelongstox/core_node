@@ -52,9 +52,13 @@ class AppQyV1TTSService
             return;
         }
         
+        // AUDIO base moved to the unified static tree (see
+        // PathMapper::getAppQyV1AudioBaseDir) so the write target equals the
+        // serve base (/api/app_qy_v1/ai_tools/tts/audio/{...}). Stored tts_files
+        // relative paths ({lang}/{type}/{file}) are unchanged.
         $this->dataDir = $laravelDataDir . '/tts_data';
-        $this->audioDir = $this->dataDir . '/audio';
-        
+        $this->audioDir = PathMapper::getAppQyV1AudioBaseDir();
+
         $this->initializeDirectories();
     }
     

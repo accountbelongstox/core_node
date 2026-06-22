@@ -37,6 +37,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // (production nginx intercepts /static before Laravel sees it).
         then: function () {
             require __DIR__.'/../routes/static.php';
+            // PddToolV1 ROOT-level SaaS surface (/login, /register, /users/me, ...)
+            // MUST NOT carry the /api prefix (the 订多多 Chrome extension calls these
+            // bare paths). Wired here, alongside routes/static.php, so they bypass
+            // the api/web middleware groups; per-route 'custom.authenticate' (Sanctum
+            // bearer token) guards the protected ones.
+            require __DIR__.'/../routes/PddToolV1Router/PddToolV1Root.php';
         },
     )
     ->withProviders([
@@ -65,6 +71,16 @@ return Application::configure(basePath: dirname(__DIR__))
             'api_params_cache/*',
             'translation/*',
             'tts/*',
+            // PddToolV1 ROOT-level POST/PUT/DELETE SaaS endpoints (no /api prefix).
+            'login',
+            'register',
+            'users/me/*',
+            'batch-orders',
+            'batch-orders/*',
+            'convert-order-link',
+            'recharge/*',
+            'pay/*',
+            'erp/*',
         ]);
 
         $middleware->web(append: [
@@ -77,6 +93,37 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions) {
         // Show all errors with full stack traces in debug mode
         $exceptions->dontReport([]);
+
+        // PddToolV1 (订多多) root SaaS surface must emit FastAPI {"detail":"..."} errors
+        // (the Chrome extension reads err.detail). Registered FIRST so it wins over the
+        // generic {success:false} renderers for these specific root paths only.
+        $exceptions->render(function (Throwable $e, Request $request) {
+            $pddPaths = [
+                'login', 'register', 'users/me', 'users/me/*',
+                'batch-orders', 'batch-orders/*', 'convert-order-link',
+                'recharge', 'recharge/*', 'pay/*', 'erp/*', 'pdd/health',
+            ];
+            if ($request->is(...$pddPaths)) {
+                // Unauthenticated on a protected PddTool root path (custom.authenticate
+                // throws AuthenticationException / aborts 401) must use the FastAPI
+                // {"detail":"Could not validate credentials"} shape the 订多多 extension
+                // reads, NOT the generic {success:false} envelope.
+                if ($e instanceof \Illuminate\Auth\AuthenticationException) {
+                    return response()->json(['detail' => 'Could not validate credentials'], 401);
+                }
+                $status = 500;
+                if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                    $status = $e->getStatusCode();
+                }
+                if ($status === 401) {
+                    return response()->json(['detail' => 'Could not validate credentials'], 401);
+                }
+                return response()->json(
+                    ['detail' => $e->getMessage() !== '' ? $e->getMessage() : 'Internal server error'],
+                    $status
+                );
+            }
+        });
 
         // Handle authentication exceptions for API routes
         $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {

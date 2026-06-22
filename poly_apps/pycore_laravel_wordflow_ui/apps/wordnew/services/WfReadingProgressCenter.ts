@@ -4,7 +4,7 @@
  * id) persisted via WordflowStorage (READING_PROGRESS key), updates broadcast
  * via wfEventBus('reading-progress-updated'). */
 
-import { StorageCenter, StorageKey } from '../../../core/api-libs/wordflow/WordflowStorage';
+import { StorageCenter, StorageKey } from '../api-libs/wordflow/WordflowStorage';
 import { wfEventBus } from './WfEventBus';
 
 export interface WfReadingProgress {

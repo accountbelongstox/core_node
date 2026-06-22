@@ -11,8 +11,8 @@
  * sent as its own top-level field because the backend's /user/statistics reads
  * it server-side for today_progress/daily_goal. */
 
-import { StorageCenter } from '../../../core/api-libs/wordflow/WordflowStorage';
-import { wordflowApi } from '../../../core/api-libs/wordflow/WordflowApi';
+import { StorageCenter } from '../api-libs/wordflow/WordflowStorage';
+import { wordflowApi } from '../api-libs/wordflow/WordflowApi';
 import { wfEventBus } from './WfEventBus';
 
 export interface WfAppSettings {

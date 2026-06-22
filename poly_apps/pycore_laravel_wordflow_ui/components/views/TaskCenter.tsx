@@ -25,6 +25,7 @@ import {
   Timer,
   Database,
   Cpu,
+  HandHelping,
   RefreshCw,
   AlertCircle,
   Loader2,
@@ -34,6 +35,7 @@ import OverviewPanel, { TaskCenterTab } from './task-center/OverviewPanel';
 import SchedulerPanel from './task-center/SchedulerPanel';
 import QueuePanel from './task-center/QueuePanel';
 import WorkersPanel from './task-center/WorkersPanel';
+import AssistRequestsPanel from './task-center/AssistRequestsPanel';
 
 interface TaskCenterProps {
   lang?: Language;
@@ -46,9 +48,10 @@ const TAB_ICONS: Record<TaskCenterTab, React.ComponentType<{ className?: string 
   scheduler: Timer,
   queue: Database,
   workers: Cpu,
+  assist: HandHelping,
 };
 
-const TAB_ORDER: TaskCenterTab[] = ['overview', 'scheduler', 'queue', 'workers'];
+const TAB_ORDER: TaskCenterTab[] = ['overview', 'scheduler', 'queue', 'workers', 'assist'];
 
 const TaskCenter: React.FC<TaskCenterProps> = ({ lang = 'en', initialTab = 'overview' }) => {
   const [activeTab, setActiveTab] = useState<TaskCenterTab>(initialTab);
@@ -249,6 +252,14 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ lang = 'en', initialTab = 'over
       )}
       {activeTab === 'workers' && (
         <WorkersPanel
+          lang={lang}
+          autoRefresh={autoRefresh}
+          refreshIntervalSec={refreshIntervalSec}
+          refreshToken={refreshToken}
+        />
+      )}
+      {activeTab === 'assist' && (
+        <AssistRequestsPanel
           lang={lang}
           autoRefresh={autoRefresh}
           refreshIntervalSec={refreshIntervalSec}

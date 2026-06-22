@@ -9,6 +9,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordMediaController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordLearningStatusController;
 use Illuminate\Support\Facades\Route;
 
@@ -52,4 +53,11 @@ Route::prefix('words/public')->group(function () {
     Route::get('/{word}', [AppQyV1WordQueryController::class, 'publicWordLookup']);
 
 });
+
+// Word-media on-demand resolution (P2). No auth — pycore + FE consume it; the
+// same public trust level as words/public. FILE-FIRST: image_url/audio_url only
+// when on disk, else enqueue + bump the word_media task and report 'pending'.
+//   GET /api/app_qy_v1/word/{lang}/{word}/media
+Route::get('/word/{lang}/{word}/media', [AppQyV1WordMediaController::class, 'media'])
+    ->where('lang', '[A-Za-z][A-Za-z0-9_-]*');
 });

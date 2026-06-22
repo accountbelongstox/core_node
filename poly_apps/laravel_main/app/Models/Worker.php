@@ -23,11 +23,14 @@ class Worker extends Model
         'completed_tasks',
         'failed_tasks',
         'current_task_id',
+        // Phase 2 — capability tags advertised at registration for remote_fast routing.
+        'capabilities',
     ];
 
     protected $casts = [
         'processor_types' => 'array',
         'metadata' => 'array',
+        'capabilities' => 'array',
         'last_heartbeat_at' => 'datetime',
         'completed_tasks' => 'integer',
         'failed_tasks' => 'integer',
@@ -37,6 +40,26 @@ class Worker extends Model
     const STATUS_ONLINE = 'online';
     const STATUS_OFFLINE = 'offline';
     const STATUS_BUSY = 'busy';
+
+    /**
+     * Capability tags this worker advertised (empty array when none / NULL in DB).
+     *
+     * @return array<int,string>
+     */
+    public function capabilityList(): array
+    {
+        return is_array($this->capabilities)
+            ? array_values(array_filter($this->capabilities, 'is_string'))
+            : [];
+    }
+
+    /**
+     * Whether this worker advertises a given capability tag.
+     */
+    public function hasCapability(string $capability): bool
+    {
+        return in_array($capability, $this->capabilityList(), true);
+    }
 
     // Heartbeat timeout (seconds)
     const HEARTBEAT_TIMEOUT = 120;

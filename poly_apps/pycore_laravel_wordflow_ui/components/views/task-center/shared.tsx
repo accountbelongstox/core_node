@@ -9,7 +9,18 @@
  * formatters lifted (deduped) from the former OctaneTasks/GlobalTasks views.
  */
 import React from 'react';
-import { LucideIcon } from 'lucide-react';
+import {
+  LucideIcon,
+  Languages,
+  Sparkles,
+  Image as ImageIcon,
+  Volume2,
+  AudioLines,
+  BookOpen,
+  Captions,
+  ImagePlus,
+  Cpu,
+} from 'lucide-react';
 import { Language } from '../../../types';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
@@ -33,7 +44,8 @@ export type QueueTaskStatus = (typeof QUEUE_TASK_STATUSES)[number];
 export const CANCELLABLE_STATUSES: string[] = ['pending', 'assigned', 'processing'];
 
 /** Queue statuses: pending=blue, assigned=indigo, processing=amber,
- *  completed=green, completed_demo=teal, failed=red, cancelled=gray. */
+ *  completed=green, completed_demo=teal, failed=red, cancelled=gray,
+ *  timeout=orange, reclaimed=yellow. */
 const QUEUE_STATUS_BADGE: Record<string, string> = {
   pending: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
   assigned: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400',
@@ -42,6 +54,8 @@ const QUEUE_STATUS_BADGE: Record<string, string> = {
   completed_demo: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400',
   failed: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
   cancelled: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400',
+  timeout: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
+  reclaimed: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
 };
 
 /** Octane scheduler timer-task statuses. */
@@ -101,6 +115,169 @@ export const RoleBadge: React.FC<{ role: TaskCenterQueueRole; lang: Language }> 
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${ROLE_BADGE[role] || FALLBACK_BADGE}`}>
       {label}
+    </span>
+  );
+};
+
+// ==================== Task-type vocabulary (canonical) ====================
+
+/** Canonical presentation for every global_tasks `task_type` the unified queue
+ *  emits. Each entry: friendly label, a distinct badge color (same Tailwind
+ *  light/dark pill style the status badges use), and a Lucide icon. */
+interface TaskTypeMeta {
+  label: string;
+  badge: string;
+  icon: LucideIcon;
+}
+
+export const TASK_TYPE_META: Record<string, TaskTypeMeta> = {
+  word_translation: {
+    label: 'Word Translation',
+    badge: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+    icon: Languages,
+  },
+  word_media: {
+    label: 'Word Media',
+    badge: 'bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-400',
+    icon: ImageIcon,
+  },
+  word_audio: {
+    label: 'Word Audio',
+    badge: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400',
+    icon: Volume2,
+  },
+  gemini_image: {
+    label: 'Gemini Image',
+    badge: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400',
+    icon: ImagePlus,
+  },
+  notebooklm: {
+    label: 'NotebookLM',
+    badge: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
+    icon: BookOpen,
+  },
+  sentence_audio: {
+    label: 'Sentence Audio',
+    badge: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400',
+    icon: AudioLines,
+  },
+  poster: {
+    label: 'Poster',
+    badge: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400',
+    icon: ImageIcon,
+  },
+  subtitle_search: {
+    label: 'Subtitle Search',
+    badge: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
+    icon: Captions,
+  },
+};
+
+/** The 8 canonical task types in catalog order (for filter chip sets). */
+export const TASK_TYPE_KEYS = Object.keys(TASK_TYPE_META);
+
+const TASK_TYPE_FALLBACK_ICON: LucideIcon = Cpu;
+
+export const taskTypeMeta = (taskType: string | null | undefined): TaskTypeMeta => {
+  const key = (taskType || '').trim();
+  return (
+    TASK_TYPE_META[key] || {
+      label: key || 'Unknown',
+      badge: FALLBACK_BADGE,
+      icon: TASK_TYPE_FALLBACK_ICON,
+    }
+  );
+};
+
+/** Pill badge (icon + friendly label) for any task_type string. */
+export const TaskTypeBadge: React.FC<{ taskType: string | null | undefined; size?: 'xs' | 'sm' }> = ({
+  taskType,
+  size = 'xs',
+}) => {
+  const meta = taskTypeMeta(taskType);
+  const Icon = meta.icon;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded font-medium whitespace-nowrap ${
+        size === 'sm' ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs'
+      } ${meta.badge}`}
+      title={taskType || undefined}
+    >
+      <Icon className={size === 'sm' ? 'w-4 h-4' : 'w-3 h-3'} />
+      {meta.label}
+    </span>
+  );
+};
+
+// ==================== Capability vocabulary (canonical) ====================
+
+/** The 7 fast-lane capabilities + the NULL → 'any' (first-idle-wins) marker.
+ *  'ai_translate' is shown as 'AI Translate' — deliberately distinct from the
+ *  plain 'translate' (google) capability. */
+interface CapabilityMeta {
+  label: string;
+  badge: string;
+}
+
+export const CAPABILITY_META: Record<string, CapabilityMeta> = {
+  audio: {
+    label: 'Audio',
+    badge: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400',
+  },
+  image: {
+    label: 'Image',
+    badge: 'bg-fuchsia-100 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-400',
+  },
+  translate: {
+    label: 'Translate',
+    badge: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+  },
+  ai_translate: {
+    label: 'AI Translate',
+    badge: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400',
+  },
+  sentence_audio: {
+    label: 'Sentence Audio',
+    badge: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400',
+  },
+  subtitle: {
+    label: 'Subtitle',
+    badge: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
+  },
+  poster: {
+    label: 'Poster',
+    badge: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400',
+  },
+};
+
+/** NULL / unset capability = first-idle-wins across all advertising workers. */
+const CAPABILITY_ANY: CapabilityMeta = {
+  label: 'any',
+  badge: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400',
+};
+
+export const capabilityMeta = (cap: string | null | undefined): CapabilityMeta => {
+  const key = (cap || '').trim();
+  if (!key) return CAPABILITY_ANY;
+  return CAPABILITY_META[key] || { label: key, badge: FALLBACK_BADGE };
+};
+
+/** Pill badge for a fast-lane capability (or 'any' when null/unset). */
+export const CapabilityBadge: React.FC<{ capability: string | null | undefined; size?: 'xs' | 'sm' }> = ({
+  capability,
+  size = 'xs',
+}) => {
+  const meta = capabilityMeta(capability);
+  const isAiTranslate = (capability || '').trim() === 'ai_translate';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded font-medium whitespace-nowrap ${
+        size === 'sm' ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs'
+      } ${meta.badge}`}
+      title={`capability: ${capability || 'any'}`}
+    >
+      {isAiTranslate && <Sparkles className={size === 'sm' ? 'w-4 h-4' : 'w-3 h-3'} />}
+      {meta.label}
     </span>
   );
 };

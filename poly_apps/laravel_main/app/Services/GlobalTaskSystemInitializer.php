@@ -24,7 +24,54 @@ class GlobalTaskSystemInitializer
         // Step 2: Check and create workers table
         $results['workers'] = self::ensureWorkersTableExists();
 
+        // Step 3: Check and create the append-only task event log table.
+        $results['global_task_events'] = self::ensureGlobalTaskEventsTableExists();
+
         return $results;
+    }
+
+    /**
+     * Ensure global_task_events table exists (append-only task transition log).
+     *
+     * Mirrors the migration global_2026_06_21_000000_create_global_task_events_table:
+     * one row per task transition (assigned/processing/completed/failed/timeout/
+     * reclaimed/cancelled) written by TaskManagerService. Same shared-helper,
+     * add-only, idempotent alignment as global_tasks/workers.
+     *
+     * @return string Status: 'created', 'updated', 'exists', or 'error'
+     */
+    private static function ensureGlobalTaskEventsTableExists(): string
+    {
+        try {
+            $connection = config('database.default');
+
+            $structure = [
+                'columns' => [
+                    'id'         => ['type' => 'bigIncrements'],
+                    'task_id'    => ['type' => 'string', 'index' => true],
+                    'worker_id'  => ['type' => 'string', 'nullable' => true],
+                    'event'      => ['type' => 'string'],
+                    'attempt'    => ['type' => 'unsignedInteger', 'default' => 0],
+                    'detail'     => ['type' => 'json', 'nullable' => true],
+                    'created_at' => ['type' => 'timestamp', 'nullable' => true, 'index' => true],
+                ],
+                'indexes' => [
+                    ['columns' => ['task_id', 'id'], 'name' => 'idx_task_event_order'],
+                ],
+            ];
+
+            $result = SafeMigrationHelper::alignTableStructureFromArray(
+                $connection,
+                'global_task_events',
+                $structure,
+                ['shrink_columns' => false, 'modify_columns' => false, 'add_indexes' => true]
+            );
+
+            $status = $result['status'] ?? 'error';
+            return $status === 'aligned' ? 'exists' : $status; // created|updated|exists
+        } catch (\Exception $e) {
+            return 'error: ' . $e->getMessage();
+        }
     }
 
     /**

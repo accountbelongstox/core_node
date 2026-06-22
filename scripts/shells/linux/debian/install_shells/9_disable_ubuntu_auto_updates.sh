@@ -237,17 +237,24 @@ main() {
     log "Starting Ubuntu auto-update disable process..."
     echo ""
     
-    # Check if running on Ubuntu/Debian
+    # Check if running on an Ubuntu/Debian-FAMILY system. Derivatives such as Kali,
+    # Parrot, Linux Mint, Pop!_OS and Raspbian report their own ID (e.g. ID=kali) but
+    # declare ID_LIKE=debian/ubuntu and use the same apt unattended-upgrades mechanism,
+    # so accept any of them -- gating on ID alone wrongly rejected Kali ("designed for
+    # Ubuntu/Debian systems only"). POSIX case (no bash-isms); ID_LIKE may be unset.
     if [ ! -s /etc/os-release ]; then
         error "Cannot detect operating system (missing /etc/os-release)"
         exit 1
     fi
-    
+
     . /etc/os-release
-    if [ "$ID" != "ubuntu" ] && [ "$ID" != "debian" ]; then
-        error "This script is designed for Ubuntu/Debian systems only"
-        exit 1
-    fi
+    case " ${ID:-} ${ID_LIKE:-} " in
+        *" ubuntu "*|*" debian "*) : ;;
+        *)
+            error "This script targets Ubuntu/Debian-family systems only (ID=${ID:-?}, ID_LIKE=${ID_LIKE:-none})"
+            exit 1
+            ;;
+    esac
     
     log "Detected: $ID $VERSION_ID"
     echo ""

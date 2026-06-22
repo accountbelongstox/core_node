@@ -422,4 +422,33 @@ class AppQyV1AssistController extends Controller
             'snapshot' => $this->assist->pendingSnapshot($fresh),
         ]);
     }
+
+    /**
+     * GET /api/app_qy_v1/assist/overview
+     *
+     * Single rich aggregate snapshot consumed by pycore's Queue Center overview
+     * (SHARED CONTRACT v2). Returns every assist category (word_translation,
+     * word_image, word_audio, sentence_audio, subtitle_lang, book_lang, cover,
+     * poster) with pending/processing/leased/total + by_language + sample rows,
+     * plus the online worker roster. Cache-backed (30s TTL); ?fresh=1 forces a
+     * recompute. NO-AUTH, matching the other assist worker surfaces.
+     */
+    public function overview(Request $request): JsonResponse
+    {
+        $fresh = (bool) $request->query('fresh', false);
+
+        try {
+            $snapshot = $this->assist->overviewSnapshot($fresh);
+        } catch (\Throwable $e) {
+            Log::error('[Assist] overview failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'error' => 'Internal error building overview',
+                'categories' => [],
+                'workers' => [],
+            ], 500);
+        }
+
+        return response()->json($snapshot);
+    }
 }

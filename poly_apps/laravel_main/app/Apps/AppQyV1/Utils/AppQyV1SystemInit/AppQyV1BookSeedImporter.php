@@ -8,37 +8,46 @@
 namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 
 use App\Models\Book;
+use App\Models\SourceSentence;
 use App\Providers\PathMapper;
+use App\Providers\AppTablePrefixServiceProvider;
+use App\Constants\AppKeys;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\MediaIngestService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * AppQyV1BookSeedImporter
  * -------------------------------------------------------------------------
- * Idempotently seeds an INITIAL book list into the AppQyV1 database from a
- * compressed corpus that ships in the repository, so a fresh install already
- * has books to read without any network fetch.
+ * Idempotently seeds an INITIAL book into the AppQyV1 database from a compressed
+ * corpus that ships in the repository, so a fresh install already has a book to
+ * read without any network fetch.
  *
- * The shipped corpus is the zeoinjesus.com Chinese/English parallel Bible
- * (66 books, public-domain KJV + 和合本 chosen as the seeded bilingual pair).
- * For personal academic / devotional study use only.
+ * The shipped corpus is the zeoinjesus.com Chinese/English parallel Bible. It is
+ * seeded as ONE book ("Holy Bible") with N CHAPTERS — one chapter per biblical
+ * sub-book (Genesis … Revelation), in canonical order — NOT as N separate books.
+ * Each verse keeps its real `book chapter:verse` reference in slot metadata. The
+ * seeded bilingual pair is public-domain (en <- KJV, zh <- 和合本 CUV); the other
+ * four editions stay inside the blob and are noted in metadata. For personal
+ * academic / devotional study use only.
  *
- * Pipeline (called from AppQyV1Initializer's `seed_books` step, AFTER the
- * Books v3 tables exist and are verified):
- *   1. Locate the committed blob. It ships with a `.js` extension so it lives
- *      cleanly in the code tree; nothing else from it is ever written there.
- *   2. Copy it to a RUNTIME temp dir (PathMapper::getLaravelTmpDir) under its
- *      real `.tar.xz` name, ensure decompression tooling, and extract THERE.
- *      The code tree is never polluted with the extracted JSON.
- *   3. Transcode each book document into a Books v3 ingest payload
- *      (chapter -> per-language correspondence slots) and hand it to
- *      MediaIngestService::ingest(), which upserts fill-missing / never clobber.
- *   4. Delete the temp dir.
+ * Pipeline (called from AppQyV1Initializer's `seed_books` step, AFTER the Books
+ * v3 tables exist and are verified):
+ *   1. Locate the committed `.js`-disguised blob (lives cleanly in the code tree).
+ *   2. Copy it to a RUNTIME temp dir, ensure decompression tooling, extract THERE
+ *      (the code tree is never polluted with the extracted JSON).
+ *   3. Transcode the WHOLE corpus into ONE model_version:3 payload (one book ->
+ *      66 chapters -> per-language verse slots) and hand it to
+ *      MediaIngestService::ingest() (one atomic transaction, fill-missing).
+ *   4. Supersede any legacy per-book rows from the earlier (wrong) one-book-per-
+ *      file seed, then delete the temp dir.
  *
- * Idempotency: a completion sentinel (the last book) is checked first via
- * isSeeded(); MediaIngestService is itself fill-missing, so a partial/repeat
- * run only adds what is missing and never regresses existing rows.
+ * Idempotency: the completion sentinel is the single Bible book's source_key
+ * (isSeeded()); the v3 ingest is one transaction, so the book row exists iff the
+ * whole seed committed.
  */
 class AppQyV1BookSeedImporter
 {
@@ -48,8 +57,11 @@ class AppQyV1BookSeedImporter
     /** Top-level directory name packed inside the archive. */
     private const CORPUS_DIRNAME = 'zeoinjesus-bible';
 
-    /** Stable namespace for this seed collection (part of every source_key). */
+    /** Stable namespace for this seed collection (part of the source_key). */
     private const COLLECTION = 'zeoinjesus-bible';
+
+    /** The single seeded book's title (English; FE localizes the display name). */
+    private const BIBLE_TITLE = 'Holy Bible';
 
     /** Primary language (L0) for the seeded bilingual pair. */
     private const PRIMARY_LANGUAGE = 'en';
@@ -59,9 +71,6 @@ class AppQyV1BookSeedImporter
      * editions are public-domain so the seed is safe to commit:
      *   en <- KJV (King James Version, 1611)
      *   zh <- CUV (和合本 Chinese Union Version, 1919)
-     * The other four editions (lzz/ncv/nasb/niv) remain available inside the
-     * shipped corpus blob and are recorded in book metadata, but are not
-     * inserted to keep the seeded DB lean.
      */
     private const LANG_VERSION = [
         'en' => 'kjv',
@@ -71,29 +80,30 @@ class AppQyV1BookSeedImporter
     /** All editions present in the corpus (for book metadata only). */
     private const AVAILABLE_VERSIONS = ['cuv', 'kjv', 'lzz', 'nasb', 'ncv', 'niv'];
 
-    /** Last book in the catalogue order; its presence means a full seed completed. */
-    private const SENTINEL_ABBR = 'mal';
+    /** The single Bible book's deterministic source_key (one book, not 66). */
+    public static function bibleSourceKey(): string
+    {
+        return sha1(self::COLLECTION);
+    }
 
     /**
-     * Deterministic per-book source_key. Stable across machines/runs so re-seeds
-     * reconcile onto the same rows.
+     * Deterministic LEGACY per-book source_key — kept only to find/remove the rows
+     * left by the earlier (wrong) one-book-per-file seed. New data never uses it.
      */
-    public static function seedSourceKey(string $abbr): string
+    public static function legacyBookSourceKey(string $abbr): string
     {
         return sha1(self::COLLECTION . '|book|' . strtolower($abbr));
     }
 
     /**
-     * Cheap DB truth check: is the corpus already fully seeded? Used both by the
-     * importer fast-path and by AppQyV1Initializer::stepStillSatisfiedInDb so a
-     * stale status flag can never wrongly skip an un-seeded database.
+     * Cheap DB truth check: is the Bible already seeded as the single book? Used
+     * both by the importer fast-path and by AppQyV1Initializer::stepStillSatisfiedInDb.
      */
     public static function isSeeded(): bool
     {
         try {
-            return Book::where('source_key', self::seedSourceKey(self::SENTINEL_ABBR))->exists();
+            return Book::where('source_key', self::bibleSourceKey())->exists();
         } catch (\Throwable $e) {
-            // Cannot determine -> treat as not seeded so the seed step can run.
             return false;
         }
     }
@@ -108,16 +118,17 @@ class AppQyV1BookSeedImporter
             . str_replace('/', DIRECTORY_SEPARATOR, self::SEED_REL_PATH);
 
         if (!is_file($blobPath)) {
-            return [
-                'status' => 'warning',
-                'message' => 'Book seed blob not found: ' . $blobPath,
-            ];
+            return ['status' => 'warning', 'message' => 'Book seed blob not found: ' . $blobPath];
         }
 
+        // Already the single Bible book: clean up any leftover legacy per-book rows
+        // (idempotent) and return WITHOUT decompressing.
         if (self::isSeeded()) {
+            $removed = $this->supersedeLegacyPerBookSeed();
             return [
                 'status' => 'success',
-                'message' => 'Book corpus already seeded (sentinel present)',
+                'message' => 'Bible already seeded as one book'
+                    . ($removed ? " (removed {$removed} legacy per-book rows)" : ''),
             ];
         }
 
@@ -138,63 +149,46 @@ class AppQyV1BookSeedImporter
 
             $files = $this->listBookFiles($corpusRoot);
             if (empty($files)) {
-                return [
-                    'status' => 'warning',
-                    'message' => 'No book files found inside the extracted corpus',
-                ];
+                return ['status' => 'warning', 'message' => 'No book files found inside the extracted corpus'];
             }
 
-            $books = 0;
-            $failed = 0;
-            $sentences = 0;
-            $chapters = 0;
-
+            $docs = [];
             foreach ($files as $file) {
                 $doc = json_decode((string) file_get_contents($file), true);
-                if (!is_array($doc) || !isset($doc['book'])) {
-                    $failed++;
-                    continue;
-                }
-                try {
-                    $res = $this->ingestBook($doc);
-                    $books++;
-                    $chapters += (int) ($res['chapters']['created'] ?? 0);
-                    $sentences += (int) ($res['sentences']['created'] ?? 0);
-                } catch (\Throwable $e) {
-                    $failed++;
-                    Log::warning('[AppQyV1BookSeed] Book ingest failed', [
-                        'file' => basename($file),
-                        'error' => $e->getMessage(),
-                    ]);
+                if (is_array($doc) && isset($doc['book'])) {
+                    $docs[] = $doc;
                 }
             }
+            if (empty($docs)) {
+                return ['status' => 'warning', 'message' => 'No valid book documents in the corpus'];
+            }
 
-            // A clean run is only "success" when the completion sentinel actually
-            // landed in the DB; otherwise stay 'warning' so the step re-runs and
-            // fills the remainder (fill-missing makes that safe).
-            $complete = $failed === 0 && self::isSeeded();
+            // ONE book -> N chapters (one per biblical sub-book), one atomic ingest.
+            $payload = $this->buildBiblePayload($docs);
+            try {
+                app(MediaIngestService::class)->ingest($payload);
+            } catch (\Throwable $e) {
+                Log::error('[AppQyV1BookSeed] Bible ingest failed: ' . $e->getMessage());
+                return ['status' => 'warning', 'message' => 'Bible ingest failed: ' . $e->getMessage()];
+            }
+
+            // Now the single Bible book exists -> remove the legacy 66-book rows.
+            $removed = $this->supersedeLegacyPerBookSeed();
+            $complete = self::isSeeded();
 
             return [
                 'status' => $complete ? 'success' : 'warning',
                 'message' => sprintf(
-                    'Seeded %d book(s) (%d new chapters, %d new sentences)%s',
-                    $books,
-                    $chapters,
-                    $sentences,
-                    $failed ? ", {$failed} failed" : ''
+                    'Seeded the Bible as ONE book (%d chapters, %d verses)%s',
+                    count($payload['chapters']),
+                    count($payload['slots']),
+                    $removed ? " [superseded {$removed} legacy per-book rows]" : ''
                 ),
-                'books' => $books,
-                'failed' => $failed,
             ];
         } catch (\Throwable $e) {
             Log::error('[AppQyV1BookSeed] Seed failed: ' . $e->getMessage());
-            return [
-                'status' => 'warning',
-                'message' => 'Book seed error: ' . $e->getMessage(),
-            ];
+            return ['status' => 'warning', 'message' => 'Book seed error: ' . $e->getMessage()];
         } finally {
-            // Never leave the extracted corpus behind (no code-tree pollution and
-            // no runtime bloat).
             try {
                 if (is_dir($tempDir)) {
                     File::deleteDirectory($tempDir);
@@ -220,64 +214,92 @@ class AppQyV1BookSeedImporter
     }
 
     /**
-     * Build a Books v3 ingest payload from one corpus book document and hand it
-     * to MediaIngestService. All idempotency/dedup happens inside the service.
+     * Canonical full-Bible order key: Old Testament (Genesis … Malachi) FIRST,
+     * then New Testament (Matthew … Revelation). The corpus `order` is canonical
+     * WITHIN each testament (OT 28..66, NT 1..27); shifting NT past OT yields the
+     * proper reading order for the single Bible book.
      */
-    private function ingestBook(array $doc): array
+    private function canonicalIndex(array $book): int
     {
-        $payload = $this->buildBookPayload($doc);
-        return app(MediaIngestService::class)->ingest($payload);
+        $order = (int) ($book['order'] ?? 0);
+        $testament = strtoupper((string) ($book['testament'] ?? ''));
+        return $testament === 'NT' ? $order + 1000 : $order;
     }
 
     /**
-     * Transcode a corpus book document into the model_version:3 payload
-     * (chapter -> per-language slot tree). See BOOKS_FEATURE_SPECIFICATION.md §7.
+     * Transcode the WHOLE corpus into ONE model_version:3 payload: one book whose
+     * chapters are the biblical sub-books (one chapter each, canonical order) and
+     * whose verse slots carry a GLOBAL seq + the chapter_index of their sub-book.
+     * Each verse keeps its real `book chapter:verse` reference in slot metadata.
      */
-    private function buildBookPayload(array $doc): array
+    private function buildBiblePayload(array $docs): array
     {
-        $book = $doc['book'];
-        $abbr = (string) ($book['abbr'] ?? '');
-        $sourceKey = self::seedSourceKey($abbr);
+        // Canonical order: OT (Genesis..Malachi) then NT (Matthew..Revelation).
+        usort($docs, function ($a, $b) {
+            return $this->canonicalIndex($a['book'] ?? []) <=> $this->canonicalIndex($b['book'] ?? []);
+        });
 
+        $sourceKey = self::bibleSourceKey();
         $chapters = [];
         $slots = [];
-        $seq = 0;
+        $seq = 0;          // global verse index across the whole Bible
         $verseTotal = 0;
+        $chapterIndex = 0; // one chapter per sub-book (0..N-1)
 
-        foreach (($doc['chapters'] ?? []) as $chapter) {
-            $chapterNo = (int) ($chapter['chapter'] ?? 0);
-            $chapterIndex = max(0, $chapterNo - 1);
+        foreach ($docs as $doc) {
+            $book = $doc['book'];
+            $english = (string) ($book['english'] ?? '');
+            $zhName = (string) ($book['name'] ?? '');
+            $abbr = (string) ($book['abbr'] ?? '');
+            $bookVerseStart = $verseTotal;
 
+            foreach (($doc['chapters'] ?? []) as $chapter) {
+                $chapterNo = (int) ($chapter['chapter'] ?? 0);
+                foreach (($chapter['verses'] ?? []) as $verse) {
+                    $texts = is_array($verse['texts'] ?? null) ? $verse['texts'] : [];
+                    $langs = [];
+                    foreach (self::LANG_VERSION as $langCode => $version) {
+                        $text = isset($texts[$version]) ? (string) $texts[$version] : '';
+                        // null when the edition lacks this verse -> empty correspondence (留空).
+                        $langs[$langCode] = $text !== '' ? $text : null;
+                    }
+                    $verseNo = (int) ($verse['verse'] ?? 0);
+
+                    $slots[] = [
+                        // One chapter == this sub-book; the verse's REAL chapter:verse
+                        // lives in metadata so the reader can show "Genesis 1:1".
+                        'chapter_index' => $chapterIndex,
+                        'grain' => 'sentence',
+                        'seq' => $seq,
+                        'primary_language' => self::PRIMARY_LANGUAGE,
+                        'langs' => $langs,
+                        'metadata' => [
+                            'book' => $english,
+                            'abbr' => $abbr,
+                            'book_chapter' => $chapterNo,
+                            'verse' => $verseNo,
+                            'ref' => $chapterNo . ':' . $verseNo,
+                        ],
+                    ];
+                    $seq++;
+                    $verseTotal++;
+                }
+            }
+
+            // ONE chapter per sub-book, titled per language (zh from corpus data).
             $chapters[] = [
                 'chapter_index' => $chapterIndex,
-                'title' => 'Chapter ' . $chapterNo,
-                'sentence_count' => (int) ($chapter['verseCount'] ?? count($chapter['verses'] ?? [])),
+                'titles' => [
+                    'en' => $english !== '' ? $english : ('Book ' . ($chapterIndex + 1)),
+                    'zh' => $zhName !== '' ? $zhName : null,
+                ],
+                'sentence_count' => $verseTotal - $bookVerseStart,
+                'metadata' => [
+                    'abbr' => $abbr,
+                    'testament' => (string) ($book['testament'] ?? ''),
+                ],
             ];
-
-            foreach (($chapter['verses'] ?? []) as $verse) {
-                $texts = is_array($verse['texts'] ?? null) ? $verse['texts'] : [];
-                $langs = [];
-                foreach (self::LANG_VERSION as $langCode => $version) {
-                    $text = isset($texts[$version]) ? (string) $texts[$version] : '';
-                    // null when the edition lacks this verse -> recorded as an
-                    // empty correspondence (留空) by the ingest service.
-                    $langs[$langCode] = $text !== '' ? $text : null;
-                }
-
-                $slots[] = [
-                    'chapter_index' => $chapterIndex,
-                    'grain' => 'sentence',
-                    'seq' => $seq,
-                    'primary_language' => self::PRIMARY_LANGUAGE,
-                    'langs' => $langs,
-                    'metadata' => [
-                        'chapter' => $chapterNo,
-                        'verse' => (int) ($verse['verse'] ?? 0),
-                    ],
-                ];
-                $seq++;
-                $verseTotal++;
-            }
+            $chapterIndex++;
         }
 
         return [
@@ -285,22 +307,20 @@ class AppQyV1BookSeedImporter
             'model_version' => 3,
             'source' => [
                 'source_key' => $sourceKey,
-                'title' => (string) ($book['english'] ?? $abbr),
-                'original_name' => (string) ($book['name'] ?? ''),
-                'ascii_name' => (string) ($book['english'] ?? ''),
+                'title' => self::BIBLE_TITLE,
+                // No hardcoded CJK in code; the FE localizes the display title.
+                'original_name' => self::BIBLE_TITLE,
+                'ascii_name' => self::BIBLE_TITLE,
                 'language' => self::PRIMARY_LANGUAGE,
                 // Drives MediaIngestService::selectedLanguages() so a per-language
-                // chapter row is created for BOTH seeded languages (a language
-                // without a chapter title gets a null-title row / 留空), not just
-                // the primary. Without this, zh chapters would be missing.
+                // chapter row is created for BOTH seeded languages.
                 'selected_languages' => array_keys(self::LANG_VERSION),
                 'sentence_count' => $verseTotal,
                 'metadata' => [
                     'source' => 'zeoinjesus.com',
                     'collection' => self::COLLECTION,
-                    'testament' => (string) ($book['testament'] ?? ''),
-                    'order' => (int) ($book['order'] ?? 0),
-                    'abbr' => $abbr,
+                    'kind' => 'bible',
+                    'chapter_count' => $chapterIndex,
                     'seeded_languages' => array_keys(self::LANG_VERSION),
                     'seeded_versions' => self::LANG_VERSION,
                     'available_versions' => self::AVAILABLE_VERSIONS,
@@ -313,14 +333,58 @@ class AppQyV1BookSeedImporter
     }
 
     /**
+     * Remove rows from the earlier (wrong) one-book-per-file seed: each biblical
+     * sub-book was a separate Book. They are identified by collection metadata +
+     * the presence of an `abbr` (the new single Bible book has kind='bible' and no
+     * abbr). Deletes each legacy book's positional slots and per-language chapter
+     * rows, then the Book row. The SHARED per-language SENTENCE rows are content-
+     * keyed and reused by the new single book, so they are NEVER deleted.
+     *
+     * @return int number of legacy book rows removed
+     */
+    private function supersedeLegacyPerBookSeed(): int
+    {
+        $removed = 0;
+        try {
+            $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+            $langs = AppQyV1TableMaps::getSupportedLanguages();
+
+            $legacy = Book::query()
+                ->where('metadata->collection', self::COLLECTION)
+                ->whereNotNull('metadata->abbr')
+                ->get();
+
+            foreach ($legacy as $book) {
+                $key = $book->source_key;
+                try {
+                    SourceSentence::where('source_type', 'book')->where('source_key', $key)->delete();
+
+                    foreach ($langs as $lang) {
+                        $table = AppQyV1TableMaps::getChapterTableName($lang);
+                        if (Schema::connection($connection)->hasTable($table)) {
+                            DB::connection($connection)->table($table)
+                                ->where('source_type', 'book')
+                                ->where('source_key', $key)
+                                ->delete();
+                        }
+                    }
+
+                    $book->delete();
+                    $removed++;
+                } catch (\Throwable $e) {
+                    Log::warning('[AppQyV1BookSeed] legacy supersede failed for ' . $key . ': ' . $e->getMessage());
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[AppQyV1BookSeed] legacy supersede query failed: ' . $e->getMessage());
+        }
+        return $removed;
+    }
+
+    /**
      * Restore the `.js`-disguised blob to its real `.tar.xz` name inside the
      * temp dir and extract it there. Returns the corpus root dir on success,
      * null if every decompression strategy failed.
-     *
-     * Strategies (first that yields the corpus dir wins), all cross-OS:
-     *   A. `tar -xJf` (GNU tar with built-in xz)
-     *   B. `xz -dkc > file.tar` then `tar -xf`
-     *   C. 7z two-step (`7z x` xz -> tar, then `7z x` tar)
      */
     private function restoreAndExtract(string $blobPath, string $tempDir): ?string
     {
@@ -351,7 +415,6 @@ class AppQyV1BookSeedImporter
         // C. 7z two-step.
         $this->runCommand('7z x ' . escapeshellarg($archive) . ' -o' . escapeshellarg($tempDir) . ' -y');
         if (!is_file($tarPath)) {
-            // 7z may name the inner tar after the archive stem.
             $candidates = glob($tempDir . DIRECTORY_SEPARATOR . '*.tar') ?: [];
             $tarPath = $candidates[0] ?? $tarPath;
         }
@@ -378,8 +441,7 @@ class AppQyV1BookSeedImporter
     /**
      * Best-effort, idempotent guarantee that decompression tooling exists. If
      * tar plus (xz or 7z) are already present this is a no-op; otherwise it
-     * attempts a platform install. Never fatal — extraction is tried regardless
-     * and the step degrades to a 'warning' (retry next init) if it cannot run.
+     * attempts a platform install. Never fatal — extraction is tried regardless.
      */
     private function ensureDecompressors(): void
     {
@@ -391,14 +453,10 @@ class AppQyV1BookSeedImporter
             return;
         }
 
-        // Windows dev/runtime ships tar + xz via Git for Windows and a 7z binary;
-        // do not attempt a package-manager install there.
         if (PathMapper::isWindows()) {
             return;
         }
 
-        // Linux: try apt-get (Debian/Ubuntu, the project's target). Harmless if
-        // it lacks privileges — we just fall through and let extraction try.
         if ($this->commandExists('apt-get')) {
             $this->runCommand('apt-get install -y xz-utils tar || sudo apt-get install -y xz-utils tar');
         }
@@ -415,9 +473,8 @@ class AppQyV1BookSeedImporter
     }
 
     /**
-     * Run a shell command, capturing combined output and return code. Returns
-     * ['rc' => int, 'out' => string]. exec() is the same primitive the existing
-     * AppQyV1 archive extractor uses.
+     * Run a shell command, capturing combined output and return code.
+     * Returns ['rc' => int, 'out' => string].
      */
     private function runCommand(string $command): array
     {

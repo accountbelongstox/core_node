@@ -222,6 +222,8 @@ install_dependencies() {
     cd "$install_dir"
     print_info "Installing core dependencies..."
     echo ""
+    # Print the exact command-string before running it (traceability).
+    echo "[95] $python_cmd -m pip install --break-system-packages --no-user torch transformers pillow numpy einops timm accelerate"
     $python_cmd -m pip install --break-system-packages --no-user torch transformers pillow numpy einops timm accelerate
     echo ""
     cd - > /dev/null

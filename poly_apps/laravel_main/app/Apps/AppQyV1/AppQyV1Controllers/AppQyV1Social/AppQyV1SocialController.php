@@ -21,6 +21,13 @@ use App\Services\AvatarService;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserFollowModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1FriendRequestModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserPresenceModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1NotificationModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ConversationModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ConversationParticipantModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostModel;
 
 class AppQyV1SocialController extends BaseController
 {
@@ -35,7 +42,6 @@ class AppQyV1SocialController extends BaseController
 
     private const ACTIVITY_WINDOW_DAYS = 7;
     private const STUDYING_WINDOW_MINUTES = 30;
-    private const ONLINE_WINDOW_MINUTES = 5;
     private const XP_PER_LEARNED_WORD = 10;
     private const XP_PER_MASTERED_WORD = 30;
     private const XP_PER_CORRECT_ANSWER = 2;
@@ -68,10 +74,12 @@ class AppQyV1SocialController extends BaseController
         }
 
         $users = User::whereIn('id', $followedIds)
-            ->get(['id', 'username', 'nickname', 'name', 'avatar', 'is_online', 'last_seen_at', 'last_login_at'])
+            ->get(['id', 'username', 'nickname', 'name', 'avatar'])
             ->keyBy('id');
         $statsByUser = $this->aggregateProgressStats($followedIds, null);
         $studyingIds = $this->getRecentlyStudyingUserIds($followedIds);
+        // Presence batched from app_qy_v1_user_presence (heartbeat truth).
+        $presenceMap = AppQyV1UserPresenceModel::effectiveFor($followedIds);
 
         foreach ($followRows as $row) {
             $friendUser = $users->get((int) $row->followed_user_id);
@@ -83,7 +91,8 @@ class AppQyV1SocialController extends BaseController
                 'username' => $friendUser->username,
                 'name' => $this->displayName($friendUser),
                 'avatar_url' => $this->avatarUrl($friendUser),
-                'status' => $this->presenceStatus($friendUser, in_array($friendUser->id, $studyingIds)),
+                'status' => $this->presenceStatus($friendUser, in_array($friendUser->id, $studyingIds), $presenceMap),
+                'presence' => $presenceMap[(int) $friendUser->id] ?? ['status' => 'offline', 'last_seen_at' => null],
                 'followed_at' => $row->created_at ? $row->created_at->toISOString() : null,
                 'stats' => $this->statsRowFor($statsByUser, $friendUser->id),
             ];
@@ -93,8 +102,10 @@ class AppQyV1SocialController extends BaseController
     }
 
     /**
-     * GET /social/friends/search?q=
-     * Search users by username / nickname / name. Excludes the current user.
+     * GET /social/friends/search?q=&native=&target=
+     * Search users by username / nickname / name, with optional language filters
+     * (native_language exact, learning_languages contains target). Excludes the
+     * current user. Annotates is_following / is_friend.
      */
     public function searchUsers(Request $request)
     {
@@ -102,7 +113,12 @@ class AppQyV1SocialController extends BaseController
         $validator = null;
         $query = '';
         $needle = '';
+        $native = '';
+        $target = '';
         $followedIds = [];
+        $friendIds = [];
+        $userIds = [];
+        $presenceMap = [];
         $users = null;
         $results = [];
 
@@ -112,6 +128,8 @@ class AppQyV1SocialController extends BaseController
 
         $validator = Validator::make($request->all(), [
             'q' => ['required', 'string', 'min:1', 'max:100'],
+            'native' => ['nullable', 'string', 'max:10'],
+            'target' => ['nullable', 'string', 'max:10'],
         ]);
         if ($validator->fails()) {
             return $this->validationErrorWithParams($validator);
@@ -119,19 +137,33 @@ class AppQyV1SocialController extends BaseController
 
         $query = trim((string) $request->query('q'));
         $needle = '%' . strtolower($query) . '%';
+        $native = strtolower(trim((string) $request->query('native', '')));
+        $target = strtolower(trim((string) $request->query('target', '')));
         $followedIds = AppQyV1UserFollowModel::getFollowedUserIds($currentUser->id);
+        $friendIds = AppQyV1FriendRequestModel::acceptedFriendIds((int) $currentUser->id);
 
         // Case-insensitive on BOTH drivers: plain LIKE is case-insensitive on
         // sqlite but case-SENSITIVE on pgsql, so lower both sides explicitly.
-        $users = User::where('id', '!=', $currentUser->id)
+        $builder = User::where('id', '!=', $currentUser->id)
             ->where(function ($q) use ($needle) {
                 $q->whereRaw('LOWER(username) LIKE ?', [$needle])
                     ->orWhereRaw('LOWER(nickname) LIKE ?', [$needle])
                     ->orWhereRaw('LOWER(name) LIKE ?', [$needle]);
-            })
-            ->orderBy('username')
+            });
+
+        if ($native !== '') {
+            $builder->whereRaw('LOWER(native_language) = ?', [$native]);
+        }
+        if ($target !== '') {
+            $this->applyLearningContains($builder, $target);
+        }
+
+        $users = $builder->orderBy('username')
             ->limit(20)
-            ->get(['id', 'username', 'nickname', 'name', 'avatar', 'is_online', 'last_seen_at', 'last_login_at']);
+            ->get(['id', 'username', 'nickname', 'name', 'avatar', 'native_language', 'learning_languages']);
+
+        $userIds = $users->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $presenceMap = AppQyV1UserPresenceModel::effectiveFor($userIds);
 
         foreach ($users as $foundUser) {
             $results[] = [
@@ -139,12 +171,257 @@ class AppQyV1SocialController extends BaseController
                 'username' => $foundUser->username,
                 'name' => $this->displayName($foundUser),
                 'avatar_url' => $this->avatarUrl($foundUser),
-                'status' => $this->presenceStatus($foundUser, false),
+                'native_language' => $foundUser->native_language,
+                'learning_languages' => $this->normalizeLangArray($foundUser->learning_languages),
+                'status' => $this->presenceStatus($foundUser, false, $presenceMap),
                 'is_following' => in_array((int) $foundUser->id, $followedIds),
+                'is_friend' => in_array((int) $foundUser->id, $friendIds),
             ];
         }
 
         return $this->success(['users' => $results, 'total' => count($results)]);
+    }
+
+    /**
+     * GET /social/discover?native=&target=&q=&limit=
+     * Find language partners (SOCIAL_FEATURE_SPECIFICATION.md §5). Cross-DB:
+     * users live on the DEFAULT connection, app_qy_v1_* on appqyv1 — queried
+     * SEPARATELY and merged in PHP (never cross-joined). A row is matched by
+     * language-exchange (best), or by the native/target filters; self + blocked
+     * users are excluded; each row is annotated is_following/is_friend + stats.
+     */
+    public function discover(Request $request)
+    {
+        $currentUser = $request->user();
+        $validator = null;
+        $native = '';
+        $target = '';
+        $q = '';
+        $limit = 30;
+        $myNative = '';
+        $myLearning = [];
+        $excludeIds = [];
+        $followedIds = [];
+        $friendIds = [];
+        $builder = null;
+        $users = null;
+        $userIds = [];
+        $statsByUser = [];
+        $presenceMap = [];
+        $studyingIds = [];
+        $results = [];
+
+        if (!$currentUser) {
+            return $this->unauthorized();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'native' => ['nullable', 'string', 'max:10'],
+            'target' => ['nullable', 'string', 'max:10'],
+            'q' => ['nullable', 'string', 'max:100'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+        if ($validator->fails()) {
+            return $this->validationErrorWithParams($validator);
+        }
+
+        $native = strtolower(trim((string) $request->query('native', '')));
+        $target = strtolower(trim((string) $request->query('target', '')));
+        $q = trim((string) $request->query('q', ''));
+        $limit = (int) $request->query('limit', 30);
+
+        $myNative = strtolower((string) ($currentUser->native_language ?? ''));
+        $myLearning = $this->normalizeLangArray($currentUser->learning_languages);
+
+        // Exclude self + already-followed + blocked (computed on appqyv1 conn).
+        $followedIds = AppQyV1UserFollowModel::getFollowedUserIds((int) $currentUser->id);
+        $friendIds = AppQyV1FriendRequestModel::acceptedFriendIds((int) $currentUser->id);
+        $excludeIds = [(int) $currentUser->id];
+        foreach ($followedIds as $id) {
+            $excludeIds[] = (int) $id;
+        }
+        foreach (AppQyV1FriendRequestModel::blockedIds((int) $currentUser->id) as $id) {
+            $excludeIds[] = (int) $id;
+        }
+        $excludeIds = array_values(array_unique($excludeIds));
+
+        // ---- Query users (DEFAULT connection) ----
+        $builder = User::whereNotIn('id', $excludeIds);
+
+        if ($q !== '') {
+            $needle = '%' . strtolower($q) . '%';
+            $builder->where(function ($w) use ($needle) {
+                $w->whereRaw('LOWER(username) LIKE ?', [$needle])
+                    ->orWhereRaw('LOWER(nickname) LIKE ?', [$needle])
+                    ->orWhereRaw('LOWER(name) LIKE ?', [$needle]);
+            });
+        }
+        if ($native !== '') {
+            $builder->whereRaw('LOWER(native_language) = ?', [$native]);
+        }
+        if ($target !== '') {
+            $this->applyLearningContains($builder, $target);
+        }
+
+        $users = $builder->orderByDesc('id')
+            ->limit(max(1, min(100, $limit)) * 3) // over-fetch; exchange ranking trims to $limit
+            ->get(['id', 'username', 'nickname', 'name', 'avatar', 'native_language', 'learning_languages']);
+
+        // ---- Merge AppQyV1 stats + presence in PHP (separate conn) ----
+        $userIds = $users->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $statsByUser = $this->aggregateProgressStats($userIds, null);
+        $presenceMap = AppQyV1UserPresenceModel::effectiveFor($userIds);
+        $studyingIds = empty($userIds) ? [] : $this->getRecentlyStudyingUserIds($userIds);
+
+        foreach ($users as $u) {
+            $theirNative = strtolower((string) ($u->native_language ?? ''));
+            $theirLearning = $this->normalizeLangArray($u->learning_languages);
+
+            // Language-exchange match: their learning ∋ my native AND my learning ∋ their native.
+            $isExchange = $myNative !== '' && $theirNative !== ''
+                && in_array($myNative, $theirLearning, true)
+                && in_array($theirNative, $myLearning, true);
+
+            $match = 'native';
+            if ($isExchange) {
+                $match = 'exchange';
+            } elseif ($target !== '' && in_array($target, $theirLearning, true)) {
+                $match = 'target';
+            } elseif ($native !== '' && $theirNative === $native) {
+                $match = 'native';
+            }
+
+            $results[] = [
+                'id' => (int) $u->id,
+                'nickname' => $this->displayName($u),
+                'avatar' => $this->avatarUrl($u),
+                'native_language' => $u->native_language,
+                'learning_languages' => $theirLearning,
+                'is_following' => in_array((int) $u->id, $followedIds),
+                'is_friend' => in_array((int) $u->id, $friendIds),
+                'match' => $match,
+                'presence' => $presenceMap[(int) $u->id] ?? ['status' => 'offline', 'last_seen_at' => null],
+                'status' => $this->presenceStatus($u, in_array((int) $u->id, $studyingIds), $presenceMap),
+                'stats' => $this->statsRowFor($statsByUser, (int) $u->id),
+                '_exchange' => $isExchange,
+            ];
+        }
+
+        // Rank exchange matches first, then trim to the requested limit.
+        usort($results, function ($a, $b) {
+            if ($a['_exchange'] !== $b['_exchange']) {
+                return $b['_exchange'] <=> $a['_exchange'];
+            }
+            return $b['id'] <=> $a['id'];
+        });
+        $results = array_slice($results, 0, max(1, min(100, $limit)));
+        foreach ($results as &$row) {
+            unset($row['_exchange']);
+        }
+        unset($row);
+
+        return $this->success(['users' => $results, 'total' => count($results)]);
+    }
+
+    /**
+     * GET /social/users/{id}
+     * Public profile for the user-profile page (#/social/user/<id>). Cross-DB:
+     * the user row (name/avatar/languages/bio) comes from the DEFAULT connection;
+     * follow/friend/presence/post counts come from appqyv1 — merged in PHP, never
+     * cross-joined. post_count counts that user's posts VISIBLE to the current
+     * viewer (same visibility rules as the author-scoped feed). presence reads
+     * app_qy_v1_user_presence with the 60s stale rule.
+     */
+    public function getUserProfile(Request $request, int $id)
+    {
+        $currentUser = $request->user();
+        $myId = 0;
+        $targetUser = null;
+        $myFollowedIds = [];
+        $followerCount = 0;
+        $followingCount = 0;
+        $isFollowing = false;
+        $isFriend = false;
+        $postCount = 0;
+        $presenceMap = [];
+
+        if (!$currentUser) {
+            return $this->unauthorized();
+        }
+        $myId = (int) $currentUser->id;
+
+        $targetUser = User::find($id);
+        if (!$targetUser) {
+            return $this->notFound('User not found');
+        }
+
+        // ---- Follow / friend relationships (appqyv1 connection) ----
+        $myFollowedIds = AppQyV1UserFollowModel::getFollowedUserIds($myId);
+        $isFollowing = in_array($id, array_map('intval', $myFollowedIds), true);
+        $isFriend = AppQyV1FriendRequestModel::areFriends($myId, $id);
+
+        // following_count = users this profile follows (user_id == id).
+        $followingCount = (int) AppQyV1UserFollowModel::query()
+            ->where('user_id', $id)
+            ->count();
+        // follower_count = users who follow this profile (followed_user_id == id).
+        $followerCount = (int) AppQyV1UserFollowModel::query()
+            ->where('followed_user_id', $id)
+            ->count();
+
+        // ---- Visible post count (mirrors the author-scoped feed visibility) ----
+        $postCount = $this->visiblePostCount($id, $myId, $myFollowedIds);
+
+        // ---- Presence (60s stale rule, batched effectiveFor) ----
+        $presenceMap = AppQyV1UserPresenceModel::effectiveFor([$id]);
+
+        return $this->success([
+            'user' => [
+                'id' => (int) $targetUser->id,
+                'name' => $this->displayName($targetUser),
+                'avatar_url' => $this->avatarUrl($targetUser),
+                'native_language' => $targetUser->native_language,
+                'learning_languages' => $this->normalizeLangArray($targetUser->learning_languages),
+                'bio' => $targetUser->bio,
+                'post_count' => $postCount,
+                'follower_count' => $followerCount,
+                'following_count' => $followingCount,
+                'is_following' => $isFollowing,
+                'is_friend' => $isFriend,
+                'presence' => $presenceMap[$id] ?? ['status' => 'offline', 'last_seen_at' => null],
+            ],
+        ]);
+    }
+
+    /**
+     * Count an author's posts visible to a viewer. Same visibility rules as the
+     * author-scoped feed: author sees all of their own; otherwise public always,
+     * followers if the viewer follows the author, private never. Kept here (not
+     * shared with AppQyV1PostController) to avoid cross-controller instantiation.
+     *
+     * @param array<int, int> $viewerFollowedIds Ids the viewer follows.
+     */
+    private function visiblePostCount(int $authorId, int $viewerId, array $viewerFollowedIds): int
+    {
+        $allowed = [];
+
+        if ($viewerId === $authorId) {
+            $allowed = [
+                AppQyV1PostModel::VISIBILITY_PUBLIC,
+                AppQyV1PostModel::VISIBILITY_FOLLOWERS,
+                AppQyV1PostModel::VISIBILITY_PRIVATE,
+            ];
+        } else {
+            $allowed = [AppQyV1PostModel::VISIBILITY_PUBLIC];
+            if (in_array($authorId, array_map('intval', $viewerFollowedIds), true)) {
+                $allowed[] = AppQyV1PostModel::VISIBILITY_FOLLOWERS;
+            }
+        }
+
+        return (int) AppQyV1PostModel::query()
+            ->where('user_id', $authorId)
+            ->whereIn('visibility', $allowed)
+            ->count();
     }
 
     /**
@@ -444,24 +721,383 @@ class AppQyV1SocialController extends BaseController
             ->all();
     }
 
-    private function presenceStatus(User $user, bool $isStudying): string
+    /**
+     * Effective presence status for a user, read from app_qy_v1_user_presence
+     * (heartbeat-written) — NOT the non-existent users.is_online/last_seen_at the
+     * old implementation relied on. A heartbeat older than 60s reads as offline
+     * (handled by AppQyV1UserPresenceModel::effectiveFor). `studying` derived from
+     * recent learning activity wins as a fallback when presence is online/away.
+     *
+     * @param array<int, array{status:string,last_seen_at:?string}> $presenceMap
+     *        Batched effectiveFor() output keyed by user id.
+     */
+    private function presenceStatus(User $user, bool $isStudying, array $presenceMap = []): string
     {
-        $lastSeen = null;
+        $entry = $presenceMap[(int) $user->id] ?? null;
+        $status = $entry !== null ? (string) $entry['status'] : AppQyV1UserPresenceModel::STATUS_OFFLINE;
 
-        if ($isStudying) {
-            return 'studying';
+        // Studying derivation (recent learning progress) takes precedence while
+        // the user is effectively present (heartbeat fresh).
+        if ($isStudying && $status !== AppQyV1UserPresenceModel::STATUS_OFFLINE) {
+            return AppQyV1UserPresenceModel::STATUS_STUDYING;
         }
-        if ((bool) $user->is_online) {
-            return 'online';
+        return $status;
+    }
+
+    // ---- Friend requests (SOCIAL_FEATURE_SPECIFICATION.md §3 DISCOVER/FRIENDS) ----
+
+    /**
+     * POST /social/friends/request {user_id}
+     * Create a pending friend_request + a notification + SSE friend.request to
+     * the addressee. Idempotent on the (requester, addressee) pair.
+     */
+    public function sendFriendRequest(Request $request)
+    {
+        $currentUser = $request->user();
+        $validator = null;
+        $myId = 0;
+        $targetId = 0;
+        $targetUser = null;
+        $row = null;
+
+        if (!$currentUser) {
+            return $this->unauthorized();
         }
-        $lastSeen = $user->last_seen_at;
-        if (!$lastSeen) {
-            $lastSeen = $user->last_login_at;
+
+        $validator = Validator::make($request->all(), [
+            'user_id' => ['required', 'integer', 'min:1'],
+        ]);
+        if ($validator->fails()) {
+            return $this->validationErrorWithParams($validator);
         }
-        if ($lastSeen && \Illuminate\Support\Carbon::parse($lastSeen)->gt(now()->subMinutes(self::ONLINE_WINDOW_MINUTES))) {
-            return 'online';
+
+        $myId = (int) $currentUser->id;
+        $targetId = (int) $request->input('user_id');
+        if ($targetId === $myId) {
+            return $this->error('Cannot friend yourself', 422);
         }
-        return 'offline';
+
+        $targetUser = User::find($targetId);
+        if (!$targetUser) {
+            return $this->notFound('User not found');
+        }
+
+        // Already accepted friends -> nothing to do.
+        if (AppQyV1FriendRequestModel::areFriends($myId, $targetId)) {
+            return $this->success(['status' => AppQyV1FriendRequestModel::STATUS_ACCEPTED, 'request_id' => null], 'Already friends');
+        }
+
+        // One row per (requester, addressee). A re-send of a rejected request
+        // resets it to pending.
+        $row = AppQyV1FriendRequestModel::query()->firstOrCreate(
+            ['requester_id' => $myId, 'addressee_id' => $targetId],
+            ['status' => AppQyV1FriendRequestModel::STATUS_PENDING]
+        );
+        if ($row->status === AppQyV1FriendRequestModel::STATUS_REJECTED) {
+            $row->status = AppQyV1FriendRequestModel::STATUS_PENDING;
+            $row->save();
+        }
+
+        // Notify + SSE the addressee (best-effort).
+        $notifId = AppQyV1NotificationModel::notify($targetId, 'friend_request', [
+            'request_id' => (int) $row->id,
+            'requester_id' => $myId,
+            'requester_name' => $this->displayName($currentUser),
+        ]);
+        AppQyV1SocialEventModel::emit($targetId, 'friend.request', [
+            'request_id' => (int) $row->id,
+            'requester_id' => $myId,
+            'requester_name' => $this->displayName($currentUser),
+        ]);
+        if ($notifId > 0) {
+            AppQyV1SocialEventModel::emit($targetId, 'notification.new', [
+                'id' => $notifId,
+                'type' => 'friend_request',
+            ]);
+        }
+
+        return $this->success([
+            'request_id' => (int) $row->id,
+            'status' => (string) $row->status,
+        ], 'Friend request sent');
+    }
+
+    /**
+     * POST /social/friends/respond {request_id, action: accept|reject}
+     * Update the request status. On accept: notification + SSE friend.accept to
+     * the requester, plus ensure a direct conversation exists. Only the addressee
+     * may respond.
+     */
+    public function respondFriendRequest(Request $request)
+    {
+        $currentUser = $request->user();
+        $validator = null;
+        $myId = 0;
+        $requestId = 0;
+        $action = '';
+        $row = null;
+
+        if (!$currentUser) {
+            return $this->unauthorized();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'request_id' => ['required', 'integer', 'min:1'],
+            'action' => ['required', 'string', 'in:accept,reject'],
+        ]);
+        if ($validator->fails()) {
+            return $this->validationErrorWithParams($validator);
+        }
+
+        $myId = (int) $currentUser->id;
+        $requestId = (int) $request->input('request_id');
+        $action = (string) $request->input('action');
+
+        $row = AppQyV1FriendRequestModel::query()->find($requestId);
+        if (!$row) {
+            return $this->notFound('Friend request not found');
+        }
+        // Only the addressee may accept/reject.
+        if ((int) $row->addressee_id !== $myId) {
+            return $this->forbidden('Not your friend request to respond to');
+        }
+        if ($row->status !== AppQyV1FriendRequestModel::STATUS_PENDING) {
+            return $this->error('Friend request is not pending', 422);
+        }
+
+        if ($action === 'reject') {
+            $row->status = AppQyV1FriendRequestModel::STATUS_REJECTED;
+            $row->save();
+            return $this->success(['request_id' => $requestId, 'status' => $row->status], 'Friend request rejected');
+        }
+
+        // accept
+        $row->status = AppQyV1FriendRequestModel::STATUS_ACCEPTED;
+        $row->save();
+
+        // Ensure a direct conversation between the pair (best-effort).
+        $this->ensureDirectConversation((int) $row->requester_id, (int) $row->addressee_id);
+
+        // Notify + SSE the original requester (best-effort).
+        $notifId = AppQyV1NotificationModel::notify((int) $row->requester_id, 'friend_accept', [
+            'request_id' => $requestId,
+            'addressee_id' => $myId,
+            'addressee_name' => $this->displayName($currentUser),
+        ]);
+        AppQyV1SocialEventModel::emit((int) $row->requester_id, 'friend.accept', [
+            'request_id' => $requestId,
+            'addressee_id' => $myId,
+            'addressee_name' => $this->displayName($currentUser),
+        ]);
+        if ($notifId > 0) {
+            AppQyV1SocialEventModel::emit((int) $row->requester_id, 'notification.new', [
+                'id' => $notifId,
+                'type' => 'friend_accept',
+            ]);
+        }
+
+        return $this->success(['request_id' => $requestId, 'status' => $row->status], 'Friend request accepted');
+    }
+
+    /**
+     * GET /social/friends/requests?direction=incoming|outgoing
+     * Pending requests addressed to me (incoming) or sent by me (outgoing).
+     */
+    public function friendRequests(Request $request)
+    {
+        $currentUser = $request->user();
+        $validator = null;
+        $myId = 0;
+        $direction = 'incoming';
+        $rows = null;
+        $otherIds = [];
+        $users = null;
+        $items = [];
+
+        if (!$currentUser) {
+            return $this->unauthorized();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'direction' => ['nullable', 'string', 'in:incoming,outgoing'],
+        ]);
+        if ($validator->fails()) {
+            return $this->validationErrorWithParams($validator);
+        }
+
+        $myId = (int) $currentUser->id;
+        $direction = (string) $request->query('direction', 'incoming');
+
+        $rows = AppQyV1FriendRequestModel::query()
+            ->where('status', AppQyV1FriendRequestModel::STATUS_PENDING)
+            ->when($direction === 'incoming', fn ($q) => $q->where('addressee_id', $myId))
+            ->when($direction === 'outgoing', fn ($q) => $q->where('requester_id', $myId))
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($rows as $row) {
+            $otherIds[] = $direction === 'incoming' ? (int) $row->requester_id : (int) $row->addressee_id;
+        }
+        $users = User::whereIn('id', $otherIds)
+            ->get(['id', 'username', 'nickname', 'name', 'avatar'])
+            ->keyBy('id');
+
+        foreach ($rows as $row) {
+            $otherId = $direction === 'incoming' ? (int) $row->requester_id : (int) $row->addressee_id;
+            $otherUser = $users->get($otherId);
+            if (!$otherUser) {
+                continue;
+            }
+            $items[] = [
+                'request_id' => (int) $row->id,
+                'direction' => $direction,
+                'status' => (string) $row->status,
+                'user' => [
+                    'id' => (int) $otherUser->id,
+                    'nickname' => $this->displayName($otherUser),
+                    'avatar' => $this->avatarUrl($otherUser),
+                ],
+                'created_at' => $row->created_at ? $row->created_at->toISOString() : null,
+            ];
+        }
+
+        return $this->success(['requests' => $items, 'total' => count($items)]);
+    }
+
+    /**
+     * POST /social/friends/block {user_id}
+     * Set the relationship to blocked (creating the row if needed). The blocker
+     * is recorded as the requester so the pair has one blocked row.
+     */
+    public function blockUser(Request $request)
+    {
+        $currentUser = $request->user();
+        $validator = null;
+        $myId = 0;
+        $targetId = 0;
+        $row = null;
+
+        if (!$currentUser) {
+            return $this->unauthorized();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'user_id' => ['required', 'integer', 'min:1'],
+        ]);
+        if ($validator->fails()) {
+            return $this->validationErrorWithParams($validator);
+        }
+
+        $myId = (int) $currentUser->id;
+        $targetId = (int) $request->input('user_id');
+        if ($targetId === $myId) {
+            return $this->error('Cannot block yourself', 422);
+        }
+
+        // Reuse an existing row in EITHER direction; else create one with me as
+        // requester. One blocked row per pair.
+        $row = AppQyV1FriendRequestModel::query()
+            ->where(function ($q) use ($myId, $targetId) {
+                $q->where(function ($q2) use ($myId, $targetId) {
+                    $q2->where('requester_id', $myId)->where('addressee_id', $targetId);
+                })->orWhere(function ($q2) use ($myId, $targetId) {
+                    $q2->where('requester_id', $targetId)->where('addressee_id', $myId);
+                });
+            })
+            ->first();
+
+        if (!$row) {
+            $row = AppQyV1FriendRequestModel::query()->create([
+                'requester_id' => $myId,
+                'addressee_id' => $targetId,
+                'status' => AppQyV1FriendRequestModel::STATUS_BLOCKED,
+            ]);
+        } else {
+            $row->status = AppQyV1FriendRequestModel::STATUS_BLOCKED;
+            $row->save();
+        }
+
+        return $this->success(['user_id' => $targetId, 'status' => $row->status], 'User blocked');
+    }
+
+    // ---- Internal helpers ----
+
+    /**
+     * Apply a driver-portable "learning_languages contains $code" predicate.
+     * Prefer whereJsonContains (pgsql/sqlite ok); add a LOWER(...) LIKE fallback
+     * so a non-JSON / legacy text column still matches.
+     */
+    private function applyLearningContains($builder, string $code): void
+    {
+        $code = strtolower($code);
+        $like = '%"' . $code . '"%';
+        $builder->where(function ($q) use ($code, $like) {
+            try {
+                $q->whereJsonContains('learning_languages', $code);
+            } catch (\Throwable $e) {
+                // Some drivers throw at build time only in edge cases; ignore.
+            }
+            $q->orWhereRaw('LOWER(CAST(learning_languages AS CHAR(500))) LIKE ?', [$like]);
+        });
+    }
+
+    /**
+     * Normalize a learning_languages value (json array, or JSON/CSV string) into
+     * a lowercased list of language codes.
+     *
+     * @return array<int, string>
+     */
+    private function normalizeLangArray($value): array
+    {
+        $arr = [];
+        if (is_array($value)) {
+            $arr = $value;
+        } elseif (is_string($value) && $value !== '') {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                $arr = $decoded;
+            } else {
+                $arr = array_map('trim', explode(',', $value));
+            }
+        }
+        $out = [];
+        foreach ($arr as $code) {
+            if (is_string($code) && $code !== '') {
+                $out[] = strtolower($code);
+            }
+        }
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * Ensure a direct conversation + both participant rows exist for a pair
+     * (deduped by dkey). Best-effort — a failure never breaks friend accept.
+     */
+    private function ensureDirectConversation(int $a, int $b): void
+    {
+        try {
+            $dkey = AppQyV1ConversationModel::directKey($a, $b);
+            $conv = AppQyV1ConversationModel::query()->firstOrCreate(
+                ['dkey' => $dkey],
+                [
+                    'type' => AppQyV1ConversationModel::TYPE_DIRECT,
+                    'created_by' => $a,
+                    'last_message_at' => null,
+                ]
+            );
+            foreach ([$a, $b] as $uid) {
+                AppQyV1ConversationParticipantModel::query()->firstOrCreate(
+                    ['conversation_id' => (int) $conv->id, 'user_id' => $uid],
+                    ['joined_at' => now()]
+                );
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[AppQyV1Social] ensureDirectConversation failed', [
+                'a' => $a,
+                'b' => $b,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function displayName(User $user): string
