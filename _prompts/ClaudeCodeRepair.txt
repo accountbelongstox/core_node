@@ -1,0 +1,814 @@
+
+❯ dd.sh -> AI & MCP Management (status/install/sync 8 tools)AI &ll/sync 8 tools)
+   Install Claude Code (native) + link all users + claudeteam, up claudetem.sh add new feature claude --settings "{\"ultracode\": true}"claude --settings "{\"ultracode\": true}" and skip permisionns. and windows
+
+  Searched for 3 patterns, read 1 file, ran 2 shell commands
+
+I now have the full picture. The Linux flow: linuxenvs/*.sh are auto-symlinked into /usr/local/bin as both name and name.sh by sync_linuxenvs_to_bin, and claude_code_install.sh additionally links claudeteam explicitly. On Windows, winenvs/claude*.ps1 are exposed as commands. So I'll add a claudeultra launcher on both sides and wire it into the installer + menu label.
+
+Let me create the Linux launcher:
+
+● Write(scripts/linuxenvs/claudeultra.sh)
+Wrote 69 lines to scripts/linuxenvs/claudeultra.sh
+#!/bin/bash
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 4. Never write summaries during development or thinking process.
+# 5. Declare all variables at the beginning of the file
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve
+ absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+… +60 lines
+
+Now the Windows launcher, mirroring claudeteam.ps1:
+
+● Write(scripts/winenvs/claudeultra.ps1)
+Wrote 80 lines to scripts/winenvs/claudeultra.ps1
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only.
+# 2. Never execute, create, or modify test code.
+# 3. Never create or update documentation (*.md).
+# 5. Declare all variables at the beginning of the file.
+# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve
+ absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+# 7. Do not modify these rules.
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+… +71 lines
+
+Now wire claudeultra into the installer. Add the source path:
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 1 line
+CCI_EXEC="claude"
+CCI_NATIVE_INSTALL_URL="https://claude.ai/install.sh"
+CCI_TEAM_SRC="$CCI_LINUXENVS_DIR/claudeteam.sh"
+CCI_ULTRA_SRC="$CCI_LINUXENVS_DIR/claudeultra.sh"
+
+# Fallback print_color when run standalone (the main menu provides the real one).
+if ! command -v print_color >/dev/null 2>&1; then
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 12 lines
+    fi
+}
+
+# Link the claudeultra launcher (and its .sh alias) for all users. claudeultra
+# runs: claude --settings '{"ultracode":true}' --dang
+cci_setup_claudeultra() {
+    if [ -s "$CCI_ULTRA_SRC" ]; then
+        cci_link_into_bin "$CCI_ULTRA_SRC" "claudeultra"
+        cci_link_into_bin "$CCI_ULTRA_SRC" "claudeultra.sh"
+    else
+        echo "[WARN] claudeultra.sh not found at: $CCI_ULTRA_SRC"
+        return 1
+    fi
+}
+
+# Main entry: install (native, idempotent) -> link claude for all users -> link claudeteam.
+claude_code_install() {
+    local existing=""
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 3 lines, removed 2 lines
+    fi
+    echo ""
+
+    # Step 3: link the claudeteam launcher for all us
+    print_color "[STEP 3/3] Link claudeteam launcher into $CCI_BIN_DIR (all users)" "Info"
+    # Step 3: link the claudeteam + claudeultra launchers for all users.
+    print_color "[STEP 3/3] Link claudeteam + claudeultra launchers into $CCI_BIN_DIR (all users)" "Info"
+    cci_setup_claudeteam
+    cci_setup_claudeultra
+    echo ""
+
+    if timeout 10 "$CCI_BIN_DIR/$CCI_EXEC" --version >/dev/null 2>&1; then
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 4 lines, removed 2 lines
+#      already works.
+#   2. Link the claude binary into /usr/local/bin so EVERY user gets it (that
+#      directory is on every user's PATH).
+#   3. Link the claudeteam launcher (scripts/linuxenvs/claudeteam.sh, the Linux
+#      mirror of scripts/winenvs/claudeteam.ps1) into /usr/local/bin too.
+#   3. Link the claudeteam launcher (scripts/linuxenvs/claudeteam.sh) and the
+#      claudeultra launcher (scripts/linuxenvs/claudeultra.sh, which runs
+#      claude --settings '{"ultracode":true}' --dangerously-skip-permissions),
+#      the Linux mirrors of the winenvs *.ps1 scripts,
+#
+# Privilege model:
+#   - root / writable bin dir : link directly (root is already in sudo mode).
+
+Now update the menu label to reflect the new launcher:
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+File must be read first
+
+  Read 1 file
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+Added 1 line, removed 1 line
+show_ai_mcp_management_menu() {
+    local -a menu_items=(
+        "header:== AI Management (per-tool env/command setup) =========="
+        "claude_env:  Install Claude Code (native) + link all users + claudeteam"
+        "claude_env:  Install Claude Code (native) + link all users + claudeteam + claudeultra"
+        "droid_env:  Droid env/command setup"
+        "openai_env:  OpenAI env/command setup"
+        "header:== MCP: Inspect ========================================"
+
+Now make the launcher executable and validate syntax of all changed scripts:
+
+  Ran 1 shell command
+
+All syntax checks pass. The EUID test error is just my test shell (EUID is readonly) — the script reads $EUID, which is correct. Let me re-verify the arg-building logic with a renamed var and check PowerShell parse if available:
+
+  Ran 1 shell command
+
+The Linux arg logic is correct (root drops skip-permissions; user keeps it). My pwsh check had a harness bug — let me re-run it cleanly:
+
+  Ran 1 shell command
+
+❯ not ultra ,just on claudeteam,defaulg enable multiple roles and ultracode ,and winodws.
+
+Got it — the user wants claudeteam itself to default-enable multiple roles (agent teams, already on) and ultracode, not a separate claudeultra command. Let me revert the claudeultra additions and instead modify claudeteam on both Linux and Windows.
+
+First, delete the separate launchers and revert the installer/menu wiring:
+
+  Ran 1 shell command
+
+Now revert the four edits in claude_code_install.sh:
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Removed 1 line
+CCI_EXEC="claude"
+CCI_NATIVE_INSTALL_URL="https://claude.ai/install.sh"
+CCI_TEAM_SRC="$CCI_LINUXENVS_DIR/claudeteam.sh"
+CCI_ULTRA_SRC="$CCI_LINUXENVS_DIR/claudeultra.sh"
+
+# Fallback print_color when run standalone (the main menu provides the real one).
+if ! command -v print_color >/dev/null 2>&1; then
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Removed 12 lines
+    fi
+}
+
+# Link the claudeultra launcher (and its .sh alias) for all users. claudeultra
+# runs: claude --settings '{"ultracode":true}' --dangerously-skip-permissions.
+cci_setup_claudeultra() {
+    if [ -s "$CCI_ULTRA_SRC" ]; then
+        cci_link_into_bin "$CCI_ULTRA_SRC" "claudeultra"
+        cci_link_into_bin "$CCI_ULTRA_SRC" "claudeultra.sh"
+    else
+        echo "[WARN] claudeultra.sh not found at: $CCI_ULTRA_SRC"
+        return 1
+    fi
+}
+
+# Main entry: install (native, idempotent) -> link claude for all users -> link claudeteam.
+claude_code_install() {
+    local existing=""
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 2 lines, removed 3 lines
+    fi
+    echo ""
+
+    # Step 3: link the claudeteam + claudeultra launchers for all users.
+    print_color "[STEP 3/3] Link claudeteam + claudeultra launchers into $CCI_BIN_DIR (all users)" "Info"
+    # Step 3: link the claudeteam launcher for all users.
+    print_color "[STEP 3/3] Link claudeteam launcher into $CCI_BIN_DIR (all users)" "Info"
+    cci_setup_claudeteam
+    cci_setup_claudeultra
+    echo ""
+
+    if timeout 10 "$CCI_BIN_DIR/$CCI_EXEC" --version >/dev/null 2>&1; then
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 4 lines, removed 4 lines
+#      already works.
+#   2. Link the claude binary into /usr/local/bin so EVERY user gets it (that
+#      directory is on every user's PATH).
+#   3. Link the claudeteam launcher (scripts/linuxenvs/claudeteam.sh) and the
+#      claudeultra launcher (scripts/linuxenvs/claudeultra.sh, which runs
+#      claude --settings '{"ultracode":true}' --danger
+#      the Linux mirrors of the winenvs *.ps1 scripts, into /usr/local/bin too.
+#   3. Link the claudeteam launcher (scripts/linuxenvs/claudeteam.sh, the Linux
+#      mirror of scripts/winenvs/claudeteam.ps1) into /usr/local/bin too.
+#      claudeteam launches Claude Code with multiple roles (experimental agent
+#      teams) and ultracode enabled by default.
+#
+# Privilege model:
+#   - root / writable bin dir : link directly (root is already in sudo mode).
+
+Revert the menu label:
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+Added 1 line, removed 1 line
+show_ai_mcp_management_menu() {
+    local -a menu_items=(
+        "header:== AI Management (per-tool env/command setup) =========="
+        "claude_env:  Install Claude Code (native) + link all users + claudeteam + claudeultra"
+        "claude_env:  Install Claude Code (native) + link all users + claudeteam"
+        "droid_env:  Droid env/command setup"
+        "openai_env:  OpenAI env/command setup"
+        "header:== MCP: Inspect ========================================"
+
+Now modify the Linux claudeteam.sh to default-enable ultracode (multiple roles already on via the teams env). Reading it first:
+
+  Read 1 file
+
+Now update the docs and invocation in claudeteam.sh:
+
+● Update(scripts/linuxenvs/claudeteam.sh)
+Added 7 lines, removed 4 lines
+# =============================================================================
+#
+# Synopsis:
+#     Launches Claude Code with experimental agent teams enabled (Linux).
+#     Launches Claude Code with multiple roles (experimental agent teams) and
+#     ultracode enabled by default (Linux).
+#
+# Description:
+#     Linux mirror of scripts/winenvs/claudeteam.ps1. Sets
+#     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the c
+#         claude --dangerously-skip-permissions [args...]
+#     Any script arguments are appended to that command line.
+#     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
+#     roles), then runs:
+#         claude --settings '{"ultracode":true}' --dangerously-skip-permissions [args...]
+#     The --settings flag turns on ultracode via inline JSON. Any script
+#     arguments are appended to that command line.
+#
+#     Root safety: when running as root, the --dangerously-skip-permissions flag
+#     is dropped (root already has full permissions and Claude Code refuses that
+
+● Update(scripts/linuxenvs/claudeteam.sh)
+Added 17 lines, removed 9 lines
+set -e
+
+# Variable declarations (declared at the beginning of the file)
+claude_command=""
+ultra_settings_json='{"ultracode":true}'
+claude_args=()
+claude_invoke_display=""
+claude_team_args_display=""
+
+# Multiple roles: enable experimental agent teams for the session.
+export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
+
+# Default-enable ultracode via inline JSON settings. Built as an array so the
+# JSON value is always passed as a single argument (string-splitting would break
+# it if the JSON ever contained spaces).
+claude_args+=(--settings "$ultra_settings_json")
+
+# Check if running as root - skip --dangerously-skip-permissions flag for root
+if [ "$EUID" -eq 0 ]; then
+    claude_command="claude"
+else
+    claude_command="claude --dangerously-skip-permissions"
+# (root already has full permissions and Claude Code refuses that flag as root).
+if [ "$EUID" -ne 0 ]; then
+    claude_args+=(--dangerously-skip-permissions)
+fi
+
+claude_invoke_display="claude ${claude_args[*]}"
+if [ "$#" -gt 0 ]; then
+    claude_team_args_display=" $*"
+fi
+
+echo "============================================================"
+echo "claudeteam.sh"
+echo "============================================================"
+echo "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session)"
+echo "[INFO] Invoking: ${claude_command}${claude_team_args_display}"
+echo "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)"
+echo "[INFO] Ultracode settings: --settings ${ultra_settings_json}"
+echo "[INFO] Invoking: ${claude_invoke_display}${claude_team_args_display}"
+echo "============================================================"
+echo ""
+
+# shellcheck disable=SC2086
+exec $claude_command "$@"
+exec claude "${claude_args[@]}" "$@"
+
+Now the Windows claudeteam.ps1. Reading the relevant sections:
+
+  Read 1 file
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 6 lines, removed 3 lines
+
+<#
+.SYNOPSIS
+    Launches Claude Code with experimental agent teams and teammate mode (in-process).
+    Launches Claude Code with multiple roles (experimental agent teams) and
+    ultracode enabled by default.
+
+.DESCRIPTION
+    Sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session, then runs:
+    claude --dangerously-skip-permissions --teammate-mode in-process
+    Sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
+    roles), then runs:
+    claude --settings '{"ultracode":true}' --dangerously-skip-permissions
+    The --settings flag turns on ultracode via inline
+    Any script arguments are appended to that command line.
+
+.EXAMPLE
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 1 line
+$shellsWinPath = $null
+$winCommonDirPath = $null
+$windowsPathFunctionScript = $null
+$ultraSettingsJson = $null
+$exitCode = 0
+$claudeInvokeDisplayArgs = $null
+
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 4 lines
+
+$env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+
+# Default-enable ultracode via inline JSON settings (c
+# native-argument quoting stays safe).
+$ultraSettingsJson = '{"ultracode":true}'
+
+$claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
+    [string]::Format(" {0}", ($args -join " "))
+} else {
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 3 lines, removed 2 lines
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "claudeteam.ps1" -ForegroundColor Yellow
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session)" -ForegroundColor Green
+Write-Host "[INFO] Invoking: claude --dangerously-skip-permissions$claudeInvokeDisplayArgs" -ForegroundColor Green
+Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)" -ForegroundColor Green
+Write-Host "[INFO] Ultracode settings: --settings $ultraSettingsJson" -ForegroundColor Green
+Write-Host "[INFO] Invoking: claude --settings $ultraSettingsJson --dangerously-skip-permissions$claudeInvokeDisplayArgs" -ForegroundColor G
+reen
+if ($args.Count -gt 0) {
+    Write-Host "[INFO] Extra arguments ($($args.Count)roundColor DarkGray
+} else {
+
+● Update(scripts/winenvs/claudeteam.ps1)
+Added 2 lines, removed 2 lines
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host ""
+
+# & claude --dangerously-skip-permissions --teammate-mode in-process @args
+& claude --dangerously-skip-permissions @args
+# & claude --settings $ultraSettingsJson --dangerously-skip-permissions --teammate-mode in-process @args
+& claude --settings $ultraSettingsJson --dangerously-skip-permissions @args
+$exitCode = $LASTEXITCODE
+if ($null -eq $exitCode) {
+    $exitCode = 0
+
+Now validate everything and confirm no stray claudeultra references remain:
+
+  Ran 1 shell command
+
+Done. I reverted the separate claudeultra approach and insteadlt-enable multiple roles + ultracode, on both Linux and Windows.
+
+What changed
+
+scripts/linuxenvs/claudeteam.sh (Linux launcher)
+- Keeps CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (multiple roles).
+- Now also passes --settings '{"ultracode":true}' by default.
+- Rebuilt the invocation as an args array (claude "${claude_args[@]}" "$@") so the JSON is always one argument — the old unquoted-string-split pattern was fragile for JSON.
+- Root safety preserved: --dangerously-skip-permissions is added only for non-root.
+
+scripts/winenvs/claudeteam.ps1 (Windows launcher)
+- Same change: sets the teams env, adds $ultraSettingsJson = '{"ultracode":true}', and invokes & claude --settings $ultraSettingsJson --dangerously-skip-permissions @args.
+- Updated banner/synopsis to match.
+
+Reverted the claudeultra additions from the prior step: deleted linuxenvs/claudeultra.sh and winenvs/claudeultra.ps1, and restored claude_code_install.sh (back to linking just claudeteam, with an updated comment noting it now launches with multiple roles + ultracode) and the menu label.
+
+Effective command now
+
+- non-root / Windows: claude --settings '{"ultracode":true}' --dangerously-skip-permissions [args…]
+- root: claude --settings '{"ultracode":true}' [args…] (skip-permissions dropped, as Claude Code refuses it as root)
+
+Verification
+
+- bash -n passes for all three touched shell scripts.
+- Arg simulation confirms the JSON passes as a single token and root vs. user branching is correct.
+- pwsh parses claudeteam.ps1 cleanly.
+- No leftover claudeultra references anywhere.
+
+Wiring is unchanged: sync_linuxenvs_to_bin keeps claudeteam/claudeteam.sh symlinked into /usr/local/bin for all users, the "Install Claude Code" menu action still links it, and on Windows claudeteam.ps1 is exposed via the existing winenvs/claudelist.ps1 mechanism — so every existing claudeteam entry point now gets ultracode + multiple roles automatically.
+
+One note: I left --teammate-mode in-process commented out in the Windows script exactly as it already was — say the word if you want that re-enabled alongside the multiple-roles default.
+
+✻ Baked for 6m 33s
+
+
+Now delete the standalone script and validate:
+
+  Ran 1 shell command
+
+❯ 120_install_desktop_applications.sh claude code if exsitst , idempotent with dd.sh Ai install cluade code install workflow, and merge script to dd.sh workflow ,then AI & MCP Management (status/install/sync 8 tools) can call install script from shells/debian/* some install scritps.
+
+The merge of 4_set_desktop_power.sh into 2_setting_base.sh is complete and validated (the two remaining matches are just my explanatory comments noting the merge origin — intentional).
+
+Now let me investigate the new request about 120_install_desktop_applications.sh and Claude Code. First, what does 120 do with Claude Code today?
+
+  Searched for 2 patterns, read 1 file
+
+This is a multi-part refactor touching a 1758-line installer and the menu. Let me gather the key facts before deciding — where the shared workflow lives and how 120 currently installs claude:
+
+  Ran 3 shell commands
+
+I now have the full picture. There are two distinct Claude install paths today:
+- 120_install_desktop_applications.sh installs claude via npm/de) → launch scripts in /usr/local/super_scripts + symlinks.
+- dd.sh AI menu uses scripts/ai_shtools/claude_code_install.sh (official native installer + link-all-users + claudeteam).
+
+Your request unifies these and wires the menu to debian install scripts — but there are a couple of design choices that materially change what I build, so let me confirm direction before refactoring a 1758-line installer.
+
+● User answered Claude's questions:
+· How should 120_install_desktop_applications.sh install Claude Code, to make it idempotent and consistent with the dd.sh AI workflow? → Delegate to native workflow
+· How should the AI & MCP Management menu be able to call the shells/debian install scripts? → add an nwe script ,install claude code ,like this 121_install_cursor.sh,anywhere call this. No at 120 desktop apps.
+
+Understood:
+- Q1: Delegate to the native workflow (single source of truth).
+- Q2: Create a new standalone install script in install_shells/ (like 121_install_cursor.sh) that installs Claude Code via the native workflow and can be called from anywhere — not inside 120 desktop apps.
+
+So: new 12x_install_claude_code.sh delegating to claude_code_install.sh; remove claude from 120's flow; wire the menu to call the new script. Let me inspect the app registry to remove claude from 120 safely, and check the cursor script + free numbers:
+
+  Ran 1 shell command
+
+Number 129 is free. Let me verify what uses AI_PACKAGE_LIST and claude_groups before removing claude from 120's flow:
+
+  Read 1 file, ran 1 shell command
+
+Confirmed: removing "claude" from AI_PACKAGE_LIST (line 349) takes it out of 120's install selection, and removing it from the npm_packages relink array completes the removal. The registry entry can stay (harmless). Now let me build it.
+
+1. Create the new standalone installer 129_install_claude_code.sh:
+
+● Write(scripts/shells/linux/debian/install_shells/129_install_claude_code.sh)
+Wrote 65 lines to scripts/shells/linux/debian/install_shells/129_install_claude_code.sh
+#!/bin/bash
+# Claude Code Installation Script
+#
+# Usage:
+#   ./129_install_claude_code.sh   # Install Claude Code (official native method)
+#
+# Installs Claude Code via the OFFICIAL NATIVE installer and links it for all
+# users + the claudeteam launcher. This is a thin insta
+# the canonical dd.sh AI workflow (scripts/ai_shtools/claude_code_install.sh),
+# so there is a single source of truth and the same logic runs whether invoked
+… +56 lines
+
+2. Remove claude from 120's flow — registry list and the npm relink array:
+
+  Read 1 file
+
+● Update(scripts/shells/linux/common/linux_applications_list.sh)
+Added 4 lines, removed 1 line
+    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop"
+)
+
+# NOTE: "claude" is intentionally NOT installed here. Claude Code is installed by
+# the dedicated install_shells/129_install_claude_code.sh step (official native
+# installer), the single source of truth shared with the dd.sh AI workflow.
+AI_PACKAGE_LIST=(
+    "gemini" "claude" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"
+    "gemini" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"
+)
+
+MCP_PACKAGE_LIST=(
+
+  Read 1 file
+
+● Update(scripts/shells/linux/debian/install_shells/120_install_desktop_applications.sh)
+Added 4 lines, removed 2 lines
+
+    log_message "NPM global bin directory: $pnpm_global_bin/bin"
+
+    # Process all AI packages that use npm installation method
+    local npm_packages=("gemini" "claude" "codex" "auggie")
+    # Process all AI packages that use npm installation method.
+    # NOTE: "claude" is excluded here on purpose -- Claude Code is installed and
+    # linked by install_shells/129_install_claude_code.sh (native workflow).
+    local npm_packages=("gemini" "codex" "auggie")
+
+    for package in "${npm_packages[@]}"; do
+        local exec_name=$(get_app_property "$package" "exec")
+
+3. Wire the AI & MCP Management menu to call the new install script. Let me update the menu's source line and the claude_env action:
+
+  Read 1 file
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+Added 3 lines
+# core_node root: menu_func -> menu_itemshells -> linux -> shells -> scripts -> root
+AIMCP_CORE_NODE_DIR="$(cd "$AIMCP_DIR/../../../../.." && pwd)"
+AIMCP_SHTOOLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/ai_shtools"
+# Debian install_shells dir: the menu can call install scripts from here (e.g.
+# the dedicated Claude Code installer 129_install_claude_code.sh).
+AIMCP_INSTALL_SHELLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/shells/linux/debian/install_shells"
+# Canonical engine + status live in scripts/ai_shtools (shared with the main-menu
+# "Sync All MCP" action), so there is a single source of truth.
+# shellcheck source=/dev/null
+
+Now add a helper to run install scripts and point claude_env at the new script:
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+Added 13 lines
+    fi
+}
+
+# Run an install script from scripts/shells/linux/debian/install_shells.
+aimcp_run_install_script() {
+    local script_name="$1" label="$2"
+    local script_path="$AIMCP_INSTALL_SHELLS_DIR/$script_name"
+    if [ -s "$script_path" ]; then
+        [ -x "$script_path" ] || chmod +x "$script_path" 2>/dev/null || true
+        bash "$script_path"
+    else
+        clear
+        echo "[INFO] $label not found at: $script_path"
+    fi
+}
+
+show_ai_mcp_management_menu() {
+    local -a menu_items=(
+        "header:== AI Management (per-tool env/command setup) =========="
+
+● Update(scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh)
+Added 1 line, removed 1 line
+                IFS=':' read -r action text <<< "${menu_items[$selected_index]}"
+                case "$action" in
+                    header) ;;
+                    claude_env)       clear; aimcp_run_submenu claude_code_install "Claude Code installer"; aimcp_pause ;;
+                    claude_env)       clear; aimcp_run_install_script "129_install_claude_code.sh" "Claude Code installer"; aimcp_pause ;;
+                    droid_env)        aimcp_run_submenu show_droid_submenu "Droid env setup" ;;
+                    openai_env)       aimcp_run_submenu show_openai_submenu "OpenAI env setup" ;;
+                    dryrun)           clear; mcp_show_planned; aimcp_pause ;;
+
+Now make the new script executable and validate everything:
+
+  Ran 1 shell command
+
+All green. Let me verify the new script's path resolution correctly locates the shared workflow (without triggering a real install):
+
+  Ran 1 shell command
+
+Path resolution is correct. Everything is wired and validated.
+
+Summary
+
+Per your answers — delegate to the native workflow, and a dedicated install script (like 121_install_cursor.sh) callable anywhere, not inside 120 desktop apps:
+
+1. New install_shells/129_install_claude_code.sh (free slot after 128)
+- Thin, idempotent install_shells step that sources the canonical scripts/ai_shtools/claude_code_install.sh and calls claude_code_install → official native installer + link claude for all users + claudeteam.
+- Single source of truth: same logic whether run from the full install pass (auto-discovered by install.sh), from dd.sh, or from the AI & MCP menu.
+- Idempotent ("if exists" skip) — the shared workflow already skips the native install when claude works and only fixes missing/wrong symlinks.
+- Self-contained path resolution (verified it locates the shared workflow), so it can be called from anywhere.
+
+2. Removed Claude from 120 desktop apps (no duplicate path)
+- common/linux_applications_list.sh: dropped "claude" from AI_PACKAGE_LIST (so group-based install in 120 no longer selects it) with a NOTE pointing to 129. The registry claude_* entry stays as harmless metadata.
+- 120_install_desktop_applications.sh: dropped "claude" from the npm relink array in refresh_environment, with a NOTE.
+
+3. AI & MCP Management menu now calls the install script from shells/debian/*
+- Added AIMCP_INSTALL_SHELLS_DIR + an aimcp_run_install_script
+- The "Install Claude Code (native) + link all users + claudeteam" entry now runs 129_install_claude_code.sh instead of calling the function inline.
+
+Validation: bash -n passes on all four touched files; run order places 129_install_claude_code.sh correctly between 128 and 131; no bare "claude" install-list entries remain (only the registry claude_exec value and the explanatory NOTEs); 129's path resolution resolves to the real shared workflow.
+
+One note: because install.sh auto-discovers numbered scripts, 129_install_claude_code.sh will now run during a full install too (after the desktop-app installers), replacing the old npm path with the native one. It's idempotent, so re-runs are safe. Say the word if you'd rather it be menu/standalone-only and excluded from the unattended full run (I can rename it to a non-numeric prefix so the discovery loop skips it).
+
+✻ Sautéed for 8m 29s
+
+❯ 129_install_claude_code.sh Can install MCP,sync claudeteam.sh to all user's bin,and sync Claude code bin to all users's, include regular users/root user,togther all funcs.native install, and anywher call this scripts, dd.sh AI & MCP Management (status/install/sync 8 tools)AI & MCP Management (status/install/sync 8 tools)
+   Dose too. aware idempotent.If in root that to regular users, fix permission.
+
+Let me look at the MCP engine functions and exactly how claude_code_install.sh handles the root/all-users access today, so I can add MCP install + the root→all-users permission fix:
+
+  Ran 1 shell command
+
+Let me inspect the actual native install layout on this machine to handle the root/all-users copy correctly:
+
+  Ran 1 shell command
+
+This is the key finding: the native claude is a single self-contained ELF binary (~/.local/bin/claude → ~/.local/share/claude/versions/X). And crucially, /home/kali itself is mode 700 — so a symlink in /usr/local/bin is unreachable by other users even for a regular-user install, not just root. The robust fix for true all-users access is to copy the self-contained binary into /usr/local/bin (works for everyone, no home traversal needed).
+
+Let me read the current step-2 block in claude_code_install.sh to replace it:
+
+  Read 1 file
+
+Now I'll add an all-users install helper that copies the self-contained binary when a symlink wouldn't be reachable, and replace the step-2 logic:
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 49 lines
+    return 1
+}
+
+# Make claude usable by EVERY user (regular users + root), fixing the common
+# permission problem: the native installer is per-user (~/.local/...) and the
+# resolved binary lives under a mode-700 home (/root or /home/<user>), so a
+# /usr/local/bin symlink is unreachable by anyone but the owner.
+#
+# The modern native build is a single self-contained executable, so when the
+# resolved target is not world-reachable we COPY it into /usr/local/bin (0755) --
+# that works for all users without exposing the owner's home. When the target IS
+# already world-reachable we keep a symlink so native auto-updates are tracked.
+# Idempotent: skips when the shared copy is already identical.
+cci_install_claude_all_users() {
+    local src="$1"
+    local resolved=""
+    local dest="$CCI_BIN_DIR/$CCI_EXEC"
+
+    resolved="$(readlink -f "$src" 2>/dev/null || echo "$src")"
+
+    if cci_others_can_access "$resolved"; then
+        # Reachable by everyone: symlink to the stable launcher (tracks updates).
+        cci_link_into_bin "$src" "$CCI_EXEC" "keep"
+        echo "[OK] claude reachable by all users via symlink: $dest -> $resolved"
+        return 0
+    fi
+
+    echo "[FIX] claude lives under a non-world-readable home ($resolved);"
+    echo "      installing a shared copy in $CCI_BIN_DIR so every user can run it."
+    if [ ! -f "$resolved" ]; then
+        echo "[WARN] Resolved claude is not a regular file; linking instead (may be owner-only)."
+        cci_link_into_bin "$src" "$CCI_EXEC" "keep"
+        return 1
+    fi
+
+    # Idempotent: nothing to do when the shared binary already matches.
+    if [ -f "$dest" ] && [ ! -L "$dest" ] && cmp -s "$resolved" "$dest"; then
+        echo "[OK] Shared claude already up to date: $dest"
+        return 0
+    fi
+
+    cci_bin_sudo mkdir -p "$CCI_BIN_DIR"
+    cci_bin_sudo rm -f "$dest"
+    if cci_bin_sudo cp -f "$resolved" "$dest" && cci_bin_sudo chmod 0755 "$dest"; then
+        echo "[COPY] Installed shared claude for all users: $dest"
+        echo "       (self-contained native binary; re-run this installer to refresh after updates)"
+        return 0
+    fi
+    echo "[ERROR] Failed to install shared claude at $dest"
+    return 1
+}
+
+# Link the claudeteam launcher (and its .sh alias) for all users.
+cci_setup_claudeteam() {
+    if [ -s "$CCI_TEAM_SRC" ]; then
+
+● Update(scripts/ai_shtools/claude_code_install.sh)
+Added 5 lines, removed 17 lines
+    fi
+    echo ""
+
+    # Step 2: link the claude binary into /usr/local/bin for all users.
+    print_color "[STEP 2/3] Link claude into $CCI_BIN
+    # Step 2: make claude usable by all users (regular users + root), fixing
+    # permissions / mode-700 home issues by copying the self-contained binary
+    # into the shared bin when a symlink would not be reachable.
+    print_color "[STEP 2/3] Install claude into $CCI_BIN_DIR for all users" "Info"
+    bin_path="$(cci_find_claude || true)"
+    if [ -z "$bin_path" ]; then
+        echo "[ERROR] Could not locate the claude binary after installation."
+    else
+        echo "[FOUND] claude binary: $bin_path"
+        # Link to the stable launcher path (keep), so native updates are tracked.
+        cci_link_into_bin "$bin_path" "$CCI_EXEC" "keep"
+        # The native installer is per-user (~/.local/bin). When run as root that
+        # is /root/.local (mode 700) -> unreachable by other users, so the
+        # "all users" link would silently fail for everyone but the owner.
+        if cci_others_can_access "$bin_path"; then
+            echo "[OK] $bin_path is reachable and executable by all users."
+        else
+            echo "[WARNING] $bin_path is NOT traversable/executable by other users"
+            echo "          (likely under a mode-700 home such as /root/.local/bin)."
+            echo "          $CCI_BIN_DIR/$CCI_EXEC wi that path."
+            echo "          For true all-user access, install claude into a shared prefix"
+            echo "          (e.g. 'npm install -g @anthropic-ai/claude-code') or deliberately"
+            echo "          relax the path permissions."
+        fi
+        cci_install_claude_all_users "$bin_path"
+    fi
+    echo ""
+
+
+Now make 129 the all-in-one orchestrator — add MCP install/sync on top of the native claude install + all-users + claudeteam:
+
+● Update(scripts/shells/linux/debian/install_shells/129_install_claude_code.sh)
+Added 15 lines, removed 7 lines
+# Usage:
+#   ./129_install_claude_code.sh   # Install Claude Code (official native method)
+#
+# Installs Claude Code via the OFFICIAL NATIVE installer and links it for all
+# users + the claudeteam launcher. This is a thin install_shells wrapper around
+# the canonical dd.sh AI workflow (scripts/ai_shtools/claude_code_install.sh),
+# so there is a single source of truth and the same lo
+# from the full install run, dd.sh, or the AI & MCP Management menu.
+# All-in-one Claude Code provisioning (single source of truth, callable anywhere
+# -- full install run, dd.sh, or the AI & MCP Management menu). It runs ALL of:
+#   1. Official NATIVE install of Claude Code.
+#   2. Make claude usable by EVERY user (regular users + root): when the native
+#      per-user binary sits under a mode-700 home, the self-contained binary is
+#      COPIED into /usr/local/bin (0755) so all users can run it (permission fix
+#      for the root -> regular-users case); otherwise it is symlinked.
+#   3. Sync the claudeteam launcher into /usr/local/bin for all users.
+#   4. Install MCP servers and sync MCP config to all AI tools.
+# Steps 1-3 are delegated to the canonical scripts/ai_shtools/claude_code_install.sh;
+# step 4 is delegated to scripts/ai_shtools/mcp_sync_engine.sh. The dd.sh AI & MCP
+# Management menu calls this same script, so both do the same thing.
+#
+# Idempotent: the shared workflow skips the native install when claude already
+# works and only (re)creates symlinks that are missing or wrong.
+# Idempotent: the native install is skipped when claude already works, the shared
+# copy is skipped when already identical, symlinks are only (re)created when
+# missing/wrong, and MCP install/sync re-asserts existing config.
+#
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+
+● Update(scripts/shells/linux/debian/install_shells/129_install_claude_code.sh)
+Added 1 line
+# install_shells -> debian -> linux -> shells -> scripts -> core_node root
+CORE_NODE_ROOT="$(cd "$PARENT_DIR_LEVEL_2/../../.." && pwd)"
+CLAUDE_CODE_INSTALL_LIB="$CORE_NODE_ROOT/scripts/ai_shtools/claude_code_install.sh"
+MCP_SYNC_ENGINE_LIB="$CORE_NODE_ROOT/scripts/ai_shtools/mcp_sync_engine.sh"
+
+# Source global variables
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+
+● Update(scripts/shells/linux/debian/install_shells/129_install_claude_code.sh)
+Added 24 lines, removed 1 line
+echo "[$SCRIPT_INDEX] Install Claude Code (official native) -> all users + claudeteam"
+echo "[$SCRIPT_INDEX] ============================================================"
+
+# --- Steps 1-3: native install + all-users binary + claudeteam ---------------
+# Delegate to the canonical native workflow (single so
+if [ -s "$CLAUDE_CODE_INSTALL_LIB" ]; then
+    # shellcheck source=/dev/null
+
+    exit 1
+fi
+
+echo "[$SCRIPT_INDEX] Claude Code installation step completed."
+# --- Step 4: install MCP servers + sync MCP config to all AI tools -----------
+# Best-effort: MCP problems must not fail the Claude Code install step.
+echo ""
+echo "[$SCRIPT_INDEX] ============================================================"
+echo "[$SCRIPT_INDEX] Install MCP servers + sync to all AI tools"
+echo "[$SCRIPT_INDEX] ============================================================"
+if [ -s "$MCP_SYNC_ENGINE_LIB" ]; then
+    # shellcheck source=/dev/null
+    source "$MCP_SYNC_ENGINE_LIB"
+    if command -v mcp_install_all >/dev/null 2>&1; then
+        # mcp_install_all installs Chrome + Context7 MCP then syncs all tools.
+        mcp_install_all || echo "[$SCRIPT_INDEX] WARNING: MCP install/sync reported errors (continuing)."
+    elif command -v mcp_sync_all >/dev/null 2>&1; then
+        mcp_sync_all || echo "[$SCRIPT_INDEX] WARNING: MCP sync reported errors (continuing)."
+    else
+        echo "[$SCRIPT_INDEX] WARNING: MCP engine functions not found; skipping MCP step."
+    fi
+else
+    echo "[$SCRIPT_INDEX] WARNING: MCP sync engine not found at: $MCP_SYNC_ENGINE_LIB; skipping MCP step."
+fi
+
+echo ""
+echo "[$SCRIPT_INDEX] Claude Code provisioning completed (native install + all-users bin + claudeteam + MCP)."
+
+Now validate all changed files:
+
+  Ran 1 shell command
+
+The simulation confirms the fix works exactly as intended: on this machine claude resolves to a self-contained ELF under a mode-700 home, so the logic correctly chooses to copy the binary into /usr/local/bin — making it runnable by all users (regular + root). All syntax checks pass.
+
+Summary
+
+129_install_claude_code.sh is now the all-in-one, idempotent, call-anywhere Claude Code provisioner, and the dd.sh AI & MCP Management menu calls the same script — so both do all of it:
+
+1. Native install — delegates to claude_code_install.sh (official claude.ai/install.sh), skipped when claude already works.
+
+2. Sync claude bin to ALL users (regular + root) — with the permission fix (the core of your request). New cci_install_claude_all_users in claude_code_install.sh:
+- The native build is a single self-contained ELF binary, and per-user homes are mode 700 — so a symlink in /usr/local/bin is unreachable by other users (true for a root install and a regular-user install).
+- When the resolved binary isn't world-reachable, it copies the binary into /usr/local/bin/claude (0755) → works for every user without exposing anyone's home. When it is reachable, it symlinks (so native auto-updates track).
+- Idempotent: skips the copy when the shared binary is already identical (cmp -s); re-run refreshes after an update.
+
+3. Sync claudeteam.sh to all users' bin — unchanged cci_setup_claudeteam links claudeteam + claudeteam.sh into /usr/local/bin.
+
+4. Install MCP + sync to all AI tools — 129 now also sources mcp_sync_engine.sh and runs mcp_install_all (Chrome + Context7 MCP, then sync to all tools), best-effort so MCP issues never fail the claude step.
+
+Idempotency throughout: native install skipped if present, shared copy skipped if identical, symlinks only (re)created when missing/wrong, MCP re-asserts
+config.
+
+Wiring: the menu's "Install Claude Code…" entry runs 129_install_claude_code.sh (callable from the full install pass, dd.sh, or the menu — single source of truth). claude was already removed from 120 in the previous step.
+
+Files changed: scripts/ai_shtools/claude_code_install.sh (all-users copy/permission-fix), scripts/shells/linux/debian/install_shells/129_install_claude_code.sh (added MCP step + docs). All pass bash -n.
+
+One heads-up: since 129 auto-runs in the full install pass and now also installs MCP, that pass will trigger the Chrome MCP build (it runs after node/pnpm at step 15/28, so deps are present; it's guarded || true). If you'd prefer MCP not to run during the unattended full install (only when invoked from the menu), I can gate step 4 behind a flag/arg — just say so.
+
+✻ Cogitated for 4m 29s

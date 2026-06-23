@@ -775,26 +775,22 @@ install_via_microsoft_apt() {
     local gpg_key_url="https://packages.microsoft.com/keys/microsoft.asc"
     local gpg_key_file="/etc/apt/keyrings/packages.microsoft.gpg"
 
-    # Try method 1: Using apt-key add (older systems)
-    if wget -qO- "$gpg_key_url" | $USE_SUDO apt-key add -; then
-        log_success "Microsoft GPG key added successfully"
-    else
-        log_warning "apt-key method failed, trying keyring method..."
+    # Install the Microsoft (third-party) key into its OWN dedicated keyring file and
+    # reference it via signed-by= -- NEVER apt-key (deprecated; trusts the key globally and
+    # touches the system keyring). gpg --dearmor --yes is idempotent.
+    $USE_SUDO mkdir -p /etc/apt/keyrings 2>/dev/null || true
+    if wget -qO- "$gpg_key_url" | $USE_SUDO gpg --dearmor --yes -o "$gpg_key_file" 2>/dev/null; then
+        log_success "Microsoft GPG key installed to $gpg_key_file"
 
-        # Try method 2: Using gpg with keyrings directory
-        if wget -qO- "$gpg_key_url" | $USE_SUDO gpg --dearmor | $USE_SUDO tee "$gpg_key_file" > /dev/null; then
-            log_success "Microsoft GPG key installed to keyring"
-
-            # Create sources list entry with keyring reference
-            log_install "Adding Microsoft repository with keyring..."
-            if ! echo "deb [arch=amd64,arm64,armhf signed-by=$gpg_key_file] https://packages.microsoft.com/repos/code stable main" | $USE_SUDO tee /etc/apt/sources.list.d/vscode.list > /dev/null; then
-                log_error "Failed to add Microsoft repository"
-                return 1
-            fi
-        else
-            log_error "Failed to install Microsoft GPG key using both methods"
+        # Create sources list entry with keyring reference (signed-by)
+        log_install "Adding Microsoft repository with keyring..."
+        if ! echo "deb [arch=amd64,arm64,armhf signed-by=$gpg_key_file] https://packages.microsoft.com/repos/code stable main" | $USE_SUDO tee /etc/apt/sources.list.d/vscode.list > /dev/null; then
+            log_error "Failed to add Microsoft repository"
             return 1
         fi
+    else
+        log_error "Failed to install Microsoft GPG key"
+        return 1
     fi
 
     # Update package list

@@ -35,7 +35,7 @@ PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/47_ensure_php_pgsql.sh"
 GVAR_COMMON_SCRIPT="${REPO_ROOT}/scripts/shells/linux/common/gvar_common.sh"
 # Per-app PostgreSQL databases (one per app connection; mirrors config/database.php
 # $polyConnection(... , pgDatabase) targets). Created idempotently before migrate.
-APP_DB_NAMES="core_node_main app_qy_v1_database awy_v0_database vipclub_v1_database server_manager_v1_database achat_v1_database code_mart_v1_database mcp_v1_database it_tools_v1_database bank_v1_database"
+APP_DB_NAMES="core_node_main app_qy_v1_database awy_v0_database vipclub_v1_database server_manager_v1_database achat_v1_database code_mart_v1_database mcp_v1_database it_tools_v1_database bank_v1_database pdd_tool_v1_database"
 
 # Laravel runtime directories that MUST exist and be writable (git does not track
 # empty dirs, so a fresh checkout/restore can miss these -> package:discover fails).
