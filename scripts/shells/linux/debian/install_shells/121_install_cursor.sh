@@ -914,7 +914,7 @@ cleanup_cursor() {
     if [[ -z "$desktop_manager_home" ]] || [[ ! -d "$desktop_manager_home" ]]; then
         desktop_manager_home="$HOME"
     fi
-    local launcher_script="/var/_core_node/scripts_launch_dir/cursor_launcher.sh"
+    local launcher_script="$CORE_NODE_DATA_DIR/scripts_launch_dir/cursor_launcher.sh"
     if [[ -e "$launcher_script" ]] || [[ -L "$launcher_script" ]]; then
         print_step_from_common_functions "Removing launcher script: $launcher_script"
         $USE_SUDO rm -f "$launcher_script"
@@ -1054,8 +1054,9 @@ ensure_cursor_agent_installed() {
 
         # Add to /etc/environment for system-wide access (works in root mode)
         if ! grep -q "PATH.*$local_bin_dir" /etc/environment 2>/dev/null; then
+            local current_path=$(grep "^PATH=" /etc/environment 2>/dev/null | cut -d= -f2 | tr -d '"')
+            [ -z "$current_path" ] && current_path="${PATH:-/usr/local/bin:/usr/bin:/bin}"
             $USE_SUDO sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
-            local current_path=$(grep "^PATH=" /etc/environment 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "/usr/local/bin:/usr/bin:/bin")
             echo "PATH=\"$local_bin_dir:$current_path\"" | $USE_SUDO tee -a /etc/environment > /dev/null
         fi
 

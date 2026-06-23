@@ -52,27 +52,46 @@ get_chrome_install_directory() {
     echo "[$SCRIPT_INDEX] Chrome installation directory: $CHROME_INSTALL_DIR"
 }
 
-# Function to check if Chrome is already installed
+# Function to check if real GOOGLE CHROME is already installed.
+# Chromium is NOT Google Chrome: on amd64 (where Google ships real Chrome) a
+# Chromium binary must NOT satisfy this check, or the script would wrongly skip
+# installing actual Chrome. Google Chrome for Linux is amd64/x86_64 ONLY, so on
+# other arches (e.g. arm64) Chromium is accepted as the closest available substitute.
 check_chrome_installation() {
     local chrome_paths=(
         "/usr/bin/google-chrome"
         "/usr/bin/google-chrome-stable"
-        "/usr/bin/chromium"
-        "/usr/bin/chromium-browser"
-        "/snap/bin/chromium"
         "/opt/google/chrome/chrome"
+        "/var/lib/flatpak/exports/bin/com.google.Chrome"
         "$CHROME_INSTALL_DIR/chrome"
     )
-    
+
+    local chrome_path
     for chrome_path in "${chrome_paths[@]}"; do
         if [ -f "$chrome_path" ] && [ -x "$chrome_path" ]; then
             CHROME_BIN_PATH="$chrome_path"
             CHROME_VERSION=$($chrome_path --version 2>/dev/null || echo "unknown")
-            echo "[$SCRIPT_INDEX] Chrome found at: $chrome_path (version: $CHROME_VERSION)"
+            echo "[$SCRIPT_INDEX] Google Chrome found at: $chrome_path (version: $CHROME_VERSION)"
             return 0
         fi
     done
-    
+
+    # Google Chrome for Linux ships only for amd64/x86_64. On other architectures
+    # it does not exist, so accept Chromium there as the closest substitute.
+    local arch
+    arch=$(dpkg --print-architecture 2>/dev/null || uname -m)
+    if [ "$arch" != "amd64" ] && [ "$arch" != "x86_64" ]; then
+        local chromium_path
+        for chromium_path in "/usr/bin/chromium" "/usr/bin/chromium-browser" "/snap/bin/chromium"; do
+            if [ -f "$chromium_path" ] && [ -x "$chromium_path" ]; then
+                CHROME_BIN_PATH="$chromium_path"
+                CHROME_VERSION=$($chromium_path --version 2>/dev/null || echo "unknown")
+                echo "[$SCRIPT_INDEX] Google Chrome is unavailable for arch '$arch'; using Chromium at: $chromium_path (version: $CHROME_VERSION)"
+                return 0
+            fi
+        done
+    fi
+
     return 1
 }
 
@@ -82,6 +101,24 @@ check_chrome_installation() {
 # Function to install Chrome via APT (using .deb package from Downloads or direct download)
 install_chrome_apt() {
     echo "[$SCRIPT_INDEX] Installing Chrome via APT package manager..."
+
+    # Google Chrome for Linux is amd64/x86_64 ONLY (Google ships no arm64/i386
+    # build). On other architectures, install Chromium -- the supported browser
+    # there -- instead of trying the amd64-only Chrome .deb.
+    local apt_arch
+    apt_arch=$(dpkg --print-architecture 2>/dev/null || uname -m)
+    if [ "$apt_arch" != "amd64" ] && [ "$apt_arch" != "x86_64" ]; then
+        echo "[$SCRIPT_INDEX] Architecture '$apt_arch' has no Google Chrome build; installing Chromium instead..."
+        $USE_SUDO apt-get update 2>/dev/null || true
+        if $USE_SUDO apt-get install -y chromium 2>/dev/null || $USE_SUDO apt-get install -y chromium-browser 2>/dev/null; then
+            CHROME_BIN_PATH=$(command -v chromium || command -v chromium-browser || echo "/usr/bin/chromium")
+            CHROME_VERSION=$("$CHROME_BIN_PATH" --version 2>/dev/null || echo "unknown")
+            echo "[$SCRIPT_INDEX] Chromium installed at: $CHROME_BIN_PATH ($CHROME_VERSION)"
+            return 0
+        fi
+        echo "[$SCRIPT_INDEX] Failed to install Chromium on '$apt_arch'"
+        return 1
+    fi
 
     # Try to find Chrome .deb in Downloads directories first
     echo "[$SCRIPT_INDEX] Searching for Chrome .deb in Downloads directories..."
@@ -351,10 +388,10 @@ store_chrome_info() {
 
 # Function to kill hanging Chrome processes
 kill_chrome_processes() {
-    local count=$(pgrep -c "chrome\|chromium" 2>/dev/null | tr -d '\n' || echo "0")
+    local count=$(pgrep -c "chrome|chromium" 2>/dev/null | tr -d '\n' || echo "0")
     if [ "$count" -gt 3 ]; then
         echo "[$SCRIPT_INDEX] Found $count Chrome processes, cleaning up..."
-        $USE_SUDO pkill -f "chrome\|chromium" 2>/dev/null || true
+        $USE_SUDO pkill -f "chrome|chromium" 2>/dev/null || true
         echo "[$SCRIPT_INDEX] All Chrome processes have been terminated"
     elif [ "$count" -gt 0 ]; then
         echo "[$SCRIPT_INDEX] Found $count Chrome process(es), normal range"
@@ -447,14 +484,15 @@ else
             fi
             ;;
         "auto")
-            # Try all methods in order (snap first as preferred)
-            if install_chrome_snap; then
+            # Prefer REAL Google Chrome (apt/direct .deb, then the Chrome flatpak);
+            # fall back to the Chromium snap only as a last resort.
+            if install_chrome_apt; then
                 installation_success=true
-            elif install_chrome_apt; then
+            elif install_chrome_direct; then
                 installation_success=true
             elif install_chrome_flatpak; then
                 installation_success=true
-            elif install_chrome_direct; then
+            elif install_chrome_snap; then
                 installation_success=true
             fi
             ;;

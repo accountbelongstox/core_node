@@ -17,6 +17,8 @@ DO_FULL=0
 FORCE=0
 DEVICE="cpu"
 LANGS="EN,ZH"
+MELO_PRESENT=0
+NEED_WARM=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -58,6 +60,9 @@ fi
 [[ "${MELOTTS_SKIP:-0}" == "1" ]] && { echo "[install_melotts] [i] MELOTTS_SKIP=1 -> skipping."; exit 0; }
 MELO_PRESENT=0
 py_has_module melo && MELO_PRESENT=1
+# Warm models only when freshly installing (or forced): on a steady-state re-run melo is
+# already importable, so skip the per-language TTS() load to keep the re-run a cheap no-op.
+[[ "$MELO_PRESENT" -eq 0 || "$FORCE" -eq 1 ]] && NEED_WARM=1
 if gpu_present; then DEVICE="cuda:0"; LANGS="EN,ZH,JP,KR,ES,FR"; fi
 
 echo "[install_melotts]  python  : $PYTHON"
@@ -88,6 +93,9 @@ if [[ "$MELO_PRESENT" -eq 0 || "$FORCE" -eq 1 ]]; then
 fi
 
 # --- pre-download the language models (CUDA: full set; CPU: EN/ZH) ------- #
+# Idempotent: skip the warmup entirely on a steady-state re-run (melo already present and
+# not forced) — models otherwise download lazily on first synth anyway.
+if [[ "$NEED_WARM" -eq 1 ]]; then
 echo "[install_melotts] [..] pre-downloading models [$LANGS] on $DEVICE (first-use cache) ..."
 "$PYTHON" - "$LANGS" "$DEVICE" <<'PY' || echo "[install_melotts] [!] pre-download incomplete (models still download lazily on first synth)."
 import sys
@@ -101,6 +109,9 @@ for lang in langs:
     except Exception as e:
         print("  [skip]", lang, "-", e)
 PY
+else
+    echo "[install_melotts] [OK] melo already present -> skipping model warmup (FORCE / --force to re-warm)."
+fi
 
 echo "[install_melotts] [OK] MeloTTS ready (free, offline). pycore selects cuda:0 automatically when a GPU is present."
 exit 0

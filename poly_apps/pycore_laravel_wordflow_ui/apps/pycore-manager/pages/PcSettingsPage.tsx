@@ -65,6 +65,9 @@ const ASSIST_DEFAULTS: AssistForm = {
 const isAssistStatus = (s: any): s is AssistStatus =>
   !!s && typeof s.enabled === 'boolean' && !!s.capabilities;
 
+const isAutostart = (s: any): s is AutostartStatus =>
+  !!s && typeof s.enabled === 'boolean' && typeof s.supported === 'boolean';
+
 // --- TTS tuning (edge-tts synth timeout + failure cooldown) -------------- #
 interface TtsTuningForm {
   synth_timeout_s: number;
@@ -256,8 +259,9 @@ const PcSettingsPage: React.FC = () => {
     loadAssist();
     loadTtsTuning();
     pycoreApi.getAutostart().then((s) => {
+      if (!isAutostart(s)) return;
       setAutostart(s);
-      if (s?.target) setAutostartTarget(s.target);
+      if (s.target) setAutostartTarget(s.target);
     }).catch(() => { /* offline */ });
   }, [loadSettings, loadAssist, loadTtsTuning]);
 
@@ -283,8 +287,10 @@ const PcSettingsPage: React.FC = () => {
     try {
       const r = await pycoreApi.setAutostart(enabled, enabled ? useTarget : undefined);
       const s = await pycoreApi.getAutostart();
-      setAutostart(s);
-      if (s?.target) setAutostartTarget(s.target);
+      if (isAutostart(s)) {
+        setAutostart(s);
+        if (s.target) setAutostartTarget(s.target);
+      }
       if (r?.success === false) setNotice(r.message || 'Failed to update auto-start');
       else setNotice(enabled ? `Auto-start enabled (${useTarget})` : 'Auto-start disabled');
     } catch (e: any) {

@@ -467,13 +467,13 @@ setup_nginx_directories() {
         <div class="footer">
             <p><strong>Page generated:</strong> $(date)</p>
             <p><strong>Let's Encrypt Challenge Ready:</strong> This page supports SSL certificate verification</p>
-            <p><em>Replace this file at /usr/wwwroot/index.html with your own content</em></p>
+            <p><em>Replace this file at $www_root/index.html with your own content</em></p>
         </div>
     </div>
 </body>
 </html>
 EOF
-        $USE_SUDO chown root:root /usr/wwwroot/index.html
+        $USE_SUDO chown root:root "$www_root/index.html"
         echo "[$SCRIPT_INDEX] Enhanced default page created with nginx and certbot information"
     fi
 
@@ -722,7 +722,10 @@ EOF
     echo "[$SCRIPT_INDEX] [OK] Renewal script created/updated"
 
     # IDEMPOTENCY: Always check and add cron job
-    local cron_job="0 */12 * * * root $renewal_script"
+    # User-crontab format has NO user field (the 6th column is the command). Installing
+    # this via `crontab -` as root, so omit the spurious `root` column that would otherwise
+    # be parsed as the command name and silently break renewal.
+    local cron_job="0 */12 * * * $renewal_script"
     echo "[$SCRIPT_INDEX] [CHECK] Verifying cron job for auto-renewal..."
 
     if $USE_SUDO crontab -l 2>/dev/null | grep -q "certbot-renewal"; then

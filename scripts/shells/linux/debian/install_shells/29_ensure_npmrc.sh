@@ -69,7 +69,7 @@ configure_pnpm_global_dirs() {
 
         local pnpm_global_dir_new="$node_home/pnpm-global"
         local pnpm_global_bin_new="$pnpm_global_dir_new/bin"
-        local pnpm_store_dir_new="/var/_core_node/.pnpm-store"
+        local pnpm_store_dir_new="$CORE_NODE_DATA_DIR/.pnpm-store"
 
         echo "[29] Setting pnpm directories..."
         echo "[29]   global-dir: $pnpm_global_dir_new"
@@ -93,8 +93,7 @@ configure_pnpm_global_dirs() {
     fi
 }
 
-migrate_and_fix_npm_config() {
-    local old_base_dir=$(map_web_path "dev_system_old")
+fix_npm_config() {
     local USE_SUDO=$(get_var "USE_SUDO")
     if [ -z "$USE_SUDO" ]; then
         USE_SUDO="sudo"
@@ -102,34 +101,16 @@ migrate_and_fix_npm_config() {
 
     echo "[29] Checking and fixing pnpm configuration..."
 
-    if command -v pnpm >/dev/null 2>&1; then
-        local current_pnpm_prefix=$(pnpm config get prefix 2>/dev/null)
-
-        if [[ "$current_pnpm_prefix" == *"$old_base_dir"* ]]; then
-            echo "[29] Clearing pnpm prefix pointing to old directory"
-            pnpm config delete prefix
-        fi
-    fi
-
     if [ -n "$PNPM_HOME" ]; then
         echo "[29] Clearing PNPM_HOME: $PNPM_HOME"
         unset PNPM_HOME
     fi
 
     if [ -f /etc/environment ]; then
-        if grep -q "$old_base_dir" /etc/environment; then
-            echo "[29] Removing old directory references from /etc/environment..."
-            $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
-        fi
         if grep -q "NPM_CONFIG_PREFIX" /etc/environment; then
             echo "[29] Removing NPM_CONFIG_PREFIX from /etc/environment..."
             $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
         fi
-    fi
-
-    if [ -d "$old_base_dir" ]; then
-        echo "[29] Removing old base directory: $old_base_dir"
-        $USE_SUDO rm -rf "$old_base_dir"
     fi
 
     # Configure pnpm global directories
@@ -163,7 +144,7 @@ print_error() {
 # Main execution starts here
 print_header_from_common_functions "PNPM Configuration Setup"
 
-migrate_and_fix_npm_config
+fix_npm_config
 
 # Step 1: Check script existence
 print_step_from_common_functions "Checking pnpm configuration script..."

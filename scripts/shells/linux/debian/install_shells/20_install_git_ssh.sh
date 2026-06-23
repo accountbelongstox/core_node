@@ -290,23 +290,25 @@ read_password_with_asterisks() {
     echo "$password"
 }
 
-# Function to decrypt SSH keys with timeout
+# Function to decrypt SSH keys (waits indefinitely for the user; no timeout)
 decrypt_ssh_keys() {
-    local ask_msg="[Step $STEP_NUMBER] Do you have a password for the SSH key files? (y/n, default n, ${TIMEOUT_SECONDS}s timeout): "
+    local ask_msg="[Step $STEP_NUMBER] Do you have a password for the SSH key files? (y/n, default n): "
     print_step_from_common_functions "$ask_msg"
 
     local has_password=false
     local user_input=""
 
-    # Use read with timeout
-    if read -t "$TIMEOUT_SECONDS" -n 1 user_input; then
+    # Wait for a single keypress with NO timeout (an interactive user is never rushed).
+    # read only returns non-zero here on EOF (stdin closed / non-interactive run), which
+    # still falls through to the safe default 'n' so unattended/CI runs do not hang.
+    if read -n 1 user_input; then
         echo  # Add newline after input
         if [[ "$user_input" == "y" || "$user_input" == "Y" ]]; then
             has_password=true
         fi
     else
-        echo  # Add newline after timeout
-        print_step_from_common_functions "Timeout reached, defaulting to 'n'"
+        echo  # Add newline after EOF (non-interactive)
+        print_step_from_common_functions "No input (non-interactive stdin), defaulting to 'n'"
     fi
 
     if [[ "$has_password" == false ]]; then
@@ -530,21 +532,24 @@ step20_install_git_ssh() {
         print_success_from_common_functions "Valid SSH key pair already exists."
 
         # Ask if user wants to reinstall
-        local ask_msg="Do you want to reinstall and clear all existing SSH keys? (y/N, default N, ${TIMEOUT_SECONDS}s timeout): "
+        local ask_msg="Do you want to reinstall and clear all existing SSH keys? (y/N, default N, auto-continue in 20s): "
         print_step_from_common_functions "$ask_msg"
 
         local should_reinstall=false
         local user_input=""
 
-        # Use read with timeout
-        if read -t "$TIMEOUT_SECONDS" -n 1 user_input; then
+        # Keys already exist: wait up to 20s for a keypress, then auto-continue.
+        # read returns 0 on a keypress (honor y/N), >128 on the 20s timeout, and
+        # 1 on EOF (non-interactive stdin). Every non-zero path falls through to
+        # the safe default 'N' (keep existing keys, skip the destructive reinstall).
+        if read -n 1 -t 20 user_input; then
             echo  # Add newline after input
             if [[ "$user_input" == "y" || "$user_input" == "Y" ]]; then
                 should_reinstall=true
             fi
         else
-            echo  # Add newline after timeout
-            print_step_from_common_functions "Timeout reached, defaulting to 'N' (skip reinstallation)"
+            echo  # Add newline after timeout / EOF
+            print_step_from_common_functions "No input within 20s (or non-interactive stdin), defaulting to 'N' (skip reinstallation)"
         fi
 
         if [[ "$should_reinstall" == false ]]; then

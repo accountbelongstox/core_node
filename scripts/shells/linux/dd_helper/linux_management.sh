@@ -329,6 +329,26 @@ slim_gpu_to_cpu() {
     read
 }
 
+# Opt-in CUDA Toolkit install (GPU hosts). Delegates to the idempotent installer
+# in common/install_cuda_toolkit.sh: apt where a candidate exists, else the
+# pinned NVIDIA .run local installer (Kali path, with the libxml2 shim).
+install_cuda_toolkit_menu() {
+    printf "\033c"
+    echo "=========================================="
+    echo "Install CUDA Toolkit (nvcc)"
+    echo "=========================================="
+    echo ""
+    local cuda_installer="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/install_cuda_toolkit.sh"
+    if [ -f "$cuda_installer" ]; then
+        bash "$cuda_installer"
+    else
+        echo "Error: CUDA installer not found at: $cuda_installer"
+    fi
+    echo ""
+    echo "Press Enter to continue..."
+    read
+}
+
 # Run as root (direct if already root, else via sudo). Shared by the slim actions.
 _slim_sudo() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
 
@@ -521,7 +541,7 @@ cap_var_core_node_logs() {
 # actions) so they don't clutter the top Linux Management menu.
 show_slim_disk_submenu() {
     local selected=0
-    local total=8
+    local total=9
     local old_settings=$(stty -g)
     stty -icanon -echo
     trap 'stty "$old_settings"' RETURN
@@ -530,6 +550,7 @@ show_slim_disk_submenu() {
         "Scan Large Paths (> 1GB, depth up to 5)"
         "Server Slim - ALL (snaps + code-server + LibreOffice + Apache)"
         "GPU -> CPU Slim (reclaim CUDA disk on no-GPU hosts)"
+        "GPU: Install CUDA Toolkit (nvcc, GPU hosts; apt else .run)"
         "Snap Slim (remove dev/desktop snaps + orphan bases)"
         "Remove LibreOffice + code-server"
         "Block & Remove Apache (pin -1 + purge)"
@@ -579,11 +600,12 @@ show_slim_disk_submenu() {
                     0) scan_large_paths ;;
                     1) server_slim_all ;;
                     2) slim_gpu_to_cpu ;;
-                    3) snap_slim ;;
-                    4) remove_desktop_apps ;;
-                    5) block_and_remove_apache ;;
-                    6) cap_var_core_node_logs ;;
-                    7) return 0 ;;
+                    3) install_cuda_toolkit_menu ;;
+                    4) snap_slim ;;
+                    5) remove_desktop_apps ;;
+                    6) block_and_remove_apache ;;
+                    7) cap_var_core_node_logs ;;
+                    8) return 0 ;;
                 esac
 
                 stty -icanon -echo

@@ -112,7 +112,7 @@ install_dependencies() {
     if [ "$use_pnpm" = true ]; then
         echo "Installing dependencies with pnpm (absolute path: $PNPM_ABS_PATH)..."
         echo "Executing: PUPPETEER_SKIP_DOWNLOAD=true $PNPM_ABS_PATH install"
-        $USE_SUDO PUPPETEER_SKIP_DOWNLOAD=true "$PNPM_ABS_PATH" install
+        $USE_SUDO env npm_config_confirm_modules_purge=false PUPPETEER_SKIP_DOWNLOAD=true "$PNPM_ABS_PATH" install --config.confirm-modules-purge=false
     else
         echo "Installing dependencies with npm (absolute path: $NPM_ABS_PATH)..."
         echo "Executing: PUPPETEER_SKIP_DOWNLOAD=true $NPM_ABS_PATH install"

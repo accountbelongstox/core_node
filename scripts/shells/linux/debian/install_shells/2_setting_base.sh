@@ -62,6 +62,19 @@ error() {
     echo -e "${RED}[$SCRIPT_INDEX] ERROR: $1${NC}"
 }
 
+# TTY-guarded prompt read. Echoes the user's reply, or $1 (the prompt's documented
+# default) when there is no interactive terminal -- so a piped/orchestrated re-run
+# proceeds with the intended default instead of letting `read` hit EOF and abort
+# the whole script under `set -e`. Empty interactive input also yields the default,
+# matching the "(Y/n)"/"(y/N)" convention. Usage: confirm="$(read_default y)"
+read_default() {
+    local default="$1" reply=""
+    if [ -t 0 ] && [ -r /dev/tty ]; then
+        read -r reply < /dev/tty || reply=""
+    fi
+    printf '%s' "${reply:-$default}"
+}
+
 # =============================================================================
 # NTFS Support Functions
 # =============================================================================
@@ -144,9 +157,16 @@ stop_mail_services() {
 
 device_to_mount_point() {
     local device="$1"
+    local mount_base="${2:-$DEFAULT_MOUNT_BASE}"
+    local existing
+    existing=$(findmnt -n -o TARGET "$device" 2>/dev/null | head -n1)
+    if [ -n "$existing" ] && [ "${existing#${mount_base}/}" != "$existing" ]; then
+        echo "$existing"
+        return 0
+    fi
     # Convert /dev/sdb3 to dev_sdb3
     local mount_name=$(echo "$device" | sed 's|/dev/|dev_|g')
-    echo "$DEFAULT_MOUNT_BASE/$mount_name"
+    echo "$mount_base/$mount_name"
 }
 
 is_label_english() {
@@ -263,16 +283,26 @@ get_disk_info() {
 
 is_device_mounted() {
     local device="$1"
-    if mount | grep -q "^$device "; then
-        return 0
-    else
-        return 1
-    fi
+    # findmnt is robust where `mount | grep` is not: it avoids treating $device as
+    # a regex and collapses btrfs/subvolume multi-line output (head -n1).
+    [ -n "$(findmnt -n -o TARGET --source "$device" 2>/dev/null | head -n1)" ]
 }
 
 get_mount_point() {
     local device="$1"
-    mount | grep "^$device " | awk '{print $3}'
+    findmnt -n -o TARGET --source "$device" 2>/dev/null | head -n1
+}
+
+# NTFS has no native ownership, so it is mounted with uid=/gid= of the real login
+# user. Resolve them at runtime (resolve_desktop_user is defined below; this is
+# only CALLED from the disk loop in main(), by which point it exists) instead of
+# hardcoding 1000 -- the first human user is not UID 1000 on every Debian/Kali box.
+ntfs_owner_opts() {
+    local u uid gid
+    u="$(resolve_desktop_user "" 2>/dev/null)"
+    uid="$(id -u "$u" 2>/dev/null || echo 1000)"; [ -n "$uid" ] || uid=1000
+    gid="$(id -g "$u" 2>/dev/null || echo 1000)"; [ -n "$gid" ] || gid=1000
+    printf 'uid=%s,gid=%s' "$uid" "$gid"
 }
 
 # =============================================================================
@@ -308,7 +338,7 @@ mount_disk() {
             echo "[2] $USE_SUDO apt-get install -y ntfs-3g"
             $USE_SUDO apt-get install -y ntfs-3g
         fi
-        mount_options="defaults,nofail,x-systemd.device-timeout=10,uid=1000,gid=1000,umask=0022"
+        mount_options="defaults,nofail,x-systemd.device-timeout=10,$(ntfs_owner_opts),umask=0022"
     else
         mount_options="defaults,nofail,x-systemd.device-timeout=10"
     fi
@@ -447,7 +477,7 @@ handle_ntfs_disk() {
         echo -n "Proceed to configure fstab? (Y/n): "
     fi
 
-    read -r confirm
+    confirm="$(read_default y)"
 
     if [[ "$confirm" =~ ^[Nn]$ ]]; then
         info "Skipped mounting $device"
@@ -462,7 +492,7 @@ handle_ntfs_disk() {
     fi
 
     # Update fstab (single entry per UUID, no duplicates)
-    local mount_options="defaults,nofail,x-systemd.device-timeout=10,uid=1000,gid=1000,umask=0022"
+    local mount_options="defaults,nofail,x-systemd.device-timeout=10,$(ntfs_owner_opts),umask=0022"
     mount_fstab_ensure_single_entry "$uuid" "$mount_point" "$fstype" "$mount_options"
     log "Added fstab entry: UUID=$uuid $mount_point $fstype $mount_options 0 2"
 
@@ -617,7 +647,7 @@ handle_data_disk() {
         echo -e "${YELLOW}Configuration issues detected:${NC}"
         echo -e "$fix_message"
         echo -n "Do you want to fix the configuration? (Y/n): "
-        read -r confirm
+        confirm="$(read_default y)"
 
         if [[ "$confirm" =~ ^[Nn]$ ]]; then
             info "Skipped fixing data disk configuration"
@@ -626,7 +656,7 @@ handle_data_disk() {
     else
         echo ""
         echo -n "Do you want to mount this data disk? (y/N): "
-        read -r mount_data
+        mount_data="$(read_default n)"
 
         if [[ ! "$mount_data" =~ ^[Yy]$ ]]; then
             info "Skipped mounting data disk"
@@ -634,7 +664,7 @@ handle_data_disk() {
         fi
 
         echo -n "Proceed to configure fstab? (Y/n): "
-        read -r confirm
+        confirm="$(read_default y)"
 
         if [[ "$confirm" =~ ^[Nn]$ ]]; then
             info "Skipped mounting $device"
@@ -706,27 +736,32 @@ handle_data_disk() {
 # Desktop System Configuration Functions
 # =============================================================================
 
+# Case-insensitive substring match against XDG_CURRENT_DESKTOP + DESKTOP_SESSION
+# (handles values like "ubuntu:GNOME", "X-Cinnamon", "LXQt", "pop:GNOME").
+_de_has() {
+    local hay
+    hay="$(printf '%s:%s' "${XDG_CURRENT_DESKTOP:-}" "${DESKTOP_SESSION:-}" | tr '[:upper:]' '[:lower:]')"
+    case "$hay" in *"$1"*) return 0 ;; *) return 1 ;; esac
+}
+
+# Resolve the desktop type across the common Debian/Ubuntu/Kali environments.
+# Order matters: the GNOME-derivatives (Cinnamon/MATE/Budgie/Unity/Pantheon) and
+# the lightweight DEs are checked BEFORE plain GNOME so "Budgie:GNOME" etc. don't
+# fall through to gnome. A running session process (pgrep) wins; otherwise the
+# env-var substring match decides. Echoes "" when nothing is recognized.
 detect_desktop_type() {
-    local desktop_type=""
-    
-    # Check for GNOME
-    if pgrep -x "gnome-session" >/dev/null 2>&1 || [ "$XDG_CURRENT_DESKTOP" = "GNOME" ] || [ "$DESKTOP_SESSION" = "gnome" ]; then
-        desktop_type="gnome"
-    # Check for KDE
-    elif pgrep -x "kde-session" >/dev/null 2>&1 || [ "$XDG_CURRENT_DESKTOP" = "KDE" ] || [ "$DESKTOP_SESSION" = "kde-plasma" ]; then
-        desktop_type="kde"
-    # Check for XFCE
-    elif pgrep -x "xfce4-session" >/dev/null 2>&1 || [ "$XDG_CURRENT_DESKTOP" = "XFCE" ] || [ "$DESKTOP_SESSION" = "xfce" ]; then
-        desktop_type="xfce"
-    # Check for MATE
-    elif pgrep -x "mate-session" >/dev/null 2>&1 || [ "$XDG_CURRENT_DESKTOP" = "MATE" ] || [ "$DESKTOP_SESSION" = "mate" ]; then
-        desktop_type="mate"
-    # Check for Cinnamon
-    elif pgrep -x "cinnamon-session" >/dev/null 2>&1 || [ "$XDG_CURRENT_DESKTOP" = "X-Cinnamon" ] || [ "$DESKTOP_SESSION" = "cinnamon" ]; then
-        desktop_type="cinnamon"
-    fi
-    
-    echo "$desktop_type"
+    if pgrep -x "cinnamon-session" >/dev/null 2>&1 || _de_has cinnamon; then echo "cinnamon"; return; fi
+    if pgrep -x "mate-session"     >/dev/null 2>&1 || _de_has mate;     then echo "mate";     return; fi
+    if pgrep -x "budgie-daemon"    >/dev/null 2>&1 || _de_has budgie;   then echo "budgie";   return; fi
+    if pgrep -x "xfce4-session"    >/dev/null 2>&1 || _de_has xfce;     then echo "xfce";     return; fi
+    if pgrep -x "lxqt-session"     >/dev/null 2>&1 || _de_has lxqt;     then echo "lxqt";     return; fi
+    if pgrep -x "lxsession"        >/dev/null 2>&1 || _de_has lxde;     then echo "lxde";     return; fi
+    if _de_has pantheon; then echo "pantheon"; return; fi
+    if _de_has unity;    then echo "unity";    return; fi
+    if _de_has deepin;   then echo "deepin";   return; fi
+    if pgrep -x "plasmashell" >/dev/null 2>&1 || _de_has kde || _de_has plasma; then echo "kde"; return; fi
+    if pgrep -x "gnome-shell"  >/dev/null 2>&1 || _de_has gnome; then echo "gnome"; return; fi
+    echo ""
 }
 
 configure_gnome_desktop() {
@@ -819,23 +854,12 @@ configure_gnome_desktop() {
 configure_kde_desktop() {
     log "Configuring KDE desktop for high performance..."
     
-    # Detect desktop user
-    local desktop_user=""
-    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
-        desktop_user="$SUDO_USER"
-    else
-        # Try to find desktop user
-        for user_home in /home/*; do
-            if [ -d "$user_home" ]; then
-                local user_name=$(basename "$user_home")
-                if pgrep -u "$user_name" -x "kde-session" >/dev/null 2>&1; then
-                    desktop_user="$user_name"
-                    break
-                fi
-            fi
-        done
-    fi
-    
+    # Detect the desktop user via the shared resolver (SUDO_USER -> a user running
+    # the Plasma session -> first uid>=1000). The old `pgrep -x kde-session` never
+    # matched: the Plasma session process is plasmashell/ksmserver, not "kde-session".
+    local desktop_user
+    desktop_user="$(resolve_desktop_user plasmashell)"
+
     if [ -z "$desktop_user" ]; then
         warning "Could not detect desktop user, skipping KDE configuration"
         return 1
@@ -862,33 +886,30 @@ configure_kde_desktop() {
     
     info "Disabling screen lock in KDE..."
     $USE_SUDO -u "$desktop_user" mkdir -p "$kde_config_dir" 2>/dev/null || true
-    
-    # Create or update kscreensaverrc
-    if [ -f "$screensaver_config" ]; then
-        $USE_SUDO -u "$desktop_user" sed -i '/\[ScreenSaver\]/,/^\[/ {
-            /Enabled=/d
-            /Lock=/d
-            /Timeout=/d
-        }' "$screensaver_config" 2>/dev/null || true
+
+    # Prefer KDE's own group-aware writer (kwriteconfig6 for Plasma 6, kwriteconfig5
+    # for Plasma 5): it guarantees keys land in the right [group] and is idempotent,
+    # unlike the old EOF-append + whole-file sed (which drifted keys into the wrong
+    # section and rewrote Enabled=/Lock= everywhere on each re-run). On Plasma 5/6 the
+    # ACTUAL lock lives in kscreenlockerrc [Daemon], not kscreensaverrc.
+    local kw=""
+    kw="$(command -v kwriteconfig6 2>/dev/null || command -v kwriteconfig5 2>/dev/null || true)"
+    if [ -n "$kw" ]; then
+        $USE_SUDO -u "$desktop_user" "$kw" --file kscreenlockerrc --group Daemon --key Autolock false 2>/dev/null || true
+        $USE_SUDO -u "$desktop_user" "$kw" --file kscreenlockerrc --group Daemon --key LockOnResume false 2>/dev/null || true
+        $USE_SUDO -u "$desktop_user" "$kw" --file kscreensaverrc --group ScreenSaver --key Enabled false 2>/dev/null || true
+        $USE_SUDO -u "$desktop_user" "$kw" --file kscreensaverrc --group ScreenSaver --key Lock false 2>/dev/null || true
+    elif [ -f "$screensaver_config" ] && grep -q "^\[ScreenSaver\]" "$screensaver_config" 2>/dev/null; then
+        # Section exists: update IN PLACE, scoped to [ScreenSaver] (idempotent).
+        $USE_SUDO -u "$desktop_user" sed -i \
+            -e '/^\[ScreenSaver\]/,/^\[/{s/^Enabled=.*/Enabled=false/; s/^Lock=.*/Lock=false/}' \
+            "$screensaver_config" 2>/dev/null || true
+    else
+        # No section yet: write a fresh [ScreenSaver] block once.
+        printf '[ScreenSaver]\nEnabled=false\nLock=false\n' \
+            | $USE_SUDO -u "$desktop_user" tee -a "$screensaver_config" >/dev/null 2>&1 || true
     fi
-    
-    # Add screen saver configuration
-    if ! grep -q "\[ScreenSaver\]" "$screensaver_config" 2>/dev/null; then
-        $USE_SUDO -u "$desktop_user" bash -c "echo '[ScreenSaver]' >> '$screensaver_config'" 2>/dev/null || true
-    fi
-    
-    $USE_SUDO -u "$desktop_user" bash -c "grep -q '^Enabled=' '$screensaver_config' 2>/dev/null || echo 'Enabled=false' >> '$screensaver_config'" 2>/dev/null || true
-    $USE_SUDO -u "$desktop_user" bash -c "grep -q '^Lock=' '$screensaver_config' 2>/dev/null || echo 'Lock=false' >> '$screensaver_config'" 2>/dev/null || true
-    $USE_SUDO -u "$desktop_user" bash -c "grep -q '^Timeout=' '$screensaver_config' 2>/dev/null || echo 'Timeout=36000060' >> '$screensaver_config'" 2>/dev/null || true
-    
-    # Update existing values if they exist
-    $USE_SUDO -u "$desktop_user" sed -i 's/^Enabled=.*/Enabled=false/' "$screensaver_config" 2>/dev/null || true
-    $USE_SUDO -u "$desktop_user" sed -i 's/^Lock=.*/Lock=false/' "$screensaver_config" 2>/dev/null || true
-    $USE_SUDO -u "$desktop_user" sed -i 's/^Timeout=.*/Timeout=36000060/' "$screensaver_config" 2>/dev/null || true
-    
-    # Set ownership
-    echo "[2] $USE_SUDO chown $desktop_user:$desktop_user $screensaver_config"
-    $USE_SUDO chown "$desktop_user:$desktop_user" "$screensaver_config" 2>/dev/null || true
+    $USE_SUDO chown "$desktop_user:$desktop_user" "$kde_config_dir" 2>/dev/null || true
     
     # Configure power management (Power Devil)
     # Note: Plasma 6.0+ uses powerdevilrc, older versions may use powermanagementprofilesrc
@@ -911,6 +932,261 @@ configure_kde_desktop() {
     return 0
 }
 
+# --------------------------------------------------------------------------- #
+# Shared desktop helpers (used by every per-DE configuration function below).
+# Every privileged step is entered via $USE_SUDO; per-user settings are applied
+# AS the target user (never as root) so they land in the right profile. Each
+# helper is defensive and returns 0 so they are safe under the script's set -e.
+# --------------------------------------------------------------------------- #
+
+# Resolve the desktop user: SUDO_USER, else a user running $1 (a session process
+# name, optional), else the first regular (uid >= 1000) login user. Always 0.
+resolve_desktop_user() {
+    local session_proc="$1" uh uname
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        echo "$SUDO_USER"; return 0
+    fi
+    if [ -n "$session_proc" ]; then
+        for uh in /home/*; do
+            [ -d "$uh" ] || continue
+            uname="$(basename "$uh")"
+            if pgrep -u "$uname" -x "$session_proc" >/dev/null 2>&1; then
+                echo "$uname"; return 0
+            fi
+        done
+    fi
+    awk -F: '$3>=1000 && $3<65534 {print $1; exit}' /etc/passwd 2>/dev/null || true
+    return 0
+}
+
+# Run a command AS the desktop user. Tries the live session bus first (immediate
+# effect on a running session); falls back to a private D-Bus via dbus-run-session
+# so values still persist to the user's config during a headless/root install
+# with no active login. Returns non-zero only if neither path is available.
+run_user_session() {
+    local user="$1"; shift
+    local uid home bus
+    uid="$(id -u "$user" 2>/dev/null)"
+    home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)"
+    bus="/run/user/$uid/bus"
+
+    # Build a run-AS-user prefix that works whether we are root or not, and even
+    # before sudo is installed. USE_SUDO is a sudo/no-sudo flag (empty when sudo is
+    # absent), so `$USE_SUDO -u` could emit a bare `-u`. runuser (util-linux, always
+    # present on Debian/Ubuntu/Kali) drops privileges when we are root.
+    local -a as_user
+    if [ "$(id -u)" -eq 0 ]; then
+        if command -v runuser >/dev/null 2>&1; then as_user=(runuser -u "$user" --)
+        elif command -v sudo >/dev/null 2>&1;     then as_user=(sudo -u "$user")
+        else as_user=(env); fi
+    elif command -v sudo >/dev/null 2>&1; then
+        as_user=(sudo -u "$user")
+    else
+        as_user=(env)
+    fi
+
+    if [ -n "$uid" ] && [ -S "$bus" ]; then
+        if "${as_user[@]}" env HOME="$home" XDG_RUNTIME_DIR="/run/user/$uid" \
+                DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" DISPLAY="${DISPLAY:-:0}" \
+                "$@" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    if command -v dbus-run-session >/dev/null 2>&1; then
+        "${as_user[@]}" env HOME="$home" XDG_CONFIG_HOME="$home/.config" \
+            dbus-run-session -- "$@" 2>/dev/null && return 0
+    fi
+    return 1
+}
+
+# gset <user> <schema> <key> <value> : set one gsettings key as the user.
+gset() { run_user_session "$1" gsettings set "$2" "$3" "$4"; }
+
+# xfce_run_xfconf <user> <xfconf-query args...> : set one xfconf key as the user.
+xfce_run_xfconf() { local u="$1"; shift; run_user_session "$u" xfconf-query "$@"; }
+
+# Neutralize a system autostart entry for one user with a per-user Hidden=true
+# XDG override (freedesktop autostart spec: a user file shadows the system one).
+# Idempotent and reversible; a no-op when $user is empty.
+disable_user_autostart() {
+    local user="$1" desktop_file="$2" home override_dir override
+    [ -n "$user" ] || return 0
+    home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)"
+    [ -n "$home" ] && [ -d "$home" ] || return 0
+    override_dir="$home/.config/autostart"
+    override="$override_dir/$desktop_file"
+    $USE_SUDO mkdir -p "$override_dir" 2>/dev/null || true
+    printf '[Desktop Entry]\nType=Application\nName=%s\nHidden=true\nX-GNOME-Autostart-enabled=false\n' \
+        "${desktop_file%.desktop}" | $USE_SUDO tee "$override" >/dev/null 2>&1 || true
+    # chown ~/.config too: `mkdir -p` as root would otherwise leave a freshly
+    # created ~/.config root-owned, breaking the user's first GUI login.
+    $USE_SUDO chown "$user:$user" "$home/.config" "$override_dir" "$override" 2>/dev/null || true
+    return 0
+}
+
+# light-locker conflicts with the screensaver lockers and is the usual cause of
+# the Kali "auto-lock despite settings" bug (Kali bug tracker #9060). Stop it and
+# disable its autostart. Idempotent; a no-op when light-locker is absent.
+disable_light_locker() {
+    local user="$1"
+    if ! command -v light-locker >/dev/null 2>&1 \
+        && [ ! -f /etc/xdg/autostart/light-locker.desktop ]; then
+        return 0
+    fi
+    info "Disabling light-locker (conflicts with screensaver lockers)..."
+    $USE_SUDO pkill -x light-locker 2>/dev/null || true
+    disable_user_autostart "$user" "light-locker.desktop"
+    [ -n "$user" ] && log "Neutralized light-locker autostart for $user (Hidden override)"
+    info "If lock still occurs, fully remove it: $USE_SUDO apt-get remove -y light-locker"
+    return 0
+}
+
+# Generic xscreensaver disabler (LXDE/LXQt/standalone): stop it, set ~/.xscreensaver
+# to mode off, and neutralize its autostart. No-op when xscreensaver is absent.
+disable_xscreensaver() {
+    local user="$1" home
+    if ! command -v xscreensaver >/dev/null 2>&1 \
+        && [ ! -f /etc/xdg/autostart/xscreensaver.desktop ]; then
+        return 0
+    fi
+    info "Disabling xscreensaver..."
+    $USE_SUDO pkill -x xscreensaver 2>/dev/null || true
+    disable_user_autostart "$user" "xscreensaver.desktop"
+    if [ -n "$user" ]; then
+        home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)"
+        if [ -n "$home" ] && [ -d "$home" ]; then
+            printf 'mode: off\n' | $USE_SUDO tee "$home/.xscreensaver" >/dev/null 2>&1 || true
+            $USE_SUDO chown "$user:$user" "$home/.xscreensaver" 2>/dev/null || true
+        fi
+    fi
+    return 0
+}
+
+# Generic X11 DPMS/blank disable for the user's live session (no-op headless).
+disable_x11_blanking() {
+    local user="$1"
+    command -v xset >/dev/null 2>&1 || return 0
+    run_user_session "$user" xset s off       2>/dev/null || true
+    run_user_session "$user" xset s noblank   2>/dev/null || true
+    run_user_session "$user" xset -dpms       2>/dev/null || true
+    return 0
+}
+
+# XFCE (Kali's default desktop): disable the screensaver, screen lock, display
+# blanking/DPMS and lock-on-suspend via the xfce4-screensaver and
+# xfce4-power-manager xfconf channels, then neutralize light-locker/xscreensaver.
+# Works on a live session (immediate) and during a root install (persists to XML).
+configure_xfce_desktop() {
+    local user k
+    log "Configuring XFCE desktop: disabling screen lock, screensaver and blanking..."
+    user="$(resolve_desktop_user "xfce4-session")"
+    if [ -z "$user" ]; then
+        warning "Could not determine XFCE desktop user; skipping XFCE configuration"
+        return 0
+    fi
+    info "Configuring XFCE for user: $user"
+    if command -v xfconf-query >/dev/null 2>&1; then
+        xfce_run_xfconf "$user" -c xfce4-screensaver -p /saver/enabled -n -t bool -s false || true
+        xfce_run_xfconf "$user" -c xfce4-screensaver -p /saver/idle-activation/enabled -n -t bool -s false || true
+        xfce_run_xfconf "$user" -c xfce4-screensaver -p /lock/enabled -n -t bool -s false || true
+        xfce_run_xfconf "$user" -c xfce4-screensaver -p /lock/saver-activation/enabled -n -t bool -s false || true
+        xfce_run_xfconf "$user" -c xfce4-power-manager -p /xfce4-power-manager/dpms-enabled -n -t bool -s false || true
+        for k in dpms-on-ac-off dpms-on-ac-sleep dpms-on-battery-off dpms-on-battery-sleep blank-on-ac blank-on-battery; do
+            xfce_run_xfconf "$user" -c xfce4-power-manager -p "/xfce4-power-manager/$k" -n -t int -s 0 || true
+        done
+        xfce_run_xfconf "$user" -c xfce4-power-manager -p /xfce4-power-manager/lock-screen-suspend-hibernate -n -t bool -s false || true
+    else
+        info "xfconf-query not found; relying on light-locker/xscreensaver/x11 disable only."
+    fi
+    disable_light_locker "$user"
+    disable_xscreensaver "$user"
+    disable_x11_blanking "$user"
+    log "XFCE desktop configuration completed"
+    return 0
+}
+
+# MATE: disable the screensaver lock + idle activation and all power-manager
+# display/computer sleep via the org.mate.* gsettings schemas.
+configure_mate_desktop() {
+    local user
+    log "Configuring MATE desktop: disabling screen lock, screensaver and blanking..."
+    user="$(resolve_desktop_user "mate-session")"
+    if [ -z "$user" ]; then
+        warning "Could not determine MATE desktop user; skipping MATE configuration"
+        return 0
+    fi
+    info "Configuring MATE for user: $user"
+    gset "$user" org.mate.screensaver lock-enabled false || true
+    gset "$user" org.mate.screensaver idle-activation-enabled false || true
+    gset "$user" org.mate.session idle-delay 0 || true
+    gset "$user" org.mate.power-manager sleep-display-ac 0 || true
+    gset "$user" org.mate.power-manager sleep-display-battery 0 || true
+    gset "$user" org.mate.power-manager sleep-computer-ac 0 || true
+    gset "$user" org.mate.power-manager sleep-computer-battery 0 || true
+    gset "$user" org.mate.power-manager idle-dim-ac false || true
+    disable_light_locker "$user"
+    disable_xscreensaver "$user"
+    disable_x11_blanking "$user"
+    log "MATE desktop configuration completed"
+    return 0
+}
+
+# Cinnamon: disable the screensaver lock + idle activation and the
+# settings-daemon power sleep via the org.cinnamon.* gsettings schemas.
+configure_cinnamon_desktop() {
+    local user
+    log "Configuring Cinnamon desktop: disabling screen lock, screensaver and blanking..."
+    user="$(resolve_desktop_user "cinnamon-session")"
+    if [ -z "$user" ]; then
+        warning "Could not determine Cinnamon desktop user; skipping Cinnamon configuration"
+        return 0
+    fi
+    info "Configuring Cinnamon for user: $user"
+    gset "$user" org.cinnamon.desktop.screensaver lock-enabled false || true
+    gset "$user" org.cinnamon.desktop.screensaver idle-activation-enabled false || true
+    gset "$user" org.cinnamon.desktop.session idle-delay 0 || true
+    gset "$user" org.cinnamon.settings-daemon.plugins.power sleep-inactive-ac-type nothing || true
+    gset "$user" org.cinnamon.settings-daemon.plugins.power sleep-inactive-battery-type nothing || true
+    gset "$user" org.cinnamon.settings-daemon.plugins.power sleep-inactive-ac-timeout 0 || true
+    gset "$user" org.cinnamon.settings-daemon.plugins.power sleep-inactive-battery-timeout 0 || true
+    gset "$user" org.cinnamon.settings-daemon.plugins.power idle-dim false || true
+    disable_light_locker "$user"
+    disable_xscreensaver "$user"
+    disable_x11_blanking "$user"
+    log "Cinnamon desktop configuration completed"
+    return 0
+}
+
+# LXQt / LXDE: lightweight DEs with no gsettings power schema -- they rely on
+# xscreensaver/light-locker + X11 DPMS. LXQt additionally has an idleness watcher
+# in lxqt-powermanagement.conf; turn it off. $1 = label, $2 = session proc name.
+configure_lxqt_lxde_desktop() {
+    local label="$1" session_proc="$2" user home conf
+    log "Configuring $label desktop: disabling screen lock, screensaver and blanking..."
+    user="$(resolve_desktop_user "$session_proc")"
+    if [ -z "$user" ]; then
+        warning "Could not determine $label desktop user; skipping $label configuration"
+        return 0
+    fi
+    info "Configuring $label for user: $user"
+    disable_light_locker "$user"
+    disable_xscreensaver "$user"
+    disable_x11_blanking "$user"
+    if [ "$label" = "LXQt" ]; then
+        home="$(getent passwd "$user" 2>/dev/null | cut -d: -f6)"
+        if [ -n "$home" ] && [ -d "$home" ]; then
+            conf="$home/.config/lxqt/lxqt-powermanagement.conf"
+            $USE_SUDO -u "$user" mkdir -p "$home/.config/lxqt" 2>/dev/null \
+                || $USE_SUDO mkdir -p "$home/.config/lxqt" 2>/dev/null || true
+            printf '[Idleness]\nidlenessWatcher=false\nidlenessBacklightWatcher=false\n' \
+                | $USE_SUDO tee "$conf" >/dev/null 2>&1 || true
+            $USE_SUDO chown "$user:$user" "$conf" 2>/dev/null || true
+        fi
+    fi
+    log "$label desktop configuration completed"
+    return 0
+}
+
 configure_desktop_system() {
     # Check if desktop environment is detected
     if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" != "true" ]; then
@@ -930,22 +1206,46 @@ configure_desktop_system() {
     
     info "Detected desktop type: $desktop_type"
     
+    # GNOME-family DEs (budgie/unity/pantheon) share the org.gnome.* gsettings
+    # schemas, so they reuse configure_gnome_desktop. Each call is guarded with
+    # `|| true` so a per-DE failure never aborts the whole base setup (set -e).
+    local generic_user=""
     case "$desktop_type" in
-        gnome)
-            configure_gnome_desktop
+        gnome|budgie|unity|pantheon)
+            configure_gnome_desktop || true
             ;;
         kde)
-            configure_kde_desktop
+            configure_kde_desktop || true
             ;;
-        xfce|mate|cinnamon)
-            info "Desktop type $desktop_type detected but configuration not yet implemented"
-            info "You may need to configure power management and screen lock manually"
+        xfce)
+            configure_xfce_desktop || true
             ;;
-        *)
-            info "Unknown desktop type: $desktop_type"
+        mate)
+            configure_mate_desktop || true
+            ;;
+        cinnamon)
+            configure_cinnamon_desktop || true
+            ;;
+        lxqt)
+            configure_lxqt_lxde_desktop "LXQt" "lxqt-session" || true
+            ;;
+        lxde)
+            configure_lxqt_lxde_desktop "LXDE" "lxsession" || true
+            ;;
+        deepin|*)
+            # Deepin (and any unrecognized DE): only the generic light-locker /
+            # xscreensaver / X11-DPMS disable is applied. Deepin's native lock keys
+            # live under com.deepin.dde.* OR org.deepin.dde.* depending on DDE version,
+            # so they are intentionally not set here (the generic pass still stops most
+            # blanking/locking). Add a dedicated deepin) case if full DDE support is needed.
+            info "Desktop '$desktop_type': applying generic screensaver/blank disable"
+            generic_user="$(resolve_desktop_user "")"
+            disable_light_locker "$generic_user" || true
+            disable_xscreensaver "$generic_user" || true
+            disable_x11_blanking "$generic_user" || true
             ;;
     esac
-    
+
     return 0
 }
 
@@ -1038,8 +1338,9 @@ EOF
     fi
 }
 
-# GNOME: never blank display / never sleep / no screensaver lock, applied
-# system-wide via the dconf "local" system database (covers every user).
+# GNOME / MATE / Cinnamon (the gsettings+dconf family): never blank the display,
+# never sleep, no screensaver lock -- applied system-wide via the dconf "local"
+# system database (covers every user, works during a no-session root install).
 power_disable_gnome_blanking() {
     local dconf_profile="/etc/dconf/profile/user"
     local dconf_db_dir="/etc/dconf/db/local.d"
@@ -1054,7 +1355,7 @@ power_disable_gnome_blanking() {
         info "dconf not installed; skipping system-wide GNOME defaults."
         return 0
     fi
-    info "Writing system-wide GNOME power defaults via dconf..."
+    info "Writing system-wide GNOME/MATE/Cinnamon power defaults via dconf..."
     $USE_SUDO mkdir -p "$dconf_db_dir" "$dconf_locks_dir" "$(dirname "$dconf_profile")" 2>/dev/null || true
 
     if [ ! -f "$dconf_profile" ] || ! grep -q "^system-db:local" "$dconf_profile" 2>/dev/null; then
@@ -1062,13 +1363,16 @@ power_disable_gnome_blanking() {
         info "Configured $dconf_profile"
     fi
 
+    # The dconf "local" system-db applies to ALL gsettings clients, so the same
+    # file covers GNOME, MATE, Cinnamon and Budgie. Keys for an absent schema are
+    # simply ignored by dconf (no validation), so listing all three is safe.
     db_desired="$(cat <<'EOF'
 # Managed by core_node 2_setting_base.sh -- desktop stays awake.
 [org/gnome/settings-daemon/plugins/power]
 sleep-inactive-ac-type='nothing'
 sleep-inactive-battery-type='nothing'
-sleep-inactive-ac-timeout=0
-sleep-inactive-battery-timeout=0
+sleep-inactive-ac-timeout=uint32 0
+sleep-inactive-battery-timeout=uint32 0
 idle-dim=false
 
 [org/gnome/desktop/session]
@@ -1077,6 +1381,34 @@ idle-delay=uint32 0
 [org/gnome/desktop/screensaver]
 idle-activation-enabled=false
 lock-enabled=false
+
+[org/mate/screensaver]
+idle-activation-enabled=false
+lock-enabled=false
+
+[org/mate/session]
+idle-delay=0
+
+[org/mate/power-manager]
+sleep-display-ac=0
+sleep-display-battery=0
+sleep-computer-ac=0
+sleep-computer-battery=0
+idle-dim-ac=false
+
+[org/cinnamon/desktop/screensaver]
+idle-activation-enabled=false
+lock-enabled=false
+
+[org/cinnamon/desktop/session]
+idle-delay=uint32 0
+
+[org/cinnamon/settings-daemon/plugins/power]
+sleep-inactive-ac-type='nothing'
+sleep-inactive-battery-type='nothing'
+sleep-inactive-ac-timeout=uint32 0
+sleep-inactive-battery-timeout=uint32 0
+idle-dim=false
 EOF
 )"
     locks_desired="$(cat <<'EOF'
@@ -1085,6 +1417,12 @@ EOF
 /org/gnome/desktop/session/idle-delay
 /org/gnome/desktop/screensaver/idle-activation-enabled
 /org/gnome/desktop/screensaver/lock-enabled
+/org/mate/screensaver/idle-activation-enabled
+/org/mate/screensaver/lock-enabled
+/org/mate/session/idle-delay
+/org/cinnamon/desktop/screensaver/idle-activation-enabled
+/org/cinnamon/desktop/screensaver/lock-enabled
+/org/cinnamon/desktop/session/idle-delay
 EOF
 )"
 
@@ -1101,7 +1439,7 @@ EOF
         $USE_SUDO dconf update 2>/dev/null || true
         log "Updated dconf system database."
     else
-        info "GNOME dconf defaults already in place, skipping."
+        info "dconf desktop power defaults already in place, skipping."
     fi
 }
 
@@ -1155,6 +1493,18 @@ configure_desktop_power_policy() {
     log "Applying desktop power policy: no suspend, no display blank, no disk spindown"
     power_disable_systemd_sleep
     power_disable_gnome_blanking
+    # XFCE (Kali default): the per-DE pass above only runs with a live session;
+    # cover the root-install case here too, where on-disk Xfce tools are present
+    # but no session is active. Idempotent, so a second pass is harmless.
+    if command -v xfce4-session >/dev/null 2>&1 || command -v xfce4-screensaver >/dev/null 2>&1; then
+        configure_xfce_desktop || true
+    fi
+    # Lightweight DEs (LXDE/LXQt) and any stray locker: neutralize light-locker /
+    # xscreensaver for the primary user even when no session is active. Both are
+    # no-ops when the respective tool is absent.
+    local primary_user; primary_user="$(resolve_desktop_user "")"
+    disable_light_locker "$primary_user" || true
+    disable_xscreensaver "$primary_user" || true
     power_disable_disk_spindown
     log "Desktop power policy applied"
     return 0
@@ -1292,6 +1642,12 @@ main() {
 
     # Step 0: ensure sudo is installed (merged from former 11_install_sudo.sh).
     ensure_sudo_installed || warning "sudo setup incomplete (continuing base setup)"
+    # gvar_common sets USE_SUDO once at source time (only if the sudo binary then
+    # existed). If ensure_sudo_installed just installed it, refresh USE_SUDO now so
+    # every later `$USE_SUDO -u <user>` resolves to `sudo -u <user>` instead of a
+    # bare `-u` (command not found) -- which would silently skip all per-user
+    # desktop config on a root install that started without sudo.
+    command -v sudo >/dev/null 2>&1 && USE_SUDO="sudo"
 
     # Step 0b: system update + initialization (merged from former 12_update.sh).
     # Run with `set +e` so a failing apt/git/repo step never aborts the base setup.
@@ -1299,6 +1655,12 @@ main() {
     set +e
     initialize_core_node_directories
     fix_temp_permissions
+    # Ensure the distro archive signing key is present BEFORE any apt update so a
+    # rotated/missing key (e.g. Kali's sqv "Missing key ..." breakage) cannot abort
+    # the base setup. Idempotent; runs before repair so repair's apt update succeeds.
+    if command -v ensure_distro_archive_keyring_from_apt_repository_manager >/dev/null 2>&1; then
+        ensure_distro_archive_keyring_from_apt_repository_manager
+    fi
     if command -v repair_repositories_from_apt_repository_manager >/dev/null 2>&1; then
         echo "=== Repository Repair and Verification ==="
         repair_repositories_from_apt_repository_manager
@@ -1343,7 +1705,10 @@ main() {
     fi
 
     if command -v systemctl >/dev/null 2>&1; then
-        $USE_SUDO systemctl daemon-reload
+        # Guard: in a chroot/container/WSL where systemctl exists but systemd is not
+        # PID 1, daemon-reload exits non-zero ("Failed to connect to bus") and would
+        # abort the run under set -e before the remaining steps.
+        $USE_SUDO systemctl daemon-reload 2>/dev/null || true
     fi
 
     log "Disk setup completed!"

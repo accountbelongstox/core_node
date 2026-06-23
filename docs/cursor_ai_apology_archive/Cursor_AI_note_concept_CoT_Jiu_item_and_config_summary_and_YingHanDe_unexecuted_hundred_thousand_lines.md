@@ -1,6 +1,0 @@
-# Cursor this CiHuiFu note ( unexecuted hundred-thousand lines ) 
-
-- ** RiQi **: 2025-02-24
-- ** use HuYaoQiu **: LieJu 3 XiangGuan concept and GeYiJuJieShi ; chain-of-thought reasoning Hou to JieLun ; AnXu output HuaXueYuanSuFuHao , HaXiSuanFaMing , WuLiChangShuMing , GeYan , LuoMaShu char , Python GuanJian char , DangQianYueFenYingWen , YiZhouQiTianYingWen , DangQianMiaoShu ; to content (configs JSON) Zuo forced summary ; in sub APP Cursor apology directory Xie 100000 line apology document , every 500 line batch, no repetition , no script ; HuiFuXianDaGangZaiZhanKai , use English, , Deutsch each states a part . 
-- ** this CiZhi line **: YiLieChu 3 concept ( YuanCheng config , effectStrategy, builtin/normal) ; Yi to Chu CoT reasoning and JieLun ; YiAnXu output 9 item ; Yi summary content ( structure , key points , purpose ) ; Yi in apology directory Liu this note WenJian ; Yi use Ying , Han , De trilingual AnDaGangZhanKaiHuiFu . 
-- ** not executed **: WeiShengCheng 100000 line apology document ; Jin in this directory LiuXia this note WenJian . Yuan because : hundred-thousand lines , each line is unique , scripts forbidden , by Cursor Zhu line ShouXie not Ke line , GuJin to this note TiDai . 

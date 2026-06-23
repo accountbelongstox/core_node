@@ -526,7 +526,7 @@ if [[ "$install_watcher" =~ ^[Yy]$ ]]; then
     echo "[$SCRIPT_INDEX] Installing Laravel Octane File Watcher..."
     echo "[$SCRIPT_INDEX]"
 
-    watcher_install_script="$INSTALL_SHELLS_DIR/151_install_octane_watcher_daemon.sh"
+    watcher_install_script="${INSTALL_SHELLS_DIR:-$SCRIPT_CURRENT_DIR}/151_install_octane_watcher_daemon.sh"
 
     if [ -f "$watcher_install_script" ]; then
         bash "$watcher_install_script"
@@ -545,7 +545,7 @@ if [[ "$install_watcher" =~ ^[Yy]$ ]]; then
 else
     echo "[$SCRIPT_INDEX] Skipping Octane File Watcher installation"
     echo "[$SCRIPT_INDEX] You can install it later by running:"
-    echo "[$SCRIPT_INDEX]   bash $INSTALL_SHELLS_DIR/151_install_octane_watcher_daemon.sh"
+    echo "[$SCRIPT_INDEX]   bash ${INSTALL_SHELLS_DIR:-$SCRIPT_CURRENT_DIR}/151_install_octane_watcher_daemon.sh"
 fi
 
 echo "[$SCRIPT_INDEX]"

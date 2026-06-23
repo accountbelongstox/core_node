@@ -636,9 +636,9 @@ create_python_venv_and_replace_system() {
             print_info_from_common_functions "Virtual environment exists and appears up-to-date"
         fi
 
-        print_step_from_common_functions "Rebuild virtual environment? [n/Y] (press Y only if you added new packages)"
-        read -r response </dev/tty
-        response=${response:-n}  # Default to n if user just presses Enter
+        print_step_from_common_functions "Rebuild virtual environment? [n/Y] (press Y only if you added new packages; auto-continues in 15s)"
+        read -t 15 -r response </dev/tty || true
+        response=${response:-n}  # Default to n on Enter or 15s timeout (skip rebuild)
 
         if [[ "$response" =~ ^[Yy]$ ]]; then
             user_wants_rebuild=true

@@ -88,6 +88,11 @@ if [[ ${#installers[@]} -eq 0 ]]; then
     exit 0
 fi
 
+# Tell 22_install_tts_offline.sh (reached via install_tts_offline.sh) to stand its
+# umbrella down: this sweep already runs every sibling engine installer itself, so the
+# umbrella would only re-do the same work. It still installs its CORE (sherpa + model).
+export PYCORE_INISCRIPTS_SWEEP=1
+
 failed=()
 for installer in "${installers[@]}"; do
     base="$(basename "$installer" .sh)"   # install_whisper

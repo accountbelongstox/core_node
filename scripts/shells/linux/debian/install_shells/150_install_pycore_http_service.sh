@@ -73,7 +73,8 @@ create_systemd_service \
     "$SERVICE_WORKING_DIR" \
     "$SERVICE_USER"
 
-systemctl enable "$SERVICE_NAME.service"
+systemctl daemon-reload
+systemctl is-enabled --quiet "$SERVICE_NAME.service" 2>/dev/null || systemctl enable "$SERVICE_NAME.service"
 systemctl restart "$SERVICE_NAME.service"
 
 sleep 3

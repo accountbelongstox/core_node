@@ -59,7 +59,7 @@ if [[ -z "$DESKTOP_MANAGER_HOME" ]] || [[ ! -d "$DESKTOP_MANAGER_HOME" ]]; then
 fi
 DESKTOP_MANAGER_APPS_DIR="$DESKTOP_MANAGER_HOME/.local/share/applications"
 SYSTEM_DESKTOP_FILE="/usr/share/applications/code.desktop"
-LAUNCH_DIR="/var/_core_node/scripts_launch_dir"
+LAUNCH_DIR="$CORE_NODE_DATA_DIR/scripts_launch_dir"
 
 # Ensure sudo is available and set USE_SUDO
 if command -v sudo >/dev/null 2>&1; then

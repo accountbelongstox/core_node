@@ -389,6 +389,18 @@ print('[SUCCESS] ========================================')
     try {
         Push-Location $InstallDirectory
 
+        # Authenticate to the HF Hub from the project secret store so the model
+        # download is not a rate-limited "unauthenticated" request (HF_TOKEN_1..5
+        # then HF_TOKEN).
+        $hfToken = Get-SecretContentIndexed -BaseName "HF_TOKEN"
+        if (-not [string]::IsNullOrWhiteSpace($hfToken)) {
+            $env:HF_TOKEN = $hfToken
+            $env:HUGGING_FACE_HUB_TOKEN = $hfToken
+            Write-Host "$SCRIPT_INDEX HF Hub token loaded from .secret_keys\.secret_ignore" -ForegroundColor Cyan
+        } else {
+            Write-Host "$SCRIPT_INDEX No HF_TOKEN in .secret_keys; HF Hub download will be unauthenticated" -ForegroundColor Yellow
+        }
+
         Write-Host ""
         & $PythonCommand $modelTestPath
         Write-Host ""

@@ -1,0 +1,16 @@
+# Session index
+
+2026-06-22 10:32:40  6245db8a-df22-4f59-9269-bb5886556ad0  prompts=13   size=  2478646  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 11:03:31  db694d3b-007f-4229-a279-610964507ece  prompts=7    size=  1639375  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 11:40:40  ce3decd1-070d-48af-9b93-f285037f76d0  prompts=6    size=  1994074  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 11:44:24  633c359a-a12d-4e1a-b8be-02042f7a9cfe  prompts=1    size=    12171  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 13:15:12  5849e1f9-a2ba-4bc0-8c01-a01a4c456a2d  prompts=5    size=  1681725  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 13:15:59  3330ef60-3ef9-47cd-b52f-8ab3f05a5117  prompts=9    size=   871880  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 14:12:13  c4f2933e-0fa6-47de-857d-85ecf1f4b0db  prompts=28   size=  5188032  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 14:24:15  1cdf1159-ad37-4891-9a21-1c8cc8fc55c0  prompts=16   size=  2919424  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 15:34:26  72f100dd-ec49-4e46-bfe2-d32b530bef69  prompts=7    size=  2565350  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 15:58:04  c3c67a65-ee8f-4e41-8176-e6ca6400859b  prompts=5    size=   618823  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 16:23:36  12d3adc4-c267-4705-b386-670acfe491f6  prompts=35   size=  6496306  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-22 17:12:55  de800a42-51d3-4a4e-ba30-c5dd126b1ba6  prompts=22   size=  3622707  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-23 09:58:09  a3c83991-adfc-4595-8858-c5706ab9fd64  prompts=2    size=   164939  -mnt-dev-nvme0n1p1-programing-core-node
+2026-06-23 10:14:15  38387177-1266-4f94-ba37-1db0fe223218  prompts=1    size=    11952  -mnt-dev-nvme0n1p1-programing-core-node

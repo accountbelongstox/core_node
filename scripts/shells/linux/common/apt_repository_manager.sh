@@ -22,7 +22,9 @@ APT_SOURCES_LIST="$APT_SOURCES_DIR/sources.list"
 APT_SOURCES_LIST_D="$APT_SOURCES_DIR/sources.list.d"
 APT_KEYRINGS_DIR="/usr/share/keyrings"
 APT_TRUSTED_KEYS_DIR="/etc/apt/trusted.gpg.d"
-APT_BACKUP_BASE_DIR="$APT_REPO_MANAGER_DIR/apt_repository_backups"
+# Backups live OUTSIDE the repo (under /var) so a foreign distro's captured sources
+# (e.g. an Ubuntu-noble snapshot) can never be committed and restored onto Debian/Kali.
+APT_BACKUP_BASE_DIR="/var/_core_node/apt_repository_backups"
 APT_ORIGINAL_BACKUP_DIR="$APT_BACKUP_BASE_DIR/original"
 APT_BACKUP_TIMESTAMP=""
 APT_BACKUP_DIR=""
@@ -1044,19 +1046,41 @@ add_mysql_repository_from_apt_repository_manager() {
         return 1
     fi
     
-    # Download and run MariaDB repository setup script
+    # Download the MariaDB setup script directly to an absolute path. -f makes an
+    # HTTP error (e.g. a transient 5xx returning an HTML body) a hard failure
+    # instead of saving error HTML and running it; -o avoids writing into (and
+    # depending on the writability of) the current working directory.
     local setup_script="/tmp/mariadb_repo_setup"
-    if ! curl -LsSO https://r.mariadb.com/downloads/mariadb_repo_setup; then
+    if ! curl -fLsS -o "$setup_script" https://r.mariadb.com/downloads/mariadb_repo_setup; then
         echo "ERROR: Failed to download mariadb_repo_setup script" >&2
         restore_apt_sources_from_apt_repository_manager "$backup_id"
         return 1
     fi
-    
-    $USE_SUDO mv mariadb_repo_setup "$setup_script"
     fix_file_permissions_from_apt_repository_manager "$setup_script" "+x"
-    
+
+    # mariadb_repo_setup auto-detects the OS from /etc/os-release and does NOT
+    # recognize rolling derivatives (Kali/Parrot report ID=kali / kali-rolling),
+    # failing with "Could not identify OS type or version". Normalize such hosts to
+    # their base Debian/Ubuntu vendor + a hosted codename (reusing the same mapping
+    # the PHP repo uses) and pass --os-type/--os-version explicitly. Debian/Ubuntu
+    # are recognized natively and pass through unchanged.
+    local mdb_os_args=""
+    local _suite="" _vendor="" _codename=""
+    case "$(printf '%s' "$os_id" | tr '[:upper:]' '[:lower:]')" in
+        ubuntu|debian) : ;;
+        *)
+            _suite="$(resolve_php_suite_from_apt_repository_manager "$os_id" "$os_codename")"
+            _vendor="${_suite%% *}"
+            _codename="${_suite##* }"
+            if [ -n "$_vendor" ] && [ -n "$_codename" ] && [ "$_vendor" != "$os_id" ]; then
+                mdb_os_args="--os-type=$_vendor --os-version=$_codename"
+                echo "[mariadb] '$os_id/$os_codename' not natively supported; using $mdb_os_args"
+            fi
+            ;;
+    esac
+
     # Run the setup script
-    if ! $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11" --skip-maxscale --skip-tools; then
+    if ! $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11" --skip-maxscale --skip-tools $mdb_os_args; then
         echo "ERROR: Failed to setup MariaDB repository" >&2
         $USE_SUDO rm -f "$setup_script"
         restore_apt_sources_from_apt_repository_manager "$backup_id"
@@ -1272,8 +1296,9 @@ manage_repositories_from_apt_repository_manager() {
             fi
             
             local setup_script="/tmp/mariadb_repo_setup"
-            if curl -LsSO https://r.mariadb.com/downloads/mariadb_repo_setup; then
-                $USE_SUDO mv mariadb_repo_setup "$setup_script"
+            # -f: fail on HTTP error (don't save/run error HTML); -o: absolute path,
+            # never the current working directory.
+            if curl -fLsS -o "$setup_script" https://r.mariadb.com/downloads/mariadb_repo_setup; then
                 fix_file_permissions_from_apt_repository_manager "$setup_script" "+x"
                 
                 if $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11" --skip-maxscale --skip-tools; then
@@ -1317,13 +1342,11 @@ cleanup_all_custom_repositories_from_apt_repository_manager() {
     echo "Removing custom repository files..."
     $USE_SUDO find "$APT_SOURCES_LIST_D" -name "*.list" -type f -exec rm -f {} \; 2>/dev/null || true
     
-    # Remove all custom GPG keys from keyrings
-    echo "Removing custom GPG keys..."
-    $USE_SUDO find "$APT_KEYRINGS_DIR" -name "*.gpg" -type f -exec rm -f {} \; 2>/dev/null || true
+    # SAFETY: do NOT bulk-delete *.gpg from /usr/share/keyrings -- that wipes the
+    # distro's own signing keys (breaking apt verification system-wide) on Debian/Kali.
+    # Custom repo keys are removed individually by the per-repo remove functions.
     
-    # Remove all custom GPG keys from trusted.gpg.d
-    echo "Removing custom trusted GPG keys..."
-    $USE_SUDO find "$APT_TRUSTED_KEYS_DIR" -name "*.gpg" -type f -exec rm -f {} \; 2>/dev/null || true
+    # SAFETY: likewise do NOT bulk-delete *.gpg from /etc/apt/trusted.gpg.d.
     
     # Clean apt cache
     echo "Cleaning APT cache..."
@@ -1419,9 +1442,144 @@ detect_and_fix_repository_issues_from_apt_repository_manager() {
     fi
 }
 
+# Return 0 if the given 40-hex key fingerprint is present in ANY keyring apt's
+# verifier (sqv/gpgv) consults: /etc/apt/trusted.gpg.d, /usr/share/keyrings, and
+# /etc/apt/keyrings. Used to decide (idempotently) whether a repair is needed.
+_apt_key_present_from_apt_repository_manager() {
+    local fpr="$1" k
+    command -v gpg >/dev/null 2>&1 || return 1
+    for k in /etc/apt/trusted.gpg.d/*.gpg /etc/apt/trusted.gpg.d/*.asc /etc/apt/trusted.gpg.d/*.pgp \
+             /usr/share/keyrings/*.gpg /usr/share/keyrings/*.pgp \
+             /etc/apt/keyrings/*; do
+        [ -f "$k" ] || continue
+        if gpg --show-keys --with-colons "$k" 2>/dev/null | awk -F: '/^fpr:/{print $10}' | grep -qx "$fpr"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Restore the Kali archive signing key. Kali is rolling and periodically rotates
+# its archive key (the 2025 rotation moved to fingerprint
+# 827C8569F2518CC677FECA1AED65462EC8D5E4C5); when the kali-archive-keyring file is
+# missing/stale (here: a dangling /etc/apt/trusted.gpg.d symlink), apt fails with
+# "Missing key ..., which is needed to verify signature" and NOTHING installs.
+# Fetches the OFFICIAL keyring (archive.kali.org), installs it ONLY after
+# verifying it actually carries the expected fingerprint, and heals the
+# trusted.gpg.d symlink. Idempotent; never fatal (runs under set +e).
+_ensure_kali_archive_keyring_from_apt_repository_manager() {
+    local needed_fpr="827C8569F2518CC677FECA1AED65462EC8D5E4C5"
+    local keyring="/usr/share/keyrings/kali-archive-keyring.gpg"
+    local trusted_link="/etc/apt/trusted.gpg.d/kali-archive-keyring.gpg"
+    local url="https://archive.kali.org/archive-keyring.gpg"
+    local tmp=""
+
+    if _apt_key_present_from_apt_repository_manager "$needed_fpr"; then
+        echo "[keyring] Kali archive key already trusted; skipping."
+        # Heal a dangling trusted.gpg.d symlink (file exists, link broken/absent).
+        if [ -f "$keyring" ] && [ ! -e "$trusted_link" ]; then
+            $USE_SUDO ln -sf "$keyring" "$trusted_link" 2>/dev/null || true
+        fi
+        return 0
+    fi
+
+    echo "[keyring] Kali archive signing key ($needed_fpr) not trusted; restoring from $url ..."
+    if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+        echo "[keyring] WARNING: neither curl nor wget available; cannot fetch keyring." >&2
+        return 0
+    fi
+    if ! command -v gpg >/dev/null 2>&1; then
+        echo "[keyring] WARNING: gpg not available; cannot verify keyring." >&2
+        return 0
+    fi
+
+    tmp="$(mktemp 2>/dev/null)" || tmp="/tmp/kali-archive-keyring.$$.gpg"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$url" -o "$tmp" 2>/dev/null || { echo "[keyring] WARNING: download failed ($url)." >&2; rm -f "$tmp"; return 0; }
+    else
+        wget -qO "$tmp" "$url" 2>/dev/null || { echo "[keyring] WARNING: download failed ($url)." >&2; rm -f "$tmp"; return 0; }
+    fi
+
+    # SECURITY: install only if the downloaded keyring really carries the exact key
+    # apt is asking for (guards against a tampered/empty/HTML-error download).
+    if ! gpg --show-keys --with-colons "$tmp" 2>/dev/null | awk -F: '/^fpr:/{print $10}' | grep -qx "$needed_fpr"; then
+        echo "[keyring] WARNING: downloaded keyring lacks $needed_fpr; refusing to install." >&2
+        rm -f "$tmp"
+        return 0
+    fi
+
+    if $USE_SUDO install -m 0644 "$tmp" "$keyring" 2>/dev/null; then
+        :
+    else
+        $USE_SUDO mkdir -p /usr/share/keyrings 2>/dev/null || true
+        $USE_SUDO cp "$tmp" "$keyring" 2>/dev/null && $USE_SUDO chmod 0644 "$keyring" 2>/dev/null || true
+    fi
+    rm -f "$tmp"
+
+    # apt's verifier reads /etc/apt/trusted.gpg.d/*; keep the conventional symlink.
+    if [ ! -e "$trusted_link" ]; then
+        $USE_SUDO ln -sf "$keyring" "$trusted_link" 2>/dev/null || true
+    fi
+
+    if _apt_key_present_from_apt_repository_manager "$needed_fpr"; then
+        echo "[keyring] Kali archive signing key restored at $keyring."
+    else
+        echo "[keyring] WARNING: key still not detected after install." >&2
+    fi
+    return 0
+}
+
+# Best-effort safety net for Debian/Ubuntu: only when the keyring FILE is actually
+# missing (mirrors the Kali failure), reinstall the distro keyring package. Debian/
+# Ubuntu archive keys do not rotate like Kali's, so this is normally a no-op (keeps
+# the call idempotent -- it never re-runs apt when the keyring is already present).
+_reinstall_keyring_pkg_from_apt_repository_manager() {
+    local pkg="$1" probe="$2"
+    if [ -n "$probe" ] && [ -e "$probe" ]; then
+        return 0
+    fi
+    if dpkg -s "$pkg" >/dev/null 2>&1; then
+        echo "[keyring] $pkg keyring file missing; reinstalling $pkg ..."
+        $USE_SUDO apt-get install --reinstall -y "$pkg" >/dev/null 2>&1 || true
+    fi
+    return 0
+}
+
+# Ensure the distro's OWN archive signing key is present where apt looks, BEFORE
+# any apt update. Distro-aware (kali/debian/ubuntu, including derivatives via
+# ID_LIKE). Idempotent and never fatal. This is the fix for the rolling-Kali
+# "Missing key ..., which is needed to verify signature" breakage.
+ensure_distro_archive_keyring_from_apt_repository_manager() {
+    local os_id="" id_like=""
+    if [ -r /etc/os-release ]; then
+        os_id="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID:-}")"
+        id_like="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID_LIKE:-}")"
+    fi
+    os_id="$(printf '%s' "$os_id" | tr '[:upper:]' '[:lower:]')"
+    id_like="$(printf '%s' "$id_like" | tr '[:upper:]' '[:lower:]')"
+
+    case "$os_id" in
+        kali)   _ensure_kali_archive_keyring_from_apt_repository_manager ;;
+        debian) _reinstall_keyring_pkg_from_apt_repository_manager debian-archive-keyring /usr/share/keyrings/debian-archive-keyring.gpg ;;
+        ubuntu) _reinstall_keyring_pkg_from_apt_repository_manager ubuntu-keyring /usr/share/keyrings/ubuntu-archive-keyring.gpg ;;
+        *)
+            case " $id_like " in
+                *kali*)   _ensure_kali_archive_keyring_from_apt_repository_manager ;;
+                *ubuntu*) _reinstall_keyring_pkg_from_apt_repository_manager ubuntu-keyring /usr/share/keyrings/ubuntu-archive-keyring.gpg ;;
+                *debian*) _reinstall_keyring_pkg_from_apt_repository_manager debian-archive-keyring /usr/share/keyrings/debian-archive-keyring.gpg ;;
+                *)        echo "[keyring] Unknown distro '$os_id'; skipping archive-keyring check." ;;
+            esac
+            ;;
+    esac
+    return 0
+}
+
 # Comprehensive repository repair function
 repair_repositories_from_apt_repository_manager() {
     echo "Starting comprehensive repository repair..."
+    # Step 0: ensure the distro archive signing key is present so every apt step
+    # below (fix-broken, update) can verify signatures. Idempotent; see function.
+    ensure_distro_archive_keyring_from_apt_repository_manager
     
     # Initialize backup directory
     if ! init_apt_backup_dir_from_apt_repository_manager; then
@@ -1526,6 +1684,11 @@ EOF
         echo "WARNING: Package list update had issues, but continuing..." >&2
     }
     
+    # Bound backup growth: every repair makes a timestamped backup dir, so on a box
+    # re-run repeatedly these accumulate under $APT_BACKUP_BASE_DIR. Keep the newest
+    # 10 (plus the protected "original"). Idempotent and non-fatal.
+    clean_old_apt_backups_from_apt_repository_manager 10 2>/dev/null || true
+
     # Step 6: Verify repair
     echo "Step 6: Verifying repair..."
     if detect_and_fix_repository_issues_from_apt_repository_manager; then
@@ -1555,7 +1718,9 @@ verify_repository_health_from_apt_repository_manager() {
     
     # Test 2: Package search functionality
     echo "Test 2: Package search functionality..."
-    if apt search python3 >/dev/null 2>&1 | head -5 >/dev/null; then
+    # Note: the search command's exit status must be evaluated, not piped after a
+    # redirect (`... >/dev/null 2>&1 | head` only tested `head`, always passing).
+    if apt-cache search --names-only '^python3$' 2>/dev/null | grep -q .; then
         echo "  [OK] Package search works"
         health_score=$((health_score + 1))
     else

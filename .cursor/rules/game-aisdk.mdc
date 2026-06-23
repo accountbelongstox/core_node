@@ -1,12 +1,12 @@
 ---
-description: "GameAISDK: imports at top (platform-specific allowed after guard); no import in except; meaningful catch only; code/comments in English; third-party via pycore third_party. Doc: key points only. Sub-app rule per .cursor/rules/cursor-rules.mdc."
+description: "GameAISDK: imports at top (platform-specific allowed after guard); no import in except; meaningful catch only; code/comments in English; third-party via pycore third_party. Doc: key points only."
 globs: pyapps/GameAISDK/**
 alwaysApply: false
 ---
 
 # GameAISDK rule
 
-(Applies only to pyapps/GameAISDK. Multi-sub-app pattern: .cursor/rules/cursor-rules.mdc.)
+(Applies only to pyapps/GameAISDK.)
 
 1. **Imports.** All imports at file top. Exception: platform-specific modules after a clear guard (e.g. `if sys.platform == 'win32':` then import win32driver). Resolve circular imports by structure (split module, DI, shared layer); no lazy import in except/catch.
 2. **No import in except.** Do not add or move imports inside try/except. Optional third-party at module level only: `try: import x\n except ImportError: x = None`.

@@ -90,7 +90,7 @@ fi
 # Check if running as root - skip --dangerously-skip-permissions flag for root
 # (root already has full permissions and Claude Code refuses that flag as root).
 if [ "$EUID" -ne 0 ]; then
-    claude_args+=(--dangerously-skip-permissions)
+    claude_args+=(--permission-mode bypassPermissions --dangerously-skip-permissions)
 fi
 
 claude_invoke_display="claude ${claude_args[*]}"

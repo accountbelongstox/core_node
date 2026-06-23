@@ -1,25 +1,15 @@
 ---
-description: "dot-ui: .NET UI (WPF/MAUI/Blazor/Avalonia) in dotapps. Clean Architecture + MVVM + Fluent 2. Canonical: development-guides/DOT_ARCHITECTURE.md. Base layout/language: dot.mdc and DOT_ARCHITECTURE.md."
+description: "dot-ui: .NET UI (WPF/MAUI/Blazor/Avalonia) Presentation layer in dotapps. Clean Architecture + MVVM + Fluent 2."
 globs: dotapps/**
 alwaysApply: false
 ---
 
-# Dot UI rule (Presentation layer for .NET UI apps)
+# Dot UI rule (Presentation layer, .NET UI apps)
 
-(Canonical: development-guides/DOT_ARCHITECTURE.md. Base rule: .cursor/rules/dot.mdc and DOT_ARCHITECTURE.md.)
+Full detail: development-guides/DOT_ARCHITECTURE.md. Base rule: .cursor/rules/dot.mdc.
 
-**Conflict precedence:** If any other document or rule conflicts with this rule on UI structure, Presentation layer, or Fluent 2 conventions, follow DOT_ARCHITECTURE.md and this rule.
-
-When building **UI** in dotapps (WPF, MAUI, Blazor Hybrid, or Avalonia):
-
-1. **Layers.** Follow Clean Architecture: Domain (no deps) → Application (use cases, DTOs, CQRS/MediatR) → Infrastructure (EF, APIs, auth) → Presentation (Views, ViewModels, no business logic).
-
-2. **Presentation structure.** Use Assets/ (Fonts, Images, Styles), Components/, Pages or Views/ (by feature), ViewModels/ (with Base/), Services/ (Navigation, Dialog), Converters/.
-
-3. **Naming.** Views: [Feature]Page/Window/View; ViewModels: [Feature]ViewModel; Services: I[Name]Service; Commands: [Action]Command; async: [Method]Async.
-
-4. **Design.** Fluent 2: Mica/Acrylic, shadows/strokes, motion (staggered list, drill-in navigation), Segoe UI Variable, Light/Dark support.
-
-5. **Language.** English and ASCII in code (per dot.mdc). Root namespace DotApps.<AppName>.
-
-Do not duplicate base dot rules (layout, dependencies, DotCore.*) here; see DOT_ARCHITECTURE.md and dot.mdc.
+- Clean Architecture; Presentation (Views/ViewModels) holds NO business logic. Domain→Application→Infrastructure→Presentation.
+- Structure: Assets/ (Fonts, Images, Styles), Components/, Pages|Views/ (by feature), ViewModels/ (with Base/), Services/ (Navigation, Dialog), Converters/.
+- Naming: Views `[Feature]Page|Window|View`; `[Feature]ViewModel`; `I[Name]Service`; `[Action]Command`; async `[Method]Async`. Root namespace `DotApps.<AppName>`.
+- Design: Fluent 2 — Mica/Acrylic, shadows/strokes, motion, Segoe UI Variable, Light/Dark.
+- On UI/Presentation/Fluent 2 conflicts, DOT_ARCHITECTURE.md + this rule win. Don't duplicate base dot rules here.

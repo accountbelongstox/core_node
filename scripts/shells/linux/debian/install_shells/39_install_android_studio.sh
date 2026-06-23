@@ -150,6 +150,8 @@ install_android_studio_manual() {
     
     # Move to installation directory
     log_message "Installing Android Studio to $ANDROID_STUDIO_INSTALL_DIR..."
+    # Idempotency: clear any partial prior install so the move cannot collide with existing files on re-run.
+    $USE_SUDO rm -rf "$ANDROID_STUDIO_INSTALL_DIR"/* "$ANDROID_STUDIO_INSTALL_DIR"/.[!.]* 2>/dev/null || true
     if $USE_SUDO mv "$SCRIPT_TEMP_DIR/android-studio"/* "$ANDROID_STUDIO_INSTALL_DIR/"; then
         log_success "Android Studio moved to installation directory"
     else

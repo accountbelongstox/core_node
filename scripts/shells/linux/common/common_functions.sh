@@ -89,6 +89,36 @@ print_info_from_common_functions() {
 }
 
 
+# Read a single raw secret value from .secret_keys/.secret_ignore: first non-empty,
+# stripped line (BOM-aware). Empty string if the key file is absent. The shell twin
+# of pyfoundations.secret_manager.get_secret_key. (from common_functions.sh)
+get_secret_key_from_common_functions() {
+  local key_name="$1"
+  local project_root raw_file line
+  project_root="$(dirname "$(dirname "$(dirname "$(dirname "$COMMON_FUNCS_DIR")")")")"
+  raw_file="$project_root/.secret_keys/.secret_ignore/$key_name"
+  [ -f "$raw_file" ] || { echo ""; return; }
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line#$'\xef\xbb\xbf'}"
+    line="$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    if [ -n "$line" ]; then echo "$line"; return; fi
+  done < "$raw_file"
+  echo ""
+}
+
+# Resolve an indexed secret: first non-empty of <BASE>_1..<BASE>_5 then bare <BASE>.
+# Mirrors pyfoundations.secret_manager.get_secret_key_indexed. (from common_functions.sh)
+get_secret_key_indexed_from_common_functions() {
+  local base_name="$1"
+  local i value
+  for i in 1 2 3 4 5; do
+    value="$(get_secret_key_from_common_functions "${base_name}_${i}")"
+    if [ -n "$value" ]; then echo "$value"; return; fi
+  done
+  get_secret_key_from_common_functions "$base_name"
+}
+
+
 # MCP Installation Methods - Extended for various package managers
 
 # Install via curl script
@@ -1372,57 +1402,6 @@ ensure_directory_permissions_from_common_functions() {
     return 0
 }
 
-# Remove old installation directory (from common_functions.sh)
-migrate_all_old_installations_from_common_functions() {
-    print_header_from_common_functions "Removing Old Installation Directory"
-
-    local old_base_dir=$(map_web_path "dev_system_old")
-
-    if [ ! -d "$old_base_dir" ]; then
-        print_info_from_common_functions "No old installation directory found"
-        return 0
-    fi
-
-    print_info_from_common_functions "Found old installation directory: $old_base_dir"
-    print_info_from_common_functions "Removing old directory..."
-    
-    if command -v npm >/dev/null 2>&1; then
-        local current_npm_prefix=$(npm config get prefix 2>/dev/null)
-        if [[ "$current_npm_prefix" == *"$old_base_dir"* ]]; then
-            print_info_from_common_functions "Clearing npm prefix pointing to old directory"
-            npm config delete prefix
-        fi
-    fi
-    
-    if [ -n "$NPM_CONFIG_PREFIX" ]; then
-        print_info_from_common_functions "Clearing NPM_CONFIG_PREFIX environment variable"
-        unset NPM_CONFIG_PREFIX
-    fi
-    
-    if [ -f /etc/environment ]; then
-        print_info_from_common_functions "Cleaning old directory references from /etc/environment..."
-        $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
-    fi
-    
-    for binary in node npm npx; do
-        local link_path="/usr/local/bin/$binary"
-        if [ -L "$link_path" ]; then
-            local target=$(readlink "$link_path")
-            if [[ "$target" == *"$old_base_dir"* ]]; then
-                print_info_from_common_functions "Removing symlink pointing to old directory: $link_path"
-                $USE_SUDO rm -f "$link_path"
-            fi
-        fi
-    done
-    
-    print_info_from_common_functions "Removing old directory: $old_base_dir"
-    $USE_SUDO rm -rf "$old_base_dir"
-    print_success_from_common_functions "Removed old directory"
-    
-    print_success_from_common_functions "Old directory cleanup complete"
-    return 0
-}
-
 # Fix NPM global installation permissions (from common_functions.sh)
 fix_npm_global_permissions_from_common_functions() {
     print_step_from_common_functions "Fixing NPM global installation permissions"
@@ -1764,6 +1743,13 @@ run_npm_from_common_functions() {
 # Usage: run_pnpm_from_common_functions [args...]
 # Returns: pnpm exit code
 run_pnpm_from_common_functions() {
+    # Idempotency: under no TTY (install scripts, systemd services) pnpm ABORTS its
+    # node_modules format-purge (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY) instead of
+    # recreating the tree, which breaks otherwise-idempotent re-runs. Auto-confirm that
+    # purge for these programmatic pnpm calls so install/add recreate node_modules and
+    # never block. A caller may override by pre-setting npm_config_confirm_modules_purge.
+    export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
+
     # Ensure PNPM_BIN is set
     if [[ -z "$PNPM_BIN" ]]; then
         # Try to find pnpm in NODE_BIN_DIR
