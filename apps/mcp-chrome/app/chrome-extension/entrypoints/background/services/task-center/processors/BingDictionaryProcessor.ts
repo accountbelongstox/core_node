@@ -71,7 +71,11 @@ class BingDictionaryProcessor implements ITaskProcessor {
    * Check if this processor can handle a specific task type
    */
   canHandle(taskType: string): boolean {
-    return taskType === 'bing_dictionary' || taskType === 'dictionary_translation';
+    return (
+      taskType === 'bing_dictionary' ||
+      taskType === 'dictionary_translation' ||
+      taskType === 'word_translation'
+    );
   }
 }
 

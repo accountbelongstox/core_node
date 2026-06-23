@@ -375,19 +375,34 @@ class AppQyV1WordMediaService
             $payload['target_language'] = $targetCode;
         }
 
-        // IMAGE fast lane: a user-initiated front bump of the image (word_media)
-        // lane is promoted onto the shared fast lane so the first idle chrome
-        // worker (which advertises 'image') claims it immediately. createTask's
-        // interactive=true rewrites execution_type -> remote_fast, raises
-        // priority >= PRIORITY_FAST and sets is_fast_tier=1; capability=image
-        // narrows the claim to chrome (pycore correctly skips it). word_audio is
-        // intentionally UNCHANGED — audio rides the assist tts_priority path and a
-        // remote_fast audio task has no write-back.
+        // IMAGE lane: NO worker drains the raw remote_client execution_type, so a
+        // word_media task left on remote_client strands forever (backfill never
+        // completes). ALWAYS route word_media onto the shared fast lane the Bing
+        // chrome worker actually drains (capability=image narrows the claim to
+        // chrome; pycore correctly skips it). The fast-lane claim selects purely on
+        // execution_type=remote_fast + capability ordered by priority desc, so a
+        // default-priority backfill is still drained — just behind front bumps.
+        //
+        // Keep the priority/is_fast_tier difference:
+        //   - bumpFront  -> interactive=true: createTask rewrites execution_type ->
+        //     remote_fast, raises priority to PRIORITY_FAST (top) and sets
+        //     is_fast_tier=1.
+        //   - backfill   -> interactive=false but execution_type set to remote_fast
+        //     here, so it keeps its normal TASK_PRIORITY_DEFAULT priority (createTask
+        //     only raises priority when interactive) on the same drained lane.
+        // word_audio is intentionally UNCHANGED — audio rides the assist
+        // tts_priority path and a remote_fast audio task has no write-back.
         $interactive = false;
         $capability = null;
-        if ($taskType === 'word_media' && $bumpFront) {
-            $interactive = true;
+        if ($taskType === 'word_media') {
             $capability = GlobalTask::CAPABILITY_IMAGE;
+            if ($bumpFront) {
+                $interactive = true;
+            } else {
+                // Non-interactive backfill: route onto the drained fast lane while
+                // preserving the normal default priority (no PRIORITY_FAST bump).
+                $executionType = GlobalTask::EXECUTION_REMOTE_FAST;
+            }
         }
 
         $this->taskManager->createTask(
