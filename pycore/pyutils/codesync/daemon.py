@@ -35,14 +35,19 @@ def run(host: str = "0.0.0.0", port: int = 59000, reload: bool = False,
     light = light or os.environ.get("CODESYNC_LIGHT", "") in ("1", "true", "True", "yes", "on")
     set_light(light)
 
-    # In light mode the HTTP server serves a tiny JSON at GET / instead of the
-    # full control panel (the node has nothing to administer locally).
-    httpd = CodeSyncHTTPServer(host=host, port=port, serve_panel=not light)
+    # Creating the manager starts the peer mesh and the role's file service
+    # (client puller by default; dev waits for distribute). It reads is_light()
+    # once and applies the CLIENT-only trims; we mirror its role gate below.
+    manager = get_manager()
+
+    # The HTTP control panel is a CLIENT-only trim: a LIGHT CLIENT serves a tiny
+    # JSON at GET / instead of the full panel. A light-flagged DEV keeps the full
+    # panel (and every other component) per the no-op-with-warning rule, so gate
+    # the panel on role too — never disable it on a dev.
+    light_client = bool(getattr(manager, "light", light)) and manager.get_role() == "client"
+    httpd = CodeSyncHTTPServer(host=host, port=port, serve_panel=not light_client)
     httpd.start()
 
-    # Creating the manager starts the peer mesh and the role's file service
-    # (client puller by default; dev waits for distribute).
-    manager = get_manager()
     ColorPrint.green(f"[CodeSync] Standalone daemon up "
                      f"(role={manager.get_role()}, light={light}, http=:{port}). Ctrl-C to stop.")
 

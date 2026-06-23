@@ -81,22 +81,10 @@ fix_apt_gpg_if_needed() {
     $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::AllowInsecureRepositories=true \
         -o Acquire::AllowDowngradeToInsecureRepositories=true install -y ubuntu-keyring
 
-    # Explicitly import the 2024 Ubuntu archive automatic signing key if missing
-    if [ ! -f /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg ]; then
-        if command -v gpg >/dev/null 2>&1; then
-            print_step_from_common_functions "Importing Ubuntu archive signing key ($UBUNTU_ARCHIVE_KEY_ID)"
-            tmpkey="/tmp/ubuntu-archive-2024.gpg"
-            echo "[13] curl -fsSL ... | gpg --dearmor | $USE_SUDO tee $tmpkey (binary output suppressed)"
-            curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$UBUNTU_ARCHIVE_KEY_ID" \
-                | gpg --dearmor -o - 2>/dev/null | $USE_SUDO tee "$tmpkey" >/dev/null
-            if [ -s "$tmpkey" ]; then
-                echo "[13] $USE_SUDO mv $tmpkey /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg"
-                $USE_SUDO mv "$tmpkey" /etc/apt/trusted.gpg.d/ubuntu-archive-2024.gpg
-            else
-                rm -f "$tmpkey" 2>/dev/null || true
-            fi
-        fi
-    fi
+    # NOTE: We do NOT hand-import the Ubuntu archive signing key into /etc/apt/trusted.gpg.d.
+    # The ubuntu-keyring PACKAGE installed above is the distro's own mechanism and provides/
+    # refreshes the archive keys correctly. Hand-importing distro archive keys modifies the
+    # system's OWN signing keys, which is forbidden.
 
     # Retry update after key/keyring adjustments (real-time output)
     echo "[13] $USE_SUDO apt-get update"
@@ -425,8 +413,9 @@ link_commands_to_venv() {
     local venv_pyver link
     venv_pyver="$("$VENV_PYTHON3" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
 
-    # Preserve the original system interpreter as 'pythonorigin'.
-    if [ -x "$sys_python3" ]; then
+    # Preserve the original system interpreter as 'pythonorigin' -- capture ONCE (only when
+    # absent) so a later run never overwrites the true original with a drifted target.
+    if [ -x "$sys_python3" ] && [ ! -e /usr/local/bin/pythonorigin ]; then
         echo "[13] $USE_SUDO ln -sf $sys_python3 /usr/local/bin/pythonorigin"
         $USE_SUDO ln -sf "$sys_python3" /usr/local/bin/pythonorigin
     fi
