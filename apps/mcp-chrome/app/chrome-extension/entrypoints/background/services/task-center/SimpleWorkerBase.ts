@@ -36,8 +36,11 @@ import { logger } from '@/utils/logger';
  * it belongs ONLY to the web-AI translate worker, which advertises it
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
+=======
+>>>>>>> 6344f025e5972e4651ccffc45c7fdd0033674741
  * explicitly via its own `capabilities`. `image` is NOT here either (B17): a
  * Chrome tab cannot GENERATE a word image, so per the audio+image=pycore-only
  * downgrade Chrome must never claim image. This constant is the default set for
@@ -46,14 +49,20 @@ import { logger } from '@/utils/logger';
  */
 export const CHROME_FAST_CAPABILITIES: WorkerCapability[] = ['translate'];
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 6344f025e5972e4651ccffc45c7fdd0033674741
 =======
  * explicitly via its own `capabilities`. This constant is the default set for
  * the dictionary/media style workers (Bing) that scrape pages.
  */
 export const CHROME_FAST_CAPABILITIES: WorkerCapability[] = ['image', 'translate'];
 >>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
+<<<<<<< HEAD
 =======
 >>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
+=======
+>>>>>>> 6344f025e5972e4651ccffc45c7fdd0033674741
 
 // The full allowed capability vocabulary (mirrors GlobalTask::CAPABILITIES
 // minus the lanes Chrome can never serve from a tab). Anything outside this

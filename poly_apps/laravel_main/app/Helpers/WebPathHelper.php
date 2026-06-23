@@ -134,8 +134,11 @@ class WebPathHelper
     {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
+=======
+>>>>>>> 6344f025e5972e4651ccffc45c7fdd0033674741
         // ALIGNED: delegate to the single canonical resolver (App\Providers\PathMapper)
         // so this helper can never diverge. It previously had its OWN base list
         // (/mnt/d, /mnt/data, /usr, /mnt/dev_sdb3) with an isProduction->/www short-circuit
@@ -143,6 +146,9 @@ class WebPathHelper
         // owns the persisted-base + disk-detection logic shared across sh/py/php.
         return \App\Providers\PathMapper::mapWebPath($pathKey, $subPath);
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 6344f025e5972e4651ccffc45c7fdd0033674741
 =======
         $mappedPath = '';
         $basePath = '';
@@ -213,8 +219,11 @@ class WebPathHelper
 
         return $mappedPath;
 >>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
+<<<<<<< HEAD
 =======
 >>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
+=======
+>>>>>>> 6344f025e5972e4651ccffc45c7fdd0033674741
     }
 
     /**

@@ -1,12 +1,6 @@
-<<<<<<< HEAD
-
-
-hclaude --resume ccbe72bf-4f99-495e-8c36-d5a36cf9be92
-=======
 claude --resume ccbe72bf-4f99-495e-8c36-d5a36cf9be92
 
 
->>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
 /www/wwwroot/ is current wwwroot dir, it's windows the logic , mount is /mnt/dev_nvme1n1p1/www/wwwroot/   found all sh,py,php,resolve Why the project is Not recoganize
     to correct, if has Windows or larget-dist,priority used. liunx/
     liunx-desktop/ linux +windows NTFS(DATA disk) / windows /
@@ -19,24 +13,12 @@ Uer Claude Code workflow and mutiple roles:
 
 Uer Claude Code workflow and mutiple roles:
 本次主要任务为:```
-<<<<<<< HEAD
 跨子系统（Laravel 异步队列、Pycore 任务中心、Chrome-MCP 浏览器工作流）协同和日志合并，核心需求提炼为：当前端 wordnew UI 发起单词或句子请求时，只有当请求明确包含文本翻译（translate-content）、音频生成（generate-audio）或图像转换（convert-image）这三类媒体任务时，才允许无条件将其推至队列最顶端（Task Top）的 VIP 极速通道，普通的标准查询则严禁置顶；一旦任务置顶，pycore 与 Chrome-MCP 客户端必须同时（At the same time）监听并启动强健的分布式锁逻辑来快速抢占、并发处理该任务，同时必须大幅升级 Task 系统的用户界面，使其能够高保真地实时渲染任务的全链路执行细节（如锁状态、执行节点、中间进度及报错日志）；由于该功能横跨 poly_apps/laravel_main、pycore/、apps/mcp-chrome ，poly_apps/pycore_laravel_wordflow_ui完全不同的异构子系统，在修改任何代码之前，必须先分拨出并行的 Explore 勘测 Agent 对各端接口和任务流进行精准的反向架构测绘，以产出一份严谨的、具备极强强健性逻辑的设计方案供用户审批，并在全链路实现后开展跨切面的核心逻辑验证，从而彻底攻克由于能力词表不一致、空字节死循环或死锁引发的管道阻塞与队列溢出（Overflow）风险。
   ```
   再次使用交叉验证，
   
   尝试使用公共脚本，引入这些，当安装完后，尝试限制应用程序的内存使用和CPU使用，搜索可用方案。可以对程序包装，或使用全局软件 ，支持KALI UBUNTU DEBIAN。
 
-=======
-use claude code ,workflow ,veriry ,If laravelmain need help,like this translate text or audio gerete or picture conver image , that chrome-mcp and pycore task center Is'n enough, need up UI show task detail,and up pycoore task center and chrome-mcp UI and task system, the logic need strong ,and needs to works.
-if wordnew appUI request any word/sentenc, if not translate-content / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task top and quik process it.use claude code ,workflow ,veriry ,If laravelmain need help,like this translate text or audio gerete or picture conver image , that chrome-mcp and pycore task center Is'n enough, need up UI show task detail,and up pycoore task center and chrome-mcp UI and task system, the logic need strong ,and needs to works.
-  This is a substantial feature spanning several subsystems (laravel_main, the pycore task center, chrome-mcp, and the task UI/system). Before I orchestrate anything, I need to understand what exists today — I won't run a workflow blind into a vague request. Let me locate these subsystems first.
-  Located them: pycore/, apps/mcp-chrome, ncore/utils/mcp_chrome, and poly_apps/laravel_main. This is a multi-subsystem mapping job — let me fan out parallel Explore agents to map each one (task cenWter, chrome-mcp, laravel_main task integration, and the translate/audio/image task flows) so I understand the real architecture before proposing anything.,and if wordnew appUI request any word/sentenc, if not translate-content / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task top and quik process it.and if wordnew appUI request any word/sentenc, if not translate-content
-  / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task
-  top and quik process it.and if wordnew appUI request any word/sentenc, if not translate-content
-  / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task
-  top and quik process it. across verify all logic code and overflow.
-  ```
->>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
   
 Uer Claude Code workflow and mutiple roles:
 从历史记录 /mnt/dev_nvme1n1p1/programing/core_node/_prompts/HistoryPycorePHP.txt(Only this file)  中 1:1 的重新核对代码，并按 HistoryPycorePHP.txt 中的先后顺序（文档结束处为最新）1:1 align / 更新代码，不要看 claude code 的历史记录和对话记录，只需要关注  HistoryPycorePHP.txt 和实际代码，当你 1:1 跟新代码后，HistoryPycorePHP.txt中的相关记录部分删除，但要在同目录生成一个删除记录文件（新文件，内容为 del 100-1000 行），你任务到 HistoryPycorePHP.txt 的 50000 多行记录全部对齐，注意  HistoryPycorePHP.txt 中要按最新的来对齐到代码（文档结束处为最新），旧的内容只是修改过程中的积累，注意需要编辑和对齐所有代码，不是仅仅汇报。
@@ -234,11 +216,7 @@ OK没问题。
  1：多语言还没很好的支持，datk/light没有很好的支持d
  2：添加顶部搜索、下拉，方块Card，列表组件，通知弹窗
  3：添加底瓿悬浮菜单，需要有呼吸效果。 
-<<<<<<< HEAD
  4：添加设置页。
-=======
- 4：添加设置页。d
->>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
 
 1：现在来修复在light模式下，没有全局切换的问题，light模式也要呼吸效果、动态毛玻璃。d
 2：底瓿的菜单栏，添加呼吸效果，中间有一个圆。焦点项也不有同的变色呼吸效果d。

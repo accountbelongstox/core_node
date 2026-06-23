@@ -37,6 +37,10 @@ export function initializeProcessors(): void {
 =======
 >>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
 
+  // Register Web-AI Translate Processor (disabled by default, opt-in — like
+  // NotebookLM / Gemini). Advertises capability ai_translate (remote_fast lane).
+  taskCenter.registerProcessor(webAiTranslateProcessor, false);
+
   console.log('[TaskCenter] Processors initialized');
 }
 

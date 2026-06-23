@@ -448,8 +448,11 @@ scripts/shells/linux/common/apt_repository_backups/
 # OLD history; untracking it here stops it being re-added but does NOT retro-purge
 # it -- pushing it to GitHub still needs an explicit history rewrite (or git-lfs).
 pyapps/GameAISDK/Modules/protobuf/Windows/x64/Debug/
+<<<<<<< HEAD
 
 # Large ML model weights (RefineDet ~69MB .pth/.onnx each) -- kept on disk but out
 # of git (BFG already stripped them from history; this completes the removal from
 # HEAD). The small tracked YOLO models under pyapps/d3-check (2-6MB) stay tracked.
 pyapps/GameAISDK/Modules/RefineDet/weights/
+=======
+>>>>>>> 6344f025e5972e4651ccffc45c7fdd0033674741
