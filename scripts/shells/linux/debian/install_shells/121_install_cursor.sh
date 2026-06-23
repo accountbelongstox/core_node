@@ -34,6 +34,10 @@ source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 USE_ROOT_MODE=true  # Default to root mode (pkexec)
+# Bounded restart counter for the corrupt-download recovery. EXPORTED so it survives the
+# `exec "$0"` self-restart (a plain local counter resets to 0 each exec -> infinite loop).
+CURSOR_RESTART_COUNT="${CURSOR_RESTART_COUNT:-0}"
+CURSOR_MAX_RESTARTS="${CURSOR_MAX_RESTARTS:-2}"
 
 # Cursor API configuration (follow redirects for latest)
 CURSOR_API_URL="https://api2.cursor.sh/updates/download/golden/linux-x64/cursor/"
@@ -882,23 +886,41 @@ EOF
     return 0
 }
 
-# Install required dependencies
+# Install required dependencies (Debian / Ubuntu / Kali).
 install_dependencies() {
+    local fuse_pkg cand
     print_step_from_common_functions "Checking dependencies..."
 
-    # Note: libfuse2 is NOT installed on Ubuntu 24.04+ as it may cause system issues
-    # AppImage is extracted and run directly from the extracted directory
-
-    # Check Ubuntu version
-    local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "unknown")
-    if [[ "$ubuntu_version" == "24."* ]]; then
-        print_info_from_common_functions "Ubuntu 24.04+ detected - using extracted AppImage (no libfuse2 needed)"
-    elif [[ "$ubuntu_version" != "unknown" ]] && ! dpkg -l | grep -q libfuse2; then
-        print_step_from_common_functions "Installing libfuse2 for Ubuntu < 24.04..."
-        $USE_SUDO apt-get update -qq
-        $USE_SUDO apt-get install -y libfuse2
+    # FUSE is OPTIONAL here: this installer EXTRACTS the AppImage (--appimage-extract) and
+    # runs the unpacked squashfs-root/AppRun, so neither installing nor running Cursor needs
+    # libfuse. We still install the FUSE-2 runtime best-effort (so a user can also launch the
+    # raw .AppImage), but ANY failure is non-fatal. The package name differs by distro:
+    # Debian 13 / Kali / Ubuntu 24.04+ ship libfuse2t64 (the 64-bit time_t rename); older
+    # Debian/Ubuntu ship libfuse2. Kali in particular has NO `libfuse2` candidate, which is
+    # why the old hard `apt-get install -y libfuse2` errored.
+    if dpkg -l 2>/dev/null | grep -qE '^ii[[:space:]]+libfuse2(t64)?[[:space:]]'; then
+        print_info_from_common_functions "FUSE-2 runtime already present (optional; extraction does not need it)."
+        return 0
     fi
-
+    if ! command -v apt-get >/dev/null 2>&1; then
+        print_info_from_common_functions "apt-get not found; skipping optional FUSE-2 (extraction does not need it)."
+        return 0
+    fi
+    $USE_SUDO apt-get update -qq 2>/dev/null || true
+    fuse_pkg=""
+    # Pick whichever FUSE-2 package this distro actually publishes (t64 first).
+    for cand in libfuse2t64 libfuse2; do
+        if apt-cache policy "$cand" 2>/dev/null | grep -qE 'Candidate: [^(]'; then
+            fuse_pkg="$cand"; break
+        fi
+    done
+    if [ -n "$fuse_pkg" ]; then
+        print_step_from_common_functions "Installing optional FUSE-2 runtime ($fuse_pkg)..."
+        $USE_SUDO apt-get install -y "$fuse_pkg" \
+            || print_info_from_common_functions "$fuse_pkg install failed (non-fatal; Cursor runs from the extracted AppImage)."
+    else
+        print_info_from_common_functions "No libfuse2/libfuse2t64 candidate (Kali/Debian 13/Ubuntu 24.04+) - skipping; extraction does not need FUSE."
+    fi
     return 0
 }
 
@@ -1282,40 +1304,28 @@ install_cursor() {
     if [[ "$file_extension" == "deb" ]]; then
         print_info_from_common_functions "Detected .deb package, using dpkg installation..."
 
-        # Install .deb package with automatic retry on corruption
+        # Install .deb; on a CORRUPT download, restart the script to re-fetch — BOUNDED by
+        # the exported CURSOR_RESTART_COUNT (survives the exec; a local counter would reset
+        # to 0 on every exec and loop forever).
         local install_result
-        local max_retries=2
-        local retry_count=0
-
-        while [[ $retry_count -lt $max_retries ]]; do
-            install_deb_package "$cursor_file"
-            install_result=$?
-
-            if [[ $install_result -eq 0 ]]; then
-                break
-            elif [[ $install_result -eq 2 ]]; then
-                print_warning_from_common_functions "Corrupted .deb detected (attempt $((retry_count + 1))/$max_retries)"
-                print_error_from_common_functions "File corruption detected: $cursor_file"
-                print_step_from_common_functions "Removing corrupted file and restarting installation..."
-
-                # Remove corrupted file
-                rm -f "$cursor_file" 2>/dev/null || true
-                $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
-
-                # Wait a moment
-                sleep 2
-
-                # Restart the script with the same arguments
-                print_info_from_common_functions "Restarting script: $0 $@"
-                exec "$0" "$@"
-            else
-                print_error_from_common_functions "Failed to install Cursor .deb package"
+        install_deb_package "$cursor_file"
+        install_result=$?
+        if [[ $install_result -eq 2 ]]; then
+            print_error_from_common_functions "File corruption detected: $cursor_file"
+            if [[ "$CURSOR_RESTART_COUNT" -ge "$CURSOR_MAX_RESTARTS" ]]; then
+                print_error_from_common_functions "Still corrupted after $CURSOR_RESTART_COUNT restart(s); giving up."
+                print_info_from_common_functions "Download Cursor manually into ~/Downloads (https://www.cursor.com/downloads) and re-run."
                 return 1
             fi
-        done
-
-        if [[ $install_result -ne 0 ]]; then
-            print_error_from_common_functions "Failed to install Cursor after $max_retries attempts"
+            rm -f "$cursor_file" 2>/dev/null || true
+            $USE_SUDO rm -f "$CURSOR_PACKAGE_DIR/$(basename "$cursor_file")" 2>/dev/null || true
+            sleep 2
+            export CURSOR_RESTART_COUNT=$((CURSOR_RESTART_COUNT + 1))
+            print_step_from_common_functions "Removing corrupted file and restarting installation (attempt $CURSOR_RESTART_COUNT/$CURSOR_MAX_RESTARTS)..."
+            print_info_from_common_functions "Restarting script: $0 $@"
+            exec "$0" "$@"
+        elif [[ $install_result -ne 0 ]]; then
+            print_error_from_common_functions "Failed to install Cursor .deb package"
             return 1
         fi
 
@@ -1326,9 +1336,14 @@ install_cursor() {
         local extract_result=$?
 
         if [[ $extract_result -eq 2 ]]; then
-            # File corruption detected
+            # File corruption detected. Restart to re-fetch — BOUNDED by the exported
+            # CURSOR_RESTART_COUNT so a persistently-bad download can't loop forever.
             print_error_from_common_functions "File corruption detected: $cursor_file"
-            print_step_from_common_functions "Removing corrupted file and restarting installation..."
+            if [[ "$CURSOR_RESTART_COUNT" -ge "$CURSOR_MAX_RESTARTS" ]]; then
+                print_error_from_common_functions "Still corrupted after $CURSOR_RESTART_COUNT restart(s); giving up."
+                print_info_from_common_functions "Download Cursor manually into ~/Downloads (https://www.cursor.com/downloads) and re-run."
+                return 1
+            fi
 
             # Remove corrupted file
             rm -f "$cursor_file" 2>/dev/null || true
@@ -1338,7 +1353,9 @@ install_cursor() {
             # Wait a moment
             sleep 2
 
-            # Restart the script with the same arguments
+            # Restart the script with the same arguments (bounded by CURSOR_RESTART_COUNT)
+            export CURSOR_RESTART_COUNT=$((CURSOR_RESTART_COUNT + 1))
+            print_step_from_common_functions "Removing corrupted file and restarting installation (attempt $CURSOR_RESTART_COUNT/$CURSOR_MAX_RESTARTS)..."
             print_info_from_common_functions "Restarting script: $0 $@"
             exec "$0" "$@"
         elif [[ $extract_result -ne 0 ]]; then

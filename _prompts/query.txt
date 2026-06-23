@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-claude --resume ccbe72bf-4f99-495e-8c36-d5a36cf9be92
 
-
-=======
->>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
+hclaude --resume ccbe72bf-4f99-495e-8c36-d5a36cf9be92
 /www/wwwroot/ is current wwwroot dir, it's windows the logic , mount is /mnt/dev_nvme1n1p1/www/wwwroot/   found all sh,py,php,resolve Why the project is Not recoganize
     to correct, if has Windows or larget-dist,priority used. liunx/
     liunx-desktop/ linux +windows NTFS(DATA disk) / windows /

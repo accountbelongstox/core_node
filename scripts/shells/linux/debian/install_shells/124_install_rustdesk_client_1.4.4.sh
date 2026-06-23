@@ -153,13 +153,18 @@ install_deb_package() {
     local deb_name=$(basename "$deb_file")
     local installed_deb="$RUSTDESK_DEB_DIR/$deb_name"
 
-    # Install the .deb package
-    print_step_from_common_functions "Installing .deb package..."
-    echo "Running: dpkg -i $installed_deb"
-    if $USE_SUDO dpkg -i "$installed_deb"; then
+    # Install the .deb package. Install the local file through apt so that every
+    # dependency declared by the package (gstreamer1.0-pipewire, libasound2t64, libva*, ...)
+    # is resolved automatically across Debian/Kali/Ubuntu, including t64-renamed libraries.
+    # This is the official recommended method and avoids the dpkg "dependency problems" failure.
+    print_step_from_common_functions "Installing .deb package (resolving dependencies via apt)..."
+    echo "Running: apt-get install -y $installed_deb"
+    if $USE_SUDO apt-get install -y "$installed_deb"; then
         print_success_from_common_functions "RustDesk Client .deb package installed successfully"
     else
-        print_warning_from_common_functions "dpkg installation had issues, trying to fix dependencies..."
+        print_warning_from_common_functions "apt install failed, falling back to dpkg with dependency fix..."
+        echo "Running: dpkg -i $installed_deb"
+        $USE_SUDO dpkg -i "$installed_deb" || true
         echo "Running: apt-get install -f -y"
         $USE_SUDO apt-get install -f -y
         echo "Running: dpkg -i $installed_deb (retry)"
@@ -175,19 +180,25 @@ install_deb_package() {
 }
 
 # Install required dependencies
+# Only the download tooling is installed here. RustDesk's runtime libraries
+# (GTK, libasound2t64, gstreamer1.0-pipewire, libva*, libvdpau1, ...) are declared
+# in the .deb control file and resolved automatically by apt during install_deb_package.
+# Hardcoding library names is avoided because they differ across releases: the Debian/Ubuntu
+# t64 transition renamed e.g. libasound2 -> libasound2t64, which made the old static list
+# fail with "Package 'libasound2' has no installation candidate" on Debian 13 / Kali rolling.
 install_dependencies() {
     print_step_from_common_functions "Installing required dependencies..."
 
     echo "Running: apt-get update"
     $USE_SUDO apt-get update
 
-    local deps=("wget" "curl" "libgtk-3-0" "libxcb-randr0" "libxdo3" "libxfixes3" "libxcb-shape0" "libxcb-xfixes0" "libasound2" "libsystemd0" "libpulse0" "libva-drm2" "libva-x11-2" "libvdpau1")
+    local tools=("wget" "curl" "ca-certificates")
 
-    for dep in "${deps[@]}"; do
-        if ! dpkg -l | grep -q "^ii  $dep "; then
-            print_step_from_common_functions "Installing $dep..."
-            echo "Running: apt-get install -y $dep"
-            $USE_SUDO apt-get install -y "$dep" || true
+    for tool in "${tools[@]}"; do
+        if ! dpkg -l | grep -q "^ii  $tool "; then
+            print_step_from_common_functions "Installing $tool..."
+            echo "Running: apt-get install -y $tool"
+            $USE_SUDO apt-get install -y "$tool" || true
         fi
     done
 

@@ -37,13 +37,19 @@ restore_core_node() {
 
     print_header_from_common_functions "Core_node Restore (non-destructive)"
 
-    if [[ -z "$backup_file" ]] || [[ ! -f "$backup_file" ]]; then
-        print_error_from_common_functions "Backup file not found: $backup_file"
+    if [[ -z "$backup_file" ]] || [[ ! -e "$backup_file" ]]; then
+        print_error_from_common_functions "Backup not found: $backup_file"
         return 1
     fi
 
-    if ! verify_backup "$backup_file"; then
-        print_error_from_common_functions "Backup integrity check failed; not restoring."
+    # A backup is either a .tar.gz archive (verify integrity) or a plain dir copy.
+    if [[ -f "$backup_file" ]]; then
+        if ! verify_backup "$backup_file"; then
+            print_error_from_common_functions "Backup integrity check failed; not restoring."
+            return 1
+        fi
+    elif [[ ! -d "$backup_file" ]]; then
+        print_error_from_common_functions "Backup is neither a file nor a directory: $backup_file"
         return 1
     fi
 
@@ -68,10 +74,20 @@ restore_core_node() {
         return 1
     fi
 
-    print_step_from_common_functions "Extracting backup..."
-    # --strip-components=1 drops the leading "<base_name>/" so the project contents
-    # land directly inside restore_dir.
-    if $USE_SUDO tar -xzf "$backup_file" -C "$restore_dir" --strip-components=1 2>/dev/null; then
+    print_step_from_common_functions "Restoring into $restore_dir ..."
+    local restore_rc=0
+    if [[ -d "$backup_file" ]]; then
+        # Directory-copy backup: replicate its contents into restore_dir.
+        if command -v rsync >/dev/null 2>&1; then
+            $USE_SUDO rsync -a "$backup_file/" "$restore_dir/"; restore_rc=$?
+        else
+            $USE_SUDO cp -a "$backup_file/." "$restore_dir/"; restore_rc=$?
+        fi
+    else
+        # .tar.gz archive: extract, dropping the leading "<base_name>/".
+        $USE_SUDO tar -xzf "$backup_file" -C "$restore_dir" --strip-components=1 2>/dev/null; restore_rc=$?
+    fi
+    if [[ "$restore_rc" -eq 0 ]]; then
         echo ""
         print_success_from_common_functions "Restored a clean copy to: $restore_dir"
         print_info_from_common_functions "Inspect it, then swap it in MANUALLY if you want it to become the live checkout."

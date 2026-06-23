@@ -163,7 +163,6 @@ class Config:
     SENTENCE_AUDIO_WORKER_ENABLED = (
         os.getenv("PYCORE_SENTENCE_AUDIO_WORKER", "1") in ("1", "true", "True", "yes", "on")
     )
-<<<<<<< HEAD
     # Word-image capability ('image') on the SHARED fast lane (no new
     # execution_type — word_media rides remote_fast). Per the downgrade decision
     # image is PYCORE-ONLY; pycore fulfils it via the unified AI gateway
@@ -173,8 +172,6 @@ class Config:
     WORD_IMAGE_WORKER_ENABLED = (
         os.getenv("PYCORE_WORD_IMAGE_WORKER", "1") in ("1", "true", "True", "yes", "on")
     )
-=======
->>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
     # Dedicated-lane execution_type names (must equal GlobalTask::EXECUTION_TYPES).
     SUBTITLE_PROCESSOR_TYPE = "remote_subtitle"
     POSTER_PROCESSOR_TYPE = "remote_poster"

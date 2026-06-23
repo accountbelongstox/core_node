@@ -22,14 +22,11 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
 [ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
 command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
-<<<<<<< HEAD
 # Driver-matched CUDA wheel index (single source of truth) so torch isn't pulled as the
 # default "latest" wheel (e.g. cu130) that this driver can't run.
 TORCH_CUDA_IDX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/torch_cuda_index.sh"
 [ -f "$TORCH_CUDA_IDX_LIB" ] && . "$TORCH_CUDA_IDX_LIB"
 command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
-=======
->>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
 
 SCRIPT_NAME="[95_install_deepseek]"
 MODEL_NAME="DeepSeek-VL"
@@ -291,17 +288,12 @@ install_dependencies() {
     cd "$install_dir"
     print_info "Installing core dependencies..."
     echo ""
-<<<<<<< HEAD
     # torch from the DRIVER-MATCHED CUDA index (its own deps only); the rest from PyPI so
     # the pinned transformers + the other packages resolve normally.
     echo "$SCRIPT_NAME [run] $python_cmd -m pip install torch --index-url $(torch_cuda_index_url)"
     vpip $python_cmd -m pip install torch --index-url "$(torch_cuda_index_url)"
     echo "$SCRIPT_NAME [run] $python_cmd -m pip install $LLM_TRANSFORMERS_SPEC pillow numpy einops timm accelerate"
     vpip $python_cmd -m pip install "$LLM_TRANSFORMERS_SPEC" pillow numpy einops timm accelerate
-=======
-    echo "$SCRIPT_NAME [run] $python_cmd -m pip install torch $LLM_TRANSFORMERS_SPEC pillow numpy einops timm accelerate"
-    vpip $python_cmd -m pip install torch "$LLM_TRANSFORMERS_SPEC" pillow numpy einops timm accelerate
->>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
     echo ""
     cd - > /dev/null
 
