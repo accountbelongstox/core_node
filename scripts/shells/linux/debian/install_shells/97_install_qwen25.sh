@@ -22,13 +22,10 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
 [ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
 command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
-<<<<<<< HEAD
 # Driver-matched CUDA wheel index (single source of truth).
 TORCH_CUDA_IDX_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/torch_cuda_index.sh"
 [ -f "$TORCH_CUDA_IDX_LIB" ] && . "$TORCH_CUDA_IDX_LIB"
 command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
-=======
->>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
 
 SCRIPT_NAME="[97_install_qwen25]"
 MODEL_NAME="Qwen2.5-0.5B-Instruct"
@@ -127,18 +124,11 @@ install_dependencies() {
         fi
         echo ""
     elif [[ "$has_gpu" == true ]]; then
-<<<<<<< HEAD
         _qwen_torch_idx="$(torch_cuda_index_url)"
         print_info "torch not found - installing driver-matched GPU torch ($_qwen_torch_idx)..."
         echo ""
         echo "[97] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url $_qwen_torch_idx"
         vpip "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url "$_qwen_torch_idx"
-=======
-        print_info "torch not found - installing GPU-enabled torch (cu124)..."
-        echo ""
-        echo "[97] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124"
-        vpip "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
->>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
         echo ""
     else
         print_info "torch not found and no GPU - installing CPU torch..."
