@@ -23,6 +23,9 @@
 set -uo pipefail
 
 # Declare all variables at the beginning
+SCRIPT_CURRENT_DIR=""
+PARENT_DIR_LEVEL_1=""
+PARENT_DIR_LEVEL_2=""
 PYTHON="python3"
 MODEL=""
 FORCE=0
@@ -33,6 +36,17 @@ DISK_GB=""
 reasons=()
 PIP_ARGS=()
 GPU_ARGS=()
+
+# Resolve the common dir the same way sibling install scripts do.
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+
+# Source global variables (exports COMPILE_DIR), then the shared venv resolution
+# (exports VENV_DIR / VENV_PYTHON3 / VENV_PIP3 and helpers) so package installs
+# target the shared venv built by 13_ensure_python.sh, not the system python.
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -47,6 +61,7 @@ done
 resolve_python() {
     local preferred="$1"
     if [[ -n "$preferred" ]] && command -v "$preferred" >/dev/null 2>&1; then
+        echo "[run] $preferred -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)'" >&2
         if "$preferred" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
             command -v "$preferred"; return 0
         fi
@@ -54,6 +69,7 @@ resolve_python() {
     local name
     for name in python3 python; do
         if command -v "$name" >/dev/null 2>&1; then
+            echo "[run] $name -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)'" >&2
             if "$name" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
                 command -v "$name"; return 0
             fi
@@ -63,6 +79,7 @@ resolve_python() {
 }
 
 py_has_module() {
+    echo "[run] $PYTHON -c \"import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)\"" >&2
     "$PYTHON" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)" >/dev/null 2>&1
 }
 get_ram_gb() {
@@ -95,6 +112,11 @@ echo " Installing faster-whisper (default STT for Video Extraction)"
 echo "============================================================"
 
 # --- 0) resolve python (13_ensure_python.sh has already run in install flow) --- #
+# Prefer the shared venv built by 13_ensure_python.sh so packages install INTO the
+# venv (not the externally-managed system python). An explicit --python still wins.
+if [[ "$PYTHON" == "python3" ]]; then
+    PYTHON="$(venv_python_from_common)"
+fi
 if ! PYTHON="$(resolve_python "$PYTHON")"; then
     echo "[X] Python 3 was NOT found. Run 13_ensure_python.sh first, or pass --python <path>." >&2
     exit 1
@@ -123,16 +145,12 @@ if py_has_module faster_whisper && [[ "$FORCE" -eq 0 ]]; then
     echo "[OK] faster-whisper already installed; skipping pip."
 else
     echo "[..] pip install --upgrade faster-whisper ..."
+    # Install INTO the shared venv; no PEP668 escape flags needed there.
     PIP_ARGS=(--upgrade faster-whisper)
-    if [[ "$(uname -s)" != "Darwin" ]]; then PIP_ARGS=(--break-system-packages "${PIP_ARGS[@]}"); fi
-    # Print the exact command-string before running it (traceability).
-    echo "[14] $PYTHON -m pip install ${PIP_ARGS[*]}"
+    echo "[run] $PYTHON -m pip install ${PIP_ARGS[*]}"
     if ! "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
-        echo "[14] $PYTHON -m pip install --upgrade faster-whisper"
-        if ! "$PYTHON" -m pip install --upgrade faster-whisper; then
-            echo "[X] faster-whisper install failed." >&2
-            exit 1
-        fi
+        echo "[X] faster-whisper install failed." >&2
+        exit 1
     fi
     if ! py_has_module faster_whisper; then
         echo "[X] faster-whisper still not importable after install." >&2
@@ -144,10 +162,9 @@ fi
 # --- 3) GPU runtime libs (only if a CUDA GPU is present) ----------------- #
 if has_cuda; then
     echo "[..] NVIDIA GPU detected -> pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* ..."
+    # Install the CUDA/nvidia wheels INTO the shared venv (no PEP668 escape flags).
     GPU_ARGS=('nvidia-cublas-cu12' 'nvidia-cudnn-cu12==9.*')
-    if [[ "$(uname -s)" != "Darwin" ]]; then GPU_ARGS=(--break-system-packages "${GPU_ARGS[@]}"); fi
-    # Print the exact command-string before running it (traceability).
-    echo "[14] $PYTHON -m pip install ${GPU_ARGS[*]}"
+    echo "[run] $PYTHON -m pip install ${GPU_ARGS[*]}"
     if ! "$PYTHON" -m pip install "${GPU_ARGS[@]}"; then
         echo "[!] GPU lib install failed; whisper will fall back to CPU (int8)."
     else
@@ -160,7 +177,7 @@ fi
 # --- 4) optional model pre-download -------------------------------------- #
 if [[ -n "$MODEL" && "$MODEL" != "auto" ]]; then
     echo "[..] Pre-downloading faster-whisper model '$MODEL' ..."
-    echo "[14] $PYTHON -c \"from faster_whisper import download_model; download_model('$MODEL'); print('cached')\""
+    echo "[run] $PYTHON -c \"from faster_whisper import download_model; download_model('$MODEL'); print('cached')\""
     if "$PYTHON" -c "from faster_whisper import download_model; download_model('$MODEL'); print('cached')"; then
         echo "[OK] model '$MODEL' ready."
     else

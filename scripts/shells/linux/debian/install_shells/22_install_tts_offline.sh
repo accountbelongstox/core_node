@@ -32,6 +32,12 @@ PYTHON="python3"
 MELOTTS=0
 FORCE=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Shared venv resolution: gvar_common exports COMPILE_DIR, then venv_python_common
+# derives VENV_DIR / VENV_PYTHON3 / VENV_PIP3 from it (install INTO the venv that
+# 13_ensure_python.sh builds, never the externally-managed system python).
+# install_shells -> debian -> linux -> common (same path style as SHERPA_GUARD).
+source "$SCRIPT_DIR/../../common/gvar_common.sh"
+source "$SCRIPT_DIR/../../common/venv_python_common.sh"
 # Single source of truth for the sherpa-onnx CPU/GPU build choice (mirrors the
 # torch/onnxruntime guards): install_shells -> debian -> linux -> common.
 SHERPA_GUARD="$SCRIPT_DIR/../../common/sherpa_onnx_cpu_guard.sh"
@@ -53,7 +59,13 @@ done
 
 resolve_python() {
     local preferred="$1"
+    # Prefer the shared venv interpreter built by 13_ensure_python.sh so package
+    # installs land INSIDE the venv (not the externally-managed system python).
+    if [[ -x "$VENV_PYTHON3" ]]; then
+        echo "$VENV_PYTHON3"; return 0
+    fi
     if [[ -n "$preferred" ]] && command -v "$preferred" >/dev/null 2>&1; then
+        echo "[run] $preferred -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)'" >&2
         if "$preferred" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
             command -v "$preferred"; return 0
         fi
@@ -61,6 +73,7 @@ resolve_python() {
     local name
     for name in python3 python; do
         if command -v "$name" >/dev/null 2>&1; then
+            echo "[run] $name -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)'" >&2
             if "$name" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
                 command -v "$name"; return 0
             fi
@@ -70,15 +83,19 @@ resolve_python() {
 }
 
 py_has_module() {
+    echo "[run] $PYTHON -c \"import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)\"" >&2
     "$PYTHON" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)" >/dev/null 2>&1
 }
 
 pip_install() {
     PIP_ARGS=("$@")
-    if [[ "$(uname -s)" != "Darwin" ]]; then PIP_ARGS=(--break-system-packages "${PIP_ARGS[@]}"); fi
-    # Print the exact command-string before running it (traceability).
-    echo "[22] $PYTHON -m pip install ${PIP_ARGS[*]}"
-    "$PYTHON" -m pip install "${PIP_ARGS[@]}" || { echo "[22] $PYTHON -m pip install $*"; "$PYTHON" -m pip install "$@"; }
+    # Inside the shared venv no PEP668 escape flags are needed (or wanted). Only an
+    # externally-managed system python (no pyvenv.cfg) gets --break-system-packages.
+    if [[ "$(uname -s)" != "Darwin" ]] && ! venv_is_venv_from_common "$PYTHON"; then
+        PIP_ARGS=(--break-system-packages "${PIP_ARGS[@]}")
+    fi
+    echo "[pip] $PYTHON -m pip install ${PIP_ARGS[*]}"
+    "$PYTHON" -m pip install "${PIP_ARGS[@]}" || "$PYTHON" -m pip install "$@"
 }
 
 # Extract a .tar.bz2 archive into the model dir and write the sentinel on
@@ -90,6 +107,7 @@ install_sherpa_model() {
     [[ -f "$archive" ]] || return 1
     rm -rf "$tmp"; mkdir -p "$tmp"
     echo "[..] Extracting $archive -> $tmp (python tarfile)"
+    echo "[run] $PYTHON -c \"import tarfile,sys; t=tarfile.open(sys.argv[1],'r:bz2'); t.extractall(sys.argv[2]); t.close()\" $archive $tmp"
     if ! "$PYTHON" -c "import tarfile,sys
 t=tarfile.open(sys.argv[1],'r:bz2'); t.extractall(sys.argv[2]); t.close()" "$archive" "$tmp"; then
         echo "[!] Extract failed (archive incomplete/invalid)."
@@ -127,6 +145,7 @@ echo "  python : $PYTHON"
 #            flat index (needs system CUDA Toolkit + cuDNN).
 if [[ -f "$SHERPA_GUARD" ]]; then
     echo "[..] Ensuring sherpa-onnx CPU/GPU build via guard ..."
+    echo "[run] SOG_PYTHON=$PYTHON bash $SHERPA_GUARD --python $PYTHON"
     SOG_PYTHON="$PYTHON" bash "$SHERPA_GUARD" --python "$PYTHON"
     if py_has_module sherpa_onnx; then
         echo "[OK] sherpa-onnx present (build guarded)."
@@ -151,7 +170,9 @@ fi
 # without re-downloading.
 MODEL_SENTINEL="$MODEL_DIR/.model_installed"
 MODEL_ARCHIVE="$MODEL_DIR/.download.tar.bz2"
-TMP_EXTRACT="$(mktemp -d)"
+# TMP_EXTRACT is created lazily only on the download/extract path below so the
+# steady-state (already-installed) re-run leaks no empty mktemp -d directory.
+TMP_EXTRACT=""
 
 # Verbose path / state report.
 echo "  model dir   : $MODEL_DIR"
@@ -168,6 +189,7 @@ if [[ -f "$MODEL_SENTINEL" ]] && find "$MODEL_DIR" -name '*.onnx' -type f 2>/dev
     echo "[OK] STEP1 model present + sentinel -> skipping (no download, no extract)."
 else
     mkdir -p "$MODEL_DIR"
+    TMP_EXTRACT="$(mktemp -d)"
     MODEL_OK=0
     # STEP 2: reuse a cached archive WITHOUT downloading.
     if [[ -f "$MODEL_ARCHIVE" ]]; then
@@ -198,6 +220,7 @@ elif [[ "$MELOTTS" -eq 1 ]]; then
     echo "[..] (opt-in) pip install MeloTTS ..."
     echo "[!] MeloTTS pins transformers==4.27.4 which may downgrade the shared env."
     pip_install 'git+https://github.com/myshell-ai/MeloTTS.git' || true
+    echo "[run] $PYTHON -m unidic download"
     "$PYTHON" -m unidic download >/dev/null 2>&1 || true
     if py_has_module melo; then echo "[OK] MeloTTS installed."; else echo "[!] MeloTTS not importable after install."; fi
 else
