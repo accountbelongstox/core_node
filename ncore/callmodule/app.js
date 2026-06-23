@@ -431,7 +431,7 @@ async function createApp() {
     }
 
     // Start MCP Chrome Server
-    const { startMCPChromeServer } = require('#@ncore/utils/mcp_chrome');
+    const { startMCPChromeServer } = require('#@ncore/utils/jsmcptools');
     startMCPChromeServer({
         port: 12306,
         host: '127.0.0.1'

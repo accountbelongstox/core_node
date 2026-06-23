@@ -510,7 +510,7 @@ cleanup_old_php_versions() {
         $USE_SUDO update-alternatives --install /usr/bin/php php "$PHP_BIN" "$PHP_ALT_PRIORITY" 2>/dev/null || true
 
         # Set PHP 8.5 as the default
-        $USE_SUDO update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true
+        $USE_SUDO update-alternatives --set php "$PHP_BIN" 2>/dev/null || true
 
         echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 set as default via update-alternatives${NC}"
     fi
@@ -852,7 +852,7 @@ setup_php_repository() {
     
     if [[ "$os_id" == "ubuntu" ]]; then
         echo -e "${YELLOW}$SCRIPT_INDEX Setting up Ubuntu PPA repository with backup...${NC}"
-        php_repo_line="deb [signed-by=$php_key_file] https://ppa.launchpad.net/ondrej/php/ubuntu $os_codename main"
+        php_repo_line="deb [signed-by=$php_key_file] https://ppa.launchpadcontent.net/ondrej/php/ubuntu $os_codename main"
     elif [[ "$os_id" == "debian" ]]; then
         echo -e "${YELLOW}$SCRIPT_INDEX Setting up Debian Sury repository with backup...${NC}"
         php_repo_line="deb [signed-by=$php_key_file] https://packages.sury.org/php/ $os_codename main"

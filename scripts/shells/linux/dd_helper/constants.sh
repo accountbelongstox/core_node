@@ -36,7 +36,9 @@ INSTALL_TEST_MENU_SCRIPT_RELATIVE="scripts/shells/linux/common/install_test_menu
 SYSTEM_INFO_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/system_info_display.sh"
 UNIFIED_MANAGER_SCRIPT_RELATIVE="scripts/app_manager/linux_sh/app_manager.sh"
 ROUTER_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/101_lnxrouter.sh"
-DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh"
+# 9_disable_ubuntu_auto_updates.sh was merged into the idempotent 6_system_maintenance.sh
+# (mirrors + journal cleanup + disable auto-updates); it still disables auto-updates.
+DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/6_system_maintenance.sh"
 SYNC_ALL_MCP_SCRIPT_RELATIVE="scripts/ai_shtools/sync_all_mcp_servers.sh"
 AI_MCP_MANAGEMENT_MENU_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh"
 

@@ -1,5 +1,19 @@
 Use multiple roles to cross-validate each other.Use multiple roles to cross-validate each other.
 
+Based on the original repair recored /mnt/dev_nvme0n1p1/programing/core_node/_prompts/ClaudeCodeRepair.txt ,reimplement the code exactly as it
+  was,one-to-one,Do not rely on your own conversation history or memory,Instedad,directly restore and fix the code according to the original
+  implementation.
+  
+Based on the original repair recored /mnt/dev_nvme0n1p1/programing/core_node/_prompts/Python-Repair.txt ,reimplement the code exactly as it
+  was,one-to-one,Do not rely on your own conversation history or memory,Instedad,directly restore and fix the code according to the original
+  implementation.
+  
+Based on the original repair recored /mnt/dev_nvme0n1p1/programing/core_node/_prompts/Base-Scripts-Repair.txt,reimplement the code exactly as it
+  was,one-to-one,Do not rely on your own conversation history or memory,Instedad,directly restore and fix the code according to the original
+  implementation.
+  
+
+
 多角色执行结果 — Chrome MCP Task Center
 
   角色: chrome(重)
@@ -174,4 +188,4 @@ OK没问题。
 之后可以在设置中添加一个item，可以查看和设置和修改，同时API自动测试选择可用的，如果上一次选择的可用就直接用，如果都不可用就要一直测试。
 
 扫描一下还有虽的项目吗，本机。不要写脚本，直接用AI能力扫。sDddddddFSss的代码dsffdddfsddds
-Tesstfff
+Tesstfff
