@@ -441,5 +441,10 @@ poly_apps/top-router/src/config/oauth_parts/
 # core_node: apt_repository_manager keeps backups under /var, never in-repo
 scripts/shells/linux/common/apt_repository_backups/
 
-# Windows build output (Debug dirs) — case-correct, any subpath; purged from history (was libprotobufd.lib 102MB)
-**/Windows/**/Debug/
+# The Debug build of protobuf for Windows (libprotobufd.lib) is ~102MB, over
+# GitHub's 100MB push limit. Keep ONLY that oversized Debug variant out of git --
+# the Release variant (libprotobuf.lib, ~19MB) and the other vendored prebuilt libs
+# (ffmpeg/boost/opencv/python36/...) stay tracked. NOTE: the 102MB blob is also in
+# OLD history; untracking it here stops it being re-added but does NOT retro-purge
+# it -- pushing it to GitHub still needs an explicit history rewrite (or git-lfs).
+pyapps/GameAISDK/Modules/protobuf/Windows/x64/Debug/
