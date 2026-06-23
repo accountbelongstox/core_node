@@ -300,7 +300,9 @@ _PYTORCH_CUDA_WHEELS = (  # (cuda_major, cuda_minor, wheel_tag), highest first
     (13, 0, "cu130"), (12, 8, "cu128"), (12, 6, "cu126"),
     (12, 4, "cu124"), (12, 1, "cu121"), (11, 8, "cu118"),
 )
-# Safe default when nvidia-smi can't be parsed: driver >= 550 / CUDA 12.4, project-verified py3.13 wheels.
+# Last-resort fallback ONLY (used when both the shell helper torch_cuda_index.sh AND
+# nvidia-smi are unreachable). Keep this value identical to that .sh's default so the two
+# never disagree; normal resolution syncs from the system / the .sh, not from here.
 _PYTORCH_CUDA_DEFAULT_TAG = "cu124"
 # CPU-only PyTorch wheels (no nvidia-* CUDA deps). Used on hosts WITHOUT an NVIDIA
 # GPU so torch does not drag in ~4.3G of nvidia-* wheels. See pytorch.org/get-started.
