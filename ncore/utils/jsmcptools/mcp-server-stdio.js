@@ -39,7 +39,7 @@ const fs = require('fs');
  *   "mcpServers": {
  *     "chrome-mcp-ncore": {
  *       "command": "node",
- *       "args": ["D:\\programing\\core_node\\ncore\\utils\\mcp_chrome\\mcp-server-stdio.js"]
+ *       "args": ["D:\\programing\\core_node\\ncore\\utils\\jsmcptools\\mcp-server-stdio.js"]
  *     }
  *   }
  * }
