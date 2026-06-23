@@ -1229,20 +1229,20 @@ map_web_path() {
             mapped_path="$base_path/programing/core_node"
             ;;
         "npm_global")
-            # NPM global packages directory (in compile_dir)
+            # NPM global packages directory (inside the dev compile_dir -> same base).
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_base_data_directory)
-            
+            local data_base=$(get_dev_compile_base)
+
             # Use base_dir/_system_version/npm-global for all environments
             mapped_path="${data_base}/_${sys_name}_${sys_version}/npm-global"
             ;;
         "dev_system")
-            # Development system directory (same as compile_dir)
+            # Development system directory (same as compile_dir -> same base).
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_base_data_directory)
-            
+            local data_base=$(get_dev_compile_base)
+
             # Use base_dir/_system_version for all environments
             mapped_path="${data_base}/_${sys_name}_${sys_version}"
             ;;
