@@ -4,7 +4,7 @@
 #                (Linux / macOS / Git-Bash / WSL).
 #
 # This is ONLY an entry point. It:
-#   1. PREREQUISITES: runs pycore/scripts/iniscripts/prepare.sh, which installs
+#   1. PREREQUISITES: runs scripts/shells/linux/common/iniscripts/prepare.sh, which installs
 #      the heavy third-party packages that are more convenient to set up from a
 #      shell (e.g. whisper). This complements pycore/pyfoundations/third_party.py
 #      (which fast-detects/installs lighter packages at import time). Skip with
@@ -105,6 +105,11 @@ if [[ "$(uname -s)" == "Linux" ]]; then
     fi
 fi
 
+# Wire the ONE shared, all-users cache location (CORE_NODE_CACHE_DIR + HF_HOME /
+# TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME ...) for the running service so every
+# model download lands in /var/_core_node/cache, shared across all users.
+[ -f "$SCRIPT_DIR/scripts/shells/linux/common/shared_cache_env.sh" ] && source "$SCRIPT_DIR/scripts/shells/linux/common/shared_cache_env.sh"
+
 BIND_HOST="0.0.0.0"
 PORT="59000"
 RPC_PORT="59000"
@@ -120,6 +125,25 @@ PREPARE_ARGS=()
 # --- locate a Python 3 interpreter --------------------------------------- #
 # Defined early so subcommands (config) can reuse it before the run path.
 resolve_python() {
+    # Prefer the project venv built by 13_ensure_python.sh ($COMPILE_DIR/python3_venv):
+    # venv_python_common.sh calls it "THE project interpreter", and it is created
+    # --system-site-packages (a SUPERSET of the system python). The worker AND the
+    # prerequisites must use it — otherwise packages installed INTO the venv (22/96 and the
+    # dd.sh numbered sweep) are invisible to a service running under /usr/bin/python3.
+    # Resolve it in an ISOLATED subshell with strict mode OFF so sourcing the heavy
+    # gvar/venv libs can never abort this `set -euo` entry point. Fall back to the system
+    # python3 only when the venv is not built.
+    local venv_py="" name
+    venv_py="$(
+        set +euo pipefail
+        source "$SCRIPT_DIR/scripts/shells/linux/common/gvar_common.sh" >/dev/null 2>&1
+        source "$SCRIPT_DIR/scripts/shells/linux/common/venv_python_common.sh" >/dev/null 2>&1
+        [ -n "${VENV_PYTHON3:-}" ] && [ -x "$VENV_PYTHON3" ] && printf '%s' "$VENV_PYTHON3"
+    )" || true
+    if [[ -n "$venv_py" && -x "$venv_py" ]]; then
+        echo "$venv_py"
+        return 0
+    fi
     for name in python3 python; do
         if command -v "$name" >/dev/null 2>&1; then
             if "$name" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
@@ -289,7 +313,7 @@ fi
 echo "[OK] Python : $("$PY" --version 2>&1)"
 echo "       path : $PY"
 
-PREPARE_REL="pycore/scripts/iniscripts/prepare.sh"
+PREPARE_REL="scripts/shells/linux/common/iniscripts/prepare.sh"
 WORKER_REL="pycore/pycore_module_caller.py"
 
 cd "$SCRIPT_DIR"

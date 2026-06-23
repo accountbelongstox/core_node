@@ -29,6 +29,8 @@ export enum ViewType {
   /** Database Viewer was merged into DATABASE_MANAGER (Tables tab); the old
    *  #/db-viewer slug deep-links there via core/routing/viewRoute.ts. */
   DATABASE_MANAGER = 'db_manager',
+  /** Movies & Books was merged into the Media hub (MEDIA_BROWSER); kept only as a
+   *  legacy deep-link alias (#/movies-books) — see core/routing/viewRoute.ts. */
   MOVIES_BOOKS = 'movies_books'
 }
 
@@ -41,9 +43,16 @@ export interface NavItem {
 export interface FileNode {
   id: string;
   name: string;
-  type: 'folder' | 'file';
-  fileType?: 'video' | 'audio' | 'image' | 'code' | 'text' | 'unknown';
-  size?: string;
+  // 'directory' is the live shape returned by server-manager /files/browse
+  // (normalized in ServerManagerV1API.browseFiles); 'folder' is the legacy
+  // static-resources tree literal.
+  type: 'folder' | 'file' | 'directory';
+  /** Real filesystem path from the browse payload (server-manager browsers). */
+  path?: string;
+  /** Raw directory flag carried through from the browse payload. */
+  is_directory?: boolean;
+  fileType?: 'video' | 'audio' | 'image' | 'code' | 'text' | 'pdf' | 'markdown' | 'doc' | 'unknown';
+  size?: string | number;
   date?: string;
   children?: FileNode[];
   isOpen?: boolean;
@@ -53,6 +62,15 @@ export interface FileTreeResponse {
   items: FileNode[];
   path: string;
   realPath: string;
+}
+
+export interface StaticFileContent {
+  content: string;
+  isText: boolean;
+  mimeType: string;
+  extension: string;
+  size: number;
+  modified: string;
 }
 
 export type ToolStatus = 'available' | 'todo' | 'beta';

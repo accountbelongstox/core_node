@@ -396,7 +396,7 @@ class AppQyV1UnifiedTTSQueueService
 
         // Phase 5 dual-write: mirror the pending audio row as a linked GlobalTask
         // (flag-gated, best-effort) so the unified task system tracks it.
-        $this->maybeCreateGlobalAudioTask($dictEntry, $language, 'word_audio');
+        $this->maybeCreateGlobalAudioTask($dictEntry, $language, 'word_audio', $position === 'beginning');
 
         $this->clearQueueCache();
 
@@ -437,7 +437,7 @@ class AppQyV1UnifiedTTSQueueService
         $status = $this->markRowPending($article, $position);
 
         // Phase 5 dual-write (flag-gated, best-effort).
-        $this->maybeCreateGlobalAudioTask($article, $language, 'article_audio');
+        $this->maybeCreateGlobalAudioTask($article, $language, 'article_audio', $position === 'beginning');
 
         $this->clearQueueCache();
 
@@ -530,7 +530,7 @@ class AppQyV1UnifiedTTSQueueService
      * @param string $language Language code
      * @param string $taskType 'word_audio' | 'article_audio'
      */
-    private function maybeCreateGlobalAudioTask($row, string $language, string $taskType): void
+    private function maybeCreateGlobalAudioTask($row, string $language, string $taskType, bool $interactive = false): void
     {
         if (!(bool) env('APPQYV1_DUAL_WRITE_GLOBAL', false)) {
             return;
@@ -563,7 +563,10 @@ class AppQyV1UnifiedTTSQueueService
                 300,
                 (int) ($row->tts_priority ?? 0),
                 3,
-                false,
+                // Interactive (FE position='beginning') audio jumps to task-top:
+                // createTask rewrites it onto remote_fast + PRIORITY_FAST. The
+                // capability=audio tag keeps it pycore-only (chrome has no audio lane).
+                $interactive,
                 \App\Models\GlobalTask::CAPABILITY_AUDIO,
                 [
                     'dict_row_id' => (int) $row->id,

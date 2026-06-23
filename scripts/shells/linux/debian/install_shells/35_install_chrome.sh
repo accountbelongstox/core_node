@@ -19,6 +19,7 @@ SCRIPT_INDEX="35"
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 
 # Declare variables
 INSTALL_CHROME=$(get_var "INSTALL_CHROME")
@@ -319,40 +320,23 @@ create_desktop_shortcut() {
     fi
     
     echo "[$SCRIPT_INDEX] Creating desktop shortcut for Chrome..."
-    
-    # Create desktop file
+
+    # System-wide menu entry (covers all users / all desktop environments) plus a
+    # desktop icon for every user, via the shared shortcut manager.
     CHROME_DESKTOP_FILE="/usr/share/applications/google-chrome.desktop"
-    
-    $USE_SUDO tee "$CHROME_DESKTOP_FILE" > /dev/null << EOF
-[Desktop Entry]
-Version=1.0
-Name=Google Chrome
-Comment=Access the Internet
-Exec=$CHROME_BIN_PATH %U
-Icon=google-chrome
-Terminal=false
-Type=Application
-Categories=Network;WebBrowser;
-MimeType=text/html;text/xml;application/xhtml+xml;application/vnd.mozilla.xul+xml;text/mml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/ftp;x-scheme-handler/chrome;application/x-extension-htm;application/x-extension-html;application/x-extension-shtml;application/xhtml+xml;application/xml;text/plain;
-StartupNotify=true
-StartupWMClass=Google-chrome
-EOF
-    
-    # Set proper permissions
-    $USE_SUDO chmod 644 "$CHROME_DESKTOP_FILE"
-    
-    # Create symlink in user's desktop directory if it exists
-    local user_desktop="$HOME/Desktop"
-    if [ -d "$user_desktop" ]; then
-        ln -sf "$CHROME_DESKTOP_FILE" "$user_desktop/google-chrome.desktop"
-        echo "[$SCRIPT_INDEX] Created desktop shortcut: $user_desktop/google-chrome.desktop"
-    fi
-    
-    # Update desktop database
-    if command -v update-desktop-database &> /dev/null; then
-        $USE_SUDO update-desktop-database /usr/share/applications
-    fi
-    
+
+    create_desktop_shortcut_from_desktop_shortcut_manager \
+        --id google-chrome \
+        --name "Google Chrome" \
+        --exec "$CHROME_BIN_PATH %U" \
+        --icon google-chrome \
+        --comment "Access the Internet" \
+        --categories "Network;WebBrowser;" \
+        --startup-wmclass "Google-chrome" \
+        --mimetype "text/html;text/xml;application/xhtml+xml;application/vnd.mozilla.xul+xml;text/mml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/ftp;x-scheme-handler/chrome;application/x-extension-htm;application/x-extension-html;application/x-extension-shtml;application/xhtml+xml;application/xml;text/plain;" \
+        --extra "StartupNotify=true" \
+        --desktop all
+
     CHROME_SHORTCUT_CREATED=true
     echo "[$SCRIPT_INDEX] Desktop shortcut created successfully"
 }
@@ -419,8 +403,7 @@ if [ "$INSTALL_CHROME" = "false" ]; then
     
     # Clean up any remaining Chrome-related files
     $USE_SUDO rm -f "/usr/local/bin/google-chrome" 2>/dev/null || true
-    $USE_SUDO rm -f "/usr/share/applications/google-chrome.desktop" 2>/dev/null || true
-    rm -f "$HOME/Desktop/google-chrome.desktop" 2>/dev/null || true
+    remove_desktop_shortcut_from_desktop_shortcut_manager --id google-chrome --menu --desktop all
     
     # Clear stored variables
     set_var "CHROME_BIN" ""

@@ -18,6 +18,10 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+# Serialize pip into the shared venv (safe under the LLM parallel group). Defensive.
+PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
+[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
+command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 
 SCRIPT_NAME="[98_install_nllb200]"
 MODEL_NAME="NLLB-200"
@@ -83,16 +87,19 @@ install_dependencies() {
     print_info "Using Python command: $python_cmd"
     print_info "Note: NLLB-200 requires transformers and sentencepiece"
 
-    # Check for GPU availability
+    # GPU detection -- same logic as the canonical lib_gpu.sh / *_cpu_guard.sh helpers
+    # (nvidia-smi -L; honors TORCH_FORCE_CUDA=1 / CUDA_VISIBLE_DEVICES=-1).
     print_info "Checking for GPU availability..."
     local has_gpu=false
-    if command -v nvidia-smi >/dev/null 2>&1; then
-        if nvidia-smi >/dev/null 2>&1; then
-            has_gpu=true
-            print_success "NVIDIA GPU detected"
-        else
-            print_warning "nvidia-smi found but GPU not accessible"
-        fi
+    if [ "${TORCH_FORCE_CUDA:-0}" = "1" ]; then
+        has_gpu=true
+    elif [ "${CUDA_VISIBLE_DEVICES:-}" = "-1" ]; then
+        has_gpu=false
+    elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+        has_gpu=true
+    fi
+    if [ "$has_gpu" = true ]; then
+        print_success "NVIDIA GPU detected"
     else
         print_info "No NVIDIA GPU detected, will use CPU version"
     fi
@@ -101,7 +108,9 @@ install_dependencies() {
     # Note: NLLB-200 works well with CPU, no need for GPU-specific torch
     print_info "Installing transformers, sentencepiece, and protobuf..."
     echo ""
-    print_and_run_from_common "$VENV_PYTHON3" -m pip install --upgrade transformers sentencepiece protobuf sacremoses
+    # Pin transformers to the shared LLM spec (don't grab 5.x) so DeepSeek-OCR's 4.46.3
+    # survives; the other deps may still upgrade freely.
+    print_and_run_from_common vpip "$VENV_PYTHON3" -m pip install --upgrade "$LLM_TRANSFORMERS_SPEC" sentencepiece protobuf sacremoses
     echo ""
 
     print_info "Verifying installation..."
@@ -231,7 +240,7 @@ main() {
     print_success "========================================"
     echo ""
     print_success "Model: $MODEL_PATH"
-    print_success "Cache: ~/.cache/huggingface"
+    print_success "Cache: ${HF_HOME:-${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/huggingface}"
 
     echo ""
     print_info "Step 3: Create interactive translator"

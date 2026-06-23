@@ -1602,6 +1602,9 @@ install_packages_and_configure_git() {
         libreadline-dev libsqlite3-dev llvm libncurses5-dev libncursesw5-dev \
         xz-utils tk-dev libffi-dev liblzma-dev make software-properties-common \
         cron dnsutils libvips-dev cpulimit expect tar gzip procps || true
+    # xdg-utils provides xdg-open (used by pycore to open files/URLs). Idempotent,
+    # non-fatal: only installs when xdg-open is missing.
+    if ! command -v xdg-open >/dev/null 2>&1; then $USE_SUDO apt-get install -y xdg-utils >/dev/null 2>&1 || true; fi
     git config --global http.sslVerify "false" || true
     git config --global user.name "prop-dev" || true
     git config --global user.email "prop-dev@serve.com" || true

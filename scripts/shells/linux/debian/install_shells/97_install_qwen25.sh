@@ -18,6 +18,10 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+# Serialize pip into the shared venv (safe under the LLM parallel group). Defensive.
+PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
+[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
+command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 
 SCRIPT_NAME="[97_install_qwen25]"
 MODEL_NAME="Qwen2.5-0.5B-Instruct"
@@ -83,43 +87,49 @@ install_dependencies() {
     print_info "Using Python command: $python_cmd"
     print_info "Note: Qwen2.5 requires transformers >= 4.37.0"
 
-    # Check for GPU availability
+    # GPU detection -- same logic as the canonical lib_gpu.sh / *_cpu_guard.sh helpers
+    # (nvidia-smi -L; honors TORCH_FORCE_CUDA=1 / CUDA_VISIBLE_DEVICES=-1).
     print_info "Checking for GPU availability..."
     local has_gpu=false
-    if command -v nvidia-smi >/dev/null 2>&1; then
-        if nvidia-smi >/dev/null 2>&1; then
-            has_gpu=true
-            print_success "NVIDIA GPU detected"
-        else
-            print_warning "nvidia-smi found but GPU not accessible"
-        fi
+    if [ "${TORCH_FORCE_CUDA:-0}" = "1" ]; then
+        has_gpu=true
+    elif [ "${CUDA_VISIBLE_DEVICES:-}" = "-1" ]; then
+        has_gpu=false
+    elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+        has_gpu=true
+    fi
+    if [ "$has_gpu" = true ]; then
+        print_success "NVIDIA GPU detected"
     else
         print_info "No NVIDIA GPU detected, will use CPU version"
     fi
     echo ""
 
-    # Install torch based on GPU availability
-    if [[ "$has_gpu" == true ]]; then
-        echo "[97] $VENV_PYTHON3 -c \"import torch; assert torch.cuda.is_available()\""
-        if "$VENV_PYTHON3" -c "import torch; assert torch.cuda.is_available()" >/dev/null 2>&1; then
-            print_success "GPU-enabled torch already installed, skipping torch installation"
-            echo ""
-        else
-            print_info "Uninstalling incompatible torch versions..."
-            echo ""
-            echo "[97] $VENV_PYTHON3 -m pip uninstall -y torch torchvision torchaudio"
-            "$VENV_PYTHON3" -m pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
-            echo ""
-
-            print_info "Installing GPU-enabled torch and dependencies..."
-            echo ""
-            echo "[97] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124"
-            "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-            echo ""
+    # REUSE the torch provided by the prerequisite install (13_ensure_python.sh /
+    # 13_cuda_nvidia_prereq.sh) whenever it is importable. NEVER uninstall it: that
+    # torch may live in system site-packages this venv only reads (so the uninstall is
+    # a no-op), and reinstalling just churns versions and risks conflicts with the
+    # other model installers that share this venv. Only install torch when it is
+    # genuinely absent.
+    local torch_ver=""
+    if "$VENV_PYTHON3" -c "import torch" >/dev/null 2>&1; then
+        torch_ver="$("$VENV_PYTHON3" -c 'import torch; print(torch.__version__)' 2>/dev/null)"
+        print_success "Reusing existing torch ($torch_ver) from the prerequisite install; skipping torch install"
+        if [[ "$has_gpu" == true ]] && ! "$VENV_PYTHON3" -c "import torch; assert torch.cuda.is_available()" >/dev/null 2>&1; then
+            print_warning "torch.cuda is not usable with the current torch/driver - Qwen2.5 will run on CPU."
         fi
+        echo ""
+    elif [[ "$has_gpu" == true ]]; then
+        print_info "torch not found - installing GPU-enabled torch (cu124)..."
+        echo ""
+        echo "[97] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124"
+        vpip "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+        echo ""
     else
-        print_info "Skipping torch installation (CPU-only setup)"
-        print_info "Using transformers with CPU backend"
+        print_info "torch not found and no GPU - installing CPU torch..."
+        echo ""
+        echo "[97] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu"
+        vpip "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         echo ""
     fi
 
@@ -130,8 +140,12 @@ install_dependencies() {
     else
         print_info "Installing transformers and accelerate..."
         echo ""
-        echo "[97] $VENV_PYTHON3 -m pip install --upgrade transformers accelerate"
-        "$VENV_PYTHON3" -m pip install --upgrade transformers accelerate
+        # No --upgrade: install only the missing package, never force-upgrade an
+        # already-present transformers (the LLM installers share this venv and pin ONE
+        # version via $LLM_TRANSFORMERS_SPEC). Qwen2.5 needs transformers>=4.37.0 (official
+        # model card); the shared 4.46.3 pin satisfies that and keeps all four models aligned.
+        echo "[97] $VENV_PYTHON3 -m pip install $LLM_TRANSFORMERS_SPEC accelerate"
+        vpip "$VENV_PYTHON3" -m pip install "$LLM_TRANSFORMERS_SPEC" accelerate
         echo ""
     fi
 
@@ -262,7 +276,7 @@ main() {
     print_success "========================================"
     echo ""
     print_success "Model: $MODEL_PATH"
-    print_success "Cache: ~/.cache/huggingface"
+    print_success "Cache: ${HF_HOME:-${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/huggingface}"
 
     echo ""
     print_info "Step 3: Create interactive chat"

@@ -145,10 +145,13 @@ export class McpV1API extends BaseAPI {
   }
 
   // ========== OCR Recognition ==========
-  async ocrRecognize(data: { image: File; engine?: string }): Promise<APIResponse> {
+  async ocrRecognize(data: { image: File; engine?: string; model_type?: string }): Promise<APIResponse> {
     const formData = new FormData();
     formData.append('image', data.image);
     if (data.engine) formData.append('engine', data.engine);
+    // Optional language-targeted model hint (general|scene|doc|number|english|
+    // chinese_traditional); the controller falls back to 'general' when absent.
+    if (data.model_type) formData.append('model_type', data.model_type);
     return this.request({ url: '/ocr/recognize', method: 'POST', data: formData } as any);
   }
 
@@ -365,8 +368,21 @@ export class McpV1API extends BaseAPI {
 
   /**
    * Upload static resources
+   *
+   * Backward-compatible: `targetPath` and `relativePaths` are optional. When
+   * provided, `target_path` selects the destination directory and `file_paths[]`
+   * carries each file's relative path (preserving folder structure on upload).
+   *
+   * When `onProgress` is supplied, the upload runs via XMLHttpRequest so upload
+   * progress (0-100) can be reported. When absent, the original `fetch` path is
+   * used unchanged (backward compatible).
    */
-  async uploadStaticResources(files: File[]): Promise<APIResponse> {
+  async uploadStaticResources(
+    files: File[],
+    targetPath: string = '',
+    relativePaths?: string[],
+    onProgress?: (percent: number) => void
+  ): Promise<APIResponse> {
     try {
       const formData = new FormData();
       files.forEach((file) => {
@@ -375,7 +391,71 @@ export class McpV1API extends BaseAPI {
         formData.append('files[]', file);
       });
 
+      if (targetPath) {
+        formData.append('target_path', targetPath);
+      }
+
+      if (relativePaths) {
+        relativePaths.forEach((relativePath) => {
+          formData.append('file_paths[]', relativePath);
+        });
+      }
+
       const url = `${this.baseURL}/static-resources/upload`;
+
+      // Progress-aware path: XMLHttpRequest exposes upload progress events that
+      // fetch cannot. Builds the SAME FormData/headers/endpoint as the fetch path.
+      if (onProgress) {
+        return await new Promise<APIResponse>((resolve) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', url);
+
+          // Apply the module's auth/custom headers. Do NOT set Content-Type —
+          // the browser sets the multipart boundary from the FormData body.
+          Object.entries(this.headers).forEach(([key, value]) => {
+            xhr.setRequestHeader(key, value);
+          });
+
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              onProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          };
+
+          xhr.onload = () => {
+            const ok = xhr.status >= 200 && xhr.status < 300;
+            let parsed: any = null;
+            try {
+              const json = JSON.parse(xhr.responseText);
+              parsed = json && json.data !== undefined ? json.data : json;
+              resolve({
+                success: ok,
+                data: ok ? parsed : (json && json.data) || json,
+                error: ok ? null : (json && json.error) || 'Upload failed',
+                status: xhr.status
+              });
+            } catch {
+              resolve({
+                success: ok,
+                data: ok ? xhr.responseText : null,
+                error: ok ? null : 'Upload failed',
+                status: xhr.status
+              });
+            }
+          };
+
+          xhr.onerror = () => {
+            resolve({
+              success: false,
+              data: null,
+              error: 'Network error',
+              status: xhr.status || 0
+            });
+          };
+
+          xhr.send(formData);
+        });
+      }
 
       const response = await fetch(url, {
         method: 'POST',
@@ -406,5 +486,197 @@ export class McpV1API extends BaseAPI {
    */
   getStaticFileStreamUrl(path: string): string {
     return `${this.baseURL}/static-resources/stream-file?path=${encodeURIComponent(path)}`;
+  }
+
+  /**
+   * Read a static file's content (text or base64 for binary)
+   */
+  async getStaticFileContent(path: string): Promise<APIResponse> {
+    try {
+      const url = `${this.baseURL}/static-resources/read-file?path=${encodeURIComponent(path)}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.headers
+      });
+
+      const data = await response.json();
+
+      return {
+        success: response.ok,
+        data: data.data || data,
+        error: response.ok ? null : data.error || 'Request failed',
+        status: response.status
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        data: null,
+        error: error.message || 'Network error',
+        status: 0
+      };
+    }
+  }
+
+  /**
+   * Write/save a static file's content
+   */
+  async saveStaticFileContent(path: string, content: string): Promise<APIResponse> {
+    try {
+      const url = `${this.baseURL}/static-resources/write-file`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { ...this.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, content })
+      });
+
+      const data = await response.json();
+
+      return {
+        success: response.ok,
+        data: data.data || data,
+        error: response.ok ? null : data.error || 'Save failed',
+        status: response.status
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        data: null,
+        error: error.message || 'Save error',
+        status: 0
+      };
+    }
+  }
+
+  /**
+   * Create a directory under a static-resources parent path
+   */
+  async createStaticResourceDir(parentPath: string, dirName: string): Promise<APIResponse> {
+    try {
+      const url = `${this.baseURL}/static-resources/create-directory`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { ...this.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_path: parentPath, dir_name: dirName })
+      });
+
+      const data = await response.json();
+
+      return {
+        success: response.ok,
+        data: data.data || data,
+        error: response.ok ? null : data.error || 'Create directory failed',
+        status: response.status
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        data: null,
+        error: error.message || 'Create directory error',
+        status: 0
+      };
+    }
+  }
+
+  /**
+   * Rename a static resource (file or directory)
+   */
+  async renameStaticResource(oldPath: string, newName: string): Promise<APIResponse> {
+    try {
+      const url = `${this.baseURL}/static-resources/rename`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { ...this.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_path: oldPath, new_name: newName })
+      });
+
+      const data = await response.json();
+
+      return {
+        success: response.ok,
+        data: data.data || data,
+        error: response.ok ? null : data.error || 'Rename failed',
+        status: response.status
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        data: null,
+        error: error.message || 'Rename error',
+        status: 0
+      };
+    }
+  }
+
+  /**
+   * Preview what would be deleted for a static resource path
+   */
+  async deleteStaticResourcePreview(path: string): Promise<APIResponse> {
+    try {
+      const url = `${this.baseURL}/static-resources/delete-preview`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { ...this.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path })
+      });
+
+      const data = await response.json();
+
+      return {
+        success: response.ok,
+        data: data.data || data,
+        error: response.ok ? null : data.error || 'Delete preview failed',
+        status: response.status
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        data: null,
+        error: error.message || 'Delete preview error',
+        status: 0
+      };
+    }
+  }
+
+  /**
+   * Delete a static resource (file or directory)
+   */
+  async deleteStaticResource(path: string): Promise<APIResponse> {
+    try {
+      const url = `${this.baseURL}/static-resources/delete`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { ...this.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path })
+      });
+
+      const data = await response.json();
+
+      return {
+        success: response.ok,
+        data: data.data || data,
+        error: response.ok ? null : data.error || 'Delete failed',
+        status: response.status
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        data: null,
+        error: error.message || 'Delete error',
+        status: 0
+      };
+    }
+  }
+
+  /**
+   * Get download URL for a static file (forces attachment via download=1)
+   */
+  getStaticFileDownloadUrl(path: string): string {
+    return `${this.baseURL}/static-resources/stream-file?path=${encodeURIComponent(path)}&download=1`;
   }
 }

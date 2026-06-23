@@ -453,6 +453,50 @@ create_symlinks_for_barcode_tools() {
     done
 }
 
+install_ocr_tools() {
+    print_step_from_common_functions "Installing OCR (Tesseract) tools"
+
+    local ocr_packages=(
+        "tesseract-ocr"
+        "tesseract-ocr-eng"
+        "tesseract-ocr-chi-sim"
+    )
+
+    for pkg in "${ocr_packages[@]}"; do
+        if ! dpkg -l | grep -q "^ii  $pkg "; then
+            echo "[$SCRIPT_INDEX] Installing $pkg..."
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" || {
+                echo "[$SCRIPT_INDEX] WARNING: Failed to install $pkg"
+            }
+        else
+            echo "[$SCRIPT_INDEX] $pkg already installed"
+        fi
+    done
+
+    create_symlinks_for_ocr_tools
+}
+
+create_symlinks_for_ocr_tools() {
+    local ocr_bins=(
+        "tesseract"
+    )
+
+    for bin in "${ocr_bins[@]}"; do
+        local bin_path=""
+        for search_path in /usr/bin /bin /usr/local/bin; do
+            if [ -x "$search_path/$bin" ] && [ ! -L "$search_path/$bin" ]; then
+                bin_path="$search_path/$bin"
+                break
+            fi
+        done
+
+        if [ -n "$bin_path" ] && [ "$bin_path" != "$USR_LOCAL_BIN/$bin" ]; then
+            $USE_SUDO ln -sf "$bin_path" "$USR_LOCAL_BIN/$bin" 2>/dev/null || true
+            echo "[$SCRIPT_INDEX] Linked: $bin -> $bin_path"
+        fi
+    done
+}
+
 verify_php_access() {
     print_step_from_common_functions "Verifying PHP can access binaries"
     
@@ -510,7 +554,8 @@ fix_and_reset_configuration() {
     create_symlinks_for_network_tools
     create_symlinks_for_compression_tools
     create_symlinks_for_barcode_tools
-    
+    create_symlinks_for_ocr_tools
+
     echo "[$SCRIPT_INDEX] Configuration reset complete"
 }
 
@@ -526,7 +571,8 @@ main() {
     install_network_tools
     install_compression_tools
     install_barcode_qr_tools
-    
+    install_ocr_tools
+
     configure_imagemagick_policy
     fix_and_reset_configuration
     verify_php_access

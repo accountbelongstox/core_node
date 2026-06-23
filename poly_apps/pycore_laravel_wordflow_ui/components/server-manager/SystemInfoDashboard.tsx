@@ -51,10 +51,26 @@ export function SystemInfoDashboard() {
         api.serverManagerV1.getStorage()
       ]);
 
+      // Backend wraps each payload in an envelope; unwrap to the array/object
+      // the UI expects (lists must stay arrays so .map/.filter never crash).
       if (infoRes.success) setSystemInfo(infoRes.data);
-      if (processRes.success) setProcesses(processRes.data);
-      if (serviceRes.success) setServices(serviceRes.data);
-      if (storageRes.success) setStorage(storageRes.data);
+      if (processRes.success) {
+        setProcesses(Array.isArray(processRes.data?.processes) ? processRes.data.processes : []);
+      }
+      if (serviceRes.success) {
+        // Backend groups services as objects (system_services / octane_services /
+        // application_services); flatten them into the flat array the table renders.
+        const grouped = serviceRes.data || {};
+        const flat = [
+          ...Object.values(grouped.system_services || {}),
+          ...Object.values(grouped.octane_services || {}),
+          ...Object.values(grouped.application_services || {})
+        ];
+        setServices(flat);
+      }
+      if (storageRes.success) {
+        setStorage(Array.isArray(storageRes.data?.disk_usage) ? storageRes.data.disk_usage : []);
+      }
     } catch (error: any) {
       toast.error(error.message || t('messages.networkError'));
     } finally {
@@ -69,15 +85,12 @@ export function SystemInfoDashboard() {
     toast.success(t('messages.refreshed'));
   }
 
-  /**
-   * Format uptime
-   */
-  function formatUptime(seconds: number): string {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return `${days}d ${hours}h ${minutes}m`;
-  }
+  // Derived views over the backend `getSystemInfo` / `getStorage` payloads.
+  // memory_info is reported in bytes; disk_usage is df output (string fields).
+  const memInfo = systemInfo?.hardware_info?.memory_info as
+    | { total?: number; used?: number; free?: number }
+    | undefined;
+  const rootDisk = storage.find((d: any) => d?.mounted_on === '/') || storage[0];
 
   /**
    * Format bytes
@@ -101,9 +114,19 @@ export function SystemInfoDashboard() {
       width: '80px'
     },
     {
-      key: 'name',
-      title: 'Process Name',
-      sortable: true
+      key: 'user',
+      title: 'User',
+      sortable: true,
+      width: '120px'
+    },
+    {
+      // Backend `ps aux` rows expose the full command line under `command`.
+      key: 'command',
+      title: 'Process',
+      sortable: true,
+      render: (value) => (
+        <span className="block truncate max-w-md" title={value}>{value}</span>
+      )
     },
     {
       key: 'cpu',
@@ -117,23 +140,12 @@ export function SystemInfoDashboard() {
       )
     },
     {
+      // `ps aux` %MEM is a percentage of physical memory, not a byte count.
       key: 'memory',
-      title: 'Memory',
+      title: 'MEM %',
       sortable: true,
-      width: '120px',
-      render: (value) => formatBytes(value)
-    },
-    {
-      key: 'status',
-      title: 'Status',
       width: '100px',
-      render: (value) => (
-        <span className={`px-2 py-1 rounded text-xs ${
-          value === 'running' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-        }`}>
-          {value}
-        </span>
-      )
+      render: (value) => `${value}%`
     }
   ];
 
@@ -201,31 +213,29 @@ export function SystemInfoDashboard() {
       {/* Stats Grid */}
       <StatsGrid columns={4} gap="md">
         <StatsCard
-          title="CPU Usage"
-          value={systemInfo ? `${systemInfo.cpu?.usage || 0}%` : '-'}
+          title="CPU"
+          value={systemInfo?.hardware_info?.cpu_info?.cores != null
+            ? `${systemInfo.hardware_info.cpu_info.cores} cores`
+            : '-'}
           icon={Cpu}
           iconColor="text-blue-600"
           iconBgColor="bg-blue-100"
-          subtitle={systemInfo ? `${systemInfo.cpu?.cores || 0} cores` : undefined}
-          trend={
-            systemInfo?.cpu?.trend ? {
-              value: systemInfo.cpu.trend,
-              direction: systemInfo.cpu.trend > 0 ? 'up' : 'down'
-            } : undefined
-          }
+          subtitle={Array.isArray(systemInfo?.hardware_info?.load_average)
+            ? `load ${systemInfo.hardware_info.load_average.map((n: number) => Number(n).toFixed(2)).join(' / ')}`
+            : undefined}
           loading={loading}
         />
 
         <StatsCard
           title="Memory Usage"
-          value={systemInfo ? formatBytes(systemInfo.memory?.used || 0) : '-'}
+          value={memInfo ? formatBytes(memInfo.used || 0) : '-'}
           icon={Database}
           iconColor="text-green-600"
           iconBgColor="bg-green-100"
-          subtitle={systemInfo ? `${formatBytes(systemInfo.memory?.total || 0)} total` : undefined}
+          subtitle={memInfo ? `${formatBytes(memInfo.total || 0)} total` : undefined}
           trend={
-            systemInfo?.memory ? {
-              value: Math.round((systemInfo.memory.used / systemInfo.memory.total) * 100),
+            memInfo && memInfo.total ? {
+              value: Math.round((memInfo.used / memInfo.total) * 100),
               direction: 'up',
               label: 'used'
             } : undefined
@@ -235,17 +245,17 @@ export function SystemInfoDashboard() {
 
         <StatsCard
           title="Disk Usage"
-          value={systemInfo ? formatBytes(systemInfo.disk?.used || 0) : '-'}
+          value={rootDisk ? rootDisk.used : '-'}
           icon={HardDrive}
           iconColor="text-purple-600"
           iconBgColor="bg-purple-100"
-          subtitle={systemInfo ? `${formatBytes(systemInfo.disk?.total || 0)} total` : undefined}
+          subtitle={rootDisk ? `${rootDisk.size} total` : undefined}
           loading={loading}
         />
 
         <StatsCard
           title="System Uptime"
-          value={systemInfo ? formatUptime(systemInfo.uptime || 0) : '-'}
+          value={systemInfo?.basic_info?.uptime || '-'}
           icon={Clock}
           iconColor="text-orange-600"
           iconBgColor="bg-orange-100"
@@ -261,37 +271,42 @@ export function SystemInfoDashboard() {
             Storage Devices
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {storage.map((device, index) => (
-              <div key={index} className="border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">{device.name}</span>
-                  <span className="text-sm text-gray-600">{device.type}</span>
+            {storage.map((device, index) => {
+              // Backend `disk_usage` rows are df output: filesystem, size, used,
+              // available, use_percent (e.g. "45%"), mounted_on — all strings.
+              const usePercent = parseInt(String(device.use_percent || '0'), 10) || 0;
+              return (
+                <div key={index} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium truncate">{device.mounted_on || device.filesystem}</span>
+                    <span className="text-sm text-gray-600">{device.size}</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Used:</span>
+                      <span>{device.used}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Free:</span>
+                      <span>{device.available}</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${
+                          usePercent > 90 ? 'bg-red-600' :
+                          usePercent > 70 ? 'bg-yellow-600' :
+                          'bg-green-600'
+                        }`}
+                        style={{ width: `${usePercent}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-500 text-right">
+                      {usePercent}% used
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Used:</span>
-                    <span>{formatBytes(device.used)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Free:</span>
-                    <span>{formatBytes(device.free)}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full ${
-                        (device.used / device.total) > 0.9 ? 'bg-red-600' :
-                        (device.used / device.total) > 0.7 ? 'bg-yellow-600' :
-                        'bg-green-600'
-                      }`}
-                      style={{ width: `${(device.used / device.total) * 100}%` }}
-                    />
-                  </div>
-                  <div className="text-xs text-gray-500 text-right">
-                    {Math.round((device.used / device.total) * 100)}% used
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

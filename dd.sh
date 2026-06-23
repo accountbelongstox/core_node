@@ -782,21 +782,29 @@ main() {
         local cached_dirs=0
         local actually_processed_dirs=0
         local overall_start_time=$(date +%s.%N)
-
-        for dir in "${target_dirs[@]}"; do
-            local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
-            if [ -d "$absolute_dir" ]; then
-                ((total_dirs++))
-            fi
-        done
+        # Per-directory cache decision, evaluated EXACTLY ONCE here and reused in the
+        # processing loop below. check_directory_processing_cache runs a full recursive
+        # find+stat (and prints its own CACHE HIT/MISS), so re-calling it per directory
+        # in the loop would scan and log every directory twice. This pass also counts
+        # total_dirs, replacing the separate counting loop.
+        local dir_state=()
+        local idx=0
 
         local all_cached=true
         for dir in "${target_dirs[@]}"; do
             local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
-            if [ -d "$absolute_dir" ] && ! check_directory_processing_cache "$absolute_dir"; then
-                all_cached=false
-                break
+            if [ -d "$absolute_dir" ]; then
+                ((total_dirs++))
+                if check_directory_processing_cache "$absolute_dir"; then
+                    dir_state[$idx]="cached"
+                else
+                    dir_state[$idx]="process"
+                    all_cached=false
+                fi
+            else
+                dir_state[$idx]="missing"
             fi
+            ((idx++))
         done
 
         local skip_scan=false
@@ -827,17 +835,17 @@ main() {
             done
             echo
 
+            idx=0
             for dir in "${target_dirs[@]}"; do
                 local absolute_dir="$CORE_NODE_ROOT_DIR/$dir"
-                if [ -d "$absolute_dir" ]; then
+                if [ "${dir_state[$idx]}" != "missing" ]; then
                     ((processed_dirs++))
                     echo -e "\033[36m[DIR $processed_dirs/$total_dirs] Processing directory: $dir\033[0m"
 
-                    if check_directory_processing_cache "$absolute_dir"; then
-                        # Cache hit message is now printed by check_directory_processing_cache
+                    if [ "${dir_state[$idx]}" = "cached" ]; then
+                        # Cache result already determined (and logged) by the single check above
                         ((cached_dirs++))
                     else
-                        # Cache miss message is now printed by check_directory_processing_cache
                         process_sh_files "$absolute_dir"
                         set_directory_processing_cache "$absolute_dir"
                         echo -e "\033[32m[CACHE SET] Directory '$dir' processing cached\033[0m"
@@ -847,6 +855,7 @@ main() {
                 else
                     echo -e "\033[31m[WARNING] Directory '$absolute_dir' not found. Skipping.\033[0m"
                 fi
+                ((idx++))
             done
 
             local overall_end_time=$(date +%s.%N)

@@ -9,6 +9,13 @@ SHELLS_DIR="$(dirname "$COMMON_FUNCS_DIR")"
 # Source gvar_common.sh from the same directory
 source "$COMMON_FUNCS_DIR/gvar_common.sh"
 
+# Single transformers pin shared by the local LLM stack (95_deepseek / 96_deepseek_ocr /
+# 97_qwen25 / 98_nllb200). 4.46.3 is DeepSeek-OCR's required version and also satisfies
+# Qwen2.5 (>=4.37.0), NLLB-200 and DeepSeek-VL, so all four agree on ONE version in the
+# shared venv — no version race when they run in parallel (llm_parallel_install.sh) or in
+# the sequential dd.sh sweep. Override the env var to bump it everywhere at once.
+LLM_TRANSFORMERS_SPEC="${LLM_TRANSFORMERS_SPEC:-transformers==4.46.3}"
+
 
 # Helper function: Ensure service name has mcp prefix
 ensure_mcp_prefix() {

@@ -30,7 +30,7 @@ def test_model(model_name='Qwen/Qwen2.5-0.5B-Instruct', test_prompt=None):
         bool: True if validation succeeded, False otherwise
     """
     try:
-        os.environ['HF_HOME'] = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
+        os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
         os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 
         print('[RUN] Importing transformers...')
@@ -106,7 +106,7 @@ def interactive_chat(model_name='Qwen/Qwen2.5-0.5B-Instruct'):
         model_name: HuggingFace model name
     """
     try:
-        os.environ['HF_HOME'] = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
+        os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
 
         print('Loading Qwen2.5-0.5B-Instruct model...')
         from transformers import AutoModelForCausalLM, AutoTokenizer

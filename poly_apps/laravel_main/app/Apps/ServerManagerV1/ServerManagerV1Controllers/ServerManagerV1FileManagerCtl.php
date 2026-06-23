@@ -24,8 +24,10 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
         // Get allowed paths
         $allowedPaths = ServerManagerV1Constants::getAllowedDownloadPaths();
 
-        // Find first existing allowed path as default
-        $defaultPath = '/www/programing/core_node';  // Fallback
+        // Find first existing allowed path as default. Fall back to the REAL checkout
+        // (PathMapper::getCoreNodeDir(), e.g. /mnt/<disk>/programing/core_node) rather
+        // than the non-existent hardcoded /www path.
+        $defaultPath = \App\Providers\PathMapper::getCoreNodeDir() ?: '/www/programing/core_node';
         foreach ($allowedPaths as $allowedPath) {
             if (is_dir($allowedPath) && file_exists($allowedPath)) {
                 $defaultPath = $allowedPath;

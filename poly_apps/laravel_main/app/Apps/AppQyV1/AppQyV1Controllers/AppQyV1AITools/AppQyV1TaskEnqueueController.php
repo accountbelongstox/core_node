@@ -85,6 +85,23 @@ class AppQyV1TaskEnqueueController extends Controller
         'subtitle_search' => GlobalTask::CAPABILITY_SUBTITLE,
         'poster' => GlobalTask::CAPABILITY_POSTER,
         'sentence_audio' => GlobalTask::CAPABILITY_SENTENCE_AUDIO,
+        // Pin audio so an interactive promotion onto remote_fast stays pycore-only
+        // (chrome has no audio lane). word_translation stays NULL = either client.
+        'word_audio' => GlobalTask::CAPABILITY_AUDIO,
+    ];
+
+    /**
+     * task_types allowed to "jump to task-top" via interactive=true. Restricted to
+     * the translate + audio categories: each has a confirmed claimant AND a result
+     * write-back (WordTranslationTaskProcessor handles word_audio by task_type).
+     * IMAGE (word_media / gemini_image) is intentionally excluded until the pycore
+     * image lane exists (its claimant routing is decided separately). Non-privileged
+     * types (notebooklm / subtitle_search / poster) never jump.
+     */
+    private const INTERACTIVE_ALLOWED_TYPES = [
+        'word_translation',
+        'word_audio',
+        'sentence_audio',
     ];
 
     /** Default priority for a manually enqueued task (front-of-queue is 100). */
@@ -107,6 +124,9 @@ class AppQyV1TaskEnqueueController extends Controller
             // When omitted, the new dedicated task types default to their pinned
             // provider tag (see TASK_TYPE_DEFAULT_CAPABILITY); others stay NULL.
             'capability' => ['nullable', 'string', Rule::in(GlobalTask::CAPABILITIES)],
+            // "Jump to task-top": honored ONLY for the translate/audio privileged
+            // types (see INTERACTIVE_ALLOWED_TYPES); ignored for everything else.
+            'interactive' => 'nullable|boolean',
         ]);
 
         $taskType = $validated['task_type'];
@@ -144,6 +164,12 @@ class AppQyV1TaskEnqueueController extends Controller
         // pinned default for the new dedicated task types (NULL = any-eligible).
         $capability = $validated['capability'] ?? (self::TASK_TYPE_DEFAULT_CAPABILITY[$taskType] ?? null);
 
+        // Honor "jump to task-top" only for the privileged translate/audio types;
+        // for everything else interactive is ignored so they keep their natural
+        // lane/priority. createTask performs the remote_fast + PRIORITY_FAST rewrite.
+        $interactive = ($validated['interactive'] ?? false)
+            && in_array($taskType, self::INTERACTIVE_ALLOWED_TYPES, true);
+
         $task = $taskManager->createTask(
             'AppQyV1',
             $taskType,
@@ -152,7 +178,7 @@ class AppQyV1TaskEnqueueController extends Controller
             $timeout,
             $priority,
             $maxRetries,
-            false,
+            $interactive,
             $capability
         );
 

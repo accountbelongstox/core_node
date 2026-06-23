@@ -22,7 +22,6 @@ import {
   AiBentoCard,
   AiToolActions,
   AiToolAlert,
-  AiToolField,
   AiToolSegment,
   AiToolTips,
 } from '../ai-tools/ui';
@@ -44,7 +43,6 @@ const OCRForm: React.FC = () => {
   const [imageUrl, setImageUrl] = useState('');
   const [extractedText, setExtractedText] = useState('');
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
-  const [language, setLanguage] = useState('auto');
   const [copied, setCopied] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -89,11 +87,27 @@ const OCRForm: React.FC = () => {
     setExtractedText('');
 
     try {
-      const input = uploadMode === 'file'
-        ? { image: selectedImage, description: 'OCR extraction' }
-        : { image: imageUrl, description: 'OCR extraction' };
+      // The OCR backend (/api/mcp/v1/ocr/recognize) requires a multipart file
+      // upload — a raw URL string in the `image` field fails its file
+      // validation. For URL mode, fetch the remote image into a File first so a
+      // real binary reaches the endpoint.
+      let imageFile: File | null = selectedImage;
+      if (uploadMode === 'url') {
+        const response = await fetch(imageUrl.trim());
+        if (!response.ok) {
+          setExtractedText('Could not load the image from that URL.');
+          return;
+        }
+        const blob = await response.blob();
+        const inferredName = imageUrl.split('/').pop()?.split('?')[0] || 'image';
+        imageFile = new File([blob], inferredName, {
+          type: blob.type || 'image/png',
+        });
+      }
 
-      const result = await execute(input);
+      if (!imageFile) return;
+
+      const result = await execute({ image: imageFile });
 
       const recognized =
         result?.text ?? result?.result ?? result?.data?.text ?? '';
@@ -283,26 +297,6 @@ const OCRForm: React.FC = () => {
           </AiBentoCard>
         </div>
 
-        <AiBentoCard title="OCR Settings">
-          <AiToolField label="Language">
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className={`${commonClasses.input} w-full max-w-md`}
-            >
-              <option value="auto">Auto Detect</option>
-              <option value="en">English</option>
-              <option value="zh">Chinese</option>
-              <option value="ja">Japanese</option>
-              <option value="ko">Korean</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-              <option value="ar">Arabic</option>
-            </select>
-          </AiToolField>
-        </AiBentoCard>
-
         <AiToolActions>
           <button
             onClick={handleClear}
@@ -340,7 +334,7 @@ const OCRForm: React.FC = () => {
           accent="amber"
           items={[
             { icon: Eye, text: 'Best results with clear, high-contrast images' },
-            { icon: Languages, text: 'Supports multiple languages - select the appropriate one for better accuracy' },
+            { icon: Languages, text: 'Detects multiple languages automatically - no language selection needed' },
             { icon: ImageIcon, text: 'Works with screenshots, scanned documents, photos of text, and more' },
           ]}
         />

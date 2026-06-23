@@ -39,6 +39,30 @@ class AppQyV1DictionaryWordManagementController extends Controller
     private function shapeRow(AppQyV1LangDictionaryModel $row): array
     {
         $entry = AppQyV1VocabularyLibraryPublicController::buildWordEntryFromDictionaryRow($row);
+
+        // File-first audio path/size: same canonical PathMapper base + first-existing
+        // tts_file the URL builder uses, so the displayed SERVER PATH + SIZE match the
+        // file audio_url serves. Kept in parity with the list controller's row map.
+        $audioPath = null;
+        $audioSize = null;
+        if (!empty($row->tts_files)) {
+            $audioBaseAbs = \App\Providers\PathMapper::getAppQyV1AudioBaseDir() . '/';
+            $wwwRoot = rtrim(\App\Providers\PathMapper::mapWebPath('www'), '/');
+            foreach ($row->tts_files as $ttsFile) {
+                if (isset($ttsFile['path'])) {
+                    $fullPath = $audioBaseAbs . $ttsFile['path'];
+                    if (is_file($fullPath)) {
+                        $audioPath = str_starts_with($fullPath, $wwwRoot)
+                            ? substr($fullPath, strlen($wwwRoot))
+                            : $fullPath;
+                        $size = @filesize($fullPath);
+                        $audioSize = $size === false ? null : (int) $size;
+                        break;
+                    }
+                }
+            }
+        }
+
         return [
             'id' => (int) $row->id,
             'content' => $row->content,
@@ -53,6 +77,8 @@ class AppQyV1DictionaryWordManagementController extends Controller
             'query_count' => (int) $row->query_count,
             'audio_url' => $entry['audio_url'],
             'audio_available' => (bool) ($entry['audio_available'] ?? false),
+            'audio_path' => $audioPath,
+            'audio_size' => $audioSize,
             'word_details' => $row->word_details,
             'image_files' => is_array($row->image_files) ? $row->image_files : null,
             'tts_status' => $row->tts_status,

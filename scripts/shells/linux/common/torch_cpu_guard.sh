@@ -17,7 +17,7 @@
 #
 # Safe to SOURCE (use the tcg_* functions) or RUN directly. Introduced at:
 #   - scripts/shells/linux/debian/install_shells/13_ensure_python.sh (install time, full mode)
-#   - pycore/scripts/iniscripts/prepare.sh (after every prerequisite install, repair-only)
+#   - scripts/shells/linux/common/iniscripts/prepare.sh (after every prerequisite install, repair-only)
 # Python in-process counterpart (same policy, at import):
 #   pycore/pyfoundations/third_party.py::_ensure_torch_cpu_build_when_no_gpu()
 #
@@ -34,6 +34,12 @@
 # ---------------------------------------------------------------------------
 
 TCG_CPU_INDEX_URL="https://download.pytorch.org/whl/cpu"
+
+# Serialize venv-mutating pip through the shared lock so this guard is safe to run while
+# the TTS/LLM parallel groups install concurrently. Defensive: pass-through if lib absent.
+_TCG_PIPLOCK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base_libs/pip_lock.sh"
+[ -f "$_TCG_PIPLOCK" ] && . "$_TCG_PIPLOCK"
+command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 
 # Resolve a python interpreter (env/arg/python3/python). Echoes the path; 1 if none.
 tcg_resolve_python() {
@@ -71,14 +77,14 @@ tcg_purge_nvidia_wheels() {
     pkgs="$("$py" -m pip list --format=freeze 2>/dev/null | sed 's/==.*//' | grep -iE '^(nvidia-|triton$)' | tr '\n' ' ')"
     if [[ -n "${pkgs// /}" ]]; then
         echo "[torch-guard] Removing orphaned CUDA wheels: $pkgs"
-        "$py" -m pip uninstall -y $pkgs >/dev/null 2>&1 || true
+        vpip "$py" -m pip uninstall -y $pkgs >/dev/null 2>&1 || true
     fi
 }
 
 # Install the CPU build of torch + torchvision + torchaudio from the CPU index.
 tcg_install_cpu_torch() {
     local py="$1"
-    "$py" -m pip install --break-system-packages --ignore-installed --force-reinstall \
+    vpip "$py" -m pip install --break-system-packages --ignore-installed --force-reinstall \
         --index-url "$TCG_CPU_INDEX_URL" torch torchvision torchaudio || true
 }
 
@@ -100,7 +106,7 @@ tcg_ensure_torch_build() {
             # Ignoring installed packages makes pip drop the required mpmath into
             # /usr/local/.../dist-packages (which shadows the apt copy) without touching
             # the dpkg-owned files. Matches tcg_install_cpu_torch above.
-            "$py" -m pip install --break-system-packages --no-user --ignore-installed torch torchvision torchaudio || true
+            vpip "$py" -m pip install --break-system-packages --no-user --ignore-installed torch torchvision torchaudio || true
         else
             echo "[torch-guard] GPU present, torch state='${state:-absent}'; no change."
         fi

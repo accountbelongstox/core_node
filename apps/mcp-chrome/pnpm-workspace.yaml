@@ -1,3 +1,13 @@
 packages:
   - 'app/*'
   - 'packages/*'
+allowBuilds:
+  esbuild: true
+  protobufjs: true
+  sharp: true
+  spawn-sync: true
+onlyBuiltDependencies:
+  - esbuild
+  - protobufjs
+  - sharp
+  - spawn-sync

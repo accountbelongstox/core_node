@@ -201,7 +201,10 @@ const DevelopmentTools: React.FC<DevelopmentToolsProps> = ({ lang = 'en' }) => {
       tool.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tool.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const matchesCategory = !selectedCategory || tool.category === selectedCategory;
+    const matchesCategory = !selectedCategory ||
+      (selectedCategory === 'favorites'
+        ? favorites.includes(tool.id)
+        : tool.category === selectedCategory);
 
     return matchesSearch && matchesCategory;
   });

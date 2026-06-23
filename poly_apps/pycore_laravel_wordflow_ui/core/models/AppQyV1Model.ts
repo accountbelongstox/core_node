@@ -62,7 +62,7 @@ export class AppQyV1Model extends BaseModel {
       getOptions: () =>
         this.execute(api.appQyV1.getTTSOptions()),
 
-      generate: (text: string, language: string, options?: { type?: string; voice?: string; speed?: number; pitch?: number }) =>
+      generate: (text: string, language: string, options?: { type?: string; voice?: string; speed?: number; pitch?: number; options?: Record<string, any> }) =>
         this.execute(api.appQyV1.generateTTS({ text, language, ...options })),
 
       batchGenerate: (items: Array<{ text: string; language: string; type?: string; options?: any }>) =>

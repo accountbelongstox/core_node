@@ -384,8 +384,22 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $siteName = $request->route('site_name');
             $siteConfig = $request->input('site_config');
 
+            // Two accepted contracts:
+            //  (a) raw `site_config` text (in-place config editor), OR
+            //  (b) the same structured body as createSite ({domain, site_type,
+            //      config, ...}) regenerated server-side. The live edit flow
+            //      sends (b), so generate the config when raw text is absent.
             if (empty($siteConfig)) {
-                return $this->errorResponse('site_config is required');
+                $domain = $request->input('domain');
+                if (!empty($domain)) {
+                    $siteType = $request->input('site_type', 'laravel');
+                    $config = $request->input('config', []);
+                    $siteConfig = $this->generateNginxConfig($domain, $siteType, $config);
+                }
+            }
+
+            if (empty($siteConfig)) {
+                return $this->errorResponse('site_config (or a structured {domain, site_type, config} body) is required');
             }
 
             $nginxPaths = ServerManagerV1SSLConfigReader::getNginxPaths();

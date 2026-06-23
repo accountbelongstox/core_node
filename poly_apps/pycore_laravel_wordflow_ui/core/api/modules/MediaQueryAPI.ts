@@ -108,12 +108,41 @@ export class MediaQueryAPI extends BaseAPI {
    * segments (with clip URLs) + ordered sentences (with AI fields + TTS).
    */
   async getSubtitle(sourceKey: string, grain: MediaGrain = 'sentence'): Promise<APIResponse<SubtitleDetail>> {
-    return this.get<SubtitleDetail>(`/subtitles/${encodeURIComponent(sourceKey)}`, { grain });
+    const res = await this.get<SubtitleDetail>(`/subtitles/${encodeURIComponent(sourceKey)}`, { grain });
+    return this.normalizeDetail(res);
   }
 
   /** Full detail for a single book: book meta + ordered sentences. */
   async getBook(sourceKey: string): Promise<APIResponse<BookDetail>> {
-    return this.get<BookDetail>(`/books/${encodeURIComponent(sourceKey)}`);
+    const res = await this.get<BookDetail>(`/books/${encodeURIComponent(sourceKey)}`);
+    return this.normalizeDetail(res);
+  }
+
+  /**
+   * Reconcile the backend detail payload onto the FE detail/segment shape:
+   *  - `sentences` comes back as a Laravel paginator object `{ items, total, ...}`
+   *    — flatten it to its `items` array (consumers do `Array.isArray(sentences)`).
+   *  - segment clip URLs are `mp4_url` / `full_mp4_url` / `mp3_url` on the wire,
+   *    but the MediaSegment type + all consumers read `mp4` / `full_mp4` / `mp3`.
+   */
+  private normalizeDetail<T>(res: APIResponse<T>): APIResponse<T> {
+    if (res.success && res.data && typeof res.data === 'object') {
+      const d = res.data as any;
+
+      if (d.sentences && !Array.isArray(d.sentences) && Array.isArray(d.sentences.items)) {
+        d.sentences = d.sentences.items;
+      }
+
+      if (Array.isArray(d.segments)) {
+        d.segments = d.segments.map((seg: any) => ({
+          ...seg,
+          mp4: seg.mp4 ?? seg.mp4_url,
+          full_mp4: seg.full_mp4 ?? seg.full_mp4_url,
+          mp3: seg.mp3 ?? seg.mp3_url
+        }));
+      }
+    }
+    return res;
   }
 
   /** Drop undefined / empty params so they don't show up as `?search=`. */

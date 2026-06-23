@@ -1,11 +1,36 @@
+/www/wwwroot/ is current wwwroot dir, it's windows the logic , mount is /mnt/dev_nvme1n1p1/www/wwwroot/   found all sh,py,php,resolve Why the project is Not recoganize
+    to correct, if has Windows or larget-dist,priority used. liunx/
+    liunx-desktop/ linux +windows NTFS(DATA disk) / windows /
+    liunx + free space disk / liunx + large other disk , www to large disk,  in windows to
+    large DATA disk(usualy to D:/www). if in liunx with windows-NTFS ,www mapping to windows and use windows DATA,nUse multiple roles to cross-validate each
+    other.Use multiple roles to cross-validate each other. How aline all-group.up code.
+
 Uer Claude Code workflow and mutiple roles:
 从历史记录 /mnt/dev_nvme1n1p1/programing/core_node/_prompts/History.txt  中 1:1 的重新核对代码，并按 History.txt 中的先后顺序（文档结束处为最新）1:1 align / 更新代码，不要看 claude code 的历史记录和对话记录，只需要关注  History.txt 和实际代码，当你 1:1 跟新代码后，将History.txt中的相关记录部分删除，但要在同目录生成一个删除记录文件（新文件，内容为 del 100-1000 行），你自行在 History.txt 中整理一条线，比如 pycore、sh 脚本修复，每次处理一部分，直到 History.txt 的 50000 多行记录全部对齐，注意 xxx/mnt/dev_nvme1n1p1/programing/core_node/_prompts/History.txt 中要按最新的来对齐到代码（文档结束处为最新），旧的内容只是修改过程中的积累，注意需要编辑和对齐所有代码，不是仅仅汇报。
 
-
+Uer Claude Code workflow and mutiple roles:
+本次主要任务为:```
+use claude code ,workflow ,veriry ,If laravelmain need help,like this translate text or audio gerete or picture conver image , that chrome-mcp and pycore task center Is'n enough, need up UI show task detail,and up pycoore task center and chrome-mcp UI and task system, the logic need strong ,and needs to works.
+if wordnew appUI request any word/sentenc, if not translate-content / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task top and quik process it.use claude code ,workflow ,veriry ,If laravelmain need help,like this translate text or audio gerete or picture conver image , that chrome-mcp and pycore task center Is'n enough, need up UI show task detail,and up pycoore task center and chrome-mcp UI and task system, the logic need strong ,and needs to works.
+  This is a substantial feature spanning several subsystems (laravel_main, the pycore task center, chrome-mcp, and the task UI/system). Before I orchestrate anything, I need to understand what exists today — I won't run a workflow blind into a vague request. Let me locate these subsystems first.
+  Located them: pycore/, apps/mcp-chrome, ncore/utils/mcp_chrome, and poly_apps/laravel_main. This is a multi-subsystem mapping job — let me fan out parallel Explore agents to map each one (task cenWter, chrome-mcp, laravel_main task integration, and the translate/audio/image task flows) so I understand the real architecture before proposing anything.,and if wordnew appUI request any word/sentenc, if not translate-content / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task top and quik process it.and if wordnew appUI request any word/sentenc, if not translate-content
+  / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task
+  top and quik process it.and if wordnew appUI request any word/sentenc, if not translate-content
+  / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task
+  top and quik process it. across verify all logic code and overflow.
+  ```
+  
 Uer Claude Code workflow and mutiple roles:
 从历史记录 /mnt/dev_nvme1n1p1/programing/core_node/_prompts/HistoryPycorePHP.txt(Only this file)  中 1:1 的重新核对代码，并按 HistoryPycorePHP.txt 中的先后顺序（文档结束处为最新）1:1 align / 更新代码，不要看 claude code 的历史记录和对话记录，只需要关注  HistoryPycorePHP.txt 和实际代码，当你 1:1 跟新代码后，HistoryPycorePHP.txt中的相关记录部分删除，但要在同目录生成一个删除记录文件（新文件，内容为 del 100-1000 行），你任务到 HistoryPycorePHP.txt 的 50000 多行记录全部对齐，注意  HistoryPycorePHP.txt 中要按最新的来对齐到代码（文档结束处为最新），旧的内容只是修改过程中的积累，注意需要编辑和对齐所有代码，不是仅仅汇报。
 本次主要恢复的任务为:```
-Pylaunch py Liunx and windows How to start to mutileple terminal and startup. and prepare-install .sh whit this.
+use claude code ,workflow ,veriry ,If laravelmain need help,like this translate text or audio gerete or picture conver image , that chrome-mcp and pycore task center Is'n enough, need up UI show task detail,and up pycoore task center and chrome-mcp UI and task system, the logic need strong ,and needs to works.
+if wordnew appUI request any word/sentenc, if not translate-content / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task top and quik process it.use claude code ,workflow ,veriry ,If laravelmain need help,like this translate text or audio gerete or picture conver image , that chrome-mcp and pycore task center Is'n enough, need up UI show task detail,and up pycoore task center and chrome-mcp UI and task system, the logic need strong ,and needs to works.
+  This is a substantial feature spanning several subsystems (laravel_main, the pycore task center, chrome-mcp, and the task UI/system). Before I orchestrate anything, I need to understand what exists today — I won't run a workflow blind into a vague request. Let me locate these subsystems first.
+  Located them: pycore/, apps/mcp-chrome, ncore/utils/mcp_chrome, and poly_apps/laravel_main. This is a multi-subsystem mapping job — let me fan out parallel Explore agents to map each one (task center, chrome-mcp, laravel_main task integration, and the translate/audio/image task flows) so I understand the real architecture before proposing anything.,and if wordnew appUI request any word/sentenc, if not translate-content / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task top and quik process it.and if wordnew appUI request any word/sentenc, if not translate-content
+  / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task
+  top and quik process it.and if wordnew appUI request any word/sentenc, if not translate-content
+  / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task
+  top and quik process it. across verify all logic code and overflow.
   ```
 
 Uer Claude Code workflow and mutiple roles:

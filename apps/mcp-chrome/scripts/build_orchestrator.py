@@ -27,9 +27,9 @@ class BuildOrchestrator:
 
         # Path configuration: build in current directory (no _build_dir)
         # project_root: e.g. D:\programing\core_node\apps\mcp-chrome
-        # Extension output: app/chrome-extension/.output/chrome-mv3 (WXT default)
-        self.build_output_dir = self.project_root / "app" / "chrome-extension" / ".output"
-        self.extension_path = self.build_output_dir / "chrome-mv3"
+        # Extension output: <mcp-chrome>/.output/build_extension (wxt outDir + outDirTemplate)
+        self.build_output_dir = self.project_root / ".output"
+        self.extension_path = self.build_output_dir / "build_extension"
         self.native_path = self.project_root / "app" / "native-server" / "dist"
         self.shared_path = self.project_root / "packages" / "shared" / "dist"
 

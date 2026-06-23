@@ -41,8 +41,23 @@ export class ServerManagerV1API extends BaseAPI {
   }
 
   // ========== File Management ==========
+  /**
+   * Browse a directory. The backend returns each item with `is_directory`,
+   * `path`, `name`, `size`, ... but NO `type` discriminator. The file browsers
+   * (CodeBrowser, CodeBrowserV2, ServerManager) branch on `type === 'directory'`,
+   * so we normalize a `type` field onto every item here (single point of fix),
+   * keeping `is_directory`/`path` intact.
+   */
   async browseFiles(path?: string): Promise<APIResponse> {
-    return this.get('/files/browse', { path });
+    const response = await this.get('/files/browse', { path });
+    const data = response.data as any;
+    if (response.success && data && Array.isArray(data.items)) {
+      data.items = data.items.map((item: any) => ({
+        ...item,
+        type: item.type ?? (item.is_directory ? 'directory' : 'file')
+      }));
+    }
+    return response;
   }
 
   // Backend reads `file_path` for download/info/preview (only /files/browse reads `path`).

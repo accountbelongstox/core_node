@@ -18,6 +18,10 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+# Serialize pip into the shared venv (safe under the LLM parallel group). Defensive.
+PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
+[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
+command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 # torch build guard (CPU vs CUDA wheels) - reused so we never force the ~4.3G
 # nvidia-* CUDA stack onto a GPU-less desktop. Provides tcg_gpu_present etc.
 source "$PARENT_DIR_LEVEL_2/common/torch_cpu_guard.sh"
@@ -283,7 +287,7 @@ get_venv_python() {
     if "$base_python" -m venv --system-site-packages "$VENV_DIR" >&2; then
         if [ -x "$VENV_PYTHON3" ]; then
             echo "[run] $VENV_PYTHON3 -m pip install --upgrade pip" >&2
-            "$VENV_PYTHON3" -m pip install --upgrade pip >/dev/null 2>&1 || true
+            vpip "$VENV_PYTHON3" -m pip install --upgrade pip >/dev/null 2>&1 || true
             echo "$VENV_PYTHON3"
             return 0
         fi
@@ -347,7 +351,9 @@ install_dependencies() {
     fi
     print_info "Using shared virtualenv interpreter: $venv_python"
     DEEPSEEK_OCR_PYTHON="$venv_python"
-    local pip_install=("$venv_python" -m pip install)
+    # vpip prefix serializes every "${pip_install[@]}" call (torch / requirements /
+    # flash-attn) through the shared lock so the parallel LLM group can't corrupt the venv.
+    local pip_install=(vpip "$venv_python" -m pip install)
     local run_python="$DEEPSEEK_OCR_PYTHON"
 
     cd "$install_dir" || return 1
@@ -360,17 +366,23 @@ install_dependencies() {
         has_gpu=true
     fi
 
-    if [ "$has_gpu" = true ]; then
+    # REUSE the torch provided by the prerequisite install (13_ensure_python.sh /
+    # 13_cuda_nvidia_prereq.sh) when it is importable; never reinstall it (avoids
+    # version churn and conflicts in the shared venv). Only install torch if absent.
+    if "$run_python" -c "import torch" >/dev/null 2>&1; then
+        print_success "Step 1: Reusing existing torch ($("$run_python" -c 'import torch; print(torch.__version__)' 2>/dev/null)); skipping torch install"
+        echo ""
+    elif [ "$has_gpu" = true ]; then
         # cu124 (CUDA 12.x major) rather than cu126: it runs on the common 12.x
         # drivers (cu126 needs a >=12.6 driver) and its major-12 matches a CUDA 12.x
         # toolkit, which is what flash-attn's source build requires.
-        print_info "Step 1: NVIDIA GPU detected - installing CUDA PyTorch (cu124)..."
+        print_info "Step 1: torch not found - installing CUDA PyTorch (cu124)..."
         echo ""
         echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124"
         "${pip_install[@]}" torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
         echo ""
     else
-        print_warning "Step 1: No NVIDIA GPU detected - installing CPU PyTorch build..."
+        print_warning "Step 1: torch not found, no NVIDIA GPU - installing CPU PyTorch build..."
         print_info "DeepSeek-OCR's bundled run scripts expect a CUDA GPU; CPU torch is"
         print_info "installed so dependencies resolve, but the model run will need a GPU."
         echo ""
@@ -392,7 +404,7 @@ install_dependencies() {
         "${pip_install[@]}" -r "$req_file"
     fi
     local core_deps=(
-        transformers==4.46.3 tokenizers==0.20.3
+        "$LLM_TRANSFORMERS_SPEC" tokenizers==0.20.3
         addict easydict einops PyMuPDF img2pdf Pillow numpy
         accelerate timm sentencepiece protobuf
     )
@@ -453,7 +465,7 @@ test_model_load() {
     local test_script="$install_dir/test_model_load.py"
     cat > "$test_script" << 'PYTHON_EOF'
 import os
-os.environ['HF_HOME'] = os.path.join(os.path.dirname(__file__), '.cache')
+os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
 
 print('[TEST] Loading DeepSeek-OCR model...')
 from transformers import AutoModel, AutoTokenizer
