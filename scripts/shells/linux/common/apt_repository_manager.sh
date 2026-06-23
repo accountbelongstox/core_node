@@ -1056,7 +1056,7 @@ add_mysql_repository_from_apt_repository_manager() {
     fix_file_permissions_from_apt_repository_manager "$setup_script" "+x"
     
     # Run the setup script
-    if ! $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11"; then
+    if ! $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11" --skip-maxscale --skip-tools; then
         echo "ERROR: Failed to setup MariaDB repository" >&2
         $USE_SUDO rm -f "$setup_script"
         restore_apt_sources_from_apt_repository_manager "$backup_id"
@@ -1276,7 +1276,7 @@ manage_repositories_from_apt_repository_manager() {
                 $USE_SUDO mv mariadb_repo_setup "$setup_script"
                 fix_file_permissions_from_apt_repository_manager "$setup_script" "+x"
                 
-                if $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11"; then
+                if $USE_SUDO "$setup_script" --mariadb-server-version="mariadb-10.11" --skip-maxscale --skip-tools; then
                     $USE_SUDO rm -f "$setup_script"
                     $USE_SUDO apt update
                     echo "MariaDB repository added successfully"
