@@ -105,6 +105,36 @@ def _get_linux_distro_info() -> Tuple[str, str]:
     return distro_name, version
 
 
+def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
+    """Development-tooling base directory (where <base>/_<name>_<ver> with node/py
+    etc. is installed). Mirrors gvar_common.sh get_dev_compile_base() and PHP
+    App\\Providers\\PathMapper::getDevCompileParts() so all three resolve identically.
+
+    Selection (non-WSL):
+      1. STICKY /opt: if /opt/_<suffix> already exists, keep using /opt regardless of
+         current root free space (once /opt is chosen, never switch away).
+      2. Else prefer /opt when root (/) has MORE THAN DEV_ROOT_MIN_FREE_GB free
+         (default 50 GB).
+      3. Else the largest secondary disk (secondary_base).
+    WSL keeps its secondary-disk design.
+    """
+    if _is_wsl():
+        return secondary_base
+    if (Path('/opt') / f'_{suffix}').is_dir():
+        return Path('/opt')
+    try:
+        min_gb = int(os.environ.get('DEV_ROOT_MIN_FREE_GB', '50'))
+    except (TypeError, ValueError):
+        min_gb = 50
+    try:
+        st = os.statvfs('/')
+        if st.f_bavail * st.f_frsize > min_gb * (1024 ** 3):
+            return Path('/opt')
+    except OSError:
+        pass
+    return secondary_base
+
+
 def _get_mounted_drives() -> List[Path]:
     """
     Get list of mounted drives in /mnt/ sorted by size (largest first)
@@ -463,9 +493,12 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             # Server: Use root path
             base_path = Path('/')
 
-        # Get distro info for compile_dir naming
+        # Get distro info for compile_dir naming. Use _<name>_<major> (UNDERSCORE)
+        # to match gvar_common.sh + PHP PathMapper (e.g. _kali_2026, _ubuntu_24).
         distro_name, distro_version = _get_linux_distro_info()
-        distro_suffix = f'{distro_name}{distro_version}' if distro_version else distro_name
+        distro_suffix = f'{distro_name}_{distro_version}' if distro_version else distro_name
+        # Dev-tooling base: prefer /opt (>50G free or already in use), else secondary.
+        dev_base = _get_dev_compile_base(base_path, distro_suffix)
 
         # Check if base_path already points to /www (to avoid /www/www duplication)
         if base_path == Path('/www'):
@@ -483,8 +516,8 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             'wwwroot': www_base / 'wwwroot',
             'pycore_db': www_base / 'wwwroot' / 'pycore_db',
             'laravel_db': www_base / 'wwwroot' / 'laravel_db',
-            'compile_dir': base_path / 'mnt' / 'd' / f'_{distro_suffix}' if base_path == Path('/') else base_path / f'_{distro_suffix}',
-            'old_compile_dir': base_path / 'mnt' / 'd' / f'dev_{distro_suffix}' if base_path == Path('/') else base_path / f'dev_{distro_suffix}',
+            'compile_dir': dev_base / f'_{distro_suffix}',
+            'old_compile_dir': dev_base / f'dev_{distro_suffix}',
             # Native ext4 loop-mount target for the PostgreSQL D-drive image (WSL
             # persistence). MUST stay on the native Linux fs (NOT drvfs): pg needs a
             # postgres-owned, mode-0700 data dir that drvfs cannot provide. The
