@@ -1,0 +1,889 @@
+
+
+❯
+  Executing: 13_ensure_python.sh
+  COMPILE_DIR: /opt/_kali_2026
+  Python venv directory: /opt/_kali_2026/python3_venv
+  Python version: 3.13
+
+  === Python Environment Setup ===
+  ==================================================
+
+  >>> Checking Python environment status...
+  [INFO] Environment type: IS_PRODUCTION=false, IS_WSL=false, HAS_DESKTOP_ENVIRONMENT=true
+  [OK] Python3 Python 3.13.12 is installed
+  [OK] pip3 26.1.2 is installed
+  >>> Installing Python and essential packages (real-time)...
+  >>> Installing Python and essential packages...
+  >>> Updating package list...
+  [13] sudo apt-get update
+  Hit:1 https://packages.sury.org/php trixie InRelease
+  Hit:2 http://http.kali.org/kali kali-rolling InRelease
+  Hit:3 https://packages.microsoft.com/repos/edge-
+  Reading package lists... Done
+  >>> Installing Python3 base packages...
+  [13] sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip python3-venv python3-dev python3-setuptools python3-wheel build-essential libssl-dev libffi-dev --no-install-recommends
+  Reading package lists... Done
+  Building dependency tree... Done
+  Reading state information... Done
+  python3 is already the newest version (3.13.9-3+b1).
+  python3-pip is already the newest version (26.1.2+dfsg-1).
+  python3-venv is already the newest version (3.13.9-3+b1).
+  python3-dev is already the newest version (3.13.9-3+b1).
+  python3-setuptools is already the newest version (78.1.1-0.1).
+  python3-wheel is already the newest version (0.47.0-1).
+  build-essential is already the newest version (12.12).
+  libssl-dev is already the newest version (3.6.2-1).
+  libffi-dev is already the newest version (3.5.2-4).
+  Solving dependencies... Done
+  0 upgraded, 0 newly installed, 0 to remove and 36 not upgraded.
+  [INFO] Detected Python version: 3.13                                                                                          [INFO] Version-specific tkinter package: python3
+  >>> Installing GUI and system packages...                                                                                     [13] sudo DEBIAN_FRONTEND=noninteractive apt-get tcl-dev python3-gi python3-gi-cairo python3-pilpython3-pil.imagetk gir1.2-appindicator3-0.1 gir1.2-gtk-3.0 --no-install-recommends
+  Reading package lists... Done
+  Building dependency tree... Done
+  Reading state information... Done
+  Package gir1.2-appindicator3-0.1 is not available, but is referred to by another package.
+  This may mean that the package is missing, has been obsoleted, or
+  is only available from another source
+
+  E: Package 'gir1.2-appindicator3-0.1' has no installation candidate
+  >>> Installing version-specific tkin
+  ──── (374 lines hidden) ──────────────────────────────────────────────────────────────────────────────────────────────────────
+  and,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch->openai-whisper) (13.0.85)
+  Requirement already satisfied: cuda-pathfinder>=1.4.2 in ./.local/lib/python3.13/site-packages (from cuda-bindings<14,>=13.0.3->torch->openai-whisper) (1.5.5)
+  Requirement already satisfied: mpmath<1.4,>=1.1.0 in ./.local/lib/python3.13/site-packages (from sympy>=1.13.3->torch->openai-whisper) (1.3.0)
+  Requirement already satisfied: MarkupSafe>=2.0 in ./.local/lib/python3.13/site-packages (from jinja2->torch->openai-whisper)  (3.0.3)
+  Downloading numpy-2.4.6-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.6 MB)                                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.6
+  Downloading tiktoken-0.13.0-cp313-cp313-manylinux_2_28_x86_64.whl (1.1 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.1/1.1 MB 263.1 kB/s  0:00:03
+  Building wheels for collected packages: openai-whisper
+    Building wheel for openai-whisper (pyproject.toml): started
+    Building wheel for openai-whisper (pyproject.toml): finished with status 'done'
+    Created wheel for openai-whisper: filename=openai_whisper-20250625-py3-none-any.whl size=803979 sha256=abbbd5a96b612eed070b6cede96da3ab197231203eb443a9ac8f1383b5e33a26
+    Stored in directory: /home/kali/.cache/pip/wheels/ca/58/d5/fb4539ad74c3ca81eb40f7eda020ac77d080b33ad57449d485
+  Successfully built openai-whisper
+  Installing collected packages: numpy, tiktoken, openai-whisper
+    Attempting uninstall: numpy
+      Found existing installation: numpy 2.5.0
+      Uninstalling numpy-2.5.0:
+        Successfully uninstalled numpy-2.5.0
+    Rolling back uninstall of numpy
+    Moving to /home/kali/.local/bin/f2py
+     from /tmp/pip-uninstall-tonwj6gr/f2py                                                                                        Moving to /home/kali/.local/bin/numpy-config
+     from /tmp/pip-uninstall-tonwj6gr/numpy-config                                                                                Moving to /home/kali/.local/lib/python3.13/sitnfo/
+     from /home/kali/.local/lib/python3.13/site-packages/~umpy-2.5.0.dist-info
+    Moving to /home/kali/.local/lib/python3.13/site-packages/numpy.libs/
+     from /home/kali/.local/lib/python3.13/site-packages/~umpy.libs
+    Moving to /home/kali/.local/lib/python3.13/site-packages/numpy/
+     from /home/kali/.local/lib/python3.13/site-packages/~umpy
+  ERROR: Could not install packages due to an OSError: [Errno 13] Permission denied: '/usr/local/lib/python3.13/dist-packages/numpy'
+  Consider using the `--user` option or check the permissions.
+
+   alied lgoic, data , behavior. expecially Kali debian Ubunto,search some docs.
+
+New script, same theme — 13_ensure_python.sh on Kali. Two real failures plus a deeper logic inconsistency:
+
+1. gir1.2-appindicator3-0.1 has no installation candidate — package renamed on modern Debian/Kali (Ayatana fork).
+2. Permission denied on pip installs (/usr/lib/python3/dist-packages/smmap, /usr/local/lib/python3.13/dist-packages/numpy) — the package phase runs python3 -m pip install … --break-system-packages --no-user using system Python, not the venv it just created, so it collides with dpkg-managed packages / system dirs (PEP 668).                                                   
+Let me locate the script and its install/symlink logic, and research the canonical facts in parallel.                         
+  Ran 1 shell command
+
+● Web Search("Debian Kali gir1.2-appindicator3-0.1 renamed ayatana package name 2025")
+Did 0 searches in 941ms
+
+The script already tries to distinguish venv vs system for PEP 668 flags (lines 252, 304), so the bug is that the package phase runs against system python3, not the venv. Note a deeper clue in your log: even /opt/_kali_2026/python3_venv/bin/python3 -m pip printed "Defaulting to user installation because normal site-packages is not writeable" — the venv lives under root-owned /opt, so the user's pip can't write to it and scatters into ~/.local, then collides with dpkg/system dirs.
+
+WebSearch's backend is erroring; let me get the authoritative facts from the machine itself + read how the script drives the heavy install.
+
+  Ran 1 shell command
+
+Confirmed root causes:
+- appindicator: Kali ships gir1.2-ayatanaappindicator3-0.1 (the Ayatana fork); the old gir1.2-appindicator3-0.1 has no        candidate.
+- venv permissions: /opt/_kali_2026 is kali:kali but the venv inside is root:root (775) — the kali user can't write to it, so pip falls back to ~/.local and then collides wit
+- The venv setup (lines 653–667) correctly uses $VENV_PYTHON3, but the heavy DEPENDENCY_MAP install (line 1044+) uses system python3.
+
+Let me read the DEPENDENCY_MAP install driver, the GUI apt block, and the venv creation/ownership.
+
+  Read 1 file
+
+The driver calls check_and_fix_package_version. Let me see how it (and the torch/onnx guards) pick the Python interpreter — that's where system python3 leaks in — plus the venv creation/ownership.
+
+  Read 1 file, ran 1 shell command
+
+Found the smoking gun: check_and_fix_package_version runs python3 -c import (line 1023) and run_pip_install_realtime "python3" … (1027/1030/1038) — everything targets system python3, never $VENV_PYTHON3. Combined with the root-owned venv, that's why packages scatter to ~/.local and then hit permission/dpkg errors. Let me read the venv creation/ownership and the pip helper to fix this correctly.
+                                                                                                                                Read 1 file
+                                                                                                                                Now I fully understand the design and the bug. Tite-packages without sudo (line 647) — so it'smeant to be user-owned — but the existing one is stale root:root, and crucially check_and_fix_package_version installs via system python3, not the venv. Let me confirm the pip helper's venv-detection so my fix is correct.
+
+  Read 1 file
+
+run_pip_install_realtime correctly suppresses PEP-668 flags when the target is a venv (detects pyvenv.cfg). So passing $VENV_PYTHON3 instead of "python3" is exactly the fix — installs land in the venv with no --break-system-packages. Let me read the GUI apt block and the main() symlink ordering to complete the picture.
+
+  Read 1 file
+
+❯ [INFO] Using Python virtual environment: /opt/_kali_2026/python3_venv Why doesn't thes algn whit it ?According to the original design,the python executable shold be liked to the global Python binary(ig under /usr/local/bin),while the actual interpreter is python3.xx. so call python is call Venv .14_install_faster_whisper.sh14_install_faster_whisper.sh
+  and the venv creation/ownership.
+    19_install_uv.sh  21_install_edge_tts.sh
+    22_install_tts_offline.sh  95_install_deepseek.sh                                                                             96_install_deepseek_ocr.sh
+    97_install_qwen25.sh                                                                                                          98_install_nllb200.sh
+
+The user has now confirmed the design contract and expanded scope. The intended design: /usr/local/bin/python → venv python (/opt/_kali_2026/python3_venv/bin/python3), so python = the venv interpreter; python3 stays system. And they want this alignment across 13, 14, 19, 21, 22, 95, 96, 97, 98 plus the venv creation/ownership.
+
+First let me pin down why 13 doesn't align — find the symlink override that flips python back to system after venv setup, and the main() call order.
+
+  Ran 1 shell command
+
+Now the symlink misalignment is fully explained. main() calls fix_python_links twice — line 18 (before venv) and line 23 (after create_python_venv_and_replace_system) — and fix_python_links (line 412) points /usr/local/bin/python → /usr/bin/python3 (system), overriding the venv symlink that create_python_venv just set (python → venv, line 704). On top of that, a third function (lines 915–933) points both python and python3 → venv. So 13 contains three contradictory symlink behaviors — that's why it doesn't match the design.
+
+Let me read fix_python_links, that third function, and how the venv path is derived (to know if downstream scripts compute it consistently).
+
+  Read 1 file
+
+fix_python_links hard-points python → system python3 / pip → system pip3, and main() calls it again after the venv setup — clobbering the venv link. That's the direct answer to "why doesn't it align." Let me confirm how the venv path is derived (so downstream scripts can share it) and whether the third symlink function is even live.
+
+  Ran 1 shell command
+
+The picture is complete. The third function (setup_production_python_venv, lines 915–933) is the production path (python3→venv too); this dev run uses the other two, which conflict. And COMPILE_DIR comes from gvar_common.sh, so all 9 scripts can derive the same venv path — that's the shared "DATA" they must align to.
+
+Let me fix 13 (the canonical contract) first, then audit the 8 downstream scripts. Fix 13.1 — make fix_python_links venv-aware so it stops clobbering python → venv:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh)
+Added 13 lines, removed 2 lines
+        return 1
+    fi
+
+    local python3_path=$(command -v pyt
+    local pip3_path=$(command -v pip3 2>/dev/null)
+    # Design contract: /usr/local/bin/python -> the VENV interpreter (so `python` == venv),
+    # while `python3` stays the system interpreter. So target the venv when it exists; fall
+    # back to system python3/pip3 only before the venv has been created (first run). This is
+    # what lets `fix_python_links` run before AND after venv setup without clobbering the
+    # venv link (previously it always forced python -> /usr/bin/python3).
+    local python3_path pip3_path
+    if [ -x "$VENV_PYTHON3" ]; then
+        python3_path="$VENV_PYTHON3"
+        pip3_path="${VENV_PIP3:-$(command -v pip3 2>/dev/null)}"
+    else
+        python3_path=$(command -v python3)
+        pip3_path=$(command -v pip3 2>/dev/null)
+    fi
+
+    # Create python -> python3 symlink
+    if [ ! -e /usr/local/bin/python ]; then
+
+Fix 13.2 — check_and_fix_package_version installs into the venv ($VENV_PYTHON3), not system python3:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh)
+Added 12 lines, removed 4 lines
+    local pip_package="$2"
+    local version_constraint="$3"
+
+    # Install INTO the venv (the design's `python`), not the externally-managed system
+    # python3. Targeting $VENV_PYTHON3 makes run_pip_install_realtime detect the venv
+    # (pyvenv.cfg) and drop --break-system-packages/--no-user, so packages land in the venv
+    # site-packages instead of ~/.local or /usr/local -- which is what caused the dpkg /
+    # "Permission denied" failures on Kali. Fall back to system python3 if no venv yet.
+    local py="$VENV_PYTHON3"
+    [ -x "$py" ] || py="python3"
+
+    # Special handling for packages with dots in import name (e.g., azure.cognitiveservices.speech)
+    local import_cmd="import $import_name"
+
+    # Check if package is installed
+    if ! python3 -c "$import_cmd" 2>/d
+    if ! "$py" -c "$import_cmd" 2>/dev/null; then
+        # Package not installed
+        if [ -n "$version_constraint" ]; then
+            echo ">>> Installing $pip_package$version_constraint..."
+            run_pip_install_realtime "python3" "$pip_package$version_constraint" "" || true
+            run_pip_install_realtime "$py" "$pip_package$version_constraint" "" || true
+        else
+            echo ">>> Installing $pip_package..."
+            run_pip_install_realtime "python3" "$pip_package" "" || true
+            run_pip_install_realtime "$py" "$pip_package" "" || true
+        fi
+        return 0
+    fi
+
+    # Package is installed
+    if [ -n "$version_constraint" ]; then
+        echo ">>> Verifying $pip_package version constraint: $version_constraint"
+        run_pip_install_realtime "python3" "$pip_package$version_constraint" "--force-reinstall" || true
+        run_pip_install_realtime "$py" "$pip_package$version_constraint" "--force-reinstall" || true
+    fi
+
+    return 0
+
+Fix 13.3 — add a venv ownership repair so the user's pip writes into the venv (not ~/.local):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh)
+Added 17 lines
+    return 0
+}
+
+# Ensure the venv is writable by the invoking (non-root) user. The venv is created
+# WITHOUT sudo (user-owned by design), but a venv left over from an earlier sudo run can
+# be root-owned -- then pip prints "site-packages not writeable" and silently falls back
+# to ~/.local, scattering packages and later colliding with dpkg/system dirs. Repair the
+# ownership here so every venv pip install lands IN the venv. Same on Debian/Ubuntu/Kali.
+ensure_venv_user_writable() {
+    [ -d "$VENV_DIR" ] || return 0
+    local owner_user="${SUDO_USER:-$(id -un)}"
+    [ "$owner_user" = "root" ] && return 0   # pure-root run: root-owned venv is writable
+    local cur; cur="$(stat -c '%U' "$VE')"
+    if [ -n "$cur" ] && [ "$cur" != "$owner_user" ]; then
+        local owner_group; owner_group=v/null || echo "$owner_user")"
+        print_step_from_common_functions "Repairing venv ownership ($cur -> $owner_user) so pip installs land i
+n the venv, not ~/.local..."
+        $USE_SUDO chown -R "$owner_user:$owner_group" "$VENV_DIR" 2>/dev/null || true
+    fi
+}
+
+# Function to create Python venv and replace system commands
+create_python_venv_and_replace_system() {
+    print_step_from_common_functions "Creating Python virtual environment and replacing system commands..."
+
+Fix 13.4 — invoke the ownership repair before any venv pip runs:
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh)
+Added 4 lines
+        print_info_from_common_functions "Virtual environment already exists and is up-to-date: $VENV_DIR"
+    fi
+
+    # Repair stale (root-owned) venv owuns, so installs land
+    # in the venv instead of falling back to ~/.local.
+    ensure_venv_user_writable
+
+    # IMPORTANT: Always upgrade pip and essential packages, even if venv was not rebuilt
+    # This ensures pip is always up-to-date and packages are fixed on every run
+    print_step_from_common_functions "Ensuring pip and essential packages are up-to-date in venv..."
+
+Fix 13.5 — cross-distro AppIndicator package selection + candidate-filtered GUI install (won't abort on a missing optional package):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh)
+Added 25 lines, removed 12 lines
+    # install line — taking down python3-tk/python3-gi/etc. with it. The unversioned
+    # python3-tk metapackage already pulls the correct interpreter's tkinter, so it is the
+    # only one required here; the versioned variant is attempted separately and best-effort.
+    # GUI/system packages. The AppIndicator GIR package was renamed: modern Debian/Kali/
+    # Ubuntu ship the Ayatana fork (gir1.2-ayatanaappindicator3-0.1); older Ubuntu used
+    # gir1.2-appindicator3-0.1. Pick whichever the apt index actually offers, and install
+    # only packages that have a real candidate, so one missing name cannot abort the whole
+    # batch (a single apt-get invocatio
+    local gui_pkgs=(python3-tk tk-dev tcl-dev python3-gi python3-gi-cairo python3-pil python3-pil.imagetk gir1.
+2-gtk-3.0)
+    local appind_cand
+    for appind_cand in gir1.2-ayatanaappindicator3-0.1 gir1.2-appindicator3-0.1; do
+        if apt-cache show "$appind_cand" >/dev/null 2>&1; then
+            gui_pkgs+=("$appind_cand"); break
+        fi
+        appind_cand=""
+    done
+    [ -z "$appind_cand" ] && print_warning_from_common_functions "No AppIndicator GIR package in apt index (sys
+tem-tray icon optional); continuing"
+    local gui_installable=() gp
+    for gp in "${gui_pkgs[@]}"; do
+        if apt-cache policy "$gp" 2>/dev/null | grep -qE 'Candidate: [^(]'; then
+            gui_installable+=("$gp")
+        else
+            print_warning_from_common_functions "Skipping unavailable GUI package: $gp"
+        fi
+    done
+    print_step_from_common_functions "Iages..."
+    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-tk tk-dev tcl-dev python3-gi
+ python3-gi-cairo python3-pil python3-pr3-0.1 gir1.2-gtk-3.0 --no-install-recommen
+ds"
+    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        python3-tk \
+        tk-dev \
+        tcl-dev \
+        python3-gi \
+        python3-gi-cairo \
+        python3-pil \
+        python3-pil.imagetk \
+        gir1.2-appindicator3-0.1 \
+        gir1.2-gtk-3.0 \
+        --no-install-recommends
+    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y ${gui_installable[*]} --no-install-r
+ecommends"
+    $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y "${gui_installable[@]}" --no-install-recommends
+ || \
+        print_warning_from_common_functions "Some GUI packages failed to install (non-fatal; core tkinter comes
+ from python3-tk)"
+
+    # Best-effort install of the versiosolated so a missing
+    # candidate cannot abort the packages above. Only attempt when the candidate actually
+
+Let me validate 13, then launch the cross-script audit for the 8 downstream consumers.
+
+  Ran 1 shell command
+
+13 validates cleanly: bash -n OK, AppIndicator picks gir1.2-ayatanaappindicator3-0.1, and the venv-targeting is in place (fix_python_links venv-aware, ensure_venv_user_writable defined+called, check_and_fix_package_version → $VENV_PYTHON3).
+
+Now the cross-script audit. Let me fan out over the 8 downstream consumers against the canonical venv contract.
+
+● Workflow(Audit how downstream scripts use the Python venv vs system python, and produce alignment fixes)
+/workflows to view dynamic workflow runs
+
+The downstream audit is running. Here's the answer to your question and what I've already fixed in 13 (the canonical source):
+
+Why python wasn't the venv (root cause)
+
+main() calls fix_python_links twice — once before venv setup (line 18) and once after (line 23).
+create_python_venv_and_replace_system correctly venv (line 704), but the second fix_python_linksimmediately overwrites it back to /usr/bin/python3 (system) — because fix_python_links was hardcoded to target system python3. So the final python pointed at system, contradicting the design. Two more leaks compounded it:
+- The DEPENDENCY_MAP installs ran via system python3 … --break-system-packages --no-user, not the venv.
+- The venv was root:root, so even venv-pip printed "site-packages not writeable" and fell back to ~/.local, then collided with dpkg//usr/local.
+
+Fixes applied to 13 (validated: bash -n OK)
+
+1. fix_python_links is now venv-aware → python → $VENV_PYTHON3, pip → $VENV_PIP3 whenever the venv exists (so the before/after calls both yield the venv link instead of clobbering it). python3/pip3 stay system, per your design.
+2. check_and_fix_package_version installs into the venv ($VENV_PYTHON3) → run_pip_install_realtime then drops --break-system-packages/--no-user and packages land in the venv, not ~/.local//usr/local.
+3. ensure_venv_user_writable repairs a stale root-owned venv back to the invoking user (it's created without sudo by design) — so pip writes into the venv. Runs before any venv pip op.
+4. AppIndicator → picks gir1.2-ayatanaappindicator3-0.1 (the Ayatana fork Kali/Debian/modern-Ubuntu ship), falls back to the old name, and the GUI batch now installs only packages with a real candidate so one missing name can't abort it.
+
+Net: python = venv, installs go into the venv, vhings that have to agree for "calling python iscalling the venv" to actually hold.
+
+In progress
+
+A parallel audit of the 8 downstream consumers (14, 19, 21, 22, 95, 96, 97, 98) is running — checking whether each installs into this same $COMPILE_DIR/python3_venv or leaks to system/~/.local, and producing concrete per-script alignment fixes. I'll apply those once it lands (19/uv is flagged for special handling since uv is its own installer). Note COMPILE_DIR comes from gvar_common.sh, so all 9 scripts can derive the same venv path — that's the shared data anchor for the alignment.
+
+✻ Baked for 11m 38s
+
+❯ and more ?
+
+Let me check whether the downstream audit has completed and pull its results.
+
+  Ran 1 shell command
+
+Audit's still running (0-byte output = not done yet). Since you're asking "what else" — let me enumerate every remaining python/pip symlink behavior in 13 to confirm there are no other contradictions beyond the one I fixed.
+
+  Ran 1 shell command
+
+Yes — checked the rest of 13's symlink logic, and there's one more thing worth flagging:
+
+All live symlink paths now agree — fix_python_links (venv-aware) and create_python_venv_and_replace_system both point python → venv / pip → venv pip. No remaining clobber.
+
+Dead, contradictory code: setup_production_python_venv (lines 793–990). It's defined but never called (no caller anywhere in the file or main()), and it would point python3 → venv too (lines 963/970) — which contradicts your design ("python3 stays system"). Harmless today because it's unreachable, but it's exactly the kind of inconsistency that misleads the next reader. Recommend either deleting it or aligning it (keep python3 → system). I left it untouched pending your call since it's a large deletion.
+
+So the complete 13 picture:
+
+┌──────────┬─────────────────────────┬─────────────────┐
+│ Command  │      Now points to      │ Per your design │
+├──────────┼─────────────────────────┼─────────────────┤
+│ python   │ venv python             │ ✅ venv         │
+├──────────┼─────────────────────────┼──────────
+│ pip      │ venv pip                │ ✅ venv         │
+├──────────┼─────────────────────────┼──────────
+│ python3  │ system /usr/bin/python3 │ ✅ system       │
+├──────────┼─────────────────────────┼─────────────────┤
+│ pip3     │ system                  │ ✅ system       │
+├──────────┼─────────────────────────┼─────────────────┤
+│ packages │ installed into venv     │ ✅              │
+└──────────┴─────────────────────────┴─────────────────┘
+
+The downstream audit (14/19/21/22/95/96/97/98) is still running — its output is empty so far. When it lands I'll apply the per-script fixes (making each install into the same $COMPILE_DIR/python3_venv), and I'll fold in the dead-code removal if you want it.
+
+Want me to: (a) wait for the audit and apply all downstream fixes, (b) also delete/align the dead setup_production_python_venv, or (c) both?
+
+✻ Baked for 1m 21s
+
+❯ En suyer that all downstream scripts use the Python interpreter from the virtual enviroment,Update python3.x to point to the
+  virtual environment as well,and rename the origito pythonorigin.and other but repaire.No ask.
+
+Clear directives — implementing without question3, python3.x → venv, and pythonorigin → theoriginal system python (preserved, not destroyed; /usr/bin/python3 itself stays untouched for system safety). Let me read 13's current symlink section and check the downstream audit.
+
+  Read 1 file
+
+Now implementing the new contract. Let me read the full fix_python_links so I refactor it cleanly, and check if the downstream audit finished.
+
+  Read 1 file
+
+Now refactoring 13 to the new contract. Edit A — extract a single link_commands_to_venv helper and make fix_python_links use it (python/python3/python3.x → venv, pythonorigin → original):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh)
+Added 45 lines, removed 50 lines
+}
+
+# Function to fix Python symlinks
+# Establish the command contract on PATH (/usr/local/bin precedes /usr/bin):
+#   pythonorigin                      -eter (/usr/bin/python3),
+#                                        preserved under a stable name (never renamed/removed).
+#   python, python3, python3.<minor>  -> the VENV interpreter.
+#   pip, pip3                         -> the VENV pip.
+# /usr/bin/python3 itself is NEVER modified (dpkg-managed; system/maintainer scripts that
+# hardcode #!/usr/bin/python3 keep working). Idempotent. Returns 1 if the venv is absent.
+link_commands_to_venv() {
+    [ -x "$VENV_PYTHON3" ] || return 1
+    local sys_python3="/usr/bin/python3"
+    local venv_pyver link
+    venv_pyver="$("$VENV_PYTHON3" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2
+>/dev/null || echo "")"
+
+    # Preserve the original system interpreter as 'pythonorigin'.
+    [ -x "$sys_python3" ] && $USE_SUDO ln -sf "$sys_python3" /usr/local/bin/pythonorigin
+
+    # python / python3 / python3.<minor> -> venv interpreter.
+    for link in /usr/local/bin/python /usr/local/bin/python3 ${venv_pyver:+/usr/local/bin/python${venv_pyver}};
+ do
+        $USE_SUDO ln -sf "$VENV_PYTHON3" "$link"
+    done
+
+    # pip / pip3 -> venv pip.
+    if [ -f "$VENV_PIP3" ]; then
+        [ -e "$VENV_PIP" ] || ln -sf pip3 "$VENV_PIP" 2>/dev/null || true
+        for link in /usr/local/bin/pip /usr/local/bin/pip3; do
+            $USE_SUDO ln -sf "$VENV_PIP3" "$link"
+        done
+    fi
+    print_success_from_common_functions "Linked python/python3${venv_pyver:+/python${venv_pyver}} + pip/pip3 ->
+ venv; system python preserved as 'pythonorigin'"
+    return 0
+}
+
+# Function to fix Python symlinks
+fix_python_links() {
+    print_step_from_common_functions "Fixing Python symlinks in /usr/local/bin..."
+
+    # Check if python3 exists
+    if ! command -v python3 >/dev/null 2>&1; then
+        print_error_from_common_functio create links"
+        return 1
+    fi
+
+    # Design contract: /usr/local/bin/python -> the VENV interpreter (so `python` == venv),
+    # while `python3` stays the system interpreter. So target the venv when it exists; fall
+    # back to system python3/pip3 only before the venv has been created (first run). This is
+    # what lets `fix_python_links` run before AND after venv setup without clobbering the
+    # venv link (previously it always forced python -> /usr/bin/python3).
+    local python3_path pip3_path
+    # Once the venv exists, point python/python3/python3.x + pip/pip3 at it (full contract).
+    if [ -x "$VENV_PYTHON3" ]; then
+        python3_path="$VENV_PYTHON3"
+        pip3_path="${VENV_PIP3:-$(command -v pip3 2>/dev/null)}"
+    else
+        python3_path=$(command -v python3)
+        pip3_path=$(command -v pip3 2>/dev/null)
+        link_commands_to_venv
+        return 0
+    fi
+
+    # Create python -> python3 symlink
+    if [ ! -e /usr/local/bin/python ]; then
+        print_step_from_common_functions "Creating symlink: /usr/local/bin/python -> $python3_path"
+        echo "[13] $USE_SUDO ln -sf $python3_path /usr/local/bin/python"
+        $USE_SUDO ln -sf "$python3_path" /usr/local/bin/python
+        print_success_from_common_functions "Created python symlink"
+    elif [ -L /usr/local/bin/python ]; then
+        local current_target=$(readlink -f /usr/local/bin/python)
+        if [ "$current_target" != "$python3_path" ]; then
+            print_step_from_common_functions "Updating python symlink to point to $python3_path"
+            echo "[13] $USE_SUDO ln -sf $python3_path /usr/local/bin/python"
+            $USE_SUDO ln -sf "$python3_path" /usr/local/bin/python
+            print_success_from_common_functions "Updated python symlink"
+        else
+            print_success_from_common_functions "python symlink already correct"
+        fi
+    fi
+
+    # Create pip -> pip3 symlink if pip3 exists
+    if [ -n "$pip3_path" ]; then
+        if [ ! -e /usr/local/bin/pip ]; then
+            print_step_from_common_functions "Creating symlink: /usr/local/bin/pip -> $pip3_path"
+            echo "[13] $USE_SUDO ln -sf $pip3_path /usr/local/bin/pip"
+            $USE_SUDO ln -sf "$pip3_path" /usr/local/bin/pip
+            print_success_from_common_functions "Created pip symlink"
+        elif [ -L /usr/local/bin/pip ]; then
+            local current_target=$(readlink -f /usr/local/bin/pip)
+            if [ "$current_target" != "$pip3_path" ]; then
+                print_step_from_common_functions "Updating pip symlink to point to $pip3_path"
+                echo "[13] $USE_SUDO ln -sf $pip3_path /usr/local/bin/pip"
+                $USE_SUDO ln -sf "$pip3_path" /usr/local/bin/pip
+                print_success_from_common_functions "Updated pip symlink"
+            else
+                print_success_from_common_functions "pip symlink already correct"
+            fi
+        fi
+    fi
+
+    # First run (no venv yet): provisionally link `python`/`pip` to the system interpreter so
+    # the commands exist; create_pythonoints them to the venv
+    # once it is built.
+    local sys_python3 sys_pip3
+    sys_python3=$(command -v python3)
+    sys_pip3=$(command -v pip3 2>/dev/null)
+    [ -n "$sys_python3" ] && $USE_SUDO ln -sf "$sys_python3" /usr/local/bin/python
+    [ -n "$sys_pip3" ] && $USE_SUDO ln -sf "$sys_pip3" /usr/local/bin/pip
+    print_info_from_common_functions "venv not present yet; python/pip provisionally -> system (switches to ven
+v after venv creation)"
+    return 0
+}
+
+
+Edit B — make create_python_venv_and_replace_system use the same helper (no more "python3 stays system" removal):
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh)
+Added 10 lines, removed 56 lines
+    # IMPORTANT: Always refresh symlinks, even if venv was not rebuilt
+    # This ensures that 'python' and 'pct venv,
+    # even if system packages were updated or symlinks were modified manually
+    print_step_from_common_functions "Refreshing Python command symlinks..."
+
+    # ============================================================================
+    # IMPORTANT: python3 command stays as system default
+    # We do NOT create /usr/local/bin/python3 symlink
+    # System's /usr/bin/python3 will be used when user runs 'python3'
+    # Establish the command contract: python / python3 / python3.x + pip / pip3 -> venv;
+    # the original system interpreter is preserved as 'pythonorigin'. /usr/bin/python3 is
+    # never touched. Single source of truth: link_commands_to_venv().
+    # ============================================================================
+    print_step_from_common_functions "Pointing python / python3 / pip at the venv (system python preserved as '
+pythonorigin')..."
+    link_commands_to_venv
+
+    # Clean up any old python3 symlink if it exists (from previous versions of this script)
+    if [ -L /usr/local/bin/python3 ]; then
+        print_warning_from_common_functmlink (python3 should use system default)"
+        echo "[13] $USE_SUDO rm -f /usr/local/bin/python3"
+        $USE_SUDO rm -f /usr/local/bin/
+        print_info_from_common_functions "python3 command will now use system Python: /usr/bin/python3"
+    fi
+    local venv_pyver_disp
+    venv_pyver_disp="$("$VENV_PYTHON3" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}
+")' 2>/dev/null || echo "")"
+
+    # ============================================================================
+    # Handle 'python' command - ALWAYS refresh, pointing to venv
+    # ============================================================================
+    print_step_from_common_functions "Refreshing 'python' command to point to venv..."
+
+    # Always remove and recreate (refresh every time)
+    echo "[13] $USE_SUDO rm -f /usr/local/bin/python"
+    $USE_SUDO rm -f /usr/local/bin/python
+    echo "[13] $USE_SUDO ln -sf $VENV_PYTHON3 /usr/local/bin/python"
+    $USE_SUDO ln -sf "$VENV_PYTHON3" /usr/local/bin/python
+    print_success_from_common_functions "Created symlink: python -> $VENV_PYTHON3"
+
+    # ============================================================================
+    # Handle 'pip' and 'pip3' commands
+    # Same as python: pip3 stays system default, pip points to venv
+    # ============================================================================
+
+    # Create pip -> pip3 symlink inside venv if it doesn't exist
+    if [ -f "$VENV_PIP3" ] && [ ! -e "$VENV_PIP" ]; then
+        ln -sf pip3 "$VENV_PIP"
+    fi
+
+    # Clean up any old pip3 symlink if it exists
+    if [ -L /usr/local/bin/pip3 ]; then
+        print_warning_from_common_functions "Removing old pip3 symlink (pip3 should use system default)"
+        echo "[13] $USE_SUDO rm -f /usr/local/bin/pip3"
+        $USE_SUDO rm -f /usr/local/bin/pip3
+        print_info_from_common_functions "pip3 command will now use system pip3"
+    fi
+
+    # Handle 'pip' command - ALWAYS refresh, pointing to venv
+    if [ -f "$VENV_PIP3" ]; then
+        print_step_from_common_functions "Refreshing 'pip' command to point to venv..."
+        echo "[13] $USE_SUDO rm -f /usr
+        $USE_SUDO rm -f /usr/local/bin/pip
+        echo "[13] $USE_SUDO ln -sf $VENV_PIP3 /usr/local/bin/pip"
+        $USE_SUDO ln -sf "$VENV_PIP3" /usr/local/bin/pip
+        print_success_from_common_functions "Created symlink: pip -> $VENV_PIP3"
+    fi
+
+    print_success_from_common_functions "Python venv setup and system command replacement complete!"
+    print_info_from_common_functions "Virtual environment: $VENV_DIR"
+    print_info_from_common_functions ""
+    print_info_from_common_functions "Command mapping:"
+    print_info_from_common_functions "  python3  -> System Python (/usr/bin/python3)"
+    print_info_from_common_functions "  python   -> Venv Python ($VENV_PYTHON3)"
+    print_info_from_common_functions "  pip3     -> System pip3"
+    print_info_from_common_functions "  pip      -> Venv pip ($VENV_PIP3)"
+    print_info_from_common_functions "  pythonorigin                       -> System Python (/usr/bin/python3)"
+    print_info_from_common_functions "  python / python3${venv_pyver_disp:+ / python${venv_pyver_disp}}   -> Ve
+nv Python ($VENV_PYTHON3)"
+    print_info_from_common_functions "        -> Venv pip ($VENV_PIP3)"
+
+    return 0
+}
+
+● Dynamic workflow "Audit how downstream scripts use the Python venv vs system python, and produce alignment fixes" completed · 11m 49s
+
+Downstream audit done — 0 of 8 aligned: 14/21/22/95/96/97/98 install into system python via bare python3 --break-system-packages --no-user; 19 (uv) forks a parallel uv_default_venv. The audit's #1 recommendation is a shared helper.
+
+Note my 13 change is a big lever: since python3 now resolves to the venv via /usr/local/bin, those python3 calls already hit the venv — but I'll make it explicit/robust per the audit. Let me validate 13 and create the shared helper.
+
+  Ran 1 shell command
+
+13 validates. Two more things: 13's venv creation still uses bare python3 -m venv — which now resolves to the venv itself on re-runs (circular/broken during rebuild). Let me fix that to the system interpreter explicitly, then create the shared helper.
+
+  Ran 1 shell command
+
+The venv-creation lines (674, 682–683) use bare python3 -m venv. Let me read and fix them to use the system interpreter
+explicitly.
+
+  Read 1 file
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh)
+Added 12 lines, removed 3 lines
+            print_step_from_common_functions "Creating new Python virtual environment in: $VENV_DIR"
+        fi
+
+        # Build the venv with the SYSTEM interpreter explicitly. After this script has run
+        # once, /usr/local/bin/python3 points at the venv, so a bare `python3 -m venv` on a
+        # rebuild would try to use the very venv being replaced (it gets moved to a backup
+        # first -> dangling). Use the original system python (pythonorigin if present, else
+        # /usr/bin/python3) so rebuilds are always sound.
+        local sys_py=/usr/local/bin/pythonorigin
+        [ -x "$sys_py" ] || sys_py=/usr/bin/python3
+        [ -x "$sys_py" ] || sys_py="$(command -v python3)"
+
+        # Ensure python3-venv is instal
+        if ! python3 -m venv --help >/dev/null 2>&1; then
+        if ! "$sys_py" -m venv --help >
+            print_warning_from_common_functions "python3-venv module not available, installing..."
+            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip --n
+o-install-recommends"
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip --no-install-r
+ecommends
+
+
+        # Create the virtual environment WITH system-site-packages (real-time output)
+        print_step_from_common_functions "Creating venv with --system-site-packages (allows access to system tk
+inter, PIL, etc.)..."
+        echo "[13] python3 -m venv --system-site-packages $VENV_DIR"
+        python3 -m venv --system-site-packages "$VENV_DIR"
+        echo "[13] $sys_py -m venv --system-site-packages $VENV_DIR"
+        "$sys_py" -m venv --system-site-packages "$VENV_DIR"
+        print_success_from_common_functions "Virtual environment created with system-site-packages"
+
+        # Upgrade pip in venv - always run to ensure latest version
+
+Now create the shared helper (the audit's #1 recommendation — DRY the venv resolution across all consumers):
+
+● Write(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/venv_python_common.sh)
+Wrote 66 lines to ../../scripts/shells/linux/common/venv_python_common.sh
+#!/bin/bash
+# ============================================================================
+# Shared Python-venv resolution for every install script that consumes the
+# virtual environment built by 13_ensure_python.sh.
+#
+# Single source of truth for the venv location: "$COMPILE_DIR/python3_venv",
+# where COMPILE_DIR is exported by common/gvar_common.sh (source that FIRST).
+#
+# Design contract (see 13_ensure_python.sh):
+#   - The venv at $COMPILE_DIR/python3_venv is THE project interpreter.
+… +56 lines
+
+Helper created. Let me validate it, then apply the per-script fixes across the 8 downstream scripts via a parallel workflow (independent files) — each agent applies the audit's spec, sources the shared helper, and verifies with bash -n.
+
+  Ran 1 shell command
+
+Helper resolves to the venv. Now applying the 8 (independent files), each agent following theaudit spec + sourcing the helper, then verifying bash -n:
+
+● Workflow(Edit the 8 downstream Python scripts to install into the shared venv (per audit), then verify)
+/workflows to view dynamic workflow runs
+
+The apply-workflow is running (8 scripts in parallel + a verify pass). Let me confirm 13's latest edit is clean while it runs.
+
+  Ran 1 shell command
+
+13 validates; venv creation now uses the system interpreter explicitly (so rebuilds are sound now that python3 → venv).
+
+Status — your directives
+
+✅ python3.x now points to the venv too (13): link_commands_to_venv() links python, python3, and python3.13 → venv interpreter (via /usr/local/bin, which precedes /usr/bin on PATH).
+
+✅ Original system Python preserved as pythonorigin (13): /usr/local/bin/pythonorigin → /usr/bin/python3. I deliberately did
+not rename /usr/bin/python3 itself — that's dpkgks apt and every #!/usr/bin/python3 maintainerscript. pythonorigin gives you the original interpreter under a stable name while python/python3 resolve to the venv — which is
+exactly "calling python/python3 calls the venv,
+
+✅ "Other but repair" (13): venv ownership repair (root→user, so pip writes into the venv), venv creation uses the system interpreter explicitly (fixes the rebuild-circularity now that python3→venv), three contradictory symlink behaviors collapsed into one link_commands_to_venv() helper, install phase targets the venv, AppIndicator → Ayatana.
+
+⏳ "All downstream scripts use the venv" — the audit found 0 of 8 aligned: 14/21/22/95/96/97/98 installed into system python via python3 … --break-system-packages --no-user; 19 (uv) forked a separate uv_default_venv. I created a shared helper common/venv_python_common.sh (exports VENV_PYTHON3 from COMPILE_DIR, with a venv-gated pip), and a workflow is now applying the per-script fixes in parallel (source the helper → install via $VENV_PYTHON3 → drop the PEP-668 flags → point launcher heredocs at the venv; uv retargeted to the shared venv). I'll report the per-script results + final verification when it lands.
+
+Net effect once the downstream pass finishes: every script — and a bare python/python3 in a shell — uses the one venv at $COMPILE_DIR/python3_venv, with the system interpreter still available as pythonorigin.
+
+✻ Baked for 8m 40s
+
+● Dynamic workflow "Edit the 8 downstream Python scripts to install into the shared venv (per audit), then verify" completed · 3m
+31s
+
+The apply-workflow finished. Let me read the fulification verdict and the 96/97/98 details(truncated).
+
+  Ran 1 shell command
+
+All 8 edited, bash -n pass on each, verify verdict all-aligned with no remaining system-python installs. Let me run my own independent verification (don't fully trust the agents) across all 8 + 13 + the helper.
+
+  Ran 1 shell command
+
+Independent verification confirms everything. The only remaining --break-system-packages code line is 22:92, which is now gated (&& ! venv_is_venv_from_common "$PYTHON" — applies only when the target isn't a venv); the rest are explanatory comments.
+
+Done — the whole Python pipeline now shares one venv
+
+13_ensure_python.sh (canonical contract):
+- pythonorigin → /usr/bin/python3 (original preserved; /usr/bin/python3 itself untouched)
+- python, python3, python3.13, pip, pip3 → venv (one link_commands_to_venv() helper; the three contradictory symlink behaviors
+are gone)
+- Package installs go into the venv ($VENV_PYTHON3, no PEP-668 flags)
+- Venv ownership repaired (root→user) so pip wrial
+- Venv creation uses the system interpreter explicitly (sound rebuilds now that python3→venv)
+- AppIndicator → gir1.2-ayatanaappindicator3-0.1, candidate-filtered GUI install
+
+Shared helper common/venv_python_common.sh — single source of truth: exports VENV_DIR/VENV_PYTHON3 from COMPILE_DIR, plus venv_python_from_common() and a venv-gated venv_pip_install_from_common().
+
+All 8 downstream scripts — verdict all-aligned:
+
+┌────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│     Script     │                                                 Change                                                  │
+├────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 14, 21, 95,    │ source helper; install via $VENV_PYTHON3; dropped --break-system-packages/--no-user; 97/98 launcher     │
+│ 97, 98         │ heredocs now emit the venv python                                                                       │
+├────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 22             │ helper; resolve_python prefers $VENV_PYTHON3; PEP-668 flag gated to non-venv; sherpa guard gets the     │
+│                │ venv interpreter                                                                                        │
+├────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 96             │ reuses the shared venv (droppystem fallback)                               │
+├────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ 19 (uv)        │ retargeted from uv_default_vepython3_venv (UV_PROJECT_ENVIRONMENT)         │
+└────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Validation: bash -n passes on the helper + 13 + all 8; every downstream sources the helper; no ungated system-python installs remain.
+
+Net: python/python3 (shell or script) → the one venv at $COMPILE_DIR/python3_venv; every installer puts packages there; the original interpreter is reachable as pythonorigin — no more ~/.local scatter or dpkg/permission collisions on Kali/Debian/Ubuntu.
+
+One leftover I intentionally did not touch: the dead setup_production_python_venv function in 13 (never called). With the new design it's no longer contradictory (it also wants python3→venv), just redundant. Removing it is a safe cleanup if you want it gone — say the word.
+
+✻ Cooked for 32m 24s
+
+❯ in all scripts,in run any python commander or pip and anythin, print commder-strin first.thank you.
+
+Got it — every Python/pip (and similar) invocatiring before running. The project already does this in places (echo "[13] …", [venv-pip] …); you want it consistent everywhere. Let me add shared run-and-echo wrappers to the
+helper, then retrofit the scripts.
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/venv_python_common.sh)
+Added 17 lines
+    [ -f "$(dirname "$py")/../pyvenv.cfg" ]
+}
+
+# Print the exact command-string FIRST (copy-pasteable, for traceability), then run it.
+# Use for python / pip / any meaningful command so every invocation is logged before it runs.
+#   print_and_run_from_common "$VENV_PYTHON3" -m pip install foo
+print_and_run_from_common() {
+    echo "[run] $*"
+    "$@"
+}
+
+# Convenience: run the resolved VENV interpreter with the given args, printing first.
+#   venv_run_from_common -m pip install foo      # echoes then runs: <venv python> -m pip install foo
+#   venv_run_from_common some_script.py --flag
+venv_run_from_common() {
+    local py; py="$(venv_python_from_common)"
+    echo "[run] $py $*"
+    "$py" "$@"
+}
+
+# pip-install into the resolved interpreter. Adds the PEP 668 escape flags
+# (--break-system-packages --no-user) ONLY when the target is NOT a venv (i.e. an
+# externally-managed system python); inside a venv they are unnecessary and harmful.
+
+❯ in all scripts,if run any python commander or pip and anythin, print commder-strin first.thank you.
+
+Understood — the same request, confirmed. Let me make the wrappers echo to stderr (so they're safe even inside $(...) value-capturing calls — the command line shows, but doesn't pollute captured output), then retrofit every script.
+
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/venv_python_common.sh)
+Added 5 lines, removed 2 lines
+
+# Print the exact command-string FIRST (copy-pasteable, for traceability), then run it.
+# Use for python / pip / any meaningful command so every invocation is logged before it runs.
+# The command line is printed to STDERR ide $( ... ) capture
+# (the trace shows on the terminal but never pollutes captured stdout).
+#   print_and_run_from_common "$VENV_PYT
+#   ver="$(print_and_run_from_common "$VENV_PYTHON3" -c 'import sys;print(sys.version)')"  # safe
+print_and_run_from_common() {
+    echo "[run] $*"
+    echo "[run] $*" >&2
+    "$@"
+}
+
+
+#   venv_run_from_common some_script.py --flag
+venv_run_from_common() {
+    local py; py="$(venv_python_from_common)"
+    echo "[run] $py $*"
+    echo "[run] $py $*" >&2
+    "$py" "$@"
+}
+
+
+  Ran 1 shell command
+
+Wrappers validated (stdout clean for capture, tring all 9 Python scripts so every python/pipinvocation prints its command first. Launching a parallel workflow (independent files), with explicit safety rules about not polluting captured output.
+
+● Workflow(Make every python/pip invocation print its command-string before running, across the Python pipeline scripts)
+/workflows to view dynamic workflow runs
+
+The retrofit is running across all 9 Python scripts. Here's what's in place:
+
+Shared trace wrappers added to common/venv_python_common.sh (the key piece):
+- print_and_run_from_common <cmd…> — prints [run] <cmd> then runs it
+- venv_run_from_common <args…> — prints + runs the venv interpreter
+- venv_pip_install_from_common — prints + installs into the venv
+
+Crucially they print to stderr, which I verified is safe inside $(…) capture: ver="$(print_and_run_from_common python -c '…')" shows the command line on the terminal but ver stays clean. That avoids the classic trap where echoing a command before a value-capturing call corrupts the captured value.
+
+The workflow is retrofitting every python/pip/.p/22/95/96/97/98 to print its command-string first— adding traces only where missing (many already echo via [NN] …/the helpers), respecting the script's existing [NN] style, and
+following hard safety rules (never a plain stdou). A verify pass then checks bash -n, hunts forany capture-corruption bug, and lists any still-untraced effectful call.
+
+I'll report the per-script results and the verification verdict when it completes.
+
+✻ Brewed for 3m 21s
+
+● Dynamic workflow "Make every python/pip invocation print its command-string before running, across the Python pipeline scripts" completed · 8m 6s
+
+The retrofit completed. Let me pull the verification verdict and confirm there are no capture-corruption bugs.
+
+  Ran 1 shell command
+
+All 9 retrofitted, bash -n pass, verify verdict all-traced with zero capture-corruption risks. Let me run my own independent static check for the one real danger — a stdout echo (no >&2) right before a $(…)-captured python/pip call.
+
+  Ran 1 shell command
+
+Independently confirmed: all 9 pass bash -n, and no stdout echo precedes any $(…)-captured python/pip call — so no captured
+value is corrupted.
+
+Done — every python/pip command now prints its command-string first
+
+Shared trace wrappers in common/venv_python_common.sh (all echo to stderr → safe inside $(…)):
+- print_and_run_from_common <cmd…>, venv_run_from_common <args…>, venv_pip_install_from_common <args>
+
+All 9 Python scripts retrofitted — verify verdict all-traced, 0 corruption risks:
+
+┌───────────────────────────┬────────────────────┬────────────────┐
+│          Script           │ trace points added │ already traced │
+├───────────────────────────┼────────────────────┼────────────────┤
+│ 13_ensure_python          │                 21 │             17 │
+├───────────────────────────┼────────────────────┼────────────────┤
+│ 96_install_deepseek_ocr   │                 10 │              — │
+├───────────────────────────┼────────────────────┼────────────────┤
+│ 19_install_uv             │                 11 │              — │
+├───────────────────────────┼────────────────────┼────────────────┤
+│ 97_install_qwen25         │                  9
+├───────────────────────────┼────────────────────┼────────────────┤
+│ 22_install_tts_offline    │                  7
+├───────────────────────────┼────────────────────┼────────────────┤
+│ 14_install_faster_whisper │                  6 │              — │
+├───────────────────────────┼────────────────────┼────────────────┤
+│ 21 / 98                   │             5 each │              — │
+├───────────────────────────┼────────────────────┼────────────────┤
+│ 95_install_deepseek       │                  4 │              — │
+└───────────────────────────┴────────────────────┴────────────────┘
+
+The rule applied everywhere, matching your existing [NN] convention:
+- Effectful calls (installs, launches, -m venv) → print the command to stdout, then run.
+- Value-capturing calls ($(python3 -V), version/import probes) → print to stderr (>&2), so the command shows on the terminal but the captured value stays clean — the trap that would otherwise corrupt e.g. the resolved interpreter path or version string.
+- Existing traces (e.g. run_pip_install_realtime, apt lines) were left as-is — no double-printing.
+
+So now, across the whole Python pipeline, running any python/pip command logs the exact copy‑pasteable command first — and it composes with the earlier work: those commands target the shared venv ($VENV_PYTHON3), python/python3/python3.x resolve to the
+venv, and the original interpreter remains avail
+
+✻ Cooked for 12m 12s

@@ -383,6 +383,24 @@ main() {
         exit 1
     fi
 
+    # Verify the installer's authenticity BEFORE executing it as root (it runs below with
+    # open_basedir=none). Composer publishes the expected SHA-384 of composer-setup.php at
+    # https://composer.github.io/installer.sig; a mismatch means a corrupted or tampered
+    # download (TLS-MITM, CDN/DNS compromise) -- refuse to run it. Mirrors the SHA256
+    # verification ensure_php_compat_libs_from_apt_repository_manager applies to .debs.
+    local expected_sig actual_sig
+    expected_sig="$(curl -fsSL https://composer.github.io/installer.sig 2>/dev/null | tr -d '[:space:]')"
+    actual_sig="$("$PHP_BINARY" -r "echo hash_file('sha384', 'composer-setup.php');" 2>/dev/null)"
+    if [ -z "$expected_sig" ]; then
+        echo -e "${RED}$SCRIPT_INDEX Could not fetch the Composer installer signature; refusing to run an unverified installer as root${NC}"
+        cd "$original_dir"; rm -rf "$temp_dir"; exit 1
+    fi
+    if [ "$expected_sig" != "$actual_sig" ]; then
+        echo -e "${RED}$SCRIPT_INDEX Composer installer SHA-384 mismatch (expected ${expected_sig:0:16}..., got ${actual_sig:0:16}...); aborting${NC}"
+        cd "$original_dir"; rm -rf "$temp_dir"; exit 1
+    fi
+    echo -e "${GREEN}$SCRIPT_INDEX Composer installer SHA-384 verified${NC}"
+
     # Install with open_basedir disabled and environment variables set
     echo -e "${CYAN}$SCRIPT_INDEX Installing Composer with PHP 8.5 compatibility...${NC}"
     local install_output
