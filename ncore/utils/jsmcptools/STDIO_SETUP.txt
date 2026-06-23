@@ -25,7 +25,7 @@ Edit: `%APPDATA%\Claude\claude_desktop_config.json`
     "chrome-mcp-ncore": {
       "command": "node",
       "args": [
-        "D:\\programing\\core_node\\ncore\\utils\\mcp_chrome\\mcp-server-stdio.js"
+        "D:\\programing\\core_node\\ncore\\utils\\jsmcptools\\mcp-server-stdio.js"
       ]
     }
   }
@@ -41,7 +41,7 @@ Edit: `~/.config/Claude/claude_desktop_config.json`
     "chrome-mcp-ncore": {
       "command": "node",
       "args": [
-        "/path/to/core_node/ncore/utils/mcp_chrome/mcp-server-stdio.js"
+        "/path/to/core_node/ncore/utils/jsmcptools/mcp-server-stdio.js"
       ]
     }
   }
@@ -72,7 +72,7 @@ Edit: `~/.config/Claude/claude_desktop_config.json`
 ## Configuration File
 
 You can customize the HTTP server URL by editing:
-`ncore/utils/mcp_chrome/stdio-config.json`
+`ncore/utils/jsmcptools/stdio-config.json`
 
 ```json
 {
@@ -107,7 +107,7 @@ Check Claude Desktop logs:
 
 Test STDIO server manually:
 ```bash
-node D:\programing\core_node\ncore\utils\mcp_chrome\mcp-server-stdio.js
+node D:\programing\core_node\ncore\utils\jsmcptools\mcp-server-stdio.js
 ```
 
 Expected output:

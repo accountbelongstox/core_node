@@ -5,7 +5,7 @@ const path = require('path');
 process.chdir(__dirname);
 
 // Use relative path to avoid alias issues
-const { startMCPChromeServer } = require('./ncore/utils/mcp_chrome/index.js');
+const { startMCPChromeServer } = require('./ncore/utils/jsmcptools/index.js');
 
 async function main() {
     try {
