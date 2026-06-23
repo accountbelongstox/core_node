@@ -629,10 +629,27 @@ resolve_php_suite_from_apt_repository_manager() {
 
     local codename="$in_codename"
     if [ "$vendor" = "debian" ]; then
-        # Sury publishes only these suites; clamp anything else to the newest hosted one.
+        # Sury publishes only these suites (bullseye/bookworm/trixie -- NOT the rolling
+        # testing/unstable suites forky/sid, which 418/404). Clamp anything else to the
+        # newest hosted suite the host can actually RUN: Sury's trixie php8.5 needs
+        # libc6 >= 2.38, so a bookworm-era rolling spin (glibc < 2.38) must stay on
+        # bookworm, while Kali/sid (glibc 2.4x) get trixie, whose post-t64 ABI matches
+        # their libraries. Override entirely with APT_DEBIAN_CODENAME_DEFAULT.
         case "$codename" in
             bullseye|bookworm|trixie) : ;;
-            *) codename="${APT_DEBIAN_CODENAME_DEFAULT:-trixie}" ;;
+            *)
+                if [ -n "${APT_DEBIAN_CODENAME_DEFAULT:-}" ]; then
+                    codename="$APT_DEBIAN_CODENAME_DEFAULT"
+                else
+                    local _glibc
+                    _glibc="$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $NF}')"
+                    if [ -n "$_glibc" ] && dpkg --compare-versions "$_glibc" ge 2.38 2>/dev/null; then
+                        codename="trixie"
+                    else
+                        codename="bookworm"
+                    fi
+                fi
+                ;;
         esac
     fi
     # Ubuntu codenames pass through: the ondrej PPA tracks Ubuntu series directly.
@@ -740,7 +757,7 @@ ensure_php_compat_libs_from_apt_repository_manager() {
         rm -rf "$tmp"; return 1
     fi
 
-    local debs="" missing="" stanza fname exp_sha got_sha out
+    local debs=() missing="" stanza fname exp_sha got_sha out
     for lib in $gaps; do
         stanza="$(zcat "$deb_idx" 2>/dev/null | awk -v RS='' -v p="$lib" 'index($0 "\n", "Package: " p "\n")==1' | head -c 200000)"
         fname="$(printf '%s\n' "$stanza" | sed -n 's/^Filename: //p' | head -n1)"
@@ -764,15 +781,15 @@ ensure_php_compat_libs_from_apt_repository_manager() {
             echo "[php-compat] ERROR: SHA256 mismatch for ${lib} (want ${exp_sha}, got ${got_sha}); discarding." >&2
             missing="$missing $lib"; continue
         fi
-        debs="$debs $out"
+        debs+=("$out")
     done
 
     # 5) Install all verified compat libs at once (so any inter-deps resolve together),
     #    non-interactively, keeping existing configs and never letting -f install remove
     #    packages to "fix" the transaction. Diagnostics are NOT swallowed.
-    if [ -n "${debs// /}" ]; then
+    if [ ${#debs[@]} -gt 0 ]; then
         echo "[php-compat] Installing verified compat libs alongside the distro's newer versions..." >&2
-        if ! $USE_SUDO env DEBIAN_FRONTEND=noninteractive dpkg -i --force-confold $debs; then
+        if ! $USE_SUDO env DEBIAN_FRONTEND=noninteractive dpkg -i --force-confold "${debs[@]}"; then
             $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get -f install -y \
                 -o APT::Get::Remove=false -o Dpkg::Options::=--force-confold || true
         fi
