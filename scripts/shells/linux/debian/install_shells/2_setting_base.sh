@@ -948,6 +948,217 @@ configure_desktop_system() {
 }
 
 # =============================================================================
+# Desktop Power Policy (merged from former 4_set_desktop_power.sh)
+# Keep a graphical desktop fully awake: never suspend/hibernate, never blank or
+# power off the display, never spin down disks. DE-agnostic system-level pieces
+# (systemd + logind + hdparm) complement the per-DE screen-lock config above.
+# All steps are idempotent and guarded for `set -e`.
+# References (official / canonical):
+#   - systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+#   - systemd-logind: IdleAction=ignore, HandleLidSwitch=ignore (logind.conf.d drop-in)
+#   - GNOME defaults via the dconf system db (/etc/dconf/db/local.d)
+# =============================================================================
+
+# Robust desktop detection: gvar_common's HAS_DESKTOP_ENVIRONMENT relies on
+# session env vars that are often absent during a root install, so OR it with
+# on-disk evidence. Returns 0 when this is a graphical desktop.
+power_is_desktop_system() {
+    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
+        return 0
+    fi
+    if command -v gnome-shell >/dev/null 2>&1 \
+        || command -v plasmashell >/dev/null 2>&1 \
+        || command -v xfce4-session >/dev/null 2>&1 \
+        || command -v mate-session >/dev/null 2>&1 \
+        || command -v cinnamon-session >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ -d /usr/share/xsessions ] && ls -A /usr/share/xsessions 2>/dev/null | grep -q .; then
+        return 0
+    fi
+    if [ -d /usr/share/wayland-sessions ] && ls -A /usr/share/wayland-sessions 2>/dev/null | grep -q .; then
+        return 0
+    fi
+    if command -v systemctl >/dev/null 2>&1 \
+        && [ "$(systemctl get-default 2>/dev/null || true)" = "graphical.target" ] \
+        && [ -e /etc/systemd/system/display-manager.service ]; then
+        return 0
+    fi
+    return 1
+}
+
+# systemd: never auto-suspend / hibernate (DE-agnostic).
+power_disable_systemd_sleep() {
+    local sleep_targets="sleep.target suspend.target hibernate.target hybrid-sleep.target"
+    local logind_dropin_dir="/etc/systemd/logind.conf.d"
+    local logind_dropin_file="/etc/systemd/logind.conf.d/10-core-node-no-sleep.conf"
+    local already_masked="true"
+    local t=""
+    local desired=""
+
+    info "Masking systemd sleep targets..."
+    for t in $sleep_targets; do
+        if [ "$(systemctl is-enabled "$t" 2>/dev/null || true)" != "masked" ]; then
+            already_masked="false"
+        fi
+    done
+    if [ "$already_masked" = "true" ]; then
+        info "Sleep targets already masked, skipping."
+    else
+        $USE_SUDO systemctl mask $sleep_targets 2>/dev/null || true
+        log "Masked: $sleep_targets"
+    fi
+
+    info "Configuring systemd-logind to ignore idle/lid..."
+    $USE_SUDO mkdir -p "$logind_dropin_dir" 2>/dev/null || true
+    desired="$(cat <<'EOF'
+# Managed by core_node 2_setting_base.sh -- keep desktop awake.
+[Login]
+IdleAction=ignore
+IdleActionSec=0
+HandleLidSwitch=ignore
+HandleLidSwitchExternalPower=ignore
+HandleLidSwitchDocked=ignore
+HandleSuspendKey=ignore
+HandleHibernateKey=ignore
+EOF
+)"
+    if [ -f "$logind_dropin_file" ] && [ "$(cat "$logind_dropin_file" 2>/dev/null || true)" = "$desired" ]; then
+        info "logind drop-in already up to date, skipping."
+    else
+        echo "$desired" | $USE_SUDO tee "$logind_dropin_file" >/dev/null 2>&1 || true
+        log "Wrote $logind_dropin_file"
+        # Reloading logind can drop the active graphical session; only re-exec
+        # when no session is currently logged in (safe during install).
+        if ! who 2>/dev/null | grep -q .; then
+            $USE_SUDO systemctl kill -s HUP systemd-logind 2>/dev/null || true
+        fi
+    fi
+}
+
+# GNOME: never blank display / never sleep / no screensaver lock, applied
+# system-wide via the dconf "local" system database (covers every user).
+power_disable_gnome_blanking() {
+    local dconf_profile="/etc/dconf/profile/user"
+    local dconf_db_dir="/etc/dconf/db/local.d"
+    local dconf_db_file="/etc/dconf/db/local.d/00-core-node-power"
+    local dconf_locks_dir="/etc/dconf/db/local.d/locks"
+    local dconf_locks_file="/etc/dconf/db/local.d/locks/core-node-power"
+    local db_desired=""
+    local locks_desired=""
+    local changed="false"
+
+    if ! command -v dconf >/dev/null 2>&1; then
+        info "dconf not installed; skipping system-wide GNOME defaults."
+        return 0
+    fi
+    info "Writing system-wide GNOME power defaults via dconf..."
+    $USE_SUDO mkdir -p "$dconf_db_dir" "$dconf_locks_dir" "$(dirname "$dconf_profile")" 2>/dev/null || true
+
+    if [ ! -f "$dconf_profile" ] || ! grep -q "^system-db:local" "$dconf_profile" 2>/dev/null; then
+        printf 'user-db:user\nsystem-db:local\n' | $USE_SUDO tee "$dconf_profile" >/dev/null 2>&1 || true
+        info "Configured $dconf_profile"
+    fi
+
+    db_desired="$(cat <<'EOF'
+# Managed by core_node 2_setting_base.sh -- desktop stays awake.
+[org/gnome/settings-daemon/plugins/power]
+sleep-inactive-ac-type='nothing'
+sleep-inactive-battery-type='nothing'
+sleep-inactive-ac-timeout=0
+sleep-inactive-battery-timeout=0
+idle-dim=false
+
+[org/gnome/desktop/session]
+idle-delay=uint32 0
+
+[org/gnome/desktop/screensaver]
+idle-activation-enabled=false
+lock-enabled=false
+EOF
+)"
+    locks_desired="$(cat <<'EOF'
+/org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-type
+/org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-type
+/org/gnome/desktop/session/idle-delay
+/org/gnome/desktop/screensaver/idle-activation-enabled
+/org/gnome/desktop/screensaver/lock-enabled
+EOF
+)"
+
+    if [ ! -f "$dconf_db_file" ] || [ "$(cat "$dconf_db_file" 2>/dev/null || true)" != "$db_desired" ]; then
+        echo "$db_desired" | $USE_SUDO tee "$dconf_db_file" >/dev/null 2>&1 || true
+        changed="true"
+    fi
+    if [ ! -f "$dconf_locks_file" ] || [ "$(cat "$dconf_locks_file" 2>/dev/null || true)" != "$locks_desired" ]; then
+        echo "$locks_desired" | $USE_SUDO tee "$dconf_locks_file" >/dev/null 2>&1 || true
+        changed="true"
+    fi
+
+    if [ "$changed" = "true" ]; then
+        $USE_SUDO dconf update 2>/dev/null || true
+        log "Updated dconf system database."
+    else
+        info "GNOME dconf defaults already in place, skipping."
+    fi
+}
+
+# Disks: keep fixed (non-removable) ATA/SATA disks spinning; persist in
+# /etc/hdparm.conf. USB/removable disks are skipped.
+power_disable_disk_spindown() {
+    local hdparm_conf="/etc/hdparm.conf"
+    local marker="# core_node: keep disk spinning"
+    local disk="" dev="" rm=""
+    local persisted_any="false"
+
+    if ! command -v hdparm >/dev/null 2>&1; then
+        info "hdparm not installed; skipping disk spindown control."
+        return 0
+    fi
+    for disk in /sys/block/sd*; do
+        [ -e "$disk" ] || continue
+        dev="/dev/$(basename "$disk")"
+        rm="$(cat "$disk/removable" 2>/dev/null || echo 0)"
+        if [ "$rm" = "1" ]; then
+            continue
+        fi
+        info "Disabling standby/spindown on $dev (-S 0, -B 254)..."
+        $USE_SUDO hdparm -S 0 "$dev" >/dev/null 2>&1 || true
+        $USE_SUDO hdparm -B 254 "$dev" >/dev/null 2>&1 || true
+        if ! grep -q "^${dev} {" "$hdparm_conf" 2>/dev/null && ! grep -Fq "$dev $marker" "$hdparm_conf" 2>/dev/null; then
+            {
+                echo ""
+                echo "$dev $marker"
+                echo "$dev {"
+                echo "    spindown_time = 0"
+                echo "    apm = 254"
+                echo "}"
+            } | $USE_SUDO tee -a "$hdparm_conf" >/dev/null 2>&1 || true
+            persisted_any="true"
+        fi
+    done
+    if [ "$persisted_any" = "true" ]; then
+        log "Persisted disk no-spindown settings in $hdparm_conf."
+    fi
+}
+
+# Orchestrator: apply the keep-awake policy on a graphical desktop (skip on
+# headless/server). Uses robust detection so it still runs when a root install
+# leaves HAS_DESKTOP_ENVIRONMENT unset.
+configure_desktop_power_policy() {
+    if ! power_is_desktop_system; then
+        info "No graphical desktop detected (headless/server); skipping desktop power policy"
+        return 0
+    fi
+    log "Applying desktop power policy: no suspend, no display blank, no disk spindown"
+    power_disable_systemd_sleep
+    power_disable_gnome_blanking
+    power_disable_disk_spindown
+    log "Desktop power policy applied"
+    return 0
+}
+
+# =============================================================================
 # Main Function
 # =============================================================================
 
@@ -1015,6 +1226,9 @@ main() {
     echo ""
     log "Step 3: Desktop system optimization"
     configure_desktop_system
+    # Keep the desktop fully awake (merged from former 4_set_desktop_power.sh):
+    # no suspend/hibernate, no display blank, no disk spindown.
+    configure_desktop_power_policy
 
     log "Base system setup completed!"
 
