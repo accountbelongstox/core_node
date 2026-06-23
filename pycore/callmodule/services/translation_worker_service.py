@@ -195,10 +195,13 @@ class TranslationWorkerService:
 
     # task_type tags carried in payloads on these lanes.
     AUDIO_TASK_TYPE = "word_audio"
+<<<<<<< HEAD
     # Word-image task_type. It rides the SHARED fast lane (remote_fast) with
     # capability='image' (NO dedicated execution_type) — claim is narrowed purely
     # by the 'image' capability, mirroring how ai_translate rides the fast lane.
     IMAGE_TASK_TYPE = "word_media"
+=======
+>>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
 
     # Base processor types always advertised (fast + legacy translation). The
     # dedicated lanes are appended live by _effective_processor_types() when their
@@ -558,6 +561,7 @@ class TranslationWorkerService:
         except Exception:
             return True
 
+<<<<<<< HEAD
     def _image_enabled(self) -> bool:
         """True when this worker should advertise + process the 'image' capability.
 
@@ -578,6 +582,13 @@ class TranslationWorkerService:
             caps.append("ai_translate")
         if self._image_enabled():
             caps.append("image")
+=======
+    def _effective_capabilities(self) -> List[str]:
+        """Capabilities advertised on register AND status: audio,translate (+ai_translate)."""
+        caps = ["audio", "translate"]
+        if self._ai_translate_enabled():
+            caps.append("ai_translate")
+>>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
         return caps
 
     def _effective_processor_types(self) -> List[str]:
@@ -1075,7 +1086,10 @@ class TranslationWorkerService:
           - capability == 'ai_translate'  -> _ai_translate_words (shared fast lane;
                                              task_type stays word_translation)
           - task_type == 'word_audio'     -> _process_audio_task (assist TTS)
+<<<<<<< HEAD
           - task_type == 'word_media'     -> _process_image_task (AI gateway image)
+=======
+>>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
           - task_type == 'subtitle_search'-> _process_subtitle_search_task
           - task_type == 'poster'         -> _process_poster_task
           - task_type == 'sentence_audio' -> _process_sentence_audio_task
@@ -1096,9 +1110,12 @@ class TranslationWorkerService:
             if task_type == self.AUDIO_TASK_TYPE:
                 self._process_audio_task(task)
                 return
+<<<<<<< HEAD
             if task_type == self.IMAGE_TASK_TYPE:
                 self._process_image_task(task)
                 return
+=======
+>>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
             if task_type == "subtitle_search":
                 self._process_subtitle_search_task(task)
                 return
@@ -1419,6 +1436,7 @@ class TranslationWorkerService:
         }
         self._post_result(task_id, "completed", result=result, progress=100)
 
+<<<<<<< HEAD
     # -------------------- word-image lane (shared fast lane) --------------------
 
     @staticmethod
@@ -1500,6 +1518,8 @@ class TranslationWorkerService:
         self._post_result(task_id, "completed", result=result, progress=100)
         self._record_task(task, self.IMAGE_TASK_TYPE, "completed", posted_back=True)
 
+=======
+>>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
     # -------------------- sentence-audio lane --------------------
 
     def _process_sentence_audio_task(self, task: Dict[str, Any]) -> None:
@@ -1561,7 +1581,10 @@ class TranslationWorkerService:
             return "remote_ai_translate"
         return {
             "word_audio": "remote_audio",
+<<<<<<< HEAD
             "word_media": "remote_image",
+=======
+>>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
             "subtitle_search": "remote_subtitle",
             "poster": "remote_poster",
             "sentence_audio": "remote_sentence_audio",
