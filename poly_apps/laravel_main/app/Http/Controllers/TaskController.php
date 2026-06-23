@@ -485,6 +485,12 @@ class TaskController extends Controller
                     'progress' => $task->progress,
                     'assigned_to' => $task->assigned_to,
                     'created_at' => $createdAt,
+                    // Additive routing fields (B11): let clients badge/sort a task
+                    // row by its fast-lane / capability placement without opening
+                    // per-task detail.
+                    'capability' => $task->capability,
+                    'priority' => (int) $task->priority,
+                    'is_fast_tier' => (bool) $task->is_fast_tier,
                 ];
             }),
         ], 'Tasks list retrieved successfully');

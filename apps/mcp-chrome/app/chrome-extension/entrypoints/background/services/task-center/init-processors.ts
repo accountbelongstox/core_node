@@ -22,12 +22,13 @@ export function initializeProcessors(): void {
   // Register DeepSeek Processor (disabled by default, placeholder)
   taskCenter.registerProcessor(deepSeekProcessor, false);
 
-  // Register Google News Processor (enabled by default for testing)
-  taskCenter.registerProcessor(googleNewsProcessor, true);
+  // Register Google News Processor (B4: DISABLED — demo/testing only, must not be
+  // in the default-on profile or it claims lane work it cannot fulfil).
+  taskCenter.registerProcessor(googleNewsProcessor, false);
 
-  // Register Web-AI Translate Processor (disabled by default, opt-in — like
-  // NotebookLM / Gemini). Advertises capability ai_translate (remote_fast lane).
-  taskCenter.registerProcessor(webAiTranslateProcessor, false);
+  // Register Web-AI Translate Processor (B4: ENABLED). Advertises capability
+  // ai_translate (remote_fast lane); it is the sole ai_translate owner (B18).
+  taskCenter.registerProcessor(webAiTranslateProcessor, true);
 
   console.log('[TaskCenter] Processors initialized');
 }

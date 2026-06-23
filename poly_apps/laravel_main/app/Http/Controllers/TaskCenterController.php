@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GlobalTask;
 use App\Services\OctaneTimerService;
 use App\Services\TaskManagerService;
 use App\Services\WorkerManagerService;
@@ -50,6 +51,27 @@ class TaskCenterController extends Controller
             'role' => 'maintainer',
             'target' => '*',
         ],
+    ];
+
+    /**
+     * Which client(s) are eligible to claim a task of each capability, derived
+     * from the canonical downgrade decision: translate races on BOTH clients;
+     * audio + image are PYCORE-ONLY (chrome has no audio/image lane);
+     * sentence_audio is chrome's web-audio assist; subtitle/poster are
+     * pycore-only retrieval lanes. NULL capability (any) is reported separately
+     * as the union of all clients. Keep this in lock-step with GlobalTask's
+     * CAPABILITY_* vocabulary and capabilityMatches() — never advertise a
+     * claimant a client cannot actually fulfill (the dead 'image'-on-chrome
+     * bug B17).
+     */
+    private const CAPABILITY_CLAIMANTS = [
+        GlobalTask::CAPABILITY_TRANSLATE => ['pycore', 'chrome'],
+        GlobalTask::CAPABILITY_AI_TRANSLATE => ['pycore', 'chrome'],
+        GlobalTask::CAPABILITY_AUDIO => ['pycore'],
+        GlobalTask::CAPABILITY_IMAGE => ['pycore'],
+        GlobalTask::CAPABILITY_SENTENCE_AUDIO => ['chrome'],
+        GlobalTask::CAPABILITY_SUBTITLE => ['pycore'],
+        GlobalTask::CAPABILITY_POSTER => ['pycore'],
     ];
 
     protected $taskManager;
@@ -124,6 +146,11 @@ class TaskCenterController extends Controller
             ],
             'queue' => [
                 'stats' => $this->taskManager->getTaskStats(),
+                // Additive: per-capability category placement (fast-lane vs its
+                // single dedicated lane), per-lane pending/processing counts, and
+                // the eligible claimant client(s) — so a client can see the
+                // intended dual-client race without opening per-task detail.
+                'categories' => $this->buildCategories(),
             ],
             'workers' => [
                 'stats' => $this->workerManager->getWorkerStats(),
@@ -131,5 +158,71 @@ class TaskCenterController extends Controller
             'relations' => $relations,
             'timestamp' => now()->toISOString(),
         ], 'Task center overview retrieved successfully');
+    }
+
+    /**
+     * Build the per-capability category breakdown.
+     *
+     * For each capability we report, in TWO orthogonal lanes:
+     *   - fast_lane: pending/processing on the shared remote_fast lane narrowed
+     *     to this capability (the interactive dual-client race);
+     *   - single_lane: pending/processing on every NON-fast execution_type lane
+     *     for the same capability (the background / dedicated-worker lane).
+     * Plus claimants[] — which client(s) may actually claim this capability,
+     * derived from CAPABILITY_CLAIMANTS (the canonical downgrade), so the FE
+     * never hardcodes routing.
+     *
+     * Counts come from ONE grouped query over the live (pending/processing)
+     * rows, keyed by (capability, is_fast_tier, status), so the overview stays a
+     * single poll.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function buildCategories(): array
+    {
+        $live = [GlobalTask::STATUS_PENDING, GlobalTask::STATUS_PROCESSING];
+
+        // (capability, is_fast_tier, status) -> count over live rows only.
+        $rows = GlobalTask::query()
+            ->whereIn('status', $live)
+            ->groupBy('capability', 'is_fast_tier', 'status')
+            ->selectRaw('capability, is_fast_tier, status, count(*) as total')
+            ->get();
+
+        $tally = [];
+        foreach ($rows as $row) {
+            $cap = $row->capability ?? '_null';
+            $fastKey = $row->is_fast_tier ? 'fast' : 'single';
+            $tally[$cap][$fastKey][$row->status] = (int) $row->total;
+        }
+
+        $lane = static function (array $tally, string $cap, string $fastKey): array {
+            $bucket = $tally[$cap][$fastKey] ?? [];
+            return [
+                'pending' => (int) ($bucket[GlobalTask::STATUS_PENDING] ?? 0),
+                'processing' => (int) ($bucket[GlobalTask::STATUS_PROCESSING] ?? 0),
+            ];
+        };
+
+        $categories = [];
+        foreach (GlobalTask::CAPABILITIES as $cap) {
+            $categories[] = [
+                'capability' => $cap,
+                'claimants' => self::CAPABILITY_CLAIMANTS[$cap] ?? [],
+                'fast_lane' => $lane($tally, $cap, 'fast'),
+                'single_lane' => $lane($tally, $cap, 'single'),
+            ];
+        }
+
+        // NULL-capability tasks (any eligible client). Reported as its own
+        // category so its counts are never silently dropped from the overview.
+        $categories[] = [
+            'capability' => null,
+            'claimants' => ['pycore', 'chrome'],
+            'fast_lane' => $lane($tally, '_null', 'fast'),
+            'single_lane' => $lane($tally, '_null', 'single'),
+        ];
+
+        return $categories;
     }
 }

@@ -14,6 +14,8 @@ source "$SCRIPT_DIR/restore_gitea_core.sh"
 source "$SCRIPT_DIR/backup_list_manager.sh"
 source "$SCRIPT_DIR/backup_laravel_core.sh"
 source "$SCRIPT_DIR/restore_laravel_core.sh"
+source "$SCRIPT_DIR/backup_core_node_core.sh"
+source "$SCRIPT_DIR/restore_core_node_core.sh"
 
 # Main menu display
 show_backup_menu() {
@@ -43,10 +45,20 @@ show_backup_menu() {
         echo " 15) Test Laravel Backup Integrity"
         echo " 16) Start Download Server for Laravel Backup"
         echo ""
+        echo "Core_node Project Backup:"
+        echo " 17) Backup Core_node Project"
+        echo " 18) Restore Core_node from Backup"
+        echo " 19) List Core_node Backups"
+        echo " 20) Delete Core_node Backup"
+        echo " 21) Show Core_node Backup Details"
+        echo " 22) Cleanup Old Core_node Backups"
+        echo " 23) Test Core_node Backup Integrity"
+        echo " 24) Start Download Server for Core_node Backup"
+        echo ""
         echo "  0) Return to Main Menu"
         echo "───────────────────────────────────────────────────────────────────────────────"
         echo ""
-        echo -n "Select an option [0-16]: "
+        echo -n "Select an option [0-24]: "
 
         read -r choice
 
@@ -239,12 +251,91 @@ show_backup_menu() {
                 echo "Press Enter to continue..."
                 read
                 ;;
+            17)
+                echo ""
+                print_header_from_common_functions "Backup Core_node Project"
+                backup_core_node
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            18)
+                echo ""
+                print_header_from_common_functions "Restore Core_node from Backup"
+                local backup_file=$(select_core_node_backup)
+                if [[ $? -eq 0 ]] && [[ -n "$backup_file" ]]; then
+                    restore_core_node "$backup_file"
+                fi
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            19)
+                echo ""
+                print_header_from_common_functions "List Core_node Backups"
+                list_core_node_backups
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            20)
+                echo ""
+                print_header_from_common_functions "Delete Core_node Backup"
+                delete_core_node_backup
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            21)
+                echo ""
+                print_header_from_common_functions "Show Core_node Backup Details"
+                show_core_node_backup_details
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            22)
+                echo ""
+                print_header_from_common_functions "Cleanup Old Core_node Backups"
+                echo ""
+                echo -n "Enter retention days (default: 30): "
+                read -r retention_days
+                if [[ -z "$retention_days" ]]; then
+                    retention_days=30
+                fi
+                cleanup_old_backups "core_node" "$retention_days" "core_node-backup-*.tar.gz"
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            23)
+                echo ""
+                print_header_from_common_functions "Test Core_node Backup Integrity"
+                local backup_file=$(select_core_node_backup)
+                if [[ $? -eq 0 ]] && [[ -n "$backup_file" ]]; then
+                    verify_backup "$backup_file"
+                fi
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            24)
+                echo ""
+                print_header_from_common_functions "Start Download Server for Core_node Backup"
+                local backup_file=$(select_core_node_backup)
+                if [[ $? -eq 0 ]] && [[ -n "$backup_file" ]]; then
+                    prompt_download_server "$backup_file" "core_node"
+                fi
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
             0)
                 print_info_from_common_functions "Returning to main menu..."
                 return 0
                 ;;
             *)
-                print_error_from_common_functions "Invalid option. Please select 0-16."
+                print_error_from_common_functions "Invalid option. Please select 0-24."
                 sleep 2
                 ;;
         esac

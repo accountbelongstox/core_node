@@ -96,6 +96,13 @@ const WATCHDOG_ALARM = 'bing-translation-worker-watchdog';
 // 1 min: above the 30s production floor, frequent enough to recover quickly.
 const WATCHDOG_PERIOD_MINUTES = 1;
 
+// Fast re-poll cadence (B3): when a pull reports pending_fast>0 we fire an
+// immediate jittered+coalesced wait=0 re-poll instead of waiting for the next
+// poll-interval tick, so fast-tier translate work is drained promptly. Mirrors
+// SimpleWorkerBase's FAST_REPOLL_* constants.
+const FAST_REPOLL_BASE_MS = 400;
+const FAST_REPOLL_JITTER_MS = 300;
+
 interface PersistedRuntime {
   running: boolean;
   config: WorkerConfig | null;
@@ -107,6 +114,8 @@ class BingDictionaryWorkerService {
   private workerClient: WorkerApiClient | null = null;
   private pollIntervalId: ReturnType<typeof setInterval> | null = null;
   private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
+  // Coalesce fast re-polls (B3): at most one scheduled burst in flight.
+  private fastRepollTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Pool of background Bing dictionary tabs driven in parallel (self-healing).
   private pool = new BingTabPool();
@@ -208,6 +217,10 @@ class BingDictionaryWorkerService {
     if (this.heartbeatIntervalId) {
       clearInterval(this.heartbeatIntervalId);
       this.heartbeatIntervalId = null;
+    }
+    if (this.fastRepollTimer) {
+      clearTimeout(this.fastRepollTimer);
+      this.fastRepollTimer = null;
     }
 
     this.taskCache.clear();
@@ -338,14 +351,15 @@ class BingDictionaryWorkerService {
       // assigned them. It also joins the shared `remote_fast` lane so the
       // dispatcher can route fast-tier translate work here.
       processor_types: ['remote_translation', 'remote_fast'] as ProcessorType[],
-      // Advertise ONLY 'translate' (NOT 'image'): a Bing dictionary tab can scrape
-      // a word lookup but cannot GENERATE an image, so the dispatcher must never
-      // route a true image task here (processTask would mis-scrape it as a dict
-      // lookup). 'image' is dropped from the shared fast set; the processTask
-      // capability guard rejects any image task that still slips through.
-      // (sentence_audio is dropped — it is generated inline server-side, never
-      // by a Bing tab; ai_translate belongs only to the web-AI worker.)
-      capabilities: CHROME_FAST_CAPABILITIES.filter((c) => c !== 'image'),
+      // Advertise ONLY 'translate' (B18: bing is the sole translate owner on the
+      // fast lane; WebAiTranslate owns ai_translate). 'image' is no longer in the
+      // shared fast set (B17) — a Bing dictionary tab can scrape a word lookup but
+      // cannot GENERATE an image, so the dispatcher must never route a true image
+      // task here. The processTask capability guard still rejects any image task
+      // that somehow slips through. (sentence_audio is generated inline
+      // server-side, never by a Bing tab; ai_translate belongs only to the web-AI
+      // worker.)
+      capabilities: CHROME_FAST_CAPABILITIES,
       hostname: 'chrome-extension',
       platform: navigator.userAgent,
       metadata: {
@@ -408,10 +422,23 @@ class BingDictionaryWorkerService {
       if (!response.success || !response.data || response.data.count === 0) {
         this.stats.newTasks = 0;
         this.stats.duplicateTasks = 0;
+        // No tasks now, but the backend may still report fast-tier backlog —
+        // schedule an immediate re-poll so we don't wait a full interval.
+        if (response.success && response.data) {
+          this.noteFastSignals(response.data.pending_fast);
+        }
         return;
       }
 
-      const tasks = response.data.tasks;
+      // B3: react to the fast-tier backlog signal — schedule a jittered wait=0
+      // re-poll burst so newly-bumped fast translate tasks are drained promptly.
+      this.noteFastSignals(response.data.pending_fast);
+
+      // B3: highest priority first, so a bumped (fast-tier) task is processed
+      // ahead of the rest of the claimed batch.
+      const tasks = [...response.data.tasks].sort(
+        (a, b) => (b.priority ?? 0) - (a.priority ?? 0),
+      );
       let newTaskCount = 0;
       let duplicateCount = 0;
 
@@ -443,6 +470,31 @@ class BingDictionaryWorkerService {
     } catch (error) {
       logger.error(LOG, 'Polling error', error);
     }
+  }
+
+  /**
+   * B3: schedule a fast re-poll burst when the backend signals fast-tier work is
+   * waiting. The burst is jittered and coalesced (only one in flight) so it does
+   * not stampede the pull endpoint.
+   */
+  private noteFastSignals(pendingFast?: number): void {
+    if ((pendingFast ?? 0) > 0) {
+      this.scheduleFastRepoll();
+    }
+  }
+
+  private scheduleFastRepoll(): void {
+    if (!this.isRunning) return;
+    if (this.fastRepollTimer) return; // coalesce — one burst in flight
+    const jitter = Math.floor(Math.random() * FAST_REPOLL_JITTER_MS);
+    this.fastRepollTimer = setTimeout(() => {
+      this.fastRepollTimer = null;
+      if (!this.isRunning) return;
+      // Drain whatever fast-tier work matched our capabilities now.
+      this.pollAndProcessTasks().catch((error) =>
+        logger.warn(LOG, 'Fast re-poll failed', error),
+      );
+    }, FAST_REPOLL_BASE_MS + jitter);
   }
 
   // ------------------------------------------------------------------
