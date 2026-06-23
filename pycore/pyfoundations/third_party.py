@@ -574,11 +574,30 @@ def _detect_driver_cuda_version() -> Optional[Tuple[int, int]]:
 
 
 def _resolve_pytorch_cuda_index_url() -> str:
-    """Driver-matched PyTorch CUDA wheel index. Env PYTORCH_CUDA_INDEX_URL wins; otherwise
-    pick the highest published wheel whose CUDA version <= the driver's CUDA version, so the
-    installed torch actually runs on this driver (no 'driver too old' reinstall loop)."""
+    """Driver-matched PyTorch CUDA wheel index. Resolution order (so the default is NEVER a
+    second hardcode — it auto-syncs from the system / the shell helper):
+      1. env PYTORCH_CUDA_INDEX_URL — explicit override;
+      2. the shared shell resolver scripts/shells/linux/common/base_libs/torch_cuda_index.sh
+         — the SINGLE source of truth for the driver->wheel mapping AND the default, so this
+         module and every *.sh installer always agree;
+      3. in-process nvidia-smi parse (same mapping) only if that .sh is unreachable.
+    """
     if PYTORCH_CUDA_INDEX_URL:
         return PYTORCH_CUDA_INDEX_URL
+    # (2) Defer to the shell single-source-of-truth so Python + the *.sh installers can't
+    # diverge (the default lives there, not here).
+    try:
+        helper = Path(__file__).resolve().parents[2] / "scripts/shells/linux/common/base_libs/torch_cuda_index.sh"
+        if helper.is_file():
+            proc = run_third_party_command(
+                ["bash", "-c", '. "$1"; torch_cuda_index_url', "_", str(helper)],
+                capture_output=True, timeout=20)
+            url = (getattr(proc, "stdout", "") or "").strip() if proc is not None else ""
+            if url.startswith("https://download.pytorch.org/whl/"):
+                return url
+    except Exception:
+        pass
+    # (3) Fallback only when the shell helper is missing: same driver->wheel mapping.
     drv = _detect_driver_cuda_version()
     tag = _PYTORCH_CUDA_DEFAULT_TAG
     if drv is not None:
