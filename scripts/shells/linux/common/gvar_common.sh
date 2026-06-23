@@ -1466,12 +1466,18 @@ set_global_var() {
     # Get normalized file path
     local file_path=$(_get_var_file_path "$key")
 
+    # Read the previous value first so the "Successfully set" line is announced only
+    # ONCE per value: the script chain re-initializes the same vars many times, and
+    # re-setting the identical value must stay silent (no log flooding).
+    local prev_val=""
+    [ -f "$file_path" ] && prev_val="$($USE_SUDO cat "$file_path" 2>/dev/null || cat "$file_path" 2>/dev/null)"
+
     # Write value to file
     if echo "$val" | $USE_SUDO tee "$file_path" >/dev/null; then
         # World-writable so a DIFFERENT user can later overwrite this shared var
         # (the dir is 1777, but a root-written 0644 file would block other users).
         $USE_SUDO chmod 666 "$file_path" 2>/dev/null || chmod 666 "$file_path" 2>/dev/null || true
-        if [[ "$print" != "false" ]]; then
+        if [[ "$print" != "false" ]] && [ "$prev_val" != "$val" ]; then
             echo "Successfully set global variable: $key -> $val"
         fi
         return 0
