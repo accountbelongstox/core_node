@@ -21,7 +21,7 @@ source "$COMMON_DIR/common_functions.sh"
 # Every step is idempotent: components that are absent are detected and skipped.
 
 # Variable Declarations (declared at top per project rules)
-SCRIPT_INDEX="3"
+SCRIPT_INDEX="1"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"

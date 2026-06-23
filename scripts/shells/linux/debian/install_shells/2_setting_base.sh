@@ -35,6 +35,8 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 # Mount library: single fstab entry per UUID, real-time remount
 source "$PARENT_DIR_LEVEL_2/common/mount_common.sh"
+# Repository manager (merged from former 12_update.sh: repo repair + management).
+source "$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
 MOUNT_LOG_PREFIX="[2]"
 
 # Default mount base directory
@@ -1159,6 +1161,120 @@ configure_desktop_power_policy() {
 }
 
 # =============================================================================
+# Sudo + system update/init (merged from former 11_install_sudo.sh / 12_update.sh)
+# =============================================================================
+
+# Ensure sudo is installed and the invoking user is in the sudo group (was 11).
+ensure_sudo_installed() {
+    local current_user distro
+    current_user=${USER:-$(whoami)}
+    distro=$(lsb_release -is 2>/dev/null || echo "Unknown")
+    log "Ensuring sudo is installed for $distro..."
+
+    if [ "$(id -u)" -ne 0 ] && [ -z "$USE_SUDO" ]; then
+        error "This step needs root/sudo to install sudo; skipping."
+        return 1
+    fi
+
+    if command -v sudo >/dev/null 2>&1; then
+        info "sudo is already installed."
+    else
+        info "Installing sudo package..."
+        if [ "$(id -u)" -eq 0 ]; then
+            apt-get update || true
+            apt-get install -y sudo || { error "Failed to install sudo package."; return 1; }
+        else
+            $USE_SUDO apt-get update || true
+            $USE_SUDO apt-get install -y sudo || { error "Failed to install sudo package."; return 1; }
+        fi
+        log "sudo installed successfully."
+    fi
+
+    if ! getent group sudo >/dev/null 2>&1; then
+        info "Creating sudo group..."
+        if [ "$(id -u)" -eq 0 ]; then groupadd sudo || true; else $USE_SUDO groupadd sudo || true; fi
+    fi
+
+    if [ -n "$current_user" ] && [ "$current_user" != "root" ]; then
+        if id -nG "$current_user" | grep -qw "sudo"; then
+            info "User $current_user is already in the sudo group."
+        else
+            info "Adding user $current_user to sudo group..."
+            if [ "$(id -u)" -eq 0 ]; then
+                usermod -aG sudo "$current_user" && info "User $current_user added (re-login for effect)." || warning "Failed to add $current_user to sudo group."
+            else
+                $USE_SUDO usermod -aG sudo "$current_user" && info "User $current_user added (re-login for effect)." || warning "Failed to add $current_user to sudo group."
+            fi
+        fi
+    else
+        info "Running as root user, no need to add to sudo group."
+    fi
+
+    log "Sudo installation and configuration completed."
+    return 0
+}
+
+# Initialize core_node shared directories (was 12).
+initialize_core_node_directories() {
+    echo "Initializing core_node shared directories..."
+    local CORE_NODE_BASE="${CORE_NODE_DATA_DIR}"
+    local SHARED_DOWNLOADS="${CORE_NODE_SHARED_DOWNLOADS}"
+    echo "[SAFE_PATH] CORE_NODE_BASE=$CORE_NODE_BASE SHARED_DOWNLOADS=$SHARED_DOWNLOADS"
+    _safe_dir() {
+        local d="$1"
+        [ -z "$d" ] && return 1
+        [[ "$d" != /* ]] && return 1
+        case "$d" in
+            /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*) return 1 ;;
+            /var) return 1 ;;
+            *) return 0 ;;
+        esac
+    }
+    if _safe_dir "$CORE_NODE_BASE" && $USE_SUDO mkdir -p "$CORE_NODE_BASE" 2>/dev/null; then
+        $USE_SUDO chmod 777 "$CORE_NODE_BASE" 2>/dev/null || true
+        echo "Created base directory: $CORE_NODE_BASE"
+    else
+        echo "[SKIP] Refusing chmod on system or invalid path: $CORE_NODE_BASE"
+    fi
+    if _safe_dir "$SHARED_DOWNLOADS" && $USE_SUDO mkdir -p "$SHARED_DOWNLOADS" 2>/dev/null; then
+        $USE_SUDO chmod 777 "$SHARED_DOWNLOADS" 2>/dev/null || true
+        echo "Created shared downloads directory: $SHARED_DOWNLOADS"
+    else
+        echo "[SKIP] Refusing chmod on system or invalid path: $SHARED_DOWNLOADS"
+    fi
+}
+
+# Install essential packages and configure Git (was 12).
+install_packages_and_configure_git() {
+    echo "Installing essential packages..."
+    $USE_SUDO apt install -y lsof cron curl vim git build-essential rsync htop \
+        nano wget openssl libssl-dev zlib1g-dev libbz2-dev \
+        libreadline-dev libsqlite3-dev llvm libncurses5-dev libncursesw5-dev \
+        xz-utils tk-dev libffi-dev liblzma-dev make software-properties-common \
+        cron dnsutils libvips-dev cpulimit expect tar gzip procps || true
+    git config --global http.sslVerify "false" || true
+    git config --global user.name "prop-dev" || true
+    git config --global user.email "prop-dev@serve.com" || true
+    echo "Essential packages installed."
+}
+
+# Fix temporary directory permissions (was 12).
+fix_temp_permissions() {
+    echo "Fixing temporary directory permissions..."
+    $USE_SUDO chmod 1777 /tmp || true
+    $USE_SUDO chown root:root /tmp || true
+    $USE_SUDO mkdir -p /var/cache/apt/archives/partial || true
+    $USE_SUDO mkdir -p /var/lib/apt/lists/partial || true
+    $USE_SUDO mkdir -p /var/log/apt || true
+    $USE_SUDO chmod 755 /var/cache/apt/archives/partial || true
+    $USE_SUDO chmod 755 /var/lib/apt/lists/partial || true
+    $USE_SUDO chmod 755 /var/log/apt || true
+    $USE_SUDO rm -f /tmp/apt.conf.* 2>/dev/null || true
+    $USE_SUDO rm -f /tmp/apt-key.* 2>/dev/null || true
+    echo "Temporary directory permissions fixed"
+}
+
+# =============================================================================
 # Main Function
 # =============================================================================
 
@@ -1173,6 +1289,30 @@ main() {
     fi
 
     log "Starting base system setup..."
+
+    # Step 0: ensure sudo is installed (merged from former 11_install_sudo.sh).
+    ensure_sudo_installed || warning "sudo setup incomplete (continuing base setup)"
+
+    # Step 0b: system update + initialization (merged from former 12_update.sh).
+    # Run with `set +e` so a failing apt/git/repo step never aborts the base setup.
+    log "System update and initialization (merged from former 12_update.sh)..."
+    set +e
+    initialize_core_node_directories
+    fix_temp_permissions
+    if command -v repair_repositories_from_apt_repository_manager >/dev/null 2>&1; then
+        echo "=== Repository Repair and Verification ==="
+        repair_repositories_from_apt_repository_manager
+        verify_repository_health_from_apt_repository_manager
+    fi
+    if command -v manage_repositories_from_apt_repository_manager >/dev/null 2>&1; then
+        manage_repositories_from_apt_repository_manager
+    fi
+    $USE_SUDO apt update 2>/dev/null || $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || true
+    install_packages_and_configure_git
+    $USE_SUDO sysctl fs.inotify.max_user_watches=524288 2>/dev/null || true
+    $USE_SUDO sysctl -p 2>/dev/null || true
+    $USE_SUDO rm -rf /tmp/apt.* /tmp/apt-key.* 2>/dev/null || true
+    set -e
 
     # Step 1: Disk detection and mount management
     log "Step 1: Disk detection and mount management"
