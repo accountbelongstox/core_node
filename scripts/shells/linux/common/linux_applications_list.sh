@@ -345,8 +345,11 @@ APP_PACKAGE_LIST=(
     "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop"
 )
 
+# NOTE: "claude" is intentionally NOT installed here. Claude Code is installed by
+# the dedicated install_shells/129_install_claude_code.sh step (official native
+# installer), the single source of truth shared with the dd.sh AI workflow.
 AI_PACKAGE_LIST=(
-    "gemini" "claude" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"
+    "gemini" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"
 )
 
 MCP_PACKAGE_LIST=(
