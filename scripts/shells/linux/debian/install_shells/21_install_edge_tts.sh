@@ -11,6 +11,16 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+
+# Source global variables (COMPILE_DIR) then the shared venv resolver, so package
+# installs land in the project venv ("$COMPILE_DIR/python3_venv") built by
+# 13_ensure_python.sh instead of the externally-managed system python.
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
+
 # Single source of truth for the edge-tts prerequisite (DEFAULT text-to-speech
 # engine for the pycore voice-subtitle pipeline) on Linux/macOS. Prefix 21 sorts
 # AFTER 13_ensure_python.sh in install.sh's numeric-ordered run, so pip is ready.
@@ -29,7 +39,10 @@
 set -uo pipefail
 
 # Declare all variables at the beginning
-PYTHON="python3"
+# Default to the shared project venv interpreter (13_ensure_python.sh); --python
+# overrides it for the pyservice flow. venv_python_from_common falls back to
+# /usr/local/bin/python then system python3 when the venv is not yet built.
+PYTHON="$(venv_python_from_common)"
 FORCE=0
 MIN_VERSION="7.2.4"
 CURRENT_VERSION=""
@@ -47,6 +60,7 @@ done
 resolve_python() {
     local preferred="$1"
     if [[ -n "$preferred" ]] && command -v "$preferred" >/dev/null 2>&1; then
+        echo "[run] $preferred -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)'" >&2
         if "$preferred" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
             command -v "$preferred"; return 0
         fi
@@ -54,6 +68,7 @@ resolve_python() {
     local name
     for name in python3 python; do
         if command -v "$name" >/dev/null 2>&1; then
+            echo "[run] $name -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)'" >&2
             if "$name" -c 'import sys; sys.exit(0 if sys.version_info[0]==3 else 1)' >/dev/null 2>&1; then
                 command -v "$name"; return 0
             fi
@@ -64,6 +79,7 @@ resolve_python() {
 
 # Installed edge_tts version, or empty when not importable.
 edge_tts_version() {
+    echo "[run] $PYTHON -c \"import edge_tts,sys; sys.stdout.write(getattr(edge_tts,'__version__',''))\"" >&2
     "$PYTHON" -c "import edge_tts,sys; sys.stdout.write(getattr(edge_tts,'__version__',''))" 2>/dev/null
 }
 
@@ -97,11 +113,12 @@ fi
 echo "[..] pip install --upgrade edge-tts ..."
 PIP_ARGS=(--upgrade edge-tts)
 [[ "$FORCE" -eq 1 ]] && PIP_ARGS+=(--force-reinstall)
-if [[ "$(uname -s)" != "Darwin" ]]; then PIP_ARGS=(--break-system-packages "${PIP_ARGS[@]}"); fi
-# Print the exact command-string before running it (traceability).
-echo "[21] $PYTHON -m pip install ${PIP_ARGS[*]}"
+# Install into the project venv ($PYTHON resolves to "$COMPILE_DIR/python3_venv");
+# no PEP668 escape flags (--break-system-packages/--no-user) -- the venv is not
+# externally managed, and those flags scatter packages to ~/.local / system.
+echo "[run] $PYTHON -m pip install ${PIP_ARGS[*]}"
 if ! "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
-    echo "[21] $PYTHON -m pip install --upgrade edge-tts"
+    echo "[run] $PYTHON -m pip install --upgrade edge-tts"
     if ! "$PYTHON" -m pip install --upgrade edge-tts; then
         echo "[!] edge-tts install did not complete cleanly; pycore will install it at import time."
         exit 0

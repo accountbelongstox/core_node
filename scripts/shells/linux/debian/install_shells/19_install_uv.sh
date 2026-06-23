@@ -29,15 +29,46 @@ echo "[$SCRIPT_INDEX] Features: Fast Python package management, Cross-platform c
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+# Source shared venv resolution (exports VENV_DIR / VENV_PYTHON3 / VENV_PIP3 and
+# helpers) so uv targets the shared venv built by 13_ensure_python.sh.
+source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Source shared Python setup function
 source "$PARENT_DIR_LEVEL_1/debian_com/shared_python_setup.sh"
 
+# Source real-user helpers (get_real_user / get_real_user_home)
+source "$PARENT_DIR_LEVEL_2/common/get_real_user.sh"
+
+# Determine the real (non-root) user, if any. On root-only systems (e.g. Kali
+# default) REAL_USER may be empty or "root"; in that case dropping privileges is
+# wrong/impossible, so we fall back to $USE_SUDO (empty when already root).
+REAL_USER="$(get_real_user 2>/dev/null || echo "")"
+REAL_USER_HOME="$(get_real_user_home 2>/dev/null || echo "")"
+if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ] && id "$REAL_USER" >/dev/null 2>&1; then
+    HAS_REAL_USER=true
+else
+    HAS_REAL_USER=false
+fi
+
+# Run a command as the real (non-root) user when one exists; otherwise run it
+# with the normal privilege escalation ($USE_SUDO), which on sudo-less root is
+# empty. HOME is set so uv writes caches/venvs under the real user's home.
+run_as_real_user() {
+    if [ "$HAS_REAL_USER" = true ] && command -v sudo >/dev/null 2>&1; then
+        sudo -u "$REAL_USER" HOME="$REAL_USER_HOME" "$@"
+    else
+        $USE_SUDO "$@"
+    fi
+}
+
 # Set UV installation directories from COMPILE_DIR
 UV_INSTALL_DIR="$COMPILE_DIR/uv_bin"
 UV_BINARY="$UV_INSTALL_DIR/uv"
-UV_DEFAULT_VENV_DIR="$COMPILE_DIR/uv_default_venv"
+# Reuse the SHARED venv built by 13_ensure_python.sh ($COMPILE_DIR/python3_venv,
+# exported as VENV_DIR by venv_python_common.sh) instead of forking a separate
+# uv_default_venv, so uv installs land in the project interpreter.
+UV_DEFAULT_VENV_DIR="$VENV_DIR"
 
 echo "[$SCRIPT_INDEX] COMPILE_DIR: $COMPILE_DIR"
 echo "[$SCRIPT_INDEX] UV_INSTALL_DIR: $UV_INSTALL_DIR"
@@ -56,6 +87,7 @@ check_uv_installed() {
     if [ -f "$UV_BINARY" ] && [ -x "$UV_BINARY" ]; then
         echo "[$SCRIPT_INDEX] Found UV binary at: $UV_BINARY"
         # Test if it actually works
+        echo "[$SCRIPT_INDEX] timeout 10 $UV_BINARY --version"
         if timeout 10 "$UV_BINARY" --version >/dev/null 2>&1; then
             echo "[$SCRIPT_INDEX] UV binary is functional"
             return 0
@@ -85,12 +117,14 @@ install_uv() {
             echo "[$SCRIPT_INDEX] [WARNING] Python3 installation failed, but UV might still work"
         fi
     else
+        echo "[$SCRIPT_INDEX] python3 --version" >&2
         echo "[$SCRIPT_INDEX] Python3 is available: $(python3 --version 2>/dev/null || echo 'Unknown version')"
     fi
 
     # Check if uv is already installed in shared location
     if check_uv_installed; then
         echo "[$SCRIPT_INDEX] [OK] UV is already installed at: $UV_BINARY"
+        echo "[$SCRIPT_INDEX] $UV_BINARY --version" >&2
         echo "[$SCRIPT_INDEX] Version: $("$UV_BINARY" --version 2>/dev/null || echo 'Unknown')"
 
         # Ensure symlinks and environment are still properly set up
@@ -113,6 +147,7 @@ install_uv() {
 
     # Install uv to temporary location first
     echo "[$SCRIPT_INDEX] Downloading and installing UV from official source..."
+    echo "[$SCRIPT_INDEX] CARGO_HOME=$temp_install_dir timeout 300 curl -LsSf https://astral.sh/uv/install.sh | timeout 300 sh -s -- --no-modify-path"
     if CARGO_HOME="$temp_install_dir" timeout 300 curl -LsSf https://astral.sh/uv/install.sh | timeout 300 sh -s -- --no-modify-path; then
         echo "[$SCRIPT_INDEX] [OK] UV downloaded successfully"
 
@@ -135,9 +170,22 @@ install_uv() {
             # Clean up temp directory
             rm -rf "$temp_install_dir"
 
+            # Clean up any stray uv/uvx binaries the installer dropped into the
+            # invoking user's home (we keep only the shared $UV_BINARY copy).
+            for stray_dir in "$HOME/.local/bin" "$HOME/.cargo/bin" "$REAL_USER_HOME/.local/bin" "$REAL_USER_HOME/.cargo/bin"; do
+                [ -n "$stray_dir" ] || continue
+                for stray_bin in "$stray_dir/uv" "$stray_dir/uvx"; do
+                    if [ -e "$stray_bin" ]; then
+                        echo "[$SCRIPT_INDEX] Removing stray binary: $stray_bin"
+                        rm -f "$stray_bin" 2>/dev/null || $USE_SUDO rm -f "$stray_bin" 2>/dev/null || true
+                    fi
+                done
+            done
+
             # Verify installation
             if check_uv_installed; then
                 echo "[$SCRIPT_INDEX] [OK] UV installation verified"
+                echo "[$SCRIPT_INDEX] $UV_BINARY --version" >&2
                 echo "[$SCRIPT_INDEX] UV version: $("$UV_BINARY" --version)"
                 # Add to shell profile for persistent PATH and create symlinks
                 add_uv_to_path
@@ -250,8 +298,19 @@ EOF
 create_uv_default_venv() {
     echo "[$SCRIPT_INDEX] Setting up default UV virtual environment..."
 
-    # Check if uv is available
-    if ! command_exists uv; then
+    # Check if uv is available. Do not rely on 'uv' being on PATH in the current
+    # shell (it may not be on a freshly-provisioned sudo host); use the known
+    # shared binary, falling back to /usr/local/bin/uv or PATH lookup.
+    local uv_cmd=""
+    if [ -x "$UV_BINARY" ]; then
+        uv_cmd="$UV_BINARY"
+    elif [ -x "/usr/local/bin/uv" ]; then
+        uv_cmd="/usr/local/bin/uv"
+    elif command_exists uv; then
+        uv_cmd="$(command -v uv)"
+    fi
+
+    if [ -z "$uv_cmd" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] UV not found, cannot create default venv"
         return 1
     fi
@@ -263,27 +322,36 @@ create_uv_default_venv() {
         $USE_SUDO chmod 755 "$COMPILE_DIR"
     fi
 
-    # Create venv if it doesn't exist
+    # Reuse the SHARED venv built by 13_ensure_python.sh. Only create it here as
+    # a fallback when 13 has not run yet (the shared venv is missing).
     if [ ! -d "$UV_DEFAULT_VENV_DIR" ]; then
-        echo "[$SCRIPT_INDEX] Creating default UV venv: $UV_DEFAULT_VENV_DIR"
-        if uv venv "$UV_DEFAULT_VENV_DIR"; then
-            echo "[$SCRIPT_INDEX] Default UV venv created successfully"
+        echo "[$SCRIPT_INDEX] Shared venv missing, creating it with UV: $UV_DEFAULT_VENV_DIR"
+        # Ensure the parent dir is owned by the real user so the venv is not
+        # left root-owned (and so 'uv venv' can write without sudo when a real
+        # user exists). Pre-create the venv dir and hand it to the real user.
+        $USE_SUDO mkdir -p "$UV_DEFAULT_VENV_DIR"
+        if [ "$HAS_REAL_USER" = true ]; then
+            $USE_SUDO chown "$REAL_USER:$(id -gn "$REAL_USER" 2>/dev/null || echo "$REAL_USER")" "$UV_DEFAULT_VENV_DIR" 2>/dev/null || true
+        fi
+        echo "[$SCRIPT_INDEX] $uv_cmd venv $UV_DEFAULT_VENV_DIR"
+        if run_as_real_user "$uv_cmd" venv "$UV_DEFAULT_VENV_DIR"; then
+            echo "[$SCRIPT_INDEX] Shared venv created successfully"
         else
-            echo "[$SCRIPT_INDEX] [ERROR] Failed to create default UV venv"
+            echo "[$SCRIPT_INDEX] [ERROR] Failed to create shared venv"
             return 1
         fi
     else
-        echo "[$SCRIPT_INDEX] Default UV venv already exists: $UV_DEFAULT_VENV_DIR"
+        echo "[$SCRIPT_INDEX] Reusing existing shared venv: $UV_DEFAULT_VENV_DIR"
     fi
 
-    # Set UV_PROJECT_ENVIRONMENT to point to default venv
+    # Set UV_PROJECT_ENVIRONMENT to point to the SHARED venv ($COMPILE_DIR/python3_venv)
     set_env_and_var "UV_PROJECT_ENVIRONMENT" "$UV_DEFAULT_VENV_DIR"
 UV_PROJECT_ENVIRONMENT="$UV_DEFAULT_VENV_DIR"
 
     # Store in global variables for other scripts
     set_var "UV_DEFAULT_VENV" "$UV_DEFAULT_VENV_DIR"
 
-    echo "[$SCRIPT_INDEX] Default UV venv configured"
+    echo "[$SCRIPT_INDEX] Shared UV venv configured"
     echo "[$SCRIPT_INDEX]   Location: $UV_DEFAULT_VENV_DIR"
     echo "[$SCRIPT_INDEX]   UV_PROJECT_ENVIRONMENT set to: $UV_DEFAULT_VENV_DIR"
     echo "[$SCRIPT_INDEX]   You can now run 'uv pip install <package>' without activating a venv"
@@ -301,6 +369,7 @@ test_uv_installation() {
 
     echo "[$SCRIPT_INDEX] Testing UV binary: $UV_BINARY"
 
+    echo "[$SCRIPT_INDEX] timeout 10 $UV_BINARY --version"
     if timeout 10 "$UV_BINARY" --version >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] [OK] UV version check passed"
     else
@@ -309,6 +378,7 @@ test_uv_installation() {
     fi
 
     # Test uv tool functionality (use simpler command for testing)
+    echo "[$SCRIPT_INDEX] timeout 10 $UV_BINARY --help"
     if timeout 10 "$UV_BINARY" --help >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] [OK] UV help command test passed"
     else
@@ -317,6 +387,7 @@ test_uv_installation() {
     fi
 
     # Try tool list command (may fail if no tools installed yet, but that's OK)
+    echo "[$SCRIPT_INDEX] timeout 10 $UV_BINARY tool list"
     if timeout 10 "$UV_BINARY" tool list >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] [OK] UV tool functionality test passed"
     else
@@ -332,14 +403,15 @@ display_uv_info() {
     echo "[$SCRIPT_INDEX] === UV Information ==="
 
     if [ -f "$UV_BINARY" ]; then
+        echo "[$SCRIPT_INDEX] $UV_BINARY --version" >&2
         echo "[$SCRIPT_INDEX] Version: $("$UV_BINARY" --version 2>/dev/null || echo 'Unknown')"
         echo "[$SCRIPT_INDEX] Binary location: $UV_BINARY"
         echo "[$SCRIPT_INDEX] Symlink: /usr/local/bin/uv -> $UV_BINARY"
         echo "[$SCRIPT_INDEX] Config: $HOME/.config/uv/uv.toml"
 
-        # Display default venv info
+        # Display shared venv info
         if [ -d "$UV_DEFAULT_VENV_DIR" ]; then
-            echo "[$SCRIPT_INDEX] Default venv: $UV_DEFAULT_VENV_DIR"
+            echo "[$SCRIPT_INDEX] Shared venv: $UV_DEFAULT_VENV_DIR"
             echo "[$SCRIPT_INDEX] UV_PROJECT_ENVIRONMENT: $UV_DEFAULT_VENV_DIR"
         fi
 
@@ -362,6 +434,7 @@ display_uv_info() {
 
         # Set global variable for other scripts
         set_var "UV_AVAILABLE" "true"
+        echo "[$SCRIPT_INDEX] $UV_BINARY --version | cut -d' ' -f2" >&2
         set_var "UV_VERSION" "$("$UV_BINARY" --version 2>/dev/null | cut -d' ' -f2 || echo 'unknown')"
     else
         echo "[$SCRIPT_INDEX] [ERROR] UV binary not found for information display"
