@@ -33,6 +33,14 @@ from pathlib import Path
 from typing import List
 
 from pycore.pyfoundations.system_paths import get_app_data_dir
+from pycore.callmodule.platform.autostart_target import (
+    VALID_TARGETS,
+    VALID_MECHANISMS,
+    normalize_target,
+    normalize_mechanism,
+    read_preference,
+    write_preference,
+)
 
 
 def _ps_single_quote(value: str) -> str:
@@ -43,9 +51,13 @@ def _ps_single_quote(value: str) -> str:
 class WindowsStartupManager:
     """Auto-start via a fixed regenerated .ps1 + a .lnk in the common Startup folder."""
 
-    def __init__(self, app_name: str = "PyCore_RPC_Server"):
+    def __init__(self, app_name: str = "PyCore_RPC_Server", target=None):
         self.app_name = app_name
         self.shortcut_name = f"{app_name}.lnk"
+
+        # Resolve target: explicit arg > persisted preference > default.
+        self.target = normalize_target(
+            target if target is not None else read_preference()["target"])
 
         # Common (All Users) Startup folder - preferred, system-wide location.
         program_data = os.environ.get('PROGRAMDATA', r'C:\ProgramData')
@@ -114,41 +126,73 @@ class WindowsStartupManager:
         return [self.common_shortcut, self.user_shortcut]
 
     # ----- PS1 launcher script -------------------------------------------- #
-    def _generate_ps1(self) -> str:
-        """Build the PowerShell launcher content (absolute paths, current config)."""
-        header = (
-            "# PyCore RPC Server - auto-start launcher\n"
-            "# AUTO-GENERATED: regenerated on every enable() and on every service start\n"
-            "# (reflects current config).\n"
-        )
+    def _pyservice_ps1(self) -> str:
+        """PowerShell lines that start the full pycore RPC stack (inline).
+
+        Prefers pyservice.ps1 (UI dev server + worker, invoked inline with & so
+        this hidden PowerShell stays the service host); falls back to launching
+        the bare worker (pythonw + pycore_module_caller.py) when pyservice.ps1
+        cannot be found.
+        """
         if self.pyservice_script.exists():
-            # Boot runs the SAME entry point as a manual run: pyservice.ps1 starts
-            # the unified dashboard UI dev server (pycore_laravel_wordflow_ui, exported as
-            # PYCORE_UI_URL) and then the worker; its finally-block tears the UI
-            # server down with the worker. -NoInstall skips the heavy prerequisite
-            # step at boot (the machine was provisioned when auto-start was set up).
-            # Invoked inline (&, not Start-Process) so this hidden PowerShell stays
-            # the service host and pyservice's UI teardown keeps working.
             script = _ps_single_quote(str(self.pyservice_script))
             workdir = _ps_single_quote(str(self.pyservice_script.parent))
             return (
-                header
-                + "$ErrorActionPreference = 'SilentlyContinue'\n"
-                + f"Set-Location -LiteralPath {workdir}\n"
-                + f"& {script} -NoInstall\n"
+                f"Set-Location -LiteralPath {workdir}\n"
+                f"& {script} -NoInstall\n"
             )
-        # Fallback (pyservice.ps1 not found, e.g. installed layout): bare worker
-        # only — the PySide6 webview then uses the legacy /web/subtitle page.
         pythonw = _ps_single_quote(str(self.pythonw_exe))
         workdir = _ps_single_quote(str(self.launcher_script.parent))
         # ArgumentList: a single-quoted PS string containing the double-quoted .py path.
         arglist = "'" + '"' + str(self.launcher_script).replace("'", "''") + '"' + "'"
         return (
-            header
-            + "$ErrorActionPreference = 'SilentlyContinue'\n"
-            + f"Start-Process -FilePath {pythonw} -ArgumentList {arglist} "
-            + f"-WorkingDirectory {workdir} -WindowStyle Hidden\n"
+            f"Start-Process -FilePath {pythonw} -ArgumentList {arglist} "
+            f"-WorkingDirectory {workdir} -WindowStyle Hidden\n"
         )
+
+    def _launcher_ps1(self, inline: bool = True) -> str:
+        """PowerShell lines that start the multi-terminal grid launcher.
+
+        ``inline`` (& from the repo root) keeps this PowerShell as the foreground
+        host; when False the launcher is started detached with Start-Process so a
+        preceding pyservice piece can stay running ("both" target).
+        """
+        python = _ps_single_quote(str(self.python_exe))
+        repo_root = _ps_single_quote(str(self.pyservice_script.parent))  # repo root; pycore importable here
+        if inline:
+            return (
+                f"Set-Location -LiteralPath {repo_root}\n"
+                f"& {python} -m pycore.pyutils.launcher --no-pause\n"
+            )
+        arglist = "'-m','pycore.pyutils.launcher','--no-pause'"
+        return (
+            f"Start-Process -FilePath {python} -ArgumentList {arglist} "
+            f"-WorkingDirectory {repo_root} -WindowStyle Hidden\n"
+        )
+
+    def _generate_ps1(self) -> str:
+        """Build the PowerShell launcher content per self.target (absolute paths)."""
+        header = (
+            "# PyCore RPC Server - auto-start launcher\n"
+            "# AUTO-GENERATED: regenerated on every enable() and on every service start\n"
+            "# (reflects current config).\n"
+        )
+        body = "$ErrorActionPreference = 'SilentlyContinue'\n"
+        if self.target == "launcher":
+            body += self._launcher_ps1(inline=True)
+        elif self.target == "both":
+            # Start pyservice detached, then run the launcher inline (foreground).
+            pyservice_inline = self._pyservice_ps1()
+            body += (
+                "Start-Process -FilePath powershell -ArgumentList "
+                "'-NoProfile','-WindowStyle','Hidden','-Command',"
+                + _ps_single_quote(pyservice_inline)
+                + "\n"
+            )
+            body += self._launcher_ps1(inline=True)
+        else:
+            body += self._pyservice_ps1()
+        return header + body
 
     def _write_ps1(self) -> None:
         """(Re)write the fixed PS1 launcher with current config."""
@@ -230,6 +274,9 @@ class WindowsStartupManager:
             return {"success": False, "enabled": self.is_enabled(),
                     "message": f"Failed to write launcher script: {e}", "error": str(e)}
 
+        # Persist the chosen target so refresh()/status recover it later.
+        write_preference(self.target)
+
         last_error = None
         for lnk, scope in ((self.common_shortcut, "all-users"),
                            (self.user_shortcut, "current-user")):
@@ -292,6 +339,10 @@ class WindowsStartupManager:
             "enabled": self.is_enabled(),
             "platform": "windows",
             "supported": True,
+            "target": self.target,
+            "targets": list(VALID_TARGETS),
+            "mechanism": "windows",
+            "mechanisms": ["windows"],
             "scope": "all-users" if self.common_shortcut.exists() else (
                 "current-user" if self.user_shortcut.exists() else "all-users"),
             "location": str(self.common_shortcut if self.common_shortcut.exists()
