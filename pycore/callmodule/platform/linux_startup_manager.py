@@ -32,12 +32,20 @@ from pathlib import Path
 from typing import List
 
 from pycore.pyfoundations.system_paths import get_app_data_dir
+from pycore.callmodule.platform.autostart_target import (
+    VALID_TARGETS,
+    VALID_MECHANISMS,
+    normalize_target,
+    normalize_mechanism,
+    read_preference,
+    write_preference,
+)
 
 
 class LinuxStartupManager:
     """Auto-start via a regenerated .sh + an XDG .desktop entry."""
 
-    def __init__(self, app_name: str = "PyCore_RPC_Server"):
+    def __init__(self, app_name: str = "PyCore_RPC_Server", target=None, mechanism=None):
         self.app_name = app_name
         self.entry_name = f"{app_name.lower().replace('_', '-')}.desktop"
 
@@ -55,6 +63,13 @@ class LinuxStartupManager:
         self.python_exe = sys.executable
         self.launcher_script = self._get_launcher_path()
         self.pyservice_script = self._get_pyservice_path()
+
+        # Resolve target/mechanism: explicit arg > persisted preference > default.
+        # The XDG manager always reports mechanism "xdg" (systemd is a sibling
+        # manager); only the TARGET (what to launch) is configurable here.
+        pref = read_preference()
+        self.target = normalize_target(target if target is not None else pref["target"])
+        self.mechanism = normalize_mechanism(mechanism if mechanism is not None else "xdg")
 
     # ----- path resolution ------------------------------------------------- #
     def _get_launcher_path(self) -> Path:
@@ -80,36 +95,47 @@ class LinuxStartupManager:
         return [self.system_entry, self.user_entry]
 
     # ----- launcher script + desktop entry -------------------------------- #
+    def _pyservice_run(self):
+        """(workdir, exec-command) that starts the full pycore RPC stack.
+
+        Prefers pyservice.sh (UI dev server + worker); falls back to the bare
+        worker (pycore_module_caller.py) when pyservice.sh cannot be found.
+        """
+        if self.pyservice_script.exists():
+            script = str(self.pyservice_script).replace('"', '\\"')
+            workdir = str(self.pyservice_script.parent).replace('"', '\\"')
+            return workdir, f'/usr/bin/env bash "{script}" run --no-install'
+        py = str(self.python_exe).replace('"', '\\"')
+        launcher = str(self.launcher_script).replace('"', '\\"')
+        workdir = str(self.launcher_script.parent).replace('"', '\\"')
+        return workdir, f'"{py}" "{launcher}"'
+
+    def _launcher_run(self):
+        """(workdir, exec-command) that starts the multi-terminal grid launcher."""
+        py = str(self.python_exe).replace('"', '\\"')
+        repo_root = str(self.pyservice_script.parent).replace('"', '\\"')  # repo root holds pyservice.sh; pycore importable here
+        # --mode windows => launcher.py headless option '1' (Window Layout ONLY). Without it,
+        # mode=None maps to option '3' (Both), so the "launcher" target would also start the
+        # pycore worker, and "both" would start it twice (pyservice.sh already backgrounds it).
+        return repo_root, f'"{py}" -m pycore.pyutils.launcher --mode windows --no-pause'
+
     def _generate_sh(self) -> str:
-        """Build the shell launcher content (absolute paths, current config)."""
+        """Build the shell launcher content per self.target (absolute paths, current config)."""
         header = (
             "#!/usr/bin/env bash\n"
             "# PyCore RPC Server - auto-start launcher\n"
             "# AUTO-GENERATED: regenerated on every enable() and on every service start\n"
             "# (reflects current config).\n"
         )
-        if self.pyservice_script.exists():
-            # Boot runs the SAME entry point as a manual run: pyservice.sh starts
-            # the unified dashboard UI dev server (pycore_laravel_wordflow_ui, exported as
-            # PYCORE_UI_URL) and then the worker. --no-install skips the heavy
-            # prerequisite step at boot.
-            script = str(self.pyservice_script).replace('"', '\\"')
-            workdir = str(self.pyservice_script.parent).replace('"', '\\"')
-            return (
-                header
-                + f'cd "{workdir}" 2>/dev/null\n'
-                + f'exec /usr/bin/env bash "{script}" run --no-install\n'
-            )
-        # Fallback (pyservice.sh not found): bare worker only — the PySide6
-        # webview then uses the legacy /web/subtitle page.
-        py = str(self.python_exe).replace('"', '\\"')
-        launcher = str(self.launcher_script).replace('"', '\\"')
-        workdir = str(self.launcher_script.parent).replace('"', '\\"')
-        return (
-            header
-            + f'cd "{workdir}" 2>/dev/null\n'
-            + f'exec "{py}" "{launcher}"\n'
-        )
+        pw, pc = self._pyservice_run()
+        lw, lc = self._launcher_run()
+        if self.target == "launcher":
+            body = f'cd "{lw}" 2>/dev/null\nexec {lc}\n'
+        elif self.target == "both":
+            body = f'( cd "{pw}" 2>/dev/null; exec {pc} ) &\ncd "{lw}" 2>/dev/null\nexec {lc}\n'
+        else:
+            body = f'cd "{pw}" 2>/dev/null\nexec {pc}\n'
+        return header + body
 
     def _write_sh(self) -> None:
         """(Re)write the fixed shell launcher with current config and make it executable."""
@@ -152,6 +178,20 @@ class LinuxStartupManager:
         except Exception as e:
             return {"success": False, "enabled": self.is_enabled(),
                     "message": f"Failed to write launcher script: {e}", "error": str(e)}
+
+        # Switching mechanism: remove any systemd --user unit so boot doesn't fire
+        # BOTH the .desktop entry and the systemd unit. Lazy import avoids a
+        # circular import (the systemd manager imports this module).
+        try:
+            from pycore.callmodule.platform.systemd_user_startup_manager import (
+                SystemdUserStartupManager)
+            SystemdUserStartupManager(self.app_name, target=self.target).disable()
+        except Exception:
+            pass
+
+        # Persist target AND mechanism so refresh()/status/get_startup_manager pick
+        # the XDG manager later -- not a stale systemd preference from a prior enable.
+        write_preference(self.target, mechanism="xdg")
 
         for entry, scope in ((self.system_entry, "all-users"),
                              (self.user_entry, "current-user")):
@@ -206,6 +246,10 @@ class LinuxStartupManager:
             "enabled": self.is_enabled(),
             "platform": "linux",
             "supported": True,
+            "target": self.target,
+            "targets": list(VALID_TARGETS),
+            "mechanism": self.mechanism,
+            "mechanisms": list(VALID_MECHANISMS),
             "scope": "all-users" if self.system_entry.exists() else (
                 "current-user" if self.user_entry.exists() else "all-users"),
             "location": str(self.system_entry if self.system_entry.exists()
