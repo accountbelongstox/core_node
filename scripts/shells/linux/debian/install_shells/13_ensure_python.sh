@@ -965,48 +965,43 @@ check_urllib3_for_certbot() {
     local current_version=$(python3 -c "import urllib3; print(urllib3.__version__)" 2>/dev/null || echo "not found")
     print_info_from_common_functions "Current urllib3 version: $current_version"
 
-    # Check if DEFAULT_CIPHERS is available (required by certbot 2.1.0)
-    if python3 -c "from urllib3.util.ssl_ import DEFAULT_CIPHERS" >/dev/null 2>&1; then
-        print_success_from_common_functions "urllib3 is compatible with certbot (has DEFAULT_CIPHERS)"
-
-        # Test certbot
-        if certbot plugins >/dev/null 2>&1; then
-            print_success_from_common_functions "certbot plugins command works correctly"
-            return 0
-        else
-            print_warning_from_common_functions "certbot has issues despite DEFAULT_CIPHERS present"
-        fi
-    else
-        print_warning_from_common_functions "urllib3 missing DEFAULT_CIPHERS - certbot will fail"
+    # Authoritative signal: does certbot actually RUN? On modern urllib3 (2.x -- shipped by
+    # current Debian/Kali) the old DEFAULT_CIPHERS constant was REMOVED, and modern certbot no
+    # longer needs it, so a missing DEFAULT_CIPHERS is NOT a failure by itself. Gate the
+    # destructive urllib3 repair behind this functional test so it runs ONLY when certbot is
+    # genuinely broken -- otherwise a healthy Kali box needlessly runs a system-side
+    # `pip uninstall` that aborts under PEP 668 (externally-managed-environment).
+    local default_ciphers="absent"
+    python3 -c "from urllib3.util.ssl_ import DEFAULT_CIPHERS" >/dev/null 2>&1 && default_ciphers="present"
+    if certbot plugins >/dev/null 2>&1; then
+        print_success_from_common_functions "certbot runs correctly (urllib3 $current_version, DEFAULT_CIPHERS $default_ciphers); no fix needed"
+        return 0
     fi
+    print_warning_from_common_functions "certbot is not working; attempting urllib3 repair..."
 
-    # Fix urllib3 if needed
+    # Repair urllib3 for certbot. certbot runs on the SYSTEM interpreter (/usr/bin/python3),
+    # so this is deliberately a system-side repair (NOT the venv). On an externally-managed
+    # system (Debian/Ubuntu/Kali, PEP 668) system-side pip aborts with
+    # "externally-managed-environment" unless given --break-system-packages -- the override the
+    # OS error message itself documents. Use the system interpreter explicitly, because after
+    # this script's symlinks run a bare `pip3`/`python3` may resolve to the venv.
     print_step_from_common_functions "Fixing urllib3 compatibility for certbot..."
-    print_info_from_common_functions "Installing urllib3 (pip will resolve version)..."
+    local sys_py3=/usr/bin/python3
+    [ -x "$sys_py3" ] || sys_py3="$(command -v python3)"
 
-    # Remove incompatible versions. NOTE: certbot runs on the SYSTEM interpreter
-    # (/usr/bin/python3), so its urllib3 must be repaired system-side, not in the
-    # venv -- keep this targeting the system pip3/python3 on purpose.
-    echo ">>> Uninstalling existing urllib3..."
-    echo "[13] $USE_SUDO pip3 uninstall -y urllib3"
-    $USE_SUDO pip3 uninstall -y urllib3 2>&1 || true
+    echo ">>> Uninstalling existing urllib3 (system-side)..."
+    echo "[13] $USE_SUDO $sys_py3 -m pip uninstall -y --break-system-packages urllib3"
+    $USE_SUDO "$sys_py3" -m pip uninstall -y --break-system-packages urllib3 2>&1 || true
 
-    # Install (no version pin; pip resolves)
-    echo ">>> Installing urllib3..."
-    run_pip_install_realtime "python3" "urllib3" "" || true
+    echo ">>> Installing urllib3 (system-side)..."
+    echo "[13] $USE_SUDO $sys_py3 -m pip install --break-system-packages --upgrade urllib3"
+    $USE_SUDO "$sys_py3" -m pip install --break-system-packages --upgrade urllib3 2>&1 || true
 
-    # Verify DEFAULT_CIPHERS
-    if python3 -c "from urllib3.util.ssl_ import DEFAULT_CIPHERS" >/dev/null 2>&1; then
-        print_success_from_common_functions "DEFAULT_CIPHERS verified"
-
-        # Test certbot
-        if certbot plugins >/dev/null 2>&1; then
-            print_success_from_common_functions "certbot compatibility fixed"
-        else
-            print_warning_from_common_functions "certbot still has issues, may need manual fix"
-        fi
+    # Re-test certbot functionally (DEFAULT_CIPHERS is irrelevant on modern urllib3).
+    if certbot plugins >/dev/null 2>&1; then
+        print_success_from_common_functions "certbot compatibility fixed"
     else
-        print_warning_from_common_functions "DEFAULT_CIPHERS still not available"
+        print_warning_from_common_functions "certbot still has issues, may need manual fix"
     fi
 
     return 0
