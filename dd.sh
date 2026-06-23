@@ -272,9 +272,25 @@ detect_system_version() {
             echo -e "\033[32mDebian $(echo $VERSION_ID) detected\033[0m"
             set_global_var "CURRENT_SYSTEM" "DEBIAN_$(echo $VERSION_ID | cut -d. -f1)" "false"
             ;;
+        kali)
+            SYSTEM_VERSION="kali_$(echo ${VERSION_ID:-0} | cut -d. -f1)"
+            SYSTEM_NAME="debian"
+            echo -e "\033[32mKali ${VERSION_ID:-rolling} detected - using Debian-compatible scripts\033[0m"
+            set_global_var "CURRENT_SYSTEM" "KALI_$(echo ${VERSION_ID:-0} | cut -d. -f1)" "false"
+            ;;
         *)
-            echo "Error: This script only supports Debian and Ubuntu systems"
-            exit 1
+            # Accept any other Debian-family derivative (ID_LIKE contains "debian"),
+            # e.g. Kali/Raspbian/Linux Mint Debian Edition, since they use apt + the
+            # Debian-compatible install scripts.
+            if echo " ${ID_LIKE:-} " | grep -q " debian "; then
+                SYSTEM_VERSION="${ID}_$(echo ${VERSION_ID:-0} | cut -d. -f1)"
+                SYSTEM_NAME="debian"
+                echo -e "\033[32m${ID} ${VERSION_ID:-} detected (Debian-compatible via ID_LIKE) - using Debian scripts\033[0m"
+                set_global_var "CURRENT_SYSTEM" "$(echo ${ID} | tr '[:lower:]' '[:upper:]')_$(echo ${VERSION_ID:-0} | cut -d. -f1)" "false"
+            else
+                echo "Error: This script only supports Debian, Ubuntu, and Kali (Debian-family) systems"
+                exit 1
+            fi
             ;;
     esac
 }
@@ -383,9 +399,14 @@ set_global_var() {
         $sudo mkdir -p "$GLOBAL_VAR_DIR"
     fi
 
+    # Announce only ONCE per value: re-setting the identical value (the script
+    # chain re-initializes many times) stays silent to avoid log flooding.
+    local prev_val=""
+    [ -f "$file_path" ] && prev_val="$($sudo cat "$file_path" 2>/dev/null || cat "$file_path" 2>/dev/null)"
+
     echo "$val" | $sudo tee "$file_path" >/dev/null
     if [[ $? -eq 0 ]]; then
-        if [[ "$print" != "false" ]]; then
+        if [[ "$print" != "false" ]] && [ "$prev_val" != "$val" ]; then
             echo "Successfully set global variable: $key -> $val"
         fi
         return 0
