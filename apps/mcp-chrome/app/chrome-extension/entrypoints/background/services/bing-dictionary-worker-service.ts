@@ -352,6 +352,9 @@ class BingDictionaryWorkerService {
       // dispatcher can route fast-tier translate work here.
       processor_types: ['remote_translation', 'remote_fast'] as ProcessorType[],
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
       // Advertise ONLY 'translate' (B18: bing is the sole translate owner on the
       // fast lane; WebAiTranslate owns ai_translate). 'image' is no longer in the
       // shared fast set (B17) — a Bing dictionary tab can scrape a word lookup but
@@ -361,6 +364,7 @@ class BingDictionaryWorkerService {
       // server-side, never by a Bing tab; ai_translate belongs only to the web-AI
       // worker.)
       capabilities: CHROME_FAST_CAPABILITIES,
+<<<<<<< HEAD
 =======
       // Advertise ONLY 'translate' (NOT 'image'): a Bing dictionary tab can scrape
       // a word lookup but cannot GENERATE an image, so the dispatcher must never
@@ -371,6 +375,8 @@ class BingDictionaryWorkerService {
       // by a Bing tab; ai_translate belongs only to the web-AI worker.)
       capabilities: CHROME_FAST_CAPABILITIES.filter((c) => c !== 'image'),
 >>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
       hostname: 'chrome-extension',
       platform: navigator.userAgent,
       metadata: {

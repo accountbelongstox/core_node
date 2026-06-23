@@ -306,6 +306,7 @@ enable_ibus_wubi() {
     fi
 }
 
+<<<<<<< HEAD
 # Install Chinese language support: a CJK font + the zh_CN.UTF-8 locale. The IME
 # packages (fcitx5-chinese-addons / ibus) pull NO CJK font, so without this Chinese
 # renders as tofu (boxes) even though typing works. Idempotent: apt skips installed
@@ -350,6 +351,8 @@ install_language_support() {
     fi
 }
 
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
 main() {
     print_step_from_common_functions "Starting $APP_NAME installation..."
     print_info_from_common_functions "Distro: ${OS_NAME:-unknown} ${OS_VERSION_ID:-} (ID=${OS_ID:-?})"
@@ -373,8 +376,11 @@ main() {
         enable_ibus_wubi
     fi
 
+<<<<<<< HEAD
     install_language_support
 
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
     echo ""
     print_success_from_common_functions "=========================================="
     print_success_from_common_functions "$APP_NAME Installation Completed"
@@ -389,7 +395,10 @@ main() {
         print_info_from_common_functions "Configure  : ibus-setup (add Wubi under Input Method if needed)"
     fi
     echo ""
+<<<<<<< HEAD
     print_info_from_common_functions "Language  : fonts-noto-cjk (CJK font) + zh_CN.UTF-8 locale installed"
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
     print_warning_from_common_functions "Log out and back in for the input method to take effect."
     print_info_from_common_functions "Toggle the IME with the framework hotkey (default: Ctrl+Space)."
     echo ""

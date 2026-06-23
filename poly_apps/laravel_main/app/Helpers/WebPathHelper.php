@@ -133,12 +133,16 @@ class WebPathHelper
     public static function mapWebPath(string $pathKey, string $subPath = ''): string
     {
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
         // ALIGNED: delegate to the single canonical resolver (App\Providers\PathMapper)
         // so this helper can never diverge. It previously had its OWN base list
         // (/mnt/d, /mnt/data, /usr, /mnt/dev_sdb3) with an isProduction->/www short-circuit
         // that could emit /usr/www and disagree with the shell + Python. PathMapper now
         // owns the persisted-base + disk-detection logic shared across sh/py/php.
         return \App\Providers\PathMapper::mapWebPath($pathKey, $subPath);
+<<<<<<< HEAD
 =======
         $mappedPath = '';
         $basePath = '';
@@ -209,6 +213,8 @@ class WebPathHelper
 
         return $mappedPath;
 >>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
     }
 
     /**

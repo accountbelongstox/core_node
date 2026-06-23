@@ -15,6 +15,9 @@
           <span v-if="isFast" class="tdm-badge tdm-badge-fast">⚡ FAST</span>
           <span v-if="aiTranslate" class="tdm-badge tdm-badge-ai">✨ AI Translate</span>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
           <!-- Jump-to-task-top: only for the privileged categories
                (translate/audio/image) and only while the task is still live. -->
           <button
@@ -26,8 +29,11 @@
           >
             {{ bumpLabel }}
           </button>
+<<<<<<< HEAD
 =======
 >>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
           <button class="tdm-close" @click="close" aria-label="Close">✕</button>
         </div>
       </header>
@@ -114,9 +120,13 @@ import {
 } from '../../composables/useTaskCenter';
 import { apiManager } from '@/services/ApiManager';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { WorkerApiClient, PRIORITY_FAST } from '@/entrypoints/background/api/WorkerApiClient';
 =======
 >>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
+=======
+import { WorkerApiClient, PRIORITY_FAST } from '@/entrypoints/background/api/WorkerApiClient';
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
 import {
   taskIcon,
   taskTypeLabel,
@@ -163,6 +173,9 @@ const isFast = computed(() =>
 );
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
 // ---- Jump-to-task-top (bump) ----------------------------------------------
 // Privileged categories that may be bumped to the fast lane: translate / audio /
 // image. Match on either capability or task_type so a row works whether or not
@@ -217,8 +230,11 @@ const bumpToTop = async (): Promise<void> => {
   }
 };
 
+<<<<<<< HEAD
 =======
 >>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
 // Provider surfaced from the result (provider or engine key).
 const providerValue = computed(() => {
   const r = task.value.result;
@@ -414,6 +430,9 @@ onUnmounted(() => {
 .tdm-badge-fast { background: var(--accent-soft); color: var(--accent-fg, var(--accent)); }
 .tdm-badge-ai { background: var(--surface); border: 1px solid var(--accent); color: var(--accent); }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
 .tdm-badge-bump {
   background: var(--accent);
   color: #fff;
@@ -422,8 +441,11 @@ onUnmounted(() => {
 }
 .tdm-badge-bump:hover:not(:disabled) { filter: brightness(1.08); }
 .tdm-badge-bump:disabled { opacity: 0.6; cursor: default; }
+<<<<<<< HEAD
 =======
 >>>>>>> c8692e2ea856c43604b88627fa8fceaf39d53b55
+=======
+>>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
 .tdm-close {
   border: none;
   background: transparent;
