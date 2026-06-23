@@ -40,6 +40,11 @@ TCG_CPU_INDEX_URL="https://download.pytorch.org/whl/cpu"
 _TCG_PIPLOCK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base_libs/pip_lock.sh"
 [ -f "$_TCG_PIPLOCK" ] && . "$_TCG_PIPLOCK"
 command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+# Driver-matched CUDA wheel index (single source of truth) so a GPU install never grabs the
+# default "latest" wheel (e.g. cu130) that a 12.4 driver can't run.
+_TCG_CUDAIDX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/base_libs/torch_cuda_index.sh"
+[ -f "$_TCG_CUDAIDX" ] && . "$_TCG_CUDAIDX"
+command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
 
 # Resolve a python interpreter (env/arg/python3/python). Echoes the path; 1 if none.
 tcg_resolve_python() {
@@ -106,7 +111,8 @@ tcg_ensure_torch_build() {
             # Ignoring installed packages makes pip drop the required mpmath into
             # /usr/local/.../dist-packages (which shadows the apt copy) without touching
             # the dpkg-owned files. Matches tcg_install_cpu_torch above.
-            vpip "$py" -m pip install --break-system-packages --no-user --ignore-installed torch torchvision torchaudio || true
+            vpip "$py" -m pip install --break-system-packages --no-user --ignore-installed \
+                --index-url "$(torch_cuda_index_url)" torch torchvision torchaudio || true
         else
             echo "[torch-guard] GPU present, torch state='${state:-absent}'; no change."
         fi
