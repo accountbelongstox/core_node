@@ -21,6 +21,9 @@ AIMCP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # core_node root: menu_func -> menu_itemshells -> linux -> shells -> scripts -> root
 AIMCP_CORE_NODE_DIR="$(cd "$AIMCP_DIR/../../../../.." && pwd)"
 AIMCP_SHTOOLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/ai_shtools"
+# Debian install_shells dir: the menu can call install scripts from here (e.g.
+# the dedicated Claude Code installer 129_install_claude_code.sh).
+AIMCP_INSTALL_SHELLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/shells/linux/debian/install_shells"
 # Canonical engine + status live in scripts/ai_shtools (shared with the main-menu
 # "Sync All MCP" action), so there is a single source of truth.
 # shellcheck source=/dev/null
@@ -54,10 +57,23 @@ aimcp_run_submenu() {
     fi
 }
 
+# Run an install script from scripts/shells/linux/debian/install_shells.
+aimcp_run_install_script() {
+    local script_name="$1" label="$2"
+    local script_path="$AIMCP_INSTALL_SHELLS_DIR/$script_name"
+    if [ -s "$script_path" ]; then
+        [ -x "$script_path" ] || chmod +x "$script_path" 2>/dev/null || true
+        bash "$script_path"
+    else
+        clear
+        echo "[INFO] $label not found at: $script_path"
+    fi
+}
+
 show_ai_mcp_management_menu() {
     local -a menu_items=(
         "header:== AI Management (per-tool env/command setup) =========="
-        "claude_env:  Claude AI env/command setup"
+        "claude_env:  Install Claude Code (native) + link all users + claudeteam"
         "droid_env:  Droid env/command setup"
         "openai_env:  OpenAI env/command setup"
         "header:== MCP: Inspect ========================================"
@@ -128,7 +144,7 @@ show_ai_mcp_management_menu() {
                 IFS=':' read -r action text <<< "${menu_items[$selected_index]}"
                 case "$action" in
                     header) ;;
-                    claude_env)       aimcp_run_submenu show_claude_submenu "Claude env setup" ;;
+                    claude_env)       clear; aimcp_run_install_script "129_install_claude_code.sh" "Claude Code installer"; aimcp_pause ;;
                     droid_env)        aimcp_run_submenu show_droid_submenu "Droid env setup" ;;
                     openai_env)       aimcp_run_submenu show_openai_submenu "OpenAI env setup" ;;
                     dryrun)           clear; mcp_show_planned; aimcp_pause ;;

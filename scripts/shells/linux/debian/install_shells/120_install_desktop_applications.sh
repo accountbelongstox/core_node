@@ -1149,8 +1149,10 @@ refresh_environment() {
     
     log_message "NPM global bin directory: $pnpm_global_bin/bin"
     
-    # Process all AI packages that use npm installation method
-    local npm_packages=("gemini" "claude" "codex" "auggie")
+    # Process all AI packages that use npm installation method.
+    # NOTE: "claude" is excluded here on purpose -- Claude Code is installed and
+    # linked by install_shells/129_install_claude_code.sh (native workflow).
+    local npm_packages=("gemini" "codex" "auggie")
     
     for package in "${npm_packages[@]}"; do
         local exec_name=$(get_app_property "$package" "exec")

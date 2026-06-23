@@ -12,11 +12,14 @@
 
 <#
 .SYNOPSIS
-    Launches Claude Code with experimental agent teams and teammate mode (in-process).
+    Launches Claude Code with multiple roles (experimental agent teams) and
+    ultracode enabled by default.
 
 .DESCRIPTION
-    Sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session, then runs:
-    claude --dangerously-skip-permissions --teammate-mode in-process
+    Sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
+    roles), then runs:
+    claude --settings '{"ultracode":true}' --dangerously-skip-permissions
+    The --settings flag turns on ultracode via inline JSON.
     Any script arguments are appended to that command line.
 
 .EXAMPLE
@@ -33,6 +36,7 @@ $scriptsDirPath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
+$ultraSettingsJson = $null
 $exitCode = 0
 $claudeInvokeDisplayArgs = $null
 
@@ -50,6 +54,10 @@ Set-CoreNodePaths
 
 $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 
+# Default-enable ultracode via inline JSON settings (compact; no spaces so
+# native-argument quoting stays safe).
+$ultraSettingsJson = '{"ultracode":true}'
+
 $claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
     [string]::Format(" {0}", ($args -join " "))
 } else {
@@ -60,8 +68,9 @@ Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "claudeteam.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session)" -ForegroundColor Green
-Write-Host "[INFO] Invoking: claude --dangerously-skip-permissions$claudeInvokeDisplayArgs" -ForegroundColor Green
+Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)" -ForegroundColor Green
+Write-Host "[INFO] Ultracode settings: --settings $ultraSettingsJson" -ForegroundColor Green
+Write-Host "[INFO] Invoking: claude --settings $ultraSettingsJson --dangerously-skip-permissions$claudeInvokeDisplayArgs" -ForegroundColor Green
 if ($args.Count -gt 0) {
     Write-Host "[INFO] Extra arguments ($($args.Count)): $($args -join ' ')" -ForegroundColor DarkGray
 } else {
@@ -70,8 +79,8 @@ if ($args.Count -gt 0) {
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# & claude --dangerously-skip-permissions --teammate-mode in-process @args
-& claude --dangerously-skip-permissions @args
+# & claude --settings $ultraSettingsJson --dangerously-skip-permissions --teammate-mode in-process @args
+& claude --settings $ultraSettingsJson --dangerously-skip-permissions @args
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0
