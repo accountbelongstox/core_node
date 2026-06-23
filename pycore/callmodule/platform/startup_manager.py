@@ -44,15 +44,28 @@ class _UnsupportedStartupManager:
                 "message": f"Auto-start is not supported on {self._system}."}
 
 
-def get_startup_manager(app_name: str = "PyCore_RPC_Server"):
-    """Return the native startup manager for the current OS."""
+def get_startup_manager(app_name: str = "PyCore_RPC_Server", target=None, mechanism=None):
+    """Return the native startup manager for the current OS.
+
+    ``target`` (pyservice/launcher/both) chooses WHAT auto-start launches;
+    ``mechanism`` (Linux only: xdg/systemd) chooses HOW it registers. When either
+    is omitted the persisted preference (target.json) supplies it, so callers like
+    ``refresh_startup_launcher`` (no args) recover the user's last choice.
+    """
     system = platform.system()
     if system == "Windows":
         from pycore.callmodule.platform.windows_startup_manager import WindowsStartupManager
-        return WindowsStartupManager(app_name)
+        return WindowsStartupManager(app_name, target=target)
     if system == "Linux":
+        from pycore.callmodule.platform.autostart_target import read_preference, normalize_mechanism
+        mech = normalize_mechanism(mechanism if mechanism is not None else read_preference()["mechanism"])
+        if mech == "systemd":
+            from pycore.callmodule.platform.systemd_user_startup_manager import SystemdUserStartupManager
+            mgr = SystemdUserStartupManager(app_name, target=target)
+            if mgr.is_supported():
+                return mgr
         from pycore.callmodule.platform.linux_startup_manager import LinuxStartupManager
-        return LinuxStartupManager(app_name)
+        return LinuxStartupManager(app_name, target=target, mechanism="xdg")
     return _UnsupportedStartupManager(system)
 
 
