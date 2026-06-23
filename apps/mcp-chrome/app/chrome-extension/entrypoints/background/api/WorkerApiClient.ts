@@ -36,7 +36,9 @@ export type WorkerCapability =
   | 'image'
   | 'translate'
   | 'sentence_audio'
-  | 'ai_translate';
+  | 'ai_translate'
+  | 'subtitle'
+  | 'poster';
 
 export type TaskStatus =
   | 'pending'

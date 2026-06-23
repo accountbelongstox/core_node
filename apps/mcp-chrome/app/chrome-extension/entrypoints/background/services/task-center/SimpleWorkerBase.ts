@@ -48,6 +48,8 @@ const ALLOWED_CAPABILITIES = new Set<WorkerCapability>([
   'translate',
   'sentence_audio',
   'ai_translate',
+  'subtitle',
+  'poster',
 ]);
 
 export interface SimpleWorkerConfig {

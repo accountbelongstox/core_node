@@ -336,12 +336,16 @@ class BingDictionaryWorkerService {
       // word_translation tasks are dispatched as execution_type
       // `remote_translation`; the worker must register that processor type to be
       // assigned them. It also joins the shared `remote_fast` lane so the
-      // dispatcher can route fast-tier image/translate work here.
+      // dispatcher can route fast-tier translate work here.
       processor_types: ['remote_translation', 'remote_fast'] as ProcessorType[],
-      // Advertise via the shared fast-capability set: image + translate.
+      // Advertise ONLY 'translate' (NOT 'image'): a Bing dictionary tab can scrape
+      // a word lookup but cannot GENERATE an image, so the dispatcher must never
+      // route a true image task here (processTask would mis-scrape it as a dict
+      // lookup). 'image' is dropped from the shared fast set; the processTask
+      // capability guard rejects any image task that still slips through.
       // (sentence_audio is dropped — it is generated inline server-side, never
       // by a Bing tab; ai_translate belongs only to the web-AI worker.)
-      capabilities: CHROME_FAST_CAPABILITIES,
+      capabilities: CHROME_FAST_CAPABILITIES.filter((c) => c !== 'image'),
       hostname: 'chrome-extension',
       platform: navigator.userAgent,
       metadata: {
@@ -450,6 +454,36 @@ class BingDictionaryWorkerService {
 
     const workerId = this.stats.workerId!;
     this.stats.currentTaskId = task.task_id;
+
+    // Capability/task_type guard: a Bing dictionary tab can ONLY do word
+    // lookups. If the dispatcher hands us an image task (or any unknown
+    // task_type) — e.g. because the shared fast lane briefly routed one here —
+    // do NOT mis-scrape it as a dictionary lookup. Submit 'failed' to cleanly
+    // release it (release-by-failure, mirroring SimpleWorkerBase.dispatchOne)
+    // so it re-pends and reaches a worker that can actually handle it.
+    const HANDLED_TASK_TYPES = new Set([
+      'word_translation',
+      'word_media',
+      'bing_dictionary',
+      'dictionary_translation',
+    ]);
+    if (task.capability === 'image' || !HANDLED_TASK_TYPES.has(task.task_type)) {
+      const reason = `unhandled task_type/capability: task_type=${task.task_type} capability=${task.capability ?? 'none'}`;
+      logger.warn(LOG, `Releasing task ${task.task_id} — ${reason}`);
+      try {
+        await this.workerClient.submitResult({
+          task_id: task.task_id,
+          worker_id: workerId,
+          status: 'failed',
+          error: reason,
+        });
+      } catch (submitError) {
+        logger.error(LOG, 'Failed to submit unhandled-task release', submitError);
+      }
+      this.taskCache.delete(task.task_id);
+      this.stats.currentTaskId = null;
+      return;
+    }
 
     try {
       logger.info(LOG, `Processing task: ${task.task_id}`);
