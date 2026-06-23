@@ -635,3 +635,6 @@ NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
 ````
+
+
+**Global mandatory AI rules** (apply here too): Git **commit-only** — no other git operations — and **never revert/undo/overwrite existing code or local changes**; also never delete the `core_node` dir without the guarded triple confirmation. See repo-root `development-guides/GIT_AND_NO_REVERT_SAFETY.md` and `development-guides/CORE_NODE_DELETION_SAFETY.md` (and root `CLAUDE.md`/`AGENTS.md`).

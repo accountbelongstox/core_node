@@ -147,3 +147,6 @@ any UI:
   (2026-06 自 qy_capacitor/docs 迁移并精简)。
 
 Do not duplicate full specs across files; reference the canonical source.
+
+
+**Global mandatory AI rules** (apply here too): Git **commit-only** — no other git operations — and **never revert/undo/overwrite existing code or local changes**; also never delete the `core_node` dir without the guarded triple confirmation. See repo-root `development-guides/GIT_AND_NO_REVERT_SAFETY.md` and `development-guides/CORE_NODE_DELETION_SAFETY.md` (and root `CLAUDE.md`/`AGENTS.md`).
