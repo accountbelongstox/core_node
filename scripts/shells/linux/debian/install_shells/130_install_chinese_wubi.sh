@@ -306,6 +306,50 @@ enable_ibus_wubi() {
     fi
 }
 
+# Install Chinese language support: a CJK font + the zh_CN.UTF-8 locale. The IME
+# packages (fcitx5-chinese-addons / ibus) pull NO CJK font, so without this Chinese
+# renders as tofu (boxes) even though typing works. Idempotent: apt skips installed
+# packages, every optional package is availability-filtered, the locale block is a
+# no-op once generated, and the system default LANG is left untouched.
+install_language_support() {
+    local fonts optional
+    print_step_from_common_functions "Installing Chinese language support (CJK fonts + locale)..."
+
+    # fonts-noto-cjk = universal CJK font (Simplified + Traditional), present on
+    # every Debian/Ubuntu/Kali target; `locales` provides /etc/locale.gen + locale-gen.
+    fonts=$(filter_available "fonts-noto-cjk" "locales")
+    if [ -n "$fonts" ]; then
+        # shellcheck disable=SC2086
+        apt_install $fonts
+    fi
+    # Optional, availability-gated: extra Noto weights + WenQuanYi fallback, and the
+    # Ubuntu-only localized-UI pack (auto-skipped on Debian/Kali where it does not exist).
+    optional=$(filter_available "fonts-noto-cjk-extra" "fonts-wqy-zenhei" "language-pack-zh-hans")
+    if [ -n "$optional" ]; then
+        # shellcheck disable=SC2086
+        apt_install $optional
+    fi
+    # Rebuild the font cache so the newly installed CJK font is picked up.
+    command -v fc-cache >/dev/null 2>&1 && $USE_SUDO fc-cache -f >/dev/null 2>&1 || true
+
+    # Make zh_CN.UTF-8 AVAILABLE (cross-distro: uncomment in /etc/locale.gen + regen).
+    # Input works under any UTF-8 locale, so this only ADDS zh_CN.UTF-8 — it never
+    # runs update-locale / changes the system default LANG.
+    if locale -a 2>/dev/null | grep -qiE "^zh_CN\.utf-?8$"; then
+        print_info_from_common_functions "zh_CN.UTF-8 locale already available"
+    elif [ -f /etc/locale.gen ] && command -v locale-gen >/dev/null 2>&1; then
+        if grep -qE "^#?[[:space:]]*zh_CN\.UTF-8[[:space:]]+UTF-8" /etc/locale.gen; then
+            $USE_SUDO sed -i 's/^#[[:space:]]*\(zh_CN\.UTF-8[[:space:]]\+UTF-8\)/\1/' /etc/locale.gen
+        else
+            echo "zh_CN.UTF-8 UTF-8" | $USE_SUDO tee -a /etc/locale.gen >/dev/null
+        fi
+        $USE_SUDO locale-gen >/dev/null 2>&1 || true
+        print_success_from_common_functions "zh_CN.UTF-8 locale generated (system default LANG unchanged)"
+    else
+        print_warning_from_common_functions "locale-gen/locale.gen unavailable; skipped locale generation"
+    fi
+}
+
 main() {
     print_step_from_common_functions "Starting $APP_NAME installation..."
     print_info_from_common_functions "Distro: ${OS_NAME:-unknown} ${OS_VERSION_ID:-} (ID=${OS_ID:-?})"
@@ -329,6 +373,8 @@ main() {
         enable_ibus_wubi
     fi
 
+    install_language_support
+
     echo ""
     print_success_from_common_functions "=========================================="
     print_success_from_common_functions "$APP_NAME Installation Completed"
@@ -343,6 +389,7 @@ main() {
         print_info_from_common_functions "Configure  : ibus-setup (add Wubi under Input Method if needed)"
     fi
     echo ""
+    print_info_from_common_functions "Language  : fonts-noto-cjk (CJK font) + zh_CN.UTF-8 locale installed"
     print_warning_from_common_functions "Log out and back in for the input method to take effect."
     print_info_from_common_functions "Toggle the IME with the framework hotkey (default: Ctrl+Space)."
     echo ""
