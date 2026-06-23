@@ -83,7 +83,7 @@ def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_L
         bool: True if test succeeded, False otherwise
     """
     try:
-        os.environ['HF_HOME'] = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
+        os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
         os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 
         print('[TEST] Importing transformers...')
@@ -150,7 +150,7 @@ def interactive_translator(model_name='facebook/nllb-200-distilled-600M'):
         model_name: HuggingFace model name
     """
     try:
-        os.environ['HF_HOME'] = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
+        os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
 
         print('Loading NLLB-200 translation model...')
         from transformers import AutoTokenizer, AutoModelForSeq2SeqLM

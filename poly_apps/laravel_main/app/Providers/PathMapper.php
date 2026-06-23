@@ -43,26 +43,20 @@ class PathMapper
         if ($isWindows) {
             $basePath = "D:\\www";
         } else {
-            // Linux: Environment-aware path mapping
-            $isWsl = self::isWSL();
-            $isProduction = self::isProduction();
+            // Linux: the web/data base is what the shell installer DETECTED + PERSISTED
+            // (cross-language source of truth), else a full blkid/blockdev/findmnt
+            // detection re-implemented in getBaseDataDirectory(). The chosen disk is
+            // honored AS-IS -- NO production short-circuit and NO POSIX coercion: a
+            // Windows NTFS DATA disk is SHARED with Windows (/mnt/<ntfs>/www == D:\\www),
+            // mounted uid=/gid= so the login user owns it. PostgreSQL is unaffected --
+            // its data dir stays on native ext4 (pg_mount -> /var/lib/postgresql/d).
             $dataBase = self::getBaseDataDirectory();
-            
-            if ($isWsl) {
+            if (self::isWSL()) {
                 $basePath = $dataBase . '/www';
-            } elseif ($isProduction) {
+            } elseif ($dataBase === '/' || $dataBase === '/www') {
                 $basePath = '/www';
             } else {
-                $basePath = ($dataBase === '/www') ? '/www' : $dataBase . '/www';
-            }
-
-            // POSIX guard (mirror gvar_common.sh _fs_is_posix_capable + map_web_path
-            // and system_paths.py): the web DATA root must be POSIX-ownable
-            // (PostgreSQL needs a postgres-owned 0700 dir, Laravel chown/chmods
-            // storage), so coerce a non-POSIX base (e.g. an NTFS/fuseblk data disk)
-            // to /www. The CODE base (getCoreNodeDir) is NOT restricted this way.
-            if (!self::fsIsPosixCapable($basePath)) {
-                $basePath = '/www';
+                $basePath = $dataBase . '/www';
             }
         }
         
@@ -139,8 +133,11 @@ class PathMapper
     }
 
     /**
-     * Get base data directory (PHP version of get_base_data_directory)
-     * Priority: WSL /mnt/d -> NTFS mount -> Data disk mount -> /www
+     * Get base data directory (PHP version of gvar_common.sh::get_base_data_directory).
+     * Priority: WSL /mnt/d -> run-anchor adopt (disk the checkout lives on) -> the base
+     * the shell installer DETECTED + PERSISTED (source of truth) -> full blkid/blockdev/
+     * findmnt detection re-implemented here -> '/'. The dedup in mapWebPath() collapses
+     * '/' and '/www' to /www, so all three languages converge.
      */
     private static function getBaseDataDirectory(): string
     {
@@ -148,18 +145,137 @@ class PathMapper
         if (self::isWSL()) {
             return '/mnt/d';
         }
-        
-        // Priority 2: Check for NTFS or data disk mounts
-        // For PHP, we'll check common mount points
-        $commonMounts = ['/mnt/d', '/mnt/e', '/data', '/www'];
-        foreach ($commonMounts as $mount) {
-            if (is_dir($mount) && is_writable($mount)) {
-                return $mount;
+
+        // Priority 1.5: the disk where THIS checkout physically lives wins (matches sh P1.5).
+        // getCoreNodeDir() -> <base>/programing/core_node ; strip to <base>.
+        $coreNode = rtrim(self::getCoreNodeDir(), '/');
+        $suffix = '/programing/core_node';
+        if (substr($coreNode, -strlen($suffix)) === $suffix) {
+            $runBase = substr($coreNode, 0, -strlen($suffix));
+            if ($runBase !== '' && self::pathHostsProject($runBase)) {
+                return $runBase;
             }
         }
-        
-        // Fallback: /www
-        return '/www';
+
+        // Priority 2: the base the shell installer detected + persisted (source of truth).
+        $persisted = self::readPersistedBase();
+        if ($persisted !== null) {
+            return $persisted;
+        }
+
+        // Priority 3: the shell provided no base -> full disk detection here.
+        $detected = self::detectLargestDiskBase();
+        if ($detected !== null) {
+            return $detected;
+        }
+
+        // Fallback: root '/' (mapWebPath collapses it to /www).
+        return '/';
+    }
+
+    /** Run a shell command, return trimmed stdout or '' (never throws). */
+    private static function shellTrim(string $cmd): string
+    {
+        if (!function_exists('shell_exec')) {
+            return '';
+        }
+        $out = @shell_exec($cmd . ' 2>/dev/null');
+        return $out === null ? '' : trim((string) $out);
+    }
+
+    /** True when base/programing/core_node is a real checkout (.git or package.json). */
+    private static function pathHostsProject(string $base): bool
+    {
+        $proj = rtrim($base, '/') . '/programing/core_node';
+        return is_dir($proj) && (file_exists($proj . '/.git') || is_file($proj . '/package.json'));
+    }
+
+    /** True when $path is a real mountpoint on a device different from root's device. */
+    private static function isRealDistinctMount(string $path): bool
+    {
+        if (!is_dir($path)) {
+            return false;
+        }
+        $src = self::shellTrim('findmnt -n -o SOURCE --target ' . escapeshellarg($path));
+        $rootSrc = self::shellTrim('findmnt -n -o SOURCE --target /');
+        return $src !== '' && $src !== $rootSrc;
+    }
+
+    /** The base the shell installer detected + persisted (cross-language source of truth). */
+    private static function readPersistedBase(): ?string
+    {
+        $file = '/var/_core_node/global_var/BASE_DATA_DIR';
+        if (!is_file($file) || !is_readable($file)) {
+            return null;
+        }
+        $val = (string) @file_get_contents($file);
+        $val = trim((string) strtok($val, "\r\n"));
+        if ($val === '') {
+            return null;
+        }
+        return (self::isRealDistinctMount($val) || self::pathHostsProject($val)) ? $val : null;
+    }
+
+    /** Largest device whose TYPE is ntfs ($wantNtfs) or a POSIX data fs; ranked by raw bytes. */
+    private static function largestDeviceOfType(bool $wantNtfs): array
+    {
+        $bestSize = 0;
+        $bestDev = '';
+        $blk = self::shellTrim('blkid');
+        if ($blk === '') {
+            return [0, ''];
+        }
+        $dataTypes = ['ext2', 'ext3', 'ext4', 'xfs', 'btrfs'];
+        foreach (preg_split('/\r?\n/', $blk) as $line) {
+            if ($line === '') {
+                continue;
+            }
+            $dev = (string) strtok($line, ':');
+            $low = strtolower($line);
+            if ($wantNtfs) {
+                if (strpos($low, 'type="ntfs"') === false) {
+                    continue;
+                }
+            } else {
+                $isData = false;
+                foreach ($dataTypes as $t) {
+                    if (strpos($low, 'type="' . $t . '"') !== false) {
+                        $isData = true;
+                        break;
+                    }
+                }
+                if (!$isData) {
+                    continue;
+                }
+                $tgt = self::shellTrim('findmnt -n -o TARGET --source ' . escapeshellarg($dev));
+                if (in_array($tgt, ['/', '/boot', '/boot/efi'], true)) {
+                    continue;
+                }
+            }
+            $size = (int) self::shellTrim('blockdev --getsize64 ' . escapeshellarg($dev));
+            if ($size > $bestSize) {
+                $bestSize = $size;
+                $bestDev = $dev;
+            }
+        }
+        return [$bestSize, $bestDev];
+    }
+
+    /** Full blkid/blockdev/findmnt detection (used only when the shell provided no base). */
+    private static function detectLargestDiskBase(): ?string
+    {
+        [$nSize, $nDev] = self::largestDeviceOfType(true);
+        [$dSize, $dDev] = self::largestDeviceOfType(false);
+        if ($nDev !== '' && $dDev !== '') {
+            $chosen = ($nSize >= $dSize) ? $nDev : $dDev;
+        } else {
+            $chosen = $nDev !== '' ? $nDev : $dDev;
+        }
+        if ($chosen === '') {
+            return null;
+        }
+        $tgt = (string) strtok(self::shellTrim('findmnt -n -o TARGET --source ' . escapeshellarg($chosen)), "\r\n");
+        return ($tgt !== '' && is_dir($tgt)) ? $tgt : null;
     }
 
     /**

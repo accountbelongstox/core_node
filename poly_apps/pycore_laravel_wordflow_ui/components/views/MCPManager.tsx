@@ -650,7 +650,20 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     try {
       const response = await api.mcpV1.getPromptMappings();
       if (response.success && response.data) {
-        const mapping = response.data.find((m: any) => m.category_id === categoryId);
+        // Backend (GET /task-dispatch/mappings) returns
+        // { mappings: { [categoryId]: {...} }, total }. BaseAPI unwraps the
+        // envelope, so response.data is that object — NOT an array. Reading it
+        // with .find() threw a TypeError that the catch swallowed, so the panel
+        // silently showed nothing. Resolve the per-category entry from whichever
+        // shape arrives (keyed object, wrapped object, or a plain array).
+        const raw: any = response.data;
+        const bag = raw.mappings ?? raw;
+        let mapping: any = null;
+        if (Array.isArray(bag)) {
+          mapping = bag.find((m: any) => m.category_id === categoryId) ?? null;
+        } else if (bag && typeof bag === 'object') {
+          mapping = bag[categoryId] ?? null;
+        }
         if (mapping) {
           setPromptMapping({
             data: mapping,

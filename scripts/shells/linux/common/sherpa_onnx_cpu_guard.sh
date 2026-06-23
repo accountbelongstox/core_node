@@ -20,7 +20,7 @@
 # Mirrors scripts/shells/linux/common/{torch,onnxruntime}_cpu_guard.sh and is
 # reused at the same key points:
 #   - scripts/shells/linux/debian/install_shells/22_install_tts_offline.sh (install)
-#   - pycore/scripts/iniscripts/prepare.sh                                 (repair-only)
+#   - scripts/shells/linux/common/iniscripts/prepare.sh                                 (repair-only)
 # Python in-process counterpart (same policy, at first sherpa import):
 #   pycore/pyfoundations/third_party.py::_ensure_sherpa_onnx_cpu_build_when_no_gpu()
 #

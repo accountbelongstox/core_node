@@ -199,6 +199,10 @@ export interface DictionaryWordRow {
   /** Direct URL to the word's audio (when available). */
   audio_url?: string | null;
   audio_available?: boolean;
+  /** Clean server path of the audio file, www-relative (null when no file on disk). */
+  audio_path?: string | null;
+  /** Audio file size in bytes (null when no file on disk). */
+  audio_size?: number | null;
   /** Free-form JSON blob: may hold definitions / examples / POS. */
   word_details?: any | null;
   /** Image URLs / descriptors associated with the word. */
@@ -383,6 +387,9 @@ export class BooksAPI extends BaseAPI {
     q?: string;
     start?: number;
     limit?: number;
+    /** Full-dataset server-side sort key (word|translation|phonetic|queries|status). */
+    sort?: string;
+    order?: 'asc' | 'desc';
   }): Promise<APIResponse<DictionaryWordsResponse>> {
     return this.get<DictionaryWordsResponse>('/dictionary/words', params, false);
   }

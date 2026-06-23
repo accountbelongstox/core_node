@@ -14,7 +14,7 @@
 # Single source of truth for the faster-whisper prerequisite (DEFAULT STT engine
 # for the pycore "Video Extraction" feature) on Linux/macOS. Prefix 14 sorts right
 # AFTER 13_ensure_python.sh in install.sh's numeric-ordered run, so pip is ready.
-# Also invoked directly by pycore/scripts/iniscripts/install_faster_whisper.sh
+# Also invoked directly by scripts/shells/linux/common/iniscripts/install_faster_whisper.sh
 # (the pyservice prerequisite reference) to keep one copy of the logic.
 #
 # Invocation contracts:
@@ -47,6 +47,10 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 # target the shared venv built by 13_ensure_python.sh, not the system python.
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
+# Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
+PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
+[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
+command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -105,7 +109,13 @@ is_server() {
     if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" || -n "${XDG_CURRENT_DESKTOP:-}" ]]; then return 1; fi
     return 0
 }
-has_cuda() { command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; }
+# GPU detection -- same logic as the canonical lib_gpu.sh / the *_cpu_guard.sh helpers
+# (nvidia-smi -L; honors TORCH_FORCE_CUDA=1 and CUDA_VISIBLE_DEVICES=-1).
+has_cuda() {
+    [ "${TORCH_FORCE_CUDA:-0}" = "1" ] && return 0
+    [ "${CUDA_VISIBLE_DEVICES:-}" = "-1" ] && return 1
+    command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+}
 
 echo "============================================================"
 echo " Installing faster-whisper (default STT for Video Extraction)"
@@ -148,7 +158,7 @@ else
     # Install INTO the shared venv; no PEP668 escape flags needed there.
     PIP_ARGS=(--upgrade faster-whisper)
     echo "[run] $PYTHON -m pip install ${PIP_ARGS[*]}"
-    if ! "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
+    if ! vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
         echo "[X] faster-whisper install failed." >&2
         exit 1
     fi
@@ -169,7 +179,7 @@ elif has_cuda; then
     # Install the CUDA/nvidia wheels INTO the shared venv (no PEP668 escape flags).
     GPU_ARGS=('nvidia-cublas-cu12' 'nvidia-cudnn-cu12==9.*')
     echo "[run] $PYTHON -m pip install ${GPU_ARGS[*]}"
-    if ! "$PYTHON" -m pip install "${GPU_ARGS[@]}"; then
+    if ! vpip "$PYTHON" -m pip install "${GPU_ARGS[@]}"; then
         echo "[!] GPU lib install failed; whisper will fall back to CPU (int8)."
     else
         echo "[OK] GPU runtime libs present."

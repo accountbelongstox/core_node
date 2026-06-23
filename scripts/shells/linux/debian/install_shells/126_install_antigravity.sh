@@ -37,6 +37,7 @@ USE_ROOT_MODE=true  # Default to root mode (pkexec)
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 
 # Initialize globals (detect desktop, sudo, etc.)
 init_global_vars
@@ -556,26 +557,17 @@ create_desktop_entry_fallback() {
     exec_path="$(command -v antigravity || echo "/usr/bin/antigravity")"
     local startup_wm_class="antigravity"
 
-    cat <<EOF | $USE_SUDO tee "$DESKTOP_ENTRY_SYSTEM" >/dev/null
-[Desktop Entry]
-Name=$DESKTOP_ENTRY_NAME
-Comment=Antigravity Client
-Exec=$exec_path
-Icon=$DESKTOP_ENTRY_ICON
-Terminal=false
-Type=Application
-Categories=Utility;Development;
-StartupNotify=true
-StartupWMClass=$startup_wm_class
-EOF
-
-    # Copy to desktop user's local applications for better integration
-    detect_actual_desktop_user
-    local target_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
-    local user_app_dir="$target_home/.local/share/applications"
-    mkdir -p "$user_app_dir"
-    cp "$DESKTOP_ENTRY_SYSTEM" "$user_app_dir/antigravity.desktop" 2>/dev/null || true
-    chown "$(id -u "$ACTUAL_DESKTOP_USER" 2>/dev/null || echo "$(id -u)")":"$(id -g "$ACTUAL_DESKTOP_USER" 2>/dev/null || echo "$(id -g)")" "$user_app_dir/antigravity.desktop" 2>/dev/null || true
+    # System-wide menu entry in /usr/share/applications (read by ALL desktop
+    # environments, covers ALL users) via the shared library; idempotent.
+    create_desktop_shortcut_from_desktop_shortcut_manager \
+        --id antigravity \
+        --name "$DESKTOP_ENTRY_NAME" \
+        --exec "$exec_path" \
+        --icon "$DESKTOP_ENTRY_ICON" \
+        --comment "Antigravity Client" \
+        --categories "Utility;Development;" \
+        --startup-wmclass "$startup_wm_class" \
+        --startup-notify true
 
     log "Fallback desktop entry created"
 

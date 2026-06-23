@@ -11,6 +11,33 @@ import {
 } from '../../core/api-libs/pycore';
 import type { LaravelApiEndpoint } from '../../core/api-libs/pycore';
 
+/**
+ * Frontend-known "prepared" Laravel API endpoints, shown when the pycore RPC
+ * (:59000) is offline so the switcher still lists the available APIs instead of
+ * a dead "unavailable" box. The Laravel API is always on the fixed :9000 port,
+ * independent of the FE port (:13054); the page's own origin is the most likely
+ * candidate, followed by the standard loopback hosts. These are READ-ONLY hints
+ * (healthy=null): selecting/adding still needs the pycore service running.
+ */
+function pcPreparedEndpoints(): LaravelApiEndpoint[] {
+  const norm = (u: string) => u.replace(/\/+$/, '');
+  const urls: string[] = [];
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const proto = window.location.protocol === 'https:' ? 'https' : 'http';
+    urls.push(`${proto}://${window.location.hostname}:9000`);
+  }
+  urls.push('http://127.0.0.1:9000', 'http://localhost:9000');
+  const seen = new Set<string>();
+  const out: LaravelApiEndpoint[] = [];
+  for (const u of urls) {
+    const n = norm(u);
+    if (seen.has(n)) continue;
+    seen.add(n);
+    out.push({ url: n, healthy: null, custom: false });
+  }
+  return out;
+}
+
 export interface PcLaravelEndpointContextValue {
   endpoints: LaravelApiEndpoint[];
   current: string;
@@ -18,6 +45,8 @@ export interface PcLaravelEndpointContextValue {
   probing: boolean;
   switching: string | null;
   error: string | null;
+  /** true when `endpoints` is the read-only prepared fallback (pycore RPC offline). */
+  fallback: boolean;
   actionError: string | null;
   reload: () => Promise<boolean>;
   select: (url: string) => Promise<void>;
@@ -36,6 +65,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
   const [probing, setProbing] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fallback, setFallback] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const reload = useCallback(async (): Promise<boolean> => {
@@ -46,11 +76,20 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
         setEndpoints(r.endpoints);
         setCurrent(r.current || '');
         setError(null);
+        setFallback(false);
         return true;
       }
       throw new Error(r?.error || 'laravel_api.list: malformed response');
     } catch (e: any) {
+      // pycore RPC (:59000) offline: still surface the FRONTEND-known prepared
+      // endpoints (read-only) so the switcher shows the available APIs rather than
+      // an empty error box. We keep `error` set + flag `fallback` so the UI can
+      // label these as prepared/offline.
+      const prepared = pcPreparedEndpoints();
+      setEndpoints(prepared);
+      setCurrent((cur) => cur || prepared[0]?.url || '');
       setError(e?.message || 'RPC failed');
+      setFallback(true);
       return false;
     } finally {
       setLoading(false);
@@ -73,7 +112,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
   // down (no endpoints loaded) so we don't spam a failing add.
   const currentOriginAddedRef = useRef(false);
   useEffect(() => {
-    if (currentOriginAddedRef.current || loading) return;
+    if (currentOriginAddedRef.current || loading || fallback) return; // never mutate while RPC is down
     if (typeof window === 'undefined' || !window.location?.hostname) return;
     if (endpoints.length === 0) return; // list not loaded yet / backend offline
     const originUrl = `http://${window.location.hostname}:9000`;
@@ -148,6 +187,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     probing,
     switching,
     error,
+    fallback,
     actionError,
     reload,
     select,
@@ -156,7 +196,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     reprobe,
     clearActionError,
   }), [
-    endpoints, current, loading, probing, switching, error, actionError,
+    endpoints, current, loading, probing, switching, error, fallback, actionError,
     reload, select, addUrl, removeUrl, reprobe, clearActionError,
   ]);
 

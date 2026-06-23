@@ -24,7 +24,7 @@ source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 # Single source of truth for the edge-tts prerequisite (DEFAULT text-to-speech
 # engine for the pycore voice-subtitle pipeline) on Linux/macOS. Prefix 21 sorts
 # AFTER 13_ensure_python.sh in install.sh's numeric-ordered run, so pip is ready.
-# Also invoked directly by pycore/scripts/iniscripts/install_edge_tts.sh (the
+# Also invoked directly by scripts/shells/linux/common/iniscripts/install_edge_tts.sh (the
 # pyservice prerequisite reference) to keep one copy of the logic.
 #
 # LATEST VERSION (>= 7.2.4): the NoAudioReceived "fix" of pinning 7.2.1 was a
@@ -37,6 +37,11 @@ source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 #   - install.sh flow:  21_install_edge_tts.sh             (no args; resolves python)
 #   - pyservice flow:   21_install_edge_tts.sh --python <py> [--force]
 set -uo pipefail
+
+# Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
+PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
+[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
+command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 
 # Declare all variables at the beginning
 # Default to the shared project venv interpreter (13_ensure_python.sh); --python
@@ -117,9 +122,9 @@ PIP_ARGS=(--upgrade edge-tts)
 # no PEP668 escape flags (--break-system-packages/--no-user) -- the venv is not
 # externally managed, and those flags scatter packages to ~/.local / system.
 echo "[run] $PYTHON -m pip install ${PIP_ARGS[*]}"
-if ! "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
+if ! vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}"; then
     echo "[run] $PYTHON -m pip install --upgrade edge-tts"
-    if ! "$PYTHON" -m pip install --upgrade edge-tts; then
+    if ! vpip "$PYTHON" -m pip install --upgrade edge-tts; then
         echo "[!] edge-tts install did not complete cleanly; pycore will install it at import time."
         exit 0
     fi

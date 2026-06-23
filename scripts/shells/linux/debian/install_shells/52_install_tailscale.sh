@@ -83,6 +83,17 @@ main() {
     log_message "Tailscale Installation"
     log_message "=========================================="
 
+    # CONSOLIDATED: 63_install_tailscale.sh is the canonical, gated Tailscale
+    # installer (official installer + Kali/Debian/Ubuntu apt-repo fallback, daemon
+    # startup, cross-DE desktop shortcut, honors INSTALL_TAILSCALE). This older,
+    # UNGATED script would otherwise install Tailscale a second time (and even when
+    # INSTALL_TAILSCALE=false), so defer to 63 when it is present. Kept as a no-op
+    # fallback only; safe to delete.
+    if [ -f "$SCRIPT_CURRENT_DIR/63_install_tailscale.sh" ]; then
+        log_message "Superseded by 63_install_tailscale.sh; skipping to avoid a double install."
+        exit 0
+    fi
+
     # Idempotent: already installed -> just ensure service + symlink, then exit.
     if command_exists tailscale; then
         log_message "Tailscale already installed: $(tailscale version 2>/dev/null | head -1)"

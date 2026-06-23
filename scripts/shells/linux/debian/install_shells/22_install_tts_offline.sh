@@ -13,38 +13,49 @@
 
 # Single source of truth + UMBRELLA for the pycore voice pipeline's offline/local
 # TTS & STT engine collection. Prefix 22 sorts after 13_ensure_python. Also invoked
-# by pycore/scripts/iniscripts/install_tts_offline.sh (pyservice).
+# by scripts/shells/linux/common/iniscripts/install_tts_offline.sh (pyservice).
 #
 # CORE (always, the "never fails" offline TTS):
 #   - Sherpa-ONNX + a Kokoro multi-lang (zh/en) model into $HOME/.core_node/cache/tts/sherpa.
 #
-# UMBRELLA (default; one run prepares the WHOLE collection, each step idempotent):
-#   TTS : edge-tts, MeloTTS, GPT-SoVITS, Azure Speech SDK
-#   STT : faster-whisper, openai-whisper, Vosk, Azure Speech SDK
+# UMBRELLA (default; one run prepares the collection, each step idempotent):
+#   DEFAULT (conflict-free, installed automatically):
+#     TTS : edge-tts, Azure Speech SDK     STT : faster-whisper, openai-whisper, Vosk, Azure SDK
+#   OPT-IN ONLY (NOT installed by default):
+#     MeloTTS, GPT-SoVITS — both pin an OLD transformers (MeloTTS ==4.27.4) and would
+#     DOWNGRADE the shared venv's transformers (5.x, used by the deepseek/qwen/nllb stack)
+#     and break it. Install them explicitly: --melotts / --gptsovits, or the env opt-ins
+#     MELOTTS_INSTALL=1 / GPTSOVITS_INSTALL=1. The opt-in is enforced in the sub-installers,
+#     so prepare.sh's pyservice sweep skips them by default too.
 #   Each engine delegates to its own canonical idempotent installer (skip-if-present).
-#   Heavy/env-risky engines honor their opt-out envs: MELOTTS_SKIP=1, GPTSOVITS_SKIP=1.
 #   A CPU host is reconciled back to CPU torch/onnxruntime by the post-install guards.
 #
 # Flows:
-#   - dd.sh / install_shells sweep (no args)   -> CORE + full UMBRELLA.
-#   - standalone `22_install_tts_offline.sh`    -> CORE + full UMBRELLA.
+#   - dd.sh / install_shells sweep (no args)   -> CORE + UMBRELLA (default engines only).
+#   - standalone `22_install_tts_offline.sh`    -> CORE + UMBRELLA (default engines only).
 #   - pyservice prepare.sh sweep (exports PYCORE_INISCRIPTS_SWEEP=1) -> CORE only;
 #     prepare.sh runs the sibling installers itself, so the umbrella stands down.
 #
 # Invocation contracts:
-#   22_install_tts_offline.sh [--python <py>] [--force] [--core-only] [--melotts]
-#     --force      re-extract the model + re-run every engine installer with --force.
+#   22_install_tts_offline.sh [--python <py>] [--force] [--core-only] [--melotts] [--gptsovits]
+#     --force      re-extract the model + re-run every DEFAULT engine installer with --force.
 #                  (The sherpa-onnx WHEEL itself is build-managed by the CPU/GPU guard,
-#                  which is idempotent and has no force-reinstall concept.)
+#                  which is idempotent and has no force-reinstall concept. --force does NOT
+#                  opt MeloTTS/GPT-SoVITS in — pair it with --melotts/--gptsovits for that.)
 #     --core-only  install only Sherpa + Kokoro model (skip the umbrella).
-#     --melotts    legacy/compat: MeloTTS now installs by default; in --core-only
-#                  (or sweep) mode this still forces the MeloTTS engine on.
+#     --melotts    opt IN to MeloTTS (pins transformers==4.27.4; downgrades a 5.x venv).
+#     --gptsovits  opt IN to GPT-SoVITS (clones repo + pins an old transformers).
+#     --parallel   hand off to tts_parallel_install.sh: each engine streams live in its
+#                  own tmux pane / terminal window; downloads overlap while the shared
+#                  pip lock (base_libs/pip_lock.sh) serializes venv writes.
 
 PYTHON="python3"
 MELOTTS=0
+GPTSOVITS=0
 FORCE=0
 CORE_ONLY=0
 UMBRELLA=1
+PARALLEL=0
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 # Shared venv resolution: gvar_common exports COMPILE_DIR + CORE_NODE_PROJECT_ROOT,
 # then venv_python_common derives VENV_DIR / VENV_PYTHON3 / VENV_PIP3 from it (install
@@ -60,7 +71,13 @@ set -uo pipefail
 # torch/onnxruntime guards): install_shells -> debian -> linux -> common.
 COMMON_DIR="$SCRIPT_DIR/../../common"
 SHERPA_GUARD="$COMMON_DIR/sherpa_onnx_cpu_guard.sh"
-MODEL_DIR="$HOME/.core_node/cache/tts/sherpa"
+# Serialize pip into the shared venv (concurrent pip corrupts it). vpip wraps every pip
+# call here; the parallel driver relies on it so engines' downloads overlap but their
+# pip steps queue. Defensive: degrade to a pass-through vpip if the lib is missing.
+PIPLOCK_LIB="$COMMON_DIR/base_libs/pip_lock.sh"
+[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
+command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
+MODEL_DIR="${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/tts/sherpa"
 # int8-quantized Kokoro (zh/en) — smaller/faster one-time download.
 MODEL_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2"
 MODEL_ARCHIVE=""
@@ -85,11 +102,29 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --python)    PYTHON="$2"; shift 2 ;;
         --melotts)   MELOTTS=1;   shift   ;;
+        --gptsovits) GPTSOVITS=1; shift   ;;
         --force)     FORCE=1;     shift   ;;
         --core-only) CORE_ONLY=1; shift   ;;
+        --parallel)  PARALLEL=1;  shift   ;;
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
     esac
 done
+
+# --parallel: hand off to the multi-terminal driver (each engine streams in its own
+# tmux pane / window; downloads overlap, the shared pip lock serializes venv writes).
+# The driver calls back `22 --core-only` (no --parallel) so there is no recursion.
+if [[ "$PARALLEL" -eq 1 ]]; then
+    PARALLEL_DRIVER="$SCRIPT_DIR/tts_parallel_install.sh"
+    if [[ -f "$PARALLEL_DRIVER" ]]; then
+        PARALLEL_ARGS=(--python "$PYTHON")
+        [[ "$MELOTTS" -eq 1 ]]   && PARALLEL_ARGS+=(--melotts)
+        [[ "$GPTSOVITS" -eq 1 ]] && PARALLEL_ARGS+=(--gptsovits)
+        [[ "$FORCE" -eq 1 ]]     && PARALLEL_ARGS+=(--force)
+        echo "[i] --parallel: handing off to $PARALLEL_DRIVER"
+        exec bash "$PARALLEL_DRIVER" "${PARALLEL_ARGS[@]}"
+    fi
+    echo "[!] parallel driver not found ($PARALLEL_DRIVER); continuing with the serial umbrella."
+fi
 
 # pyservice prepare.sh runs every sibling installer itself, so when it delegates here
 # the umbrella stands down (CORE only) to avoid a redundant second sweep.
@@ -101,12 +136,12 @@ fi
 # wire each engine to its own idempotent installer (canonical numbered script where
 # one exists, else the self-contained iniscript). NEVER wire install_tts_offline.sh
 # (it delegates back here) or prepare.sh (recursion).
-if [[ -n "${CORE_NODE_PROJECT_ROOT:-}" && -d "$CORE_NODE_PROJECT_ROOT/pycore/scripts/iniscripts" ]]; then
+if [[ -n "${CORE_NODE_PROJECT_ROOT:-}" && -d "$CORE_NODE_PROJECT_ROOT/scripts/shells/linux/common/iniscripts" ]]; then
     REPO_ROOT="$CORE_NODE_PROJECT_ROOT"
 else
     REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 fi
-INISCRIPTS_DIR="$REPO_ROOT/pycore/scripts/iniscripts"
+INISCRIPTS_DIR="$REPO_ROOT/scripts/shells/linux/common/iniscripts"
 EDGE_TTS_SCRIPT="$SCRIPT_DIR/21_install_edge_tts.sh"
 FASTER_WHISPER_SCRIPT="$SCRIPT_DIR/14_install_faster_whisper.sh"
 WHISPER_SCRIPT="$INISCRIPTS_DIR/install_whisper.sh"
@@ -152,7 +187,7 @@ pip_install() {
         PIP_ARGS=(--break-system-packages "${PIP_ARGS[@]}")
     fi
     echo "[pip] $PYTHON -m pip install ${PIP_ARGS[*]}"
-    "$PYTHON" -m pip install "${PIP_ARGS[@]}" || "$PYTHON" -m pip install "$@"
+    vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}" || vpip "$PYTHON" -m pip install "$@"
 }
 
 # Run one engine's own idempotent installer, forwarding the shared interpreter and
@@ -187,9 +222,14 @@ install_sherpa_model() {
     [[ -f "$archive" ]] || return 1
     rm -rf "$tmp"; mkdir -p "$tmp"
     echo "[..] Extracting $archive -> $tmp (python tarfile)"
-    echo "[run] $PYTHON -c \"import tarfile,sys; t=tarfile.open(sys.argv[1],'r:bz2'); t.extractall(sys.argv[2]); t.close()\" $archive $tmp"
-    if ! "$PYTHON" -c "import tarfile,sys
-t=tarfile.open(sys.argv[1],'r:bz2'); t.extractall(sys.argv[2]); t.close()" "$archive" "$tmp"; then
+    echo "[run] $PYTHON -c '<tarfile r:bz2 -> extractall(filter=data) safe extract>' $archive $tmp"
+    if ! "$PYTHON" -c "import tarfile, sys
+t = tarfile.open(sys.argv[1], 'r:bz2')
+try:
+    t.extractall(sys.argv[2], filter='data')   # safe extraction (Py 3.12+); silences the Py 3.14 tarfile deprecation
+except TypeError:
+    t.extractall(sys.argv[2])                   # older Python without the filter= argument
+t.close()" "$archive" "$tmp"; then
         echo "[!] Extract failed (archive incomplete/invalid)."
         rm -rf "$tmp"; return 1
     fi
@@ -300,16 +340,30 @@ fi
 # with the shared interpreter. CORE-only / pyservice-sweep mode skips this block.
 if [[ "$UMBRELLA" -eq 1 ]]; then
     echo "============================================================"
-    echo " Umbrella: preparing the full local TTS/STT engine collection"
+    echo " Umbrella: preparing the local TTS/STT collection"
+    echo "          (default engines; MeloTTS/GPT-SoVITS are opt-in)"
     echo "============================================================"
-    # TTS engines
+    # DEFAULT engines (conflict-free with the shared venv's transformers).
     run_engine_installer "edge-tts (TTS)"        "$EDGE_TTS_SCRIPT"
-    run_engine_installer "MeloTTS (TTS)"         "$MELOTTS_SCRIPT"
-    run_engine_installer "GPT-SoVITS (TTS)"      "$GPTSOVITS_SCRIPT"
-    # STT engines
     run_engine_installer "faster-whisper (STT)"  "$FASTER_WHISPER_SCRIPT"
     run_engine_installer "openai-whisper (STT)"  "$WHISPER_SCRIPT"
     run_engine_installer "Vosk (STT)"            "$VOSK_SCRIPT"
+
+    # OPT-IN engines: MeloTTS / GPT-SoVITS pin an old transformers and would downgrade the
+    # shared venv (transformers 5.x, used by the LLM stack). Only when explicitly enabled.
+    # The sub-installers also self-gate, so this stays safe even if reached another way.
+    if [[ "$MELOTTS" -eq 1 || "${MELOTTS_INSTALL:-0}" == "1" ]]; then
+        run_engine_installer "MeloTTS (TTS)" "$MELOTTS_SCRIPT" --full
+    else
+        echo "[i] MeloTTS skipped (opt-in: --melotts or MELOTTS_INSTALL=1; pins transformers==4.27.4)."
+        ENGINE_SKIPPED+=("MeloTTS (opt-in)")
+    fi
+    if [[ "$GPTSOVITS" -eq 1 || "${GPTSOVITS_INSTALL:-0}" == "1" ]]; then
+        run_engine_installer "GPT-SoVITS (TTS)" "$GPTSOVITS_SCRIPT" --full
+    else
+        echo "[i] GPT-SoVITS skipped (opt-in: --gptsovits or GPTSOVITS_INSTALL=1; pins an old transformers)."
+        ENGINE_SKIPPED+=("GPT-SoVITS (opt-in)")
+    fi
 
     # Azure Speech SDK (cloud TTS+STT fallback; no model, needs key+region at run time).
     echo "------------------------------------------------------------"
@@ -342,16 +396,16 @@ if [[ "$UMBRELLA" -eq 1 ]]; then
 
     echo "============================================================"
     echo " TTS/STT collection summary"
-    echo "   installed/ok : ${ENGINE_OK[*]:-none}"
+    echo "   ok / present : ${ENGINE_OK[*]:-none}"
     echo "   degraded     : ${ENGINE_FAILED[*]:-none}"
-    echo "   not found    : ${ENGINE_SKIPPED[*]:-none}"
+    echo "   skipped      : ${ENGINE_SKIPPED[*]:-none}"
     echo "============================================================"
 else
-    # CORE-only / pyservice-sweep: prepare.sh installs the siblings itself. Honor the
-    # legacy --melotts opt-in so a caller asking for MeloTTS here still gets it.
-    if [[ "$MELOTTS" -eq 1 ]]; then
-        run_engine_installer "MeloTTS (TTS)" "$MELOTTS_SCRIPT"
-    else
+    # CORE-only / pyservice-sweep: prepare.sh installs the (default) siblings itself. Still
+    # honor an explicit MeloTTS / GPT-SoVITS opt-in passed here.
+    [[ "$MELOTTS" -eq 1 ]]   && run_engine_installer "MeloTTS (TTS)"    "$MELOTTS_SCRIPT"   --full
+    [[ "$GPTSOVITS" -eq 1 ]] && run_engine_installer "GPT-SoVITS (TTS)" "$GPTSOVITS_SCRIPT" --full
+    if [[ "$MELOTTS" -eq 0 && "$GPTSOVITS" -eq 0 ]]; then
         echo "[i] CORE-only mode: sherpa + model done; siblings handled by prepare.sh / numbered sweep."
     fi
 fi

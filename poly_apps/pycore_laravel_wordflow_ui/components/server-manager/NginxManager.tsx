@@ -61,7 +61,8 @@ export function NginxManager() {
     try {
       const res = await api.serverManagerV1.listNginxSites();
       if (res.success) {
-        setSites(res.data);
+        // Backend wraps the list as { sites: [...], total_sites, ... }.
+        setSites(Array.isArray(res.data?.sites) ? res.data.sites : []);
       }
     } catch (error: any) {
       toast.error(error.message || t('messages.networkError'));
@@ -78,7 +79,19 @@ export function NginxManager() {
 
     setProcessing(true);
     try {
-      const res = await api.serverManagerV1.createNginxSite(formData);
+      // Map the form to the backend createSite contract:
+      // site_name / domain / site_type / config{ www_dir, php_mode } / ssl_enabled.
+      const payload = {
+        site_name: formData.name,
+        domain: formData.domain,
+        site_type: 'static',
+        config: {
+          www_dir: formData.root,
+          php_mode: formData.phpEnabled ? 'php-fpm' : 'none'
+        },
+        ssl_enabled: formData.ssl
+      };
+      const res = await api.serverManagerV1.createNginxSite(payload);
       if (res.success) {
         toast.success('Site created successfully');
         setShowCreateModal(false);
@@ -95,9 +108,17 @@ export function NginxManager() {
   async function handleEdit() {
     if (!selectedSite) return;
 
+    // Backend updateSite writes the raw config verbatim and requires `site_config`.
+    // This structured form cannot synthesize a full nginx config, so we submit the
+    // raw config last loaded via "View Config". Without it the request is invalid.
+    if (!configContent) {
+      toast.warning('Open "View Config" first to load the editable configuration');
+      return;
+    }
+
     setProcessing(true);
     try {
-      const res = await api.serverManagerV1.updateNginxSite(selectedSite.name, formData);
+      const res = await api.serverManagerV1.updateNginxSite(selectedSite.name, { site_config: configContent });
       if (res.success) {
         toast.success('Site updated successfully');
         setShowEditModal(false);
@@ -154,7 +175,8 @@ export function NginxManager() {
     try {
       const res = await api.serverManagerV1.getNginxSiteConfig(site.name);
       if (res.success) {
-        setConfigContent(res.data.config || '');
+        // Backend returns the raw config under `content` (not `config`).
+        setConfigContent(res.data?.content || '');
         setSelectedSite(site);
         setShowConfigModal(true);
       }
@@ -169,10 +191,11 @@ export function NginxManager() {
     setProcessing(true);
     try {
       const res = await api.serverManagerV1.testNginxConfig();
-      if (res.success) {
+      // testConfig always returns 200; real validity is in data.valid.
+      if (res.success && res.data?.valid) {
         toast.success('Configuration test passed!', 'All syntax is correct');
       } else {
-        toast.error('Configuration test failed', res.message);
+        toast.error('Configuration test failed', res.data?.error || res.message);
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to test configuration');
@@ -226,9 +249,12 @@ export function NginxManager() {
       sortable: true
     },
     {
-      key: 'domain',
+      key: 'server_names',
       title: 'Domain',
-      sortable: true
+      sortable: true,
+      // Backend exposes parsed `server_names` (array), not a `domain` string.
+      render: (value, row) =>
+        Array.isArray(value) && value.length > 0 ? value.join(', ') : (row.domain || '-')
     },
     {
       key: 'enabled',
@@ -242,9 +268,10 @@ export function NginxManager() {
       )
     },
     {
-      key: 'ssl',
+      key: 'ssl_enabled',
       title: 'SSL',
       width: '80px',
+      // Backend reports SSL as `ssl_enabled` (from parseNginxConfig).
       render: (value) => (
         <span className={value ? 'text-green-600' : 'text-gray-400'}>
           {value ? 'Yes' : 'No'}

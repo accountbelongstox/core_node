@@ -18,6 +18,10 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+# Serialize pip into the shared venv (safe under the LLM parallel group). Defensive.
+PIPLOCK_LIB="$PARENT_DIR_LEVEL_2/common/base_libs/pip_lock.sh"
+[ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
+command -v vpip >/dev/null 2>&1 || vpip() { "$@"; }
 
 SCRIPT_NAME="[95_install_deepseek]"
 MODEL_NAME="DeepSeek-VL"
@@ -279,8 +283,8 @@ install_dependencies() {
     cd "$install_dir"
     print_info "Installing core dependencies..."
     echo ""
-    echo "$SCRIPT_NAME [run] $python_cmd -m pip install torch transformers pillow numpy einops timm accelerate"
-    $python_cmd -m pip install torch transformers pillow numpy einops timm accelerate
+    echo "$SCRIPT_NAME [run] $python_cmd -m pip install torch $LLM_TRANSFORMERS_SPEC pillow numpy einops timm accelerate"
+    vpip $python_cmd -m pip install torch "$LLM_TRANSFORMERS_SPEC" pillow numpy einops timm accelerate
     echo ""
     cd - > /dev/null
 
@@ -297,7 +301,7 @@ test_model_load() {
     local test_script="$install_dir/test_model_load.py"
     cat > "$test_script" << 'PYTHON_EOF'
 import os
-os.environ['HF_HOME'] = os.path.join(os.path.dirname(__file__), '.cache')
+os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
 
 print('[TEST] Loading VLChatProcessor...')
 from deepseek_vl.models import VLChatProcessor

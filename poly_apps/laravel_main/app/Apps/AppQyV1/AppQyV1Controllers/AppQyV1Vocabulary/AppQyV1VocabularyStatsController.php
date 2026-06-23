@@ -33,6 +33,25 @@ class AppQyV1VocabularyStatsController extends Controller
     use ApiResponse;
 
     /**
+     * UI sort key -> real dictionary DB column(s). A key absent from this map
+     * falls back to the default query_count ordering, so the request can never
+     * order by an arbitrary column (injection-safe: $column comes only from here).
+     *   word        -> content
+     *   translation -> has_translation (no scalar translation column; the text
+     *                  lives in the JSON `translations`, so we group by coverage)
+     *   phonetic    -> us_phonetic, then uk_phonetic, then phonetic
+     *   queries     -> query_count
+     *   status      -> is_valid then has_audio (mirrors the UI status badge order)
+     */
+    private const SORTABLE_COLUMNS = [
+        'word' => ['content'],
+        'translation' => ['has_translation'],
+        'phonetic' => ['us_phonetic', 'uk_phonetic', 'phonetic'],
+        'queries' => ['query_count'],
+        'status' => ['is_valid', 'has_audio'],
+    ];
+
+    /**
      * Paginated dictionary rows for a language with a coverage filter.
      *
      * GET /api/app_qy_v1/dictionary/words
@@ -52,6 +71,9 @@ class AppQyV1VocabularyStatsController extends Controller
             // each class of invalid word separately.
             'validity_source' => 'nullable|string|max:64',
             'q' => 'nullable|string',
+            // Server-side full-dataset sort: a whitelisted UI sort key + direction.
+            'sort' => 'nullable|string|in:word,translation,phonetic,queries,status',
+            'order' => 'nullable|string|in:asc,desc',
             'start' => 'nullable|integer|min:0',
             'limit' => 'nullable|integer|min:1|max:1000',
         ]);
@@ -79,6 +101,14 @@ class AppQyV1VocabularyStatsController extends Controller
         $limit = 100;
         if (isset($validated['limit'])) {
             $limit = (int) $validated['limit'];
+        }
+        $sortKey = '';
+        if (isset($validated['sort'])) {
+            $sortKey = $validated['sort'];
+        }
+        $order = 'asc';
+        if (isset($validated['order']) && $validated['order'] === 'desc') {
+            $order = 'desc';
         }
 
         $languageCode = AppQyV1VocabularyLibraryPublicController::getLanguageCode($language);
@@ -115,9 +145,20 @@ class AppQyV1VocabularyStatsController extends Controller
 
         $total = (clone $query)->count();
 
+        // Full-dataset ordering: a whitelisted `sort` drives orderBy over the
+        // ENTIRE filtered set (count above uses the same $query before skip/take),
+        // so pagination reflects the sorted order across all pages — not just the
+        // loaded page. Falls back to the default most-queried-first ordering.
+        if ($sortKey !== '' && isset(self::SORTABLE_COLUMNS[$sortKey])) {
+            foreach (self::SORTABLE_COLUMNS[$sortKey] as $column) {
+                $query->orderBy($column, $order);
+            }
+            $query->orderBy('id');
+        } else {
+            $query->orderByDesc('query_count')->orderBy('id');
+        }
+
         $rows = $query
-            ->orderByDesc('query_count')
-            ->orderBy('id')
             ->skip($start)
             ->take($limit)
             ->get();
@@ -129,6 +170,32 @@ class AppQyV1VocabularyStatsController extends Controller
             $entry = AppQyV1VocabularyLibraryPublicController::buildWordEntryFromDictionaryRow($row);
 
             $hasTranslation = (bool) $row->has_translation || !empty($entry['has_translation']);
+
+            // File-first audio path/size: mirror buildWordEntryFromDictionaryRow's
+            // resolution (same canonical PathMapper base, same first-existing
+            // tts_file) so the displayed SERVER PATH + SIZE refer to the exact file
+            // audio_url serves. Path is stripped to the www-relative form
+            // (/wwwroot/laravel_db/static/app_qy_v1/audio/<lang>/<type>/<file>);
+            // null when no playable file exists on disk.
+            $audioPath = null;
+            $audioSize = null;
+            if (!empty($row->tts_files)) {
+                $audioBaseAbs = \App\Providers\PathMapper::getAppQyV1AudioBaseDir() . '/';
+                $wwwRoot = rtrim(\App\Providers\PathMapper::mapWebPath('www'), '/');
+                foreach ($row->tts_files as $ttsFile) {
+                    if (isset($ttsFile['path'])) {
+                        $fullPath = $audioBaseAbs . $ttsFile['path'];
+                        if (is_file($fullPath)) {
+                            $audioPath = str_starts_with($fullPath, $wwwRoot)
+                                ? substr($fullPath, strlen($wwwRoot))
+                                : $fullPath;
+                            $size = @filesize($fullPath);
+                            $audioSize = $size === false ? null : (int) $size;
+                            break;
+                        }
+                    }
+                }
+            }
 
             return [
                 'id' => (int) $row->id,
@@ -145,6 +212,8 @@ class AppQyV1VocabularyStatsController extends Controller
                 'phonetic' => $row->phonetic,
                 'audio_url' => $entry['audio_url'],
                 'audio_available' => (bool) ($entry['audio_available'] ?? false),
+                'audio_path' => $audioPath,
+                'audio_size' => $audioSize,
                 // Real word_details column (definitions / POS / examples) — NOT the
                 // builder's $entry['word_details'], which aliases image_files.
                 'word_details' => $row->word_details,

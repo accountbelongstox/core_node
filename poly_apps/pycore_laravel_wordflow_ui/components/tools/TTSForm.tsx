@@ -29,12 +29,9 @@ import {
 const TTSForm: React.FC = () => {
   const config = AI_TOOLS.tts;
   const {
-    loading,
-    error,
     history,
     isFavorite,
     toggleFavorite,
-    clearError
   } = useToolModel(config);
 
   const [text, setText] = useState('');
@@ -45,6 +42,13 @@ const TTSForm: React.FC = () => {
 
   const [ttsOptions, setTtsOptions] = useState<any>(null);
   const [loadingOptions, setLoadingOptions] = useState(true);
+
+  // TTS generation goes through appQyV1Model directly (not the hook's execute),
+  // so generation loading/error/notice state is tracked locally here. The hook's
+  // own loading/error never update for this flow.
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [currentAudio, setCurrentAudio] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -90,23 +94,46 @@ const TTSForm: React.FC = () => {
   const handleGenerate = async () => {
     if (!text.trim()) return;
 
-    clearError();
+    setError(null);
+    setNotice(null);
+    setGenerating(true);
 
     try {
       const result = await appQyV1Model.aiTools.tts.generate(text.trim(), language, {
         type: 'sentence',
+        // `options` carries the edge-tts rate/pitch payload to the /tts/generate
+        // endpoint. The model's intermediate options type is narrower than the
+        // API layer (which accepts `options?: any`), so cast to keep types clean
+        // without changing the runtime contract.
         options: {
           rate: `${speed >= 0 ? '+' : ''}${speed}%`,
           pitch: `${pitch >= 0 ? '+' : ''}${pitch}Hz`,
-        }
-      });
+        },
+      } as { type?: string; options?: any });
 
-      if (result.success && result.data?.audio_url) {
+      if (!result.success) {
+        setError(result.error || 'Speech generation failed. Please try again.');
+        return;
+      }
+
+      if (result.data?.audio_url) {
+        // Cache hit — audio is ready immediately.
         setCurrentAudio(result.data.audio_url);
         setText('');
+      } else if (result.data?.queued) {
+        // Task was enqueued for background generation; no audio URL yet.
+        setNotice(
+          result.data.message ||
+            'Your audio was queued for generation. Please try again in a moment.'
+        );
+      } else {
+        setError('No audio was returned for this request.');
       }
     } catch (err) {
       console.error('TTS generation failed:', err);
+      setError('Speech generation failed. Please try again.');
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -272,10 +299,10 @@ const TTSForm: React.FC = () => {
         <AiToolActions>
           <button
             onClick={handleGenerate}
-            disabled={!text.trim() || loading || loadingOptions}
+            disabled={!text.trim() || generating || loadingOptions}
             className={`${commonClasses.button} ${commonClasses.buttonPrimary} px-8 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {loading ? (
+            {generating ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 Generating...
@@ -290,6 +317,12 @@ const TTSForm: React.FC = () => {
         </AiToolActions>
 
         {error && <AiToolAlert>{error}</AiToolAlert>}
+
+        {notice && (
+          <div className="px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 text-sm text-amber-700 dark:text-amber-300">
+            {notice}
+          </div>
+        )}
 
         {currentAudio && (
           <AiBentoCard title="Generated Audio">

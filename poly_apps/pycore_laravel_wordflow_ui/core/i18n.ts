@@ -19,6 +19,13 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { TRANSLATIONS } from '../constants';
 
+// Re-export the key-based React hook so `import { useTranslation } from
+// '@/core/i18n'` type-checks. Under moduleResolution:bundler this file shadows
+// the sibling `core/i18n/` directory, so consumers that want the i18next
+// `t('key')` API resolve here; aligning the named export fixes the repo-wide
+// TS2614 those imports otherwise produce.
+export { useTranslation, Trans } from 'react-i18next';
+
 const defaultLng = 'en';
 
 i18n

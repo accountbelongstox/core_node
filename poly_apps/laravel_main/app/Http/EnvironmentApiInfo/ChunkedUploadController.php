@@ -15,7 +15,9 @@ class ChunkedUploadController
     public function __construct()
     {
         $this->baseDirectory = PathMapper::getStaticPath();
-        $this->chunksDirectory = storage_path('app/upload_chunks');
+        // Transient upload chunks live on the mapped external filesystem, NOT inside
+        // the laravel_main project tree (was storage_path('app/upload_chunks')).
+        $this->chunksDirectory = PathMapper::getExternalStoragePath('temp', 'upload_chunks');
         FileSystemManager::ensureDirectoryExists($this->baseDirectory);
         FileSystemManager::ensureDirectoryExists($this->chunksDirectory);
     }

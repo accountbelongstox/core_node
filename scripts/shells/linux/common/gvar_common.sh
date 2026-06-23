@@ -998,18 +998,18 @@ fi
 
 # Additional directory variables
 # Only set if not already defined (to avoid overwriting dd.sh values)
-if [ -z "$SHELLS_DIR" ]; then
+if [ -z "${SHELLS_DIR:-}" ]; then
     SHELLS_DIR=""
 fi
-if [ -z "$SHELLS_SCRIPTS_DIR" ]; then
+if [ -z "${SHELLS_SCRIPTS_DIR:-}" ]; then
     SHELLS_SCRIPTS_DIR=""
 fi
-if [ -z "$CORE_SCRIPTS_DIR" ]; then
+if [ -z "${CORE_SCRIPTS_DIR:-}" ]; then
     CORE_SCRIPTS_DIR=""
 fi
 
 # Set directory variables based on script location only if not already set
-if [ -n "${BASH_SOURCE[0]}" ] && [ -z "$SHELLS_DIR" ]; then
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -z "${SHELLS_DIR:-}" ]; then
     LOCAL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     SHELLS_DIR="$(dirname "$LOCAL_SCRIPT_DIR")"
     SHELLS_SCRIPTS_DIR="$SHELLS_DIR/scripts"
@@ -1168,6 +1168,16 @@ CORE_NODE_DATA_DIR="/var/_core_node"
 
 GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
 
+# Wire the ONE shared, all-users cache location (CORE_NODE_CACHE_DIR + HF_HOME /
+# TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME ...). Idempotent, set -u-safe, and it
+# respects any value the caller already exported.
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/shared_cache_env.sh" ]; then source "$(dirname "${BASH_SOURCE[0]}")/shared_cache_env.sh"; fi
+
+# Wire the ONE shared GPU/CUDA detector (gpu_present) from base_libs/lib_gpu.sh -- the
+# canonical CUDADetector mirror -- so every install script selects GPU build + LARGE model
+# vs CPU build + small model the SAME way. Defining-only (no side effects); safe under set -u.
+if [ -f "$(dirname "${BASH_SOURCE[0]}")/base_libs/lib_gpu.sh" ]; then source "$(dirname "${BASH_SOURCE[0]}")/base_libs/lib_gpu.sh"; fi
+
 # Global download directory for all installation scripts
 CORE_NODE_SHARED_DOWNLOADS="$CORE_NODE_DATA_DIR/shared_downloads"
 
@@ -1184,29 +1194,21 @@ map_web_path() {
     # Get optimal base directory
     local data_base=$(get_base_data_directory)
 
-    # Determine base path for www based on environment
+    # Determine the web base. The selected disk (a large/Windows-NTFS DATA disk, or
+    # root) is honored AS-IS so web data lives ON that disk: a Windows NTFS DATA disk
+    # is SHARED with Windows (Linux /mnt/<ntfs>/www == Windows D:\www). data_base of
+    # "/" or "/www" collapses to /www; anything else gets "<data_base>/www". There is
+    # NO production short-circuit and NO POSIX coercion: NTFS DATA disks are mounted
+    # uid=/gid= (2_setting_base.sh) so the login user owns the tree, and any residual
+    # chmod/chown failure on NTFS is tolerated. PostgreSQL is unaffected -- its data
+    # dir stays on native ext4 (pg_mount -> /var/lib/postgresql/d), not under www.
     if [ "$IS_WSL" = true ]; then
         base_path="$data_base/www"
-    elif [ "$IS_PRODUCTION" = true ]; then
-        base_path="/www"
     else
-        # Desktop environment: use data base + /www, unless data base is already /www
-        if [ "$data_base" = "/www" ]; then
-            base_path="/www"
-        else
-            base_path="$data_base/www"
-        fi
-    fi
-
-    # WEB DATA must live on a POSIX filesystem: PostgreSQL needs a postgres-owned
-    # 0700 data dir and Laravel must chown/chmod its storage tree. The project/code
-    # base above may legitimately be a large NTFS data disk -- fine for code, but
-    # NOT for web data. If the resolved web base is on NTFS/exFAT/FUSE, fall back to
-    # /www so it matches PHP App\Providers\PathMapper (which also uses /www). This
-    # keeps the CODE root on /mnt while web data (PG secrets, laravel_db) lives on
-    # POSIX /www -- the two are intentionally separate.
-    if ! _fs_is_posix_capable "$base_path"; then
-        base_path="/www"
+        case "$data_base" in
+            /|/www) base_path="/www" ;;
+            *)      base_path="$data_base/www" ;;
+        esac
     fi
 
     # Map paths using common base path

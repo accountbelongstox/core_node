@@ -1,0 +1,815 @@
+import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
+import BentoCard from '../../BentoCard';
+import { FileNode, Language } from '../../../types';
+import { api } from '../../../core/api';
+import { smartSortFiles } from '../../../utils/mediaUtils';
+import { UploadItem, classifyUploadType } from './uploadProgress';
+import UploadProgressCard from './UploadProgressCard';
+import {
+    Folder, FolderOpen, FileVideo, File, ChevronRight, ChevronDown,
+    RefreshCw, Film, UploadCloud, FolderPlus, Music,
+    Image as ImageIcon, Code2, AlertCircle, X, FileText, Loader2,
+    Pencil, Trash2, Download, FileType
+} from "lucide-react";
+
+const FileTreeItem: React.FC<{
+    node: FileNode;
+    level: number;
+    activeId: string | null;
+    selectedDir: string;
+    onSelect: (node: FileNode) => void;
+    onToggle: (node: FileNode) => void;
+    onRename: (node: FileNode, newName: string) => void;
+    onDelete: (node: FileNode) => void;
+    onDownload: (node: FileNode) => void;
+}> = ({ node, level, activeId, selectedDir, onSelect, onToggle, onRename, onDelete, onDownload }) => {
+  const isActive = activeId === node.id;
+  const isSelectedDir = node.type === 'folder' && selectedDir === node.id;
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(node.name);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [isRenaming]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (node.type === 'folder') {
+        onToggle(node);
+        onSelect(node);
+    } else {
+        onSelect(node);
+    }
+  };
+
+  const beginRename = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenameValue(node.name);
+    setIsRenaming(true);
+  };
+
+  const commitRename = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed.length > 0 && trimmed !== node.name) {
+      onRename(node, trimmed);
+    }
+    setIsRenaming(false);
+  };
+
+  const cancelRename = () => {
+    setRenameValue(node.name);
+    setIsRenaming(false);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelRename();
+    }
+  };
+
+  return (
+    <div className="select-none">
+      <div
+        className={`
+            group flex items-center gap-2 py-1.5 px-2 cursor-pointer transition-colors border-l-2
+            ${isActive ? 'bg-indigo-500/20 border-indigo-500 text-white' : isSelectedDir ? 'bg-indigo-500/10 border-indigo-400/60 text-slate-200' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'}
+        `}
+        style={{ paddingLeft: `${level * 12 + 8}px` }}
+        onClick={handleClick}
+      >
+        <span className="opacity-50 text-xs">
+            {node.type === 'folder' ? (
+                node.isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+            ) : <span className="w-3.5 inline-block" />}
+        </span>
+        {node.type === 'folder' ? (
+            node.isOpen ? <FolderOpen size={16} className="text-yellow-500" /> : <Folder size={16} className="text-yellow-500/80" />
+        ) : node.fileType === 'video' ? (
+            <FileVideo size={16} className="text-pink-400" />
+        ) : node.fileType === 'audio' ? (
+            <Music size={16} className="text-cyan-400" />
+        ) : node.fileType === 'image' ? (
+            <ImageIcon size={16} className="text-emerald-400" />
+        ) : node.fileType === 'code' ? (
+            <Code2 size={16} className="text-amber-400" />
+        ) : node.fileType === 'markdown' ? (
+            <FileText size={16} className="text-sky-400" />
+        ) : node.fileType === 'pdf' ? (
+            <FileText size={16} className="text-red-400" />
+        ) : node.fileType === 'doc' ? (
+            <FileType size={16} className="text-blue-400" />
+        ) : (
+            <File size={16} className="text-slate-500" />
+        )}
+
+        {isRenaming ? (
+          <input
+            ref={renameInputRef}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={handleRenameKeyDown}
+            onBlur={commitRename}
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 min-w-0 bg-black/40 border border-indigo-500/50 rounded px-1.5 py-0.5 text-sm font-mono text-white outline-none"
+          />
+        ) : (
+          <span className="truncate text-sm font-mono tracking-tight flex-1 min-w-0">{node.name}</span>
+        )}
+
+        {!isRenaming && (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={beginRename}
+              className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
+              title="Rename"
+            >
+              <Pencil size={12} />
+            </button>
+            {node.type === 'file' && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDownload(node); }}
+                className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
+                title="Download"
+              >
+                <Download size={12} />
+              </button>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(node); }}
+              className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400"
+              title="Delete"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        )}
+      </div>
+      {node.isOpen && node.children && (
+        <div>
+          {node.children.map(child => (
+            <FileTreeItem
+                key={child.id}
+                node={child}
+                level={level + 1}
+                activeId={activeId}
+                selectedDir={selectedDir}
+                onSelect={onSelect}
+                onToggle={onToggle}
+                onRename={onRename}
+                onDelete={onDelete}
+                onDownload={onDownload}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const UploadModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onUpload: (files: FileList) => void;
+    targetLabel: string;
+}> = ({ isOpen, onClose, onUpload, targetLabel }) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const folderInputRef = useRef<HTMLInputElement>(null);
+    const [isDragging, setIsDragging] = useState(false);
+
+    // webkitdirectory/directory are non-standard attrs that the React types omit; set
+    // them imperatively on the hidden folder input so it picks whole directory trees.
+    useEffect(() => {
+      if (folderInputRef.current) {
+        folderInputRef.current.setAttribute('webkitdirectory', '');
+        folderInputRef.current.setAttribute('directory', '');
+      }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        onUpload(e.dataTransfer.files);
+        onClose();
+      }
+    };
+
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        <UploadCloud className="text-indigo-400" /> Upload Resources
+                    </h3>
+                    <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full"><X size={20} className="text-slate-400" /></button>
+                </div>
+                <p className="text-xs text-slate-500 mb-6 font-mono truncate">Target: {targetLabel}</p>
+
+                <div
+                    className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center text-center transition-colors cursor-pointer group ${isDragging ? 'border-indigo-400 bg-indigo-500/10' : 'border-white/10 hover:bg-white/5'}`}
+                    onClick={() => inputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+                    onDrop={handleDrop}
+                >
+                    <UploadCloud size={48} className="text-slate-500 group-hover:text-indigo-400 transition-colors mb-4" />
+                    <p className="text-slate-300 font-medium">Drag &amp; drop files here, or click to browse</p>
+                    <p className="text-xs text-slate-500 mt-2">Files upload into the selected target directory</p>
+                </div>
+
+                <div className="flex items-center gap-3 mt-4">
+                    <button
+                        onClick={() => inputRef.current?.click()}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
+                    >
+                        <UploadCloud size={16} /> Select Files
+                    </button>
+                    <button
+                        onClick={() => folderInputRef.current?.click()}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-200 text-sm rounded-lg transition-colors border border-white/10"
+                    >
+                        <FolderPlus size={16} /> Select Folder
+                    </button>
+                </div>
+
+                <input
+                    ref={inputRef}
+                    type="file"
+                    className="hidden"
+                    multiple
+                    onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                            onUpload(e.target.files);
+                            onClose();
+                        }
+                    }}
+                />
+                <input
+                    ref={folderInputRef}
+                    type="file"
+                    className="hidden"
+                    multiple
+                    onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                            onUpload(e.target.files);
+                            onClose();
+                        }
+                    }}
+                />
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+const NewFolderModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onCreate: (name: string) => void;
+    targetLabel: string;
+}> = ({ isOpen, onClose, onCreate, targetLabel }) => {
+    const [name, setName] = useState('');
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+      if (isOpen) {
+        setName('');
+        if (inputRef.current) inputRef.current.focus();
+      }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const submit = () => {
+      const trimmed = name.trim();
+      if (trimmed.length > 0) {
+        onCreate(trimmed);
+        onClose();
+      }
+    };
+
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-sm bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        <FolderPlus className="text-indigo-400" size={18} /> New Folder
+                    </h3>
+                    <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full"><X size={18} className="text-slate-400" /></button>
+                </div>
+                <p className="text-xs text-slate-500 mb-4 font-mono truncate">In: {targetLabel}</p>
+                <input
+                    ref={inputRef}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                      else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+                    }}
+                    placeholder="folder name"
+                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono outline-none focus:border-indigo-500/60"
+                />
+                <div className="flex justify-end gap-2 mt-4">
+                    <button onClick={onClose} className="px-3 py-1.5 text-sm text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors">Cancel</button>
+                    <button onClick={submit} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors">Create</button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+const DeleteConfirmModal: React.FC<{
+    node: FileNode | null;
+    preview: { files: number; directories: number; total_items: number } | null;
+    loading: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+}> = ({ node, preview, loading, onClose, onConfirm }) => {
+    if (!node) return null;
+
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-sm bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-full bg-red-500/15">
+                        <Trash2 className="text-red-400" size={18} />
+                    </div>
+                    <h3 className="text-base font-bold text-white">Delete {node.type === 'folder' ? 'Folder' : 'File'}</h3>
+                </div>
+                <p className="text-sm text-slate-300 mb-1">
+                    Delete <span className="font-mono text-white">{node.name}</span>?
+                </p>
+                {loading ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-3">
+                        <Loader2 size={14} className="animate-spin" /> Computing impact…
+                    </div>
+                ) : preview ? (
+                    <p className="text-xs text-slate-500 mt-3">
+                        This will remove <span className="text-red-400 font-medium">{preview.files}</span> file(s) and{' '}
+                        <span className="text-red-400 font-medium">{preview.directories}</span> director(ies){' '}
+                        (<span className="text-red-400 font-medium">{preview.total_items}</span> total). This cannot be undone.
+                    </p>
+                ) : (
+                    <p className="text-xs text-slate-500 mt-3">This cannot be undone.</p>
+                )}
+                <div className="flex justify-end gap-2 mt-5">
+                    <button onClick={onClose} className="px-3 py-1.5 text-sm text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors">Cancel</button>
+                    <button onClick={onConfirm} className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors">Delete</button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+// NO || or ?? allowed inside this component — explicit branching only.
+const detectFileType = (fileName: string): 'video' | 'audio' | 'image' | 'code' | 'text' | 'pdf' | 'markdown' | 'doc' => {
+    const parts = fileName.split('.');
+    const ext = parts[parts.length - 1].toLowerCase();
+    if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'm3u8'].includes(ext)) return 'video';
+    if (['mp3', 'wav', 'flac', 'aac', 'm4a'].includes(ext)) return 'audio';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
+    if (['pdf'].includes(ext)) return 'pdf';
+    if (['md', 'markdown'].includes(ext)) return 'markdown';
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return 'doc';
+    if (['js', 'ts', 'jsx', 'tsx', 'py', 'php', 'java', 'cpp', 'c', 'go', 'rs'].includes(ext)) return 'code';
+    return 'text';
+};
+
+const findFirstFile = (nodes: FileNode[]): FileNode | null => {
+    for (const node of nodes) {
+      if (node.type === 'file') return node;
+      if (node.children) {
+        const found = findFirstFile(node.children);
+        if (found) return found;
+      }
+    }
+    return null;
+};
+
+// Walk the tree to find a node by id. Returns null when absent (e.g. after delete).
+const findNodeById = (nodes: FileNode[], targetId: string): FileNode | null => {
+    for (const node of nodes) {
+      if (node.id === targetId) return node;
+      if (node.children) {
+        const found = findNodeById(node.children, targetId);
+        if (found) return found;
+      }
+    }
+    return null;
+};
+
+const findParentOf = (nodes: FileNode[], targetId: string): FileNode | null => {
+    for (const node of nodes) {
+        if (node.children?.some(c => c.id === targetId)) return node;
+        if (node.children) {
+            const res = findParentOf(node.children, targetId);
+            if (res) return res;
+        }
+    }
+    return null;
+};
+
+// Filter the tree by a case-insensitive name match. A folder is kept when its own
+// name matches OR it has any surviving descendant. NO || or ?? — explicit branching.
+const filterTree = (nodes: FileNode[], term: string): FileNode[] => {
+    const lower = term.trim().toLowerCase();
+    if (lower.length === 0) return nodes;
+    const out: FileNode[] = [];
+    for (const node of nodes) {
+        const selfMatch = node.name.toLowerCase().includes(lower);
+        if (node.type === 'folder') {
+            const kids = node.children ? filterTree(node.children, term) : [];
+            if (selfMatch) {
+                out.push(node);
+            } else if (kids.length > 0) {
+                out.push({ ...node, children: kids, isOpen: true });
+            }
+        } else if (selfMatch) {
+            out.push(node);
+        }
+    }
+    return out;
+};
+
+interface FileTreePanelProps {
+  search: string;
+  activeFileId: string | null;
+  onSelectFile: (n: FileNode) => void;
+  onPlaylist: (p: FileNode[]) => void;
+  lang?: Language;
+  reloadSignal: number;
+}
+
+const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onSelectFile, onPlaylist, lang = 'en', reloadSignal }) => {
+  const [fileTree, setFileTree] = useState<FileNode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedDir, setSelectedDir] = useState<string>('');
+  const [currentPath, setCurrentPath] = useState<string>('');
+  const [basePath, setBasePath] = useState<string>('');
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null);
+  const [deletePreview, setDeletePreview] = useState<{ files: number; directories: number; total_items: number } | null>(null);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
+  const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const [batchPct, setBatchPct] = useState(0);
+
+  const loadFileTree = async () => {
+    setLoading(true);
+    setError(null);
+
+    // NO try-catch allowed - backend must handle errors properly
+    const response = await api.mcpV1.getStaticResourcesTree();
+
+    if (response.success && response.data) {
+      // Backend MUST return consistent structure: { items, path, realPath }
+      const items = response.data.items;
+      const responsePath = response.data.path;
+      const realPath = response.data.realPath;
+
+      setCurrentPath(realPath);
+      setBasePath(responsePath);
+
+      const addIdToNodes = (nodes: any[]): FileNode[] => {
+        return nodes.map((node: any) => ({
+          ...node,
+          id: node.path,
+          type: node.type === 'directory' ? 'folder' : 'file',
+          fileType: node.type === 'directory' ? undefined : detectFileType(node.name),
+          children: node.children ? addIdToNodes(node.children) : undefined
+        }));
+      };
+
+      const nodesWithId = addIdToNodes(items);
+      setFileTree(nodesWithId);
+
+      // Auto-select the first file when there is no valid active selection.
+      // After a delete the previously-active id may no longer exist in the tree,
+      // so this also clears the stale selection upward by moving to a live file.
+      const activeStillPresent = activeFileId ? findNodeById(nodesWithId, activeFileId) !== null : false;
+      if (nodesWithId.length > 0 && !activeStillPresent) {
+        const firstFile = findFirstFile(nodesWithId);
+        if (firstFile) {
+          onSelectFile(firstFile);
+        }
+      }
+    } else {
+      setError(response.error);
+    }
+
+    setLoading(false);
+  };
+
+  // Friendly label for the current upload/new-folder target.
+  const targetDirLabel = selectedDir ? selectedDir : '(root)';
+
+  // Initial load + reload whenever the parent bumps reloadSignal.
+  useEffect(() => {
+    loadFileTree();
+  }, [reloadSignal]);
+
+  // Compute the media-sibling playlist (video/audio) for the active file and emit it.
+  useEffect(() => {
+    if (!activeFileId) {
+      onPlaylist([]);
+      return;
+    }
+    const parent = findParentOf(fileTree, activeFileId);
+    if (parent && parent.children) {
+        const sortedSiblings = smartSortFiles(parent.children);
+        // NO || allowed - backend MUST set fileType
+        const mediaSiblings = sortedSiblings.filter(n => {
+          if (n.fileType) {
+            return ['video', 'audio'].includes(n.fileType);
+          }
+          return false;
+        });
+        onPlaylist(mediaSiblings);
+    } else {
+        onPlaylist([]);
+    }
+  }, [activeFileId, fileTree]);
+
+  // Selecting a node: a folder becomes the upload/new-folder target; a file becomes
+  // the active preview file (lifted to the parent). NO || or ?? — explicit branching.
+  const handleSelectNode = (node: FileNode) => {
+    if (node.type === 'folder') {
+      setSelectedDir(node.id);
+    } else {
+      onSelectFile(node);
+    }
+  };
+
+  const toggleFolder = (targetNode: FileNode) => {
+    const updateNodes = (nodes: FileNode[]): FileNode[] => {
+        return nodes.map(node => {
+            if (node.id === targetNode.id) {
+                return { ...node, isOpen: !node.isOpen };
+            }
+            if (node.children) {
+                return { ...node, children: updateNodes(node.children) };
+            }
+            return node;
+        });
+    };
+    setFileTree(prev => updateNodes(prev));
+  };
+
+  // NO try-catch allowed. Upload into the selected directory (fall back to root),
+  // preserving folder structure via File.webkitRelativePath -> relativePaths.
+  // Wires per-file upload progress into an UploadProgressCard.
+  const handleUpload = async (files: FileList) => {
+     const fileArr = Array.from(files);
+     if (fileArr.length === 0) return;
+     const targetPath = selectedDir ? selectedDir : '';
+     const relativePaths = fileArr.map(f => {
+       const rel = (f as any).webkitRelativePath;
+       return rel ? rel : f.name;
+     });
+
+     // Build queued UploadItems for the progress card.
+     const items: UploadItem[] = fileArr.map((f, i) => ({
+       id: `${Date.now()}-${i}-${f.name}`,
+       name: relativePaths[i],
+       type: classifyUploadType(f.name),
+       status: 'queued',
+       pct: 0
+     }));
+     setUploadItems(items);
+     setBatchPct(0);
+
+     // SEQUENTIAL QUEUE — send one file per request so a large folder uploads
+     // ONE BY ONE: each row goes queued -> uploading(%) -> encoding -> done/failed
+     // in turn (real per-file progress), and the batch bar tracks overall queue
+     // position. A single failed file is recorded and the queue keeps going.
+     const total = fileArr.length;
+     let failures = 0;
+
+     for (let i = 0; i < total; i++) {
+       const itemId = items[i].id;
+       setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'uploading', pct: 0 } : it));
+
+       const response = await api.mcpV1.uploadStaticResources([fileArr[i]], targetPath, [relativePaths[i]], (pct: number) => {
+         const nextStatus = pct >= 100 ? 'encoding' : 'uploading';
+         setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: nextStatus, pct } : it));
+         // Overall queue progress = completed files + the current file's fraction.
+         setBatchPct(Math.round(((i + pct / 100) / total) * 100));
+       });
+
+       if (response.success) {
+         setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'done', pct: 100 } : it));
+       } else {
+         failures = failures + 1;
+         setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'failed', error: response.error } : it));
+       }
+       setBatchPct(Math.round(((i + 1) / total) * 100));
+     }
+
+     await loadFileTree();
+     if (failures > 0) {
+       setError(`${failures} of ${total} file(s) failed to upload.`);
+     }
+  };
+
+  // NO try-catch allowed.
+  const handleCreateFolder = async (name: string) => {
+     const parentPath = selectedDir ? selectedDir : '';
+     const response = await api.mcpV1.createStaticResourceDir(parentPath, name);
+     if (response.success) {
+       await loadFileTree();
+     } else {
+       setError(response.error);
+     }
+  };
+
+  // NO try-catch allowed.
+  const handleRename = async (node: FileNode, newName: string) => {
+     const response = await api.mcpV1.renameStaticResource(node.id, newName);
+     if (response.success) {
+       await loadFileTree();
+     } else {
+       setError(response.error);
+     }
+  };
+
+  const handleDownload = (node: FileNode) => {
+     const url = api.mcpV1.getStaticFileDownloadUrl(node.id);
+     window.open(url, '_blank');
+  };
+
+  // Opening the delete modal also fetches an impact preview. NO try-catch.
+  const openDeleteModal = async (node: FileNode) => {
+     setDeleteTarget(node);
+     setDeletePreview(null);
+     setDeletePreviewLoading(true);
+     const response = await api.mcpV1.deleteStaticResourcePreview(node.id);
+     if (response.success && response.data) {
+       setDeletePreview({
+         files: response.data.files,
+         directories: response.data.directories,
+         total_items: response.data.total_items
+       });
+     }
+     setDeletePreviewLoading(false);
+  };
+
+  // NO try-catch allowed. After delete + reload, loadFileTree auto-selects a live
+  // first file when the active id is gone — clearing the stale selection upward.
+  const handleConfirmDelete = async () => {
+     if (!deleteTarget) return;
+     const target = deleteTarget;
+     const response = await api.mcpV1.deleteStaticResource(target.id);
+     setDeleteTarget(null);
+     setDeletePreview(null);
+     if (response.success) {
+       if (selectedDir === target.id) setSelectedDir('');
+       await loadFileTree();
+     } else {
+       setError(response.error);
+     }
+  };
+
+  const dismissUpload = () => {
+    setUploadItems([]);
+    setBatchPct(0);
+  };
+
+  const visibleTree = filterTree(fileTree, search);
+
+  return (
+    <BentoCard title="Static Resources" className="flex-1 flex flex-col min-h-0" icon={Film} glowing>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <button
+            onClick={() => loadFileTree()}
+            className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw size={16} />
+          </button>
+          <span className="text-xs text-slate-500 font-mono truncate">{currentPath}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-slate-400 max-w-[200px]"
+            title={`Target: ${targetDirLabel}`}
+          >
+            <Folder size={13} className="text-yellow-500/80 flex-shrink-0" />
+            <span className="font-mono truncate">{targetDirLabel}</span>
+          </span>
+          <button
+            onClick={() => setIsUploadOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 text-sm rounded-lg transition-colors border border-white/10"
+            title="Upload files or a folder"
+          >
+            <UploadCloud size={16} />
+            Upload
+          </button>
+          <button
+            onClick={() => setIsNewFolderOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
+            title="Create folder in target"
+          >
+            <FolderPlus size={16} />
+            New Folder
+          </button>
+        </div>
+      </div>
+
+      {uploadItems.length > 0 && (
+        <div className="mb-4">
+          <UploadProgressCard items={uploadItems} batchPct={batchPct} onDismiss={dismissUpload} />
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center text-slate-500">
+          <Loader2 size={32} className="animate-spin" />
+        </div>
+      ) : error ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-red-400 gap-2">
+          <AlertCircle size={32} />
+          <p className="text-sm">{error}</p>
+          <button
+            onClick={() => loadFileTree()}
+            className="mt-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-sm rounded-lg transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div
+          className="flex-1 bg-black/20 border border-white/5 rounded-lg p-3 overflow-y-auto"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              handleUpload(e.dataTransfer.files);
+            }
+          }}
+        >
+          {visibleTree.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-500">
+              <Folder size={48} className="mb-4 opacity-50" />
+              <p>No files found</p>
+            </div>
+          ) : (
+            visibleTree.map(node => (
+              <FileTreeItem
+                key={node.id}
+                node={node}
+                level={0}
+                activeId={activeFileId}
+                selectedDir={selectedDir}
+                onSelect={handleSelectNode}
+                onToggle={toggleFolder}
+                onRename={handleRename}
+                onDelete={openDeleteModal}
+                onDownload={handleDownload}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      <UploadModal
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUpload={handleUpload}
+        targetLabel={targetDirLabel}
+      />
+      <NewFolderModal
+        isOpen={isNewFolderOpen}
+        onClose={() => setIsNewFolderOpen(false)}
+        onCreate={handleCreateFolder}
+        targetLabel={targetDirLabel}
+      />
+      <DeleteConfirmModal
+        node={deleteTarget}
+        preview={deletePreview}
+        loading={deletePreviewLoading}
+        onClose={() => { setDeleteTarget(null); setDeletePreview(null); }}
+        onConfirm={handleConfirmDelete}
+      />
+    </BentoCard>
+  );
+};
+
+export default FileTreePanel;

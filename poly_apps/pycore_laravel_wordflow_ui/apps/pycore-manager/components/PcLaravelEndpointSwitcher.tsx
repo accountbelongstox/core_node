@@ -37,7 +37,7 @@ interface Props {
 const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) => {
   const { t } = useTranslation('pc');
   const {
-    endpoints, current, loading, probing, switching, error, actionError,
+    endpoints, current, loading, probing, switching, error, fallback, actionError,
     reload, select, addUrl, removeUrl, reprobe,
   } = usePcLaravelEndpoint();
 
@@ -134,6 +134,19 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
               <RefreshCw className={`w-3 h-3 ${probing ? 'animate-spin' : ''}`} /> {t('endpoint.reprobe')}
             </button>
           </div>
+
+          {fallback && (
+            // pycore RPC (:59000) offline: the list below is the read-only prepared
+            // set so the available APIs are still visible. Retry re-attempts the RPC.
+            <div className="px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border-b border-amber-500/20 flex items-start gap-1.5">
+              <WifiOff className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span className="flex-1 break-words">{t('endpoint.offlineHint')}</span>
+              <button type="button" onClick={reload} disabled={loading}
+                className="shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-500/15 hover:bg-amber-500/25 transition">
+                {t('endpoint.retry')}
+              </button>
+            </div>
+          )}
 
           <ul className="max-h-64 overflow-y-auto p-1.5 space-y-1">
             {endpoints.length === 0 ? (

@@ -55,7 +55,25 @@ export function SSLManager() {
       ]);
 
       if (certsRes.success) {
-        setCertificates(certsRes.data);
+        // Backend wraps the list as { certificates: [...], total_certificates }.
+        // Each parsed cert exposes name/domains/expiry_date/certificate_path.
+        const list = Array.isArray(certsRes.data?.certificates) ? certsRes.data.certificates : [];
+        setCertificates(list.map((cert: any) => {
+          const expiresAt = cert.expiry_date || cert.expires_at || null;
+          const days = expiresAt ? getDaysUntilExpiry(expiresAt) : null;
+          let status = 'unknown';
+          if (days !== null) {
+            status = days < 0 ? 'expired' : days < 30 ? 'expiring' : 'valid';
+          }
+          return {
+            domain: cert.name || (Array.isArray(cert.domains) ? cert.domains[0] : cert.domain) || '-',
+            domains: cert.domains || [],
+            issuer: cert.issuer || "Let's Encrypt",
+            expires_at: expiresAt,
+            status,
+            auto_renew: cert.auto_renew === true
+          };
+        }));
       }
       if (certbotRes.success) {
         setCertbotInfo(certbotRes.data);
@@ -133,10 +151,15 @@ export function SSLManager() {
     setFormData({ domain: '', provider: 'dnspod', staging: false });
   }
 
-  function getDaysUntilExpiry(expiresAt: string): number {
-    const expiry = new Date(expiresAt);
-    const now = new Date();
-    const diff = expiry.getTime() - now.getTime();
+  function getDaysUntilExpiry(expiresAt: string): number | null {
+    // certbot dates may carry a suffix ("... (VALID: 89 days)"); keep only the
+    // leading ISO-ish portion so Date can parse it. Return null when unparseable.
+    const raw = String(expiresAt || '').replace(/\s*\(.*$/, '').trim();
+    const expiry = new Date(raw);
+    if (isNaN(expiry.getTime())) {
+      return null;
+    }
+    const diff = expiry.getTime() - Date.now();
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   }
 
@@ -174,10 +197,16 @@ export function SSLManager() {
       title: 'Expires',
       sortable: true,
       render: (value) => {
+        if (!value) {
+          return <span className="text-gray-400">-</span>;
+        }
         const days = getDaysUntilExpiry(value);
+        const raw = String(value).replace(/\s*\(.*$/, '').trim();
+        const parsed = new Date(raw);
+        const dateLabel = isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleDateString();
         return (
-          <span className={days < 30 ? 'text-orange-600 font-medium' : ''}>
-            {new Date(value).toLocaleDateString()} ({days} days)
+          <span className={days !== null && days < 30 ? 'text-orange-600 font-medium' : ''}>
+            {dateLabel}{days !== null ? ` (${days} days)` : ''}
           </span>
         );
       }

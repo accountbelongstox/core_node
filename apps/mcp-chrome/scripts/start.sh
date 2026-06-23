@@ -87,7 +87,7 @@ mcp_clean_old_build_dirs() {
     fi
 
     # Clean extension .output (may have wrong permissions from previous root build)
-    local mcp_extension_output="$MCP_PROJECT_ROOT/app/chrome-extension/.output"
+    local mcp_extension_output="$MCP_PROJECT_ROOT/.output"
     if [ -d "$mcp_extension_output" ]; then
         rm -rf "$mcp_extension_output" 2>/dev/null || {
             echo -e "${YELLOW}  [WARN] Removing old extension output directory${NC}"
@@ -401,9 +401,9 @@ else
     echo -e "${RED}  [ERROR] Extension build completed but manifest not found${NC}"
     echo -e "${CYAN}  [DEBUG] Checking actual build output locations:${NC}"
 
-    # Check WXT default output
-    if [ -f "$MCP_PROJECT_ROOT/app/chrome-extension/.output/chrome-mv3/manifest.json" ]; then
-        echo -e "${YELLOW}  [DEBUG] Found manifest in default location: $MCP_PROJECT_ROOT/app/chrome-extension/.output/chrome-mv3/${NC}"
+    # Check configured output
+    if [ -f "$MCP_PROJECT_ROOT/.output/build_extension/manifest.json" ]; then
+        echo -e "${YELLOW}  [DEBUG] Found manifest in configured location: $MCP_PROJECT_ROOT/.output/build_extension/${NC}"
     fi
 
     # Check configured output

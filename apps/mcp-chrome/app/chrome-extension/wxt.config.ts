@@ -12,6 +12,11 @@ const CHROME_EXTENSION_KEY = config.CHROME_EXTENSION_KEY;
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
+  // Output the built extension to <mcp-chrome>/.output/build_extension.
+  // outDir is the base dir; the static outDirTemplate replaces the default
+  // "{{browser}}-mv{{manifestVersion}}" (chrome-mv3) so there is no extra suffix.
+  outDir: resolve(__dirname, '../../.output'),
+  outDirTemplate: 'build_extension',
   modules: ['@wxt-dev/module-vue'],
   // Disable automatic .env loading since we use config.js
   env: {},

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { itToolsModel } from '../../core/models';
 import { useToolOperation } from '../../hooks';
+import { useToast } from '../admin';
 import { ToolContainer, TextAreaInput, CodeDisplay } from '../common';
 import { Minimize2, Maximize2 } from 'lucide-react';
 
@@ -11,6 +12,7 @@ export function JsonFormatter() {
   const [indent, setIndent] = useState(2);
   const { loading, result, error, execute, setResult } = useToolOperation();
   const [validationError, setValidationError] = useState('');
+  const toast = useToast();
 
   const handlePrettify = () => {
     setValidationError('');
@@ -28,14 +30,29 @@ export function JsonFormatter() {
     });
   };
 
+  // Client-side validity check (no backend round-trip needed).
+  const handleValidate = () => {
+    if (!input.trim()) {
+      setValidationError('Please enter JSON to validate');
+      return;
+    }
+    try {
+      JSON.parse(input);
+      setValidationError('');
+      toast.success('Valid JSON');
+    } catch (err: any) {
+      setValidationError(err?.message ? `Invalid JSON: ${err.message}` : 'Invalid JSON');
+    }
+  };
+
   const handleSwap = () => {
     if (result) {
-      setInput(result.formatted || result.minified || '');
+      setInput(result.prettified || result.minified || '');
       setResult(null);
     }
   };
 
-  const output = result ? (result.formatted || result.minified || '') : '';
+  const output = result ? (result.prettified || result.minified || '') : '';
 
   return (
     <ToolContainer

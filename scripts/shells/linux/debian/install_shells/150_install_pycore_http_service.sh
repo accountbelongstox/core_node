@@ -13,7 +13,11 @@ source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
 SERVICE_NAME="pycore-module-caller"
 SERVICE_DESCRIPTION="Pycore Module Caller FastAPI Service"
 SERVICE_PORT=59000
-SERVICE_SCRIPT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pycore_module_caller.py"
+# The RPC entrypoint lives under the pycore package (run from repo root with
+# PYTHONPATH=root, i.e. `python pycore/pycore_module_caller.py`). There is NO copy at
+# the repo root, so the previous "${ROOT}/pycore_module_caller.py" path failed the
+# existence check below and the service was never installed (-> nothing on :59000).
+SERVICE_SCRIPT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pycore/pycore_module_caller.py"
 SERVICE_WORKING_DIR="$CORE_NODE_ROOT_FROM_SCRIPTS"
 SERVICE_USER="root"
 # IMPORTANT: Use /usr/local/bin/python (venv) instead of /usr/bin/python3 (system)
@@ -25,12 +29,14 @@ echo "  Port: $SERVICE_PORT"
 echo "  Script: $SERVICE_SCRIPT"
 echo "  Service File: /etc/systemd/system/$SERVICE_NAME.service"
 echo ""
-read -p "Continue installation? [Y/n]: " -r
-# Default to Y if user just presses Enter
-REPLY=${REPLY:-Y}
-if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ -n $REPLY ]]; then
-    echo "Installation cancelled"
-    exit 0
+# Only prompt on a real terminal; the install workflow runs unattended (Enter=Yes).
+if [ -t 0 ]; then
+    read -p "Continue installation? [Y/n]: " -r
+    REPLY=${REPLY:-Y}
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Installation cancelled"
+        exit 0
+    fi
 fi
 
 echo ""

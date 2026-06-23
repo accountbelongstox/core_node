@@ -80,7 +80,7 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     // File Upload Handlers
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const newFiles = Array.from(e.target.files).map(file => ({
+            const newFiles = Array.from(e.target.files).map((file: File) => ({
                 name: file.name,
                 size: formatSize(file.size),
                 type: file.name.split('.').pop() || 'file'
