@@ -1,7 +1,0 @@
-{
-  "name": "AppFactory Master Dashboard",
-  "description": "A comprehensive multi-app management system for tracking app performance, revenue, and customer service performance in a multi-to-multi relationship model.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
