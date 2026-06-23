@@ -114,6 +114,19 @@ install_ssh_server() {
         return 0
     fi
 
+    # Per policy: do NOT auto-install the SSH SERVER. Only install when explicitly opted in
+    # via SSH_AUTO_INSTALL_SERVER (1/true/yes/on); otherwise skip WITHOUT installing it.
+    # Git (GitHub/Gitee) SSH KEYS are a SEPARATE concern -- see 20_install_git_ssh.sh.
+    case "${SSH_AUTO_INSTALL_SERVER:-0}" in
+        1|true|yes|on|TRUE|YES|ON) : ;;
+        *)
+            print_warning_from_common_functions "openssh-server is not installed; not auto-installing it (policy)."
+            print_info_from_common_functions "To install the SSH server explicitly: SSH_AUTO_INSTALL_SERVER=1 bash 18_setup_ssh_remote.sh"
+            print_info_from_common_functions "For Git GitHub/Gitee SSH keys, use 20_install_git_ssh.sh instead."
+            return 2
+            ;;
+    esac
+
     local needs_reinstall=false
 
     if systemctl list-unit-files | grep -q "ssh.service\|sshd.service" && [ ! -f "$SSH_CONFIG_FILE" ]; then
@@ -722,7 +735,13 @@ step18_setup_ssh_remote() {
         return 0
     fi
 
-    if ! install_ssh_server; then
+    install_ssh_server
+    local ssh_install_rc=$?
+    if [ "$ssh_install_rc" = "2" ]; then
+        print_step_from_common_functions "SSH server not installed (auto-install disabled); skipping SSH remote setup."
+        print_info_from_common_functions "Re-run with SSH_AUTO_INSTALL_SERVER=1 to install and configure the SSH server."
+        return 0
+    elif [ "$ssh_install_rc" != "0" ]; then
         print_error_from_common_functions "Failed to install SSH server"
         return 1
     fi
