@@ -44,3 +44,6 @@ Canonical: **`docs/PROJECT_STANDARDS.md`**. Details: `.cursor/rules/d3-check.mdc
 | Lifecycle/threads | runtime; CODE_TREE.md |
 | All standards | **docs/PROJECT_STANDARDS.md** |
 | Code / i18n | §11: code English; UI i18n; constants excepted; i18n = providor only; no ref JSON load |
+
+
+**Global mandatory AI rules** (apply here too): Git **commit-only** — no other git operations — and **never revert/undo/overwrite existing code or local changes**; also never delete the `core_node` dir without the guarded triple confirmation. See repo-root `development-guides/GIT_AND_NO_REVERT_SAFETY.md` and `development-guides/CORE_NODE_DELETION_SAFETY.md` (and root `CLAUDE.md`/`AGENTS.md`).

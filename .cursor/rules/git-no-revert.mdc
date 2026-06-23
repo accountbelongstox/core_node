@@ -1,0 +1,22 @@
+---
+description: "Mandatory: git commit ONLY (no other git ops), and NEVER revert/undo/overwrite existing code or local changes."
+alwaysApply: true
+---
+
+# Git & no-revert safety (mandatory)
+
+**Git: `git commit` ONLY.** You may run `git commit` and read-only inspection
+(`git status` / `git log` / `git diff`). Do NOT run any other Git operation —
+no `checkout`, `switch`, `reset`, `revert`, `restore`, `clean`, `rm`, `mv`,
+`stash`, `rebase`, `merge`, `cherry-pick`, `branch -D`, `push`, `pull`,
+`fetch --prune`, or any `--force`. Record renames/removals with normal file
+tools and let the next `git commit` capture them — never `git rm`/`git mv`/`git reset`.
+Never push/sync to a remote unless explicitly asked.
+
+**Never revert code.** Do NOT revert, undo, roll back, overwrite, discard, or
+delete existing code, files, or the user's local (uncommitted) changes. Only move
+**forward** — add, extend, or fix in place; change the minimum needed. If a change
+looks wrong, surface it and ask — do not silently revert. Treat the working tree
+as authoritative; never replace it with an older snapshot or a fresh clone.
+
+Canonical spec: `development-guides/GIT_AND_NO_REVERT_SAFETY.md`.
