@@ -1457,16 +1457,47 @@ repair_repositories_from_apt_repository_manager() {
                 os_codename="$VERSION_CODENAME"
             fi
             
-            if [ "$os_id" = "ubuntu" ] && [ -n "$os_codename" ]; then
-                $USE_SUDO tee "$APT_SOURCES_LIST" > /dev/null << EOF
+            # Write a minimal sources.list ONLY for the distro this machine ACTUALLY is --
+            # NEVER another distro's repositories. Writing Ubuntu repos on Debian/Kali (or any
+            # cross-distro mix) is exactly the pollution this must avoid. Only reached when
+            # sources.list is missing/empty (gated above), so a populated native sources.list
+            # is left untouched. An unknown distro is left alone rather than guessed.
+            case "$os_id" in
+                ubuntu)
+                    if [ -n "$os_codename" ]; then
+                        $USE_SUDO tee "$APT_SOURCES_LIST" > /dev/null << EOF
 # Ubuntu repositories
-deb http://archive.ubuntu.com/ubuntu/ $os_codename main restricted universe multiverse
-deb http://archive.ubuntu.com/ubuntu/ $os_codename-updates main restricted universe multiverse
-deb http://archive.ubuntu.com/ubuntu/ $os_codename-backports main restricted universe multiverse
-deb http://security.ubuntu.com/ubuntu/ $os_codename-security main restricted universe multiverse
+deb https://archive.ubuntu.com/ubuntu/ $os_codename main restricted universe multiverse
+deb https://archive.ubuntu.com/ubuntu/ $os_codename-updates main restricted universe multiverse
+deb https://archive.ubuntu.com/ubuntu/ $os_codename-backports main restricted universe multiverse
+deb https://security.ubuntu.com/ubuntu/ $os_codename-security main restricted universe multiverse
 EOF
-                echo "Created clean Ubuntu sources.list"
-            fi
+                        echo "Created clean Ubuntu sources.list"
+                    fi
+                    ;;
+                debian)
+                    if [ -n "$os_codename" ]; then
+                        $USE_SUDO tee "$APT_SOURCES_LIST" > /dev/null << EOF
+# Debian repositories
+deb https://deb.debian.org/debian $os_codename main contrib non-free non-free-firmware
+deb https://deb.debian.org/debian $os_codename-updates main contrib non-free non-free-firmware
+deb https://security.debian.org/debian-security $os_codename-security main contrib non-free non-free-firmware
+EOF
+                        echo "Created clean Debian sources.list"
+                    fi
+                    ;;
+                kali)
+                    # Kali is rolling: the suite is always 'kali-rolling' (VERSION_CODENAME too).
+                    $USE_SUDO tee "$APT_SOURCES_LIST" > /dev/null << 'EOF'
+# Kali repositories
+deb http://http.kali.org/kali kali-rolling main contrib non-free non-free-firmware
+EOF
+                    echo "Created clean Kali sources.list"
+                    ;;
+                *)
+                    echo "Unknown distro '$os_id'; leaving sources.list untouched (refusing to write a foreign distro's repositories)"
+                    ;;
+            esac
         fi
     fi
     
