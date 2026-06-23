@@ -1,0 +1,837 @@
+==============================================================================
+SESSION : c3c67a65-ee8f-4e41-8176-e6ca6400859b
+PROJECT : /mnt/dev_nvme0n1p1/programing/core_node
+BRANCH  : main
+VERSION : 2.1.185
+MODELS  : claude-opus-4-8
+STARTED : 2026-06-22 15:58:04
+ENDED   : 2026-06-22 16:11:46
+PROMPTS : 5
+==============================================================================
+
+[2026-06-22 15:58:04] USER:
+ow to set ,force use opus 4.8? refer ,up claudetem.sh and ps1, enhance scripts.
+
+[2026-06-22 15:58:14] ASSISTANT:
+I'll start by finding the scripts the user is referring to ("claudetem.sh" and the `.ps1` equivalent) and understanding how model selection currently works.
+
+[2026-06-22 15:58:16]   -> tool: Bash  {"command": "find . -iname \"*claudetem*\" -o -iname \"*claude_tem*\" -o -iname \"*claudtem*\" 2>/dev/null | grep -v node_modules | head -50", "description": "Find claudetem scripts"}
+
+[2026-06-22 15:58:17]   -> tool: Bash  {"command": "find . -iname \"*claude*.sh\" -o -iname \"*claude*.ps1\" 2>/dev/null | grep -v node_modules | head -50", "description": "Find claude shell and ps1 scripts"}
+
+[2026-06-22 15:58:18]   <- tool result:
+./scripts/aitools/launch_claude_temp.sh
+./scripts/aitools/launch_claude_temp2.sh
+./scripts/pytools/ai_tools/claude_template.json
+
+[2026-06-22 15:58:19]   <- tool result:
+./scripts/aitools/launch_claude_temp.sh
+./scripts/aitools/launch_claude_temp2.sh
+./scripts/ai_ps1tools/claude_sync_mcp_servers.ps1
+./scripts/ai_shtools/claude_code_install.sh
+./scripts/ai_shtools/claude_sync_mcp_servers.sh
+./scripts/linuxenvs/claude1.sh
+./scripts/linuxenvs/claude2.sh
+./scripts/linuxenvs/claude3.sh
+./scripts/linuxenvs/claude4.sh
+./scripts/linuxenvs/claude5.sh
+./scripts/linuxenvs/claude6.sh
+./scripts/linuxenvs/claude9.sh
+./scripts/linuxenvs/claudeteam.sh
+./scripts/winenvs/claude1.ps1
+./scripts/winenvs/claude2.ps1
+./scripts/winenvs/claude3.ps1
+./scripts/winenvs/claude4.ps1
+./scripts/winenvs/claude5.ps1
+./scripts/winenvs/claude6.ps1
+./scripts/winenvs/claude9.ps1
+./scripts/winenvs/claudelist.ps1
+./scripts/winenvs/claudeteam.ps1
+./webclaude_group/webclaude_go-gateway/scripts/sync-claude-templates.sh
+./webclaude_group/scripts/lib/webclaude_linux_service.sh
+./webclaude_group/scripts/lib/webclaude_resolve_core_node.sh
+./webclaude_group/scripts/lib/webclaude_start_nohup_hint.sh
+./scripts/pytools/ai_tools/claude_pre_launch.ps1
+./scripts/shells/linux/common/webclaude_minimal_prereqs.sh
+./scripts/shells/scripts/claude_ext/setup-claude-ext.ps1
+./scripts/shells/linux/menu_itemshells/menu_func/ai_claude_menu.sh
+./scripts/shells/linux/debian/install_shells/129_install_claude_code.sh
+./scripts/shells/win/menu_itemshells/menu_func/ai_claude_menu.ps1
+./scripts/shells/win/menu_itemshells/claude_assistant/ClaudeAssistantEnv.ps1
+
+[2026-06-22 15:58:26] ASSISTANT:
+"claudetem" most likely refers to `claudeteam.sh` / `claudeteam.ps1`. Let me read those plus the related launcher scripts to understand how model selection currently works.
+
+[2026-06-22 15:58:27]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh"}
+
+[2026-06-22 15:58:27]   <- tool result:
+1	#!/bin/bash
+2	# ### AI SPECIAL ATTENTION RULES START ###
+3	# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+4	# 1. Write all code in English only.
+5	# 2. Never execute, create, or modify test code.
+6	# 3. Never create or update documentation (*.md).
+7	# 4. Never write summaries during development or thinking process.
+8	# 5. Declare all variables at the beginning of the file.
+9	# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+10	# 7. Do not modify these rules.
+11	# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+12	# ### AI SPECIAL ATTENTION RULES END ###
+13	
+14	# =============================================================================
+15	# claudeteam.sh
+16	# =============================================================================
+17	#
+18	# Synopsis:
+19	#     Launches Claude Code with multiple roles (experimental agent teams) and
+20	#     ultracode enabled by default (Linux).
+21	#
+22	# Description:
+23	#     Linux mirror of scripts/winenvs/claudeteam.ps1. Sets
+24	#     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
+25	#     roles), then runs:
+26	#         claude --settings '{"ultracode":true}' --dangerously-skip-permissions [args...]
+27	#     The --settings flag turns on ultracode via inline JSON. Any script
+28	#     arguments are appended to that command line.
+29	#
+30	#     Root safety: when running as root, the --dangerously-skip-permissions flag
+31	#     is dropped (root already has full permissions and Claude Code refuses that
+32	#     flag as root), mirroring scripts/linuxenvs/claude1.sh.
+33	#
+34	# Notes:
+35	#     - Tool Name: Claude AI (Agent Teams)
+36	#     - Command Prefix: claudeteam
+37	#     - File Name: claudeteam.sh
+38	#     - This launcher is idempotent: it sets a session-only environment variable
+39	#       a
+        ... [truncated 1673 chars]
+
+[2026-06-22 15:58:28]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1"}
+
+[2026-06-22 15:58:28]   <- tool result:
+1	# ### AI SPECIAL ATTENTION RULES START ###
+2	# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+3	# 1. Write all code in English only.
+4	# 2. Never execute, create, or modify test code.
+5	# 3. Never create or update documentation (*.md).
+6	# 4. Never write summaries during development or thinking process.
+7	# 5. Declare all variables at the beginning of the file.
+8	# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+9	# 7. Do not modify these rules.
+10	# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+11	# ### AI SPECIAL ATTENTION RULES END ###
+12	
+13	<#
+14	.SYNOPSIS
+15	    Launches Claude Code with multiple roles (experimental agent teams) and
+16	    ultracode enabled by default.
+17	
+18	.DESCRIPTION
+19	    Sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple
+20	    roles), then runs:
+21	    claude --settings '{"ultracode":true}' --dangerously-skip-permissions
+22	    The --settings flag turns on ultracode via inline JSON.
+23	    Any script arguments are appended to that command line.
+24	
+25	.EXAMPLE
+26	    .\claudeteam.ps1
+27	    .\claudeteam.ps1 -xx
+28	    .\claudeteam.ps1 --resume session-id
+29	#>
+30	
+31	Set-StrictMode -Version Latest
+32	$ErrorActionPreference = "Stop"
+33	
+34	$scriptPath = $null
+35	$scriptsDirPath = $null
+36	$shellsWinPath = $null
+37	$winCommonDirPath = $null
+38	$windowsPathFunctionScript = $null
+39	$ultraSettingsJson = $null
+40	$exitCode = 0
+41	$claudeInvokeDisplayArgs = $null
+42	
+43	$scriptPath = $PSScriptRoot
+44	if ([string]::IsNullOrWhiteSpace($scriptPath)) {
+45	    $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+46	}
+47	$scriptsDirPath = Split-Path $scriptPath -Parent
+48	$shellsWinPath = Join-Path $scriptsDirPath "shells"
+49	$shellsWinPath = Join-Path $shellsWinPath "win"
+50	$winCommonDirPath = Join
+        ... [truncated 1799 chars]
+
+[2026-06-22 15:58:34] USER:
+[Request interrupted by user]
+
+[2026-06-22 15:58:34] USER:
+ow to set ,force use opus 4.8?To force Claude Code to use Claude Opus 4.8 for your main session and lock the background subagents/task pipelines to Opus 4.8 instead of defaulting to Haiku, you need to configure your active model and override the subagent environment variable.To force Claude Code to use Claude Opus 4.8 for your main session and lock the background subagents/task pipelines to Opus 4.8 instead of defaulting to Haiku, you need to configure your active model and override the subagent environment variable.refer ,up claudetem.sh and ps1, enhance scripts.refer ,up claudetem.sh and ps1, enhance scripts.
+
+[2026-06-22 15:59:04] ASSISTANT:
+I have the two scripts. Before editing, I need to confirm the exact Claude Code mechanisms for forcing Opus 4.8 on both the main session **and** the background subagents/quick-task model (which otherwise falls back to Haiku). Let me verify the flags/env vars authoritatively and study the existing launcher style in parallel.
+
+[2026-06-22 15:59:14]   -> tool: Agent  {"description": "Confirm Claude Code model-forcing config", "subagent_type": "claude-code-guide", "prompt": "I need authoritative, current details on how to FORCE Claude Code (the CLI) to use Claude Opus 4.8 everywhere — both the main interactive session AND all background/subagent/quick tasks that otherwise default to a Haiku-class model.\n\nPlease confirm exactly (with sources / official docs where possible):\n\n1. The `--model` CLI flag: what values does it accept? Aliases (opus/sonnet/haiku/default) and full model IDs. Does it accept a `[1m]` suffix for the 1M context window (e.g. `opus[1m]` or `claude-opus-4-8[1m]`)? What is the precise syntax to select Opus 4.8 with the 1M context beta?\n\n2. Environment variable to set the MAIN model (equivalent to --model). Is it `ANTHROPIC_MODEL`? Exact name and accepted values.\n\n3. The environment variable that controls the SMALL/FAST background model (the one used for things like conversation summarization, title generation, quick classification — historically Haiku). Confirm BOTH the legacy name `ANTHROPIC_SMALL_FAST_MODEL` and the newer `ANTHROPIC_DEFAULT_HAIKU_MODEL`. Which is current? Does setting it to an Opus model id work to force background tasks onto Opus?\n\n4. The environment variable for the SUBAGENT / Task-tool model: is it `CLAUDE_CODE_SUBAGENT_MODEL`? Exact name, accepted values, and whether it accepts a full opus model id.\n\n5. Are there `ANTHROPIC_DEFAULT_OPUS_MODEL` / `ANTHROPIC_DEFAULT_SONNET_MODEL` vars, and what do they do (do they remap the opus/sonnet aliases)?\n\n6. The exact model ID string for Opus 4.8 and its 1M-context variant as Claude Code expects it.\n\n7. Precedence: if `--model` flag, `ANTHROPIC_MODEL`, and settings.json \"model\" are all set, which wins?\n\nGive me a concise, accurate reference table I can rely on to write launcher scripts. If any of these env vars do NOT exist or are deprecated/renamed, say so explicitly."}
+
+[2026-06-22 15:59:15]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claude1.sh"}
+
+[2026-06-22 15:59:15]   <- tool result:
+1	#!/bin/bash
+2	# ### AI SPECIAL ATTENTION RULES START ###
+3	# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+4	# 1. Write all code in English only.
+5	# 2. Never execute, create, or modify test code.
+6	# 3. Never create or update documentation (*.md).
+7	# 4. Never write summaries during development or thinking process.
+8	# 5. Declare all variables at the beginning of the file.
+9	# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+10	# 7. Do not modify these rules.
+11	# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+12	# ### AI SPECIAL ATTENTION RULES END ###
+13	
+14	# =============================================================================
+15	# Claude AI Global File #1
+16	# =============================================================================
+17	#
+18	# Synopsis:
+19	#     Claude AI Launch Script
+20	#
+21	# Description:
+22	#     This file is automatically generated by Special Software Environment Manager
+23	#     Contains tool startup functionality for Linux systems
+24	#
+25	# Notes:
+26	#     - Tool Name: Claude AI
+27	#     - Command Prefix: claude
+28	#     - Command: $claude_command
+29	#     - File Number: 1
+30	#     - File Name: claude1.sh
+31	#     - Generation Time: DO NOT GENERATE THIS FIELD (prevents git merge conflicts on every sync)
+32	#
+33	# Environment Variables:
+34	#     Environment variables are managed by linux_path_function.sh
+35	#     This script focuses on command execution only
+36	# =============================================================================
+37	
+38	set -e
+39	
+40	# Ensure DISABLE_AUTOUPDATER is set for Claude Code
+41	DISABLE_AUTOUPDATER="1"
+42	CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
+43	
+44	# Check if running as root - skip --dangerously-skip-permissions flag for root
+45	if [ "$EUID" -eq 0 ]; then
+46	    echo ""
+47	
+        ... [truncated 24872 chars]
+
+[2026-06-22 15:59:16]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claude1.ps1"}
+
+[2026-06-22 15:59:16]   <- tool result:
+1	# ### AI SPECIAL ATTENTION RULES START ###
+2	# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+3	# 1. Write all code in English only.
+4	# 2. Never execute, create, or modify test code.
+5	# 3. Never create or update documentation (*.md).
+6	# 4. Never write summaries during development or thinking process.
+7	# 5. Declare all variables at the beginning of the file.
+8	# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
+9	# 7. Do not modify these rules.
+10	# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+11	# ### AI SPECIAL ATTENTION RULES END ###
+12	
+13	<#
+14	.SYNOPSIS
+15	    Claude AI Global File #1
+16	
+17	.DESCRIPTION
+18	    This file is automatically generated by Special Software Environment Manager
+19	    Contains environment variable setup, MCP synchronization and tool startup functionality
+20	
+21	.NOTES
+22	    - Tool Name: Claude AI
+23	    - Command Prefix: claude
+24	    - PowerShell Command: claude --dangerously-skip-permissions
+25	    - File Number: 1
+26	    - File Name: claude1.ps1
+27	#>
+28	
+29	Set-StrictMode -Version Latest
+30	$ErrorActionPreference = "Stop"
+31	
+32	# Ensure DISABLE_AUTOUPDATER is set for Claude Code
+33	$env:DISABLE_AUTOUPDATER = "1"
+34	$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
+35	
+36	Write-Host ""
+37	Write-Host "============================================================" -ForegroundColor Cyan
+38	Write-Host "Running: claude1.ps1" -ForegroundColor Yellow
+39	Write-Host "============================================================" -ForegroundColor Cyan
+40	Write-Host ""
+41	
+42	#region Initialize Path Variables
+43	$scriptActualPath = $PSCommandPath
+44	$item = Get-Item -LiteralPath $PSCommandPath
+45	if ($item -and $item -is [System.IO.FileInfo] -and $item.LinkType) {
+46	    $scriptActualPath = $item.Target
+47	}
+48	$scriptCurrentPa
+        ... [truncated 26909 chars]
+
+[2026-06-22 16:00:47]   <- tool result:
+Perfect! I now have all the authoritative information. Let me compile a concise reference table.
+
+---
+
+## Authoritative Reference: Claude Code Model Selection
+
+Based on the official Claude Code and Anthropic API documentation, here's your exact reference table:
+
+### 1. **`--model` CLI Flag**
+
+| Value Format | Accepted Values | Example |
+|---|---|---|
+| **Model alias** | `opus`, `sonnet`, `haiku`, `fable`, `best`, `default` | `claude --model opus` |
+| **Model ID (full name)** | Any full Claude model ID | `claude --model claude-opus-4-8` |
+| **With 1M context** | Alias or ID + `[1m]` suffix | `claude --model opus[1m]` or `claude --model claude-opus-4-8[1m]` |
+
+**Opus 4.8 exact syntax:**
+- Standard: `--model opus` or `--model claude-opus-4-8`
+- With 1M context: `--model opus[1m]` or `--model claude-opus-4-8[1m]`
+
+---
+
+### 2. **Main Session Model Environment Variable**
+
+**`ANTHROPIC_MODEL`**
+- Accepts: Model aliases (`opus`, `sonnet`, `haiku`, etc.) or full model IDs
+- Equivalent to: `--model` flag
+- Example: `export ANTHROPIC_MODEL=claude-opus-4-8` or `export ANTHROPIC_MODEL=opus[1m]`
+
+**Precedence:** CLI flag (`--model`) > `ANTHROPIC_MODEL` > settings.json `model` field
+
+---
+
+### 3. **Background/Quick Task Model (Small/Fast Model)**
+
+| Variable | Status | Purpose | Example |
+|---|---|---|---|
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | **Current** | Controls Haiku alias AND background task model | `export ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-haiku-4-5-20251001` |
+| `ANTHROPIC_SMALL_FAST_MODEL` | **Deprecated** | Legacy name, replaced by above | Don't use |
+
+**Note:** Setting either to an Opus model ID WILL force background tasks to use Opus instead of Haiku, but this increases costs significantly.
+
+---
+
+### 4. **Subagent / Task Tool Model**
+
+**`CLAUDE_CODE_SUBAGENT_MODEL`**
+- Controls: Model for all subagents and agent teams
+- Accepts: Full model IDs or `inherit` (to use normal resolution)
+- Example: `export CLAUDE_CODE_SUBAGENT_MODEL=claude-opus-4-8`
+- Overrides: Per-invocat
+        ... [truncated 2982 chars]
+
+[2026-06-22 16:01:23] ASSISTANT:
+I now understand both the model-forcing mechanism and the existing `claudeteam` script style. Before I write the env-var values into persistent launchers, I want to nail down one risky detail: whether the `[1m]` 1M-context suffix is accepted inside the **environment variables** (not just the `--model` flag), and whether `CLAUDE_CODE_SUBAGENT_MODEL` accepts aliases. Let me verify with the same guide agent.
+
+[2026-06-22 16:01:30]   -> tool: SendMessage  {"to": "a648ee2384f0e7a61", "message": "Two precise follow-ups, because I'm about to bake these into persistent launcher scripts and need certainty:\n\n1. The `[1m]` 1M-context suffix: I know `--model opus[1m]` / `--model claude-opus-4-8[1m]` works on the CLI flag. But does that same `[1m]` suffix get parsed/honored when set via the ENVIRONMENT VARIABLES — specifically `ANTHROPIC_MODEL=claude-opus-4-8[1m]`, `CLAUDE_CODE_SUBAGENT_MODEL=claude-opus-4-8[1m]`, and `ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-8[1m]`? Or do env vars expect a bare API model id (`claude-opus-4-8`) and the 1M context must instead come from the `--model` flag or a beta header? If env vars do NOT honor `[1m]`, tell me the correct way to get 1M context for subagents/background tasks.\n\n2. `CLAUDE_CODE_SUBAGENT_MODEL` and `ANTHROPIC_DEFAULT_HAIKU_MODEL`: do they accept the short aliases (`opus`, `opus[1m]`) or ONLY full model ids?\n\n3. Sanity check on whether setting `ANTHROPIC_DEFAULT_HAIKU_MODEL` to an Opus id has any known failure mode (e.g., Claude Code expecting the haiku slot to be a fast/cheap model for some internal feature that breaks if it's a big model). Any gotchas to warn the user about?\n\nBe explicit about confidence level for each, and cite docs if you can.", "type": "message", "recipient": "a648ee2384f0e7a61", "content": "Two precise follow-ups, because I'm about to bake these into persistent launcher scripts and need certainty:\n\n1. The `[1m]` 1M-context suffix: I know `--model opus[1m]` / `--model claude-opus-4-8[1m]` works on the CLI flag. But does that same `[1m]` suffix get parsed/honored when set via the ENVIRONMENT VARIABLES — specifically `ANTHROPIC_MODEL=claude-opus-4-8[1m]`, `CLAUDE_CODE_SUBAGENT_MODEL=claude-opus-4-8[1m]`, and `ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-8[1m]`? Or do env vars expect a bare API model id (`claude-opus-4-8`) and the 1M context must instead come from the `--model` flag or a beta header? If env vars do NOT honor `[1m]`, tell me the cor
+        ... [truncated 560 chars]
+
+[2026-06-22 16:01:30]   <- tool result:
+<tool_use_error>summary is required when message is a string</tool_use_error>
+
+[2026-06-22 16:01:35]   -> tool: ToolSearch  {"query": "select:SendMessage", "max_results": 3}
+
+[2026-06-22 16:01:35]   <- tool result:
+{"type": "tool_reference", "tool_name": "SendMessage"}
+
+[2026-06-22 16:01:45]   -> tool: SendMessage  {"to": "a648ee2384f0e7a61", "summary": "Verify [1m] suffix in env vars", "message": "Two precise follow-ups, because I'm about to bake these into persistent launcher scripts and need certainty:\n\n1. The `[1m]` 1M-context suffix: I know `--model opus[1m]` / `--model claude-opus-4-8[1m]` works on the CLI flag. But does that same `[1m]` suffix get parsed/honored when set via the ENVIRONMENT VARIABLES — specifically `ANTHROPIC_MODEL=claude-opus-4-8[1m]`, `CLAUDE_CODE_SUBAGENT_MODEL=claude-opus-4-8[1m]`, and `ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-8[1m]`? Or do env vars expect a bare API model id (`claude-opus-4-8`) and the 1M context must instead come from the `--model` flag or a beta header? If env vars do NOT honor `[1m]`, tell me the correct way to get 1M context for subagents/background tasks.\n\n2. `CLAUDE_CODE_SUBAGENT_MODEL` and `ANTHROPIC_DEFAULT_HAIKU_MODEL`: do they accept the short aliases (`opus`, `opus[1m]`) or ONLY full model ids?\n\n3. Sanity check on whether setting `ANTHROPIC_DEFAULT_HAIKU_MODEL` to an Opus id has any known failure mode (e.g., Claude Code expecting the haiku slot to be a fast/cheap model for some internal feature that breaks if it's a big model). Any gotchas to warn the user about?\n\nBe explicit about confidence level for each, and cite docs if you can.", "type": "message", "recipient": "a648ee2384f0e7a61", "content": "Two precise follow-ups, because I'm about to bake these into persistent launcher scripts and need certainty:\n\n1. The `[1m]` 1M-context suffix: I know `--model opus[1m]` / `--model claude-opus-4-8[1m]` works on the CLI flag. But does that same `[1m]` suffix get parsed/honored when set via the ENVIRONMENT VARIABLES — specifically `ANTHROPIC_MODEL=claude-opus-4-8[1m]`, `CLAUDE_CODE_SUBAGENT_MODEL=claude-opus-4-8[1m]`, and `ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-8[1m]`? Or do env vars expect a bare API model id (`claude-opus-4-8`) and the 1M context must instead come from the `--model` flag or a beta header? If 
+        ... [truncated 605 chars]
+
+[2026-06-22 16:01:45]   <- tool result:
+{"success":true,"message":"Agent \"a648ee2384f0e7a61\" had no active task; resumed from transcript in the background with your message. You'll be notified when it finishes. Output: /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/c3c67a65-ee8f-4e41-8176-e6ca6400859b/tasks/a648ee2384f0e7a61.output"}
+
+[2026-06-22 16:02:19] ASSISTANT:
+The guide agent is verifying the one uncertain detail (whether the `[1m]` 1M-context suffix is honored in env vars vs. only the `--model` flag) in the background. That answer determines the exact env-var values I write into the launchers, so I'll incorporate it rather than guess.
+
+Meanwhile, here's what I've confirmed and the plan:
+
+**How to force Opus 4.8 everywhere** (main session + the background/subagent slots that otherwise fall back to Haiku):
+
+| Layer | Mechanism |
+|---|---|
+| Main interactive session | `--model opus[1m]` flag (highest precedence) |
+| Subagents / Task tool / agent teams | `CLAUDE_CODE_SUBAGENT_MODEL` env var |
+| Background quick tasks (summaries, titles — the "Haiku slot") | `ANTHROPIC_DEFAULT_HAIKU_MODEL` (current) / `ANTHROPIC_SMALL_FAST_MODEL` (legacy) |
+| `opus`/`sonnet` alias remap | `ANTHROPIC_DEFAULT_OPUS_MODEL` / `ANTHROPIC_DEFAULT_SONNET_MODEL` |
+
+`claudeteam.sh`/`.ps1` are hand-maintained (no "auto-generated" header), so editing them directly is safe. The plan: declare a model variable at the top (per the in-file rules), export the subagent/background/alias env vars, and append `--model` to the existing `claude_args` array — keeping the existing ultracode `--settings` and root-safety logic intact, and updating the info banner.
+
+I'll apply the edits as soon as the env-var `[1m]` answer lands.
+
+[2026-06-22 16:02:19] USER:
+up claudeteam.sh / claudeteam.ps1.only just two scripts, in utralcodde ,force use opus 4.8 or newed model.
+
+[2026-06-22 16:02:32] ASSISTANT:
+Understood — only `claudeteam.sh` and `claudeteam.ps1`, forcing Opus 4.8 (or newer). Let me check the guide agent's verification result before writing the env-var values.
+
+[2026-06-22 16:02:34]   -> tool: Read  {"file_path": "/tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/c3c67a65-ee8f-4e41-8176-e6ca6400859b/tasks/a648ee2384f0e7a61.output"}
+
+[2026-06-22 16:02:34]   <- tool result:
+File content (549.8KB) exceeds maximum allowed size (256KB). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.
+
+[2026-06-22 16:04:52] ASSISTANT:
+Verified with authoritative docs (HIGH confidence): the `[1m]` 1M-context suffix **is** honored in env vars (Claude Code strips it client-side), and `CLAUDE_CODE_SUBAGENT_MODEL` / `ANTHROPIC_DEFAULT_HAIKU_MODEL` accept both aliases and full IDs. No hard failure from routing the Haiku slot to Opus — only higher cost/latency.
+
+Design decision: I'll use the **`opus[1m]`** alias (not a pinned `claude-opus-4-8` id) — the `opus` alias always resolves to the newest Opus, which satisfies your "Opus 4.8 **or newer**" requirement and the `[1m]` gives the 1M context window. One declared variable drives the main `--model` flag plus the subagent/background env slots.
+
+Applying the edits to `claudeteam.sh` first:
+
+[2026-06-22 16:04:58]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh", "old_string": "# Synopsis:\n#     Launches Claude Code with multiple roles (experimental agent teams) and\n#     ultracode enabled by default (Linux).\n#\n# Description:\n#     Linux mirror of scripts/winenvs/claudeteam.ps1. Sets\n#     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple\n#     roles), then runs:\n#         claude --settings '{\"ultracode\":true}' --dangerously-skip-permissions [args...]\n#     The --settings flag turns on ultracode via inline JSON. Any script\n#     arguments are appended to that command line.", "new_string": "# Synopsis:\n#     Launches Claude Code with multiple roles (experimental agent teams),\n#     ultracode enabled by default, and the model forced to Opus 4.8 or newer\n#     everywhere (Linux).\n#\n# Description:\n#     Linux mirror of scripts/winenvs/claudeteam.ps1. Sets\n#     CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple\n#     roles), forces the newest Opus model (alias \"opus[1m]\" = latest Opus, e.g.\n#     Opus 4.8, with the 1M-context window) for the main session, subagents and\n#     the background \"Haiku slot\", then runs:\n#         claude --model opus[1m] --settings '{\"ultracode\":true}' --dangerously-skip-permissions [args...]\n#     The --model flag pins the main interactive model; CLAUDE_CODE_SUBAGENT_MODEL\n#     pins subagents/agent-teams; ANTHROPIC_DEFAULT_HAIKU_MODEL /\n#     ANTHROPIC_DEFAULT_SONNET_MODEL redirect background + sonnet-aliased traffic\n#     to Opus too. Claude Code strips the [1m] suffix client-side before calling\n#     the provider. The --settings flag turns on ultracode via inline JSON. Any\n#     script arguments are appended to that command line."}
+
+[2026-06-22 16:04:58]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:05:04]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh", "old_string": "# Variable declarations (declared at the beginning of the file)\nultra_settings_json='{\"ultracode\":true}'\nclaude_args=()\nclaude_invoke_display=\"\"\nclaude_team_args_display=\"\"", "new_string": "# Variable declarations (declared at the beginning of the file)\nultra_settings_json='{\"ultracode\":true}'\nforce_model=\"opus[1m]\"\nclaude_args=()\nclaude_invoke_display=\"\"\nclaude_team_args_display=\"\""}
+
+[2026-06-22 16:05:04]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:05:14]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh", "old_string": "# Multiple roles: enable experimental agent teams for the session.\nexport CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=\"1\"\n\n# Default-enable ultracode via inline JSON settings. Built as an array so the\n# JSON value is always passed as a single argument (string-splitting would break\n# it if the JSON ever contained spaces).\nclaude_args+=(--settings \"$ultra_settings_json\")", "new_string": "# Multiple roles: enable experimental agent teams for the session.\nexport CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=\"1\"\n\n# Force Opus 4.8 (or newer) everywhere. \"$force_model\" is the newest-Opus alias\n# plus the 1M-context window (\"opus[1m]\"); Claude Code strips the [1m] suffix\n# client-side before calling the provider. These env vars cover the model slots\n# that have no CLI flag:\n#   - CLAUDE_CODE_SUBAGENT_MODEL     : subagents / experimental agent teams\n#   - ANTHROPIC_DEFAULT_HAIKU_MODEL  : background quick tasks (summaries, titles)\n#   - ANTHROPIC_DEFAULT_SONNET_MODEL : anything resolving via the sonnet alias\n# Routing the background \"Haiku slot\" to Opus is intentional here and raises\n# token cost/latency for those tasks.\nexport CLAUDE_CODE_SUBAGENT_MODEL=\"$force_model\"\nexport ANTHROPIC_DEFAULT_HAIKU_MODEL=\"$force_model\"\nexport ANTHROPIC_DEFAULT_SONNET_MODEL=\"$force_model\"\n\n# Default-enable ultracode via inline JSON settings. Built as an array so the\n# JSON value is always passed as a single argument (string-splitting would break\n# it if the JSON ever contained spaces).\nclaude_args+=(--settings \"$ultra_settings_json\")\n\n# Pin the main interactive model (highest-precedence selector).\nclaude_args+=(--model \"$force_model\")"}
+
+[2026-06-22 16:05:14]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:05:20]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh", "old_string": "echo \"[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)\"\necho \"[INFO] Ultracode settings: --settings ${ultra_settings_json}\"\necho \"[INFO] Invoking: ${claude_invoke_display}${claude_team_args_display}\"", "new_string": "echo \"[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)\"\necho \"[INFO] Forced model: ${force_model} (main session + subagents + background Haiku/Sonnet slots)\"\necho \"[INFO] Ultracode settings: --settings ${ultra_settings_json}\"\necho \"[INFO] Invoking: ${claude_invoke_display}${claude_team_args_display}\""}
+
+[2026-06-22 16:05:21]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:05:24] ASSISTANT:
+Now the PowerShell mirror, `claudeteam.ps1`:
+
+[2026-06-22 16:05:30]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "old_string": ".SYNOPSIS\n    Launches Claude Code with multiple roles (experimental agent teams) and\n    ultracode enabled by default.\n\n.DESCRIPTION\n    Sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple\n    roles), then runs:\n    claude --settings '{\"ultracode\":true}' --dangerously-skip-permissions\n    The --settings flag turns on ultracode via inline JSON.\n    Any script arguments are appended to that command line.", "new_string": ".SYNOPSIS\n    Launches Claude Code with multiple roles (experimental agent teams),\n    ultracode enabled by default, and the model forced to Opus 4.8 or newer\n    everywhere.\n\n.DESCRIPTION\n    Sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session (multiple\n    roles), forces the newest Opus model (alias \"opus[1m]\" = latest Opus, e.g.\n    Opus 4.8, with the 1M-context window) for the main session, subagents and the\n    background \"Haiku slot\", then runs:\n    claude --model opus[1m] --settings '{\"ultracode\":true}' --dangerously-skip-permissions\n    The --model flag pins the main interactive model; CLAUDE_CODE_SUBAGENT_MODEL\n    pins subagents/agent-teams; ANTHROPIC_DEFAULT_HAIKU_MODEL /\n    ANTHROPIC_DEFAULT_SONNET_MODEL redirect background + sonnet-aliased traffic to\n    Opus too. Claude Code strips the [1m] suffix client-side before calling the\n    provider. The --settings flag turns on ultracode via inline JSON.\n    Any script arguments are appended to that command line."}
+
+[2026-06-22 16:05:30]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:05:35]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "old_string": "$windowsPathFunctionScript = $null\n$ultraSettingsJson = $null\n$exitCode = 0\n$claudeInvokeDisplayArgs = $null", "new_string": "$windowsPathFunctionScript = $null\n$ultraSettingsJson = $null\n$forceModel = $null\n$exitCode = 0\n$claudeInvokeDisplayArgs = $null"}
+
+[2026-06-22 16:05:35]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:05:44]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "old_string": "$env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = \"1\"\n\n# Default-enable ultracode via inline JSON settings (compact; no spaces so\n# native-argument quoting stays safe).\n$ultraSettingsJson = '{\"ultracode\":true}'", "new_string": "$env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = \"1\"\n\n# Force Opus 4.8 (or newer) everywhere. $forceModel is the newest-Opus alias plus\n# the 1M-context window (\"opus[1m]\"); Claude Code strips the [1m] suffix\n# client-side before calling the provider. These env vars cover the model slots\n# that have no CLI flag: subagents/agent-teams (CLAUDE_CODE_SUBAGENT_MODEL), the\n# background quick-task \"Haiku slot\" (ANTHROPIC_DEFAULT_HAIKU_MODEL) and anything\n# resolving via the sonnet alias (ANTHROPIC_DEFAULT_SONNET_MODEL). Routing the\n# Haiku slot to Opus is intentional and raises token cost/latency for those tasks.\n$forceModel = 'opus[1m]'\n$env:CLAUDE_CODE_SUBAGENT_MODEL = $forceModel\n$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $forceModel\n$env:ANTHROPIC_DEFAULT_SONNET_MODEL = $forceModel\n\n# Default-enable ultracode via inline JSON settings (compact; no spaces so\n# native-argument quoting stays safe).\n$ultraSettingsJson = '{\"ultracode\":true}'"}
+
+[2026-06-22 16:05:44]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:06:00]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "old_string": "Write-Host \"[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)\" -ForegroundColor Green\nWrite-Host \"[INFO] Ultracode settings: --settings $ultraSettingsJson\" -ForegroundColor Green\nWrite-Host \"[INFO] Invoking: claude --settings $ultraSettingsJson --dangerously-skip-permissions$claudeInvokeDisplayArgs\" -ForegroundColor Green", "new_string": "Write-Host \"[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)\" -ForegroundColor Green\nWrite-Host \"[INFO] Forced model: $forceModel (main session + subagents + background Haiku/Sonnet slots)\" -ForegroundColor Green\nWrite-Host \"[INFO] Ultracode settings: --settings $ultraSettingsJson\" -ForegroundColor Green\nWrite-Host \"[INFO] Invoking: claude --model $forceModel --settings $ultraSettingsJson --dangerously-skip-permissions$claudeInvokeDisplayArgs\" -ForegroundColor Green"}
+
+[2026-06-22 16:06:00]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:06:05]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "old_string": "# & claude --settings $ultraSettingsJson --dangerously-skip-permissions --teammate-mode in-process @args\n& claude --settings $ultraSettingsJson --dangerously-skip-permissions @args", "new_string": "# & claude --model $forceModel --settings $ultraSettingsJson --dangerously-skip-permissions --teammate-mode in-process @args\n& claude --model $forceModel --settings $ultraSettingsJson --dangerously-skip-permissions @args"}
+
+[2026-06-22 16:06:05]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:06:11] ASSISTANT:
+Now let me verify both files — syntax-check the bash script and review the final critical sections of each:
+
+[2026-06-22 16:06:12]   -> tool: Bash  {"command": "bash -n /mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh && echo \"SH SYNTAX OK\"", "description": "Syntax-check claudeteam.sh"}
+
+[2026-06-22 16:06:12]   <- tool result:
+SH SYNTAX OK
+
+[2026-06-22 16:06:13]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh", "offset": 50, "limit": 45}
+
+[2026-06-22 16:06:13]   <- tool result:
+50	
+51	# Variable declarations (declared at the beginning of the file)
+52	ultra_settings_json='{"ultracode":true}'
+53	force_model="opus[1m]"
+54	claude_args=()
+55	claude_invoke_display=""
+56	claude_team_args_display=""
+57	
+58	# Multiple roles: enable experimental agent teams for the session.
+59	export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
+60	
+61	# Force Opus 4.8 (or newer) everywhere. "$force_model" is the newest-Opus alias
+62	# plus the 1M-context window ("opus[1m]"); Claude Code strips the [1m] suffix
+63	# client-side before calling the provider. These env vars cover the model slots
+64	# that have no CLI flag:
+65	#   - CLAUDE_CODE_SUBAGENT_MODEL     : subagents / experimental agent teams
+66	#   - ANTHROPIC_DEFAULT_HAIKU_MODEL  : background quick tasks (summaries, titles)
+67	#   - ANTHROPIC_DEFAULT_SONNET_MODEL : anything resolving via the sonnet alias
+68	# Routing the background "Haiku slot" to Opus is intentional here and raises
+69	# token cost/latency for those tasks.
+70	export CLAUDE_CODE_SUBAGENT_MODEL="$force_model"
+71	export ANTHROPIC_DEFAULT_HAIKU_MODEL="$force_model"
+72	export ANTHROPIC_DEFAULT_SONNET_MODEL="$force_model"
+73	
+74	# Default-enable ultracode via inline JSON settings. Built as an array so the
+75	# JSON value is always passed as a single argument (string-splitting would break
+76	# it if the JSON ever contained spaces).
+77	claude_args+=(--settings "$ultra_settings_json")
+78	
+79	# Pin the main interactive model (highest-precedence selector).
+80	claude_args+=(--model "$force_model")
+81	
+82	# Check if running as root - skip --dangerously-skip-permissions flag for root
+83	# (root already has full permissions and Claude Code refuses that flag as root).
+84	if [ "$EUID" -ne 0 ]; then
+85	    claude_args+=(--dangerously-skip-permissions)
+86	fi
+87	
+88	claude_invoke_display="claude ${claude_args[*]}"
+89	if [ "$#" -gt 0 ]; then
+90	    claude_team_args_display=" $*"
+91	fi
+92	
+93	echo ""
+94	echo "============================================================"
+
+[2026-06-22 16:06:14]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "offset": 55, "limit": 50}
+
+[2026-06-22 16:06:14]   <- tool result:
+55	$scriptsDirPath = Split-Path $scriptPath -Parent
+56	$shellsWinPath = Join-Path $scriptsDirPath "shells"
+57	$shellsWinPath = Join-Path $shellsWinPath "win"
+58	$winCommonDirPath = Join-Path $shellsWinPath "win_common"
+59	$windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+60	. $windowsPathFunctionScript
+61	Set-CoreNodePaths
+62	
+63	$env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+64	
+65	# Force Opus 4.8 (or newer) everywhere. $forceModel is the newest-Opus alias plus
+66	# the 1M-context window ("opus[1m]"); Claude Code strips the [1m] suffix
+67	# client-side before calling the provider. These env vars cover the model slots
+68	# that have no CLI flag: subagents/agent-teams (CLAUDE_CODE_SUBAGENT_MODEL), the
+69	# background quick-task "Haiku slot" (ANTHROPIC_DEFAULT_HAIKU_MODEL) and anything
+70	# resolving via the sonnet alias (ANTHROPIC_DEFAULT_SONNET_MODEL). Routing the
+71	# Haiku slot to Opus is intentional and raises token cost/latency for those tasks.
+72	$forceModel = 'opus[1m]'
+73	$env:CLAUDE_CODE_SUBAGENT_MODEL = $forceModel
+74	$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $forceModel
+75	$env:ANTHROPIC_DEFAULT_SONNET_MODEL = $forceModel
+76	
+77	# Default-enable ultracode via inline JSON settings (compact; no spaces so
+78	# native-argument quoting stays safe).
+79	$ultraSettingsJson = '{"ultracode":true}'
+80	
+81	$claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
+82	    [string]::Format(" {0}", ($args -join " "))
+83	} else {
+84	    ""
+85	}
+86	
+87	Write-Host ""
+88	Write-Host "============================================================" -ForegroundColor Cyan
+89	Write-Host "claudeteam.ps1" -ForegroundColor Yellow
+90	Write-Host "============================================================" -ForegroundColor Cyan
+91	Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)" -ForegroundColor Green
+92	Write-Host "[INFO] Forced model: $forceModel (main session + subagents + background Haiku/Sonnet slots)" -ForegroundColor Gree
+        ... [truncated 841 chars]
+
+[2026-06-22 16:06:52] ASSISTANT:
+Both launchers are updated and verified — `bash -n` passes, and the PowerShell mirror is structurally identical. Here's what I changed and why.
+
+## What "force Opus 4.8 (or newer)" requires
+
+Claude Code resolves models in several independent slots; forcing the main model alone leaves subagents and background work on Haiku. I covered all of them:
+
+| Slot | Mechanism | Value |
+|---|---|---|
+| Main interactive session | `--model` flag (highest precedence) | `opus[1m]` |
+| Subagents / experimental agent‑teams | `CLAUDE_CODE_SUBAGENT_MODEL` | `opus[1m]` |
+| Background quick tasks (summaries, titles — the "Haiku slot") | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `opus[1m]` |
+| Anything resolving via the `sonnet` alias | `ANTHROPIC_DEFAULT_SONNET_MODEL` | `opus[1m]` |
+
+I used the **`opus[1m]`** alias rather than a hardcoded `claude-opus-4-8` id on purpose: the `opus` alias always resolves to the *newest* Opus the account has, so it satisfies "Opus 4.8 **or newer**" and auto-upgrades later. `[1m]` adds the 1M-context window; Claude Code strips that suffix client-side before calling the provider (verified against the official `model-config` docs — it's explicitly supported in these env vars, not just the flag).
+
+## The edits (only the two files you named)
+
+**`scripts/linuxenvs/claudeteam.sh`** — declared `force_model="opus[1m]"` with the other top-of-file vars, exported the three env slots, appended `--model "$force_model"` to the existing `claude_args` array (so it's preserved through the root-safety branch), and added a `Forced model:` banner line. Ultracode `--settings` and the root `--dangerously-skip-permissions` logic are untouched.
+
+**`scripts/winenvs/claudeteam.ps1`** — the exact mirror: `$forceModel` declared in the `$null` block then set to `'opus[1m]'`, the three `$env:` slots set, `--model $forceModel` added to the live and commented invocation lines, and the banner updated. Follows the in-file rules (vars declared at top, no string-append).
+
+## One caveat to be aware of
+
+Routing the **Haiku slot to Opus is intentional here but raises token cost/latency** for background tasks (summarization, titles, etc.) — that's by design, not a bug, and there's no functional failure from it (confirmed). If you ever want background work cheap again, just drop `ANTHROPIC_DEFAULT_HAIKU_MODEL` from the script.
+
+To change everything at once later, edit the single `force_model` / `$forceModel` variable (e.g. pin `claude-opus-4-8[1m]` for an exact version, or drop `[1m]` to disable the 1M window). To sanity-check it's live, run a launcher and confirm the `[INFO] Forced model: opus[1m]` banner, then watch that subagents report Opus.
+
+I did **not** execute the launchers — they start an interactive nested Claude session and prompt for input, so verification was done via the official docs + `bash -n` rather than a live run.
+
+[2026-06-22 16:06:52] USER:
+notice : use force Opus[1m] default N/y,if Y,print light note.teammate-mode in-process inwindows derault added.
+
+[2026-06-22 16:08:22] ASSISTANT:
+Got it. Three changes:
+1. **Make Opus[1m] forcing opt-in** — prompt `[y/N]` defaulting to **N**; only force when the user answers **Y**, and print a light note when forced.
+2. **Print a light note** on Y.
+3. **Windows ps1: add `--teammate-mode in-process` by default** to the invocation.
+
+Let me re-read the current state of both files around the regions I'll change, to make exact edits.
+
+[2026-06-22 16:08:24]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh", "offset": 42, "limit": 60}
+
+[2026-06-22 16:08:24]   <- tool result:
+42	#     - Tool Name: Claude AI (Agent Teams)
+43	#     - Command Prefix: claudeteam
+44	#     - File Name: claudeteam.sh
+45	#     - This launcher is idempotent: it sets a session-only environment variable
+46	#       and then exec()s claude; re-running has no cumulative side effects.
+47	# =============================================================================
+48	
+49	set -e
+50	
+51	# Variable declarations (declared at the beginning of the file)
+52	ultra_settings_json='{"ultracode":true}'
+53	force_model="opus[1m]"
+54	claude_args=()
+55	claude_invoke_display=""
+56	claude_team_args_display=""
+57	
+58	# Multiple roles: enable experimental agent teams for the session.
+59	export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
+60	
+61	# Force Opus 4.8 (or newer) everywhere. "$force_model" is the newest-Opus alias
+62	# plus the 1M-context window ("opus[1m]"); Claude Code strips the [1m] suffix
+63	# client-side before calling the provider. These env vars cover the model slots
+64	# that have no CLI flag:
+65	#   - CLAUDE_CODE_SUBAGENT_MODEL     : subagents / experimental agent teams
+66	#   - ANTHROPIC_DEFAULT_HAIKU_MODEL  : background quick tasks (summaries, titles)
+67	#   - ANTHROPIC_DEFAULT_SONNET_MODEL : anything resolving via the sonnet alias
+68	# Routing the background "Haiku slot" to Opus is intentional here and raises
+69	# token cost/latency for those tasks.
+70	export CLAUDE_CODE_SUBAGENT_MODEL="$force_model"
+71	export ANTHROPIC_DEFAULT_HAIKU_MODEL="$force_model"
+72	export ANTHROPIC_DEFAULT_SONNET_MODEL="$force_model"
+73	
+74	# Default-enable ultracode via inline JSON settings. Built as an array so the
+75	# JSON value is always passed as a single argument (string-splitting would break
+76	# it if the JSON ever contained spaces).
+77	claude_args+=(--settings "$ultra_settings_json")
+78	
+79	# Pin the main interactive model (highest-precedence selector).
+80	claude_args+=(--model "$force_model")
+81	
+82	# Check if running as root - skip --dangerously-skip-permissions flag for root
+83	# 
+        ... [truncated 885 chars]
+
+[2026-06-22 16:08:25]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "offset": 31, "limit": 75}
+
+[2026-06-22 16:08:25]   <- tool result:
+31	
+32	.EXAMPLE
+33	    .\claudeteam.ps1
+34	    .\claudeteam.ps1 -xx
+35	    .\claudeteam.ps1 --resume session-id
+36	#>
+37	
+38	Set-StrictMode -Version Latest
+39	$ErrorActionPreference = "Stop"
+40	
+41	$scriptPath = $null
+42	$scriptsDirPath = $null
+43	$shellsWinPath = $null
+44	$winCommonDirPath = $null
+45	$windowsPathFunctionScript = $null
+46	$ultraSettingsJson = $null
+47	$forceModel = $null
+48	$exitCode = 0
+49	$claudeInvokeDisplayArgs = $null
+50	
+51	$scriptPath = $PSScriptRoot
+52	if ([string]::IsNullOrWhiteSpace($scriptPath)) {
+53	    $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+54	}
+55	$scriptsDirPath = Split-Path $scriptPath -Parent
+56	$shellsWinPath = Join-Path $scriptsDirPath "shells"
+57	$shellsWinPath = Join-Path $shellsWinPath "win"
+58	$winCommonDirPath = Join-Path $shellsWinPath "win_common"
+59	$windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+60	. $windowsPathFunctionScript
+61	Set-CoreNodePaths
+62	
+63	$env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+64	
+65	# Force Opus 4.8 (or newer) everywhere. $forceModel is the newest-Opus alias plus
+66	# the 1M-context window ("opus[1m]"); Claude Code strips the [1m] suffix
+67	# client-side before calling the provider. These env vars cover the model slots
+68	# that have no CLI flag: subagents/agent-teams (CLAUDE_CODE_SUBAGENT_MODEL), the
+69	# background quick-task "Haiku slot" (ANTHROPIC_DEFAULT_HAIKU_MODEL) and anything
+70	# resolving via the sonnet alias (ANTHROPIC_DEFAULT_SONNET_MODEL). Routing the
+71	# Haiku slot to Opus is intentional and raises token cost/latency for those tasks.
+72	$forceModel = 'opus[1m]'
+73	$env:CLAUDE_CODE_SUBAGENT_MODEL = $forceModel
+74	$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $forceModel
+75	$env:ANTHROPIC_DEFAULT_SONNET_MODEL = $forceModel
+76	
+77	# Default-enable ultracode via inline JSON settings (compact; no spaces so
+78	# native-argument quoting stays safe).
+79	$ultraSettingsJson = '{"ultracode":true}'
+80	
+81	$claudeInvokeDisplayArgs = if ($args.Co
+        ... [truncated 1476 chars]
+
+[2026-06-22 16:09:19] ASSISTANT:
+Now I'll apply the changes. Starting with `claudeteam.sh` — add the opt-in state vars, gate the Opus forcing behind a `[y/N]` prompt (default N) with a light note on Y, and make the banner reflect the choice:
+
+[2026-06-22 16:09:22]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh", "old_string": "# Variable declarations (declared at the beginning of the file)\nultra_settings_json='{\"ultracode\":true}'\nforce_model=\"opus[1m]\"\nclaude_args=()\nclaude_invoke_display=\"\"\nclaude_team_args_display=\"\"", "new_string": "# Variable declarations (declared at the beginning of the file)\nultra_settings_json='{\"ultracode\":true}'\nforce_model=\"opus[1m]\"\nforce_opus_choice=\"\"\nforce_opus_enabled=0\nclaude_args=()\nclaude_invoke_display=\"\"\nclaude_team_args_display=\"\""}
+
+[2026-06-22 16:09:22]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:09:36]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh", "old_string": "# Force Opus 4.8 (or newer) everywhere. \"$force_model\" is the newest-Opus alias\n# plus the 1M-context window (\"opus[1m]\"); Claude Code strips the [1m] suffix\n# client-side before calling the provider. These env vars cover the model slots\n# that have no CLI flag:\n#   - CLAUDE_CODE_SUBAGENT_MODEL     : subagents / experimental agent teams\n#   - ANTHROPIC_DEFAULT_HAIKU_MODEL  : background quick tasks (summaries, titles)\n#   - ANTHROPIC_DEFAULT_SONNET_MODEL : anything resolving via the sonnet alias\n# Routing the background \"Haiku slot\" to Opus is intentional here and raises\n# token cost/latency for those tasks.\nexport CLAUDE_CODE_SUBAGENT_MODEL=\"$force_model\"\nexport ANTHROPIC_DEFAULT_HAIKU_MODEL=\"$force_model\"\nexport ANTHROPIC_DEFAULT_SONNET_MODEL=\"$force_model\"\n\n# Default-enable ultracode via inline JSON settings. Built as an array so the\n# JSON value is always passed as a single argument (string-splitting would break\n# it if the JSON ever contained spaces).\nclaude_args+=(--settings \"$ultra_settings_json\")\n\n# Pin the main interactive model (highest-precedence selector).\nclaude_args+=(--model \"$force_model\")", "new_string": "# Always-on: enable ultracode via inline JSON settings. Built as an array so the\n# JSON value is always passed as a single argument (string-splitting would break\n# it if the JSON ever contained spaces).\nclaude_args+=(--settings \"$ultra_settings_json\")\n\n# Optional: force Opus 4.8 (or newer) everywhere. Opt-in prompt, default No.\n# \"$force_model\" is the newest-Opus alias plus the 1M-context window (\"opus[1m]\");\n# Claude Code strips the [1m] suffix client-side before calling the provider.\nread -r -p \"Force model ${force_model} everywhere (main + subagents + background)? [y/N]: \" force_opus_choice || force_opus_choice=\"\"\nif [ \"$force_opus_choice\" = \"y\" ] || [ \"$force_opus
+        ... [truncated 936 chars]
+
+[2026-06-22 16:09:36]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:09:42]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh", "old_string": "echo \"[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)\"\necho \"[INFO] Forced model: ${force_model} (main session + subagents + background Haiku/Sonnet slots)\"\necho \"[INFO] Ultracode settings: --settings ${ultra_settings_json}\"", "new_string": "echo \"[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)\"\nif [ \"$force_opus_enabled\" -eq 1 ]; then\n    echo \"[INFO] Forced model: ${force_model} (main session + subagents + background Haiku/Sonnet slots)\"\nelse\n    echo \"[INFO] Forced model: off (default N) - using the account default model\"\nfi\necho \"[INFO] Ultracode settings: --settings ${ultra_settings_json}\""}
+
+[2026-06-22 16:09:42]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/linuxenvs/claudeteam.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:09:47] ASSISTANT:
+Now `claudeteam.ps1` — same opt-in prompt, plus `--teammate-mode in-process` as a Windows default (built into a splatted args array):
+
+[2026-06-22 16:09:49]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "old_string": "$windowsPathFunctionScript = $null\n$ultraSettingsJson = $null\n$forceModel = $null\n$exitCode = 0\n$claudeInvokeDisplayArgs = $null", "new_string": "$windowsPathFunctionScript = $null\n$ultraSettingsJson = $null\n$forceModel = $null\n$forceOpusChoice = $null\n$forceOpusEnabled = $false\n$teammateMode = $null\n$claudeArgs = $null\n$exitCode = 0\n$claudeInvokeDisplayArgs = $null"}
+
+[2026-06-22 16:09:49]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:10:04]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "old_string": "# Force Opus 4.8 (or newer) everywhere. $forceModel is the newest-Opus alias plus\n# the 1M-context window (\"opus[1m]\"); Claude Code strips the [1m] suffix\n# client-side before calling the provider. These env vars cover the model slots\n# that have no CLI flag: subagents/agent-teams (CLAUDE_CODE_SUBAGENT_MODEL), the\n# background quick-task \"Haiku slot\" (ANTHROPIC_DEFAULT_HAIKU_MODEL) and anything\n# resolving via the sonnet alias (ANTHROPIC_DEFAULT_SONNET_MODEL). Routing the\n# Haiku slot to Opus is intentional and raises token cost/latency for those tasks.\n$forceModel = 'opus[1m]'\n$env:CLAUDE_CODE_SUBAGENT_MODEL = $forceModel\n$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $forceModel\n$env:ANTHROPIC_DEFAULT_SONNET_MODEL = $forceModel\n\n# Default-enable ultracode via inline JSON settings (compact; no spaces so\n# native-argument quoting stays safe).\n$ultraSettingsJson = '{\"ultracode\":true}'", "new_string": "# Newest-Opus alias plus the 1M-context window (\"opus[1m]\"); Claude Code strips\n# the [1m] suffix client-side before calling the provider.\n$forceModel = 'opus[1m]'\n\n# Windows default: run experimental agent teams in-process.\n$teammateMode = 'in-process'\n\n# Default-enable ultracode via inline JSON settings (compact; no spaces so\n# native-argument quoting stays safe).\n$ultraSettingsJson = '{\"ultracode\":true}'\n\n# Optional: force Opus 4.8 (or newer) everywhere. Opt-in prompt, default No.\n$forceOpusChoice = Read-Host \"Force model $forceModel everywhere (main + subagents + background)? [y/N]\"\n$forceOpusEnabled = (($forceOpusChoice -eq 'y') -or ($forceOpusChoice -eq 'Y'))\n\nif ($forceOpusEnabled) {\n    # Env vars cover the model slots that have no CLI flag: subagents/agent-teams\n    # (CLAUDE_CODE_SUBAGENT_MODEL), the background quick-task \"Haiku slot\"\n    # (ANTHROPIC_DEFAULT_HAIKU_MODEL) and anything resolving via the
+        ... [truncated 1007 chars]
+
+[2026-06-22 16:10:04]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:10:13]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "old_string": "Write-Host \"[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)\" -ForegroundColor Green\nWrite-Host \"[INFO] Forced model: $forceModel (main session + subagents + background Haiku/Sonnet slots)\" -ForegroundColor Green\nWrite-Host \"[INFO] Ultracode settings: --settings $ultraSettingsJson\" -ForegroundColor Green\nWrite-Host \"[INFO] Invoking: claude --model $forceModel --settings $ultraSettingsJson --dangerously-skip-permissions$claudeInvokeDisplayArgs\" -ForegroundColor Green", "new_string": "Write-Host \"[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)\" -ForegroundColor Green\nif ($forceOpusEnabled) {\n    Write-Host \"[INFO] Forced model: $forceModel (main session + subagents + background Haiku/Sonnet slots)\" -ForegroundColor Green\n} else {\n    Write-Host \"[INFO] Forced model: off (default N) - using the account default model\" -ForegroundColor Green\n}\nWrite-Host \"[INFO] Teammate mode: $teammateMode (Windows default)\" -ForegroundColor Green\nWrite-Host \"[INFO] Ultracode settings: --settings $ultraSettingsJson\" -ForegroundColor Green\nWrite-Host \"[INFO] Invoking: claude $($claudeArgs -join ' ')$claudeInvokeDisplayArgs\" -ForegroundColor Green"}
+
+[2026-06-22 16:10:13]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:10:17]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "old_string": "# & claude --model $forceModel --settings $ultraSettingsJson --dangerously-skip-permissions --teammate-mode in-process @args\n& claude --model $forceModel --settings $ultraSettingsJson --dangerously-skip-permissions @args", "new_string": "& claude @claudeArgs @args"}
+
+[2026-06-22 16:10:17]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1 has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 16:10:27] ASSISTANT:
+Now let me verify: syntax-check the bash script, functionally test its prompt logic (both Y and default-N paths) without launching Claude, and review the final PowerShell state:
+
+[2026-06-22 16:10:27]   -> tool: Bash  {"command": "bash -n scripts/linuxenvs/claudeteam.sh && echo \"SH SYNTAX OK\"", "description": "Syntax-check claudeteam.sh"}
+
+[2026-06-22 16:10:27]   <- tool result:
+SH SYNTAX OK
+
+[2026-06-22 16:10:27]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/winenvs/claudeteam.ps1", "offset": 63, "limit": 55}
+
+[2026-06-22 16:10:27]   <- tool result:
+63	$windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+64	. $windowsPathFunctionScript
+65	Set-CoreNodePaths
+66	
+67	$env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+68	
+69	# Newest-Opus alias plus the 1M-context window ("opus[1m]"); Claude Code strips
+70	# the [1m] suffix client-side before calling the provider.
+71	$forceModel = 'opus[1m]'
+72	
+73	# Windows default: run experimental agent teams in-process.
+74	$teammateMode = 'in-process'
+75	
+76	# Default-enable ultracode via inline JSON settings (compact; no spaces so
+77	# native-argument quoting stays safe).
+78	$ultraSettingsJson = '{"ultracode":true}'
+79	
+80	# Optional: force Opus 4.8 (or newer) everywhere. Opt-in prompt, default No.
+81	$forceOpusChoice = Read-Host "Force model $forceModel everywhere (main + subagents + background)? [y/N]"
+82	$forceOpusEnabled = (($forceOpusChoice -eq 'y') -or ($forceOpusChoice -eq 'Y'))
+83	
+84	if ($forceOpusEnabled) {
+85	    # Env vars cover the model slots that have no CLI flag: subagents/agent-teams
+86	    # (CLAUDE_CODE_SUBAGENT_MODEL), the background quick-task "Haiku slot"
+87	    # (ANTHROPIC_DEFAULT_HAIKU_MODEL) and anything resolving via the sonnet alias
+88	    # (ANTHROPIC_DEFAULT_SONNET_MODEL).
+89	    $env:CLAUDE_CODE_SUBAGENT_MODEL = $forceModel
+90	    $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $forceModel
+91	    $env:ANTHROPIC_DEFAULT_SONNET_MODEL = $forceModel
+92	    # Light note shown only when the user opted in.
+93	    Write-Host "[NOTE] $forceModel forced for main session, subagents and background (Haiku/Sonnet) slots - background tasks run on Opus too (higher cost/latency)." -ForegroundColor Yellow
+94	}
+95	
+96	# Build the claude argument list. --settings always carries ultracode;
+97	# --teammate-mode in-process and --dangerously-skip-permissions are Windows
+98	# defaults; --model is included only when Opus forcing is opted in.
+99	if ($forceOpusEnabled) {
+100	    $claudeArgs = @("--model", $forceModel, "--settings", $ultraSettingsJson, "--team
+        ... [truncated 904 chars]
+
+[2026-06-22 16:10:44] ASSISTANT:
+Bash syntax is clean and the PowerShell structure looks correct. Let me functionally test the `claudeteam.sh` prompt logic for both paths (default-N and Y) using a fake `claude` on PATH that just reports its args and the model env vars — so I can confirm the gating works without launching a real session:
+
+[2026-06-22 16:10:48]   -> tool: Bash  {"command": "tmpdir=\"$(mktemp -d)\"\ncat > \"$tmpdir/claude\" <<'EOF'\n#!/bin/bash\necho \"FAKE-CLAUDE-ARGS: $*\"\necho \"SUBAGENT=${CLAUDE_CODE_SUBAGENT_MODEL:-<unset>}\"\necho \"HAIKU=${ANTHROPIC_DEFAULT_HAIKU_MODEL:-<unset>}\"\necho \"SONNET=${ANTHROPIC_DEFAULT_SONNET_MODEL:-<unset>}\"\nEOF\nchmod +x \"$tmpdir/claude\"\n\necho \"===== TEST 1: default (empty input -> N) =====\"\nprintf '\\n' | PATH=\"$tmpdir:$PATH\" bash scripts/linuxenvs/claudeteam.sh 2>&1 | grep -E 'NOTE|Forced model|FAKE-CLAUDE-ARGS|SUBAGENT|HAIKU|SONNET'\n\necho \"\"\necho \"===== TEST 2: opt-in (y) =====\"\nprintf 'y\\n' | PATH=\"$tmpdir:$PATH\" bash scripts/linuxenvs/claudeteam.sh 2>&1 | grep -E 'NOTE|Forced model|FAKE-CLAUDE-ARGS|SUBAGENT|HAIKU|SONNET'\n\nrm -rf \"$tmpdir\"", "description": "Test claudeteam.sh prompt gating for N and Y paths"}
+
+[2026-06-22 16:10:48]   <- tool result:
+===== TEST 1: default (empty input -> N) =====
+[INFO] Forced model: off (default N) - using the account default model
+FAKE-CLAUDE-ARGS: --settings {"ultracode":true} --dangerously-skip-permissions
+SUBAGENT=<unset>
+HAIKU=<unset>
+SONNET=<unset>
+
+===== TEST 2: opt-in (y) =====
+[NOTE] opus[1m] forced for main session, subagents and background (Haiku/Sonnet) slots - background tasks run on Opus too (higher cost/latency).
+[INFO] Forced model: opus[1m] (main session + subagents + background Haiku/Sonnet slots)
+FAKE-CLAUDE-ARGS: --settings {"ultracode":true} --model opus[1m] --dangerously-skip-permissions
+SUBAGENT=opus[1m]
+HAIKU=opus[1m]
+SONNET=opus[1m]
+
+[2026-06-22 16:10:56] ASSISTANT:
+The `claudeteam.sh` behaves exactly as specified — default (Enter) → no forcing, no note, no `--model`/env vars; `y` → note printed, `--model opus[1m]` added, and all three env slots set. The `opus[1m]` value passes through cleanly with no glob expansion.
+
+Let me see if PowerShell is available to do a parse-check on the `.ps1`:
+
+[2026-06-22 16:10:57]   -> tool: Bash  {"command": "command -v pwsh >/dev/null 2>&1 && echo \"pwsh available\" || echo \"no pwsh (Linux box) - will static-verify\"", "description": "Check for PowerShell availability"}
+
+[2026-06-22 16:10:57]   <- tool result:
+pwsh available
+
+[2026-06-22 16:11:18] ASSISTANT:
+pwsh is available. Let me do a definitive AST parse-check on the real `.ps1` file (catches any syntax error including the splat/if-else), plus a functional simulation of the prompt → arg-array logic for both `y` and default-N inputs:
+
+[2026-06-22 16:11:26]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\n\necho \"===== AST PARSE CHECK (real file) =====\"\npwsh -NoProfile -Command '\n$errors = $null\n$tokens = $null\n$path = (Resolve-Path \"scripts/winenvs/claudeteam.ps1\").Path\n[System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null\nif ($errors -and $errors.Count -gt 0) { Write-Host \"PARSE ERRORS:\"; $errors | ForEach-Object { Write-Host (\" - \" + $_.Message + \" @ line \" + $_.Extent.StartLineNumber) }; exit 1 }\nelse { Write-Host \"PS1 PARSE OK (no syntax errors)\" }\n'\n\necho \"\"\necho \"===== LOGIC SIM: arg-array building for each choice =====\"\nfor choice in \"\" \"y\" \"Y\" \"n\"; do\npwsh -NoProfile -Command \"\n\\$forceModel = 'opus[1m]'\n\\$teammateMode = 'in-process'\n\\$ultraSettingsJson = '{\\\"ultracode\\\":true}'\n\\$forceOpusChoice = '$choice'\n\\$forceOpusEnabled = ((\\$forceOpusChoice -eq 'y') -or (\\$forceOpusChoice -eq 'Y'))\nif (\\$forceOpusEnabled) {\n    \\$claudeArgs = @('--model', \\$forceModel, '--settings', \\$ultraSettingsJson, '--teammate-mode', \\$teammateMode, '--dangerously-skip-permissions')\n} else {\n    \\$claudeArgs = @('--settings', \\$ultraSettingsJson, '--teammate-mode', \\$teammateMode, '--dangerously-skip-permissions')\n}\n\\$label = if ([string]::IsNullOrEmpty('$choice')) { '<empty/Enter>' } else { '$choice' }\nWrite-Host (\\\"choice=\\\" + \\$label + \\\"  enabled=\\\" + \\$forceOpusEnabled + \\\"  -> claude \\\" + (\\$claudeArgs -join ' '))\n\"\ndone", "description": "AST parse-check and arg-building simulation for ps1"}
+
+[2026-06-22 16:11:28]   <- tool result:
+===== AST PARSE CHECK (real file) =====
+PS1 PARSE OK (no syntax errors)
+
+===== LOGIC SIM: arg-array building for each choice =====
+choice=<empty/Enter>  enabled=False  -> claude --settings {"ultracode":true} --teammate-mode in-process --dangerously-skip-permissions
+choice=y  enabled=True  -> claude --model opus[1m] --settings {"ultracode":true} --teammate-mode in-process --dangerously-skip-permissions
+choice=Y  enabled=True  -> claude --model opus[1m] --settings {"ultracode":true} --teammate-mode in-process --dangerously-skip-permissions
+choice=n  enabled=False  -> claude --settings {"ultracode":true} --teammate-mode in-process --dangerously-skip-permissions
+
+[2026-06-22 16:11:46] ASSISTANT:
+Both launchers are updated and verified. Summary of this round's changes:
+
+## `claudeteam.sh` and `claudeteam.ps1` — Opus forcing is now opt-in
+- Added a prompt: **`Force model opus[1m] everywhere (main + subagents + background)? [y/N]`** — **defaults to N** (pressing Enter, or any non-`y` answer, skips forcing).
+- **Only on `Y`/`y`**: sets `--model opus[1m]` + the `CLAUDE_CODE_SUBAGENT_MODEL` / `ANTHROPIC_DEFAULT_HAIKU_MODEL` / `ANTHROPIC_DEFAULT_SONNET_MODEL` env slots, and prints a **light `[NOTE]`** line (one line, in yellow on Windows) warning that background tasks now run on Opus too (higher cost/latency).
+- The info banner reflects the choice (`Forced model: opus[1m] …` vs `off (default N) …`).
+
+## `claudeteam.ps1` only — `--teammate-mode in-process` as a Windows default
+- The previously-commented `--teammate-mode in-process` is now always part of the invocation. Args are built into a splatted array (`& claude @claudeArgs @args`), so `--teammate-mode in-process` and `--dangerously-skip-permissions` are always present and `--model opus[1m]` is conditional.
+
+## Verification (no real session launched)
+- `bash -n` clean; **live run of `claudeteam.sh`** with a stub `claude` confirms: Enter → `--settings … --dangerously-skip-permissions` only, env vars unset, no note; `y` → `--model opus[1m]` added, all three env vars = `opus[1m]`, note printed.
+- `claudeteam.ps1`: **AST parse — no syntax errors**; arg-building simulated for `<Enter>`/`n`/`y`/`Y` — `--teammate-mode in-process` present in all cases, `--model opus[1m]` only on `y`/`Y`.
+
+Note I kept the `.sh` without `--teammate-mode` (you scoped that to Windows), and left the existing root-safety logic (`--dangerously-skip-permissions` dropped for root) and the always-on ultracode `--settings` untouched.

@@ -33,45 +33,6 @@ CHECK_PACKAGES_SCRIPT="$(dirname "$PARENT_DIR_LEVEL_2")/scripts/check_global_pac
 # Fallback registry when registry.npmjs.org returns 403 (e.g. network/proxy/geo restriction)
 FALLBACK_REGISTRY="https://registry.npmmirror.com/"
 
-migrate_old_npm_installation() {
-    local old_base_dir=$(map_web_path "dev_system_old")
-
-    echo "[$SCRIPT_INDEX] Checking for old installation references..."
-
-    if command -v pnpm >/dev/null 2>&1; then
-        local current_pnpm_prefix=$(pnpm config get prefix 2>/dev/null)
-
-        if [[ "$current_pnpm_prefix" == *"$old_base_dir"* ]]; then
-            echo "[$SCRIPT_INDEX] Clearing pnpm prefix pointing to old directory"
-            pnpm config delete prefix
-        fi
-    fi
-
-    if [ -n "$PNPM_HOME" ]; then
-        echo "[$SCRIPT_INDEX] Clearing PNPM_HOME: $PNPM_HOME"
-        unset PNPM_HOME
-    fi
-    
-    if [ -f /etc/environment ]; then
-        if grep -q "$old_base_dir" /etc/environment; then
-            echo "[$SCRIPT_INDEX] Removing old directory references from /etc/environment..."
-            $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
-        fi
-        if grep -q "NPM_CONFIG_PREFIX" /etc/environment; then
-            echo "[$SCRIPT_INDEX] Removing NPM_CONFIG_PREFIX from /etc/environment..."
-            $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
-        fi
-    fi
-    
-    if [ -d "$old_base_dir" ]; then
-        echo "[$SCRIPT_INDEX] Removing old base directory: $old_base_dir"
-        $USE_SUDO rm -rf "$old_base_dir"
-    fi
-    
-    echo "[$SCRIPT_INDEX] Migration check completed"
-    return 0
-}
-
 # Function to extract package names from pnpm list output
 get_installed_packages() {
     # Use the Node.js script to get the package list
@@ -137,11 +98,14 @@ ensure_package() {
 
     echo "[$SCRIPT_INDEX] Installing $package..."
 
+    # Guard against ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY: this script runs under
+    # automation (no TTY); allow pnpm to purge/replace the global modules dir non-interactively.
+    export npm_config_confirm_modules_purge=false
     do_install() {
         if [ "$package" = "puppeteer" ]; then
-            PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_from_common_functions add -g "$package"
+            PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package"
         else
-            run_pnpm_from_common_functions add -g "$package"
+            run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package"
         fi
     }
 
@@ -177,8 +141,6 @@ echo "[$SCRIPT_INDEX] PNPM Global Package Installation Script"
 # Idempotent: every step runs on each invocation. We only skip at finest granularity
 # (e.g. skip installing a single package when it is already installed). Re-running
 # repairs partial failures (e.g. previous run failed on 403 for some packages).
-
-migrate_old_npm_installation
 
 # Function to configure pnpm global directories
 configure_pnpm_global_dirs() {
@@ -274,6 +236,9 @@ ensure_registry_accessible() {
 }
 
 # Ensure pnpm is installed first (bootstrap). Do not skip later steps when pnpm already exists.
+# Run under automation (no TTY): never let pnpm abort on a global modules-dir purge.
+export npm_config_confirm_modules_purge=false
+
 echo "[$SCRIPT_INDEX] Ensuring pnpm is installed..."
 
 # Check if pnpm exists using absolute path

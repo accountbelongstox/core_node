@@ -37,6 +37,13 @@ DEBIAN_FRONTEND="noninteractive"
 # Use global temporary directory structure
 SCRIPT_TEMP_DIR=$(mktemp -d -t setup_ssh_remote_XXXXXX)
 SSH_SETUP_FLAG="$SCRIPT_TEMP_DIR/ssh_configured_step18.flag"
+# Persistent completion flag so the re-run short-circuit (line ~731) actually triggers
+# across separate invocations (mktemp dir is unique per run and never persists).
+if [ -n "${GLOBAL_VAR_DIR:-}" ]; then
+    SSH_SETUP_FLAG="$GLOBAL_VAR_DIR/ssh_configured_step18.flag"
+elif [ -n "${CORE_NODE_DATA_DIR:-}" ]; then
+    SSH_SETUP_FLAG="$CORE_NODE_DATA_DIR/ssh_configured_step18.flag"
+fi
 
 # Source common functions and variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
@@ -190,9 +197,14 @@ configure_ssh_server() {
     fi
 
     print_step_from_common_functions "Backing up SSH config file..."
-    if ! $USE_SUDO cp "$SSH_CONFIG_FILE" "${SSH_CONFIG_FILE}.backup.$(date +%Y%m%d_%H%M%S)"; then
-        print_error_from_common_functions "Failed to backup SSH config"
-        return 1
+    if [ ! -f "${SSH_CONFIG_FILE}.ncore.orig" ]; then
+        if ! $USE_SUDO cp "$SSH_CONFIG_FILE" "${SSH_CONFIG_FILE}.ncore.orig"; then
+            print_error_from_common_functions "Failed to backup SSH config"
+            return 1
+        fi
+        print_info_from_common_functions "Original sshd_config backed up to ${SSH_CONFIG_FILE}.ncore.orig"
+    else
+        print_info_from_common_functions "sshd_config backup already exists (${SSH_CONFIG_FILE}.ncore.orig), keeping original"
     fi
 
     print_step_from_common_functions "Configuring SSH settings for remote access..."

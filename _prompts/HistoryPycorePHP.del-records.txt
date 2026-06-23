@@ -1,0 +1,67 @@
+# Deletion records for _prompts/HistoryPycorePHP.txt  --  main line: "CUDA support Kali / Debian / Ubuntu"
+#
+# Line numbers below refer to the ORIGINAL 58304-line HistoryPycorePHP.txt
+# (generated 2026-06-23 11:45:21, sha256 a9f42785...), whose full content is
+# preserved byte-identical in _prompts/History (copy 1).txt.
+# Each 'del a-bline' entry removes that ORIGINAL line range; chunks are <=1000 lines.
+#
+# Task this wave: verify the "CUDA support Kali / Debian / Ubuntu" work is repaired
+# by history and align the code 1:1 to the LATEST records (end of document = newest).
+# Result: code is ALREADY 1:1 aligned to the latest CUDA history -> NO code changes
+# were required. Multi-role adversarial review (4 lenses) returned fully-aligned,
+# zero major/blocker findings. Evidence summarized below.
+#
+# NOTE ON CONCURRENCY: while this wave ran, _prompts/HistoryPycorePHP.txt was being
+# rewritten by a concurrent reconciliation/auto-prune process (observed shrinking
+# 58304 -> 13991 -> 6580 lines, file is not git-tracked). That process had already
+# removed the CUDA-bearing sessions (6245db8a / c4f2933e) from the live file by the
+# time pruning would have run, so this wave did NOT edit the live file (to avoid
+# racing/corrupting that process). The ranges below are recorded against the ORIGINAL
+# backup so the CUDA-line pruning is documented regardless of the live file's state.
+#
+# ---- PRUNED (CUDA installer records; code verified aligned -> records superseded) ----
+#
+# === B1  session 6245db8a  (orig 1607-2337) — first Kali CUDA installer (cuda_* version)
+#         + opt-in GPU menu wiring. Superseded by the newer cti_* design (session
+#         c4f2933e) which IS the live code. linux_management.sh opt-in menu entry +
+#         install_cuda_toolkit_menu() wrapper are present (slim-disk submenu total=9,
+#         case 3 -> install_cuda_toolkit_menu). ===
+del 1607-2337line
+#
+# === B7  session c4f2933e  (orig 22601-23011) — LATEST CUDA work: recreated the two
+#         canonical files, both present & verified in the live tree:
+#           scripts/shells/linux/common/install_cuda_toolkit.sh           (8973 bytes)
+#           scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh (5077 bytes)
+#         install_cuda_toolkit.sh: cti_* idempotent toolkit installer, pinned CUDA
+#         12.2.2 / driver 535.104.05 (env-overridable); idempotent nvcc skip; apt
+#         Path A `cuda-toolkit-12-2` GATED `[ "$os" != "kali" ]` (Kali always takes
+#         .run); .run Path B = `sh <run> --silent --toolkit --override --tmpdir=<scratch>`
+#         with a SCOPED libxml2.so.2 shim via LD_LIBRARY_PATH (no permanent system
+#         symlink), POSIX scratch picker (ext*/xfs/btrfs/... ; NTFS/exFAT/FUSE rejected,
+#         >=10G free), resumable cached download, /etc/profile.d/cuda.sh env.
+#         13_cuda_nvidia_prereq.sh: GPU-gated orchestrator (cnp_gpu_present -> exit 0 on
+#         CPU-only), kernel build prereqs (gcc/make/headers/dkms), per-distro driver
+#         (kali|debian -> nvidia-detect+nvidia-driver ; ubuntu -> ubuntu-drivers
+#         autoinstall, fallback nvidia-driver-535), then sources the installer and calls
+#         cti_ensure_cuda_toolkit. Runs BEFORE 13_ensure_python.sh (sort -n -t: -k1 ties
+#         at 13, lexical tie-break 'cuda' < 'ensure'). bash -n clean; $USE_SUDO from
+#         gvar_common.sh. ===
+del 22601-23011line
+#
+# ---- VERIFIED-PRESENT enabling dependencies (left for their own future main lines) ----
+#   orig 23012-23700  session c4f2933e — get_dev_compile_base (gvar_common.sh) +
+#       _get_dev_compile_base (pycore/pyfoundations/system_paths.py) + PHP PathMapper:
+#       prefer /opt when root has >50G free (sticky), else largest secondary disk. The
+#       CUDA .run scratch dir independently enforces a POSIX fs (cti_pick_scratch), so
+#       the "POSIX not NTFS" goal holds. PRESENT in code. (Belongs to the "/opt mapping" line.)
+#   orig 23768-23836  session c4f2933e — Kali distro detection in dd.sh + dd_helper/
+#       system_functions.sh: kali) case maps SYSTEM_NAME=debian (so the debian
+#       install_shells run, incl. 13_cuda_nvidia_prereq.sh) + ID_LIKE-contains-debian
+#       fallback; catch-all error now names Debian/Ubuntu/Kali. PRESENT in code.
+#       (Load-bearing for CUDA-on-Kali; belongs to the broader "Kali support" line.)
+#
+# ---- NOT a code defect (recorded, no action) ----
+#   scripts/pyvoice/CUDA_GUIDE.md:106 still shows the obsoleted apt command
+#   `sudo apt install nvidia-driver-XXX nvidia-cuda-toolkit`. It is a *.md doc; the
+#   repo AI rules forbid editing *.md, so it is left untouched (install_cuda_toolkit.sh
+#   header documents that those apt packages are obsoleted on Kali).

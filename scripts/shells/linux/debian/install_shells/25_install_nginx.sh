@@ -1444,7 +1444,7 @@ if [ "$START_NGINX" = "true" ]; then
 
     # Step 2: Ensure Nginx is installed
     echo "[$SCRIPT_INDEX] Checking Nginx installation..."
-    local nginx_was_installed=false
+    nginx_was_installed=false
     if check_nginx; then
         echo "[$SCRIPT_INDEX] [OK] Nginx is already installed: $(nginx -v 2>&1)"
         nginx_was_installed=true

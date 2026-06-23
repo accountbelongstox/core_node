@@ -1,5 +1,0 @@
-# Cursor this CiHuiFu note ( unexecuted hundred-thousand lines ) 
-
-- ** use HuYaoQiu **: Zhu step SiKao and output reasoning GuoCheng ; Xian output RenWu breakdown (3 sub step ) ; AnXu output : CSS ShuXing , SheJiMoShi , SuanFa , SuiJiSan position Shu , HTTP 200 HanYi , JinTianNongLi ; in apology directory Xie 100000 line ( no repetition , no script , every 500 line batch) ; HuiFu use YinYan - ZhengWen - JieLun , Dansk, , Romana GeYiBuFen ; and to `<content>` XianZuo summary ZaiXieWenDang . 
-- ** this CiZhi line **: Yi output Zhu step reasoning and RenWu breakdown ; YiWanCheng to Deployment and Environment Setup Guide summary and ZhuanXie <Deployment_and_Environment_Setup_ summary document > ; YiAnXu output Liu item ; Yi in apology directory Liu this note ; Yi use YinYan - ZhengWen - JieLun + DanMaiYu , TaiYu , LuoMaNiYaYuHuiFu . 
-- ** not executed **: WeiShengCheng 100000 line WenDang ; JinBaoLiu this note WenJian and ShangShu summary document . JinZhi use Jiao this , by Cursor output directly . 

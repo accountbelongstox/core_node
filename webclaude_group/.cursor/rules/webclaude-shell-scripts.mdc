@@ -1,33 +1,15 @@
 ---
-description: WebClaude group shell/PowerShell script conventions (aligned with Claude Code docs)
+description: WebClaude group shell/PowerShell script conventions
 globs: webclaude_group/**/*.sh, webclaude_group/**/*.ps1
 ---
 
 # WebClaude group scripts
 
-## Alignment with Claude Code (official)
+- Detect build success by **file existence** (`test -f` / `Test-Path`), not exit codes; launchers may `exit 0` so callers don't read codes (not for `.claude/` hook handlers).
+- Long-running cmds (`npm/pnpm install`, `go build/mod download`, installers) print **real-time**; don't pipe through `tail`/`grep`/capture-only `$()`.
+- **Trust-style** sourcing: `source` expected lib paths with no `if [[ -f ]]` guards — fail fast on incomplete checkout.
+- No complex `grep`/`sed`/`tail` for structured data; use `webclaude_group/scripts/pytools/`: `wc_env.py`, `wc_line_value.py`, `wc_list_backups.py`, `wc_tail_file.py`.
+- Privileged Linux cmds use `sudo` when not root (`apt-get`, `systemctl`).
+- Keep scripts thin (logic → Python); declare constants/flags at top.
 
-- Anthropic Claude Code docs: https://docs.anthropic.com/en/docs/claude-code/best-practices  
-- Hooks (when scripts are used as hooks): https://docs.anthropic.com/en/docs/claude-code/hooks-guide  
-- Give agents **verifiable success criteria** (e.g. artifact checks), not only “it ran”.
-
-## Repository rules (this tree)
-
-- **Language**: comments, logs, and user-facing strings in **English** only. No emoji in scripts.
-- **Variables**: declare **constants and mode flags at the top** of each script (after `param` / option parsing blocks where those must read `$@` first). Path variables may be assigned immediately after parsing if they depend on `BASH_SOURCE` / `$MyInvocation`.
-- **Live output**: long-running commands (`npm install`, `pnpm install`, `go build`, `go mod download`, installers) must print to the terminal **in real time**. Do not pipe them through `tail`, `grep` silencers, or capture-only `$()` when the user needs to see progress.
-- **Success checks**: prefer **artifact checks** (`test -f` / `Test-Path` for binaries, `node_modules`, etc.) instead of treating exit codes as the primary contract.
-- **Privileged Linux commands**: use **`sudo`** for package managers and system services when not running as root (e.g. `apt-get`, `systemctl` where appropriate).
-- **Sourcing**: **trust-style** includes — `source` expected library paths **without** redundant `if [[ -f ... ]]` guards. Missing files should fail fast in a complete checkout.
-- **Text / env parsing**: avoid complex `grep`/`sed`/`tail` pipelines in shell for structured data. Helpers under `webclaude_group/scripts/pytools/`:
-  - **`wc_env.py`**: read a key from an env-style file.
-  - **`wc_line_value.py`**: first `KEY=value` assignment in a file (e.g. gvar-style lines).
-  - **`wc_list_backups.py`**: list last N glob matches in a directory (replaces `ls … | tail`).
-  - **`wc_tail_file.py`**: print last N lines of a file (replaces `tail -n` in scripts).
-- **Documentation**: do not generate large markdown from shell; keep scripts thin.
-- **Exit status**: launcher utilities may end with **`exit 0`** so callers do not rely on exit codes; infer outcome from `[OK]` / `[FAIL]` lines and filesystem artifacts. (This does **not** apply to Claude Code hook scripts.)
-- **Backlog**: `webclaude_center_server/scripts/manage.sh` still contains extensive non-English strings outside the paths already migrated; translate incrementally when touching that file.
-
-## Note on hook scripts (if reused under `.claude/`)
-
-Claude Code hook handlers use specific exit codes per Anthropic hook documentation. Repository launcher scripts under `webclaude_group/` are **not** hook handlers unless installed as such; rules above apply to these launchers.
+Full detail: webclaude_group/CLAUDE.md. Git/code rules: repo-root CLAUDE.md.

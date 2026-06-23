@@ -62,7 +62,7 @@ RUSTDESK_LOG_DIR="$RUSTDESK_BASE_DIR/logs"
 RUSTDESK_INSTALLED_FLAG="$RUSTDESK_BASE_DIR/.installed"
 
 # Server configuration storage (persistent across reinstalls)
-RUSTDESK_SERVER_CONFIG_DIR="/var/_core_node/rustdesk_server"
+RUSTDESK_SERVER_CONFIG_DIR="$CORE_NODE_DATA_DIR/rustdesk_server"
 RUSTDESK_SERVER_CONFIG_FILE="$RUSTDESK_SERVER_CONFIG_DIR/server.conf"
 RUSTDESK_SERVER_KEY_BACKUP="$RUSTDESK_SERVER_CONFIG_DIR/id_ed25519.pub"
 
@@ -952,7 +952,7 @@ EOF
     echo ""
 
     # Check if directory is web-accessible
-    local web_base=$(map_web_path "www_root")
+    local web_base=$(map_web_path "wwwroot")
     if [[ "$RUSTDESK_CLIENTS_DIR" == "$web_base"* ]]; then
         local web_path="${RUSTDESK_CLIENTS_DIR#$web_base}"
         print_info_from_common_functions "Web Download (if web server configured):"
@@ -1064,7 +1064,7 @@ ensure_dashboard_service() {
         return 0
     fi
     print_step_from_common_functions "Ensuring RustDesk dashboard service (ncore-rustdesk-dashboard)..."
-    local dashboard_config_dir="/var/_core_node/rustdesk_dashboard"
+    local dashboard_config_dir="$CORE_NODE_DATA_DIR/rustdesk_dashboard"
     local dashboard_config_file="$dashboard_config_dir/config.json"
     $USE_SUDO systemctl stop "$RUSTDESK_DASHBOARD_SERVICE_NAME" 2>/dev/null || true
     if [[ -f "$dashboard_config_file" ]]; then

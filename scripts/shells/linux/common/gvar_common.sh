@@ -373,6 +373,32 @@ _fs_is_posix_capable() {
     esac
 }
 
+# True when $1 is a REAL disk mountpoint on a device different from the root (/)
+# filesystem. This is what distinguishes a genuine data-disk base from an empty
+# leftover directory that was auto-created on the root fs (e.g. a stale
+# /mnt/dev_nvme0n1p1 carried over from a previous host): the leftover is a plain
+# dir on '/', not a mountpoint, so it is rejected. Falls back to "not a real mount"
+# when mountpoint/findmnt are unavailable.
+_is_real_distinct_mount() {
+    local p="$1" src root_src
+    [ -n "$p" ] && [ -d "$p" ] || return 1
+    mountpoint -q "$p" 2>/dev/null || return 1
+    src="$(findmnt -n -o SOURCE --target "$p" 2>/dev/null)"
+    root_src="$(findmnt -n -o SOURCE --target / 2>/dev/null)"
+    [ -n "$src" ] && [ "$src" != "$root_src" ]
+}
+
+# True when base $1 actually hosts a real core_node checkout. Uses the SAME adopt
+# predicate as 8_project_validator.sh (a .git entry or package.json under
+# programing/core_node), so "the project is really here" means the same thing
+# everywhere.
+_path_hosts_project() {
+    local base="$1" proj
+    [ -n "$base" ] || return 1
+    proj="$base/programing/core_node"
+    [ -d "$proj" ] && { [ -e "$proj/.git" ] || [ -f "$proj/package.json" ]; }
+}
+
 # Function to get optimal base directory for data storage. This is the PROJECT /
 # CODE base (where the core_node checkout lives); it may be a large NTFS data disk,
 # which is fine for source code, so it is NOT POSIX-restricted. The POSIX-only
@@ -381,7 +407,7 @@ _fs_is_posix_capable() {
 # why CORE_NODE_PROJECT_ROOT maps to the real /mnt checkout while web data uses /www.
 # Priority: WSL -> persisted BASE_DATA_DIR (center) -> largest NTFS/data disk -> Desktop Windows -> /www
 get_base_data_directory() {
-    local base_dir=""
+    local base_dir="" run_anchor="" run_base="" persisted_now=""
 
     # Priority 1: WSL /mnt/d
     if [ "$IS_WSL" = true ]; then
@@ -390,10 +416,37 @@ get_base_data_directory() {
         return 0
     fi
 
-    # Priority 2: Use persisted base dir from bootstrap/setup (single source of truth for project)
+    # Priority 1.5: Adopt the disk where the project ACTUALLY runs. Ground truth is
+    # where THIS checkout lives -- the persisted base (Priority 2) can still point at
+    # a leftover path migrated from another host. Derive the run anchor from
+    # CORE_NODE_ROOT_DIR (set by dd.sh) or this script's own resolved location, strip
+    # the trailing /programing/core_node, and adopt that base ONLY when it really
+    # hosts the project. Self-heal: rewrite the persisted file when it disagrees.
+    if [ -n "${CORE_NODE_ROOT_DIR:-}" ]; then
+        run_anchor="$CORE_NODE_ROOT_DIR"
+    elif [ -n "${BASH_SOURCE[0]:-}" ]; then
+        run_anchor="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../.." 2>/dev/null && pwd)"
+    fi
+    case "$run_anchor" in
+        */programing/core_node)
+            run_base="${run_anchor%/programing/core_node}"
+            if _path_hosts_project "$run_base"; then
+                persisted_now=""
+                [ -s "$BASE_DATA_DIR_FILE" ] && persisted_now=$(head -n1 "$BASE_DATA_DIR_FILE" 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                [ "$persisted_now" != "$run_base" ] && persist_base_data_directory "$run_base"
+                echo "$run_base"
+                return 0
+            fi
+            ;;
+    esac
+
+    # Priority 2: persisted base, but ONLY when still valid. A bare existence test
+    # accepts a stale leftover dir on the root fs; instead require that it is a real
+    # distinct disk mount OR actually hosts the project. An invalid value falls
+    # through (and is re-persisted by the adopt step / callers), so it self-heals.
     if [ -s "$BASE_DATA_DIR_FILE" ]; then
         read_base=$(head -n1 "$BASE_DATA_DIR_FILE" 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-        if [ -n "$read_base" ] && [ -d "$read_base" ]; then
+        if [ -n "$read_base" ] && { _is_real_distinct_mount "$read_base" || _path_hosts_project "$read_base"; }; then
             echo "$read_base"
             return 0
         fi
@@ -451,6 +504,14 @@ persist_base_data_directory() {
     local base_dir="${1:-$(get_base_data_directory)}"
     local dir_file="${2:-$BASE_DATA_DIR_FILE}"
     local parent_dir
+    # Refuse to persist a base that is not real: it must be a distinct disk mount,
+    # actually host the project, or be one of the sanctioned logical roots (/www, or
+    # WSL /mnt/d). This breaks the old feedback loop where a stale/leftover path
+    # (e.g. a migrated /mnt/dev_nvme0n1p1) kept getting re-written into the file.
+    if ! _is_real_distinct_mount "$base_dir" && ! _path_hosts_project "$base_dir" \
+        && [ "$base_dir" != "/www" ] && [ "$base_dir" != "/mnt/d" ]; then
+        return 0
+    fi
     parent_dir=$(dirname "$dir_file")
     if [ ! -d "$parent_dir" ]; then
         $USE_SUDO mkdir -p "$parent_dir" 2>/dev/null || mkdir -p "$parent_dir" 2>/dev/null || true
@@ -513,6 +574,12 @@ has_ntfs_disk() {
 device_to_mount_point() {
     local device="$1"
     local mount_base="${2:-/mnt}"
+    local existing
+    existing=$(findmnt -n -o TARGET "$device" 2>/dev/null | head -n1)
+    if [ -n "$existing" ] && [ "${existing#${mount_base}/}" != "$existing" ]; then
+        echo "$existing"
+        return 0
+    fi
     # Convert /dev/sdb3 to dev_sdb3
     local mount_name=$(echo "$device" | sed 's|/dev/|dev_|g')
     echo "$mount_base/$mount_name"
@@ -1246,17 +1313,6 @@ map_web_path() {
             # Use base_dir/_system_version for all environments
             mapped_path="${data_base}/_${sys_name}_${sys_version}"
             ;;
-        "dev_system_old")
-            # Old development system directory naming (dev_ubuntu24 style - no underscore prefix)
-            local sys_name="${SYSTEM_NAME}"
-            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-                local data_base=$(get_base_data_directory)
-                mapped_path="${data_base}/dev_${sys_name}${sys_version}"
-            else
-                mapped_path="/usr/dev_${sys_name}${sys_version}"
-            fi
-            ;;
         *)
             # Default: return the key as-is (assume it's already a path)
             mapped_path="$path_key"
@@ -1665,8 +1721,18 @@ set_env_and_var() {
     fi
 }
 
-# Set Puppeteer skip download globally by default
-set_env_and_var "PUPPETEER_SKIP_DOWNLOAD" "true"
+# Set Puppeteer skip download globally by default.
+# gvar_common.sh is re-sourced many times across the script chain (every script, often
+# several times each via common_functions.sh / apt_repository_manager.sh), which used to
+# print "Successfully set global variable: PUPPETEER_SKIP_DOWNLOAD -> true" on every
+# source. The value is file-backed and persists for the whole chain, so we announce it
+# only ONCE (first establishment) and stay silent on every later re-source/re-init,
+# while still ensuring it is exported in the current shell.
+if [ "$(get_global_var "PUPPETEER_SKIP_DOWNLOAD" "" 2>/dev/null)" = "true" ]; then
+    export PUPPETEER_SKIP_DOWNLOAD="true"
+else
+    set_env_and_var "PUPPETEER_SKIP_DOWNLOAD" "true"
+fi
 
 # Git SSH related URLs - Auto-switch based on region
 SELECTED_REGION=$(get_global_var "SELECTED_REGION" "Global" 2>/dev/null || echo "Global")

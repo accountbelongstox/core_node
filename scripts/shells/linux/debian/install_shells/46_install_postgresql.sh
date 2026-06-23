@@ -353,7 +353,7 @@ configure_localhost_only() {
     fi
 
     if [ -f "$hba" ]; then
-        $USE_SUDO cp "$hba" "$hba.backup.localhost" 2>/dev/null || true
+        [ -f "$hba.backup.localhost" ] || $USE_SUDO cp "$hba" "$hba.backup.localhost" 2>/dev/null || true
         if ! $USE_SUDO grep -qE "^[[:space:]]*host[[:space:]]+all[[:space:]]+all[[:space:]]+127\.0\.0\.1/32" "$hba"; then
             echo "host    all    all    127.0.0.1/32    scram-sha-256" | $USE_SUDO tee -a "$hba" >/dev/null
         fi

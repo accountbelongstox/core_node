@@ -322,6 +322,9 @@ if [ -d "$laravel_dir" ]; then
 
     # Trust that pnpm is available via global variables (信任式编�?
     pnpm_cmd="${PNPM_BIN:-$NODE_BIN_DIR/pnpm}"
+    # Non-interactive guard: avoid ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when
+    # pnpm purges an out-of-sync node_modules under no TTY (systemd/CI/sourced run).
+    export npm_config_confirm_modules_purge=false
     echo "[$SCRIPT_INDEX] Using pnpm at: $pnpm_cmd"
 
     # Check Node.js
@@ -332,9 +335,8 @@ if [ -d "$laravel_dir" ]; then
         echo "[$SCRIPT_INDEX] [OK] pnpm: $pnpm_ver"
 
         echo "[$SCRIPT_INDEX] Installing/Verifying chokidar..."
-        if [ -d "node_modules/chokidar" ]; then
-            echo "[$SCRIPT_INDEX] chokidar exists, verifying..."
-            "$pnpm_cmd" install --save-dev chokidar >/dev/null 2>&1
+        if [ -d "node_modules/chokidar" ] && node -e "require('chokidar')" >/dev/null 2>&1; then
+            echo "[$SCRIPT_INDEX] chokidar already present and loadable - skipping install"
         else
             echo "[$SCRIPT_INDEX] Installing chokidar..."
             "$pnpm_cmd" install --save-dev chokidar >/dev/null 2>&1
@@ -390,10 +392,9 @@ if [ -d "$laravel_dir" ]; then
         fi
 
         # Verify service is running
-        local svc_name="app-manager-laravel_main"
+        svc_name="app-manager-laravel_main"
         if command -v systemctl >/dev/null 2>&1; then
             systemctl enable --now "$svc_name.service" 2>/dev/null || true
-            local svc_active
             svc_active=$(systemctl is-active "$svc_name" 2>/dev/null || echo "inactive")
             if [[ "$svc_active" == "active" ]]; then
                 echo "[$SCRIPT_INDEX] Service $svc_name is active"

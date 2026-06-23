@@ -421,6 +421,43 @@ function Get-SecretContent {
     return $null
 }
 
+<#
+.SYNOPSIS
+    Resolve an indexed secret: first non-empty of <BaseName>_1.._MaxIndex then bare <BaseName>.
+
+.DESCRIPTION
+    Windows twin of pyfoundations.secret_manager.get_secret_key_indexed. Defers to
+    Get-SecretContent for each candidate so the same raw/decrypt rules apply.
+
+.EXAMPLE
+    $token = Get-SecretContentIndexed -BaseName "HF_TOKEN"
+#>
+function Get-SecretContentIndexed {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BaseName,
+        [int]$MaxIndex = 5
+    )
+
+    # Variables declaration
+    $value = $null
+    $candidate = $null
+    $i = 0
+
+    for ($i = 1; $i -le $MaxIndex; $i++) {
+        $candidate = Get-SecretContent -KeyName ("{0}_{1}" -f $BaseName, $i)
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+            return $candidate.Trim()
+        }
+    }
+
+    $value = Get-SecretContent -KeyName $BaseName
+    if (-not [string]::IsNullOrWhiteSpace($value)) {
+        return $value.Trim()
+    }
+    return $null
+}
+
 # Initialize batch decryption flag
 $script:BatchDecryptionCompleted = $false
 function Set-GlobalVar {

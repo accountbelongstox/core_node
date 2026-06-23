@@ -85,15 +85,15 @@ _devcache_dir_size_mb() {
     echo "$mb"
 }
 
-# Prompt [Y/n] (default Yes); return 0 when the user agrees to clean.
+# Prompt [N/y] (default No); return 0 only when the user explicitly types y.
 _devcache_confirm() {
     local prompt="$1"
     local answer=""
-    read -r -p "$prompt [Y/n]: " answer
-    if [[ "$answer" =~ ^[Nn]$ ]]; then
-        return 1
+    read -r -p "$prompt [N/y]: " answer
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        return 0
     fi
-    return 0
+    return 1
 }
 
 # Idempotently ensure `key=value` (active) inside [section] of an INI-style file.

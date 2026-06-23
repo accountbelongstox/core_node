@@ -301,7 +301,7 @@ install_swoole_pecl() {
             build_dir=""
         done
         if [ -z "$build_dir" ]; then
-            echo -e "${RED}$SCRIPT_INDEX Could not create a writable build dir (tried '$GLOBAL_TEMP_DIR', /var/tmp, /tmp)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX Could not create a writable build dir (tried GLOBAL_TEMP_DIR, TMPDIR, /var/tmp, /tmp)${NC}"
             return 1
         fi
 

@@ -10,8 +10,9 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Script: 44_ensure_dragonfly_intelligent.sh
-# Description: Idempotent DragonflyDB installation for Debian/Ubuntu (incl. Ubuntu 24+).
-#              Uses official native packages from packages.dragonflydb.io.
+# Description: Idempotent DragonflyDB installation for Debian/Ubuntu/Kali (Debian-family,
+#              incl. Ubuntu 24+). Uses official native packages from packages.dragonflydb.io
+#              (the repo serves one static "noble" suite that installs on any Debian-family).
 # Author: System Administrator
 # Design: Same style as 31_ensure_php85_intelligent.sh and 45_install_redis.sh
 
@@ -45,12 +46,20 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Accept Debian, Ubuntu, Kali, and any Debian-family derivative (ID_LIKE contains
+# "debian"). Dragonfly ships ONE static package (official repo Suites: noble) whose
+# only deps are libc6/openssl/adduser/zstd, so the same package installs on any
+# apt-based Debian-family host (Kali rolling included).
 is_debian_or_ubuntu() {
     if [ -f /etc/os-release ]; then
-        local id
+        local id id_like
         id=$(awk -F= '/^ID=/ { print $2 }' /etc/os-release | tr -d '"' | tr '[:upper:]' '[:lower:]')
+        id_like=$(awk -F= '/^ID_LIKE=/ { print $2 }' /etc/os-release | tr -d '"' | tr '[:upper:]' '[:lower:]')
         case "$id" in
-            debian|ubuntu) return 0 ;;
+            debian|ubuntu|kali) return 0 ;;
+        esac
+        case " $id_like " in
+            *" debian "*) return 0 ;;
         esac
     fi
     return 1
@@ -81,7 +90,7 @@ setup_dragonfly_repository() {
     echo -e "${BLUE}$SCRIPT_INDEX [STEP] Setting up Dragonfly repository (idempotent)...${NC}"
 
     if ! is_debian_or_ubuntu; then
-        echo -e "${RED}$SCRIPT_INDEX Unsupported OS: only Debian/Ubuntu are supported for native packages${NC}"
+        echo -e "${RED}$SCRIPT_INDEX Unsupported OS: only Debian/Ubuntu/Kali (Debian-family) are supported for native packages${NC}"
         return 1
     fi
 
@@ -225,7 +234,7 @@ execute_installation() {
 
 main() {
     echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${CYAN}$SCRIPT_INDEX DragonflyDB installation (Debian/Ubuntu, idempotent)${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX DragonflyDB installation (Debian/Ubuntu/Kali, idempotent)${NC}"
     echo -e "${CYAN}============================================================================${NC}"
 
     if [ "$EUID" -eq 0 ]; then
@@ -238,7 +247,7 @@ main() {
     fi
 
     if ! is_debian_or_ubuntu; then
-        echo -e "${RED}$SCRIPT_INDEX This script supports only Debian and Ubuntu (including Ubuntu 24+)${NC}"
+        echo -e "${RED}$SCRIPT_INDEX This script supports Debian, Ubuntu, and Kali (Debian-family, including Ubuntu 24+)${NC}"
         exit 1
     fi
 

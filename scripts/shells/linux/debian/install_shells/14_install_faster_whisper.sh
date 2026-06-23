@@ -159,8 +159,12 @@ else
     echo "[OK] faster-whisper installed."
 fi
 
-# --- 3) GPU runtime libs (only if a CUDA GPU is present) ----------------- #
-if has_cuda; then
+# --- 3) GPU runtime libs (only if a CUDA GPU is present; idempotent) ------ #
+# Skip-when-present: on a GPU host re-run, an already-satisfied cublas/cudnn must NOT
+# re-invoke pip every time (the steady-state run stays a cheap no-op).
+if has_cuda && py_has_module nvidia.cublas && py_has_module nvidia.cudnn && [[ "$FORCE" -eq 0 ]]; then
+    echo "[OK] GPU runtime libs (cublas/cudnn) already present; skipping."
+elif has_cuda; then
     echo "[..] NVIDIA GPU detected -> pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* ..."
     # Install the CUDA/nvidia wheels INTO the shared venv (no PEP668 escape flags).
     GPU_ARGS=('nvidia-cublas-cu12' 'nvidia-cudnn-cu12==9.*')

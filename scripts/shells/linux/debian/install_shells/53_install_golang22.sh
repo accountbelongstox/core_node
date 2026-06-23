@@ -39,7 +39,7 @@ SELECTED_REGION=$(get_var "SELECTED_REGION")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "53_install_golang22")
 
 echo "Checking for existing Go installation in /usr/local/bin..."
-if ! command -v go &>/dev/null; then
+if [ ! -x "$GO_BIN" ]; then
     echo "Go not found. Starting installation process..."
 
     mkdir -p "$SCRIPT_TEMP_DIR"
@@ -70,6 +70,10 @@ if [ ! -d "$GO_DIR" ]; then
 fi
 
 if [ ! -e "$GO_BIN" ]; then
+    if [ ! -f "$SCRIPT_TEMP_DIR/$GO_VERSION_AMD64_FILE.tar.gz" ]; then
+        echo "Go tarball missing (download was skipped because a non-$GO_DIR go is on PATH); downloading now..."
+        $USE_SUDO wget -O "$SCRIPT_TEMP_DIR/$GO_VERSION_AMD64_FILE.tar.gz" "$GO_TAR_URL"
+    fi
     echo "GoBin: $GO_BIN.."
     echo "Extracting Go tarball to $COMPILE_DIR.."
     $USE_SUDO tar -C "$COMPILE_DIR" -xzf "$SCRIPT_TEMP_DIR/$GO_VERSION_AMD64_FILE.tar.gz"

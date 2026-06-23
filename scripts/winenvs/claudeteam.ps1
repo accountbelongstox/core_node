@@ -97,9 +97,9 @@ if ($forceOpusEnabled) {
 # --teammate-mode in-process and --dangerously-skip-permissions are Windows
 # defaults; --model is included only when Opus forcing is opted in.
 if ($forceOpusEnabled) {
-    $claudeArgs = @("--model", $forceModel, "--settings", $ultraSettingsJson, "--teammate-mode", $teammateMode, "--dangerously-skip-permissions")
+    $claudeArgs = @("--model", $forceModel, "--settings", $ultraSettingsJson, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
 } else {
-    $claudeArgs = @("--settings", $ultraSettingsJson, "--teammate-mode", $teammateMode, "--dangerously-skip-permissions")
+    $claudeArgs = @("--settings", $ultraSettingsJson, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
 }
 
 $claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
@@ -129,8 +129,8 @@ if ($args.Count -gt 0) {
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# & claude --model $forceModel --settings $ultraSettingsJson --dangerously-skip-permissions --teammate-mode in-process @args
-& claude --model $forceModel --settings $ultraSettingsJson --dangerously-skip-permissions @args
+# Invoke claude with the argument list built above (honors --teammate-mode + --permission-mode + force-model).
+& claude @claudeArgs @args
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0

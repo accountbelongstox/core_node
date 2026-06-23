@@ -210,6 +210,10 @@ extract_appimage() {
 
     $USE_SUDO mkdir -p "$EXTRACTED_DIR"
 
+    # Idempotency: remove any prior extraction so --appimage-extract does not
+    # merge a new WeChat version into a stale squashfs-root from a previous run.
+    $USE_SUDO rm -rf "$EXTRACTED_DIR/squashfs-root"
+
     cd "$EXTRACTED_DIR" || return 1
 
     if $USE_SUDO "$APPIMAGE_FILE" --appimage-extract >/dev/null 2>&1; then

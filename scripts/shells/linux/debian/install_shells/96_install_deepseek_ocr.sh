@@ -293,6 +293,41 @@ get_venv_python() {
     return 1
 }
 
+# True only when flash-attn can actually build AND run on this host. The source build
+# requires the system CUDA toolkit (nvcc) MAJOR version to equal torch's compiled CUDA
+# major -- torch._check_cuda_version aborts the wheel build otherwise (e.g. nvcc 12.2
+# vs torch cu130 -> "detected CUDA version mismatches the version used to compile
+# PyTorch"). flash-attn is an OPTIONAL speedup (the model falls back to eager
+# attention), so a mismatch/CPU-build is a SKIP, not a failure. This avoids the
+# ~30-minute doomed source build that otherwise always fails on a mismatched stack.
+flash_attn_cuda_compatible() {
+    local py="$1" nvcc nvcc_major torch_cuda torch_major
+    # Resolve nvcc the SAME way torch's build_ext does (CUDA_HOME first) so the gate
+    # reflects the toolchain the build will actually use; fall back to PATH/usual path.
+    if [ -n "${CUDA_HOME:-}" ] && [ -x "${CUDA_HOME}/bin/nvcc" ]; then
+        nvcc="${CUDA_HOME}/bin/nvcc"
+    else
+        nvcc="$(command -v nvcc 2>/dev/null || echo "/usr/local/cuda/bin/nvcc")"
+    fi
+    nvcc_major="$("$nvcc" --version 2>/dev/null | grep -oE 'release [0-9]+' | grep -oE '[0-9]+' | head -1)"
+    torch_cuda="$("$py" -c 'import torch; print(torch.version.cuda or "")' 2>/dev/null)"
+    torch_major="${torch_cuda%%.*}"
+    if [ -z "$nvcc_major" ]; then
+        print_warning "  flash-attn: no usable nvcc (CUDA toolkit) found -> skipping build"
+        return 1
+    fi
+    if [ -z "$torch_major" ]; then
+        print_warning "  flash-attn: torch has no CUDA build (torch.version.cuda is None) -> skipping build"
+        return 1
+    fi
+    if [ "$nvcc_major" != "$torch_major" ]; then
+        print_warning "  flash-attn: CUDA major mismatch (nvcc ${nvcc_major}.x vs torch cu${torch_cuda}) -> skipping build"
+        print_info "  Align them (install torch built for CUDA ${nvcc_major}.x, or a CUDA ${torch_major}.x toolkit), then re-run."
+        return 1
+    fi
+    return 0
+}
+
 install_dependencies() {
     local install_dir=$1
     local python_cmd=$2
@@ -326,10 +361,13 @@ install_dependencies() {
     fi
 
     if [ "$has_gpu" = true ]; then
-        print_info "Step 1: NVIDIA GPU detected - installing CUDA PyTorch (cu126)..."
+        # cu124 (CUDA 12.x major) rather than cu126: it runs on the common 12.x
+        # drivers (cu126 needs a >=12.6 driver) and its major-12 matches a CUDA 12.x
+        # toolkit, which is what flash-attn's source build requires.
+        print_info "Step 1: NVIDIA GPU detected - installing CUDA PyTorch (cu124)..."
         echo ""
-        echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126"
-        "${pip_install[@]}" torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+        echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124"
+        "${pip_install[@]}" torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
         echo ""
     else
         print_warning "Step 1: No NVIDIA GPU detected - installing CPU PyTorch build..."
@@ -341,22 +379,45 @@ install_dependencies() {
         echo ""
     fi
 
-    print_info "Step 2: Installing core dependencies..."
+    print_info "Step 2: Installing core dependencies (official pinned set)..."
     echo ""
-    echo "[run] ${pip_install[*]} transformers accelerate pillow einops timm sentencepiece protobuf"
-    "${pip_install[@]}" transformers accelerate pillow einops timm sentencepiece protobuf
+    # Official DeepSeek-OCR deps (repo requirements.txt + README). transformers and
+    # tokenizers are PINNED because the model's trust_remote_code modeling file targets
+    # those exact versions; addict + easydict are imported by that remote code, so
+    # omitting them yields "ImportError: ... requires addict" at model load. Prefer the
+    # repo's own requirements.txt (authoritative), then enforce the pins + runtime extras.
+    local req_file="$install_dir/requirements.txt"
+    if [ -f "$req_file" ]; then
+        echo "[run] ${pip_install[*]} -r $req_file"
+        "${pip_install[@]}" -r "$req_file"
+    fi
+    local core_deps=(
+        transformers==4.46.3 tokenizers==0.20.3
+        addict easydict einops PyMuPDF img2pdf Pillow numpy
+        accelerate timm sentencepiece protobuf
+    )
+    echo "[run] ${pip_install[*]} ${core_deps[*]}"
+    "${pip_install[@]}" "${core_deps[@]}"
     echo ""
 
-    if [ "$has_gpu" = true ]; then
-        print_info "Step 3: Installing flash-attn (CUDA source build)..."
+    if [ "$has_gpu" = true ] && flash_attn_cuda_compatible "$run_python"; then
+        print_info "Step 3: Installing flash-attn==2.7.3 (CUDA source build)..."
         echo ""
-        echo "[run] ${pip_install[*]} flash-attn --no-build-isolation"
-        "${pip_install[@]}" flash-attn --no-build-isolation
+        # ninja makes the CUDA build use the fast parallel backend; without it the
+        # build falls back to the very slow distutils path (official flash-attn guidance).
+        echo "[run] ${pip_install[*]} ninja"
+        "${pip_install[@]}" ninja || print_warning "ninja install failed; flash-attn build will be slow"
+        echo "[run] ${pip_install[*]} flash-attn==2.7.3 --no-build-isolation"
+        if "${pip_install[@]}" flash-attn==2.7.3 --no-build-isolation; then
+            print_success "flash-attn installed"
+        else
+            print_warning "flash-attn build failed -> continuing without it (model uses eager attention)"
+        fi
         echo ""
     else
-        print_warning "Step 3: Skipping flash-attn (requires an NVIDIA CUDA toolchain)"
-        print_info "Install it later on a CUDA host with:"
-        print_info "  $run_python -m pip install flash-attn --no-build-isolation"
+        print_warning "Step 3: Skipping flash-attn (optional CUDA speedup; needs a usable GPU + nvcc CUDA major == torch CUDA major)"
+        print_info "The model still runs via eager attention. To add it later on a matching CUDA host:"
+        print_info "  $run_python -m pip install flash-attn==2.7.3 --no-build-isolation"
         echo ""
     fi
 
@@ -433,6 +494,18 @@ print('[SUCCESS] ========================================')
 print('[SUCCESS]   DeepSeek-OCR is ready!')
 print('[SUCCESS] ========================================')
 PYTHON_EOF
+
+    # Authenticate to the HF Hub from the project secret store so the model download
+    # is not a rate-limited "unauthenticated" request (HF_TOKEN_1..5 then HF_TOKEN).
+    local hf_token
+    hf_token="$(get_secret_key_indexed_from_common_functions HF_TOKEN)"
+    if [ -n "$hf_token" ]; then
+        export HF_TOKEN="$hf_token"
+        export HUGGING_FACE_HUB_TOKEN="$hf_token"
+        print_info "HF Hub token loaded from .secret_keys/.secret_ignore"
+    else
+        print_warning "No HF_TOKEN in .secret_keys; HF Hub download will be unauthenticated"
+    fi
 
     cd "$install_dir"
     echo ""

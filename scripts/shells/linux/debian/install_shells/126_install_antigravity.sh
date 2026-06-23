@@ -176,7 +176,7 @@ add_repository() {
 
     # Download and add GPG key
     log "Downloading repository signing key..."
-    if curl -fsSL https://us-central1-apt.pkg.dev/doc/repo-signing-key.gpg | $USE_SUDO gpg --dearmor -o "$REPO_KEY_FILE"; then
+    if curl -fsSL https://us-central1-apt.pkg.dev/doc/repo-signing-key.gpg | $USE_SUDO gpg --dearmor --yes -o "$REPO_KEY_FILE"; then
         log "Repository key added successfully"
     else
         log "ERROR: Failed to download repository key"

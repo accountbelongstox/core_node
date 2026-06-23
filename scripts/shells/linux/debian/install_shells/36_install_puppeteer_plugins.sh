@@ -58,6 +58,11 @@ $USE_SUDO apt-get install -y $CHROMIUM_DEPS
 # Ensure pnpm is available and PATH is set
 echo "[$SCRIPT_INDEX] Configuring pnpm environment..."
 
+# Idempotency: this script may run under no TTY (installer / systemd). Auto-confirm pnpm's
+# node_modules format-purge so `pnpm add -g` below recreates the store instead of aborting
+# with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY on a re-run after a pnpm version change.
+export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
+
 # Get pnpm global bin directory
 PNPM_GLOBAL_BIN=$(get_var "PNPM_GLOBAL_BIN_DIR" 2>/dev/null)
 
@@ -89,7 +94,14 @@ echo "[$SCRIPT_INDEX] pnpm location: $(which pnpm)"
 # Function to install pnpm package
 install_pnpm_package() {
     local package=$1
+    # Idempotency: skip if the global package is already installed so re-runs are
+    # fast no-ops and never re-resolve the whole global store.
+    if pnpm list -g "$package" >/dev/null 2>&1 && pnpm list -g "$package" 2>/dev/null | grep -q "$package"; then
+        echo "[$SCRIPT_INDEX] $package already installed, skipping"
+        return 0
+    fi
     echo "[$SCRIPT_INDEX] Installing $package..."
+    # npm_config_confirm_modules_purge=false is already exported at script top (no-TTY purge guard).
     if pnpm add -g "$package"; then
         echo "[$SCRIPT_INDEX] $package installed successfully"
         return 0

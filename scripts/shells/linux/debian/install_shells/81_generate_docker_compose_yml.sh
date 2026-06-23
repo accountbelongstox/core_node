@@ -39,9 +39,8 @@ if [ "$START_DOCKER" = "false" ]; then
 fi
 
 docker_compose_selector="$SHELLS_SCRIPTS_DIR/docker-compose-selector.js"
-commande="node $docker_compose_selector"
-echo "docker-compose-selector: $commande"
-"$commande"
+echo "docker-compose-selector: node $docker_compose_selector"
+node "$docker_compose_selector"
     
 
 

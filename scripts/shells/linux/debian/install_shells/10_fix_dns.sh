@@ -262,6 +262,11 @@ create_static_resolv_conf() {
         $USE_SUDO rm -f /etc/resolv.conf
     fi
 
+    # Re-run safety: clear immutable bit set by a prior run so 'tee' can rewrite the file
+    if [ -f "/etc/resolv.conf" ]; then
+        $USE_SUDO chattr -i /etc/resolv.conf 2>/dev/null || true
+    fi
+
     # Create static resolv.conf based on region
     if [ "$SELECTED_REGION" = "China" ]; then
         log_info "Using Alibaba Cloud DNS for China region"

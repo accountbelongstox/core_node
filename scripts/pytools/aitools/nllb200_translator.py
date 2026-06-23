@@ -5,6 +5,14 @@ import os
 import sys
 import json
 
+# Authenticate to the HF Hub from the project secret store (.secret_keys/
+# .secret_ignore: HF_TOKEN_1..5 then HF_TOKEN) before transformers runs, so model
+# downloads are not rate-limited "unauthenticated" requests.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from hf_secret import ensure_hf_token
+
+ensure_hf_token()
+
 
 LANGUAGE_CODE_MAP = {
     'zh': 'zho_Hans',

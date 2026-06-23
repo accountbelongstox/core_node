@@ -181,6 +181,44 @@ def _get_largest_mounted_drive() -> Optional[Path]:
     return mounted_drives[0] if mounted_drives else None
 
 
+def _fs_is_posix_capable(path: Path) -> bool:
+    """True when the filesystem backing *path* supports POSIX ownership/permissions,
+    which the web DATA root REQUIRES: PostgreSQL needs a postgres-owned 0700 data dir
+    and Laravel must chown/chmod its storage tree. NTFS/exFAT/FUSE/drvfs cannot, so
+    they must never host web data -- otherwise Python diverges from gvar_common.sh
+    (which forces /www) and the app reads where data was never written.
+
+    Mirrors gvar_common.sh _fs_is_posix_capable(): walk up to the nearest existing
+    ancestor, then resolve its fstype via the longest matching mountpoint in
+    /proc/mounts (no third-party deps).
+    """
+    posix_fs = {'ext2', 'ext3', 'ext4', 'xfs', 'btrfs', 'zfs',
+                'reiserfs', 'jfs', 'f2fs', 'overlay'}
+    p = Path(path)
+    while str(p) != p.anchor and not p.exists():
+        p = p.parent
+    try:
+        target = os.path.realpath(str(p))
+    except OSError:
+        return False
+    best_mp = ''
+    best_fstype = ''
+    try:
+        with open('/proc/mounts', 'r', encoding='utf-8', errors='replace') as handle:
+            for line in handle:
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+                mount_point, fstype = parts[1], parts[2]
+                if (target == mount_point or target.startswith(mount_point.rstrip('/') + '/')) \
+                        and len(mount_point) >= len(best_mp):
+                    best_mp = mount_point
+                    best_fstype = fstype
+    except OSError:
+        return False
+    return best_fstype in posix_fs
+
+
 def _get_actual_user() -> str:
     """
     Get actual logged-in user (for Linux desktop/WSL when running as root)
@@ -408,7 +446,10 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
 
     SYNC WARNING: This function MUST be kept in sync with:
     - Shell version: scripts/shells/linux/common/gvar_common.sh::map_web_path()
-    - All mappings must produce identical results across Python and Shell
+    - PHP version: poly_apps/laravel_main/app/Providers/PathMapper.php::mapWebPath()
+    - All mappings must produce identical results across Python, Shell and PHP.
+    - The web DATA base is coerced to /www on a non-POSIX fs (_fs_is_posix_capable);
+      the CODE base (core_node) may stay on an NTFS/large data disk.
 
     Windows mappings:
     - applications -> d:\\applications
@@ -418,7 +459,6 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     - pycore_db -> d:\\www\\wwwroot\\pycore_db
     - laravel_db -> d:\\www\\wwwroot\\laravel_db
     - compile_dir -> d:\\_win11 or d:\\_win10
-    - old_compile_dir -> d:\\dev_win11 or d:\\dev_win10
 
     Linux mappings (context-aware):
     - WSL: Uses /mnt/d (or largest mounted drive)
@@ -427,7 +467,6 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     - pycore_db -> /www/wwwroot/pycore_db
     - laravel_db -> /www/wwwroot/laravel_db
     - compile_dir -> /mnt/d/_ubuntu24 (or _{distro}{version})
-    - old_compile_dir -> /mnt/d/dev_ubuntu24 (or dev_{distro}{version})
 
     Args:
         path_key: Path key (e.g., 'wwwroot', 'pycore_db', 'laravel_db')
@@ -460,7 +499,6 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             'pycore_db': base_d / 'www' / 'wwwroot' / 'pycore_db',
             'laravel_db': base_d / 'www' / 'wwwroot' / 'laravel_db',
             'compile_dir': base_d / f'_{win_suffix}',
-            'old_compile_dir': base_d / f'dev_{win_suffix}',
             # Native ext4 loop-mount target for the PostgreSQL D-drive image (a
             # WSL-only concept; kept here for parity. Not used on Windows).
             'pg_mount': Path('/var/lib/postgresql/d'),
@@ -508,6 +546,14 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             # base_path is /mnt/d or /, need to add www subdirectory
             www_base = base_path / 'www'
 
+        # POSIX guard (mirror gvar_common.sh map_web_path: _fs_is_posix_capable -> /www).
+        # The web DATA root must be POSIX-ownable (PostgreSQL/Laravel); when the chosen
+        # base sits on a non-POSIX fs (e.g. an NTFS/fuseblk data disk), fall back to
+        # /www so this matches gvar_common.sh and PathMapper.php. The CODE base
+        # (core_node) is intentionally NOT restricted and may stay on NTFS.
+        if not _fs_is_posix_capable(www_base):
+            www_base = Path('/www')
+
         mappings = {
             'applications': www_base / 'applications',
             'programing': www_base / 'programing',
@@ -517,7 +563,6 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             'pycore_db': www_base / 'wwwroot' / 'pycore_db',
             'laravel_db': www_base / 'wwwroot' / 'laravel_db',
             'compile_dir': dev_base / f'_{distro_suffix}',
-            'old_compile_dir': dev_base / f'dev_{distro_suffix}',
             # Native ext4 loop-mount target for the PostgreSQL D-drive image (WSL
             # persistence). MUST stay on the native Linux fs (NOT drvfs): pg needs a
             # postgres-owned, mode-0700 data dir that drvfs cannot provide. The

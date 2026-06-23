@@ -527,18 +527,45 @@ install_via_npm() {
         log_warning "Pre-installation checker not found, skipping checks"
     fi
 
+    # Resolve npm + node to ABSOLUTE paths and run npm under an explicit PATH that
+    # includes node's bin dir. sudo's secure_path normally excludes /usr/local/bin
+    # and the dev node dir (/opt/_<os>/node/<ver>/bin), so a bare "$USE_SUDO npm"
+    # fails with "npm: command not found"; and even an absolute npm can fail to find
+    # `node`. Derive the dir from `node` (NOT `npm`, which resolves into
+    # lib/node_modules/...) to get the real bin dir holding node + npm + global CLIs.
+    local npm_bin npm_node_bin npm_node_dir npm_run_path _npm_cand
+    npm_bin="$(command -v npm 2>/dev/null)"
+    if [ -z "$npm_bin" ]; then
+        for _npm_cand in /usr/local/bin/npm /usr/bin/npm "$HOME/.local/bin/npm"; do
+            [ -x "$_npm_cand" ] && { npm_bin="$_npm_cand"; break; }
+        done
+        # Else the NEWEST dev-tree npm (sort -V so node-v24 beats node-v22).
+        if [ -z "$npm_bin" ]; then
+            _npm_cand="$(ls -1 /opt/_*/node/*/bin/npm 2>/dev/null | sort -V | tail -1)"
+            [ -n "$_npm_cand" ] && [ -x "$_npm_cand" ] && npm_bin="$_npm_cand"
+        fi
+    fi
+    [ -z "$npm_bin" ] && npm_bin="npm"
+    npm_node_bin="$(command -v node 2>/dev/null)"
+    if [ -n "$npm_node_bin" ]; then
+        npm_node_dir="$(dirname "$(readlink -f "$npm_node_bin" 2>/dev/null || echo "$npm_node_bin")")"
+    else
+        npm_node_dir="$(dirname "$npm_bin")"
+    fi
+    npm_run_path="${npm_node_dir}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
     # Install npm package globally with timeout and retry logic
     local max_retries=2
     local retry_count=0
 
     while [ $retry_count -lt $max_retries ]; do
-        if timeout 300 $USE_SUDO npm install -g "$package_id"; then
+        if timeout 300 $USE_SUDO env "PATH=$npm_run_path" "$npm_bin" install -g "$package_id"; then
             log_success "Successfully installed $app_name via NPM"
 
             # Fix permissions for npm global binaries
             log_install "Setting executable permissions for npm global binaries..."
             local npm_global_bin
-            npm_global_bin=$($USE_SUDO npm config get prefix 2>/dev/null)
+            npm_global_bin=$($USE_SUDO env "PATH=$npm_run_path" "$npm_bin" config get prefix 2>/dev/null)
             if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
                 # Set executable permissions for all binaries in npm global bin directory
                 $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
@@ -908,7 +935,23 @@ universal_install() {
                 "$HOME/.config/$exec_name/bin/$exec_name"
                 "/opt/$exec_name/bin/$exec_name"
                 "/opt/$exec_name/$exec_name"
+                # snap apps (e.g. beekeeper-studio -> /snap/bin/...), flatpak exports,
+                # and standard system bins, so snap/apt/web installs are found too.
+                "/snap/bin/$exec_name"
+                "/var/lib/flatpak/exports/bin/$exec_name"
+                "/usr/local/bin/$exec_name"
+                "/usr/bin/$exec_name"
+                "/bin/$exec_name"
             )
+
+            # npm-installed global CLIs land in `npm prefix`/bin, which is often NOT
+            # on PATH (e.g. /opt/_<os>/node/<ver>/bin), so a tool like auggie would be
+            # "not found" even after a successful install. Add that dir to the search.
+            if command -v npm >/dev/null 2>&1; then
+                local npm_prefix_bin
+                npm_prefix_bin="$(npm config get prefix 2>/dev/null)/bin"
+                [ -d "$npm_prefix_bin" ] && search_paths+=("$npm_prefix_bin/$exec_name")
+            fi
 
             # Also search for lowercase version if exec_name has uppercase
             local exec_lower=$(echo "$exec_name" | tr '[:upper:]' '[:lower:]')
