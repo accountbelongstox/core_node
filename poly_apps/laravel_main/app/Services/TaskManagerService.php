@@ -301,6 +301,29 @@ class TaskManagerService
                     ]);
                 }
 
+                // Observability: if the highest-priority fast task requires a
+                // capability that NO currently-online worker advertises, it can
+                // never be claimed and will sit at the head of the lane forever.
+                // Surface that stuck head-of-line task once (no behavior change —
+                // the claim loop below is unaffected).
+                $topFast = $fastCandidates->first();
+                if ($topFast !== null
+                    && $topFast->capability !== null
+                    && $topFast->capability !== '') {
+                    $onlineCaps = [];
+                    foreach (Worker::online()->get() as $onlineWorker) {
+                        foreach ($onlineWorker->capabilityList() as $cap) {
+                            $onlineCaps[$cap] = true;
+                        }
+                    }
+                    if (!isset($onlineCaps[$topFast->capability])) {
+                        Log::warning('[fast-lane] unclaimable TOP task: no eligible worker', [
+                            'task_id' => $topFast->task_id,
+                            'capability' => $topFast->capability,
+                        ]);
+                    }
+                }
+
                 foreach ($fastCandidates as $task) {
                     if (count($assignedTasks) >= $limit) {
                         break;
@@ -1307,16 +1330,19 @@ class TaskManagerService
                 return null;
 
             case 'sentence_audio':
-                // A sentence-audio completion must carry audio bytes or a path.
+                // A sentence-audio completion must carry audio BYTES the server can
+                // store. saved_path alone points at the worker's own filesystem and
+                // carries nothing the server-side writeback (SentenceAudioTaskProcessor::
+                // extractAudioBase64) can trust or read — so it is NOT accepted here;
+                // gate and processor agree a saved_path-only result is an honest shape
+                // error rather than a 0-byte store that downgrades to a fail-loop.
                 $hasAudio = !empty($inner['audio_files'])
                     || !empty($result['audio_files'])
                     || !empty($inner['audio_base64'])
-                    || !empty($result['audio_base64'])
-                    || !empty($inner['saved_path'])
-                    || !empty($result['saved_path']);
+                    || !empty($result['audio_base64']);
 
                 if (!$hasAudio) {
-                    return 'Sentence-audio result carried no audio_files/audio_base64/saved_path';
+                    return 'Sentence-audio result carried no audio_files/audio_base64';
                 }
                 return null;
         }

@@ -73,6 +73,9 @@ interface RowProps {
   langName: (code: string) => string;
   playingKey: string | null;
   onPlay: (verse: WfNewBookVerse, lang: string) => void;
+  /** Fire an on-demand resolve/enqueue for a cell that lacks audio or a translation
+   *  (mirrors WfNewLibraryPage.requestWordMedia; deduped once per cell upstream). */
+  onNeedMedia: (verse: WfNewBookVerse, lang: string, text: string | null, hasAudio: boolean) => void;
 }
 
 const keyOf = (v: WfNewBookVerse, lang: string) => `${v.grain}-${v.seq}-${lang}`;
@@ -82,8 +85,24 @@ const keyOf = (v: WfNewBookVerse, lang: string) => `${v.grain}-${v.seq}-${lang}`
 // longer overlap the next verse. Each chapter page is capped to PER_PAGE verses,
 // so a plain flow list stays performant.
 const VerseRow: React.FC<RowProps & { verse: WfNewBookVerse; index: number }> = ({
-  verse: v, index, selectedLangs, trans, langName, playingKey, onPlay,
+  verse: v, index, selectedLangs, trans, langName, playingKey, onPlay, onNeedMedia,
 }) => {
+  // On render, for every selected language cell that is genuinely missing content
+  // (text present but no audio, OR no translation at all), fire ONE on-demand
+  // resolve so the backend enqueues a TOP-priority fast task. Dedup + polling is
+  // owned upstream (onNeedMedia is a no-op after the first fire per cell key).
+  useEffect(() => {
+    if (!v) return;
+    for (const lang of selectedLangs) {
+      const cell = v.languages?.[lang];
+      const text = cell?.text ?? null;
+      const hasAudio = !!cell?.hasAudio;
+      const needsTranslation = !text || !text.trim();
+      const needsAudio = !!(text && text.trim()) && !hasAudio;
+      if (needsTranslation || needsAudio) onNeedMedia(v, lang, text, hasAudio);
+    }
+  }, [v, selectedLangs, onNeedMedia]);
+
   if (!v) return null;
   return (
     <div className="px-0.5">
@@ -181,6 +200,72 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   // The active language for chapter-title display = first selected (or first source lang).
   const activeLang = selectedLangs[0] || languages[0] || 'en';
 
+  // --- on-demand media resolve/enqueue for missing cells ------------------- #
+  // A reader cell missing audio/translation is otherwise passive (just a tooltip);
+  // here we mirror WfNewLibraryPage.requestWordMedia: for such a cell we batch its
+  // words through wfNewApi.getWordMedia(targetLang, word) — which READS current
+  // media AND tells the backend to enqueue+prioritize a TOP-priority fast task
+  // (bumpFront) — then poll a few times until ready and refresh the page so the
+  // cell flips. Deduped once per cell key so it never re-fires per render/scroll.
+  const requestedCellKeys = useRef<Set<string>>(new Set());
+  const mediaPollTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  // Latest loadVerses + active page, read live by the poll closure (kept stable).
+  const reloadRef = useRef<() => void>(() => {});
+
+  const requestCellMedia = useCallback(
+    (verse: WfNewBookVerse, lang: string, text: string | null, _hasAudio: boolean) => {
+      const cellKey = `${keyOf(verse, lang)}:${(text || '').slice(0, 64)}`;
+      if (requestedCellKeys.current.has(cellKey)) return;
+      requestedCellKeys.current.add(cellKey);
+
+      // Batch this cell's words (the sentence split on whitespace) through the SAME
+      // api the library page uses. The first word's resolve is enough to create the
+      // fast task; we resolve a small, de-duplicated set to cover the sentence.
+      const words = (text || '')
+        .split(/\s+/)
+        .map((w) => w.replace(/[^\p{L}\p{N}'-]/gu, ''))
+        .filter(Boolean);
+      const uniqueWords = Array.from(new Set(words)).slice(0, 8);
+      // Translation-only cells (no source text) still need a task: fall back to the
+      // verse's primary-language text so the backend has something to resolve.
+      const fallback = (verse.text || '').trim();
+      const targets = uniqueWords.length ? uniqueWords : (fallback ? [fallback] : []);
+      if (!targets.length) return;
+
+      const maxTries = 3;
+      const intervalMs = 4000;
+
+      const fireOnce = () => Promise.allSettled(
+        targets.map((w) => wfNewApi.getWordMedia(lang, w)),
+      );
+
+      const attempt = (tries: number): void => {
+        fireOnce()
+          .then((results) => {
+            const anyReady = results.some(
+              (r) => r.status === 'fulfilled'
+                && (r.value.audioStatus === 'ready' || r.value.imageStatus === 'ready'),
+            );
+            // Refresh the page so a now-ready cell flips from "generating" to playable.
+            if (anyReady) reloadRef.current();
+            if (!anyReady && tries < maxTries) {
+              const t = setTimeout(() => {
+                mediaPollTimers.current.delete(t);
+                attempt(tries + 1);
+              }, intervalMs);
+              mediaPollTimers.current.add(t);
+            }
+          })
+          .catch(() => {
+            // Allow a later render to retry after a transient failure.
+            requestedCellKeys.current.delete(cellKey);
+          });
+      };
+      attempt(1);
+    },
+    [],
+  );
+
   // --- load verses for a chapter (or flat) at a given page ----------------- #
   const loadVerses = useCallback(
     async (chapterIndex: number | null, pageNum: number) => {
@@ -249,6 +334,24 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
 
     return () => { cancelled = true; };
   }, [sourceKey, loadVerses]);
+
+  // Keep the reload closure pointed at the CURRENT chapter/page so the media poll
+  // can refresh in place when a fast task completes.
+  useEffect(() => {
+    reloadRef.current = () => { void loadVerses(flat ? null : activeChapter, page); };
+  }, [loadVerses, flat, activeChapter, page]);
+
+  // Reset the per-cell request guards + cancel in-flight media polls whenever the
+  // visible set of verses changes (book / chapter / page), so a fresh page can
+  // re-resolve its own missing cells.
+  useEffect(() => {
+    requestedCellKeys.current = new Set();
+    const timers = mediaPollTimers.current;
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+    };
+  }, [sourceKey, activeChapter, flat, page]);
 
   // Stop audio on unmount.
   useEffect(() => () => { try { audioRef.current?.pause(); } catch { /* ignore */ } }, []);
@@ -357,7 +460,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   );
 
   // Shared per-row props (a plain flow list — no fixed row height to overflow).
-  const rowProps: RowProps = { selectedLangs, trans, langName, playingKey, onPlay: playCell };
+  const rowProps: RowProps = { selectedLangs, trans, langName, playingKey, onPlay: playCell, onNeedMedia: requestCellMedia };
 
   return (
     <div className="space-y-5">
