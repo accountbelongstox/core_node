@@ -251,6 +251,8 @@ install_via_appimage() {
 
     # Extract AppImage to get icon, desktop file and AppRun
     log_message "Extracting AppImage..."
+    # Idempotency: clear any prior extraction so re-runs don't accumulate stale squashfs-root files.
+    $USE_SUDO rm -rf "$extracted_dir/squashfs-root" 2>/dev/null || true
     cd "$extracted_dir"
     if $USE_SUDO "$appimage_file" --appimage-extract >/dev/null 2>&1; then
         log_message "AppImage extracted successfully"
@@ -542,11 +544,19 @@ install_via_pnpm() {
     fi
 
     log_message "Installing $app_name via npm: $package_id"
-    if timeout 300 pnpm add -g "$package_id"; then
+    # Idempotency: prevent ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY when pnpm runs without a TTY (re-run safety).
+    export npm_config_confirm_modules_purge=false
+    # Skip if already installed globally so re-runs are a no-op.
+    if pnpm list -g "$package_id" >/dev/null 2>&1 || command_exists "$app_name"; then
+        log_message "$app_name already installed globally via pnpm, skipping add -g"
+        fix_pnpm_permissions
+        return 0
+    fi
+    if timeout 300 pnpm add -g --config.confirm-modules-purge=false "$package_id"; then
         log_message "Successfully installed $app_name via npm"
 
         # Fix permissions for pnpm global binaries
-        fix_npm_permissions
+        fix_pnpm_permissions
 
         # Get pnpm global prefix and fix permissions for the specific package
         local pnpm_global_prefix=$(pnpm config get prefix 2>/dev/null)
@@ -1527,12 +1537,8 @@ handle_exact_app() {
     log_message "Exact App Install: $app_key (group: $app_group)"
     log_message "=========================================="
 
-    migrate_all_old_installations_from_common_functions 2>&1 | while IFS= read -r line; do
-        log_message "$line"
-    done
-
     log_message "Checking and fixing npm global binary permissions..."
-    fix_npm_permissions
+    fix_pnpm_permissions
 
     log_message "Updating package lists with timeout..."
     timeout 300 $USE_SUDO apt update 2>/dev/null || true
@@ -1565,19 +1571,11 @@ main() {
         return 0
     fi
 
-    # Remove old installation directory
-    log_message "=========================================="
-    log_message "Checking for old installations to migrate..."
-    log_message "=========================================="
-    migrate_all_old_installations_from_common_functions 2>&1 | while IFS= read -r line; do
-        log_message "$line"
-    done
-
     # Always fix npm permissions first (regardless of what the script does)
     log_message "=========================================="
     log_message "Checking and fixing npm global binary permissions..."
     log_message "=========================================="
-    fix_npm_permissions
+    fix_pnpm_permissions
 
     # Check for help request
     if [ "$param1" = "--help" ] || [ "$param1" = "-h" ]; then
@@ -1756,7 +1754,7 @@ main() {
     log_message "=========================================="
     log_message "Fixing pnpm global binary permissions..."
     log_message "=========================================="
-    fix_npm_permissions
+    fix_pnpm_permissions
 
     # Print detailed installation report
     print_installation_report

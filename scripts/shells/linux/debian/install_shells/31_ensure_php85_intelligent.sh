@@ -470,12 +470,11 @@ cleanup_old_php_versions() {
     echo -e "${CYAN}$SCRIPT_INDEX Step 3: Cleaning old PHP paths from /etc/environment...${NC}"
     # Clean up /etc/environment PATH if it contains old PHP paths
     if [ -f /etc/environment ]; then
-        # Create a backup
-        $USE_SUDO cp /etc/environment /etc/environment.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
-
         # Check if PATH contains old PHP paths
         if grep -q "PATH.*php[0-9]" /etc/environment 2>/dev/null; then
             echo -e "${YELLOW}$SCRIPT_INDEX Found old PHP paths in /etc/environment, cleaning...${NC}"
+            # Create a backup ONLY when we are about to modify the file (idempotent: no backup when already clean)
+            $USE_SUDO cp /etc/environment /etc/environment.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
             # Remove old PHP paths and recreate clean PATH
             $USE_SUDO sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
             echo 'PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"' | $USE_SUDO tee -a /etc/environment > /dev/null

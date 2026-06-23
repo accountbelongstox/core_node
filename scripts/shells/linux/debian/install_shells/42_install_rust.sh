@@ -142,8 +142,18 @@ setup_rust_environment() {
         "cargo-tree"      # dependency tree visualization
     )
     
+    declare -A cargo_tool_probe=(
+        [cargo-edit]="cargo-add"
+        [cargo-watch]="cargo-watch"
+        [cargo-tree]="cargo-tree"
+    )
     for tool in "${cargo_tools[@]}"; do
-        if ! command_exists "$tool"; then
+        probe_bin="${cargo_tool_probe[$tool]:-$tool}"
+        if command_exists "$probe_bin" || cargo install --list 2>/dev/null | grep -q "^${tool} "; then
+            log_message "$tool is already installed"
+            continue
+        fi
+        if true; then
             log_message "Installing $tool..."
             if cargo install "$tool"; then
                 log_message "Successfully installed $tool"

@@ -132,7 +132,7 @@ stop_tencent_agents() {
 
     if [ ! -d /usr/local/qcloud ] \
         && ! systemctl list-unit-files 2>/dev/null | grep -q "tat_agent.service" \
-        && ! pgrep -f "tat_agent\|sgagent\|baradagent\|yunjing" >/dev/null 2>&1; then
+        && ! pgrep -f "tat_agent|sgagent|baradagent|yunjing" >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] No Tencent monitor components found, skipping."
         return 0
     fi

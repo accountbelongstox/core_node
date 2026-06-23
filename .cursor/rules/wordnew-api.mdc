@@ -1,51 +1,18 @@
 ---
-description: "/wordnew data layer standard: one shared TYPE, mock + real implementations of the same WfNewApi interface, switched by ONE import line in apps/wordnew/api/index.ts (offline/AI-Studio = mock, shipped = real). Change the API → sync types + both impls + mock data. Use when editing poly_apps/pycore_laravel_wordflow_ui/apps/wordnew."
+description: "/wordnew data layer: one TYPE surface, mock+real impls of WfNewApi, switched by one import line in apps/wordnew/api/index.ts."
 globs: poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/**/*.{ts,tsx}
 alwaysApply: false
 ---
 
 # /wordnew API — mock ⇄ real, one TYPE, one switch
 
-`/wordnew` is the new UI replacing the legacy `wordflow` app. All of its data
-access goes through a single gateway that can serve **mock** data or make **real**
-API requests, decided by **one import line**. Mirrors the `wordflow` API library
-pattern. Full spec: `poly_apps/pycore_laravel_wordflow_ui/docs/WORDNEW_API_MOCK_PATTERN.md`;
-contract: `apps/wordnew/api/README.md`.
+Spec: `docs/WORDNEW_API_MOCK_PATTERN.md`; contract: `apps/wordnew/api/README.md`.
 
-## Mandatory rules
-
-1. **One TYPE surface.** Every data model and the `WfNewApi` interface live once
-   in `apps/wordnew/api/WfNewApiTypes.ts`. `WfNewTypes.ts` and `WfNewMockDb.ts`
-   re-export from it — never redefine a shape.
-2. **Two impls, same contract.** `WfNewApiMock` (offline) and `WfNewApiHttp`
-   (live, delegates to `wordflowApi`) both satisfy `WfNewApi` with those types.
-3. **One switch, by import.** Consumers `import { wfNewApi } from '../api'`.
-   `apps/wordnew/api/index.ts` is the ONLY place mock vs real is chosen:
-   default = `WfNewApiHttp`; offline/AI-Studio = `WfNewApiMock` (swap commented lines).
-4. **Change the API → sync everything together:** the types, `WfNewApiHttp`,
-   `WfNewApiMock`, and the mock data in `WfNewMockDb.ts`. One without the others
-   is incomplete — the mock must return the exact shape the backend returns.
-5. **Avoid replacement conflicts.** Exactly one `import` line and one
-   `export const wfNewApi` line may be active in `index.ts`. Toggle the pair
-   together — two active `export const wfNewApi` is a duplicate-identifier error.
-6. **No silent gaps.** Where the backend has no endpoint yet, the http impl
-   serves the curated dataset and logs once; never fake success. Swapping to a
-   real call later must not change the interface or types.
-7. **English only** for all code, comments, and docs in this layer.
-8. **Endpoint management** lives in `WfNewEndpoints.ts` (functionality modeled on
-   wordflow's `WordflowApiManager`, NOT its UI): default `:9000` list
-   (current-origin + 43.163.112.77 + 127.0.0.1 + 100.101.149.39 + 100.106.85.16),
-   STORED-FIRST auto-select, `/api/health` probe, offline retry until one
-   recovers. The http impl fetches via it; never hardcode a base URL.
-9. **Use the shared `core/` libraries, not ad-hoc state:** `core/persistence`
-   (`StorageManager` + `StorageKeys`) for config; the `useSyncExternalStore`
-   store pattern (`WfNewEndpoints.subscribe`/`getSnapshot` + `useWfNewEndpoints`,
-   same shape as `core/logstore`/`core/notify`); `core/notify` for toasts; and
-   `components/shared/Portal` + `styles/overlay` `OVERLAY_Z` for dialogs (never a
-   raw `fixed inset-0 z-50`). Settings shows a compact summary card that opens
-   `WfNewApiServerDialog` (list + add/remove + test page).
-
-## AI-assistant behavior
-
-- In AI Studio / offline: switch `index.ts` to the **mock** lines.
-- As a shipped app: keep the **http** lines; all data is live.
+- One TYPE surface: all models + `WfNewApi` live in `api/WfNewApiTypes.ts`; `WfNewTypes.ts`/`WfNewMockDb.ts` re-export, never redefine.
+- Two impls, same contract: `WfNewApiMock` (offline) and `WfNewApiHttp` (delegates to `wordflowApi`).
+- One switch: consumers `import { wfNewApi } from '../api'`; `api/index.ts` is the ONLY mock-vs-real choice. Exactly one active import + one active `export const wfNewApi` (toggle the pair together). Default=http; offline/AI-Studio=mock.
+- Change the API ⇒ sync types + both impls + `WfNewMockDb` together; mock returns exact backend shape.
+- No silent gaps: missing endpoint ⇒ http serves curated data + logs once, never fake success.
+- Endpoints in `WfNewEndpoints.ts` (modeled on `WordflowApiManager`): default `:9000` list, STORED-FIRST auto-select, `/api/health` probe, offline retry. Never hardcode a base URL.
+- Use shared `core/`: `core/persistence` (StorageManager/StorageKeys), `useSyncExternalStore` store pattern (`useWfNewEndpoints`), `core/notify` toasts, `Portal`+`OVERLAY_Z` for dialogs (no raw `fixed inset-0 z-50`).
+- English only.

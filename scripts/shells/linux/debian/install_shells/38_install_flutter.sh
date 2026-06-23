@@ -105,6 +105,12 @@ install_flutter_snap() {
         $USE_SUDO ln -sf /var/lib/snapd/snap /snap 2>/dev/null || true
     fi
 
+    if command_exists snap && snap list 2>/dev/null | grep -q "^flutter\b"; then
+        log_message "Flutter snap already installed; ensuring PATH/symlink only"
+        ensure_path_and_symlink
+        return 0
+    fi
+
     if $USE_SUDO snap install flutter --classic; then
         log_message "Flutter installed via snap"
         ensure_path_and_symlink

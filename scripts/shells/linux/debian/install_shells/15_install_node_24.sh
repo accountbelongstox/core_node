@@ -55,47 +55,10 @@ echo "NODE_VERSION: $NODE_VERSION"
 echo "NODE_ARCH_SUFFIX: $NODE_ARCH_SUFFIX"
 echo "NODE_INSTALL_DIR: $NODE_INSTALL_DIR"
 
-# Function to migrate from old directory structure
-migrate_old_nodejs_installation() {
-    local old_base_dir=$(map_web_path "dev_system_old")
-    
-    if [ ! -d "$old_base_dir" ]; then
-        return 0
-    fi
-    
-    echo "Detected old installation directory: $old_base_dir"
-    echo "Removing old directory completely..."
-    
-    if [ -f /etc/environment ]; then
-        echo "Cleaning old directory references from /etc/environment..."
-        $USE_SUDO sed -i "\|$old_base_dir|d" /etc/environment
-    fi
-    
-    for binary in node npm npx; do
-        local link_path="/usr/local/bin/$binary"
-        if [ -L "$link_path" ]; then
-            local target=$(readlink "$link_path")
-            if [[ "$target" == *"$old_base_dir"* ]]; then
-                echo "Removing symlink pointing to old directory: $link_path"
-                $USE_SUDO rm -f "$link_path"
-            fi
-        fi
-    done
-    
-    echo "Removing old base directory: $old_base_dir"
-    $USE_SUDO rm -rf "$old_base_dir"
-    
-    echo "Old directory removal completed"
-    return 0
-}
-
 # Function to detect and fix previous installation issues
 detect_and_fix_previous_issues() {
     echo "Detecting and fixing previous installation issues..."
-    
-    # First, migrate from old directory structure if needed
-    migrate_old_nodejs_installation
-    
+
     # 1. Fix broken environment variables from previous runs
     echo "Checking /etc/environment for broken entries..."
     if [ -f /etc/environment ]; then
@@ -197,10 +160,18 @@ detect_and_fix_previous_issues() {
     # 5. Clean up conflicting npmrc files when running as root
     if [ "$(id -u)" -eq 0 ]; then
         echo "Cleaning up conflicting npmrc files..."
-        # Remove user-specific npmrc files that might conflict with root configuration
-        find /home -name ".npmrc" -type f -exec rm -f {} \; 2>/dev/null || true
-        # Clean up any project-specific npmrc that might conflict
-        find /tmp -name ".npmrc" -type f -exec rm -f {} \; 2>/dev/null || true
+        # Only remove the real user's conflicting .npmrc (with a backup), never every account's config.
+        # Resolve the real user's home; if it cannot be resolved, skip deletion entirely.
+        local real_user_npmrc_owner
+        real_user_npmrc_owner="$(get_real_user_from_common_functions 2>/dev/null || echo "")"
+        local real_user_home=""
+        if [ -n "$real_user_npmrc_owner" ] && [ "$real_user_npmrc_owner" != "root" ]; then
+            real_user_home="$(getent passwd "$real_user_npmrc_owner" 2>/dev/null | cut -d: -f6)"
+        fi
+        if [ -n "$real_user_home" ] && [ -d "$real_user_home" ] && [ -f "$real_user_home/.npmrc" ]; then
+            cp -a "$real_user_home/.npmrc" "$real_user_home/.npmrc.bak.$(date +%s)" 2>/dev/null || true
+            rm -f "$real_user_home/.npmrc" 2>/dev/null || true
+        fi
     fi
     
     echo "Previous issues detection and fixing completed."
@@ -560,7 +531,12 @@ verify_and_fix_all_configs() {
 
     echo ""
     echo "[2/3] Installing and configuring pnpm..."
-    "$npm_bin" install -g pnpm 2>&1 | grep -v "npm warn"
+    export npm_config_confirm_modules_purge=false
+    if [ -x "$pnpm_bin" ] || "$npm_bin" ls -g pnpm >/dev/null 2>&1; then
+        echo "pnpm already installed globally, skipping reinstall"
+    else
+        "$npm_bin" install -g pnpm --config.confirm-modules-purge=false 2>&1 | grep -v "npm warn"
+    fi
     $USE_SUDO ln -sf "$pnpm_bin" /usr/local/bin/pnpm
     echo "Linked: /usr/local/bin/pnpm"
 
@@ -586,7 +562,11 @@ EOF
 
     echo ""
     echo "[3/3] Installing and linking yarn..."
-    "$npm_bin" install -g yarn 2>&1 | grep -v "npm warn"
+    if [ -x "$yarn_bin" ] || "$npm_bin" ls -g yarn >/dev/null 2>&1; then
+        echo "yarn already installed globally, skipping reinstall"
+    else
+        "$npm_bin" install -g yarn --config.confirm-modules-purge=false 2>&1 | grep -v "npm warn"
+    fi
     $USE_SUDO ln -sf "$yarn_bin" /usr/local/bin/yarn
     echo "Linked: /usr/local/bin/yarn"
 

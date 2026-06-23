@@ -1,41 +1,19 @@
 ---
-description: "pycore: Python 3.10+; absolute imports; imports at top; no try/except in AI code; i18n/THREAD_BUS/third_party/heartbeat per spec. Canonical: development-guides/PYTHON_PYCORE.md."
+description: "pycore: Python 3.10+; ASCII-only; imports top-of-file; no try/except in AI code; THREAD_BUS/i18n/third_party/heartbeat per spec. Canonical: development-guides/PYTHON_PYCORE.md."
 globs: pycore/**
 alwaysApply: false
 ---
 
-# pycore rule
+# pycore (binding subset; canonical = development-guides/PYTHON_PYCORE.md)
 
-(Canonical project specification: development-guides/PYTHON_PYCORE.md. This rule summarizes binding constraints for Cursor.)
-
-1. **Language & charset.** All code and output in English; ASCII only in code. Python 3.10+.
-
-2. **Imports.** **REQUIRED**: All import statements at file top. Order: stdlib → third-party → project internal. **FORBIDDEN**: Imports inside functions; imports inside try-except blocks (use module-level optional: `try: import x` / `except ImportError: x = None` if needed).
-
-3. **Third-party.** **REQUIRED**: Use getters from `pycore.pyfoundations.third_party` (e.g. `get_third_package_torch()`). **FORBIDDEN**: Direct `import torch` or `from third_party import torch`. Register new packages in `pycore/pyfoundations/third_party.py` (DEPENDENCY_MAP, OPTIONAL_PACKAGES, WINDOWS_ONLY_PACKAGES, SYSTEM_PACKAGES).
-
-4. **Try-except (AI-generated code).** **FORBIDDEN**: try-except in AI-written code. Use conditional checks, return error status, ColorPrint, or let errors propagate. Try-except only where spec explicitly allows (e.g. file/network, queue, Tk lifecycle).
-
-5. **Singleton / i18n.** Singleton managers (i18n, bus_manager, etc.) as **global variables** at module level. **i18n**: `from pycore.pyutils.native_ui.step0_i18n import i18n`; use global `i18n`, never `self.i18n`. **FORBIDDEN**: Storing i18n as instance variable. In launcher: call `i18n.extend_translations(app_dir=..., app_name="appname")` in launcher_config builder before `i18n.get()`.
-
-6. **Architecture.** Constants in pygvar; logging/file/network via pyfoundations/pyutils; absolute imports; no relative imports. **pyfoundations**: stdlib only, no third-party. **pyutils**: may use third-party; export instances/singletons; one subdir per feature. **pyctl**: orchestrates pyutils. **pygvar**: `from pycore.pygvar import CONSTANT_NAME`.
-
-7. **File & output.** Static files in root `public`; cache/tmp from pygvar (CACHE_DIR, TMP_DIR). Use ColorPrint for user-facing error output instead of raise where spec says.
-
-8. **MCP.** Location: `pycore/pyutils/mcp/` (impl), `pyapps/mcp/` (app). **FORBIDDEN**: ColorPrint in MCP modules (ANSI breaks JSON-RPC). **REQUIRED**: stdlib `logging` only; return error dicts, never raise in tools; STDOUT for JSON-RPC, STDERR for logs. Tools: `async def`, return `Dict[str, Any]` with `success`. MCP mode: `PYCORE_MCP_MODE=1`; call `ensure_stdio_has_buffer_attributes()` before FastMCP import. See `pycore/pyutils/mcp/MCP_CODING_STANDARDS.md`.
-
-9. **Threading.** **REQUIRED**: Thread components inherit from `threading.Thread`; descriptive names ending with "Thread"; use THREAD_BUS for communication. **FORBIDDEN**: ThreadPoolExecutor, threading.Timer, Queue module, manual locks, thread-local, lambda in Thread(); direct parameter passing/callbacks across threads; `root.after()` or lambda in `root.after()` from non-Tk thread. Tk: only access Tkinter from Tkinter thread; use Event for signals, queue.Queue for data.
-
-10. **Heartbeat.** Location: `pycore/pyfoundations/heartbeat/`. **REQUIRED**: Direct Thread inheritance; HARD-CODED registry in `registry.py`; TaskModel + TaskHandler; state machine (IDLE/PROCESSING/ERROR/DISABLED); no locks (atomic + GIL). **FORBIDDEN**: Locks, dynamic registration, async in handlers, multiple heartbeat threads.
-
-11. **Database.** Location: `pycore/database/`; models in `pycore/database/models/`. **REQUIRED**: Table keys in `TableKeys`, namespaces in `TableNamespaces`; namespace format `common` / `app_{name}` / `util_{name}`. **FORBIDDEN**: Hardcoded table name strings.
-
-12. **Apps (pyapps).** Entry: `{appname}_main.py` with `start()` or `main()`. Dir layout: `{appname}_config/`, `{appname}_i18n/`, `{appname}_bus_keys/`, controller/, service/, routes/, model/, scripts/. BusKeys: `{appname}_bus_keys/` with `register_bus_keys()` called at start of `start()`. i18n: no hardcoded UI strings; use I18nKeys / app I18nKeys; no `i18n.get(key, default)`.
-
-13. **OCR.** Singleton: `from pycore.pyutils.ocr import ocr_manager`. Engine: CnOCR; result dict with success, text, confidence, words, provider, processing_time, error. See PYTHON_PYCORE.md §7.
-
-14. **RPC.** Server: `from pycore.pyutils.rpc import UnifiedRpcServer`; client: `pycore/pyutils/rpc/client/unified_rpc_client.js`. WebSocket-first; route with `server.route('name', handler)` then `await server.start()`. See PYTHON_PYCORE.md §8.
-
-15. **WebView (PySide6).** Set WebView background color to match app (e.g. `#030305`) and in HTML `<head>` before CSS to prevent FOUC.
-
-16. **Module Caller.** Service port 59000; entry `python3 -m pycore.callmodule`. Utils export from `pycore.pyutils` with `*_AVAILABLE`; GUI requires `PYUTILS_LOAD_GUI=1`. See pycore/callmodule/README.md.
+- Python 3.10+, ASCII-only code/output. All imports at file top (stdlib → third-party → internal); never inside functions/try. Absolute imports only.
+- No try/except in AI-written code except where spec allows (file/network, queue, Tk lifecycle); else use conditional checks / error-status return / ColorPrint.
+- Third-party only via `pycore.pyfoundations.third_party` getters (e.g. `get_third_package_torch()`), never direct `import torch`; register in third_party.py.
+- Layers: pyfoundations = stdlib only; pyutils = third-party OK, exports singletons; pyctl orchestrates; constants via `from pycore.pygvar import X`. Cache/tmp from pygvar (CACHE_DIR/TMP_DIR); static files in root `public`.
+- Singletons (i18n, bus_manager) are module-level globals, never instance vars. i18n: `from pycore.pyutils.native_ui.step0_i18n import i18n`; launcher calls `i18n.extend_translations(...)` before `i18n.get()`; no hardcoded UI strings, no `i18n.get(key, default)`.
+- Threading: components subclass `threading.Thread` (name ends "Thread"); communicate via THREAD_BUS. Forbidden: ThreadPoolExecutor, Timer, Queue-module, manual locks, thread-local, lambda in Thread/`root.after`, cross-thread callbacks. Tk only from Tk thread.
+- Heartbeat (pycore/pyfoundations/heartbeat/): direct Thread inherit, hard-coded registry.py, TaskModel+TaskHandler, IDLE/PROCESSING/ERROR/DISABLED, no locks/async/dynamic-registration, single heartbeat thread.
+- DB (pycore/database/): table keys via `TableKeys`, namespaces via `TableNamespaces` (`common`/`app_{n}`/`util_{n}`); no hardcoded table names.
+- MCP (pycore/pyutils/mcp/, pyapps/mcp/): no ColorPrint (breaks JSON-RPC); stdlib logging only; tools `async`, return `Dict` w/ `success`, never raise; STDOUT=JSON-RPC/STDERR=logs; `PYCORE_MCP_MODE=1`; `ensure_stdio_has_buffer_attributes()` before FastMCP import.
+- Apps (pyapps): entry `{appname}_main.py` w/ start()/main(); subdirs `{appname}_{config,i18n,bus_keys}`+controller/service/routes/model/scripts; `register_bus_keys()` first in start().
+- Misc: OCR via `pycore.pyutils.ocr.ocr_manager` (CnOCR). RPC via `pycore.pyutils.rpc.UnifiedRpcServer`, WebSocket-first. WebView (PySide6) bg color set in `<head>` before CSS to avoid FOUC. Module Caller: port 59000, `python3 -m pycore.callmodule`, GUI needs `PYUTILS_LOAD_GUI=1`.

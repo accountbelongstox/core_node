@@ -36,7 +36,9 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Source repository manager (trust-based programming)
-local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+# NOTE: plain assignment (NOT `local`) - this is script/global scope; `local` outside
+# a function errors at runtime ("local: can only be used in a function").
+repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
 source "$repo_manager_script"
 
 # Initialize variables

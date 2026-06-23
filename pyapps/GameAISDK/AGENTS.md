@@ -10,4 +10,4 @@ Canonical: **`docs/CODE_STANDARDS.md`**. Rule: `.cursor/rules/game-aisdk.mdc`.
 - **Docs:** Key points only.
 
 
-**Global mandatory AI rules** (apply here too): Git **commit-only** — no other git operations — and **never revert/undo/overwrite existing code or local changes**; also never delete the `core_node` dir without the guarded triple confirmation. See repo-root `development-guides/GIT_AND_NO_REVERT_SAFETY.md` and `development-guides/CORE_NODE_DELETION_SAFETY.md` (and root `CLAUDE.md`/`AGENTS.md`).
+**Git:** `git commit` only (local) — no rollback, no other git ops, no push unless asked. Otherwise edit code freely.

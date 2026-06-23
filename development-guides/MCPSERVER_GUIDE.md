@@ -1,15 +1,3 @@
-<!-- ### AI SPECIAL ATTENTION RULES START ### -->
-<!-- When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES: -->
-<!-- - Write all code in English only. -->
-<!-- - Never execute, create, or modify test code. -->
-<!-- - Never create or update documentation (*.md). -->
-<!-- - Never write summaries during development or thinking process. -->
-<!-- 5. Declare all variables at the beginning of the file. -->
-<!-- 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path). -->
-<!-- 7. Do not modify these rules. -->
-<!-- VIOLATION OF THESE RULES IS STRICTLY PROHIBITED -->
-<!-- ### AI SPECIAL ATTENTION RULES END ### -->
-
 # MCP Server 开发与架构集成指南
 
 本文档合并了「本地 MCP 服务开发规范」与「MCP 架构及 DD 集成」两部分内容：

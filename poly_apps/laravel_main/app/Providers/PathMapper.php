@@ -55,6 +55,15 @@ class PathMapper
             } else {
                 $basePath = ($dataBase === '/www') ? '/www' : $dataBase . '/www';
             }
+
+            // POSIX guard (mirror gvar_common.sh _fs_is_posix_capable + map_web_path
+            // and system_paths.py): the web DATA root must be POSIX-ownable
+            // (PostgreSQL needs a postgres-owned 0700 dir, Laravel chown/chmods
+            // storage), so coerce a non-POSIX base (e.g. an NTFS/fuseblk data disk)
+            // to /www. The CODE base (getCoreNodeDir) is NOT restricted this way.
+            if (!self::fsIsPosixCapable($basePath)) {
+                $basePath = '/www';
+            }
         }
         
         // Path separator based on OS
@@ -151,6 +160,50 @@ class PathMapper
         
         // Fallback: /www
         return '/www';
+    }
+
+    /**
+     * True when the filesystem backing $path supports POSIX ownership/permissions
+     * (ext2/3/4, xfs, btrfs, zfs, ...). The web DATA root REQUIRES this (PostgreSQL needs a
+     * postgres-owned 0700 data dir, Laravel chown/chmods storage); NTFS/exFAT/FUSE
+     * cannot, so they fall back to /www. Mirrors gvar_common.sh _fs_is_posix_capable()
+     * and system_paths.py _fs_is_posix_capable(): walk up to the nearest existing
+     * ancestor, then resolve fstype via the longest matching mountpoint in /proc/mounts.
+     */
+    private static function fsIsPosixCapable(string $path): bool
+    {
+        $posixFs = ['ext2', 'ext3', 'ext4', 'xfs', 'btrfs', 'zfs', 'reiserfs', 'jfs', 'f2fs', 'overlay'];
+        $p = $path;
+        while ($p !== '' && $p !== '/' && !file_exists($p)) {
+            $p = dirname($p);
+        }
+        if ($p === '') {
+            return false;
+        }
+        $target = realpath($p);
+        if ($target === false) {
+            $target = $p;
+        }
+        $mounts = @file('/proc/mounts', FILE_IGNORE_NEW_LINES);
+        if ($mounts === false) {
+            return false;
+        }
+        $bestMp = '';
+        $bestFs = '';
+        foreach ($mounts as $line) {
+            $parts = preg_split('/\s+/', trim($line));
+            if ($parts === false || count($parts) < 3) {
+                continue;
+            }
+            $mountPoint = $parts[1];
+            $fstype = $parts[2];
+            if (($target === $mountPoint || strpos($target, rtrim($mountPoint, '/') . '/') === 0)
+                && strlen($mountPoint) >= strlen($bestMp)) {
+                $bestMp = $mountPoint;
+                $bestFs = $fstype;
+            }
+        }
+        return in_array($bestFs, $posixFs, true);
     }
 
     /**

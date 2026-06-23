@@ -13,7 +13,7 @@
 
 # Dynamic Network Router Setup Script
 # Supports keyword-based interface selection and hot-plug detection
-# Optimized for Ubuntu 22.04 and 24.04
+# Supports Debian, Ubuntu, and Kali Linux
 # Author: System Administrator
 # Version: 3.0
 

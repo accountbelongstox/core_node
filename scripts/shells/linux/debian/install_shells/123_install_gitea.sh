@@ -61,6 +61,7 @@ GITEA_INSTALLED_FLAG="$GITEA_BASE_DIR/.installed"
 GITEA_CACHE_DIR="$GITEA_BASE_DIR/cache"
 GITEA_USER="git"
 GITEA_PORT="3000"
+GITEA_SERVICE="gitea"
 
 # Ensure sudo is available and set USE_SUDO
 if command -v sudo >/dev/null 2>&1; then

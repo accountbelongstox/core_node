@@ -1,0 +1,665 @@
+# Global typed-prompt history (from history.jsonl)
+
+[2026-06-22 10:32:40] (/mnt/dev_nvme0n1p1/programing/core_node)
+Generate Claude AI Environment Variables Global Command
+  Set up Claude AI environment variables for API access
+  ===============================
+  Operation: Creating new file
+  File will be: claude1.sh
+
+
+
+
+  Global command generated successfully: /var/_core_node/gloe/ai_tools/claude1.sh
+  File written to scripts directory
+  File verification: SUCCESS
+  Symbolic link created: /usr/local/bin/claude1 -> /var/_core_node/gloe/ai_tools/claude1.sh
+  You can now run 'claude1' from anywhere without setting environment variables
+  Press any key to continue...
+
+  Generate Claude AI Environment Variables Global Command
+  Set up Claude AI environment variables for API access
+  ===============================
+  Operation: Creating new file
+  File will be: claude1.sh
+
+
+
+
+  Global command generated successfully: /var/_core_node/gloe/ai_tools/claude1.sh
+  File written to scripts directory
+  File verification: SUCCESS
+  Symbolic link created: /usr/local/bin/claude1 -> /var/_core_node/gloe/ai_tools/claude1.sh
+  You can now run 'claude1' from anywhere without setting environment variables
+  Press any key to continue...
+
+
+   in dd.sh ,in AI tools menu, Modify automatically install Claude Code.Refer to the official instructions,If installing under root(already in sudo mode),it will automatically synchronize to all regular users by linking the bin files,If you're a  regular user no,you'll also be using sudo mode,re gre to claudeteam.ps1 to create a sh version and synchronize it to /usr/local/bin to all users,blow for idempotent operation of all scripts-files
+
+This is a real implementation task across the project's menu system. Let me first map the relevant pieces — the AI tools menu, the existing claude1.sh generator, and claudeteam.ps1 — before writing anything.
+
+  Ran 1 shell command
+
+Now let me find the exact menu handler that produced that "Generate Claude AI Environment Variables Global Command" output, and read claudeteam.ps1 (the reference for the Claude Code install).
+
+  Read 1 file, ran 1 shell command
+
+Now claudeteam.ps1 — the reference for the Claude Code install — plus the helper that generates the global command and the bin-sync mechanism.
+
+  Read 1 file
+
+claudeteam.ps1 is a launcher (sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1, runs claude --dangerously-skip-permissions), not an installer — so I'll mirror it as claudeteam.sh. Now let me understand the wiring: how menu_func scripts are sourced, the existing bin-sync mechanism, and the idempotency style of an existing claudeN.sh.
+
+  Reading 1 file, running 1 shell command…
+  ⎿  /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh
+
+✻ API error · Retrying in 34s · attempt 9/10
+Tip: Use /btw to ask a quick side question without interrupting Claude's current work
+
+  ❯ AI & MCP Management (status/install/sync 8 tools)    Claude AI env/command setup   Claude AI env/command setup
+  ❯ ❯ AI & MCP Management (status/install/sync 8 tools)    Claude AI env/command setup   Claude AI env/command setup  ❯ AI & MCP Management (status/install/sync 8 tools)    Claude AI env/command setup   Claude AI env/command setup
+  ❯ hi
+
+[2026-06-22 10:36:43] (/mnt/dev_nvme0n1p1/programing/core_node)
+/usage
+
+[2026-06-22 10:36:48] (/mnt/dev_nvme0n1p1/programing/core_node)
+HI
+
+[2026-06-22 10:43:26] (/mnt/dev_nvme0n1p1/programing/core_node)
+Claude env setup"replaced to Claude code installer(include to env,and claudeteam,some more)
+
+[2026-06-22 10:50:15] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +11 lines]
+
+[2026-06-22 10:50:19] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #2 +11 lines][Pasted text #3 +12 lines]
+
+[2026-06-22 10:51:14] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #4 +11 lines]No show this muew,Automatic idempotent installation ,skipping successful steps.
+
+[2026-06-22 10:53:42] (/mnt/dev_nvme0n1p1/programing/core_node)
+Replace the old instll-script with just installing claudeteam.sh(refer claudeteam.ps1) to /usr/local/bin
+
+[2026-06-22 10:57:55] (/mnt/dev_nvme0n1p1/programing/core_node)
+continue
+
+[2026-06-22 11:00:28] (/mnt/dev_nvme0n1p1/programing/core_node)
+indempotent install claude code by offcial native,then to all user bin,then link claudeteam.sh, you know?
+
+[2026-06-22 11:03:31] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +10 lines][Pasted text #2 +11 lines] support debian kali linux.
+
+[2026-06-22 11:08:30] (/mnt/dev_nvme0n1p1/programing/core_node)
+In kali,all os, do not pollute the souces list with Ubuntu or other distributions 'repositories,ensure the repair process is idempotent.
+
+[2026-06-22 11:16:46] (/mnt/dev_nvme0n1p1/programing/core_node)
+Ensure tha all scripts leave this system repositories untouched,Only add third-party repositories when they are required(e.g,MySQL),if a package is not selected for installations in the installation menu ,its corresponding repository must not be added.
+
+[2026-06-22 11:19:17] (/mnt/dev_nvme0n1p1/programing/core_node)
+conttinue
+
+[2026-06-22 11:26:40] (/mnt/dev_nvme0n1p1/programing/core_node)
+whithin the dd.sh installtion workflow,review the CUDA preorequisite installtion process and modify the commands for Kali Linux as follows.searhc all scripts ,
+┌──(root㉿debian)-[/home/kali]
+└─# sudo apt install -y nvidia-cuda-dev nvidia-cuda-toolkit
+Package nvidia-cuda-toolkit is not available, but is referred to by another package.
+This may mean that the package is missing, has been obsoleted, or
+is only available from another source
+
+Package nvidia-cuda-dev is not available, but is referred to[...Truncated text #1 +163 lines...]/cuda-installer)
+
+
+
+
+┌──(root㉿debian)-[/home/kali]
+└─# nvcc --version                                                                                                
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2023 NVIDIA Corporation
+Built on Tue_Aug_15_22:02:13_PDT_2023
+Cuda compilation tools, release 12.2, V12.2.140
+Build cuda_12.2.r12.2/compiler.33191640_0
+
+┌──(root㉿debian)-[/home/kali]
+└─#                                                                                           [Pasted text #2 +4 lines]
+┌──(root㉿debian)-[/home/kali]
+└─# sudo nano /etc/apt/sources.list
+┌──(root㉿debian)-[/home/kali]                                                                                    
+└─# sudo apt install -y nvidia-detect nvidia-driver                                                               
+Installing:                                                                                                       
+  nvidia-detect  nvidia-driver
+                                                                                                                  
+Installing dependencies:
+  dkms                     libnvcuvid1                libnvidia-ptxjitcompiler1  nvidia-modprobe
+  firmware-nvidia-gsp      libnvidia-allocator1       libnvidia-rtcore           nvidia-persistenced              
+  glx-alternative-mesa     libnvidia-cfg1             nvidia-alternative         nvidia-settings                  
+  glx-alternative-nvidia   libnvidia-egl-gbm1         nvidia-driver-bin          nvidia-smi                       
+  glx-diversions           libnvidia-egl-wayland1     nvidia-driver-libs         nvidia-support                   
+  libcuda1                 libnvidia-eglcore          nvidia-egl-common          nvidia-suspend-common            
+  libegl-nvidia0           libnvidia-encode1          nvidia-egl-icd             nvidia-vdpau-driver              
+  libgl1-nvidia-glvnd-glx  libnvidia-glcore           nvidia-installer-cleanup   nvidia-vulkan-common             
+  libgles-nvidia1          libnvidia-glvkspirv        nvidia-kernel-common       nvidia-vulkan-icd                
+  libgles-nvidia2          libnvidia-gpucomp          nvidia-kernel-dkms         update-glx                       
+  libgles1                 libnvidia-ml1              nvidia-kernel-support      xserver-xorg-video-nvidia        
+  libglx-nvidia0           libnvidia-pkcs11-openssl3  nvidia-legacy-check                                         
+                                                                                        [Pasted text #4 +11 lines]
+
+[2026-06-22 11:30:56] (/mnt/dev_nvme0n1p1/programing/core_node)
+Ensuer tha none of the scripts modify the original system repository signing keys,Remove any coecode that does so,Refer th the officeal documentation and implement idempotent installation procedures for Mysql PostgreSQL PHP8.5, and Nginx on ubuntu,Debian,and Kali liunx.
+
+[2026-06-22 11:40:40] (/mnt/dev_nvme0n1p1/programing/core_node)
+_kali_2026/_kali_2026/ liky this _${systen nam or id},_ubuntu_24  _debian_13, All developent soft ware shoudld continue to be installed under this directory,However,update the mapping lagic so that if the root / protition has sufficent free space (more than 50 GB),it will no longer be mapped to the largest availabel secondary disk,chang to /opt/_${systemname}_${version}/  node py ect. Update the mapping script logic acoundingly ,B aware that the implementation may involve Shell .sh Python .py and PHP files.no .ps1.searhc all scripts.
+
+[2026-06-22 11:42:26] (/mnt/dev_nvme0n1p1/programing/core_node)
+Use multiple roles to cross-validate each other.
+
+[2026-06-22 11:42:59] (/mnt/dev_nvme0n1p1/programing/core_node)
+Use multiple roles to cross-validate each other.Use multiple roles to cross-validate each other.
+
+[2026-06-22 11:44:24] (/mnt/dev_nvme0n1p1/programing/core_node)
+HI
+
+[2026-06-22 11:51:49] (/mnt/dev_nvme0n1p1/programing/core_node)
+When deteming the installation mapiing drectory always check whether the opt directory is alreadky in use first ,if it exists ,continue using it,Even if the root (/)protition later drops below 50GB of free space ,do not switch the mapping locagion ,once opt has been selected ,all subsequent installations must continus to use the opt directory.
+
+[2026-06-22 12:01:52] (/mnt/dev_nvme0n1p1/programing/core_node)
+Use multiple roles to cross-validate each other.
+
+[2026-06-22 12:06:13] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #3 +33 lines] Is it still necceary to use tihs?
+
+[2026-06-22 12:09:00] (/mnt/dev_nvme0n1p1/programing/core_node)
+Successfully set global variable:Can this be desplayed only once throughout the entire script chain?Keep in mind that the scripts may be ber intialized multiple times,alternatively,display it as a single line.
+
+[2026-06-22 12:11:31] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +19 lines][Pasted text #2 +271 lines][Pasted text #3 +272 lines] Can you resolve the dependency chain issues ? Plase consult the ovvicial documentation to verify that the solution is correct.
+
+[2026-06-22 12:15:48] (/mnt/dev_nvme0n1p1/programing/core_node)
+Use multiple roles to cross-validate each other.[Pasted text #1 +31 lines][Pasted text #2 +32 lines] What about the CUDA installation script? Why isn't the perrequisite step bein exceuted or taking effect? searhc all install scripts, across ubungu debian or kali, [Pasted text #3 +25 lines][Pasted text #4 +26 lines]
+
+[2026-06-22 12:26:13] (/mnt/dev_nvme0n1p1/programing/core_node)
+'old_compile_dir': dev_base / f'dev_{distro_suf
+fix_old}',
+            #            'old_compile_dir': dev_base / f'dev_{distro_suf
+fix_old}',
+            # maybe Perhaps we should deprecate the existing code and hardcode the new directory instead.
+
+[2026-06-22 12:36:04] (/mnt/dev_nvme0n1p1/programing/core_node)
+do you found pylauncher py? it 's can luanch mupilete terminal in windows, if you founded, search docs, Is it support to liunx ,Ubuntu debian or lali-debian.start muplete terminal and arrangeed it .
+
+[2026-06-22 12:36:09] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +69 lines][Pasted text #2 +70 lines] The enhancement I requested for the CUDA installtions scripts is simplay to add idmpotent chencks,if CUDA is already installed,just skip the installtions. Use multiple roles to cross-validate each other.Use multiple roles to
+  cross-validate each other.
+
+[2026-06-22 12:40:18] (/mnt/dev_nvme0n1p1/programing/core_node)
+Executing: 12_install_nvidia_cuda.sh
+Executing: 12_install_nvidia_cuda.sh
+
+Executing: 12_update.sh
+Re oranaxe the executeion order of all scipts to ensure the sequence iis correct,For example,verify whether the update step should run before bthe CUDA installation.
+
+[2026-06-22 12:46:30] (/mnt/dev_nvme0n1p1/programing/core_node)
+Use 'apt autoremove' to remove it.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+[nvidia-cuda] nouveau is in use; a reboot is required to switch to the NVIDIA driver.
+[nvidia-cuda] WARNING: NVIDIA driver installed but not active yet (module not loaded).
+[nvidia-cuda]          A REBOOT is required. Until then nvidia-smi fails and torch installs the CPU
+[nvidia-cuda]          build. After rebooting, simply re-run the installer: the torch guard now
+[nvidia-cuda]          detects the GPU and switches an existing CPU torch build to the CUDA build.
+[nvidia-cuda] Ensuring CUDA toolkit (idempotent; skips if nvcc already installed) via /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/install_cuda_toolkit.sh ...
+============== If need reboot ,anywhere,pausewmctrlwmctrl and notice.confire Yes input yes to 3input,then reboot.confirm save all work.and rename all scipts index, like 12_update to 1x_update. and prerepare sctips add sudo apt update && sudo apt install xdotool -ysudo apt update && sudo apt install xdotool -y. add xdtools.wmctrl  tmux.
+
+[2026-06-22 12:53:37] (/mnt/dev_nvme0n1p1/programing/core_node)
+need 12 windws. terminal arrange 4x3.
+
+[2026-06-22 12:54:16] (/mnt/dev_nvme0n1p1/programing/core_node)
+change all sctips-name,rename index part.
+
+[2026-06-22 13:15:12] (/mnt/dev_nvme0n1p1/programing/core_node)
+do you found pyluancher py? it's can start muplite terminal be arrange display,liunx and windows, now ,if pyservice .sh .ps1, in UI pycore laravel UI, in pycore mageter settion ,if allowed startup pyservice, Also add  py luancher to the system strtup,and implement idempotent shoutcut creation across different operation system.s debian ubutnu 24 26 ,kali debian ,search some office documentations.
+
+[2026-06-22 13:15:59] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +8 lines][Pasted text #2 +9 lines],wait 15 seconds, autimacally continue.
+
+[2026-06-22 13:17:18] (/mnt/dev_nvme0n1p1/programing/core_node)
+- I can't "wait 15 seconds and auto-continue" for that prompt — it's running in your shell, not in mine. If the script has its own 15-second timeout, just leave it and it'll proceed with the default
+
+[2026-06-22 13:27:57] (/mnt/dev_nvme0n1p1/programing/core_node)
+do it ,up code
+
+[2026-06-22 14:12:13] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +11 lines][Pasted text #2 +12 lines]  - 3_stop_aliyun_cloudmonitor.sh
+  - 4_stop_huawei_cloudmonitor.sh
+  - 5_stop_tencent_cloudmonitor.sh[Pasted text #3 +3 lines] merge to index 3,and rename,add new scripts ,set If desktop-system ,like Ubuntu DEbian Kali ,set power ,no sleepy,no close displed,no stop harddisk,etc. search office documentations.thend 6_set_mirrors.sh
+  - 7_auto_clean_journal.sh6_set_mirrors.sh
+  - 7_auto_clean_journal.sh and index 9 disbal ubunto auto updates 
+ merge to one. encure indempotent process.if Ok step,skip it.
+
+[2026-06-22 14:16:38] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #4 +78 lines][Pasted text #5 +79 lines]Use multeple roles for cross-validation to verify tha every script follws idmpotent procedures and fully support Debian,Ubuntu,andKaliLinux,Consulet the official ducumentation,and where platform-specific differences exist,implement separate execuion braches,Ensure all branches remain idempotent.
+
+[2026-06-22 14:22:55] (/mnt/dev_nvme0n1p1/programing/core_node)
+/workflows
+
+[2026-06-22 14:24:15] (/mnt/dev_nvme0n1p1/programing/core_node)
+/effort ultracode
+
+[2026-06-22 14:29:07] (/mnt/dev_nvme0n1p1/programing/core_node)
+dd.sh -> AI & MCP Management (status/install/sync 8 tools)AI & MCP Management (status/install/sync 8 tools)
+ Install Claude Code (native) + link all users + claudeteam, up claudetem.sh add new feature claude --settings "{\"ultracode\": true}"claude --settings "{\"ultracode\": true}" and skip permisionns. and windows
+
+[2026-06-22 14:29:22] (/mnt/dev_nvme0n1p1/programing/core_node)
+/usage
+
+[2026-06-22 14:32:59] (/mnt/dev_nvme0n1p1/programing/core_node)
+not ultra ,just on claudeteam,defaulg enable multiple roles and ultracode ,and winodws.
+
+[2026-06-22 14:42:27] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #4 +24 lines]h
+  4_set_desktop_power.shh
+  4_set_desktop_power.sh
+to 2_setting_base.sh merge to 2_setting_base.sh
+
+[2026-06-22 14:45:00] (/mnt/dev_nvme0n1p1/programing/core_node)
+120_install_desktop_applications.sh claude code if exsitst , idempotent with dd.sh Ai install cluade code install workflow, and merge script to dd.sh workflow ,then AI & MCP Management (status/install/sync 8 tools) can call install script from shells/debian/* some install scritps.
+
+[2026-06-22 14:45:19] (/mnt/dev_nvme0n1p1/programing/core_node)
+/usage
+
+[2026-06-22 15:02:00] (/mnt/dev_nvme0n1p1/programing/core_node)
+go next,all work ,workflow
+
+[2026-06-22 15:03:39] (/mnt/dev_nvme0n1p1/programing/core_node)
+2_setting_base.sh ,Why it' still clock sreen? search support ubuntu debian kali Os No clock sreen,no auto pause system.
+
+[2026-06-22 15:08:36] (/mnt/dev_nvme0n1p1/programing/core_node)
+129_install_claude_code.sh Can install MCP,sync claudeteam.sh to all user's bin,and sync Claude code bin to all users's, include regular users/root user,togther all funcs.native install, and anywher call this scripts, dd.sh AI & MCP Management (status/install/sync 8 tools)AI & MCP Management (status/install/sync 8 tools)
+ Dose too. aware idempotent.If in root that to regular users, fix permission.
+
+[2026-06-22 15:11:37] (/mnt/dev_nvme0n1p1/programing/core_node)
+all command ,if need ,add sudo,and support multiple desktop envs. and more groups.search office documentations.
+
+[2026-06-22 15:15:23] (/mnt/dev_nvme0n1p1/programing/core_node)
+use claude code ,workflow ,veriry ,If laravelmain need help,like this translate text or audio gerete or picture conver image , that chrome-mcp and pycore task center Is'n enough, need up UI show task detail,and up pycoore task center and chrome-mcp UI and task system, the logic need strong ,and needs to works.
+
+[2026-06-22 15:29:31] (/mnt/dev_nvme0n1p1/programing/core_node)
+ncore/utils/mcp_chrome rename dir to ncore/utils/jsmcptools
+
+[2026-06-22 15:33:32] (/mnt/dev_nvme0n1p1/programing/core_node)
+tart_mcp_chrome.js)tart_mcp_chrome.js) rename to start_js_mcp.js
+
+[2026-06-22 15:33:45] (/mnt/dev_nvme0n1p1/programing/core_node)
+/workflows
+
+[2026-06-22 15:34:26] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +6 lines],and if wordnew appUI request any word/sentenc, if not translate-content / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task top and quik process it.
+
+[2026-06-22 15:37:54] (/mnt/dev_nvme0n1p1/programing/core_node)
+/usage
+
+[2026-06-22 15:54:37] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +12 lines][Pasted text #2 +843 lines] use extralcode mode, and workflow,search offical documentations , support debian ubuntu kalios.ensure You can repair, then up code.
+
+[2026-06-22 15:56:33] (/mnt/dev_nvme0n1p1/programing/core_node)
+/usage
+
+[2026-06-22 15:56:45] (/mnt/dev_nvme0n1p1/programing/core_node)
+/workflows
+
+[2026-06-22 15:58:04] (/mnt/dev_nvme0n1p1/programing/core_node)
+ow to set ,force use opus 4.8? refer ,up claudetem.sh and ps1, enhance scripts.
+
+[2026-06-22 15:58:30] (/mnt/dev_nvme0n1p1/programing/core_node)
+ow to set ,force use opus 4.8?To force Claude Code to use Claude Opus 4.8 for your main session and lock the background subagents/task pipelines to Opus 4.8 instead of defaulting to Haiku, you need to configure your active model and override the subagent environment variable.To force Claude Code to use Claude Opus 4.8 for your main session and lock the background subagents/task pipelines to Opus 4.8 instead of defaulting to Haiku, you need to configure your active model and override the subagent environment variable.refer ,up claudetem.sh and ps1, enhance scripts.refer ,up claudetem.sh and ps1, enhance scripts.
+
+[2026-06-22 16:01:47] (/mnt/dev_nvme0n1p1/programing/core_node)
+up claudeteam.sh / claudeteam.ps1.only just two scripts, in utralcodde ,force use opus 4.8 or newed model.
+
+[2026-06-22 16:04:30] (/mnt/dev_nvme0n1p1/programing/core_node)
+dd.sh Clean ALL of the above? [Y/n]:  to N/y
+
+[2026-06-22 16:06:47] (/mnt/dev_nvme0n1p1/programing/core_node)
+notice : use force Opus[1m] default N/y,if Y,print light note.teammate-mode in-process inwindows derault added.
+
+[2026-06-22 16:07:27] (/mnt/dev_nvme0n1p1/programing/core_node)
+Clean ALL of the above, notice N/y
+
+[2026-06-22 16:23:36] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +190 lines] adapt to Ubuntu / Debian / Kali.
+
+[2026-06-22 16:42:05] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +485 lines] fix it ,support Ubuntu Debian Kali.
+
+[2026-06-22 16:43:00] (/mnt/dev_nvme0n1p1/programing/core_node)
+/usage
+
+[2026-06-22 17:07:10] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +6 lines],and if wordnew appUI request any word/sentenc, if not translate-content / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task top and quik process it.
+
+[2026-06-22 17:08:38] (/mnt/dev_nvme0n1p1/programing/core_node)
+continue with the previous task,if not completed.
+
+[2026-06-22 17:12:55] (/mnt/dev_nvme0n1p1/programing/core_node)
+use claude code ,workflow ,veriry ,If laravelmain need help,like this translate text or audio gerete or picture conver image , that chrome-mcp and pycore task center Is'n enough, need up UI show task detail,and up pycoore task center and chrome-mcp UI and task system, the logic need strong ,and needs to works.
+
+  This is a substantial feature spanning several subsystems (laravel_main, the pycore task center, chrome-mcp, and the task UI/system). Before I orchestrate anything, I need to understand what exists today — I won't run a workflow blind into a vague request. Let me locate these subsystems first.
+
+    Ran 1 shell command
+
+  Located them: pycore/, apps/mcp-chrome, ncore/utils/mcp_chrome, and poly_apps/laravel_main. This is a multi-subsystem mapping job — let me fan out parallel Explore agents to map each one (task center, chrome-mcp, laravel_main task integration, and the translate/audio/image task flows) so I understand the real architecture before proposing anything.,and if wordnew appUI request any word/sentenc, if not translate-content / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task top and quik process it.and if wordnew appUI request any word/sentenc, if not translate-content
+  / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task
+  top and quik process it.and if wordnew appUI request any word/sentenc, if not translate-content
+  / conver image / audio ,Is it'n to task top, and Pycore / Chrome-MCP client a same time to task
+  top and quik process it. across verify all logic code and overflow.
+
+[2026-06-22 17:15:16] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #2 +160 lines] suite to Ubuntu Debian Kali, in Kali ,selecte available soft version. search official documentations.
+
+[2026-06-22 17:18:03] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #3 +397 lines]
+
+[2026-06-22 20:54:23] (/mnt/dev_nvme0n1p1/programing/core_node)
+claudeteam.sh / ps1 add parameters --permission-mode bypassPermissions , In addition to the previeios requirements.
+
+[2026-06-22 20:54:45] (/mnt/dev_nvme0n1p1/programing/core_node)
+continue
+
+[2026-06-22 20:58:03] (/mnt/dev_nvme0n1p1/programing/core_node)
+usr multiple roles ,and Claude Code workflow continue.
+
+[2026-06-22 20:59:45] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #4 +21 lines] Why aren't scrpts 31_ensure_php85_intelligent.sh and 32_install_swoole.sh aligned, [Pasted text #5 +48 lines] ,search official documentations, supported Ubuntu / Debian / Kali.
+
+[2026-06-22 21:04:26] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #6 +3 lines] Logic and DATA share to aliend, Ensure tha the logic,behavior,and datarelationsships remain consistent before and after each step.
+
+[2026-06-22 21:15:22] (/mnt/dev_nvme0n1p1/programing/core_node)
+一个延期的后续事项：在 fastTrackGaps 中预留了一个前瞻性的前端（FE）图像快速通道分支 —— 这里没有做假实现（faked），因为目前还不存在干净的前端图像队列接口；目前交互式图像已经可以通过后端在用户查询单词详情时，通过 bumpFront → remote_fast 提权进行快速通道调度。 Continue ,Use mutiple roles and Claude Code workflow.
+
+[2026-06-22 21:20:54] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +17 lines]
+Executing: 2_setting_base.sh[Pasted text #2 +13 lines] Why are these two directories getting mixed mixed up ? 0n1p1 is the correct one,verify all related logic to ensure it's correct. Note tha this also applies to the other scripts.
+
+[2026-06-22 21:31:44] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #7 +456 lines] alied lgoic, data , behavior. expecially Kali debian Ubunto,search some docs.
+
+[2026-06-22 21:35:20] (/mnt/dev_nvme0n1p1/programing/core_node)
+!
+[INFO] Using Python virtual environment: /opt/_kali_2026/python3_venv Why doesn't thes algn whit it ?According to the original design,the python executable shold be liked to the global Python binary(ig under /usr/local/bin),while the actual interpreter is python3.xx. so call python is call Venv .
+
+[2026-06-22 21:37:34] (/mnt/dev_nvme0n1p1/programing/core_node)
+[INFO] Using Python virtual environment: /opt/_kali_2026/python3_venv Why doesn't thes algn whit it ?According to the original design,the python executable shold be liked to the global Python binary(ig under /usr/local/bin),while the actual interpreter is python3.xx. so call python is call Venv .14_install_faster_whisper.sh14_install_faster_whisper.sh
+and the venv creation/ownership.
+  19_install_uv.sh  21_install_edge_tts.sh
+  22_install_tts_offline.sh[Pasted text #8 +3 lines]
+
+[2026-06-22 21:44:56] (/mnt/dev_nvme0n1p1/programing/core_node)
+Confirm whether there are any additional task types,add support for sentence audio generation,movie subtitle retrieval(Via the PyCore API),poster retreval (Via PyCore),AI translation (separate from Bing Translate),and NotebookLM generation,If no specific provider is specified,let PyCore and Chrome-MCP intelligently schedule the task.these task types should also be reflected in the management UI. Continue ,Use mutiple roles and Claude Code workflow.
+
+[2026-06-22 21:45:26] (/mnt/dev_nvme0n1p1/programing/core_node)
+and more ?
+
+[2026-06-22 21:51:28] (/mnt/dev_nvme0n1p1/programing/core_node)
+En suyer that all downstream scripts use the Python interpreter from the virtual enviroment,Update python3.x to point to the virtual environment as well,and rename the original system Python executable to pythonorigin.and other but repaire.No ask.
+
+[2026-06-22 22:03:57] (/mnt/dev_nvme0n1p1/programing/core_node)
+in all scripts,in run any python commander or pip and anythin, print commder-strin first.thank you.
+
+[2026-06-22 22:04:20] (/mnt/dev_nvme0n1p1/programing/core_node)
+in all scripts,if run any python commander or pip and anythin, print commder-strin first.thank you.
+
+[2026-06-22 22:14:10] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #3 +203 lines] If in liunx, not wls, postgresql/data to mappgin path, and automatically idempotent resolve relation directoryy permissions, and other.
+
+[2026-06-22 23:53:36] (/mnt/dev_nvme0n1p1/programing/core_node)
+contiue
+
+[2026-06-22 23:54:35] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #9 +1048 lines] In kali,support wsl/debian/ubuntu/kali.
+
+[2026-06-22 23:56:50] (/mnt/dev_nvme0n1p1/programing/core_node)
+cosmetic 小瑕疵 repair,and up Pycore codesync && codesync clietn light and weight mode.
+
+[2026-06-22 23:59:04] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #10 +979 lines]
+
+[2026-06-23 07:48:14] (/mnt/dev_nvme0n1p1/programing/core_node)
+✔ The modules directory at "/mnt/dev_nvme0n1p1/programing/core_node/poly_apps/pycore_laravel_wordflow_
+ui/node_modules" will be removed and reinstalled from scratch. Proceed? Yes [Pasted text #11 +3 lines] If node_modules exists , up ,not remote and reinstall.
+
+[2026-06-23 07:57:55] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +15 lines]  Check what has been remoed,Is polyapps still intact?
+
+[2026-06-23 08:03:14] (/mnt/dev_nvme0n1p1/programing/core_node)
+Is the local .git directory still there? if it is ,check wheter there have been any recent local commit .
+
+[2026-06-23 09:04:59] (/mnt/dev_nvme0n1p1/programing/core_node)
+Re-clone core_node,/mnt/dev_nvme0n1p1/programing/core_node/ It ks old,but rename the original modefied version to /mnt/dev_nvme0n1p1/programing/core_node_newer_but_removed_part/ ,Then copy and merge all custom changes and new features from the original /mnt/dev_nvme0n1p1/programing/core_node_newer_but_removed_part/ directory into the freshly cloned project,including Pycore laravelmain,pycore_laralvel UI,etc,and all toher related components ,ensure all existing customizations are preserved while adopting the latest upstream code.use Claude code workflos.
+
+[2026-06-23 09:09:40] (/mnt/dev_nvme0n1p1/programing/core_node)
+/mnt/dev_nvme0n1p1/programing/core_node/history.txt  ,read and repair core_node. all
+
+[2026-06-23 09:10:40] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +190 lines] adapt to Ubuntu / Debian / Kali.
+
+[2026-06-23 09:10:46] (/mnt/dev_nvme0n1p1/programing/core_node)
+nt/dev_nvme0n1p1/programing/core_node/history2.txt  ,read and repair core_node. all
+
+[2026-06-23 09:17:32] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +19 lines] Since the dir has already been mounteed to /mnt/dev_nvme0n1p1/programing/core_node/,Why wasn't the /www/programing/core_node mapping aligned?this caused the already modified projedct to be deletect.Fix ths issue and update all related specifications ,including the Claude Code guidelines,Afger every completed chage ,create a alocal Git commit(Do not push or sync to the remorte repository),Also ,locate all operations that delete the core_node directory and require triple comirmation before any deletion is performed(defaul N/y),up code and Codex / Cursor AI and anythin ai rules.
+    - 11_install_sudo.sh[Pasted text #2 +13 lines]
+
+[2026-06-23 09:19:48] (/mnt/dev_nvme0n1p1/programing/core_node)
+Yes ,an old script with a but delete them,this is the resotored version,plesease continue with the fixes.
+
+[2026-06-23 09:20:16] (/mnt/dev_nvme0n1p1/programing/core_node)
+Yes ,an old script with a but delete them,this is the resotored version,plesease continue with the fixes.
+
+[2026-06-23 09:28:48] (/mnt/dev_nvme0n1p1/programing/core_node)
+first verify which projects in /mnt/dev_nvme0n1p1/programing/core_node_newer_but_removed_part/poly_apps/ are complee ,if a project is complete ,back up the existeing directory in /mnt/dev_nvme0n1p1/programing/core_node/poly_apps/xx and replace it whit the entire directory from /mnt/dev_nvme0n1p1/programing/core_node_newer_but_removed_part/poly_apps/new_xx, if the project in /mnt/dev_nvme0n1p1/programing/core_node_newer_but_removed_part/poly_apps/ is also imcomplete reconstruct the missing code based on the prject history and previous recoreds ,Pycore laravelmain Pycre_larave UI,chrome-mcp.
+
+[2026-06-23 09:29:12] (/mnt/dev_nvme0n1p1/programing/core_node)
+commit now.
+
+[2026-06-23 09:30:48] (/mnt/dev_nvme0n1p1/programing/core_node)
+[8] WARNING: Project directory is empty or doesn't exist: /www/programing/core_node
+Do you want to restore the project from the repository? (y/n): 
+Hasn't is been fixed yet?
+
+[2026-06-23 09:31:16] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #3 +15 lines]
+
+[2026-06-23 09:32:14] (/mnt/dev_nvme0n1p1/programing/core_node)
+Continue reviewing the historical .txt recoreds and restore more missng code.
+
+[2026-06-23 09:33:09] (/mnt/dev_nvme0n1p1/programing/core_node)
+CORE_NODE_PROJECT_ROOT:  Why doen't mapping to /mnt/dev_nvme0n1p1/programing/core_node)?
+
+[2026-06-23 09:41:57] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +10 lines][Pasted text #2 +11 lines] support debian kali linux.
+
+[2026-06-23 09:43:48] (/mnt/dev_nvme0n1p1/programing/core_node)
+In kali,all os, do not pollute the souces list with Ubuntu or other distributions 'repositories,ensure the repair process is idempotent.Ensure tha all scripts leave this system repositories untouched,Only add third-party repositories when they are required(e.g,MySQL),if a package is not
+selected for installations in the installation menu ,its corresponding repository must not be added.
+
+[2026-06-23 09:49:59] (/mnt/dev_nvme0n1p1/programing/core_node)
+whithin the dd.sh installtion workflow,review the CUDA preorequisite installtion process and modify the commands for Kali Linux as follows.searhc all scripts ,
+┌──(root㉿debian)-[/home/kali]
+└─# sudo apt install -y nvidia-cuda-dev nvidia-cuda-toolkit
+Package nvidia-cuda-toolkit is not available, but is referred to by another package.
+This may mean that the package is missing, has been obsoleted, or
+is only available from another source
+
+Package nvidia-cuda-dev is not available, but is referred to[...Truncated text #1 +163 lines...]/cuda-installer)
+
+
+
+
+┌──(root㉿debian)-[/home/kali]
+└─# nvcc --version                                                                                                
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2023 NVIDIA Corporation
+Built on Tue_Aug_15_22:02:13_PDT_2023
+Cuda compilation tools, release 12.2, V12.2.140
+Build cuda_12.2.r12.2/compiler.33191640_0
+
+┌──(root㉿debian)-[/home/kali]
+└─#                                                                                           [Pasted text #2 +4 lines]
+┌──(root㉿debian)-[/home/kali]
+└─# sudo nano /etc/apt/sources.list
+┌──(root㉿debian)-[/home/kali]                                                                                    
+└─# sudo apt install -y nvidia-detect nvidia-driver                                                               
+Installing:                                                                                                       
+  nvidia-detect  nvidia-driver
+                                                                                                                  
+Installing dependencies:
+  dkms                     libnvcuvid1                libnvidia-ptxjitcompiler1  nvidia-modprobe
+  firmware-nvidia-gsp      libnvidia-allocator1       libnvidia-rtcore           nvidia-persistenced              
+  glx-alternative-mesa     libnvidia-cfg1             nvidia-alternative         nvidia-settings                  
+  glx-alternative-nvidia   libnvidia-egl-gbm1         nvidia-driver-bin          nvidia-smi                       
+  glx-diversions           libnvidia-egl-wayland1     nvidia-driver-libs         nvidia-support                   
+  libcuda1                 libnvidia-eglcore          nvidia-egl-common          nvidia-suspend-common            
+  libegl-nvidia0           libnvidia-encode1          nvidia-egl-icd             nvidia-vdpau-driver              
+  libgl1-nvidia-glvnd-glx  libnvidia-glcore           nvidia-installer-cleanup   nvidia-vulkan-common             
+  libgles-nvidia1          libnvidia-glvkspirv        nvidia-kernel-common       nvidia-vulkan-icd                
+  libgles-nvidia2          libnvidia-gpucomp          nvidia-kernel-dkms         update-glx                       
+  libgles1                 libnvidia-ml1              nvidia-kernel-support      xserver-xorg-video-nvidia        
+  libglx-nvidia0           libnvidia-pkcs11-openssl3  nvidia-legacy-check                                         
+                                                                                        [Pasted text #4 +11 lines]
+
+[2026-06-23 09:51:23] (/mnt/dev_nvme0n1p1/programing/core_node)
+Ensuer tha none of the scripts modify the original system repository signing keys,Remove any coecode that does so,Refer th the officeal documentation
+  and implement idempotent installation procedures for Mysql PostgreSQL PHP8.5, and Nginx on ubuntu,Debian,and Kali liunx.
+
+[2026-06-23 09:52:15] (/mnt/dev_nvme0n1p1/programing/core_node)
+Ensuer tha none of the scripts modify the original system repository signing keys,Remove any coecode that does so,Refer th the officeal documentation
+  and implement idempotent installation procedures for Mysql PostgreSQL PHP8.5, and Nginx on ubuntu,Debian,and Kali liunx.delete ubuntu.sources and more,pure to Kali,search official documents.
+
+[2026-06-23 09:58:09] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #3 +33 lines] Is it still necceary to use tihs?
+
+[2026-06-23 09:58:36] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #4 +3 lines]❯ When deteming the installation mapiing drectory always check whether the opt directory is alreadky in use first ,if it exists ,continue using it,Even if
+  the root (/)protition later drops below 50GB of free space ,do not switch the mapping locagion ,once opt has been selected ,all subsequent
+  installations must continus to use the opt directory.[Pasted text #5 +16 lines]
+
+[2026-06-23 10:01:00] (/mnt/dev_nvme0n1p1/programing/core_node)
+``[Pasted text #12 +1718 lines]`` refre,repiare PHP relattion scripts.
+
+[2026-06-23 10:04:57] (/mnt/dev_nvme0n1p1/programing/core_node)
+``[Pasted text #12 +1718 lines]`` refre,re-repiare PHP relattion scripts. re  repiare.
+
+[2026-06-23 10:05:01] (/mnt/dev_nvme0n1p1/programing/core_node)
+``
+  Script execution completed with exit code: 1
+  Press any key to return to test scripts menu...
+   adapt to Ubuntu / Debian / Kali.
+
+I'll investigate the actual root cause on this machine and find the script's repo-selection logic. Let me gather facts in parallel.
+
+  Searched for 2 patterns, ran 1 shell command
+
+Key finding already: the repo is pinned to Sury bookworm (Debian 12 stable), but this is Kali rolling 2026.2 (tracks Debian testing). And libxml2/libzip4 have no candidate at all in [...Truncated text #1 +1704 lines...]pt installs (parity with 31's guards).
+2. 33's header comment still self-labels "32_configure_php85.sh" and references FPM files it no longer edits (doc drift — and that file's own rules say don't touch docs, so I held off).
+3. The surviving verify_php_symbolic_link_fix scans old versions 7.4–8.3 (omits 8.4 — reporting only).
+4. The shared verify_open_basedir_config_from_php_common still probes a stale php-fpm8.4 branch.
+
+✻ Baked for 16m 20s`` refre,re-repiare PHP relattion scripts. re  repiare.
+
+[2026-06-23 10:09:30] (/mnt/dev_nvme0n1p1/programing/core_node)
+❯ Successfully set global variable:Can this be desplayed only once throughout the entire script chain?Keep in mind that
+  the scripts may be ber intialized multiple times,alternatively,display it as a single line.[Pasted text #1 +19 lines][Pasted text #2 +271 lines][Pasted text #3 +272 lines] Can you resolve the dependency chain
+  issues ? Plase consult the ovvicial documentation to verify that the solution is correct.and dd.sh 
+Error: This script only supports Debian and Ubuntu systems
+support kali debian ubuntu.
+
+[2026-06-23 10:10:05] (/mnt/dev_nvme0n1p1/programing/core_node)
+Use multiple roles to cross-validate each other.Use multiple roles to cross-validate each other.
+
+[2026-06-23 10:10:23] (/mnt/dev_nvme0n1p1/programing/core_node)
+Use multiple roles to cross-validate each other.Use multiple roles to cross-validate each other.
+
+[2026-06-23 10:13:19] (/mnt/dev_nvme0n1p1/programing/core_node)
+searhc docs, complete sctirp to ./scripts/clade_tools/  ,extra Claude code history to history text ,to User data dir. include prompts and record,chat record.
+
+[2026-06-23 10:14:15] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #6 +3 lines] Logic and DATA share to aliend, Ensure tha the logic,behavior,and datarelationsships remain consistent before and after each step.
+
+[2026-06-23 10:29:23] (/mnt/dev_nvme0n1p1/programing/core_node)
+Based on the original repair recored /mnt/dev_nvme0n1p1/programing/core_node/_prompts/ClaudeCodeRepair.txt ,reimplement the code exactly as it was,one-to-one,Do not rely on your own conversation history or memory,Instedad,directly restore and fix the code according to the original implementation.
+
+[2026-06-23 10:34:43] (/mnt/dev_nvme0n1p1/programing/core_node)
+Based on the original repair recored /mnt/dev_nvme0n1p1/programing/core_node/_prompts/PHP-repaire.txt ,reimplement the code exactly as it
+  was,one-to-one,Do not rely on your own conversation history or memory,Instedad,directly restore and fix the code according to the original
+  implementation.
+
+[2026-06-23 10:43:20] (/mnt/dev_nvme0n1p1/programing/core_node)
+Based on the original repair recored /mnt/dev_nvme0n1p1/programing/core_node/_prompts/Python-Repair.txt ,reimplement the code exactly as it
+  was,one-to-one,Do not rely on your own conversation history or memory,Instedad,directly restore and fix the code according to the original
+  implementation.
+
+[2026-06-23 10:47:09] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #6 +10 lines] Notice ,User Opus4.8[1m] N/y.sh and ps1.
+
+[2026-06-23 10:48:06] (/mnt/dev_nvme0n1p1/programing/core_node)
+Recover exact code from transcripts
+
+[2026-06-23 10:59:39] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +26 lines]
+
+[2026-06-23 11:03:59] (/mnt/dev_nvme0n1p1/programing/core_node)
+Based on the original repair recored /mnt/dev_nvme0n1p1/programing/core_node/_prompts/Base-Scripts-Repair.txt,reimplement the code exactly as it
+  was,one-to-one,Do not rely on your own conversation history or memory,Instedad,directly restore and fix the code according to the original
+  implementation.
+
+[2026-06-23 11:09:52] (/mnt/dev_nvme0n1p1/programing/core_node)
+do you found pylauncher py? it 's can luanch mupilete terminal in windows, if you founded, search docs, Is it support to liunx ,Ubuntu debian or
+  lali-debian.start muplete terminal and arrangeed it .❯ need 12 windws. terminal arrange 4x3.do you found pyluancher py? it's can start muplite terminal be arrange display,liunx and windows, now ,if pyservice .sh .ps1, in UI pycore laravel UI,
+  in pycore mageter settion ,if allowed startup pyservice, Also add  py luancher to the system strtup,and implement idempotent shoutcut creation across
+  different operation system.s debian ubutnu 24 26 ,kali debian ,search some office documentations.add sudo,and support multiple desktop envs. and more groups.search office documentations.
+
+[2026-06-23 11:10:15] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +6 lines]
+
+[2026-06-23 11:13:18] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #2 +114 lines][Pasted text #3 +123 lines]
+❯ In kali,all os, do not pollute the souces list with Ubuntu or other distributions 'repositories,ensure the repair process is idempotent.Ensure tha all scripts leave this system repositories untouched,Only add third-party repositories when they are required(e.g,MySQL),if a package is not
+  selected for installations in the installation menu ,its corresponding repository must not be added.
+
+[2026-06-23 11:16:17] (/mnt/dev_nvme0n1p1/programing/core_node)
+update all AI rules,Do not perform any Git operations except commits,Do not revert any code ,Claude Code / Cusor ai/ Codex ,AND checks all docs .*.md.
+
+[2026-06-23 11:19:45] (/mnt/dev_nvme0n1p1/programing/core_node)
+pdate all AI rules,Do not perform any Git operations except commits,Do not revert any code ,Claude Code / Cusor ai/ Codex ,AND checks all docs .*.md.Replace the contents of the conflict resolution rules document.Can you resolve the dependency chain issues ? Plase consult the ovvicial documentation to verify that the solution is correct.
+
+[2026-06-23 11:19:52] (/mnt/dev_nvme0n1p1/programing/core_node)
+Based on the original repair recored /mnt/dev_nvme0n1p1/programing/core_node/_prompts/Base-Scripts-Repair.txt,reimplement the code exactly as it
+  was,one-to-one,Do not rely on your own conversation history or memory,Instedad,directly restore and fix the code according to the original
+  implementation.
+
+[2026-06-23 11:20:04] (/mnt/dev_nvme0n1p1/programing/core_node)
+[Pasted text #1 +6 lines]
+
+[2026-06-23 11:27:59] (/mnt/dev_nvme0n1p1/programing/core_node)
+merge scripts.
+
+[2026-06-23 11:30:44] (/mnt/dev_nvme0n1p1/programing/core_node)
+pdate all AI rules,Do not perform any Git operations except commits,Do not revert any code ,Claude Code / Cusor ai/ Codex ,AND checks all docs .*.md.Replace the contents of the conflict resolution rules document.CThis is the second consecutive turn the record survived intact — the tree-rewind may have settled. As before, pushing these commits when you're ready is [Pasted text #4 +114 lines] and dd.sh ,Why   18_setup_ssh_remote.sh and dd.sh Do not autoimaticall install ssh,and use password unzip unentry *.js
+
+[2026-06-23 11:32:18] (/mnt/dev_nvme0n1p1/programing/core_node)
+1 3 to 1, 11 mrege to 2,
+
+[2026-06-23 11:33:08] (/mnt/dev_nvme0n1p1/programing/core_node)
+12 to 11
+
+[2026-06-23 11:39:52] (/mnt/dev_nvme0n1p1/programing/core_node)
+pdate all AI rules,Do not perform any Git operations except commits,Do not revert any code ,Claude Code / Cusor ai/ Codex ,AND checks all docs .*.md.Replace the contents of the conflict resolution rules document.C
+
+[2026-06-23 11:41:08] (/mnt/dev_nvme0n1p1/programing/core_node)
+Based on the original repair recored /mnt/dev_nvme0n1p1/programing/core_node/_prompts/Base-Scripts-Repair.txt,reimplement the code exactly as it
+  was,one-to-one,Do not rely on your own conversation history or memory,Instedad,directly restore and fix the code according to the original
+  implementation. Do you add power relation funcs?
+
+[2026-06-23 11:42:06] (/mnt/dev_nvme0n1p1/programing/core_node)
+Do you add power relation funcs?
+

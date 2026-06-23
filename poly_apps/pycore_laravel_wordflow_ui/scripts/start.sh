@@ -50,6 +50,15 @@ LARAVEL_LOG="${LOG_DIR}/laravel_main.start.log"
 PACKAGE_JSON="${APP_ROOT}/package.json"
 NODE_MODULES="${APP_ROOT}/node_modules"
 VITE_BIN="${APP_ROOT}/node_modules/vite/bin/vite.js"
+# This script runs under systemd (no TTY). When pnpm decides the on-disk node_modules
+# format is incompatible with the running pnpm -- e.g. a pnpm major-version change, or a
+# DIFFERENT pnpm binary between install and run (the service may use /usr/local/bin/pnpm
+# while node_modules was created by /opt/.../node/.../bin/pnpm) -- it removes and recreates
+# node_modules, but with no TTY it ABORTS (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY) and
+# exits non-zero, crash-looping the service. Auto-confirm that purge so every pnpm call
+# (install, and the pre-run deps check inside `pnpm exec`) recreates node_modules instead of
+# aborting. pnpm still only purges when it genuinely must; a compatible tree updates in place.
+export npm_config_confirm_modules_purge=false
 DIST_DIR="${APP_ROOT}/dist"
 DIST_INDEX="${APP_ROOT}/dist/index.html"
 # Fixed dashboard dev port (no env files). Matches config/constants.ts
@@ -155,13 +164,13 @@ ensure_node_pnpm() {
 # True when the dev toolchain (vite) is present under node_modules.
 vite_ready() { [ -f "$VITE_BIN" ]; }
 
-# Idempotent dependency install. Policy: if node_modules ALREADY EXISTS, UPDATE it in
-# place -- never remove and reinstall it from scratch. An existing tree is updated with a
-# NON-INTERACTIVE `pnpm install`: pnpm only performs its "the modules directory ... will be
-# removed and reinstalled from scratch" purge when it can prompt, so running with stdin from
-# /dev/null makes pnpm KEEP the existing node_modules (on a pnpm major-version modules-format
-# change it refuses to purge instead of wiping). A from-scratch reinstall happens ONLY when
-# node_modules is missing/empty, or when --force-install is passed explicitly.
+# Idempotent dependency install. Policy: prefer updating node_modules IN PLACE. pnpm only
+# removes-and-recreates node_modules when it considers the on-disk format incompatible with
+# the running pnpm (a pnpm major-version change, or a different pnpm binary between install
+# and run); a compatible tree is just updated. With confirm-modules-purge=false (exported
+# near the top) that recreate runs non-interactively under systemd instead of aborting on
+# no-TTY. A from-scratch reinstall thus happens when node_modules is missing/empty, when pnpm
+# itself requires it, or when --force-install is passed explicitly.
 ensure_deps() {
     if [ ! -f "$PACKAGE_JSON" ]; then err "package.json not found at: $PACKAGE_JSON"; exit 1; fi
     cd "$APP_ROOT" || exit 1
@@ -177,15 +186,14 @@ ensure_deps() {
         if ! pnpm install; then err "pnpm install failed."; exit 1; fi
         fresh_install=1
     else
-        # node_modules EXISTS -> update in place, never wipe (stdin /dev/null => pnpm will not
-        # prompt for nor perform the from-scratch purge; a compatible tree just updates).
-        log "node_modules present -> updating in place (no from-scratch reinstall)..."
-        # confirm-modules-purge=true (default) + non-interactive stdin => pnpm errors instead
-        # of wiping if it considers the tree a breaking change; it never purges unprompted.
-        if pnpm install --config.confirm-modules-purge=true < /dev/null; then
-            log "Dependencies updated in place."
+        # node_modules EXISTS -> update in place. pnpm recreates it only if it deems the
+        # on-disk format incompatible; confirm-modules-purge=false lets that happen
+        # non-interactively here instead of aborting under systemd's no-TTY.
+        log "node_modules present -> updating dependencies (in place when compatible)..."
+        if pnpm install --config.confirm-modules-purge=false; then
+            log "Dependencies ready (updated in place, or recreated as pnpm required)."
         else
-            warn "Kept existing node_modules (pnpm wanted a from-scratch reinstall -- likely a pnpm major-version change)."
+            warn "pnpm install did not complete cleanly; keeping existing node_modules."
             warn "If the dev toolchain is broken below, re-run with --force-install to recreate it."
         fi
     fi

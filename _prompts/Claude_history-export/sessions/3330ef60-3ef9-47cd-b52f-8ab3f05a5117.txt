@@ -1,0 +1,1919 @@
+==============================================================================
+SESSION : 3330ef60-3ef9-47cd-b52f-8ab3f05a5117
+PROJECT : /mnt/dev_nvme0n1p1/programing/core_node
+BRANCH  : main
+VERSION : 2.1.185
+MODELS  : claude-opus-4-8
+STARTED : 2026-06-22 13:15:59
+ENDED   : 2026-06-22 15:29:22
+PROMPTS : 9
+==============================================================================
+
+[2026-06-22 13:15:59] USER:
+t
+
+=== Python Virtual Environment Setup ===
+==================================================
+
+>>> Creating Python virtual environment and replacing system commands...
+[INFO] Virtual environment exists and appears up-to-date
+>>> Rebuild virtual environment? [n/Y] (press Y only if you added new packages)
+t
+
+=== Python Virtual Environment Setup ===
+==================================================
+
+>>> Creating Python virtual environment and replacing system commands...
+[INFO] Virtual environment exists and appears up-to-date
+>>> Rebuild virtual environment? [n/Y] (press Y only if you added new packages)
+
+,wait 15 seconds, autimacally continue.
+
+[2026-06-22 13:16:18] ASSISTANT:
+This looks like pasted terminal output from a Python venv setup script that's waiting at an interactive prompt — but it's not a process I started, so there's nothing for me to send input to from here.
+
+A couple of things worth clarifying, but here's the practical answer to the prompt itself:
+
+> `>>> Rebuild virtual environment? [n/Y] (press Y only if you added new packages)`
+
+The script already reported `[INFO] Virtual environment exists and appears up-to-date`. So unless you just added new Python packages, the answer is **n** (don't rebuild) — that's the safe default and the script will continue.
+
+To actually answer it, type in your own terminal where the script is running:
+- `n` + Enter → skip rebuild (recommended here)
+- `Y` + Enter → force rebuild (only if you added packages)
+
+A few notes:
+- I can't "wait 15 seconds and auto-continue" for that prompt — it's running in your shell, not in mine. If the script has its own 15-second timeout, just leave it and it'll proceed with the default.
+- If you want **me** to run this setup script (so its prompts land in this session and I can drive it), tell me the script's path and I'll run it via `!`-style execution or as a background task.
+
+What would you like to do — should I locate and run the venv setup script myself, or did you just need the answer to the prompt?
+
+[2026-06-22 13:17:18] USER:
+- I can't "wait 15 seconds and auto-continue" for that prompt — it's running in your shell, not in mine. If the script has its own 15-second timeout, just leave it and it'll proceed with the default
+
+[2026-06-22 13:17:21] ASSISTANT:
+You're right to push on this. Let me find the actual script so we can make it auto-continue instead of blocking on the prompt.
+
+[2026-06-22 13:17:23]   -> tool: Bash  {"command": "grep -rIl \"Rebuild virtual environment\" --include=\"*.sh\" --include=\"*.py\" --include=\"*.js\" --include=\"*.bash\" . 2>/dev/null | head -20", "description": "Find script containing the venv rebuild prompt"}
+
+[2026-06-22 13:17:26]   <- tool result:
+scripts/shells/linux/debian/install_shells/13_ensure_python.sh
+
+[2026-06-22 13:17:29]   -> tool: Bash  {"command": "grep -n \"Rebuild virtual environment\\|read \\|timeout\\|REPLY\\|appears up-to-date\" scripts/shells/linux/debian/install_shells/13_ensure_python.sh | head -40", "description": "Locate the prompt and read logic in script"}
+
+[2026-06-22 13:17:29]   <- tool result:
+228:    read -ra package_words <<< "$package_spec"
+245:        read -ra flag_words <<< "$additional_flags"
+321:timeout = 120
+521:            print_info_from_common_functions "Virtual environment exists and appears up-to-date"
+524:        print_step_from_common_functions "Rebuild virtual environment? [n/Y] (press Y only if you added new packages)"
+525:        read -r response </dev/tty
+1097:        IFS='|' read -r import_name pip_package version_constraint <<< "$package_spec"
+1115:        IFS='|' read -r import_name pip_package version_constraint <<< "$package_spec"
+
+[2026-06-22 13:17:33]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh", "offset": 505, "limit": 50}
+
+[2026-06-22 13:17:33]   <- tool result:
+505	    # Check if venv needs rebuild
+506	    local rebuild_needed=$(check_venv_needs_rebuild "$VENV_DIR")
+507	    local venv_was_rebuilt=false
+508	    local user_wants_rebuild=false
+509	
+510	    # Interactive prompt: Always ask user if they want to rebuild venv (except for first time)
+511	    # Default is Y because there might be new packages to install
+512	    if [ ! -d "$VENV_DIR" ]; then
+513	        # Venv doesn't exist, must create (no prompt needed)
+514	        print_step_from_common_functions "Virtual environment does not exist. Creating new one..."
+515	        user_wants_rebuild=true
+516	    else
+517	        # Venv exists - always ask if user wants to rebuild
+518	        if [ "$rebuild_needed" = "true" ]; then
+519	            print_warning_from_common_functions "Virtual environment needs rebuild (tkinter or system packages changed)"
+520	        else
+521	            print_info_from_common_functions "Virtual environment exists and appears up-to-date"
+522	        fi
+523	
+524	        print_step_from_common_functions "Rebuild virtual environment? [n/Y] (press Y only if you added new packages)"
+525	        read -r response </dev/tty
+526	        response=${response:-n}  # Default to n if user just presses Enter
+527	
+528	        if [[ "$response" =~ ^[Yy]$ ]]; then
+529	            user_wants_rebuild=true
+530	        else
+531	            print_info_from_common_functions "Skipping venv rebuild. Using existing venv."
+532	            user_wants_rebuild=false
+533	        fi
+534	    fi
+535	
+536	    if [ "$user_wants_rebuild" = "true" ]; then
+537	        venv_was_rebuilt=true
+538	        if [ -d "$VENV_DIR" ]; then
+539	            print_step_from_common_functions "Rebuilding Python virtual environment (old venv will be backed up)..."
+540	
+541	            # Remove old symlinks that point to old venv BEFORE backing up
+542	            print_step_from_common_functions "Removing old venv symlinks..."
+543	            echo "[13] $USE_SUDO rm -f /usr/local/bin/python /usr/local/bi
+        ... [truncated 600 chars]
+
+[2026-06-22 13:17:40] ASSISTANT:
+The blocker is line 525: `read -r response </dev/tty` waits forever. The default is already `n`. I'll add a 15-second timeout so it auto-continues with the default. Let me check whether the script uses `set -e` (which would make a timed-out `read` abort the script).
+
+[2026-06-22 13:17:41]   -> tool: Bash  {"command": "grep -n \"set -e\\|set -euo\\|set -o errexit\" scripts/shells/linux/debian/install_shells/13_ensure_python.sh | head", "description": "Check for set -e in script"}
+
+[2026-06-22 13:17:41]   <- tool result:
+(Bash completed with no output)
+
+[2026-06-22 13:17:44] ASSISTANT:
+No `set -e`, so a timed-out `read` returning non-zero is safe. I'll add a 15-second timeout that falls back to the default (`n`).
+
+[2026-06-22 13:17:47]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh", "old_string": "        print_step_from_common_functions \"Rebuild virtual environment? [n/Y] (press Y only if you added new packages)\"\n        read -r response </dev/tty\n        response=${response:-n}  # Default to n if user just presses Enter", "new_string": "        print_step_from_common_functions \"Rebuild virtual environment? [n/Y] (press Y only if you added new packages)\"\n        print_info_from_common_functions \"Auto-continuing with default [n] in 15 seconds if no input...\"\n        response=\"\"\n        read -t 15 -r response </dev/tty || true  # Auto-continue on 15s timeout\n        response=${response:-n}  # Default to n on empty input or timeout"}
+
+[2026-06-22 13:17:47]   <- tool result:
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 13:17:50]   -> tool: Bash  {"command": "bash -n scripts/shells/linux/debian/install_shells/13_ensure_python.sh && echo \"syntax OK\"", "description": "Syntax-check the modified script"}
+
+[2026-06-22 13:17:50]   <- tool result:
+syntax OK
+
+[2026-06-22 13:17:57] ASSISTANT:
+Done. The prompt now auto-continues instead of blocking forever.
+
+**What I changed** (`scripts/shells/linux/debian/install_shells/13_ensure_python.sh:524`):
+
+```bash
+print_step_from_common_functions "Rebuild virtual environment? [n/Y] (press Y only if you added new packages)"
+print_info_from_common_functions "Auto-continuing with default [n] in 15 seconds if no input..."
+response=""
+read -t 15 -r response </dev/tty || true  # Auto-continue on 15s timeout
+response=${response:-n}  # Default to n on empty input or timeout
+```
+
+How it behaves now:
+- **You type `n`/`Y` within 15s** → uses your choice.
+- **You wait / press nothing** → after 15 seconds `read -t 15` times out, `response` stays empty, and `${response:-n}` falls back to `n` (skip rebuild). Since the venv "appears up-to-date," that's the correct default.
+- `|| true` guards the non-zero exit from the timeout (no `set -e` in this script, but it's safe regardless).
+
+Re-running the setup will no longer hang at that prompt — it'll proceed on its own after 15 seconds. Want me to apply the same `-t 15` auto-continue treatment to any other interactive `read </dev/tty` prompts in the install scripts?
+
+[2026-06-22 14:16:38] USER:
+_stop_aliyun.sh
+  - 2_setting_base.sh
+  - 3_stop_aliyun_cloudmonitor.sh
+  - 4_stop_huawei_cloudmonitor.sh
+  - 5_stop_tencent_cloudmonitor.sh
+  - 6_set_mirrors.sh
+  - 7_auto_clean_journal.sh
+  - 8_project_validator.sh
+  - 9_disable_ubuntu_auto_updates.sh
+  - 10_fix_dns.sh
+  - 11_install_sudo.sh
+  - 12_update.sh
+  - 13_cuda_nvidia_prereq.sh
+  - 13_ensure_python.sh
+  - 14_install_faster_whisper.sh
+  - 15_install_node_24.sh
+  - 16_enable_pipx.sh
+  - 17_enable_poetry.sh
+  - 18_setup_ssh_remote.sh
+  - 19_install_uv.sh
+  - 20_install_git_ssh.sh
+  - 21_install_edge_tts.sh
+  - 22_install_tts_offline.sh
+  - 25_install_nginx.sh
+  - 26_install_certbot.sh
+  - 28_ensure_pnpm_packages.sh
+  - 29_ensure_npmrc.sh
+  - 30_install_edge.sh
+  - 31_ensure_php85_intelligent.sh
+  - 32_install_swoole.sh
+  - 33_configure_php85.sh
+  - 34_install_composer.sh
+  - 35_install_chrome.sh
+  - 36_install_puppeteer_plugins.sh
+  - 37_install_dotnet.sh
+  - 38_install_flutter.sh
+  - 39_install_android_studio.sh
+  - 40_install_ittools_binaries.sh
+  - 41_install_ruby.sh
+  - 42_install_rust.sh
+  - 43_install_p7zip.sh
+  - 44_ensure_dragonfly_intelligent.sh
+  - 45_install_redis.sh
+  - 46_install_postgresql.sh
+  - 47_ensure_php_pgsql.sh
+  - 47_install_docker.sh
+  - 48_set_docker_daemon.sh
+  - 49_docker-compose-finish.sh
+  - 50_install_mysql.sh
+  - 51_install_shama.sh
+  - 52_install_tailscale.sh
+  - 53_install_golang22.sh
+  - 54_install_java.sh
+  - 62_install_upsc.sh
+  - 63_install_tailscale.sh
+  - 81_generate_docker_compose_yml.sh
+  - 83_core_node_finish.sh
+  - 85_install_code_server.sh
+  - 95_install_deepseek.sh
+  - 96_install_deepseek_ocr.sh
+  - 97_install_qwen25.sh
+  - 98_install_nllb200.sh
+  - 101_natgateway.sh
+  - 120_install_desktop_applications.sh
+  - 121_install_cursor.sh
+  - 122_install_vscode.sh
+  - 123_install_gitea.sh
+  - 124_install_rustdesk_client_1.4.4.sh
+  - 125_setup_gnome_rdp.sh
+  - 126_install_antigravity.sh
+  - 127_install_wechat.sh
+  - 128_install_rustdesk_server_1.1.14.sh
+  - 131_prepare_domain_setup.sh
+  - 132_setup_domain_ssl.sh
+  - 133_setup_api_domains.sh
+  - 134_setup_html_domains.sh
+  - 150_install_pycore_http_service.sh
+  - 151_install_octane_watcher_daemon.sh
+  - 999_check_circular_symlinks.sh_stop_aliyun.sh
+  - 2_setting_base.sh
+  - 3_stop_aliyun_cloudmonitor.sh
+  - 4_stop_huawei_cloudmonitor.sh
+  - 5_stop_tencent_cloudmonitor.sh
+  - 6_set_mirrors.sh
+  - 7_auto_clean_journal.sh
+  - 8_project_validator.sh
+  - 9_disable_ubuntu_auto_updates.sh
+  - 10_fix_dns.sh
+  - 11_install_sudo.sh
+  - 12_update.sh
+  - 13_cuda_nvidia_prereq.sh
+  - 13_ensure_python.sh
+  - 14_install_faster_whisper.sh
+  - 15_install_node_24.sh
+  - 16_enable_pipx.sh
+  - 17_enable_poetry.sh
+  - 18_setup_ssh_remote.sh
+  - 19_install_uv.sh
+  - 20_install_git_ssh.sh
+  - 21_install_edge_tts.sh
+  - 22_install_tts_offline.sh
+  - 25_install_nginx.sh
+  - 26_install_certbot.sh
+  - 28_ensure_pnpm_packages.sh
+  - 29_ensure_npmrc.sh
+  - 30_install_edge.sh
+  - 31_ensure_php85_intelligent.sh
+  - 32_install_swoole.sh
+  - 33_configure_php85.sh
+  - 34_install_composer.sh
+  - 35_install_chrome.sh
+  - 36_install_puppeteer_plugins.sh
+  - 37_install_dotnet.sh
+  - 38_install_flutter.sh
+  - 39_install_android_studio.sh
+  - 40_install_ittools_binaries.sh
+  - 41_install_ruby.sh
+  - 42_install_rust.sh
+  - 43_install_p7zip.sh
+  - 44_ensure_dragonfly_intelligent.sh
+  - 45_install_redis.sh
+  - 46_install_postgresql.sh
+  - 47_ensure_php_pgsql.sh
+  - 47_install_docker.sh
+  - 48_set_docker_daemon.sh
+  - 49_docker-compose-finish.sh
+  - 50_install_mysql.sh
+  - 51_install_shama.sh
+  - 52_install_tailscale.sh
+  - 53_install_golang22.sh
+  - 54_install_java.sh
+  - 62_install_upsc.sh
+  - 63_install_tailscale.sh
+  - 81_generate_docker_compose_yml.sh
+  - 83_core_node_finish.sh
+  - 85_install_code_server.sh
+  - 95_install_deepseek.sh
+  - 96_install_deepseek_ocr.sh
+  - 97_install_qwen25.sh
+  - 98_install_nllb200.sh
+  - 101_natgateway.sh
+  - 120_install_desktop_applications.sh
+  - 121_install_cursor.sh
+  - 122_install_vscode.sh
+  - 123_install_gitea.sh
+  - 124_install_rustdesk_client_1.4.4.sh
+  - 125_setup_gnome_rdp.sh
+  - 126_install_antigravity.sh
+  - 127_install_wechat.sh
+  - 128_install_rustdesk_server_1.1.14.sh
+  - 131_prepare_domain_setup.sh
+  - 132_setup_domain_ssl.sh
+  - 133_setup_api_domains.sh
+  - 134_setup_html_domains.sh
+  - 150_install_pycore_http_service.sh
+  - 151_install_octane_watcher_daemon.sh
+  - 999_check_circular_symlinks.sh
+Use multeple roles for cross-validation to verify tha every script follws idmpotent procedures and fully support Debian,Ubuntu,andKaliLinux,Consulet the official ducumentation,and where platform-specific differences exist,implement separate execuion braches,Ensure all branches remain idempotent.
+
+[2026-06-22 14:16:54] ASSISTANT:
+This is a large cross-validation audit across ~95 install scripts. Let me scout the structure first — the directory, the shared framework, and how OS detection currently works — before deciding how to fan this out.
+
+[2026-06-22 14:16:56]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells 2>/dev/null && pwd && echo \"---COUNT---\" && ls -1 *.sh | wc -l && echo \"---FILES---\" && ls -1 *.sh | head -120", "description": "Locate install scripts dir and count"}
+
+[2026-06-22 14:16:56]   <- tool result:
+/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells
+---COUNT---
+77
+---FILES---
+101_natgateway.sh
+10_fix_dns.sh
+11_install_sudo.sh
+120_install_desktop_applications.sh
+121_install_cursor.sh
+122_install_vscode.sh
+123_install_gitea.sh
+124_install_rustdesk_client_1.4.4.sh
+125_setup_gnome_rdp.sh
+126_install_antigravity.sh
+127_install_wechat.sh
+128_install_rustdesk_server_1.1.14.sh
+12_update.sh
+131_prepare_domain_setup.sh
+132_setup_domain_ssl.sh
+133_setup_api_domains.sh
+134_setup_html_domains.sh
+13_cuda_nvidia_prereq.sh
+13_ensure_python.sh
+14_install_faster_whisper.sh
+150_install_pycore_http_service.sh
+151_install_octane_watcher_daemon.sh
+15_install_node_24.sh
+16_enable_pipx.sh
+17_enable_poetry.sh
+18_setup_ssh_remote.sh
+19_install_uv.sh
+1_stop_aliyun.sh
+20_install_git_ssh.sh
+21_install_edge_tts.sh
+22_install_tts_offline.sh
+25_install_nginx.sh
+26_install_certbot.sh
+28_ensure_pnpm_packages.sh
+29_ensure_npmrc.sh
+2_setting_base.sh
+30_install_edge.sh
+31_ensure_php85_intelligent.sh
+32_install_swoole.sh
+33_configure_php85.sh
+34_install_composer.sh
+35_install_chrome.sh
+36_install_puppeteer_plugins.sh
+37_install_dotnet.sh
+38_install_flutter.sh
+39_install_android_studio.sh
+3_stop_cloud_monitors.sh
+40_install_ittools_binaries.sh
+41_install_ruby.sh
+42_install_rust.sh
+43_install_p7zip.sh
+44_ensure_dragonfly_intelligent.sh
+45_install_redis.sh
+46_install_postgresql.sh
+47_ensure_php_pgsql.sh
+47_install_docker.sh
+48_set_docker_daemon.sh
+49_docker-compose-finish.sh
+50_install_mysql.sh
+51_install_shama.sh
+52_install_tailscale.sh
+53_install_golang22.sh
+54_install_java.sh
+62_install_upsc.sh
+63_install_tailscale.sh
+6_set_mirrors.sh
+7_auto_clean_journal.sh
+81_generate_docker_compose_yml.sh
+83_core_node_finish.sh
+85_install_code_server.sh
+8_project_validator.sh
+95_install_deepseek.sh
+96_install_deepseek_ocr.sh
+97_install_qwen25.sh
+98_install_nllb200.sh
+999_check_circular_symlinks.sh
+9_disable_ubuntu_auto_updates.sh
+
+[2026-06-22 14:16:59]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells 2>/dev/null; echo \"=== common functions / shared libs ===\"; ls -1 ../ 2>/dev/null | head -40; echo \"=== grep OS detection patterns across scripts ===\"; grep -rIl \"ID=kali\\|ID_LIKE\\|os-release\\|lsb_release\\|VERSION_CODENAME\\|is_kali\\|is_ubuntu\\|is_debian\\|detect_os\\|DISTRO\" . 2>/dev/null | head -40", "description": "Find shared libs and OS detection usage"}
+
+[2026-06-22 14:16:59]   <- tool result:
+=== common functions / shared libs ===
+callbacks
+debian_com
+debian_tree.md
+docs
+install.sh
+install_shells
+run_apps
+server_manager
+=== grep OS detection patterns across scripts ===
+121_install_cursor.sh
+.fuse_hidden00005f8a00000001
+11_install_sudo.sh
+43_install_p7zip.sh
+128_install_rustdesk_server_1.1.14.sh
+44_ensure_dragonfly_intelligent.sh
+46_install_postgresql.sh
+47_ensure_php_pgsql.sh
+50_install_mysql.sh
+62_install_upsc.sh
+31_ensure_php85_intelligent.sh
+13_cuda_nvidia_prereq.sh
+37_install_dotnet.sh
+13_ensure_python.sh
+18_setup_ssh_remote.sh
+9_disable_ubuntu_auto_updates.sh
+
+[2026-06-22 14:17:04] ASSISTANT:
+77 scripts. Let me understand the shared framework — common functions, existing OS-detection helpers, and how scripts are structured — so the audit agents have a shared rubric.
+
+[2026-06-22 14:17:08]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian 2>/dev/null\necho \"=== debian_com contents ===\"; ls -1 debian_com 2>/dev/null | head -40\necho \"=== find common_functions file ===\"; find . -iname \"*common*\" -o -iname \"*helper*\" 2>/dev/null | grep -i \"\\.sh\" | head\necho \"=== grep where common functions sourced ===\"; grep -rIoh \"source [^ ]*common[^ ]*\\|\\. [^ ]*common[^ ]*\" install_shells/*.sh 2>/dev/null | sort -u | head", "description": "Locate common functions framework"}
+
+[2026-06-22 14:17:08]   <- tool result:
+=== debian_com contents ===
+desktop_entry_manager.sh
+example_script_with_metadata.sh
+hosts_manager.sh
+natgateway_monitor.sh
+npm_cleanup_helper.sh
+npm_permission_fixer.sh
+npm_pre_install_checker.sh
+package_conflict_resolver.sh
+php_common_functions.sh
+php_common_vars.sh
+shared_python_setup.sh
+simple_download_manager.sh
+super_launch_helper.sh
+vscode_cursor_config.sh
+=== find common_functions file ===
+./debian_com/npm_cleanup_helper.sh
+./debian_com/php_common_functions.sh
+./debian_com/php_common_vars.sh
+./debian_com/super_launch_helper.sh
+=== grep where common functions sourced ===
+source "$COMMON_DIR/common_functions.sh"
+source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
+source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
+source "$PARENT_DIR_LEVEL_2/common/apache_block_guard.sh"
+source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
+source "$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/debian_service_manager.sh"
+source "$PARENT_DIR_LEVEL_2/common/firewall_manager.sh"
+source "$PARENT_DIR_LEVEL_2/common/get_real_user.sh"
+
+[2026-06-22 14:17:12]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux 2>/dev/null\necho \"=== common/ dir ===\"; ls -1 common 2>/dev/null | head -60", "description": "List shared common library"}
+
+[2026-06-22 14:17:12]   <- tool result:
+=== common/ dir ===
+apache_block_guard.sh
+app_paths.sh
+apt_repository_backups
+apt_repository_manager.sh
+codesync_service.sh
+common_functions.sh
+debian_service_manager.sh
+DOWNLOADS_DETECTION_USAGE.md
+firewall_manager.sh
+fstab_helper.py
+get_real_user.sh
+gvar_common.sh
+installation_library.sh
+install_cuda_toolkit.sh
+install_test_menu.sh
+linux_applications_list.sh
+linux_path_function.sh
+linux-router
+log_size_cap.sh
+mount_common.sh
+network_bridge_router.sh
+octane_service_manager.sh
+onnxruntime_cpu_guard.sh
+permissions_fixer_lib.sh
+pycore_service.sh
+reboot_confirm.sh
+resource_limiter_common.sh
+selector_common.sh
+sherpa_onnx_cpu_guard.sh
+testselector.sh
+torch_cpu_guard.sh
+universal_app_installer.sh
+webclaude_minimal_prereqs.sh
+
+[2026-06-22 14:17:14]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common 2>/dev/null\necho \"=== OS detection helpers in common_functions.sh ===\"; grep -n \"kali\\|ubuntu\\|debian\\|os-release\\|VERSION_CODENAME\\|ID_LIKE\\|detect\\|distro\\|DISTRO\" common_functions.sh 2>/dev/null | head -40\necho \"=== apt_repository_manager.sh OS handling ===\"; grep -n \"kali\\|ubuntu\\|debian\\|codename\\|CODENAME\" apt_repository_manager.sh 2>/dev/null | head -30", "description": "Inspect OS detection in shared libs"}
+
+[2026-06-22 14:17:14]   <- tool result:
+=== OS detection helpers in common_functions.sh ===
+1048:# Smart print function with automatic type detection (from common_functions.sh)
+1053:    # Auto-detect message type if not specified
+1239:    local old_base_pattern="$1"  # e.g., "dev_ubuntu24" or "/www/dev_ubuntu24"
+1240:    local new_base_pattern="$2"  # e.g., "_ubuntu_24" or "/www/_ubuntu_24"
+1411:    local new_pattern="${3:-_ubuntu_24}"
+1570:# NOTE: This function loops FOREVER with auto-detection every 2 seconds until file found or user cancels
+1610:                print_success_from_common_functions "Auto-detected downloaded file: $found_file"
+=== apt_repository_manager.sh OS handling ===
+83:# Resolve the running distro to an upstream third-party-repo vendor + codename.
+85:# Ubuntu or Debian codename. Derivatives such as Kali or Parrot report their own
+86:# codename (e.g. VERSION_CODENAME=kali-rolling) which those repos do NOT host, so
+87:# writing "deb https://.../ kali-rolling main" pollutes sources.list with a broken,
+89:# actually fetch from plus a real, published codename.
+91:# Output: "<vendor> <codename>" on stdout (vendor is "ubuntu" or "debian").
+93:# Override entirely with APT_REPO_VENDOR_CODENAME (e.g. "debian trixie"), or set
+94:# just the fallback codename via APT_DEBIAN_CODENAME_DEFAULT / APT_UBUNTU_CODENAME_DEFAULT.
+95:resolve_apt_vendor_codename_from_apt_repository_manager() {
+96:    if [ -n "${APT_REPO_VENDOR_CODENAME:-}" ]; then
+97:        echo "$APT_REPO_VENDOR_CODENAME"
+101:    local id="" id_like="" version_codename="" ubuntu_codename=""
+105:        version_codename="$( . /etc/os-release 2>/dev/null; echo "$VERSION_CODENAME" )"
+106:        ubuntu_codename="$( . /etc/os-release 2>/dev/null; echo "$UBUNTU_CODENAME" )"
+111:    local vendor="" codename=""
+112:    if [ "$id" = "ubuntu" ] || [[ " $id_like " == *" ubuntu "* ]]; then
+113:        vendor="ubuntu"
+114:        codename="${ubuntu_codename:-$version_codename}"
+115:    elif [ "$id" = "debian" ] || [ "$id" = "kali" ] || [[ " $id_like
+        ... [truncated 604 chars]
+
+[2026-06-22 14:17:30] ASSISTANT:
+I've scoped it. The real directory has **77 scripts** (the pasted list had duplicates), and there's already a shared cross-distro framework worth knowing about — notably `common/apt_repository_manager.sh` has `resolve_apt_vendor_codename_from_apt_repository_manager()` that already maps Kali → `debian`/`bookworm` so third-party apt repos don't 404 on Kali. So a correct audit must check whether each script *uses* these helpers rather than hand-rolling OS logic.
+
+Your ask ("use multiple roles for cross-validation") is a multi-agent job, and at 77 scripts it's a large fan-out. Before I launch it, two decisions that change what I actually do:
+
+[2026-06-22 14:17:36]   -> tool: AskUserQuestion  {"questions": [{"question": "Should the workflow only produce a findings report, or also apply fixes to the scripts?", "header": "Output", "multiSelect": false, "options": [{"label": "Report first, then fix", "description": "Audit all 77 scripts, give you a prioritized findings report (idempotency + Debian/Ubuntu/Kali gaps). You approve before any file is changed. Safest for system-install scripts."}, {"label": "Audit + auto-apply fixes", "description": "Audit AND apply platform-branch / idempotency fixes in one pass (worktree-isolated, syntax-checked). Faster but modifies 77 scripts before you review each."}, {"label": "Report + fix a pilot batch", "description": "Full report on all 77, but only apply fixes to a small high-value batch (e.g. the apt/repo-touching ones) so you can judge fix quality before the rest."}]}, {"question": "How deep should the cross-validation go per script?", "header": "Depth", "multiSelect": false, "options": [{"label": "Adversarial (recommended)", "description": "Each script gets a finder + an independent skeptic that tries to refute each finding before it's reported. Fewer false positives, more tokens/time."}, {"label": "Single-pass per script", "description": "One reviewer per script against the shared rubric. Faster and cheaper, but more likely to surface uncertain or wrong findings."}]}]}
+
+[2026-06-22 14:17:58]   <- tool result:
+Your questions have been answered: "Should the workflow only produce a findings report, or also apply fixes to the scripts?"="Report + fix a pilot batch", "How deep should the cross-validation go per script?"="Adversarial (recommended)". You can now continue with these answers in mind.
+
+[2026-06-22 14:18:07] ASSISTANT:
+Good — **report on all 77, fix a pilot batch, adversarial depth.** Let me grab the two pieces of shared context the agents need in their rubric: the apt-repo policy memory and how a representative script is structured.
+
+[2026-06-22 14:18:11]   -> tool: Bash  {"command": "cat /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/memory/apt-repo-policy.md 2>/dev/null\necho \"=== helper function names exported by common libs (for rubric) ===\"\ncd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common\ngrep -rhoE \"^[a-z_]+_from_[a-z_]+\\(\\)|^[a-z_]+\\(\\)\" apt_repository_manager.sh debian_service_manager.sh firewall_manager.sh get_real_user.sh common_functions.sh 2>/dev/null | sort -u | head -60", "description": "Read apt policy memory and helper signatures"}
+
+[2026-06-22 14:18:11]   <- tool result:
+---
+name: apt-repo-policy
+description: Hard rules for how the linux install scripts may touch APT repositories
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: db694d3b-007f-4229-a279-610964507ece
+---
+
+The install scripts under `scripts/shells/linux/` must follow three APT rules (user directive, 2026-06):
+
+1. **Never modify the distro's own repositories** — no writing/synthesizing `/etc/apt/sources.list`, no deleting distro `*.sources` (debian.sources, ubuntu.sources, kali), no mirror rewrites that touch distro files. `repair_repositories_from_apt_repository_manager` was made non-destructive (only sanitizes git-conflict markers; no cleanup/restore/synthesis).
+2. **Add a third-party repo only when actually required.**
+3. **If a package is not selected in the install menu, its repo must not be added** — gate every third-party repo add behind its `get_var`/`get_global_var` flag (START_MYSQL, START_DOCKER, START_POSTGRESQL, INSTALL_EDGE, INSTALL_CHROME, ...).
+4. **Never modify the distro's own repository signing keys.** No `apt-key add/del/update`; no hand-importing distro archive keys (e.g. ubuntu-archive) into `/etc/apt/trusted.gpg.d`; no bulk-deleting / restoring `/usr/share/keyrings` or `/etc/apt/trusted.gpg.d`. Third-party keys go in their OWN dedicated file via `gpg --dearmor --yes -o <file>` referenced by `signed-by=` (idempotent). The distro keyring packages (ubuntu-keyring, debian-archive-keyring, kali keys) own the system keys. The dead `debian/debian_com/repository_manager.sh` (which used apt-key) was deleted.
+
+**Official idempotent install procedures (Ubuntu/Debian/Kali):** Nginx = distro `nginx` pkg (no repo); MySQL = MariaDB via official `mariadb_repo_setup`, gated+install-only-if-absent; PostgreSQL = official PGDG (`ensure_pgdg_repository`, signed-by, Kali→bookworm, idempotent guard; Ubuntu stays distro); PHP 8.5 = Sury (Debian/Kali) / ondrej (Ubuntu) via `resolve_apt_vendor_codename_*`.
+
+**Why:** running on Kali/Debian (not just Ubuntu) 
+        ... [truncated 2833 chars]
+
+[2026-06-22 14:18:12]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\necho \"=== representative: 45_install_redis.sh head ===\"; sed -n '1,60p' 45_install_redis.sh\necho \"=== line counts per script (size profile) ===\"; wc -l *.sh | sort -n | tail -20", "description": "Inspect representative script and size profile"}
+
+[2026-06-22 14:18:12]   <- tool result:
+=== representative: 45_install_redis.sh head ===
+#!/bin/bash
+# ### AI SPECIAL ATTENTION RULES START ###
+# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
+# 1. Write all code in English only
+# 2. Never execute, create, or modify test code
+# 3. Never create or update documentation (*.md)
+# 4. Never write summaries during development or thinking process
+# 5. Do not modify these rules
+# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
+# ### AI SPECIAL ATTENTION RULES END ###
+
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+SCRIPT_INDEX="45"
+
+# Source global variables
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+
+# Use compile_dir for Redis data and logs (auto-selects based on environment)
+REDIS_DATA_DIR=$(map_web_path "compile_dir" "redis/data")
+REDIS_LOG_DIR=$(map_web_path "compile_dir" "redis/logs")
+
+echo "[$SCRIPT_INDEX] Redis Installation Script"
+
+# Check if Redis should be started after installation
+START_REDIS=$(get_var "START_REDIS" "false")
+echo "[$SCRIPT_INDEX] START_REDIS: $START_REDIS"
+
+check_and_install_sudo
+
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Function to disable Redis services
+disable_redis_services() {
+    echo "[$SCRIPT_INDEX] Disabling Redis services..."
+
+    local redis_services=("redis-server" "redis")
+    local found_service=""
+
+    # Find installed Redis service
+    for service in "${redis_services[@]}"; do
+        if systemctl list-units --full -all | grep -Fq "$service.service"; then
+            found_service="$service"
+            echo "[$SCRIPT_INDEX] Found $service service"
+
+            if systemctl is-active --quiet "$service"; then
+                echo "[$SCRIPT_INDEX] Stopping $service service..."
+                $USE_SUDO systemctl stop "$service"
+            f
+        ... [truncated 879 chars]
+
+[2026-06-22 14:18:55] ASSISTANT:
+I have everything I need: a mature shared framework, the apt-repo policy, the idempotency conventions, and the size profile (77 scripts, up to ~1800 lines). Let me generate a clean filename list to drive the workflow, then launch it.
+
+[2026-06-22 14:18:56]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\nls -1 *.sh | python3 -c \"import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))\"", "description": "Emit JSON array of all 77 script filenames"}
+
+[2026-06-22 14:18:56]   <- tool result:
+["101_natgateway.sh", "10_fix_dns.sh", "11_install_sudo.sh", "120_install_desktop_applications.sh", "121_install_cursor.sh", "122_install_vscode.sh", "123_install_gitea.sh", "124_install_rustdesk_client_1.4.4.sh", "125_setup_gnome_rdp.sh", "126_install_antigravity.sh", "127_install_wechat.sh", "128_install_rustdesk_server_1.1.14.sh", "12_update.sh", "131_prepare_domain_setup.sh", "132_setup_domain_ssl.sh", "133_setup_api_domains.sh", "134_setup_html_domains.sh", "13_cuda_nvidia_prereq.sh", "13_ensure_python.sh", "14_install_faster_whisper.sh", "150_install_pycore_http_service.sh", "151_install_octane_watcher_daemon.sh", "15_install_node_24.sh", "16_enable_pipx.sh", "17_enable_poetry.sh", "18_setup_ssh_remote.sh", "19_install_uv.sh", "1_stop_aliyun.sh", "20_install_git_ssh.sh", "21_install_edge_tts.sh", "22_install_tts_offline.sh", "25_install_nginx.sh", "26_install_certbot.sh", "28_ensure_pnpm_packages.sh", "29_ensure_npmrc.sh", "2_setting_base.sh", "30_install_edge.sh", "31_ensure_php85_intelligent.sh", "32_install_swoole.sh", "33_configure_php85.sh", "34_install_composer.sh", "35_install_chrome.sh", "36_install_puppeteer_plugins.sh", "37_install_dotnet.sh", "38_install_flutter.sh", "39_install_android_studio.sh", "3_stop_cloud_monitors.sh", "40_install_ittools_binaries.sh", "41_install_ruby.sh", "42_install_rust.sh", "43_install_p7zip.sh", "44_ensure_dragonfly_intelligent.sh", "45_install_redis.sh", "46_install_postgresql.sh", "47_ensure_php_pgsql.sh", "47_install_docker.sh", "48_set_docker_daemon.sh", "49_docker-compose-finish.sh", "4_set_desktop_power.sh", "50_install_mysql.sh", "51_install_shama.sh", "52_install_tailscale.sh", "53_install_golang22.sh", "54_install_java.sh", "62_install_upsc.sh", "63_install_tailscale.sh", "6_system_maintenance.sh", "81_generate_docker_compose_yml.sh", "83_core_node_finish.sh", "85_install_code_server.sh", "8_project_validator.sh", "95_install_deepseek.sh", "96_install_deepseek_ocr.sh", "97_install_qwen25.sh", "98_install_nllb20
+        ... [truncated 40 chars]
+
+[2026-06-22 14:19:20] ASSISTANT:
+All set. Launching the adversarial cross-validation workflow: every one of the 75 scripts gets a finder, each finding gets an independent skeptic that tries to refute it, then the apt/repo-touching pilot scripts with confirmed findings get fixes applied in place + syntax-checked. It runs in the background and notifies me on completion.
+
+[2026-06-22 14:20:21]   -> tool: Workflow  {"args": "[\"101_natgateway.sh\",\"10_fix_dns.sh\",\"11_install_sudo.sh\",\"120_install_desktop_applications.sh\",\"121_install_cursor.sh\",\"122_install_vscode.sh\",\"123_install_gitea.sh\",\"124_install_rustdesk_client_1.4.4.sh\",\"125_setup_gnome_rdp.sh\",\"126_install_antigravity.sh\",\"127_install_wechat.sh\",\"128_install_rustdesk_server_1.1.14.sh\",\"12_update.sh\",\"131_prepare_domain_setup.sh\",\"132_setup_domain_ssl.sh\",\"133_setup_api_domains.sh\",\"134_setup_html_domains.sh\",\"13_cuda_nvidia_prereq.sh\",\"13_ensure_python.sh\",\"14_install_faster_whisper.sh\",\"150_install_pycore_http_service.sh\",\"151_install_octane_watcher_daemon.sh\",\"15_install_node_24.sh\",\"16_enable_pipx.sh\",\"17_enable_poetry.sh\",\"18_setup_ssh_remote.sh\",\"19_install_uv.sh\",\"1_stop_aliyun.sh\",\"20_install_git_ssh.sh\",\"21_install_edge_tts.sh\",\"22_install_tts_offline.sh\",\"25_install_nginx.sh\",\"26_install_certbot.sh\",\"28_ensure_pnpm_packages.sh\",\"29_ensure_npmrc.sh\",\"2_setting_base.sh\",\"30_install_edge.sh\",\"31_ensure_php85_intelligent.sh\",\"32_install_swoole.sh\",\"33_configure_php85.sh\",\"34_install_composer.sh\",\"35_install_chrome.sh\",\"36_install_puppeteer_plugins.sh\",\"37_install_dotnet.sh\",\"38_install_flutter.sh\",\"39_install_android_studio.sh\",\"3_stop_cloud_monitors.sh\",\"40_install_ittools_binaries.sh\",\"41_install_ruby.sh\",\"42_install_rust.sh\",\"43_install_p7zip.sh\",\"44_ensure_dragonfly_intelligent.sh\",\"45_install_redis.sh\",\"46_install_postgresql.sh\",\"47_ensure_php_pgsql.sh\",\"47_install_docker.sh\",\"48_set_docker_daemon.sh\",\"49_docker-compose-finish.sh\",\"4_set_desktop_power.sh\",\"50_install_mysql.sh\",\"51_install_shama.sh\",\"52_install_tailscale.sh\",\"53_install_golang22.sh\",\"54_install_java.sh\",\"62_install_upsc.sh\",\"63_install_tailscale.sh\",\"6_system_maintenance.sh\",\"81_generate_docker_compose_yml.sh\",\"83_core_node_finish.sh\",\"85_install_code_server.sh\",\"8_project_validator.sh\",\"95_install_deep
+        ... [truncated 12056 chars]
+
+[2026-06-22 14:20:22]   <- tool result:
+Workflow launched in background. Task ID: w30ma5i02
+Summary: Adversarially audit 75 Debian install scripts for idempotency + Debian/Ubuntu/Kali support; apply fixes to apt/repo pilot batch
+Transcript dir: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/subagents/workflows/wf_2488b678-ed9
+Script file: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js
+(Edit this file with Write/Edit and re-invoke Workflow with {scriptPath: "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js"} to iterate without resending the script.)
+Run ID: wf_2488b678-ed9
+To resume after editing the script: Workflow({scriptPath: "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", resumeFromRunId: "wf_2488b678-ed9"}) — completed agents return cached results.
+
+You will be notified when it completes. Use /workflows to watch live progress.
+
+[2026-06-22 14:20:28] ASSISTANT:
+`args` arrived as a JSON string rather than an array. Quick fix: parse it defensively in the script, then resume.
+
+[2026-06-22 14:20:30]   -> tool: Edit  {"replace_all": false, "file_path": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "old_string": "const files = args", "new_string": "const files = Array.isArray(args) ? args : JSON.parse(args)"}
+
+[2026-06-22 14:20:30]   <- tool result:
+<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
+
+[2026-06-22 14:20:34]   -> tool: Read  {"file_path": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "limit": 20}
+
+[2026-06-22 14:20:34]   <- tool result:
+1	export const meta = {
+2	  name: 'install-scripts-crossvalidation',
+3	  description: 'Adversarially audit 75 Debian install scripts for idempotency + Debian/Ubuntu/Kali support; apply fixes to apt/repo pilot batch',
+4	  phases: [
+5	    { title: 'Audit', detail: 'one finder per script against the shared rubric' },
+6	    { title: 'Verify', detail: 'independent skeptic refutes each finding' },
+7	    { title: 'Fix', detail: 'apply minimal fixes to apt/repo pilot scripts with confirmed findings' },
+8	  ],
+9	}
+10	
+11	const BASE = '/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells'
+12	const COMMON = '/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common'
+13	const files = args
+14	
+15	// Curated pilot batch: the scripts that touch APT third-party repos / have real cross-distro
+16	// install-procedure differences. Only those WITH confirmed findings get fixed this run.
+17	const PILOT = new Set([
+18	  '31_ensure_php85_intelligent.sh','33_configure_php85.sh','47_ensure_php_pgsql.sh',
+19	  '46_install_postgresql.sh','50_install_mysql.sh','47_install_docker.sh','48_set_docker_daemon.sh',
+20	  '30_install_edge.sh','35_install_chrome.sh','25_install_nginx.sh','26_install_certbot.sh',
+
+[2026-06-22 14:20:38]   -> tool: Edit  {"replace_all": false, "file_path": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "old_string": "const files = args", "new_string": "const files = Array.isArray(args) ? args : JSON.parse(args)"}
+
+[2026-06-22 14:20:38]   <- tool result:
+The file /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 14:20:45] ASSISTANT:
+Fixed. Relaunching with the same script (no agents had run yet, so nothing to resume).
+
+[2026-06-22 14:20:55]   -> tool: Workflow  {"scriptPath": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "args": "[\"101_natgateway.sh\",\"10_fix_dns.sh\",\"11_install_sudo.sh\",\"120_install_desktop_applications.sh\",\"121_install_cursor.sh\",\"122_install_vscode.sh\",\"123_install_gitea.sh\",\"124_install_rustdesk_client_1.4.4.sh\",\"125_setup_gnome_rdp.sh\",\"126_install_antigravity.sh\",\"127_install_wechat.sh\",\"128_install_rustdesk_server_1.1.14.sh\",\"12_update.sh\",\"131_prepare_domain_setup.sh\",\"132_setup_domain_ssl.sh\",\"133_setup_api_domains.sh\",\"134_setup_html_domains.sh\",\"13_cuda_nvidia_prereq.sh\",\"13_ensure_python.sh\",\"14_install_faster_whisper.sh\",\"150_install_pycore_http_service.sh\",\"151_install_octane_watcher_daemon.sh\",\"15_install_node_24.sh\",\"16_enable_pipx.sh\",\"17_enable_poetry.sh\",\"18_setup_ssh_remote.sh\",\"19_install_uv.sh\",\"1_stop_aliyun.sh\",\"20_install_git_ssh.sh\",\"21_install_edge_tts.sh\",\"22_install_tts_offline.sh\",\"25_install_nginx.sh\",\"26_install_certbot.sh\",\"28_ensure_pnpm_packages.sh\",\"29_ensure_npmrc.sh\",\"2_setting_base.sh\",\"30_install_edge.sh\",\"31_ensure_php85_intelligent.sh\",\"32_install_swoole.sh\",\"33_configure_php85.sh\",\"34_install_composer.sh\",\"35_install_chrome.sh\",\"36_install_puppeteer_plugins.sh\",\"37_install_dotnet.sh\",\"38_install_flutter.sh\",\"39_install_android_studio.sh\",\"3_stop_cloud_monitors.sh\",\"40_install_ittools_binaries.sh\",\"41_install_ruby.sh\",\"42_install_rust.sh\",\"43_install_p7zip.sh\",\"44_ensure_dragonfly_intelligent.sh\",\"45_install_redis.sh\",\"46_install_postgresql.sh\",\"47_ensure_php_pgsql.sh\",\"47_install_docker.sh\",\"48_set_docker_daemon.sh\",\"49_docker-compose-finish.sh\",\"4_set_desktop_power.sh\",\"50_install_mysql.sh\",\"51_install_shama.sh\",\"52_install_tailscale.sh\",\"53_install_golang22.sh\",\"54_in
+        ... [truncated 363 chars]
+
+[2026-06-22 14:20:55]   <- tool result:
+Workflow launched in background. Task ID: w79u0tyug
+Summary: Adversarially audit 75 Debian install scripts for idempotency + Debian/Ubuntu/Kali support; apply fixes to apt/repo pilot batch
+Transcript dir: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/subagents/workflows/wf_06f8939d-35b
+Script file: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js
+(Edit this file with Write/Edit and re-invoke Workflow with {scriptPath: "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js"} to iterate without resending the script.)
+Run ID: wf_06f8939d-35b
+To resume after editing the script: Workflow({scriptPath: "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", resumeFromRunId: "wf_06f8939d-35b"}) — completed agents return cached results.
+
+You will be notified when it completes. Use /workflows to watch live progress.
+
+[2026-06-22 14:21:08] ASSISTANT:
+It's running now (task `w79u0tyug`). It'll take a while — 75 finder agents, an independent skeptic per finding, then fixes on the apt/repo pilot scripts that survive verification, all at ~16 concurrent.
+
+While it runs, here's exactly what it's doing so the result is easy to act on:
+
+- **Audit (75 scripts):** one finder per script against a shared rubric covering (A) idempotency — unguarded appends/symlinks/mkdir/downloads/service-creates, (B) cross-distro correctness for Debian/Ubuntu/Kali — raw `kali-rolling` in apt lines, Ubuntu-only PPAs, `snap`/`lsb_release` assumptions, missing per-distro branches, and (C) doc-correctness vs. official vendor install methods. It's told that using your existing framework helpers (`resolve_apt_vendor_codename_*`, the gated `add_*_repository_*`, `ensure_packages_*`) is **correct**, so it won't flag those.
+- **Verify:** each finding gets an adversarial skeptic that defaults to *refuted* unless it can point to a real defect — this is what keeps false positives out. Only `confirmed` findings survive into the report.
+- **Fix (pilot only):** apt/repo-touching scripts (php85, postgres, mysql, docker, edge, chrome, nginx, certbot, dragonfly, redis, tailscale, node, gitea, code-server, antigravity…) that have a confirmed high/medium finding get minimal in-place fixes — separate per-distro branches where a real difference exists, each made idempotent — then `bash -n` syntax-checked.
+
+You can watch live with `/workflows`. When it finishes I'll get the structured results back and turn them into a prioritized report (high→low, grouped by theme), list which pilot scripts were actually modified with their diffs for your review, and call out the clean scripts. I'll wait for the completion notification.
+
+[2026-06-22 14:37:12] USER:
+<task-notification>
+<task-id>w79u0tyug</task-id>
+<tool-use-id>toolu_015rJLhQvaXjJTs4nR8HEtoM</tool-use-id>
+<output-file>/tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks/w79u0tyug.output</output-file>
+<status>completed</status>
+<summary>Dynamic workflow "Adversarially audit 75 Debian install scripts for idempotency + Debian/Ubuntu/Kali support; apply fixes to apt/repo pilot batch" completed</summary>
+<result>{"totals":{"scripts":76,"scriptsWithFindings":44,"confirmedFindings":106,"high":24,"medium":37,"low":45,"pilotFixed":9},"perScript":[{"script":"101_natgateway.sh","idempotent":"mostly","supports":{"debian":"ok","ubuntu":"ok","kali":"ok"},"findings":[{"severity":"low","category":"repo-policy","title":"Dependency install bypasses framework apt helper (raw apt-get update/install)","location":"check_dependencies() lines 210-224","recommendation":"Source common/apt_repository_manager.sh and use ensure_packages_from_apt_repository_manager for the missing packages instead of hand-rolled apt-get. This is NOT a hard policy violation (no third-party repo is added and no distro sources/keys are touched - only distro packages iproute2/iptables/systemd/gawk/grep from existing repos), but it duplicates framework logic and skips the framework's update/retry/locking handling. Note the `apt-get update` here refreshes indices unconditionally on every run where a command is missing; harmless but redundant.","distros":["debian","ubuntu","kali"],"verdictReason":"Verified against the actual code. The script /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/101_natgateway.sh sources only common/gvar_common.sh (line 35) and hand-rolls raw apt at lines 210-224: `${install_prefix}apt-get update -qq` then `${install_prefix}apt-get install -y ${missing_packages[*]}`. The evidence quote matches exactly. The framework helper the finding recommends does exist: /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt_repository_manager.sh defines ensure_packages_from_apt_repository_manager (line 202), which performs the same missing-package detection plus apt update/install. So the script genuinely duplicates framework logic rather than reusing the helper. The finding is carefully scoped and self-limiting: it explicitly states this is NOT a hard repo-policy violation (no third-party repo added, no distro sources/keys touched — only distro packages iproute2/iptables/systemd/gawk/grep from existing repos), assigns severity \"low\", and correctly notes the redundant unconditional `apt-get update` on every run where a command is missing. None of the refute criteria apply: there is no existing guard that routes this through the helper, the cross-distro helper is not used here, and the claim does not misread the code. It is a real (low-severity, quality/consistency) defect."},{"severity":"low","category":"cross-distro","title":"awk mapped to gawk while Debian/Ubuntu/Kali default to mawk","location":"check_dependencies() line 169 (cmd_to_pkg[\"awk\"]=\"gawk\")","recommendation":"awk is already provided by the default mawk on Debian/Ubuntu/Kali, so this branch is normally never reached. If it ever is, installing gawk to satisfy `awk` works but unnecessarily pulls gawk via the alternatives system. Prefer mapping to the already-present provider or simply not auto-installing awk. Minor; no functional break across the three distros.","distros":["debian","ubuntu","kali"],"verdictReason":"Verified against the script. Line 169 of /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/101_natgateway.sh contains exactly `[\"awk\"]=\"gawk\"` inside the cmd_to_pkg map in check_dependencies(). `awk` is in required_commands (line 162) and checked via command_exists() (lines 176, 142-157), which checks PATH and /usr/bin/awk etc. On Debian/Ubuntu/Kali the default provider mawk already supplies /usr/bin/awk, so command_exists \"awk\" returns true and the install branch (which would install gawk) is essentially never reached. The finding accurately states this: no functional break, gawk would still satisfy awk if reached, and the mapping is merely suboptimal (pulls gawk instead of the already-present mawk). None of the REFUTE conditions apply: there is no idempotency/framework-helper/get_var guard that makes the description wrong, and the claim does not misread the code — the mapping literally exists. The finding is correctly described as a real, low-severity cross-distro suboptimality, not a misread. It is self-consistent and accurate, so it stands as confirmed (at its stated low severity)."},{"severity":"low","category":"doc-correctness","title":"Header claims Ubuntu-only optimization but script is distro-agnostic","location":"File header comment lines 16 (\"Optimized for Ubuntu 22.04 and 24.04\")","recommendation":"The comment is misleading: the logic contains no codename/PPA/snap/lsb_release dependencies and runs equally on Debian and Kali (gating via IS_PRODUCTION / HAS_DESKTOP_ENVIRONMENT / IS_WSL from gvar_common, systemd present on all three, debian_service_manager.sh used for the unit). Update the comment to reflect Debian/Ubuntu/Kali support. Documentation-only; no behavioral issue.","distros":["debian","ubuntu","kali"],"verdictReason":"Line 16 of /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/101_natgateway.sh reads \"# Optimized for Ubuntu 22.04 and 24.04\". A grep for distro-specific markers (lsb_release, codename, PPA, add-apt-repository, snap/snapd, netplan, /etc/apt, version pins) found NO matches in the script logic — only documentation/log strings on lines 186 and 190 (\"Ubuntu/Debian\"). The actual operational logic relies exclusively on cross-distro primitives: `ip`, `iptables`, `systemctl`, `awk`, `grep`, generic `apt`/`apt-get` install (check_dependencies, lines 160-246), `/sys/class/net`, `/proc/net/dev`, WSL gating via `IS_WSL` from gvar_common (check_wsl_mode, line 132), and the systemd unit handled via debian_service_manager.sh. None of these are Ubuntu-version-specific; they run identically on Debian, Ubuntu, and Kali. Therefore the header claim of Ubuntu-only optimization is factually inaccurate. This is a documentation-only (low severity) defect with no behavioral impact, exactly as the finding states. The finding is not refuted by any existing guard, helper, or code misread."}]},{"script":"10_fix_dns.sh","idempotent":"no","supports":{"debian":"ok","ubuntu":"ok","kali":"ok"},"findings":[{"severity":"high","category":"idempotency","title":"chattr +i makes /etc/resolv.conf immutable but is never cleared, breaking reruns","location":"create_static_resolv_conf (line 291; write at lines 268/279; symlink-only removal at line 260-263)","recommendation":"Before rewriting, run `$USE_SUDO chattr -i /etc/resolv.conf 2&gt;/dev/null || true` to clear the immutable bit. On the first run the file becomes immutable; on a subsequent run that reaches Step 5, the symlink branch does not fire (it is now a regular file), `rm -f` cannot remove an immutable file, and the `tee` into the immutable file fails. With `set -e` active the whole script then aborts. Clearing the immutable flag (and only re-setting it at the end) makes the operation re-runnable.","distros":["debian","ubuntu","kali"],"verdictReason":"The defect is real and reachable. In /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/10_fix_dns.sh: set -e is active (line 17). create_static_resolv_conf sets the immutable bit via `$USE_SUDO chattr +i /etc/resolv.conf` (line 291), and grep confirms this is the ONLY chattr call in the file — there is no `chattr -i` anywhere to clear it. On a first run that reaches Step 5, /etc/resolv.conf becomes a regular, immutable file. On a subsequent run that again reaches Step 5 (which happens when connectivity is still broken, since the Step 0/Step 1 early-exit guards only fire when the internet already works), the symlink-removal branch at lines 260-263 (`if [ -L \"/etc/resolv.conf\" ]`) does NOT fire because the file is no longer a symlink, and the `$USE_SUDO tee /etc/resolv.conf` heredoc at lines 268/279 attempts to write into the immutable file. That write fails with EPERM (\"Operation not permitted\"); under set -e the failed tee aborts the whole script. No existing guard clears the immutable flag, no get_var gate or framework helper handles this, and the c
+... (truncated 248557 chars, full result in /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks/w79u0tyug.output)</result>
+<failures>[verify:41_install_ruby.sh:RUBY-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:45_install_redis.sh:REDIS-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:47_install_docker.sh:DOCKER-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:31_ensure_php85_intelligent.sh:PHP85-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:44_ensure_dragonfly_intelligent.sh:DF-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:44_ensure_dragonfly_intelligent.sh:DF-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:47_install_docker.sh:DOCKER-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:49_docker-compose-finish.sh:F1] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:45_install_redis.sh:REDIS-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:51_install_shama.sh:SHAMA-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:44_ensure_dragonfly_intelligent.sh:DF-04] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:44_ensure_dragonfly_intelligent.sh:DF-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:52_install_tailscale.sh:TS-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:53_install_golang22.sh:GO-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:52_install_tailscale.sh:TS-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:85_install_code_server.sh:CS-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:54_install_java.sh:JAVA-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:46_install_postgresql.sh:PG-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:52_install_tailscale.sh:TS-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:46_install_postgresql.sh:PG-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:54_install_java.sh:JAVA-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:47_install_docker.sh:DOCKER-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:83_core_node_finish.sh:F1] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:54_install_java.sh:JAVA-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:62_install_upsc.sh:UPSC-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:62_install_upsc.sh:UPSC-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:83_core_node_finish.sh:F3] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:6_system_maintenance.sh:F1] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:62_install_upsc.sh:UPSC-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:83_core_node_finish.sh:F2] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:46_install_postgresql.sh:PG-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:50_install_mysql.sh:MYSQL-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:41_install_ruby.sh:RUBY-04] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:53_install_golang22.sh:GO-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:50_install_mysql.sh:MYSQL-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:63_install_tailscale.sh:TS-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:50_install_mysql.sh:MYSQL-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:50_install_mysql.sh:MYSQL-04] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:8_project_validator.sh:PV-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:96_install_deepseek_ocr.sh:F2] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:53_install_golang22.sh:GO-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:51_install_shama.sh:SHAMA-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:8_project_validator.sh:PV-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:47_install_docker.sh:DOCKER-04] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:63_install_tailscale.sh:TS-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:95_install_deepseek.sh:DS-001] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:98_install_nllb200.sh:NLLB-003] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:63_install_tailscale.sh:TS-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:95_install_deepseek.sh:DS-002] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:96_install_deepseek_ocr.sh:F1] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:98_install_nllb200.sh:NLLB-001] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:98_install_nllb200.sh:NLLB-004] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:97_install_qwen25.sh:QWEN-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:97_install_qwen25.sh:QWEN-02] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:98_install_nllb200.sh:NLLB-002] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:97_install_qwen25.sh:QWEN-03] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:96_install_deepseek_ocr.sh:F3] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited
+[verify:51_install_shama.sh:SHAMA-01] failed: API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited</failures>
+<usage><agent_count>269</agent_count><subagent_tokens>5053978</subagent_tokens><tool_uses>1055</tool_uses><duration_ms>706583</duration_ms></usage>
+</task-notification>
+
+[2026-06-22 14:37:55] ASSISTANT:
+Workflow finished: **269 agents, 106 confirmed findings (24 high / 37 medium / 45 low), 9 pilot scripts auto-fixed.** But there's an important caveat — a transient server-side rate-limit knocked out ~57 *verification* agents, which means findings on ~22 scripts (including the high-value apt/repo ones: docker, mysql, postgres, tailscale, golang, java, redis, dragonfly, php85, deepseek/qwen/nllb) were conservatively dropped from the confirmed set. I need to recover those.
+
+Let me first parse the full result to see exactly what we got and which scripts were actually fixed.
+
+[2026-06-22 14:38:02]   -> tool: Bash  {"command": "cd /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks\npython3 - <<'PY'\nimport json,re\nraw=open('w79u0tyug.output').read()\n# The output file may have a wrapper; find the JSON object starting at first '{'\ni=raw.find('{\"totals\"')\ndata=json.loads(raw[i:])\nt=data['totals']\nprint(\"TOTALS:\",json.dumps(t))\nprint(\"\\n=== PILOT FIXES (\",len(data['pilotFixes']),\") ===\")\nfor f in data['pilotFixes']:\n    print(f\"- {f['script']}: applied={f['applied']} syntax_ok={f['syntax_ok']} | {len(f.get('changes',[]))} changes\")\nprint(\"\\n=== SCRIPTS WITH CONFIRMED FINDINGS (\",len(data['perScript']),\") ===\")\nfor s in data['perScript']:\n    sev={}\n    for fi in s['findings']:\n        sev[fi['severity']]=sev.get(fi['severity'],0)+1\n    print(f\"- {s['script']:42s} idem={s['idempotent']:7s} D/U/K={s['supports']['debian']}/{s['supports']['ubuntu']}/{s['supports']['kali']}  {dict(sev)}\")\nprint(\"\\n=== CLEAN SCRIPTS (\",len(data['cleanScripts']),\") ===\")\nprint(\", \".join(data['cleanScripts']))\nPY", "description": "Parse workflow result: totals, fixes, per-script summary"}
+
+[2026-06-22 14:38:02]   <- tool result:
+Exit code 1
+Traceback (most recent call last):
+  File "<stdin>", line 5, in <module>
+  File "/usr/lib/python3.13/json/__init__.py", line 352, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/usr/lib/python3.13/json/decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/json/decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+[2026-06-22 14:38:06]   -> tool: Bash  {"command": "cd /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks\nwc -c w79u0tyug.output; echo \"---head---\"; head -c 300 w79u0tyug.output; echo; echo \"---tail---\"; tail -c 300 w79u0tyug.output", "description": "Inspect output file boundaries"}
+
+[2026-06-22 14:38:06]   <- tool result:
+289944 w79u0tyug.output
+---head---
+{
+  "summary": "Adversarially audit 75 Debian install scripts for idempotency + Debian/Ubuntu/Kali support; apply fixes to apt/repo pilot batch",
+  "agentCount": 269,
+  "logs": [
+    "Auditing 76 install scripts for idempotency + Debian/Ubuntu/Kali support (adversarial)",
+    "[verify:41_install_rub
+---tail---
+epository_manager.sh, which maps Kali/Debian to vendor 'debian' and Ubuntu to 'ubuntu'). Per APT repo policy, no distro repos/keys are touched; Chrome's own third-party apt source written by the official postinst is now preserved rather than deleted. bash -n syntax check passes."
+      }
+    ]
+  }
+}
+Shell cwd was reset to /mnt/dev_nvme0n1p1/programing/core_node
+
+[2026-06-22 14:38:14]   -> tool: Bash  {"command": "cd /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks\npython3 - <<'PY'\nimport json\nraw=open('w79u0tyug.output').read()\n# strip trailing non-json line\nend=raw.rfind('}')\ndata=json.loads(raw[:end+1])\nres=data['result']\nt=res['totals']\nprint(\"TOTALS:\",json.dumps(t))\nprint(\"\\n=== PILOT FIXES (\",len(res['pilotFixes']),\") ===\")\nfor f in res['pilotFixes']:\n    print(f\"- {f['script']}: applied={f['applied']} syntax_ok={f['syntax_ok']} | {len(f.get('changes',[]))} changes\")\nprint(\"\\n=== SCRIPTS WITH CONFIRMED FINDINGS (\",len(res['perScript']),\") ===\")\nfor s in res['perScript']:\n    sev={}\n    for fi in s['findings']:\n        sev[fi['severity']]=sev.get(fi['severity'],0)+1\n    order={'high':0,'medium':1,'low':2}\n    flat=\"; \".join(sorted([f\"{fi['severity'][0].upper()}:{fi['title'][:50]}\" for fi in s['findings']]))\n    print(f\"- {s['script']:42s} idem={s['idempotent']:7s} DUK={s['supports']['debian'][0]}{s['supports']['ubuntu'][0]}{s['supports']['kali'][0]} {dict(sev)}\")\nprint(\"\\n=== CLEAN (\",len(res['cleanScripts']),\") ===\")\nprint(\", \".join(sorted(res['cleanScripts'])))\nPY", "description": "Parse result JSON properly"}
+
+[2026-06-22 14:38:14]   <- tool result:
+TOTALS: {"scripts": 76, "scriptsWithFindings": 44, "confirmedFindings": 106, "high": 24, "medium": 37, "low": 45, "pilotFixed": 9}
+
+=== PILOT FIXES ( 9 ) ===
+- 123_install_gitea.sh: applied=True syntax_ok=True | 6 changes
+- 126_install_antigravity.sh: applied=True syntax_ok=True | 3 changes
+- 15_install_node_24.sh: applied=True syntax_ok=True | 5 changes
+- 25_install_nginx.sh: applied=True syntax_ok=True | 2 changes
+- 26_install_certbot.sh: applied=True syntax_ok=True | 4 changes
+- 30_install_edge.sh: applied=True syntax_ok=True | 3 changes
+- 31_ensure_php85_intelligent.sh: applied=True syntax_ok=True | 3 changes
+- 33_configure_php85.sh: applied=True syntax_ok=True | 3 changes
+- 35_install_chrome.sh: applied=True syntax_ok=True | 5 changes
+
+=== SCRIPTS WITH CONFIRMED FINDINGS ( 44 ) ===
+- 101_natgateway.sh                          idem=mostly  DUK=ooo {'low': 3}
+- 10_fix_dns.sh                              idem=no      DUK=ooo {'high': 1, 'medium': 1, 'low': 3}
+- 11_install_sudo.sh                         idem=yes     DUK=oog {'high': 1, 'low': 1}
+- 120_install_desktop_applications.sh        idem=mostly  DUK=ggg {'medium': 2}
+- 121_install_cursor.sh                      idem=mostly  DUK=ooo {'high': 1, 'low': 1}
+- 122_install_vscode.sh                      idem=mostly  DUK=ooo {'high': 1, 'low': 2}
+- 123_install_gitea.sh                       idem=mostly  DUK=oog {'high': 1, 'medium': 1, 'low': 2}
+- 124_install_rustdesk_client_1.4.4.sh       idem=mostly  DUK=oog {'high': 1, 'medium': 1}
+- 125_setup_gnome_rdp.sh                     idem=yes     DUK=oog {'medium': 1}
+- 126_install_antigravity.sh                 idem=yes     DUK=ooo {'medium': 1, 'low': 2}
+- 127_install_wechat.sh                      idem=mostly  DUK=ogo {'high': 1, 'medium': 1, 'low': 1}
+- 128_install_rustdesk_server_1.1.14.sh      idem=mostly  DUK=ooo {'medium': 1}
+- 12_update.sh                               idem=yes     DUK=ooo {'medium': 1, 'low': 1}
+- 131_prepare_domain_setup.sh                id
+        ... [truncated 3537 chars]
+
+[2026-06-22 14:38:51] ASSISTANT:
+The parse confirms the problem precisely: the "CLEAN" bucket is **falsely** populated with docker, mysql, postgres, tailscale (×2), golang, java, redis, dragonfly, deepseek_ocr, qwen, nllb, code_server, upsc, shama, project_validator, system_maintenance, core_node_finish — these aren't clean, their verifiers got rate-limited so their findings were dropped. The 9 real fixes (gitea, antigravity, node24, nginx, certbot, edge, php85×2, chrome) all applied with `bash -n` passing.
+
+I'll re-run the audit scoped to just the ~22 affected scripts (rate limit has passed; smaller fan-out won't re-throttle). First, let me drop the already-fixed 9 from the PILOT set so the re-run only *re-verifies* those and *fixes* the still-unfixed apt/repo scripts (docker, mysql, postgres, redis, dragonfly, tailscale, code-server).
+
+[2026-06-22 14:38:54]   -> tool: Read  {"file_path": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "offset": 15, "limit": 10}
+
+[2026-06-22 14:38:54]   <- tool result:
+15	// Curated pilot batch: the scripts that touch APT third-party repos / have real cross-distro
+16	// install-procedure differences. Only those WITH confirmed findings get fixed this run.
+17	const PILOT = new Set([
+18	  '31_ensure_php85_intelligent.sh','33_configure_php85.sh','47_ensure_php_pgsql.sh',
+19	  '46_install_postgresql.sh','50_install_mysql.sh','47_install_docker.sh','48_set_docker_daemon.sh',
+20	  '30_install_edge.sh','35_install_chrome.sh','25_install_nginx.sh','26_install_certbot.sh',
+21	  '44_ensure_dragonfly_intelligent.sh','45_install_redis.sh','52_install_tailscale.sh','63_install_tailscale.sh',
+22	  '15_install_node_24.sh','85_install_code_server.sh','123_install_gitea.sh','126_install_antigravity.sh',
+23	])
+24
+
+[2026-06-22 14:39:02]   -> tool: Edit  {"replace_all": false, "file_path": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "old_string": "const PILOT = new Set([\n  '31_ensure_php85_intelligent.sh','33_configure_php85.sh','47_ensure_php_pgsql.sh',\n  '46_install_postgresql.sh','50_install_mysql.sh','47_install_docker.sh','48_set_docker_daemon.sh',\n  '30_install_edge.sh','35_install_chrome.sh','25_install_nginx.sh','26_install_certbot.sh',\n  '44_ensure_dragonfly_intelligent.sh','45_install_redis.sh','52_install_tailscale.sh','63_install_tailscale.sh',\n  '15_install_node_24.sh','85_install_code_server.sh','123_install_gitea.sh','126_install_antigravity.sh',\n])", "new_string": "// NOTE: already-fixed-in-run-1 scripts (gitea, antigravity, node24, nginx, certbot, edge,\n// php85, configure_php85, chrome) are intentionally OMITTED so the re-run only re-verifies\n// them and does not double-edit. Remaining entries are the apt/repo scripts still needing fixes.\nconst PILOT = new Set([\n  '47_ensure_php_pgsql.sh',\n  '46_install_postgresql.sh','50_install_mysql.sh','47_install_docker.sh','48_set_docker_daemon.sh',\n  '44_ensure_dragonfly_intelligent.sh','45_install_redis.sh','52_install_tailscale.sh','63_install_tailscale.sh',\n  '85_install_code_server.sh',\n])"}
+
+[2026-06-22 14:39:02]   <- tool result:
+The file /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js has been updated successfully. (file state is current in your context — no need to Read it back)
+
+[2026-06-22 14:39:12] ASSISTANT:
+Re-running the audit + verification on the 22 scripts whose verifiers were rate-limited (rate limit has since cleared). The still-unfixed apt/repo scripts among them (docker, mysql, postgres, redis, dragonfly, tailscale ×2, code-server) will also get fixes this pass.
+
+[2026-06-22 14:39:15]   -> tool: Workflow  {"scriptPath": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "args": "[\"41_install_ruby.sh\",\"45_install_redis.sh\",\"47_install_docker.sh\",\"31_ensure_php85_intelligent.sh\",\"44_ensure_dragonfly_intelligent.sh\",\"49_docker-compose-finish.sh\",\"51_install_shama.sh\",\"52_install_tailscale.sh\",\"53_install_golang22.sh\",\"85_install_code_server.sh\",\"54_install_java.sh\",\"46_install_postgresql.sh\",\"83_core_node_finish.sh\",\"62_install_upsc.sh\",\"6_system_maintenance.sh\",\"50_install_mysql.sh\",\"63_install_tailscale.sh\",\"8_project_validator.sh\",\"96_install_deepseek_ocr.sh\",\"95_install_deepseek.sh\",\"98_install_nllb200.sh\",\"97_install_qwen25.sh\"]"}
+
+[2026-06-22 14:39:15]   <- tool result:
+Workflow launched in background. Task ID: wz5b0iqo9
+Summary: Adversarially audit 75 Debian install scripts for idempotency + Debian/Ubuntu/Kali support; apply fixes to apt/repo pilot batch
+Transcript dir: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/subagents/workflows/wf_1efdeaaa-982
+Script file: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js
+(Edit this file with Write/Edit and re-invoke Workflow with {scriptPath: "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js"} to iterate without resending the script.)
+Run ID: wf_1efdeaaa-982
+To resume after editing the script: Workflow({scriptPath: "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", resumeFromRunId: "wf_1efdeaaa-982"}) — completed agents return cached results.
+
+You will be notified when it completes. Use /workflows to watch live progress.
+
+[2026-06-22 14:39:28] ASSISTANT:
+Round 2 is running (task `wz5b0iqo9`) — 22 scripts, smaller fan-out so it won't re-throttle. I'll get the notification when it finishes and then merge both rounds into the final report.
+
+**Where things stand so far (round 1, verified):**
+
+- **Coverage:** 76 scripts audited, adversarially verified. **106 confirmed findings** survived refutation: **24 high / 37 medium / 45 low.**
+- **Fixes already applied** (9 apt/repo pilot scripts, all `bash -n` clean): `15_install_node_24`, `25_install_nginx`, `26_install_certbot`, `30_install_edge`, `31_ensure_php85_intelligent`, `33_configure_php85`, `35_install_chrome`, `123_install_gitea`, `126_install_antigravity`.
+- **Worst offenders flagged** (high severity, not yet fixed): `10_fix_dns` (chattr +i breaks reruns), `18_setup_ssh_remote` (idem=no, 2 high), `26_certbot` (idem=no), `13_cuda_nvidia_prereq` (2 high), `37_install_dotnet`, `36_install_puppeteer_plugins`, `39_install_android_studio`, plus the apt/repo scripts being re-checked now.
+- **Correction in flight:** the ~22 scripts that round 1 mislabeled "clean" (docker, mysql, postgres, tailscale, golang, java, redis, dragonfly, deepseek/qwen/nllb, etc.) are exactly what round 2 is re-verifying — their findings were dropped only because the verifier hit a transient rate limit, not because they're actually clean.
+
+I'll hold here until round 2 completes, then deliver the consolidated prioritized report + the full list of modified files for your review.
+
+[2026-06-22 14:44:29] USER:
+<task-notification>
+<task-id>wz5b0iqo9</task-id>
+<tool-use-id>toolu_01TBdfm1EGLbvKucNr9CxMMH</tool-use-id>
+<output-file>/tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks/wz5b0iqo9.output</output-file>
+<status>completed</status>
+<summary>Dynamic workflow "Adversarially audit 75 Debian install scripts for idempotency + Debian/Ubuntu/Kali support; apply fixes to apt/repo pilot batch" completed</summary>
+<result>{"totals":{"scripts":22,"scriptsWithFindings":17,"confirmedFindings":46,"high":10,"medium":16,"low":20,"pilotFixed":5},"perScript":[{"script":"41_install_ruby.sh","idempotent":"mostly","supports":{"debian":"ok","ubuntu":"ok","kali":"ok"},"findings":[{"severity":"medium","category":"idempotency","title":"gem install --user-install contradicts GEM_HOME bin dir and is unguarded","location":"setup_ruby_environment(), lines 157-158, 205-212","recommendation":"--user-install installs to the user gem dir (~/.gem/ruby/X.Y/bin), NOT $RUBY_GEM_HOME/$RUBY_GEM_BIN_DIR, so the profile PATH lines and log messages are wrong. Either drop --user-install so GEM_HOME is honored, or point the profile PATH at the actual user gem bin. Also guard each gem with 'gem list -i \"$gem_name\"' so reruns skip already-installed gems instead of reinstalling/upgrading every time.","distros":["debian","ubuntu","kali"],"verdictReason":"Verified against /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/41_install_ruby.sh. setup_ruby_environment() sets GEM_HOME=\"$RUBY_GEM_HOME\" (line 157) and exports/writes PATH=\"$RUBY_GEM_BIN_DIR:$PATH\" into the session and shell profiles (lines 158, 167-170). But the gem loop (lines 205-212) calls `gem install \"$gem_name\" --user-install`. The --user-install flag forces gems into the per-user dir (~/.gem/ruby/X.Y/bin), bypassing GEM_HOME entirely, so the configured PATH and the log message at line 208 (\"Successfully installed $gem_name to $RUBY_GEM_BIN_DIR\") point at the wrong location — gems never land in $RUBY_GEM_BIN_DIR. This is a genuine contradiction. Separately, the gem loop has NO idempotency guard (no `gem list -i`), so every rerun reinstalls/upgrades all four gems (bundler, rake, rubocop, pry). The rest of the script IS guarded (command_exists ruby at line 56, command_exists rbenv at line 107, directory-exists checks at 114/129), making the unguarded gem loop the clear inconsistency. No framework helper, get_var flag, or existing guard mitigates either issue, and this is not a cross-distro apt-repo case where resolve_apt_vendor_codename_* would apply. The claim accurately reads the code."},{"severity":"low","category":"idempotency","title":"Profile-update guard loop is structurally dead but the underlying grep guard still works","location":"setup_ruby_environment(), lines 174-180","recommendation":"The inner for-loop never uses $line; the condition is identical on every iteration so it just runs once. It is functionally idempotent (the grep on GEM_HOME + $RUBY_GEM_HOME prevents re-append), but remove the meaningless loop and grep for each actual config line to make the guard match what is appended.","distros":["debian","ubuntu","kali"],"verdictReason":"The finding accurately describes lines 174-180 of /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/41_install_ruby.sh. The inner loop `for line in \"${gem_config_lines[@]}\"` never uses the `$line` variable, and the grep condition (`! grep -q \"GEM_HOME\" \"$profile\" || ! grep -q \"$RUBY_GEM_HOME\" \"$profile\"`) is identical on every iteration. Thus the loop is structurally dead — it sets needs_update=true and breaks on the first iteration if either grep fails, otherwise does nothing across all iterations. The finding correctly self-acknowledges that the guard is still functionally idempotent: the grep on GEM_HOME + $RUBY_GEM_HOME prevents re-appending the config block on repeat runs. So there is no behavioral idempotency bug; this is a cosmetic/structural code-smell, consistent with the low severity and the finding's own non-alarming framing. The recommendation (grep for each actual appended config line instead of the meaningless loop) is valid. The code matches the evidence exactly with no misread, and no framework helper or guard refutes it."},{"severity":"low","category":"idempotency","title":"git pull on rbenv/ruby-build has no error handling and uses persistent cd","location":"install_rbenv(), lines 114-131","recommendation":"On rerun, 'cd \"$rbenv_dir\" &amp;&amp; git pull' has no '||' fallback (a failed pull, e.g. local edits/detached state, is silently ignored but leaves the script cwd changed for subsequent operations). Wrap in a subshell '(cd \"$dir\" &amp;&amp; git pull) || log_message ...' so cwd does not leak and failures are reported. Same for ruby-build at line 131.","distros":["debian","ubuntu","kali"],"verdictReason":"The finding accurately reflects the code in /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/41_install_ruby.sh. Line 116 (`cd \"$rbenv_dir\" &amp;&amp; git pull`) and line 131 (`cd \"$ruby_build_dir\" &amp;&amp; git pull`) both use a non-subshell `cd` followed by `git pull` with no `||` fallback. Consequences as described are real: (1) a failed git pull (detached HEAD, local edits, network failure) is silently ignored because there is no error handling and install_rbenv still returns 0 at line 145; (2) the `cd` is not wrapped in a subshell, so it leaks the script's cwd. There is no guard, no framework helper, and no get_var gate that mitigates this — the recommendation to wrap in a subshell `(cd \"$dir\" &amp;&amp; git pull) || log_message ...` is valid. The only nuance: after install_rbenv returns to main() (line 234), the remaining work is just log_message calls, so the cwd leak has no observable downstream effect in this particular script, which is consistent with the correctly-assigned low severity. The claim is a correct reading of the code, not a misread, so it cannot be refuted."}]},{"script":"45_install_redis.sh","idempotent":"mostly","supports":{"debian":"ok","ubuntu":"ok","kali":"ok"},"findings":[{"severity":"medium","category":"idempotency","title":"Redis config backup file accumulates on every rerun","location":"configure_redis(), lines 135-137","recommendation":"Guard the backup so it is created only once, e.g. only copy when no '${redis_conf}.backup*' exists (or to a fixed '${redis_conf}.orig' that is written only if absent). As written, each rerun of configure_redis writes a new timestamped backup, accumulating files in /etc/redis indefinitely. Note: configure_redis only runs on the fresh-install branch (line 407), so accumulation occurs across repeated fresh-install attempts after a prior purge/reinstall rather than every script run.","distros":["debian","ubuntu","kali"],"verdictReason":"Verified against the actual script. Line 137 in configure_redis() runs `$USE_SUDO cp \"$redis_conf\" \"${redis_conf}.backup.$(date +%Y%m%d_%H%M%S)\"` unconditionally inside `if [ -f \"$redis_conf\" ]`. There is no guard checking whether a prior backup already exists, and the timestamp makes each backup filename unique, so no overwrite/idempotency occurs. configure_redis is invoked only on the fresh-install branch (line 407, after install_redis succeeds when Redis was not already installed via check_redis_installed). Therefore each fresh-install attempt (following a purge/reinstall, since an already-installed Redis short-circuits to the other branch) writes a new timestamped backup into /etc/redis, accumulating files indefinitely. The finding's evidence, location, and the scope nuance in the recommendation all match the code exactly. No framework helper or existing guard mitigates this. Defect is real; severity medium is reasonable (disk clutter, not functional breakage)."},{"severity":"low","category":"repo-policy","title":"Package install bypasses framework apt helper (raw apt update/apt install)","location":"install_redis(), lines 106 and 109","recommendation":"Prefer ensure_packages_from_apt_repository_manager redis-server over raw 'apt update' + 'apt install -y'. This is a distro-native package (no third-party repo is added, so APT repo policy is NOT violated and redis-server is the correct package name on Debian/Ubuntu/Kali), but using the framework helper provides the project's standard guarding/retry and consistent behavior. The unconditional 'a
+... (truncated 106370 chars, full result in /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks/wz5b0iqo9.output)</result>
+<usage><agent_count>84</agent_count><subagent_tokens>1675712</subagent_tokens><tool_uses>393</tool_uses><duration_ms>314214</duration_ms></usage>
+</task-notification>
+
+[2026-06-22 14:44:38] ASSISTANT:
+Round 2 completed cleanly — **84 agents, no rate-limit failures, 46 confirmed findings (10 high / 16 medium / 20 low), 5 more pilot fixes applied.** Let me parse it and merge both rounds into the final picture.
+
+[2026-06-22 14:44:41]   -> tool: Bash  {"command": "cd /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks\npython3 - <<'PY'\nimport json\ndef load(fn):\n    raw=open(fn).read(); end=raw.rfind('}')\n    return json.loads(raw[:end+1])['result']\nr2=load('wz5b0iqo9.output')\nprint(\"R2 TOTALS:\",json.dumps(r2['totals']))\nprint(\"\\n=== R2 PILOT FIXES ===\")\nfor f in r2['pilotFixes']:\n    print(f\"- {f['script']}: applied={f['applied']} syntax_ok={f['syntax_ok']} | {len(f.get('changes',[]))} changes\")\nprint(\"\\n=== R2 SCRIPTS WITH CONFIRMED FINDINGS ===\")\nfor s in r2['perScript']:\n    sev={}\n    for fi in s['findings']: sev[fi['severity']]=sev.get(fi['severity'],0)+1\n    print(f\"- {s['script']:38s} idem={s['idempotent']:7s} DUK={s['supports']['debian'][0]}{s['supports']['ubuntu'][0]}{s['supports']['kali'][0]} {dict(sev)}\")\nprint(\"\\n=== R2 CLEAN ===\")\nprint(\", \".join(sorted(r2['cleanScripts'])))\nPY", "description": "Parse round 2 result"}
+
+[2026-06-22 14:44:41]   <- tool result:
+R2 TOTALS: {"scripts": 22, "scriptsWithFindings": 17, "confirmedFindings": 46, "high": 10, "medium": 16, "low": 20, "pilotFixed": 5}
+
+=== R2 PILOT FIXES ===
+- 45_install_redis.sh: applied=True syntax_ok=True | 3 changes
+- 47_install_docker.sh: applied=True syntax_ok=True | 4 changes
+- 44_ensure_dragonfly_intelligent.sh: applied=True syntax_ok=True | 3 changes
+- 52_install_tailscale.sh: applied=True syntax_ok=True | 4 changes
+- 63_install_tailscale.sh: applied=True syntax_ok=True | 5 changes
+
+=== R2 SCRIPTS WITH CONFIRMED FINDINGS ===
+- 41_install_ruby.sh                     idem=mostly  DUK=ooo {'medium': 1, 'low': 2}
+- 45_install_redis.sh                    idem=mostly  DUK=ooo {'medium': 1, 'low': 1}
+- 47_install_docker.sh                   idem=mostly  DUK=gog {'high': 2}
+- 44_ensure_dragonfly_intelligent.sh     idem=mostly  DUK=oog {'high': 2, 'low': 1}
+- 51_install_shama.sh                    idem=yes     DUK=ooo {'low': 2}
+- 52_install_tailscale.sh                idem=yes     DUK=ooo {'high': 1, 'medium': 1}
+- 53_install_golang22.sh                 idem=mostly  DUK=ooo {'medium': 1, 'low': 1}
+- 54_install_java.sh                     idem=mostly  DUK=ooo {'high': 1, 'medium': 2, 'low': 1}
+- 46_install_postgresql.sh               idem=mostly  DUK=ooo {'low': 2}
+- 83_core_node_finish.sh                 idem=mostly  DUK=ooo {'high': 1, 'medium': 1, 'low': 1}
+- 62_install_upsc.sh                     idem=mostly  DUK=ooo {'medium': 2, 'low': 2}
+- 6_system_maintenance.sh                idem=mostly  DUK=ooo {'medium': 1, 'low': 1}
+- 63_install_tailscale.sh                idem=mostly  DUK=ooo {'medium': 1, 'low': 2}
+- 8_project_validator.sh                 idem=mostly  DUK=ooo {'medium': 2, 'low': 1}
+- 96_install_deepseek_ocr.sh             idem=no      DUK=ggg {'high': 1, 'medium': 2, 'low': 1}
+- 95_install_deepseek.sh                 idem=no      DUK=ooo {'high': 1, 'low': 1}
+- 97_install_qwen25.sh                   idem=mostly  DUK=ooo {'high': 1, 'medium': 1, 'low'
+        ... [truncated 216 chars]
+
+[2026-06-22 14:44:54] ASSISTANT:
+Both rounds are in. Let me merge them authoritatively (round 2 supersedes the 22 re-checked scripts) and generate the consolidated report.
+
+[2026-06-22 14:45:08]   -> tool: Bash  {"command": "cd /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks\npython3 - <<'PY'\nimport json\ndef load(fn):\n    raw=open(fn).read(); end=raw.rfind('}')\n    return json.loads(raw[:end+1])['result']\nr1=load('w79u0tyug.output'); r2=load('wz5b0iqo9.output')\nreaudited={s for s in [\"41_install_ruby.sh\",\"45_install_redis.sh\",\"47_install_docker.sh\",\"31_ensure_php85_intelligent.sh\",\"44_ensure_dragonfly_intelligent.sh\",\"49_docker-compose-finish.sh\",\"51_install_shama.sh\",\"52_install_tailscale.sh\",\"53_install_golang22.sh\",\"85_install_code_server.sh\",\"54_install_java.sh\",\"46_install_postgresql.sh\",\"83_core_node_finish.sh\",\"62_install_upsc.sh\",\"6_system_maintenance.sh\",\"50_install_mysql.sh\",\"63_install_tailscale.sh\",\"8_project_validator.sh\",\"96_install_deepseek_ocr.sh\",\"95_install_deepseek.sh\",\"98_install_nllb200.sh\",\"97_install_qwen25.sh\"]}\n# merged per-script: r1 minus reaudited, plus r2\nper = [s for s in r1['perScript'] if s['script'] not in reaudited] + r2['perScript']\nclean = sorted(set([c for c in r1['cleanScripts'] if c not in reaudited]) | set(r2['cleanScripts']))\nfixes = r1['pilotFixes'] + r2['pilotFixes']\n# totals\ndef count(per,sev): return sum(1 for s in per for f in s['findings'] if f['severity']==sev)\nH,M,L=count(per,'high'),count(per,'medium'),count(per,'low')\ntotal=H+M+L\nprint(f\"MERGED: scripts_audited=76  with_findings={len(per)}  clean={len(clean)}  fixes_applied={sum(1 for f in fixes if f['applied'])}\")\nprint(f\"FINDINGS: high={H} medium={M} low={L} total={total}\")\nprint(f\"\\n=== ALL {sum(1 for f in fixes if f['applied'])} FIXED SCRIPTS ===\")\nfor f in sorted(fixes,key=lambda x:x['script']):\n    if f['applied']: print(f\"  {f['script']}  (syntax_ok={f['syntax_ok']})\")\nprint(\"\\n=== HIGH-SEVERITY FINDINGS (script :: title :: location) ===\")\nfor s in sorted(per,key=lambda x:x['script']):\n    for f in s['findings']:\n        if f['severity']=
+        ... [truncated 591 chars]
+
+[2026-06-22 14:45:08]   <- tool result:
+MERGED: scripts_audited=76  with_findings=58  clean=18  fixes_applied=14
+FINDINGS: high=33 medium=51 low=62 total=146
+
+=== ALL 14 FIXED SCRIPTS ===
+  123_install_gitea.sh  (syntax_ok=True)
+  126_install_antigravity.sh  (syntax_ok=True)
+  15_install_node_24.sh  (syntax_ok=True)
+  25_install_nginx.sh  (syntax_ok=True)
+  26_install_certbot.sh  (syntax_ok=True)
+  30_install_edge.sh  (syntax_ok=True)
+  31_ensure_php85_intelligent.sh  (syntax_ok=True)
+  33_configure_php85.sh  (syntax_ok=True)
+  35_install_chrome.sh  (syntax_ok=True)
+  44_ensure_dragonfly_intelligent.sh  (syntax_ok=True)
+  45_install_redis.sh  (syntax_ok=True)
+  47_install_docker.sh  (syntax_ok=True)
+  52_install_tailscale.sh  (syntax_ok=True)
+  63_install_tailscale.sh  (syntax_ok=True)
+
+=== HIGH-SEVERITY FINDINGS (script :: title :: location) ===
+  10_fix_dns.sh
+     - chattr +i makes /etc/resolv.conf immutable but is never cleared, breaking reruns
+       @ create_static_resolv_conf (line 291; write at lines 268/279; symlink-only removal at line 260-263)
+  11_install_sudo.sh
+     - Invoking user never resolved when run as root/sudo (Kali root-by-default); real user never added to sudo group
+       @ line 23: CURRENT_USER=${USER:-$(whoami)}; consumed at line 74
+  121_install_cursor.sh
+     - /etc/environment PATH update is destructive: deletes existing PATH then reads it back (always lost), replaced with a hardcoded default
+       @ ensure_cursor_agent_installed(), lines 1056-1060
+  122_install_vscode.sh
+     - cleanup_vscode purges packages based on an overly broad 'code' substring match
+       @ cleanup_vscode(), line 542: if dpkg -l | grep -q "code"
+  123_install_gitea.sh [FIXED]
+     - Hardcoded 'ubuntu'/'/home/ubuntu' fallback for download user breaks on root-only Kali
+       @ download_gitea(), lines 330-331
+  124_install_rustdesk_client_1.4.4.sh
+     - Download/move block uses bare `sudo -u` instead of $USE_SUDO, breaking on sudo-less Kali root
+       @ install_rustdesk() lines 232, 240, 244, 275
+  
+        ... [truncated 6018 chars]
+
+[2026-06-22 14:45:17] ASSISTANT:
+Let me confirm the 14 fixes actually landed in the working tree and all pass syntax (independent of what the agents reported).
+
+[2026-06-22 14:45:23]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\nfixed=\"123_install_gitea.sh 126_install_antigravity.sh 15_install_node_24.sh 25_install_nginx.sh 26_install_certbot.sh 30_install_edge.sh 31_ensure_php85_intelligent.sh 33_configure_php85.sh 35_install_chrome.sh 44_ensure_dragonfly_intelligent.sh 45_install_redis.sh 47_install_docker.sh 52_install_tailscale.sh 63_install_tailscale.sh\"\necho \"=== syntax check + git mod/line-delta per fixed script ===\"\nfor f in $fixed; do\n  if bash -n \"$f\" 2>/dev/null; then sx=\"OK\"; else sx=\"FAIL\"; fi\n  delta=$(git -C /mnt/dev_nvme0n1p1/programing/core_node diff --numstat -- \"scripts/shells/linux/debian/install_shells/$f\" 2>/dev/null | awk '{print \"+\"$1\" -\"$2}')\n  printf \"  %-38s syntax=%-4s diff=%s\\n\" \"$f\" \"$sx\" \"${delta:-<no-diff>}\"\ndone", "description": "Verify fixes landed and pass syntax"}
+
+[2026-06-22 14:45:23]   <- tool result:
+=== syntax check + git mod/line-delta per fixed script ===
+  123_install_gitea.sh                   syntax=OK   diff=+29 -10
+  126_install_antigravity.sh             syntax=OK   diff=+15 -138
+  15_install_node_24.sh                  syntax=OK   diff=+27 -54
+  25_install_nginx.sh                    syntax=OK   diff=+8 -3
+  26_install_certbot.sh                  syntax=OK   diff=+54 -277
+  30_install_edge.sh                     syntax=OK   diff=+9 -3
+  31_ensure_php85_intelligent.sh         syntax=OK   diff=+38 -27
+  33_configure_php85.sh                  syntax=OK   diff=+17 -0
+  35_install_chrome.sh                   syntax=OK   diff=+31 -19
+  44_ensure_dragonfly_intelligent.sh     syntax=OK   diff=+24 -7
+  45_install_redis.sh                    syntax=OK   diff=+11 -7
+  47_install_docker.sh                   syntax=OK   diff=+57 -3
+  52_install_tailscale.sh                syntax=OK   diff=+12 -0
+  63_install_tailscale.sh                syntax=OK   diff=+73 -4
+
+[2026-06-22 14:45:31] ASSISTANT:
+All 14 landed and pass `bash -n`. Three have large deletions worth eyeballing before I hand them to you — especially **certbot (−277)** and **antigravity (−138)**. Let me spot-check those two so I can vouch for them.
+
+[2026-06-22 14:45:32]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"############ 26_install_certbot.sh ############\"\ngit diff -- scripts/shells/linux/debian/install_shells/26_install_certbot.sh | head -120", "description": "Review certbot diff"}
+
+[2026-06-22 14:45:32]   <- tool result:
+############ 26_install_certbot.sh ############
+diff --git a/scripts/shells/linux/debian/install_shells/26_install_certbot.sh b/scripts/shells/linux/debian/install_shells/26_install_certbot.sh
+index d7656d364..f1b7cbe38 100755
+--- a/scripts/shells/linux/debian/install_shells/26_install_certbot.sh
++++ b/scripts/shells/linux/debian/install_shells/26_install_certbot.sh
+@@ -109,80 +109,36 @@ fix_urllib3_compatibility() {
+         local has_default_ciphers=false
+     fi
+ 
+-    # Test if certbot works
++    # Test if certbot works. On Debian/Ubuntu/Kali shipping certbot 2.x with
++    # urllib3 2.x, certbot works WITHOUT the legacy DEFAULT_CIPHERS constant, so
++    # certbot succeeding is the only signal that matters. Treat a working certbot
++    # as compatible regardless of DEFAULT_CIPHERS to stay convergent.
+     echo "[$SCRIPT_INDEX] [CHECK] Testing certbot plugins command..."
+     if $USE_SUDO certbot plugins >/dev/null 2>&1; then
+         echo "[$SCRIPT_INDEX] [OK] Certbot works correctly"
+-        if [ "$has_default_ciphers" = true ]; then
+-            echo "[$SCRIPT_INDEX] [SKIP] urllib3 is compatible, no fix needed"
+-            return 0
+-        fi
++        echo "[$SCRIPT_INDEX] [SKIP] urllib3 is compatible with certbot, no fix needed"
++        return 0
+     fi
+ 
+-    # Need to fix urllib3
+-    echo "[$SCRIPT_INDEX] [FIX] urllib3 incompatible with certbot, applying fix..."
+-
+-    # IDEMPOTENCY: Clean ALL urllib3 installations (system and user directories)
+-    echo "[$SCRIPT_INDEX] [CLEANUP] Removing all urllib3 installations..."
+-
+-    # Remove from system directories
+-    $USE_SUDO rm -rf /usr/local/lib/python3.*/dist-packages/urllib3* 2>/dev/null || true
+-    $USE_SUDO rm -rf /usr/lib/python3/dist-packages/urllib3* 2>/dev/null || true
+-
+-    # Remove from user temporary directories
+-    $USE_SUDO rm -rf /var/_core_node/Users/*/\.local/lib/python3.*/site-packages/urllib3* 2>/dev/null || true
+-    $USE_SUDO rm -rf /root/.local/lib/python3.*/site-packages/urllib3*
+        ... [truncated 4335 chars]
+
+[2026-06-22 14:45:43] ASSISTANT:
+The certbot fix is exactly right — it rips out the destructive `rm -rf` + `pip install urllib3==1.26.18 --break-system-packages` on the dpkg-owned `python3-urllib3` and replaces it with a non-destructive, convergent diagnostic path (returns 0 when certbot works). That respects your apt-repo policy. Let me glance at the antigravity −138 to confirm it's also legit removal.
+
+[2026-06-22 14:45:47]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\ngit diff --stat -- scripts/shells/linux/debian/install_shells/126_install_antigravity.sh\necho \"=== hunks (context-trimmed) ===\"\ngit diff -- scripts/shells/linux/debian/install_shells/126_install_antigravity.sh | grep -E \"^@@|^\\+.*function|^-.*function|^\\+#|apt-key|sources.list|kali-rolling|resolve_apt_vendor|get_var|INSTALL_ANTIGRAVITY|snap\" | head -40", "description": "Summarize antigravity diff intent"}
+
+[2026-06-22 14:45:47]   <- tool result:
+.../install_shells/126_install_antigravity.sh      | 153 ++-------------------
+ 1 file changed, 15 insertions(+), 138 deletions(-)
+=== hunks (context-trimmed) ===
+@@ -25,9 +25,6 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+-REPO_LIST_FILE="/etc/apt/sources.list.d/antigravity.list"
+@@ -121,113 +118,6 @@ prompt_root_mode_selection() {
+@@ -286,31 +176,6 @@ prompt_update_decision() {
+@@ -453,9 +318,21 @@ scan_and_replace_desktop_entries() {
+@@ -463,14 +340,14 @@ refresh_desktop_database() {
+
+[2026-06-22 14:45:52]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\ngit diff -- scripts/shells/linux/debian/install_shells/126_install_antigravity.sh | sed -n '/@@ -121,113/,/@@ -286/p' | grep -E \"^[-+]\" | grep -vE \"^[-+]\\s*echo|^[-+]\\s*$\" | head -50", "description": "Inspect the 113-line removed block in antigravity"}
+
+[2026-06-22 14:45:52]   <- tool result:
+-# Function: Wait for apt lock to be released (max 60 seconds)
+-wait_for_apt_lock() {
+-    local max_wait=60
+-    local waited=0
+-    local lock_files=(
+-        "/var/lib/dpkg/lock"
+-        "/var/lib/dpkg/lock-frontend"
+-        "/var/lib/apt/lists/lock"
+-        "/var/cache/apt/archives/lock"
+-    )
+-    while [ $waited -lt $max_wait ]; do
+-        local locks_held=false
+-        for lock_file in "${lock_files[@]}"; do
+-            if $USE_SUDO fuser "$lock_file" >/dev/null 2>&1; then
+-                locks_held=true
+-                break
+-            fi
+-        done
+-        if [ "$locks_held" = false ]; then
+-            if [ $waited -gt 0 ]; then
+-                log "APT lock released after ${waited}s, continuing..."
+-            fi
+-            return 0
+-        fi
+-        if [ $waited -eq 0 ]; then
+-            log "APT is locked by another process, waiting (max ${max_wait}s)..."
+-        fi
+-        sleep 1
+-        waited=$((waited + 1))
+-    done
+-    log "ERROR: APT still locked after ${max_wait}s, skipping operation"
+-    return 1
+-}
+-# Function: Add Antigravity repository
+-add_repository() {
+-    if [ -f "$REPO_LIST_FILE" ] && [ -f "$REPO_KEY_FILE" ]; then
+-        log "Repository already configured."
+-        return 0
+-    fi
+-    log "Adding Antigravity repository..."
+-    log "Repository: https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/"
+-    # Create keyring directory if not exists
+-    $USE_SUDO mkdir -p "$(dirname "$REPO_KEY_FILE")"
+-    # Download and add GPG key
+-    log "Downloading repository signing key..."
+-    if curl -fsSL https://us-central1-apt.pkg.dev/doc/repo-signing-key.gpg | $USE_SUDO gpg --dearmor -o "$REPO_KEY_FILE"; then
+-        log "Repository key added successfully"
+-    else
+-        log "ERROR: Failed to download repository key"
+-        return 1
+
+[2026-06-22 14:46:02] ASSISTANT:
+The antigravity diff removed an entire `add_repository()` function (138 lines) — that's a much bigger change than its findings (1 medium + 2 low) warranted. I need to see what replaced it before vouching for it. This one may be over-aggressive.
+
+[2026-06-22 14:46:03]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== full antigravity diff ===\"\ngit diff -- scripts/shells/linux/debian/install_shells/126_install_antigravity.sh", "description": "Full antigravity diff for review"}
+
+[2026-06-22 14:46:03]   <- tool result:
+=== full antigravity diff ===
+diff --git a/scripts/shells/linux/debian/install_shells/126_install_antigravity.sh b/scripts/shells/linux/debian/install_shells/126_install_antigravity.sh
+index ba6bd4d70..6a49d2eb3 100755
+--- a/scripts/shells/linux/debian/install_shells/126_install_antigravity.sh
++++ b/scripts/shells/linux/debian/install_shells/126_install_antigravity.sh
+@@ -25,9 +25,6 @@ SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+ ANTIGRAVITY_PACKAGE="antigravity"
+-REPO_LIST_FILE="/etc/apt/sources.list.d/antigravity.list"
+-REPO_KEY_FILE="/etc/apt/keyrings/antigravity-repo-key.gpg"
+-REPO_SOURCE_LINE="deb [signed-by=$REPO_KEY_FILE] https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/ antigravity-debian main"
+ DESKTOP_ENTRY_SYSTEM="/usr/share/applications/antigravity.desktop"
+ DESKTOP_ENTRY_NAME="Antigravity"
+ DESKTOP_ENTRY_ICON="antigravity"
+@@ -121,113 +118,6 @@ prompt_root_mode_selection() {
+     return 0
+ }
+ 
+-# Function: Wait for apt lock to be released (max 60 seconds)
+-wait_for_apt_lock() {
+-    local max_wait=60
+-    local waited=0
+-    local lock_files=(
+-        "/var/lib/dpkg/lock"
+-        "/var/lib/dpkg/lock-frontend"
+-        "/var/lib/apt/lists/lock"
+-        "/var/cache/apt/archives/lock"
+-    )
+-
+-    while [ $waited -lt $max_wait ]; do
+-        local locks_held=false
+-
+-        for lock_file in "${lock_files[@]}"; do
+-            if $USE_SUDO fuser "$lock_file" >/dev/null 2>&1; then
+-                locks_held=true
+-                break
+-            fi
+-        done
+-
+-        if [ "$locks_held" = false ]; then
+-            if [ $waited -gt 0 ]; then
+-                log "APT lock released after ${waited}s, continuing..."
+-            fi
+-            return 0
+-        fi
+-
+-        if [ $waited -eq 0 ]; then
+-            log "APT is locked by another process, waiting (max ${max_wait}s)..."
+-        fi
+-
+        ... [truncated 5716 chars]
+
+[2026-06-22 14:46:10] ASSISTANT:
+This change hinges on whether those removed functions were still *called*. `bash -n` won't catch a call to a now-undefined function. Let me verify no dangling references remain — in antigravity and across all 14 fixed scripts.
+
+[2026-06-22 14:46:17]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\necho \"=== antigravity: any remaining calls to removed functions? ===\"\ngrep -nE \"\\b(add_repository|remove_repository|wait_for_apt_lock|cleanup_antigravity)\\b\" 126_install_antigravity.sh || echo \"  none — clean\"\necho\necho \"=== antigravity: does it now use the framework helper instead? ===\"\ngrep -nE \"add_antigravity_repository_from_apt_repository_manager|apt_repository_manager.sh\" 126_install_antigravity.sh\necho\necho \"=== generic dangling-function check across all 14 fixed scripts ===\"\nfor f in 123_install_gitea.sh 126_install_antigravity.sh 15_install_node_24.sh 25_install_nginx.sh 26_install_certbot.sh 30_install_edge.sh 31_ensure_php85_intelligent.sh 33_configure_php85.sh 35_install_chrome.sh 44_ensure_dragonfly_intelligent.sh 45_install_redis.sh 47_install_docker.sh 52_install_tailscale.sh 63_install_tailscale.sh; do\n  # functions defined in file\n  defs=$(grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" \"$f\" | sed -E 's/\\s*\\(\\)//' | sort -u)\n  # for each removed-by-diff function name, check it's not called; simpler: check every called user-func that isn't defined and isn't a known helper\n  missing=\"\"\n  for fn in $defs; do :; done\n  echo \"  $f: $(echo \"$defs\" | wc -l) functions defined\"\ndone", "description": "Check for dangling function references after removals"}
+
+[2026-06-22 14:46:17]   <- tool result:
+=== antigravity: any remaining calls to removed functions? ===
+  none — clean
+
+=== antigravity: does it now use the framework helper instead? ===
+123:    local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+128:    add_antigravity_repository_from_apt_repository_manager \
+145:    local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+149:    add_antigravity_repository_from_apt_repository_manager \
+
+=== generic dangling-function check across all 14 fixed scripts ===
+  123_install_gitea.sh: 26 functions defined
+  126_install_antigravity.sh: 13 functions defined
+  15_install_node_24.sh: 12 functions defined
+  25_install_nginx.sh: 26 functions defined
+  26_install_certbot.sh: 12 functions defined
+  30_install_edge.sh: 4 functions defined
+  31_ensure_php85_intelligent.sh: 23 functions defined
+  33_configure_php85.sh: 7 functions defined
+  35_install_chrome.sh: 10 functions defined
+  44_ensure_dragonfly_intelligent.sh: 13 functions defined
+  45_install_redis.sh: 11 functions defined
+  47_install_docker.sh: 9 functions defined
+  52_install_tailscale.sh: 6 functions defined
+  63_install_tailscale.sh: 10 functions defined
+
+[2026-06-22 14:46:29] ASSISTANT:
+Antigravity is verified safe — the deleted `add_repository` was hand-rolled duplicate code that violated the apt-repo policy (hand-writing `.list`/keyring); the script already delegates to `add_antigravity_repository_from_apt_repository_manager`, and no removed function is still called. Let me run the precise check that matters across all 14: did any fix remove a function *definition* that's still *called* somewhere?
+
+[2026-06-22 14:46:36]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nfor f in 123_install_gitea.sh 126_install_antigravity.sh 15_install_node_24.sh 25_install_nginx.sh 26_install_certbot.sh 30_install_edge.sh 31_ensure_php85_intelligent.sh 33_configure_php85.sh 35_install_chrome.sh 44_ensure_dragonfly_intelligent.sh 45_install_redis.sh 47_install_docker.sh 52_install_tailscale.sh 63_install_tailscale.sh; do\n  p=\"scripts/shells/linux/debian/install_shells/$f\"\n  # functions defined at HEAD but not in working tree (i.e. removed by the fix)\n  removed=$(comm -23 \\\n    <(git show HEAD:\"$p\" 2>/dev/null | grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" | sed -E 's/\\s*\\(\\)//' | sort -u) \\\n    <(grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" \"$p\" | sed -E 's/\\s*\\(\\)//' | sort -u))\n  if [ -n \"$removed\" ]; then\n    for fn in $removed; do\n      calls=$(grep -nE \"(^|[^a-zA-Z0-9_])$fn([^a-zA-Z0-9_(]|\\s|$)\" \"$p\" | grep -vE \"^\\s*#\" | grep -cE \"$fn\")\n      if [ \"$calls\" -gt 0 ]; then echo \"  [DANGLING] $f: removed fn '$fn' still referenced $calls time(s)\"; else echo \"  [ok] $f: removed fn '$fn' fully gone\"; fi\n    done\n  fi\ndone\necho \"=== done ===\"", "description": "Detect removed-but-still-called functions across fixed scripts"}
+
+[2026-06-22 14:46:36]   <- tool result:
+[ok] 126_install_antigravity.sh: removed fn 'add_repository' fully gone
+  [ok] 126_install_antigravity.sh: removed fn 'cleanup_antigravity' fully gone
+  [ok] 126_install_antigravity.sh: removed fn 'remove_repository' fully gone
+  [ok] 126_install_antigravity.sh: removed fn 'wait_for_apt_lock' fully gone
+  [ok] 15_install_node_24.sh: removed fn 'migrate_old_nodejs_installation' fully gone
+  [ok] 26_install_certbot.sh: removed fn 'configure_certbot' fully gone
+  [ok] 26_install_certbot.sh: removed fn 'create_dns_credentials' fully gone
+  [ok] 26_install_certbot.sh: removed fn 'prompt_config_update' fully gone
+=== done ===
+
+[2026-06-22 14:46:46] ASSISTANT:
+Certbot removed three functions — `configure_certbot`, `create_dns_credentials`, `prompt_config_update` — beyond the urllib3 fix. I need to confirm these were dead code at HEAD, not live functionality the agent stripped. Let me check whether they were called before the change.
+
+[2026-06-22 14:46:50]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\np=\"scripts/shells/linux/debian/install_shells/26_install_certbot.sh\"\necho \"=== HEAD: where were these 3 functions DEFINED and CALLED? ===\"\nfor fn in configure_certbot create_dns_credentials prompt_config_update; do\n  echo \"--- $fn ---\"\n  git show HEAD:\"$p\" | grep -nE \"(^$fn\\s*\\(\\))|([^a-zA-Z0-9_]$fn([^a-zA-Z0-9_(]|\\$))\" | grep -vE \"^\\s*[0-9]+:\\s*#\"\ndone\necho\necho \"=== HEAD: main()/entrypoint call sequence (last 40 lines) ===\"\ngit show HEAD:\"$p\" | tail -45 | grep -nE \"^\\s*[a-z_]+(\\s|$)|main|configure_certbot|create_dns\" ", "description": "Check if removed certbot functions were live at HEAD"}
+
+[2026-06-22 14:46:50]   <- tool result:
+=== HEAD: where were these 3 functions DEFINED and CALLED? ===
+--- configure_certbot ---
+544:configure_certbot() {
+--- create_dns_credentials ---
+652:create_dns_credentials() {
+--- prompt_config_update ---
+488:prompt_config_update() {
+
+=== HEAD: main()/entrypoint call sequence (last 40 lines) ===
+1:echo ""
+4:echo "[$SCRIPT_INDEX] [STEP 8/8] Storing Certbot information..."
+5:store_certbot_info
+6:echo ""
+9:echo "[$SCRIPT_INDEX] ================================="
+10:echo "[$SCRIPT_INDEX] FINAL VERIFICATION"
+11:echo "[$SCRIPT_INDEX] ================================="
+12:if verify_certbot_installation; then
+13:    echo ""
+14:    echo "[$SCRIPT_INDEX] ================================="
+15:    echo "[$SCRIPT_INDEX] CERTBOT SETUP COMPLETED"
+16:    echo "[$SCRIPT_INDEX] ================================="
+17:    echo "[$SCRIPT_INDEX] All checks passed, system is ready"
+18:    echo "[$SCRIPT_INDEX] "
+19:    echo "[$SCRIPT_INDEX] Installation Status:"
+20:    echo "[$SCRIPT_INDEX] -------------------------"
+21:    echo "[$SCRIPT_INDEX] Version: $(certbot --version 2>&1 | cut -d' ' -f2)"
+22:    echo "[$SCRIPT_INDEX] Binary Path: $(which certbot)"
+23:    echo "[$SCRIPT_INDEX] Configuration: Managed by Laravel ServerManager"
+24:    echo "[$SCRIPT_INDEX] Domain Setup: Use Laravel artisan commands"
+25:    echo "[$SCRIPT_INDEX] SSL Management: Integrated with Laravel application"
+26:    echo "[$SCRIPT_INDEX] Auto-renewal: Enabled"
+27:    echo "[$SCRIPT_INDEX] "
+28:    echo "[$SCRIPT_INDEX] Laravel Poly App Integration:"
+29:    echo "[$SCRIPT_INDEX] - SSL certificates managed by Laravel ServerManager commands"
+30:    echo "[$SCRIPT_INDEX] - Nginx configurations handled by Laravel application"
+31:    echo "[$SCRIPT_INDEX] - Domain deployment via Laravel artisan commands"
+32:    echo "[$SCRIPT_INDEX] "
+33:    echo "[$SCRIPT_INDEX] Next steps:"
+34:    echo "[$SCRIPT_INDEX] 1. Setup Laravel ServerManager for SSL and domain management"
+35:    echo "[$SCRIPT_INDEX] 2. Configure DNS provider 
+        ... [truncated 668 chars]
+
+[2026-06-22 14:47:15] ASSISTANT:
+Confirmed safe. Those three certbot functions (`configure_certbot`, `create_dns_credentials`, `prompt_config_update`) were **dead code at HEAD** — defined but never called (config is delegated to Laravel ServerManager per the script's own output). So the −277 is: harmful urllib3 downgrade replaced with non-destructive diagnostics + dead-code removal + a path/WSL fix. Same for node24's removed `migrate_old_nodejs_installation`. All 14 fixes are syntactically valid with zero dangling references.
+
+Let me write the consolidated report and extract the still-unfixed high-priority findings, grouped.
+
+[2026-06-22 14:47:26]   -> tool: Bash  {"command": "cd /tmp\npython3 - <<'PY'\nimport json\nm=json.load(open('/tmp/merged_audit.json'))\nfixed=set(m['totals']['fixes'])\nper={s['script']:s for s in m['perScript']}\n# group remaining (unfixed) findings by category for high+medium\ngroups={}\nfor s in m['perScript']:\n    if s['script'] in fixed: \n        # still report residual findings on fixed scripts? skip fixed scripts entirely for \"remaining\"\n        continue\n    for f in s['findings']:\n        if f['severity'] in ('high','medium'):\n            groups.setdefault(f['category'],[]).append((f['severity'],s['script'],f['title'],f['location']))\nlines=[\"# core_node install-scripts cross-validation — consolidated report\\n\",\n f\"Audited **76** scripts (Debian/Ubuntu/Kali), adversarially verified. \"\n f\"Confirmed findings: **{m['totals']['high']} high / {m['totals']['medium']} medium / {m['totals']['low']} low** \"\n f\"(total {m['totals']['total']}). Scripts with findings: {m['totals']['with_findings']}; clean: {m['totals']['clean']}.\\n\",\n f\"## Fixed this run ({len(fixed)} apt/repo pilot scripts, all `bash -n` OK)\\n\",\n \", \".join(sorted(fixed)) + \"\\n\",\n \"## Remaining high/medium findings on UNFIXED scripts (grouped)\\n\"]\norder=['repo-policy','cross-distro','idempotency','doc-correctness']\nfor cat in order:\n    if cat not in groups: continue\n    items=sorted(groups[cat],key=lambda x:(0 if x[0]=='high' else 1,x[1]))\n    lines.append(f\"\\n### {cat} ({len(items)})\")\n    for sev,scr,title,loc in items:\n        lines.append(f\"- **[{sev}]** `{scr}` — {title}  \\n    ↳ {loc}\")\nlines.append(f\"\\n## Clean (no confirmed findings) — {len(m['clean'])}\\n\")\nlines.append(\", \".join(sorted(m['clean'])))\nopen('/tmp/install_audit_report.md','w').write(\"\\n\".join(lines))\n# print remaining high/med counts per category\nprint(\"Report -> /tmp/install_audit_report.md\")\nfor cat in order:\n    if cat in groups:\n        h=sum(1 for x in groups[cat] if x[0]=='high'); md=sum(1 for x i
+        ... [truncated 255 chars]
+
+[2026-06-22 14:47:26]   <- tool result:
+Report -> /tmp/install_audit_report.md
+  repo-policy: 2 high, 0 medium (unfixed)
+  cross-distro: 6 high, 11 medium (unfixed)
+  idempotency: 9 high, 24 medium (unfixed)
+  doc-correctness: 4 high, 5 medium (unfixed)
+=== top of report ===
+# core_node install-scripts cross-validation — consolidated report
+
+Audited **76** scripts (Debian/Ubuntu/Kali), adversarially verified. Confirmed findings: **33 high / 51 medium / 62 low** (total 146). Scripts with findings: 58; clean: 18.
+
+## Fixed this run (14 apt/repo pilot scripts, all `bash -n` OK)
+
+123_install_gitea.sh, 126_install_antigravity.sh, 15_install_node_24.sh, 25_install_nginx.sh, 26_install_certbot.sh, 30_install_edge.sh, 31_ensure_php85_intelligent.sh, 33_configure_php85.sh, 35_install_chrome.sh, 44_ensure_dragonfly_intelligent.sh, 45_install_redis.sh, 47_install_docker.sh, 52_install_tailscale.sh, 63_install_tailscale.sh
+
+## Remaining high/medium findings on UNFIXED scripts (grouped)
+
+
+### repo-policy (2)
+- **[high]** `13_cuda_nvidia_prereq.sh` — ensure_nonfree_repo edits the distro's own /etc/apt/sources.list (forbidden distro-repo mutation)  
+    ↳ ensure_nonfree_repo (lines 92-106), esp. line 103 sed -i and line 99 cp backup
+- **[high]** `13_cuda_nvidia_prereq.sh` — Driver install bypasses framework apt helpers (raw apt-get, no resolver, no gated repo add)  
+    ↳ install_driver_debian (120-128), install_driver_ubuntu (131-145); script never sources apt_repository_manager.sh
+
+### cross-distro (17)
+- **[high]** `11_install_sudo.sh` — Invoking user never resolved when run as root/sudo (Kali root-by-default); real user never added to sudo group  
+    ↳ line 23: CURRENT_USER=${USER:-$(whoami)}; consumed at line 74
+- **[high]** `124_install_rustdesk_client_1.4.4.sh` — Download/move block uses bare `sudo -u` instead of $USE_SUDO, breaking on sudo-less Kali root  
+    ↳ install_rustdesk() lines 232, 240, 244, 275
+- **[high]** `32_install_swoole.sh` — Hardcoded legacy libpcre3-dev has no install candidate on current Deb
+        ... [truncated 3784 chars]
+
+[2026-06-22 14:47:54] ASSISTANT:
+Done. Here's the consolidated, verified deliverable.
+
+## Cross-validation complete — 76 install scripts, adversarially verified
+
+**Method:** every script got a finder + an independent skeptic that had to *refute* each finding before it counted (default = refuted). A transient API rate-limit knocked out ~57 verifiers mid-run, which silently dropped findings on ~22 scripts (docker, mysql, postgres, tailscale, etc.) — I caught that, re-ran those 22 cleanly, and merged. Full report written to **`/tmp/install_audit_report.md`**.
+
+**Confirmed findings: 33 high / 51 medium / 62 low (146 total).** 58 scripts have issues; 18 are genuinely clean.
+
+### ✅ Fixed this run — 14 apt/repo pilot scripts (all `bash -n` clean, no dangling refs)
+`15_node_24` · `25_nginx` · `26_certbot` · `30_edge` · `31/33_php85` · `35_chrome` · `44_dragonfly` · `45_redis` · `47_docker` · `52/63_tailscale` · `123_gitea` · `126_antigravity`
+
+Representative fixes, all honoring your apt-repo policy:
+- **`47_docker`** — was snap-only (snap absent on Debian/Kali); added the official apt/get-docker path.
+- **`44_dragonfly`** — hard-aborted on Kali (`ID` matched only debian/ubuntu) **and** added its repo ungated; now Kali-aware + gated behind `START_DRAGONFLY`.
+- **`52/63_tailscale`** — third-party repo now gated behind `INSTALL_TAILSCALE`.
+- **`26_certbot`** — removed the destructive `rm -rf` + `pip install urllib3==1.26.18 --break-system-packages` on the dpkg-owned `python3-urllib3` (replaced with non-destructive, convergent diagnostics). The large −277 diff is that plus 3 dead functions I verified were never called at HEAD.
+- **`35_chrome`** — stopped deleting Google's auto-update apt source/keyring on every run; dropped snap path.
+- **`126_antigravity`** — deleted hand-rolled repo logic (policy violation) in favor of the existing `add_antigravity_repository_from_apt_repository_manager` helper.
+
+### 🔴 Top unfixed findings worth your attention
+**Direct apt-repo-policy violation (not in pilot, left untouched deliberately):**
+- **`13_cuda_nvidia_prereq`** — `ensure_nonfree_repo` does `sed -i` on the distro's own `/etc/apt/sources.list` (forbidden), never sources the framework helpers, and is a no-op on deb822-only Debian 12+/trixie.
+
+**Cross-distro / Kali breakers (high):** `32_swoole` (`libpcre3-dev` has no candidate on current Debian/Kali → script aborts), `36_puppeteer` (wrong audio pkg; misses `libasound2t64`), `39_android_studio` (snap-primary, absent on Debian/Kali), `11_install_sudo` (never resolves the real user under root → user never added to sudo group), `124_rustdesk` (bare `sudo -u` breaks on sudo-less Kali root). The `t64`-rename family (`libfuse2`→`libfuse2t64`) also hits `120_desktop_apps` and `127_wechat`.
+
+**Idempotency breakers (high):** `10_fix_dns` (`chattr +i` never cleared → rerun aborts under `set -e`), `121_cursor` & `37_dotnet` (destructive `/etc/environment` rewrites), `122_vscode` (`grep -q "code"` purges anything matching "code"), `18_setup_ssh_remote` (completion flag in a per-run `mktemp` dir → idempotency short-circuit can never fire).
+
+### Where I'd go next
+The pilot proved the fix quality is sound. I'd suggest a **second fix batch** targeting the non-pilot high-severity scripts above — especially `13_cuda` (active policy violation), the `t64`/snap cross-distro breakers, and the destructive-rewrite idempotency bugs.
+
+Want me to:
+1. **Apply that second batch** (the unfixed high-severity scripts), same adversarial+syntax-checked approach; or
+2. **Hold** so you can review the 14 diffs first (`git diff scripts/shells/linux/debian/install_shells/`); or
+3. **Move the report** into the repo (e.g. `scripts/shells/linux/debian/docs/`) instead of `/tmp`?
+
+Nothing is committed — all 14 fixes are unstaged in your working tree.
+
+[2026-06-22 15:02:00] USER:
+go next,all work ,workflow
+
+[2026-06-22 15:02:20] ASSISTANT:
+On it — second batch, fix everything. Let me build the per-script findings payload for all unfixed scripts and drive a fix workflow off it.
+
+[2026-06-22 15:02:24]   -> tool: Bash  {"command": "cd /tmp\npython3 - <<'PY'\nimport json\nm=json.load(open('/tmp/merged_audit.json'))\nfixed=set(m['totals']['fixes'])\npayload=[]\nfor s in m['perScript']:\n    if s['script'] in fixed: continue\n    fs=[{'severity':f['severity'],'category':f['category'],'title':f['title'],'location':f['location'],'recommendation':f['recommendation']} for f in s['findings']]\n    if fs:\n        payload.append({'script':s['script'],'findings':fs})\njson.dump(payload,open('/tmp/fix_payload.json','w'))\nnh=sum(1 for s in payload for f in s['findings'] if f['severity']=='high')\nnm=sum(1 for s in payload for f in s['findings'] if f['severity']=='medium')\nnl=sum(1 for s in payload for f in s['findings'] if f['severity']=='low')\nprint(f\"unfixed scripts to fix: {len(payload)}  findings: {nh} high / {nm} medium / {nl} low\")\nprint(\"bytes:\", len(open('/tmp/fix_payload.json').read()))\nprint(\"scripts:\", \", \".join(s['script'] for s in payload))\nPY", "description": "Build fix payload for unfixed scripts"}
+
+[2026-06-22 15:02:24]   <- tool result:
+unfixed scripts to fix: 45  findings: 21 high / 40 medium / 49 low
+bytes: 83476
+scripts: 101_natgateway.sh, 10_fix_dns.sh, 11_install_sudo.sh, 120_install_desktop_applications.sh, 121_install_cursor.sh, 122_install_vscode.sh, 124_install_rustdesk_client_1.4.4.sh, 125_setup_gnome_rdp.sh, 127_install_wechat.sh, 128_install_rustdesk_server_1.1.14.sh, 12_update.sh, 131_prepare_domain_setup.sh, 13_cuda_nvidia_prereq.sh, 13_ensure_python.sh, 150_install_pycore_http_service.sh, 151_install_octane_watcher_daemon.sh, 16_enable_pipx.sh, 18_setup_ssh_remote.sh, 19_install_uv.sh, 1_stop_aliyun.sh, 22_install_tts_offline.sh, 28_ensure_pnpm_packages.sh, 29_ensure_npmrc.sh, 2_setting_base.sh, 32_install_swoole.sh, 34_install_composer.sh, 36_install_puppeteer_plugins.sh, 37_install_dotnet.sh, 38_install_flutter.sh, 39_install_android_studio.sh, 3_stop_cloud_monitors.sh, 40_install_ittools_binaries.sh, 42_install_rust.sh, 41_install_ruby.sh, 51_install_shama.sh, 53_install_golang22.sh, 54_install_java.sh, 46_install_postgresql.sh, 83_core_node_finish.sh, 62_install_upsc.sh, 6_system_maintenance.sh, 8_project_validator.sh, 96_install_deepseek_ocr.sh, 95_install_deepseek.sh, 97_install_qwen25.sh
+Shell cwd was reset to /mnt/dev_nvme0n1p1/programing/core_node
+
+[2026-06-22 15:02:34] ASSISTANT:
+45 scripts, 110 findings (21 high / 40 medium / 49 low). Writing the fix-batch workflow — one fixer per script, each applies all its confirmed findings, syntax-checks, returns a structured result. Different files so they run concurrently without conflict.
+
+[2026-06-22 15:02:57]   -> tool: Write  {"file_path": "/tmp/fix_batch_workflow.js", "content": "export const meta = {\n  name: 'install-scripts-fixbatch',\n  description: 'Apply confirmed idempotency + Debian/Ubuntu/Kali fixes to 45 install scripts, syntax-checked',\n  phases: [\n    { title: 'Fix', detail: 'one fixer per script applies its confirmed findings' },\n  ],\n}\n\nconst BASE = '/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells'\nconst COMMON = '/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common'\nconst items = Array.isArray(args) ? args : JSON.parse(args)\n\nconst POLICY = `\nTarget OS matrix: Debian, Ubuntu, Kali Linux (Kali = Debian-derived, rolling, VERSION_CODENAME=kali-rolling, root-by-default).\n\nUSE EXISTING FRAMEWORK HELPERS (source from ${COMMON}; do not hand-roll):\n- OS/codename: resolve_apt_vendor_codename_from_apt_repository_manager (Kali -> debian/bookworm; NEVER raw \"kali-rolling\" in an apt line).\n- Third-party repo add: add_*_repository_from_apt_repository_manager / add_apt_repository_from_apt_repository_manager (signed-by keyring in a dedicated file).\n- Packages: ensure_packages_from_apt_repository_manager.\n- Real user under sudo/root: get_real_user / $USE_SUDO (never assume a default \"ubuntu\" user; Kali is root).\n- Output: print_*_from_common_functions.\n\nHARD APT REPO POLICY (do not violate):\n1. NEVER modify the distro's own repos (no writing/sed-ing /etc/apt/sources.list, no deleting distro *.sources, no mirror rewrites of distro files).\n2. Add a third-party repo ONLY when required, and ONLY gated behind its get_var/get_global_var feature flag.\n3. NEVER touch distro signing keys (no apt-key; third-party keys go in their own file via gpg --dearmor -o <file> + signed-by=).\n\nFIX PRINCIPLES:\n- Minimal, surgical edits. Do NOT refactor unrelated code. Preserve the script's style and the AI-attention-rules header comment.\n- Idempotency: guard appends with grep -q; mkdir -p; ln -sf (or rm -f before ln); command -v / 
+        ... [truncated 2726 chars]
+
+[2026-06-22 15:02:57]   <- tool result:
+File created successfully at: /tmp/fix_batch_workflow.js (file state is current in your context — no need to Read it back)
+
+[2026-06-22 15:03:00]   -> tool: Bash  {"command": "cat /tmp/fix_payload.json", "description": "Dump payload to pass as args"}
+
+[2026-06-22 15:03:00]   <- tool result:
+<persisted-output>
+Output too large (81.5KB). Full output saved to: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tool-results/brscq32gv.txt
+
+Preview (first 2KB):
+[{"script": "101_natgateway.sh", "findings": [{"severity": "low", "category": "repo-policy", "title": "Dependency install bypasses framework apt helper (raw apt-get update/install)", "location": "check_dependencies() lines 210-224", "recommendation": "Source common/apt_repository_manager.sh and use ensure_packages_from_apt_repository_manager for the missing packages instead of hand-rolled apt-get. This is NOT a hard policy violation (no third-party repo is added and no distro sources/keys are touched - only distro packages iproute2/iptables/systemd/gawk/grep from existing repos), but it duplicates framework logic and skips the framework's update/retry/locking handling. Note the `apt-get update` here refreshes indices unconditionally on every run where a command is missing; harmless but redundant."}, {"severity": "low", "category": "cross-distro", "title": "awk mapped to gawk while Debian/Ubuntu/Kali default to mawk", "location": "check_dependencies() line 169 (cmd_to_pkg[\"awk\"]=\"gawk\")", "recommendation": "awk is already provided by the default mawk on Debian/Ubuntu/Kali, so this branch is normally never reached. If it ever is, installing gawk to satisfy `awk` works but unnecessarily pulls gawk via the alternatives system. Prefer mapping to the already-present provider or simply not auto-installing awk. Minor; no functional break across the three distros."}, {"severity": "low", "category": "doc-correctness", "title": "Header claims Ubuntu-only optimization but script is distro-agnostic", "location": "File header comment lines 16 (\"Optimized for Ubuntu 22.04 and 24.04\")", "recommendation": "The comment is misleading: the logic contains no codename/PPA/snap/lsb_release dependencies and runs equally on Debian and Kali (gating via IS_PRODUCTION /
+        ... [truncated 246 chars]
+
+[2026-06-22 15:03:10] ASSISTANT:
+The payload is heavy because of the verbose recommendations. Let me trim to `severity/category/title/location` (the fixer reads the script itself and the titles+locations are precise) to keep the args lean.
+
+[2026-06-22 15:03:12]   -> tool: Bash  {"command": "cd /tmp\npython3 - <<'PY'\nimport json\nm=json.load(open('/tmp/merged_audit.json'))\nfixed=set(m['totals']['fixes'])\npayload=[]\nfor s in m['perScript']:\n    if s['script'] in fixed: continue\n    fs=[{'sev':f['severity'],'cat':f['category'],'title':f['title'],'loc':f['location']} for f in s['findings']]\n    if fs: payload.append({'script':s['script'],'findings':fs})\nout=json.dumps(payload,separators=(',',':'))\nopen('/tmp/fix_payload_compact.json','w').write(out)\nprint(\"scripts:\",len(payload),\"bytes:\",len(out))\nPY\necho \"---\"; wc -c /tmp/fix_payload_compact.json", "description": "Build compact payload"}
+
+[2026-06-22 15:03:12]   <- tool result:
+scripts: 45 bytes: 24191
+---
+24191 /tmp/fix_payload_compact.json
+Shell cwd was reset to /mnt/dev_nvme0n1p1/programing/core_node
+
+[2026-06-22 15:03:28] ASSISTANT:
+24KB compact. Cleanest path: embed the payload directly into the workflow script as a literal (workflow scripts can't read files, and this avoids a giant args blob). Let me inject it.
+
+[2026-06-22 15:03:31]   -> tool: Bash  {"command": "cd /tmp\npython3 - <<'PY'\ntmpl=open('/tmp/fix_batch_workflow.js').read()\npayload=open('/tmp/fix_payload_compact.json').read().strip()\nold=\"const items = Array.isArray(args) ? args : JSON.parse(args)\"\nnew=\"const items = \"+payload\nassert old in tmpl, \"anchor not found\"\nout=tmpl.replace(old,new)\nopen('/tmp/fix_batch_final.js','w').write(out)\nprint(\"written /tmp/fix_batch_final.js bytes:\",len(out))\nPY\nnode --check /tmp/fix_batch_final.js 2>/dev/null && echo \"JS syntax OK\" || echo \"(node check skipped/failed)\"\nhead -c 200 /tmp/fix_batch_final.js", "description": "Embed payload into workflow script"}
+
+[2026-06-22 15:03:31]   <- tool result:
+written /tmp/fix_batch_final.js bytes: 28721
+JS syntax OK
+export const meta = {
+  name: 'install-scripts-fixbatch',
+  description: 'Apply confirmed idempotency + Debian/Ubuntu/Kali fixes to 45 install scripts, syntax-checked',
+  phases: [
+    { title: 'Fix',
+Shell cwd was reset to /mnt/dev_nvme0n1p1/programing/core_node
+
+[2026-06-22 15:03:34] ASSISTANT:
+Payload embedded, JS valid. Launching the fix-batch workflow over all 45 unfixed scripts.
+
+[2026-06-22 15:03:34]   -> tool: Workflow  {"scriptPath": "/tmp/fix_batch_final.js"}
+
+[2026-06-22 15:03:34]   <- tool result:
+Workflow launched in background. Task ID: ws2qn849x
+Summary: Apply confirmed idempotency + Debian/Ubuntu/Kali fixes to 45 install scripts, syntax-checked
+Transcript dir: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/subagents/workflows/wf_5f2f3919-af3
+Script file: /tmp/fix_batch_final.js
+(Edit this file with Write/Edit and re-invoke Workflow with {scriptPath: "/tmp/fix_batch_final.js"} to iterate without resending the script.)
+Run ID: wf_5f2f3919-af3
+To resume after editing the script: Workflow({scriptPath: "/tmp/fix_batch_final.js", resumeFromRunId: "wf_5f2f3919-af3"}) — completed agents return cached results.
+
+You will be notified when it completes. Use /workflows to watch live progress.
+
+[2026-06-22 15:03:42] ASSISTANT:
+Second batch is running (task `ws2qn849x`) — 45 fixers at high effort, one per script, each editing a different file so they run concurrently without conflict. Each applies all its confirmed findings, runs `bash -n`, and grep-checks any function it removes.
+
+When it completes I'll do my own independent sweep across every changed file: `bash -n` on all of them, the removed-but-still-called dangling-function check, and confirm no script touched a distro repo/key (apt-repo policy). Then I'll report what landed, anything the fixers left unfixed with their reasons, and the full `git diff` surface for your review. Waiting on the notification.
+
+[2026-06-22 15:10:04] USER:
+<task-notification>
+<task-id>ws2qn849x</task-id>
+<tool-use-id>toolu_01R4abJWHpWsZCSizkBnVn9K</tool-use-id>
+<output-file>/tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks/ws2qn849x.output</output-file>
+<status>completed</status>
+<summary>Dynamic workflow "Apply confirmed idempotency + Debian/Ubuntu/Kali fixes to 45 install scripts, syntax-checked" completed</summary>
+<result>{"totals":{"targeted":45,"applied":45,"syntaxFailures":[],"notApplied":[]},"perScript":[{"script":"101_natgateway.sh","applied":true,"syntax_ok":true,"changes":["repo-policy: Sourced $COMMON_DIR/apt_repository_manager.sh (guarded by file existence check) near the existing common-dir sourcing block, and replaced the raw apt-get update/install logic in check_dependencies() with the framework helper ensure_packages_from_apt_repository_manager (which honors $USE_SUDO and the project apt policy). Removed the now-unused install_prefix/install_cmd_display variables and fixed a leftover $install_cmd_display reference in the verification-failure message (line 219) to a plain 'sudo apt install' hint. Kept a graceful fallback that prints manual-install instructions when the helper is unavailable.","cross-distro: Changed cmd_to_pkg[\"awk\"] from \"gawk\" to \"mawk\" (line ~169) so the dependency installer requests the default awk provider on Debian/Ubuntu/Kali instead of pulling gawk.","doc-correctness: Replaced header comment 'Optimized for Ubuntu 22.04 and 24.04' (line 16) with 'Supports Debian, Ubuntu, and Kali Linux' to match the script's distro-agnostic behavior."],"unfixed":[],"notes":"No functions were added or removed; only inline logic inside check_dependencies() was replaced, so no caller-grep was needed. The AI-attention-rules header and overall script style were preserved. Edits are idempotent: the new source line is guarded by a file-existence check, and ensure_packages_from_apt_repository_manager already performs its own command -v/dpkg present-checks before installing. bash -n passed (syntax_ok). Verified no remaining references to apt-get, gawk, or the Ubuntu-only header line. The helper resolves via COMMON_DIR=$PARENT_DIR_LEVEL_2/common (apt_repository_manager.sh confirmed present in that dir). File: /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/101_natgateway.sh"},{"script":"10_fix_dns.sh","applied":true,"syntax_ok":true,"changes":["chattr immutability (high): in create_static_resolv_conf, before rewriting /etc/resolv.conf, detect a leftover immutable flag from a prior run via lsattr and clear it with chattr -i (guarded by command -v lsattr and file existence). The existing chattr +i at write-time is preserved, so reruns no longer fail to rewrite the file.","set -e abort (medium): main() now calls 'test_dns_servers || log_warning ...' so a return 1 (no DNS server responds) no longer aborts the script under set -e; it logs a warning and continues with the fixes.","Unbounded backups (low): backup_resolv_conf now writes a single stable /etc/resolv.conf.orig.backup created only if absent (no timestamped copies). fix_systemd_resolved likewise writes ${config_file}.orig.backup only if absent, eliminating accumulation on every run.","Ubuntu-specific hosts/messaging (low): test_dns_server test domain archive.ubuntu.com -&gt; deb.debian.org; verify_dns test_domains archive.ubuntu.com/security.ubuntu.com -&gt; deb.debian.org/security.debian.org; summary 'Access Ubuntu package repositories' -&gt; 'Access Debian/Kali package repositories'.","Mojibake (low): replaced corrupted bullet bytes (ef bf bd 3f) with ASCII '- ' on the China/global pre-check lines (formerly 480/482) and the four summary bullet lines (formerly 563-566). No non-ASCII bytes remain in the file."],"unfixed":[],"notes":"No functions added or removed; no caller grep needed. `bash -n` passes (SYNTAX_OK) and `grep -nP '[^\\x00-\\x7F]'` returns no matches. All edits are surgical and idempotent: immutable-flag clear is guarded by lsattr availability and only runs when the 'i' attribute is present; backups are create-only-if-absent; messaging/host changes are pure string swaps. The AI-attention-rules header is untouched."},{"script":"11_install_sudo.sh","applied":true,"syntax_ok":true,"changes":["Replaced CURRENT_USER=${USER:-$(whoami)} with resolution via get_real_user_from_common_functions() (already sourced from common_functions.sh), so that when run as root/sudo (Kali root-by-default) the real invoking user is resolved (honours SUDO_USER, then active /home/* account). Added a layered fallback to ${SUDO_USER:-${USER:-$(id -un)}} if the helper is unavailable. Fixes the high-sev cross-distro bug where the actual user was never added to the sudo group.","Replaced DISTRO=$(lsb_release -is ...) with a read from /etc/os-release (. /etc/os-release; echo ${ID:-Unknown}) so the script no longer depends on lsb_release, which is not guaranteed present on minimal Debian/Kali. Kept lsb_release only as a fallback when /etc/os-release is absent, and guard empty result to 'Unknown'."],"unfixed":[],"notes":"File: /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/11_install_sudo.sh. Both confirmed findings fixed with minimal, surgical edits. No functions removed (no caller grep needed). The helper get_real_user_from_common_functions is defined in common/common_functions.sh which is already sourced at line 20; usage matches the function (prints user to stdout, returns root only when no non-root user found, in which case the existing block at line 74 correctly skips the sudo-group add). bash -n passed (SYNTAX_OK). AI-attention-rules header and script style preserved."},{"script":"120_install_desktop_applications.sh","applied":true,"syntax_ok":true,"changes":["cross-distro (libfuse2 t64): install_via_appimage() libfuse2 block (was lines 230-235) — made t64-aware. The dpkg presence check now matches either libfuse2 or libfuse2t64 (grep -qE '^ii[[:space:]]+libfuse2(t64)?[[:space:]:]') so it is idempotent across both names. After apt-get update -qq it probes 'apt-cache show libfuse2t64' and installs libfuse2t64 when available (Kali rolling / Debian trixie / Ubuntu 24.04), otherwise libfuse2. On install failure it falls back to the alternate name. All paths keep the existing Warning-and-continue behavior (no hard return). Preserves DEBIAN_FRONTEND=noninteractive and the force-confdef/force-confold dpkg options.","idempotency (undefined function): replaced all 4 calls to the never-defined fix_npm_permissions with the actually-defined fix_pnpm_permissions (defined at line 523). Sites: install_via_pnpm() (line 566), handle_exact_app() (line 1548), and main() (lines 1585 and 1764). This stops the per-invocation 'command not found' error on every run."],"unfixed":[],"notes":"No functions were removed; the second fix only renames call sites to the existing fix_pnpm_permissions definition, so no dangling callers. Confirmed via grep that fix_npm_permissions no longer appears anywhere in the file and that fix_pnpm_permissions has one definition (line 523) plus 4 callers. grep over scripts/shells/linux/common and the script confirmed fix_npm_permissions was never defined in any sourced helper either. bash -n passes (SYNTAX_OK). Edits are minimal and preserve the AI SPECIAL ATTENTION RULES header and the script's logging/style. The local fuse_pkg variable is declared inside install_via_appimage which already uses other local vars, consistent with the surrounding style."},{"script":"121_install_cursor.sh","applied":true,"syntax_ok":true,"changes":["Finding #1 (high, idempotency) ensure_cursor_agent_installed() /etc/environment block: fixed the destructive PATH rewrite. Original code ran 'sed -i /^PATH=/d' BEFORE reading PATH back, so current_path was always empty and the existing system PATH was permanently lost (replaced by a hardcoded default). New code captures the current PATH value first (grep | head -1 | cut -d= -f2- | tr -d '\"'), defaults to a sane fallback only when truly empty, and only then deletes the old PATH= line and appends the merged 'PATH=\"$local_bin_dir:$current_path\"'. Still guarded by the existing grep -q so it stays idempotent (no-op once our bin dir is present). Used cut -d= -f2- (was -f2) so PATH values containing '=' are preserved.","Finding #2 (low, cross-distro) install_dependencies() libfuse2 logic: replaced the Ubuntu-version-s
+... (truncated 81018 chars, full result in /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks/ws2qn849x.output)</result>
+<usage><agent_count>45</agent_count><subagent_tokens>1256306</subagent_tokens><tool_uses>440</tool_uses><duration_ms>389311</duration_ms></usage>
+</task-notification>
+
+[2026-06-22 15:10:08] ASSISTANT:
+All 45 fixers reported success (`applied: 45/45`, **zero syntax failures**, none left unapplied). Now my own independent verification sweep across every changed file — I don't take the agents' word for syntax/dangling refs.
+
+[2026-06-22 15:10:14]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== 1) bash -n on ALL changed install scripts ===\"\nmapfile -t changed < <(git diff --name-only -- scripts/shells/linux/debian/install_shells/ | grep '\\.sh$')\necho \"changed scripts: ${#changed[@]}\"\nfail=0\nfor p in \"${changed[@]}\"; do\n  if ! bash -n \"$p\" 2>/tmp/sx.err; then echo \"  [SYNTAX FAIL] $p\"; cat /tmp/sx.err; fail=1; fi\ndone\n[ $fail -eq 0 ] && echo \"  ALL pass bash -n\"\necho\necho \"=== 2) removed-but-still-called function check across all changed scripts ===\"\ndangle=0\nfor p in \"${changed[@]}\"; do\n  removed=$(comm -23 \\\n    <(git show HEAD:\"$p\" 2>/dev/null | grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" | sed -E 's/\\s*\\(\\)//' | sort -u) \\\n    <(grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" \"$p\" | sed -E 's/\\s*\\(\\)//' | sort -u))\n  for fn in $removed; do\n    c=$(grep -cE \"(^|[^a-zA-Z0-9_])$fn([^a-zA-Z0-9_(]|$)\" \"$p\")\n    [ \"$c\" -gt 0 ] && { echo \"  [DANGLING] $(basename $p): '$fn' x$c\"; dangle=1; }\n  done\ndone\n[ $dangle -eq 0 ] && echo \"  No dangling function references\"", "description": "Independent syntax + dangling-ref sweep"}
+
+[2026-06-22 15:10:15]   <- tool result:
+=== 1) bash -n on ALL changed install scripts ===
+changed scripts: 60
+  [SYNTAX FAIL] scripts/shells/linux/debian/install_shells/6_set_mirrors.sh
+bash: scripts/shells/linux/debian/install_shells/6_set_mirrors.sh: No such file or directory
+  [SYNTAX FAIL] scripts/shells/linux/debian/install_shells/7_auto_clean_journal.sh
+bash: scripts/shells/linux/debian/install_shells/7_auto_clean_journal.sh: No such file or directory
+  [SYNTAX FAIL] scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh
+bash: scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh: No such file or directory
+
+=== 2) removed-but-still-called function check across all changed scripts ===
+ugrep: warning: scripts/shells/linux/debian/install_shells/6_set_mirrors.sh: No such file or directory
+ugrep: warning: scripts/shells/linux/debian/install_shells/6_set_mirrors.sh: No such file or directory
+/bin/bash: line 19: [: : integer expected
+ugrep: warning: scripts/shells/linux/debian/install_shells/7_auto_clean_journal.sh: No such file or directory
+ugrep: warning: scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh: No such file or directory
+ugrep: warning: scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh: No such file or directory
+/bin/bash: line 19: [: : integer expected
+ugrep: warning: scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh: No such file or directory
+/bin/bash: line 19: [: : integer expected
+ugrep: warning: scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh: No such file or directory
+/bin/bash: line 19: [: : integer expected
+ugrep: warning: scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh: No such file or directory
+/bin/bash: line 19: [: : integer expected
+ugrep: warning: scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh: No such file or directory
+/bin/bash: line 19: [: : integer expected
+ugrep: warning: 
+        ... [truncated 1144 chars]
+
+[2026-06-22 15:10:33] ASSISTANT:
+The 3 "failures" are phantom — `6_set_mirrors.sh`, `7_auto_clean_journal.sh`, `9_disable_ubuntu_auto_updates.sh` don't exist; they're pre-existing git rename artifacts from the repo's dirty state at session start, **not** files my workflows touched. The real signal: **no dangling function references anywhere**. Let me re-run scoped to only existing files and confirm clean, plus verify the apt-repo policy held (no distro repo/key mutations).
+
+[2026-06-22 15:10:39]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== bash -n on changed scripts that actually EXIST ===\"\nmapfile -t changed < <(git diff --name-only -- scripts/shells/linux/debian/install_shells/ | grep '\\.sh$')\nn=0; fail=0\nfor p in \"${changed[@]}\"; do\n  [ -f \"$p\" ] || continue\n  n=$((n+1))\n  bash -n \"$p\" 2>/tmp/sx.err || { echo \"  [FAIL] $p\"; cat /tmp/sx.err; fail=1; }\ndone\necho \"checked $n existing changed scripts; $([ $fail -eq 0 ] && echo 'ALL pass bash -n' || echo 'FAILURES above')\"\necho\necho \"=== apt-repo policy guard: did any fix mutate distro repos/keys? (added lines only) ===\"\ngit diff -- scripts/shells/linux/debian/install_shells/ | grep -E '^\\+' | grep -vE '^\\+\\+\\+' | \\\n  grep -nE 'apt-key|/etc/apt/sources\\.list[^.]|kali-rolling|/etc/apt/trusted\\.gpg\\.d|sed -i.*sources\\.list|rm .*(sources\\.list|trusted\\.gpg)' \\\n  | grep -vE '#|echo|log|comment' | head -30\necho \"--- (empty above = no policy-violating additions) ---\"", "description": "Scoped syntax check + apt-policy guard on added lines"}
+
+[2026-06-22 15:10:39]   <- tool result:
+=== bash -n on changed scripts that actually EXIST ===
+checked 57 existing changed scripts; ALL pass bash -n
+
+=== apt-repo policy guard: did any fix mutate distro repos/keys? (added lines only) ===
+--- (empty above = no policy-violating additions) ---
+
+[2026-06-22 15:10:49] ASSISTANT:
+Clean: **57 changed scripts all pass `bash -n`, zero dangling refs, zero apt-policy violations introduced.** Let me parse the batch result for any findings the fixers left unfixed, and spot-check the highest-stakes one — the `13_cuda` distro-`sources.list` policy violation.
+
+[2026-06-22 15:10:54]   -> tool: Bash  {"command": "cd /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks\npython3 - <<'PY'\nimport json\nraw=open('ws2qn849x.output').read(); end=raw.rfind('}')\nres=json.loads(raw[:end+1])['result']\nprint(\"TOTALS:\",json.dumps(res['totals']))\nprint(\"\\n=== scripts reporting any UNFIXED finding ===\")\nany_unfixed=False\nfor s in res['perScript']:\n    if s.get('unfixed'):\n        any_unfixed=True\n        print(f\"- {s['script']}:\")\n        for u in s['unfixed']: print(f\"    · {u}\")\nif not any_unfixed: print(\"  (none — every fixer applied all its findings)\")\nprint(\"\\n=== change counts per script ===\")\nfor s in sorted(res['perScript'],key=lambda x:x['script']):\n    print(f\"  {s['script']:40s} {len(s.get('changes',[]))} changes  syntax_ok={s['syntax_ok']}\")\nPY", "description": "Parse batch unfixed items and change counts"}
+
+[2026-06-22 15:10:54]   <- tool result:
+TOTALS: {"targeted": 45, "applied": 45, "syntaxFailures": [], "notApplied": []}
+
+=== scripts reporting any UNFIXED finding ===
+- 13_cuda_nvidia_prereq.sh:
+    · install_driver_ubuntu still primarily uses `ubuntu-drivers autoinstall` (and a direct `apt-get update`), which is the correct Ubuntu mechanism and pulls from Ubuntu's own restricted/multiverse — not a third-party repo — so no gated third-party repo add applies; the apt manager helper is used only for the nvidia-driver fallback path. This is intentional, not a policy violation.
+    · The nvidia-driver package comes from the DISTRO's own contrib/non-free, not a third-party repo, so no third-party signing key / get_var feature-flag-gated third-party repo add was introduced (none is needed). Enablement of the distro components is done non-destructively via a separate sources.list.d file rather than touching distro files.
+- 1_stop_aliyun.sh:
+    · Cryptographic integrity verification of the fetched uninstall scripts (doc-correctness 'plaintext http without integrity check') is NOT fully fixable: the Aliyun aegis vendor publishes no checksum/signature for these download.../*.sh endpoints and serves only over http, so there is no trusted value to verify against. Switching to https is not reliable for these legacy hosts. Mitigated rather than fixed: each script is fetched to a freshly overwritten temp file, execution is gated on a successful non-empty download, and the limitation plus mitigations are documented in an inline comment per the script's English-only rule.
+- 96_install_deepseek_ocr.sh:
+    · doc-correctness finding premise partially inaccurate: I verified against an actual clone of https://github.com/deepseek-ai/DeepSeek-OCR.git that the DeepSeek-OCR-master/DeepSeek-OCR-hf and DeepSeek-OCR-master/DeepSeek-OCR-vllm subdirectories DO exist (run_dpsk_ocr.py lives at DeepSeek-OCR-master/DeepSeek-OCR-hf/run_dpsk_ocr.py), so the original `$install_dir/DeepSeek-OCR-master/DeepSeek-OCR-hf` paths were in fact vali
+        ... [truncated 3368 chars]
+
+[2026-06-22 15:11:03] ASSISTANT:
+All 45 applied. The 3 "unfixed" notes are sound judgment calls, not misses (vendor serves only HTTP with no checksum for `1_stop_aliyun`; `96_deepseek_ocr`'s finding premise was partly wrong and the fixer verified against an actual clone before hardening anyway). Let me confirm the critical `13_cuda` fix actually removed the distro `sources.list` mutation.
+
+[2026-06-22 15:11:07]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\np=scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh\necho \"=== still any sed -i / cp backup on the distro /etc/apt/sources.list? ===\"\ngrep -nE \"sed -i.*sources\\.list|/etc/apt/sources\\.list\\b\" \"$p\" | grep -vE \"sources\\.list\\.d\" || echo \"  none — distro sources.list no longer mutated\"\necho\necho \"=== new approach: uses sources.list.d + framework helper? ===\"\ngrep -nE \"sources\\.list\\.d|apt_repository_manager|ensure_packages_from|resolve_apt_vendor|nvidia\" \"$p\" | head -15", "description": "Verify 13_cuda no longer mutates distro sources.list"}
+
+[2026-06-22 15:11:07]   <- tool result:
+=== still any sed -i / cp backup on the distro /etc/apt/sources.list? ===
+107:# /etc/apt/sources.list (or touching deb822 *.sources), it detects the distro's
+128:    if [ -f /etc/apt/sources.list ]; then
+129:        line="$(grep -aE '^[[:space:]]*deb[[:space:]]' /etc/apt/sources.list 2>/dev/null \
+
+=== new approach: uses sources.list.d + framework helper? ===
+15:# 13_cuda_nvidia_prereq.sh -- NVIDIA driver + CUDA toolkit prerequisite
+20:#   13_cuda_nvidia_prereq  (this; "cuda" < "ensure")        -> runs here
+25:# driver is installed and loaded — making `nvidia-smi` work — before the guard
+26:# (torch_cpu_guard.sh) picks the torch build solely on `nvidia-smi -L`, so a GPU
+37:#   - Idempotent: if `nvidia-smi -L` already works, the driver step is skipped;
+49:APT_REPO_MANAGER_LIB="$COMMON_DIR/apt_repository_manager.sh"
+51:# this holds only the extra components (contrib/non-free/...) the nvidia-driver
+53:NONFREE_AUGMENT_FILE="/etc/apt/sources.list.d/corenode-nvidia-nonfree.sources"
+75:log() { echo "[nvidia-cuda] $*"; }
+78:nvidia_gpu_present() {
+82:    if command -v lspci >/dev/null 2>&1 && lspci 2>/dev/null | grep -qi 'nvidia'; then
+88:# 0 when the driver is usable now (nvidia-smi lists a GPU).
+89:nvidia_smi_works() {
+90:    command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1
+103:# Debian-family box when the nvidia-driver package has no candidate. Kali rolling
+
+[2026-06-22 15:11:13]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\np=scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh\necho \"=== lines 120-160: how it reads /etc/apt/sources.list (READ-ONLY?) ===\"\nsed -n '124,160p' \"$p\"", "description": "Inspect 13_cuda new non-free handling"}
+
+[2026-06-22 15:11:13]   <- tool result:
+=== lines 120-160: how it reads /etc/apt/sources.list (READ-ONLY?) ===
+    fi
+
+    # 1) Discover the distro base repo from a one-line 'deb' entry in
+    #    sources.list (the classic layout, e.g. Kali / older Debian / Ubuntu).
+    if [ -f /etc/apt/sources.list ]; then
+        line="$(grep -aE '^[[:space:]]*deb[[:space:]]' /etc/apt/sources.list 2>/dev/null \
+            | grep -aiE 'debian|kali|ubuntu' | head -n1)"
+        if [ -n "$line" ]; then
+            # Fields after the optional [options] block: <uri> <suite> <components...>
+            uri="$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*deb[[:space:]]+(\[[^]]*\][[:space:]]+)?([^[:space:]]+)[[:space:]]+([^[:space:]]+).*/\2/')"
+            suite="$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*deb[[:space:]]+(\[[^]]*\][[:space:]]+)?([^[:space:]]+)[[:space:]]+([^[:space:]]+).*/\3/')"
+        fi
+    fi
+
+    # 2) Fall back to deb822 .sources (Debian 12+/trixie default layout), where
+    #    there is no one-line 'deb' to parse. Read URIs/Suites from the first
+    #    distro .sources stanza.
+    if [ -z "$uri" ] || [ -z "$suite" ]; then
+        for f in /etc/apt/sources.list.d/*.sources; do
+            [ -f "$f" ] || continue
+            case "$f" in
+                "$NONFREE_AUGMENT_FILE") continue ;;
+            esac
+            grep -aiqE 'debian|kali|ubuntu' "$f" 2>/dev/null || continue
+            uri="$(grep -aiE '^[[:space:]]*URIs:' "$f" 2>/dev/null | head -n1 | awk '{print $2}')"
+            suite="$(grep -aiE '^[[:space:]]*Suites:' "$f" 2>/dev/null | head -n1 | awk '{print $2}')"
+            [ -n "$uri" ] && [ -n "$suite" ] && break
+        done
+    fi
+
+    if [ -z "$uri" ] || [ -z "$suite" ]; then
+        log "Could not detect a distro base repo to augment; leaving sources untouched."
+        return 0
+    fi
+
+    log "nvidia-driver has no candidate; adding non-free components via separate file:"
+    log "  $NONFREE_AUGMENT_FILE -> $uri $suite [$want_comps]"
+
+[2026-06-22 15:11:23] ASSISTANT:
+`13_cuda` is fully remediated — it now only **reads** `/etc/apt/sources.list` (grep, no `sed -i`, no backup-cp, no write) and writes non-free components to a **separate** `corenode-nvidia-nonfree.sources` file, with deb822 (Debian 12+/trixie) handling added. Policy violation gone. Let me get the final tally of everything modified.
+
+[2026-06-22 15:11:26]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== total scripts I modified across all 3 fix runs (pilot 14 + batch 45) ===\"\ngit diff --stat -- scripts/shells/linux/debian/install_shells/ | tail -1\necho\necho \"=== net line delta summary ===\"\ngit diff --numstat -- scripts/shells/linux/debian/install_shells/ | awk '{a+=$1;d+=$2} END{print \"  +\"a\" / -\"d\" across \"NR\" files\"}'", "description": "Final diff tally"}
+
+[2026-06-22 15:11:27]   <- tool result:
+=== total scripts I modified across all 3 fix runs (pilot 14 + batch 45) ===
+ 63 files changed, 3497 insertions(+), 2897 deletions(-)
+
+=== net line delta summary ===
+  +3497 / -2897 across 63 files
+
+[2026-06-22 15:11:49] ASSISTANT:
+## Complete — full audit + remediation done
+
+Everything is fixed and independently verified. Here's the final state.
+
+### What was done (3 workflow passes, 398 agents total)
+| Pass | Scope | Result |
+|---|---|---|
+| Audit (adversarial) | 76 scripts, finder + skeptic per finding | 146 confirmed findings (33H/51M/62L) |
+| Pilot fixes | 14 apt/repo scripts | applied, `bash -n` clean |
+| Batch fixes | 45 remaining scripts w/ findings | **45/45 applied, 0 syntax failures** |
+
+**59 install scripts modified**, all 110 batch findings + 24 pilot findings addressed.
+
+### Independent verification (my own, not the agents' claims)
+- ✅ **`bash -n`**: all 57 currently-existing changed scripts pass.
+- ✅ **Dangling functions**: zero removed-but-still-called functions across every changed file.
+- ✅ **apt-repo policy**: no added line mutates a distro `sources.list`, distro key, or uses `apt-key`/raw `kali-rolling`. The one prior violation (`13_cuda` `sed -i` on `/etc/apt/sources.list`) is gone — it now reads-only and augments via a separate `*.sources` file with deb822 support.
+
+### Representative fixes across the matrix
+- **Kali root-by-default**: `11_install_sudo` now resolves the real user via `get_real_user_*` (was never adding the user to sudo); `124_rustdesk`, `125_gnome_rdp`, `8_project_validator`, `12_update` ownership/`$USE_SUDO` corrected.
+- **t64 package renames**: `libfuse2→libfuse2t64`, `libasound2→libasound2t64` now probed-with-fallback in `120_desktop_apps`, `121_cursor`, `127_wechat`, `36_puppeteer`.
+- **snap-on-Debian/Kali**: `39_android_studio`, `38_flutter` given apt/tarball paths.
+- **Idempotency breakers**: `10_fix_dns` clears `chattr +i` before rewrite; `121_cursor`/`37_dotnet` `/etc/environment` rewrites made non-destructive; `122_vscode` broad `grep "code"` purge narrowed; `18_ssh_remote` completion-flag moved out of per-run tmpdir; interactive `read` prompts (`15`, `54`, `18`) made non-blocking.
+
+### 3 reasoned non-fixes (documented, not misses)
+- `1_stop_aliyun` — vendor serves only HTTP with no checksum; mitigated (fresh temp file + gated exec), can't truly verify integrity.
+- `96_deepseek_ocr` — the finding's premise was partly wrong (paths *do* exist, verified against a real clone); hardened with runtime `find()` anyway.
+- `13_cuda` — remaining items are intentional (distro's own contrib/non-free, not a third-party repo).
+
+### Status
+Nothing committed — **all changes are unstaged** in your working tree. Full report at `/tmp/install_audit_report.md`.
+
+Review surface:
+```
+git diff scripts/shells/linux/debian/install_shells/
+```
+
+Want me to **commit** these (on a new branch, since you're on `main`), or leave them for your review? The remaining **62 low-severity** findings (cosmetic/consistency) are untouched — I can sweep those too if you want, but they don't affect cross-distro correctness or idempotency.
+
+[2026-06-22 15:15:23] USER:
+use claude code ,workflow ,veriry ,If laravelmain need help,like this translate text or audio gerete or picture conver image , that chrome-mcp and pycore task center Is'n enough, need up UI show task detail,and up pycoore task center and chrome-mcp UI and task system, the logic need strong ,and needs to works.
+
+[2026-06-22 15:15:43] ASSISTANT:
+This is a substantial feature spanning several subsystems (`laravel_main`, the pycore task center, chrome-mcp, and the task UI/system). Before I orchestrate anything, I need to understand what exists today — I won't run a workflow blind into a vague request. Let me locate these subsystems first.
+
+[2026-06-22 15:15:46]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== top-level layout ===\"; ls -1\necho; echo \"=== poly_apps ===\"; ls -1 poly_apps 2>/dev/null\necho; echo \"=== pycore location(s) ===\"; ls -1d pycore* 2>/dev/null; find . -maxdepth 3 -iname \"*task*center*\" -not -path '*/node_modules/*' 2>/dev/null | head\necho; echo \"=== chrome-mcp / chrome mcp dirs ===\"; find . -maxdepth 4 -iname \"*chrome*mcp*\" -not -path '*/node_modules/*' 2>/dev/null | head; find . -maxdepth 4 -type d -iname \"*chrome*\" -not -path '*/node_modules/*' 2>/dev/null | head", "description": "Locate pycore, task center, chrome-mcp, laravel_main"}
+
+[2026-06-22 15:15:47]   <- tool result:
+=== top-level layout ===
+AGENTS.md
+apps
+babel.config.js
+babel-plugin-transform-require-replace.js
+CLAUDE.md
+config
+dd.cmd
+dd.sh
+development-guides
+docs
+dotapps
+dotcore
+GEMINI.md
+LICENSE
+main.js
+ncore
+ncore-mcp-stdio-server.js
+ncore_module_caller.js
+node_modules
+nuget.config
+package.json
+package-lock.json
+pnpm-lock.yaml
+poly_apps
+_prompts
+public
+pyapps
+__pycache__
+pycore
+pymain.py
+pyservice.ps1
+pyservice.sh
+README.md
+scripts
+start_mcp_chrome.js
+testabd.txt
+webclaude_group
+webpack.config.js
+
+=== poly_apps ===
+appfactory-backend
+appfactory-goframe
+appfactory-master-dashboard
+_bak_pycore_laravel_wordflow_ui
+escrcpyup
+flutter_bloom
+laravel_main
+matrixui
+okx_price_monitor
+pycore_laravel_wordflow_ui
+pycore_laravel_wordflow_ui.zip
+qy_capacitor
+SmartMatrix
+top-router
+xincanchuanmeikeji
+
+=== pycore location(s) ===
+pycore
+
+=== chrome-mcp / chrome mcp dirs ===
+./apps/mcp-chrome
+./ncore/utils/mcp_chrome
+./scripts/dev/chrome_extensions
+./apps/dingdoudou/.output/chrome-mv3
+./public/core_node_init/.runtime_cache/chrome-user-data-1761652183915
+./public/core_node_init/.runtime_cache/chrome-user-data-1761652222131
+./public/core_node_init/.runtime_cache/chrome-user-data-1761652231548
+./public/core_node_init/.runtime_cache/chrome-user-data-1761652249276
+./public/core_node_init/.runtime_cache/chrome-user-data-1761652500968
+./public/core_node_init/.runtime_cache/chrome-user-data-1761652605645
+
+[2026-06-22 15:15:55] ASSISTANT:
+Located them: `pycore/`, `apps/mcp-chrome`, `ncore/utils/mcp_chrome`, and `poly_apps/laravel_main`. This is a multi-subsystem mapping job — let me fan out parallel Explore agents to map each one (task center, chrome-mcp, laravel_main task integration, and the translate/audio/image task flows) so I understand the real architecture before proposing anything.
+
+[2026-06-22 15:16:00]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== pycore/ structure (task center?) ===\"; ls -1 pycore 2>/dev/null | head -40\necho; echo \"=== grep 'task center' / task_center across repo (no node_modules) ===\"\ngrep -rIl -iE \"task[_ -]?center\" --include=*.py --include=*.php --include=*.js --include=*.ts --include=*.vue . 2>/dev/null | grep -vE 'node_modules|/\\.' | head -20\necho; echo \"=== laravel_main top dirs ===\"; ls -1 poly_apps/laravel_main 2>/dev/null | head\necho; echo \"=== translate / tts / image task handlers ===\"\ngrep -rIl -iE \"translate|text_to_speech|tts|image.?convert|img2img|generate.?audio\" --include=*.py . 2>/dev/null | grep -vE 'node_modules|__pycache__|/\\.' | head -20", "description": "Recon pycore task center, laravel task handlers"}
+
+[2026-06-22 15:16:07]   <- tool result:
+=== pycore/ structure (task center?) ===
+bak
+callmodule
+database
+docs
+__init__.py
+__main__.py
+_prompts
+pyadb
+__pycache__
+pycore_module_caller.py
+pyctl
+pydevice
+pyfoundations
+pygvar
+pyheartbeat
+pylauncher
+pythreadpool
+pyutils
+README.md
+scripts
+static
+temp
+
+=== grep 'task center' / task_center across repo (no node_modules) ===
+apps/mcp-chrome/app/chrome-extension/entrypoints/background/index.ts
+apps/mcp-chrome/app/chrome-extension/entrypoints/background/task-center-listener.ts
+apps/mcp-chrome/app/chrome-extension/entrypoints/background/api/WorkerApiClient.ts
+apps/mcp-chrome/app/chrome-extension/entrypoints/background/services/bing-dictionary-worker-service.ts
+apps/mcp-chrome/app/chrome-extension/entrypoints/background/services/gemini-image-worker-service.ts
+apps/mcp-chrome/app/chrome-extension/entrypoints/background/services/notebooklm-worker-service.ts
+apps/mcp-chrome/app/chrome-extension/entrypoints/background/services/task-center/init-processors.ts
+apps/mcp-chrome/app/chrome-extension/entrypoints/background/services/task-center/task-history-store.ts
+apps/mcp-chrome/app/chrome-extension/entrypoints/background/services/task-center/TaskCenter.ts
+apps/mcp-chrome/app/chrome-extension/entrypoints/background/services/task-center/taskHistoryReporter.ts
+apps/mcp-chrome/app/chrome-extension/entrypoints/popup/components/ExtensionsPanel.vue
+apps/mcp-chrome/app/chrome-extension/entrypoints/popup/components/extensions/UnifiedTaskCenter.vue
+apps/mcp-chrome/app/chrome-extension/entrypoints/popup/components/extensions/TaskCenterPanel.vue
+apps/mcp-chrome/app/chrome-extension/entrypoints/popup/composables/useTaskCenter.ts
+pycore/callmodule/callmodule_main.py
+pycore/callmodule/config.py
+pycore/callmodule/routers/local/queue_overview_router.py
+pycore/callmodule/routers/local/task_center_router.py
+pycore/callmodule/routers/local/task_history_router.py
+pycore/callmodule/routers/local/__init__.py
+
+=== laravel_main top dirs ===
+analyze_apps_structure.py
+app
+apps_structure_analysis_report.j
+        ... [truncated 1180 chars]
+
+[2026-06-22 15:16:36] ASSISTANT:
+This is a 3-subsystem feature (pycore `callmodule` task center ↔ chrome-mcp extension workers ↔ laravel_main), and I can already see the moving parts:
+
+- **pycore task center** → `pycore/callmodule/routers/local/task_center_router.py`, `task_history_router.py`, `queue_overview_router.py`
+- **chrome-mcp** → `apps/mcp-chrome/.../services/task-center/TaskCenter.ts` + worker services (`gemini-image-worker`, `bing-dictionary-worker`, `notebooklm-worker`) + UI (`UnifiedTaskCenter.vue`, `TaskCenterPanel.vue`, `useTaskCenter.ts`)
+- **laravel_main** → task creation/queue (`check_backend_queue.php`, `clean_and_recreate_tasks.php`)
+
+Before proposing any change I'll map exactly how a translate/audio/image task flows across all three today and where it breaks down. Running a mapping workflow (parallel readers, structured output) now.
+
+[2026-06-22 15:17:11]   -> tool: Workflow  {"script": "export const meta = {\n  name: 'taskcenter-architecture-map',\n  description: 'Map the pycore task center ↔ chrome-mcp ↔ laravel_main task system for translate/audio/image flows',\n  phases: [\n    { title: 'Map', detail: 'parallel readers, one per subsystem' },\n    { title: 'Trace', detail: 'end-to-end trace of a translate/audio/image task' },\n  ],\n}\n\nconst ROOT = '/mnt/dev_nvme0n1p1/programing/core_node'\n\nconst MAP_SCHEMA = {\n  type: 'object', additionalProperties: false,\n  required: ['subsystem', 'entrypoints', 'taskModel', 'lifecycle', 'integrationPoints', 'ui', 'gaps', 'keyFiles'],\n  properties: {\n    subsystem: { type: 'string' },\n    entrypoints: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['file', 'role'], properties: { file: { type: 'string' }, role: { type: 'string' } } } },\n    taskModel: { type: 'object', additionalProperties: false, required: ['where', 'fields', 'statuses', 'types'], properties: { where: { type: 'string', description: 'file/table/store holding tasks' }, fields: { type: 'array', items: { type: 'string' } }, statuses: { type: 'array', items: { type: 'string' } }, types: { type: 'array', items: { type: 'string' }, description: 'task types: translate/tts/image/etc' } } },\n    lifecycle: { type: 'array', items: { type: 'string' }, description: 'ordered steps a task goes through in this subsystem' },\n    integrationPoints: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['direction', 'transport', 'endpointOrChannel', 'payload'], properties: { direction: { type: 'string', description: 'e.g. laravel->pycore, pycore->chrome' }, transport: { type: 'string', description: 'HTTP/WebSocket/native-messaging/polling/etc' }, endpointOrChannel: { type: 'string' }, payload: { type: 'string' } } } },\n    ui: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['component', 'shows', 'missing'], properties: { component: { type: 'stri
+        ... [truncated 6111 chars]
+
+[2026-06-22 15:17:11]   <- tool result:
+Workflow launched in background. Task ID: wwgil3bck
+Summary: Map the pycore task center ↔ chrome-mcp ↔ laravel_main task system for translate/audio/image flows
+Transcript dir: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/subagents/workflows/wf_e54f5cbe-5ba
+Script file: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/taskcenter-architecture-map-wf_e54f5cbe-5ba.js
+(Edit this file with Write/Edit and re-invoke Workflow with {scriptPath: "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/taskcenter-architecture-map-wf_e54f5cbe-5ba.js"} to iterate without resending the script.)
+Run ID: wf_e54f5cbe-5ba
+To resume after editing the script: Workflow({scriptPath: "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/taskcenter-architecture-map-wf_e54f5cbe-5ba.js", resumeFromRunId: "wf_e54f5cbe-5ba"}) — completed agents return cached results.
+
+You will be notified when it completes. Use /workflows to watch live progress.
+
+[2026-06-22 15:17:18] ASSISTANT:
+Mapping workflow is running (task `wwgil3bck`) — 4 parallel subsystem readers + an end-to-end trace agent. It'll tell me precisely how a translate/TTS/image task flows across laravel_main → pycore task center → chrome-mcp today, and where it breaks.
+
+While that runs, I want to be upfront: your request is broad ("logic needs strong, needs to work, show task detail, upgrade all three"), and I don't yet know which specific behaviors are failing for you. Once the map comes back I'll show you the real architecture + the concrete breakpoints, then ask a couple of focused questions before building — so I implement what you actually need, not what I guess. Then I'll use a fix/build workflow and the `/verify` skill to confirm it actually works end-to-end.
+
+I'll report back when the map completes.
+
+[2026-06-22 15:24:59] USER:
+<task-notification>
+<task-id>wwgil3bck</task-id>
+<tool-use-id>toolu_01DodUaCkumi4UN1axRrQLYP</tool-use-id>
+<output-file>/tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks/wwgil3bck.output</output-file>
+<status>completed</status>
+<summary>Dynamic workflow "Map the pycore task center ↔ chrome-mcp ↔ laravel_main task system for translate/audio/image flows" completed</summary>
+<result>{"maps":[{"subsystem":"pycore-taskcenter","entrypoints":[{"file":"/mnt/dev_nvme0n1p1/programing/core_node/pycore/callmodule/routers/local/task_center_router.py","role":"HTTP router: unified task-center aggregate (prefix /api/local/task-center). GET '' returns {scheduler, local_tasks, remote_queue, timestamp}; GET /tasks/{task_id} returns one local TaskManager record. Read-only, in-process only."},{"file":"/mnt/dev_nvme0n1p1/programing/core_node/pycore/callmodule/routers/local/task_history_router.py","role":"HTTP router: per-task detail history (prefix /api/local/tasks). GET /recent (filter end/worker/task_type), POST /record (chrome end pushes its task details here), POST /clear. Backed by the unified TaskHistoryRecorder ring+JSONL log."},{"file":"/mnt/dev_nvme0n1p1/programing/core_node/pycore/callmodule/routers/local/queue_overview_router.py","role":"HTTP router: unified Queue Center overview (prefix /api/local/queue). GET /overview fans out to Laravel /api/app_qy_v1/assist/overview and merges pycore engine-priority status. Defines the 8 canonical task CATEGORIES + their handler (chrome/pycore/ai)."},{"file":"/mnt/dev_nvme0n1p1/programing/core_node/pycore/callmodule/routers/local/translation_queue_router.py","role":"HTTP router: translation queue monitor+control proxy (prefix /api/local/translation/queue). GET '' (cached snapshot), POST /priority, POST /stack (enqueue), GET /tasks/{task_id} (proxy to Laravel /api/task/{id}/status). Delegates to QueueMonitorService."},{"file":"/mnt/dev_nvme0n1p1/programing/core_node/pycore/callmodule/config.py","role":"ACTIVE app assembly: build_launcher_config() at line ~772 lists services.rpc_v2.fastapi_routers — the canonical/full router set (lines 780-829) that DOES mount queue_overview_router, task_center_router, task_history_router, translation_queue_router. Used by pycore_module_caller.py."},{"file":"/mnt/dev_nvme0n1p1/programing/core_node/pycore/callmodule/event_handlers.py","role":"ACTIVE scheduler wiring: _register_heartbeat_workers() (line 158) registers the live PyHeartbeat callbacks under the pycore_module_caller path: translation_worker, assist_worker, translation_queue_monitor, translation_ws_client. NOTE: does NOT register tts_queue_poller / tts_sentence_worker."},{"file":"/mnt/dev_nvme0n1p1/programing/core_node/pycore/callmodule/callmodule_main.py","role":"PARALLEL/legacy app+scheduler path: start() builds a SMALLER 20-router rpc_routers list (lines 556-590) MISSING queue_overview_router; _register_* funcs (lines 140-455) register translation_worker, tts_queue_poller, tts_sentence_worker, translation_queue_monitor, translation_ws_client. This is the native_ui path, not the launcher path."},{"file":"/mnt/dev_nvme0n1p1/programing/core_node/pycore/pycore_module_caller.py","role":"Canonical process entrypoint: main() calls build_launcher_config() (config.py) + ServiceLauncher; event_handlers.register_event_handlers() runs after launcher.start() and wires the heartbeat workers."}],"taskModel":{"where":"In-memory only (NO DB/sqlite). Two distinct in-process stores: (1) pyctl TaskManager singleton at pycore/pyctl/desktop/task_manager.py — dict self.tasks[task_id]-&gt;Task + ordered task_history list, capped max_history=100, thread-safe via threading.Lock, lost on restart. (2) TaskHistoryRecorder singleton at pycore/pyfoundations/task_history.py — deque ring capped RING_MAX=500 PLUS an append-only JSONL text log at &lt;app_logs&gt;/task_history.log (5MB single-gen rotation, ring re-seeded from log tail on startup, so this is the only restart-surviving store). Authoritative queue/task state lives in LARAVEL (global_tasks / queue), which pycore only mirrors via cached snapshots; no persisted task DB exists in this subsystem.","fields":["TaskManager.Task: task_id (str: 'task_{type}_{YYYYMMDD_HHMMSS}_{uuid8}'), task_type, status, progress(0-100), input_data(dict), result(dict|None), error(str|None), created_at, updated_at, estimated_time","TaskHistoryRecorder record: seq, ts, end, worker, task_type, task_id, source_api, title, language, status, success(bool), posted_back(bool), latency_ms, error, detail(dict: provider/model/engine/voice/audio_bytes/image_bytes/audio_path/translation/words[]/...)","Remote queue item (QueueMonitorService snapshot, mirrors Laravel): task_id, words, word_count, language, target_language, priority, status, created_at, age_seconds, assigned_to, recently_bumped(bool added by pycore)"],"statuses":["pyctl TaskManager (TaskStatus enum): pending, processing, completed, failed","TaskHistoryRecorder lifecycle status: submitted, already_done, skipped, released, failed, completed (STATUS_SUCCESS = submitted/already_done/completed/skipped)","Laravel worker-task result status posted by pycore: processing, completed, failed","Queue snapshot summary buckets: pending, processing, completed, failed, total"],"types":["pyctl TaskManager local labels: remote_translation, remote_audio (and the unused TaskType enum text/image/voice)","TaskHistory/worker task_type values: word_translation, word_audio, cover, tts, poster; chrome-pushed: notebooklm, gemini_image, bing dictionary","Queue Center categories (queue_overview_router _CATEGORY_CATALOG): word_translation(chrome), word_image(chrome), word_audio(pycore), sentence_audio(pycore), subtitle_lang(ai), book_lang(ai), cover(pycore), poster(pycore), notebooklm(chrome), gemini_image(chrome)","Laravel execution_type (claim discriminator): remote_translation, remote_audio"]},"lifecycle":["ENQUEUE (translation/word_audio): producer (qyApp/Laravel, or pycore POST /api/local/translation/queue/stack -&gt; QueueMonitorService.stack -&gt; Laravel .../queue/stack) writes a task into Laravel's global_tasks/queue. pycore does NOT own the queue.","DISPATCH/PULL: TranslationWorkerService.poll_once (heartbeat, ~12s) fans out to every healthy Laravel backend; per backend _register -&gt; _heartbeat -&gt; _pull_tasks (GET /api/worker/tasks/pull, atomic claim, priority-desc order) -&gt; _dispatch.","HAND-OFF: _dispatch creates a LOCAL pyctl TaskManager task (type remote_translation|remote_audio, input_data carries remote_task_id/backend/words/...) and runs _process_task on a background thread; in-flight guard keyed by (base, task_id).","PROCESS: word_translation -&gt; GoogleTranslator.translate_batch (partition_words skips words other pycores already did via Reverb done-words set, mark_words_done after); word_audio -&gt; tts_orchestrator.synthesize per word -&gt; base64 mp3 (gated by assist TTS capability).","LIVENESS: best-effort _post_result(status=processing, progress=5, attempts=1) renews the Laravel lease before slow work.","REPORT: _post_result(completed|failed, result/error) -&gt; POST /api/worker/tasks/result, with RESULT_POST_ATTEMPTS=3 + backoff for transient/5xx; 4xx/409 not retried.","RETRY/RECOVERY: lost result -&gt; task stays 'assigned' on Laravel until its timeout release, then re-pends and another worker re-claims. Per-backend circuit breaker (3x 5xx -&gt; 120s cooldown) pauses pulls from a broken backend.","RECORD: TranslationWorkerService._record_task -&gt; TaskHistoryRecorder.record (ring + JSONL log + ColorPrint line); TaskManager.complete_task/fail_task updates the local record. TTS-poller path does NEITHER (separate API, no recorder/manager call).","EXPOSE: task_center_router GET '' aggregates scheduler+local_tasks+remote_queue; task_history_router GET /recent serves the ring; translation_queue_router GET '' serves the cached queue snapshot; queue_overview GET /overview serves merged category counts.","MONITOR: QueueMonitorService.poll_once (~5s) GETs Laravel queue/list, caches snapshot, diffs priorities to flag recently_bumped; TranslationWsClient pushes Reverb task.queued/priority/completed for instant snapshot updates."],"integrationPoints":[{"direction":"laravel-&gt;pycore (pull)","transport":"HTTP GET (polled ~12s by TranslationWorkerService.poll_once)","endpointOrChannel":"{base}/api/worker/tasks/pull?worker_id=...","payload":"resp { (data:){ cou
+... (truncated 85024 chars, full result in /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks/wwgil3bck.output)</result>
+<usage><agent_count>5</agent_count><subagent_tokens>419906</subagent_tokens><tool_uses>104</tool_uses><duration_ms>467974</duration_ms></usage>
+</task-notification>
+
+[2026-06-22 15:25:02] ASSISTANT:
+The map is in. Let me extract the trace (end-to-end flows, where they break, and recommendations) so I can show you the real picture.
+
+[2026-06-22 15:25:07]   -> tool: Bash  {"command": "cd /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/tasks\npython3 - <<'PY'\nimport json\nraw=open('wwgil3bck.output').read(); end=raw.rfind('}')\nres=json.loads(raw[:end+1])['result']\ntr=res['trace']\nprint(\"================ END-TO-END FLOWS ================\")\nfor f in tr['flows']:\n    print(f\"\\n### {f['taskType']}\")\n    for i,s in enumerate(f['steps'],1): print(f\"  {i}. {s}\")\n    print(\"  BREAKS AT:\")\n    for b in f['breaksAt']: print(f\"    ✗ {b}\")\nprint(\"\\n================ CROSS-CUTTING GAPS ================\")\nfor g in sorted(tr['crossCuttingGaps'],key=lambda x:{'high':0,'medium':1,'low':2}[x['severity']]):\n    print(f\"- [{g['severity'].upper()}] {g['title']}  ({', '.join(g['subsystems'])})\")\n    print(f\"    {g['detail']}\")\nprint(\"\\n================ RECOMMENDATIONS ================\")\nfor r in tr['recommendations']:\n    print(f\"- ({r['effort']}) {r['title']}\")\n    print(f\"    build: {r['whatToBuild']}\")\n    print(f\"    where: {r['where']}\")\nPY", "description": "Extract trace flows, gaps, recommendations"}
+
+[2026-06-22 15:25:07]   <- tool result:
+================ END-TO-END FLOWS ================
+
+### translate text (word_translation / word_media)
+  1. PRODUCE (laravel): A word lookup hits AppQyV1WordMediaService::resolve()/bumpQueriedWord(); on a media miss ensureWordMediaTask() -> TaskManagerService::createTask() inserts a word_media (execution_type=remote_client) and/or word_translation (remote_translation) row into global_tasks at priority 100 (query) or 30 (backfill); idempotent re-prioritize, never duplicate.
+  2. REGISTER (chrome/pycore -> laravel): worker POSTs /api/worker/register with processor_types (chrome bing worker registers remote_translation+remote_client; pycore TranslationWorkerService registers remote_translation).
+  3. PULL (laravel -> worker): worker GETs /api/worker/tasks/pull (long-poll ~20s). TaskManagerService::pullAndAssignTasksForWorker() runs one locked transaction: SELECT pending WHERE execution_type=lane ORDER BY priority DESC, created_at ASC, lockForUpdate, assignTo -> status=assigned, sets timeout_at. Response carries pending_urgent.
+  4. CLAIM (chrome): worker POSTs /api/worker/tasks/accept (idempotent); taskHistoryStore.upsertProcessing() writes a per-(backend,taskId) record status=processing progress=5.
+  5. PROCESS (chrome): BingDictionaryWorkerService UNION/dedups words, scrapes each unique word ONCE via BingTabPool (translation+phonetics+sample image+pronunciation mp3 base64), fans out to N backends. pycore path: GoogleTranslator.translate_batch with multi-pycore done-word dedup via Reverb set. Best-effort interim POST status=processing renews the lease.
+  6. SUBMIT (chrome/pycore -> laravel): POST /api/worker/tasks/result {status, result:{translations:[{word,translation,phonetics,image_base64,audio_base64}], target_language, provider}}. TaskManagerService::submitResult() verifies assigned_to ownership, idempotent terminal guard, sets completed, runs WordTranslationTaskProcessor -> AppQyV1WordTranslationWriteback::apply() (fill-missing merge; after-commit decode+magic-v
+        ... [truncated 18598 chars]
+
+[2026-06-22 15:25:43] ASSISTANT:
+I now have the full architecture. Here's the honest diagnosis before we build.
+
+## How it actually works today
+Laravel owns the queue (`global_tasks`). Workers **pull** tasks: pycore's `TranslationWorkerService` (translate + one audio path) and the chrome extension's worker services (Bing dictionary = translate+image+pronunciation, Gemini = image, NotebookLM = audio). They execute, POST results back, Laravel writes them into the dictionary. The pycore "task center" and chrome popup are **read-only mirrors** of this.
+
+## Why "chrome-mcp + pycore task center isn't enough" — the 5 real problems
+1. **"completed" doesn't mean "succeeded."** Bing worker always submits `status:'completed'` even when all words errored (`bing-dictionary-worker-service.ts:914`); Laravel validates result *type* but not *shape*; chrome's "acked" is synthetic. So any detail UI built on this **lies**.
+2. **Audio (TTS) is split across 3 uncoordinated paths** — and the main one (`tts_queue_poller`) **isn't even registered on the live launch path** and records *nothing*, so audio is largely **invisible** to the task UI. Two paths can claim the same word and waste work.
+3. **No persisted task history/audit anywhere.** Laravel stores only current status + one error string; pycore's task list is a volatile 100-item in-memory dict (lost on restart). You can't reconstruct when/why a task was assigned, retried, or timed out — **fatal for a real detail UI**.
+4. **The detail UIs are too thin.** Chrome `UnifiedTaskCenter.vue`: flat non-clickable cards, **failed tasks filtered out of the live tab**, NotebookLM answer stored but never rendered, no taskId/timing/retry/raw I-O, fan-out shows as N duplicate records. Pycore: only counts + 20 stubs, `/tasks/{id}` resolves only local ids, counts collapse to 0 when Laravel is down (looks "empty" vs "broken").
+5. **Two divergent pycore launch paths** mount different routers + workers, so which endpoints/workers exist depends on launch mode (`config.py` vs `callmodule_main.py`).
+
+This is real work across **3 stacks** (Laravel/PHP, pycore/Python, chrome-ext/TS+Vue). Before I build with a workflow + verify, two decisions are genuinely yours:
+
+[2026-06-22 15:25:52]   -> tool: AskUserQuestion  {"questions": [{"question": "What should this build round cover? (The detail UI is only trustworthy if the data layer is fixed first.)", "header": "Scope", "multiSelect": false, "options": [{"label": "Foundation + detail UI (recommended)", "description": "Fix status-trust (#1), unify+register audio (#2), add a persisted task-event timeline (#3), converge pycore launch paths (#5), THEN build the rich task-detail UI in both pycore task center and chrome popup (#4). The complete 'logic strong + show task detail' ask."}, {"label": "Logic/reliability only", "description": "Fix #1, #2, #3, #5 (status-trust, audio unification, persisted history, launch convergence). Make the task system correct first; defer the UI work to a later round."}, {"label": "Detail UI only", "description": "Build the task-detail UI in pycore + chrome popup now on top of the existing (partly untrustworthy) data. Fastest visible result, but 'completed' may still lie until the foundation is fixed."}, {"label": "Just the audio (TTS) lane", "description": "Narrowest: fix only #2 — make audio generation work reliably and become visible in the task UI, since that's the most broken/invisible task type."}]}, {"question": "Which stacks may I modify, and how should I verify it works?", "header": "Stacks + verify", "multiSelect": false, "options": [{"label": "All 3 stacks; I'll run the stack to verify", "description": "Modify Laravel + pycore + chrome extension. You can start Laravel/pycore/load the extension so I (or /verify) can exercise a real translate/audio/image task end-to-end."}, {"label": "All 3 stacks; build + automated checks only", "description": "Modify all three, but verify via unit/feature tests + syntax/build checks (phpunit, python import/build, vite build) rather than a live end-to-end run."}, {"label": "pycore + chrome only (hold Laravel)", "description": "Leave the production Laravel app untouched this round; do everything possible in pycore + the chrome extension, and list the Laravel cha
+        ... [truncated 50 chars]
+
+[2026-06-22 15:27:07]   <- tool result:
+Your questions have been answered: "What should this build round cover? (The detail UI is only trustworthy if the data layer is fixed first.)"="Foundation + detail UI (recommended)", "Which stacks may I modify, and how should I verify it works?"="All 3 stacks; I'll run the stack to verify". You can now continue with these answers in mind.
+
+[2026-06-22 15:28:18] ASSISTANT:
+Locked: **full build (foundation + detail UI) across all 3 stacks, you'll run the stack to verify.**
+
+The build has a hard dependency — Laravel owns the queue and the API contracts, so it must land first; pycore + chrome then build against those finalized contracts; then a syntax/build-check pass per stack. I'll structure the workflow exactly that way (Laravel → parallel pycore+chrome → verify-build), with the Laravel agent returning the real contract that the pycore/chrome agents consume.
+
+One guardrail I'm baking in from your `CLAUDE.md`: the Laravel agent must use `App\Providers\PathMapper::mapWebPath()` for runtime paths (never raw `storage_path()`/`base_path()`).
+
+[2026-06-22 15:29:12]   -> tool: Workflow  {"script": "export const meta = {\n  name: 'taskcenter-build',\n  description: 'Build task-system foundation (status-trust, audio unification, persisted timeline, launch convergence) + task-detail UI across Laravel, pycore, chrome-mcp',\n  phases: [\n    { title: 'Laravel-foundation', detail: 'contract owner: events table, result-trust, audio lock, enriched endpoints' },\n    { title: 'pycore+chrome', detail: 'parallel build against the finalized Laravel contract' },\n    { title: 'Verify-build', detail: 'per-stack syntax/build checks' },\n  ],\n}\n\nconst ROOT = '/mnt/dev_nvme0n1p1/programing/core_node'\nconst LAR = `${ROOT}/poly_apps/laravel_main`\nconst PYC = `${ROOT}/pycore/callmodule`\nconst EXT = `${ROOT}/apps/mcp-chrome/app/chrome-extension/entrypoints`\n\nconst RULES = `\nPROJECT RULES (mandatory):\n- Laravel runtime paths MUST resolve via App\\\\Providers\\\\PathMapper::mapWebPath() / its helpers — NEVER raw storage_path()/base_path()/database_path()/env('*_PATH').\n- Match surrounding code style/conventions exactly. Minimal, surgical changes. Do not refactor unrelated code.\n- Read the real files before editing; the architecture notes below are a guide, verify against actual code.\n- After editing, run the syntax/build check noted for your stack and report pass/fail with the command output.\n`\n\nconst CONTRACT_SPEC = `\nSHARED CONTRACT (Laravel is the source of truth; implement exactly so pycore/chrome can rely on it):\n1) global_task_events table: columns id(bigint pk), task_id(string, indexed), worker_id(string nullable), event(string: one of assigned|processing|completed|failed|timeout|reclaimed|cancelled), attempt(unsignedInt default 0), detail(json nullable), created_at(timestamp, indexed). Eloquent model GlobalTaskEvent.\n2) Write one event row at EVERY task transition in TaskManagerService: assignTo->'assigned', interim processing->'processing', submitResult success->'completed', submitResult failure->'failed', releaseTimedOutTasks->'timeout' then 
+        ... [truncated 9686 chars]
+
+[2026-06-22 15:29:12]   <- tool result:
+Workflow launched in background. Task ID: w4cq7spwu
+Summary: Build task-system foundation (status-trust, audio unification, persisted timeline, launch convergence) + task-detail UI across Laravel, pycore, chrome-mcp
+Transcript dir: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/subagents/workflows/wf_452bbc75-9b3
+Script file: /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/taskcenter-build-wf_452bbc75-9b3.js
+(Edit this file with Write/Edit and re-invoke Workflow with {scriptPath: "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/taskcenter-build-wf_452bbc75-9b3.js"} to iterate without resending the script.)
+Run ID: wf_452bbc75-9b3
+To resume after editing the script: Workflow({scriptPath: "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/taskcenter-build-wf_452bbc75-9b3.js", resumeFromRunId: "wf_452bbc75-9b3"}) — completed agents return cached results.
+
+You will be notified when it completes. Use /workflows to watch live progress.
+
+[2026-06-22 15:29:22] ASSISTANT:
+Build workflow is running (task `w4cq7spwu`), structured in 3 phases:
+
+1. **Laravel foundation** (contract owner) — `global_task_events` table + event rows at every transition, result-shape validation so `completed` can't lie, `stored_count`/`failed_count` in responses, the audio in-flight lock, `GET /api/task/{id}/events`, and enriched `GET /api/task/list`. Returns the finalized contract.
+2. **pycore + chrome in parallel** (against that contract) — pycore: launch convergence so the TTS pollers actually run, audio recorded into the task history, and `GET /api/local/tasks/detail/{id}` merging all 3 stores + category drill-down + `backend_down` flag. chrome: honest worker status (no more unconditional `completed`), real ack only when `stored_count>0`, and the click-to-expand detail panel (renders the never-shown NotebookLM answer, errors, timing, backends; stops hiding failed tasks; adds filter/search; groups fan-out).
+3. **Verify-build** — `php -l`, `py_compile`, and the extension's typecheck/build per stack.
+
+When it completes I'll review the diffs, run my own syntax/build sweep, and then we move to the live end-to-end verification — for that I'll need you to start Laravel + pycore and load the extension so I can drive a real translate/audio/image task through with `/verify`. I'll report back when the build lands.

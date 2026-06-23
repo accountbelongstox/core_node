@@ -43,7 +43,6 @@ UPSMON_CONF="/etc/nut/upsmon.conf"
 # Check if UPSC components are installed
 check_upsc_installed() {
     local has_nut=false
-    local has_apache=false
     local has_service=false
 
     # Check for NUT packages
@@ -51,18 +50,13 @@ check_upsc_installed() {
         has_nut=true
     fi
 
-    # Check for Apache2
-    if dpkg -l | grep -q "^ii.*apache2"; then
-        has_apache=true
-    fi
-
     # Check for NUT services
     if systemctl list-unit-files | grep -q "nut-server\|nut-monitor"; then
         has_service=true
     fi
 
-    # Return true if any component is installed
-    if [[ "$has_nut" == true ]] || [[ "$has_apache" == true ]] || [[ "$has_service" == true ]]; then
+    # Return true if any UPSC/NUT component is installed (Apache2 is NOT owned by UPSC).
+    if [[ "$has_nut" == true ]] || [[ "$has_service" == true ]]; then
         return 0
     fi
     return 1
@@ -81,17 +75,11 @@ prompt_uninstall() {
 
     # Check what's installed
     local has_nut=false
-    local has_apache=false
     local has_service=false
 
     if dpkg -l | grep -q "^ii.*nut"; then
         has_nut=true
         print_info_from_common_functions "Found: NUT (Network UPS Tools) packages"
-    fi
-
-    if dpkg -l | grep -q "^ii.*apache2"; then
-        has_apache=true
-        print_info_from_common_functions "Found: Apache2 web server"
     fi
 
     if systemctl list-unit-files | grep -q "nut-server\|nut-monitor"; then
@@ -100,7 +88,7 @@ prompt_uninstall() {
     fi
 
     # If nothing is installed, just exit
-    if [[ "$has_nut" == false ]] && [[ "$has_apache" == false ]] && [[ "$has_service" == false ]]; then
+    if [[ "$has_nut" == false ]] && [[ "$has_service" == false ]]; then
         echo ""
         print_success_from_common_functions "UPSC components are not installed"
         print_info_from_common_functions "No action needed"
@@ -113,23 +101,23 @@ prompt_uninstall() {
     if [[ "$has_nut" == true ]]; then
         echo "  - NUT packages (nut, nut-client, nut-server)"
     fi
-    if [[ "$has_apache" == true ]]; then
-        echo "  - Apache2 web server and all related packages"
-    fi
     if [[ "$has_service" == true ]]; then
         echo "  - NUT systemd services"
     fi
     echo ""
+    # Default is uninstall: empty/Enter (or non-interactive stdin) proceeds with
+    # removal. Apache2 is never part of this (see uninstall_upsc) and stays intact.
     echo -n "Do you want to uninstall UPSC and related components? (Y/n) [Y]: "
     read -r response
 
     case "$response" in
         [nN]|[nN][oO])
+            # Explicit No (keep components)
             print_info_from_common_functions "Keeping UPSC components as is"
             return 1
             ;;
         *)
-            # Default is Yes (uninstall)
+            # Default/empty/Yes is uninstall
             return 0
             ;;
     esac
@@ -186,28 +174,10 @@ uninstall_upsc() {
     done
     echo ""
 
-    # Check for and uninstall apache2
-    if dpkg -l | grep -q "^ii.*apache2"; then
-        print_step_from_common_functions "Removing Apache2 web server..."
-
-        # Stop and disable apache2 service
-        if systemctl list-units --type=service --all | grep -q "apache2.service"; then
-            print_info_from_common_functions "Stopping Apache2 service..."
-            $USE_SUDO systemctl stop apache2.service 2>/dev/null || true
-            $USE_SUDO systemctl disable apache2.service 2>/dev/null || true
-            $USE_SUDO systemctl mask apache2.service 2>/dev/null || true
-            print_success_from_common_functions "Apache2 service stopped and disabled"
-        fi
-
-        print_info_from_common_functions "Removing Apache2 packages..."
-        $USE_SUDO apt-get purge -y apache2 apache2-bin apache2-data apache2-utils 2>/dev/null || true
-        $USE_SUDO apt-get autoremove -y 2>/dev/null || true
-        print_success_from_common_functions "Apache2 removed"
-        ((uninstall_count++))
-    else
-        print_info_from_common_functions "Apache2 not installed, skipping"
-    fi
-    echo ""
+    # NOTE: Apache2 is deliberately NOT touched here. It is a general-purpose web
+    # server not owned by UPSC/NUT (NUT's optional web monitor is the separate
+    # `nut-cgi` package), so purging the whole apache2 stack would be unrelated
+    # collateral damage to other services.
 
     # Final cleanup
     print_step_from_common_functions "Final cleanup..."
@@ -294,8 +264,11 @@ NOCOMMWARNTIME 300
 FINALDELAY 5
 EOL"
 
-$USE_SUDO systemctl enable nut-monitor.service
-
-$USE_SUDO systemctl enable nut-server.service
-$USE_SUDO systemctl restart nut-server.service
-$USE_SUDO systemctl restart nut-monitor.service
+for _nut_unit in nut-server.service nut-monitor.service; do
+    if systemctl list-unit-files | grep -q "^${_nut_unit}"; then
+        systemctl is-enabled --quiet "$_nut_unit" 2>/dev/null || $USE_SUDO systemctl enable "$_nut_unit"
+        $USE_SUDO systemctl restart "$_nut_unit"
+    else
+        print_warning_from_common_functions "$_nut_unit not present (package install may have failed); skipping enable/restart"
+    fi
+done

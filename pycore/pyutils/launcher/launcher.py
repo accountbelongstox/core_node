@@ -88,12 +88,23 @@ class WindowLauncher:
             adjusted_measured_height
         )
         
-        # Initialize screen manager
-        self.screen_manager = ScreenManager()
-        
-        # Initialize launchers
+        # Script generator (used by the editor launcher + the Windows backend).
         self.script_generator = ScriptGenerator()
-        self.wt_launcher = WindowsTerminalLauncher(self.script_generator)
+
+        # Screen detection + the terminal backend are platform-specific; the grid
+        # MATH above is OS-agnostic. Windows: Win32 screen + Windows Terminal (wt.exe).
+        # Linux: xrandr/wlr-randr screen + a native-emulator grid on X11, or a
+        # kitty/tmux multiplexer on Wayland (which forbids clients from positioning
+        # their own windows). The Linux backend mirrors the WindowsTerminalLauncher
+        # and ScreenManager interfaces, so the rest of this class is unchanged.
+        if platform.system() == "Linux":
+            from pycore.pyutils.launcher.linux_screen_manager import LinuxScreenManager
+            from pycore.pyutils.launcher.linux_terminal_launcher import LinuxTerminalLauncher
+            self.screen_manager = LinuxScreenManager()
+            self.wt_launcher = LinuxTerminalLauncher()
+        else:
+            self.screen_manager = ScreenManager()
+            self.wt_launcher = WindowsTerminalLauncher(self.script_generator)
         self.editor_launcher = EditorLauncher(self.script_generator)
     
     def calculate_window_layout(self, screen_x, screen_y, screen_width, screen_height):
@@ -168,6 +179,10 @@ class WindowLauncher:
         Returns:
             int: Number of Ubuntu terminals (at least 2, 4 if 16 windows)
         """
+        # "Ubuntu terminals" here means WSL inside Windows Terminal — a Windows-only
+        # concept. On Linux every window is a native terminal, so reserve none.
+        if platform.system() != "Windows":
+            return 0
         if total_windows >= 16:
             return 4
         elif total_windows >= 2:
@@ -498,8 +513,29 @@ def launch_pycore_module():
         print("[Launcher] You can start manually: python pycore_module_caller.py")
 
 
+def _parse_launch_args():
+    """Resolve (mode, no_pause) from argv / PYLAUNCHER_MODE / TTY.
+
+    Headless when --mode or PYLAUNCHER_MODE is set, or when stdin is not a TTY.
+    """
+    import argparse, os, sys
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--mode", choices=["windows", "module", "both"], default=None)
+    parser.add_argument("--no-pause", action="store_true")
+    args, _ = parser.parse_known_args()
+    mode = args.mode or os.environ.get("PYLAUNCHER_MODE") or None
+    no_pause = args.no_pause or bool(mode) or (not sys.stdin.isatty())
+    return mode, no_pause
+
+
 def main():
     """Main entry point"""
+    # Resolve headless/interactive up front. When headless (--no-pause, --mode,
+    # PYLAUNCHER_MODE, or a closed stdin) we never call input(): auto-start runs
+    # this from a .desktop/systemd unit with no TTY, so any input() would block
+    # the boot launcher forever.
+    mode, no_pause = _parse_launch_args()
+
     # Check and create desktop shortcut if needed
     ensure_desktop_shortcut()
     
@@ -553,10 +589,27 @@ def main():
     print("=" * 60)
     print("Tip: If admin rights are needed, right-click the desktop shortcut -> Run as administrator.")
     print("=" * 60)
-    user_input = input("Select option: ").strip().upper()
 
     launch_windows = True
     launch_module = False
+
+    if no_pause:
+        # Headless: never block on input(). Map --mode/PYLAUNCHER_MODE to the
+        # equivalent menu option; with no mode use the default (Both), the same
+        # action [Enter] selects in the interactive menu.
+        if mode == 'windows':
+            user_input = '1'
+        elif mode == 'module':
+            user_input = '2'
+        else:  # 'both' or None
+            user_input = '3'
+        print(f"[Launcher] Headless mode (no-pause); auto-selected option {user_input}")
+    else:
+        try:
+            user_input = input("Select option: ").strip().upper()
+        except EOFError:
+            # stdin reported a TTY but yielded EOF (e.g. closed pipe): take the default.
+            user_input = ''
 
     if user_input == '1':
         launch_windows = True
@@ -590,7 +643,11 @@ def main():
         print("\n[Launcher] Skipping window layout (Pycore Module only mode)")
         print("[Launcher] Pycore Module running in background (RPC v2 default :59000)")
         print("\n" + "=" * 60)
-        input("Press Enter to exit...")
+        if not no_pause:
+            try:
+                input("Press Enter to exit...")
+            except EOFError:
+                pass
         return
 
     print("=" * 60)
@@ -730,12 +787,17 @@ def main():
                 except Exception as e:
                     print(f"Failed to launch {app_name}: {e}")
     
-    # Pause to view output, wait for 'y' or Enter to continue
+    # Pause to view output, wait for 'y' or Enter to continue.
+    # Headless (auto-start) runs skip this pause so the launcher exits on its own.
     print("\n" + "=" * 60)
-    while True:
-        user_input = input("Press 'y' or Enter to continue: ").strip().lower()
-        if user_input == 'y' or user_input == '':
-            break
+    if not no_pause:
+        while True:
+            try:
+                user_input = input("Press 'y' or Enter to continue: ").strip().lower()
+            except EOFError:
+                break
+            if user_input == 'y' or user_input == '':
+                break
 
 
 if __name__ == '__main__':

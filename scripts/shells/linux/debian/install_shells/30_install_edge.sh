@@ -220,7 +220,7 @@ echo "[$SCRIPT_INDEX] ==============================="
 check_edge_version
 
 # Check running processes
-local edge_processes=$(ps aux | grep -i "microsoft-edge" | grep -v grep | wc -l | tr -d '\n')
+edge_processes=$(ps aux | grep -i "microsoft-edge" | grep -v grep | wc -l | tr -d '\n')
 if [ "$edge_processes" -gt 0 ]; then
     echo "[$SCRIPT_INDEX] Found $edge_processes Edge processes running"
 else
@@ -228,8 +228,8 @@ else
 fi
 
 # Display stored variables
-local edge_bin=$(get_var "EDGE_BIN" 2>/dev/null || echo "not set")
-local edge_version=$(get_var "EDGE_VERSION" 2>/dev/null || echo "not set")
+edge_bin=$(get_var "EDGE_BIN" 2>/dev/null || echo "not set")
+edge_version=$(get_var "EDGE_VERSION" 2>/dev/null || echo "not set")
 echo "[$SCRIPT_INDEX] Stored variables:"
 echo "[$SCRIPT_INDEX]   EDGE_BIN: $edge_bin"
 echo "[$SCRIPT_INDEX]   EDGE_VERSION: $edge_version"

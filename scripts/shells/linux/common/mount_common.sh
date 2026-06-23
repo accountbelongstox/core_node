@@ -26,12 +26,26 @@ mount_fstab_ensure_single_entry() {
     local fstype="$3"
     local options="$4"
     local entry
+    local existing_count
     if [ -z "$uuid" ] || [ -z "$mount_point" ] || [ -z "$fstype" ]; then
         return 1
     fi
     entry="UUID=$uuid $mount_point $fstype ${options:-defaults} 0 2"
-    echo "$MOUNT_LOG_PREFIX $MOUNT_USE_SUDO cp /etc/fstab /etc/fstab.backup.$(date +%Y%m%d_%H%M%S)"
-    $MOUNT_USE_SUDO cp /etc/fstab "/etc/fstab.backup.$(date +%Y%m%d_%H%M%S)"
+
+    # Idempotent fast-path: when the EXACT entry is already present and it is the
+    # ONLY line for this UUID, nothing changes -- skip the backup + rewrite so a
+    # repeated run does not accumulate fstab backups or churn /etc/fstab.
+    existing_count="$(grep -c "UUID=$uuid" /etc/fstab 2>/dev/null || true)"
+    [ -n "$existing_count" ] || existing_count=0
+    if [ "$existing_count" = "1" ] && grep -Fxq "$entry" /etc/fstab 2>/dev/null; then
+        echo "$MOUNT_LOG_PREFIX fstab entry already correct for UUID=$uuid; skipping."
+        return 0
+    fi
+
+    # A change is needed: keep a SINGLE rolling backup (overwritten) rather than a
+    # new timestamped file on every call, then ensure exactly one entry for this UUID.
+    echo "$MOUNT_LOG_PREFIX $MOUNT_USE_SUDO cp /etc/fstab /etc/fstab.core_node.bak"
+    $MOUNT_USE_SUDO cp /etc/fstab /etc/fstab.core_node.bak 2>/dev/null || true
     echo "$MOUNT_LOG_PREFIX $MOUNT_USE_SUDO sed -i \"\\|UUID=$uuid|d\" /etc/fstab"
     $MOUNT_USE_SUDO sed -i "\|UUID=$uuid|d" /etc/fstab
     echo "$MOUNT_LOG_PREFIX echo \"\$entry\" | $MOUNT_USE_SUDO tee -a /etc/fstab"

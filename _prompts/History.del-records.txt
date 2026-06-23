@@ -1,0 +1,120 @@
+# Deletion records for _prompts/History.txt  -- FINAL (all 14 sessions / 15 blocks reconciled)
+# Line numbers refer to the ORIGINAL 58304-line History.txt (generated 2026-06-23 11:45:21),
+# preserved byte-identical in _prompts/History (copy 1).txt (sha256 a9f42785...).
+# Each 'del a-bline' removes that ORIGINAL range; entries chunked to <=1000 lines.
+# Method: re-derived each block's final intended code state from History.txt + live code only,
+# applied newest-wins edits (live code post-dating the transcript wins), then pruned the log.
+# Result: 58304 -> header only. Nothing remains to reconcile.
+#
+#
+# === B1  session 6245db8a  (orig 5-4105, 4101 lines) ===
+#   claude/CUDA AI-tools install machinery -- already-applied or superseded by newer single-source-of-truth (129_install_claude_code.sh, cti_* CUDA installer)
+del 5-1004line
+del 1005-2004line
+del 2005-3004line
+del 3005-4004line
+del 4005-4105line
+#
+# === B2  session db694d3b  (orig 4106-7415, 3310 lines) ===
+#   RESOLVED: surgical apt safety fix -- cleanup_all_custom_repositories made key-safe (dropped the 2 blanket *.gpg deletes on /usr/share/keyrings + /etc/apt/trusted.gpg.d); APT_BACKUP_BASE_DIR moved to /var; in-repo Ubuntu-noble backup removed + gitignored; 126_install_antigravity gpg --dearmor --yes
+del 4106-5105line
+del 5106-6105line
+del 6106-7105line
+del 7106-7415line
+#
+# === B3  session ce3decd1  (orig 7416-10837, 3422 lines) ===
+#   RESOLVED (user: full retirement): removed legacy dev_system_old + migrate_* across 6 files, renamed migrate_and_fix_npm_config->fix_npm_config, removed dead old_compile_dir key
+del 7416-8415line
+del 8416-9415line
+del 9416-10415line
+del 10416-10837line
+#
+# === B4  session 633c359a  (orig 10838-10857, 20 lines) ===
+#   greeting session, no file mutations
+del 10838-10857line
+#
+# === B5  session 5849e1f9  (orig 10858-13492, 2635 lines) ===
+#   RESOLVED (user: reconstruct backend): new autostart_target.py + systemd_user_startup_manager.py; control_router/factory/linux+windows managers honor target/mechanism; launcher.py headless-guarded; __main__.py created -- the shipped 'What to launch' UI is now functional
+del 10858-11857line
+del 11858-12857line
+del 12858-13492line
+#
+# === B6  session 3330ef60  (orig 13493-15413, 1921 lines) ===
+#   RESOLVED (user: fresh re-audit): workflow re-audited all 73 install_shells; applied 13 verified fixes (PATH-wipe 121, npmrc-nuke 15, undefined GITEA_SERVICE/START_DOTNET/INSTALL_SHELLS_DIR, ERE pgrep 35/1, default-Yes apache purge 62, local-at-script-scope 131/25/30, quoted-cmd 81, USE_SUDO 999) + 101_natgateway/13_ensure_python forward-fixes; 9 risky items surfaced for review
+del 13493-14492line
+del 14493-15413line
+#
+# === B7  session c4f2933e  (orig 15414-25720, 10307 lines) ===
+#   install-script merges + AI-safety rollout -- already-applied/superseded; gaps forward-fixed (device_to_mount_point x2 findmnt, claudeteam.sh/.ps1 bypassPermissions + .ps1 invocation-splat, dev_cache_cleanup default-No)
+del 15414-16413line
+del 16414-17413line
+del 17414-18413line
+del 18414-19413line
+del 19414-20413line
+del 20414-21413line
+del 21414-22413line
+del 22414-23413line
+del 23414-24413line
+del 24414-25413line
+del 25414-25720line
+#
+# === B8  session 1cdf1159  (orig 25721-31258, 5538 lines) ===
+#   cross-OS launcher (launcher.py + linux_*) -- already-applied (launcher files present)
+del 25721-26720line
+del 26721-27720line
+del 27721-28720line
+del 28721-29720line
+del 29721-30720line
+del 30721-31258line
+#
+# === B9  session 72f100dd  (orig 31259-35199, 3941 lines) ===
+#   unified task-system product code present; 2 design docs (UPGRADE_PLAN/AS_BUILT) unrecoverable from truncated transcript -- accepted as regenerate-from-source
+del 31259-32258line
+del 32259-33258line
+del 33259-34258line
+del 34259-35199line
+#
+# === B10  session c3c67a65  (orig 35200-36038, 839 lines) ===
+#   claudeteam.sh/.ps1 opus-force edits present; .ps1 invocation-splat + bypassPermissions forward-fixed
+del 35200-36038line
+#
+# === B11  session 12d3adc4  (orig 36039-53232, 17194 lines) ===
+#   PHP/Kali install fixes + AI-safety doc -- already-applied/superseded by the newer minimal AI-rule set (live working tree post-dates transcript)
+del 36039-37038line
+del 37039-38038line
+del 38039-39038line
+del 39039-40038line
+del 40039-41038line
+del 41039-42038line
+del 42039-43038line
+del 43039-44038line
+del 44039-45038line
+del 45039-46038line
+del 46039-47038line
+del 47039-48038line
+del 48039-49038line
+del 49039-50038line
+del 50039-51038line
+del 51039-52038line
+del 52039-53038line
+del 53039-53232line
+#
+# === B12  session de800a42  (orig 53233-57847, 4615 lines) ===
+#   unified task-system hardening (8 files) -- all already-applied
+del 53233-54232line
+del 54233-55232line
+del 55233-56232line
+del 56233-57232line
+del 57233-57847line
+#
+# === B13  session a3c83991  (orig 57848-58176, 329 lines) ===
+#   claude_tools/extract_claude_history.{py,sh} + README -- present, already-applied
+del 57848-58176line
+#
+# === B14  session c3c67a65  (orig 58177-58289, 113 lines) ===
+#   DUPLICATE of B10 session -- already covered
+del 58177-58289line
+#
+# === B15  session 38387177  (orig 58290-58304, 15 lines) ===
+#   header + 1 truncated incomplete prompt, no file mutations
+del 58290-58304line

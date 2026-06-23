@@ -1,3 +1,24 @@
+Uer Claude Code workflow and mutiple roles:
+从历史记录 /mnt/dev_nvme1n1p1/programing/core_node/_prompts/History.txt  中 1:1 的重新核对代码，并按 History.txt 中的先后顺序（文档结束处为最新）1:1 align / 更新代码，不要看 claude code 的历史记录和对话记录，只需要关注  History.txt 和实际代码，当你 1:1 跟新代码后，将History.txt中的相关记录部分删除，但要在同目录生成一个删除记录文件（新文件，内容为 del 100-1000 行），你自行在 History.txt 中整理一条线，比如 pycore、sh 脚本修复，每次处理一部分，直到 History.txt 的 50000 多行记录全部对齐，注意 xxx/mnt/dev_nvme1n1p1/programing/core_node/_prompts/History.txt 中要按最新的来对齐到代码（文档结束处为最新），旧的内容只是修改过程中的积累，注意需要编辑和对齐所有代码，不是仅仅汇报。
+
+
+Uer Claude Code workflow and mutiple roles:
+从历史记录 /mnt/dev_nvme1n1p1/programing/core_node/_prompts/HistoryPycorePHP.txt(Only this file)  中 1:1 的重新核对代码，并按 HistoryPycorePHP.txt 中的先后顺序（文档结束处为最新）1:1 align / 更新代码，不要看 claude code 的历史记录和对话记录，只需要关注  HistoryPycorePHP.txt 和实际代码，当你 1:1 跟新代码后，HistoryPycorePHP.txt中的相关记录部分删除，但要在同目录生成一个删除记录文件（新文件，内容为 del 100-1000 行），你任务到 HistoryPycorePHP.txt 的 50000 多行记录全部对齐，注意  HistoryPycorePHP.txt 中要按最新的来对齐到代码（文档结束处为最新），旧的内容只是修改过程中的积累，注意需要编辑和对齐所有代码，不是仅仅汇报。
+本次主要恢复的任务为:```
+Pylaunch py Liunx and windows How to start to mutileple terminal and startup. and prepare-install .sh whit this.
+  ```
+
+Uer Claude Code workflow and mutiple roles:
+Cross-check the code 1:1 against the history log "/mnt/dev_nvme1n1p1/programing/core_node/_prompts/History.txt", and update the code strictly according to the order of entries in "/mnt/dev_nvme1n1p1/programing/core_node/_prompts/History.txt" (starting from the end of the document, with the latest records first). Do not refer to Claude Code's history or conversation logs. Only use "/mnt/dev_nvme1n1p1/programing/core_node/_prompts/History.txt" and the current codebase.
+
+After updating the code 1:1, remove the corresponding processed entries from "/mnt/dev_nvme1n1p1/programing/core_node/_prompts/History.txt". At the same time, create a new deletion log file in the same directory, recording the removed line range in the format "del 100-1000line".
+
+Organize the work into a clear processing sequence, such as "pycore", shell script fixes, etc. Handle one section at a time until all 50,000+ lines in "/mnt/dev_nvme1n1p1/programing/core_node/_prompts/History.txt" have been fully reconciled with the code.
+
+Always align the code with the latest records in "/mnt/dev_nvme1n1p1/programing/core_node/_prompts/History.txt". Older entries are only historical records; if they are no longer useful, delete them after the task is completed.
+
+Each time ,complete only one main line of fixes.
+
 Use multiple roles to cross-validate each other.Use multiple roles to cross-validate each other.
 
 Based on the original repair recored /mnt/dev_nvme0n1p1/programing/core_node/_prompts/ClaudeCodeRepair.txt ,reimplement the code exactly as it
@@ -188,4 +209,5 @@ OK没问题。
 之后可以在设置中添加一个item，可以查看和设置和修改，同时API自动测试选择可用的，如果上一次选择的可用就直接用，如果都不可用就要一直测试。
 
 扫描一下还有虽的项目吗，本机。不要写脚本，直接用AI能力扫。sDddddddFSss的代码dsffdddfsddds
-Tesstfff
+Tesstfff
+

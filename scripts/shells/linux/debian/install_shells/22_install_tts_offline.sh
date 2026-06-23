@@ -11,51 +11,108 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Single source of truth for the OFFLINE TTS fallback engines (Linux/macOS) used
-# by the pycore voice-subtitle pipeline. Prefix 22 sorts after 13_ensure_python.
-# Also invoked by pycore/scripts/iniscripts/install_tts_offline.sh (pyservice).
+# Single source of truth + UMBRELLA for the pycore voice pipeline's offline/local
+# TTS & STT engine collection. Prefix 22 sorts after 13_ensure_python. Also invoked
+# by pycore/scripts/iniscripts/install_tts_offline.sh (pyservice).
 #
-# Engines:
-#   - Sherpa-ONNX (DEFAULT): pure-pip `sherpa-onnx` + a Kokoro multi-lang (zh/en)
-#     model into $HOME/.core_node/cache/tts/sherpa. The "never fails" engine.
-#   - MeloTTS (OPT-IN via --melotts): transformers==4.27.4 pin can clash with the
-#     shared env, so it is NOT installed by default.
-#   - GPT-SoVITS: NOT installed here; the pycore client talks to its api server
-#     on 127.0.0.1:9880 if the user runs it.
+# CORE (always, the "never fails" offline TTS):
+#   - Sherpa-ONNX + a Kokoro multi-lang (zh/en) model into $HOME/.core_node/cache/tts/sherpa.
+#
+# UMBRELLA (default; one run prepares the WHOLE collection, each step idempotent):
+#   TTS : edge-tts, MeloTTS, GPT-SoVITS, Azure Speech SDK
+#   STT : faster-whisper, openai-whisper, Vosk, Azure Speech SDK
+#   Each engine delegates to its own canonical idempotent installer (skip-if-present).
+#   Heavy/env-risky engines honor their opt-out envs: MELOTTS_SKIP=1, GPTSOVITS_SKIP=1.
+#   A CPU host is reconciled back to CPU torch/onnxruntime by the post-install guards.
+#
+# Flows:
+#   - dd.sh / install_shells sweep (no args)   -> CORE + full UMBRELLA.
+#   - standalone `22_install_tts_offline.sh`    -> CORE + full UMBRELLA.
+#   - pyservice prepare.sh sweep (exports PYCORE_INISCRIPTS_SWEEP=1) -> CORE only;
+#     prepare.sh runs the sibling installers itself, so the umbrella stands down.
 #
 # Invocation contracts:
-#   - install.sh flow:  22_install_tts_offline.sh             (no args)
-#   - pyservice flow:   22_install_tts_offline.sh --python <py> [--melotts] [--force]
-set -uo pipefail
+#   22_install_tts_offline.sh [--python <py>] [--force] [--core-only] [--melotts]
+#     --force      re-extract the model + re-run every engine installer with --force.
+#                  (The sherpa-onnx WHEEL itself is build-managed by the CPU/GPU guard,
+#                  which is idempotent and has no force-reinstall concept.)
+#     --core-only  install only Sherpa + Kokoro model (skip the umbrella).
+#     --melotts    legacy/compat: MeloTTS now installs by default; in --core-only
+#                  (or sweep) mode this still forces the MeloTTS engine on.
 
 PYTHON="python3"
 MELOTTS=0
 FORCE=0
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Shared venv resolution: gvar_common exports COMPILE_DIR, then venv_python_common
-# derives VENV_DIR / VENV_PYTHON3 / VENV_PIP3 from it (install INTO the venv that
-# 13_ensure_python.sh builds, never the externally-managed system python).
-# install_shells -> debian -> linux -> common (same path style as SHERPA_GUARD).
+CORE_ONLY=0
+UMBRELLA=1
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
+# Shared venv resolution: gvar_common exports COMPILE_DIR + CORE_NODE_PROJECT_ROOT,
+# then venv_python_common derives VENV_DIR / VENV_PYTHON3 / VENV_PIP3 from it (install
+# INTO the venv that 13_ensure_python.sh builds, never the externally-managed system
+# python). install_shells -> debian -> linux -> common (same path style as SHERPA_GUARD).
+# These two are sourced BEFORE `set -u` because they intentionally test bare,
+# possibly-unset vars (e.g. SHELLS_DIR); enabling set -u first aborts in gvar_common.
+# This mirrors the proven 21_install_edge_tts.sh / 13_ensure_python.sh ordering.
 source "$SCRIPT_DIR/../../common/gvar_common.sh"
 source "$SCRIPT_DIR/../../common/venv_python_common.sh"
+set -uo pipefail
 # Single source of truth for the sherpa-onnx CPU/GPU build choice (mirrors the
 # torch/onnxruntime guards): install_shells -> debian -> linux -> common.
-SHERPA_GUARD="$SCRIPT_DIR/../../common/sherpa_onnx_cpu_guard.sh"
+COMMON_DIR="$SCRIPT_DIR/../../common"
+SHERPA_GUARD="$COMMON_DIR/sherpa_onnx_cpu_guard.sh"
 MODEL_DIR="$HOME/.core_node/cache/tts/sherpa"
 # int8-quantized Kokoro (zh/en) — smaller/faster one-time download.
 MODEL_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2"
 MODEL_ARCHIVE=""
+MODEL_SENTINEL=""
+MODEL_OK=0
 TMP_EXTRACT=""
 PIP_ARGS=()
+# Umbrella wiring (resolved after gvar_common gives us CORE_NODE_PROJECT_ROOT).
+REPO_ROOT=""
+INISCRIPTS_DIR=""
+EDGE_TTS_SCRIPT=""
+FASTER_WHISPER_SCRIPT=""
+WHISPER_SCRIPT=""
+VOSK_SCRIPT=""
+MELOTTS_SCRIPT=""
+GPTSOVITS_SCRIPT=""
+ENGINE_OK=()
+ENGINE_FAILED=()
+ENGINE_SKIPPED=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --python)  PYTHON="$2"; shift 2 ;;
-        --melotts) MELOTTS=1;   shift   ;;
-        --force)   FORCE=1;     shift   ;;
+        --python)    PYTHON="$2"; shift 2 ;;
+        --melotts)   MELOTTS=1;   shift   ;;
+        --force)     FORCE=1;     shift   ;;
+        --core-only) CORE_ONLY=1; shift   ;;
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
     esac
 done
+
+# pyservice prepare.sh runs every sibling installer itself, so when it delegates here
+# the umbrella stands down (CORE only) to avoid a redundant second sweep.
+if [[ "${PYCORE_INISCRIPTS_SWEEP:-0}" == "1" || "$CORE_ONLY" -eq 1 ]]; then
+    UMBRELLA=0
+fi
+
+# Resolve repo root (prefer the canonical export; fall back to 5-up from here) and
+# wire each engine to its own idempotent installer (canonical numbered script where
+# one exists, else the self-contained iniscript). NEVER wire install_tts_offline.sh
+# (it delegates back here) or prepare.sh (recursion).
+if [[ -n "${CORE_NODE_PROJECT_ROOT:-}" && -d "$CORE_NODE_PROJECT_ROOT/pycore/scripts/iniscripts" ]]; then
+    REPO_ROOT="$CORE_NODE_PROJECT_ROOT"
+else
+    REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
+fi
+INISCRIPTS_DIR="$REPO_ROOT/pycore/scripts/iniscripts"
+EDGE_TTS_SCRIPT="$SCRIPT_DIR/21_install_edge_tts.sh"
+FASTER_WHISPER_SCRIPT="$SCRIPT_DIR/14_install_faster_whisper.sh"
+WHISPER_SCRIPT="$INISCRIPTS_DIR/install_whisper.sh"
+VOSK_SCRIPT="$INISCRIPTS_DIR/install_vosk.sh"
+MELOTTS_SCRIPT="$INISCRIPTS_DIR/install_melotts.sh"
+GPTSOVITS_SCRIPT="$INISCRIPTS_DIR/install_gptsovits.sh"
 
 resolve_python() {
     local preferred="$1"
@@ -98,6 +155,29 @@ pip_install() {
     "$PYTHON" -m pip install "${PIP_ARGS[@]}" || "$PYTHON" -m pip install "$@"
 }
 
+# Run one engine's own idempotent installer, forwarding the shared interpreter and
+# --force. Never aborts the umbrella: a failing engine is recorded and the rest still
+# install (the orchestrator's "degraded, not fatal" contract).
+run_engine_installer() {
+    local label="$1" script="$2"; shift 2
+    if [[ ! -s "$script" ]]; then
+        echo "[!] $label installer not found: $script (skipping)."
+        ENGINE_SKIPPED+=("$label")
+        return 0
+    fi
+    local extra=()
+    [[ "$FORCE" -eq 1 ]] && extra+=(--force)
+    echo "------------------------------------------------------------"
+    echo "[..] $label  ->  $script"
+    if bash "$script" --python "$PYTHON" "${extra[@]}" "$@"; then
+        ENGINE_OK+=("$label")
+    else
+        echo "[!] $label installer returned non-zero (continuing; this feature may be degraded)."
+        ENGINE_FAILED+=("$label")
+    fi
+    return 0
+}
+
 # Extract a .tar.bz2 archive into the model dir and write the sentinel on
 # success. Uses PYTHON's tarfile (stdlib bz2) for parity with Windows and to not
 # depend on tar's bz2 support. Returns 0 only when a model .onnx landed. This is
@@ -128,14 +208,16 @@ t=tarfile.open(sys.argv[1],'r:bz2'); t.extractall(sys.argv[2]); t.close()" "$arc
 }
 
 echo "============================================================"
-echo " Installing offline TTS engines (sherpa-onnx + model)"
+echo " Installing local TTS/STT engines (sherpa core + umbrella)"
 echo "============================================================"
 
 if ! PYTHON="$(resolve_python "$PYTHON")"; then
     echo "[X] Python 3 was NOT found. Run 13_ensure_python.sh first, or pass --python <path>." >&2
     exit 1
 fi
-echo "  python : $PYTHON"
+echo "  python   : $PYTHON"
+echo "  mode     : $([[ "$UMBRELLA" -eq 1 ]] && echo 'CORE + UMBRELLA (full TTS/STT collection)' || echo 'CORE only (sherpa + model; siblings handled elsewhere)')"
+echo "  repo     : $REPO_ROOT"
 
 # --- 1) sherpa-onnx (CPU build by default; GPU build opt-in, CPU-guarded) ---- #
 # The CPU/GPU build choice goes through sherpa_onnx_cpu_guard.sh (idempotent):
@@ -213,18 +295,65 @@ else
     rm -rf "$TMP_EXTRACT" 2>/dev/null || true
 fi
 
-# --- 3) MeloTTS (opt-in) ------------------------------------------------- #
-if [[ "$MELOTTS" -eq 1 ]] && py_has_module melo && [[ "$FORCE" -eq 0 ]]; then
-    echo "[OK] MeloTTS already installed; skipping."
-elif [[ "$MELOTTS" -eq 1 ]]; then
-    echo "[..] (opt-in) pip install MeloTTS ..."
-    echo "[!] MeloTTS pins transformers==4.27.4 which may downgrade the shared env."
-    pip_install 'git+https://github.com/myshell-ai/MeloTTS.git' || true
-    echo "[run] $PYTHON -m unidic download"
-    "$PYTHON" -m unidic download >/dev/null 2>&1 || true
-    if py_has_module melo; then echo "[OK] MeloTTS installed."; else echo "[!] MeloTTS not importable after install."; fi
+# --- 3) UMBRELLA: the rest of the local TTS/STT collection --------------- #
+# Each engine has its OWN idempotent installer (skip-if-present); we just drive them
+# with the shared interpreter. CORE-only / pyservice-sweep mode skips this block.
+if [[ "$UMBRELLA" -eq 1 ]]; then
+    echo "============================================================"
+    echo " Umbrella: preparing the full local TTS/STT engine collection"
+    echo "============================================================"
+    # TTS engines
+    run_engine_installer "edge-tts (TTS)"        "$EDGE_TTS_SCRIPT"
+    run_engine_installer "MeloTTS (TTS)"         "$MELOTTS_SCRIPT"
+    run_engine_installer "GPT-SoVITS (TTS)"      "$GPTSOVITS_SCRIPT"
+    # STT engines
+    run_engine_installer "faster-whisper (STT)"  "$FASTER_WHISPER_SCRIPT"
+    run_engine_installer "openai-whisper (STT)"  "$WHISPER_SCRIPT"
+    run_engine_installer "Vosk (STT)"            "$VOSK_SCRIPT"
+
+    # Azure Speech SDK (cloud TTS+STT fallback; no model, needs key+region at run time).
+    echo "------------------------------------------------------------"
+    if py_has_module azure.cognitiveservices.speech && [[ "$FORCE" -eq 0 ]]; then
+        echo "[OK] azure-cognitiveservices-speech already present; skipping."
+        ENGINE_OK+=("Azure Speech SDK")
+    else
+        echo "[..] Azure Speech SDK (cloud TTS+STT) -> pip azure-cognitiveservices-speech"
+        if pip_install --upgrade azure-cognitiveservices-speech && py_has_module azure.cognitiveservices.speech; then
+            echo "[OK] azure-cognitiveservices-speech installed."
+            ENGINE_OK+=("Azure Speech SDK")
+        else
+            echo "[!] azure-cognitiveservices-speech install failed (cloud fallback unavailable until installed)."
+            ENGINE_FAILED+=("Azure Speech SDK")
+        fi
+    fi
+
+    # Post-install CPU/GPU guards (repair-only): MeloTTS / GPT-SoVITS / faster-whisper
+    # can transitively pull CUDA torch (+~4.3G nvidia-*). On a GPU-less host switch the
+    # builds back to CPU. Repair-only: never installs when a minimal box lacks them.
+    if [[ -f "$COMMON_DIR/torch_cpu_guard.sh" ]]; then
+        echo "------------------------------------------------------------"
+        echo "[..] torch CPU/GPU guard (repair-only)"
+        TCG_REPAIR_ONLY=1 bash "$COMMON_DIR/torch_cpu_guard.sh" --python "$PYTHON" || true
+    fi
+    if [[ -f "$COMMON_DIR/onnxruntime_cpu_guard.sh" ]]; then
+        echo "[..] onnxruntime CPU/GPU guard (repair-only)"
+        OCG_REPAIR_ONLY=1 bash "$COMMON_DIR/onnxruntime_cpu_guard.sh" --python "$PYTHON" || true
+    fi
+
+    echo "============================================================"
+    echo " TTS/STT collection summary"
+    echo "   installed/ok : ${ENGINE_OK[*]:-none}"
+    echo "   degraded     : ${ENGINE_FAILED[*]:-none}"
+    echo "   not found    : ${ENGINE_SKIPPED[*]:-none}"
+    echo "============================================================"
 else
-    echo "[i] MeloTTS skipped (pass --melotts to install; GPT-SoVITS is manual, see docs)."
+    # CORE-only / pyservice-sweep: prepare.sh installs the siblings itself. Honor the
+    # legacy --melotts opt-in so a caller asking for MeloTTS here still gets it.
+    if [[ "$MELOTTS" -eq 1 ]]; then
+        run_engine_installer "MeloTTS (TTS)" "$MELOTTS_SCRIPT"
+    else
+        echo "[i] CORE-only mode: sherpa + model done; siblings handled by prepare.sh / numbered sweep."
+    fi
 fi
 
 exit 0

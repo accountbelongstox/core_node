@@ -27,6 +27,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
+START_DOTNET=$(get_var "START_DOTNET" "false")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "127_install_dotnet")
 LOG_FILE="$SCRIPT_TEMP_DIR/dotnet_install_$(date +%Y%m%d_%H%M%S).log"
 DOTNET_VERSION="8.0"
@@ -291,6 +292,10 @@ setup_dotnet_environment() {
     )
     
     for tool in "${dotnet_tools[@]}"; do
+        if dotnet tool list --global 2>/dev/null | awk '{print $1}' | grep -qix "$tool"; then
+            log_message ".NET tool already installed, skipping: $tool"
+            continue
+        fi
         log_message "Installing .NET tool: $tool"
         if dotnet tool install --global "$tool" 2>/dev/null; then
             log_message "Successfully installed $tool"

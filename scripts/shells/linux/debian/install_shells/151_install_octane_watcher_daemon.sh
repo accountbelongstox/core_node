@@ -125,6 +125,11 @@ cd "$LARAVEL_MAIN_PATH"
 if [ ! -d "node_modules/chokidar" ]; then
     echo "�?chokidar not found, installing..."
 
+    # Idempotency guard: under no TTY (installer / dd.sh), pnpm refuses to purge an
+    # incompatible node_modules store and aborts (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY).
+    # Allow the non-interactive purge so re-runs after a node/pnpm upgrade still succeed.
+    export npm_config_confirm_modules_purge=false
+
     # Check for pnpm using absolute path first (prevents "command not found" on first install)
     if [ -f "$PNPM_ABS_PATH" ]; then
         echo "Using pnpm at: $PNPM_ABS_PATH"
