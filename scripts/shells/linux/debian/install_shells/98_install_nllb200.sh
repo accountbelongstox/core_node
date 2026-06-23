@@ -16,6 +16,7 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 SCRIPT_NAME="[98_install_nllb200]"
@@ -52,6 +53,7 @@ check_python() {
         return 1
     fi
 
+    echo "$SCRIPT_NAME $python_cmd --version" >&2
     local python_version=$($python_cmd --version 2>&1)
     print_success "Python is available: $python_version"
 
@@ -99,13 +101,12 @@ install_dependencies() {
     # Note: NLLB-200 works well with CPU, no need for GPU-specific torch
     print_info "Installing transformers, sentencepiece, and protobuf..."
     echo ""
-    # Print the exact command-string before running it (traceability).
-    echo "[98] $python_cmd -m pip install --break-system-packages --no-user --upgrade transformers sentencepiece protobuf sacremoses"
-    $python_cmd -m pip install --break-system-packages --no-user --upgrade transformers sentencepiece protobuf sacremoses
+    print_and_run_from_common "$VENV_PYTHON3" -m pip install --upgrade transformers sentencepiece protobuf sacremoses
     echo ""
 
     print_info "Verifying installation..."
-    local verify_result=$($python_cmd -c "import transformers; import sentencepiece; print('[OK] transformers version:', transformers.__version__); print('[OK] sentencepiece installed')" 2>&1)
+    echo "$SCRIPT_NAME $VENV_PYTHON3 -c \"import transformers; import sentencepiece; print('[OK] transformers version:', transformers.__version__); print('[OK] sentencepiece installed')\"" >&2
+    local verify_result=$("$VENV_PYTHON3" -c "import transformers; import sentencepiece; print('[OK] transformers version:', transformers.__version__); print('[OK] sentencepiece installed')" 2>&1)
 
     if [[ "$verify_result" == *"[OK]"* ]]; then
         print_success "Dependencies installed successfully"
@@ -137,7 +138,7 @@ test_model_load() {
     print_info "Using shared tester script: $runner_script_path"
 
     echo ""
-    $python_cmd "$runner_script_path"
+    print_and_run_from_common "$VENV_PYTHON3" "$runner_script_path"
     echo ""
 
     print_success "========================================"
@@ -176,7 +177,8 @@ echo "========================================"
 echo ""
 echo "Starting translator... Please wait..."
 echo ""
-$python_cmd "$runner_script_path"
+echo "[run] $VENV_PYTHON3 $runner_script_path"
+$VENV_PYTHON3 "$runner_script_path"
 echo ""
 echo "========================================"
 echo "  Translation Ended"

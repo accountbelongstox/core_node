@@ -16,6 +16,7 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 SCRIPT_NAME="[95_install_deepseek]"
@@ -129,16 +130,18 @@ check_git() {
 check_python() {
     local python_cmd=""
 
-    if command -v python3 &> /dev/null; then
-        python_cmd="python3"
-    elif command -v python &> /dev/null; then
-        python_cmd="python"
-    else
+    # Resolve the shared venv interpreter built by 13_ensure_python.sh so that all
+    # package installs and the generated launchers run under the venv, not the
+    # externally-managed system python.
+    python_cmd="$(venv_python_from_common)"
+
+    if [ -z "$python_cmd" ] || ! command -v "$python_cmd" &> /dev/null; then
         print_error "Python is not installed"
         print_warning "Please install Python 3.8+: $USE_SUDO apt-get install python3 python3-pip"
         return 1
     fi
 
+    echo "$SCRIPT_NAME [run] $python_cmd --version" >&2
     local python_version=$($python_cmd --version 2>&1)
     print_success "Python is available: $python_version"
 
@@ -193,6 +196,37 @@ clone_repository() {
         mkdir -p "$parent_dir"
     fi
 
+    # Idempotency: a pre-existing target dir makes "git clone" fail because the
+    # destination is not empty. This happens when a prior install was incomplete
+    # (partial clone, interrupted download). Recover in place rather than aborting.
+    if [ -d "$target_dir" ]; then
+        if [ -d "$target_dir/.git" ]; then
+            print_warning "Target directory already contains a git repository"
+            print_info "Repairing existing clone instead of re-cloning..."
+            if git -C "$target_dir" fetch --all --prune && \
+               git -C "$target_dir" reset --hard HEAD && \
+               git -C "$target_dir" checkout -- . 2>/dev/null; then
+                print_success "Existing repository repaired"
+                local file_count=$(find "$target_dir" -type f 2>/dev/null | wc -l)
+                print_success "Verification: $file_count files found"
+                if [ "$file_count" -gt 10 ]; then
+                    return 0
+                fi
+                print_warning "Repository looks incomplete after repair; re-cloning..."
+            else
+                print_warning "Could not repair existing repository; re-cloning..."
+            fi
+        else
+            print_warning "Target directory exists but is not a git repository"
+        fi
+
+        # At this point the dir exists but is unusable; remove so git clone can run.
+        if [ -n "$(ls -A "$target_dir" 2>/dev/null)" ]; then
+            print_info "Removing incomplete install directory: $target_dir"
+            rm -rf "$target_dir"
+        fi
+    fi
+
     if git clone "$REPO_URL" "$target_dir"; then
         print_success "Repository cloned successfully"
 
@@ -212,6 +246,21 @@ clone_repository() {
     return 1
 }
 
+dependencies_present() {
+    local python_cmd=$1
+
+    # Skip-if-present probe: pip install re-resolves heavyweight wheels (torch,
+    # transformers, ...) on every run, which is slow. Only reinstall when at least
+    # one required module is missing.
+    echo "$SCRIPT_NAME [run] $python_cmd - <<'PYTHON_EOF' (importlib find_spec probe: torch transformers PIL numpy einops timm accelerate)" >&2
+    $python_cmd - << 'PYTHON_EOF' > /dev/null 2>&1
+import importlib.util
+mods = ["torch", "transformers", "PIL", "numpy", "einops", "timm", "accelerate"]
+missing = [m for m in mods if importlib.util.find_spec(m) is None]
+raise SystemExit(1 if missing else 0)
+PYTHON_EOF
+}
+
 install_dependencies() {
     local install_dir=$1
     local python_cmd=$2
@@ -219,12 +268,19 @@ install_dependencies() {
     print_info "Installing Python dependencies..."
     print_info "Using Python command: $python_cmd"
 
+    # Skip the heavyweight pip resolution when all deps are already importable.
+    # Set DEEPSEEK_FORCE_DEPS=1 to force a reinstall (e.g. to upgrade).
+    if [ "${DEEPSEEK_FORCE_DEPS:-0}" != "1" ] && dependencies_present "$python_cmd"; then
+        print_success "Python dependencies already present - skipping pip install"
+        print_info "Set DEEPSEEK_FORCE_DEPS=1 to force reinstall"
+        return 0
+    fi
+
     cd "$install_dir"
     print_info "Installing core dependencies..."
     echo ""
-    # Print the exact command-string before running it (traceability).
-    echo "[95] $python_cmd -m pip install --break-system-packages --no-user torch transformers pillow numpy einops timm accelerate"
-    $python_cmd -m pip install --break-system-packages --no-user torch transformers pillow numpy einops timm accelerate
+    echo "$SCRIPT_NAME [run] $python_cmd -m pip install torch transformers pillow numpy einops timm accelerate"
+    $python_cmd -m pip install torch transformers pillow numpy einops timm accelerate
     echo ""
     cd - > /dev/null
 
@@ -274,6 +330,7 @@ PYTHON_EOF
 
     cd "$install_dir"
     echo ""
+    echo "$SCRIPT_NAME [run] $python_cmd $test_script"
     $python_cmd "$test_script"
     echo ""
     cd - > /dev/null
@@ -372,7 +429,7 @@ main() {
         print_success "File count: $file_count"
 
         echo ""
-        print_info "Reinstalling dependencies..."
+        print_info "Verifying dependencies..."
         install_dependencies "$install_dir" "$python_cmd"
 
         echo ""

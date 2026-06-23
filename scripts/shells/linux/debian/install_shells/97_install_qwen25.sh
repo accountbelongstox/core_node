@@ -16,6 +16,7 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 SCRIPT_NAME="[97_install_qwen25]"
@@ -47,25 +48,26 @@ check_python() {
     elif command -v python &> /dev/null; then
         python_cmd="python"
     else
-        print_error "Python is not installed"
-        print_warning "Please install Python 3.8+: $USE_SUDO apt-get install python3 python3-pip"
+        print_error "Python is not installed" >&2
+        print_warning "Please install Python 3.8+: $USE_SUDO apt-get install python3 python3-pip" >&2
         return 1
     fi
 
+    echo "[97] $python_cmd --version" >&2
     local python_version=$($python_cmd --version 2>&1)
-    print_success "Python is available: $python_version"
+    print_success "Python is available: $python_version" >&2
 
     local version_regex="Python ([0-9]+)\.([0-9]+)"
     if [[ $python_version =~ $version_regex ]]; then
         local major="${BASH_REMATCH[1]}"
         local minor="${BASH_REMATCH[2]}"
 
-        if [ "$major" -ge 3 ] && [ "$minor" -ge 8 ]; then
-            print_success "Python version is sufficient (3.8+)"
+        if [ "$major" -gt 3 ] || { [ "$major" -eq 3 ] && [ "$minor" -ge 8 ]; }; then
+            print_success "Python version is sufficient (3.8+)" >&2
             echo "$python_cmd"
             return 0
         else
-            print_error "Python version is too old (need 3.8+, found $major.$minor)"
+            print_error "Python version is too old (need 3.8+, found $major.$minor)" >&2
             return 1
         fi
     fi
@@ -98,32 +100,44 @@ install_dependencies() {
 
     # Install torch based on GPU availability
     if [[ "$has_gpu" == true ]]; then
-        print_info "Uninstalling incompatible torch versions..."
-        echo ""
-        # Print the exact command-string before running it (traceability).
-        echo "[97] $python_cmd -m pip uninstall --break-system-packages -y torch torchvision torchaudio"
-        $python_cmd -m pip uninstall --break-system-packages -y torch torchvision torchaudio 2>/dev/null || true
-        echo ""
+        echo "[97] $VENV_PYTHON3 -c \"import torch; assert torch.cuda.is_available()\""
+        if "$VENV_PYTHON3" -c "import torch; assert torch.cuda.is_available()" >/dev/null 2>&1; then
+            print_success "GPU-enabled torch already installed, skipping torch installation"
+            echo ""
+        else
+            print_info "Uninstalling incompatible torch versions..."
+            echo ""
+            echo "[97] $VENV_PYTHON3 -m pip uninstall -y torch torchvision torchaudio"
+            "$VENV_PYTHON3" -m pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
+            echo ""
 
-        print_info "Installing GPU-enabled torch and dependencies..."
-        echo ""
-        echo "[97] $python_cmd -m pip install --break-system-packages --no-user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124"
-        $python_cmd -m pip install --break-system-packages --no-user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-        echo ""
+            print_info "Installing GPU-enabled torch and dependencies..."
+            echo ""
+            echo "[97] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124"
+            "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+            echo ""
+        fi
     else
         print_info "Skipping torch installation (CPU-only setup)"
         print_info "Using transformers with CPU backend"
         echo ""
     fi
 
-    print_info "Installing transformers and accelerate..."
-    echo ""
-    echo "[97] $python_cmd -m pip install --break-system-packages --no-user --upgrade transformers accelerate"
-    $python_cmd -m pip install --break-system-packages --no-user --upgrade transformers accelerate
-    echo ""
+    echo "[97] $VENV_PYTHON3 -c \"import transformers, accelerate\""
+    if "$VENV_PYTHON3" -c "import transformers, accelerate" >/dev/null 2>&1; then
+        print_success "transformers and accelerate already installed, skipping installation"
+        echo ""
+    else
+        print_info "Installing transformers and accelerate..."
+        echo ""
+        echo "[97] $VENV_PYTHON3 -m pip install --upgrade transformers accelerate"
+        "$VENV_PYTHON3" -m pip install --upgrade transformers accelerate
+        echo ""
+    fi
 
     print_info "Verifying installation..."
-    local verify_result=$($python_cmd -c "import transformers; print('[OK] transformers version:', transformers.__version__)" 2>&1)
+    echo "[97] $VENV_PYTHON3 -c \"import transformers; print('[OK] transformers version:', transformers.__version__)\"" >&2
+    local verify_result=$("$VENV_PYTHON3" -c "import transformers; print('[OK] transformers version:', transformers.__version__)" 2>&1)
 
     if [[ "$verify_result" == *"[OK]"* ]]; then
         print_success "Dependencies installed successfully"
@@ -155,7 +169,8 @@ test_model_load() {
     print_info "Using shared runner script: $test_script_path"
 
     echo ""
-    $python_cmd "$test_script_path"
+    echo "[97] $VENV_PYTHON3 $test_script_path"
+    "$VENV_PYTHON3" "$test_script_path"
     echo ""
 
     print_success "========================================"
@@ -193,7 +208,8 @@ echo "========================================"
 echo ""
 echo "Starting chat... Please wait..."
 echo ""
-$python_cmd "$test_script_path" --chat
+echo "[97] $VENV_PYTHON3 $test_script_path --chat"
+"$VENV_PYTHON3" "$test_script_path" --chat
 echo ""
 echo "========================================"
 echo "  Chat Ended"
@@ -226,8 +242,8 @@ main() {
     echo ""
     print_info "Checking prerequisites..."
 
-    local python_cmd=$(check_python)
-    if [ $? -ne 0 ]; then
+    local python_cmd
+    if ! python_cmd=$(check_python); then
         print_error "Python 3.8+ is required but not found"
         return 1
     fi

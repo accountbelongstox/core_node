@@ -16,7 +16,11 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+# torch build guard (CPU vs CUDA wheels) - reused so we never force the ~4.3G
+# nvidia-* CUDA stack onto a GPU-less desktop. Provides tcg_gpu_present etc.
+source "$PARENT_DIR_LEVEL_2/common/torch_cpu_guard.sh"
 
 SCRIPT_NAME="[96_install_deepseek_ocr]"
 MODEL_NAME="DeepSeek-OCR"
@@ -140,6 +144,7 @@ check_python() {
         return 1
     fi
 
+    echo "[run] $python_cmd --version" >&2
     local python_version=$($python_cmd --version 2>&1)
     print_success "Python is available: $python_version"
 
@@ -198,6 +203,39 @@ clone_repository() {
         mkdir -p "$parent_dir"
     fi
 
+    # Idempotency: if a git checkout already exists, update it in place instead of
+    # cloning over a non-empty directory (which git refuses, leaving a partial install
+    # that never converges). Fall back to a fresh clone only into an empty/absent dir.
+    if [ -d "$target_dir/.git" ]; then
+        print_info "Existing checkout found; updating in place (git fetch/reset)..."
+        if git -C "$target_dir" remote set-url origin "$REPO_URL" 2>/dev/null \
+            && git -C "$target_dir" fetch --depth 1 origin 2>/dev/null; then
+            local default_branch
+            default_branch=$(git -C "$target_dir" remote show origin 2>/dev/null \
+                | sed -n 's/.*HEAD branch: //p' | head -n 1)
+            [ -z "$default_branch" ] && default_branch="main"
+            git -C "$target_dir" checkout "$default_branch" 2>/dev/null || true
+            git -C "$target_dir" reset --hard "origin/$default_branch" 2>/dev/null || true
+        else
+            print_warning "Update fetch failed; keeping existing checkout as-is"
+        fi
+
+        local file_count=$(find "$target_dir" -type f 2>/dev/null | wc -l)
+        print_success "Verification: $file_count files found"
+        if [ "$file_count" -gt 10 ]; then
+            print_success "Repository ready (updated existing checkout)"
+            return 0
+        fi
+        print_error "Existing checkout looks incomplete"
+        return 1
+    fi
+
+    if [ -d "$target_dir" ] && [ -n "$(ls -A "$target_dir" 2>/dev/null)" ]; then
+        print_warning "Target directory exists and is non-empty but is not a git checkout"
+        print_warning "Refusing to clone over it; remove it manually to reinstall: $target_dir"
+        return 1
+    fi
+
     if git clone "$REPO_URL" "$target_dir"; then
         print_success "Repository cloned successfully"
 
@@ -217,40 +255,117 @@ clone_repository() {
     return 1
 }
 
+# Resolve the SHARED project virtualenv interpreter built by 13_ensure_python.sh
+# at "$COMPILE_DIR/python3_venv" (exposed as $VENV_PYTHON3 by venv_python_common.sh).
+# All install scripts must install INTO this single venv -- never a per-install
+# fork or the externally-managed system python with --break-system-packages
+# (PEP 668), which scatters packages to ~/.local / /usr/local on Debian/Kali.
+# Echoes the venv python path on success; non-zero on failure.
+get_venv_python() {
+    local base_python=$2
+
+    if [ -x "$VENV_PYTHON3" ]; then
+        echo "$VENV_PYTHON3"
+        return 0
+    fi
+
+    echo "[run] $base_python -c \"import venv\"" >&2
+    if ! "$base_python" -c "import venv" >/dev/null 2>&1; then
+        print_warning "python venv module not available" >&2
+        print_warning "Install it with: $USE_SUDO apt-get install -y python3-venv" >&2
+        return 1
+    fi
+
+    # The shared venv is normally created by 13_ensure_python.sh; only create it
+    # here (with --system-site-packages) if that step has not run yet.
+    print_info "Creating shared virtualenv: $VENV_DIR" >&2
+    echo "[run] $base_python -m venv --system-site-packages $VENV_DIR" >&2
+    if "$base_python" -m venv --system-site-packages "$VENV_DIR" >&2; then
+        if [ -x "$VENV_PYTHON3" ]; then
+            echo "[run] $VENV_PYTHON3 -m pip install --upgrade pip" >&2
+            "$VENV_PYTHON3" -m pip install --upgrade pip >/dev/null 2>&1 || true
+            echo "$VENV_PYTHON3"
+            return 0
+        fi
+    fi
+
+    print_warning "Failed to create shared virtualenv" >&2
+    return 1
+}
+
 install_dependencies() {
     local install_dir=$1
     local python_cmd=$2
 
     print_info "Installing Python dependencies..."
-    print_info "Using Python command: $python_cmd"
-    print_info "Note: DeepSeek-OCR requires cuda12+torch (latest)"
 
-    cd "$install_dir"
+    # Install INTO the shared venv ($VENV_PYTHON3) built by 13_ensure_python.sh.
+    # No system-python fallback and no PEP 668 escape flags: the venv is not
+    # externally managed, so --break-system-packages/--no-user are unnecessary
+    # and would scatter packages outside the venv.
+    local venv_python
+    venv_python=$(get_venv_python "$install_dir" "$python_cmd")
+    if [ -z "$venv_python" ] || [ ! -x "$venv_python" ]; then
+        print_error "Shared virtualenv interpreter not available; cannot install dependencies"
+        print_warning "Run 13_ensure_python.sh first to build $VENV_DIR"
+        return 1
+    fi
+    print_info "Using shared virtualenv interpreter: $venv_python"
+    DEEPSEEK_OCR_PYTHON="$venv_python"
+    local pip_install=("$venv_python" -m pip install)
+    local run_python="$DEEPSEEK_OCR_PYTHON"
 
-    print_info "Step 1: Installing PyTorch (latest) with CUDA 12.6..."
-    echo ""
-    # Print the exact command-string before running it (traceability).
-    echo "[96] $python_cmd -m pip install --break-system-packages --no-user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126"
-    $python_cmd -m pip install --break-system-packages --no-user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
-    echo ""
+    cd "$install_dir" || return 1
+
+    # GPU detection (shared torch guard). Only an NVIDIA CUDA host gets the CUDA
+    # torch wheel + flash-attn source build; a generic desktop gets the CPU build,
+    # which avoids ~4.3G of nvidia-* wheels and an impossible flash-attn compile.
+    local has_gpu=false
+    if tcg_gpu_present; then
+        has_gpu=true
+    fi
+
+    if [ "$has_gpu" = true ]; then
+        print_info "Step 1: NVIDIA GPU detected - installing CUDA PyTorch (cu126)..."
+        echo ""
+        echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126"
+        "${pip_install[@]}" torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+        echo ""
+    else
+        print_warning "Step 1: No NVIDIA GPU detected - installing CPU PyTorch build..."
+        print_info "DeepSeek-OCR's bundled run scripts expect a CUDA GPU; CPU torch is"
+        print_info "installed so dependencies resolve, but the model run will need a GPU."
+        echo ""
+        echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu"
+        "${pip_install[@]}" torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        echo ""
+    fi
 
     print_info "Step 2: Installing core dependencies..."
     echo ""
-    echo "[96] $python_cmd -m pip install --break-system-packages --no-user transformers accelerate pillow einops timm sentencepiece protobuf"
-    $python_cmd -m pip install --break-system-packages --no-user transformers accelerate pillow einops timm sentencepiece protobuf
+    echo "[run] ${pip_install[*]} transformers accelerate pillow einops timm sentencepiece protobuf"
+    "${pip_install[@]}" transformers accelerate pillow einops timm sentencepiece protobuf
     echo ""
 
-    print_info "Step 3: Installing flash-attn (latest)..."
-    echo ""
-    echo "[96] $python_cmd -m pip install --break-system-packages --no-user flash-attn --no-build-isolation"
-    $python_cmd -m pip install --break-system-packages --no-user flash-attn --no-build-isolation
-    echo ""
+    if [ "$has_gpu" = true ]; then
+        print_info "Step 3: Installing flash-attn (CUDA source build)..."
+        echo ""
+        echo "[run] ${pip_install[*]} flash-attn --no-build-isolation"
+        "${pip_install[@]}" flash-attn --no-build-isolation
+        echo ""
+    else
+        print_warning "Step 3: Skipping flash-attn (requires an NVIDIA CUDA toolchain)"
+        print_info "Install it later on a CUDA host with:"
+        print_info "  $run_python -m pip install flash-attn --no-build-isolation"
+        echo ""
+    fi
 
     cd - > /dev/null
 
     # Verify installation
     print_info "Verifying installation..."
-    local verify_result=$($python_cmd -c "import torch; print('[OK] torch version:', torch.__version__)" 2>&1)
+    echo "[run] $run_python -c \"import torch; print('[OK] torch version:', torch.__version__)\"" >&2
+    local verify_result=$("$run_python" -c "import torch; print('[OK] torch version:', torch.__version__)" 2>&1)
 
     if [[ "$verify_result" == *"[OK]"* ]]; then
         print_success "Dependencies installed successfully"
@@ -265,6 +380,12 @@ install_dependencies() {
 test_model_load() {
     local install_dir=$1
     local python_cmd=$2
+
+    # Prefer the shared venv interpreter used by install_dependencies, if present.
+    local run_python="${DEEPSEEK_OCR_PYTHON:-$python_cmd}"
+    if [ -x "$VENV_PYTHON3" ]; then
+        run_python="$VENV_PYTHON3"
+    fi
 
     print_info "Testing model load (first run may download model)..."
 
@@ -281,21 +402,31 @@ model_name = 'deepseek-ai/DeepSeek-OCR'
 print(f'[INFO] Model path: {model_name}')
 print('[INFO] Note: First run will download model from HuggingFace')
 
+# flash_attention_2 only works on a CUDA GPU; fall back to eager attention
+# (and CPU) on a generic desktop so the load test does not hard-crash.
+has_cuda = torch.cuda.is_available()
+attn_impl = 'flash_attention_2' if has_cuda else 'eager'
+print(f'[INFO] CUDA available: {has_cuda} -> attn_implementation={attn_impl}')
+
 tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
 print('[OK] Tokenizer loaded successfully')
 
 print('[TEST] Loading model (this may take a while)...')
 model = AutoModel.from_pretrained(
     model_name,
-    _attn_implementation='flash_attention_2',
+    _attn_implementation=attn_impl,
     trust_remote_code=True,
     use_safetensors=True
 )
 print('[OK] Model loaded successfully')
 
-print('[TEST] Moving model to GPU...')
-model = model.eval().cuda().to(torch.bfloat16)
-print('[OK] Model moved to GPU')
+if has_cuda:
+    print('[TEST] Moving model to GPU...')
+    model = model.eval().cuda().to(torch.bfloat16)
+    print('[OK] Model moved to GPU')
+else:
+    print('[WARN] No CUDA GPU detected - keeping model on CPU (eval only)')
+    model = model.eval()
 
 print('')
 print('[SUCCESS] ========================================')
@@ -305,7 +436,8 @@ PYTHON_EOF
 
     cd "$install_dir"
     echo ""
-    $python_cmd "$test_script"
+    echo "[run] $run_python $test_script"
+    "$run_python" "$test_script"
     echo ""
     cd - > /dev/null
 
@@ -326,15 +458,32 @@ test_installation() {
     echo ""
     print_success "DeepSeek-OCR is ready to use!"
     echo ""
-    print_info "To use DeepSeek-OCR, run:"
-    print_info "  cd $install_dir/DeepSeek-OCR-master/DeepSeek-OCR-hf"
-    print_info "  python run_dpsk_ocr.py"
-    echo ""
-    print_info "Or use vLLM for better performance:"
-    print_info "  cd $install_dir/DeepSeek-OCR-master/DeepSeek-OCR-vllm"
-    print_info "  python run_dpsk_ocr_image.py"
+    print_usage_instructions "$install_dir"
 
     return 0
+}
+
+# Print run instructions using the run-script directories that actually exist in
+# the checkout (resolved at runtime, so the guidance can never point at a missing
+# path). Falls back to the documented layout if nothing is found.
+print_usage_instructions() {
+    local install_dir=$1
+    local run_python="${DEEPSEEK_OCR_PYTHON:-python}"
+    [ -x "$VENV_PYTHON3" ] && run_python="$VENV_PYTHON3"
+
+    local hf_dir vllm_dir
+    hf_dir=$(dirname "$(find "$install_dir" -name run_dpsk_ocr.py 2>/dev/null | head -n 1)" 2>/dev/null)
+    vllm_dir=$(dirname "$(find "$install_dir" -name run_dpsk_ocr_image.py 2>/dev/null | head -n 1)" 2>/dev/null)
+    [ -z "$hf_dir" ] || [ "$hf_dir" = "." ] && hf_dir="$install_dir/DeepSeek-OCR-master/DeepSeek-OCR-hf"
+    [ -z "$vllm_dir" ] || [ "$vllm_dir" = "." ] && vllm_dir="$install_dir/DeepSeek-OCR-master/DeepSeek-OCR-vllm"
+
+    print_info "To use DeepSeek-OCR (Transformers/HF), run:"
+    print_info "  cd $hf_dir"
+    print_info "  $run_python run_dpsk_ocr.py"
+    echo ""
+    print_info "Or use vLLM for better performance:"
+    print_info "  cd $vllm_dir"
+    print_info "  $run_python run_dpsk_ocr_image.py"
 }
 
 main() {
@@ -387,8 +536,7 @@ main() {
         echo ""
         print_info "You can use DeepSeek-OCR with:"
         print_info "  export DEEPSEEK_OCR_DIR=\"$install_dir\""
-        print_info "  cd $install_dir/DeepSeek-OCR-master/DeepSeek-OCR-hf"
-        print_info "  python run_dpsk_ocr.py"
+        print_usage_instructions "$install_dir"
         return 0
     fi
 
@@ -428,8 +576,7 @@ main() {
         print_info "   export DEEPSEEK_OCR_DIR=\"$install_dir\""
         echo ""
         print_info "2. Use in your application:"
-        print_info "   cd $install_dir/DeepSeek-OCR-master/DeepSeek-OCR-hf"
-        print_info "   python run_dpsk_ocr.py"
+        print_usage_instructions "$install_dir"
         return 0
     else
         echo ""
