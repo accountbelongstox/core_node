@@ -63,7 +63,7 @@ export class ITToolsModel extends BaseModel {
   converter = {
     base64: {
       encode: (text: string) => this.execute(api.itToolsV1.base64Encode({ text })),
-      decode: (text: string) => this.execute(api.itToolsV1.base64Decode({ text }))
+      decode: (text: string) => this.execute(api.itToolsV1.base64Decode({ encoded: text }))
     },
 
     url: {

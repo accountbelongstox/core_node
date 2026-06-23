@@ -320,21 +320,44 @@ export class AppQyV1API extends BaseAPI {
     if (typeof textOrPayload === 'string') {
       body = {
         text: textOrPayload,
-        source_lang: sourceLang,
-        target_lang: targetLang
+        source_language: sourceLang,
+        target_language: targetLang
       };
     } else {
       const p = textOrPayload || {};
       body = {
         text: p.text,
-        source_lang: p.source_lang ?? p.sourceLang ?? p.source_language,
-        target_lang: p.target_lang ?? p.targetLang ?? p.target_language
+        // The controller validates `target_language` (required) and ignores
+        // any source_* field (it auto-detects). Send both names normalized.
+        source_language: p.source_language ?? p.source_lang ?? p.sourceLang,
+        target_language: p.target_language ?? p.target_lang ?? p.targetLang
       };
       if (p.type !== undefined) body.type = p.type;
       if (p.options !== undefined) body.options = p.options;
     }
 
-    return this.post('/ai_tools/translation/translate', body);
+    return this.normalizeTranslateResponse(
+      await this.post('/ai_tools/translation/translate', body)
+    );
+  }
+
+  /**
+   * Map the backend translate payload onto the FE TranslationResponse shape.
+   * The service returns `{ translation, source_text, target_language, type,
+   * provider, model, cached }`; the FE reads `translated_text` / `original_text`
+   * / `detected_language`. We surface aliases without dropping the originals.
+   */
+  private normalizeTranslateResponse(response: APIResponse): APIResponse {
+    if (response.success && response.data && typeof response.data === 'object') {
+      const d = response.data as Record<string, any>;
+      if (d.translated_text === undefined && d.translation !== undefined) {
+        d.translated_text = d.translation;
+      }
+      if (d.original_text === undefined && d.source_text !== undefined) {
+        d.original_text = d.source_text;
+      }
+    }
+    return response;
   }
 
   /**
@@ -345,11 +368,13 @@ export class AppQyV1API extends BaseAPI {
    * keep working.
    */
   async detectAndTranslate(text: string, targetLang: string): Promise<APIResponse> {
-    return this.post('/ai_tools/translation/translate', {
-      text,
-      source_lang: 'auto',
-      target_lang: targetLang
-    });
+    return this.normalizeTranslateResponse(
+      await this.post('/ai_tools/translation/translate', {
+        text,
+        source_language: 'auto',
+        target_language: targetLang
+      })
+    );
   }
 
   async getTranslationLanguages(): Promise<APIResponse> {

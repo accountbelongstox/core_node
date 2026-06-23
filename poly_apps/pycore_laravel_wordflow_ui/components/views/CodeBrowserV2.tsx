@@ -300,10 +300,15 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
   const loadTaskCategories = async () => {
     setTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await api.serverManagerV1.getTaskCategories();
+      const response = await api.mcpV1.getTaskCategories();
       if (response.success && response.data) {
+        // Backend wraps the list in a {categories,total} envelope, so
+        // response.data is that object — extract the array (mirrors MCPManager).
+        const categoriesData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).categories || (response.data as any).items || []);
         setTasks({
-          data: response.data,
+          data: categoriesData,
           loading: false,
           error: null,
           status: 'success'
@@ -324,10 +329,14 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
   const loadCategoryTasks = async (category: string) => {
     setCategoryTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
     try {
-      const response = await api.serverManagerV1.getCategoryTasks(category);
+      const response = await api.mcpV1.getTaskQueue(category);
       if (response.success && response.data) {
+        // response.data is a {tasks,...} envelope — extract the array.
+        const tasksData = Array.isArray(response.data)
+          ? response.data
+          : ((response.data as any).tasks || (response.data as any).items || []);
         setCategoryTasks({
-          data: response.data,
+          data: tasksData,
           loading: false,
           error: null,
           status: 'success'
@@ -349,7 +358,7 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
     setActiveTask(task);
     // Mock execution - replace with actual API call
     await new Promise(resolve => setTimeout(resolve, 2000));
-    alert(`Task "${task.name}" executed successfully!`);
+    alert(`Task "${task.original_name}" executed successfully!`);
     setActiveTask(null);
   };
 
@@ -534,20 +543,20 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
           ) : tasks.data && tasks.data.length > 0 ? (
             <div className="flex-1 overflow-y-auto space-y-2">
               {tasks.data.map(category => (
-                <div key={category.name}>
+                <div key={category.id}>
                   <button
                     onClick={() => setSelectedCategory(
-                      selectedCategory === category.name ? null : category.name
+                      selectedCategory === category.id ? null : category.id
                     )}
                     className="w-full flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
                   >
                     <span className="text-sm font-medium">{category.name}</span>
                     <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
-                      {category.count}
+                      {category.file_count}
                     </span>
                   </button>
 
-                  {selectedCategory === category.name && categoryTasks.data && (
+                  {selectedCategory === category.id && categoryTasks.data && (
                     <div className="mt-2 space-y-1 pl-2">
                       {categoryTasks.data.map(task => (
                         <div
@@ -555,10 +564,10 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
                           className="p-2 bg-gray-50 dark:bg-gray-800 rounded text-sm"
                         >
                           <div className="font-medium text-gray-900 dark:text-white mb-1">
-                            {task.name}
+                            {task.original_name}
                           </div>
                           <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                            {task.description}
+                            {task.status}
                           </div>
                           <button
                             onClick={() => handleExecuteTask(task)}

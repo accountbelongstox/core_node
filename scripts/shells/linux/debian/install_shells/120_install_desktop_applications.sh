@@ -44,6 +44,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/linux_applications_list.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/super_launch_helper.sh"
 
 # Clear old NPM environment variable immediately
@@ -393,59 +394,40 @@ WRAPPER_EOF
             
             log_message "Desktop entry created via desktop_entry_manager.sh"
         else
-            log_message "Warning: desktop_entry_manager.sh not found, using fallback method"
-            # Fallback to old method
-            local desktop_file="/usr/share/applications/${exec_name}.desktop"
-            log_message "Creating desktop entry (fallback): $desktop_file"
-            
-            local desktop_entry="[Desktop Entry]
-Name=${!desktop_name:-$app_name}
-Comment=${!desktop_comment:-$app_name}
-GenericName=${!desktop_name:-$app_name}
-Exec=$exec_target
-Icon=$icon_path
-Type=Application
-Terminal=false
-Categories=${!desktop_categories:-Utility;}
-StartupNotify=true
-StartupWMClass=${!startup_wm_class:-$app_name}
-Keywords=${exec_name};
-"
-            
-            echo "$desktop_entry" | $USE_SUDO tee "$desktop_file" > /dev/null
-            $USE_SUDO chmod 644 "$desktop_file"
-            
-            # Update desktop database
-            if command -v update-desktop-database >/dev/null 2>&1; then
-                $USE_SUDO update-desktop-database /usr/share/applications/ 2>/dev/null || true
-            fi
+            log_message "Warning: desktop_entry_manager.sh not found, using shared shortcut library"
+            # Fallback: create the system-wide menu entry via the shared library.
+            # A single /usr/share/applications entry is read by every desktop
+            # environment and covers all users, replacing the manual tee + chmod +
+            # update-desktop-database below.
+            log_message "Creating desktop entry (fallback) via desktop_shortcut_manager.sh: ${exec_name}"
+            create_desktop_shortcut_from_desktop_shortcut_manager \
+                --id "$exec_name" \
+                --name "${!desktop_name:-$app_name}" \
+                --exec "$exec_target" \
+                --icon "$icon_path" \
+                --comment "${!desktop_comment:-$app_name}" \
+                --generic "${!desktop_name:-$app_name}" \
+                --categories "${!desktop_categories:-Utility;}" \
+                --keywords "${exec_name};" \
+                --startup-wmclass "${!startup_wm_class:-$app_name}" \
+                --extra "StartupNotify=true" 2>&1 | tee -a "$LOG_FILE"
         fi
     else
-        # Legacy: apps without need_desktop_icon flag use old method
-        local desktop_file="/usr/share/applications/${exec_name}.desktop"
-        log_message "Creating desktop entry (legacy): $desktop_file"
-        
-        local desktop_entry="[Desktop Entry]
-Name=${!desktop_name:-$app_name}
-Comment=${!desktop_comment:-$app_name}
-GenericName=${!desktop_name:-$app_name}
-Exec=$exec_target
-Icon=$icon_path
-Type=Application
-Terminal=false
-Categories=${!desktop_categories:-Utility;}
-StartupNotify=false
-StartupWMClass=${!startup_wm_class:-$app_name}
-Keywords=${exec_name};
-"
-        
-        echo "$desktop_entry" | $USE_SUDO tee "$desktop_file" > /dev/null
-        $USE_SUDO chmod 644 "$desktop_file"
-        
-        # Update desktop database
-        if command -v update-desktop-database >/dev/null 2>&1; then
-            $USE_SUDO update-desktop-database /usr/share/applications/ 2>/dev/null || true
-        fi
+        # Legacy: apps without need_desktop_icon flag use the shared library.
+        # The single /usr/share/applications menu entry it writes is read by every
+        # desktop environment and covers all users (StartupNotify=false is the
+        # library default, so it is not passed explicitly).
+        log_message "Creating desktop entry (legacy) via desktop_shortcut_manager.sh: ${exec_name}"
+        create_desktop_shortcut_from_desktop_shortcut_manager \
+            --id "$exec_name" \
+            --name "${!desktop_name:-$app_name}" \
+            --exec "$exec_target" \
+            --icon "$icon_path" \
+            --comment "${!desktop_comment:-$app_name}" \
+            --generic "${!desktop_name:-$app_name}" \
+            --categories "${!desktop_categories:-Utility;}" \
+            --keywords "${exec_name};" \
+            --startup-wmclass "${!startup_wm_class:-$app_name}" 2>&1 | tee -a "$LOG_FILE"
     fi
 
     log_message "Successfully installed $app_name"

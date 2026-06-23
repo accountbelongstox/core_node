@@ -520,7 +520,10 @@ class PythonEnvBackup:
         try:
             os.makedirs(staging, exist_ok=True)
             with tarfile.open(archive, "r:*") as tar:
-                tar.extractall(staging)
+                try:
+                    tar.extractall(staging, filter='data')  # safe extraction (Py 3.12+); future-proofs Py 3.14
+                except TypeError:
+                    tar.extractall(staging)                 # older Python without the filter= argument
             manifest = self._read_manifest_from_dir(staging)
             return self._restore_roots(staging, manifest)
         except Exception as exc:  # noqa: BLE001

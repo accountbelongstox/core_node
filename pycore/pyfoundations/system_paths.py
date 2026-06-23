@@ -440,6 +440,136 @@ LOCAL_DATA_DIR = get_local_data_dir()
 APP_TEMP_DIR = get_app_temp_dir()
 
 
+# --------------------------------------------------------------------------- #
+# Base-data-directory resolution, aligned with gvar_common.sh::get_base_data_directory
+# and PHP PathMapper::getBaseDataDirectory. Primary source of truth: the base that
+# the shell installer DETECTED and PERSISTED to /var/_core_node/global_var/BASE_DATA_DIR.
+# If the shell has not provided a (valid) path, fall back to a full blkid/blockdev/
+# findmnt disk detection re-implemented here so all three languages still converge.
+# --------------------------------------------------------------------------- #
+_BASE_DATA_DIR_FILE = '/var/_core_node/global_var/BASE_DATA_DIR'
+
+
+def _run_cmd(args: List[str]) -> str:
+    """Run a command; return stripped stdout, or '' on any failure (never raises)."""
+    try:
+        import subprocess
+        res = subprocess.run(args, capture_output=True, text=True, timeout=8)
+        return (res.stdout or '').strip()
+    except Exception:
+        return ''
+
+
+def _is_real_distinct_mount(p: Path) -> bool:
+    """True when p is a real mountpoint on a device different from root's device."""
+    try:
+        if not p.is_dir():
+            return False
+    except Exception:
+        return False
+    src = _run_cmd(['findmnt', '-n', '-o', 'SOURCE', '--target', str(p)])
+    root_src = _run_cmd(['findmnt', '-n', '-o', 'SOURCE', '--target', '/'])
+    return bool(src) and src != root_src
+
+
+def _path_hosts_project(base: Path) -> bool:
+    """True when base/programing/core_node is a real checkout (.git or package.json)."""
+    proj = base / 'programing' / 'core_node'
+    try:
+        return proj.is_dir() and ((proj / '.git').exists() or (proj / 'package.json').is_file())
+    except Exception:
+        return False
+
+
+def _read_persisted_base() -> Optional[Path]:
+    """The base the shell installer detected + persisted (cross-language source of truth)."""
+    try:
+        with open(_BASE_DATA_DIR_FILE, 'r', encoding='utf-8', errors='ignore') as fh:
+            val = fh.readline().strip().strip('\r\n')
+    except Exception:
+        return None
+    if not val:
+        return None
+    p = Path(val)
+    return p if (_is_real_distinct_mount(p) or _path_hosts_project(p)) else None
+
+
+def _resolve_device_mount_path(device: str) -> str:
+    """Live mount TARGET of a device; '' when not mounted or not writable (non-root)."""
+    lines = _run_cmd(['findmnt', '-n', '-o', 'TARGET', '--source', device]).splitlines()
+    tgt = lines[0] if lines else ''
+    if tgt and (os.access(tgt, os.W_OK) or (hasattr(os, 'geteuid') and os.geteuid() == 0)):
+        return tgt
+    return ''
+
+
+def _largest_device_of_type(want_ntfs: bool) -> Tuple[int, str]:
+    """Mirror sh get_largest_{ntfs,data}_with_size: rank blkid devices by raw bytes."""
+    best_size, best_dev = 0, ''
+    blk = _run_cmd(['blkid'])
+    if not blk:
+        return best_size, best_dev
+    data_types = ('ext2', 'ext3', 'ext4', 'xfs', 'btrfs')
+    for line in blk.splitlines():
+        dev = line.split(':', 1)[0]
+        low = line.lower()
+        if want_ntfs:
+            if 'type="ntfs"' not in low:
+                continue
+        else:
+            if not any(f'type="{t}"' in low for t in data_types):
+                continue
+            tgt = _run_cmd(['findmnt', '-n', '-o', 'TARGET', '--source', dev])
+            if tgt in ('/', '/boot', '/boot/efi'):
+                continue
+        try:
+            size_i = int(_run_cmd(['blockdev', '--getsize64', dev]) or '0')
+        except Exception:
+            size_i = 0
+        if size_i > best_size:
+            best_size, best_dev = size_i, dev
+    return best_size, best_dev
+
+
+def _detect_largest_disk_base() -> Optional[Path]:
+    """Full blkid/blockdev/findmnt detection (used only when sh provided no base)."""
+    n_size, n_dev = _largest_device_of_type(True)
+    d_size, d_dev = _largest_device_of_type(False)
+    if n_dev and d_dev:
+        chosen = n_dev if n_size >= d_size else d_dev
+    else:
+        chosen = n_dev or d_dev
+    if chosen:
+        path = _resolve_device_mount_path(chosen)
+        if path:
+            return Path(path)
+    return None
+
+
+def _get_base_data_directory() -> Path:
+    """CODE/data base, mirroring gvar_common.sh::get_base_data_directory.
+
+    Priority: WSL -> run-anchor adopt (disk the checkout lives on) -> persisted base
+    (the shell source of truth) -> full disk detection here -> largest mounted drive -> '/'.
+    """
+    if _is_wsl():
+        return Path('/mnt/d')
+    # The disk where THIS checkout physically lives wins (matches sh P1.5).
+    run_base = get_core_node_root().parent.parent  # <base>/programing/core_node -> <base>
+    if _path_hosts_project(run_base):
+        return run_base
+    persisted = _read_persisted_base()
+    if persisted is not None:
+        return persisted
+    detected = _detect_largest_disk_base()
+    if detected is not None:
+        return detected
+    largest = _get_largest_mounted_drive()
+    if largest is not None:
+        return largest
+    return Path('/')
+
+
 def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     """
     Map web path based on environment
@@ -508,51 +638,24 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             'app_manager_logs_old': Path('/opt/core_node_unified_manager/logs'),
         }
     else:
-        # Linux mappings (context-aware)
-        is_wsl = _is_wsl()
-        is_desktop = _is_desktop_linux()
+        # Linux mappings (context-aware). The web/data base is the base the shell
+        # installer detected + persisted (source of truth), else a full disk detection
+        # re-implemented here. The chosen disk is honored AS-IS -- NO POSIX coercion:
+        # a Windows NTFS DATA disk is shared with Windows (/mnt/<ntfs>/www == D:\\www),
+        # mounted uid=/gid= so the login user owns it. PostgreSQL stays on native ext4
+        # (pg_mount -> /var/lib/postgresql/d), not under www, so it is unaffected.
+        base_path = _get_base_data_directory()
 
-        # Determine base path
-        if is_wsl:
-            # WSL: Try /mnt/d first, fallback to largest mounted drive
-            base_path = Path('/mnt/d')
-            if not base_path.exists() or not os.access(str(base_path), os.R_OK):
-                largest_drive = _get_largest_mounted_drive()
-                base_path = largest_drive if largest_drive else Path('/www')
-        elif is_desktop:
-            # Desktop: Check for mounted drives in /mnt/
-            largest_drive = _get_largest_mounted_drive()
-            if largest_drive:
-                base_path = largest_drive
-            else:
-                # No mounted drives, use /www
-                base_path = Path('/www')
-        else:
-            # Server: Use root path
-            base_path = Path('/')
-
-        # Get distro info for compile_dir naming. Use _<name>_<major> (UNDERSCORE)
-        # to match gvar_common.sh + PHP PathMapper (e.g. _kali_2026, _ubuntu_24).
+        # Distro suffix for the SEPARATE compile/dev base (unchanged).
         distro_name, distro_version = _get_linux_distro_info()
         distro_suffix = f'{distro_name}_{distro_version}' if distro_version else distro_name
-        # Dev-tooling base: prefer /opt (>50G free or already in use), else secondary.
         dev_base = _get_dev_compile_base(base_path, distro_suffix)
 
-        # Check if base_path already points to /www (to avoid /www/www duplication)
-        if base_path == Path('/www'):
-            # base_path is already /www, use it directly
-            www_base = base_path
-        else:
-            # base_path is /mnt/d or /, need to add www subdirectory
-            www_base = base_path / 'www'
-
-        # POSIX guard (mirror gvar_common.sh map_web_path: _fs_is_posix_capable -> /www).
-        # The web DATA root must be POSIX-ownable (PostgreSQL/Laravel); when the chosen
-        # base sits on a non-POSIX fs (e.g. an NTFS/fuseblk data disk), fall back to
-        # /www so this matches gvar_common.sh and PathMapper.php. The CODE base
-        # (core_node) is intentionally NOT restricted and may stay on NTFS.
-        if not _fs_is_posix_capable(www_base):
+        # Dedup: "/" or "/www" collapse to /www; any selected disk gets "<base>/www".
+        if str(base_path) in ('/', '/www'):
             www_base = Path('/www')
+        else:
+            www_base = base_path / 'www'
 
         mappings = {
             'applications': www_base / 'applications',

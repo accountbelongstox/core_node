@@ -22,6 +22,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
         try {
             $systemInfo = [
                 'basic_info' => $this->getBasicSystemInfo(),
+                'laravel_info' => $this->getLaravelInfo(),
                 'php_config' => $this->getPhpConfig(),
                 'hardware_info' => $this->getHardwareInfo(),
                 'network_info' => $this->getNetworkInfo(),
@@ -37,7 +38,31 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
             return $this->handleException($e, 'system_info');
         }
     }
-    
+
+    /**
+     * Laravel application info block consumed by the SystemInfo "Laravel Info"
+     * card (environment, debug, urls, locale, and cache state).
+     */
+    private function getLaravelInfo(): array
+    {
+        $app = app();
+
+        return [
+            'environment' => $app->environment(),
+            'debug_mode' => (bool) config('app.debug'),
+            'app_url' => config('app.url'),
+            'app_name' => config('app.name'),
+            'laravel_version' => $app->version(),
+            'locale' => $app->getLocale(),
+            'cache_info' => [
+                'config_cached' => $app->configurationIsCached(),
+                'routes_cached' => $app->routesAreCached(),
+                'events_cached' => $app->eventsAreCached(),
+                'views_cached' => count(glob($app->storagePath('framework/views/*.php')) ?: []) > 0,
+            ],
+        ];
+    }
+
     /**
      * Get running processes
      */

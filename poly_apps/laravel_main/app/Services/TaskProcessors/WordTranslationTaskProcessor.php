@@ -79,13 +79,16 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
         $translations = $inner['translations'] ?? [];
 
         // Words the worker could not resolve (Bing returned a confirmed no-entry)
-        // so they can be flagged is_valid=false and never re-queued.
-        $invalidWords = $inner['invalid_words'] ?? [];
+        // so they can be flagged is_valid=false and never re-queued. Accept BOTH
+        // snake_case and the camelCase documented in this file's header — a worker
+        // following the documented shape must not be silently dropped (was a bug
+        // that zeroed stored_count and tripped the result-trust downgrade).
+        $invalidWords = $inner['invalid_words'] ?? $inner['invalidWords'] ?? [];
 
         // Words that persistently landed on a non-dict (region/redirect) page even
         // after retries. Flagged invalid with a distinct source so the enqueue
         // side stops re-queuing them (avoids the infinite region-redirect loop).
-        $regionRedirectWords = $inner['region_redirect_words'] ?? [];
+        $regionRedirectWords = $inner['region_redirect_words'] ?? $inner['regionRedirectWords'] ?? [];
 
         if (empty($translations) && empty($invalidWords) && empty($regionRedirectWords)) {
             return 0;

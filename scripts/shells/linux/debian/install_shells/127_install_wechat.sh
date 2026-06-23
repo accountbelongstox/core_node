@@ -30,6 +30,7 @@ SCRIPT_INDEX="127"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/get_real_user.sh"
+source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 
 # Declare variables
 APP_NAME="WeChat"
@@ -396,79 +397,34 @@ create_desktop_entry() {
     # Clean up old desktop entries first
     cleanup_old_desktop_entries
 
-    print_step_from_common_functions "Creating desktop entry for user: $REAL_USER..."
+    print_step_from_common_functions "Creating desktop entry via desktop_shortcut_manager..."
 
     local icon_path=$(find_icon)
 
-    # Ensure user applications directory exists
-    if [ ! -d "$USER_APPLICATIONS_DIR" ]; then
-        print_info_from_common_functions "Creating user applications directory: $USER_APPLICATIONS_DIR"
-        mkdir -p "$USER_APPLICATIONS_DIR"
-        chown "$REAL_USER:$REAL_USER_GROUP" "$USER_APPLICATIONS_DIR"
-    fi
-
-    # Check if desktop_entry_manager.sh exists
-    local desktop_manager_script="$PARENT_DIR_LEVEL_1/debian_com/desktop_entry_manager.sh"
-
-    if [[ -x "$desktop_manager_script" ]]; then
-        print_info_from_common_functions "Creating desktop entry via desktop_entry_manager.sh (as user: $REAL_USER)"
-
-        # Determine exec target
-        local exec_target=""
-        if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
-            exec_target="$APPRUN_PATH"
-        else
-            exec_target="$APPIMAGE_FILE"
-        fi
-
-        # Always run as real user (not root)
-        sudo -u "$REAL_USER" bash "$desktop_manager_script" --create-app \
-            "$EXEC_NAME" \
-            "$DESKTOP_NAME" \
-            "$exec_target" \
-            "$icon_path" \
-            "$DESKTOP_CATEGORIES" \
-            "$DESKTOP_COMMENT" \
-            "$STARTUP_WM_CLASS"
-
-        print_success_from_common_functions "Desktop entry created via desktop_entry_manager.sh"
+    # Determine exec target
+    local exec_target=""
+    if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
+        exec_target="$APPRUN_PATH"
     else
-        print_warning_from_common_functions "desktop_entry_manager.sh not found, using fallback method"
-
-        # Determine exec target
-        local exec_target=""
-        if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
-            exec_target="$APPRUN_PATH"
-        else
-            exec_target="$APPIMAGE_FILE"
-        fi
-
-        # Fallback: create desktop file manually in user directory (NO sudo)
-        cat << DESKTOP_EOF > "$DESKTOP_FILE"
-[Desktop Entry]
-Name=$DESKTOP_NAME
-Comment=$DESKTOP_COMMENT
-GenericName=$DESKTOP_NAME
-Exec=$exec_target
-Icon=$icon_path
-Type=Application
-Terminal=false
-Categories=$DESKTOP_CATEGORIES
-StartupNotify=true
-StartupWMClass=$STARTUP_WM_CLASS
-Keywords=wechat;weixin;chat;messaging;
-DESKTOP_EOF
-
-        chmod 644 "$DESKTOP_FILE"
-        chown "$REAL_USER:$REAL_USER_GROUP" "$DESKTOP_FILE"
-
-        # Update desktop database (user directory, no sudo needed)
-        if command -v update-desktop-database >/dev/null 2>&1; then
-            update-desktop-database "$USER_APPLICATIONS_DIR" 2>/dev/null || true
-        fi
-
-        print_success_from_common_functions "Desktop entry created: $DESKTOP_FILE"
+        exec_target="$APPIMAGE_FILE"
     fi
+
+    # Write a single system-wide menu entry (/usr/share/applications -> all users,
+    # all desktop environments) plus an executable+trusted icon on every desktop.
+    create_desktop_shortcut_from_desktop_shortcut_manager \
+        --id "$EXEC_NAME" \
+        --name "$DESKTOP_NAME" \
+        --exec "$exec_target" \
+        --icon "$icon_path" \
+        --comment "$DESKTOP_COMMENT" \
+        --generic "$DESKTOP_NAME" \
+        --categories "$DESKTOP_CATEGORIES" \
+        --keywords "wechat;weixin;chat;messaging;" \
+        --startup-wmclass "$STARTUP_WM_CLASS" \
+        --extra "StartupNotify=true" \
+        --desktop all
+
+    print_success_from_common_functions "Desktop entry created via desktop_shortcut_manager"
 }
 
 # Function to repair installation (fix icons, links, etc.)

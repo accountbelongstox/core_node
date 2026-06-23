@@ -530,13 +530,27 @@ class TaskManagerService
             }
 
             $target = max((int) $task->priority, $newPriority);
-            if ($target !== (int) $task->priority) {
+            // "Task-top" is the shared FAST LANE, not merely a higher number: a
+            // still-pending task bumped to the FAST tier is also moved onto
+            // remote_fast (+is_fast_tier) so every eligible client can claim it
+            // immediately. capability is left untouched, so a pycore-only task
+            // (e.g. capability=audio/image) stays pycore-only on the fast lane.
+            $promoteToFast = $target >= GlobalTask::PRIORITY_FAST
+                && $task->execution_type !== GlobalTask::EXECUTION_REMOTE_FAST;
+
+            if ($target !== (int) $task->priority || $promoteToFast) {
                 $task->priority = $target;
+                if ($promoteToFast) {
+                    $task->execution_type = GlobalTask::EXECUTION_REMOTE_FAST;
+                    $task->is_fast_tier = true;
+                }
                 $task->save();
 
                 Log::info('Task priority bumped', [
                     'task_id' => $taskId,
                     'priority' => $target,
+                    'execution_type' => $task->execution_type,
+                    'is_fast_tier' => $task->is_fast_tier,
                 ]);
             }
 

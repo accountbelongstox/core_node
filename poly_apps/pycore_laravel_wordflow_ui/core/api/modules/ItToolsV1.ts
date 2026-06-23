@@ -105,7 +105,8 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/converter/base64/encode', data);
   }
 
-  async base64Decode(data: { text: string }): Promise<APIResponse> {
+  // Controller validates `encoded` (ItToolsV1ConverterCtl::base64Decode).
+  async base64Decode(data: { encoded: string }): Promise<APIResponse> {
     return this.post('/converter/base64/decode', data);
   }
 

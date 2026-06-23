@@ -7,23 +7,30 @@
  *     tab is no longer needed;
  *   - a toolbar: language + coverage filter + search, an "Add word" button and
  *     Refresh;
- *   - a selectable table with image thumbnails, translation, audio, phonetics,
- *     validity + TTS badges and per-row Edit / Delete;
+ *   - a SORTABLE, selectable table (click Word / Translation / Phonetic / Queries /
+ *     Status headers to sort asc/desc) with image thumbnails (or an explicit
+ *     "no image" marker), translation, a dedicated Audio column (inline play/pause
+ *     player + the file's server PATH and SIZE), phonetics, query count, validity +
+ *     TTS badges and per-row Edit / Delete;
  *   - a batch action bar (delete / mark valid|invalid / requeue TTS) over the
  *     checked rows;
- *   - pagination;
+ *   - pagination (load page by page);
  *   - a view/EDIT/create modal (WordDetailModal) on row click / Add.
  *
  * All data goes through api.books.* (dictionary) + api.appQyV1; mutations hit
- * the new /dictionary/words[/batch] endpoints.
+ * the new /dictionary/words[/batch] endpoints. Sorting is SERVER-SIDE over the
+ * full filtered dataset (the sort key is sent to the backend, which orders all
+ * rows before paginating) — not just the loaded page.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search, Plus, RefreshCw, Volume2, CheckCircle2, XCircle, Pencil, Trash2,
-  ChevronLeft, ChevronRight, Image as ImageIcon, Loader2, ListChecks,
+  ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown, Pause,
+  Image as ImageIcon, Loader2, ListChecks,
   AudioLines, Languages as LanguagesIcon, BarChart3,
 } from 'lucide-react';
 import { api } from '../../core/api';
+import { mediaUrl } from '../../config/constants';
 import type { DictionaryWordRow, DictionaryWordFilter } from '../../core/api/modules/BooksAPI';
 import { ConfirmModal, useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
@@ -49,14 +56,43 @@ interface BreakdownRow {
   invalid: number;
 }
 
+// Which column to sort by. These keys are sent verbatim to the backend, which
+// orders the FULL filtered dataset (not just the loaded page) — see loadWords.
+type SortKey = 'word' | 'translation' | 'phonetic' | 'queries' | 'status';
+
+// Resolve the first image to a loadable URL. The backend stores bare relative
+// paths (e.g. 'en/word/<md5>.png'); prefix them with the word-image serve route
+// and rebase onto the API origin so the <img> doesn't 404 against the page origin.
+// Absolute / data: / blob: / root-relative values are passed straight through.
 const firstImage = (row: DictionaryWordRow): string | null => {
   const imgs = row.image_files;
   if (!Array.isArray(imgs) || imgs.length === 0) return null;
   const it: any = imgs[0];
-  if (typeof it === 'string') return it;
-  return it?.url || it?.src || it?.path || null;
+  const raw: string | null = typeof it === 'string' ? it : (it?.url || it?.src || it?.path || null);
+  if (!raw) return null;
+  const abs = (/^(https?:)?\/\//i.test(raw) || /^(data|blob):/i.test(raw) || raw.startsWith('/'))
+    ? raw
+    : '/static/app_qy_v1/word_images/' + raw;
+  return mediaUrl(abs);
 };
 
+// Human-readable file size for the audio metadata line.
+const fmtBytes = (n?: number | null): string => {
+  if (n == null) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const phonOf = (r: DictionaryWordRow): string => r.us_phonetic || r.uk_phonetic || r.phonetic || '';
+const trOf = (r: DictionaryWordRow): string => (Array.isArray(r.translations) ? r.translations.join(', ') : '');
+
+// Best-effort: the static audio file's basename (for display next to the player).
+const audioName = (u: string): string => {
+  try { return decodeURIComponent(u.split('?')[0].split('/').pop() || u); } catch { return u; }
+};
+
+// Fallback one-shot play when the shared <audio> element is unavailable.
 const playAudio = (url?: string | null) => {
   if (!url) return;
   try { void new Audio(url).play(); } catch { /* ignore */ }
@@ -76,6 +112,7 @@ const WordsManagerPanel: React.FC = () => {
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
   const [start, setStart] = useState(0);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' } | null>(null);
 
   // --- data --------------------------------------------------------------- #
   const [rows, setRows] = useState<DictionaryWordRow[]>([]);
@@ -83,6 +120,10 @@ const WordsManagerPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [breakdown, setBreakdown] = useState<BreakdownRow | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
+
+  // Single shared <audio> element so only ONE row plays at a time.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playingMd5, setPlayingMd5] = useState<string | null>(null);
 
   // --- selection ---------------------------------------------------------- #
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -94,14 +135,16 @@ const WordsManagerPanel: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ kind: 'delete-one' | 'delete-batch'; word?: DictionaryWordRow } | null>(null);
 
-  // Reset paging + selection whenever the query dimensions change.
-  useEffect(() => { setStart(0); setSelected(new Set()); }, [language, filter, query]);
+  // Reset paging + selection whenever a query dimension (incl. sort) changes, so
+  // the user lands on page 1 of the newly-ordered full dataset.
+  useEffect(() => { setStart(0); setSelected(new Set()); }, [language, filter, query, sort]);
 
   const loadWords = useCallback(async () => {
     setLoading(true);
     try {
       const r = await api.books.getDictionaryWords({
         language, filter, q: query, start, limit: PAGE_SIZE,
+        sort: sort?.key, order: sort?.dir,
       });
       const d: any = r.success ? r.data : null;
       setRows(Array.isArray(d?.items) ? d.items : []);
@@ -112,7 +155,7 @@ const WordsManagerPanel: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [language, filter, query, start, reloadTick]);
+  }, [language, filter, query, start, reloadTick, sort]);
 
   useEffect(() => { void loadWords(); }, [loadWords]);
 
@@ -146,7 +189,7 @@ const WordsManagerPanel: React.FC = () => {
 
   // --- batch actions ------------------------------------------------------ #
   const runBatch = useCallback(async (action: 'delete' | 'mark_valid' | 'mark_invalid' | 'requeue_tts') => {
-    const md5s = Array.from(selected);
+    const md5s = Array.from(selected) as string[];
     if (md5s.length === 0) return;
     setBatching(true);
     const label = `Batch ${action} (${md5s.length})`;
@@ -193,7 +236,7 @@ const WordsManagerPanel: React.FC = () => {
   const onSaved = useCallback(() => { refresh(); }, []);
 
   // --- derived ------------------------------------------------------------ #
-  const page = Math.floor(start / PAGE_SIZE) + 1;
+  const pageNo = Math.floor(start / PAGE_SIZE) + 1;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const withTranslation = breakdown?.with_translation ?? 0;
   const words = breakdown?.words ?? 0;
@@ -207,8 +250,49 @@ const WordsManagerPanel: React.FC = () => {
 
   const selectCls = 'text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-2 focus:outline-none';
 
+  // Click a header to cycle: asc -> desc -> unsorted. Sort is server-driven:
+  // changing it reloads page 1 of the FULL ordered dataset (see loadWords).
+  const toggleSort = useCallback((key: SortKey) => {
+    setSort((s) => (s && s.key === key
+      ? (s.dir === 'asc' ? { key, dir: 'desc' } : null)
+      : { key, dir: 'asc' }));
+  }, []);
+
+  // Toggle play/pause for a row's static audio file (one shared element = no
+  // overlap). audio_url is a root-relative serve path, so rebase onto the API
+  // origin (mediaUrl is a no-op for already-absolute URLs).
+  const togglePlay = useCallback((r: DictionaryWordRow) => {
+    if (!r.audio_url) return;
+    const src = mediaUrl(r.audio_url);
+    const el = audioRef.current;
+    if (!el) { playAudio(src); return; }
+    if (playingMd5 === r.md5) { el.pause(); setPlayingMd5(null); return; }
+    el.src = src;
+    void el.play().then(() => setPlayingMd5(r.md5)).catch(() => setPlayingMd5(null));
+  }, [playingMd5]);
+
+  // Sortable header cell.
+  const SortHead: React.FC<{ k: SortKey; label: string; align?: 'left' | 'center' | 'right'; extra?: string }> =
+    ({ k, label, align = 'left', extra = '' }) => (
+      <th
+        className={`px-2 py-2 font-medium select-none cursor-pointer hover:text-indigo-500 dark:hover:text-indigo-400 text-${align} ${extra}`}
+        onClick={() => toggleSort(k)}
+        title="Click to sort"
+      >
+        <span className={`inline-flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : ''}`}>
+          {label}
+          {sort?.key === k
+            ? (sort.dir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)
+            : <ChevronsUpDown className="w-3 h-3 opacity-30" />}
+        </span>
+      </th>
+    );
+
   return (
     <div className="space-y-4">
+      {/* shared audio element for the per-row players (one plays at a time) */}
+      <audio ref={audioRef} onEnded={() => setPlayingMd5(null)} className="hidden" />
+
       {/* merged statistics strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {stats.map(({ label, value, Icon, accent }) => (
@@ -288,21 +372,24 @@ const WordsManagerPanel: React.FC = () => {
               <tr>
                 <th className="w-9 px-2 py-2"><input type="checkbox" checked={allChecked} onChange={toggleAll} /></th>
                 <th className="w-12 px-2 py-2 text-left font-medium"> </th>
-                <th className="px-2 py-2 text-left font-medium">Word</th>
-                <th className="px-2 py-2 text-left font-medium">Translation</th>
-                <th className="px-2 py-2 text-left font-medium">Phonetic</th>
-                <th className="px-2 py-2 text-center font-medium">Status</th>
+                <SortHead k="word" label="Word" />
+                <SortHead k="translation" label="Translation" />
+                <SortHead k="phonetic" label="Phonetic" />
+                <th className="px-2 py-2 text-left font-medium">Audio</th>
+                <SortHead k="queries" label="Queries" align="center" extra="w-20" />
+                <SortHead k="status" label="Status" align="center" extra="w-16" />
                 <th className="w-20 px-2 py-2 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="py-10 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline" /></td></tr>
+                <tr><td colSpan={9} className="py-10 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline" /></td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={7} className="py-10 text-center text-slate-400 text-sm">No words match this filter.</td></tr>
+                <tr><td colSpan={9} className="py-10 text-center text-slate-400 text-sm">No words match this filter.</td></tr>
               ) : rows.map((r) => {
                 const img = firstImage(r);
-                const tr = Array.isArray(r.translations) ? r.translations.join(', ') : '';
+                const tr = trOf(r);
+                const ph = phonOf(r);
                 return (
                   <tr key={r.md5}
                     className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer"
@@ -310,25 +397,67 @@ const WordsManagerPanel: React.FC = () => {
                     <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(r.md5)} onChange={() => toggleOne(r.md5)} />
                     </td>
-                    <td className="px-2 py-2">
+                    {/* Image: thumbnail when present (click to open full size);
+                        an explicit "no image" placeholder otherwise — and the same
+                        placeholder is revealed if the file 404s / fails to load. */}
+                    <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                       {img ? (
-                        <img src={img} alt="" loading="lazy" className="w-9 h-9 rounded object-cover border border-slate-200 dark:border-slate-700"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      ) : (
-                        <div className="w-9 h-9 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-300"><ImageIcon className="w-4 h-4" /></div>
-                      )}
+                        <a href={img} target="_blank" rel="noreferrer" title="Open image">
+                          <img src={img} alt="" loading="lazy" className="w-9 h-9 rounded object-cover border border-slate-200 dark:border-slate-700"
+                            onError={(e) => {
+                              const el = e.currentTarget;
+                              el.style.display = 'none';
+                              const ph = el.parentElement?.nextElementSibling as HTMLElement | null;
+                              if (ph) ph.style.display = 'flex';
+                            }} />
+                        </a>
+                      ) : null}
+                      <div
+                        className="w-9 h-9 rounded bg-slate-100 dark:bg-slate-800 items-center justify-center text-slate-300"
+                        style={{ display: img ? 'none' : 'flex' }}
+                        title="No image">
+                        <ImageIcon className="w-4 h-4" />
+                      </div>
                     </td>
                     <td className="px-2 py-2">
                       <div className="font-medium text-slate-800 dark:text-slate-100">{r.content}</div>
-                      <div className="text-[10px] text-slate-400">×{r.query_count ?? 0}</div>
                     </td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-300 max-w-[16rem] truncate" title={tr}>{tr || <span className="text-slate-300">—</span>}</td>
-                    <td className="px-2 py-2 text-xs text-slate-500 font-mono">{r.us_phonetic || r.uk_phonetic || r.phonetic || ''}</td>
+                    <td className="px-2 py-2 text-xs text-slate-500 font-mono">{ph || <span className="text-slate-300">—</span>}</td>
+                    {/* Audio: inline play/pause player + the file basename link,
+                        with the server PATH (/wwwroot/…) and SIZE underneath. */}
+                    <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                      {r.audio_url ? (
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => togglePlay(r)}
+                              className="shrink-0 text-indigo-500 hover:text-indigo-400"
+                              title={playingMd5 === r.md5 ? 'Pause' : 'Play audio'}>
+                              {playingMd5 === r.md5 ? <Pause className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                            </button>
+                            <a href={mediaUrl(r.audio_url)} target="_blank" rel="noreferrer"
+                              className="text-[11px] text-slate-500 dark:text-slate-300 hover:text-indigo-500 truncate max-w-[10rem]"
+                              title={r.audio_url}>
+                              {audioName(r.audio_url)}
+                            </a>
+                          </div>
+                          {r.audio_path ? (
+                            <span className="text-[10px] text-slate-400 font-mono truncate max-w-[15rem]"
+                              title={`${r.audio_path}${r.audio_size != null ? `  (${fmtBytes(r.audio_size)})` : ''}`}>
+                              {r.audio_path}{r.audio_size != null ? ` · ${fmtBytes(r.audio_size)}` : ''}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 inline-flex items-center gap-1">
+                          <AudioLines className="w-3.5 h-3.5 text-slate-300" />
+                          {r.tts_status && r.tts_status !== 'done' ? r.tts_status : '—'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-center text-slate-500 tabular-nums">{r.query_count ?? 0}</td>
                     <td className="px-2 py-2">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {r.audio_url
-                          ? <button onClick={(e) => { e.stopPropagation(); playAudio(r.audio_url); }} className="text-indigo-500 hover:text-indigo-400" title="Play audio"><Volume2 className="w-4 h-4" /></button>
-                          : <AudioLines className="w-4 h-4 text-slate-300" />}
+                      <div className="flex items-center justify-center">
                         {r.is_valid
                           ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                           : <XCircle className="w-4 h-4 text-rose-500" />}
@@ -353,7 +482,7 @@ const WordsManagerPanel: React.FC = () => {
           <div className="flex items-center gap-2">
             <button disabled={start === 0 || loading} onClick={() => setStart((s) => Math.max(0, s - PAGE_SIZE))}
               className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 disabled:opacity-40 flex items-center gap-1"><ChevronLeft className="w-3.5 h-3.5" /> Prev</button>
-            <span>{page} / {pages}</span>
+            <span>{pageNo} / {pages}</span>
             <button disabled={start + PAGE_SIZE >= total || loading} onClick={() => setStart((s) => s + PAGE_SIZE)}
               className="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 disabled:opacity-40 flex items-center gap-1">Next <ChevronRight className="w-3.5 h-3.5" /></button>
           </div>

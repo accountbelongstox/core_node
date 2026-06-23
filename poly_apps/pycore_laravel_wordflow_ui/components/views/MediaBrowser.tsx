@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import BentoCard from '../BentoCard';
-import { FileNode, Language } from '../../types';
+import { FileNode, Language, StaticFileContent } from '../../types';
 import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { smartSortFiles, processFileEntries } from '../../utils/mediaUtils';
@@ -9,17 +11,36 @@ import {
     Folder, FolderOpen, FileVideo, File, ChevronRight, ChevronDown,
     Play, SkipForward, SkipBack, Maximize2, RefreshCw, Film, UploadCloud,
     FolderPlus, Music, Image as ImageIcon, Code2, AlertCircle, X,
-    FileText, Loader2, Settings, FastForward
+    FileText, Loader2, Settings, FastForward, Pencil, Trash2, Download,
+    Save, RotateCcw, FileType
 } from "lucide-react";
+
+// Max size (~1.5MB) for which inline editing is allowed.
+const MAX_EDITABLE_SIZE = 1.5 * 1024 * 1024;
 
 const FileTreeItem: React.FC<{
     node: FileNode;
     level: number;
     activeId: string | null;
+    selectedDir: string;
     onSelect: (node: FileNode) => void;
     onToggle: (node: FileNode) => void;
-}> = ({ node, level, activeId, onSelect, onToggle }) => {
+    onRename: (node: FileNode, newName: string) => void;
+    onDelete: (node: FileNode) => void;
+    onDownload: (node: FileNode) => void;
+}> = ({ node, level, activeId, selectedDir, onSelect, onToggle, onRename, onDelete, onDownload }) => {
   const isActive = activeId === node.id;
+  const isSelectedDir = node.type === 'folder' && selectedDir === node.id;
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(node.name);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [isRenaming]);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -31,12 +52,41 @@ const FileTreeItem: React.FC<{
     }
   };
 
+  const beginRename = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenameValue(node.name);
+    setIsRenaming(true);
+  };
+
+  const commitRename = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed.length > 0 && trimmed !== node.name) {
+      onRename(node, trimmed);
+    }
+    setIsRenaming(false);
+  };
+
+  const cancelRename = () => {
+    setRenameValue(node.name);
+    setIsRenaming(false);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelRename();
+    }
+  };
+
   return (
     <div className="select-none">
       <div
         className={`
-            flex items-center gap-2 py-1.5 px-2 cursor-pointer transition-colors border-l-2
-            ${isActive ? 'bg-indigo-500/20 border-indigo-500 text-white' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'}
+            group flex items-center gap-2 py-1.5 px-2 cursor-pointer transition-colors border-l-2
+            ${isActive ? 'bg-indigo-500/20 border-indigo-500 text-white' : isSelectedDir ? 'bg-indigo-500/10 border-indigo-400/60 text-slate-200' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'}
         `}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={handleClick}
@@ -56,10 +106,57 @@ const FileTreeItem: React.FC<{
             <ImageIcon size={16} className="text-emerald-400" />
         ) : node.fileType === 'code' ? (
             <Code2 size={16} className="text-amber-400" />
+        ) : node.fileType === 'markdown' ? (
+            <FileText size={16} className="text-sky-400" />
+        ) : node.fileType === 'pdf' ? (
+            <FileText size={16} className="text-red-400" />
+        ) : node.fileType === 'doc' ? (
+            <FileType size={16} className="text-blue-400" />
         ) : (
             <File size={16} className="text-slate-500" />
         )}
-        <span className="truncate text-sm font-mono tracking-tight">{node.name}</span>
+
+        {isRenaming ? (
+          <input
+            ref={renameInputRef}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={handleRenameKeyDown}
+            onBlur={commitRename}
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 min-w-0 bg-black/40 border border-indigo-500/50 rounded px-1.5 py-0.5 text-sm font-mono text-white outline-none"
+          />
+        ) : (
+          <span className="truncate text-sm font-mono tracking-tight flex-1 min-w-0">{node.name}</span>
+        )}
+
+        {!isRenaming && (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={beginRename}
+              className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
+              title="Rename"
+            >
+              <Pencil size={12} />
+            </button>
+            {node.type === 'file' && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDownload(node); }}
+                className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
+                title="Download"
+              >
+                <Download size={12} />
+              </button>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(node); }}
+              className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400"
+              title="Delete"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        )}
       </div>
       {node.isOpen && node.children && (
         <div>
@@ -69,8 +166,12 @@ const FileTreeItem: React.FC<{
                 node={child}
                 level={level + 1}
                 activeId={activeId}
+                selectedDir={selectedDir}
                 onSelect={onSelect}
                 onToggle={onToggle}
+                onRename={onRename}
+                onDelete={onDelete}
+                onDownload={onDownload}
             />
           ))}
         </div>
@@ -79,41 +180,201 @@ const FileTreeItem: React.FC<{
   );
 };
 
-const UploadModal: React.FC<{ isOpen: boolean; onClose: () => void; onUpload: (files: FileList) => void }> = ({ isOpen, onClose, onUpload }) => {
+const UploadModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onUpload: (files: FileList) => void;
+    targetLabel: string;
+}> = ({ isOpen, onClose, onUpload, targetLabel }) => {
     const inputRef = useRef<HTMLInputElement>(null);
+    const folderInputRef = useRef<HTMLInputElement>(null);
+    const [isDragging, setIsDragging] = useState(false);
+
+    // webkitdirectory/directory are non-standard attrs that the React types omit; set
+    // them imperatively on the hidden folder input so it picks whole directory trees.
+    useEffect(() => {
+      if (folderInputRef.current) {
+        folderInputRef.current.setAttribute('webkitdirectory', '');
+        folderInputRef.current.setAttribute('directory', '');
+      }
+    }, [isOpen]);
 
     if (!isOpen) return null;
+
+    const handleDrop = (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        onUpload(e.dataTransfer.files);
+        onClose();
+      }
+    };
 
     return ReactDOM.createPortal(
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
             <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-center mb-2">
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
                         <UploadCloud className="text-indigo-400" /> Upload Resources
                     </h3>
                     <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full"><X size={20} className="text-slate-400" /></button>
                 </div>
+                <p className="text-xs text-slate-500 mb-6 font-mono truncate">Target: {targetLabel}</p>
 
                 <div
-                    className="border-2 border-dashed border-white/10 rounded-xl p-12 flex flex-col items-center justify-center text-center hover:bg-white/5 transition-colors cursor-pointer group"
+                    className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center justify-center text-center transition-colors cursor-pointer group ${isDragging ? 'border-indigo-400 bg-indigo-500/10' : 'border-white/10 hover:bg-white/5'}`}
                     onClick={() => inputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+                    onDrop={handleDrop}
                 >
-                    <FolderPlus size={48} className="text-slate-500 group-hover:text-indigo-400 transition-colors mb-4" />
-                    <p className="text-slate-300 font-medium">Click to select a Folder</p>
-                    <p className="text-xs text-slate-500 mt-2">Supports recursive directory upload</p>
-                    <input
-                        ref={inputRef}
-                        type="file"
-                        className="hidden"
-                        multiple
-                        onChange={(e) => {
-                            if (e.target.files && e.target.files.length > 0) {
-                                onUpload(e.target.files);
-                                onClose();
-                            }
-                        }}
-                    />
+                    <UploadCloud size={48} className="text-slate-500 group-hover:text-indigo-400 transition-colors mb-4" />
+                    <p className="text-slate-300 font-medium">Drag &amp; drop files here, or click to browse</p>
+                    <p className="text-xs text-slate-500 mt-2">Files upload into the selected target directory</p>
+                </div>
+
+                <div className="flex items-center gap-3 mt-4">
+                    <button
+                        onClick={() => inputRef.current?.click()}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
+                    >
+                        <UploadCloud size={16} /> Select Files
+                    </button>
+                    <button
+                        onClick={() => folderInputRef.current?.click()}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-200 text-sm rounded-lg transition-colors border border-white/10"
+                    >
+                        <FolderPlus size={16} /> Select Folder
+                    </button>
+                </div>
+
+                <input
+                    ref={inputRef}
+                    type="file"
+                    className="hidden"
+                    multiple
+                    onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                            onUpload(e.target.files);
+                            onClose();
+                        }
+                    }}
+                />
+                <input
+                    ref={folderInputRef}
+                    type="file"
+                    className="hidden"
+                    multiple
+                    onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                            onUpload(e.target.files);
+                            onClose();
+                        }
+                    }}
+                />
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+const NewFolderModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onCreate: (name: string) => void;
+    targetLabel: string;
+}> = ({ isOpen, onClose, onCreate, targetLabel }) => {
+    const [name, setName] = useState('');
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+      if (isOpen) {
+        setName('');
+        if (inputRef.current) inputRef.current.focus();
+      }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const submit = () => {
+      const trimmed = name.trim();
+      if (trimmed.length > 0) {
+        onCreate(trimmed);
+        onClose();
+      }
+    };
+
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-sm bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        <FolderPlus className="text-indigo-400" size={18} /> New Folder
+                    </h3>
+                    <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full"><X size={18} className="text-slate-400" /></button>
+                </div>
+                <p className="text-xs text-slate-500 mb-4 font-mono truncate">In: {targetLabel}</p>
+                <input
+                    ref={inputRef}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+                      else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+                    }}
+                    placeholder="folder name"
+                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white font-mono outline-none focus:border-indigo-500/60"
+                />
+                <div className="flex justify-end gap-2 mt-4">
+                    <button onClick={onClose} className="px-3 py-1.5 text-sm text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors">Cancel</button>
+                    <button onClick={submit} className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors">Create</button>
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+const DeleteConfirmModal: React.FC<{
+    node: FileNode | null;
+    preview: { files: number; directories: number; total_items: number } | null;
+    loading: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+}> = ({ node, preview, loading, onClose, onConfirm }) => {
+    if (!node) return null;
+
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-sm bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-full bg-red-500/15">
+                        <Trash2 className="text-red-400" size={18} />
+                    </div>
+                    <h3 className="text-base font-bold text-white">Delete {node.type === 'folder' ? 'Folder' : 'File'}</h3>
+                </div>
+                <p className="text-sm text-slate-300 mb-1">
+                    Delete <span className="font-mono text-white">{node.name}</span>?
+                </p>
+                {loading ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-3">
+                        <Loader2 size={14} className="animate-spin" /> Computing impact…
+                    </div>
+                ) : preview ? (
+                    <p className="text-xs text-slate-500 mt-3">
+                        This will remove <span className="text-red-400 font-medium">{preview.files}</span> file(s) and{' '}
+                        <span className="text-red-400 font-medium">{preview.directories}</span> director(ies){' '}
+                        (<span className="text-red-400 font-medium">{preview.total_items}</span> total). This cannot be undone.
+                    </p>
+                ) : (
+                    <p className="text-xs text-slate-500 mt-3">This cannot be undone.</p>
+                )}
+                <div className="flex justify-end gap-2 mt-5">
+                    <button onClick={onClose} className="px-3 py-1.5 text-sm text-slate-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors">Cancel</button>
+                    <button onClick={onConfirm} className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors">Delete</button>
                 </div>
             </div>
         </div>,
@@ -129,9 +390,14 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   const t = TRANSLATIONS[lang].media_browser;
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<FileNode | null>(null);
+  const [selectedDir, setSelectedDir] = useState<string>('');
   const [currentPath, setCurrentPath] = useState<string>('');
   const [basePath, setBasePath] = useState<string>('');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null);
+  const [deletePreview, setDeletePreview] = useState<{ files: number; directories: number; total_items: number } | null>(null);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
   const [playlist, setPlaylist] = useState<FileNode[]>([]);
   const [autoPlay, setAutoPlay] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -143,6 +409,14 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   });
   const [showFloatingControls, setShowFloatingControls] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Universal viewer / editor state.
+  const [fileContent, setFileContent] = useState<StaticFileContent | null>(null);
+  const [contentLoading, setContentLoading] = useState(false);
+  const [contentError, setContentError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const loadFileTree = async (path?: string) => {
     setLoading(true);
@@ -187,12 +461,15 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   };
 
   // NO || or ?? allowed
-  const detectFileType = (fileName: string): 'video' | 'audio' | 'image' | 'code' | 'text' => {
+  const detectFileType = (fileName: string): 'video' | 'audio' | 'image' | 'code' | 'text' | 'pdf' | 'markdown' | 'doc' => {
     const parts = fileName.split('.');
     const ext = parts[parts.length - 1].toLowerCase();
     if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'm3u8'].includes(ext)) return 'video';
     if (['mp3', 'wav', 'flac', 'aac', 'm4a'].includes(ext)) return 'audio';
     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
+    if (['pdf'].includes(ext)) return 'pdf';
+    if (['md', 'markdown'].includes(ext)) return 'markdown';
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return 'doc';
     if (['js', 'ts', 'jsx', 'tsx', 'py', 'php', 'java', 'cpp', 'c', 'go', 'rs'].includes(ext)) return 'code';
     return 'text';
   };
@@ -207,6 +484,19 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
     }
     return null;
   };
+
+  // Selecting a node: a folder becomes the upload/new-folder target; a file becomes
+  // the active preview file. NO || or ?? — explicit branching only.
+  const handleSelectNode = (node: FileNode) => {
+    if (node.type === 'folder') {
+      setSelectedDir(node.id);
+    } else {
+      setActiveFile(node);
+    }
+  };
+
+  // Friendly label for the current upload/new-folder target.
+  const targetDirLabel = selectedDir ? selectedDir : '(root)';
 
   useEffect(() => {
     loadFileTree();
@@ -265,6 +555,38 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
 
   }, [activeFile, fileTree]);
 
+  // Fetch content for textual file types (text / code / markdown) when the active
+  // file changes. NO try-catch — McpV1 already normalizes errors into the response.
+  useEffect(() => {
+    setIsEditing(false);
+    setEditValue('');
+    setFileContent(null);
+    setContentError(null);
+
+    if (!activeFile) return;
+
+    const ft = activeFile.fileType;
+    const wantsContent = ft === 'text' ? true : ft === 'code' ? true : ft === 'markdown' ? true : false;
+    if (!wantsContent) return;
+
+    let cancelled = false;
+    const fetchContent = async () => {
+      setContentLoading(true);
+      const response = await api.mcpV1.getStaticFileContent(activeFile.id);
+      if (cancelled) return;
+      if (response.success && response.data) {
+        setFileContent(response.data as StaticFileContent);
+        setEditValue(response.data.content ? response.data.content : '');
+      } else {
+        setContentError(response.error);
+      }
+      setContentLoading(false);
+    };
+    fetchContent();
+
+    return () => { cancelled = true; };
+  }, [activeFile]);
+
   const toggleFolder = (targetNode: FileNode) => {
     const updateNodes = (nodes: FileNode[]): FileNode[] => {
         return nodes.map(node => {
@@ -280,14 +602,102 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
     setFileTree(prev => updateNodes(prev));
   };
 
-  // NO try-catch allowed
+  // NO try-catch allowed. Upload into the selected directory (fall back to root),
+  // preserving folder structure via File.webkitRelativePath -> relativePaths.
   const handleUpload = async (files: FileList) => {
-     const response = await api.mcpV1.uploadStaticResources(Array.from(files));
+     const fileArr = Array.from(files);
+     const targetPath = selectedDir ? selectedDir : '';
+     const relativePaths = fileArr.map(f => {
+       const rel = (f as any).webkitRelativePath;
+       return rel ? rel : f.name;
+     });
+     const response = await api.mcpV1.uploadStaticResources(fileArr, targetPath, relativePaths);
      if (response.success) {
        await loadFileTree();
      } else {
        setError(response.error);
      }
+  };
+
+  // NO try-catch allowed.
+  const handleCreateFolder = async (name: string) => {
+     const parentPath = selectedDir ? selectedDir : '';
+     const response = await api.mcpV1.createStaticResourceDir(parentPath, name);
+     if (response.success) {
+       await loadFileTree();
+     } else {
+       setError(response.error);
+     }
+  };
+
+  // NO try-catch allowed.
+  const handleRename = async (node: FileNode, newName: string) => {
+     const response = await api.mcpV1.renameStaticResource(node.id, newName);
+     if (response.success) {
+       await loadFileTree();
+     } else {
+       setError(response.error);
+     }
+  };
+
+  const handleDownload = (node: FileNode) => {
+     const url = api.mcpV1.getStaticFileDownloadUrl(node.id);
+     window.open(url, '_blank');
+  };
+
+  // Opening the delete modal also fetches an impact preview. NO try-catch.
+  const openDeleteModal = async (node: FileNode) => {
+     setDeleteTarget(node);
+     setDeletePreview(null);
+     setDeletePreviewLoading(true);
+     const response = await api.mcpV1.deleteStaticResourcePreview(node.id);
+     if (response.success && response.data) {
+       setDeletePreview({
+         files: response.data.files,
+         directories: response.data.directories,
+         total_items: response.data.total_items
+       });
+     }
+     setDeletePreviewLoading(false);
+  };
+
+  // NO try-catch allowed.
+  const handleConfirmDelete = async () => {
+     if (!deleteTarget) return;
+     const target = deleteTarget;
+     const response = await api.mcpV1.deleteStaticResource(target.id);
+     setDeleteTarget(null);
+     setDeletePreview(null);
+     if (response.success) {
+       if (activeFile && activeFile.id === target.id) setActiveFile(null);
+       if (selectedDir === target.id) setSelectedDir('');
+       await loadFileTree();
+     } else {
+       setError(response.error);
+     }
+  };
+
+  // NO try-catch allowed. Save edits, then reload content from disk.
+  const handleSaveContent = async () => {
+     if (!activeFile) return;
+     setIsSaving(true);
+     const response = await api.mcpV1.saveStaticFileContent(activeFile.id, editValue);
+     if (response.success) {
+       const reload = await api.mcpV1.getStaticFileContent(activeFile.id);
+       if (reload.success && reload.data) {
+         setFileContent(reload.data as StaticFileContent);
+         setEditValue(reload.data.content ? reload.data.content : '');
+       }
+       setIsEditing(false);
+     } else {
+       setContentError(response.error);
+     }
+     setIsSaving(false);
+  };
+
+  const handleCancelEdit = () => {
+     setEditValue(fileContent && fileContent.content ? fileContent.content : '');
+     setIsEditing(false);
   };
 
   // NO || allowed
@@ -326,12 +736,194 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   const hasNext = playlist.length > 0 && currentPlaylistIndex < playlist.length - 1;
   const hasPrevious = playlist.length > 0 && currentPlaylistIndex > 0;
 
+  // Whether the current active file's content is editable inline.
+  const isDirty = fileContent ? editValue !== fileContent.content : false;
+  const canEdit = activeFile && fileContent && fileContent.isText && fileContent.size < MAX_EDITABLE_SIZE ? true : false;
+
+  // Render the "Reading"/content body for a textual file (markdown / code / text).
+  const renderTextualBody = () => {
+    if (contentLoading) {
+      return (
+        <div className="h-full flex items-center justify-center text-slate-500">
+          <Loader2 size={28} className="animate-spin" />
+        </div>
+      );
+    }
+    if (contentError) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center text-red-400 gap-2 p-6 text-center">
+          <AlertCircle size={28} />
+          <p className="text-sm">{contentError}</p>
+        </div>
+      );
+    }
+    if (!fileContent) {
+      return (
+        <div className="h-full flex items-center justify-center text-slate-600 text-sm">No content</div>
+      );
+    }
+
+    if (isEditing) {
+      return (
+        <textarea
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          spellCheck={false}
+          className="w-full h-full bg-black/40 border border-white/10 rounded-lg p-3 text-xs font-mono text-slate-200 outline-none resize-none focus:border-indigo-500/50"
+        />
+      );
+    }
+
+    if (activeFile && activeFile.fileType === 'markdown') {
+      return (
+        <div className="h-full overflow-auto bg-black/20 border border-white/5 rounded-lg p-4 prose prose-invert prose-sm max-w-none prose-headings:text-slate-100 prose-a:text-indigo-400 prose-code:text-amber-300">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {fileContent.content}
+          </ReactMarkdown>
+        </div>
+      );
+    }
+
+    // text / code -> mono pre/code
+    return (
+      <pre className="h-full overflow-auto bg-black/40 border border-white/5 rounded-lg p-3 text-xs">
+        <code className="font-mono text-slate-200 whitespace-pre">{fileContent.content}</code>
+      </pre>
+    );
+  };
+
+  // Decide which universal viewer to render in the preview panel for the active file.
+  const renderViewer = () => {
+    if (!activeFile) {
+      return (
+        <div className="text-slate-600 text-center p-8">
+          <File size={48} className="mx-auto mb-2 opacity-50" />
+          <p className="text-sm">No file selected</p>
+        </div>
+      );
+    }
+
+    const ft = activeFile.fileType;
+
+    if (ft === 'video') {
+      return (
+        <>
+          <video
+            ref={videoRef}
+            key={activeFile.id}
+            controls
+            autoPlay
+            onEnded={handleVideoEnd}
+            onTimeUpdate={handleVideoTimeUpdate}
+            className="w-full h-full"
+            src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
+          />
+          {/* Floating Episode Controls - NO || allowed */}
+          {showFloatingControls && (hasPrevious ? true : hasNext ? true : false) && (
+            <div className="absolute bottom-20 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              {hasPrevious && (
+                <button
+                  onClick={playPreviousInPlaylist}
+                  className="p-3 bg-black/80 hover:bg-black/90 text-white rounded-full shadow-lg transition-all hover:scale-110"
+                  title="Previous Episode"
+                >
+                  <SkipBack size={20} />
+                </button>
+              )}
+              {hasNext && (
+                <button
+                  onClick={playNextInPlaylist}
+                  className="p-3 bg-black/80 hover:bg-black/90 text-white rounded-full shadow-lg transition-all hover:scale-110"
+                  title="Next Episode"
+                >
+                  <SkipForward size={20} />
+                </button>
+              )}
+            </div>
+          )}
+          {/* Skip Intro Button */}
+          {skipIntro.enabled && videoRef.current && videoRef.current.currentTime >= skipIntro.start && videoRef.current.currentTime < skipIntro.end && (
+            <div className="absolute top-4 right-4">
+              <button
+                onClick={() => {
+                  if (videoRef.current) {
+                    videoRef.current.currentTime = skipIntro.end;
+                  }
+                }}
+                className="px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 text-white text-sm rounded-lg shadow-lg transition-all hover:scale-105 flex items-center gap-2"
+              >
+                <FastForward size={16} />
+                Skip Intro
+              </button>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    if (ft === 'audio') {
+      return (
+        <audio
+          key={activeFile.id}
+          controls
+          autoPlay
+          onEnded={handleVideoEnd}
+          className="w-full"
+          src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
+        />
+      );
+    }
+
+    if (ft === 'image') {
+      return (
+        <img
+          src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
+          alt={activeFile.name}
+          className="max-w-full max-h-full object-contain"
+        />
+      );
+    }
+
+    if (ft === 'pdf') {
+      return (
+        <iframe
+          key={activeFile.id}
+          src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
+          className="w-full h-full bg-white"
+          title={activeFile.name}
+        />
+      );
+    }
+
+    if (ft ? ['markdown', 'text', 'code'].includes(ft) : false) {
+      return <div className="w-full h-full p-2">{renderTextualBody()}</div>;
+    }
+
+    // doc / unknown / binary -> no inline preview, offer download.
+    return (
+      <div className="text-slate-500 text-center p-8 flex flex-col items-center gap-3">
+        <FileType size={48} className="opacity-50" />
+        <p className="text-sm">No inline preview available</p>
+        <p className="text-xs font-mono text-slate-600">{activeFile.name}</p>
+        <button
+          onClick={() => handleDownload(activeFile)}
+          className="mt-2 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
+        >
+          <Download size={16} /> Download
+        </button>
+      </div>
+    );
+  };
+
+  // Textual viewer types use a tall panel; media types keep the aspect-video frame.
+  const isReadingType = activeFile && activeFile.fileType ? ['markdown', 'text', 'code', 'pdf'].includes(activeFile.fileType) : false;
+
   return (
     <div className="h-full flex flex-col md:flex-row gap-6 p-6 overflow-hidden">
       <div className="flex-1 flex flex-col gap-6 min-w-0">
         <BentoCard title="Static Resources" className="flex-1 flex flex-col min-h-0" icon={Film} glowing>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2 min-w-0">
               <button
                 onClick={() => loadFileTree()}
                 className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors"
@@ -339,15 +931,33 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
               >
                 <RefreshCw size={16} />
               </button>
-              <span className="text-xs text-slate-500 font-mono">{currentPath}</span>
+              <span className="text-xs text-slate-500 font-mono truncate">{currentPath}</span>
             </div>
-            <button
-              onClick={() => setIsUploadOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
-            >
-              <UploadCloud size={16} />
-              Upload
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-slate-400 max-w-[200px]"
+                title={`Target: ${targetDirLabel}`}
+              >
+                <Folder size={13} className="text-yellow-500/80 flex-shrink-0" />
+                <span className="font-mono truncate">{targetDirLabel}</span>
+              </span>
+              <button
+                onClick={() => setIsUploadOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 text-sm rounded-lg transition-colors border border-white/10"
+                title="Upload files or a folder"
+              >
+                <UploadCloud size={16} />
+                Upload
+              </button>
+              <button
+                onClick={() => setIsNewFolderOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
+                title="Create folder in target"
+              >
+                <FolderPlus size={16} />
+                New Folder
+              </button>
+            </div>
           </div>
 
           {loading ? (
@@ -366,7 +976,16 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
               </button>
             </div>
           ) : (
-            <div className="flex-1 bg-black/20 border border-white/5 rounded-lg p-3 overflow-y-auto">
+            <div
+              className="flex-1 bg-black/20 border border-white/5 rounded-lg p-3 overflow-y-auto"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  handleUpload(e.dataTransfer.files);
+                }
+              }}
+            >
               {fileTree.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-slate-500">
                   <Folder size={48} className="mb-4 opacity-50" />
@@ -379,8 +998,12 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                     node={node}
                     level={0}
                     activeId={activeFile ? activeFile.id : null}
-                    onSelect={setActiveFile}
+                    selectedDir={selectedDir}
+                    onSelect={handleSelectNode}
                     onToggle={toggleFolder}
+                    onRename={handleRename}
+                    onDelete={openDeleteModal}
+                    onDownload={handleDownload}
                   />
                 ))
               )}
@@ -389,85 +1012,60 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
         </BentoCard>
       </div>
 
-      <div className="w-full md:w-[400px] flex flex-col gap-6">
-        <BentoCard title="Preview" icon={Play} glowing className="flex-shrink-0">
-          <div className="space-y-4">
-            <div className="aspect-video bg-black/60 border border-white/10 rounded-lg flex items-center justify-center overflow-hidden relative group">
-              {activeFile?.fileType === 'video' ? (
-                <>
-                  <video
-                    ref={videoRef}
-                    key={activeFile.id}
-                    controls
-                    autoPlay
-                    onEnded={handleVideoEnd}
-                    onTimeUpdate={handleVideoTimeUpdate}
-                    className="w-full h-full"
-                    src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
-                  />
-                  {/* Floating Episode Controls - NO || allowed */}
-                  {showFloatingControls && (hasPrevious ? true : hasNext ? true : false) && (
-                    <div className="absolute bottom-20 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {hasPrevious && (
-                        <button
-                          onClick={playPreviousInPlaylist}
-                          className="p-3 bg-black/80 hover:bg-black/90 text-white rounded-full shadow-lg transition-all hover:scale-110"
-                          title="Previous Episode"
-                        >
-                          <SkipBack size={20} />
-                        </button>
-                      )}
-                      {hasNext && (
-                        <button
-                          onClick={playNextInPlaylist}
-                          className="p-3 bg-black/80 hover:bg-black/90 text-white rounded-full shadow-lg transition-all hover:scale-110"
-                          title="Next Episode"
-                        >
-                          <SkipForward size={20} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {/* Skip Intro Button */}
-                  {skipIntro.enabled && videoRef.current && videoRef.current.currentTime >= skipIntro.start && videoRef.current.currentTime < skipIntro.end && (
-                    <div className="absolute top-4 right-4">
-                      <button
-                        onClick={() => {
-                          if (videoRef.current) {
-                            videoRef.current.currentTime = skipIntro.end;
-                          }
-                        }}
-                        className="px-4 py-2 bg-indigo-600/90 hover:bg-indigo-600 text-white text-sm rounded-lg shadow-lg transition-all hover:scale-105 flex items-center gap-2"
-                      >
-                        <FastForward size={16} />
-                        Skip Intro
-                      </button>
-                    </div>
-                  )}
-                </>
-              ) : activeFile?.fileType === 'audio' ? (
-                <audio
-                  key={activeFile.id}
-                  controls
-                  autoPlay
-                  onEnded={handleVideoEnd}
-                  className="w-full"
-                  src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
-                />
-              ) : activeFile?.fileType === 'image' ? (
-                <img
-                  src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
-                  alt={activeFile.name}
-                  className="max-w-full max-h-full object-contain"
-                />
-              ) : (
-                <div className="text-slate-600 text-center p-8">
-                  <File size={48} className="mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No preview available</p>
-                  {activeFile && <p className="text-xs mt-2 font-mono">{activeFile.name}</p>}
+      <div className="w-full md:w-[400px] flex flex-col gap-6 min-h-0">
+        <BentoCard title="Preview" icon={Play} glowing className="flex-1 flex flex-col min-h-0">
+          <div className="flex flex-col gap-4 flex-1 min-h-0">
+            {/* Viewer toolbar: edit / save / cancel for editable textual files. */}
+            {canEdit && (
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0">
+                  {isDirty && <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" title="Unsaved changes" />}
+                  <span className="font-mono truncate">{activeFile ? activeFile.name : ''}</span>
                 </div>
-              )}
-            </div>
+                <div className="flex items-center gap-1.5">
+                  {isEditing ? (
+                    <>
+                      <button
+                        onClick={handleSaveContent}
+                        disabled={isSaving}
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
+                        title="Save"
+                      >
+                        {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                        Save
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-slate-300 text-xs rounded-lg transition-colors border border-white/10"
+                        title="Cancel"
+                      >
+                        <RotateCcw size={13} />
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-white/5 hover:bg-white/10 text-slate-300 text-xs rounded-lg transition-colors border border-white/10"
+                      title="Edit"
+                    >
+                      <Pencil size={13} />
+                      Edit
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isReadingType ? (
+              <div className="flex-1 min-h-0 bg-black/60 border border-white/10 rounded-lg overflow-hidden relative group">
+                {renderViewer()}
+              </div>
+            ) : (
+              <div className="aspect-video bg-black/60 border border-white/10 rounded-lg flex items-center justify-center overflow-hidden relative group">
+                {renderViewer()}
+              </div>
+            )}
 
             {activeFile && (
               <div className="text-xs space-y-1 text-slate-400">
@@ -555,7 +1153,25 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
         </BentoCard>
       </div>
 
-      <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} onUpload={handleUpload} />
+      <UploadModal
+        isOpen={isUploadOpen}
+        onClose={() => setIsUploadOpen(false)}
+        onUpload={handleUpload}
+        targetLabel={targetDirLabel}
+      />
+      <NewFolderModal
+        isOpen={isNewFolderOpen}
+        onClose={() => setIsNewFolderOpen(false)}
+        onCreate={handleCreateFolder}
+        targetLabel={targetDirLabel}
+      />
+      <DeleteConfirmModal
+        node={deleteTarget}
+        preview={deletePreview}
+        loading={deletePreviewLoading}
+        onClose={() => { setDeleteTarget(null); setDeletePreview(null); }}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 };

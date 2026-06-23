@@ -23,10 +23,18 @@ class ServerManagerV1Constants
      */
     public static function getAllowedDownloadPaths(): array
     {
-        return [
+        // The REAL core_node checkout (e.g. /mnt/<disk>/programing/core_node) — must be
+        // whitelisted so the file/code browser can browse it. PathConfigController hands
+        // the FE this same getCoreNodeDir() path for `code_browser`; the old hardcoded
+        // '/www/programing/core_node' does not exist on non-/www hosts, so isPathAllowed()
+        // rejected the (correct) checkout root and the browser 403/404'd.
+        $coreNode = PathMapper::getCoreNodeDir();
+
+        return array_values(array_filter([
+            $coreNode,
             PathMapper::mapWebPath('wwwroot') . '/core_node/scripts',
             PathMapper::mapWebPath('wwwroot') . '/core_node/poly_apps',
-            '/www/programing/core_node', // Allow access to programming directory
+            $coreNode ? null : '/www/programing/core_node', // legacy fallback only when getCoreNodeDir() fails
             PathMapper::mapWebPath('laravel_data_dir'),
             '/var/log',
             PathMapper::mapWebPath('nginx'),
@@ -34,7 +42,7 @@ class ServerManagerV1Constants
             PathMapper::mapWebPath('shared-data'),
             ServerManagerV1PathConfig::getLetsEncryptDir(),
             PathMapper::getLaravelTmpDir()
-        ];
+        ]));
     }
     
     /** @deprecated Use getAllowedDownloadPaths() instead */

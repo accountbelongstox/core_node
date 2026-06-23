@@ -196,8 +196,11 @@ class ScrcpyInitializer:
                     members = tar_ref.getmembers()
                     root_folder = members[0].name.split('/')[0] if members else None
 
-                    # Extract all files
-                    tar_ref.extractall(self.user_data_dir)
+                    # Extract all files (safe extraction; filter= added in Py 3.12, falls back on older)
+                    try:
+                        tar_ref.extractall(self.user_data_dir, filter='data')
+                    except TypeError:
+                        tar_ref.extractall(self.user_data_dir)
 
                     # If extracted to a subfolder, move contents up
                     if root_folder:

@@ -314,9 +314,7 @@ smart_permissions_fix() {
     local project_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 
     echo "[INFO] Essential Permissions & Environment Setup"
-    echo "[INFO] Essential Permissions & Environment Setup" >&2
     echo "[DEBUG] Project root: $project_root"
-    echo "[DEBUG] Project root: $project_root" >&2
 
     # Get user information
     echo "[DEBUG] Getting real user information..."

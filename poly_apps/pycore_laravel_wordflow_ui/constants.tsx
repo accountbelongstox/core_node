@@ -16,7 +16,7 @@ export const APP_VERSION = "v3.4.0-beta";
 export const TRANSLATIONS = {
   en: {
     nav: {
-      media: "Media Browser",
+      media: "Media",
       moviesBooks: "Movies & Books",
       code: "Code Node",
     tools: "Tools",
@@ -51,6 +51,14 @@ export const TRANSLATIONS = {
       inviteCodes: "Invite Codes",
       dbManager: "Database Manager"
     },
+    mediaHub: {
+      segMovies: "Movies",
+      segBooks: "Books",
+      segFiles: "Files",
+      searchPlaceholder: "Search…",
+      refresh: "Refresh",
+      emptyPrompt: "Select an item to view it here."
+    },
     header: {
       system_online: "System Online",
       system_offline: "Offline Mode",
@@ -59,7 +67,7 @@ export const TRANSLATIONS = {
       logged_in_as: "Logged in as:",
       guest: "Guest",
       titles: {
-        media: "Static Resources - Media Browser",
+        media: "Media",
         movies_books: "Movies & Books - Subtitle / Sentence Browser",
         code: "Code Browser - Core Node Directory",
         tools: "Developer Utilities",
@@ -1005,7 +1013,7 @@ export const TRANSLATIONS = {
   },
   zh: {
     nav: {
-      media: "媒体资源库",
+      media: "媒体",
       moviesBooks: "影片与书籍",
       code: "代码节点",
       tools: "工具箱",
@@ -1022,6 +1030,14 @@ export const TRANSLATIONS = {
       inviteCodes: "邀请码管理",
       dbManager: "数据库管理"
     },
+    mediaHub: {
+      segMovies: "影片",
+      segBooks: "书籍",
+      segFiles: "文件",
+      searchPlaceholder: "搜索…",
+      refresh: "刷新",
+      emptyPrompt: "选择一个项目以在此查看。"
+    },
     header: {
       system_online: "系统在线",
       system_offline: "离线模式",
@@ -1030,7 +1046,7 @@ export const TRANSLATIONS = {
       logged_in_as: "当前用户:",
       guest: "访客",
       titles: {
-        media: "静态资源 - 媒体浏览器",
+        media: "媒体",
         movies_books: "影片与书籍 - 字幕 / 句子浏览器",
         code: "代码浏览器 - 核心节点目录",
         tools: "开发者实用工具",

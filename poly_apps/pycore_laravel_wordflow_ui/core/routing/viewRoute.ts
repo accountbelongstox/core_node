@@ -45,6 +45,11 @@ const SLUG_TO_VIEW: Record<string, ViewType> = Object.fromEntries(
 // Manager, so old #/db-viewer bookmarks land on the manager's Tables tab.
 SLUG_TO_VIEW['db-viewer'] = ViewType.DATABASE_MANAGER;
 
+// Movies & Books was merged into the Media hub, so old #/movies-books bookmarks
+// land on the Media view; MediaHub reads the hash to open the Movies & Books tab.
+SLUG_TO_VIEW['movies-books'] = ViewType.MEDIA_BROWSER;
+SLUG_TO_VIEW['movies_books'] = ViewType.MEDIA_BROWSER;
+
 export function viewToSlug(view: ViewType): string {
   return VIEW_TO_SLUG[view] ?? '';
 }

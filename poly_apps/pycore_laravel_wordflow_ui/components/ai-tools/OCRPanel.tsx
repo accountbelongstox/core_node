@@ -108,73 +108,64 @@ const OCRPanel: React.FC<OCRPanelProps> = ({ onExtractionComplete }) => {
     setExtractedText('');
 
     try {
-      let response;
+      // The OCR endpoint takes an uploaded image File. In URL mode we fetch the
+      // remote image into a File first, then run the SAME real OCR path — no
+      // fabricated output in either mode.
+      let imageFile: File | null = null;
+      let historyImageUrl = '';
+      let fileName: string | undefined;
 
       if (uploadMode === 'file' && selectedImage) {
-        // Upload screenshot first
-        const uploadResponse = await api.mcpV1.uploadScreenshot({
-          image: selectedImage,
-          description: 'OCR extraction'
-        });
-
-        if (uploadResponse.success && uploadResponse.data) {
-          // Simulate OCR extraction
-          // In a real implementation, this would call an OCR API endpoint
-          const mockExtractedText = `Extracted text from ${selectedImage.name}
-
-This is a placeholder for OCR functionality.
-The actual OCR extraction would happen on the backend using services like:
-- Tesseract OCR
-- Google Cloud Vision API
-- AWS Textract
-- Azure Computer Vision
-
-The extracted text would appear here with high accuracy.`;
-
-          setExtractedText(mockExtractedText);
-
-          saveToHistory({
-            imageUrl: imagePreview,
-            extractedText: mockExtractedText,
-            language: language === 'auto' ? 'en' : language,
-            fileName: selectedImage.name,
-            confidence: 0.95
-          });
-
-          onExtractionComplete?.({
-            text: mockExtractedText,
-            language: language
-          });
-        }
+        imageFile = selectedImage;
+        historyImageUrl = imagePreview;
+        fileName = selectedImage.name;
       } else if (uploadMode === 'url') {
-        // Simulate URL-based OCR
-        const mockExtractedText = `Extracted text from image URL
+        const blob = await fetch(imageUrl).then((r) => {
+          if (!r.ok) throw new Error(`Failed to fetch image (${r.status})`);
+          return r.blob();
+        });
+        fileName = imageUrl.split('/').pop() || 'image';
+        imageFile = new File([blob], fileName, { type: blob.type || 'image/png' });
+        historyImageUrl = imageUrl;
+      }
 
-This is a placeholder for URL-based OCR functionality.
-The actual implementation would:
-1. Download the image from the URL
-2. Process it through an OCR engine
-3. Return the extracted text
+      if (!imageFile) return;
 
-Image URL: ${imageUrl}`;
+      const response = await api.mcpV1.ocrRecognize({ image: imageFile });
 
-        setExtractedText(mockExtractedText);
+      // The backend returns OCRUtil::recognizeImage(): { text, confidence, ... }
+      // on success, or { success:false, error } on failure (BaseAPI unwraps the
+      // envelope into res.data).
+      const data: any = response.data ?? {};
+      const text: string | undefined = data.text ?? data.result?.text;
+      const errMsg: string | undefined =
+        data.error || (response.success ? undefined : response.error || undefined);
+
+      if (response.success && typeof text === 'string' && text.length > 0) {
+        const confidence = typeof data.confidence === 'number'
+          ? data.confidence
+          : typeof data.result?.confidence === 'number'
+            ? data.result.confidence
+            : undefined;
+
+        setExtractedText(text);
 
         saveToHistory({
-          imageUrl: imageUrl,
-          extractedText: mockExtractedText,
-          language: language === 'auto' ? 'en' : language,
-          confidence: 0.92
+          imageUrl: historyImageUrl,
+          extractedText: text,
+          language,
+          fileName,
+          confidence,
         });
 
-        onExtractionComplete?.({
-          text: mockExtractedText,
-          language: language
-        });
+        onExtractionComplete?.({ text, language });
+      } else {
+        setExtractedText(errMsg ? `Extraction failed: ${errMsg}` : 'No text was detected in the image.');
       }
     } catch (error) {
       console.error('OCR extraction failed:', error);
-      setExtractedText('Extraction failed. Please try again.');
+      const msg = error instanceof Error ? error.message : 'Please try again.';
+      setExtractedText(`Extraction failed. ${msg}`);
     } finally {
       setLoading(false);
     }

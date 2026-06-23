@@ -1210,9 +1210,11 @@ server {
                 }
             }
 
-            // Step 2: Clean up all existing nginx configurations
-            $nginxConfigDir = ServerManagerV1PathConfig::NGINX_SITES_AVAILABLE;
-            $nginxEnabledDir = ServerManagerV1PathConfig::NGINX_SITES_ENABLED;
+            // Step 2: Clean up all existing nginx configurations. Use the PathMapper-backed
+            // getters (not the deprecated NGINX_SITES_AVAILABLE/ENABLED consts which hardcode
+            // /www/nginxconfig and don't exist on non-/www hosts -> cleanup silently no-ops).
+            $nginxConfigDir = ServerManagerV1PathConfig::getNginxSitesAvailable();
+            $nginxEnabledDir = ServerManagerV1PathConfig::getNginxSitesEnabled();
 
             // Get all existing config files
             $existingConfigs = [];

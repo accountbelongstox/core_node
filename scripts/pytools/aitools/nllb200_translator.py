@@ -47,7 +47,7 @@ def normalize_language_code(lang_code):
 
 def translate_text(text, source_lang='auto', target_lang='zh', model_name='facebook/nllb-200-distilled-600M'):
     try:
-        os.environ['HF_HOME'] = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
+        os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
 
         from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 

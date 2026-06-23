@@ -58,9 +58,13 @@ const CollapsibleApiCard: React.FC<CollapsibleApiCardProps> = ({
           <MethodBadge method={endpoint.method} />
           <span className="font-mono text-sm text-slate-200 truncate">{endpoint.path}</span>
           {isAuthRequired ? (
-            <Lock size={14} className="text-red-400" title="Auth Required" />
+            <span title="Auth Required" className="inline-flex">
+              <Lock size={14} className="text-red-400" />
+            </span>
           ) : (
-            <LockOpen size={14} className="text-green-400" title="Auth Optional" />
+            <span title="Auth Optional" className="inline-flex">
+              <LockOpen size={14} className="text-green-400" />
+            </span>
           )}
         </div>
         <span className="text-xs text-slate-400 ml-2">{endpoint.description}</span>

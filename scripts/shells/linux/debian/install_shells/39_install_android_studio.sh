@@ -38,6 +38,9 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 # Source globals
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
+# Source shared desktop-shortcut library
+source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
+
 # Init globals
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 INSTALL_ANDROID_STUDIO=$(get_var "INSTALL_ANDROID_STUDIO" "auto")
@@ -176,21 +179,16 @@ install_android_studio_manual() {
 # Create desktop file for Android Studio
 create_desktop_file() {
     log_message "Creating desktop file for Android Studio..."
-    
-    cat << EOF | $USE_SUDO tee "$ANDROID_STUDIO_DESKTOP_FILE" > /dev/null
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Android Studio
-Comment=Android Studio IDE
-Exec=$ANDROID_STUDIO_INSTALL_DIR/bin/studio.sh
-Icon=$ANDROID_STUDIO_INSTALL_DIR/bin/studio.png
-Terminal=false
-Categories=Development;IDE;
-StartupWMClass=jetbrains-studio
-EOF
-    
-    $USE_SUDO chmod 644 "$ANDROID_STUDIO_DESKTOP_FILE"
+
+    create_desktop_shortcut_from_desktop_shortcut_manager \
+        --id android-studio \
+        --name "Android Studio" \
+        --exec "$ANDROID_STUDIO_INSTALL_DIR/bin/studio.sh" \
+        --icon "$ANDROID_STUDIO_INSTALL_DIR/bin/studio.png" \
+        --comment "Android Studio IDE" \
+        --categories "Development;IDE;" \
+        --startup-wmclass "jetbrains-studio"
+
     log_success "Desktop file created successfully"
 }
 

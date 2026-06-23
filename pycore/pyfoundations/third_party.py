@@ -147,6 +147,10 @@ DEPENDENCY_MAP = {
     # For CnOCR/CnSTD model auto-download; CLI is built-in as entry point "hf" (official: https://hf.co/docs/huggingface_hub/installation)
     "huggingface_hub": "huggingface_hub",
 
+    # For OCR (Tesseract wrapper; tesseract-ocr system binary is installed by the
+    # installers). Imported directly by ocr_processor.py.
+    "pytesseract": "pytesseract",
+
     # For document processing
     "pypdf": "pypdf",
     "pdfplumber": "pdfplumber", 
@@ -284,8 +288,20 @@ WINDOWS_ONLY_PACKAGES = {
 # scripts/shells/linux/debian/install_shells/13_ensure_python.sh
 # This file only handles Python packages installable via pip
 
-# PyTorch CUDA: install this first so "Found installed packages" lists CUDA build (see pytorch.org/get-started/locally)
-PYTORCH_CUDA_INDEX_URL = "https://download.pytorch.org/whl/cu126"
+# PyTorch CUDA wheel index — DRIVER-MATCHED (resolved by _resolve_pytorch_cuda_index_url),
+# NOT hardcoded. A wheel built for a CUDA NEWER than the driver supports fails
+# torch.cuda.is_available() ("driver too old"), and the import-time reinstall below would
+# then LOOP, re-downloading hundreds of MB every launch. We pick the highest published wheel
+# whose CUDA version <= the driver's CUDA version (nvidia-smi "CUDA Version: X.Y"). Driver ->
+# max CUDA (NVIDIA CUDA compatibility): 550 -> 12.4, 560 -> 12.6, 570 -> 12.8, 580 -> 13.0.
+# This env var, when set, overrides the auto-detection entirely.
+PYTORCH_CUDA_INDEX_URL = os.environ.get("PYTORCH_CUDA_INDEX_URL", "").strip()
+_PYTORCH_CUDA_WHEELS = (  # (cuda_major, cuda_minor, wheel_tag), highest first
+    (13, 0, "cu130"), (12, 8, "cu128"), (12, 6, "cu126"),
+    (12, 4, "cu124"), (12, 1, "cu121"), (11, 8, "cu118"),
+)
+# Safe default when nvidia-smi can't be parsed: driver >= 550 / CUDA 12.4, project-verified py3.13 wheels.
+_PYTORCH_CUDA_DEFAULT_TAG = "cu124"
 # CPU-only PyTorch wheels (no nvidia-* CUDA deps). Used on hosts WITHOUT an NVIDIA
 # GPU so torch does not drag in ~4.3G of nvidia-* wheels. See pytorch.org/get-started.
 PYTORCH_CPU_INDEX_URL = "https://download.pytorch.org/whl/cpu"
@@ -536,6 +552,43 @@ def _ensure_sherpa_onnx_cpu_build_when_no_gpu():
             del sys.modules[_mod]
 
 
+def _detect_driver_cuda_version() -> Optional[Tuple[int, int]]:
+    """The NVIDIA driver's MAX CUDA runtime version (major, minor) from `nvidia-smi`, or
+    None. This bounds which torch CUDA wheel can actually initialize here — a wheel built for
+    a newer CUDA than the driver supports trips torch.cuda.is_available()=False (the 'driver
+    too old' UserWarning). nvidia-smi prints 'CUDA Version: X.Y' in its header."""
+    if shutil.which("nvidia-smi") is None:
+        return None
+    proc = run_third_party_command(["nvidia-smi"], capture_output=True, timeout=15)
+    out = (getattr(proc, "stdout", "") or "") if proc is not None else ""
+    marker = "CUDA Version:"
+    idx = out.find(marker)
+    if idx == -1:
+        return None
+    try:
+        frag = out[idx + len(marker):].strip().split()[0]  # e.g. "12.4"
+        parts = frag.split(".")
+        return (int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
+    except (ValueError, IndexError):
+        return None
+
+
+def _resolve_pytorch_cuda_index_url() -> str:
+    """Driver-matched PyTorch CUDA wheel index. Env PYTORCH_CUDA_INDEX_URL wins; otherwise
+    pick the highest published wheel whose CUDA version <= the driver's CUDA version, so the
+    installed torch actually runs on this driver (no 'driver too old' reinstall loop)."""
+    if PYTORCH_CUDA_INDEX_URL:
+        return PYTORCH_CUDA_INDEX_URL
+    drv = _detect_driver_cuda_version()
+    tag = _PYTORCH_CUDA_DEFAULT_TAG
+    if drv is not None:
+        for cmaj, cmin, wheel in _PYTORCH_CUDA_WHEELS:
+            if drv >= (cmaj, cmin):
+                tag = wheel
+                break
+    return "https://download.pytorch.org/whl/" + tag
+
+
 def _ensure_torch_cuda_build_first():
     """
     Run before other package checks. Ensure torch is CUDA build only when system supports CUDA.
@@ -564,8 +617,10 @@ def _ensure_torch_cuda_build_first():
     else:
         ColorPrint.blue("[INFO] Installing PyTorch with CUDA first (system has NVIDIA GPU)...")
     current_platform = platform.system()
+    cuda_index_url = _resolve_pytorch_cuda_index_url()
+    ColorPrint.blue("[INFO] PyTorch CUDA wheel index (driver-matched): " + cuda_index_url)
     pip_cmd = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio",
-               "--index-url", PYTORCH_CUDA_INDEX_URL]
+               "--index-url", cuda_index_url]
     if current_platform != "Windows":
         pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
     else:

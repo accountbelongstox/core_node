@@ -18,7 +18,7 @@
 #
 # Safe to SOURCE (use the ocg_* functions) or RUN directly. Introduced at:
 #   - scripts/shells/linux/debian/install_shells/13_ensure_python.sh (install time)
-#   - pycore/scripts/iniscripts/prepare.sh (after every prerequisite install, repair-only)
+#   - scripts/shells/linux/common/iniscripts/prepare.sh (after every prerequisite install, repair-only)
 # Python in-process counterpart (same policy, during OCR init):
 #   pycore/pyfoundations/third_party.py OcrInitializer::_ensure_onnx_runtime_switch()
 #
