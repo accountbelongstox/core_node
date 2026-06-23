@@ -458,6 +458,46 @@ persist_base_data_directory() {
     echo "$base_dir" | $USE_SUDO tee "$dir_file" >/dev/null 2>&1 || echo "$base_dir" > "$dir_file" 2>/dev/null || true
 }
 
+# Development-tooling base directory: where the per-distro dev tree
+# <base>/_${SYSTEM_NAME}_${major} (node, py, etc.) is installed. Mirrors
+# PHP App\Providers\PathMapper::getDevCompileParts() and Python system_paths.py so
+# all three resolve to the SAME directory.
+#
+# Selection (non-WSL):
+#   1. STICKY /opt: if /opt/_${name}_${ver} already exists, keep using /opt forever
+#      -- even if root (/) later drops below the free-space threshold. Once /opt is
+#      chosen, all subsequent installs stay on /opt.
+#   2. Else prefer /opt when root (/) has MORE THAN DEV_ROOT_MIN_FREE_GB free
+#      (default 50 GB). This replaces the old "always use the largest secondary
+#      disk" behaviour.
+#   3. Else fall back to the largest secondary disk (get_base_data_directory).
+# WSL keeps its data-disk design (root / is the ephemeral vhdx).
+get_dev_compile_base() {
+    local sys_name sys_version suffix root_free min_gb min_bytes
+    sys_name="${SYSTEM_NAME}"
+    sys_version="$(echo "${SYSTEM_VERSION}" | cut -d. -f1)"
+    suffix="_${sys_name}_${sys_version}"
+    min_gb="${DEV_ROOT_MIN_FREE_GB:-50}"
+
+    if [ "${IS_WSL:-false}" != "true" ]; then
+        # 1. Sticky: an existing /opt dev dir wins regardless of current free space.
+        if [ -d "/opt/$suffix" ]; then
+            echo "/opt"
+            return 0
+        fi
+        # 2. Prefer /opt when root (/) has more than min_gb free (precise bytes).
+        root_free="$(df -B1 --output=avail / 2>/dev/null | tail -1 | tr -dc '0-9')"
+        min_bytes=$(( min_gb * 1024 * 1024 * 1024 ))
+        if [ -n "$root_free" ] && [ "$root_free" -gt "$min_bytes" ]; then
+            echo "/opt"
+            return 0
+        fi
+    fi
+
+    # 3. Fallback: largest secondary disk (or /www).
+    get_base_data_directory
+}
+
 # Function to detect if system has NTFS disks
 has_ntfs_disk() {
     local ntfs_devices=$($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"")
@@ -1129,13 +1169,14 @@ map_web_path() {
             mapped_path="$base_path"
             ;;
         "compile_dir")
-            # Compile directory for development languages
-            # All environments: _system_version (with underscore prefix)
-            # Format: _ubuntu_24, _debian_12, _centos_8
+            # Compile directory for development languages (node, py, ...).
+            # Format: _ubuntu_24, _debian_13, _kali_2026 (underscore prefix).
+            # Base prefers /opt when root has >50G free (or /opt dir already in use);
+            # see get_dev_compile_base. NOT the web data base.
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_base_data_directory)
-            
+            local data_base=$(get_dev_compile_base)
+
             # Use base_dir/_system_version for all environments
             mapped_path="${data_base}/_${sys_name}_${sys_version}"
             ;;
@@ -1143,8 +1184,8 @@ map_web_path() {
             # Applications directory - same location as compile_dir for consistency
             local sys_name="${SYSTEM_NAME}"
             local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_base_data_directory)
-            
+            local data_base=$(get_dev_compile_base)
+
             # Use base_dir/_system_version/applications for all environments
             mapped_path="${data_base}/_${sys_name}_${sys_version}/applications"
             ;;
