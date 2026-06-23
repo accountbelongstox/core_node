@@ -68,6 +68,12 @@ cci_link_into_bin() {
         echo "[WARN] Link source not found: $src"
         return 1
     fi
+    # Never self-link: when the source resolves to the destination (e.g. claude was located
+    # as the already-shared /usr/local/bin/claude), a symlink-to-self would break the binary.
+    if [ -e "$dest" ] && \
+       [ "$(readlink -f "$src" 2>/dev/null)" = "$(readlink -f "$dest" 2>/dev/null)" ]; then
+        return 0
+    fi
     # Idempotent: nothing to do when the symlink already points at src.
     if [ "$mode" = "keep" ] && [ -L "$dest" ] && \
        [ "$(readlink "$dest" 2>/dev/null)" = "$src" ]; then
@@ -112,20 +118,26 @@ cci_others_can_access() {
     esac
 }
 
-# Locate the claude binary on this machine (PATH first, then the native per-user
-# install locations).
+# Locate the claude binary on this machine. PATH first, then EVERY user's native
+# per-user install location (root AND all regular users), then the shared /usr/local/bin
+# copy LAST. Searching other users' homes is essential when 129 runs as root but claude
+# was installed by a regular user under /home/<user>/.local/bin — otherwise the install is
+# not detected (re-runs the installer) and there is no source to sync to all users.
 cci_find_claude() {
-    local c
+    local c candidate
     c="$(command -v claude 2>/dev/null)"
     if [ -n "$c" ]; then
         printf '%s' "$c"
         return 0
     fi
-    local candidate
     for candidate in \
         "$HOME/.local/bin/claude" \
+        "$HOME/.claude/local/claude" \
         "/root/.local/bin/claude" \
-        "$HOME/.claude/local/claude"; do
+        "/root/.claude/local/claude" \
+        /home/*/.local/bin/claude \
+        /home/*/.claude/local/claude \
+        "$CCI_BIN_DIR/$CCI_EXEC"; do
         if [ -x "$candidate" ]; then
             printf '%s' "$candidate"
             return 0
@@ -134,11 +146,15 @@ cci_find_claude() {
     return 1
 }
 
-# Run the official native installer, unless claude already works (idempotent).
+# Run the official native installer, unless claude already works (idempotent). "Installed"
+# means a working claude found ANYWHERE (current PATH, the shared bin, or ANY user's native
+# home) — not just the running user's PATH; otherwise running as root re-installs even when
+# a regular user already has it. When skipped, the caller still syncs the bin to all users.
 cci_install_native() {
-    if command -v claude >/dev/null 2>&1 && \
-       timeout 10 claude --version >/dev/null 2>&1; then
-        echo "[SKIP] claude already installed and working; skipping native install."
+    local existing
+    existing="$(cci_find_claude 2>/dev/null || true)"
+    if [ -n "$existing" ] && timeout 10 "$existing" --version >/dev/null 2>&1; then
+        echo "[SKIP] claude already installed ($existing); skipping native install (bin still synced to all users below)."
         return 0
     fi
     echo "[INSTALL] Running official native installer: $CCI_NATIVE_INSTALL_URL"
