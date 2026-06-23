@@ -12,3 +12,4 @@ export { default as ExtensionIcon } from './ExtensionIcon.vue';
 export { default as AudioIcon } from './AudioIcon.vue';
 export { default as SettingsIcon } from './SettingsIcon.vue';
 export { default as DebugIcon } from './DebugIcon.vue';
+export { default as TaskCenterIcon } from './TaskCenterIcon.vue';

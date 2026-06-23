@@ -34,10 +34,13 @@ import { logger } from '@/utils/logger';
  * generated inline server-side (edge-tts in the pycore worker), never by a
  * browser tab, so Chrome must not claim it. `ai_translate` is also NOT here:
  * it belongs ONLY to the web-AI translate worker, which advertises it
- * explicitly via its own `capabilities`. This constant is the default set for
- * the dictionary/media style workers (Bing) that scrape pages.
+ * explicitly via its own `capabilities`. `image` is NOT here either (B17): a
+ * Chrome tab cannot GENERATE a word image, so per the audio+image=pycore-only
+ * downgrade Chrome must never claim image. This constant is the default set for
+ * the dictionary/media style workers (Bing) that scrape pages — `translate`
+ * only.
  */
-export const CHROME_FAST_CAPABILITIES: WorkerCapability[] = ['image', 'translate'];
+export const CHROME_FAST_CAPABILITIES: WorkerCapability[] = ['translate'];
 
 // The full allowed capability vocabulary (mirrors GlobalTask::CAPABILITIES
 // minus the lanes Chrome can never serve from a tab). Anything outside this

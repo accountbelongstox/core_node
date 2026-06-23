@@ -280,9 +280,15 @@ export class WorkerApiClient extends BaseApiClient {
 
   /**
    * Translation queue overview: summary counts + the pending task list (the
-   * "untranslated data" with how many entries). Aligned with laravel_main
-   * `GET /api/app_qy_v1/ai_tools/translation/queue/list` (pycore proxies the same
-   * at /api/local/translation/queue). No worker_id needed — it's a control read.
+   * "untranslated data" with how many entries).
+   *
+   * B12: this is a NO-AUTH control read. It targets the translation-queue
+   * CONTROL plane (laravel `GET .../translation/queue/list`, registered under the
+   * `withoutMiddleware([EnsureFrontendRequestsAreStateful])` group alongside
+   * /pending-words and /enqueue-pending), NOT the auth-required FE
+   * `translation/queue/batch/*` surface — so the token-less worker never hits an
+   * auth wall. pycore exposes the identical control read at
+   * /api/local/translation/queue; both are interchangeable. No worker_id needed.
    */
   async getTranslationQueue(
     options: { status?: string; limit?: number; page?: number; offset?: number } = {},

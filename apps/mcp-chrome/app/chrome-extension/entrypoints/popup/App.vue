@@ -167,6 +167,11 @@
         </div>
       </div>
 
+      <!-- Tasks Tab: unified local Task Center (global queue live + history). -->
+      <div v-show="activeTab === 'tasks'">
+        <TaskCenterPanel />
+      </div>
+
       <!-- Extensions Tab -->
       <div v-show="activeTab === 'extensions'">
         <ExtensionsPanel />
@@ -266,6 +271,7 @@ import AudioRecordingPanel from './components/AudioRecordingPanel.vue';
 import ExtensionsPanel from './components/ExtensionsPanel.vue';
 import LanguageSelector from './components/LanguageSelector.vue';
 import SettingsCenter from './components/SettingsCenter.vue';
+import TaskCenterPanel from './components/extensions/TaskCenterPanel.vue';
 import {
   DocumentIcon,
   DatabaseIcon,
@@ -280,6 +286,7 @@ import {
   AudioIcon,
   SettingsIcon,
   DebugIcon,
+  TaskCenterIcon,
 } from './components/icons';
 import { useAppStore } from '@/composables/useAppStore';
 import { usePersistedRef } from '@/composables/usePersistedRef';
@@ -325,6 +332,7 @@ const activeTab = usePersistedRef('activeTab', 'server');
 const tabs = [
   { id: 'server', label: 'Server', iconComponent: ServerIcon },
   { id: 'data', label: 'Data', iconComponent: DataIcon },
+  { id: 'tasks', label: 'Tasks', iconComponent: TaskCenterIcon },
   { id: 'extensions', label: 'Extensions', iconComponent: ExtensionIcon },
   { id: 'audio', label: 'Audio', iconComponent: AudioIcon },
   { id: 'settings', label: 'Settings', iconComponent: SettingsIcon },

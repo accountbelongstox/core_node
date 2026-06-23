@@ -195,6 +195,10 @@ class TranslationWorkerService:
 
     # task_type tags carried in payloads on these lanes.
     AUDIO_TASK_TYPE = "word_audio"
+    # Word-image task_type. It rides the SHARED fast lane (remote_fast) with
+    # capability='image' (NO dedicated execution_type) — claim is narrowed purely
+    # by the 'image' capability, mirroring how ai_translate rides the fast lane.
+    IMAGE_TASK_TYPE = "word_media"
 
     # Base processor types always advertised (fast + legacy translation). The
     # dedicated lanes are appended live by _effective_processor_types() when their
@@ -554,11 +558,26 @@ class TranslationWorkerService:
         except Exception:
             return True
 
+    def _image_enabled(self) -> bool:
+        """True when this worker should advertise + process the 'image' capability.
+
+        HARD knob only (WORD_IMAGE_WORKER_ENABLED). Backed by the unified AI gateway
+        (pyctl.ai.generate_image). NOT a fake capability: if no image provider is
+        configured at runtime, generate_image returns success=False and the handler
+        reports the task 'failed' so Laravel re-routes/re-pends it — never stranded.
+        """
+        try:
+            return bool(getattr(self._cfg(), "WORD_IMAGE_WORKER_ENABLED", True))
+        except Exception:
+            return True
+
     def _effective_capabilities(self) -> List[str]:
-        """Capabilities advertised on register AND status: audio,translate (+ai_translate)."""
+        """Capabilities advertised on register AND status: audio,translate (+ai_translate,+image)."""
         caps = ["audio", "translate"]
         if self._ai_translate_enabled():
             caps.append("ai_translate")
+        if self._image_enabled():
+            caps.append("image")
         return caps
 
     def _effective_processor_types(self) -> List[str]:
@@ -1056,6 +1075,7 @@ class TranslationWorkerService:
           - capability == 'ai_translate'  -> _ai_translate_words (shared fast lane;
                                              task_type stays word_translation)
           - task_type == 'word_audio'     -> _process_audio_task (assist TTS)
+          - task_type == 'word_media'     -> _process_image_task (AI gateway image)
           - task_type == 'subtitle_search'-> _process_subtitle_search_task
           - task_type == 'poster'         -> _process_poster_task
           - task_type == 'sentence_audio' -> _process_sentence_audio_task
@@ -1075,6 +1095,9 @@ class TranslationWorkerService:
 
             if task_type == self.AUDIO_TASK_TYPE:
                 self._process_audio_task(task)
+                return
+            if task_type == self.IMAGE_TASK_TYPE:
+                self._process_image_task(task)
                 return
             if task_type == "subtitle_search":
                 self._process_subtitle_search_task(task)
@@ -1396,6 +1419,87 @@ class TranslationWorkerService:
         }
         self._post_result(task_id, "completed", result=result, progress=100)
 
+    # -------------------- word-image lane (shared fast lane) --------------------
+
+    @staticmethod
+    def _image_prompt_for_word(word: str, language: str) -> str:
+        """Build a concise illustration prompt for a vocabulary word.
+
+        Kept short + concrete so image providers return a clean, single-subject
+        picture suitable as a word's sample art. Language is included so the prompt
+        disambiguates homographs across libraries.
+        """
+        lang = (language or "en").strip() or "en"
+        return (
+            f"A clear, simple illustration that visually represents the meaning of "
+            f"the {lang} word '{word}'. Single subject, plain background, no text."
+        )
+
+    def _process_image_task(self, task: Dict[str, Any]) -> None:
+        """word_media task: generate a word illustration via the unified AI gateway.
+
+        Result is shaped into the word_media WRITE-BACK contract that
+        WordTranslationTaskProcessor -> AppQyV1WordTranslationWriteback::apply
+        accepts (fill-missing/idempotent, image-only):
+            { translations:[ {word, image_base64:[{base64,mime}]} ],
+              target_language, provider }
+
+        Guarded by _image_enabled(): disabled / no word / gateway failure (e.g. no
+        image-capable provider configured) -> 'failed', so Laravel re-routes or
+        re-pends the task. Never strands (this is why advertising 'image' is safe —
+        a real processor exists; absence of a backend degrades to a clean failure).
+        """
+        task_id = task.get("task_id")
+        if not self._image_enabled():
+            self._post_result(task_id, "failed", error="word image disabled on this worker")
+            return
+        payload = task.get("payload") or {}
+        words = self._normalize_words(payload.get("words"))
+        word = words[0] if words else (payload.get("word") or "").strip()
+        language = (payload.get("language") or "en").strip() or "en"
+        target_language = payload.get("target_language") or language
+        if not word:
+            self._post_result(task_id, "failed", error="word_media task had no word")
+            return
+        try:
+            from pycore.pyctl.ai import generate_image
+        except ImportError as e:
+            ColorPrint.yellow(
+                f"[TranslationWorker] generate_image unavailable ({e}); "
+                f"reporting task {task_id} failed for re-route")
+            self._post_result(task_id, "failed", error=f"generate_image unavailable: {e}")
+            return
+        self._post_result(task_id, "processing", progress=5, attempts=1)
+        try:
+            gen = generate_image(
+                prompt=self._image_prompt_for_word(word, language),
+                size=payload.get("size"),
+                model=payload.get("model"),
+                source="word_media_worker",
+            )
+        except Exception as e:
+            ColorPrint.red(f"[TranslationWorker] word_media task {task_id} failed: {e}")
+            self._post_result(task_id, "failed", error=str(e))
+            return
+        image_b64 = (gen or {}).get("image_base64") if isinstance(gen, dict) else None
+        if not gen or not gen.get("success") or not image_b64:
+            err = (gen or {}).get("error") or "no image-capable provider produced an image"
+            self._post_result(task_id, "failed", error=str(err))
+            return
+        result = {
+            "translations": [{
+                "word": word,
+                "image_base64": [{
+                    "base64": image_b64,
+                    "mime": gen.get("mime") or "image/png",
+                }],
+            }],
+            "target_language": target_language,
+            "provider": gen.get("provider") or "ai",
+        }
+        self._post_result(task_id, "completed", result=result, progress=100)
+        self._record_task(task, self.IMAGE_TASK_TYPE, "completed", posted_back=True)
+
     # -------------------- sentence-audio lane --------------------
 
     def _process_sentence_audio_task(self, task: Dict[str, Any]) -> None:
@@ -1457,6 +1561,7 @@ class TranslationWorkerService:
             return "remote_ai_translate"
         return {
             "word_audio": "remote_audio",
+            "word_media": "remote_image",
             "subtitle_search": "remote_subtitle",
             "poster": "remote_poster",
             "sentence_audio": "remote_sentence_audio",

@@ -15,10 +15,10 @@ class DatabasePathHelper
 {
     public static function getWwwRoot(): string
     {
-        $wwwRoot = PHP_OS_FAMILY === 'Windows'
-            ? 'D:\wwwroot'
-            : '/www/wwwroot';
-        return $wwwRoot;
+        // ALIGNED: wwwroot now lives on the selected disk (e.g. /mnt/<ntfs>/www/wwwroot),
+        // not a hardcoded /www/wwwroot. Delegate to the single canonical resolver so it
+        // matches the shell + Python + PathMapper.
+        return \App\Providers\PathMapper::mapWebPath('wwwroot');
     }
 
     public static function getLaravelPublicPath(): string

@@ -376,10 +376,14 @@ install_dependencies() {
         # cu124 (CUDA 12.x major) rather than cu126: it runs on the common 12.x
         # drivers (cu126 needs a >=12.6 driver) and its major-12 matches a CUDA 12.x
         # toolkit, which is what flash-attn's source build requires.
-        print_info "Step 1: torch not found - installing CUDA PyTorch (cu124)..."
+        # Driver-matched CUDA wheel (single source of truth: base_libs/torch_cuda_index.sh,
+        # provided here via torch_cpu_guard.sh). Yields cu124 on a 12.4 driver; cu126 needs
+        # a >=12.6 driver. major-12 still matches a CUDA 12.x toolkit for flash-attn's build.
+        _ocr_torch_idx="$(torch_cuda_index_url)"
+        print_info "Step 1: torch not found - installing driver-matched CUDA PyTorch ($_ocr_torch_idx)..."
         echo ""
-        echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124"
-        "${pip_install[@]}" torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+        echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url $_ocr_torch_idx"
+        "${pip_install[@]}" torch torchvision torchaudio --index-url "$_ocr_torch_idx"
         echo ""
     else
         print_warning "Step 1: torch not found, no NVIDIA GPU - installing CPU PyTorch build..."

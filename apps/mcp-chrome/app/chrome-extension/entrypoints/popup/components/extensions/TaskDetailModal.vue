@@ -14,6 +14,17 @@
         <div class="tdm-headbadges">
           <span v-if="isFast" class="tdm-badge tdm-badge-fast">⚡ FAST</span>
           <span v-if="aiTranslate" class="tdm-badge tdm-badge-ai">✨ AI Translate</span>
+          <!-- Jump-to-task-top: only for the privileged categories
+               (translate/audio/image) and only while the task is still live. -->
+          <button
+            v-if="canBump"
+            class="tdm-badge tdm-badge-bump"
+            :disabled="bumping"
+            @click="bumpToTop"
+            title="Bump this task to the front of the fast lane (priority 100)"
+          >
+            {{ bumpLabel }}
+          </button>
           <button class="tdm-close" @click="close" aria-label="Close">✕</button>
         </div>
       </header>
@@ -99,6 +110,7 @@ import {
   type TaskStreamHandle,
 } from '../../composables/useTaskCenter';
 import { apiManager } from '@/services/ApiManager';
+import { WorkerApiClient, PRIORITY_FAST } from '@/entrypoints/background/api/WorkerApiClient';
 import {
   taskIcon,
   taskTypeLabel,
@@ -143,6 +155,60 @@ const isFast = computed(() =>
     execution_type: task.value.execution_type,
   }),
 );
+
+// ---- Jump-to-task-top (bump) ----------------------------------------------
+// Privileged categories that may be bumped to the fast lane: translate / audio /
+// image. Match on either capability or task_type so a row works whether or not
+// the lean list carried a capability.
+const PRIVILEGED_CAPS = new Set(['translate', 'ai_translate', 'audio', 'sentence_audio', 'image']);
+const PRIVILEGED_TASK_TYPES = new Set([
+  'word_translation',
+  'word_audio',
+  'sentence_audio',
+  'word_media',
+  'gemini_image',
+]);
+const LIVE_STATUSES = new Set(['pending', 'assigned', 'processing']);
+
+const bumping = ref(false);
+const bumped = ref(false);
+
+const isPrivileged = computed(() => {
+  const cap = (task.value.capability || '').toString();
+  if (cap && PRIVILEGED_CAPS.has(cap)) return true;
+  const tt = (task.value.task_type || '').toString();
+  return PRIVILEGED_TASK_TYPES.has(tt);
+});
+
+// Only offer the bump while the task is still live and not already at the fast tier.
+const canBump = computed(
+  () =>
+    isPrivileged.value &&
+    LIVE_STATUSES.has((task.value.status || '').toLowerCase()) &&
+    !isFast.value,
+);
+
+const bumpLabel = computed(() => (bumped.value ? '✓ Bumped' : bumping.value ? 'Bumping…' : '⏫ Task-top'));
+
+const bumpToTop = async (): Promise<void> => {
+  if (bumping.value || bumped.value) return;
+  bumping.value = true;
+  try {
+    const client = new WorkerApiClient(apiBase());
+    const resp = await client.bumpTask(props.taskId, PRIORITY_FAST);
+    if (resp.success) {
+      bumped.value = true;
+      // Pull the fresh snapshot so priority / fast badge reflect the bump.
+      refetch();
+    } else {
+      loadError.value = resp.message || 'Bump failed';
+    }
+  } catch (e: any) {
+    loadError.value = e?.message || 'Bump failed';
+  } finally {
+    bumping.value = false;
+  }
+};
 
 // Provider surfaced from the result (provider or engine key).
 const providerValue = computed(() => {
@@ -338,6 +404,14 @@ onUnmounted(() => {
 }
 .tdm-badge-fast { background: var(--accent-soft); color: var(--accent-fg, var(--accent)); }
 .tdm-badge-ai { background: var(--surface); border: 1px solid var(--accent); color: var(--accent); }
+.tdm-badge-bump {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+.tdm-badge-bump:hover:not(:disabled) { filter: brightness(1.08); }
+.tdm-badge-bump:disabled { opacity: 0.6; cursor: default; }
 .tdm-close {
   border: none;
   background: transparent;

@@ -132,74 +132,12 @@ class WebPathHelper
      */
     public static function mapWebPath(string $pathKey, string $subPath = ''): string
     {
-        $mappedPath = '';
-        $basePath = '';
-
-        // Get optimal base directory
-        $dataBase = self::getBaseDataDirectory();
-
-        // Determine base path for www based on environment
-        if (self::isWsl()) {
-            $basePath = $dataBase . '/www';
-        } elseif (self::isProduction()) {
-            $basePath = '/www';
-        } else {
-            // Use data base directory + www
-            $basePath = $dataBase . '/www';
-        }
-
-        // Map paths using common base path (matches bash case statement)
-        switch ($pathKey) {
-            case 'wwwroot':
-                $mappedPath = $basePath . '/wwwroot';
-                break;
-            case 'nginxconfig':
-                $mappedPath = $basePath . '/nginxconfig';
-                break;
-            case 'shared-data':
-                $mappedPath = $basePath . '/shared-data';
-                break;
-            case 'backup':
-                $mappedPath = $basePath . '/backup';
-                break;
-            case 'www':
-                $mappedPath = $basePath;
-                break;
-            case 'compile_dir':
-                // Compile directory for development languages
-                // Local /opt: root (/) has > DEV_ROOT_MIN_FREE_GB free (non-WSL)
-                // Development (WSL/Desktop/NTFS): base_dir/_system_version (with underscore prefix)
-                // Production server: /usr/system_version
-                // Name from /etc/os-release (distro id + major version), e.g. kali / 2026,
-                // matching gvar_common.sh SYSTEM_NAME/SYSTEM_VERSION (NOT the kernel).
-                [$sysName, $sysVersion] = self::getSystemNameVersion();
-
-                $optDir = "/opt/_{$sysName}_{$sysVersion}";
-                if (!self::isWsl() && (is_dir($optDir) || self::rootHasSufficientFreeSpace())) {
-                    // STICKY /opt: if it is already in use keep using it; otherwise
-                    // select it when root (/) has ample space. Once /opt is chosen
-                    // all later installs stay there even if root later shrinks.
-                    $mappedPath = $optDir;
-                } elseif (self::isWsl() || !self::isProduction()) {
-                    // Development: base_dir/_system_version (with underscore prefix)
-                    $mappedPath = $dataBase . "/_{$sysName}_{$sysVersion}";
-                } else {
-                    // Production: /usr/system_version
-                    $mappedPath = "/usr/{$sysName}_{$sysVersion}";
-                }
-                break;
-            default:
-                // Default: treat as subdirectory under www
-                $mappedPath = $basePath . '/' . $pathKey;
-                break;
-        }
-
-        // Add subpath if provided
-        if (!empty($subPath)) {
-            $mappedPath = rtrim($mappedPath, '/') . '/' . ltrim($subPath, '/');
-        }
-
-        return $mappedPath;
+        // ALIGNED: delegate to the single canonical resolver (App\Providers\PathMapper)
+        // so this helper can never diverge. It previously had its OWN base list
+        // (/mnt/d, /mnt/data, /usr, /mnt/dev_sdb3) with an isProduction->/www short-circuit
+        // that could emit /usr/www and disagree with the shell + Python. PathMapper now
+        // owns the persisted-base + disk-detection logic shared across sh/py/php.
+        return \App\Providers\PathMapper::mapWebPath($pathKey, $subPath);
     }
 
     /**
