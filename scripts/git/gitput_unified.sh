@@ -481,13 +481,18 @@ ensure_ssh_keys_installed() {
             write_color_text "[SSH] Password hint: $hint" "Cyan" >&2
         fi
 
-        # Password prompt (visible, not hidden — so user can verify)
-        local password=""
-        if [ -t 0 ]; then
+        # Decryption password. Prefer an env var so the NON-INTERACTIVE (auto/cron) push
+        # flow can decrypt the key too -- previously a no-TTY run just skipped, leaving
+        # ~/.ssh empty and the push failing with "Permission denied (publickey)". Falls back
+        # to an interactive prompt when a terminal is attached.
+        local password="${GIT_SSH_DECRYPT_PASSWORD:-${SSH_KEY_PASSWORD:-${GIT_SSH_KEY_PASSWORD:-}}}"
+        if [ -n "$password" ]; then
+            write_color_text "[SSH] Using decryption password from environment" "DarkGray" >&2
+        elif [ -t 0 ]; then
             printf "\033[36m[SSH] Enter decryption password: \033[0m" >&2
             IFS= read -r password
         else
-            write_color_text "[SSH] No terminal for password input, skipping" "Yellow" >&2
+            write_color_text "[SSH] No password available (set GIT_SSH_DECRYPT_PASSWORD for non-interactive runs); skipping SSH key decrypt" "Yellow" >&2
             return 1
         fi
 
@@ -495,8 +500,7 @@ ensure_ssh_keys_installed() {
             write_color_text "[SSH] Empty password, skipping" "Yellow" >&2
             return 1
         fi
-
-        write_color_text "[SSH] Password entered: $password" "DarkGray" >&2
+        # SECURITY: never log the password itself.
 
         # Decrypt public key (--force to overwrite existing file)
         local decrypt_output=""
