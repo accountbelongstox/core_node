@@ -197,7 +197,7 @@ install_swoole_dependencies() {
         "build-essential"
         "libssl-dev"
         "libcurl4-openssl-dev"
-        "libpcre3-dev"
+        "libpcre2-dev"
         "libpq-dev"
     )
 
@@ -301,7 +301,7 @@ install_swoole_pecl() {
             build_dir=""
         done
         if [ -z "$build_dir" ]; then
-            echo -e "${RED}$SCRIPT_INDEX Could not create a writable build dir (tried GLOBAL_TEMP_DIR, TMPDIR, /var/tmp, /tmp)${NC}"
+            echo -e "${RED}$SCRIPT_INDEX Could not create a writable build dir (tried '$GLOBAL_TEMP_DIR', /var/tmp, /tmp)${NC}"
             return 1
         fi
 
