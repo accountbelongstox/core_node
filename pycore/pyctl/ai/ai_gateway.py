@@ -314,12 +314,14 @@ def _is_net_timeout_error(error: Optional[str]) -> bool:
 # recovers (in case billing/keys get fixed) when the cooldown elapses.
 _IMG_DISABLED_COOLDOWN_S = 3600.0
 
+# Specific, non-ambiguous markers only — bare "unauthorized" / "permission denied"
+# were dropped because transient proxy/nginx 401/503 pages contain them and would
+# wrongly cool a valid key for an hour. The provider-JSON forms below are precise.
 _HARD_DISABLE_MARKS = (
     "only available on paid", "paid plan", "paid tier", "upgrade your account",
     "账号已被禁用", "account disabled", "account has been disabled",
     "account is disabled", "请联系客服", "authentication_error",
-    "invalid api key", "invalid_api_key", "unauthorized",
-    "permission denied", "permission_denied",
+    "invalid api key", "invalid_api_key", "permission_denied",
 )
 
 
@@ -1707,8 +1709,12 @@ def generate_image(
                 mark_image_key_cooldown(name, idx, secs=_IMG_DISABLED_COOLDOWN_S, error=err)
                 ColorPrint.yellow(
                     f"[ai_gateway] image provider={name} model={cur_model} KEY{idx + 1} "
-                    f"DISABLED ({(err or '')[:80]}) — cooled "
-                    f"{int(_IMG_DISABLED_COOLDOWN_S)}s, skipping provider")
+                    f"DISABLED ({(err or '')[:80]}) — cooled {int(_IMG_DISABLED_COOLDOWN_S)}s"
+                    + (", rotating key" if attempt < n_keys - 1 else ", skipping provider"))
+                # Other keys may be different accounts (one revoked != all dead),
+                # so rotate to the next key; only give up the provider once all are cooled.
+                if attempt < n_keys - 1:
+                    continue
                 break
             # Cool the key on a quota OR unreachable/timeout error so the dead
             # provider is SKIPPED next time (longer cooldown when unreachable).

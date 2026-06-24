@@ -219,8 +219,8 @@ class ScriptManager:
         ColorMessage.write("=" * 60, 'info')
         print()
 
-        if not is_admin():
-            ColorMessage.write("Administrator/root privileges are required to restore scripts.", 'error')
+        if platform.system() == 'Windows' and not is_admin():
+            ColorMessage.write("Administrator privileges are required to restore scripts (Windows system env vars).", 'error')
             input("Press Enter to continue...")
             return
 

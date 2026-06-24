@@ -39,10 +39,10 @@ class EnvironmentVariableManager:
         ColorMessage.write("=" * len(config['DisplayName']), 'info')
         print()
 
-        if not is_admin():
-            ColorMessage.write("This operation requires administrator/root privileges.", 'error')
-            ColorMessage.write("Please run this script as administrator/root.", 'warning')
-            input("Press any key to continue...")
+        if platform.system() == 'Windows' and not is_admin():
+            ColorMessage.write("This operation requires administrator privileges (Windows system env vars).", 'error')
+            ColorMessage.write("Please run as administrator.", 'warning')
+            input("Press Enter to continue...")
             return
 
         ColorMessage.write("Current environment variable status:", 'info')

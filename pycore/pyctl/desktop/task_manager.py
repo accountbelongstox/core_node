@@ -11,7 +11,6 @@ import threading
 import uuid
 import asyncio
 import inspect
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Dict, List, Optional, Callable, Union, Coroutine
 from dataclasses import dataclass
@@ -157,8 +156,11 @@ class TaskManager:
         except ValueError:
             _max_workers = 4
         self.max_workers = max(1, _max_workers)
-        self._pool = ThreadPoolExecutor(
-            max_workers=self.max_workers, thread_name_prefix="Task")
+        # Concurrency gate: each task runs in a DAEMON thread (so process shutdown
+        # stays clean, unlike a non-daemon ThreadPoolExecutor) that must acquire a
+        # slot before executing — a burst of remote_image tasks therefore never
+        # runs more than max_workers AI calls at once (the 429 flood).
+        self._task_slots = threading.BoundedSemaphore(self.max_workers)
 
         ColorPrint.green(
             f"[TaskManager] Initialized (max concurrency {self.max_workers})")
@@ -265,48 +267,55 @@ class TaskManager:
             executor: Function (sync or async) that executes the task and returns result
         """
         def _run():
-            task = self.get_task(task_id)
-            if not task:
-                ColorPrint.red(f"[TaskManager] Task not found: {task_id}")
-                return
-
-            # Set to processing
-            self.update_task_progress(task_id, 0, TaskStatus.PROCESSING.value)
-
-            # Execute task (handle both sync and async executors)
-            ColorPrint.blue(f"[TaskManager] Executing task {task_id}...")
-
+            # Block HERE (in the worker thread, not the caller) until a concurrency
+            # slot frees, so a burst of tasks can't run dozens of AI calls at once.
+            self._task_slots.acquire()
             try:
-                if inspect.iscoroutinefunction(executor):
-                    # Async executor - run in new event loop
-                    ColorPrint.blue(f"[TaskManager] Running async executor in new event loop")
-                    result = asyncio.run(executor(task))
-                else:
-                    # Sync executor - run directly
-                    ColorPrint.blue(f"[TaskManager] Running sync executor")
-                    result = executor(task)
-            except Exception as e:
-                # An executor crash must FAIL the task, not strand it: letting
-                # the exception kill this thread left the task in PROCESSING
-                # forever, so every poller (UI task lists, status endpoints)
-                # showed a zombie that never finished.
-                ColorPrint.red(f"[TaskManager] Task {task_id} executor crashed: {e}")
-                self.fail_task(task_id, str(e))
-                return
+                task = self.get_task(task_id)
+                if not task:
+                    ColorPrint.red(f"[TaskManager] Task not found: {task_id}")
+                    return
 
-            ColorPrint.green(f"[TaskManager] Task {task_id} executor completed")
-            ColorPrint.blue(f"[TaskManager] Result: {result}")
+                # Set to processing
+                self.update_task_progress(task_id, 0, TaskStatus.PROCESSING.value)
 
-            self.complete_task(task_id, result)
+                # Execute task (handle both sync and async executors)
+                ColorPrint.blue(f"[TaskManager] Executing task {task_id}...")
 
-        # Submit to the bounded pool: a burst of tasks queues here instead of each
-        # spawning its own thread, so concurrent AI calls stay under the cap and
-        # can't overwhelm a rate-limited provider.
+                try:
+                    if inspect.iscoroutinefunction(executor):
+                        # Async executor - run in new event loop
+                        ColorPrint.blue(f"[TaskManager] Running async executor in new event loop")
+                        result = asyncio.run(executor(task))
+                    else:
+                        # Sync executor - run directly
+                        ColorPrint.blue(f"[TaskManager] Running sync executor")
+                        result = executor(task)
+                except Exception as e:
+                    # An executor crash must FAIL the task, not strand it: letting
+                    # the exception kill this thread left the task in PROCESSING
+                    # forever, so every poller (UI task lists, status endpoints)
+                    # showed a zombie that never finished.
+                    ColorPrint.red(f"[TaskManager] Task {task_id} executor crashed: {e}")
+                    self.fail_task(task_id, str(e))
+                    return
+
+                ColorPrint.green(f"[TaskManager] Task {task_id} executor completed")
+                ColorPrint.blue(f"[TaskManager] Result: {result}")
+
+                self.complete_task(task_id, result)
+            finally:
+                self._task_slots.release()
+
+        # Daemon thread (killed cleanly on process exit) gated by the concurrency
+        # semaphore: excess tasks block inside _run until a slot frees, so no more
+        # than max_workers AI calls run at once and a 429ing provider isn't hammered.
         _t = self.get_task(task_id)
         _ttype = _t.task_type if _t else "?"
-        self._pool.submit(_run)
+        thread = threading.Thread(target=_run, daemon=True, name=f"Task-{task_id}")
+        thread.start()
         ColorPrint.cyan(
-            f"[TaskManager] Queued task {task_id} (type={_ttype}; "
+            f"[TaskManager] Started task {task_id} (type={_ttype}; "
             f"<= {self.max_workers} concurrent)")
 
     def _generate_task_id(self, task_type: str) -> str:

@@ -182,10 +182,10 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "zhipuai": {
         "key_base": "ZHIPUAI_API_KEY",
         "key_names": ("ZHIPUAI_API_KEY_1", "ZHIPUAI_API_KEY_2", "ZHIPUAI_API_KEY"),
-        "default_model": "glm-4-flash",
+        "default_model": "glm-4.7-flash",
         "free_models": (
-            "glm-4-flash",
-            "glm-4",
+            "glm-4.7-flash",
+            "glm-4-flash-250414",
             "glm-4v-flash",
         ),
         "limits": "Free tier RPM limits; no public quota API (cooldown on 429). "

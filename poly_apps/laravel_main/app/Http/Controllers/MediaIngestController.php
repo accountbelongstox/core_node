@@ -122,6 +122,63 @@ class MediaIngestController extends Controller
     }
 
     /**
+     * Store an AI web-chat reply's audio binary captured by the mcp-chrome
+     * extension (ChatGPT "Read aloud" / Gemini "Listen"). No-auth, same trust
+     * boundary as the other local ingest endpoints. Idempotent fill-missing,
+     * keyed by provider + language + prompt_hash. Returns a FLAT {ok,path,skipped}
+     * payload (the extension's MediaUploadClient reads data.ok / data.path).
+     * POST /api/app_qy_v1/media/ai-audio
+     */
+    public function aiAudio(Request $request): JsonResponse
+    {
+        $validated = null;
+        $provider = null;
+        $hash = null;
+        $language = null;
+        $ext = null;
+        $name = null;
+        $targetDir = null;
+        $separator = null;
+        $targetPath = null;
+
+        $validated = $request->validate([
+            'provider' => 'required|string|max:64',
+            'prompt_hash' => 'required|string|max:128',
+            'language' => 'required|string|max:32',
+            'audio' => 'required|file',
+        ]);
+
+        // Sanitize to bare path-safe tokens (prevent traversal / odd filenames).
+        $provider = preg_replace('/[^A-Za-z0-9_\-]/', '', $validated['provider']);
+        $hash = preg_replace('/[^A-Za-z0-9_\-]/', '', $validated['prompt_hash']);
+        $language = preg_replace('/[^A-Za-z0-9_\-]/', '', $validated['language']);
+        if ($provider === '' || $hash === '' || $language === '') {
+            return response()->json(['ok' => false, 'error' => 'Invalid provider/prompt_hash/language'], 422);
+        }
+
+        $ext = strtolower((string) $request->file('audio')->getClientOriginalExtension());
+        if (!in_array($ext, ['mp3', 'wav', 'ogg', 'webm', 'm4a', 'aac'], true)) {
+            $ext = 'mp3';
+        }
+        $name = "{$language}-{$hash}.{$ext}";
+
+        $targetDir = PathMapper::getLaravelStaticDir("media/ai/{$provider}");
+        PathMapper::ensureDirectory($targetDir);
+
+        $separator = DIRECTORY_SEPARATOR;
+        $targetPath = rtrim($targetDir, '/\\') . $separator . $name;
+
+        // Idempotent: keep the first non-empty capture, never clobber.
+        if (file_exists($targetPath) && filesize($targetPath) > 0) {
+            return response()->json(['ok' => true, 'path' => $targetPath, 'skipped' => true]);
+        }
+
+        $request->file('audio')->move($targetDir, $name);
+
+        return response()->json(['ok' => true, 'path' => $targetPath, 'skipped' => false]);
+    }
+
+    /**
      * Claim-free, idempotent bulk sentence-audio upload (CoreBook §5.2).
      *
      * Unlike /ai_tools/tts/sentence/report (which requires a prior worker claim +

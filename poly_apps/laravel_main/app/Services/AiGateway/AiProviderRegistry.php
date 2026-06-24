@@ -108,8 +108,8 @@ class AiProviderRegistry
             ],
             'groq' => [
                 'key_base' => 'GROQ_API_KEY',
-                'default_model' => 'llama-3.3-70b-versatile',
-                'free_models' => ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3-32b'],
+                'default_model' => 'openai/gpt-oss-120b',
+                'free_models' => ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant', 'qwen/qwen3-32b'],
                 'limits' => 'Per-model free limits (e.g. Llama 3.3 70B: 1000 RPD / 12k TPM)',
                 'tier' => 'free',
                 'client' => 'compat',
@@ -120,8 +120,8 @@ class AiProviderRegistry
             ],
             'cerebras' => [
                 'key_base' => 'CEREBRAS_API_KEY',
-                'default_model' => 'llama-3.3-70b',
-                'free_models' => ['llama-3.3-70b', 'llama3.1-8b', 'gpt-oss-120b'],
+                'default_model' => 'gpt-oss-120b',
+                'free_models' => ['gpt-oss-120b', 'llama3.1-8b', 'llama-3.3-70b'],
                 'limits' => 'gpt-oss-120b: 30 RPM / 1M TPD; Llama 3.1 8B: 30 RPM / 1M TPD',
                 'tier' => 'free',
                 'client' => 'compat',
@@ -279,8 +279,8 @@ class AiProviderRegistry
             ],
             'zhipuai' => [
                 'key_base' => 'ZHIPUAI_API_KEY',
-                'default_model' => 'glm-4-flash',
-                'free_models' => ['glm-4-flash', 'glm-4', 'glm-4v-flash'],
+                'default_model' => 'glm-4.7-flash',
+                'free_models' => ['glm-4.7-flash', 'glm-4-flash-250414', 'glm-4v-flash'],
                 'limits' => 'Free tier RPM limits; no public quota API (cooldown on 429). Image: cogview-3-flash is FREE (concurrency-capped; 429 on burst)',
                 'tier' => 'free',
                 'client' => 'compat',

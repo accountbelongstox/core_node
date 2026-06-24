@@ -167,8 +167,8 @@ class CommandHandler:
         ColorMessage.write(f"Detected Platform: {platform_names.get(platform_type, platform_type)}", 'success')
         print()
 
-        if not is_admin():
-            ColorMessage.write("WARNING: Running without administrator/root privileges.", 'warning')
+        if get_platform_type() == 'windows' and not is_admin():
+            ColorMessage.write("WARNING: Running without administrator privileges.", 'warning')
             ColorMessage.write("Generated scripts may require elevated privileges to set system variables.", 'warning')
             print()
 

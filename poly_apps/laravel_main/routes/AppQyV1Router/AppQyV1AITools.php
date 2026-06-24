@@ -67,6 +67,10 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::get('/languages', [AppQyV1TTSController::class, 'getLanguages']);
         Route::get('/voices', [AppQyV1TTSController::class, 'getVoices']);
         Route::get('/options', [AppQyV1TTSController::class, 'getOptions']);
+        // Direct synthesis used by the TTS tool UI (FE calls POST /ai_tools/tts/generate);
+        // the controller methods existed but the routes were never registered -> 404.
+        Route::post('/generate', [AppQyV1TTSController::class, 'generate']);
+        Route::post('/batch-generate', [AppQyV1TTSController::class, 'batchGenerate']);
         Route::get('/queue/stats', [AppQyV1TTSQueueController::class, 'getStatistics']);
         Route::get('/queue/metrics', [AppQyV1TTSQueueController::class, 'getMetrics']);
         Route::get('/queue/performance', [AppQyV1TTSQueueController::class, 'getPerformanceMetrics']);

@@ -20,6 +20,7 @@ import os
 os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
 
 import sys
+import platform
 import traceback
 from pathlib import Path
 
@@ -126,11 +127,14 @@ def main():
     """Main entry point"""
     clear_screen()
 
-    # Check for admin privileges
-    if not is_admin():
-        ColorMessage.write("This script requires administrator/root privileges.", 'error')
-        ColorMessage.write("Please run as administrator/root to manage system environment variables.", 'warning')
-        input("Press any key to continue...")
+    # Elevation is needed ONLY on Windows (setting real SYSTEM env vars via the registry). On
+    # Linux/WSL this tool writes PROJECT-LOCAL env scripts (scripts/linuxenvs) + project secrets
+    # — all owned by the invoking user — so root is NOT required, and running as root would
+    # create root-owned files the user's other tools (run as the user) cannot read.
+    if platform.system() == 'Windows' and not is_admin():
+        ColorMessage.write("This script requires administrator privileges to set system environment variables.", 'error')
+        ColorMessage.write("Please run as administrator.", 'warning')
+        input("Press Enter to continue...")
 
     # Create and run manager
     manager = SpecialSoftwareEnvManager()

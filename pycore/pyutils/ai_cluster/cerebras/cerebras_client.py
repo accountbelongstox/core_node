@@ -10,7 +10,7 @@ from pycore.pyfoundations.third_party import get_third_package_requests
 class CerebrasClient:
     """Cerebras Cloud SDK-compatible REST client."""
 
-    def __init__(self, api_key: str, default_model: str = "llama-3.3-70b"):
+    def __init__(self, api_key: str, default_model: str = "gpt-oss-120b"):
         self.api_key = api_key
         self.default_model = default_model
         self.base_url = "https://api.cerebras.ai/v1"

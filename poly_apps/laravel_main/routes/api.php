@@ -240,6 +240,9 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         // Claim-free, idempotent bulk sentence-audio upload (CoreBook §5.2): pycore
         // pushes a locally-generated mp3 keyed by content_id+language (fill-missing).
         Route::post('audio', [\App\Http\Controllers\MediaIngestController::class, 'audio']);
+        // AI web-chat reply audio (ChatGPT/Gemini read-aloud) captured + uploaded
+        // as a binary by the mcp-chrome extension; idempotent fill-missing.
+        Route::post('ai-audio', [\App\Http\Controllers\MediaIngestController::class, 'aiAudio']);
         Route::post('enrich', [\App\Http\Controllers\MediaIngestController::class, 'enrich']);
 
         // READ-ONLY browse + media-file serving (dashboard movies/books browser)

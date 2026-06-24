@@ -1,29 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BookOpen, RefreshCw, Volume2 } from 'lucide-react';
+import { BookOpen, RefreshCw } from 'lucide-react';
 import { api } from '../../core/api';
-import { apiManager } from '../../services/ApiManager';
 import type { DailySentence } from '../../core/api/modules/DailySentenceAPI';
-
-/** Resolve a Laravel-relative audio url against the active :9000 base. */
-const absUrl = (u?: string): string => {
-  if (!u) return '';
-  if (/^https?:\/\//.test(u)) return u;
-  const base = (apiManager.getCurrentBaseUrl && apiManager.getCurrentBaseUrl()) || '';
-  return base.replace(/\/$/, '') + u;
-};
-
-const AudioButton: React.FC<{ url?: string }> = ({ url }) => {
-  if (!url) return null;
-  const play = () => {
-    const a = new Audio(absUrl(url));
-    a.play().catch(() => undefined);
-  };
-  return (
-    <button onClick={play} title="Play" className="p-1.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/20">
-      <Volume2 className="w-4 h-4" />
-    </button>
-  );
-};
+import AudioButton from '../shared/AudioButton';
 
 /**
  * Daily short-sentence reading. Shows the current recommendation (with audio +

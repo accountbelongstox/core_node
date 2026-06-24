@@ -18,13 +18,13 @@ class ZhipuAIClient:
     https://open.bigmodel.cn/api/paas/v4/
     """
 
-    def __init__(self, api_key: str, default_model: str = "glm-4-flash"):
+    def __init__(self, api_key: str, default_model: str = "glm-4.7-flash"):
         """
         Initialize Zhipu AI client.
 
         Args:
             api_key: Zhipu AI API key
-            default_model: Default model to use (glm-4-flash free, glm-4.6, glm-4v, etc.)
+            default_model: Default model to use (glm-4.7-flash free, glm-4.6, glm-4v, etc.)
         """
         self.api_key = api_key
         self.default_model = default_model

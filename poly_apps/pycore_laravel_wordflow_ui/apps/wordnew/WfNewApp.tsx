@@ -92,7 +92,7 @@ function wfNewPageHeader(
     case 'languages': return { title: trans('lang.title'), subtitle: trans('lang.sub') };
     case 'settings': return { title: trans('settings.title'), subtitle: trans('settings.sub') };
     case 'about': return { title: trans('about.title'), subtitle: trans('about.sub') };
-    case 'daily-reading': return { title: trans('daily.title'), subtitle: trans('daily.sub') };
+    case 'daily-reading': return { title: 'Daily Reading', subtitle: 'AI-translated short sentences' };
     case 'social': return { title: trans('bc.social') };
     case 'auth': return { title: trans('bc.auth') };
     case 'content-list':
@@ -2125,6 +2125,17 @@ export const WfNewApp: React.FC = () => {
                 <p className="text-zinc-500 text-xs font-mono">{trans('lab.sub')}</p>
               </div>
 
+              {/* Entry to the daily short-sentence reading (pycore-assisted translations). */}
+              <button
+                onClick={() => setActiveTab('daily-reading')}
+                className={`w-full p-4 rounded-2xl text-left flex items-center justify-between ${activeTheme.cardClass} hover:scale-[1.01] transition-transform`}
+              >
+                <span className="flex items-center gap-2 text-sm font-bold">
+                  <BookOpen className="w-4 h-4 text-indigo-400" /> Daily Reading
+                </span>
+                <span className="text-xs text-zinc-500 font-mono">AI-translated short sentences →</span>
+              </button>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
                 {/* Forge Form */}
@@ -2361,11 +2372,24 @@ export const WfNewApp: React.FC = () => {
               className="space-y-6"
             >
               <WfNewBilingual
-                activeTheme={activeTheme} 
+                activeTheme={activeTheme}
                 addToast={addToast}
                 trans={trans}
                 dark={dark}
               />
+            </motion.div>
+          )}
+
+          {/* ====== DAILY SHORT-SENTENCE READING (pycore-assisted translations) ====== */}
+          {activeTab === 'daily-reading' && (
+            <motion.div
+              key="daily-reading"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="space-y-6"
+            >
+              <DailyReading />
             </motion.div>
           )}
 

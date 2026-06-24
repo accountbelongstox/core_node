@@ -2914,7 +2914,7 @@ export const TOOL_UI_SCHEMAS: Record<string, ToolUISchema> = {
   // --- Web Tools & Formatters ---
   'fmt1': {
     id: 'fmt1', title: 'JSON Formatter', description: 'Prettify JSON.',
-    inputs: [{ id: 'json', label: 'Raw JSON', type: 'textarea' }, { id: 'indent', label: 'Indent', type: 'number', defaultValue: 2 }],
+    inputs: [{ id: 'json', label: 'Raw JSON', type: 'textarea' }, { id: 'indent', label: 'Indent', type: 'select', defaultValue: '2', options: [{ label: '2 spaces', value: '2' }, { label: '4 spaces', value: '4' }, { label: '8 spaces', value: '8' }] }],
     actions: [{ id: 'fmt', label: 'Beautify', icon: AlignLeft, apiPath: '/api/ittools/v1/web/json/prettify' }],
     outputs: [{ id: 'prettified', label: 'Formatted JSON', type: 'text' }]
   },

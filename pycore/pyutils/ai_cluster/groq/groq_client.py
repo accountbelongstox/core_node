@@ -15,7 +15,7 @@ from pycore.pyfoundations.third_party import get_third_package_requests
 class GroqClient:
     """Groq API client for text generation."""
 
-    def __init__(self, api_key: str, default_model: str = "llama-3.3-70b-versatile"):
+    def __init__(self, api_key: str, default_model: str = "openai/gpt-oss-120b"):
         self.api_key = api_key
         self.default_model = default_model
         self.base_url = "https://api.groq.com/openai/v1"
