@@ -143,17 +143,23 @@ class DeveloperHistoryService
      */
     public function extract(bool $force = false): array
     {
+        // Never scan/parse on production hosts (mirrors the timer's isEnabled).
+        if (PathMapper::isProduction()) {
+            return ['is_dev_machine' => false, 'skipped' => 'production'];
+        }
+
         $store = $this->storeDir();
 
-        // Single-writer guard: if another worker is extracting, skip this tick.
+        // Single-writer guard. A normal probe tick skips when another worker
+        // holds the lock; a user-forced refresh waits so it always rebuilds.
+        // If the lock file cannot be created, skip rather than run unlocked.
         $lock = @fopen($store . '/.extract.lock', 'c');
-        $haveLock = false;
-        if ($lock !== false) {
-            $haveLock = flock($lock, LOCK_EX | LOCK_NB);
-            if (!$haveLock) {
-                fclose($lock);
-                return $this->cachedSummary();
-            }
+        if ($lock === false) {
+            return $this->cachedSummary();
+        }
+        if (!flock($lock, $force ? LOCK_EX : (LOCK_EX | LOCK_NB))) {
+            fclose($lock);
+            return $this->cachedSummary();
         }
 
         try {
@@ -215,7 +221,12 @@ class DeveloperHistoryService
 
                 $ids = [];
                 foreach ($sessions as $sess) {
-                    $id = $this->safeId($sess['tool'] . '__' . $sess['os_user'] . '__' . $sess['raw_id']);
+                    // Bind the id to the source path so two source files that
+                    // emit the same raw_id never collapse to one id (which would
+                    // silently overwrite a session and drift prompts.json).
+                    $srcPath = $sess['source_path'] ?? $path;
+                    $id = $this->safeId($sess['tool'] . '__' . $sess['os_user'] . '__' . $sess['raw_id'])
+                        . '-' . substr(md5($srcPath . '|' . $sess['raw_id']), 0, 8);
                     $detail = $sess;
                     $detail['id'] = $id;
                     $detail['file'] = $id . '.json';
@@ -314,10 +325,8 @@ class DeveloperHistoryService
             Log::error('developer_history: extract failed', ['error' => $e->getMessage()]);
             return ['error' => $e->getMessage()];
         } finally {
-            if ($haveLock && $lock !== false) {
-                flock($lock, LOCK_UN);
-                fclose($lock);
-            }
+            flock($lock, LOCK_UN);
+            fclose($lock);
         }
     }
 
@@ -470,8 +479,16 @@ class DeveloperHistoryService
             Log::warning('developer_history: json_encode failed', ['path' => $path]);
             return;
         }
-        if (@file_put_contents($path, $json, LOCK_EX) === false) {
+        // Write to a temp file then rename (atomic on the same fs) so concurrent
+        // readers never observe a half-written index.json / prompts.json.
+        $tmp = $path . '.tmp' . getmypid();
+        if (@file_put_contents($tmp, $json) === false) {
             Log::warning('developer_history: write failed', ['path' => $path]);
+            return;
+        }
+        if (!@rename($tmp, $path)) {
+            @unlink($tmp);
+            Log::warning('developer_history: rename failed', ['path' => $path]);
         }
     }
 

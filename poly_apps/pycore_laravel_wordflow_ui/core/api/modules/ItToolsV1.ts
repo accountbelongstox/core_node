@@ -7,19 +7,21 @@ import { APIResponse } from '../../types';
  */
 export class ItToolsV1API extends BaseAPI {
   // ========== Unified API ==========
-  async encode(data: { type: string; input: string }): Promise<APIResponse> {
+  // Backend (ItToolsV1UnifiedCtl) requires `text` (not `input`).
+  async encode(data: { type: string; text: string }): Promise<APIResponse> {
     return this.post('/unified/encode', data);
   }
 
-  async decode(data: { type: string; input: string }): Promise<APIResponse> {
+  async decode(data: { type: string; text: string }): Promise<APIResponse> {
     return this.post('/unified/decode', data);
   }
 
-  async hash(data: { algorithm: string; input: string }): Promise<APIResponse> {
+  async hash(data: { algorithm: string; text: string }): Promise<APIResponse> {
     return this.post('/unified/hash', data);
   }
 
-  async hmac(data: { algorithm: string; input: string; key: string }): Promise<APIResponse> {
+  // Backend requires `text` + `secret` (not `input`/`key`).
+  async hmac(data: { algorithm: string; text: string; secret: string }): Promise<APIResponse> {
     return this.post('/unified/hmac', data);
   }
 
@@ -88,7 +90,8 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/crypto/otp/generate', data);
   }
 
-  async verifyOtp(data: { secret: string; token: string }): Promise<APIResponse> {
+  // Backend validates `otp` (not `token`).
+  async verifyOtp(data: { secret: string; otp: string }): Promise<APIResponse> {
     return this.post('/crypto/otp/verify', data);
   }
 
@@ -96,7 +99,8 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/crypto/encrypt', data);
   }
 
-  async decrypt(data: { text: string; key: string; algorithm?: string }): Promise<APIResponse> {
+  // Backend validates `encrypted` (not `text`).
+  async decrypt(data: { encrypted: string; key: string; algorithm?: string }): Promise<APIResponse> {
     return this.post('/crypto/decrypt', data);
   }
 
@@ -110,21 +114,23 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/converter/base64/decode', data);
   }
 
-  async base64FileEncode(data: { file: File }): Promise<APIResponse> {
-    const formData = new FormData();
-    formData.append('file', data.file);
-    return this.request({ url: '/converter/base64/file/encode', method: 'POST', data: formData } as any);
+  // Backend expects JSON { fileData, fileName? } (not multipart 'file').
+  async base64FileEncode(data: { fileData: string; fileName?: string }): Promise<APIResponse> {
+    return this.post('/converter/base64/file/encode', data);
   }
 
-  async base64FileDecode(data: { base64: string; filename: string }): Promise<APIResponse> {
+  // Backend validates `encoded`.
+  async base64FileDecode(data: { encoded: string }): Promise<APIResponse> {
     return this.post('/converter/base64/file/decode', data);
   }
 
-  async urlEncode(data: { text: string }): Promise<APIResponse> {
+  // Backend validates `url`.
+  async urlEncode(data: { url: string }): Promise<APIResponse> {
     return this.post('/converter/url/encode', data);
   }
 
-  async urlDecode(data: { text: string }): Promise<APIResponse> {
+  // Backend validates `encoded`.
+  async urlDecode(data: { encoded: string }): Promise<APIResponse> {
     return this.post('/converter/url/decode', data);
   }
 
@@ -132,7 +138,8 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/converter/color', data);
   }
 
-  async convertBase(data: { number: string; from: number; to: number }): Promise<APIResponse> {
+  // Backend validates `value` (not `number`).
+  async convertBase(data: { value: string; from: number; to: number }): Promise<APIResponse> {
     return this.post('/converter/base', data);
   }
 
@@ -168,7 +175,8 @@ export class ItToolsV1API extends BaseAPI {
     return this.temperature(data);
   }
 
-  async convertDateTime(data: { datetime: string; from?: string; to?: string }): Promise<APIResponse> {
+  // Backend validates `input` (not `datetime`).
+  async convertDateTime(data: { input: string; from?: string; to?: string }): Promise<APIResponse> {
     return this.post('/converter/datetime', data);
   }
 
@@ -229,7 +237,8 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/web/html/encode', data);
   }
 
-  async htmlDecode(data: { html: string }): Promise<APIResponse> {
+  // Backend validates `encoded` (not `html`).
+  async htmlDecode(data: { encoded: string }): Promise<APIResponse> {
     return this.post('/web/html/decode', data);
   }
 
@@ -286,7 +295,8 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/text/url/parse', data);
   }
 
-  async loremIpsum(data: { paragraphs?: number; words?: number }): Promise<APIResponse> {
+  // Backend validates { count, unit: 'words'|'sentences'|'paragraphs', startWithLorem }.
+  async loremIpsum(data: { count?: number; unit?: 'words' | 'sentences' | 'paragraphs'; startWithLorem?: boolean }): Promise<APIResponse> {
     return this.post('/text/lorem-ipsum', data);
   }
 
@@ -294,7 +304,8 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/text/diff', data);
   }
 
-  async parseCrontab(data: { crontab: string }): Promise<APIResponse> {
+  // Backend validates `expression` (not `crontab`).
+  async parseCrontab(data: { expression: string }): Promise<APIResponse> {
     return this.post('/text/crontab/parse', data);
   }
 
@@ -339,11 +350,13 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/math/evaluate', data);
   }
 
-  async calculatePercentage(data: { value: number; total: number }): Promise<APIResponse> {
+  // Backend validates { operation: 'percent_of'|'percentage_change'|'what_percent', value1, value2 }.
+  async calculatePercentage(data: { operation: 'percent_of' | 'percentage_change' | 'what_percent'; value1: number; value2: number }): Promise<APIResponse> {
     return this.post('/math/percentage', data);
   }
 
-  async calculateEta(data: { current: number; total: number; startTime: string }): Promise<APIResponse> {
+  // Backend validates { totalItems, completedItems, elapsedTime, unit? }.
+  async calculateEta(data: { totalItems: number; completedItems: number; elapsedTime: number; unit?: string }): Promise<APIResponse> {
     return this.post('/math/eta', data);
   }
 
@@ -372,7 +385,8 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/network/user-agent/parse', data);
   }
 
-  async chmod(data: { permissions: string }): Promise<APIResponse> {
+  // Backend validates `mode` (3 octal digits), not `permissions`.
+  async chmod(data: { mode: string }): Promise<APIResponse> {
     return this.post('/network/chmod', data);
   }
 
@@ -433,7 +447,8 @@ export class ItToolsV1API extends BaseAPI {
   async imageExtractColors(data: { image: File; count?: number }): Promise<APIResponse> {
     const formData = new FormData();
     formData.append('image', data.image);
-    if (data.count) formData.append('count', data.count.toString());
+    // Backend reads `num_colors` (not `count`).
+    if (data.count) formData.append('num_colors', data.count.toString());
     return this.request({ url: '/advanced/image/extract-colors', method: 'POST', data: formData } as any);
   }
 
@@ -462,17 +477,19 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/advanced/calculator/gst', data);
   }
 
-  async pdfSplit(data: { pdf: File; pages: string }): Promise<APIResponse> {
+  // Backend reads `ranges` (JSON array or comma list), not `pages`.
+  async pdfSplit(data: { pdf: File; ranges: string }): Promise<APIResponse> {
     const formData = new FormData();
     formData.append('pdf', data.pdf);
-    formData.append('pages', data.pages);
+    formData.append('ranges', data.ranges);
     return this.request({ url: '/advanced/pdf/split', method: 'POST', data: formData } as any);
   }
 
+  // Backend reads the `pdfs` array (file('pdfs')); append each file as 'pdfs[]'.
   async pdfMerge(data: { pdfs: File[] }): Promise<APIResponse> {
     const formData = new FormData();
-    data.pdfs.forEach((pdf, index) => {
-      formData.append(`pdf${index}`, pdf);
+    data.pdfs.forEach((pdf) => {
+      formData.append('pdfs[]', pdf);
     });
     return this.request({ url: '/advanced/pdf/merge', method: 'POST', data: formData } as any);
   }
@@ -484,10 +501,11 @@ export class ItToolsV1API extends BaseAPI {
     return this.request({ url: '/advanced/pdf/compress', method: 'POST', data: formData } as any);
   }
 
+  // Backend reads `rotation` (not `angle`).
   async pdfRotate(data: { pdf: File; angle: number }): Promise<APIResponse> {
     const formData = new FormData();
     formData.append('pdf', data.pdf);
-    formData.append('angle', data.angle.toString());
+    formData.append('rotation', data.angle.toString());
     return this.request({ url: '/advanced/pdf/rotate', method: 'POST', data: formData } as any);
   }
 
@@ -516,7 +534,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/crypto/hmac', data);
   }
 
-  async eta(data: { current: number; total: number; start_time: number }): Promise<APIResponse> {
+  async eta(data: { totalItems: number; completedItems: number; elapsedTime: number; unit?: string }): Promise<APIResponse> {
     return this.post('/math/eta', data);
   }
 
@@ -524,7 +542,7 @@ export class ItToolsV1API extends BaseAPI {
     return this.post('/math/evaluate', data);
   }
 
-  async percentage(data: { value: number; total: number; decimal?: number }): Promise<APIResponse> {
+  async percentage(data: { operation: 'percent_of' | 'percentage_change' | 'what_percent'; value1: number; value2: number }): Promise<APIResponse> {
     return this.post('/math/percentage', data);
   }
 

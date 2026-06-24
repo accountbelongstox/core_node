@@ -36,7 +36,7 @@ export interface DevHistoryTurn {
 }
 
 export interface DevHistorySessionDetail extends DevHistorySessionSummary {
-  prompts: Array<{ ts: number; text: string }>;
+  prompts: Array<{ id: string; ts: number; text: string; edited?: boolean }>;
   turns: DevHistoryTurn[];
 }
 

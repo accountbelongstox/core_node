@@ -10,9 +10,10 @@ namespace App\Services\DeveloperHistory\Extractors;
  */
 abstract class AbstractExtractor implements ExtractorInterface
 {
-    /** Hard caps so one runaway session cannot blow up a JSON file. */
+    /** Hard caps so one runaway session cannot blow up a JSON file / worker. */
     protected const MAX_TURNS = 5000;
     protected const MAX_TEXT = 20000;
+    protected const MAX_LINES = 300000;
 
     /**
      * Parse a JSONL file into an array of associative arrays (bad lines skipped).
@@ -21,6 +22,7 @@ abstract class AbstractExtractor implements ExtractorInterface
     {
         $out = [];
         $count = 0;
+        $cap = $maxLines > 0 ? $maxLines : self::MAX_LINES;
         $fh = @fopen($path, 'r');
         if ($fh === false) {
             return $out;
@@ -35,7 +37,7 @@ abstract class AbstractExtractor implements ExtractorInterface
                 $out[] = $obj;
                 $count++;
             }
-            if ($maxLines > 0 && $count >= $maxLines) {
+            if ($count >= $cap) {
                 break;
             }
         }

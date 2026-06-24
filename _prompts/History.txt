@@ -1,8 +1,0 @@
-# Claude Code chat history  (generated 2026-06-23 11:45:21)
-# source: /home/kali/.claude/projects
-# sessions: 14
-#
-# === RECONCILED 2026-06-23: all 14 sessions / 15 blocks aligned to live code and pruned. ===
-# Full original transcript (58304 lines): _prompts/History (copy 1).txt
-# Deletion records + per-block alignment/resolution notes: _prompts/History.del-records.txt
-# Nothing remains to reconcile.

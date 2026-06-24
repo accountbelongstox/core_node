@@ -51,12 +51,18 @@ class CodexExtractor extends AbstractExtractor
     }
 
     /** Recursively collect rollout-*.jsonl files (flat or date-bucketed). */
-    private function findRollouts(string $dir): array
+    private function findRollouts(string $dir, int $depth = 0): array
     {
+        if ($depth > 6) {
+            return []; // date buckets are YYYY/MM/DD; bound against symlink cycles
+        }
         $found = [];
         foreach (@glob($dir . '/*') ?: [] as $path) {
             if (is_dir($path)) {
-                $found = array_merge($found, $this->findRollouts($path));
+                if (is_link($path)) {
+                    continue;
+                }
+                $found = array_merge($found, $this->findRollouts($path, $depth + 1));
             } elseif (str_ends_with($path, '.jsonl') && str_contains(basename($path), 'rollout')) {
                 $found[] = $path;
             }
@@ -88,14 +94,18 @@ class CodexExtractor extends AbstractExtractor
             }
             $type = $e['type'] ?? ($e['record_type'] ?? '');
             $payload = $e['payload'] ?? $e;
+            $ptype = $payload['type'] ?? '';
 
-            if ($type === 'session_meta' || isset($payload['cwd'])) {
+            // Only a genuine session_meta record is metadata; do NOT treat any
+            // line that merely carries a 'cwd' as meta (would drop its content).
+            if ($type === 'session_meta' || $ptype === 'session_meta') {
                 $sessionId = $sessionId !== '' ? $sessionId : (string) ($payload['id'] ?? '');
                 $project = $project !== '' ? $project : (string) ($payload['cwd'] ?? '');
                 continue;
             }
-
-            $ptype = $payload['type'] ?? '';
+            if ($project === '' && isset($payload['cwd'])) {
+                $project = (string) $payload['cwd'];
+            }
             if ($ptype === 'message') {
                 $role = (string) ($payload['role'] ?? 'assistant');
                 $text = $this->extractResponseText($payload['content'] ?? []);

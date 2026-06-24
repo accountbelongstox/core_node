@@ -198,6 +198,75 @@ def invoke_safe_git_pull(target_url: str) -> bool:
         os.chdir(original_working_dir)
 
 
+def human_kb(kb: int) -> str:
+    """Format a KiB value as human-readable size"""
+    kb = kb or 0
+    if kb >= 1048576:
+        return f"{kb / 1048576:.2f} GB"
+    if kb >= 1024:
+        return f"{kb / 1024:.2f} MB"
+    return f"{kb} KB"
+
+
+def show_repo_size_comparison(target_url: str) -> None:
+    """Show local repository size vs remote (host API) size comparison"""
+    import re
+    import json
+    import urllib.request
+
+    # Local repository size (KiB): loose objects + packed objects (git-native, portable)
+    loose = pack = 0
+    out = run_git_command("git count-objects -v", capture_output=True) or ""
+    for line in out.splitlines():
+        if line.startswith("size:"):
+            loose = int(line.split(":", 1)[1].strip() or 0)
+        elif line.startswith("size-pack:"):
+            pack = int(line.split(":", 1)[1].strip() or 0)
+    local_kb = loose + pack
+
+    # Parse host and owner/repo from the remote URL
+    host = ""
+    owner_repo = ""
+    m = re.match(r'^git@([^:]+):(.+)$', target_url)
+    if not m:
+        m = re.match(r'^https?://([^/]+)/(.+)$', target_url)
+    if m:
+        host, owner_repo = m.group(1), m.group(2)
+    if owner_repo.endswith(".git"):
+        owner_repo = owner_repo[:-4]
+
+    # Remote repository size (KB) via host API (best-effort; public repos only)
+    remote_kb = None
+    api = None
+    if owner_repo and host == "github.com":
+        api = f"https://api.github.com/repos/{owner_repo}"
+    elif owner_repo and host == "gitee.com":
+        api = f"https://gitee.com/api/v5/repos/{owner_repo}"
+    if api:
+        try:
+            req = urllib.request.Request(api, headers={"User-Agent": "gitput-unified"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            if isinstance(data.get("size"), int):
+                remote_kb = data["size"]
+        except Exception:
+            remote_kb = None
+
+    write_color_text("--------------------------------", "Green")
+    write_color_text("Repository size comparison:", "Cyan")
+    write_color_text(f"  Local  : {human_kb(local_kb)}", "White")
+    if remote_kb is not None:
+        write_color_text(f"  Remote ({host}): {human_kb(remote_kb)}", "White")
+        diff = local_kb - remote_kb
+        if diff >= 0:
+            write_color_text(f"  Local is larger by {human_kb(diff)}", "DarkGray")
+        else:
+            write_color_text(f"  Remote is larger by {human_kb(-diff)}", "DarkGray")
+    else:
+        write_color_text(f"  Remote ({host}): unavailable (private repo, no network, or unsupported host)", "Yellow")
+    write_color_text("--------------------------------", "Green")
+
+
 def invoke_git_operations(target_url: str, force_push_mode: bool = False) -> bool:
     """Perform git operations (push)"""
     global encryption_check_completed, pull_completed, file_validation_completed
@@ -235,6 +304,9 @@ def invoke_git_operations(target_url: str, force_push_mode: bool = False) -> boo
         write_color_text("--------------------------------", "Green")
         write_color_text("----------------------------------------------------------------", "DarkYellow")
         
+        # Show local vs remote repository size comparison
+        show_repo_size_comparison(target_url)
+
         # Run pre-commit encryption check (only once per session)
         if not encryption_check_completed:
             if process_encryption():
@@ -282,7 +354,14 @@ def invoke_git_operations(target_url: str, force_push_mode: bool = False) -> boo
         write_color_text(f"Committing changes with message: {commit_message}", "Cyan")
         write_color_text(f'Executing: git commit -m "{commit_message}"', "DarkGray")
         commit_changes(commit_message)
-        
+
+        # Ensure local is fully committed before any pull/push (force or normal)
+        if has_uncommitted_changes():
+            write_color_text("ERROR: Working tree not clean after commit; aborting to protect local work.", "Red")
+            run_git_command("git status --short")
+            return False
+        write_color_text("Local commit verified: working tree is clean.", "Green")
+
         # Force push mode skips pull entirely (will overwrite remote changes)
         if force_push_mode:
             write_color_text("=== FORCE PUSH MODE ===", "Red")

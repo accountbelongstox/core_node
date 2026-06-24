@@ -1,5 +1,4 @@
-claude --resume ccbe72bf-4f99-495e-8c36-d5a36cf9be92
-
+❯ 添加提示词搜索过滤功能，分页显示，并增加后端公共功能，对提示词的语言进行识别，中文英日韩，查看是否有类库，如果没有，则根据检测到的词来，之后添加后端支持 ，并在 http://127.0.0.1:13054/laravel-manager#/task-center 其中加入UI支持 ，增加一个任务协助分发，如果提示词是非英文，则在PYCORE中加入协助请求，对非英文翻译为英文并回传给LARAVEL，PYCORE的UI http://127.0.0.1:13054/pycore-manager/queue-center 要看到协助记录，以及 ./pyservice.sh  加入对应的类库，沿用之前的代码风格，之后，扩展LARALEL中的QYAPP中的每日阅读的功能（没有就添加），在 http://127.0.0.1:13054/wordnew 前端中加入每日短句阅读，被PYCORE协助处理过的提示词短句，在PYCORE回传时同时传给原来的AI记录中心和每日短句中心，知句中心如果有数据，将在前端添加模型请求，并能显示当前推荐，HISTORY知句，播放短信（PYCORE翻译时同时提供音频）。PYCORE使用AI翻译，并在速率用尽时暂停。PYCORE要内置一直过滤系统过滤提提示词中带的代码，同时要在AI翻译提示示上要求不要翻译代码部份。对句子子孙孙也要整理通顺并阅读，并翻译3个延至本。同时将PYCORE的对应的功能在 apps/mcp-chrome 也添加一份，同时查年地apps/mcp-chromeapps/mcp-chrome 的UI为什么还没有任务中心，apps/mcp-chrome 的翻译逻辑不是调用AI，而是直接 在网页上操作GEMINI CHATGPT等 网页翻译，添加两人个操 作类库。最后写出开发报告到， development-guides/cross-docs/ 中的合适文档。搜索官方 文档 ，使用多角色，使用工作流，使用数十个SUB-AGETN协同工作。
 
 /www/wwwroot/ is current wwwroot dir, it's windows the logic , mount is /mnt/dev_nvme1n1p1/www/wwwroot/   found all sh,py,php,resolve Why the project is Not recoganize
     to correct, if has Windows or larget-dist,priority used. liunx/

@@ -70,7 +70,7 @@ class ItToolsV1ImageUtil
         return ImageProcessUtil::createImageFromFile($path, $mime);
     }
 
-    private static function formatBytes(int $bytes): string
+    public static function formatBytes(int $bytes): string
     {
         return ImageProcessUtil::formatBytes($bytes);
     }

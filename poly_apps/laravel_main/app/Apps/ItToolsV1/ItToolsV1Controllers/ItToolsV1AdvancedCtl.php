@@ -12,6 +12,7 @@ namespace App\Apps\ItToolsV1\ItToolsV1Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
 use App\Apps\ItToolsV1\ItToolsV1Utils\ItToolsV1ImageUtil;
 use App\Apps\ItToolsV1\ItToolsV1Utils\ItToolsV1CalculatorUtil;
 use App\Apps\ItToolsV1\ItToolsV1Utils\ItToolsV1PdfUtil;
@@ -30,7 +31,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $result = ItToolsV1ImageUtil::resizeImage($fullPath, (int)$width, (int)$height);
             
@@ -59,7 +60,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $result = ItToolsV1ImageUtil::rotateImage($fullPath, (int)$angle);
             
@@ -86,7 +87,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $result = ItToolsV1ImageUtil::flipImage($fullPath, $direction);
             
@@ -113,7 +114,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $colors = ItToolsV1ImageUtil::extractColors($fullPath, (int)$numColors);
             
@@ -138,7 +139,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $result = ItToolsV1ImageUtil::compressImage($fullPath, (int)$quality, $format);
             
@@ -174,7 +175,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $result = ItToolsV1ImageUtil::cropImage($fullPath, (int)$x, (int)$y, (int)$width, (int)$height);
             
@@ -202,7 +203,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $result = ItToolsV1ImageUtil::convertImage($fullPath, $format);
             
@@ -308,13 +309,18 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $pageRanges = json_decode($ranges, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $pageRanges = explode(',', $ranges);
             }
-            
+            // A single scalar range (e.g. "1" -> int 1) is valid JSON but splitPdf()
+            // requires an array; wrap any non-array value so it never TypeErrors.
+            if (!is_array($pageRanges)) {
+                $pageRanges = [$pageRanges];
+            }
+
             $results = ItToolsV1PdfUtil::splitPdf($fullPath, $pageRanges);
             
             $outputFiles = [];
@@ -351,7 +357,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             $tempPaths = [];
             foreach ($files as $file) {
                 $tempPath = $file->store('temp');
-                $tempPaths[] = storage_path('app/' . $tempPath);
+                $tempPaths[] = Storage::path($tempPath);
             }
             
             $result = ItToolsV1PdfUtil::mergePdfs($tempPaths);
@@ -384,7 +390,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $result = ItToolsV1PdfUtil::compressPdf($fullPath, $quality);
             
@@ -417,7 +423,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $pageArray = $pages ? json_decode($pages, true) : null;
             
@@ -449,7 +455,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             }
             
             $tempPath = $file->store('temp');
-            $fullPath = storage_path('app/' . $tempPath);
+            $fullPath = Storage::path($tempPath);
             
             $result = ItToolsV1PdfUtil::addPasswordToPdf($fullPath, $password);
             

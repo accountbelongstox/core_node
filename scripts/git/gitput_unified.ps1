@@ -704,6 +704,71 @@ function Handle-ConflictResolution {
     }
 }
 
+# Helper: format a KiB value as human-readable size
+function Get-HumanKb {
+    param([long]$Kb = 0)
+    if ($Kb -ge 1048576) { return ("{0:N2} GB" -f ($Kb / 1048576)) }
+    if ($Kb -ge 1024) { return ("{0:N2} MB" -f ($Kb / 1024)) }
+    return "$Kb KB"
+}
+
+# Show local repository size vs remote (host API) size comparison
+function Show-RepoSizeComparison {
+    param([string]$TargetUrl)
+
+    # Local repository size (KiB): loose objects + packed objects (git-native, portable)
+    $loose = 0
+    $pack = 0
+    $countOutput = git count-objects -v 2>$null
+    foreach ($line in $countOutput) {
+        if ($line -match '^size:\s+(\d+)') { $loose = [long]$Matches[1] }
+        elseif ($line -match '^size-pack:\s+(\d+)') { $pack = [long]$Matches[1] }
+    }
+    $localKb = $loose + $pack
+
+    # Parse host and owner/repo from the remote URL
+    $remoteHost = ""
+    $ownerRepo = ""
+    if ($TargetUrl -match '^git@([^:]+):(.+)$') {
+        $remoteHost = $Matches[1]
+        $ownerRepo = $Matches[2]
+    } elseif ($TargetUrl -match '^https?://([^/]+)/(.+)$') {
+        $remoteHost = $Matches[1]
+        $ownerRepo = $Matches[2]
+    }
+    if ($ownerRepo.EndsWith(".git")) { $ownerRepo = $ownerRepo.Substring(0, $ownerRepo.Length - 4) }
+
+    # Remote repository size (KB) via host API (best-effort; public repos only)
+    $remoteKb = $null
+    $api = $null
+    if ($ownerRepo -and $remoteHost -eq "github.com") { $api = "https://api.github.com/repos/$ownerRepo" }
+    elseif ($ownerRepo -and $remoteHost -eq "gitee.com") { $api = "https://gitee.com/api/v5/repos/$ownerRepo" }
+    if ($api) {
+        try {
+            $resp = Invoke-RestMethod -Uri $api -TimeoutSec 8 -Headers @{ "User-Agent" = "gitput-unified" }
+            if ($null -ne $resp.size) { $remoteKb = [long]$resp.size }
+        } catch {
+            $remoteKb = $null
+        }
+    }
+
+    Write-ColorText "--------------------------------" -ForegroundColor Green
+    Write-ColorText "Repository size comparison:" -ForegroundColor Cyan
+    Write-ColorText "  Local  : $(Get-HumanKb $localKb)" -ForegroundColor White
+    if ($null -ne $remoteKb) {
+        Write-ColorText "  Remote ($remoteHost): $(Get-HumanKb $remoteKb)" -ForegroundColor White
+        $diff = $localKb - $remoteKb
+        if ($diff -ge 0) {
+            Write-ColorText "  Local is larger by $(Get-HumanKb $diff)" -ForegroundColor DarkGray
+        } else {
+            Write-ColorText "  Remote is larger by $(Get-HumanKb (-$diff))" -ForegroundColor DarkGray
+        }
+    } else {
+        Write-ColorText "  Remote ($remoteHost): unavailable (private repo, no network, or unsupported host)" -ForegroundColor Yellow
+    }
+    Write-ColorText "--------------------------------" -ForegroundColor Green
+}
+
 # Function to perform git operations
 function Invoke-GitOperations {
     param([string]$TargetUrl)
@@ -732,6 +797,9 @@ function Invoke-GitOperations {
         git remote -v
         Write-ColorText "--------------------------------" -ForegroundColor Green
         Write-ColorText "----------------------------------------------------------------" -ForegroundColor DarkYellow
+
+        # Show local vs remote repository size comparison
+        Show-RepoSizeComparison $TargetUrl
 
         # Run pre-commit encryption check (only once per session)
         if (-not $script:EncryptionCheckCompleted) {
@@ -972,6 +1040,15 @@ function Invoke-GitOperations {
         Write-ColorText "Committing changes with message: $commitMessage" -ForegroundColor Cyan
         Write-ColorText "Executing: git commit -m `"$commitMessage`"" -ForegroundColor DarkGray
         git commit -m $commitMessage
+
+        # Ensure local is fully committed before any pull/push (force or normal)
+        $statusOutput = git status --porcelain
+        if ($statusOutput) {
+            Write-ColorText "ERROR: Working tree not clean after commit; aborting to protect local work." -ForegroundColor Red
+            git status --short
+            return $false
+        }
+        Write-ColorText "Local commit verified: working tree is clean." -ForegroundColor Green
 
         # Use force push choice from main execution (already asked before starting operations)
         if ($null -eq $script:ForcePushChoice) {

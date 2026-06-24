@@ -1519,69 +1519,6 @@ check_host_reachable() {
     return 1
 }
 
-# Helper: format a KiB value as human-readable size
-human_kb() {
-    local kb="${1:-0}"
-    if [ "$kb" -ge 1048576 ]; then
-        awk "BEGIN{printf \"%.2f GB\", $kb/1048576}"
-    elif [ "$kb" -ge 1024 ]; then
-        awk "BEGIN{printf \"%.2f MB\", $kb/1024}"
-    else
-        echo "${kb} KB"
-    fi
-}
-
-# Show local repository size vs remote (host API) size comparison
-show_repo_size_comparison() {
-    local target_url="$1"
-    local local_kb host owner_repo remote_kb diff_kb
-
-    # Local repository size (KiB): loose objects + packed objects (git-native, portable)
-    local_kb=$(git count-objects -v 2>/dev/null | awk '/^size:/{s=$2} /^size-pack:/{p=$2} END{print s+p+0}')
-    [ -z "$local_kb" ] && local_kb=0
-
-    # Parse host and owner/repo from the remote URL
-    host=""
-    owner_repo=""
-    if [[ "$target_url" =~ ^git@([^:]+):(.+)$ ]]; then
-        host="${BASH_REMATCH[1]}"
-        owner_repo="${BASH_REMATCH[2]}"
-    elif [[ "$target_url" =~ ^https?://([^/]+)/(.+)$ ]]; then
-        host="${BASH_REMATCH[1]}"
-        owner_repo="${BASH_REMATCH[2]}"
-    fi
-    owner_repo="${owner_repo%.git}"
-
-    # Remote repository size (KB) via host API (best-effort; public repos only)
-    remote_kb=""
-    if [ -n "$owner_repo" ]; then
-        case "$host" in
-            github.com)
-                remote_kb=$(curl -fsSL --max-time 8 "https://api.github.com/repos/$owner_repo" 2>/dev/null | grep -m1 '"size"' | grep -oE '[0-9]+')
-                ;;
-            gitee.com)
-                remote_kb=$(curl -fsSL --max-time 8 "https://gitee.com/api/v5/repos/$owner_repo" 2>/dev/null | tr ',' '\n' | grep -m1 '"size"' | grep -oE '[0-9]+')
-                ;;
-        esac
-    fi
-
-    write_color_text "--------------------------------" "Green"
-    write_color_text "Repository size comparison:" "Cyan"
-    write_color_text "  Local  : $(human_kb "$local_kb")" "White"
-    if [ -n "$remote_kb" ]; then
-        write_color_text "  Remote ($host): $(human_kb "$remote_kb")" "White"
-        diff_kb=$(( local_kb - remote_kb ))
-        if [ "$diff_kb" -ge 0 ]; then
-            write_color_text "  Local is larger by $(human_kb "$diff_kb")" "DarkGray"
-        else
-            write_color_text "  Remote is larger by $(human_kb "$(( -diff_kb ))")" "DarkGray"
-        fi
-    else
-        write_color_text "  Remote ($host): unavailable (private repo, no network, or unsupported host)" "Yellow"
-    fi
-    write_color_text "--------------------------------" "Green"
-}
-
 # Function to perform git operations
 invoke_git_operations() {
     local target_url="$1"
@@ -1633,9 +1570,6 @@ invoke_git_operations() {
     git remote -v
     write_color_text "--------------------------------" "Green"
     write_color_text "----------------------------------------------------------------" "DarkYellow"
-
-    # Show local vs remote repository size comparison
-    show_repo_size_comparison "$target_url"
 
     # Run pre-commit encryption check (only once per session)
     if [ "$ENCRYPTION_CHECK_COMPLETED" = false ]; then
@@ -1858,14 +1792,6 @@ invoke_git_operations() {
     write_color_text "Committing changes with message: $commit_message" "Cyan"
     write_color_text "Executing: git commit -m '$commit_message'" "DarkGray"
     git commit -m "$commit_message"
-
-    # Ensure local is fully committed before any pull/push (force or normal)
-    if [ -n "$(git status --porcelain)" ]; then
-        write_color_text "ERROR: Working tree not clean after commit; aborting to protect local work." "Red"
-        git status --short
-        return 1
-    fi
-    write_color_text "Local commit verified: working tree is clean." "Green"
 
     # Get current branch for push operations
     local current_branch=$(get_current_branch)

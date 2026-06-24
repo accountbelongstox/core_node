@@ -1,4 +1,0 @@
-# Claude Code chat history  (generated 2026-06-23 11:45:21)
-# source: /home/kali/.claude/projects
-# sessions: 14
-

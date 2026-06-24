@@ -106,6 +106,12 @@ export const TRANSLATIONS = {
       user: "User",
       messages: "messages",
       search: "Search…",
+      copy: "Copy",
+      copied: "Copied",
+      edit: "Edit",
+      save: "Save",
+      cancel: "Cancel",
+      edited: "edited",
       loadError: "Failed to load."
     },
     moviesBooksView: {
@@ -1107,6 +1113,12 @@ export const TRANSLATIONS = {
       user: "用户",
       messages: "条消息",
       search: "搜索…",
+      copy: "复制",
+      copied: "已复制",
+      edit: "编辑",
+      save: "保存",
+      cancel: "取消",
+      edited: "已编辑",
       loadError: "加载失败。"
     },
     moviesBooksView: {
@@ -2091,7 +2103,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       { id: 'cry_rsa', name: 'RSA Key Generator', status: 'available' },
       { id: 'cry_otp_gen', name: 'OTP Generator', status: 'available' },
       { id: 'cry_otp_ver', name: 'OTP Verify', status: 'available' },
-      { id: 'cry_bip39', name: 'BIP39 Passphrase', status: 'available' },
+      { id: 'cry_bip39', name: 'BIP39 Passphrase', status: 'todo' },
       { id: 'cry_basic_auth', name: 'Basic Auth Header', status: 'available' },
     ]
   },
