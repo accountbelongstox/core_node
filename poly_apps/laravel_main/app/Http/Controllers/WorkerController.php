@@ -255,20 +255,26 @@ class WorkerController extends Controller
             $error = $validated['error'];
         }
 
+        // Capture the write-back reception summary so the worker can log exactly
+        // what the backend stored ({status, stored_count, failed_count,
+        // synced_to_dict} plus the granular {saved, invalid, audio_saved,
+        // images_saved} the word-translation write-back reports).
+        $outcome = null;
         $success = $this->taskManager->submitResult(
             $validated['task_id'],
             $validated['worker_id'],
             $validated['status'],
             $progress,
             $result,
-            $error
+            $error,
+            $outcome
         );
 
         if (!$success) {
             return $this->error('Worker not assigned to this task or task was reassigned', 409);
         }
 
-        return $this->success(null, 'Result submitted');
+        return $this->success($outcome, 'Result submitted');
     }
 
     /**

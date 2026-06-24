@@ -61,6 +61,8 @@ import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 import { ConfirmModal, useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
+import { LoadingBlock, InlineSpinner, EmptyState, AlertBox } from '../common';
+import { useClipboard } from '../../hooks';
 
 /** Status → text colour for the collapsed-pill latest-entry one-liner. */
 const ttsLogStatusText = (status: string | undefined): string =>
@@ -783,6 +785,7 @@ const VocabularyLearning: React.FC = () => {
   const [wordsReloadTick, setWordsReloadTick] = useState(0);
 
   const toast = useToast();
+  const { copy } = useClipboard();
   const t = TRANSLATIONS[lang].vocabulary;
 
   // No try/catch — guard with `.catch`. Returns null on failure (settles the
@@ -1265,10 +1268,6 @@ const VocabularyLearning: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
   const loadHistoryItem = (item: TranslationResponse) => {
     setInputText(item.original_text);
     setSourceLanguage(item.source_language);
@@ -1584,7 +1583,7 @@ const VocabularyLearning: React.FC = () => {
         <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Example sentences</div>
         {!state || state.loading ? (
           <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
-            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            <InlineSpinner size={14} />
             Loading sentences...
           </div>
         ) : state.error ? (
@@ -2037,13 +2036,11 @@ const VocabularyLearning: React.FC = () => {
         )}
         <div className="flex-1 overflow-auto border border-slate-200 dark:border-slate-700 rounded-lg">
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-slate-500 dark:text-slate-400">
-              <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading...
-            </div>
+            <LoadingBlock label="Loading..." className="py-12" />
           ) : error ? (
-            <div className="flex items-center justify-center py-12 text-red-500 text-sm px-4 text-center">{error}</div>
+            <AlertBox variant="error" className="m-3">{error}</AlertBox>
           ) : items.length === 0 ? (
-            <div className="flex items-center justify-center py-12 text-slate-400 text-sm">No words found.</div>
+            <EmptyState message="No words found." className="py-12" />
           ) : (
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
@@ -2335,13 +2332,9 @@ const VocabularyLearning: React.FC = () => {
             </div>
           </div>
         ) : loadingQueueStats ? (
-          <div className="flex items-center justify-center py-8">
-            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-          </div>
+          <LoadingBlock />
         ) : (
-          <div className="flex items-center justify-center py-8 text-slate-400">
-            <p className="text-sm">No queue statistics available</p>
-          </div>
+          <EmptyState message="No queue statistics available" />
         )}
       </div>
       </>
@@ -2403,9 +2396,7 @@ const VocabularyLearning: React.FC = () => {
           </div>
 
           {loadingStatistics && !statistics ? (
-            <div className="flex items-center justify-center py-12">
-              <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-            </div>
+            <LoadingBlock size="lg" className="py-12" />
           ) : statistics ? (
             <>
           {/* Summary Cards */}
@@ -2562,8 +2553,8 @@ const VocabularyLearning: React.FC = () => {
           ) : null}
         </div>
       ) : (
-        <div className={`${commonClasses.card} p-8 mb-4 text-center text-slate-400 text-sm`}>
-          No statistics available yet.
+        <div className={`${commonClasses.card} p-8 mb-4`}>
+          <EmptyState icon={BarChart3} message="No statistics available yet." />
         </div>
       )}
       </>
@@ -2634,9 +2625,7 @@ const VocabularyLearning: React.FC = () => {
         </div>
 
         {loadingLibraries ? (
-          <div className="flex items-center justify-center py-8">
-            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-          </div>
+          <LoadingBlock />
         ) : libraries.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {libraries.map((library: any) => (
@@ -2745,12 +2734,7 @@ const VocabularyLearning: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="flex items-center justify-center py-8 text-slate-400">
-            <div className="text-center">
-              <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No libraries available for {selectedLanguage}</p>
-            </div>
-          </div>
+          <EmptyState icon={BookOpen} message={`No libraries available for ${selectedLanguage}`} />
         )}
       </div>
       </>
@@ -2865,9 +2849,7 @@ const VocabularyLearning: React.FC = () => {
 
           {/* Translation Result */}
           {translation.error && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm mb-4">
-              {translation.error}
-            </div>
+            <AlertBox variant="error" className="mb-4">{translation.error}</AlertBox>
           )}
 
           {translation.data && (
@@ -2876,7 +2858,7 @@ const VocabularyLearning: React.FC = () => {
                 <h4 className="font-semibold text-sm">Translation</h4>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => copyToClipboard(translation.data!.translated_text)}
+                    onClick={() => copy(translation.data!.translated_text)}
                     className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
                     title="Copy"
                   >
@@ -3005,13 +2987,12 @@ const VocabularyLearning: React.FC = () => {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-400">
-              <div className="text-center">
-                <Volume2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No audio generated</p>
-                <p className="text-xs">Translate text and click TTS button</p>
-              </div>
-            </div>
+            <EmptyState
+              icon={Volume2}
+              title="No audio generated"
+              message="Translate text and click TTS button"
+              className="flex-1"
+            />
           )}
         </div>
 
@@ -3032,13 +3013,9 @@ const VocabularyLearning: React.FC = () => {
           </div>
 
           {tasks.loading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-            </div>
+            <LoadingBlock full />
           ) : tasks.error ? (
-            <div className="flex-1 flex items-center justify-center text-red-500 text-sm">
-              {tasks.error}
-            </div>
+            <AlertBox variant="error" className="flex-1">{tasks.error}</AlertBox>
           ) : tasks.data && tasks.data.length > 0 ? (
             <div className="flex-1 flex flex-col gap-4 overflow-hidden">
               {/* Task List */}
@@ -3159,24 +3136,23 @@ const VocabularyLearning: React.FC = () => {
               )}
 
               {selectedTask && vocabularyWords.length === 0 && (
-                <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
-                  No vocabulary words in this task
-                </div>
+                <EmptyState message="No vocabulary words in this task" className="flex-1" />
               )}
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-400">
-              <div className="text-center">
-                <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No tasks available</p>
+            <EmptyState
+              icon={BookOpen}
+              message="No tasks available"
+              className="flex-1"
+              action={
                 <button
                   onClick={loadTasks}
-                  className="mt-2 text-xs text-indigo-500 hover:text-indigo-400"
+                  className="text-xs text-indigo-500 hover:text-indigo-400"
                 >
                   Refresh
                 </button>
-              </div>
-            </div>
+              }
+            />
           )}
         </div>
       </div>

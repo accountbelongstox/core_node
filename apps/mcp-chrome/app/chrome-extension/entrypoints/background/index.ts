@@ -55,6 +55,13 @@ export default defineBackground(() => {
   });
 
   // Initialize Unified Task Center (State Center)
+  // INVARIANT (do not break): only REGISTER processors here — never call
+  // taskCenter.startAll()/startProcessor() or any worker .start() at SW-load
+  // time. The Bing / Gemini / ChatGPT / Prompt-Translate assist workers are
+  // strictly user-initiated each browser session: a full Chrome close+reopen
+  // must require a manual Start (Bing's run-intent is gated to chrome.storage
+  // SESSION; the others have no resume/onStartup hook). Auto-starting anything
+  // here would regress that.
   console.log('🎯 Initializing Unified Task Center...');
   taskCenter.initialize();
   initializeProcessors();

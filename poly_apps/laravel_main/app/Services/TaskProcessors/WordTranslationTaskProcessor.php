@@ -42,9 +42,21 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
 {
     protected TaskManagerService $taskManager;
 
+    // Granular reception summary of the LAST processResult() call, surfaced to
+    // the worker (via TaskProcessorRegistry::process -> submitResult $outcome ->
+    // the HTTP response) so it can log exactly what the backend stored:
+    // { saved, invalid, audio_saved, images_saved }.
+    protected ?array $lastOutcome = null;
+
     public function __construct(TaskManagerService $taskManager)
     {
         $this->taskManager = $taskManager;
+    }
+
+    /** Granular write-back summary of the last processResult() (or null). */
+    public function lastWritebackOutcome(): ?array
+    {
+        return $this->lastOutcome;
     }
 
     public function canProcess(GlobalTask $task): bool
@@ -62,6 +74,8 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
 
     public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int
     {
+        $this->lastOutcome = null;
+
         // Chrome workers (e.g. the web-AI translate worker) wrap the payload in a
         // {result:{...}} envelope; pycore posts it flat. Unwrap so both forms work
         // (mirrors NotebookLmTaskProcessor / WordGeminiImageTaskProcessor).
@@ -91,11 +105,13 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
         $regionRedirectWords = $inner['region_redirect_words'] ?? $inner['regionRedirectWords'] ?? [];
 
         if (empty($translations) && empty($invalidWords) && empty($regionRedirectWords)) {
+            $this->lastOutcome = ['saved' => 0, 'invalid' => 0, 'audio_saved' => 0, 'images_saved' => 0];
             return 0;
         }
 
         // Demo-mode tasks never touch the database (mirrors DictionaryTaskProcessor).
         if ($isDemoMode) {
+            $this->lastOutcome = ['saved' => 0, 'invalid' => 0, 'audio_saved' => 0, 'images_saved' => 0];
             return 0;
         }
 
@@ -108,6 +124,16 @@ class WordTranslationTaskProcessor implements TaskProcessorInterface
             $invalidWords,
             $regionRedirectWords
         );
+
+        // Granular reception summary the worker logs as "backend reception":
+        // saved = translations persisted, invalid = words flagged is_valid=false,
+        // audio_saved / images_saved = binaries written to disk.
+        $this->lastOutcome = [
+            'saved' => (int) ($outcome['processed'] ?? 0),
+            'invalid' => (int) ($outcome['invalidated'] ?? 0),
+            'audio_saved' => (int) ($outcome['audio_saved'] ?? 0),
+            'images_saved' => (int) ($outcome['images_saved'] ?? 0),
+        ];
 
         // Stored count for the result-trust layer: words actually persisted plus
         // words authoritatively invalidated (a confirmed no-entry / region-redirect

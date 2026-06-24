@@ -21,7 +21,6 @@ import {
   Activity,
   RefreshCw,
   XCircle,
-  AlertCircle,
   Users,
   Server,
   Cpu,
@@ -33,6 +32,7 @@ import {
   Languages,
 } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
+import { AlertBox, EmptyState, LoadingBlock } from '../../common';
 import {
   StatCard,
   StatusBadge,
@@ -178,17 +178,10 @@ const WorkersPanel: React.FC<WorkersPanelProps> = ({
 
   return (
     <div className="flex flex-col gap-4">
-      {error && snapshot && (
-        <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
-        </div>
-      )}
+      {error && snapshot && <AlertBox variant="error">{error}</AlertBox>}
 
       {loading && !snapshot ? (
-        <div className="flex items-center justify-center py-16">
-          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
+        <LoadingBlock label="" className="py-16" />
       ) : snapshot ? (
         <>
           {/* Worker stat cards */}
@@ -326,10 +319,7 @@ const WorkersPanel: React.FC<WorkersPanelProps> = ({
             </div>
 
             {snapshot.workers.length === 0 && (
-              <div className="py-8 text-center text-slate-400">
-                <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">{t.workers.no_workers}</p>
-              </div>
+              <EmptyState icon={Users} message={t.workers.no_workers} className="py-8" />
             )}
           </div>
 

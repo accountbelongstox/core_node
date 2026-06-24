@@ -602,8 +602,10 @@ class BingDictionaryWorkerService {
         throw new Error('No words in task payload');
       }
 
-      // Reuse the existing pool without stealing focus (surface=false).
-      const tabIds = await this.pool.ensure(this.config.tabCount, false);
+      // Reuse the existing pool without stealing focus (surface=false). Open no
+      // more tabs than there are words — a small task must not spin up the full
+      // pool (keeps Chrome light); the configured tabCount is only the ceiling.
+      const tabIds = await this.pool.ensure(Math.min(this.config.tabCount, words.length), false);
       this.stats.activeTabs = this.pool.size;
       // Seed per-tab activity (one slot per tab) so the popup can show which
       // word each parallel tab is translating right now.
@@ -666,8 +668,13 @@ class BingDictionaryWorkerService {
             );
 
             if (classification.kind === 'translated') {
-              translations.push(await this.buildEntry(w, data));
+              const entry = await this.buildEntry(w, data);
+              translations.push(entry);
               this.stats.translated++;
+              logger.info(
+                LOG,
+                `"${w.word}" VALID: images=${entry.image_urls?.length ?? 0} audio=${entry.audio_base64 ? 'yes' : 'no'} phonetic=${entry.phonetic ?? entry.us_phonetic ?? entry.uk_phonetic ?? '-'}`,
+              );
             } else if (classification.kind === 'invalid') {
               invalidWords.push(w);
               this.stats.invalid++;
@@ -825,7 +832,11 @@ class BingDictionaryWorkerService {
    */
   private isDeadTabError(error: unknown): boolean {
     const msg = error instanceof Error ? error.message : String(error);
-    return /No tab with id|Failed to inject content script|No frame with id|Frame with id/i.test(
+    // Also treat a lost content-script channel ("Could not establish connection /
+    // Receiving end does not exist" — the tab navigated/reloaded so the injected
+    // helper is gone) as recoverable: heal by replacing the tab + retrying the
+    // word, rather than counting it as a translation failure.
+    return /No tab with id|Failed to inject content script|No frame with id|Frame with id|Could not establish connection|Receiving end does not exist/i.test(
       msg,
     );
   }

@@ -16,8 +16,9 @@ import React, { useState } from 'react';
 import { Language } from '../../../types';
 import { api } from '../../../core/api';
 import type { AssistRequestCreateItem } from '../../../core/api/modules/ServerManagerAPI';
-import { XCircle, Loader2, HandHelping, Zap } from 'lucide-react';
+import { XCircle, HandHelping, Zap } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
+import { AlertBox, InlineSpinner } from '../../common';
 import Portal from '../../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
 
@@ -306,11 +307,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                 </div>
               </div>
 
-              {error && (
-                <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
-                  {error}
-                </div>
-              )}
+              {error && <AlertBox variant="error">{error}</AlertBox>}
 
               {/* Footer */}
               <div className="flex items-center justify-between gap-3 pt-2">
@@ -329,7 +326,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                     disabled={!canSubmit}
                     className={`${commonClasses.buttonPrimary} text-sm px-4 py-1.5 inline-flex items-center gap-1.5 disabled:opacity-50`}
                   >
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <HandHelping className="w-4 h-4" />}
+                    {submitting ? <InlineSpinner /> : <HandHelping className="w-4 h-4" />}
                     Submit
                   </button>
                 </div>

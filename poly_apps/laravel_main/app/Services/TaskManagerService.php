@@ -889,7 +889,8 @@ class TaskManagerService
                 // worker's completed status as-is. int => a processor ran; 0
                 // stored items on a non-demo task is an EMPTY success and is
                 // downgraded to failed below.
-                $storedCount = $this->processTaskResultInTransaction($task, $result ?? [], $isDemoMode);
+                $writebackBreakdown = null;
+                $storedCount = $this->processTaskResultInTransaction($task, $result ?? [], $isDemoMode, $writebackBreakdown);
 
                 if (!$isDemoMode && $storedCount !== null && $storedCount <= 0) {
                     // The write-back persisted nothing (e.g. all entries rejected,
@@ -909,6 +910,16 @@ class TaskManagerService
                 $outcome['status'] = $task->status;
                 $outcome['stored_count'] = $storedCount === null ? 0 : (int) $storedCount;
                 $outcome['failed_count'] = 0;
+
+                // Granular write-back reception summary (when the processor reports
+                // one) so the worker can log exactly what landed: translations
+                // saved, words invalidated, and audio/image binaries persisted.
+                if (is_array($writebackBreakdown)) {
+                    $outcome['saved'] = (int) ($writebackBreakdown['saved'] ?? 0);
+                    $outcome['invalid'] = (int) ($writebackBreakdown['invalid'] ?? 0);
+                    $outcome['audio_saved'] = (int) ($writebackBreakdown['audio_saved'] ?? 0);
+                    $outcome['images_saved'] = (int) ($writebackBreakdown['images_saved'] ?? 0);
+                }
 
                 $worker->incrementCompleted();
                 $worker->releaseTask();
@@ -1241,14 +1252,16 @@ class TaskManagerService
      * @param bool $isDemoMode Demo mode flag
      * @return int|null Stored item count, or null when no processor matched
      */
-    protected function processTaskResultInTransaction(GlobalTask $task, array $result, bool $isDemoMode): ?int
+    protected function processTaskResultInTransaction(GlobalTask $task, array $result, bool $isDemoMode, ?array &$breakdown = null): ?int
     {
         // Delegate to the registry, which already returns ?int (the matching
         // processor's stored count, or null when none claims this task type).
         // We do NOT short-circuit empty results here: a matching processor must
         // see the empty result and report 0 so the empty-store gate fires; only
         // a genuinely unowned type returns null and is trusted.
-        $storedCount = $this->getProcessorRegistry()->process($task, $result, $isDemoMode);
+        // $breakdown (by-ref) receives the matching processor's granular
+        // reception summary when it exposes one (word-translation write-back).
+        $storedCount = $this->getProcessorRegistry()->process($task, $result, $isDemoMode, $breakdown);
 
         if ($storedCount === null) {
             Log::debug('[TaskManager] No processor found for task — trusting worker status', [

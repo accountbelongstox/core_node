@@ -26,11 +26,11 @@ import {
   Server,
   RefreshCw,
   RotateCcw,
-  Loader2,
   AlertCircle,
   ChevronRight,
   ChevronDown,
 } from 'lucide-react';
+import { AlertBox, InlineSpinner, LoadingBlock } from '../../common';
 import { formatDateTime } from './shared';
 
 /** Cover-queue statuses rendered as count chips (order matters). */
@@ -157,11 +157,7 @@ const CoverStatusCard: React.FC<CoverStatusCardProps> = ({ lang }) => {
             disabled={loading}
             className={`${commonClasses.buttonSecondary} text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 disabled:opacity-50`}
           >
-            {loading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="w-3.5 h-3.5" />
-            )}
+            {loading ? <InlineSpinner size={14} /> : <RefreshCw className="w-3.5 h-3.5" />}
             {tc.refresh}
           </button>
         </div>
@@ -172,20 +168,18 @@ const CoverStatusCard: React.FC<CoverStatusCardProps> = ({ lang }) => {
 
         {/* Error banner */}
         {error && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span className="flex-1">{error}</span>
-            <button onClick={load} className="underline">
-              {tc.refresh}
-            </button>
-          </div>
+          <AlertBox variant="error" icon={false} className="px-3 py-2 text-xs">
+            <div className="flex items-center gap-2 w-full">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span className="flex-1">{error}</span>
+              <button onClick={load} className="underline">
+                {tc.refresh}
+              </button>
+            </div>
+          </AlertBox>
         )}
 
-        {!status && !error && (
-          <div className="flex items-center justify-center py-6 text-slate-500 dark:text-slate-400">
-            <Loader2 className="w-5 h-5 animate-spin" />
-          </div>
-        )}
+        {!status && !error && <LoadingBlock label="" size="sm" className="py-6" />}
 
         {status && (
           <>

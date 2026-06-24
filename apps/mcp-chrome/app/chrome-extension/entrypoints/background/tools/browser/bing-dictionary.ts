@@ -223,12 +223,37 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     // Give the freshly-injected content script a moment to register its listener.
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    const translationData: BingDictionaryResult = await this.sendMessageToTab(tabId, {
+    const msg = {
       action: TOOL_MESSAGE_TYPES.BING_DICTIONARY_FETCH_TRANSLATION,
       // Only the test/display path needs in-page base64 capture of images+audio;
       // bulk processing skips it to stay fast (audio is fetched separately).
       includeBinaries: includeMedia,
-    });
+    };
+
+    // IMPORTANT: use chrome.tabs.sendMessage DIRECTLY here, not the base
+    // sendMessageToTab — the base THROWS whenever the response carries an
+    // `error` field, but for the extract result `error` is a LEGITIMATE part of
+    // the structured payload (e.g. a confirmed "No results found" no-entry page
+    // also sets noEntry=true/success=true). Throwing it would mis-count an
+    // INVALID word as a FAILURE and bypass classify(). So we RETURN the resolved
+    // result as-is (classify() then maps noEntry -> invalid -> invalid_words[]).
+    // Only a genuine TRANSPORT rejection (content script not present:
+    // "Could not establish connection / Receiving end does not exist") is a real
+    // error — on that we re-inject once and retry; if it still fails we throw so
+    // the worker's tab-healing (isDeadTabError) can replace the tab.
+    let translationData: BingDictionaryResult;
+    try {
+      translationData = await chrome.tabs.sendMessage(tabId, msg);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      if (/Could not establish connection|Receiving end does not exist/i.test(m)) {
+        await this.injectContentScript(tabId, ['inject-scripts/bing-dictionary-helper.js']);
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        translationData = await chrome.tabs.sendMessage(tabId, msg);
+      } else {
+        throw err;
+      }
+    }
 
     if (translationData) {
       translationData.url = bingDictUrl;

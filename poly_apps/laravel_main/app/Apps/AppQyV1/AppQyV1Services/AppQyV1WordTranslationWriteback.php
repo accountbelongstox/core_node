@@ -94,6 +94,10 @@ class AppQyV1WordTranslationWriteback
         $processed = 0;
         $failed = 0;
         $invalidated = 0;
+        // Binaries actually written to disk after commit — reported back to the
+        // worker so it can log the backend's audio/image reception result.
+        $audioSaved = 0;
+        $imagesSaved = 0;
 
         // Audio writes do file I/O, so they are deferred to after the row-lock
         // transaction commits (collected as [md5 => raw mp3 bytes]).
@@ -327,7 +331,9 @@ class AppQyV1WordTranslationWriteback
             $coordinator = new AppQyV1DictionaryTTSCoordinator();
             foreach ($audioQueue as $md5 => $bytes) {
                 try {
-                    $coordinator->storeWordAudioBytes($langCode, $md5, $bytes, 'bing');
+                    if ($coordinator->storeWordAudioBytes($langCode, $md5, $bytes, 'bing')) {
+                        $audioSaved++;
+                    }
                 } catch (\Throwable $e) {
                     Log::warning('[AppQyV1WordTranslationWriteback] audio store failed', [
                         'task_id' => $taskId,
@@ -346,7 +352,7 @@ class AppQyV1WordTranslationWriteback
         // failure never fails translation.
         foreach ($imageQueue as $md5 => $payload) {
             try {
-                self::storeWordImages($langCode, (string) $md5, $payload['content'] ?? '', $payload['images'] ?? []);
+                $imagesSaved += self::storeWordImages($langCode, (string) $md5, $payload['content'] ?? '', $payload['images'] ?? []);
             } catch (\Throwable $e) {
                 Log::warning('[AppQyV1WordTranslationWriteback] image store failed', [
                     'task_id' => $taskId,
@@ -491,22 +497,23 @@ class AppQyV1WordTranslationWriteback
      * AppQyV1ImageUrl). No external image-URL fetch anywhere.
      *
      * @param array<int, string> $base64List
+     * @return int Number of image files actually written (0 when none/skipped).
      */
-    private static function storeWordImages(string $langCode, string $md5, string $content, array $base64List): void
+    private static function storeWordImages(string $langCode, string $md5, string $content, array $base64List): int
     {
         if ($md5 === '' || empty($base64List)) {
-            return;
+            return 0;
         }
 
         $entry = AppQyV1LangDictionaryModel::forLanguage($langCode)
             ->where('md5', $md5)
             ->first();
         if (!$entry) {
-            return;
+            return 0;
         }
         // Fill-missing: never clobber existing images.
         if (!empty($entry->image_files)) {
-            return;
+            return 0;
         }
 
         $baseDir = PathMapper::getAppQyV1WordImagesDir($langCode . '/word');

@@ -7,11 +7,12 @@ import { FileNode, Language, StaticFileContent } from '../../types';
 import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { smartSortFiles, processFileEntries } from '../../utils/mediaUtils';
+import { InlineSpinner, LoadingBlock, EmptyState, AlertBox } from '../common';
 import {
     Folder, FolderOpen, FileVideo, File, ChevronRight, ChevronDown,
     Play, SkipForward, SkipBack, Maximize2, RefreshCw, Film, UploadCloud,
-    FolderPlus, Music, Image as ImageIcon, Code2, AlertCircle, X,
-    FileText, Loader2, Settings, FastForward, Pencil, Trash2, Download,
+    FolderPlus, Music, Image as ImageIcon, Code2, X,
+    FileText, Settings, FastForward, Pencil, Trash2, Download,
     Save, RotateCcw, FileType
 } from "lucide-react";
 
@@ -361,7 +362,7 @@ const DeleteConfirmModal: React.FC<{
                 </p>
                 {loading ? (
                     <div className="flex items-center gap-2 text-xs text-slate-500 mt-3">
-                        <Loader2 size={14} className="animate-spin" /> Computing impact…
+                        <InlineSpinner size={14} /> Computing impact…
                     </div>
                 ) : preview ? (
                     <p className="text-xs text-slate-500 mt-3">
@@ -743,24 +744,17 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
   // Render the "Reading"/content body for a textual file (markdown / code / text).
   const renderTextualBody = () => {
     if (contentLoading) {
-      return (
-        <div className="h-full flex items-center justify-center text-slate-500">
-          <Loader2 size={28} className="animate-spin" />
-        </div>
-      );
+      return <LoadingBlock full label="" />;
     }
     if (contentError) {
       return (
-        <div className="h-full flex flex-col items-center justify-center text-red-400 gap-2 p-6 text-center">
-          <AlertCircle size={28} />
-          <p className="text-sm">{contentError}</p>
+        <div className="h-full flex items-center justify-center p-6">
+          <AlertBox variant="error">{contentError}</AlertBox>
         </div>
       );
     }
     if (!fileContent) {
-      return (
-        <div className="h-full flex items-center justify-center text-slate-600 text-sm">No content</div>
-      );
+      return <EmptyState message="No content" />;
     }
 
     if (isEditing) {
@@ -961,16 +955,13 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
           </div>
 
           {loading ? (
-            <div className="flex-1 flex items-center justify-center text-slate-500">
-              <Loader2 size={32} className="animate-spin" />
-            </div>
+            <LoadingBlock full label="" className="flex-1" />
           ) : error ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-red-400 gap-2">
-              <AlertCircle size={32} />
-              <p className="text-sm">{error}</p>
+            <div className="flex-1 flex flex-col items-center justify-center gap-3">
+              <AlertBox variant="error">{error}</AlertBox>
               <button
                 onClick={() => loadFileTree()}
-                className="mt-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-sm rounded-lg transition-colors"
+                className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-sm rounded-lg transition-colors"
               >
                 Retry
               </button>
@@ -987,10 +978,7 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
               }}
             >
               {fileTree.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-slate-500">
-                  <Folder size={48} className="mb-4 opacity-50" />
-                  <p>No files found</p>
-                </div>
+                <EmptyState icon={Folder} message="No files found" className="h-full" />
               ) : (
                 fileTree.map(node => (
                   <FileTreeItem
@@ -1031,7 +1019,7 @@ const MediaBrowser: React.FC<MediaBrowserProps> = ({ lang = 'en' }) => {
                         className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
                         title="Save"
                       >
-                        {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                        {isSaving ? <InlineSpinner size={13} /> : <Save size={13} />}
                         Save
                       </button>
                       <button

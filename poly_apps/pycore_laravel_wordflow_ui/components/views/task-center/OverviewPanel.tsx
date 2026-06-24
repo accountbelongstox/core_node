@@ -25,12 +25,12 @@ import {
   RotateCcw,
   CheckCircle,
   XCircle,
-  Loader2,
   Languages,
   Chrome,
   Bot,
   Info,
 } from 'lucide-react';
+import { InlineSpinner } from '../../common';
 import { RoleBadge, StatusBadge, formatUptime, formatLastRunAgo } from './shared';
 import CoverStatusCard from './CoverStatusCard';
 
@@ -68,7 +68,7 @@ const OverviewPanel: React.FC<OverviewPanelProps> = ({ lang, overview, loading, 
   if (!overview) {
     return (
       <div className="flex items-center justify-center py-16 text-slate-500 dark:text-slate-400">
-        {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>{t.load_failed}</span>}
+        {loading ? <InlineSpinner size={24} /> : <span>{t.load_failed}</span>}
       </div>
     );
   }

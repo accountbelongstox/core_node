@@ -37,16 +37,24 @@ class TaskProcessorRegistry
      * @param GlobalTask $task
      * @param array $result
      * @param bool $isDemoMode
+     * @param array|null $breakdown By-ref: receives the matching processor's
+     *                  granular reception summary when it exposes one via
+     *                  lastWritebackOutcome() (kept off TaskProcessorInterface so
+     *                  processors that don't report a breakdown stay unchanged).
      * @return int|null Number of items the matching processor stored, or null
      *                  when NO processor handled the task (so the caller can tell
      *                  "nobody owns this task type" apart from "owned but stored
      *                  0 items" — only the latter is a result-trust failure).
      */
-    public function process(GlobalTask $task, array $result, bool $isDemoMode): ?int
+    public function process(GlobalTask $task, array $result, bool $isDemoMode, ?array &$breakdown = null): ?int
     {
         foreach ($this->processors as $processor) {
             if ($processor->canProcess($task)) {
-                return $processor->processResult($task, $result, $isDemoMode);
+                $storedCount = $processor->processResult($task, $result, $isDemoMode);
+                if (method_exists($processor, 'lastWritebackOutcome')) {
+                    $breakdown = $processor->lastWritebackOutcome();
+                }
+                return $storedCount;
             }
         }
 

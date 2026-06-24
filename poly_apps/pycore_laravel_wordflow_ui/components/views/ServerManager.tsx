@@ -69,6 +69,7 @@ import {
   ListChecks
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
+import { LoadingBlock, AlertBox } from '../common';
 import NginxSiteModal from '../server-manager/NginxSiteModal';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
@@ -1276,15 +1277,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
               </div>
 
               {nginxStatus.loading && !nginxStatus.data && (
-                <div className="flex items-center justify-center py-6">
-                  <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-                </div>
+                <LoadingBlock size="sm" />
               )}
 
               {nginxStatus.error && (
-                <div className="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                  <p className="text-sm text-red-600 dark:text-red-400">{nginxStatus.error}</p>
-                </div>
+                <AlertBox variant="error">{nginxStatus.error}</AlertBox>
               )}
 
               {nginxStatus.data && (
@@ -1471,14 +1468,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             ) : (
               <>
                 {nginxSites.loading && (
-                  <div className="flex items-center justify-center py-12">
-                    <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-                  </div>
+                  <LoadingBlock />
                 )}
                 {nginxSites.error && (
-                  <div className={`${commonClasses.card} p-4 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800`}>
-                    <p className="text-red-600 dark:text-red-400">{nginxSites.error}</p>
-                  </div>
+                  <AlertBox variant="error">{nginxSites.error}</AlertBox>
                 )}
                 {nginxSites.data && nginxSites.data.length > 0 && (
                   <>
@@ -1803,15 +1796,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                   </div>
 
                   {nginxLogs.loading && !nginxLogs.data && (
-                    <div className="flex items-center justify-center py-6">
-                      <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-                    </div>
+                    <LoadingBlock size="sm" />
                   )}
 
                   {nginxLogs.error && (
-                    <div className="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                      <p className="text-sm text-red-600 dark:text-red-400">{nginxLogs.error}</p>
-                    </div>
+                    <AlertBox variant="error">{nginxLogs.error}</AlertBox>
                   )}
 
                   {nginxLogs.data && !nginxLogs.data.exists && (
@@ -1882,15 +1871,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                     </div>
 
                     {nginxBackups.loading && (!nginxBackups.data || nginxBackups.data.length === 0) && (
-                      <div className="flex items-center justify-center py-6">
-                        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-                      </div>
+                      <LoadingBlock size="sm" />
                     )}
 
                     {nginxBackups.error && (
-                      <div className="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                        <p className="text-sm text-red-600 dark:text-red-400">{nginxBackups.error}</p>
-                      </div>
+                      <AlertBox variant="error">{nginxBackups.error}</AlertBox>
                     )}
 
                     {!nginxBackups.loading && !nginxBackups.error && nginxBackups.data && nginxBackups.data.length === 0 && (
@@ -1978,14 +1963,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             )}
 
             {sslCertificates.loading && (
-              <div className="flex items-center justify-center py-12">
-                <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-              </div>
+              <LoadingBlock />
             )}
             {sslCertificates.error && (
-              <div className={`${commonClasses.card} p-4 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800`}>
-                <p className="text-red-600 dark:text-red-400">{sslCertificates.error}</p>
-              </div>
+              <AlertBox variant="error">{sslCertificates.error}</AlertBox>
             )}
             {sslCertificates.data && sslCertificates.data.length > 0 && (
               <div className="grid grid-cols-1 gap-4">
@@ -2042,14 +2023,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         {activeTab === 'system' && (
           <div className="space-y-4">
             {systemInfo.loading && (
-              <div className="flex items-center justify-center py-12">
-                <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-              </div>
+              <LoadingBlock />
             )}
             {systemInfo.error && (
-              <div className={`${commonClasses.card} p-4 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800`}>
-                <p className="text-red-600 dark:text-red-400">{systemInfo.error}</p>
-              </div>
+              <AlertBox variant="error">{systemInfo.error}</AlertBox>
             )}
             {systemInfo.data && systemInfo.data.cpu && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2372,16 +2349,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             </div>
             <div className="p-4 overflow-y-auto flex-1">
               {siteConfig.loading && (
-                <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-                </div>
+                <LoadingBlock />
               )}
               {siteConfig.error && (
-                <div className="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                  <p className="text-sm text-red-600 dark:text-red-400">
-                    {t.nginx.config_load_failed} — {siteConfig.error}
-                  </p>
-                </div>
+                <AlertBox variant="error">
+                  {t.nginx.config_load_failed} — {siteConfig.error}
+                </AlertBox>
               )}
               {siteConfig.data && (
                 <textarea
@@ -2424,14 +2397,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         size="xl"
       >
         {mainConfig.loading && (
-          <div className="flex items-center justify-center py-12">
-            <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-          </div>
+          <LoadingBlock />
         )}
         {mainConfig.error && (
-          <div className="p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <p className="text-sm text-red-600 dark:text-red-400">{mainConfig.error}</p>
-          </div>
+          <AlertBox variant="error">{mainConfig.error}</AlertBox>
         )}
         {mainConfig.data && !mainConfig.data.exists && (
           <div className="p-6 text-center bg-slate-50 dark:bg-slate-800 rounded">
@@ -2622,18 +2591,11 @@ const FileManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
       </div>
 
       {files.loading && (
-        <div className="flex items-center justify-center py-12">
-          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
+        <LoadingBlock />
       )}
 
       {files.error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-            <span className="text-red-900 dark:text-red-100">{files.error}</span>
-          </div>
-        </div>
+        <AlertBox variant="error">{files.error}</AlertBox>
       )}
 
       {files.data && (
@@ -2736,9 +2698,7 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
   return (
     <div className="space-y-4">
       {scripts.loading && (
-        <div className="flex items-center justify-center py-12">
-          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
+        <LoadingBlock />
       )}
 
       {scripts.data && (
@@ -2870,9 +2830,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
   return (
     <div className="space-y-4">
       {apps.loading && (
-        <div className="flex items-center justify-center py-12">
-          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
+        <LoadingBlock />
       )}
 
       {apps.data && (

@@ -36,9 +36,9 @@ import {
   Search,
   ShieldCheck,
   Info,
-  Loader2,
 } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
+import { AlertBox, EmptyState, InlineSpinner, LoadingBlock } from '../../common';
 import Portal from '../../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
 import {
@@ -348,23 +348,12 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
   return (
     <div className="flex flex-col gap-4">
       {/* Transient error banner (keep last snapshot visible) */}
-      {error && octaneStatus && (
-        <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
-        </div>
-      )}
+      {error && octaneStatus && <AlertBox variant="error">{error}</AlertBox>}
 
       {/* Verification Banner */}
       {verifyResult && (
-        <div
-          className={`rounded-lg border p-4 ${
-            verifyResult.success
-              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-              : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-          }`}
-        >
-          <div className="flex items-start justify-between gap-4">
+        <AlertBox variant={verifyResult.success ? 'success' : 'error'} icon={false} className="p-4">
+          <div className="flex items-start justify-between gap-4 w-full">
             <div className="flex items-start gap-3">
               {verifyResult.success ? (
                 <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
@@ -403,13 +392,11 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
               <XCircle className="w-4 h-4 text-slate-500" />
             </button>
           </div>
-        </div>
+        </AlertBox>
       )}
 
       {loading && !octaneStatus ? (
-        <div className="flex items-center justify-center py-16">
-          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
+        <LoadingBlock label="" className="py-16" />
       ) : octaneStatus ? (
         <>
           {/* Summary Cards */}
@@ -504,11 +491,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
               className={`${commonClasses.button} ${commonClasses.buttonSecondary} !px-3 !py-1.5 text-sm flex items-center gap-2`}
               title="Run backend initialization verification (/octane-tasks/verify)"
             >
-              {verifying ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <ShieldCheck className="w-4 h-4" />
-              )}
+              {verifying ? <InlineSpinner /> : <ShieldCheck className="w-4 h-4" />}
               Verify
             </button>
             <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
@@ -603,10 +586,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
             </div>
 
             {getFilteredTasks().length === 0 && (
-              <div className="py-12 text-center text-slate-400">
-                <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">No tasks found with current filter</p>
-              </div>
+              <EmptyState icon={Activity} message="No tasks found with current filter" className="py-12" />
             )}
           </div>
 
@@ -625,7 +605,7 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
               >
                 {detailLoading && (
                   <div className="flex items-center gap-2 px-6 py-2 text-xs text-indigo-600 dark:text-indigo-400 border-b border-slate-200 dark:border-slate-700">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <InlineSpinner size={14} />
                     Loading live task detail…
                   </div>
                 )}

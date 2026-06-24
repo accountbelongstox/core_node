@@ -15,6 +15,7 @@ import {
 import { commonClasses } from '../../styles/theme';
 import { Modal } from '../admin/Modal';
 import { useToast } from '../admin';
+import { LoadingBlock, InlineSpinner, AlertBox, EmptyState } from '../common';
 import {
   DatabaseZap,
   RefreshCw,
@@ -32,7 +33,6 @@ import {
   Copy,
   Check,
   ShieldAlert,
-  AlertTriangle,
   Search,
   ArrowUp,
   ArrowDown,
@@ -294,7 +294,7 @@ const StatusStrip: React.FC<{ connection: DbConnectionInfo }> = ({ connection })
       </div>
       {loading ? (
         <span className="flex items-center gap-2 text-slate-400 text-sm">
-          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          <InlineSpinner size={14} />
           Loading status…
         </span>
       ) : !status ? (
@@ -501,12 +501,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-slate-500 text-sm py-4">
-        <RefreshCw className="w-4 h-4 animate-spin" />
-        Loading tables…
-      </div>
-    );
+    return <LoadingBlock label="Loading tables…" />;
   }
 
   if (error) {
@@ -672,7 +667,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
               <div className="flex-1 min-h-0 p-4">
                 {structureLoading ? (
                   <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
-                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <InlineSpinner />
                     Loading…
                   </div>
                 ) : (
@@ -712,7 +707,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                 <div className="flex-1 min-h-0">
                   {dataLoading ? (
                     <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <InlineSpinner />
                       Loading…
                     </div>
                   ) : data ? (
@@ -825,12 +820,7 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-slate-500 text-sm py-4">
-        <RefreshCw className="w-4 h-4 animate-spin" />
-        Loading tables…
-      </div>
-    );
+    return <LoadingBlock label="Loading tables…" />;
   }
 
   return (
@@ -1114,13 +1104,10 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-slate-500 text-sm py-4">
-          <RefreshCw className="w-4 h-4 animate-spin" />
-          Loading backups…
-        </div>
+        <LoadingBlock label="Loading backups…" />
       ) : backups.length === 0 ? (
-        <div className={`${commonClasses.card} p-6 text-center text-slate-500 dark:text-slate-400`}>
-          No backups yet
+        <div className={commonClasses.card}>
+          <EmptyState icon={Save} message="No backups yet" />
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
@@ -1453,12 +1440,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center gap-2 text-slate-500 text-sm py-4">
-        <RefreshCw className="w-4 h-4 animate-spin" />
-        Loading credentials…
-      </div>
-    );
+    return <LoadingBlock label="Loading credentials…" />;
   }
 
   if (!info) {
@@ -1529,19 +1511,20 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
 
       {/* Re-sync explainer (pgsql/mysql) */}
       {supported ? (
-        <div className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-3 text-sm text-indigo-800 dark:text-indigo-200 flex gap-2">
-          <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <span>
-            Changing or resetting the password also re-syncs Laravel&apos;s own config (its
-            credential store) so this connection keeps working afterward. Password auth applies to{' '}
-            <strong>pgsql / mysql</strong> only.
+        <AlertBox variant="info" icon={false}>
+          <span className="flex gap-2">
+            <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>
+              Changing or resetting the password also re-syncs Laravel&apos;s own config (its
+              credential store) so this connection keeps working afterward. Password auth applies to{' '}
+              <strong>pgsql / mysql</strong> only.
+            </span>
           </span>
-        </div>
+        </AlertBox>
       ) : (
-        <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-200 flex gap-2">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <span>{info.note || 'This file-based database has no password; credential controls are disabled.'}</span>
-        </div>
+        <AlertBox variant="warning">
+          {info.note || 'This file-based database has no password; credential controls are disabled.'}
+        </AlertBox>
       )}
 
       {/* Actions */}
@@ -1821,12 +1804,11 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
         }
       >
         <div className="space-y-3">
-          <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300 flex gap-2">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <AlertBox variant="error">
             <span>
               Store this password now — it will <strong>not be shown again</strong>.
             </span>
-          </div>
+          </AlertBox>
           <div className="flex items-center gap-2">
             <code className="flex-1 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-sm break-all select-all">
               {generated}
@@ -2012,14 +1994,7 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
   );
 
   if (loading) {
-    return (
-      <div className="w-full h-full flex items-center justify-center p-6">
-        <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-          <RefreshCw className="w-5 h-5 animate-spin" />
-          <span>Loading connections…</span>
-        </div>
-      </div>
-    );
+    return <LoadingBlock full size="lg" label="Loading connections…" />;
   }
 
   if (error) {

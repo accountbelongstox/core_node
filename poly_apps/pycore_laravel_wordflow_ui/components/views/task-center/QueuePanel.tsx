@@ -27,8 +27,6 @@ import {
   RefreshCw,
   CheckCircle,
   XCircle,
-  AlertCircle,
-  Loader2,
   Search,
   Info,
   Layers,
@@ -42,6 +40,7 @@ import {
   Radio,
 } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
+import { AlertBox, EmptyState, InlineSpinner, LoadingBlock } from '../../common';
 import Portal from '../../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
 import {
@@ -441,32 +440,27 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
   return (
     <div className="flex flex-col gap-4">
       {/* Transient error / action notice banners */}
-      {error && snapshot && (
-        <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
-        </div>
-      )}
+      {error && snapshot && <AlertBox variant="error">{error}</AlertBox>}
       {notice && (
-        <div className="rounded-lg border p-3 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800 flex items-center justify-between gap-2 text-sm text-indigo-700 dark:text-indigo-300">
-          <span className="flex items-center gap-2">
-            <Info className="w-4 h-4 shrink-0" />
-            {notice}
-          </span>
-          <button
-            onClick={() => setNotice(null)}
-            className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors shrink-0"
-            aria-label="Dismiss notice"
-          >
-            <XCircle className="w-4 h-4" />
-          </button>
-        </div>
+        <AlertBox variant="info" icon={false}>
+          <div className="flex items-center justify-between gap-2 w-full">
+            <span className="flex items-center gap-2">
+              <Info className="w-4 h-4 shrink-0" />
+              {notice}
+            </span>
+            <button
+              onClick={() => setNotice(null)}
+              className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors shrink-0"
+              aria-label="Dismiss notice"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        </AlertBox>
       )}
 
       {loading && !snapshot ? (
-        <div className="flex items-center justify-center py-16">
-          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
+        <LoadingBlock label="" className="py-16" />
       ) : snapshot ? (
         <>
           {/* Summary Cards — full 8-status vocabulary of global_tasks */}
@@ -691,7 +685,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
                             title={t.cancel}
                           >
                             {cancellingId === row.task_id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <InlineSpinner size={12} />
                             ) : (
                               <Ban className="w-3 h-3" />
                             )}
@@ -706,10 +700,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
             </div>
 
             {getFilteredTasks().length === 0 && (
-              <div className="py-12 text-center text-slate-400">
-                <ListChecks className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">{t.no_tasks}</p>
-              </div>
+              <EmptyState icon={ListChecks} message={t.no_tasks} className="py-12" />
             )}
           </div>
 
@@ -742,7 +733,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
               >
                 {detailLoading && !detailBundle && (
                   <div className="flex items-center gap-2 px-6 py-2 text-xs text-indigo-600 dark:text-indigo-400 border-b border-slate-200 dark:border-slate-700">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <InlineSpinner size={14} />
                     {t.detail.loading}
                   </div>
                 )}
@@ -781,7 +772,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
                           title={t.detail.bump}
                         >
                           {bumpingId === selectedTask.task_id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <InlineSpinner size={14} />
                           ) : (
                             <ArrowUpToLine className="w-3.5 h-3.5" />
                           )}

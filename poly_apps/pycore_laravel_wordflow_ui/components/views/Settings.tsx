@@ -5,6 +5,7 @@ import { Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
 import { Settings as SettingsIcon, Save, RotateCcw, CheckCircle, AlertCircle, Globe, Key, Shield, User, Server, Database, Code, Info, Mail, HardDrive, Clock, Lock, Bell, Palette, Languages, Upload, Eye, EyeOff, Trash2, Download, Plus, RefreshCw, Moon, Sun } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
+import { InlineSpinner, LoadingBlock, AlertBox } from '../common';
 import { useUser } from '../../hooks/useUser';
 import { useUserRole } from '../../hooks/useUserRole';
 import { api } from '../../core/api';
@@ -665,7 +666,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                   >
                     {testStatus === 'testing' ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <InlineSpinner size={16} />
                         Testing...
                       </>
                     ) : (
@@ -766,16 +767,12 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 </p>
               </div>
             ) : serverConfigLoading ? (
-              <div className={`${commonClasses.card} p-6 text-center`}>
-                <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-slate-600 dark:text-slate-400 mt-4">Loading server configuration...</p>
+              <div className={`${commonClasses.card} p-6`}>
+                <LoadingBlock label="Loading server configuration..." />
               </div>
             ) : serverConfigError ? (
               <div className={`${commonClasses.card} p-6`}>
-                <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-                  <AlertCircle className="w-5 h-5" />
-                  <p>{serverConfigError}</p>
-                </div>
+                <AlertBox variant="error">{serverConfigError}</AlertBox>
                 <button
                   onClick={loadServerConfig}
                   className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
@@ -800,7 +797,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       >
                         {serverSaveStatus === 'saving' ? (
                           <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <InlineSpinner size={16} />
                             Saving...
                           </>
                         ) : (
@@ -1144,9 +1141,8 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 </p>
               </div>
             ) : userProfileLoading ? (
-              <div className={`${commonClasses.card} p-6 text-center`}>
-                <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-slate-600 dark:text-slate-400 mt-4">Loading user profile...</p>
+              <div className={`${commonClasses.card} p-6`}>
+                <LoadingBlock label="Loading user profile..." />
               </div>
             ) : userProfile ? (
               <>
@@ -1164,7 +1160,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     >
                       {userSaveStatus === 'saving' ? (
                         <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <InlineSpinner size={16} />
                           Saving...
                         </>
                       ) : (

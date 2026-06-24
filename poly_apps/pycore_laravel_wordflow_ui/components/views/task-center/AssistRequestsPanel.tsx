@@ -18,7 +18,6 @@ import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
 import {
   RefreshCw,
   XCircle,
-  AlertCircle,
   Info,
   Layers,
   Clock,
@@ -29,6 +28,7 @@ import {
   HandHelping,
 } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
+import { AlertBox, EmptyState, InlineSpinner, LoadingBlock } from '../../common';
 import { StatCard, StatusBadge } from './shared';
 import AssistRequestModal from './AssistRequestModal';
 
@@ -202,32 +202,27 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
   return (
     <div className="flex flex-col gap-4">
       {/* Transient error / action notice banners */}
-      {error && snapshot && (
-        <div className="rounded-lg border p-3 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 flex items-center gap-2 text-sm text-red-700 dark:text-red-300">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
-        </div>
-      )}
+      {error && snapshot && <AlertBox variant="error">{error}</AlertBox>}
       {notice && (
-        <div className="rounded-lg border p-3 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800 flex items-center justify-between gap-2 text-sm text-indigo-700 dark:text-indigo-300">
-          <span className="flex items-center gap-2">
-            <Info className="w-4 h-4 shrink-0" />
-            {notice}
-          </span>
-          <button
-            onClick={() => setNotice(null)}
-            className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors shrink-0"
-            aria-label="Dismiss notice"
-          >
-            <XCircle className="w-4 h-4" />
-          </button>
-        </div>
+        <AlertBox variant="info" icon={false}>
+          <div className="flex items-center justify-between gap-2 w-full">
+            <span className="flex items-center gap-2">
+              <Info className="w-4 h-4 shrink-0" />
+              {notice}
+            </span>
+            <button
+              onClick={() => setNotice(null)}
+              className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors shrink-0"
+              aria-label="Dismiss notice"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        </AlertBox>
       )}
 
       {loading && !snapshot ? (
-        <div className="flex items-center justify-center py-16">
-          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
+        <LoadingBlock label="" className="py-16" />
       ) : (
         <>
           {/* Summary cards */}
@@ -363,7 +358,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
                           title="Delete request"
                         >
                           {deletingId === row.id ? (
-                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            <InlineSpinner size={12} />
                           ) : (
                             <Trash2 className="w-3 h-3" />
                           )}
@@ -376,10 +371,7 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
             </div>
 
             {items.length === 0 && (
-              <div className="py-12 text-center text-slate-400">
-                <HandHelping className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="text-sm">No assist requests</p>
-              </div>
+              <EmptyState icon={HandHelping} message="No assist requests" className="py-12" />
             )}
           </div>
 

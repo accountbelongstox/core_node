@@ -1081,9 +1081,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
       )}
 
       {screenshots.error && (
-        <div className={`${commonClasses.card} p-6 text-center`}>
-          <p className="text-red-600 dark:text-red-400">{screenshots.error}</p>
-        </div>
+        <AlertBox variant="error">{screenshots.error}</AlertBox>
       )}
 
       {screenshots.data && screenshots.data.length > 0 && (
@@ -1223,18 +1221,21 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
       )}
 
       {screenshots.data && screenshots.data.length === 0 && (
-        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-          <Upload className="w-16 h-16 mb-4 opacity-50" />
-          <p className="text-lg font-medium mb-2">{t.screenshots.no_screenshots}</p>
-          <p className="text-sm mb-2">{t.screenshots.upload_hint}</p>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
-            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">{t.screenshots.drop_here}</span>
-            <span>•</span>
-            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">Ctrl + V</span>
-            <span>•</span>
-            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">{t.screenshots.upload}</span>
-          </div>
-        </div>
+        <EmptyState
+          icon={Upload}
+          className="h-64"
+          title={t.screenshots.no_screenshots}
+          message={t.screenshots.upload_hint}
+          action={
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">{t.screenshots.drop_here}</span>
+              <span>•</span>
+              <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">Ctrl + V</span>
+              <span>•</span>
+              <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded">{t.screenshots.upload}</span>
+            </div>
+          }
+        />
       )}
 
       {/* Upload Mode Selection Dialog */}
@@ -1334,51 +1335,35 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
             </div>
 
             {/* Drag & Drop Area */}
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const files = e.dataTransfer.files;
-                if (files && files.length > 0) {
-                  const imageFiles = (Array.from(files) as File[]).filter(file => file.type.startsWith('image/'));
-                  if (imageFiles.length > 0) {
-                    const dataTransfer = new DataTransfer();
-                    imageFiles.forEach(file => dataTransfer.items.add(file));
-                    handleScreenshotUpload(dataTransfer.files);
-                    setShowMultiFileUploadPanel(false);
-                  }
+            <FileDropzone
+              accept="image/*"
+              multiple
+              className="p-12"
+              onFiles={(files) => {
+                const imageFiles = files.filter(file => file.type.startsWith('image/'));
+                if (imageFiles.length > 0) {
+                  const dataTransfer = new DataTransfer();
+                  imageFiles.forEach(file => dataTransfer.items.add(file));
+                  handleScreenshotUpload(dataTransfer.files);
+                  setShowMultiFileUploadPanel(false);
                 }
               }}
-              className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-12 text-center hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all cursor-pointer"
-              onClick={() => document.getElementById('screenshot-upload-multi')?.click()}
             >
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => {
-                  handleScreenshotUpload(e.target.files);
-                  setShowMultiFileUploadPanel(false);
-                  e.target.value = '';
-                }}
-                className="hidden"
-                id="screenshot-upload-multi"
-              />
-              <Upload className="w-16 h-16 mx-auto mb-4 text-indigo-500" />
-              <p className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                {t.screenshots.drop_or_click}
-              </p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                {t.screenshots.supported_formats}
-              </p>
-              <div className="inline-block px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-sm font-medium">
-                {uploadMode === 'batch' ? t.screenshots.batch_mode : t.screenshots.merge_mode}
-              </div>
-            </div>
+              {() => (
+                <>
+                  <Upload className="w-16 h-16 mx-auto mb-4 text-indigo-500" />
+                  <p className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                    {t.screenshots.drop_or_click}
+                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                    {t.screenshots.supported_formats}
+                  </p>
+                  <div className="inline-block px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-sm font-medium">
+                    {uploadMode === 'batch' ? t.screenshots.batch_mode : t.screenshots.merge_mode}
+                  </div>
+                </>
+              )}
+            </FileDropzone>
           </div>
         </div>
         </Portal>
@@ -1498,9 +1483,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
           </div>
         )}
         {categories.data && categories.data.length === 0 && !categories.loading && !categories.error && (
-          <div className="text-center text-slate-400 py-8">
-            <p className="text-sm">{t.tasks.no_categories}</p>
-          </div>
+          <EmptyState message={t.tasks.no_categories} />
         )}
       </div>
 
@@ -1772,9 +1755,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
           </>
         )}
         {!selectedCategory && (
-          <div className="flex items-center justify-center h-full text-slate-400">
-            <p>{t.tasks.select_category_hint}</p>
-          </div>
+          <EmptyState className="h-full" message={t.tasks.select_category_hint} />
         )}
       </div>
 
@@ -1824,14 +1805,10 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
                 </div>
               )}
               {categoryFiles.data && categoryFiles.data.files && categoryFiles.data.files.length === 0 && (
-                <div className="text-center text-slate-400 py-8">
-                  <p>{t.tasks.no_files}</p>
-                </div>
+                <EmptyState message={t.tasks.no_files} />
               )}
               {categoryFiles.error && (
-                <div className="text-center text-red-500 py-8">
-                  <p>{t.common.error_label} {categoryFiles.error}</p>
-                </div>
+                <AlertBox variant="error">{t.common.error_label} {categoryFiles.error}</AlertBox>
               )}
             </div>
           </div>
@@ -2816,7 +2793,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
             ))}
           </div>
         ) : (
-          <p className="text-sm text-slate-400 text-center py-4">{t.placeholder.no_history}</p>
+          <EmptyState message={t.placeholder.no_history} />
         )}
       </div>
       </div>
@@ -3273,12 +3250,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
             ))}
           </div>
         ) : (
-          <div className="flex items-center justify-center py-12 text-slate-400">
-            <div className="text-center">
-              <Volume2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>{t.voice.queue_empty}</p>
-            </div>
-          </div>
+          <EmptyState icon={Volume2} message={t.voice.queue_empty} />
         )}
       </div>
 
@@ -3356,9 +3328,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
             ))}
           </div>
         ) : voiceBackgroundTasks.data && voiceBackgroundTasks.data.length === 0 ? (
-          <div className="text-center py-8 text-slate-400">
-            <p className="text-sm">{t.voice.no_background_tasks}</p>
-          </div>
+          <EmptyState message={t.voice.no_background_tasks} />
         ) : null}
       </div>
     </div>
@@ -3621,20 +3591,12 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
 
         {/* Empty State */}
         {!ocrResult.data && (!ocrBatchResults.data || ocrBatchResults.data.length === 0) && (
-          <div className="flex-1 flex items-center justify-center text-slate-400">
-            <div className="text-center">
-              <Eye className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p>{t.ocr.no_result}</p>
-              <p className="text-sm mt-1">{t.ocr.no_result_hint}</p>
-            </div>
-          </div>
+          <EmptyState icon={Eye} className="flex-1" title={t.ocr.no_result} message={t.ocr.no_result_hint} />
         )}
 
         {/* Error State */}
         {(ocrResult.error || ocrBatchResults.error) && (
-          <div className={`${commonClasses.card} p-6 text-center`}>
-            <p className="text-red-600 dark:text-red-400">{ocrResult.error || ocrBatchResults.error}</p>
-          </div>
+          <AlertBox variant="error">{ocrResult.error || ocrBatchResults.error}</AlertBox>
         )}
       </div>
     </div>
