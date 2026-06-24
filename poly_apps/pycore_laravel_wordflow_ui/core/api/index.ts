@@ -9,6 +9,7 @@ import { AuthAPI } from './modules/AuthAPI';
 import { DatabaseManagerAPI, AuthDebugAPI } from './modules/DatabaseManagerAPI';
 import { MediaQueryAPI } from './modules/MediaQueryAPI';
 import { BooksAPI } from './modules/BooksAPI';
+import { CodeBrowserAPI } from './modules/CodeBrowserAPI';
 import { AiStatusAPI } from './modules/AiStatusAPI';
 import { AiManagementAPI } from './modules/AiManagementAPI';
 import { DevHistoryAPI } from './modules/DevHistoryAPI';
@@ -43,6 +44,7 @@ class APIService {
   public authDebug: AuthDebugAPI;
   public mediaQuery: MediaQueryAPI;
   public books: BooksAPI;
+  public codeBrowser: CodeBrowserAPI;
   public aiStatus: AiStatusAPI;
   public aiManagement: AiManagementAPI;
   public devHistory: DevHistoryAPI;
@@ -128,6 +130,15 @@ class APIService {
       timeout: API_CONFIG.timeout
     });
 
+    // Code browser (/code-browser/* web routes, host-root). All routes are
+    // dashboard.auth-gated, so it joins the Authorization-header propagation
+    // below (loopback dev needs no token; remote needs a Sanctum bearer).
+    this.codeBrowser = new CodeBrowserAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/code-browser',
+      timeout: API_CONFIG.timeout
+    });
+
     this.aiStatus = new AiStatusAPI({
       baseURL: API_CONFIG.baseURL,
       prefix: '/api/app_qy_v1/ai_tools/ai',
@@ -180,6 +191,7 @@ class APIService {
     this.databaseManager.setHeader('Authorization', bearerToken);
     this.mediaQuery.setHeader('Authorization', bearerToken);
     this.books.setHeader('Authorization', bearerToken);
+    this.codeBrowser.setHeader('Authorization', bearerToken);
     this.aiStatus.setHeader('Authorization', bearerToken);
     this.aiManagement.setHeader('Authorization', bearerToken);
     this.pddAdmin.setHeader('Authorization', bearerToken);
@@ -199,6 +211,7 @@ class APIService {
     this.databaseManager.removeHeader('Authorization');
     this.mediaQuery.removeHeader('Authorization');
     this.books.removeHeader('Authorization');
+    this.codeBrowser.removeHeader('Authorization');
     this.aiStatus.removeHeader('Authorization');
     this.aiManagement.removeHeader('Authorization');
     this.pddAdmin.removeHeader('Authorization');
@@ -218,6 +231,7 @@ class APIService {
     this.databaseManager.setHeader(key, value);
     this.mediaQuery.setHeader(key, value);
     this.books.setHeader(key, value);
+    this.codeBrowser.setHeader(key, value);
     this.aiStatus.setHeader(key, value);
     this.aiManagement.setHeader(key, value);
     this.pddAdmin.setHeader(key, value);

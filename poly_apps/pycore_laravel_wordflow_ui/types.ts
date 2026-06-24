@@ -42,9 +42,14 @@ export interface NavItem {
   labelKey: string;
 }
 
+/** Which backend a file tree node belongs to (drives the FileViewer adapter). */
+export type ResourceSourceId = 'files' | 'code';
+
 export interface FileNode {
   id: string;
   name: string;
+  /** Backend the node came from; FileViewer resolves its read/save adapter from this. */
+  sourceId?: ResourceSourceId;
   // 'directory' is the live shape returned by server-manager /files/browse
   // (normalized in ServerManagerV1API.browseFiles); 'folder' is the legacy
   // static-resources tree literal.

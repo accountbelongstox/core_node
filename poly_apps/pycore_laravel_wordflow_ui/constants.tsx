@@ -2103,7 +2103,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       { id: 'cry_rsa', name: 'RSA Key Generator', status: 'available' },
       { id: 'cry_otp_gen', name: 'OTP Generator', status: 'available' },
       { id: 'cry_otp_ver', name: 'OTP Verify', status: 'available' },
-      { id: 'cry_bip39', name: 'BIP39 Passphrase', status: 'todo' },
+      { id: 'cry_bip39', name: 'BIP39 Passphrase', status: 'available' },
       { id: 'cry_basic_auth', name: 'Basic Auth Header', status: 'available' },
     ]
   },

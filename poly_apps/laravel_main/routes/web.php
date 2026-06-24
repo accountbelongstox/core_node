@@ -141,7 +141,12 @@ Route::get('/csrf-token', function () {
     return response()->json(['csrf_token' => csrf_token()]);
 });
 
-Route::prefix('code-browser')->group(function () {
+// ALL code access (browse + read + edit + file ops + prompts) requires login.
+// dashboard.auth = loopback debug bypass OR Sanctum bearer, so same-machine dev
+// stays frictionless while remote callers must authenticate. Unlike the media
+// static-resources (view-open), the project's own source is never exposed
+// read-only to remote visitors.
+Route::prefix('code-browser')->middleware('dashboard.auth')->group(function () {
     Route::get('/auth-check', [CodeBrowserController::class, 'checkAuth']);
     Route::get('/file-tree', [CodeBrowserController::class, 'getFileTree']);
     Route::get('/read-file', [CodeBrowserController::class, 'readFile']);
