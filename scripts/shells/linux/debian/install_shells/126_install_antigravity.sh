@@ -595,6 +595,16 @@ main() {
 
     # Check if already installed
     if is_antigravity_installed; then
+        # Idempotent limit refresh: always re-apply the resource limit + desktop entry
+        # FIRST so a re-run picks up updated caps even when the user declines the update
+        # prompt below (which exits before the limit step). No download/reinstall here.
+        # Preserve the scope mode baked in the existing wrapper (don't flip --user/--system).
+        if [ -f /usr/local/bin/antigravity-rlimit ]; then
+            grep -q '^ARL_SCOPE_MODE="system"' /usr/local/bin/antigravity-rlimit && USE_ROOT_MODE=true
+            grep -q '^ARL_SCOPE_MODE="user"'   /usr/local/bin/antigravity-rlimit && USE_ROOT_MODE=false
+        fi
+        create_desktop_entry || true
+
         # Already installed - prompt for update
         if prompt_update_decision; then
             update_antigravity

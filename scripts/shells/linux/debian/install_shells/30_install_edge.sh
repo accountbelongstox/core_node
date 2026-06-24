@@ -201,10 +201,12 @@ if check_edge_version; then
                 echo "[$SCRIPT_INDEX] Created symlink: /usr/local/bin/microsoft-edge -> $edge_path"
             fi
 
-            # Resource limit: cap the whole Edge process tree in one machine-relative
-            # cgroup-v2 user scope and repoint the .deb-owned menu entry
-            # (id=microsoft-edge) at the wrapper. Browser profile -> heavier limits.
-            APP_MEM_PCT=62 APP_CPU_PCT=75 apply_app_resource_limit \
+            # Resource limit: cap the whole Edge process tree in one cgroup-v2 user
+            # scope and repoint the .deb-owned menu entry (id=microsoft-edge) at the
+            # wrapper. Edge is intentionally PINNED to MemoryMax=500M (override) while
+            # the other apps use the 1G library default; the 20% proportional ceiling
+            # and the shared 10%*nproc CPU quota still come from app_resource_limit.sh.
+            APP_MEM_CAP_MB=500 apply_app_resource_limit \
                 --id microsoft-edge --exec "$edge_path" \
                 --desktop all --field "%U"
         fi
@@ -221,8 +223,9 @@ else
         echo "[$SCRIPT_INDEX] Edge installation info stored in global variables"
 
         # Resource limit + repoint the .deb-owned menu entry after a fresh install
-        # (id=microsoft-edge). Idempotent; machine-relative; never double-wraps.
-        APP_MEM_PCT=62 APP_CPU_PCT=75 apply_app_resource_limit \
+        # (id=microsoft-edge). Edge PINNED to 500M (override) vs the 1G default; shared
+        # 20% ceiling + 10% CPU; idempotent; never double-wraps.
+        APP_MEM_CAP_MB=500 apply_app_resource_limit \
             --id microsoft-edge --exec "$edge_path" \
             --desktop all --field "%U"
     fi

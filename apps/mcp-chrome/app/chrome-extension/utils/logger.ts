@@ -23,16 +23,50 @@ export interface LogEntry {
   data?: string; // truncated JSON/string of extra context (optional)
 }
 
-// Keep only the most recent 1000 entries (memory + persisted).
-const MAX_ENTRIES = 1000;
-const STORAGE_KEY = 'mcp_global_logs';
+// Keep only the most recent 100 entries (memory + persisted) — the DEBUG center
+// shows this same bounded ring, newest first.
+const MAX_ENTRIES = 100;
+/** Storage key for the persisted ring buffer. Exported so the popup DEBUG
+ *  center can subscribe to chrome.storage.onChanged for live cross-context logs. */
+export const LOG_STORAGE_KEY = 'mcp_global_logs';
 const MAX_DATA_CHARS = 1000;
-const PERSIST_DEBOUNCE_MS = 800;
+// Short debounce so logs surface in the DEBUG center in near-real-time while
+// still coalescing bursts (per-word crawl logging is high-frequency).
+const PERSIST_DEBOUNCE_MS = 250;
+
+type LogListener = (entries: LogEntry[]) => void;
 
 class GlobalLogger {
   private entries: LogEntry[] = [];
   private loaded = false;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Same-context live subscribers (e.g. a panel rendering in this context). */
+  private listeners = new Set<LogListener>();
+
+  /**
+   * Subscribe to live log updates within THIS JS context. Returns an
+   * unsubscribe function. Cross-context (background -> popup) live updates ride
+   * chrome.storage.onChanged[LOG_STORAGE_KEY] instead (the SW and popup are
+   * separate contexts with their own buffers, unified only through storage).
+   */
+  subscribe(listener: LogListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify(): void {
+    if (this.listeners.size === 0) return;
+    const snapshot = [...this.entries];
+    this.listeners.forEach((fn) => {
+      try {
+        fn(snapshot);
+      } catch {
+        // a bad listener must never break logging.
+      }
+    });
+  }
 
   /**
    * Load any persisted history into the ring. Idempotent; MERGES stored entries
@@ -44,7 +78,7 @@ class GlobalLogger {
     this.loaded = true;
     if (!this.hasStorage()) return;
     try {
-      const stored = (await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY];
+      const stored = (await chrome.storage.local.get(LOG_STORAGE_KEY))[LOG_STORAGE_KEY];
       if (Array.isArray(stored) && stored.length) {
         this.entries = [...stored, ...this.entries].slice(-MAX_ENTRIES);
       }
@@ -73,6 +107,7 @@ class GlobalLogger {
 
   clearLogs(): void {
     this.entries = [];
+    this.notify();
     this.flush();
   }
 
@@ -86,6 +121,7 @@ class GlobalLogger {
       this.entries.splice(0, this.entries.length - MAX_ENTRIES);
     }
     this.mirror(entry, data);
+    this.notify();
     this.schedulePersist();
   }
 
@@ -128,7 +164,7 @@ class GlobalLogger {
   private flush(): void {
     if (!this.hasStorage()) return;
     try {
-      chrome.storage.local.set({ [STORAGE_KEY]: this.entries }).catch(() => undefined);
+      chrome.storage.local.set({ [LOG_STORAGE_KEY]: this.entries }).catch(() => undefined);
     } catch {
       // ignore persistence failures — logging must never throw.
     }

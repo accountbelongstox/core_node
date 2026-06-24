@@ -177,6 +177,11 @@
         <ExtensionsPanel />
       </div>
 
+      <!-- Web AI Tab: ChatGPT/Gemini ad-hoc test + one-click prompt_translation assist. -->
+      <div v-show="activeTab === 'aiweb'">
+        <AiWebPanel />
+      </div>
+
       <!-- Audio Tab -->
       <div v-show="activeTab === 'audio'">
         <AudioRecordingPanel />
@@ -261,6 +266,7 @@ import {
 } from '@/utils/semantic-similarity-engine';
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 import { getMessage } from '@/utils/i18n';
+import { logger, LOG_STORAGE_KEY, type LogEntry } from '@/utils/logger';
 import { useTheme } from './composables/useTheme';
 import './theme.css';
 
@@ -269,6 +275,7 @@ import ProgressIndicator from './components/ProgressIndicator.vue';
 import ModelCacheManagement from './components/ModelCacheManagement.vue';
 import AudioRecordingPanel from './components/AudioRecordingPanel.vue';
 import ExtensionsPanel from './components/ExtensionsPanel.vue';
+import AiWebPanel from './components/AiWebPanel.vue';
 import LanguageSelector from './components/LanguageSelector.vue';
 import SettingsCenter from './components/SettingsCenter.vue';
 import TaskCenterPanel from './components/extensions/TaskCenterPanel.vue';
@@ -334,21 +341,60 @@ const tabs = [
   { id: 'data', label: 'Data', iconComponent: DataIcon },
   { id: 'tasks', label: 'Tasks', iconComponent: TaskCenterIcon },
   { id: 'extensions', label: 'Extensions', iconComponent: ExtensionIcon },
+  { id: 'aiweb', label: 'Web AI', iconComponent: ExtensionIcon },
   { id: 'audio', label: 'Audio', iconComponent: AudioIcon },
   { id: 'settings', label: 'Settings', iconComponent: SettingsIcon },
   { id: 'debug', label: 'Debug', iconComponent: DebugIcon },
 ];
 
-const addDebugLog = (level: string, message: string) => {
-  const time = new Date().toLocaleTimeString();
-  debugLogs.value.unshift({ time, level, message });
-  if (debugLogs.value.length > 100) {
-    debugLogs.value = debugLogs.value.slice(0, 100);
+// The DEBUG center mirrors the GLOBAL logger (incl. detailed background crawl
+// logs) LIVE: it loads the persisted ring buffer and re-syncs on every
+// chrome.storage change to LOG_STORAGE_KEY (the background-SW <-> popup bridge,
+// since each context has its own in-memory buffer unified only through storage).
+const mapEntry = (e: LogEntry) => {
+  const detail = e.data ? ` ${e.data}` : '';
+  return {
+    time: new Date(e.ts).toLocaleTimeString(),
+    level: e.level,
+    message: `[${e.source}] ${e.message}${detail}`,
+  };
+};
+
+const renderGlobalLogs = (entries: LogEntry[]) => {
+  // Newest first; cap to the most recent 200 entries for the panel.
+  debugLogs.value = entries.slice(-100).map(mapEntry).reverse();
+};
+
+const syncGlobalLogs = async () => {
+  try {
+    const stored = (await chrome.storage.local.get(LOG_STORAGE_KEY))[LOG_STORAGE_KEY];
+    if (Array.isArray(stored)) {
+      renderGlobalLogs(stored as LogEntry[]);
+    }
+  } catch {
+    // storage unavailable; keep current buffer.
   }
-  console.log(`[${level}] ${time} - ${message}`);
+};
+
+const handleLogStorageChange = (
+  changes: Record<string, chrome.storage.StorageChange>,
+  area: string,
+) => {
+  if (area === 'local' && changes[LOG_STORAGE_KEY] && Array.isArray(changes[LOG_STORAGE_KEY].newValue)) {
+    renderGlobalLogs(changes[LOG_STORAGE_KEY].newValue as LogEntry[]);
+  }
+};
+
+// Local popup events flow through the unified global logger so they appear in
+// the same DEBUG center stream as the background crawl logs.
+const addDebugLog = (level: string, message: string) => {
+  if (level === 'error') logger.error('Popup', message);
+  else if (level === 'warn') logger.warn('Popup', message);
+  else logger.info('Popup', message);
 };
 
 const clearDebugLogs = () => {
+  logger.clearLogs();
   debugLogs.value = [];
 };
 
@@ -1277,11 +1323,21 @@ onMounted(async () => {
 
   await checkSemanticEngineStatus();
   setupServerStatusListener();
+
+  // DEBUG center: load the global log ring buffer + live-stream new entries.
+  await logger.init();
+  await syncGlobalLogs();
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener(handleLogStorageChange);
+  }
 });
 
 onUnmounted(() => {
   stopModelStatusMonitoring();
   stopSemanticEngineStatusPolling();
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.removeListener(handleLogStorageChange);
+  }
 });
 </script>
 

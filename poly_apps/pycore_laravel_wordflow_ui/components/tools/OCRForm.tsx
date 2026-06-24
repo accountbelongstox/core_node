@@ -43,6 +43,9 @@ const OCRForm: React.FC = () => {
   const [imageUrl, setImageUrl] = useState('');
   const [extractedText, setExtractedText] = useState('');
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
+  // Recognition model hint forwarded to the backend `model_type` field
+  // (general|scene|doc|number|english|chinese_traditional); defaults to general.
+  const [modelType, setModelType] = useState('general');
   const [copied, setCopied] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -107,7 +110,7 @@ const OCRForm: React.FC = () => {
 
       if (!imageFile) return;
 
-      const result = await execute({ image: imageFile });
+      const result = await execute({ image: imageFile, model_type: modelType });
 
       const recognized =
         result?.text ?? result?.result ?? result?.data?.text ?? '';
@@ -174,6 +177,21 @@ const OCRForm: React.FC = () => {
             { id: 'url', label: 'Image URL', icon: ImageIcon },
           ]}
         />
+
+        <AiBentoCard title="Recognition Model">
+          <select
+            value={modelType}
+            onChange={(e) => setModelType(e.target.value)}
+            className={`${commonClasses.input} w-full`}
+          >
+            <option value="general">General (auto-detect)</option>
+            <option value="scene">Scene Text</option>
+            <option value="doc">Document</option>
+            <option value="number">Numbers</option>
+            <option value="english">English</option>
+            <option value="chinese_traditional">Chinese (Traditional)</option>
+          </select>
+        </AiBentoCard>
 
         <div className={`${AI_GRID_2} lg:grid-cols-2`}>
           <AiBentoCard title="Image Source">

@@ -15,9 +15,11 @@
 # app_resource_limit.sh - shared resource-limit recipe for GUI app launches.
 #
 # Wraps an app launch in a transient cgroup-v2 scope (dies with the app) so the
-# WHOLE multi-process Electron/Chromium tree is capped as ONE aggregate. Limits
-# are MACHINE-RELATIVE (computed from /proc/meminfo MemTotal + nproc) and
-# overridable via env / per-call args. Primary mechanism: systemd-run --scope.
+# WHOLE multi-process Electron/Chromium tree is capped as ONE aggregate. Per-app
+# default is a HARD absolute cap (MemoryMax=1G, CPUQuota=10% of the machine),
+# reduced PROPORTIONALLY on low-RAM boxes (min of the cap and 20% of total RAM).
+# UNIFORM across every wrapped app (browsers, editors, AI tools). Overridable via
+# env / per-call args. Primary mechanism: systemd-run --scope.
 # Fallback when systemd-run is unavailable: cpulimit (CPU-only, crude).
 #
 # Sourced + called by installers, exactly like desktop_shortcut_manager.sh.
@@ -27,9 +29,9 @@
 #       --id   <stem>          .desktop filename stem (e.g. google-chrome); also
 #                              names the wrapper /usr/local/bin/<id>-rlimit.
 #       --exec <real binary>   the REAL executable the wrapper ultimately runs.
-#       [--mem  <MemoryMax>]   e.g. 9G / 9091M ; default = % of total RAM.
-#       [--high <MemoryHigh>]  e.g. 7G / 6818M ; default = % of MemoryMax.
-#       [--cpu  <CPUQuota>]    e.g. 2400%      ; default = % per core * nproc.
+#       [--mem  <MemoryMax>]   e.g. 1G ; default = min(1G, 20% of total RAM).
+#       [--high <MemoryHigh>]  e.g. 921M ; default = 90% of MemoryMax.
+#       [--cpu  <CPUQuota>]    e.g. 320% ; default = 10% of machine (10% * nproc).
 #       [--pre  '<args>']      inner args injected before "$@" (e.g. --no-sandbox).
 #       [--root]               use a --system scope (root-mode apps); else --user.
 #       [--desktop <who>]      repoint the app's .desktop Exec at the wrapper for
@@ -75,10 +77,14 @@
 
 # ---- variable declarations (all at top) ------------------------------------
 ARL_BIN_DIR="/usr/local/bin"                 # where <id>-rlimit wrappers live
-ARL_DEFAULT_MEM_PCT="${APP_MEM_PCT:-60}"     # MemoryMax  = this % of total RAM
-ARL_DEFAULT_HIGH_PCT="${APP_HIGH_PCT:-75}"   # MemoryHigh = this % of MemoryMax
-ARL_DEFAULT_CPU_PCT="${APP_CPU_PCT:-75}"     # CPUQuota   = this % per core * nproc
-ARL_MIN_MEM_MB="${APP_MIN_MEM_MB:-512}"      # floor so a tiny box still launches
+# Per-app MemoryMax = min(ARL_DEFAULT_CAP_MB, ARL_DEFAULT_MEM_PCT% of total RAM): a HARD
+# absolute cap (default 1G) that the % only reduces on low-RAM boxes (proportional
+# shrink, never above 20% of total RAM). One UNIFORM recipe for every wrapped app.
+ARL_DEFAULT_CAP_MB="${APP_MEM_CAP_MB:-1024}" # absolute per-app MemoryMax ceiling (MB) = 1G
+ARL_DEFAULT_MEM_PCT="${APP_MEM_PCT:-20}"     # proportional ceiling: this % of total RAM
+ARL_DEFAULT_HIGH_PCT="${APP_HIGH_PCT:-90}"   # MemoryHigh = this % of resolved MemoryMax
+ARL_DEFAULT_CPU_PCT="${APP_CPU_PCT:-10}"     # CPUQuota   = this % of the machine (% * nproc)
+ARL_MIN_MEM_MB="${APP_MIN_MEM_MB:-256}"      # floor so a tiny box still launches (< cap)
 # Shared slice: every wrapper-launched app runs under ONE slice with an AGGREGATE
 # memory cap, so two heavy apps cannot collectively exhaust RAM (per-app caps do
 # NOT bound the sum -- critical on low-RAM / no-swap boxes). Slice limits are % of
@@ -145,6 +151,8 @@ _arl_compute_limits() {
     nproc="$(nproc 2>/dev/null || echo 1)"
     [ -n "$mem_total_kb" ] || mem_total_kb=2097152
     mem_max_mb=$(( mem_total_kb * ${APP_MEM_PCT:-$ARL_DEFAULT_MEM_PCT} / 100 / 1024 ))
+    # Hard absolute cap; the proportional % above only reduces it on low-RAM boxes.
+    [ "$mem_max_mb" -gt "${APP_MEM_CAP_MB:-$ARL_DEFAULT_CAP_MB}" ] && mem_max_mb="${APP_MEM_CAP_MB:-$ARL_DEFAULT_CAP_MB}"
     [ "$mem_max_mb" -lt "$ARL_MIN_MEM_MB" ] && mem_max_mb="$ARL_MIN_MEM_MB"
     mem_high_mb=$(( mem_max_mb * ${APP_HIGH_PCT:-$ARL_DEFAULT_HIGH_PCT} / 100 ))
     cpu_quota=$(( nproc * ${APP_CPU_PCT:-$ARL_DEFAULT_CPU_PCT} ))
@@ -162,7 +170,7 @@ _arl_compute_limits() {
 apply_app_resource_limit() {
     local id="" real="" mem="" high="" cpu="" pre="" mode="user" desktop_who="" field=""
     local sudo wrapper limits tab scope_flag wrapper_exec
-    local eff_mem_pct eff_high_pct eff_cpu_pct eff_agg_mem_pct eff_agg_high_pct
+    local eff_mem_pct eff_high_pct eff_cpu_pct eff_agg_mem_pct eff_agg_high_pct eff_cap_mb
     tab="$(printf '\t')"
     # Effective percentages resolved at CALL time so an inline "APP_MEM_PCT=62
     # apply_app_resource_limit ..." (or a pre-source env) actually bakes into the
@@ -171,6 +179,7 @@ apply_app_resource_limit() {
     eff_mem_pct="${APP_MEM_PCT:-$ARL_DEFAULT_MEM_PCT}"
     eff_high_pct="${APP_HIGH_PCT:-$ARL_DEFAULT_HIGH_PCT}"
     eff_cpu_pct="${APP_CPU_PCT:-$ARL_DEFAULT_CPU_PCT}"
+    eff_cap_mb="${APP_MEM_CAP_MB:-$ARL_DEFAULT_CAP_MB}"
     eff_agg_mem_pct="${APP_AGG_MEM_PCT:-$ARL_AGG_MEM_PCT}"
     eff_agg_high_pct="${APP_AGG_HIGH_PCT:-$ARL_AGG_HIGH_PCT}"
     while [ $# -gt 0 ]; do
@@ -228,9 +237,13 @@ fi
 ARL_MEM_TOTAL_KB="\$(awk '/^MemTotal:/{print \$2}' /proc/meminfo 2>/dev/null)"
 ARL_NPROC="\$(nproc 2>/dev/null || echo 1)"
 [ -n "\$ARL_MEM_TOTAL_KB" ] || ARL_MEM_TOTAL_KB=2097152
+# MemoryMax = min(absolute cap, proportional % of RAM): the % only bites on low-RAM boxes.
 ARL_MM=\$(( ARL_MEM_TOTAL_KB * \${APP_MEM_PCT:-$eff_mem_pct} / 100 / 1024 ))
+ARL_CAP=\${APP_MEM_CAP_MB:-$eff_cap_mb}
+[ "\$ARL_MM" -gt "\$ARL_CAP" ] && ARL_MM=\$ARL_CAP
 [ "\$ARL_MM" -lt "\${APP_MIN_MEM_MB:-$ARL_MIN_MEM_MB}" ] && ARL_MM=\${APP_MIN_MEM_MB:-$ARL_MIN_MEM_MB}
 ARL_MH=\$(( ARL_MM * \${APP_HIGH_PCT:-$eff_high_pct} / 100 ))
+# CPUQuota = 10% of the whole machine (% * nproc), so it auto-scales to any core count.
 ARL_CQ=\$(( ARL_NPROC * \${APP_CPU_PCT:-$eff_cpu_pct} ))
 ARL_MEM_MAX="\${ARL_FIXED_MEM:-}"; [ -n "\$ARL_MEM_MAX" ] || ARL_MEM_MAX="\${APP_MEM_MAX:-\${ARL_MM}M}"
 ARL_MEM_HIGH="\${ARL_FIXED_HIGH:-}"; [ -n "\$ARL_MEM_HIGH" ] || ARL_MEM_HIGH="\${APP_MEM_HIGH:-\${ARL_MH}M}"

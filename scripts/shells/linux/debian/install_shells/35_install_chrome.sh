@@ -309,10 +309,11 @@ create_desktop_shortcut() {
     CHROME_SHORTCUT_CREATED=true
     echo "[$SCRIPT_INDEX] Desktop shortcut created successfully"
 
-    # Resource limit: cap the whole Chrome process tree in one machine-relative
-    # cgroup-v2 user scope and repoint the menu/desktop Exec (id=google-chrome) at
-    # the wrapper. Browsers run heavier than editors. Idempotent (never double-wraps).
-    APP_MEM_PCT=62 APP_CPU_PCT=75 apply_app_resource_limit \
+    # Resource limit: cap the whole Chrome process tree in one cgroup-v2 user scope
+    # and repoint the menu/desktop Exec (id=google-chrome) at the wrapper. Uses the
+    # UNIFIED caps (MemoryMax=500M, 10% CPU) from app_resource_limit.sh -- no per-app
+    # override, so every app is bounded equally. Idempotent (never double-wraps).
+    apply_app_resource_limit \
         --id google-chrome --exec "$CHROME_BIN_PATH" \
         --desktop all --field "%U"
 }

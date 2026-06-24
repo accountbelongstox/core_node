@@ -1,0 +1,108 @@
+/**
+ * ChatGPT web automation tool (chrome_chatgpt).
+ *
+ * Page-driving style (like notebooklm.ts / gemini-image.ts), NOT inline
+ * executeScript: it reuses the user's live chatgpt.com tab, injects
+ * chatgpt-web-helper.js, and drives it over the ping/submit/collect message
+ * protocol. Optionally captures the read-aloud audio (bytes returned from the
+ * page) and uploads the binary to the Laravel backend.
+ */
+import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { BaseBrowserToolExecutor } from '../base-browser';
+import { logger } from '@/utils/logger';
+import {
+  resolveBackendBase,
+  waitForTabComplete,
+  findOrCreateProviderTab,
+  uploadReplyAudio,
+  shortHash,
+  type ReplyAudio,
+} from './ai-web-common';
+
+const CHATGPT_URL = 'https://chatgpt.com/';
+const CHATGPT_HOST = 'chatgpt.com';
+const HELPER = 'inject-scripts/chatgpt-web-helper.js';
+
+class ChatGptWebTool extends BaseBrowserToolExecutor {
+  name = 'chrome_chatgpt';
+
+  async execute(args: {
+    prompt: string;
+    withAudio?: boolean;
+    tabId?: number;
+    timeoutMs?: number;
+    language?: string;
+    apiBaseUrl?: string;
+  }): Promise<ToolResult> {
+    const { prompt, withAudio = false, tabId, timeoutMs = 120000, language = 'en', apiBaseUrl } = args;
+    if (!prompt || prompt.trim().length === 0) {
+      return createErrorResponse('Prompt is required');
+    }
+
+    try {
+      const { tabId: resolvedTabId } = await findOrCreateProviderTab(CHATGPT_HOST, CHATGPT_URL, tabId);
+      await waitForTabComplete(resolvedTabId);
+      await this.injectContentScript(resolvedTabId, [HELPER]);
+
+      const submitted = await this.sendMessageToTab(resolvedTabId, {
+        action: 'chatgptSubmitPrompt',
+        prompt,
+      });
+      if (!submitted || !submitted.found) {
+        return createErrorResponse(`ChatGPT submit failed: ${submitted?.error || 'input not found'}`);
+      }
+
+      const reply = await this.sendMessageToTab(resolvedTabId, {
+        action: 'chatgptCollectReply',
+        timeoutMs,
+        before: submitted.before || 0,
+      });
+      if (!reply || !reply.ready || !reply.answer) {
+        return createErrorResponse(`ChatGPT reply failed: ${reply?.error || 'no answer'}`);
+      }
+
+      let audioResult: { uploaded: boolean; path?: string; skipped?: boolean; error?: string } | null = null;
+      if (withAudio) {
+        const captured = (await this.sendMessageToTab(resolvedTabId, {
+          action: 'chatgptCollectAudio',
+          timeoutMs: Math.min(timeoutMs, 60000),
+        })) as ReplyAudio;
+        const baseUrl = await resolveBackendBase(apiBaseUrl);
+        audioResult = await uploadReplyAudio({
+          baseUrl,
+          provider: 'chatgpt-web',
+          promptHash: shortHash(prompt),
+          language,
+          audio: captured || { ok: false, error: 'no audio result' },
+        });
+        logger.info(
+          'ChatGPT Web',
+          `audio capture=${captured?.ok ? `ok (${captured.bytes?.length ?? 0}B ${captured.mime})` : `none (${captured?.error ?? 'n/a'})`} upload=${audioResult.uploaded}${audioResult.path ? ` path=${audioResult.path}` : ''}${audioResult.error ? ` err=${audioResult.error}` : ''}`,
+        );
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              provider: 'chatgpt-web',
+              success: true,
+              answer: reply.answer,
+              tabId: resolvedTabId,
+              audio: audioResult,
+            }),
+          },
+        ],
+        isError: false,
+      };
+    } catch (error) {
+      console.error('Error in chrome_chatgpt:', error);
+      return createErrorResponse(
+        `ChatGPT automation failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+}
+
+export const chatgptWebTool = new ChatGptWebTool();

@@ -13,10 +13,12 @@ DIRECTORY STRUCTURE:
 ├── __main__.py                              # Module execution support
 ├── main.py                                  # Entry point
 ├── special_software_env_manager.py          # Main program logic
-├── common_utils.py                          # Utilities & platform detection
-├── config_manager.py                        # Configuration management
-├── command_content_generator_windows.py     # Windows script generator
-├── command_content_generator_linux.py       # Linux script generator
+├── secret_read.py                           # Standalone secret-decrypt helper
+├── utils/                                   # common_utils.py, secret_manager.py, smart_recognition.py, local_test_helper.py
+├── config/                                  # config_manager.py, path_config.py
+├── generators/                              # command_content_generator_windows.py, command_content_generator_linux.py
+├── managers/                                # environment_variable_manager.py, script_manager.py, backup_manager.py, menu_handler.py, command_handler.py, app_scanner.py, file_number_manager.py, variable_input_handler.py, encrypted_constants_manager.py
+├── script_sections/                         # env_loading_section.py, ssh_command_generator.py, backup_restore_section.py, mcp_section.py, user_directory_section.py
 ├── backups/                                 # Configuration backups
 └── README.txt                               # This file
 
@@ -148,7 +150,7 @@ Backups are created automatically when:
 
 PLATFORM DETECTION:
 -------------------
-Functions in common_utils.py:
+Functions in utils/common_utils.py:
   - get_platform_type() → 'windows'|'wsl'|'ubuntu_desktop'|'linux_server'|'linux'
   - is_wsl() → bool
   - is_desktop() → bool

@@ -5,6 +5,7 @@ Finds Ubuntu shortcuts in Windows Start Menu
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -38,7 +39,11 @@ class UbuntuFinder:
             }
         """
         if not HAS_WIN32COM:
-            print("Warning: win32com not available, cannot read shortcuts")
+            # win32com (pywin32) is Windows-only and this reads the Windows Start Menu, so on
+            # Linux/macOS this finder is simply a no-op. Warn only on Windows (where pywin32
+            # should be installed) to avoid noise on every other platform.
+            if sys.platform == "win32":
+                print("Warning: win32com not available, cannot read shortcuts")
             return []
         
         if not self.start_menu_path.exists():

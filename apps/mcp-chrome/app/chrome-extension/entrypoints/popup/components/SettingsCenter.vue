@@ -60,6 +60,11 @@
       </div>
     </div>
 
+    <!-- AI Web Provider (full width) -->
+    <div class="mt-2">
+      <AiWebProviderSettings />
+    </div>
+
     <!-- Cache Storage (full width) -->
     <div class="mt-2">
       <CacheSettings />
@@ -71,6 +76,7 @@
 import { useAppStore } from '@/composables/useAppStore';
 import ApiSettings from './ApiSettings.vue';
 import CacheSettings from './CacheSettings.vue';
+import AiWebProviderSettings from './AiWebProviderSettings.vue';
 
 const appStore = useAppStore();
 

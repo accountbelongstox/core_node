@@ -48,7 +48,10 @@ export class ServerManagerV1API extends BaseAPI {
    * so we normalize a `type` field onto every item here (single point of fix),
    * keeping `is_directory`/`path` intact.
    */
-  async browseFiles(path?: string): Promise<APIResponse> {
+  async browseFiles(arg?: string | { path?: string }): Promise<APIResponse> {
+    // Accept either a bare path or a { path } object (the generic UnifiedToolsPage
+    // renderer passes a single object built from the tool's inputSchema).
+    const path = (arg !== null && typeof arg === 'object') ? arg.path : arg;
     const response = await this.get('/files/browse', { path });
     const data = response.data as any;
     if (response.success && data && Array.isArray(data.items)) {

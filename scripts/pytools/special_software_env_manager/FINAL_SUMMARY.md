@@ -12,14 +12,14 @@
 2. **`__main__.py`** - 模块运行入口 (`python -m` 支持)
 3. **`main.py`** - 主入口脚本
 4. **`special_software_env_manager.py`** - 主程序逻辑 (345行)
-5. **`common_utils.py`** - 通用工具函数 (274行)
-6. **`config_manager.py`** - 配置管理器 (172行)
-7. **`command_content_generator_windows.py`** - Windows脚本生成器 (376行)
+5. **`utils/common_utils.py`** - 通用工具函数 (274行)
+6. **`config/config_manager.py`** - 配置管理器 (172行)
+7. **`generators/command_content_generator_windows.py`** - Windows脚本生成器 (376行)
    - **这是唯一的平台特定实现之一**
    - 生成PowerShell脚本 (.ps1)
    - 包含完整的环境变量管理
 
-8. **`command_content_generator_linux.py`** - Linux脚本生成器 (233行)
+8. **`generators/command_content_generator_linux.py`** - Linux脚本生成器 (233行)
    - **这是唯一的平台特定实现之二**
    - 生成Bash脚本 (.sh)
    - 简化的命令执行
@@ -57,10 +57,12 @@
 │   ├── __main__.py
 │   ├── main.py (主入口)
 │   ├── special_software_env_manager.py (主逻辑)
-│   ├── common_utils.py (通用工具)
-│   ├── config_manager.py (配置管理)
-│   ├── command_content_generator_windows.py (Windows专用)
-│   └── command_content_generator_linux.py (Linux专用)
+│   ├── secret_read.py (独立的密钥解密辅助脚本)
+│   ├── utils/ (common_utils.py 等通用工具)
+│   ├── config/ (config_manager.py 等配置管理)
+│   ├── generators/ (command_content_generator_windows.py / command_content_generator_linux.py)
+│   ├── managers/ (各类管理器模块)
+│   └── script_sections/ (脚本片段模块)
 ├── scripts/shells/win/menu_itemshells/
 │   └── dd.ps1 (Windows启动器)
 └── scripts/shells/linux/
@@ -104,7 +106,7 @@ python scripts/pytools/special_software_env_manager/special_software_env_manager
 
 根据用户要求，`CommandContentGenerator` 是**唯一需要区分 Windows 和 Linux 的部分**：
 
-#### Windows版本 (`command_content_generator_windows.py`)
+#### Windows版本 (`generators/command_content_generator_windows.py`)
 - **生成内容**: PowerShell脚本 (.ps1)
 - **输出位置**: `scripts/winenvs/`
 - **特殊功能**:
@@ -114,7 +116,7 @@ python scripts/pytools/special_software_env_manager/special_software_env_manager
   - 预启动脚本执行
   - 升级检查和提示
 
-#### Linux版本 (`command_content_generator_linux.py`)
+#### Linux版本 (`generators/command_content_generator_linux.py`)
 - **生成内容**: Bash脚本 (.sh)
 - **输出位置**: `scripts/liunxenvs/`
 - **特殊功能**:
@@ -203,14 +205,14 @@ ls scripts/liunxenvs/
 ```bash
 # 测试配置管理
 python -c "
-from scripts.pytools.special_software_env_manager.config_manager import ConfigManager
+from scripts.pytools.special_software_env_manager.config.config_manager import ConfigManager
 cm = ConfigManager()
 print(cm.get_all_configs().keys())
 "
 
 # 测试脚本生成器
 python -c "
-from scripts.pytools.special_software_env_manager.command_content_generator_windows import WindowsCommandContentGenerator
+from scripts.pytools.special_software_env_manager.generators.command_content_generator_windows import WindowsCommandContentGenerator
 gen = WindowsCommandContentGenerator()
 print(gen.get_mcp_sync_script_path('claude'))
 "

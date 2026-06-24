@@ -15,6 +15,30 @@
 
 const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:9000';
 
+/** Which web AI the translate worker drives. User-configurable via settings. */
+export type AiWebProvider = 'chatgpt' | 'gemini';
+const PROVIDER_STORAGE_KEY = 'aiWebProvider';
+const DEFAULT_PROVIDER: AiWebProvider = 'chatgpt';
+
+/** Read the preferred web-driving provider from settings (default: chatgpt). */
+export async function getPreferredProvider(): Promise<AiWebProvider> {
+  try {
+    const stored = await chrome.storage.local.get([PROVIDER_STORAGE_KEY]);
+    const v = stored[PROVIDER_STORAGE_KEY];
+    if (v === 'chatgpt' || v === 'gemini') {
+      return v;
+    }
+  } catch {
+    // storage unavailable; use default.
+  }
+  return DEFAULT_PROVIDER;
+}
+
+/** Persist the preferred web-driving provider (used by the settings UI). */
+export async function setPreferredProvider(provider: AiWebProvider): Promise<void> {
+  await chrome.storage.local.set({ [PROVIDER_STORAGE_KEY]: provider });
+}
+
 /** Resolve the Laravel backend base URL: explicit override -> stored value -> localhost. */
 export async function resolveBackendBase(override?: string): Promise<string> {
   if (override && override.trim().length > 0) {

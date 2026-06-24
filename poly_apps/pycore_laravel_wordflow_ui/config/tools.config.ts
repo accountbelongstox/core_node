@@ -54,9 +54,8 @@ export const AI_TOOLS: Record<string, ToolConfig> = {
       properties: {
         text: { type: 'string', minLength: 1 },
         language: { type: 'string' },
-        voice: { type: 'string' },
-        speed: { type: 'number', min: 0.5, max: 2.0 },
-        pitch: { type: 'number', min: 0.5, max: 2.0 }
+        voice_type: { type: 'string' },
+        speed: { type: 'number', min: 0.5, max: 2.0 }
       }
     },
     outputSchema: {
@@ -411,10 +410,10 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     apiModule: 'itToolsV1',
     apiMethod: 'itToolsV1.hash',
     inputSchema: {
-      required: ['algorithm', 'input'],
+      required: ['algorithm', 'text'],
       properties: {
         algorithm: { type: 'string' },
-        input: { type: 'string', minLength: 1 }
+        text: { type: 'string', minLength: 1 }
       }
     },
     outputSchema: {
@@ -463,10 +462,10 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     apiModule: 'itToolsV1',
     apiMethod: 'itToolsV1.encode',
     inputSchema: {
-      required: ['type', 'input'],
+      required: ['type', 'text'],
       properties: {
         type: { type: 'string', enum: ['base64'] },
-        input: { type: 'string', minLength: 1 }
+        text: { type: 'string', minLength: 1 }
       }
     },
     outputSchema: {
@@ -685,11 +684,11 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     apiModule: 'itToolsV1',
     apiMethod: 'itToolsV1.hmac',
     inputSchema: {
-      required: ['algorithm', 'input', 'key'],
+      required: ['algorithm', 'text', 'secret'],
       properties: {
         algorithm: { type: 'string', enum: ['sha256', 'sha512'] },
-        input: { type: 'string', minLength: 1 },
-        key: { type: 'string', minLength: 1 }
+        text: { type: 'string', minLength: 1 },
+        secret: { type: 'string', minLength: 1 }
       }
     },
     outputSchema: {
@@ -715,7 +714,7 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     inputSchema: {
       required: [],
       properties: {
-        bits: { type: 'number', enum: [2048, 4096] }
+        keySize: { type: 'number', enum: [2048, 4096] }
       }
     },
     outputSchema: {
@@ -741,7 +740,7 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     inputSchema: {
       required: [],
       properties: {
-        words: { type: 'number', enum: [12, 15, 18, 21, 24] }
+        strength: { type: 'number', enum: [128, 160, 192, 224, 256] }
       }
     },
     outputSchema: {
@@ -791,10 +790,10 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     apiModule: 'itToolsV1',
     apiMethod: 'itToolsV1.verifyOtp',
     inputSchema: {
-      required: ['secret', 'token'],
+      required: ['secret', 'otp'],
       properties: {
         secret: { type: 'string', minLength: 1 },
-        token: { type: 'string', minLength: 6, maxLength: 6 }
+        otp: { type: 'string', minLength: 6, maxLength: 6 }
       }
     },
     outputSchema: {
@@ -846,9 +845,9 @@ export const IT_TOOLS: Record<string, ToolConfig> = {
     apiModule: 'itToolsV1',
     apiMethod: 'itToolsV1.decrypt',
     inputSchema: {
-      required: ['text', 'key'],
+      required: ['encrypted', 'key'],
       properties: {
-        text: { type: 'string', minLength: 1 },
+        encrypted: { type: 'string', minLength: 1 },
         key: { type: 'string', minLength: 8 },
         algorithm: { type: 'string', enum: ['aes-256-cbc', 'aes-128-cbc'] }
       }

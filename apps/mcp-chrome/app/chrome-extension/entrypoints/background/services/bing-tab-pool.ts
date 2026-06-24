@@ -96,6 +96,35 @@ export class BingTabPool {
     return created.id;
   }
 
+  /**
+   * Discard (unload) the pool tabs to free their bing.com renderer memory while
+   * the worker is idle — the key "keep Chrome responsive" optimization. The tab
+   * AND its id are kept (discard only unloads the renderer); the next lookup
+   * navigates the tab via tabs.update(url) and Chrome reloads it on demand. If a
+   * Chrome build reassigns the id on discard, the returned id is tracked so the
+   * pool (and the existing replace() healing) stays consistent. Best-effort: an
+   * active/undiscardable tab is skipped. Returns the number discarded.
+   */
+  async discardIdle(): Promise<number> {
+    let discarded = 0;
+    for (let i = 0; i < this.tabIds.length; i++) {
+      const id = this.tabIds[i];
+      try {
+        const tab = await chrome.tabs.discard(id);
+        if (tab && typeof tab.id === 'number') {
+          this.tabIds[i] = tab.id;
+        }
+        discarded++;
+      } catch {
+        // Active or otherwise non-discardable tab — leave it loaded.
+      }
+    }
+    if (discarded > 0) {
+      logger.info(LOG, `Discarded ${discarded} idle Bing tab(s) to free renderer memory`);
+    }
+    return discarded;
+  }
+
   private async exists(id: number): Promise<boolean> {
     try {
       await chrome.tabs.get(id);

@@ -23,8 +23,8 @@ export { bingDictionaryTool } from './bing-dictionary';
 export { notebookLmTool } from './notebooklm';
 export { notebookLmCreateTool } from './notebooklm-create';
 export { geminiImageTool } from './gemini-image';
-export { chatgptSendPromptTool } from './chatgpt';
-export { geminiSendPromptTool } from './gemini';
+export { chatgptWebTool } from './chatgpt-web';
+export { geminiWebTool } from './gemini-web';
 export {
   deepseekSendPromptTool,
   deepseekGetTaskStatusTool,

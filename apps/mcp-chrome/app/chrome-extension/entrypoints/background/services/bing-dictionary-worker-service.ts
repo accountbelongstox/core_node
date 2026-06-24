@@ -103,6 +103,12 @@ const WATCHDOG_PERIOD_MINUTES = 1;
 const FAST_REPOLL_BASE_MS = 400;
 const FAST_REPOLL_JITTER_MS = 300;
 
+// Free the Bing renderer memory when the worker has had no task for this long:
+// the pool tabs are discarded (unloaded, ids kept) so idle assisting doesn't keep
+// several bing.com renderers resident and lagging Chrome. Re-loaded on demand by
+// the next lookup's navigation.
+const IDLE_DISCARD_MS = 60_000;
+
 interface PersistedRuntime {
   running: boolean;
   config: WorkerConfig | null;
@@ -119,6 +125,13 @@ class BingDictionaryWorkerService {
 
   // Pool of background Bing dictionary tabs driven in parallel (self-healing).
   private pool = new BingTabPool();
+
+  // Idle-tab-discard bookkeeping (keeps Chrome responsive): last task activity
+  // timestamp, a guard so a still-running task is never discarded mid-lookup,
+  // and a once-per-idle-window flag.
+  private lastActivityAt = 0;
+  private processing = false;
+  private poolDiscarded = false;
 
   // Task cache to prevent duplicate processing.
   private taskCache = new Set<string>();
@@ -195,6 +208,9 @@ class BingDictionaryWorkerService {
     this.startPolling();
 
     this.isRunning = true;
+    // Begin the idle-discard countdown from Start so unused pool tabs are freed.
+    this.lastActivityAt = Date.now();
+    this.poolDiscarded = false;
 
     // Persist intent + arm the watchdog so the worker survives SW termination
     // and browser restarts.
@@ -427,6 +443,8 @@ class BingDictionaryWorkerService {
         if (response.success && response.data) {
           this.noteFastSignals(response.data.pending_fast);
         }
+        // Idle with nothing to do -> free the Bing renderers (keeps Chrome snappy).
+        this.maybeDiscardIdleTabs();
         return;
       }
 
@@ -481,6 +499,26 @@ class BingDictionaryWorkerService {
     if ((pendingFast ?? 0) > 0) {
       this.scheduleFastRepoll();
     }
+  }
+
+  /**
+   * Discard the idle Bing pool tabs once the worker has had nothing to do for
+   * IDLE_DISCARD_MS — frees their renderer memory so idle assisting doesn't lag
+   * Chrome. Strictly guarded: never while a task is processing or queued, never
+   * twice per idle window, and only when the pool actually has tabs. The next
+   * task's lookup reloads a discarded tab on demand (and replace() self-heals if
+   * Chrome evicted it), so the pool stays intact.
+   */
+  private maybeDiscardIdleTabs(): void {
+    if (!this.isRunning) return;
+    if (this.processing) return;
+    if (this.poolDiscarded) return;
+    if (this.taskQueue.length > 0) return;
+    if (this.pool.size === 0) return;
+    if (this.lastActivityAt <= 0) return;
+    if (Date.now() - this.lastActivityAt < IDLE_DISCARD_MS) return;
+    this.poolDiscarded = true;
+    this.pool.discardIdle().catch(() => undefined);
   }
 
   private scheduleFastRepoll(): void {
@@ -539,6 +577,10 @@ class BingDictionaryWorkerService {
 
     try {
       logger.info(LOG, `Processing task: ${task.task_id}`);
+      // Mark active so the idle-discard poll never unloads a tab mid-lookup.
+      this.processing = true;
+      this.lastActivityAt = Date.now();
+      this.poolDiscarded = false;
 
       await this.workerClient.acceptTask(task.task_id);
       await this.workerClient.submitResult({
@@ -602,7 +644,7 @@ class BingDictionaryWorkerService {
             // get mistaken for a persistent region-redirect failure.
             let attempt = 1;
             while (
-              classification === 'error' &&
+              classification.kind === 'error' &&
               !!data &&
               data.pageType === 'non-dict' &&
               attempt < NONDICT_ATTEMPTS
@@ -614,12 +656,25 @@ class BingDictionaryWorkerService {
               classification = this.classify(data);
             }
 
-            if (classification === 'translated') {
+            // Detailed per-word trace for the DEBUG center: shows exactly why a
+            // word resolved the way it did (so INVALID vs FAILED is visible).
+            logger.info(
+              LOG,
+              `"${w.word}" -> ${classification.kind.toUpperCase()} (${classification.reason}) ` +
+                `[pageType=${data?.pageType ?? '?'} noEntry=${data?.noEntry ?? '?'} ` +
+                `hasContent=${data?.hasContent ?? '?'} attempts=${attempt}]`,
+            );
+
+            if (classification.kind === 'translated') {
               translations.push(await this.buildEntry(w, data));
               this.stats.translated++;
-            } else if (classification === 'invalid') {
+            } else if (classification.kind === 'invalid') {
               invalidWords.push(w);
               this.stats.invalid++;
+              logger.info(
+                LOG,
+                `"${w.word}" is INVALID (no Bing entry) — reporting to backend as invalid, NOT a failure`,
+              );
             } else {
               this.stats.failed++;
               // Persistent non-dict after retries: a region/redirect failure. Hold
@@ -628,6 +683,10 @@ class BingDictionaryWorkerService {
               if (data && data.pageType === 'non-dict') {
                 nonDictWords.push(w);
               }
+              logger.warn(
+                LOG,
+                `"${w.word}" FAILED transiently (${classification.reason}) — will retry/re-pend, NOT marked invalid`,
+              );
             }
           } catch (error) {
             logger.error(LOG, `Failed to translate ${w.word}`, error);
@@ -718,6 +777,9 @@ class BingDictionaryWorkerService {
 
       this.taskCache.delete(task.task_id);
     } finally {
+      // Task done — restart the idle-discard countdown; allow idle discard again.
+      this.processing = false;
+      this.lastActivityAt = Date.now();
       // Clear live activity between tasks so the popup shows idle, not a stale word.
       this.stats.currentWord = null;
       this.stats.currentTaskId = null;
@@ -768,10 +830,20 @@ class BingDictionaryWorkerService {
     );
   }
 
-  /** Decide what a single Bing lookup result means for the backend. */
-  private classify(data: BingDictionaryResult | null): 'translated' | 'invalid' | 'error' {
+  /**
+   * Decide what a single Bing lookup result means for the backend, with a
+   * human-readable reason for the DEBUG-center trace.
+   *
+   * invalid  = a definitive "Bing has no entry for this word" — reported to
+   *            Laravel via invalid_words[] (is_valid=false), NEVER a failure.
+   * error    = a transient miss (region redirect / web fallback / load fail) —
+   *            re-pended and retried; must NOT invalidate the word.
+   */
+  private classify(
+    data: BingDictionaryResult | null,
+  ): { kind: 'translated' | 'invalid' | 'error'; reason: string } {
     if (!data) {
-      return 'error';
+      return { kind: 'error', reason: 'no data returned from page' };
     }
 
     const hasContent =
@@ -782,7 +854,7 @@ class BingDictionaryWorkerService {
           (data.sampleImages?.length ?? 0) > 0));
 
     if (data.success && hasContent) {
-      return 'translated';
+      return { kind: 'translated', reason: 'dictionary content found' };
     }
 
     // A CONFIRMED "No results found for <word>" page (keyword: "No results") is a
@@ -790,7 +862,7 @@ class BingDictionaryWorkerService {
     // heuristic. The backend marks it is_valid=false and keeps it as a
     // placeholder so it is never re-queued.
     if (data.success && data.noEntry) {
-      return 'invalid';
+      return { kind: 'invalid', reason: 'confirmed Bing "No results" page' };
     }
 
     // SAFETY: otherwise only a CONFIRMED dictionary page with no entry means the
@@ -799,10 +871,14 @@ class BingDictionaryWorkerService {
     // Bing outage would mass-flag the whole queue. Those are transient.
     const isDictPage = data.pageType === undefined || data.pageType === 'dict';
     if (isDictPage && data.success && (data.error === NO_RESULT_ERROR || !hasContent)) {
-      return 'invalid';
+      return { kind: 'invalid', reason: 'dictionary page with no entry' };
     }
 
-    return 'error';
+    const reason =
+      data.pageType === 'non-dict'
+        ? `non-dict/region-redirect page${data.error ? ` (${data.error})` : ''}`
+        : data.error || 'no usable result';
+    return { kind: 'error', reason };
   }
 
   /** Build the rich result entry (incl. downloaded audio) for one word. */
@@ -1021,7 +1097,7 @@ class BingDictionaryWorkerService {
           const looked = await this.lookupHealing(tabId, w.word, false);
           tabId = looked.tabId;
           const data = looked.data;
-          const classification = this.classify(data);
+          const classification = this.classify(data).kind;
           if (classification === 'translated' && data) {
             const formatted = this.formatExplanation(data);
 

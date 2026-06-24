@@ -9,7 +9,7 @@
  */
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
-import { geminiSendPromptTool } from '../tools/browser/gemini';
+import { geminiWebTool } from '../tools/browser/gemini-web';
 import { logger } from '@/utils/logger';
 
 const LOG = 'Gemini Web';
@@ -52,7 +52,7 @@ class GeminiWorkerService extends SimpleWorkerBase {
 
     let toolResult: any;
     try {
-      toolResult = await geminiSendPromptTool.execute({ prompt, withAudio, language });
+      toolResult = await geminiWebTool.execute({ prompt, withAudio, language });
     } catch (error: any) {
       logger.warn(LOG, `Gemini tab drive failed for ${task.task_id}`, error);
       await this.submitResult(task.task_id, 'failed', undefined, {

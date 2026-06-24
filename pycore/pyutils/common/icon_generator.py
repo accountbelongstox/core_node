@@ -17,7 +17,11 @@ try:
     HAS_WIN32COM = True
 except ImportError:
     HAS_WIN32COM = False
-    print("Warning: win32com not available, some features may not work")
+    # win32com (pywin32) is Windows-only — used here for .lnk shortcut COM. Its absence is
+    # EXPECTED on Linux/macOS, so only warn on Windows (where it should be installed); on
+    # other platforms stay silent to avoid noise on every import of this module.
+    if sys.platform == "win32":
+        print("Warning: win32com not available, some features may not work")
 
 
 class DesktopIconGenerator:

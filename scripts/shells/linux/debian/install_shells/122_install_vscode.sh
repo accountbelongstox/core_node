@@ -855,6 +855,19 @@ main() {
     print_header_from_common_functions "Visual Studio Code Installation Script"
     print_info_from_common_functions "Installation Directory: $VSCODE_INSTALL_DIR"
 
+    # Idempotent limit refresh: when VS Code is already installed, always re-apply the
+    # resource limit + desktop entry FIRST so a re-run picks up updated caps even if the
+    # user declines the reinstall/upgrade prompt below (which exits before the limit step).
+    # No download/reinstall here. Preserve the scope mode baked in the existing wrapper so
+    # a refresh never flips --user<->--system (root-mode install keeps --system).
+    if is_vscode_installed; then
+        if [[ -f /usr/local/bin/vscode-rlimit ]]; then
+            grep -q '^ARL_SCOPE_MODE="system"' /usr/local/bin/vscode-rlimit && USE_ROOT_MODE=true
+            grep -q '^ARL_SCOPE_MODE="user"'   /usr/local/bin/vscode-rlimit && USE_ROOT_MODE=false
+        fi
+        create_vscode_desktop_shortcut || true
+    fi
+
     # Interactive cleanup prompt
     if ! prompt_cleanup_reinstall; then
         exit 0

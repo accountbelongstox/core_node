@@ -11,6 +11,7 @@ import { googleNewsProcessor } from './processors/GoogleNewsProcessor';
 import { webAiTranslateProcessor } from './processors/WebAiTranslateProcessor';
 import { chatGptProcessor } from './processors/ChatGPTProcessor';
 import { geminiProcessor } from './processors/GeminiProcessor';
+import { promptTranslateWebProcessor } from './processors/PromptTranslateWebProcessor';
 
 /**
  * Initialize and register all task processors
@@ -37,6 +38,11 @@ export function initializeProcessors(): void {
   // drive the live browser tab to send a prompt and capture text + audio.
   taskCenter.registerProcessor(chatGptProcessor, false);
   taskCenter.registerProcessor(geminiProcessor, false);
+
+  // Register Prompt-Translate Web Processor (DISABLED by default, opt-in): the
+  // chrome fulfiller of the cross-stack `prompt_translation` pipeline — drives
+  // the preferred web provider (settings) and returns {english,cleaned,variants}.
+  taskCenter.registerProcessor(promptTranslateWebProcessor, false);
 
   console.log('[TaskCenter] Processors initialized');
 }

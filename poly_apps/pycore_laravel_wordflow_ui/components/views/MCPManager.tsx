@@ -47,6 +47,7 @@ import {
 import { commonClasses } from '../../styles/theme';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
+import { LoadingBlock, InlineSpinner, EmptyState, AlertBox, FileDropzone } from '../common';
 
 type MCPTab = 'screenshots' | 'tasks' | 'placeholder' | 'voice' | 'ocr' | 'settings';
 
@@ -1076,9 +1077,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
 
       {/* Screenshots Grid/List */}
       {screenshots.loading && (
-        <div className="flex items-center justify-center h-64">
-          <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
+        <LoadingBlock label="" className="h-64" />
       )}
 
       {screenshots.error && (
@@ -1439,9 +1438,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
         )}
 
         {categories.loading && (
-          <div className="flex items-center justify-center py-8">
-            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-          </div>
+          <LoadingBlock label="" className="py-8" />
         )}
         {!categories.loading && categories.error && (
           <div className="mb-4 p-3 rounded-lg border border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-900/20">
@@ -1602,9 +1599,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
               </div>
             </div>
             {tasks.loading && (
-              <div className="flex items-center justify-center py-8">
-                <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-              </div>
+              <LoadingBlock label="" className="py-8" />
             )}
             {!tasks.loading && tasks.error && (
               <div className={`${commonClasses.card} p-4 mb-4 border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-900/20`}>
@@ -1621,13 +1616,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
               </div>
             )}
             {!tasks.loading && !tasks.error && tasks.data && tasks.data.length === 0 && (
-              <div className="flex-1 flex items-center justify-center text-slate-400">
-                <div className="text-center py-10">
-                  <ListTodo className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                  <p className="text-sm">{t.tasks.no_tasks}</p>
-                  <p className="text-xs mt-1">{t.tasks.no_tasks_hint}</p>
-                </div>
-              </div>
+              <EmptyState icon={ListTodo} className="flex-1" title={t.tasks.no_tasks} message={t.tasks.no_tasks_hint} />
             )}
             {tasks.data && (
               <div className="flex-1 overflow-y-auto space-y-2">
@@ -1731,9 +1720,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
               </div>
 
               {promptMapping.loading && (
-                <div className="flex items-center justify-center py-4">
-                  <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
-                </div>
+                <LoadingBlock label="" className="py-4" />
               )}
 
               <div className="space-y-3">
@@ -1807,9 +1794,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {categoryFiles.loading && (
-                <div className="flex items-center justify-center py-8">
-                  <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-                </div>
+                <LoadingBlock label="" className="py-8" />
               )}
               {categoryFiles.data && categoryFiles.data.files && (
                 <div className="space-y-2">
@@ -2685,7 +2670,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
               className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex-1 flex items-center justify-center gap-2`}
             >
               {generatedPlaceholder.loading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <InlineSpinner />
               ) : (
                 <Wand2 className="w-4 h-4" />
               )}
@@ -2759,13 +2744,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-slate-400">
-            <div className="text-center">
-              <ImagePlus className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p>{t.placeholder.no_placeholder}</p>
-              <p className="text-sm mt-1">{t.placeholder.no_placeholder_hint}</p>
-            </div>
-          </div>
+          <EmptyState icon={ImagePlus} className="flex-1" title={t.placeholder.no_placeholder} message={t.placeholder.no_placeholder_hint} />
         )}
       </div>
 
@@ -3169,9 +3148,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
           )}
         </div>
         {voiceQueue.loading && (
-          <div className="flex items-center justify-center py-8">
-            <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
-          </div>
+          <LoadingBlock label="" className="py-8" />
         )}
         {voiceQueue.data && voiceQueue.data.length > 0 ? (
           <div className="space-y-2">
@@ -3321,15 +3298,11 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
         </div>
 
         {voiceBackgroundTasks.loading && (
-          <div className="flex items-center justify-center py-8">
-            <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
-          </div>
+          <LoadingBlock label="" className="py-8" />
         )}
 
         {voiceBackgroundTasks.error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-600 dark:text-red-400">
-            {voiceBackgroundTasks.error}
-          </div>
+          <AlertBox variant="error">{voiceBackgroundTasks.error}</AlertBox>
         )}
 
         {voiceBackgroundTasks.data && voiceBackgroundTasks.data.length > 0 ? (
@@ -3402,9 +3375,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
           <div>
             <label className="block text-sm font-medium mb-2">{t.ocr.engine}</label>
             {ocrEngines.loading ? (
-              <div className="flex items-center justify-center py-4">
-                <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
-              </div>
+              <LoadingBlock label="" className="py-4" />
             ) : (
               <select
                 value={selectedEngine}
@@ -3420,7 +3391,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
             {/* Engine Info */}
             {ocrEngineInfo.loading && (
               <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <InlineSpinner />
                 {t.ocr.loading_engine_info}
               </div>
             )}
@@ -3453,9 +3424,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
               </div>
             )}
             {ocrEngineInfo.error && (
-              <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-600 dark:text-red-400">
-                {ocrEngineInfo.error}
-              </div>
+              <AlertBox variant="error" className="mt-2">{ocrEngineInfo.error}</AlertBox>
             )}
           </div>
 
@@ -3500,7 +3469,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
               className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex-1 flex items-center justify-center gap-2`}
             >
               {ocrResult.loading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <InlineSpinner />
               ) : (
                 <Play className="w-4 h-4" />
               )}
@@ -3562,7 +3531,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => 
                   className={`${commonClasses.button} ${commonClasses.buttonPrimary} w-full flex items-center justify-center gap-2`}
                 >
                   {ocrBatchResults.loading ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <InlineSpinner />
                   ) : (
                     <Play className="w-4 h-4" />
                   )}

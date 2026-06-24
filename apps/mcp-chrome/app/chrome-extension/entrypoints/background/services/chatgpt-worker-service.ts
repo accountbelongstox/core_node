@@ -14,7 +14,7 @@
  */
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
-import { chatgptSendPromptTool } from '../tools/browser/chatgpt';
+import { chatgptWebTool } from '../tools/browser/chatgpt-web';
 import { logger } from '@/utils/logger';
 
 const LOG = 'ChatGPT Web';
@@ -60,7 +60,7 @@ class ChatGptWorkerService extends SimpleWorkerBase {
 
     let toolResult: any;
     try {
-      toolResult = await chatgptSendPromptTool.execute({ prompt, withAudio, language });
+      toolResult = await chatgptWebTool.execute({ prompt, withAudio, language });
     } catch (error: any) {
       logger.warn(LOG, `ChatGPT tab drive failed for ${task.task_id}`, error);
       await this.submitResult(task.task_id, 'failed', undefined, {
