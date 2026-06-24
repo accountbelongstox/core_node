@@ -50,6 +50,7 @@ export interface DevHistoryIndex {
 }
 
 export interface DevHistoryPrompt {
+  id: string;
   tool: string;
   os_user: string;
   project: string;
@@ -57,6 +58,7 @@ export interface DevHistoryPrompt {
   ts: number;
   time: string;
   text: string;
+  edited?: boolean;
 }
 
 export class DevHistoryAPI extends BaseAPI {
@@ -79,5 +81,10 @@ export class DevHistoryAPI extends BaseAPI {
   /** Trigger a fresh extraction (idempotent on the backend). */
   async refresh(): Promise<APIResponse<Record<string, unknown>>> {
     return this.post('/refresh', {});
+  }
+
+  /** Edit + save one prompt's text (persisted to files on the backend). */
+  async updatePrompt(id: string, text: string): Promise<APIResponse<{ id: string; text: string; edited: boolean }>> {
+    return this.post('/prompts/update', { id, text });
   }
 }

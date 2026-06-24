@@ -3,14 +3,15 @@
 namespace App\Services\DeveloperHistory\Extractors;
 
 /**
- * OpenAI Codex CLI extractor (best-effort; layout from upstream knowledge,
- * not byte-verified on this machine).
+ * OpenAI Codex CLI extractor (paths confirmed via openai/codex docs).
  *
- *   <home>/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl  per-session
- *   <home>/.codex/history.jsonl                                  typed prompts
+ *   <home>/.codex/sessions/rollout-<ts>-<uuid>.jsonl   per-session rollout (JSONL)
+ *   (newer builds bucket by date: sessions/YYYY/MM/DD/rollout-*.jsonl)
+ *   <home>/.codex/history.jsonl                        typed-prompt log
  *
- * Each rollout line is {timestamp,type,payload}; first line is session_meta.
- * Sub-agents are separate rollout files (no in-line sidechain flag).
+ * Each rollout line is a canonical rollout item; newer builds wrap it as
+ * {timestamp,type,payload}. First line is a session_meta. Sub-agents are
+ * separate rollout files (no in-line sidechain flag).
  */
 class CodexExtractor extends AbstractExtractor
 {
@@ -19,38 +20,41 @@ class CodexExtractor extends AbstractExtractor
         return 'codex';
     }
 
-    public function extract(string $home, string $user): array
+    public function discover(string $home, string $user): array
     {
         $root = $home . '/.codex';
         if (!is_dir($root)) {
             return [];
         }
-        $sessions = [];
-
+        $out = [];
         $sessionsDir = $root . '/sessions';
         if (is_dir($sessionsDir)) {
             foreach ($this->findRollouts($sessionsDir) as $file) {
-                $sess = $this->parseRollout($file, $user);
-                if ($sess !== null) {
-                    $sessions[] = $sess;
-                }
+                $out[] = $this->descriptor($file);
             }
         }
-
-        $global = $this->parseGlobalPrompts($root, $user);
-        if ($global !== null) {
-            $sessions[] = $global;
+        $history = $root . '/history.jsonl';
+        if (is_file($history)) {
+            $out[] = $this->descriptor($history);
         }
-
-        return $sessions;
+        return $out;
     }
 
-    /** Recursively collect rollout-*.jsonl files under the date-bucketed tree. */
+    public function parseSource(string $path, string $user): array
+    {
+        if (basename($path) === 'history.jsonl') {
+            $sess = $this->parseGlobalPrompts($path, $user);
+            return $sess !== null ? [$sess] : [];
+        }
+        $sess = $this->parseRollout($path, $user);
+        return $sess !== null ? [$sess] : [];
+    }
+
+    /** Recursively collect rollout-*.jsonl files (flat or date-bucketed). */
     private function findRollouts(string $dir): array
     {
         $found = [];
-        $it = @glob($dir . '/*');
-        foreach ($it ?: [] as $path) {
+        foreach (@glob($dir . '/*') ?: [] as $path) {
             if (is_dir($path)) {
                 $found = array_merge($found, $this->findRollouts($path));
             } elseif (str_ends_with($path, '.jsonl') && str_contains(basename($path), 'rollout')) {
@@ -123,25 +127,14 @@ class CodexExtractor extends AbstractExtractor
             return null;
         }
 
-        return [
-            'tool' => $this->tool(),
-            'os_user' => $user,
-            'raw_id' => $sessionId,
+        return $this->session('codex', $user, $sessionId, [
             'project' => $project,
-            'title' => '',
-            'started_ts' => $first,
-            'started_at' => $first > 0 ? date('Y-m-d H:i:s', $first) : '',
-            'ended_at' => $last > 0 ? date('Y-m-d H:i:s', $last) : '',
-            'prompt_count' => count($prompts),
-            'message_count' => count($turns),
-            'has_subagent' => false,
-            'models' => [],
-            'source_path' => $file,
-            'source_mtime' => (int) @filemtime($file),
-            'bytes' => (int) @filesize($file),
+            'firstTs' => $first,
+            'lastTs' => $last,
+            'source' => $file,
             'prompts' => $prompts,
             'turns' => $turns,
-        ];
+        ]);
     }
 
     /** Responses-API content[] -> text (input_text/output_text blocks). */
@@ -164,12 +157,8 @@ class CodexExtractor extends AbstractExtractor
         return implode("\n", $parts);
     }
 
-    private function parseGlobalPrompts(string $root, string $user): ?array
+    private function parseGlobalPrompts(string $src, string $user): ?array
     {
-        $src = $root . '/history.jsonl';
-        if (!is_file($src)) {
-            return null;
-        }
         $rows = $this->loadJsonl($src);
         if (empty($rows)) {
             return null;
@@ -197,24 +186,14 @@ class CodexExtractor extends AbstractExtractor
             return null;
         }
 
-        return [
-            'tool' => $this->tool(),
-            'os_user' => $user,
-            'raw_id' => 'global-typed-prompts',
+        return $this->session('codex', $user, 'global-typed-prompts', [
             'project' => '(all projects)',
             'title' => 'Typed prompts (global history.jsonl)',
-            'started_ts' => $first,
-            'started_at' => $first > 0 ? date('Y-m-d H:i:s', $first) : '',
-            'ended_at' => $last > 0 ? date('Y-m-d H:i:s', $last) : '',
-            'prompt_count' => count($prompts),
-            'message_count' => count($turns),
-            'has_subagent' => false,
-            'models' => [],
-            'source_path' => $src,
-            'source_mtime' => (int) @filemtime($src),
-            'bytes' => (int) @filesize($src),
+            'firstTs' => $first,
+            'lastTs' => $last,
+            'source' => $src,
             'prompts' => $prompts,
             'turns' => $turns,
-        ];
+        ]);
     }
 }

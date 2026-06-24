@@ -3,7 +3,7 @@
 namespace App\Services\DeveloperHistory\Extractors;
 
 /**
- * Claude Code extractor (verified layout).
+ * Claude Code extractor (verified against on-disk data).
  *
  *   <home>/.claude/projects/<slug>/<session>.jsonl   full per-session transcript
  *   <home>/.claude/history.jsonl                     global typed-prompt log
@@ -17,29 +17,33 @@ class ClaudeCodeExtractor extends AbstractExtractor
         return 'claude';
     }
 
-    public function extract(string $home, string $user): array
+    public function discover(string $home, string $user): array
     {
         $root = $home . '/.claude';
-        $sessions = [];
-
+        $out = [];
         $projects = $root . '/projects';
         if (is_dir($projects)) {
             foreach (glob($projects . '/*', GLOB_ONLYDIR) ?: [] as $pdir) {
                 foreach (glob($pdir . '/*.jsonl') ?: [] as $file) {
-                    $sess = $this->parseSession($file, $user);
-                    if ($sess !== null) {
-                        $sessions[] = $sess;
-                    }
+                    $out[] = $this->descriptor($file);
                 }
             }
         }
-
-        $global = $this->parseGlobalPrompts($root, $user);
-        if ($global !== null) {
-            $sessions[] = $global;
+        $history = $root . '/history.jsonl';
+        if (is_file($history)) {
+            $out[] = $this->descriptor($history);
         }
+        return $out;
+    }
 
-        return $sessions;
+    public function parseSource(string $path, string $user): array
+    {
+        if (basename($path) === 'history.jsonl') {
+            $sess = $this->parseGlobalPrompts($path, $user);
+            return $sess !== null ? [$sess] : [];
+        }
+        $sess = $this->parseSession($path, $user);
+        return $sess !== null ? [$sess] : [];
     }
 
     private function parseSession(string $file, string $user): ?array
@@ -131,25 +135,17 @@ class ClaudeCodeExtractor extends AbstractExtractor
             $sessionId = pathinfo($file, PATHINFO_FILENAME);
         }
 
-        return [
-            'tool' => $this->tool(),
-            'os_user' => $user,
-            'raw_id' => $sessionId,
+        return $this->session('claude', $user, $sessionId, [
             'project' => $project,
             'title' => $title,
-            'started_ts' => $firstTs,
-            'started_at' => $firstTs > 0 ? date('Y-m-d H:i:s', $firstTs) : '',
-            'ended_at' => $lastTs > 0 ? date('Y-m-d H:i:s', $lastTs) : '',
-            'prompt_count' => count($prompts),
-            'message_count' => count($turns),
-            'has_subagent' => $hasSubagent,
+            'firstTs' => $firstTs,
+            'lastTs' => $lastTs,
+            'hasSubagent' => $hasSubagent,
             'models' => array_keys($models),
-            'source_path' => $file,
-            'source_mtime' => (int) @filemtime($file),
-            'bytes' => (int) @filesize($file),
+            'source' => $file,
             'prompts' => $prompts,
             'turns' => $turns,
-        ];
+        ]);
     }
 
     /**
@@ -189,12 +185,8 @@ class ClaudeCodeExtractor extends AbstractExtractor
     /**
      * The global typed-prompt log becomes one synthetic "prompts" session.
      */
-    private function parseGlobalPrompts(string $root, string $user): ?array
+    private function parseGlobalPrompts(string $src, string $user): ?array
     {
-        $src = $root . '/history.jsonl';
-        if (!is_file($src)) {
-            return null;
-        }
         $rows = $this->loadJsonl($src);
         if (empty($rows)) {
             return null;
@@ -222,24 +214,16 @@ class ClaudeCodeExtractor extends AbstractExtractor
             return null;
         }
 
-        return [
-            'tool' => $this->tool(),
-            'os_user' => $user,
-            'raw_id' => 'global-typed-prompts',
+        return $this->session('claude', $user, 'global-typed-prompts', [
             'project' => '(all projects)',
             'title' => 'Typed prompts (global history.jsonl)',
-            'started_ts' => $first,
-            'started_at' => $first > 0 ? date('Y-m-d H:i:s', $first) : '',
-            'ended_at' => $last > 0 ? date('Y-m-d H:i:s', $last) : '',
-            'prompt_count' => count($prompts),
-            'message_count' => count($turns),
-            'has_subagent' => false,
+            'firstTs' => $first,
+            'lastTs' => $last,
+            'hasSubagent' => false,
             'models' => [],
-            'source_path' => $src,
-            'source_mtime' => (int) @filemtime($src),
-            'bytes' => (int) @filesize($src),
+            'source' => $src,
             'prompts' => $prompts,
             'turns' => $turns,
-        ];
+        ]);
     }
 }

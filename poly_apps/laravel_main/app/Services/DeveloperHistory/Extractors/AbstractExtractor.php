@@ -43,6 +43,12 @@ abstract class AbstractExtractor implements ExtractorInterface
         return $out;
     }
 
+    /** Build a discovery descriptor for a source file (no parsing). */
+    protected function descriptor(string $path): array
+    {
+        return ['path' => $path, 'mtime' => (int) @filemtime($path), 'bytes' => (int) @filesize($path)];
+    }
+
     /** Read a whole JSON file (array/object) or null. */
     protected function loadJson(string $path): mixed
     {
@@ -113,6 +119,37 @@ abstract class AbstractExtractor implements ExtractorInterface
             return $text;
         }
         return substr($text, 0, self::MAX_TEXT) . "\n... [truncated]";
+    }
+
+    /**
+     * Build a normalized session record from parsed parts.
+     *
+     * @param array{project?:string,title?:string,firstTs?:int,lastTs?:int,hasSubagent?:bool,models?:array,source:string,prompts:array,turns:array} $p
+     */
+    protected function session(string $tool, string $user, string $rawId, array $p): array
+    {
+        $first = $p['firstTs'] ?? 0;
+        $last = $p['lastTs'] ?? 0;
+        $source = $p['source'];
+        return [
+            'tool' => $tool,
+            'os_user' => $user,
+            'raw_id' => $rawId,
+            'project' => $p['project'] ?? '',
+            'title' => $p['title'] ?? '',
+            'started_ts' => $first,
+            'started_at' => $first > 0 ? date('Y-m-d H:i:s', $first) : '',
+            'ended_at' => $last > 0 ? date('Y-m-d H:i:s', $last) : '',
+            'prompt_count' => count($p['prompts']),
+            'message_count' => count($p['turns']),
+            'has_subagent' => $p['hasSubagent'] ?? false,
+            'models' => $p['models'] ?? [],
+            'source_path' => $source,
+            'source_mtime' => (int) @filemtime($source),
+            'bytes' => (int) @filesize($source),
+            'prompts' => $p['prompts'],
+            'turns' => $p['turns'],
+        ];
     }
 
     /** Build a normalized turn record. */

@@ -55,4 +55,23 @@ class DevHistoryController extends Controller
         $result = $service->extract(true);
         return $this->success($result, 'Developer history refreshed');
     }
+
+    /**
+     * Edit + save one prompt's text. Persisted to files (overlay + prompts.json
+     * + session detail), never a database.
+     */
+    public function updatePrompt(Request $request): JsonResponse
+    {
+        $id = (string) $request->input('id', '');
+        $text = (string) $request->input('text', '');
+        if ($id === '') {
+            return $this->error('Missing prompt id', 422);
+        }
+        $service = new DeveloperHistoryService();
+        $result = $service->updatePrompt($id, $text);
+        if ($result === null) {
+            return $this->error("Invalid prompt id '{$id}'", 422);
+        }
+        return $this->success($result, 'Prompt updated');
+    }
 }

@@ -5,8 +5,8 @@ namespace App\Services\DeveloperHistory\Extractors;
 /**
  * Contract for a single AI-dev-tool history extractor.
  *
- * Each extractor knows one tool's on-disk layout (Claude Code, Codex, Gemini,
- * Cursor, ...) and returns normalized session records for a given user home.
+ * Split into cheap discovery (list source files + mtimes, no parsing) and
+ * per-source parsing, so the resident scanner can re-parse ONLY changed files.
  */
 interface ExtractorInterface
 {
@@ -16,11 +16,16 @@ interface ExtractorInterface
     public function tool(): string;
 
     /**
-     * Extract all sessions for one user home.
+     * Cheaply list the source files for one user home (no parsing).
      *
-     * @param string $home Absolute path to a user home (e.g. /home/kali, /root)
-     * @param string $user OS user name owning that home
-     * @return array<int, array<string, mixed>> Normalized session records
+     * @return array<int, array{path: string, mtime: int, bytes: int}>
      */
-    public function extract(string $home, string $user): array;
+    public function discover(string $home, string $user): array;
+
+    /**
+     * Parse ONE source file into zero or more normalized session records.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function parseSource(string $path, string $user): array;
 }

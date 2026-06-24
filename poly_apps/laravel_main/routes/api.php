@@ -294,6 +294,7 @@ Route::prefix('dev-history')->middleware('local.only')->group(function () {
     Route::get('prompts', [DevHistoryController::class, 'prompts']);
     Route::get('sessions/{id}', [DevHistoryController::class, 'session']);
     Route::post('refresh', [DevHistoryController::class, 'refresh']);
+    Route::post('prompts/update', [DevHistoryController::class, 'updatePrompt']);
 });
 
 // Server Manager Routes (localhost only)

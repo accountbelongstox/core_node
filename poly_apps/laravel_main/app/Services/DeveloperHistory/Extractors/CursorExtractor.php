@@ -5,14 +5,14 @@ namespace App\Services\DeveloperHistory\Extractors;
 use PDO;
 
 /**
- * Cursor IDE extractor (best-effort; SQLite layout from upstream knowledge,
- * not byte-verified on this machine). Requires the pdo_sqlite extension.
+ * Cursor IDE extractor (best-effort; SQLite layout, schema drifts by version).
+ * Requires the pdo_sqlite extension.
  *
  *   <home>/.config/Cursor/User/globalStorage/state.vscdb        global chat store
  *   <home>/.config/Cursor/User/workspaceStorage/<hash>/state.vscdb  per-workspace
  *
- * Chat lives in table ItemTable(key, value) where value is JSON. Schema drifts
- * across Cursor versions, so keys are matched loosely and missing fields tolerated.
+ * Chat lives in table ItemTable(key, value) where value is JSON; keys matched
+ * loosely (chat/composer/aiService) and missing fields tolerated.
  */
 class CursorExtractor extends AbstractExtractor
 {
@@ -21,7 +21,7 @@ class CursorExtractor extends AbstractExtractor
         return 'cursor';
     }
 
-    public function extract(string $home, string $user): array
+    public function discover(string $home, string $user): array
     {
         if (!extension_loaded('pdo_sqlite')) {
             return [];
@@ -30,73 +30,56 @@ class CursorExtractor extends AbstractExtractor
         if (!is_dir($base)) {
             return [];
         }
-
-        $dbs = [];
+        $out = [];
         $global = $base . '/globalStorage/state.vscdb';
         if (is_file($global)) {
-            $dbs[] = $global;
+            $out[] = $this->descriptor($global);
         }
         foreach (glob($base . '/workspaceStorage/*/state.vscdb') ?: [] as $db) {
-            $dbs[] = $db;
+            $out[] = $this->descriptor($db);
         }
-
-        $sessions = [];
-        foreach ($dbs as $db) {
-            foreach ($this->parseDb($db, $user) as $sess) {
-                $sessions[] = $sess;
-            }
-        }
-        return $sessions;
+        return $out;
     }
 
-    private function parseDb(string $db, string $user): array
+    public function parseSource(string $path, string $user): array
     {
-        $rows = $this->readItemTable($db);
+        if (!extension_loaded('pdo_sqlite')) {
+            return [];
+        }
+        $rows = $this->readItemTable($path);
         if (empty($rows)) {
             return [];
         }
 
         $out = [];
-        $mtime = (int) @filemtime($db);
-        $bytes = (int) @filesize($db);
+        $mtime = (int) @filemtime($path);
 
         foreach ($rows as $key => $value) {
             $decoded = json_decode($value, true);
             if (!is_array($decoded)) {
                 continue;
             }
-            $conversations = $this->findConversations($decoded);
-            foreach ($conversations as $idx => $conv) {
-                $turns = $this->bubblesToTurns($conv);
+            foreach ($this->findConversations($decoded) as $idx => $conv) {
+                $turns = $this->bubblesToTurns($conv, $mtime);
                 if (empty($turns)) {
                     continue;
                 }
                 $prompts = [];
-                foreach ($turns as $t) {
-                    if ($t['role'] === 'user') {
-                        $prompts[] = ['ts' => $t['ts'], 'text' => $t['text']];
+                foreach ($turns as $turn) {
+                    if ($turn['role'] === 'user') {
+                        $prompts[] = ['ts' => $turn['ts'], 'text' => $turn['text']];
                     }
                 }
                 $rawId = (string) ($conv['composerId'] ?? ($conv['id'] ?? ($key . '-' . $idx)));
-                $out[] = [
-                    'tool' => $this->tool(),
-                    'os_user' => $user,
-                    'raw_id' => $rawId,
-                    'project' => basename(dirname($db)),
+                $out[] = $this->session('cursor', $user, $rawId, [
+                    'project' => basename(dirname($path)),
                     'title' => (string) ($conv['name'] ?? ($conv['title'] ?? '')),
-                    'started_ts' => $mtime,
-                    'started_at' => $mtime > 0 ? date('Y-m-d H:i:s', $mtime) : '',
-                    'ended_at' => $mtime > 0 ? date('Y-m-d H:i:s', $mtime) : '',
-                    'prompt_count' => count($prompts),
-                    'message_count' => count($turns),
-                    'has_subagent' => false,
-                    'models' => [],
-                    'source_path' => $db,
-                    'source_mtime' => $mtime,
-                    'bytes' => $bytes,
+                    'firstTs' => $mtime,
+                    'lastTs' => $mtime,
+                    'source' => $path,
                     'prompts' => $prompts,
                     'turns' => $turns,
-                ];
+                ]);
             }
         }
         return $out;
@@ -107,9 +90,7 @@ class CursorExtractor extends AbstractExtractor
     {
         $rows = [];
         try {
-            $pdo = new PDO('sqlite:' . $db, null, null, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT,
-            ]);
+            $pdo = new PDO('sqlite:' . $db, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_SILENT]);
             $pdo->exec('PRAGMA query_only = 1');
             $stmt = $pdo->query(
                 "SELECT key, value FROM ItemTable WHERE key LIKE '%chat%' "
@@ -126,7 +107,6 @@ class CursorExtractor extends AbstractExtractor
         return $rows;
     }
 
-    /** Heuristically locate conversation objects inside a decoded blob. */
     private function findConversations(array $blob): array
     {
         foreach (['tabs', 'conversations', 'allComposers', 'composers'] as $field) {
@@ -140,8 +120,7 @@ class CursorExtractor extends AbstractExtractor
         return [];
     }
 
-    /** Turn a conversation's bubbles/messages into normalized turns. */
-    private function bubblesToTurns(array $conv): array
+    private function bubblesToTurns(array $conv, int $ts): array
     {
         $list = null;
         foreach (['bubbles', 'messages', 'conversation'] as $field) {
@@ -165,7 +144,7 @@ class CursorExtractor extends AbstractExtractor
             }
             $type = $b['type'] ?? ($b['role'] ?? '');
             $isUser = ($type === 1 || $type === '1' || $type === 'user');
-            $turns[] = $this->turn(0, $isUser ? 'user' : 'assistant', $text);
+            $turns[] = $this->turn($ts, $isUser ? 'user' : 'assistant', $text);
             if (count($turns) > self::MAX_TURNS) {
                 break;
             }
