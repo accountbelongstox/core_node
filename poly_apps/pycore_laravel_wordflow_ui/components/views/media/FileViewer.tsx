@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import BentoCard from '../../BentoCard';
 import { FileNode, Language, StaticFileContent } from '../../../types';
-import { api } from '../../../core/api';
+import { getSource } from './resourceSources';
 import ViewerErrorBoundary from './ViewerErrorBoundary';
 import {
     Play, SkipForward, SkipBack, AlertCircle,
@@ -43,6 +43,11 @@ interface FileViewerProps {
 const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lang = 'en' }) => {
   const activeFile = file;
 
+  // Resolve the backend adapter for the active file from its source tag (set by
+  // the tree adapter). All read/save/stream/download go through it, so the same
+  // viewer serves static media files and project code. NO ||/?? — ternary only.
+  const source = getSource(activeFile ? activeFile.sourceId : undefined);
+
   const [autoPlay, setAutoPlay] = useState(true);
   const [skipIntro, setSkipIntro] = useState<{ enabled: boolean; start: number; end: number }>({
     enabled: false,
@@ -77,7 +82,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
     let cancelled = false;
     const fetchContent = async () => {
       setContentLoading(true);
-      const response = await api.mcpV1.getStaticFileContent(activeFile.id);
+      const response = await source.readContent(activeFile);
       if (cancelled) return;
       if (response.success && response.data) {
         setFileContent(response.data as StaticFileContent);
@@ -108,7 +113,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
 
     let cancelled = false;
     let hls: any = null;
-    const src = api.mcpV1.getStaticFileStreamUrl(activeFile.id);
+    const src = source.streamUrl(activeFile);
     import('hls.js').then((mod) => {
       if (cancelled) return;
       const Hls = mod.default;
@@ -125,7 +130,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
   }, [activeFile]);
 
   const handleDownload = (node: FileNode) => {
-     const url = api.mcpV1.getStaticFileDownloadUrl(node.id);
+     const url = source.downloadUrl(node);
      window.open(url, '_blank');
   };
 
@@ -133,9 +138,9 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
   const handleSaveContent = async () => {
      if (!activeFile) return;
      setIsSaving(true);
-     const response = await api.mcpV1.saveStaticFileContent(activeFile.id, editValue);
+     const response = await source.saveContent(activeFile, editValue);
      if (response.success) {
-       const reload = await api.mcpV1.getStaticFileContent(activeFile.id);
+       const reload = await source.readContent(activeFile);
        if (reload.success && reload.data) {
          setFileContent(reload.data as StaticFileContent);
          setEditValue(reload.data.content ? reload.data.content : '');
@@ -190,7 +195,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
 
   // Whether the current active file's content is editable inline.
   const isDirty = fileContent ? editValue !== fileContent.content : false;
-  const canEdit = activeFile && fileContent && fileContent.isText && fileContent.size < MAX_EDITABLE_SIZE ? true : false;
+  const canEdit = activeFile && fileContent && fileContent.isText && fileContent.size < MAX_EDITABLE_SIZE && source.canEdit && source.canWrite ? true : false;
 
   // Render the "Reading"/content body for a textual file (markdown / code / text).
   const renderTextualBody = () => {
@@ -224,7 +229,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
         <ViewerErrorBoundary
           key={activeFile.id}
           fileName={activeFile.name}
-          downloadUrl={api.mcpV1.getStaticFileDownloadUrl(activeFile.id)}
+          downloadUrl={source.downloadUrl(activeFile)}
           label="The code editor could not be loaded."
         >
           <div className="h-full bg-black/40 border border-white/5 rounded-lg overflow-hidden">
@@ -288,7 +293,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
       // effect can own the media source; otherwise stream directly.
       const lowerName = activeFile.name ? activeFile.name.toLowerCase() : '';
       const useHlsJs = lowerName.endsWith('.m3u8') ? !SUPPORTS_NATIVE_HLS : false;
-      const nativeSrc = useHlsJs ? undefined : api.mcpV1.getStaticFileStreamUrl(activeFile.id);
+      const nativeSrc = useHlsJs ? undefined : source.streamUrl(activeFile);
       return (
         <>
           <video
@@ -352,7 +357,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
           autoPlay
           onEnded={handleVideoEnd}
           className="w-full"
-          src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
+          src={source.streamUrl(activeFile)}
         />
       );
     }
@@ -360,7 +365,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
     if (ft === 'image') {
       return (
         <img
-          src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
+          src={source.streamUrl(activeFile)}
           alt={activeFile.name}
           className="max-w-full max-h-full object-contain"
         />
@@ -371,7 +376,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
       return (
         <iframe
           key={activeFile.id}
-          src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
+          src={source.streamUrl(activeFile)}
           className="w-full h-full bg-white"
           title={activeFile.name}
         />
@@ -383,11 +388,11 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
         <ViewerErrorBoundary
           key={activeFile.id}
           fileName={activeFile.name}
-          downloadUrl={api.mcpV1.getStaticFileDownloadUrl(activeFile.id)}
+          downloadUrl={source.downloadUrl(activeFile)}
           label="The book reader could not be loaded."
         >
           <Suspense fallback={<ViewerLoading />}>
-            <EpubReader url={api.mcpV1.getStaticFileStreamUrl(activeFile.id)} />
+            <EpubReader url={source.streamUrl(activeFile)} />
           </Suspense>
         </ViewerErrorBoundary>
       );

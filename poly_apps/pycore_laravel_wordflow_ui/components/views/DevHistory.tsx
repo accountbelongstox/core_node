@@ -57,6 +57,8 @@ const ROLE_STYLE: Record<string, { ring: string; label: string; icon: React.Reac
 
 const toolLabel = (tool: string): string => TOOL_LABELS[tool] || tool;
 
+const PAGE_SIZE = 50;
+
 const DevHistory: React.FC<DevHistoryProps> = ({ lang = 'en' }) => {
   const { t } = useTranslation();
   const tk = (k: string): string => t(`devHistoryView.${k}`);
@@ -78,6 +80,9 @@ const DevHistory: React.FC<DevHistoryProps> = ({ lang = 'en' }) => {
 
   const [prompts, setPrompts] = useState<DevHistoryPrompt[]>([]);
   const [promptsLoading, setPromptsLoading] = useState(false);
+  const [promptTotal, setPromptTotal] = useState(0);
+  const [promptPage, setPromptPage] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const loadIndex = useCallback(async () => {
     setLoading(true);
@@ -96,15 +101,19 @@ const DevHistory: React.FC<DevHistoryProps> = ({ lang = 'en' }) => {
     const res = await api.devHistory.getPrompts({
       tool: filterTool || undefined,
       user: filterUser || undefined,
-      limit: 1000
+      q: debouncedSearch || undefined,
+      limit: PAGE_SIZE,
+      offset: (promptPage - 1) * PAGE_SIZE
     });
     if (res.success && res.data) {
       setPrompts(res.data.items || []);
+      setPromptTotal(res.data.total || 0);
     } else {
       setPrompts([]);
+      setPromptTotal(0);
     }
     setPromptsLoading(false);
-  }, [filterTool, filterUser]);
+  }, [filterTool, filterUser, debouncedSearch, promptPage]);
 
   useEffect(() => {
     loadIndex();
@@ -115,6 +124,17 @@ const DevHistory: React.FC<DevHistoryProps> = ({ lang = 'en' }) => {
       loadPrompts();
     }
   }, [tab, loadPrompts]);
+
+  // Debounce the search box into the server query (Prompts tab).
+  useEffect(() => {
+    const h = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(h);
+  }, [search]);
+
+  // Any new query/facet resets to the first page.
+  useEffect(() => {
+    setPromptPage(1);
+  }, [debouncedSearch, filterTool, filterUser]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -160,12 +180,6 @@ const DevHistory: React.FC<DevHistoryProps> = ({ lang = 'en' }) => {
       return true;
     });
   }, [sessions, filterTool, filterUser, search]);
-
-  const filteredPrompts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return prompts;
-    return prompts.filter((p) => p.text.toLowerCase().includes(q));
-  }, [prompts, search]);
 
   const chip = (active: boolean) =>
     `px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
@@ -312,24 +326,50 @@ const DevHistory: React.FC<DevHistoryProps> = ({ lang = 'en' }) => {
             </div>
           </div>
         ) : (
-          /* Prompts tab */
-          <div className="h-full rounded-xl border border-black/5 dark:border-white/10 bg-white/40 dark:bg-slate-900/40 overflow-y-auto">
-            {promptsLoading ? (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm">…</div>
-            ) : filteredPrompts.length === 0 ? (
-              <div className="p-6 text-center text-slate-400 text-xs">{tk('empty')}</div>
-            ) : (
-              <ul className="divide-y divide-black/5 dark:divide-white/10">
-                {filteredPrompts.map((p, i) => (
-                  <PromptItem
-                    key={p.id || `${p.session_id}-${i}`}
-                    p={p}
-                    labels={promptLabels}
-                    toolPill={toolPill}
-                    onSaved={handlePromptSaved}
-                  />
-                ))}
-              </ul>
+          /* Prompts tab — server-side search + pagination */
+          <div className="h-full rounded-xl border border-black/5 dark:border-white/10 bg-white/40 dark:bg-slate-900/40 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {promptsLoading ? (
+                <div className="h-full flex items-center justify-center text-slate-400 text-sm">…</div>
+              ) : prompts.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 text-xs">{tk('empty')}</div>
+              ) : (
+                <ul className="divide-y divide-black/5 dark:divide-white/10">
+                  {prompts.map((p, i) => (
+                    <PromptItem
+                      key={p.id || `${p.session_id}-${i}`}
+                      p={p}
+                      labels={promptLabels}
+                      toolPill={toolPill}
+                      onSaved={handlePromptSaved}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+            {promptTotal > 0 && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-black/5 dark:border-white/10 text-[11px] text-slate-400">
+                <span>{promptTotal} {tk('results')}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPromptPage((p) => Math.max(1, p - 1))}
+                    disabled={promptPage <= 1 || promptsLoading}
+                    className="px-2 py-1 rounded-md bg-black/5 dark:bg-white/5 disabled:opacity-40 hover:text-indigo-500"
+                  >
+                    {tk('prev')}
+                  </button>
+                  <span>
+                    {tk('page')} {promptPage} / {Math.max(1, Math.ceil(promptTotal / PAGE_SIZE))}
+                  </span>
+                  <button
+                    onClick={() => setPromptPage((p) => (p * PAGE_SIZE < promptTotal ? p + 1 : p))}
+                    disabled={promptPage * PAGE_SIZE >= promptTotal || promptsLoading}
+                    className="px-2 py-1 rounded-md bg-black/5 dark:bg-white/5 disabled:opacity-40 hover:text-indigo-500"
+                  >
+                    {tk('next')}
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}

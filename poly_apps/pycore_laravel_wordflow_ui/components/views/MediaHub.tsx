@@ -15,7 +15,7 @@
  * Guardrails: no try/catch here, no `||`/`??` — explicit ternaries.
  */
 import React, { useState } from 'react';
-import { Clapperboard, BookOpen, Film, RefreshCw, LucideIcon } from 'lucide-react';
+import { Clapperboard, BookOpen, Film, Code2, RefreshCw, LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Language, FileNode } from '../../types';
 import type { Segment, Selection } from './media/mbShared';
@@ -23,10 +23,11 @@ import LibraryPanel from './media/LibraryPanel';
 import MbSourceDetail from './media/MbSourceDetail';
 import FileViewer from './media/FileViewer';
 
-/** Pick the initial segment from the arrival hash: #/movies-books -> movies;
- *  legacy #/media -> files; anything else -> the richer movies library. */
+/** Pick the initial segment from the arrival hash: #/code -> code;
+ *  #/movies-books -> movies; legacy #/media -> files; else the movies library. */
 const getInitialSegment = (): Segment => {
   const hash = typeof window !== 'undefined' ? window.location.hash.toLowerCase() : '';
+  if (hash.indexOf('code') >= 0) return 'code';
   if (hash.indexOf('movies') >= 0) return 'movies';
   if (hash.indexOf('media') >= 0) return 'files';
   return 'movies';
@@ -45,6 +46,7 @@ const MediaHub: React.FC<{ lang?: Language; onRequireLogin?: () => void }> = ({ 
     { id: 'movies', icon: Clapperboard, label: t('mediaHub.segMovies') },
     { id: 'books', icon: BookOpen, label: t('mediaHub.segBooks') },
     { id: 'files', icon: Film, label: t('mediaHub.segFiles') },
+    { id: 'code', icon: Code2, label: t('mediaHub.segCode') },
   ];
 
   // Switching segment starts a fresh explore: clear the current selection so the

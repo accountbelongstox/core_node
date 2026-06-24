@@ -15,6 +15,7 @@ import type { Language, FileNode } from '../../../types';
 import type { Segment, Selection } from './mbShared';
 import FileTreePanel from './FileTreePanel';
 import SourceListPanel from './SourceListPanel';
+import { getSource } from './resourceSources';
 
 interface LibraryPanelProps {
   segment: Segment;
@@ -38,12 +39,17 @@ const LibraryPanel: React.FC<LibraryPanelProps> = ({
   reloadSignal,
   onRequireLogin,
 }) => {
-  if (segment === 'files') {
+  // Files and Code are both file trees, differing only in their backend adapter
+  // (static media vs project source). NO ||/?? in this file — explicit branching.
+  const isFileTree = segment === 'files' ? true : segment === 'code';
+  if (isFileTree) {
+    const fileSource = segment === 'code' ? getSource('code') : getSource('files');
     const activeFileId = selection !== null && selection.kind === 'file' ? selection.file.id : null;
     return (
       <FileTreePanel
         search={search}
         activeFileId={activeFileId}
+        source={fileSource}
         onSelectFile={(n) => onSelect({ kind: 'file', file: n })}
         onPlaylist={onPlaylist}
         lang={lang}
@@ -53,13 +59,15 @@ const LibraryPanel: React.FC<LibraryPanelProps> = ({
     );
   }
 
+  // Movies / Books are DB-backed learning sources (not file trees).
+  const sourceKind = segment === 'books' ? 'books' : 'movies';
   const selectedKey = selection !== null && selection.kind === 'source' ? selection.source.source_key : null;
   return (
     <SourceListPanel
-      kind={segment}
+      kind={sourceKind}
       search={search}
       selectedKey={selectedKey}
-      onSelect={(item) => onSelect({ kind: 'source', source: { ...item, kind: segment } })}
+      onSelect={(item) => onSelect({ kind: 'source', source: { ...item, kind: sourceKind } })}
       reloadSignal={reloadSignal}
     />
   );

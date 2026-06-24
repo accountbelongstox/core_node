@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import TopHeader from './components/TopHeader';
 import MediaHub from './components/views/MediaHub';
-import CodeBrowser from './components/views/CodeBrowser';
 import { UnifiedToolsPage } from './components/views/UnifiedToolsPage';
 import ApiTester from './components/views/ApiTester';
 import VocabularyLearning from './components/views/VocabularyLearning';
@@ -217,10 +216,12 @@ const AppContent: React.FC = () => {
 
   const renderView = () => {
     switch (activeView) {
-      // Merged "Media" hub: Static Resources (#/media) + Movies & Books
-      // (#/movies-books) tabs. Both legacy ViewTypes resolve here.
+      // Unified "Resources" hub: Movies & Books (#/movies-books) + Files
+      // (#/media) + Code (#/code) segments, one type-dispatched viewer. All
+      // three legacy ViewTypes resolve here.
       case ViewType.MEDIA_BROWSER:
       case ViewType.MOVIES_BOOKS:
+      case ViewType.CODE_BROWSER:
         return (
           <MediaHub
             lang={lang}
@@ -230,8 +231,6 @@ const AppContent: React.FC = () => {
             }}
           />
         );
-      case ViewType.CODE_BROWSER:
-        return <CodeBrowser />;
       case ViewType.TOOLS:
         return <UnifiedToolsPage lang={lang} />;
       case ViewType.API_TESTER:
@@ -274,8 +273,8 @@ const AppContent: React.FC = () => {
   const getPageTitle = () => {
     switch (activeView) {
       case ViewType.MEDIA_BROWSER:
-      case ViewType.MOVIES_BOOKS: return t('header.titles.media');
-      case ViewType.CODE_BROWSER: return t('header.titles.code');
+      case ViewType.MOVIES_BOOKS:
+      case ViewType.CODE_BROWSER: return t('header.titles.media');
       case ViewType.TOOLS: return t('header.titles.tools');
       case ViewType.API_TESTER: return t('header.titles.api');
       case ViewType.VOCABULARY: return t('header.titles.vocabulary');

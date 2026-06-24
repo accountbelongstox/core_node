@@ -16,7 +16,7 @@ export const APP_VERSION = "v3.4.0-beta";
 export const TRANSLATIONS = {
   en: {
     nav: {
-      media: "Media",
+      media: "Resources",
       moviesBooks: "Movies & Books",
       code: "Code Node",
     tools: "Tools",
@@ -56,6 +56,7 @@ export const TRANSLATIONS = {
       segMovies: "Movies",
       segBooks: "Books",
       segFiles: "Files",
+      segCode: "Code",
       searchPlaceholder: "Search…",
       refresh: "Refresh",
       emptyPrompt: "Select an item to view it here."
@@ -68,7 +69,7 @@ export const TRANSLATIONS = {
       logged_in_as: "Logged in as:",
       guest: "Guest",
       titles: {
-        media: "Media",
+        media: "Resources",
         movies_books: "Movies & Books - Subtitle / Sentence Browser",
         code: "Code Browser - Core Node Directory",
         tools: "Developer Utilities",
@@ -112,6 +113,10 @@ export const TRANSLATIONS = {
       save: "Save",
       cancel: "Cancel",
       edited: "edited",
+      results: "results",
+      page: "Page",
+      prev: "Prev",
+      next: "Next",
       loadError: "Failed to load."
     },
     moviesBooksView: {
@@ -1041,7 +1046,7 @@ export const TRANSLATIONS = {
   },
   zh: {
     nav: {
-      media: "媒体",
+      media: "资源",
       moviesBooks: "影片与书籍",
       code: "代码节点",
       tools: "工具箱",
@@ -1063,6 +1068,7 @@ export const TRANSLATIONS = {
       segMovies: "影片",
       segBooks: "书籍",
       segFiles: "文件",
+      segCode: "代码",
       searchPlaceholder: "搜索…",
       refresh: "刷新",
       emptyPrompt: "选择一个项目以在此查看。"
@@ -1075,7 +1081,7 @@ export const TRANSLATIONS = {
       logged_in_as: "当前用户:",
       guest: "访客",
       titles: {
-        media: "媒体",
+        media: "资源",
         movies_books: "影片与书籍 - 字幕 / 句子浏览器",
         code: "代码浏览器 - 核心节点目录",
         tools: "开发者实用工具",
@@ -1119,6 +1125,10 @@ export const TRANSLATIONS = {
       save: "保存",
       cancel: "取消",
       edited: "已编辑",
+      results: "条结果",
+      page: "第",
+      prev: "上一页",
+      next: "下一页",
       loadError: "加载失败。"
     },
     moviesBooksView: {
@@ -2120,6 +2130,21 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       { id: 'conv_temp', name: 'Temperature Converter', status: 'available' },
       { id: 'conv_roman', name: 'Roman Numerals', status: 'available' },
       { id: 'col1', name: 'HEX to RGB', status: 'available' },
+      { id: 'conv_base', name: 'Base Converter', status: 'available' },
+      { id: 'conv_base64_file_encode', name: 'Base64 File Encode', status: 'available' },
+      { id: 'conv_base64_file_decode', name: 'Base64 File Decode', status: 'available' },
+      { id: 'conv_json_csv', name: 'JSON to CSV', status: 'available' },
+      { id: 'conv_json_xml', name: 'JSON to XML', status: 'available' },
+      { id: 'conv_json_toml', name: 'JSON to TOML', status: 'available' },
+      { id: 'conv_toml_json', name: 'TOML to JSON', status: 'available' },
+      { id: 'conv_toml_yaml', name: 'TOML to YAML', status: 'available' },
+      { id: 'conv_xml_json', name: 'XML to JSON', status: 'available' },
+      { id: 'conv_yaml_toml', name: 'YAML to TOML', status: 'available' },
+      { id: 'conv_list', name: 'List Converter', status: 'available' },
+      { id: 'conv_slugify', name: 'Slug Generator', status: 'available' },
+      { id: 'conv_text_binary', name: 'Text to Binary', status: 'available' },
+      { id: 'conv_text_unicode', name: 'Text to Unicode', status: 'available' },
+      { id: 'conv_text_nato', name: 'Text to NATO', status: 'available' },
     ]
   },
   {
@@ -2132,6 +2157,13 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       { id: 'gen1', name: 'QR Code Generator', status: 'available' },
       { id: 'web_wifi', name: 'WiFi QR Code', status: 'available' },
       { id: 'web_url_parse', name: 'URL Parser', status: 'todo' }, // Placeholder
+      { id: 'web_html_encode', name: 'HTML Encode', status: 'available' },
+      { id: 'web_html_decode', name: 'HTML Decode', status: 'available' },
+      { id: 'web_json_diff', name: 'JSON Diff', status: 'available' },
+      { id: 'web_http_status', name: 'HTTP Status Lookup', status: 'available' },
+      { id: 'web_mime_types', name: 'MIME Types', status: 'available' },
+      { id: 'web_meta_tags', name: 'Meta Tag Generator', status: 'available' },
+      { id: 'web_svg_optimize', name: 'SVG Optimizer', status: 'available' },
     ]
   },
   {
@@ -2169,6 +2201,14 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     icon: Calculator,
     tools: [
       { id: 'calc1', name: 'Age Calculator', status: 'available' },
+      { id: 'calc_bmi', name: 'BMI Calculator', status: 'available' },
+      { id: 'calc_gst', name: 'GST Calculator', status: 'available' },
+      { id: 'calc_loan_emi', name: 'Loan EMI Calculator', status: 'available' },
+      { id: 'calc_num_to_words', name: 'Number to Words', status: 'available' },
+      { id: 'calc_math_eval', name: 'Math Evaluator', status: 'available' },
+      { id: 'calc_percentage', name: 'Percentage Calculator', status: 'available' },
+      { id: 'calc_eta', name: 'ETA Calculator', status: 'available' },
+      { id: 'calc_benchmark', name: 'Benchmark', status: 'available' },
     ]
   },
   {
@@ -2177,7 +2217,36 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     icon: Edit3,
     tools: [
       { id: 'ta4', name: 'Word Counter', status: 'available' },
+      { id: 'txt_regex', name: 'Regex Tester', status: 'available' },
+      { id: 'txt_diff', name: 'Text Diff', status: 'available' },
+      { id: 'txt_email_normalize', name: 'Email Normalizer', status: 'available' },
+      { id: 'txt_numeronym', name: 'Numeronym Generator', status: 'available' },
+      { id: 'txt_ascii_art', name: 'ASCII Art', status: 'available' },
+      { id: 'txt_crontab', name: 'Crontab Parser', status: 'available' },
+      { id: 'txt_phone', name: 'Phone Parser', status: 'available' },
+      { id: 'txt_iban', name: 'IBAN Validator', status: 'available' },
+      { id: 'txt_safelink', name: 'Safelink Encoder', status: 'available' },
+      { id: 'txt_emoji', name: 'Emoji Picker', status: 'available' },
+      { id: 'txt_git_memo', name: 'Git Commit Memo', status: 'available' },
+      { id: 'txt_obfuscate', name: 'Text Obfuscator', status: 'available' },
+      { id: 'txt_lorem', name: 'Lorem Ipsum', status: 'available' },
     ]
+  },
+  {
+    id: 'network',
+    name: 'Network',
+    icon: Wifi,
+    tools: [
+      { id: 'net_ipv4_convert', name: 'IPv4 Converter', description: 'Convert an IPv4 address to decimal, hex and binary.', status: 'available' },
+      { id: 'net_ipv4_subnet', name: 'IPv4 Subnet Calculator', description: 'Compute network, broadcast, mask and host range from IP/CIDR.', status: 'available' },
+      { id: 'net_ipv4_expand', name: 'IPv4 Range Expander', description: 'Expand a start-end IPv4 range into a list of addresses.', status: 'available' },
+      { id: 'net_ipv6_ula', name: 'IPv6 ULA Generator', description: 'Generate random IPv6 unique local addresses (fd00::/8).', status: 'available' },
+      { id: 'net_mac_generate', name: 'MAC Address Generator', description: 'Generate random MAC addresses.', status: 'available' },
+      { id: 'net_mac_lookup', name: 'MAC Address Lookup', description: 'Look up the vendor for a MAC address OUI prefix.', status: 'available' },
+      { id: 'net_user_agent', name: 'User-Agent Parser', description: 'Parse a User-Agent string into browser, OS and device.', status: 'available' },
+      { id: 'net_chmod', name: 'Chmod Calculator', description: 'Convert an octal file mode to symbolic permissions.', status: 'available' },
+      { id: 'net_port_random', name: 'Random Port Generator', description: 'Generate random port numbers within a range.', status: 'available' },
+    ],
   }
 ];
 
@@ -2207,6 +2276,475 @@ export const DEFAULT_API_CONFIGS: Record<string, ToolConfig> = {
 
 // --- TOOL UI SCHEMAS ---
 export const TOOL_UI_SCHEMAS: Record<string, ToolUISchema> = {
+/* --- converters --- */
+'conv_base': {
+  id: 'conv_base', title: 'Base Converter', description: 'Convert a number between binary, octal, decimal and hexadecimal.',
+  inputs: [
+    { id: 'value', label: 'Value', type: 'text', placeholder: 'e.g. FF' },
+    { id: 'from', label: 'From Base', type: 'select', defaultValue: '10', options: [{ label: 'Binary (2)', value: '2' }, { label: 'Octal (8)', value: '8' }, { label: 'Decimal (10)', value: '10' }, { label: 'Hexadecimal (16)', value: '16' }] },
+    { id: 'to', label: 'To Base', type: 'select', defaultValue: '16', options: [{ label: 'Binary (2)', value: '2' }, { label: 'Octal (8)', value: '8' }, { label: 'Decimal (10)', value: '10' }, { label: 'Hexadecimal (16)', value: '16' }] },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: Binary, apiPath: '/api/ittools/v1/converter/base' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_base64_file_encode': {
+  id: 'conv_base64_file_encode', title: 'Base64 File Encode', description: 'Encode raw file data to a Base64 string and data URI.',
+  inputs: [
+    { id: 'fileData', label: 'File Data', type: 'textarea', placeholder: 'Raw file content...' },
+    { id: 'fileName', label: 'File Name', type: 'text', placeholder: 'file' },
+  ],
+  actions: [{ id: 'run', label: 'Encode', icon: Upload, apiPath: '/api/ittools/v1/converter/base64/file/encode' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_base64_file_decode': {
+  id: 'conv_base64_file_decode', title: 'Base64 File Decode', description: 'Decode a Base64 string back to file data with detected MIME type.',
+  inputs: [
+    { id: 'encoded', label: 'Base64', type: 'textarea', placeholder: 'Base64 string...' },
+  ],
+  actions: [{ id: 'run', label: 'Decode', icon: Download, apiPath: '/api/ittools/v1/converter/base64/file/decode' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_json_csv': {
+  id: 'conv_json_csv', title: 'JSON to CSV', description: 'Convert a JSON array of objects to CSV.',
+  inputs: [
+    { id: 'json', label: 'JSON', type: 'textarea', placeholder: '[{"a":1,"b":2}]' },
+    { id: 'delimiter', label: 'Delimiter', type: 'text', defaultValue: ',', placeholder: ',' },
+    { id: 'includeHeaders', label: 'Include Headers', type: 'checkbox', defaultValue: true },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: ArrowLeftRight, apiPath: '/api/ittools/v1/converter/json-to-csv' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_json_xml': {
+  id: 'conv_json_xml', title: 'JSON to XML', description: 'Convert JSON to XML.',
+  inputs: [
+    { id: 'json', label: 'JSON', type: 'textarea', placeholder: '{"key":"value"}' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: ArrowLeftRight, apiPath: '/api/ittools/v1/converter/json-to-xml' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_json_toml': {
+  id: 'conv_json_toml', title: 'JSON to TOML', description: 'Convert JSON to TOML.',
+  inputs: [
+    { id: 'json', label: 'JSON', type: 'textarea', placeholder: '{"key":"value"}' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: ArrowLeftRight, apiPath: '/api/ittools/v1/converter/json-to-toml' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_toml_json': {
+  id: 'conv_toml_json', title: 'TOML to JSON', description: 'Convert TOML to JSON.',
+  inputs: [
+    { id: 'toml', label: 'TOML', type: 'textarea', placeholder: 'key = "value"' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: ArrowLeftRight, apiPath: '/api/ittools/v1/converter/toml-to-json' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_toml_yaml': {
+  id: 'conv_toml_yaml', title: 'TOML to YAML', description: 'Convert TOML to YAML.',
+  inputs: [
+    { id: 'toml', label: 'TOML', type: 'textarea', placeholder: 'key = "value"' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: ArrowLeftRight, apiPath: '/api/ittools/v1/converter/toml-to-yaml' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_xml_json': {
+  id: 'conv_xml_json', title: 'XML to JSON', description: 'Convert XML to JSON.',
+  inputs: [
+    { id: 'xml', label: 'XML', type: 'textarea', placeholder: '<root><key>value</key></root>' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: ArrowLeftRight, apiPath: '/api/ittools/v1/converter/xml-to-json' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_yaml_toml': {
+  id: 'conv_yaml_toml', title: 'YAML to TOML', description: 'Convert YAML to TOML.',
+  inputs: [
+    { id: 'yaml', label: 'YAML', type: 'textarea', placeholder: 'key: value' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: ArrowLeftRight, apiPath: '/api/ittools/v1/converter/yaml-to-toml' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_list': {
+  id: 'conv_list', title: 'List Converter', description: 'Convert a list between separators (comma, newline, etc.).',
+  inputs: [
+    { id: 'list', label: 'List', type: 'textarea', placeholder: 'a, b, c' },
+    { id: 'from', label: 'From', type: 'select', defaultValue: 'comma', options: [{ label: 'Comma', value: 'comma' }, { label: 'Semicolon', value: 'semicolon' }, { label: 'Pipe', value: 'pipe' }, { label: 'Space', value: 'space' }, { label: 'Tab', value: 'tab' }, { label: 'Newline', value: 'newline' }] },
+    { id: 'to', label: 'To', type: 'select', defaultValue: 'newline', options: [{ label: 'Comma', value: 'comma' }, { label: 'Semicolon', value: 'semicolon' }, { label: 'Pipe', value: 'pipe' }, { label: 'Space', value: 'space' }, { label: 'Tab', value: 'tab' }, { label: 'Newline', value: 'newline' }] },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: AlignLeft, apiPath: '/api/ittools/v1/converter/list' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_slugify': {
+  id: 'conv_slugify', title: 'Slug Generator', description: 'Generate a URL-friendly slug from text.',
+  inputs: [
+    { id: 'text', label: 'Text', type: 'text', placeholder: 'Hello World' },
+    { id: 'separator', label: 'Separator', type: 'text', defaultValue: '-', placeholder: '-' },
+    { id: 'lowercase', label: 'Lowercase', type: 'checkbox', defaultValue: true },
+  ],
+  actions: [{ id: 'run', label: 'Slugify', icon: Link, apiPath: '/api/ittools/v1/converter/slugify' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_text_binary': {
+  id: 'conv_text_binary', title: 'Text to Binary', description: 'Convert text to a binary representation.',
+  inputs: [
+    { id: 'text', label: 'Text', type: 'textarea', placeholder: 'Enter text...' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: Binary, apiPath: '/api/ittools/v1/converter/text-to-binary' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_text_unicode': {
+  id: 'conv_text_unicode', title: 'Text to Unicode', description: 'Convert text to Unicode code points (U+XXXX).',
+  inputs: [
+    { id: 'text', label: 'Text', type: 'textarea', placeholder: 'Enter text...' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: Type, apiPath: '/api/ittools/v1/converter/text-to-unicode' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'conv_text_nato': {
+  id: 'conv_text_nato', title: 'Text to NATO', description: 'Convert text to the NATO phonetic alphabet.',
+  inputs: [
+    { id: 'text', label: 'Text', type: 'text', placeholder: 'Enter text...' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: Type, apiPath: '/api/ittools/v1/converter/text-to-nato' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+/* --- text_adv --- */
+'txt_regex': {
+  id: 'txt_regex', title: 'Regex Tester', description: 'Test a regular expression against text and list matches.',
+  inputs: [
+    { id: 'pattern', label: 'Pattern', type: 'text', placeholder: '\\d+' },
+    { id: 'text', label: 'Text', type: 'textarea', placeholder: 'Enter text to search...' },
+    { id: 'flags', label: 'Flags', type: 'text', placeholder: 'gims', defaultValue: 'g' },
+  ],
+  actions: [{ id: 'run', label: 'Test', icon: Search, apiPath: '/api/ittools/v1/text/regex/test' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_diff': {
+  id: 'txt_diff', title: 'Text Diff', description: 'Compare two texts line by line.',
+  inputs: [
+    { id: 'text1', label: 'Text 1', type: 'textarea', placeholder: 'Original text...' },
+    { id: 'text2', label: 'Text 2', type: 'textarea', placeholder: 'Changed text...' },
+    { id: 'ignoreWhitespace', label: 'Ignore Whitespace', type: 'checkbox' },
+    { id: 'ignoreCase', label: 'Ignore Case', type: 'checkbox' },
+  ],
+  actions: [{ id: 'run', label: 'Compare', icon: ArrowLeftRight, apiPath: '/api/ittools/v1/text/diff' }],
+  outputs: [{ id: 'result', label: 'Diff', type: 'json' }],
+},
+'txt_email_normalize': {
+  id: 'txt_email_normalize', title: 'Email Normalizer', description: 'Normalize an email address (strip plus-tags, lowercase).',
+  inputs: [
+    { id: 'email', label: 'Email', type: 'text', placeholder: 'user+tag@Example.com' },
+  ],
+  actions: [{ id: 'run', label: 'Normalize', icon: Type, apiPath: '/api/ittools/v1/text/email/normalize' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_numeronym': {
+  id: 'txt_numeronym', title: 'Numeronym Generator', description: 'Generate a numeronym from a word (e.g. i18n).',
+  inputs: [
+    { id: 'text', label: 'Text', type: 'text', placeholder: 'internationalization' },
+  ],
+  actions: [{ id: 'run', label: 'Generate', icon: Hash, apiPath: '/api/ittools/v1/text/numeronym' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_ascii_art': {
+  id: 'txt_ascii_art', title: 'ASCII Art', description: 'Render text as ASCII art.',
+  inputs: [
+    { id: 'text', label: 'Text', type: 'text', placeholder: 'Hello' },
+    { id: 'font', label: 'Font', type: 'select', defaultValue: 'standard', options: [{ label: 'Standard', value: 'standard' }, { label: 'Banner', value: 'banner' }, { label: 'Block', value: 'block' }] },
+  ],
+  actions: [{ id: 'run', label: 'Generate', icon: Type, apiPath: '/api/ittools/v1/text/ascii-art' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_crontab': {
+  id: 'txt_crontab', title: 'Crontab Parser', description: 'Parse and describe a crontab expression.',
+  inputs: [
+    { id: 'expression', label: 'Expression', type: 'text', placeholder: '*/5 * * * *' },
+  ],
+  actions: [{ id: 'run', label: 'Parse', icon: Clock, apiPath: '/api/ittools/v1/text/crontab/parse' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_phone': {
+  id: 'txt_phone', title: 'Phone Parser', description: 'Parse and format a phone number.',
+  inputs: [
+    { id: 'phone', label: 'Phone', type: 'text', placeholder: '+1 415 555 0123' },
+    { id: 'country', label: 'Country', type: 'text', placeholder: 'US', defaultValue: 'US' },
+  ],
+  actions: [{ id: 'run', label: 'Parse', icon: Phone, apiPath: '/api/ittools/v1/text/phone/parse' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_iban': {
+  id: 'txt_iban', title: 'IBAN Validator', description: 'Validate an IBAN and break out its parts.',
+  inputs: [
+    { id: 'iban', label: 'IBAN', type: 'text', placeholder: 'DE89 3704 0044 0532 0130 00' },
+  ],
+  actions: [{ id: 'run', label: 'Validate', icon: CheckCircle, apiPath: '/api/ittools/v1/text/iban/validate' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_safelink': {
+  id: 'txt_safelink', title: 'Safelink Encoder', description: 'Encode or decode a URL for safe-link wrapping.',
+  inputs: [
+    { id: 'url', label: 'URL', type: 'text', placeholder: 'https://example.com/path?q=1' },
+    { id: 'action', label: 'Action', type: 'select', defaultValue: 'encode', options: [{ label: 'Encode', value: 'encode' }, { label: 'Decode', value: 'decode' }] },
+  ],
+  actions: [{ id: 'run', label: 'Run', icon: Link, apiPath: '/api/ittools/v1/text/safelink/encode' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_emoji': {
+  id: 'txt_emoji', title: 'Emoji Picker', description: 'Search and browse emojis by category.',
+  inputs: [
+    { id: 'search', label: 'Search', type: 'text', placeholder: 'happy' },
+    { id: 'category', label: 'Category', type: 'select', options: [{ label: 'Smileys', value: 'smileys' }, { label: 'People', value: 'people' }, { label: 'Animals', value: 'animals' }, { label: 'Food', value: 'food' }, { label: 'Travel', value: 'travel' }, { label: 'Activities', value: 'activities' }, { label: 'Objects', value: 'objects' }, { label: 'Symbols', value: 'symbols' }, { label: 'Flags', value: 'flags' }] },
+  ],
+  actions: [{ id: 'run', label: 'Search', icon: Search, apiPath: '/api/ittools/v1/text/emoji/picker' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_git_memo': {
+  id: 'txt_git_memo', title: 'Git Commit Memo', description: 'Build a Conventional Commits message.',
+  inputs: [
+    { id: 'type', label: 'Type', type: 'select', defaultValue: 'feat', options: [{ label: 'feat', value: 'feat' }, { label: 'fix', value: 'fix' }, { label: 'docs', value: 'docs' }, { label: 'style', value: 'style' }, { label: 'refactor', value: 'refactor' }, { label: 'test', value: 'test' }, { label: 'chore', value: 'chore' }] },
+    { id: 'scope', label: 'Scope', type: 'text', placeholder: 'auth' },
+    { id: 'subject', label: 'Subject', type: 'text', placeholder: 'add login flow' },
+    { id: 'body', label: 'Body', type: 'textarea', placeholder: 'Detailed description...' },
+    { id: 'breaking', label: 'Breaking Change', type: 'checkbox' },
+  ],
+  actions: [{ id: 'run', label: 'Generate', icon: Edit3, apiPath: '/api/ittools/v1/text/git/memo' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_obfuscate': {
+  id: 'txt_obfuscate', title: 'Text Obfuscator', description: 'Obfuscate text using a chosen method.',
+  inputs: [
+    { id: 'text', label: 'Text', type: 'textarea', placeholder: 'Enter text...' },
+    { id: 'method', label: 'Method', type: 'select', defaultValue: 'unicode', options: [{ label: 'Unicode', value: 'unicode' }, { label: 'Hex', value: 'hex' }, { label: 'ROT13', value: 'rot13' }, { label: 'Base64', value: 'base64' }, { label: 'Reverse', value: 'reverse' }] },
+  ],
+  actions: [{ id: 'run', label: 'Obfuscate', icon: Shield, apiPath: '/api/ittools/v1/text/obfuscate' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'txt_lorem': {
+  id: 'txt_lorem', title: 'Lorem Ipsum', description: 'Generate placeholder Lorem Ipsum text.',
+  inputs: [
+    { id: 'count', label: 'Count', type: 'number', defaultValue: 3, placeholder: '3' },
+    { id: 'unit', label: 'Unit', type: 'select', defaultValue: 'paragraphs', options: [{ label: 'Words', value: 'words' }, { label: 'Sentences', value: 'sentences' }, { label: 'Paragraphs', value: 'paragraphs' }] },
+    { id: 'startWithLorem', label: 'Start With Lorem', type: 'checkbox', defaultValue: true },
+  ],
+  actions: [{ id: 'run', label: 'Generate', icon: AlignLeft, apiPath: '/api/ittools/v1/text/lorem-ipsum' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+/* --- network --- */
+'net_ipv4_convert': {
+  id: 'net_ipv4_convert', title: 'IPv4 Converter', description: 'Convert an IPv4 address to decimal, hexadecimal and binary.',
+  inputs: [
+    { id: 'ip', label: 'IPv4 Address', type: 'text', placeholder: '192.168.1.1', defaultValue: '192.168.1.1' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: ArrowLeftRight, apiPath: '/api/ittools/v1/network/ipv4/convert' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'net_ipv4_subnet': {
+  id: 'net_ipv4_subnet', title: 'IPv4 Subnet Calculator', description: 'Compute network, broadcast, mask and host range from an IP and CIDR.',
+  inputs: [
+    { id: 'ip', label: 'IPv4 Address', type: 'text', placeholder: '192.168.1.10', defaultValue: '192.168.1.10' },
+    { id: 'cidr', label: 'CIDR Prefix', type: 'number', placeholder: '0-32', defaultValue: 24 },
+  ],
+  actions: [{ id: 'run', label: 'Calculate', icon: Calculator, apiPath: '/api/ittools/v1/network/ipv4/subnet' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'net_ipv4_expand': {
+  id: 'net_ipv4_expand', title: 'IPv4 Range Expander', description: 'Expand a start-end IPv4 range into a list of addresses (max 1000).',
+  inputs: [
+    { id: 'range', label: 'IP Range', type: 'text', placeholder: '192.168.1.1-192.168.1.20', defaultValue: '192.168.1.1-192.168.1.20' },
+  ],
+  actions: [{ id: 'run', label: 'Expand', icon: AlignLeft, apiPath: '/api/ittools/v1/network/ipv4/expand' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'net_ipv6_ula': {
+  id: 'net_ipv6_ula', title: 'IPv6 ULA Generator', description: 'Generate random IPv6 unique local addresses (fd00::/8).',
+  inputs: [
+    { id: 'count', label: 'Count', type: 'number', placeholder: '1-50', defaultValue: 1 },
+  ],
+  actions: [{ id: 'run', label: 'Generate', icon: RefreshCcw, apiPath: '/api/ittools/v1/network/ipv6/ula' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'net_mac_generate': {
+  id: 'net_mac_generate', title: 'MAC Address Generator', description: 'Generate random MAC addresses.',
+  inputs: [
+    { id: 'count', label: 'Count', type: 'number', placeholder: '1-50', defaultValue: 1 },
+    { id: 'separator', label: 'Separator', type: 'select', defaultValue: ':', options: [{ label: 'Colon (:)', value: ':' }, { label: 'Hyphen (-)', value: '-' }] },
+    { id: 'uppercase', label: 'Uppercase', type: 'checkbox', defaultValue: true },
+  ],
+  actions: [{ id: 'run', label: 'Generate', icon: RefreshCcw, apiPath: '/api/ittools/v1/network/mac/generate' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'net_mac_lookup': {
+  id: 'net_mac_lookup', title: 'MAC Address Lookup', description: 'Look up the vendor for a MAC address OUI prefix.',
+  inputs: [
+    { id: 'mac', label: 'MAC Address', type: 'text', placeholder: '00:01:C8:00:00:00', defaultValue: '00:01:C8:00:00:00' },
+  ],
+  actions: [{ id: 'run', label: 'Lookup', icon: Search, apiPath: '/api/ittools/v1/network/mac/lookup' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'net_user_agent': {
+  id: 'net_user_agent', title: 'User-Agent Parser', description: 'Parse a User-Agent string into browser, OS and device.',
+  inputs: [
+    { id: 'userAgent', label: 'User-Agent String', type: 'textarea', placeholder: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...' },
+  ],
+  actions: [{ id: 'run', label: 'Parse', icon: Globe, apiPath: '/api/ittools/v1/network/user-agent/parse' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'net_chmod': {
+  id: 'net_chmod', title: 'Chmod Calculator', description: 'Convert an octal file mode to symbolic permissions.',
+  inputs: [
+    { id: 'mode', label: 'Octal Mode', type: 'text', placeholder: '755', defaultValue: '755' },
+  ],
+  actions: [{ id: 'run', label: 'Calculate', icon: Calculator, apiPath: '/api/ittools/v1/network/chmod' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'net_port_random': {
+  id: 'net_port_random', title: 'Random Port Generator', description: 'Generate random port numbers within a range.',
+  inputs: [
+    { id: 'count', label: 'Count', type: 'number', placeholder: '1-50', defaultValue: 1 },
+    { id: 'min', label: 'Min Port', type: 'number', placeholder: '1024-65535', defaultValue: 1024 },
+    { id: 'max', label: 'Max Port', type: 'number', placeholder: '1024-65535', defaultValue: 65535 },
+  ],
+  actions: [{ id: 'run', label: 'Generate', icon: RefreshCcw, apiPath: '/api/ittools/v1/network/port/random' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+/* --- web --- */
+'web_html_encode': {
+  id: 'web_html_encode', title: 'HTML Encode', description: 'Encode text into HTML entities.',
+  inputs: [
+    { id: 'html', label: 'Text / HTML', type: 'textarea', placeholder: 'Enter text to encode...' },
+  ],
+  actions: [{ id: 'run', label: 'Encode', icon: Code2, apiPath: '/api/ittools/v1/web/html/encode' }],
+  outputs: [{ id: 'encoded', label: 'Encoded', type: 'text' }],
+},
+'web_html_decode': {
+  id: 'web_html_decode', title: 'HTML Decode', description: 'Decode HTML entities back into text.',
+  inputs: [
+    { id: 'encoded', label: 'Encoded HTML', type: 'textarea', placeholder: 'Enter HTML entities...' },
+  ],
+  actions: [{ id: 'run', label: 'Decode', icon: Code2, apiPath: '/api/ittools/v1/web/html/decode' }],
+  outputs: [{ id: 'decoded', label: 'Decoded', type: 'text' }],
+},
+'web_json_diff': {
+  id: 'web_json_diff', title: 'JSON Diff', description: 'Compare two JSON documents and list differences.',
+  inputs: [
+    { id: 'json1', label: 'JSON A', type: 'textarea', placeholder: '{ "a": 1 }' },
+    { id: 'json2', label: 'JSON B', type: 'textarea', placeholder: '{ "a": 2 }' },
+  ],
+  actions: [{ id: 'run', label: 'Compare', icon: ArrowLeftRight, apiPath: '/api/ittools/v1/web/json/diff' }],
+  outputs: [{ id: 'differences', label: 'Differences', type: 'json' }],
+},
+'web_http_status': {
+  id: 'web_http_status', title: 'HTTP Status Lookup', description: 'Look up the meaning of an HTTP status code.',
+  inputs: [
+    { id: 'code', label: 'Status Code', type: 'number', placeholder: '404', defaultValue: 404 },
+  ],
+  actions: [{ id: 'run', label: 'Lookup', icon: Search, apiPath: '/api/ittools/v1/web/http/status' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'web_mime_types': {
+  id: 'web_mime_types', title: 'MIME Types', description: 'Browse common MIME types and file extensions.',
+  inputs: [],
+  actions: [{ id: 'run', label: 'List MIME Types', icon: FileText, apiPath: '/api/ittools/v1/web/mime-types' }],
+  outputs: [{ id: 'mimeTypes', label: 'MIME Types', type: 'json' }],
+},
+'web_meta_tags': {
+  id: 'web_meta_tags', title: 'Meta Tag Generator', description: 'Generate HTML, Open Graph and Twitter meta tags.',
+  inputs: [
+    { id: 'title', label: 'Title', type: 'text', placeholder: 'Page title' },
+    { id: 'description', label: 'Description', type: 'textarea', placeholder: 'Page description' },
+    { id: 'url', label: 'URL', type: 'text', placeholder: 'https://example.com' },
+    { id: 'image', label: 'Image URL', type: 'text', placeholder: 'https://example.com/og.png' },
+    { id: 'type', label: 'Type', type: 'select', defaultValue: 'website', options: [{ label: 'Website', value: 'website' }, { label: 'Article', value: 'article' }, { label: 'Product', value: 'product' }] },
+  ],
+  actions: [{ id: 'run', label: 'Generate', icon: Code2, apiPath: '/api/ittools/v1/web/meta-tags/generate' }],
+  outputs: [{ id: 'allTags', label: 'Meta Tags', type: 'text' }],
+},
+'web_svg_optimize': {
+  id: 'web_svg_optimize', title: 'SVG Optimizer', description: 'Minify and optimize SVG markup.',
+  inputs: [
+    { id: 'svg', label: 'SVG', type: 'textarea', placeholder: '<svg>...</svg>' },
+    { id: 'precision', label: 'Precision', type: 'number', placeholder: '2', defaultValue: 2 },
+  ],
+  actions: [{ id: 'run', label: 'Optimize', icon: Wrench, apiPath: '/api/ittools/v1/web/svg/optimize' }],
+  outputs: [{ id: 'optimized', label: 'Optimized SVG', type: 'text' }],
+},
+/* --- calc --- */
+'calc_bmi': {
+  id: 'calc_bmi', title: 'BMI Calculator', description: 'Calculate Body Mass Index from weight and height.',
+  inputs: [
+    { id: 'weight', label: 'Weight', type: 'number', placeholder: 'kg (metric) or lb (imperial)' },
+    { id: 'height', label: 'Height', type: 'number', placeholder: 'cm (metric) or in (imperial)' },
+    { id: 'unit', label: 'Unit System', type: 'select', defaultValue: 'metric', options: [{ label: 'Metric (kg, cm)', value: 'metric' }, { label: 'Imperial (lb, in)', value: 'imperial' }] },
+  ],
+  actions: [{ id: 'run', label: 'Calculate', icon: Calculator, apiPath: '/api/ittools/v1/advanced/calculator/bmi' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'calc_gst': {
+  id: 'calc_gst', title: 'GST Calculator', description: 'Add or remove GST from an amount.',
+  inputs: [
+    { id: 'amount', label: 'Amount', type: 'number', placeholder: 'e.g. 1000' },
+    { id: 'gst_rate', label: 'GST Rate (%)', type: 'number', placeholder: 'e.g. 18' },
+    { id: 'operation', label: 'Operation', type: 'select', defaultValue: 'add', options: [{ label: 'Add GST', value: 'add' }, { label: 'Remove GST', value: 'remove' }] },
+  ],
+  actions: [{ id: 'run', label: 'Calculate', icon: Calculator, apiPath: '/api/ittools/v1/advanced/calculator/gst' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'calc_loan_emi': {
+  id: 'calc_loan_emi', title: 'Loan EMI Calculator', description: 'Calculate monthly loan EMI.',
+  inputs: [
+    { id: 'principal', label: 'Principal', type: 'number', placeholder: 'e.g. 100000' },
+    { id: 'rate', label: 'Annual Interest Rate (%)', type: 'number', placeholder: 'e.g. 7.5' },
+    { id: 'months', label: 'Tenure (months)', type: 'number', placeholder: 'e.g. 60' },
+  ],
+  actions: [{ id: 'run', label: 'Calculate', icon: Calculator, apiPath: '/api/ittools/v1/advanced/calculator/loan-emi' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'calc_num_to_words': {
+  id: 'calc_num_to_words', title: 'Number to Words', description: 'Convert a number into its English words.',
+  inputs: [
+    { id: 'number', label: 'Number', type: 'number', placeholder: 'e.g. 12345' },
+  ],
+  actions: [{ id: 'run', label: 'Convert', icon: Type, apiPath: '/api/ittools/v1/advanced/calculator/number-to-words' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'calc_math_eval': {
+  id: 'calc_math_eval', title: 'Math Evaluator', description: 'Evaluate a math expression (+ - * / ^ and parentheses).',
+  inputs: [
+    { id: 'expression', label: 'Expression', type: 'text', placeholder: 'e.g. (2+3)*4^2' },
+    { id: 'precision', label: 'Precision (decimals)', type: 'number', defaultValue: '10', placeholder: '0-20' },
+  ],
+  actions: [{ id: 'run', label: 'Evaluate', icon: Calculator, apiPath: '/api/ittools/v1/math/evaluate' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'calc_percentage': {
+  id: 'calc_percentage', title: 'Percentage Calculator', description: 'Percentage of, change between, or what-percent calculations.',
+  inputs: [
+    { id: 'operation', label: 'Operation', type: 'select', defaultValue: 'percent_of', options: [{ label: 'X% of Y', value: 'percent_of' }, { label: 'Percentage change (X to Y)', value: 'percentage_change' }, { label: 'X is what % of Y', value: 'what_percent' }] },
+    { id: 'value1', label: 'Value 1', type: 'number', placeholder: 'e.g. 10' },
+    { id: 'value2', label: 'Value 2', type: 'number', placeholder: 'e.g. 200' },
+  ],
+  actions: [{ id: 'run', label: 'Calculate', icon: Calculator, apiPath: '/api/ittools/v1/math/percentage' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'calc_eta': {
+  id: 'calc_eta', title: 'ETA Calculator', description: 'Estimate completion time from progress so far.',
+  inputs: [
+    { id: 'totalItems', label: 'Total Items', type: 'number', placeholder: 'e.g. 1000' },
+    { id: 'completedItems', label: 'Completed Items', type: 'number', placeholder: 'e.g. 250' },
+    { id: 'elapsedTime', label: 'Elapsed Time', type: 'number', placeholder: 'e.g. 60' },
+    { id: 'unit', label: 'Time Unit', type: 'select', defaultValue: 'seconds', options: [{ label: 'Seconds', value: 'seconds' }, { label: 'Minutes', value: 'minutes' }, { label: 'Hours', value: 'hours' }] },
+  ],
+  actions: [{ id: 'run', label: 'Calculate', icon: Clock, apiPath: '/api/ittools/v1/math/eta' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
+'calc_benchmark': {
+  id: 'calc_benchmark', title: 'Benchmark', description: 'Micro-benchmark a basic operation over N iterations.',
+  inputs: [
+    { id: 'operation', label: 'Operation', type: 'select', defaultValue: 'math_calc', options: [{ label: 'String concat', value: 'string_concat' }, { label: 'Array push', value: 'array_push' }, { label: 'Math calc', value: 'math_calc' }, { label: 'JSON encode', value: 'json_encode' }, { label: 'Hash (MD5)', value: 'hash' }] },
+    { id: 'iterations', label: 'Iterations', type: 'number', defaultValue: '1000', placeholder: '1-1000000' },
+    { id: 'data', label: 'Data (optional)', type: 'text', placeholder: 'sample input string' },
+  ],
+  actions: [{ id: 'run', label: 'Run', icon: BarChart, apiPath: '/api/ittools/v1/math/benchmark' }],
+  outputs: [{ id: 'result', label: 'Result', type: 'json' }],
+},
   // --- Crypto ---
   'cry1': {
     id: 'cry1', title: 'UUID Generator', description: 'Generate UUID v4 identifiers.',

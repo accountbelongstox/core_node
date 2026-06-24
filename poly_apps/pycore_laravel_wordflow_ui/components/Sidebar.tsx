@@ -3,7 +3,6 @@ import { ViewType, NavItem, Language } from '../types';
 import { useTranslation } from 'react-i18next';
 import { useUserRole } from '../hooks/useUserRole';
 import {
-  Code2,
   Wrench,
   Server,
   Settings,
@@ -28,10 +27,11 @@ interface SidebarProps {
 
 const NAV_ITEMS: NavItem[] = [
   { id: ViewType.API_TESTER, icon: Server, labelKey: 'api' },
-  // Static Resources (#/media) + Movies & Books (#/movies-books) merged into one
-  // "Media" hub (MediaHub, tabbed). Old #/movies-books deep-links still resolve here.
+  // Unified "Resources" hub (MediaHub): Movies & Books (DB sources) + Files
+  // (static media, #/media) + Code (project source, #/code) in one tabbed
+  // explorer with a type-dispatched viewer. Old #/movies-books and #/code
+  // deep-links still resolve here.
   { id: ViewType.MEDIA_BROWSER, icon: Clapperboard, labelKey: 'media' },
-  { id: ViewType.CODE_BROWSER, icon: Code2, labelKey: 'code' },
   { id: ViewType.TOOLS, icon: Wrench, labelKey: 'tools' },
   { id: ViewType.VOCABULARY, icon: BookOpen, labelKey: 'vocabulary' },
   { id: ViewType.AI_TOOLS, icon: Sparkles, labelKey: 'aiTools' },

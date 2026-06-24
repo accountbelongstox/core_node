@@ -29,7 +29,7 @@ export function formatTime(sec: number | undefined): string {
   return `${mm}:${String(ss).padStart(2, '0')}`;
 }
 
-export type Segment = 'movies' | 'books' | 'files';
+export type Segment = 'movies' | 'books' | 'files' | 'code';
 
 export type Selection =
   | { kind: 'source'; source: MediaSourceListItem & { kind: 'movies' | 'books' } }

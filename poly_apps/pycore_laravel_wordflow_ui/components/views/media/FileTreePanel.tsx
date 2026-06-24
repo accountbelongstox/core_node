@@ -777,8 +777,10 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   // NO try-catch allowed.
   const handleCreateFolder = async (name: string) => {
      if (!ensureAuthed()) return;
+     const doMkdir = source.mkdir;
+     if (!doMkdir) return;
      const parentPath = selectedDir ? selectedDir : '';
-     const response = await api.mcpV1.createStaticResourceDir(parentPath, name);
+     const response = await doMkdir(parentPath, name);
      if (response.success) {
        await loadFileTree();
      } else {
@@ -789,7 +791,9 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   // NO try-catch allowed.
   const handleRename = async (node: FileNode, newName: string) => {
      if (!ensureAuthed()) return;
-     const response = await api.mcpV1.renameStaticResource(node.id, newName);
+     const doRename = source.rename;
+     if (!doRename) return;
+     const response = await doRename(node, newName);
      if (response.success) {
        await loadFileTree();
      } else {
@@ -798,17 +802,23 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   };
 
   const handleDownload = (node: FileNode) => {
-     const url = api.mcpV1.getStaticFileDownloadUrl(node.id);
+     const url = source.downloadUrl(node);
      window.open(url, '_blank');
   };
 
   // Opening the delete modal also fetches an impact preview. NO try-catch.
   const openDeleteModal = async (node: FileNode) => {
      if (!ensureAuthed()) return;
+     if (!source.delete) return;
      setDeleteTarget(node);
      setDeletePreview(null);
+     const doPreview = source.deletePreview;
+     if (!doPreview) {
+       setDeletePreviewLoading(false);
+       return;
+     }
      setDeletePreviewLoading(true);
-     const response = await api.mcpV1.deleteStaticResourcePreview(node.id);
+     const response = await doPreview(node);
      if (response.success && response.data) {
        setDeletePreview({
          files: response.data.files,
@@ -824,8 +834,10 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   const handleConfirmDelete = async () => {
      if (!ensureAuthed()) return;
      if (!deleteTarget) return;
+     const doDelete = source.delete;
+     if (!doDelete) return;
      const target = deleteTarget;
-     const response = await api.mcpV1.deleteStaticResource(target.id);
+     const response = await doDelete(target);
      setDeleteTarget(null);
      setDeletePreview(null);
      if (response.success) {
@@ -843,8 +855,12 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
 
   const visibleTree = filterTree(fileTree, search);
 
+  // Capability-derived UI flags (explicit branching — no ||/?? in this file).
+  const showTargetTools = source.canUpload === true ? true : source.canMkdir === true;
+  const headerIcon = source.id === 'code' ? Code2 : Film;
+
   return (
-    <BentoCard title="Static Resources" className="flex-1 flex flex-col min-h-0" icon={Film} glowing>
+    <BentoCard title={source.label} className="flex-1 flex flex-col min-h-0" icon={headerIcon} glowing>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2 min-w-0">
           <button
@@ -857,29 +873,35 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
           <span className="text-xs text-slate-500 font-mono truncate">{currentPath}</span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span
-            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-slate-400 max-w-[200px]"
-            title={`Target: ${targetDirLabel}`}
-          >
-            <Folder size={13} className="text-yellow-500/80 flex-shrink-0" />
-            <span className="font-mono truncate">{targetDirLabel}</span>
-          </span>
-          <button
-            onClick={() => { if (!ensureAuthed()) return; setIsUploadOpen(true); }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 text-sm rounded-lg transition-colors border border-white/10"
-            title={authed ? 'Upload files or a folder' : 'Login required to upload'}
-          >
-            {authed ? <UploadCloud size={16} /> : <Lock size={16} />}
-            {authed ? 'Upload' : 'Login to upload'}
-          </button>
-          <button
-            onClick={() => { if (!ensureAuthed()) return; setIsNewFolderOpen(true); }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
-            title={authed ? 'Create folder in target' : 'Login required'}
-          >
-            {authed ? <FolderPlus size={16} /> : <Lock size={16} />}
-            New Folder
-          </button>
+          {showTargetTools && (
+            <span
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-slate-400 max-w-[200px]"
+              title={`Target: ${targetDirLabel}`}
+            >
+              <Folder size={13} className="text-yellow-500/80 flex-shrink-0" />
+              <span className="font-mono truncate">{targetDirLabel}</span>
+            </span>
+          )}
+          {source.canUpload && (
+            <button
+              onClick={() => { if (!ensureAuthed()) return; setIsUploadOpen(true); }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 text-sm rounded-lg transition-colors border border-white/10"
+              title={authed ? 'Upload files or a folder' : 'Login required to upload'}
+            >
+              {authed ? <UploadCloud size={16} /> : <Lock size={16} />}
+              {authed ? 'Upload' : 'Login to upload'}
+            </button>
+          )}
+          {source.canMkdir && (
+            <button
+              onClick={() => { if (!ensureAuthed()) return; setIsNewFolderOpen(true); }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
+              title={authed ? 'Create folder in target' : 'Login required'}
+            >
+              {authed ? <FolderPlus size={16} /> : <Lock size={16} />}
+              New Folder
+            </button>
+          )}
         </div>
       </div>
 
@@ -889,7 +911,18 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
         </div>
       )}
 
-      {loading ? (
+      {browseBlocked ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center">
+          <Lock size={32} className="text-amber-400" />
+          <p className="text-sm">Login required to browse {source.label}.</p>
+          <button
+            onClick={() => { if (onRequireLogin) onRequireLogin(); }}
+            className="mt-1 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
+          >
+            <Lock size={14} /> Login
+          </button>
+        </div>
+      ) : loading ? (
         <div className="flex-1 flex items-center justify-center text-slate-500">
           <Loader2 size={32} className="animate-spin" />
         </div>
@@ -928,6 +961,8 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
                 level={0}
                 activeId={activeFileId}
                 selectedDir={selectedDir}
+                canRename={source.canRename}
+                canDelete={source.canDelete}
                 onSelect={handleSelectNode}
                 onToggle={toggleFolder}
                 onRename={handleRename}

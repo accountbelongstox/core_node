@@ -50,6 +50,11 @@ SLUG_TO_VIEW['db-viewer'] = ViewType.DATABASE_MANAGER;
 SLUG_TO_VIEW['movies-books'] = ViewType.MEDIA_BROWSER;
 SLUG_TO_VIEW['movies_books'] = ViewType.MEDIA_BROWSER;
 
+// Code Browser was merged into the unified Resources hub (Code segment), so
+// #/code deep-links land on the explorer; MediaHub reads the hash on first
+// render to open the Code segment before the URL normalizes to #/media.
+SLUG_TO_VIEW['code'] = ViewType.MEDIA_BROWSER;
+
 export function viewToSlug(view: ViewType): string {
   return VIEW_TO_SLUG[view] ?? '';
 }

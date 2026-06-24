@@ -119,7 +119,7 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     const addToHistory = (toolId: string, toolName: string) => {
         setHistory(prev => {
             const filtered = prev.filter(item => item.toolId !== toolId);
-            const newHistory = [{ toolId, toolName, timestamp: Date.now() }, ...filtered].slice(0, 20);
+            const newHistory = [{ toolId, toolName, timestamp: Date.now() }, ...filtered].slice(0, 100);
             localStorage.setItem('tool_history', JSON.stringify(newHistory));
             return newHistory;
         });
@@ -145,7 +145,10 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     ).filter(tool => {
         const matchesCategory = activeCategory === 'all' || 
             TOOL_CATEGORIES.find(c => c.id === activeCategory)?.tools.some(t => t.id === tool.id);
-        const matchesSearch = tool.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const q = searchQuery.toLowerCase();
+        const matchesSearch = tool.name.toLowerCase().includes(q)
+            || (tool.description || '').toLowerCase().includes(q)
+            || (tool.categoryName || '').toLowerCase().includes(q);
         return matchesCategory && matchesSearch;
     });
 
@@ -451,7 +454,43 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                                         </div>
                                     )
                                 ) : (
-                                    filteredTools.map(tool => (
+                                  <>
+                                    {!showFavorites && searchQuery === '' && history.length > 0 && (
+                                        <div className="mb-2">
+                                            <div className="px-3 py-1 text-[10px] font-bold text-emerald-400/80 uppercase tracking-wider flex items-center gap-1">
+                                                <History size={10} /> {t.recent}
+                                            </div>
+                                            {history.slice(0, 8).map(item => {
+                                                const recentTool = allTools.find(rt => rt.id === item.toolId);
+                                                if (!recentTool) return null;
+                                                return (
+                                                    <div
+                                                        key={`recent-${item.toolId}`}
+                                                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${activeToolId === item.toolId ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+                                                    >
+                                                        <button
+                                                            onClick={() => handleToolSelect(item.toolId)}
+                                                            className="flex items-center gap-2 flex-1 text-left"
+                                                        >
+                                                            <Clock size={12} className="text-slate-500 flex-shrink-0" />
+                                                            <span className="truncate flex-1">{item.toolName}</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => toggleFavorite(item.toolId, e)}
+                                                            className={`p-1 rounded hover:bg-white/10 flex-shrink-0 ${favorites.includes(item.toolId) ? 'text-amber-400' : 'text-slate-500'}`}
+                                                            title={favorites.includes(item.toolId) ? t.remove_from_favorites : t.add_to_favorites}
+                                                        >
+                                                            <Star size={12} fill={favorites.includes(item.toolId) ? 'currentColor' : 'none'} />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                            <div className="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-t border-white/5 mt-1">
+                                                {activeCategory === 'all' ? t.all_utilities : TOOL_CATEGORIES.find(c => c.id === activeCategory)?.name}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {filteredTools.map(tool => (
                                         <div
                                             key={tool.id}
                                             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors ${activeToolId === tool.id ? 'bg-indigo-600/20 text-indigo-300' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
@@ -471,9 +510,11 @@ const ToolsDashboard: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                                                 <Star size={12} fill={favorites.includes(tool.id) ? 'currentColor' : 'none'} />
                                             </button>
                                         </div>
-                                    ))
+                                    ))}
+                                  </>
                                 )}
                                 {!showHistory && filteredTools.length === 0 && (
+                                    !( !showFavorites && searchQuery === '' && history.length > 0 ) &&
                                     <div className="p-4 text-center text-slate-500 text-xs">
                                         {showFavorites ? t.no_favorites : t.no_tools_found}
                                     </div>

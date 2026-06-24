@@ -3,6 +3,7 @@
 namespace App\Services\DeveloperHistory;
 
 use App\Providers\PathMapper;
+use App\Utils\LanguageDetector;
 use App\Services\DeveloperHistory\Extractors\ClaudeCodeExtractor;
 use App\Services\DeveloperHistory\Extractors\CodexExtractor;
 use App\Services\DeveloperHistory\Extractors\CursorExtractor;
@@ -189,11 +190,18 @@ class DeveloperHistoryService
                 }
             }
 
+            // A forced refresh re-parses everything (so e.g. language tags or
+            // edit-overlay changes are reapplied to all prompts); a probe tick
+            // re-parses only files whose mtime/size changed.
             $changedPaths = [];
-            foreach ($current as $path => $info) {
-                $prev = $prevSources[$path] ?? null;
-                if (!$prev || ($prev['mtime'] ?? -1) !== $info['mtime'] || ($prev['bytes'] ?? -1) !== $info['bytes']) {
-                    $changedPaths[] = $path;
+            if ($force) {
+                $changedPaths = array_keys($current);
+            } else {
+                foreach ($current as $path => $info) {
+                    $prev = $prevSources[$path] ?? null;
+                    if (!$prev || ($prev['mtime'] ?? -1) !== $info['mtime'] || ($prev['bytes'] ?? -1) !== $info['bytes']) {
+                        $changedPaths[] = $path;
+                    }
                 }
             }
             $removedPaths = array_diff(array_keys($prevSources), array_keys($current));
@@ -248,6 +256,7 @@ class DeveloperHistoryService
                             'ts' => $p['ts'],
                             'time' => $p['ts'] > 0 ? date('Y-m-d H:i:s', $p['ts']) : '',
                             'text' => $p['text'],
+                            'lang' => LanguageDetector::detect((string) $p['text']),
                             'edited' => $p['edited'] ?? false,
                         ];
                     }
@@ -296,6 +305,13 @@ class DeveloperHistoryService
             }
             unset($tools[''], $users['']);
 
+            $langs = [];
+            foreach ($prompts as $p) {
+                if (!empty($p['lang'])) {
+                    $langs[$p['lang']] = true;
+                }
+            }
+
             $counts = [
                 'sessions' => count($sessions),
                 'prompts' => count($prompts),
@@ -308,6 +324,7 @@ class DeveloperHistoryService
                 'generated_at' => $generatedAt,
                 'tools' => array_keys($tools),
                 'users' => array_keys($users),
+                'langs' => array_keys($langs),
                 'sessions' => $sessions,
                 'counts' => $counts,
             ]);
@@ -358,17 +375,24 @@ class DeveloperHistoryService
     /**
      * @return array{items: array<int, array<string, mixed>>, total: int}
      */
-    public function readPrompts(?string $tool, ?string $user, int $limit, int $offset): array
+    public function readPrompts(?string $tool, ?string $user, int $limit, int $offset, ?string $q = null, ?string $lang = null): array
     {
         $all = $this->readJson($this->storeDir() . '/prompts.json');
         if (!is_array($all)) {
             $all = [];
         }
-        $filtered = array_values(array_filter($all, static function ($p) use ($tool, $user) {
+        $needle = ($q !== null && trim($q) !== '') ? mb_strtolower(trim($q)) : null;
+        $filtered = array_values(array_filter($all, static function ($p) use ($tool, $user, $lang, $needle) {
             if ($tool !== null && $tool !== '' && ($p['tool'] ?? '') !== $tool) {
                 return false;
             }
             if ($user !== null && $user !== '' && ($p['os_user'] ?? '') !== $user) {
+                return false;
+            }
+            if ($lang !== null && $lang !== '' && ($p['lang'] ?? '') !== $lang) {
+                return false;
+            }
+            if ($needle !== null && mb_strpos(mb_strtolower((string) ($p['text'] ?? '')), $needle) === false) {
                 return false;
             }
             return true;
@@ -376,9 +400,15 @@ class DeveloperHistoryService
 
         $total = count($filtered);
         if ($limit <= 0) {
-            $limit = 500;
+            $limit = 50;
         }
-        return ['items' => array_slice($filtered, max(0, $offset), $limit), 'total' => $total];
+        $offset = max(0, $offset);
+        return [
+            'items' => array_slice($filtered, $offset, $limit),
+            'total' => $total,
+            'limit' => $limit,
+            'offset' => $offset,
+        ];
     }
 
     public function readSession(string $id): ?array

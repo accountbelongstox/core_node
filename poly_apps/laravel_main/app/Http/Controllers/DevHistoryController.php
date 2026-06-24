@@ -28,13 +28,20 @@ class DevHistoryController extends Controller
         $service = new DeveloperHistoryService();
         $tool = $request->query('tool');
         $user = $request->query('user');
-        $limit = (int) $request->query('limit', 500);
-        $offset = (int) $request->query('offset', 0);
+        $q = $request->query('q');
+        $lang = $request->query('lang');
+        $limit = (int) $request->query('limit', $request->query('pageSize', 50));
+        $page = (int) $request->query('page', 0);
+        $offset = $page > 0
+            ? ($page - 1) * max(1, $limit)
+            : (int) $request->query('offset', 0);
         $data = $service->readPrompts(
             is_string($tool) ? $tool : null,
             is_string($user) ? $user : null,
             $limit,
-            $offset
+            $offset,
+            is_string($q) ? $q : null,
+            is_string($lang) ? $lang : null
         );
         return $this->success($data, 'Developer prompt history');
     }

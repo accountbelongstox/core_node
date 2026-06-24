@@ -58,6 +58,7 @@ export interface DevHistoryPrompt {
   ts: number;
   time: string;
   text: string;
+  lang?: string;
   edited?: boolean;
 }
 
@@ -72,9 +73,17 @@ export class DevHistoryAPI extends BaseAPI {
     return this.get(`/sessions/${encodeURIComponent(id)}`);
   }
 
-  /** Flat, newest-first prompt list, optionally filtered by tool / user. */
-  async getPrompts(params?: { tool?: string; user?: string; limit?: number; offset?: number }):
-    Promise<APIResponse<{ items: DevHistoryPrompt[]; total: number }>> {
+  /** Flat, newest-first prompt list with server-side search + pagination. */
+  async getPrompts(params?: {
+    tool?: string;
+    user?: string;
+    q?: string;
+    lang?: string;
+    page?: number;
+    pageSize?: number;
+    limit?: number;
+    offset?: number;
+  }): Promise<APIResponse<{ items: DevHistoryPrompt[]; total: number; limit?: number; offset?: number }>> {
     return this.get('/prompts', params);
   }
 
