@@ -9,7 +9,12 @@ import {
   Wrench,
   Brain,
   Search,
-  Cpu
+  Cpu,
+  Copy,
+  Check,
+  Pencil,
+  Save,
+  X
 } from 'lucide-react';
 import { Language } from '../../types';
 import { api } from '../../core/api';
@@ -131,6 +136,10 @@ const DevHistory: React.FC<DevHistoryProps> = ({ lang = 'en' }) => {
     setDetailLoading(false);
   };
 
+  const handlePromptSaved = (id: string, text: string) => {
+    setPrompts((prev) => prev.map((p) => (p.id === id ? { ...p, text, edited: true } : p)));
+  };
+
   const sessions = index?.sessions || [];
   const tools = index?.tools || [];
   const users = index?.users || [];
@@ -165,6 +174,15 @@ const DevHistory: React.FC<DevHistoryProps> = ({ lang = 'en' }) => {
     `inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
       TOOL_BADGE[tool] || 'bg-slate-500/15 text-slate-500 border-slate-500/30'
     }`;
+
+  const promptLabels = {
+    copy: tk('copy'),
+    copied: tk('copied'),
+    edit: tk('edit'),
+    save: tk('save'),
+    cancel: tk('cancel'),
+    edited: tk('edited')
+  };
 
   return (
     <div data-lang={lang} className="relative z-10 h-full flex flex-col p-4 md:p-6 gap-4">
