@@ -926,8 +926,12 @@ function Invoke-GitOperations {
         git push --set-upstream origin $currentBranch
         Write-ColorText "Executing: git branch --set-upstream-to=origin/$currentBranch $currentBranch" -ForegroundColor DarkGray
         git branch --set-upstream-to=origin/$currentBranch $currentBranch
-        Write-ColorText "Executing: git pull origin main" -ForegroundColor DarkGray
-        git pull origin main
+        if ($script:ForcePushChoice -match '^[Yy]$') {
+            Write-ColorText "FORCE PUSH MODE - skipping pull on new branch" -ForegroundColor Red
+        } else {
+            Write-ColorText "Executing: git pull origin main" -ForegroundColor DarkGray
+            git pull origin main
+        }
     } else {
         # Stage all changes FIRST (before pull)
         Write-ColorText "Staging all changes..." -ForegroundColor Cyan

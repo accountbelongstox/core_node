@@ -198,7 +198,7 @@ def invoke_safe_git_pull(target_url: str) -> bool:
         os.chdir(original_working_dir)
 
 
-def invoke_git_operations(target_url: str) -> bool:
+def invoke_git_operations(target_url: str, force_push_mode: bool = False) -> bool:
     """Perform git operations (push)"""
     global encryption_check_completed, pull_completed, file_validation_completed
     global original_branch, original_remote_url
@@ -259,8 +259,11 @@ def invoke_git_operations(target_url: str) -> bool:
             push_branch(current_branch, set_upstream=True)
             write_color_text(f"Executing: git branch --set-upstream-to=origin/{current_branch} {current_branch}", "DarkGray")
             run_git_command(f"git branch --set-upstream-to=origin/{current_branch} {current_branch}")
-            write_color_text(f"Executing: git pull origin {DEFAULT_BRANCH}", "DarkGray")
-            run_git_command(f"git pull origin {DEFAULT_BRANCH}")
+            if force_push_mode:
+                write_color_text("FORCE PUSH MODE - skipping pull on new branch", "Red")
+            else:
+                write_color_text(f"Executing: git pull origin {DEFAULT_BRANCH}", "DarkGray")
+                run_git_command(f"git pull origin {DEFAULT_BRANCH}")
             return True
         
         # Stage all changes FIRST (before pull)
@@ -280,8 +283,12 @@ def invoke_git_operations(target_url: str) -> bool:
         write_color_text(f'Executing: git commit -m "{commit_message}"', "DarkGray")
         commit_changes(commit_message)
         
-        # Only pull if this is the first remote (should be DEFAULT_REMOTE) and not yet completed
-        if not pull_completed:
+        # Force push mode skips pull entirely (will overwrite remote changes)
+        if force_push_mode:
+            write_color_text("=== FORCE PUSH MODE ===", "Red")
+            write_color_text("Skipping pull (will overwrite remote changes)", "Red")
+        # Otherwise pull only if this is the first remote and not yet completed
+        elif not pull_completed:
             write_color_text("Pulling and merging remote changes after commit...", "Cyan")
             write_color_text(f"Executing: git pull origin {current_branch} --no-edit", "DarkGray")
             success, output = pull_branch(current_branch, no_edit=True)
@@ -296,10 +303,14 @@ def invoke_git_operations(target_url: str) -> bool:
         else:
             write_color_text("Skipping pull - already synchronized in this session", "Yellow")
         
-        # Push changes to remote
+        # Push changes to remote (force push when requested)
         write_color_text("Pushing changes to remote...", "Cyan")
-        write_color_text(f"Executing: git push --set-upstream origin {current_branch}", "DarkGray")
-        push_branch(current_branch, set_upstream=True)
+        if force_push_mode:
+            write_color_text(f"Executing: git push --force --set-upstream origin {current_branch}", "DarkGray")
+            push_branch(current_branch, set_upstream=True, force=True)
+        else:
+            write_color_text(f"Executing: git push --set-upstream origin {current_branch}", "DarkGray")
+            push_branch(current_branch, set_upstream=True)
         write_color_text("----------------------------------------------------------------", "DarkBlue")
 
         # Restore default remote after push
@@ -359,7 +370,18 @@ def main():
         
         # Reorder targets to execute DEFAULT_REMOTE first
         targets = get_execution_order(targets)
-        
+
+        # Ask once for force push decision (applies to all targets); skips pull when enabled
+        force_push_mode = False
+        if not args.pull:
+            write_color_text("Do you want to force push? [y/N]: ", "Yellow")
+            force_push_choice = input().strip()
+            if force_push_choice.lower() == 'y':
+                force_push_mode = True
+                write_color_text("Force push enabled for ALL targets", "Red")
+            else:
+                write_color_text("Normal push mode (with pull) for ALL targets", "Green")
+
         all_success = True
         
         for target in targets:
@@ -378,7 +400,7 @@ def main():
                     break
                 else:
                     write_color_text(f"\n=== Pushing to {target} ({target_url}) ===", "Magenta")
-                    success = invoke_git_operations(target_url)
+                    success = invoke_git_operations(target_url, force_push_mode)
                     if success:
                         write_color_text(f"Successfully pushed to {target}", "Green")
                     else:
