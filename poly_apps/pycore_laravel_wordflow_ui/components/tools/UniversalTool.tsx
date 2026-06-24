@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BentoCard from '../BentoCard';
 import { ToolConfig, ToolUISchema } from '../../types';
 import { Upload, File, ChevronDown, Check, AlertTriangle, Cloud, Zap } from "lucide-react";
@@ -10,12 +10,31 @@ interface UniversalToolProps {
   schema: ToolUISchema;
 }
 
+// Seed form values from the schema so required selects / defaults are populated even
+// if the user never touches them (an untouched <select> otherwise contributes nothing).
+const seedFromSchema = (s: ToolUISchema): Record<string, any> => {
+  const seed: Record<string, any> = {};
+  for (const inp of s.inputs) {
+    if (inp.defaultValue !== undefined) seed[inp.id] = inp.defaultValue;
+    else if (inp.type === 'select' && inp.options && inp.options.length) seed[inp.id] = inp.options[0].value;
+    else if (inp.type === 'checkbox') seed[inp.id] = false;
+  }
+  return seed;
+};
+
 const UniversalTool: React.FC<UniversalToolProps> = ({ config, schema }) => {
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<Record<string, any>>(() => seedFromSchema(schema));
   const [isProcessing, setIsProcessing] = useState(false);
   const [outputData, setOutputData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<'cloud' | 'mock' | null>(null);
+
+  // Re-seed when the active tool changes (same component instance, new schema).
+  useEffect(() => {
+    setFormData(seedFromSchema(schema));
+    setOutputData(null);
+    setError(null);
+  }, [schema.id]);
 
   const handleInputChange = (id: string, value: any) => {
     setFormData(prev => ({ ...prev, [id]: value }));
@@ -29,7 +48,12 @@ const UniversalTool: React.FC<UniversalToolProps> = ({ config, schema }) => {
     setDataSource(null);
 
     try {
-      const response = await apiClient.executeToolAction(schema.id, actionId, formData, config);
+      // Omit blank optional fields. Laravel's ConvertEmptyStringsToNull turns '' into
+      // null, which a non-nullable 'string' rule then rejects (422). Keep false/0.
+      const payload = Object.fromEntries(
+        Object.entries(formData).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+      );
+      const response = await apiClient.executeToolAction(schema.id, actionId, payload, config);
       
       if (response.success) {
         setOutputData(response.data);
@@ -112,8 +136,9 @@ const UniversalTool: React.FC<UniversalToolProps> = ({ config, schema }) => {
 
                   {input.type === 'select' && (
                      <div className="relative">
-                       <select 
+                       <select
                          className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-sm text-white focus:border-indigo-500 outline-none appearance-none"
+                         value={formData[input.id] ?? (input.options?.[0]?.value || '')}
                          onChange={(e) => handleInputChange(input.id, e.target.value)}
                        >
                          {input.options?.map(opt => (

@@ -8,7 +8,6 @@ import VocabularyLearning from './components/views/VocabularyLearning';
 import AITools from './components/views/AITools';
 import AiManagement from './components/views/AiManagement';
 import DevHistory from './components/views/DevHistory';
-import MCPManager from './components/views/MCPManager';
 import TaskCenter from './components/views/TaskCenter';
 import ServerManager from './components/views/ServerManager';
 import DatabaseManager from './components/views/DatabaseManager';
@@ -243,8 +242,10 @@ const AppContent: React.FC = () => {
         return <AiManagement />;
       case ViewType.DEV_HISTORY:
         return <DevHistory lang={lang} />;
+      // MCP Manager was dismantled; its features moved into Tools / Task Center
+      // / AI Tools. #/mcp redirects to Tools (viewRoute); this is a safety net.
       case ViewType.MCP_MANAGER:
-        return <MCPManager lang={lang} />;
+        return <UnifiedToolsPage lang={lang} />;
       case ViewType.TASK_CENTER:
         return <TaskCenter lang={lang} />;
       // Legacy deep links land on the matching TaskCenter tab.
@@ -281,7 +282,7 @@ const AppContent: React.FC = () => {
       case ViewType.AI_TOOLS: return t('header.titles.ai_tools');
       case ViewType.AI_MANAGEMENT: return t('header.titles.ai_management');
       case ViewType.DEV_HISTORY: return t('header.titles.dev_history');
-      case ViewType.MCP_MANAGER: return t('header.titles.mcp');
+      case ViewType.MCP_MANAGER: return t('header.titles.tools');
       case ViewType.TASK_CENTER:
       case ViewType.OCTANE_TASKS:
       case ViewType.GLOBAL_TASKS:

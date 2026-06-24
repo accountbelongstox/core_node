@@ -8,7 +8,6 @@ import {
   Settings,
   Rocket,
   BookOpen,
-  Boxes,
   ListChecks,
   Network,
   Sparkles,
@@ -37,7 +36,9 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.AI_TOOLS, icon: Sparkles, labelKey: 'aiTools' },
   { id: ViewType.AI_MANAGEMENT, icon: BrainCircuit, labelKey: 'aiManagement' },
   { id: ViewType.DEV_HISTORY, icon: History, labelKey: 'devHistory' },
-  { id: ViewType.MCP_MANAGER, icon: Boxes, labelKey: 'mcp' },
+  // MCP Manager (#/mcp) was dismantled: task-dispatch+prompts -> Task Center
+  // (Dispatch tab), screenshots+placeholder -> Tools (MCP Server), voice ->
+  // AI Tools (Voice Subtitle); OCR dropped as a duplicate of AI Tools OCR.
   // Unified Task Center replaced the separate Octane-timers + Global-tasks
   // entries; their ViewTypes still deep-link into its scheduler/queue tabs.
   { id: ViewType.TASK_CENTER, icon: ListChecks, labelKey: 'taskCenter' },

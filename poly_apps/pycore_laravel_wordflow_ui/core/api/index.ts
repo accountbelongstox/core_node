@@ -13,6 +13,7 @@ import { CodeBrowserAPI } from './modules/CodeBrowserAPI';
 import { AiStatusAPI } from './modules/AiStatusAPI';
 import { AiManagementAPI } from './modules/AiManagementAPI';
 import { DevHistoryAPI } from './modules/DevHistoryAPI';
+import { DailySentenceAPI } from './modules/DailySentenceAPI';
 import { PddAdminAPI } from './modules/PddAdminAPI';
 import { setSharedBaseURL } from './base/BaseAPI';
 import { getDefaultBaseURL, DEFAULT_API_TIMEOUT } from '../../config/constants';
@@ -48,6 +49,7 @@ class APIService {
   public aiStatus: AiStatusAPI;
   public aiManagement: AiManagementAPI;
   public devHistory: DevHistoryAPI;
+  public dailySentences: DailySentenceAPI;
   public pddAdmin: PddAdminAPI;
 
   private constructor() {
@@ -155,6 +157,13 @@ class APIService {
     this.devHistory = new DevHistoryAPI({
       baseURL: API_CONFIG.baseURL,
       prefix: '/api/dev-history',
+      timeout: API_CONFIG.timeout
+    });
+
+    // Daily short-sentence center (pycore-assisted translations) for wordnew.
+    this.dailySentences = new DailySentenceAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/app_qy_v1/daily-sentences',
       timeout: API_CONFIG.timeout
     });
 

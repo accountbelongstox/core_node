@@ -308,6 +308,29 @@ def _is_net_timeout_error(error: Optional[str]) -> bool:
     return any(mark in e for mark in _NET_ERROR_MARKS)
 
 
+# Cooldown for a provider that returns a NON-retryable / disabling error
+# (paid-plan-only model, disabled/banned account, auth failure). Long, so the
+# provider is SKIPPED on later tasks instead of failing every one; it auto-
+# recovers (in case billing/keys get fixed) when the cooldown elapses.
+_IMG_DISABLED_COOLDOWN_S = 3600.0
+
+_HARD_DISABLE_MARKS = (
+    "only available on paid", "paid plan", "paid tier", "upgrade your account",
+    "账号已被禁用", "account disabled", "account has been disabled",
+    "account is disabled", "请联系客服", "authentication_error",
+    "invalid api key", "invalid_api_key", "unauthorized",
+    "permission denied", "permission_denied",
+)
+
+
+def _is_hard_disable_error(error: Optional[str]) -> bool:
+    """A NON-retryable provider error (paid-only model, disabled/banned account,
+    auth failure) — cool the provider LONG and skip it rather than retry on every
+    task. Distinct from a transient 429 quota error (cooled briefly)."""
+    e = (error or "").lower()
+    return any(mark in e for mark in _HARD_DISABLE_MARKS)
+
+
 def _run_image_helper(name: str, prompt: str, size: Optional[str],
                       use_model: Optional[str], out: Dict[str, Any],
                       secs: float = _IMG_BOUND_S) -> None:
@@ -1607,13 +1630,12 @@ def generate_image(
                  if PROVIDERS.get(n, {}).get("image") and n in _IMAGE_DISPATCH
                  and has_image_key(n) and image_ready_now(n)]
         chain.sort(key=lambda nm: _IMAGE_PREFERENCE.get(nm[0], 99))
-        if not chain:
-            # Everything is cooling down (all providers recently failed/limited).
-            # Retry the full set rather than reporting "no provider" — cooldowns
-            # may be near expiry and one attempt beats a blank result.
-            chain = [(n, None) for n in PROVIDER_ORDER
-                     if PROVIDERS.get(n, {}).get("image") and n in _IMAGE_DISPATCH and has_image_key(n)]
-            chain.sort(key=lambda nm: _IMAGE_PREFERENCE.get(nm[0], 99))
+        # NOTE: deliberately NO "mercy retry" of cooled providers here. Re-adding a
+        # provider whose keys are all on cooldown just yields another 429 that
+        # re-cools it — the exact feedback loop that floods the log. When nothing is
+        # ready we fall through to _no_image_provider() and let the cooldown elapse;
+        # keyless free backends (e.g. pollinations) are ready-checked above, so a
+        # genuinely-usable backend would already be in `chain`.
     if not chain:
         out = _no_image_provider()
         _record("image", source, out)
@@ -1676,6 +1698,18 @@ def generate_image(
                     )
                 return out
             err = out.get("error")
+            cur_model = out.get("model") or use_model or "?"
+            # A NON-retryable provider error (paid-plan-only model, disabled/banned
+            # account, auth failure) must NOT be retried on every task: cool the key
+            # LONG and skip the provider. This is what stops the imagen(400 paid) and
+            # openai(401 disabled) spam that previously failed on every image task.
+            if _is_hard_disable_error(err):
+                mark_image_key_cooldown(name, idx, secs=_IMG_DISABLED_COOLDOWN_S, error=err)
+                ColorPrint.yellow(
+                    f"[ai_gateway] image provider={name} model={cur_model} KEY{idx + 1} "
+                    f"DISABLED ({(err or '')[:80]}) — cooled "
+                    f"{int(_IMG_DISABLED_COOLDOWN_S)}s, skipping provider")
+                break
             # Cool the key on a quota OR unreachable/timeout error so the dead
             # provider is SKIPPED next time (longer cooldown when unreachable).
             unreachable = _is_net_timeout_error(err)
@@ -1685,13 +1719,14 @@ def generate_image(
                     error=err)
                 if attempt < n_keys - 1:
                     ColorPrint.yellow(
-                        f"[ai_gateway] image {name} KEY{idx + 1} "
+                        f"[ai_gateway] image provider={name} model={cur_model} KEY{idx + 1} "
                         f"{'unreachable' if unreachable else 'quota-limited'} — rotating key")
                     continue
             break
         _on_result(name, False, None)  # record failure WITHOUT provider cooldown
         ColorPrint.yellow(
-            f"[ai_gateway] image {name} failed ({out.get('error')}), "
+            f"[ai_gateway] image provider={name} model={out.get('model') or '?'} "
+            f"failed ({out.get('error')}), "
             f"{'falling back' if i + 1 < len(chain) else 'no providers left'}")
         last = out
     _record("image", source, last)

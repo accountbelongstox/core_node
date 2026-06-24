@@ -6,10 +6,16 @@ import { useToast } from '../admin';
 import {
   Search, Star, Clock, Play, Loader, Copy, Check, X, ChevronRight, ChevronLeft,
   Sparkles, Wrench, Hash, Code, Calculator, Globe, Image, FileCode, Lock,
-  Database, Network, Type, Layers, Info, BookOpen,
+  Database, Network, Type, Layers, Info, BookOpen, Boxes,
   Lightbulb, History, StarOff, Menu, FileText, FileJson, ArrowLeft, Ban
 } from 'lucide-react';
 import { downloadAsFile, toJsonString, copyToClipboard, buildExportFilename } from '../../utils/exportResult';
+import MCPManager from './MCPManager';
+
+// Sentinel "category" that swaps the tool grid for the embedded MCP Server
+// utilities (screenshots + placeholder images), relocated here when the
+// standalone #/mcp tab was removed.
+const MCP_TOOLS_CATEGORY = '__mcp_server__';
 
 /**
  * Unified Tools Page — theme-aware, responsive redesign.
@@ -351,6 +357,20 @@ export function UnifiedToolsPage() {
             </button>
           );
         })}
+
+      {/* MCP Server utilities (screenshots + placeholder), embedded from the
+          former #/mcp tab. */}
+      <button
+        onClick={() => { setSelectedCategory(MCP_TOOLS_CATEGORY); setSelectedTool(null); setMobileNavOpen(false); }}
+        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+          selectedCategory === MCP_TOOLS_CATEGORY
+            ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/30'
+            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+        }`}
+      >
+        <Boxes className="w-4 h-4 flex-shrink-0" />
+        <span className="flex-1 text-left">MCP Server</span>
+      </button>
     </nav>
   );
 
@@ -507,9 +527,13 @@ export function UnifiedToolsPage() {
           </div>
         )}
 
-        {/* Main area: grid browse OR tool detail */}
+        {/* Main area: MCP server panel OR grid browse OR tool detail */}
         <main className="flex-1 flex overflow-hidden">
-          {selectedTool ? (
+          {selectedCategory === MCP_TOOLS_CATEGORY ? (
+            <section className="flex-1 overflow-auto p-4 sm:p-6">
+              <MCPManager allowedTabs={['screenshots', 'placeholder']} />
+            </section>
+          ) : selectedTool ? (
             <>
               {/* Detail + execute panel */}
               <section className="flex-1 flex flex-col overflow-hidden">

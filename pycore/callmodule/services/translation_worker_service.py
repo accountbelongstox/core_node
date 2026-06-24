@@ -252,6 +252,9 @@ class TranslationWorkerService:
         self._result_5xx_streak = 0
         self._circuit_open_until = 0.0
         self._circuit_warned = False
+        # Prompt-translation AI pause: when every AI provider is exhausted we stop
+        # producing translations until monotonic time() passes this deadline.
+        self._prompt_ai_pause_until = 0.0
         # Guards against dispatching the same task to two background threads while
         # an earlier dispatch is still in flight.
         self._inflight: set = set()
@@ -1108,6 +1111,9 @@ class TranslationWorkerService:
             if task_type == "sentence_audio":
                 self._process_sentence_audio_task(task)
                 return
+            if task_type == "prompt_translation":
+                self._process_prompt_translation_task(task)
+                return
 
             # The pull claims by execution_type, so a mis-tagged task of another
             # task_type can land here. Translating it would post a result shape
@@ -1526,6 +1532,81 @@ class TranslationWorkerService:
             self._post_result(task_id, "failed", error=str(e))
             return
         result = {"audio_base64": audio_b64, "mime": "audio/mpeg", "engine": engine}
+        self._post_result(task_id, "completed", result=result, progress=100)
+
+    # -------------------- prompt translation (dev-history assist) --------------------
+
+    def _prompt_ai_paused(self) -> bool:
+        return time.time() < self._prompt_ai_pause_until
+
+    def _prompt_ai_pause(self, seconds: float = 120.0) -> None:
+        self._prompt_ai_pause_until = time.time() + max(30.0, seconds)
+        ColorPrint.yellow(
+            f"[TranslationWorker] AI providers exhausted — pausing prompt "
+            f"translation for ~{int(seconds)}s"
+        )
+
+    def _process_prompt_translation_task(self, task: Dict[str, Any]) -> None:
+        """prompt_translation task: translate a non-English prompt to English.
+
+        Masks code so it is never translated, asks the AI gateway for the English
+        translation + a cleaned sentence + 3 fluent variants, and (best-effort)
+        synthesizes English TTS. On AI exhaustion the worker PAUSES and reports the
+        task failed so Laravel re-pends it until the rate window resets.
+        """
+        task_id = task.get("task_id")
+        payload = task.get("payload") or {}
+        text = (payload.get("text") or "").strip()
+        prompt_id = payload.get("prompt_id") or ""
+        src = (payload.get("source_lang") or "auto").strip() or "auto"
+        want_audio = bool(payload.get("want_audio", True))
+
+        if not text:
+            self._post_result(task_id, "failed", error="prompt_translation task had no text")
+            return
+
+        # Honor an active pause: do not burn a claim while providers are exhausted.
+        if self._prompt_ai_paused():
+            self._post_result(task_id, "failed", error="AI providers paused (rate limit) — retry later")
+            return
+
+        self._post_result(task_id, "processing", progress=5, attempts=1)
+
+        try:
+            from pycore.pyutils.translator import prompt_translate
+            tr = prompt_translate.translate_prompt(text, src=src)
+        except Exception as e:
+            ColorPrint.red(f"[TranslationWorker] prompt_translation {task_id} failed: {e}")
+            self._post_result(task_id, "failed", error=str(e))
+            return
+
+        if not tr.get("success"):
+            if tr.get("exhausted"):
+                self._prompt_ai_pause(120.0)
+            self._post_result(task_id, "failed", error=str(tr.get("error") or "translate failed"))
+            return
+
+        english = tr.get("english") or ""
+        result: Dict[str, Any] = {
+            "prompt_id": prompt_id,
+            "detected_language": src,
+            "english": english,
+            "cleaned": tr.get("cleaned") or english,
+            "variants": tr.get("variants") or [],
+            "provider": tr.get("provider"),
+        }
+
+        # Best-effort English audio (same edge-tts path as sentence_audio). The
+        # backend stores the bytes and serves them for the wordnew daily reading.
+        if want_audio and self._sentence_audio_enabled():
+            try:
+                audio_b64, engine = self._synthesize_word_audio(english, "en")
+                if audio_b64:
+                    result["audio_base64"] = audio_b64
+                    result["audio"] = {"language": "en", "engine": engine, "mime": "audio/mpeg"}
+            except Exception as e:
+                ColorPrint.yellow(f"[TranslationWorker] prompt audio synth skipped: {e}")
+
         self._post_result(task_id, "completed", result=result, progress=100)
 
     # -------------------- local task accounting --------------------

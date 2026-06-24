@@ -25,7 +25,7 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 
 # Secret files directory
-$secretDir = Join-Path $projectRootPath ".secret_keys\.secret_ignore"
+$secretDir = Join-Path $projectRootPath ".secret_keys\\.secret_ignore"
 Write-Host "[DEBUG] Secret directory: $secretDir" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
 
@@ -35,7 +35,7 @@ function Read-SecretFile {{
         Reads secret value from file with UTF-8 BOM handling.
     
     .DESCRIPTION
-        Enhanced function to read secret files from .secret_keys\.secret_ignore directory.
+        Enhanced function to read secret files from .secret_keys\\.secret_ignore directory.
         Handles UTF-8 BOM, empty lines, and provides detailed error messages.
     
     .PARAMETER FilePath

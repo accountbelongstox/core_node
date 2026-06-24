@@ -295,6 +295,17 @@ Route::prefix('dev-history')->middleware('local.only')->group(function () {
     Route::get('sessions/{id}', [DevHistoryController::class, 'session']);
     Route::post('refresh', [DevHistoryController::class, 'refresh']);
     Route::post('prompts/update', [DevHistoryController::class, 'updatePrompt']);
+    Route::get('assist', [DevHistoryController::class, 'assist']);
+    Route::post('assist/scan', [DevHistoryController::class, 'assistScan']);
+});
+
+// Daily short-sentence center (pycore-assisted translations) — read-only for wordnew.
+use App\Http\Controllers\AppQyV1DailySentenceController;
+
+Route::prefix('app_qy_v1/daily-sentences')->group(function () {
+    Route::get('list', [AppQyV1DailySentenceController::class, 'list']);
+    Route::get('recommend', [AppQyV1DailySentenceController::class, 'recommend']);
+    Route::get('audio/{id}', [AppQyV1DailySentenceController::class, 'audio']);
 });
 
 // Server Manager Routes (localhost only)

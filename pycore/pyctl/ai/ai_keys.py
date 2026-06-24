@@ -71,12 +71,13 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "groq": {
         "key_base": "GROQ_API_KEY",
         "key_names": ("GROQ_API_KEY_1", "GROQ_API_KEY_2", "GROQ_API_KEY"),
-        "default_model": "llama-3.3-70b-versatile",
+        # llama-3.3-70b-versatile is being retired (Groq shutdown 2026-08-16);
+        # default to the current flagship gpt-oss-120b (already in free_models).
+        "default_model": "openai/gpt-oss-120b",
         "free_models": (
-            "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant",
             "openai/gpt-oss-120b",
             "openai/gpt-oss-20b",
+            "llama-3.1-8b-instant",
             "qwen/qwen3-32b",
         ),
         "limits": "Per-model free limits (e.g. Llama 3.3 70B: 1000 RPD / 12k TPM)",
@@ -88,11 +89,12 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "cerebras": {
         "key_base": "CEREBRAS_API_KEY",
         "key_names": ("CEREBRAS_API_KEY_1", "CEREBRAS_API_KEY_2", "CEREBRAS_API_KEY"),
-        "default_model": "llama-3.3-70b",
+        # llama-3.3-70b deprecated on Cerebras; default to current gpt-oss-120b.
+        "default_model": "gpt-oss-120b",
         "free_models": (
-            "llama-3.3-70b",
-            "llama3.1-8b",
             "gpt-oss-120b",
+            "llama3.1-8b",
+            "llama-3.3-70b",
         ),
         "limits": "gpt-oss-120b: 30 RPM / 1M TPD; Llama 3.1 8B: 30 RPM / 1M TPD",
         "tier": "free",

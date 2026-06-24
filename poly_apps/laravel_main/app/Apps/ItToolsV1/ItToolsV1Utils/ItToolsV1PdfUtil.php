@@ -230,7 +230,10 @@ class ItToolsV1PdfUtil
         
         $pdftk = self::getPdftkPath();
         $outputPath = tempnam(sys_get_temp_dir(), 'pdf_protected_') . '.pdf';
-        $owner = $ownerPassword ?: $userPassword;
+        // The owner password MUST differ from the user password: qpdf-backed pdftk
+        // rejects identical user/owner passwords ("PDF Viewers interpret this to mean
+        // your PDF has no owner password"). When no owner is supplied, use a random one.
+        $owner = $ownerPassword ?: bin2hex(random_bytes(16));
         
         $cmd = sprintf(
             "%s %s output %s user_pw %s owner_pw %s encrypt_128bit 2>&1",

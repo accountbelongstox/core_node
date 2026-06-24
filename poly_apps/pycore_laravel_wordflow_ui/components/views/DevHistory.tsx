@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Language } from '../../types';
 import { api } from '../../core/api';
+import { apiManager } from '../../services/ApiManager';
 import type {
   DevHistoryIndex,
   DevHistorySessionSummary,
@@ -58,6 +59,14 @@ const ROLE_STYLE: Record<string, { ring: string; label: string; icon: React.Reac
 const toolLabel = (tool: string): string => TOOL_LABELS[tool] || tool;
 
 const PAGE_SIZE = 50;
+
+/** Resolve a Laravel-relative url (e.g. audio) against the active :9000 base. */
+const absUrl = (u?: string): string => {
+  if (!u) return '';
+  if (/^https?:\/\//.test(u)) return u;
+  const base = (apiManager.getCurrentBaseUrl && apiManager.getCurrentBaseUrl()) || '';
+  return base.replace(/\/$/, '') + u;
+};
 
 const DevHistory: React.FC<DevHistoryProps> = ({ lang = 'en' }) => {
   const { t } = useTranslation();
@@ -559,6 +568,20 @@ const PromptItem: React.FC<{
         <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words max-h-48 overflow-auto">
           {p.text}
         </p>
+      )}
+
+      {p.translation?.english && !editing && (
+        <div className="mt-2 pl-2 border-l-2 border-emerald-500/40">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-0.5">
+            <span>EN</span>
+            {p.translation.audio?.url && (
+              <audio controls preload="none" src={absUrl(p.translation.audio.url)} className="h-6" />
+            )}
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap break-words">
+            {p.translation.cleaned || p.translation.english}
+          </p>
+        </div>
       )}
     </li>
   );

@@ -37,6 +37,7 @@ import { wfNewNotify, useWfNewToasts } from './WfNewNotify';
 import { WfNewBottomDock } from './components/WfNewBottomDock';
 import { CourseBlockCard, WordRowItem } from './components/WfNewCards';
 import { WfNewSettings } from './pages/WfNewSettings';
+import DailyReading from '../../components/views/DailyReading';
 
 // New Custom Study Suites Pages
 import { WfNewWalkman } from './pages/WfNewWalkman';
@@ -64,7 +65,8 @@ import { WfNewNotificationBell } from './components/WfNewNotificationBell';
 type WfTab =
   | 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman'
   | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'languages'
-  | 'learning-model' | 'review-settings' | 'playback' | 'book-reader' | 'content-list' | 'library' | 'about';
+  | 'learning-model' | 'review-settings' | 'playback' | 'book-reader' | 'content-list' | 'library' | 'about'
+  | 'daily-reading';
 
 /**
  * Per-tab header (big title + optional subtitle) shown in the global nav beside
@@ -90,6 +92,7 @@ function wfNewPageHeader(
     case 'languages': return { title: trans('lang.title'), subtitle: trans('lang.sub') };
     case 'settings': return { title: trans('settings.title'), subtitle: trans('settings.sub') };
     case 'about': return { title: trans('about.title'), subtitle: trans('about.sub') };
+    case 'daily-reading': return { title: trans('daily.title'), subtitle: trans('daily.sub') };
     case 'social': return { title: trans('bc.social') };
     case 'auth': return { title: trans('bc.auth') };
     case 'content-list':
@@ -182,6 +185,7 @@ export const WfNewApp: React.FC = () => {
       'home', 'shelf', 'practice', 'labs', 'settings', 'walkman', 'subtitles',
       'stats', 'bilingual', 'social', 'profile', 'auth', 'languages',
       'learning-model', 'review-settings', 'playback', 'book-reader', 'content-list', 'about',
+      'daily-reading',
     ];
     // Deep-link to a vocabulary library: #/library/<id>?page=N&view=dash|table
     if (fromHash.startsWith('library/')) {

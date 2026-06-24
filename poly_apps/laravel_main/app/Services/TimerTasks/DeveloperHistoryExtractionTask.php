@@ -4,6 +4,7 @@ namespace App\Services\TimerTasks;
 
 use App\Providers\PathMapper;
 use App\Services\DeveloperHistory\DeveloperHistoryService;
+use App\Services\DeveloperHistory\DevHistoryAssistService;
 
 /**
  * Developer History Extraction Task.
@@ -37,6 +38,14 @@ class DeveloperHistoryExtractionTask extends OctaneTimerTaskAbstract
             (new DeveloperHistoryService())->extract(false);
         } catch (\Throwable $e) {
             $this->logError('Developer history extraction failed', ['error' => $e->getMessage()]);
+        }
+
+        // Auto-dispatch translation assist for new non-English prompts (deduped,
+        // capped per run). Isolated so a queue/DB hiccup never breaks extraction.
+        try {
+            (new DevHistoryAssistService())->scanAndEnqueue();
+        } catch (\Throwable $e) {
+            $this->logError('Developer history assist dispatch failed', ['error' => $e->getMessage()]);
         }
     }
 }

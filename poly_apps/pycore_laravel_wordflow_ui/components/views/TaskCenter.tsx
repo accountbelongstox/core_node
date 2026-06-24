@@ -26,6 +26,8 @@ import {
   Database,
   Cpu,
   HandHelping,
+  Languages,
+  Boxes,
   RefreshCw,
   AlertCircle,
   Loader2,
@@ -36,6 +38,8 @@ import SchedulerPanel from './task-center/SchedulerPanel';
 import QueuePanel from './task-center/QueuePanel';
 import WorkersPanel from './task-center/WorkersPanel';
 import AssistRequestsPanel from './task-center/AssistRequestsPanel';
+import AssistDistributionPanel from './task-center/AssistDistributionPanel';
+import MCPManager from './MCPManager';
 
 interface TaskCenterProps {
   lang?: Language;
@@ -49,9 +53,11 @@ const TAB_ICONS: Record<TaskCenterTab, React.ComponentType<{ className?: string 
   queue: Database,
   workers: Cpu,
   assist: HandHelping,
+  assistDist: Languages,
+  dispatch: Boxes,
 };
 
-const TAB_ORDER: TaskCenterTab[] = ['overview', 'scheduler', 'queue', 'workers', 'assist'];
+const TAB_ORDER: TaskCenterTab[] = ['overview', 'scheduler', 'queue', 'workers', 'assist', 'dispatch', 'assistDist'];
 
 const TaskCenter: React.FC<TaskCenterProps> = ({ lang = 'en', initialTab = 'overview' }) => {
   const [activeTab, setActiveTab] = useState<TaskCenterTab>(initialTab);
@@ -260,6 +266,21 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ lang = 'en', initialTab = 'over
       )}
       {activeTab === 'assist' && (
         <AssistRequestsPanel
+          lang={lang}
+          autoRefresh={autoRefresh}
+          refreshIntervalSec={refreshIntervalSec}
+          refreshToken={refreshToken}
+        />
+      )}
+      {/* Dispatch — MCP task-dispatch categories/queue + prompt mappings,
+          relocated here when the standalone #/mcp tab was removed. */}
+      {activeTab === 'dispatch' && (
+        <div className="h-[75vh]">
+          <MCPManager lang={lang} allowedTabs={['tasks', 'settings']} />
+        </div>
+      )}
+      {activeTab === 'assistDist' && (
+        <AssistDistributionPanel
           lang={lang}
           autoRefresh={autoRefresh}
           refreshIntervalSec={refreshIntervalSec}

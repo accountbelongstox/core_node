@@ -60,6 +60,13 @@ export interface DevHistoryPrompt {
   text: string;
   lang?: string;
   edited?: boolean;
+  translation?: {
+    english: string;
+    cleaned?: string;
+    variants?: string[];
+    source_lang?: string;
+    audio?: { url?: string } | null;
+  };
 }
 
 export class DevHistoryAPI extends BaseAPI {
@@ -96,4 +103,24 @@ export class DevHistoryAPI extends BaseAPI {
   async updatePrompt(id: string, text: string): Promise<APIResponse<{ id: string; text: string; edited: boolean }>> {
     return this.post('/prompts/update', { id, text });
   }
+
+  /** Translation-assist distribution: status counts + recent tasks. */
+  async getAssist(): Promise<APIResponse<{ summary: Record<string, number>; recent: DevHistoryAssistTask[] }>> {
+    return this.get('/assist');
+  }
+
+  /** Manually enqueue pending non-English prompts for translation. */
+  async assistScan(): Promise<APIResponse<{ enqueued: number }>> {
+    return this.post('/assist/scan', {});
+  }
+}
+
+export interface DevHistoryAssistTask {
+  task_id: string;
+  status: string;
+  prompt_id: string;
+  source_lang: string;
+  text: string;
+  created_at: string;
+  updated_at: string;
 }

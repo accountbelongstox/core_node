@@ -403,12 +403,55 @@ class DeveloperHistoryService
             $limit = 50;
         }
         $offset = max(0, $offset);
+        $items = array_slice($filtered, $offset, $limit);
+
+        // Attach any stored translation (assist result) to the page items so the
+        // UI can show the English translation next to a non-English prompt.
+        $translations = $this->readJson($this->storeDir() . '/prompt_translations.json');
+        if (is_array($translations) && !empty($translations)) {
+            $items = array_map(static function ($it) use ($translations) {
+                $pid = $it['id'] ?? '';
+                if ($pid !== '' && isset($translations[$pid])) {
+                    $it['translation'] = $translations[$pid];
+                }
+                return $it;
+            }, $items);
+        }
+
         return [
-            'items' => array_slice($filtered, $offset, $limit),
+            'items' => $items,
             'total' => $total,
             'limit' => $limit,
             'offset' => $offset,
         ];
+    }
+
+    // ---------------------------------------------------------------- assist store
+
+    /** Generic read of a JSON file in the store (used by the assist pipeline). */
+    public function readStore(string $name): ?array
+    {
+        return $this->readJson($this->storeDir() . '/' . $name);
+    }
+
+    /** Generic atomic write of a JSON file in the store. */
+    public function writeStore(string $name, $data): void
+    {
+        $this->writeJson($this->storeDir() . '/' . $name, $data);
+    }
+
+    /** Record an assist translation result (AI history half of the dual-write). */
+    public function recordPromptTranslation(string $promptId, array $record): void
+    {
+        $translations = $this->readStore('prompt_translations.json');
+        $translations = is_array($translations) ? $translations : [];
+        $translations[$promptId] = $record;
+        $this->writeStore('prompt_translations.json', $translations);
+
+        $state = $this->readStore('assist_state.json');
+        $state = is_array($state) ? $state : [];
+        $state[$promptId] = ['status' => 'done', 'at' => date('Y-m-d H:i:s')];
+        $this->writeStore('assist_state.json', $state);
     }
 
     public function readSession(string $id): ?array

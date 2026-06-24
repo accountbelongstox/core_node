@@ -5,6 +5,13 @@ Secret Manager Module
 Handles secret loading from encrypted files and .secret_ignore directory.
 """
 
+import os
+# Reading a secret must NEVER trigger the ML dependency installer. This module imports
+# pyfoundations (lazily, in resolve_secret_value) only for get_secret_key; importing it runs
+# third_party.py's import-time check_and_install_dependencies(). Skip it so any tool that
+# reuses this secret loader stays lightweight.
+os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
+
 import sys
 import shutil
 import subprocess

@@ -17,6 +17,7 @@ use App\Services\TaskProcessors\WordGeminiImageTaskProcessor;
 use App\Services\TaskProcessors\SubtitleSearchTaskProcessor;
 use App\Services\TaskProcessors\PosterTaskProcessor;
 use App\Services\TaskProcessors\SentenceAudioTaskProcessor;
+use App\Services\TaskProcessors\PromptTranslationTaskProcessor;
 
 class TaskManagerService
 {
@@ -114,6 +115,9 @@ class TaskManagerService
             $this->processorRegistry->register(new SubtitleSearchTaskProcessor($this));
             $this->processorRegistry->register(new PosterTaskProcessor($this));
             $this->processorRegistry->register(new SentenceAudioTaskProcessor($this));
+
+            // Dev-history assist: non-English prompt -> English (3 variants + audio).
+            $this->processorRegistry->register(new PromptTranslationTaskProcessor($this));
 
             // Future processors can be registered here:
             // $this->processorRegistry->register(new ImageTaskProcessor($this));
@@ -1301,6 +1305,14 @@ class TaskManagerService
 
                 if (!$hasAny) {
                     return 'Translation result carried no translations, invalid_words or region_redirect_words';
+                }
+                return null;
+
+            case 'prompt_translation':
+                // A prompt-translation completion must carry the English text.
+                $hasEnglish = trim((string) ($inner['english'] ?? ($result['english'] ?? ''))) !== '';
+                if (!$hasEnglish) {
+                    return 'Prompt translation result carried no english text';
                 }
                 return null;
 

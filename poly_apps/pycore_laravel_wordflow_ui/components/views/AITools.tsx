@@ -13,6 +13,7 @@ import {
   History,
   AudioLines,
   Film,
+  Mic,
   PanelLeftClose,
   PanelLeftOpen
 } from 'lucide-react';
@@ -30,6 +31,8 @@ import AssistQueuePanel from '../ai-tools/AssistQueuePanel';
 import MoviePosterPanel from '../ai-tools/MoviePosterPanel';
 import TranslationHistoryPanel from '../ai-tools/TranslationHistoryPanel';
 import TtsHistoryPanel from '../ai-tools/TtsHistoryPanel';
+// Voice/subtitle queue — relocated here (deduped) when the #/mcp tab was removed.
+import { VoiceSubtitleManager } from '../voice-subtitle/VoiceSubtitleManager';
 
 type ToolView =
   | 'chat'
@@ -43,6 +46,7 @@ type ToolView =
   | 'movie-poster'
   | 'ocr'
   | 'prompts'
+  | 'voice-subtitle'
   | 'status';
 
 interface NavItem {
@@ -71,6 +75,7 @@ const ACCENT: Record<ToolView, { text: string; bar: string; ring: string; glow: 
   'movie-poster': { text: 'text-rose-300', bar: 'bg-rose-400', ring: 'ring-rose-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(251,113,133,0.55)]', dot: 'bg-rose-400', ambient: 'bg-rose-500/10 dark:bg-rose-400/10' },
   ocr: { text: 'text-amber-300', bar: 'bg-amber-400', ring: 'ring-amber-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(251,191,36,0.55)]', dot: 'bg-amber-400', ambient: 'bg-amber-500/10 dark:bg-amber-400/10' },
   prompts: { text: 'text-violet-300', bar: 'bg-violet-400', ring: 'ring-violet-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(167,139,250,0.55)]', dot: 'bg-violet-400', ambient: 'bg-violet-500/10 dark:bg-violet-400/10' },
+  'voice-subtitle': { text: 'text-teal-300', bar: 'bg-teal-400', ring: 'ring-teal-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(45,212,191,0.55)]', dot: 'bg-teal-400', ambient: 'bg-teal-500/10 dark:bg-teal-400/10' },
   status: { text: 'text-indigo-300', bar: 'bg-indigo-400', ring: 'ring-indigo-400/30', glow: 'shadow-[0_0_24px_-6px_rgba(129,140,248,0.55)]', dot: 'bg-indigo-400', ambient: 'bg-indigo-500/10 dark:bg-indigo-400/10' }
 };
 
@@ -86,6 +91,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'movie-poster', icon: Film, label: 'Movie Poster', description: 'Poster pipeline status & on-demand fetch', signal: 'POSTER' },
   { id: 'ocr', icon: FileImage, label: 'OCR', description: 'Extract text from images', signal: 'VISION' },
   { id: 'prompts', icon: FileText, label: 'Prompt Manager', description: 'Manage and organize prompts', signal: 'PROMPTS' },
+  { id: 'voice-subtitle', icon: Mic, label: 'Voice Subtitle', description: 'Voice/subtitle queue: text/image/voice to speech', signal: 'VOICE' },
   { id: 'status', icon: Activity, label: 'AI Status', description: 'Providers, keys, models & live test', signal: 'STATUS' }
 ];
 
@@ -117,6 +123,8 @@ const AITools: React.FC = () => {
         return <OCRForm />;
       case 'prompts':
         return <PromptForm />;
+      case 'voice-subtitle':
+        return <VoiceSubtitleManager />;
       case 'status':
         return <AiStatusPanel />;
       default:

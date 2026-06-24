@@ -525,7 +525,9 @@ export const TRANSLATIONS = {
         scheduler: "Scheduler",
         queue: "Task Queue",
         workers: "Workers",
-        assist: "Assist Requests"
+        assist: "Assist Requests",
+        dispatch: "Dispatch",
+        assistDist: "Assist Distribution"
       },
       refresh: "Refresh",
       auto_refresh: "Auto-refresh",
@@ -1537,7 +1539,9 @@ export const TRANSLATIONS = {
         scheduler: "定时调度",
         queue: "任务队列",
         workers: "工作节点",
-        assist: "协助请求"
+        assist: "协助请求",
+        dispatch: "分发",
+        assistDist: "协助分发"
       },
       refresh: "刷新",
       auto_refresh: "自动刷新",

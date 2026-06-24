@@ -55,6 +55,10 @@ SLUG_TO_VIEW['movies_books'] = ViewType.MEDIA_BROWSER;
 // render to open the Code segment before the URL normalizes to #/media.
 SLUG_TO_VIEW['code'] = ViewType.MEDIA_BROWSER;
 
+// MCP Manager was dismantled (features moved into Task Center / Tools / AI
+// Tools). Old #/mcp bookmarks land on Tools, which hosts the MCP Server panel.
+SLUG_TO_VIEW['mcp'] = ViewType.TOOLS;
+
 export function viewToSlug(view: ViewType): string {
   return VIEW_TO_SLUG[view] ?? '';
 }

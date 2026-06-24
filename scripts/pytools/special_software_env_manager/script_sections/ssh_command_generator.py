@@ -125,7 +125,7 @@ if (-not $pythonExecutable) {{
 }}
 
 # Use relative path from script location to project root
-$secretReaderScript = Join-Path $projectRootPath "scripts\pytools\special_software_env_manager\secret_read.py"
+$secretReaderScript = Join-Path $projectRootPath "scripts\\pytools\\special_software_env_manager\\secret_read.py"
 $fixScriptPath = Join-Path $winCommonDirPath "SecretDecryptionCheck.ps1"
 $fixInstruction = "Run dd.cmd (Secret Decryption Fix) or powershell -ExecutionPolicy Bypass -File `"$fixScriptPath`""
 Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
@@ -205,7 +205,7 @@ if ($sshPassword) {{
     Write-Host ""
     Write-Host "  --- Step 1: Generate key on LOCAL machine (if not exists) ---" -ForegroundColor Yellow
     Write-Host ""
-    $localKeyPath = Join-Path $env:USERPROFILE ".ssh\id_ed25519"
+    $localKeyPath = Join-Path $env:USERPROFILE ".ssh\\id_ed25519"
     $localPubPath = "$localKeyPath.pub"
     Write-Host "  # Check if key already exists:" -ForegroundColor DarkGray
     Write-Host "  if (!(Test-Path `"$localPubPath`")) {{ ssh-keygen -t ed25519 -f `"$localKeyPath`" -N `"`" }}" -ForegroundColor Green

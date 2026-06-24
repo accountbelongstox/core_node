@@ -11,6 +11,14 @@ Usage:
     python special_software_env_manager.py
 """
 
+import os
+# This is an env-variable / secret manager: it imports pyfoundations ONLY for get_secret_key.
+# Importing pyfoundations runs third_party.py's import-time check_and_install_dependencies()
+# (CUDA probe + heavy GUI/ML installs such as PySide6 ~629M) — pure waste for a secret reader.
+# Skip it (must be set BEFORE any import that can pull pyfoundations). Mirrors the convention
+# in scripts/pycore/run_callmodule_service.py and the 152 launcher helper.
+os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
+
 import sys
 import traceback
 from pathlib import Path

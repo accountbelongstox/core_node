@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\DeveloperHistory\DeveloperHistoryService;
+use App\Services\DeveloperHistory\DevHistoryAssistService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -80,5 +81,22 @@ class DevHistoryController extends Controller
             return $this->error("Invalid prompt id '{$id}'", 422);
         }
         return $this->success($result, 'Prompt updated');
+    }
+
+    /** Assist distribution: counts + recent translation-assist tasks. */
+    public function assist(): JsonResponse
+    {
+        $assist = new DevHistoryAssistService();
+        return $this->success([
+            'summary' => $assist->summary(),
+            'recent' => $assist->recent(50),
+        ], 'Assist distribution');
+    }
+
+    /** Manually trigger an assist scan (enqueue pending non-English prompts). */
+    public function assistScan(): JsonResponse
+    {
+        $enqueued = (new DevHistoryAssistService())->scanAndEnqueue();
+        return $this->success(['enqueued' => $enqueued], 'Assist scan complete');
     }
 }

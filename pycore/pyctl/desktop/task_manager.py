@@ -5,11 +5,13 @@ Task Manager for Voice Subtitle System
 Manages async tasks with progress tracking.
 """
 
+import os
 import time
 import threading
 import uuid
 import asyncio
 import inspect
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Dict, List, Optional, Callable, Union, Coroutine
 from dataclasses import dataclass
@@ -145,7 +147,21 @@ class TaskManager:
         self.max_history = max_history
         self.lock = threading.Lock()
 
-        ColorPrint.green("[TaskManager] Initialized")
+        # Bound concurrent task execution: a burst of remote_image tasks must not
+        # spawn dozens of simultaneous threads that all hammer a rate-limited AI
+        # provider (the 429 flood). Excess tasks queue on the pool instead of each
+        # spawning its own thread. Configurable via PYCORE_TASK_MAX_CONCURRENCY
+        # (default 4 — conservative, in line with free-tier AI RPM limits).
+        try:
+            _max_workers = int(os.environ.get("PYCORE_TASK_MAX_CONCURRENCY", "4"))
+        except ValueError:
+            _max_workers = 4
+        self.max_workers = max(1, _max_workers)
+        self._pool = ThreadPoolExecutor(
+            max_workers=self.max_workers, thread_name_prefix="Task")
+
+        ColorPrint.green(
+            f"[TaskManager] Initialized (max concurrency {self.max_workers})")
 
     def create_task(
         self,
@@ -283,10 +299,15 @@ class TaskManager:
 
             self.complete_task(task_id, result)
 
-        # Run in background thread
-        thread = threading.Thread(target=_run, daemon=True, name=f"Task-{task_id}")
-        thread.start()
-        ColorPrint.cyan(f"[TaskManager] Started background thread for task {task_id}")
+        # Submit to the bounded pool: a burst of tasks queues here instead of each
+        # spawning its own thread, so concurrent AI calls stay under the cap and
+        # can't overwhelm a rate-limited provider.
+        _t = self.get_task(task_id)
+        _ttype = _t.task_type if _t else "?"
+        self._pool.submit(_run)
+        ColorPrint.cyan(
+            f"[TaskManager] Queued task {task_id} (type={_ttype}; "
+            f"<= {self.max_workers} concurrent)")
 
     def _generate_task_id(self, task_type: str) -> str:
         """Generate unique task ID"""

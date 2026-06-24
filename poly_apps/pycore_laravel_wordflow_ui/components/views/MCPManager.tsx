@@ -48,15 +48,22 @@ import { commonClasses } from '../../styles/theme';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 
-interface MCPManagerProps {
-  lang?: Language;
-}
-
 type MCPTab = 'screenshots' | 'tasks' | 'placeholder' | 'voice' | 'ocr' | 'settings';
 
-const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
+interface MCPManagerProps {
+  lang?: Language;
+  /**
+   * When provided, only these tabs are shown (and the first becomes active).
+   * Used to embed a SUBSET of MCP features inside other views after the
+   * standalone #/mcp tab was removed: Task Center embeds ['tasks','settings'],
+   * Tools embeds ['screenshots','placeholder']. Omit for the full manager.
+   */
+  allowedTabs?: MCPTab[];
+}
+
+const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en', allowedTabs }) => {
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<MCPTab>('screenshots');
+  const [activeTab, setActiveTab] = useState<MCPTab>(allowedTabs && allowedTabs.length > 0 ? allowedTabs[0] : 'screenshots');
   const [screenshots, setScreenshots] = useState<AsyncState<Screenshot[]>>({
     data: [],
     loading: false,
@@ -914,6 +921,9 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
     { id: 'ocr' as MCPTab, label: t.tabs.ocr, icon: Eye },
     { id: 'settings' as MCPTab, label: t.tabs.settings, icon: Settings },
   ];
+
+  // When embedded in another view, show only the allowed subset of tabs.
+  const visibleTabs = allowedTabs ? tabs.filter((tb) => allowedTabs.includes(tb.id)) : tabs;
 
   const renderScreenshotsTab = () => (
     <div
@@ -3673,7 +3683,7 @@ const MCPManager: React.FC<MCPManagerProps> = ({ lang = 'en' }) => {
       {/* Tabs — segmented pill control */}
       <div className="mb-4">
         <div className="inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
-          {tabs.map((tab) => {
+          {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
