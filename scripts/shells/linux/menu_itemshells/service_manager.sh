@@ -20,6 +20,10 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 PARENT_DIR_LEVEL_3="$(dirname "$PARENT_DIR_LEVEL_2")"
 INSTALL_SHELLS_DIR="$PARENT_DIR_LEVEL_1/debian/install_shells"
 SERVER_MANAGER_DIR="$PARENT_DIR_LEVEL_1/debian/server_manager"
+# Repo root and the canonical Laravel Octane entrypoint (PARENT_DIR_LEVEL_3 == scripts/).
+REPO_ROOT="$(dirname "$PARENT_DIR_LEVEL_3")"
+LARAVEL_DIR="$REPO_ROOT/poly_apps/laravel_main"
+LARAVEL_START_SCRIPT="$LARAVEL_DIR/scripts/start.sh"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_1/common/gvar_common.sh"
@@ -74,19 +78,45 @@ SERVICE_INSTALL_SCRIPT["pycore"]="150_install_pycore_http_service.sh"
 SERVICE_MANAGER_SCRIPT["pycore"]="$SERVER_MANAGER_DIR/pycore_manager.sh"
 
 SERVICE_NAME["laravel"]="Laravel Octane"
-SERVICE_SYSTEMD["laravel"]="app-manager-laravel_main"
+# Canonical unit registered by poly_apps/laravel_main/scripts/start.sh (--service).
+SERVICE_SYSTEMD["laravel"]="ncore-laravel-main"
+# Install/reinstall is special-cased to run start.sh --service (see reinstall_service).
 SERVICE_INSTALL_SCRIPT["laravel"]="133_setup_api_domains.sh"
 SERVICE_MANAGER_SCRIPT["laravel"]="$SERVER_MANAGER_DIR/laravel_octane_manager.sh"
-# Laravel service grep pattern: matches both new (app-manager-laravel*) and legacy (octane-*)
-LARAVEL_SERVICE_PATTERN="app-manager-laravel\|octane-.*"
+# Laravel service grep pattern: canonical (ncore-laravel-main, from start.sh) +
+# legacy app_manager (app-manager-laravel*) + legacy octane-* multi-domain units.
+LARAVEL_SERVICE_PATTERN="ncore-laravel-main\|app-manager-laravel\|octane-.*"
 
 SERVICE_NAME["unified_apps"]="Unified Apps"
 SERVICE_SYSTEMD["unified_apps"]=""
 SERVICE_INSTALL_SCRIPT["unified_apps"]=""
 SERVICE_MANAGER_SCRIPT["unified_apps"]="$SCRIPT_CURRENT_DIR/unified_app_service_manager.sh"
 
+# Core Node services: auto-discovered ncore-*/pycore*/codesync/octane-*/app-manager-*
+# units created by the various Linux service-manager shells. No single systemd unit
+# (the manager scans all matching prefixes), no single install script.
+SERVICE_NAME["core_services"]="Core Node Services"
+SERVICE_SYSTEMD["core_services"]=""
+SERVICE_INSTALL_SCRIPT["core_services"]=""
+SERVICE_MANAGER_SCRIPT["core_services"]="$SCRIPT_CURRENT_DIR/core_service_manager.sh"
+# Prefixes scanned for the aggregate Core Node services status (mirrors core_service_manager.sh).
+CORE_SERVICE_PREFIXES=("ncore-" "pycore" "codesync" "octane-" "app-manager-")
+
+# Build the precise unit-name regex for a core prefix: hyphen-terminated prefixes
+# (ncore-/octane-/app-manager-) match any suffix; bare stems (pycore/codesync) must
+# hit a name boundary so unrelated units like pycoredb/codesyncd are NOT swept in.
+# Kept in sync with core_service_manager.sh.
+core_prefix_pattern() {
+    local prefix="$1"
+    if [[ "$prefix" == *- ]]; then
+        echo "^${prefix}[A-Za-z0-9_.@-]*\.service$"
+    else
+        echo "^${prefix}(-[A-Za-z0-9_.@-]*)?\.service$"
+    fi
+}
+
 # Service list
-SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore" "laravel" "unified_apps")
+SERVICES=("redis" "postgresql" "docker" "mysql" "nginx" "ssh" "pycore" "laravel" "unified_apps" "core_services")
 
 # Function to check if service is installed
 is_service_installed() {
@@ -98,6 +128,20 @@ is_service_installed() {
         local unified_prefixes=("app-" "webapp-" "nuxt-" "laravel-" "flutter-" "react-" "vue-")
         for prefix in "${unified_prefixes[@]}"; do
             if systemctl list-unit-files --type=service 2>/dev/null | grep -q "^${prefix}"; then
+                return 0
+            fi
+        done
+        return 1
+    fi
+
+    # Special handling for Core Node services (auto-discovered across all prefixes)
+    if [ "$service" = "core_services" ]; then
+        local prefix match
+        for prefix in "${CORE_SERVICE_PREFIXES[@]}"; do
+            # Exclude the internal app-manager-log-trim housekeeping unit.
+            match=$(systemctl list-unit-files --type=service 2>/dev/null | awk '{print $1}' \
+                | grep -E "$(core_prefix_pattern "$prefix")" | grep -v '^app-manager-log-trim\.service$')
+            if [ -n "$match" ]; then
                 return 0
             fi
         done
@@ -120,9 +164,10 @@ is_service_installed() {
         return 1
     fi
 
-    # Special handling for Laravel Octane (new: app-manager-laravel*, legacy: octane-*)
+    # Special handling for Laravel Octane (canonical: ncore-laravel-main from start.sh;
+    # legacy: app-manager-laravel*, octane-*)
     if [ "$service" = "laravel" ]; then
-        if systemctl list-units --type=service --all | grep -qE "(app-manager-laravel|octane-).*\.service"; then
+        if systemctl list-units --type=service --all | grep -qE "(ncore-laravel-main|app-manager-laravel|octane-).*\.service"; then
             return 0
         fi
         return 1
@@ -176,15 +221,56 @@ get_service_status() {
         return
     fi
 
+    # Special handling for Core Node services (auto-discovered across all prefixes)
+    if [ "$service" = "core_services" ]; then
+        if ! is_service_installed "$service"; then
+            echo "NOT_INSTALLED"
+            return
+        fi
+
+        local total_count=0
+        local running_count=0
+        local seen=" "
+        local prefix svc
+
+        for prefix in "${CORE_SERVICE_PREFIXES[@]}"; do
+            local services=$(systemctl list-unit-files --type=service 2>/dev/null | awk '{print $1}' | grep -E "$(core_prefix_pattern "$prefix")" | sed 's/\.service$//')
+            if [ -n "$services" ]; then
+                while IFS= read -r svc; do
+                    [ -z "$svc" ] && continue
+                    # Skip the internal app-manager-log-trim housekeeping unit (timer-driven).
+                    [ "$svc" = "app-manager-log-trim" ] && continue
+                    case "$seen" in *" $svc "*) continue ;; esac
+                    seen="$seen$svc "
+                    ((total_count++))
+                    if systemctl is-active --quiet "$svc"; then
+                        ((running_count++))
+                    fi
+                done <<< "$services"
+            fi
+        done
+
+        if [ "$total_count" -eq 0 ]; then
+            echo "NOT_INSTALLED"
+        elif [ "$running_count" -eq "$total_count" ]; then
+            echo "RUNNING:$running_count/$total_count"
+        elif [ "$running_count" -gt 0 ]; then
+            echo "PARTIAL:$running_count/$total_count"
+        else
+            echo "STOPPED:0/$total_count"
+        fi
+        return
+    fi
+
     if ! is_service_installed "$service"; then
         echo "NOT_INSTALLED"
         return
     fi
 
-    # Special handling for Laravel Octane (new: app-manager-laravel*, legacy: octane-*)
+    # Special handling for Laravel Octane (canonical: ncore-laravel-main; legacy: app-manager-laravel*, octane-*)
     if [ "$service" = "laravel" ]; then
-        local total_count=$(systemctl list-units --type=service --all 2>/dev/null | grep -cE "(app-manager-laravel|octane-).*\.service" || echo "0")
-        local running_count=$(systemctl list-units --type=service --state=active 2>/dev/null | grep -cE "(app-manager-laravel|octane-).*\.service" || echo "0")
+        local total_count=$(systemctl list-units --type=service --all 2>/dev/null | grep -cE "(ncore-laravel-main|app-manager-laravel|octane-).*\.service" || echo "0")
+        local running_count=$(systemctl list-units --type=service --state=active 2>/dev/null | grep -cE "(ncore-laravel-main|app-manager-laravel|octane-).*\.service" || echo "0")
 
         # Clean up: ensure single line numeric value
         total_count=$(printf "%s" "$total_count" | tr -cd '0-9' | head -c 10)
@@ -268,7 +354,7 @@ start_service() {
 
     # Special handling for Laravel Octane (multiple services)
     if [ "$service" = "laravel" ]; then
-        local octane_services=$(systemctl list-units --type=service --all | grep -E "(app-manager-laravel|octane-).*.service" | awk '{print $1}' | sed 's/.service$//')
+        local octane_services=$(systemctl list-units --type=service --all | grep -E "(ncore-laravel-main|app-manager-laravel|octane-).*.service" | awk '{print $1}' | sed 's/.service$//')
         local success_count=0
         local fail_count=0
 
@@ -337,7 +423,7 @@ stop_service() {
 
     # Special handling for Laravel Octane (multiple services)
     if [ "$service" = "laravel" ]; then
-        local octane_services=$(systemctl list-units --type=service --all | grep -E "(app-manager-laravel|octane-).*.service" | awk '{print $1}' | sed 's/.service$//')
+        local octane_services=$(systemctl list-units --type=service --all | grep -E "(ncore-laravel-main|app-manager-laravel|octane-).*.service" | awk '{print $1}' | sed 's/.service$//')
         local success_count=0
         local fail_count=0
 
@@ -393,7 +479,7 @@ restart_service() {
 
     # Special handling for Laravel Octane (multiple services)
     if [ "$service" = "laravel" ]; then
-        local octane_services=$(systemctl list-units --type=service --all | grep -E "(app-manager-laravel|octane-).*.service" | awk '{print $1}' | sed 's/.service$//')
+        local octane_services=$(systemctl list-units --type=service --all | grep -E "(ncore-laravel-main|app-manager-laravel|octane-).*.service" | awk '{print $1}' | sed 's/.service$//')
         local success_count=0
         local fail_count=0
 
@@ -478,12 +564,12 @@ show_service_logs() {
                 echo ""
                 echo -e "${CYAN}Recent logs from Laravel services (last 100 lines):${NC}"
                 echo "================================================"
-                journalctl -u 'app-manager-laravel*' -u 'octane-*' -n 100 --no-pager | tail -50
+                journalctl -u 'ncore-laravel-main' -u 'app-manager-laravel*' -u 'octane-*' -n 100 --no-pager | tail -50
                 echo ""
-                echo -e "${YELLOW}Tip: Use 'journalctl -u app-manager-laravel_main -f' to follow logs in real-time${NC}"
+                echo -e "${YELLOW}Tip: Use 'journalctl -u ncore-laravel-main -f' to follow logs in real-time${NC}"
                 ;;
             2)
-                local swoole_log="/www/programing/core_node/poly_apps/laravel_main/storage/logs/swoole_http.log"
+                local swoole_log="$LARAVEL_DIR/storage/logs/swoole_http.log"
                 if [ -f "$swoole_log" ]; then
                     echo ""
                     echo -e "${CYAN}Swoole HTTP Log (last 50 lines):${NC}"
@@ -496,7 +582,7 @@ show_service_logs() {
                 fi
                 ;;
             3)
-                local state_file="/www/programing/core_node/poly_apps/laravel_main/storage/logs/octane-server-state.json"
+                local state_file="$LARAVEL_DIR/storage/logs/octane-server-state.json"
                 if [ -f "$state_file" ]; then
                     echo ""
                     echo -e "${CYAN}Octane Server State:${NC}"
@@ -566,6 +652,46 @@ reinstall_service() {
     local service="$1"
     local install_script="${SERVICE_INSTALL_SCRIPT[$service]}"
     local service_name="${SERVICE_NAME[$service]}"
+
+    # Special handling for Laravel Octane: the canonical installer is the app's own
+    # start.sh, which runs the full prerequisite setup and registers the
+    # ncore-laravel-main systemd unit (--service). This keeps the menu aligned with
+    # poly_apps/laravel_main/scripts/start.sh instead of a separate install path.
+    if [ "$service" = "laravel" ]; then
+        echo ""
+        echo "================================================"
+        echo "Install / Reinstall Laravel Octane (ncore-laravel-main)"
+        echo "================================================"
+        echo ""
+        echo "Canonical installer:"
+        echo "  $LARAVEL_START_SCRIPT --service"
+        echo ""
+        echo "This runs the full prerequisite setup (php/composer/pg/swoole/migrate/"
+        echo "sys:init) and registers/restarts the ncore-laravel-main systemd service."
+        echo ""
+        if [ ! -f "$LARAVEL_START_SCRIPT" ]; then
+            echo -e "${RED}Error: start.sh not found: $LARAVEL_START_SCRIPT${NC}"
+            return 1
+        fi
+        read -p "Run it now? (Y/n): " confirm
+        if [[ "$confirm" =~ ^[Nn]$ ]]; then
+            echo "Cancelled"
+            return 0
+        fi
+        echo ""
+        echo "Executing: bash $LARAVEL_START_SCRIPT --service"
+        echo ""
+        bash "$LARAVEL_START_SCRIPT" --service
+        return 0
+    fi
+
+    # Special handling for Core Node services: no single install target; open the
+    # auto-discovery manager (it lists every ncore-*/pycore*/codesync/octane-*/
+    # app-manager-* unit and how to install the ones that are missing).
+    if [ "$service" = "core_services" ]; then
+        launch_advanced_manager "core_services"
+        return 0
+    fi
 
     # Special handling for Unified Apps (launches unified manager)
     if [ "$service" = "unified_apps" ]; then
@@ -833,15 +959,30 @@ show_main_menu() {
             printf "${CYAN}%d.${NC} %-15s " "$index" "$service_name"
             print_status "$service"
 
+            # Aggregate entries (Unified Apps / Core Node Services) have no single
+            # systemd unit but own an advanced manager that scans many units. The
+            # generic per-unit keys (s/x/r/l) cannot act on an empty unit name, so
+            # offer only Manage (its sub-menu handles per-unit + bulk actions).
+            local is_aggregate=false
+            if [ -z "$systemd_name" ] && has_advanced_manager "$service"; then
+                is_aggregate=true
+            fi
+
             # Show quick action hints
-            if [ "$status" = "NOT_INSTALLED" ]; then
-                echo -e "  ${YELLOW}�?${index}i${NC} Install"
+            if [ "$is_aggregate" = true ]; then
+                if [ "$status" = "NOT_INSTALLED" ]; then
+                    echo -e "  ${YELLOW}${index}m${NC} Manage (none discovered yet)"
+                else
+                    echo -e "  ${YELLOW}${index}m${NC} Manage (per-unit + bulk actions inside)"
+                fi
+            elif [ "$status" = "NOT_INSTALLED" ]; then
+                echo -e "  ${YELLOW}${index}i${NC} Install"
             else
                 # Check if service is running (handles both "RUNNING" and "RUNNING:x/y" formats)
                 if [[ "$status" =~ ^RUNNING ]] || [[ "$status" =~ ^PARTIAL ]]; then
-                    echo -e "  ${YELLOW}�?${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}i${NC} Reinstall  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
+                    echo -e "  ${YELLOW}${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}i${NC} Reinstall  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
                 else
-                    echo -e "  ${YELLOW}�?${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}i${NC} Reinstall  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
+                    echo -e "  ${YELLOW}${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}i${NC} Reinstall  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
                 fi
             fi
 
@@ -870,9 +1011,10 @@ show_main_menu() {
         if [[ "$choice" =~ ^([0-9]+)([sxriml])$ ]]; then
             local service_num="${BASH_REMATCH[1]}"
             local action="${BASH_REMATCH[2]}"
-            local service_index=$((service_num - 1))
+            # Force base-10: a leading zero (e.g. "08") would be parsed as octal and abort.
+            local service_index=$((10#$service_num - 1))
 
-            if [ $service_index -ge 0 ] && [ $service_index -lt ${#SERVICES[@]} ]; then
+            if [ "$service_index" -ge 0 ] && [ "$service_index" -lt ${#SERVICES[@]} ]; then
                 local service="${SERVICES[$service_index]}"
 
                 case "$action" in

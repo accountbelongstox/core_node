@@ -41,9 +41,22 @@
 # What it does (idempotent, safe to re-run):
 #   1. Writes /usr/local/bin/<id>-rlimit: a self-re-exec wrapper that, on first
 #      entry, re-execs itself inside `systemd-run [--user|--system] --scope
-#      --collect` with the computed MemoryMax/MemoryHigh/CPUQuota, then on
-#      re-entry (ARL_SCOPE_ACTIVE=1) exec's the real binary directly. Preserves
-#      "$@" and .desktop field codes. cpulimit fallback when systemd-run absent.
+#      --collect --slice=<APP_SLICE>` with the computed MemoryMax/MemoryHigh/
+#      CPUQuota, then on re-entry (ARL_SCOPE_ACTIVE=1) exec's the real binary
+#      directly. Preserves "$@" and .desktop field codes. cpulimit fallback when
+#      systemd-run absent. ALL wrappers share ONE slice carrying an AGGREGATE
+#      MemoryHigh/MemoryMax (% of total RAM, re-applied via `systemctl
+#      set-property --runtime`), so several heavy apps launched together cannot
+#      collectively exhaust RAM -- per-app caps alone do NOT bound the sum.
+#      Tunables (env): APP_AGG_MEM_PCT (85), APP_AGG_HIGH_PCT (72), APP_SLICE.
+#      Scope: the slice lives in the CALLING systemd manager, so user-session
+#      apps (--user) share one budget and root-mode apps (--system) share a
+#      SEPARATE one -- the cap bounds same-manager apps (the heavy browsers/chat
+#      are user-session and ARE bounded together), not across the user/root split.
+#      cgroup-v2 only: on a v1/hybrid hierarchy (e.g. Ubuntu 20.04 default) the
+#      slice + MemoryHigh are unavailable, so the wrapper degrades to a per-app
+#      MemoryMax-only scope. The wrapper PROBES that a scope can be created and
+#      falls through to cpulimit (then unlimited) so the app always launches.
 #   2. (when --desktop given) repoints the menu/desktop .desktop Exec at the
 #      wrapper via edit_desktop_shortcut_from_desktop_shortcut_manager.
 #
@@ -66,6 +79,13 @@ ARL_DEFAULT_MEM_PCT="${APP_MEM_PCT:-60}"     # MemoryMax  = this % of total RAM
 ARL_DEFAULT_HIGH_PCT="${APP_HIGH_PCT:-75}"   # MemoryHigh = this % of MemoryMax
 ARL_DEFAULT_CPU_PCT="${APP_CPU_PCT:-75}"     # CPUQuota   = this % per core * nproc
 ARL_MIN_MEM_MB="${APP_MIN_MEM_MB:-512}"      # floor so a tiny box still launches
+# Shared slice: every wrapper-launched app runs under ONE slice with an AGGREGATE
+# memory cap, so two heavy apps cannot collectively exhaust RAM (per-app caps do
+# NOT bound the sum -- critical on low-RAM / no-swap boxes). Slice limits are % of
+# TOTAL RAM and are (re)applied at each launch (idempotent). Env-overridable.
+ARL_SLICE_NAME="${APP_SLICE:-corenode-apps.slice}"
+ARL_AGG_MEM_PCT="${APP_AGG_MEM_PCT:-85}"     # slice MemoryMax  = this % of total RAM
+ARL_AGG_HIGH_PCT="${APP_AGG_HIGH_PCT:-72}"   # slice MemoryHigh = this % of total RAM
 
 # Privilege prefix: honor a caller-set USE_SUDO (gvar_common); else derive it.
 _arl_sudo() {
@@ -76,6 +96,18 @@ _arl_sudo() {
 # Sanitize an id into a safe wrapper/.desktop stem (lowercase, [a-z0-9._-]).
 _arl_id() {
     printf '%s' "$1" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9._-'
+}
+
+# Normalize a systemd memory value (9G / 9091M / 512K / bare bytes) to MiB, so
+# MemoryHigh can be compared against MemoryMax. Unknown forms -> 0 (no clamp).
+_arl_mib() {
+    case "$1" in
+        *[Gg]) echo $(( ${1%[Gg]} * 1024 )) ;;
+        *[Mm]) echo "${1%[Mm]}" ;;
+        *[Kk]) echo $(( ${1%[Kk]} / 1024 )) ;;
+        *[0-9]) echo $(( $1 / 1048576 )) ;;
+        *) echo 0 ;;
+    esac
 }
 
 # Recover the REAL binary from a value that may already be a wrapper / scope line.
@@ -112,13 +144,17 @@ _arl_compute_limits() {
     mem_total_kb="$(awk '/^MemTotal:/{print $2}' /proc/meminfo 2>/dev/null)"
     nproc="$(nproc 2>/dev/null || echo 1)"
     [ -n "$mem_total_kb" ] || mem_total_kb=2097152
-    mem_max_mb=$(( mem_total_kb * ARL_DEFAULT_MEM_PCT / 100 / 1024 ))
+    mem_max_mb=$(( mem_total_kb * ${APP_MEM_PCT:-$ARL_DEFAULT_MEM_PCT} / 100 / 1024 ))
     [ "$mem_max_mb" -lt "$ARL_MIN_MEM_MB" ] && mem_max_mb="$ARL_MIN_MEM_MB"
-    mem_high_mb=$(( mem_max_mb * ARL_DEFAULT_HIGH_PCT / 100 ))
-    cpu_quota=$(( nproc * ARL_DEFAULT_CPU_PCT ))
+    mem_high_mb=$(( mem_max_mb * ${APP_HIGH_PCT:-$ARL_DEFAULT_HIGH_PCT} / 100 ))
+    cpu_quota=$(( nproc * ${APP_CPU_PCT:-$ARL_DEFAULT_CPU_PCT} ))
     mem="${mem_in:-${APP_MEM_MAX:-${mem_max_mb}M}}"
     high="${high_in:-${APP_MEM_HIGH:-${mem_high_mb}M}}"
     cpu="${cpu_in:-${APP_CPU_QUOTA:-${cpu_quota}%}}"
+    # Clamp MemoryHigh <= MemoryMax: a soft tier above the hard cap is inert and
+    # the app hard-OOMs at MemoryMax with no graceful reclaim. Triggers when --mem
+    # (or APP_MEM_MAX) lowers the max below the machine-relative high default.
+    if [ "$(_arl_mib "$mem")" -gt 0 ] 2>/dev/null && [ "$(_arl_mib "$high")" -gt "$(_arl_mib "$mem")" ] 2>/dev/null; then high="$mem"; fi
     printf '%s%s%s%s%s' "$mem" "$tab" "$high" "$tab" "$cpu"
 }
 
@@ -126,7 +162,17 @@ _arl_compute_limits() {
 apply_app_resource_limit() {
     local id="" real="" mem="" high="" cpu="" pre="" mode="user" desktop_who="" field=""
     local sudo wrapper limits tab scope_flag wrapper_exec
+    local eff_mem_pct eff_high_pct eff_cpu_pct eff_agg_mem_pct eff_agg_high_pct
     tab="$(printf '\t')"
+    # Effective percentages resolved at CALL time so an inline "APP_MEM_PCT=62
+    # apply_app_resource_limit ..." (or a pre-source env) actually bakes into the
+    # wrapper. Previously the wrapper used the SOURCE-time default, so per-app
+    # overrides passed on the call line were silently dropped.
+    eff_mem_pct="${APP_MEM_PCT:-$ARL_DEFAULT_MEM_PCT}"
+    eff_high_pct="${APP_HIGH_PCT:-$ARL_DEFAULT_HIGH_PCT}"
+    eff_cpu_pct="${APP_CPU_PCT:-$ARL_DEFAULT_CPU_PCT}"
+    eff_agg_mem_pct="${APP_AGG_MEM_PCT:-$ARL_AGG_MEM_PCT}"
+    eff_agg_high_pct="${APP_AGG_HIGH_PCT:-$ARL_AGG_HIGH_PCT}"
     while [ $# -gt 0 ]; do
         case "$1" in
             --id)      id="$(_arl_id "$2")"; shift 2 ;;
@@ -182,27 +228,67 @@ fi
 ARL_MEM_TOTAL_KB="\$(awk '/^MemTotal:/{print \$2}' /proc/meminfo 2>/dev/null)"
 ARL_NPROC="\$(nproc 2>/dev/null || echo 1)"
 [ -n "\$ARL_MEM_TOTAL_KB" ] || ARL_MEM_TOTAL_KB=2097152
-ARL_MM=\$(( ARL_MEM_TOTAL_KB * \${APP_MEM_PCT:-$ARL_DEFAULT_MEM_PCT} / 100 / 1024 ))
+ARL_MM=\$(( ARL_MEM_TOTAL_KB * \${APP_MEM_PCT:-$eff_mem_pct} / 100 / 1024 ))
 [ "\$ARL_MM" -lt "\${APP_MIN_MEM_MB:-$ARL_MIN_MEM_MB}" ] && ARL_MM=\${APP_MIN_MEM_MB:-$ARL_MIN_MEM_MB}
-ARL_MH=\$(( ARL_MM * \${APP_HIGH_PCT:-$ARL_DEFAULT_HIGH_PCT} / 100 ))
-ARL_CQ=\$(( ARL_NPROC * \${APP_CPU_PCT:-$ARL_DEFAULT_CPU_PCT} ))
+ARL_MH=\$(( ARL_MM * \${APP_HIGH_PCT:-$eff_high_pct} / 100 ))
+ARL_CQ=\$(( ARL_NPROC * \${APP_CPU_PCT:-$eff_cpu_pct} ))
 ARL_MEM_MAX="\${ARL_FIXED_MEM:-}"; [ -n "\$ARL_MEM_MAX" ] || ARL_MEM_MAX="\${APP_MEM_MAX:-\${ARL_MM}M}"
 ARL_MEM_HIGH="\${ARL_FIXED_HIGH:-}"; [ -n "\$ARL_MEM_HIGH" ] || ARL_MEM_HIGH="\${APP_MEM_HIGH:-\${ARL_MH}M}"
 ARL_CPU_QUOTA="\${ARL_FIXED_CPU:-}"; [ -n "\$ARL_CPU_QUOTA" ] || ARL_CPU_QUOTA="\${APP_CPU_QUOTA:-\${ARL_CQ}%}"
-# Primary: systemd-run scope. --user requires a delegated user session; for
-# root-mode apps the wrapper is invoked AS root and uses --system. --collect
-# garbage-collects the transient scope unit when the app exits.
-if command -v systemd-run >/dev/null 2>&1; then
+# Clamp MemoryHigh <= MemoryMax (an inverted soft tier is inert -> hard OOM at max).
+# Skip when MemoryMax is unbounded ("max"/"infinity" -> _arl_mib 0): clamping then
+# would wrongly discard the soft tier the caller asked to keep.
+_arl_mib() { case "\$1" in *[Gg]) echo \$(( \${1%[Gg]} * 1024 ));; *[Mm]) echo "\${1%[Mm]}";; *[Kk]) echo \$(( \${1%[Kk]} / 1024 ));; *[0-9]) echo \$(( \$1 / 1048576 ));; *) echo 0;; esac; }
+ARL_MAX_MIB="\$(_arl_mib "\$ARL_MEM_MAX")"
+if [ "\$ARL_MAX_MIB" -gt 0 ] 2>/dev/null && [ "\$(_arl_mib "\$ARL_MEM_HIGH")" -gt "\$ARL_MAX_MIB" ] 2>/dev/null; then ARL_MEM_HIGH="\$ARL_MEM_MAX"; fi
+# AGGREGATE cap: every wrapper-launched app shares ONE slice so their combined
+# memory cannot exhaust the box (per-app caps do NOT bound the sum -- critical on
+# low-RAM / no-swap machines). NOTE: the slice lives in the CALLING manager, so
+# user-session apps (--user) share one budget and root-mode apps (--system) share
+# a SEPARATE one; the cap bounds same-manager apps, not across the user/root split.
+# The dominant consumers (browsers, chat) are user-session and ARE bounded together.
+# Slice limits are % of TOTAL RAM, recomputed here so they track the machine.
+ARL_SLICE="$ARL_SLICE_NAME"
+ARL_AGG_MM=\$(( ARL_MEM_TOTAL_KB * \${APP_AGG_MEM_PCT:-$eff_agg_mem_pct} / 100 / 1024 ))
+ARL_AGG_MH=\$(( ARL_MEM_TOTAL_KB * \${APP_AGG_HIGH_PCT:-$eff_agg_high_pct} / 100 / 1024 ))
+ARL_AGG_MAX="\${APP_AGG_MEM_MAX:-\${ARL_AGG_MM}M}"
+ARL_AGG_HIGH="\${APP_AGG_MEM_HIGH:-\${ARL_AGG_MH}M}"
+ARL_AGG_MAX_MIB="\$(_arl_mib "\$ARL_AGG_MAX")"
+if [ "\$ARL_AGG_MAX_MIB" -gt 0 ] 2>/dev/null && [ "\$(_arl_mib "\$ARL_AGG_HIGH")" -gt "\$ARL_AGG_MAX_MIB" ] 2>/dev/null; then ARL_AGG_HIGH="\$ARL_AGG_MAX"; fi
+# Capability gate: the shared slice + MemoryHigh + hierarchical per-slice memory
+# enforcement are cgroup-v2 features. On a v1/hybrid hierarchy (e.g. Ubuntu 20.04
+# default) they are silently ignored, so there we keep only the per-app MemoryMax
+# (which v1 honors). arl_mgr_ok checks the target systemd manager is reachable.
+ARL_CG2=0; [ "\$(stat -fc %T /sys/fs/cgroup 2>/dev/null)" = "cgroup2fs" ] && ARL_CG2=1
+arl_mgr_ok() {
+    if [ "\$ARL_SCOPE_MODE" = "system" ]; then [ -d /run/systemd/system ]; else systemctl --user show-environment >/dev/null 2>&1; fi
+}
+# Primary: a transient scope. We PROBE first (throwaway scope) so that if
+# systemd-run cannot create a scope in this manager (no delegated/lingering user
+# session, no bus, controller not delegated, --slice rejected) we fall THROUGH to
+# cpulimit instead of a bare exec that would leave the app unlaunched.
+if command -v systemd-run >/dev/null 2>&1 && arl_mgr_ok \\
+   && systemd-run $scope_flag --scope --collect --quiet true >/dev/null 2>&1; then
+    if [ "\$ARL_CG2" = "1" ]; then
+        command -v systemctl >/dev/null 2>&1 && systemctl $scope_flag set-property --runtime "\$ARL_SLICE" "MemoryHigh=\$ARL_AGG_HIGH" "MemoryMax=\$ARL_AGG_MAX" >/dev/null 2>&1 || true
+        exec systemd-run $scope_flag --scope --collect --quiet --slice="\$ARL_SLICE" \\
+            -p "MemoryMax=\$ARL_MEM_MAX" -p "MemoryHigh=\$ARL_MEM_HIGH" -p "CPUQuota=\$ARL_CPU_QUOTA" \\
+            --setenv=ARL_SCOPE_ACTIVE=1 \\
+            "\$0" "\$@"
+    fi
+    # cgroup v1/hybrid: per-app hard MemoryMax + CPUQuota only (no slice, no High).
     exec systemd-run $scope_flag --scope --collect --quiet \\
-        -p "MemoryMax=\$ARL_MEM_MAX" -p "MemoryHigh=\$ARL_MEM_HIGH" -p "CPUQuota=\$ARL_CPU_QUOTA" \\
+        -p "MemoryMax=\$ARL_MEM_MAX" -p "CPUQuota=\$ARL_CPU_QUOTA" \\
         --setenv=ARL_SCOPE_ACTIVE=1 \\
         "\$0" "\$@"
 fi
-# Fallback: cpulimit (CPU-only, crude; no memory cap). Strips the trailing %.
+# Fallback: cpulimit (CPU-only, crude; NO memory cap, not in any slice).
 if command -v cpulimit >/dev/null 2>&1; then
+    echo "[rlimit] systemd-run scope unavailable; CPU-only cap via cpulimit (no memory limit)" >&2
     exec cpulimit -l "\${ARL_CPU_QUOTA%\%}" -- "\$ARL_REAL_BINARY" \$ARL_PRE_ARGS "\$@"
 fi
 # Last resort: run unlimited so the app still launches.
+echo "[rlimit] no systemd-run/cpulimit usable; launching '\$ARL_REAL_BINARY' WITHOUT resource limits" >&2
 exec "\$ARL_REAL_BINARY" \$ARL_PRE_ARGS "\$@"
 WRAPEOF
     $sudo chmod 0755 "$wrapper" 2>/dev/null || true

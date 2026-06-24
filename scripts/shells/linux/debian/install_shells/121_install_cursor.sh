@@ -30,6 +30,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
+source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
@@ -827,12 +828,23 @@ if [ "\$(id -u)" -ne 0 ]; then
         exec sudo -E "\$0" "\$@"
     fi
 fi
+# Prefer the resource-limited launcher (cgroup-v2 --system scope; we are root here
+# post-elevation). Falls back to a direct launch if the wrapper is missing.
+if [ -x /usr/local/bin/cursor-rlimit ]; then
+    exec /usr/local/bin/cursor-rlimit --no-sandbox "\$@"
+fi
 exec "\$CURSOR_REAL_BINARY" --no-sandbox "\$@"
 EOF
     $USE_SUDO chmod +x "$cursor_wrapper"
     $USE_SUDO ln -sf "$cursor_wrapper" /usr/local/bin/cursor 2>/dev/null || true
     CURSOR_BINARY="$cursor_wrapper"
     print_info_from_common_functions "Launcher (root + --no-sandbox): $cursor_wrapper -> $cursor_real_binary"
+
+    # Resource limit: cap the whole Cursor (Electron) tree in one machine-relative
+    # cgroup-v2 --system scope. Cursor self-elevates to root, so --user would not
+    # govern it; --root makes the wrapper use a --system scope. The launcher above
+    # execs /usr/local/bin/cursor-rlimit (created here). Idempotent; never double-wraps.
+    apply_app_resource_limit --id cursor --exec "$cursor_real_binary" --root
 
     # Build user data directory path for Cursor
     CURSOR_USERDATA_DIR="$desktop_manager_home/.config/Cursor"

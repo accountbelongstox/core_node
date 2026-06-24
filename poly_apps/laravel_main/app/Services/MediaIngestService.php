@@ -201,7 +201,7 @@ class MediaIngestService
      * Decode and store an optional pycore ingest poster payload
      * (source.poster) for the just-upserted Book / Subtitle row.
      *
-     * Movie/TV Poster Pipeline (development-guides/MOVIE_POSTER_PIPELINE.md §4):
+     * Movie/TV Poster Pipeline (docs/MOVIE_POSTER_PIPELINE.md §4):
      * pycore is the primary fetcher and ships poster bytes inside source.poster
      * (provider/source_id/mime/image_base64/meta). When present we decode +
      * save the local file and set the poster_* columns (fill-missing — a row

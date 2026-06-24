@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Movie/TV Poster Client (PHP, secondary fetcher).
  *
- * Canonical contract: development-guides/MOVIE_POSTER_PIPELINE.md.
+ * Canonical contract: docs/MOVIE_POSTER_PIPELINE.md.
  *
  * pycore is the primary fetcher (runs at ingest/extract time and ships poster
  * bytes to laravel). This PHP client is the on-demand backfill: given a media

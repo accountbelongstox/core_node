@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * On-demand movie/TV poster fetch + backfill (PHP secondary fetcher).
  *
- * Canonical contract: development-guides/MOVIE_POSTER_PIPELINE.md §7.
+ * Canonical contract: docs/MOVIE_POSTER_PIPELINE.md §7.
  *
  * POST /api/app_qy_v1/media/poster/fetch { type:'book'|'subtitle', id?|source_key? }
  *   -> load the row -> MoviePosterClient::fetchForTitle(title, year)

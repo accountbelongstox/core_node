@@ -29,7 +29,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
             ->whereNumber('id');
 
         // On-demand movie/TV poster fetch + backfill (TMDB -> OMDB, PHP).
-        // Canonical contract: development-guides/MOVIE_POSTER_PIPELINE.md §7.
+        // Canonical contract: docs/MOVIE_POSTER_PIPELINE.md §7.
         Route::post('/poster/fetch', [AppQyV1MoviePosterController::class, 'fetch']);
 
         // Cheap, no-auth poster-pipeline status snapshot (provider key config +

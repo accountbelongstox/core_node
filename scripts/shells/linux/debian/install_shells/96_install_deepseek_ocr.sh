@@ -370,8 +370,22 @@ install_dependencies() {
     # 13_cuda_nvidia_prereq.sh) when it is importable; never reinstall it (avoids
     # version churn and conflicts in the shared venv). Only install torch if absent.
     if "$run_python" -c "import torch" >/dev/null 2>&1; then
-        print_success "Step 1: Reusing existing torch ($("$run_python" -c 'import torch; print(torch.__version__)' 2>/dev/null)); skipping torch install"
-        echo ""
+        if [ "$has_gpu" = true ] && ! "$run_python" -c "import torch; assert torch.cuda.is_available()" >/dev/null 2>&1; then
+            # torch imports but its CUDA build cannot init on THIS driver (e.g. a too-new wheel
+            # such as cu130 on a 12.4 driver). Reusing it makes DeepSeek-OCR silently fall back to
+            # CPU AND leaves the worker re-triggering reinstalls, so uninstall the stale build (so
+            # it stops shadowing) and reinstall the driver-matched wheel.
+            _ocr_torch_idx="$(torch_cuda_index_url)"
+            print_warning "Step 1: existing torch ($("$run_python" -c 'import torch; print(torch.__version__)' 2>/dev/null)) cannot use CUDA on this driver - reinstalling driver-matched build ($_ocr_torch_idx)..."
+            echo ""
+            vpip "$venv_python" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
+            echo "[run] ${pip_install[*]} torch torchvision torchaudio --index-url $_ocr_torch_idx --force-reinstall"
+            "${pip_install[@]}" torch torchvision torchaudio --index-url "$_ocr_torch_idx" --force-reinstall
+            echo ""
+        else
+            print_success "Step 1: Reusing existing torch ($("$run_python" -c 'import torch; print(torch.__version__)' 2>/dev/null)); skipping torch install"
+            echo ""
+        fi
     elif [ "$has_gpu" = true ]; then
         # cu124 (CUDA 12.x major) rather than cu126: it runs on the common 12.x
         # drivers (cu126 needs a >=12.6 driver) and its major-12 matches a CUDA 12.x

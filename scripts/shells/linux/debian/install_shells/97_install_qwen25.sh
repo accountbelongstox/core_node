@@ -118,11 +118,21 @@ install_dependencies() {
     local torch_ver=""
     if "$VENV_PYTHON3" -c "import torch" >/dev/null 2>&1; then
         torch_ver="$("$VENV_PYTHON3" -c 'import torch; print(torch.__version__)' 2>/dev/null)"
-        print_success "Reusing existing torch ($torch_ver) from the prerequisite install; skipping torch install"
         if [[ "$has_gpu" == true ]] && ! "$VENV_PYTHON3" -c "import torch; assert torch.cuda.is_available()" >/dev/null 2>&1; then
-            print_warning "torch.cuda is not usable with the current torch/driver - Qwen2.5 will run on CPU."
+            # torch imports but its CUDA build cannot init on THIS driver (e.g. a too-new wheel
+            # like cu130 on a 12.4 driver) - reusing it runs Qwen2.5 on CPU AND leaves the worker
+            # re-triggering reinstalls. Uninstall the stale build + reinstall the driver-matched one.
+            _qwen_torch_idx="$(torch_cuda_index_url)"
+            print_warning "Existing torch ($torch_ver) cannot use CUDA on this driver - reinstalling driver-matched build ($_qwen_torch_idx)..."
+            echo ""
+            vpip "$VENV_PYTHON3" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
+            echo "[97] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url $_qwen_torch_idx --force-reinstall"
+            vpip "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url "$_qwen_torch_idx" --force-reinstall
+            echo ""
+        else
+            print_success "Reusing existing torch ($torch_ver) from the prerequisite install; skipping torch install"
+            echo ""
         fi
-        echo ""
     elif [[ "$has_gpu" == true ]]; then
         _qwen_torch_idx="$(torch_cuda_index_url)"
         print_info "torch not found - installing driver-matched GPU torch ($_qwen_torch_idx)..."

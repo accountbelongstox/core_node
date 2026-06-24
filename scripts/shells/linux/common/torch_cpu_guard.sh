@@ -76,6 +76,22 @@ except Exception:
 PY
 }
 
+# 0 if torch is installed AND torch.cuda.is_available() is True for $1=python, else 1.
+# A CUDA-build wheel compiled for a CUDA NEWER than the driver supports (e.g. cu130 on a
+# 12.4 driver) imports fine but reports is_available()=False ("driver too old"); this is
+# the authoritative "does the CUDA build actually work on THIS driver" probe.
+tcg_torch_cuda_usable() {
+    local py="$1"
+    "$py" - >/dev/null 2>&1 <<'PY'
+import sys
+try:
+    import torch
+    sys.exit(0 if torch.cuda.is_available() else 1)
+except Exception:
+    sys.exit(1)
+PY
+}
+
 # Uninstall every nvidia-* / triton wheel (orphaned after a CUDA->CPU torch switch).
 tcg_purge_nvidia_wheels() {
     local py="$1" pkgs
@@ -103,18 +119,36 @@ tcg_ensure_torch_build() {
     state="$(tcg_torch_cuda_state "$py")"
 
     if tcg_gpu_present; then
-        if [[ -z "$state" && "$repair_only" != "1" ]]; then
-            echo "[torch-guard] GPU present, torch missing -> installing default (CUDA) build."
-            # --ignore-installed: torch needs mpmath<1.4 but Debian/Ubuntu/Kali ship
-            # mpmath 1.4.x in /usr/lib/python3/dist-packages with NO RECORD file, so a
-            # plain install aborts with "uninstall-no-record-file" trying to remove it.
-            # Ignoring installed packages makes pip drop the required mpmath into
-            # /usr/local/.../dist-packages (which shadows the apt copy) without touching
-            # the dpkg-owned files. Matches tcg_install_cpu_torch above.
-            vpip "$py" -m pip install --break-system-packages --no-user --ignore-installed \
-                --index-url "$(torch_cuda_index_url)" torch torchvision torchaudio || true
+        # --ignore-installed (used below): torch needs mpmath<1.4 but Debian/Ubuntu/Kali ship
+        # mpmath 1.4.x in /usr/lib/python3/dist-packages with NO RECORD file, so a plain
+        # install aborts with "uninstall-no-record-file". Ignoring installed packages makes
+        # pip drop the required mpmath into /usr/local/.../dist-packages (which shadows the
+        # apt copy) without touching the dpkg-owned files. Matches tcg_install_cpu_torch.
+        if [[ -z "$state" ]]; then
+            if [[ "$repair_only" == "1" ]]; then
+                echo "[torch-guard] GPU present, torch missing (repair-only) -> nothing to repair."
+            else
+                echo "[torch-guard] GPU present, torch missing -> installing driver-matched CUDA build."
+                vpip "$py" -m pip install --break-system-packages --no-user --ignore-installed \
+                    --index-url "$(torch_cuda_index_url)" torch torchvision torchaudio || true
+            fi
+            return 0
+        fi
+        if [[ "$state" == "None" ]]; then
+            echo "[torch-guard] GPU present, torch is CPU build; no change (CPU build runs on GPU hosts too)."
+            return 0
+        fi
+        # A CUDA build is present. Verify it actually initializes on THIS driver. A wheel built
+        # for a CUDA newer than the driver supports (e.g. cu130 on a 12.4 driver) imports but
+        # reports is_available()=False and triggers the worker's endless reinstall, so DOWNGRADE
+        # it to the driver-matched wheel here instead of reporting it healthy ("no change").
+        if tcg_torch_cuda_usable "$py"; then
+            echo "[torch-guard] GPU present, torch cuda=$state usable on this driver; no change."
         else
-            echo "[torch-guard] GPU present, torch state='${state:-absent}'; no change."
+            echo "[torch-guard] GPU present but torch cuda=$state cannot init on this driver -> reinstalling driver-matched wheel ($(torch_cuda_index_url))."
+            vpip "$py" -m pip uninstall -y torch torchvision torchaudio >/dev/null 2>&1 || true
+            vpip "$py" -m pip install --break-system-packages --no-user --ignore-installed --force-reinstall \
+                --index-url "$(torch_cuda_index_url)" torch torchvision torchaudio || true
         fi
         return 0
     fi

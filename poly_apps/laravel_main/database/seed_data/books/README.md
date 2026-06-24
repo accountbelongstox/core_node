@@ -32,7 +32,7 @@ install and no network fetch is required.
 
 Idempotent: a completion sentinel (last book, `mal`) short-circuits re-seeding;
 a reset/empty DB re-seeds automatically. See
-`development-guides/BOOKS_FEATURE_SPECIFICATION.md` §11.
+`poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md` §11.
 
 ## Seeded editions / license
 

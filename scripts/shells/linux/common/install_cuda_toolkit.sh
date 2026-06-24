@@ -33,6 +33,10 @@
 set -u
 
 # --- Variable declarations (top of file) ---
+# CONTRACT: only the CUDA *major* needs to match the torch wheel tag (the flash-attn build
+# gate in 96_install_deepseek_ocr.sh compares nvcc-major == torch-cuda-major, NOT minor). So
+# a 12.2 toolkit alongside cu124 torch wheels is intentional and safe — minor drift is fine.
+# Override the whole version via CUDA_TOOLKIT_VERSION if a specific minor is ever required.
 CTI_CUDA_VERSION="${CUDA_TOOLKIT_VERSION:-12.2.2}"
 CTI_CUDA_SHORT="$(echo "$CTI_CUDA_VERSION" | cut -d. -f1,2)"
 CTI_CUDA_DRIVER="${CUDA_RUN_DRIVER:-535.104.05}"

@@ -86,24 +86,16 @@ set -euo pipefail
 # Resolve this script's directory (repo root), following symlinks.
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 
-# Shared Python user-base (LINUX ONLY): prerequisites install here (see prepare.sh)
-# and the worker must read from the SAME system directory, so packages installed by
-# ANY user are visible to the running service. Default /opt/_core_node/pyuserbase (a
-# system path every member can access, NOT under the repo); override via
-# PYCORE_PYUSERBASE. Exported before both prepare AND the worker launch.
-if [[ "$(uname -s)" == "Linux" ]]; then
-    : "${PYCORE_PYUSERBASE:=/opt/_core_node/pyuserbase}"
-    mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
-    if [[ ! -w "$PYCORE_PYUSERBASE" ]] && command -v sudo >/dev/null 2>&1; then
-        sudo -n mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
-        sudo -n chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
-    fi
-    if [[ -w "$PYCORE_PYUSERBASE" ]]; then
-        chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
-        export PYCORE_PYUSERBASE
-        export PYTHONUSERBASE="$PYCORE_PYUSERBASE"
-    fi
-fi
+# Shared Python runtime env (user-base + PIP flags) is exported AFTER resolve_python picks
+# the interpreter, because the policy is VENV-AWARE (single source of truth:
+# pycore_export_python_env_from_common in venv_python_common.sh, also used by prepare.sh):
+# a venv targets itself (PIP_USER=0, NO PYTHONUSERBASE); only a non-venv system python uses
+# the all-users shared base /opt/_core_node/pyuserbase. The OLD code exported PYTHONUSERBASE
+# UNCONDITIONALLY here, which redirected the venv's user-site to an empty dir and made the
+# worker import a stale /usr/local torch -> ~5GB reinstall every launch. Source the helper
+# now (lightweight, no gvar dependency); call it once $PY is resolved.
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/scripts/shells/linux/common/venv_python_common.sh" 2>/dev/null || true
 
 # Wire the ONE shared, all-users cache location (CORE_NODE_CACHE_DIR + HF_HOME /
 # TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME ...) for the running service so every
@@ -312,6 +304,15 @@ if ! PY="$(resolve_python)"; then
 fi
 echo "[OK] Python : $("$PY" --version 2>&1)"
 echo "       path : $PY"
+
+# Export the venv-aware Python runtime env (PIP_USER / PYTHONUSERBASE) for BOTH the
+# prerequisite install and the worker, identical to prepare.sh's policy (single source of
+# truth in venv_python_common.sh). For the project venv this sets PIP_USER=0 and does NOT
+# touch PYTHONUSERBASE, so the worker imports torch from the venv/its own user-site instead
+# of falling through to a stale /usr/local build.
+if type pycore_export_python_env_from_common >/dev/null 2>&1; then
+    pycore_export_python_env_from_common "$PY"
+fi
 
 PREPARE_REL="scripts/shells/linux/common/iniscripts/prepare.sh"
 WORKER_REL="pycore/pycore_module_caller.py"

@@ -19,13 +19,22 @@
 #
 # Strategy (runtime apt-cache detection, no hard-coded per-release matrix):
 #   - Prefer Fcitx5 when fcitx5-chinese-addons is available
-#     (Debian 11+, Kali, Ubuntu 20.04+); its built-in `wbx` already provides
+#     (Debian 11+, Kali, Ubuntu 22.04+); its built-in `wbx` already provides
 #     Wubi 86, and fcitx5-table-extra (Debian 13+/Ubuntu 24.04+/Kali) adds the
 #     richer `wubi-large` tables when present.
 #   - Fall back to IBus (ibus-table-wubi) which exists on EVERY target,
-#     including Ubuntu 18.04/18.10 where fcitx5 is absent.
+#     including Ubuntu 18.04/20.04 where fcitx5 is absent or too old.
 # Every optional package is filtered through apt-cache so the install never
-# requests a package that does not exist on the running release.
+# requests a package that does not exist on the running release. This is what
+# makes ONE script work across Debian, Ubuntu and Kali without a release matrix.
+#
+# Why some apps cannot type Chinese (the real cross-distro problem this fixes):
+#   - Missing GTK/Qt "frontend" bridge modules -> the IME never reaches GTK3/4 +
+#     Qt5/6 apps (Chrome, VS Code, etc.). We install ALL frontends (via
+#     fcitx5-frontend-all + explicit gtk2, or the individual ibus immodules).
+#   - IME env vars not exported -> set via im-config + /etc/environment.
+#   - zh_CN.UTF-8 locale / CJK font missing -> Chinese shows as tofu, and some
+#     terminals refuse the IME. install_language_support handles both.
 #
 # Only runs on desktop systems (an IME is useless on a headless server).
 # Re-runnable: apt installs are idempotent, the IM framework / env vars are set
@@ -57,8 +66,22 @@ ENV_PAIRS=()
 FCITX5_REQUIRED=("fcitx5" "fcitx5-chinese-addons" "im-config")
 IBUS_REQUIRED=("ibus" "ibus-table" "ibus-table-wubi" "im-config")
 # Optional packages: installed only when apt-cache shows them on this release.
-FCITX5_OPTIONAL=("fcitx5-config-qt" "fcitx5-frontend-gtk3" "fcitx5-frontend-gtk4" "fcitx5-frontend-qt5" "fcitx5-frontend-qt6" "fcitx5-table-extra")
-IBUS_OPTIONAL=("ibus-gtk3" "ibus-gtk4" "ibus-gtk" "ibus-clutter")
+# Fcitx5 frontends are the GTK/Qt bridge IM modules that let the IME work in
+# GTK3/4 + Qt5/6 apps. fcitx5-frontend-all pulls gtk3/gtk4/qt5/qt6 (NOT gtk2),
+# so gtk2 is listed separately; the individual frontends are also listed as a
+# fallback for releases without the metapackage (e.g. Ubuntu 22.04). The Wayland
+# frontend is built into fcitx5-modules (a core dep) since 5.0.20 -> not listed.
+FCITX5_OPTIONAL=(
+    "fcitx5-config-qt"
+    "fcitx5-frontend-all"
+    "fcitx5-frontend-gtk2"
+    "fcitx5-frontend-gtk3"
+    "fcitx5-frontend-gtk4"
+    "fcitx5-frontend-qt5"
+    "fcitx5-frontend-qt6"
+    "fcitx5-table-extra"
+)
+IBUS_OPTIONAL=("ibus-gtk" "ibus-gtk3" "ibus-gtk4" "ibus-clutter")
 
 # Real user (the per-user IME config target; the installer may run as root).
 REAL_USER=$(get_real_user)
@@ -79,7 +102,7 @@ if [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
     exit 0
 fi
 
-# True when an apt package exists for the running release.
+# True when an apt package exists for the running release (real or virtual).
 pkg_available() {
     apt-cache show "$1" >/dev/null 2>&1
 }
@@ -146,7 +169,7 @@ choose_framework() {
     print_info_from_common_functions "Selected input-method framework: $FRAMEWORK"
 }
 
-# Install the Fcitx5 stack + Wubi support.
+# Install the Fcitx5 stack + Wubi support + every available GTK/Qt frontend.
 install_fcitx5() {
     local optional
     print_step_from_common_functions "Installing Fcitx5 + Chinese (Wubi) support..."
@@ -170,7 +193,7 @@ install_fcitx5() {
     print_success_from_common_functions "Fcitx5 Wubi input method: $WUBI_IM"
 }
 
-# Install the IBus stack + Wubi engine.
+# Install the IBus stack + Wubi engine + every available GTK immodule.
 install_ibus() {
     local optional
     print_step_from_common_functions "Installing IBus + Wubi engine..."
@@ -196,6 +219,8 @@ install_ibus() {
 
 # Make the chosen framework the system default via im-config (Debian/Ubuntu's
 # scriptable mechanism; as root it writes /etc/X11/xinit/xinputrc system-wide).
+# On next login im-config sources /usr/share/im-config/data/*.rc which exports the
+# IME env vars and starts the daemon.
 set_default_im() {
     if ! command -v im-config >/dev/null 2>&1; then
         print_warning_from_common_functions "im-config not found; skipping default-IM selection"
@@ -211,22 +236,28 @@ set_default_im() {
 
 # Write the framework env vars into /etc/environment inside a managed block so a
 # re-run (or a framework switch) replaces them cleanly instead of stacking up.
+# This backstops im-config for app launchers / sessions that do not source the
+# im-config rc (e.g. some Wayland/display-manager paths).
 write_env_vars() {
     if [ "$FRAMEWORK" = "fcitx5" ]; then
-        # Note: the module value is `fcitx` (not `fcitx5`). GLFW apps (e.g. kitty)
-        # expect `ibus` even under fcitx5 — this is the documented exception.
+        # Exact official set shipped in /usr/share/im-config/data/23_fcitx5.rc.
+        # The module VALUE is `fcitx` (not `fcitx5`) - fcitx5 registers its IM
+        # modules under the legacy id `fcitx` for compatibility. CLUTTER uses
+        # `xim`. (GLFW_IM_MODULE/INPUT_METHOD are intentionally NOT set here -
+        # they are not part of the official fcitx5 env set.)
         ENV_PAIRS=(
             "GTK_IM_MODULE=fcitx"
             "QT_IM_MODULE=fcitx"
             "XMODIFIERS=@im=fcitx"
             "SDL_IM_MODULE=fcitx"
-            "GLFW_IM_MODULE=ibus"
+            "CLUTTER_IM_MODULE=xim"
         )
     else
         ENV_PAIRS=(
             "GTK_IM_MODULE=ibus"
             "QT_IM_MODULE=ibus"
             "XMODIFIERS=@im=ibus"
+            "CLUTTER_IM_MODULE=ibus"
         )
     fi
 
@@ -306,12 +337,12 @@ enable_ibus_wubi() {
     fi
 }
 
-<<<<<<< HEAD
 # Install Chinese language support: a CJK font + the zh_CN.UTF-8 locale. The IME
 # packages (fcitx5-chinese-addons / ibus) pull NO CJK font, so without this Chinese
-# renders as tofu (boxes) even though typing works. Idempotent: apt skips installed
-# packages, every optional package is availability-filtered, the locale block is a
-# no-op once generated, and the system default LANG is left untouched.
+# renders as tofu (boxes) even though typing works; a missing zh_CN locale also makes
+# some terminals refuse the IME. Idempotent: apt skips installed packages, every
+# optional package is availability-filtered, the locale block is a no-op once
+# generated, and the system default LANG is left untouched.
 install_language_support() {
     local fonts optional
     print_step_from_common_functions "Installing Chinese language support (CJK fonts + locale)..."
@@ -325,7 +356,7 @@ install_language_support() {
     fi
     # Optional, availability-gated: extra Noto weights + WenQuanYi fallback, and the
     # Ubuntu-only localized-UI pack (auto-skipped on Debian/Kali where it does not exist).
-    optional=$(filter_available "fonts-noto-cjk-extra" "fonts-wqy-zenhei" "language-pack-zh-hans")
+    optional=$(filter_available "fonts-noto-cjk-extra" "fonts-wqy-zenhei" "fonts-wqy-microhei" "language-pack-zh-hans")
     if [ -n "$optional" ]; then
         # shellcheck disable=SC2086
         apt_install $optional
@@ -334,7 +365,7 @@ install_language_support() {
     command -v fc-cache >/dev/null 2>&1 && $USE_SUDO fc-cache -f >/dev/null 2>&1 || true
 
     # Make zh_CN.UTF-8 AVAILABLE (cross-distro: uncomment in /etc/locale.gen + regen).
-    # Input works under any UTF-8 locale, so this only ADDS zh_CN.UTF-8 — it never
+    # Input works under any UTF-8 locale, so this only ADDS zh_CN.UTF-8 - it never
     # runs update-locale / changes the system default LANG.
     if locale -a 2>/dev/null | grep -qiE "^zh_CN\.utf-?8$"; then
         print_info_from_common_functions "zh_CN.UTF-8 locale already available"
@@ -351,8 +382,6 @@ install_language_support() {
     fi
 }
 
-=======
->>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
 main() {
     print_step_from_common_functions "Starting $APP_NAME installation..."
     print_info_from_common_functions "Distro: ${OS_NAME:-unknown} ${OS_VERSION_ID:-} (ID=${OS_ID:-?})"
@@ -376,11 +405,8 @@ main() {
         enable_ibus_wubi
     fi
 
-<<<<<<< HEAD
     install_language_support
 
-=======
->>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
     echo ""
     print_success_from_common_functions "=========================================="
     print_success_from_common_functions "$APP_NAME Installation Completed"
@@ -395,10 +421,7 @@ main() {
         print_info_from_common_functions "Configure  : ibus-setup (add Wubi under Input Method if needed)"
     fi
     echo ""
-<<<<<<< HEAD
     print_info_from_common_functions "Language  : fonts-noto-cjk (CJK font) + zh_CN.UTF-8 locale installed"
-=======
->>>>>>> e010669954639e9bd7372a8de66626a68e9f8d8f
     print_warning_from_common_functions "Log out and back in for the input method to take effect."
     print_info_from_common_functions "Toggle the IME with the framework hotkey (default: Ctrl+Space)."
     echo ""

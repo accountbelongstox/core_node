@@ -24,6 +24,8 @@ interface LibraryPanelProps {
   onPlaylist: (p: FileNode[]) => void;
   lang?: Language;
   reloadSignal: number;
+  /** Opens the global login modal when an unauthenticated mutation is attempted. */
+  onRequireLogin?: () => void;
 }
 
 const LibraryPanel: React.FC<LibraryPanelProps> = ({
@@ -34,6 +36,7 @@ const LibraryPanel: React.FC<LibraryPanelProps> = ({
   onPlaylist,
   lang = 'en',
   reloadSignal,
+  onRequireLogin,
 }) => {
   if (segment === 'files') {
     const activeFileId = selection !== null && selection.kind === 'file' ? selection.file.id : null;
@@ -45,6 +48,7 @@ const LibraryPanel: React.FC<LibraryPanelProps> = ({
         onPlaylist={onPlaylist}
         lang={lang}
         reloadSignal={reloadSignal}
+        onRequireLogin={onRequireLogin}
       />
     );
   }

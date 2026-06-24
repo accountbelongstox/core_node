@@ -112,3 +112,45 @@ venv_pip_install_from_common() {
     echo "[run] $py -m pip install ${pep668[*]} $*" >&2
     "$py" -m pip install "${pep668[@]}" "$@"
 }
+
+# SINGLE SOURCE OF TRUTH for the runtime Python environment (where pip installs land and
+# which site the worker imports from). Every entry point that launches or installs for the
+# pycore worker — pyservice.sh, iniscripts/prepare.sh, the 150/152 installers — MUST call
+# this with the resolved interpreter so they all produce an IDENTICAL environment; a
+# divergence here is what let a stale /usr/local torch shadow the worker's real install.
+#
+#   VENV interpreter -> PIP_USER=0 only. A venv is self-contained: pip targets the venv
+#                       itself, never a user site. Do NOT export PYTHONUSERBASE for a venv —
+#                       that redirects the venv's user-site to an empty shared dir and makes
+#                       `import torch` fall through to /usr/local (the re-download-loop bug);
+#                       and PIP_USER=1 here makes pip refuse to UPGRADE a venv-resident
+#                       package ("lacks sys.path precedence").
+#   NON-venv (system) -> the all-users shared base PYCORE_PYUSERBASE (default
+#                       /opt/_core_node/pyuserbase, a SYSTEM path NOT under the repo, created
+#                       1777 sticky+world-writable) + PIP_USER=1 + PIP_BREAK_SYSTEM_PACKAGES=1,
+#                       so any user's installs are visible to the service.
+# Pass the interpreter explicitly: pycore_export_python_env_from_common "$PY"
+pycore_export_python_env_from_common() {
+    local py="${1:-}"
+    [ -n "$py" ] || py="$(venv_python_from_common)"
+    if venv_is_venv_from_common "$py"; then
+        export PIP_USER=0
+        return 0
+    fi
+    [ "$(uname -s)" = "Linux" ] || return 0
+    : "${PYCORE_PYUSERBASE:=/opt/_core_node/pyuserbase}"
+    umask 0000
+    mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
+    if [ ! -w "$PYCORE_PYUSERBASE" ] && command -v sudo >/dev/null 2>&1; then
+        sudo -n mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
+        sudo -n chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
+    fi
+    if [ -w "$PYCORE_PYUSERBASE" ]; then
+        chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
+        export PYCORE_PYUSERBASE
+        export PYTHONUSERBASE="$PYCORE_PYUSERBASE"
+        export PIP_USER=1
+        export PIP_BREAK_SYSTEM_PACKAGES=1
+    fi
+    return 0
+}

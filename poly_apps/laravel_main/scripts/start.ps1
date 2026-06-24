@@ -796,7 +796,7 @@ try {
     Write-Host "    Windows uses composer dev:win (serve + queue) as a fallback; the" -ForegroundColor DarkGray
     Write-Host "    Octane timer tasks (TTS/cover/translation) do NOT run on Windows." -ForegroundColor DarkGray
     Write-Host "  - systemctl/service status (ServerManager) is Linux-oriented." -ForegroundColor DarkGray
-    Write-Host "  Ref: development-guides/DD_POWERSHELL_GUIDE, Run DevInstaller for PHP/Composer." -ForegroundColor DarkGray
+    Write-Host "  Ref: development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md, Run DevInstaller for PHP/Composer." -ForegroundColor DarkGray
     Write-Host ""
 
     composer dev:win

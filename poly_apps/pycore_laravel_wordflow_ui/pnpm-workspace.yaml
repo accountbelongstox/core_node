@@ -10,4 +10,6 @@
 #
 # esbuild runs a postinstall to wire up its native binary, so the Vite dev server needs it.
 allowBuilds:
+  core-js: false
+  es5-ext: false
   esbuild: true

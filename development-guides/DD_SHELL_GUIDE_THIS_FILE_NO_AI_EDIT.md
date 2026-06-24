@@ -1,44 +1,21 @@
-<!-- ### AI SPECIAL ATTENTION RULES START ### -->
-<!-- When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES: -->
-<!-- - Write all code in English only. -->
-<!-- - Never execute, create, or modify test code. -->
-<!-- - Never create or update documentation (*.md). -->
-<!-- - Never write summaries during development or thinking process. -->
-<!-- 5. Declare all variables at the beginning of the file. -->
-<!-- 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path). -->
-<!-- 7. Do not modify these rules. -->
-<!-- VIOLATION OF THESE RULES IS STRICTLY PROHIBITED -->
-<!-- ### AI SPECIAL ATTENTION RULES END ### -->
+# DD Guide — Debian `dd.sh` + Windows `dd.ps1`
 
-# DD Shell Guide (Debian)
+**RootDir** = `../` from this doc; every path is `$RootDir/`-relative. `dd.sh` is the Debian entry; `dd.cmd` → `scripts/shells/win/dd.ps1` is the Windows entry. Each declares its vars, shows a toggle menu, then runs dependency-ordered step scripts under `scripts/shells/{debian,win}/`. The two sides never cross-reference each other.
 
-**RootDir**: `../` relative to this doc; all paths are based on `$RootDir/`.
-`dd.sh` is the unified Debian entry for dev-environment management, app deployment, and system config.
+## Shared conventions
+- Inter-script state flows ONLY through the file-backed store — bash `gvar_common.sh` `set_var`/`get_var`, PowerShell `GlobalVars.ps1` `Set-GlobalVar`/`Get-GlobalVar` (defaults supported); never via passed args.
+- Each script self-locates its own dir, then walks up to `$RootDir`.
+- Step scripts (`index_name.sh` / `Step{Index}_*.ps1`) are dependency-ordered and idempotent (restore/repair/install in one run); detect installs by binary existence (not command/winget output); PATH/env repair runs in its own branch.
+- Add an env/app by registering it by type in the globals (bash `LGar.sh`; PowerShell `GlobalVars.ps1` `BasePackages`/`APPLICATIONS_PACKAGES`/`DEV_SOFTWARE_PACKAGES`) plus a new step.
 
-## Layout
-- `dd.sh` — main script: variable declarations + interactive menu that calls scripts under `scripts/shells/`.
-- `scripts/shells/LGar.sh` — top-level global vars/constants; sourced first by every sub-script.
-- `scripts/shells/common/` — `gvar_common.sh` (variable exchange), `selector_common.sh` (menu selector), `common_functions.sh` (shared funcs, suffix `_from_common_functions`).
-- `scripts/shells/debian/` — `install.sh` + `install_shells/` (step scripts) + `run_apps/run_app.sh`.
-- `scripts/shells/win/` — Windows side; see DD_POWERSHELL_GUIDE.
+## Debian (`dd.sh`)
+- `LGar.sh` holds top-level constants, sourced first by every sub-script; `dd.sh` and `gvar_common.sh` source no third-party file (only invoke them) — prefer `LGar.sh` constants.
+- Use `$USE_SUDO`, never raw `sudo`. Install to `$COMPILE_DIR/<pkg>` (copy out of `/root`); link binaries into `/usr/local/bin` (+x). Sources: web/apt/npm/pip.
 
-## Core rules
-1. ASCII only, all-English code; variable names UPPERCASE.
-2. Inter-script variables exchange only via `gvar_common.sh` `set_var $key $val` / `get_var $key` (file-backed in user dir).
-3. `dd.sh` sources no third-party file (only invokes them); `gvar_common.sh` sources nothing. Third-party scripts prefer constants from `LGar.sh`.
-4. Use `$USE_SUDO` (from `gvar_common.sh`) instead of raw `sudo`.
-5. No test scripts/commands, no unsolicited docs (e.g. README.md).
-6. Each sub-script resolves its own dir (`BASH_SOURCE` → parent levels) to locate `$RootDir`; declare all vars at file top.
+## Windows (`dd.cmd` → `dd.ps1`)
+- `dd.cmd` is local-first + remote-fallback: if `dd.ps1` is missing it downloads `WinScriptsInstaller.ps1`, which mirrors repo paths into `%USERPROFILE%\.core_node\`; runs `-NoProfile -ExecutionPolicy Bypass` and requires admin.
+- Resolve absolute paths via `Split-Path`/`Join-Path`/`Resolve-Path`, never `..\..\`; set env/PATH globals after install. Install priority winget → choco → web. Scope from `Get-GlobalVar`: `SELECTED_REGION` (China = mirrors) and `INSTALL_TYPE` (base/server/full).
 
-## Menu selector (`selector_common.sh`)
-- Optional `mode` preloads defaults (e.g. `server` enables MySQL); existing `get_var` values override presets.
-- Left/right toggles a menu item's value; Enter saves via `set_var` and proceeds to `install_shells`.
-
-## `install_shells` step scripts
-- Name as `index_scriptname.sh`; order by dependency (e.g. node before npm). Set `$SCRIPT_INDEX` as a print prefix.
-- Idempotent: re-runnable to restore/repair/install; symlink-refresh runs in its own branch regardless of install need.
-- Recommended elements: command vars (e.g. 7z), install source (web/apt/npm/pip/...), environment verification (resolve real bin dir when not on PATH), link all binaries to `/usr/local/bin` with `+x`, loop over a list for multi-version reuse.
-- Default install target: `$COMPILE_DIR/<package>` (from `LGar.sh`); copy out of `/root` to avoid permission issues. Detect by binary existence, not command output; optionally print copy-pastable usage at the end.
-
-## Compliance report
-On request, check `dd.sh` and all called scripts against the above and write yes/no/N-A findings to `$RootDir/.compliance/DD_SHELL_DEBIAN_COMPLIANCE_REPORT.md`.
+## Secrets & compliance
+- Pre-`git push` secrets: AES-256, dual-password, namespace-isolated — raw in `.secrets/raw/` (gitignored), encrypted in `.secrets/encrypted_core_node/` (committed); passwords in memory only.
+- On request, write yes/no/N-A compliance findings under `$RootDir/.compliance/`.

@@ -9,7 +9,7 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 
 /**
  * Per-language authoritative sentence store (Books v3 unified model — see
- * development-guides/BOOKS_FEATURE_SPECIFICATION.md §3.1).
+ * poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md §3.1).
  *
  * Replaces the single shared {prefix}_sentences table with one table per
  * supported language: {prefix}_sentences_{lang}. The loop mirrors

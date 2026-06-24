@@ -43,6 +43,10 @@ resolve_python() {
 py_has_module() { "$PYTHON" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)" >/dev/null 2>&1; }
 
 . "$(dirname "${BASH_SOURCE[0]}")/../base_libs/lib_gpu.sh"   # gpu_present() (canonical: CUDADetector)
+# Driver-matched CUDA wheel index (single source of truth) so the GPU torch install never
+# grabs the default "latest" wheel (e.g. cu130) that a 12.4 driver can't run.
+. "$(dirname "${BASH_SOURCE[0]}")/../base_libs/torch_cuda_index.sh"
+command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
 # Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
 PIPLOCK_LIB="$(dirname "${BASH_SOURCE[0]}")/../base_libs/pip_lock.sh"
 [ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
@@ -93,23 +97,25 @@ if gpu_present; then DEVICE="cuda:0"; LANGS="EN,ZH,JP,KR,ES,FR"; fi
 echo "[install_melotts]  python  : $PYTHON"
 echo "[install_melotts]  melo    : $([[ $MELO_PRESENT -eq 1 ]] && echo installed || echo absent)"
 echo "[install_melotts]  compute : $(gpu_present && echo 'CUDA GPU -> GPU build + full model set' || echo 'CPU only -> CPU build + EN/ZH')"
-# OPT-IN: MeloTTS pins transformers==4.27.4 and would DOWNGRADE a modern shared venv
-# (transformers 5.x used by the deepseek/qwen/nllb stack), breaking it. So a fresh install
-# happens ONLY when explicitly requested (--full / MELOTTS_INSTALL=1). FORCE alone does NOT
-# opt in. An already-present install is still maintained (a --force re-run can refresh it).
+# OPT-IN: MeloTTS pins transformers==4.27.4 and would DOWNGRADE the shared venv's pinned
+# transformers (4.46.3 via LLM_TRANSFORMERS_SPEC, used by the deepseek/qwen/nllb stack),
+# breaking it. So a fresh install happens ONLY when explicitly requested (--full /
+# MELOTTS_INSTALL=1). FORCE alone does NOT opt in. An already-present install is still
+# maintained (a --force re-run can refresh it).
 if [[ "$MELO_PRESENT" -eq 0 && "$DO_FULL" -eq 0 ]]; then
-    echo "[install_melotts] [i] opt-in only -> NOT installing. Pass --full or MELOTTS_INSTALL=1 to install (pins transformers==4.27.4; downgrades transformers 5.x). Skipping."
+    echo "[install_melotts] [i] opt-in only -> NOT installing. Pass --full or MELOTTS_INSTALL=1 to install (pins transformers==4.27.4; downgrades the shared transformers 4.46.3). Skipping."
     exit 0
 fi
 if [[ "$MELO_PRESENT" -eq 0 ]]; then
-    echo "[install_melotts] [!] NOTE: installing MeloTTS pins transformers==4.27.4 — this WILL downgrade a 5.x shared venv. (opt-in confirmed via --full/MELOTTS_INSTALL=1)"
+    echo "[install_melotts] [!] NOTE: installing MeloTTS pins transformers==4.27.4 — this WILL downgrade the shared venv's transformers 4.46.3. (opt-in confirmed via --full/MELOTTS_INSTALL=1)"
 fi
 
 # --- heavy install (opt-in) --------------------------------------------- #
 if [[ "$MELO_PRESENT" -eq 0 || "$FORCE" -eq 1 ]]; then
     if gpu_present; then
-        echo "[install_melotts] [..] installing torch (CUDA build) ..."
-        pip_install torch torchaudio || true
+        _melo_torch_idx="$(torch_cuda_index_url)"
+        echo "[install_melotts] [..] installing torch (driver-matched CUDA build: $_melo_torch_idx) ..."
+        pip_install torch torchaudio --index-url "$_melo_torch_idx" || true
     else
         echo "[install_melotts] [..] installing torch (CPU build) ..."
         vpip "$PYTHON" -m pip install --break-system-packages --index-url https://download.pytorch.org/whl/cpu torch torchaudio 2>/dev/null \

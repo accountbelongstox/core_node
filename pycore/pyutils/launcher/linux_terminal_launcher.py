@@ -133,13 +133,22 @@ class LinuxTerminalLauncher:
 
     def _launch_x11_positioned(self, configs, emulator, positioner, delay):
         """
-        Launch N separate windows and position each by its window TITLE.
+        Launch N separate windows and position each by its STABLE X window id.
 
-        Unlike ``_launch_x11_grid`` this does not depend on the emulator having a
-        ``--geometry`` flag: each window self-sets a unique title via an OSC
-        escape sequence, then a positioner (wmctrl or xdotool) moves/sizes the
-        window matched by that title. This is what lets qterminal (Kali's only
-        emulator, no geometry flag) form a real grid of separate windows.
+        Each window is launched one at a time; immediately after spawning, its
+        new window id is found by diffing the managed-window list (before vs
+        after), then the window is moved/sized by that id. This deliberately does
+        NOT match by window title, because on a default desktop two real effects
+        break title matching:
+          * the interactive shell's prompt rewrites the OSC title to
+            "user@host: cwd" (Kali/Debian bash sets it via PROMPT_COMMAND) before
+            any delayed placement runs, so a launcher-set title no longer exists;
+          * with >=10 windows the titles "pylauncher-1".."pylauncher-12" collide
+            under wmctrl's case-insensitive SUBSTRING match and xdotool's
+            unanchored regex ("pylauncher-1" also matches "-10/-11/-12").
+        A window id never changes, so neither effect can misplace the grid. This
+        is also what lets qterminal (no --geometry flag, shared server PID) form
+        a real grid of separate windows. Title matching remains a fallback only.
 
         Args:
             configs: List of 4-tuples (x, y, cols, rows).
@@ -152,21 +161,25 @@ class LinuxTerminalLauncher:
         """
         geom_capable = emulator in self.X11_EMULATORS
         cell_w, cell_h = self._cell_pixel_size(configs)
+        col_gap, row_gap = self._grid_gaps(cell_w, cell_h)
+        frame = None  # WM frame extents, measured once from the first window
+        width = len(str(len(configs)))  # zero-pad index so titles never collide
         print(f"X11 session: launching {len(configs)} separate '{emulator}' "
-              f"window(s), positioned by title via {positioner}"
-              + (f" (cell {cell_w}x{cell_h}px)" if cell_w else "") + ".")
+              f"window(s), positioned by captured window id via {positioner}"
+              + (f" (cell {cell_w}x{cell_h}px, gaps {col_gap}/{row_gap}px)" if cell_w else "") + ".")
 
         pids = []
-        placements = []  # (title, x, y) -- matched later by title
+        snapshot = self._list_window_ids()  # baseline before we add any window
 
         for i, (x, y, cols, rows) in enumerate(configs, 1):
-            title = f"pylauncher-{i}"
-            # Inner command: self-set the window title (OSC 0) so the positioner
-            # can find this window, then run the target command (or login shell).
+            title = f"pylauncher-{i:0{width}d}"
+            # Inner command: self-set a (cosmetic, fallback-only) unique title,
+            # then run the target command or login shell. The shell is free to
+            # rewrite the title afterwards -- placement matches by id, not title.
             target = self.command or "${SHELL:-bash}"
             inner = "printf '\\033]0;%s\\007'; exec %s" % (title, target)
-            # A geometry hint gets the window roughly placed before we enforce;
-            # harmless on emulators that ignore it.
+            # A geometry hint gets the window roughly placed up front (harmless on
+            # emulators that ignore it); the id-based move then snaps it exactly.
             geometry = f"{cols}x{rows}+{x}+{y}" if geom_capable else None
             argv = self._build_titled_argv(emulator, inner, geometry)
             if argv is None:
@@ -174,21 +187,30 @@ class LinuxTerminalLauncher:
             try:
                 proc = subprocess.Popen(argv, start_new_session=True)
                 pids.append(proc.pid)
-                placements.append((title, x, y))
-                hint = f" geometry={geometry}" if geometry else ""
-                print(f"  Window {i}: {emulator} title={title}{hint} "
-                      f"(pid {proc.pid})")
             except Exception as e:
                 print(f"  Window {i}: failed to launch ({e})")
-            time.sleep(delay)
-
-        # Let the windows map, then enforce placement by title.
-        time.sleep(0.5)
-        for title, x, y in placements:
-            if positioner == "wmctrl":
-                self._place_by_title_wmctrl(title, x, y, cell_w, cell_h)
+                continue
+            # Identify the window we just created (one launch -> one new id).
+            wid = self._resolve_new_window_id(snapshot)
+            if wid is not None:
+                snapshot.add(wid)
+                if frame is None:
+                    frame = self._frame_extents(wid)
+                px, py, w, h = self._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
+                self._place_by_id(positioner, wid, px, py, w, h)
+                print(f"  Window {i}: {emulator} -> id {wid:#010x} @ {px},{py}"
+                      + (f" ({w}x{h}px)" if cell_w else "")
+                      + f" (pid {proc.pid})")
             else:
-                self._place_by_title_xdotool(title, x, y, cell_w, cell_h)
+                # Id capture timed out: fall back to (hardened, exact) title match.
+                px, py, w, h = self._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
+                print(f"  Window {i}: id capture timed out; title-matching "
+                      f"{title}")
+                if positioner == "wmctrl":
+                    self._place_by_title_wmctrl(title, px, py, w, h)
+                else:
+                    self._place_by_title_xdotool(title, px, py, w, h)
+            time.sleep(delay)
 
         return pids
 
@@ -236,17 +258,22 @@ class LinuxTerminalLauncher:
         """
         Move (and optionally size) the window matched by ``title`` via wmctrl.
 
+        Uses ``-F`` for an EXACT, case-sensitive full-title match; without it
+        wmctrl matches the title as a case-insensitive substring, so "pylauncher-1"
+        would also match "pylauncher-10/11/12". Fallback path only (id-based
+        placement is primary and is immune to the shell rewriting the title).
+
         Args:
-            title: Window title to match.
+            title: Window title to match (exactly).
             x, y: Target top-left position in pixels.
             width, height: Optional target size in pixels (else size unchanged).
         """
         w = width if width else -1
         h = height if height else -1
         try:
-            # -e <gravity>,<x>,<y>,<w>,<h>; -1 leaves that dimension unchanged.
+            # -F exact match; -e <gravity>,<x>,<y>,<w>,<h>; -1 leaves a dim unchanged.
             subprocess.run(
-                ["wmctrl", "-r", title, "-e", f"0,{x},{y},{w},{h}"],
+                ["wmctrl", "-F", "-r", title, "-e", f"0,{x},{y},{w},{h}"],
                 capture_output=True, text=True, timeout=5,
             )
             sized = "" if width is None else f" (size {width}x{height})"
@@ -259,19 +286,20 @@ class LinuxTerminalLauncher:
         """
         Move (and optionally size) the window matched by ``title`` via xdotool.
 
-        Resolves the window id from the title (``search --sync --name``), then
-        moves and optionally resizes each matched id. Title matching works with
-        any emulator that honoured the OSC title escape -- including qterminal,
-        and avoids its shared-server-PID ambiguity.
+        Resolves the window id from the title (``search --sync --name``) with an
+        anchored ``^title$`` regex so "pylauncher-1" does not also match
+        "pylauncher-10/11/12" (xdotool's --name is an unanchored regex). Fallback
+        path only -- id-based placement is primary and is immune to the shell
+        rewriting the title before this runs.
 
         Args:
-            title: Window title to match.
+            title: Window title to match (exactly, anchored).
             x, y: Target top-left position in pixels.
             width, height: Optional target size in pixels.
         """
         try:
             search = subprocess.run(
-                ["xdotool", "search", "--sync", "--name", title],
+                ["xdotool", "search", "--sync", "--name", f"^{title}$"],
                 capture_output=True, text=True, timeout=5,
             )
             wids = [w for w in search.stdout.split() if w]
@@ -299,8 +327,12 @@ class LinuxTerminalLauncher:
 
     def _launch_x11_grid(self, configs, emulator, delay):
         """
-        Launch N separate windows, each positioned via X11 geometry, then
-        best-effort enforce the position with wmctrl.
+        Launch N separate geometry-capable windows (each gets an X ``--geometry``
+        hint up front), then enforce the exact position/size by captured window
+        id. The geometry hint places each window roughly the instant it maps; the
+        id-based move then snaps it precisely. Matching by id (not title) is
+        immune to the shell rewriting the title and to the >=10 title-substring
+        collision (see ``_launch_x11_positioned``).
 
         Args:
             configs: List of 4-tuples (x, y, cols, rows).
@@ -310,15 +342,19 @@ class LinuxTerminalLauncher:
         Returns:
             list: Launched PIDs.
         """
+        cell_w, cell_h = self._cell_pixel_size(configs)
+        col_gap, row_gap = self._grid_gaps(cell_w, cell_h)
+        frame = None  # WM frame extents, measured once from the first window
+        width = len(str(len(configs)))
+        positioner = self._find_positioner()
         print(f"X11 session: launching {len(configs)} positioned "
-              f"'{emulator}' window(s).")
+              f"'{emulator}' window(s)"
+              + (f", snapped by id via {positioner} (gaps {col_gap}/{row_gap}px)" if positioner else "") + ".")
         pids = []
-        # Track everything we need to enforce position later: title (for wmctrl),
-        # pid (for xdotool's --pid search) and the target rectangle.
-        placements = []
+        snapshot = self._list_window_ids()
 
         for i, (x, y, cols, rows) in enumerate(configs, 1):
-            title = f"pylauncher-{i}"
+            title = f"pylauncher-{i:0{width}d}"
             # X geometry: character cells + pixel offset, e.g. "80x24+100+200".
             geometry = f"{cols}x{rows}+{x}+{y}"
             argv = self._build_x11_argv(emulator, title, geometry)
@@ -327,100 +363,183 @@ class LinuxTerminalLauncher:
             try:
                 proc = subprocess.Popen(argv, start_new_session=True)
                 pids.append(proc.pid)
-                placements.append((title, proc.pid, x, y))
-                print(f"  Window {i}: {emulator} title={title} "
-                      f"geometry={geometry} (pid {proc.pid})")
             except Exception as e:
                 print(f"  Window {i}: failed to launch ({e})")
+                continue
+            wid = self._resolve_new_window_id(snapshot) if positioner else None
+            if wid is not None:
+                snapshot.add(wid)
+                if frame is None:
+                    frame = self._frame_extents(wid)
+                px, py, w, h = self._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
+                self._place_by_id(positioner, wid, px, py, w, h)
+                print(f"  Window {i}: {emulator} geometry={geometry} -> "
+                      f"id {wid:#010x} @ {px},{py} (pid {proc.pid})")
+            else:
+                # No positioner / id capture failed: rely on the geometry hint.
+                print(f"  Window {i}: {emulator} geometry={geometry} "
+                      f"(pid {proc.pid}; geometry hint only)")
             time.sleep(delay)
 
-        # Geometry is only a WM hint; enforce the real positions afterwards.
-        # Prefer wmctrl (matches by title) and fall back to xdotool (matches by
-        # pid). Give the windows a moment to map first.
-        self._enforce_positions(placements)
         return pids
 
-    def _enforce_positions(self, placements):
-        """
-        Best-effort move each launched window to its target position on X11.
-
-        Prefers ``wmctrl`` (match by window title) and falls back to
-        ``xdotool`` (match by process id). With neither tool present we simply
-        leave the windows where the WM placed them. Never raises.
-
-        Args:
-            placements: List of (title, pid, x, y) for each launched window.
-        """
-        if not placements:
-            return
-
-        use_wmctrl = bool(shutil.which("wmctrl"))
-        use_xdotool = bool(shutil.which("xdotool"))
-        if not (use_wmctrl or use_xdotool):
-            print("  Note: neither wmctrl nor xdotool found; cannot enforce "
-                  "window positions (relying on the emulator geometry hint).")
-            return
-
-        # Let the windows map before we try to address them.
-        time.sleep(0.4)
-        for title, pid, x, y in placements:
-            if use_wmctrl:
-                self._move_with_wmctrl(title, x, y)
-            else:
-                self._move_with_xdotool(pid, x, y)
-
     @staticmethod
-    def _move_with_wmctrl(title, x, y):
-        """Move the window titled ``title`` to (x, y) via wmctrl (move only)."""
-        try:
-            # -e <gravity>,<x>,<y>,<w>,<h>; -1 keeps the current size.
-            subprocess.run(
-                ["wmctrl", "-r", title, "-e", f"0,{x},{y},-1,-1"],
-                capture_output=True, text=True, timeout=5,
-            )
-            print(f"  wmctrl: moved {title} -> {x},{y}")
-        except Exception as e:
-            print(f"  wmctrl: failed to move {title} ({e})")
-
-    @staticmethod
-    def _move_with_xdotool(pid, x, y, width=None, height=None):
+    def _list_window_ids():
         """
-        Move (and optionally resize) the window owned by ``pid`` via xdotool.
+        Return the set of currently-managed top-level window ids (as ints).
 
-        ``xdotool search --sync --pid <pid>`` blocks until a matching window
-        exists, then we move it; if a pixel size is known we also resize it,
-        otherwise we move only.
-
-        Args:
-            pid: Process id of the launched terminal.
-            x, y: Target top-left position in pixels.
-            width, height: Optional target size in pixels.
+        Prefers ``wmctrl -l`` (first column, hex), falling back to ``xdotool``.
+        Diffing this set before vs after a launch identifies the new window
+        without relying on its title or pid -- robust for shells that rewrite
+        their title and for shared-server emulators (qterminal) whose windows
+        do not map to the launching pid. Never raises.
         """
-        try:
-            search = subprocess.run(
-                ["xdotool", "search", "--sync", "--pid", str(pid)],
-                capture_output=True, text=True, timeout=5,
-            )
-            wids = [w for w in search.stdout.split() if w]
-            if not wids:
-                print(f"  xdotool: no window found for pid {pid}")
-                return
-            # A process may own several X windows; the last id is typically the
-            # top-level frame. Address them all to be safe.
-            for wid in wids:
-                subprocess.run(
-                    ["xdotool", "windowmove", wid, str(x), str(y)],
+        ids = set()
+        if shutil.which("wmctrl"):
+            try:
+                out = subprocess.run(["wmctrl", "-l"], capture_output=True,
+                                     text=True, timeout=5)
+                for line in out.stdout.splitlines():
+                    parts = line.split(None, 1)
+                    if parts:
+                        try:
+                            ids.add(int(parts[0], 16))
+                        except ValueError:
+                            pass
+                return ids
+            except Exception:
+                pass
+        if shutil.which("xdotool"):
+            try:
+                out = subprocess.run(
+                    ["xdotool", "search", "--onlyvisible", "--name", "."],
                     capture_output=True, text=True, timeout=5,
                 )
-                if width is not None and height is not None:
+                for tok in out.stdout.split():
+                    try:
+                        ids.add(int(tok))
+                    except ValueError:
+                        pass
+            except Exception:
+                pass
+        return ids
+
+    def _resolve_new_window_id(self, snapshot, timeout=3.0, poll=0.05):
+        """
+        Block up to ``timeout`` seconds until a managed window id appears that is
+        not in ``snapshot``; return it (the highest, if several) or None.
+
+        Args:
+            snapshot: Set of window ids (ints) observed before the launch.
+            timeout: Maximum seconds to wait for the new window to map.
+            poll: Polling interval in seconds.
+
+        Returns:
+            int or None: The new window id, or None on timeout.
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            new = self._list_window_ids() - snapshot
+            if new:
+                return max(new)
+            time.sleep(poll)
+        return None
+
+    @staticmethod
+    def _place_by_id(positioner, wid, x, y, width=None, height=None):
+        """
+        Move (and optionally size) the window id ``wid`` (int) to (x, y).
+
+        Uses ``wmctrl -i -r <id> -e`` (id is exact, no title needed) or
+        ``xdotool windowmove``/``windowsize``. The id is stable, so this is
+        immune to later title changes. Never raises.
+
+        Args:
+            positioner: 'wmctrl' or 'xdotool'.
+            wid: Target window id (int).
+            x, y: Target top-left position in pixels (window-manager frame).
+            width, height: Optional target size in pixels (else size unchanged).
+        """
+        try:
+            if positioner == "wmctrl":
+                w = width if width else -1
+                h = height if height else -1
+                # -i: interpret -r argument as a numeric window id; -1 keeps a dim.
+                subprocess.run(
+                    ["wmctrl", "-i", "-r", f"0x{wid:08x}", "-e",
+                     f"0,{x},{y},{w},{h}"],
+                    capture_output=True, text=True, timeout=5,
+                )
+            else:
+                subprocess.run(
+                    ["xdotool", "windowmove", str(wid), str(x), str(y)],
+                    capture_output=True, text=True, timeout=5,
+                )
+                if width and height:
                     subprocess.run(
-                        ["xdotool", "windowsize", wid, str(width), str(height)],
+                        ["xdotool", "windowsize", str(wid), str(width),
+                         str(height)],
                         capture_output=True, text=True, timeout=5,
                     )
-            sized = "" if width is None else f" (size {width}x{height})"
-            print(f"  xdotool: moved pid {pid} -> {x},{y}{sized}")
         except Exception as e:
-            print(f"  xdotool: failed to move pid {pid} ({e})")
+            print(f"  place: failed to position id {wid:#x} ({e})")
+
+    @staticmethod
+    def _grid_gaps(cell_w, cell_h):
+        """
+        Auto-compute inter-window gaps from the cell size: a SLIGHT gap between
+        columns and a LARGER gap between rows, each scaled to the cell with a
+        sensible minimum. Returns (col_gap_px, row_gap_px).
+        """
+        col_gap = max(10, int((cell_w or 0) * 0.02))   # slight, between columns
+        row_gap = max(28, int((cell_h or 0) * 0.06))   # more, between rows
+        return col_gap, row_gap
+
+    @staticmethod
+    def _frame_extents(wid):
+        """
+        Return the window-manager frame extents (left, right, top, bottom) in px
+        for window id ``wid`` via ``_NET_FRAME_EXTENTS`` (xprop), or (0,0,0,0)
+        when unknown/undecorated. Used so the gap is measured between window
+        FRAMES (title bar + borders), not just client rectangles.
+        """
+        if not shutil.which("xprop"):
+            return (0, 0, 0, 0)
+        try:
+            out = subprocess.run(
+                ["xprop", "-id", f"0x{wid:x}", "_NET_FRAME_EXTENTS"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if "=" in out.stdout:
+                nums = [int(t) for t in out.stdout.split("=", 1)[1].replace(" ", "").split(",")
+                        if t.strip().lstrip("-").isdigit()]
+                if len(nums) == 4:
+                    return (nums[0], nums[1], nums[2], nums[3])
+        except Exception:
+            pass
+        return (0, 0, 0, 0)
+
+    @staticmethod
+    def _gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap):
+        """
+        Inset a grid cell into a CLIENT rectangle (px, py, w, h) that leaves
+        ``col_gap`` between columns and ``row_gap`` between rows.
+
+        The client size is reduced by the frame extents AND the gap, so adjacent
+        window FRAMES (not just clients) are separated by exactly the gap. The
+        window-manager applies a uniform position offset to every window, which
+        cancels out between neighbours, so the realized gap equals the requested
+        gap regardless of that offset. Falls back to the full cell when the cell
+        pixel size is unknown (single row/column grids).
+        """
+        if not cell_w or not cell_h:
+            return (x, y, cell_w, cell_h)
+        fl, fr, ft, fb = frame if frame else (0, 0, 0, 0)
+        w = max(160, cell_w - (fl + fr) - col_gap)
+        h = max(90, cell_h - (ft + fb) - row_gap)
+        px = x + col_gap // 2
+        py = y + row_gap // 2
+        return (px, py, w, h)
 
     def _build_x11_argv(self, emulator, title, geometry):
         """

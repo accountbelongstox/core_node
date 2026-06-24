@@ -54,6 +54,22 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureFrontendRequestsAreStateful::class,
         ]);
 
+        // Trust ONLY the same-machine reverse proxy (nginx -> Octane over
+        // loopback). Without this, every request relayed by nginx carries
+        // REMOTE_ADDR=127.0.0.1, so $request->ip() would report loopback for
+        // remote visitors and the dashboard loopback debug-bypass
+        // (LocalDebugOrSanctum / DebugAuthService) would silently log every
+        // outside user in as admin. Trusting the loopback proxy makes
+        // $request->ip() resolve the real client from X-Forwarded-For, so the
+        // bypass only ever triggers for genuine same-machine requests.
+        $middleware->trustProxies(at: [
+            '127.0.0.1',
+            '::1',
+        ], headers: Request::HEADER_X_FORWARDED_FOR
+            | Request::HEADER_X_FORWARDED_HOST
+            | Request::HEADER_X_FORWARDED_PORT
+            | Request::HEADER_X_FORWARDED_PROTO);
+
         $middleware->alias([
             'remove.framework.fingerprints' => RemoveFrameworkFingerprints::class,
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,

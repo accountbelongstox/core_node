@@ -16,7 +16,8 @@ import {
   BrainCircuit,
   KeyRound,
   DatabaseZap,
-  Clapperboard
+  Clapperboard,
+  History
 } from "lucide-react";
 
 interface SidebarProps {
@@ -35,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.VOCABULARY, icon: BookOpen, labelKey: 'vocabulary' },
   { id: ViewType.AI_TOOLS, icon: Sparkles, labelKey: 'aiTools' },
   { id: ViewType.AI_MANAGEMENT, icon: BrainCircuit, labelKey: 'aiManagement' },
+  { id: ViewType.DEV_HISTORY, icon: History, labelKey: 'devHistory' },
   { id: ViewType.MCP_MANAGER, icon: Boxes, labelKey: 'mcp' },
   // Unified Task Center replaced the separate Octane-timers + Global-tasks
   // entries; their ViewTypes still deep-link into its scheduler/queue tabs.

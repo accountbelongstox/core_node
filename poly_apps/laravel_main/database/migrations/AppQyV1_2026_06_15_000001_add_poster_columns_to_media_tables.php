@@ -9,7 +9,7 @@ use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * Movie/TV Poster Pipeline - add poster columns to BOTH the subtitles and
- * books tables (canonical contract development-guides/MOVIE_POSTER_PIPELINE.md §5).
+ * books tables (canonical contract docs/MOVIE_POSTER_PIPELINE.md §5).
  *
  * Posters are fetched from TMDB/OMDB (pycore-at-ingest + a PHP on-demand
  * backfill) and stored as LOCAL files under

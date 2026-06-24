@@ -263,12 +263,11 @@ RootDir/
     ...
   development-guides/
     MCPSERVER_GUIDE.md  (this file)
-    DD_POWERSHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md
+    DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md
 ```
 
 ---
 
 ## 4. 相关文档
 
-- **DD_POWERSHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md**：dd.cmd/dd.ps1 布局、安装流程、菜单、GlobalVars、DevInstaller。
-- **DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md**：dd.sh 与 Linux shell 布局（无 MCP 菜单；Windows MCP 仅在 DD 中）。
+- **DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md**：dd.sh（Debian）与 dd.cmd/dd.ps1（Windows）合并指南 — 布局、安装流程、菜单、GlobalVars（无 MCP 菜单；Windows MCP 仅在 DD 中）。

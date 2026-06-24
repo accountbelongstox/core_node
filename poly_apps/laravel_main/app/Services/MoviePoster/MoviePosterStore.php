@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Movie/TV Poster Store.
  *
- * Canonical contract: development-guides/MOVIE_POSTER_PIPELINE.md §5.
+ * Canonical contract: docs/MOVIE_POSTER_PIPELINE.md §5.
  *
  * Validates poster bytes, writes them to a LOCAL file under
  *   PathMapper::getStaticPath().'/app_qy_v1/posters/<source_key>.<ext>'

@@ -22,20 +22,24 @@ use Illuminate\Http\Request;
  */
 class DebugAuthService
 {
-    /** Loopback hosts that identify a same-machine request. */
-    private const LOOPBACK = ['localhost', '127.0.0.1', '::1'];
+    /** Loopback client IPs that identify a same-machine request. */
+    private const LOOPBACK = ['127.0.0.1', '::1'];
 
     /**
      * True when the request originates from the local machine (loopback). Mirrors
      * App\Http\Middleware\LocalAccessOnly so the two stay consistent.
+     *
+     * Trust is derived from the resolved client IP ONLY. The previous
+     * getHost()=='localhost' branch is removed: Host is an attacker-controllable
+     * header, so a remote request with `Host: localhost` must NOT pass. With the
+     * loopback proxy trusted (bootstrap/app.php trustProxies), $request->ip()
+     * reflects the genuine client even behind nginx.
      */
     public static function isLoopback(Request $request): bool
     {
         $clientIp = (string) $request->ip();
-        $host = (string) $request->getHost();
 
-        return in_array($clientIp, self::LOOPBACK, true)
-            || in_array($host, self::LOOPBACK, true);
+        return in_array($clientIp, self::LOOPBACK, true);
     }
 
     /**

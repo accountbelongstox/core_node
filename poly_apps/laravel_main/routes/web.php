@@ -290,21 +290,28 @@ Route::prefix('api/mcp/v1/placeholders')->group(function () {
 });
 
 Route::prefix('static-resources')->group(function () {
+    // READ-ONLY: open (no login). Browsing / reading / streaming a resource
+    // never requires authentication.
     Route::get('/file-tree', [StaticResourceController::class, 'getFileTree']);
     Route::get('/read-file', [StaticResourceController::class, 'readFile']);
     Route::get('/stream-file', [StaticResourceController::class, 'streamFile']);
-    Route::post('/upload', [StaticResourceController::class, 'uploadFiles']);
-    Route::post('/rename', [StaticResourceController::class, 'renameItem']);
-    Route::post('/create-directory', [StaticResourceController::class, 'createDirectory']);
-    Route::post('/delete-preview', [StaticResourceController::class, 'previewDelete']);
-    Route::post('/delete', [StaticResourceController::class, 'deleteItem']);
-    Route::post('/write-file', [StaticResourceController::class, 'writeFile']);
 
-    Route::post('/chunked-upload/init', [ChunkedUploadController::class, 'initUpload']);
-    Route::post('/chunked-upload/chunk', [ChunkedUploadController::class, 'uploadChunk']);
-    Route::post('/chunked-upload/check', [ChunkedUploadController::class, 'checkProgress']);
-    Route::post('/chunked-upload/merge', [ChunkedUploadController::class, 'mergeChunks']);
-    Route::post('/chunked-upload/cancel', [ChunkedUploadController::class, 'cancelUpload']);
+    // MUTATIONS: require login (loopback debug bypass OR Sanctum bearer token).
+    // Same-machine dev stays frictionless; remote callers must send a token.
+    Route::middleware('dashboard.auth')->group(function () {
+        Route::post('/upload', [StaticResourceController::class, 'uploadFiles']);
+        Route::post('/rename', [StaticResourceController::class, 'renameItem']);
+        Route::post('/create-directory', [StaticResourceController::class, 'createDirectory']);
+        Route::post('/delete-preview', [StaticResourceController::class, 'previewDelete']);
+        Route::post('/delete', [StaticResourceController::class, 'deleteItem']);
+        Route::post('/write-file', [StaticResourceController::class, 'writeFile']);
+
+        Route::post('/chunked-upload/init', [ChunkedUploadController::class, 'initUpload']);
+        Route::post('/chunked-upload/chunk', [ChunkedUploadController::class, 'uploadChunk']);
+        Route::post('/chunked-upload/check', [ChunkedUploadController::class, 'checkProgress']);
+        Route::post('/chunked-upload/merge', [ChunkedUploadController::class, 'mergeChunks']);
+        Route::post('/chunked-upload/cancel', [ChunkedUploadController::class, 'cancelUpload']);
+    });
 });
 
 Route::prefix('startup-monitor')->group(function () {

@@ -108,9 +108,11 @@ install_dependencies() {
     # Note: NLLB-200 works well with CPU, no need for GPU-specific torch
     print_info "Installing transformers, sentencepiece, and protobuf..."
     echo ""
-    # Pin transformers to the shared LLM spec (don't grab 5.x) so DeepSeek-OCR's 4.46.3
-    # survives; the other deps may still upgrade freely.
-    print_and_run_from_common vpip "$VENV_PYTHON3" -m pip install --upgrade "$LLM_TRANSFORMERS_SPEC" sentencepiece protobuf sacremoses
+    # Pin transformers to the shared LLM spec so DeepSeek-OCR's 4.46.3 survives. NO --upgrade
+    # (matches 95/97): the spec is an exact ==4.46.3, and --upgrade would also float
+    # sentencepiece/protobuf/sacremoses, diverging 98 from the other LLM installers. pip still
+    # installs any of these that are missing.
+    print_and_run_from_common vpip "$VENV_PYTHON3" -m pip install "$LLM_TRANSFORMERS_SPEC" sentencepiece protobuf sacremoses
     echo ""
 
     print_info "Verifying installation..."

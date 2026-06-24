@@ -2,7 +2,7 @@
 """
 Movie / TV poster client (TMDB + OMDB).
 
-Canonical contract: development-guides/MOVIE_POSTER_PIPELINE.md. pycore is the
+Canonical contract: poly_apps/laravel_main/docs/MOVIE_POSTER_PIPELINE.md. pycore is the
 PRIMARY poster fetcher: it runs at ingest/extract time, downloads the poster
 bytes, and ships them (base64) to laravel. Posters are ALWAYS downloaded as
 local bytes — never referenced as an external URL.

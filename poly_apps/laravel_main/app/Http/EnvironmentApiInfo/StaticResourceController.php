@@ -11,6 +11,15 @@ class StaticResourceController
 {
     private $baseDirectory;
 
+    // Recursive scan bounds for getFileTree. The dashboard tree is rendered
+    // recursively on the frontend, so the backend must return nested children
+    // in one call (otherwise files uploaded into a subfolder never appear).
+    // These caps keep a pathological / very large media tree from exploding;
+    // $scanNodeBudget is reset per request in getFileTree.
+    private $scanMaxDepth = 10;
+    private $scanNodeBudget = 0;
+    private const SCAN_NODE_LIMIT = 12000;
+
     public function __construct()
     {
         $this->baseDirectory = PathMapper::getStaticPath();
@@ -47,7 +56,8 @@ class StaticResourceController
             ], 404);
         }
 
-        $items = $this->scanDirectory($fullPath, $path);
+        $this->scanNodeBudget = self::SCAN_NODE_LIMIT;
+        $items = $this->scanDirectory($fullPath, $path, 0);
 
         return response()->json([
             'items' => $items,
@@ -586,13 +596,14 @@ class StaticResourceController
         return strpos($realPath, $this->baseDirectory) === 0;
     }
 
-    private function scanDirectory($directory, $relativePath)
+    private function scanDirectory($directory, $relativePath, $depth = 0)
     {
         $items = [];
         $entries = null;
         $name = null;
         $fullPath = null;
         $relPath = null;
+        $children = null;
 
         $entries = FileSystemManager::scandir($directory);
 
@@ -601,16 +612,29 @@ class StaticResourceController
                 continue;
             }
 
+            if ($this->scanNodeBudget <= 0) {
+                break;
+            }
+            $this->scanNodeBudget--;
+
             $name = $entry;
             $fullPath = $directory . DIRECTORY_SEPARATOR . $entry;
             $relPath = $relativePath ? $relativePath . DIRECTORY_SEPARATOR . $entry : $entry;
 
             if (FileSystemManager::isDir($fullPath)) {
+                // Recurse so nested files are returned in ONE call: the React
+                // tree renders children recursively, so a file uploaded into a
+                // subfolder is visible right after the post-upload refresh.
+                // Bounded by $scanMaxDepth + the per-request node budget.
+                $children = $depth < $this->scanMaxDepth
+                    ? $this->scanDirectory($fullPath, $relPath, $depth + 1)
+                    : [];
                 $items[] = [
                     'name' => $name,
                     'type' => 'directory',
                     'path' => $relPath,
-                    'modified' => date('Y-m-d H:i:s', FileSystemManager::filemtime($fullPath))
+                    'modified' => date('Y-m-d H:i:s', FileSystemManager::filemtime($fullPath)),
+                    'children' => $children
                 ];
             } else {
                 $extension = pathinfo($fullPath, PATHINFO_EXTENSION);

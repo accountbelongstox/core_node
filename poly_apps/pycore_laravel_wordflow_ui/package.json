@@ -10,7 +10,11 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@uiw/codemirror-extensions-langs": "^4.23.7",
+    "@uiw/react-codemirror": "^4.23.7",
+    "epubjs": "^0.3.93",
     "framer-motion": "^11.18.2",
+    "hls.js": "^1.5.17",
     "i18next": "^25.8.18",
     "lucide-react": "^0.555.0",
     "react": "^19.2.1",

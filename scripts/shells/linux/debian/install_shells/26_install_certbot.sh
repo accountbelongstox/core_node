@@ -141,7 +141,10 @@ fix_urllib3_compatibility() {
     echo "[$SCRIPT_INDEX] [INSTALL] Installing urllib3==1.26.18 to system location..."
     # Force system-level installation (not user directory)
     # Note: urllib3 1.26.18 is the last version compatible with certbot 2.1.0
-    # urllib3 2.x removed DEFAULT_CIPHERS constant that certbot depends on
+    # urllib3 2.x removed DEFAULT_CIPHERS constant that certbot depends on.
+    # This is the SINGLE system-python urllib3 policy: 13_ensure_python.sh's certbot repair
+    # pins the same 1.26.18 (not an --upgrade to 2.x). The worker venv keeps urllib3>=2.0,<3
+    # (third_party.py) on its own interpreter, so the two never conflict.
     $USE_SUDO pip3 install --break-system-packages --no-user urllib3==1.26.18 2>&1 | grep -E "Successfully|ERROR|Installing" | while IFS= read -r line; do
         echo "[$SCRIPT_INDEX]   $line"
     done

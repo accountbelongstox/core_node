@@ -1,17 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import BentoCard from '../../BentoCard';
 import { FileNode, Language, StaticFileContent } from '../../../types';
 import { api } from '../../../core/api';
+import ViewerErrorBoundary from './ViewerErrorBoundary';
 import {
     Play, SkipForward, SkipBack, AlertCircle,
     FileText, Loader2, FastForward, Pencil, Download,
     Save, RotateCcw, FileType, File
 } from "lucide-react";
 
+// Heavy, type-specific viewers are loaded on demand so they (and their optional
+// dependencies) only enter the bundle when a matching file is opened. A failed
+// chunk degrades through ViewerErrorBoundary, never breaking the Media UI.
+const CodeEditor = React.lazy(() => import('./CodeEditor'));
+const EpubReader = React.lazy(() => import('./EpubReader'));
+
+// Native HLS playback exists only on Safari/iOS. Detected once so .m3u8 sources
+// fall back to hls.js (attached in an effect) on every other browser.
+const SUPPORTS_NATIVE_HLS = typeof document !== 'undefined'
+    ? document.createElement('video').canPlayType('application/vnd.apple.mpegurl') !== ''
+    : false;
+
 // Max size (~1.5MB) for which inline editing is allowed.
 const MAX_EDITABLE_SIZE = 1.5 * 1024 * 1024;
+
+// Small shared spinner fallback for a Suspense-loaded viewer.
+const ViewerLoading: React.FC = () => (
+    <div className="h-full flex items-center justify-center text-slate-500">
+        <Loader2 size={28} className="animate-spin" />
+    </div>
+);
 
 interface FileViewerProps {
   file: FileNode | null;
@@ -70,6 +90,38 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
     fetchContent();
 
     return () => { cancelled = true; };
+  }, [activeFile]);
+
+  // HLS playback: a native <video> only plays .m3u8 on Safari/iOS. On every
+  // other browser, dynamically attach hls.js (imported on demand so the
+  // dependency stays optional). The native `src` is intentionally omitted for
+  // HLS on these browsers so hls.js owns the media source.
+  useEffect(() => {
+    if (!activeFile) return;
+    if (activeFile.fileType !== 'video') return;
+    const lowerName = activeFile.name ? activeFile.name.toLowerCase() : '';
+    const isHls = lowerName.endsWith('.m3u8');
+    if (!isHls) return;
+    if (SUPPORTS_NATIVE_HLS) return;
+    const el = videoRef.current;
+    if (!el) return;
+
+    let cancelled = false;
+    let hls: any = null;
+    const src = api.mcpV1.getStaticFileStreamUrl(activeFile.id);
+    import('hls.js').then((mod) => {
+      if (cancelled) return;
+      const Hls = mod.default;
+      if (!Hls.isSupported()) return;
+      hls = new Hls();
+      hls.loadSource(src);
+      hls.attachMedia(el);
+    });
+
+    return () => {
+      cancelled = true;
+      if (hls) hls.destroy();
+    };
   }, [activeFile]);
 
   const handleDownload = (node: FileNode) => {
@@ -163,6 +215,32 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
       );
     }
 
+    // Code files use the CodeMirror editor (the "programming" viewer): a
+    // syntax-highlighted read view, and an editable surface bound to the same
+    // editValue buffer that the shared Save/Cancel toolbar persists.
+    if (activeFile && activeFile.fileType === 'code') {
+      const codeExt = fileContent.extension ? fileContent.extension : '';
+      return (
+        <ViewerErrorBoundary
+          key={activeFile.id}
+          fileName={activeFile.name}
+          downloadUrl={api.mcpV1.getStaticFileDownloadUrl(activeFile.id)}
+          label="The code editor could not be loaded."
+        >
+          <div className="h-full bg-black/40 border border-white/5 rounded-lg overflow-hidden">
+            <Suspense fallback={<ViewerLoading />}>
+              <CodeEditor
+                value={isEditing ? editValue : fileContent.content}
+                extension={codeExt}
+                editable={isEditing}
+                onChange={setEditValue}
+              />
+            </Suspense>
+          </div>
+        </ViewerErrorBoundary>
+      );
+    }
+
     if (isEditing) {
       return (
         <textarea
@@ -184,7 +262,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
       );
     }
 
-    // text / code -> mono pre/code
+    // text -> mono pre/code
     return (
       <pre className="h-full overflow-auto bg-black/40 border border-white/5 rounded-lg p-3 text-xs">
         <code className="font-mono text-slate-200 whitespace-pre">{fileContent.content}</code>
@@ -206,6 +284,11 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
     const ft = activeFile.fileType;
 
     if (ft === 'video') {
+      // For HLS on a non-native browser, omit the native src so the hls.js
+      // effect can own the media source; otherwise stream directly.
+      const lowerName = activeFile.name ? activeFile.name.toLowerCase() : '';
+      const useHlsJs = lowerName.endsWith('.m3u8') ? !SUPPORTS_NATIVE_HLS : false;
+      const nativeSrc = useHlsJs ? undefined : api.mcpV1.getStaticFileStreamUrl(activeFile.id);
       return (
         <>
           <video
@@ -216,7 +299,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
             onEnded={handleVideoEnd}
             onTimeUpdate={handleVideoTimeUpdate}
             className="w-full h-full"
-            src={api.mcpV1.getStaticFileStreamUrl(activeFile.id)}
+            src={nativeSrc}
           />
           {/* Floating Episode Controls - NO || allowed */}
           {showFloatingControls && (hasPrevious ? true : hasNext ? true : false) && (
@@ -295,6 +378,21 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
       );
     }
 
+    if (ft === 'epub') {
+      return (
+        <ViewerErrorBoundary
+          key={activeFile.id}
+          fileName={activeFile.name}
+          downloadUrl={api.mcpV1.getStaticFileDownloadUrl(activeFile.id)}
+          label="The book reader could not be loaded."
+        >
+          <Suspense fallback={<ViewerLoading />}>
+            <EpubReader url={api.mcpV1.getStaticFileStreamUrl(activeFile.id)} />
+          </Suspense>
+        </ViewerErrorBoundary>
+      );
+    }
+
     if (ft ? ['markdown', 'text', 'code'].includes(ft) : false) {
       return <div className="w-full h-full p-2">{renderTextualBody()}</div>;
     }
@@ -316,7 +414,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
   };
 
   // Textual viewer types use a tall panel; media types keep the aspect-video frame.
-  const isReadingType = activeFile && activeFile.fileType ? ['markdown', 'text', 'code', 'pdf'].includes(activeFile.fileType) : false;
+  const isReadingType = activeFile && activeFile.fileType ? ['markdown', 'text', 'code', 'pdf', 'epub'].includes(activeFile.fileType) : false;
 
   return (
     <BentoCard title="Preview" icon={Play} glowing className="flex-1 flex flex-col min-h-0">

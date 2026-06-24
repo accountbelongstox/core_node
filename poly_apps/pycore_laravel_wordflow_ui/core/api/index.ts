@@ -11,6 +11,7 @@ import { MediaQueryAPI } from './modules/MediaQueryAPI';
 import { BooksAPI } from './modules/BooksAPI';
 import { AiStatusAPI } from './modules/AiStatusAPI';
 import { AiManagementAPI } from './modules/AiManagementAPI';
+import { DevHistoryAPI } from './modules/DevHistoryAPI';
 import { PddAdminAPI } from './modules/PddAdminAPI';
 import { setSharedBaseURL } from './base/BaseAPI';
 import { getDefaultBaseURL, DEFAULT_API_TIMEOUT } from '../../config/constants';
@@ -44,6 +45,7 @@ class APIService {
   public books: BooksAPI;
   public aiStatus: AiStatusAPI;
   public aiManagement: AiManagementAPI;
+  public devHistory: DevHistoryAPI;
   public pddAdmin: PddAdminAPI;
 
   private constructor() {
@@ -135,6 +137,13 @@ class APIService {
     this.aiManagement = new AiManagementAPI({
       baseURL: API_CONFIG.baseURL,
       prefix: '/api/local/ai',
+      timeout: API_CONFIG.timeout
+    });
+
+    // AI Dev History — read-only Claude/Codex/Gemini/Cursor history (localhost).
+    this.devHistory = new DevHistoryAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/dev-history',
       timeout: API_CONFIG.timeout
     });
 

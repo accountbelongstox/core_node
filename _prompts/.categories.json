@@ -1,0 +1,47 @@
+{
+    "version": "1.0",
+    "categories": [
+        {
+            "id": "global",
+            "name": "全局任务",
+            "path": "",
+            "default": true,
+            "auto_create": false
+        },
+        {
+            "id": "mcp-dev",
+            "name": "MCP开发任务",
+            "path": "mcp-dev",
+            "default": false,
+            "auto_create": true
+        },
+        {
+            "id": "ncore-dev",
+            "name": "NCORE开发任务",
+            "path": "ncore-dev",
+            "default": false,
+            "auto_create": true
+        },
+        {
+            "id": "pycore-dev",
+            "name": "PYCORE开发任务",
+            "path": "pycore-dev",
+            "default": false,
+            "auto_create": true
+        },
+        {
+            "id": "laravel-main-dev",
+            "name": "LARAVEL MAIN开发任务",
+            "path": "laravel-main-dev",
+            "default": false,
+            "auto_create": true
+        },
+        {
+            "id": "nuxt-dev",
+            "name": "NUXT开发任务",
+            "path": "nuxt-dev",
+            "default": false,
+            "auto_create": true
+        }
+    ]
+}

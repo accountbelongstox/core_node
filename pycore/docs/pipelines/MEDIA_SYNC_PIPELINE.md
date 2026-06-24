@@ -10,11 +10,11 @@ pycore 提取产物(字幕/句子/段映射/切片)到 laravel_main(:9000)媒体
 > 单一共享 `app_qy_v1_sentences` 表与单一 `app_qy_v1_chapters` 表已**整体移除(clean cut)**:
 > drop 迁移 + 代码删除,**sys:init 不再创建**;v1(字幕)/v2(书籍)入库统一折叠进 per-language 模型。
 > 所有 `language` 字段一律为**代码**(en/zh/ja...),无 name/code 双层。
-> **`development-guides/BOOKS_FEATURE_SPECIFICATION.md`(v3.1)现为唯一权威契约**(见该文档 §3/§5/§7)。
+> **`poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md`(v3.1)现为唯一权威契约**(见该文档 §3/§5/§7)。
 > 本文 §8 的 v2 描述与 §2 的"共享单表 / 双键"段落已被取代。
 
 > 🌐 **核心不变量:全平台 ONE 共享多语言句库**(权威见
-> [BOOKS_FEATURE_SPECIFICATION.md §1.1/§13](../../../development-guides/BOOKS_FEATURE_SPECIFICATION.md))。
+> [BOOKS_FEATURE_SPECIFICATION.md §1.1/§13](../../../poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md))。
 > **所有来源类型——书籍 book、字幕 subtitle、文档 document、文章 article(及未来类型)——共用同一套**
 > 按语言句库 `app_qy_v1_sentences_{lang}`(以 `content_id` 去重)。每个来源**各自保留原文**
 > (书的 `full_content`、字幕 `.srt` 备份、文档/文章正文),**同时**把自己的每个句子经
@@ -63,7 +63,7 @@ VideoExtractProcessor (pycore)                    laravel_main (:9000, app_qy_v1
 - **pycore 端**:重复执行 `sync_source`/`sync_all` 安全;切片上传服务端跳过已存在文件。
   `_INGEST_TIMEOUT=180s`(冷启动/排队余量),`_CLIP_TIMEOUT=300s`。
 - **句子去重键(per-language v3.1 模型,权威见
-  [BOOKS_FEATURE_SPECIFICATION.md](../../../development-guides/BOOKS_FEATURE_SPECIFICATION.md))**:
+  [BOOKS_FEATURE_SPECIFICATION.md](../../../poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md))**:
   句子写入**按语言分表** `app_qy_v1_sentences_{lang}`,在该表内以
   `content_id = md5(lowercase(collapse(strip_punctuation(text))))`(语言无关内容键)**unique 去重**
   并 bump `occurrence_count`。章节写入**按语言分表** `app_qy_v1_chapters_{lang}`,以
@@ -177,7 +177,7 @@ VideoExtractProcessor (pycore)                    laravel_main (:9000, app_qy_v1
 ## 8. 书籍句子/词模型(v3.1 per-language;旧 v1/v2 共享单表已移除)
 
 > ⚠️ **权威契约已迁移**:书籍功能现以
-> **[`development-guides/BOOKS_FEATURE_SPECIFICATION.md`](../../../development-guides/BOOKS_FEATURE_SPECIFICATION.md)
+> **[`poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md`](../../../poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md)
 > (v3.1 — unified per-language sentence + chapter model)为唯一权威**。本节原 v2 描述(单一共享
 > `app_qy_v1_sentences` 表 + `model_version` 区分 v1/v2)**已被取代**,保留作历史参考并就地标注差异。新模型要点:
 >
@@ -322,7 +322,7 @@ upsert `sentences_{lang}`、写 `lang_content_ids`;所有 `language` 值均为**
 
 ## 9. Movie/TV poster (TMDB + OMDB)
 
-Canonical contract: `development-guides/MOVIE_POSTER_PIPELINE.md`. pycore is the
+Canonical contract: `poly_apps/laravel_main/docs/MOVIE_POSTER_PIPELINE.md`. pycore is the
 **primary** poster fetcher; it runs at ingest/extract time, downloads poster
 **bytes** (never an external URL), and ships them to laravel.
 
@@ -359,7 +359,7 @@ fails extraction).
 
 ## 10. 字幕多语言(与书籍同 per-language 模型)
 
-> **权威契约**:[`development-guides/BOOKS_FEATURE_SPECIFICATION.md` §12](../../../development-guides/BOOKS_FEATURE_SPECIFICATION.md)。
+> **权威契约**:[`poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md` §12](../../../poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md)。
 > 字幕**复用整套 per-language 模型**(`app_qy_v1_sentences_{lang}` + `source_sentences` 槽位 +
 > `corr_id` + `lang_content_ids` + `primary_language` + 计时,`source_type='subtitle'`)——**无新表**;
 > `media_segments`(切片映射)不变。一个字幕 source = **一个视频**,一条或多条语言轨挂同一 `source_key`。
@@ -398,7 +398,7 @@ fails extraction).
 
 ## 11. 文档 / 文章来源(共用同一句库)
 
-> **权威契约**:[`development-guides/BOOKS_FEATURE_SPECIFICATION.md` §1.1/§13](../../../development-guides/BOOKS_FEATURE_SPECIFICATION.md)。
+> **权威契约**:[`poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md` §1.1/§13](../../../poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md)。
 
 文档(document)与文章(article)是**一等来源**,与书籍/字幕**共用同一套**按语言句库 `app_qy_v1_sentences_{lang}`
 (§1.1 核心不变量)。它们**保留自身原文正文**,同时把每个句子经 `source_sentences` 槽位映射进共享句库——

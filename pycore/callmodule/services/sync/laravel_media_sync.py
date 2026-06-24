@@ -62,7 +62,7 @@ from pycore.callmodule.services.processors.book_processor import (
 # v2 structured representation (stripped sentences + md5 content_ids +
 # reconstruction sequence + per-language words) + the v3 chapter->slot builder.
 # See pycore/docs/pipelines/MEDIA_SYNC_PIPELINE.md §8 and
-# development-guides/BOOKS_FEATURE_SPECIFICATION.md §5/§7.
+# poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md §5/§7.
 from pycore.callmodule.services.processors.book_structure import (
     build_book_structure,
     build_book_chapters_v3,
@@ -79,7 +79,7 @@ from pycore.pyfoundations.text_parsing import (
 from pycore.pyutils.text_stats import compute_text_stats
 # Movie/TV poster fetch (TMDB -> OMDB, CJK title translated first). Best-effort:
 # attaches an OPTIONAL source.poster object to book/subtitle ingest payloads.
-# Canonical: development-guides/MOVIE_POSTER_PIPELINE.md.
+# Canonical: poly_apps/laravel_main/docs/MOVIE_POSTER_PIPELINE.md.
 from pycore.pyutils.external_apis.movie_poster_client import (
     find_poster,
     parse_title_year,

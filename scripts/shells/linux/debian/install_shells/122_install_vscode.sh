@@ -29,6 +29,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
 
 # Initialize global variables
 init_global_vars
@@ -494,9 +495,22 @@ create_vscode_desktop_shortcut() {
         fi
     fi
 
+    # Resource limit: create a machine-relative cgroup-v2 wrapper for VS Code and
+    # launch THROUGH it. Root mode (pkexec) -> --system scope (a --user scope would
+    # not govern the root-re-execed app); normal mode -> --user. The wrapper is
+    # passed to --create-app as the binary; desktop_entry_manager's
+    # extract_original_binary leaves it untouched (no DEM marker) -> no recursion.
+    local vscode_launch_bin="/usr/bin/code"
+    local arl_root_flag=""
+    [[ "$USE_ROOT_MODE" == "true" ]] && arl_root_flag="--root"
+    if apply_app_resource_limit --id vscode --exec /usr/bin/code $arl_root_flag \
+        && [[ -x /usr/local/bin/vscode-rlimit ]]; then
+        vscode_launch_bin="/usr/local/bin/vscode-rlimit"
+    fi
+
     # Use --create-app to generate launcher and desktop entry
     # Arguments: name display_name binary icon category description wm_class userdata_dir use_root_mode
-    if bash "$DESKTOP_MANAGER_SCRIPT" --create-app vscode "Visual Studio Code" /usr/bin/code "$vscode_icon" Development "Code editor for developers" "Code" "$vscode_userdata_dir" "$USE_ROOT_MODE" 2>&1; then
+    if bash "$DESKTOP_MANAGER_SCRIPT" --create-app vscode "Visual Studio Code" "$vscode_launch_bin" "$vscode_icon" Development "Code editor for developers" "Code" "$vscode_userdata_dir" "$USE_ROOT_MODE" 2>&1; then
         local expected_entry="$desktop_manager_apps_dir/core_node_vscode.desktop"
         if [[ -f "$expected_entry" ]]; then
             print_success_from_common_functions "Desktop entry created for VS Code"

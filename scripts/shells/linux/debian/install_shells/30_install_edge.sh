@@ -19,6 +19,8 @@ SCRIPT_INDEX="30"
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
+source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
 
 INSTALL_EDGE=$(get_var "INSTALL_EDGE")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
@@ -198,6 +200,13 @@ if check_edge_version; then
                 $USE_SUDO ln -sf "$edge_path" "/usr/local/bin/microsoft-edge"
                 echo "[$SCRIPT_INDEX] Created symlink: /usr/local/bin/microsoft-edge -> $edge_path"
             fi
+
+            # Resource limit: cap the whole Edge process tree in one machine-relative
+            # cgroup-v2 user scope and repoint the .deb-owned menu entry
+            # (id=microsoft-edge) at the wrapper. Browser profile -> heavier limits.
+            APP_MEM_PCT=62 APP_CPU_PCT=75 apply_app_resource_limit \
+                --id microsoft-edge --exec "$edge_path" \
+                --desktop all --field "%U"
         fi
     fi
 else
@@ -210,6 +219,12 @@ else
         set_var "EDGE_BIN" "$edge_path"
         set_var "EDGE_VERSION" "$(microsoft-edge --version 2>/dev/null || echo 'unknown')"
         echo "[$SCRIPT_INDEX] Edge installation info stored in global variables"
+
+        # Resource limit + repoint the .deb-owned menu entry after a fresh install
+        # (id=microsoft-edge). Idempotent; machine-relative; never double-wraps.
+        APP_MEM_PCT=62 APP_CPU_PCT=75 apply_app_resource_limit \
+            --id microsoft-edge --exec "$edge_path" \
+            --desktop all --field "%U"
     fi
 fi
 

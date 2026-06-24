@@ -993,11 +993,16 @@ check_urllib3_for_certbot() {
     echo "[13] $USE_SUDO $sys_py3 -m pip uninstall -y --break-system-packages urllib3"
     $USE_SUDO "$sys_py3" -m pip uninstall -y --break-system-packages urllib3 2>&1 || true
 
-    echo ">>> Installing urllib3 (system-side)..."
-    echo "[13] $USE_SUDO $sys_py3 -m pip install --break-system-packages --upgrade urllib3"
-    $USE_SUDO "$sys_py3" -m pip install --break-system-packages --upgrade urllib3 2>&1 || true
+    echo ">>> Installing certbot-compatible urllib3 (system-side)..."
+    # certbot 2.x depends on urllib3.util.ssl_.DEFAULT_CIPHERS, which urllib3 2.x REMOVED, so
+    # this repair pins the last 1.x (1.26.18) -- the SAME version 26_install_certbot.sh enforces
+    # (one system-python urllib3 policy; --no-user matches 26 too). Upgrading to a newer 2.x
+    # would not fix a DEFAULT_CIPHERS failure. The worker's venv pin (urllib3>=2.0,<3 in
+    # third_party.py) is a SEPARATE interpreter and is unaffected.
+    echo "[13] $USE_SUDO $sys_py3 -m pip install --break-system-packages --no-user urllib3==1.26.18"
+    $USE_SUDO "$sys_py3" -m pip install --break-system-packages --no-user urllib3==1.26.18 2>&1 || true
 
-    # Re-test certbot functionally (DEFAULT_CIPHERS is irrelevant on modern urllib3).
+    # Re-test certbot functionally.
     if certbot plugins >/dev/null 2>&1; then
         print_success_from_common_functions "certbot compatibility fixed"
     else
@@ -1025,16 +1030,29 @@ check_and_fix_package_version() {
 
     # Special handling for packages with dots in import name (e.g., azure.cognitiveservices.speech)
     local import_cmd="import $import_name"
+    local force_flag=""
+
+    # Some packages expose an importable top-level even when their real compiled modules are
+    # absent. On Debian/Kali the base libpyside6 stub satisfies `import PySide6` while
+    # QtCore/QtWebEngine* ship as separate apt packages, so probe a representative submodule
+    # and force the install past the system stub (the venv has system-site-packages, so a
+    # plain `pip install PySide6` would otherwise be a no-op against the incomplete stub).
+    case "$import_name" in
+        PySide6)
+            import_cmd="import PySide6.QtWebEngineWidgets"
+            force_flag="--ignore-installed"
+            ;;
+    esac
 
     # Check if package is installed
     if ! "$py" -c "$import_cmd" 2>/dev/null; then
         # Package not installed
         if [ -n "$version_constraint" ]; then
             echo ">>> Installing $pip_package$version_constraint..."
-            run_pip_install_realtime "$py" "$pip_package$version_constraint" "" || true
+            run_pip_install_realtime "$py" "$pip_package$version_constraint" "$force_flag" || true
         else
             echo ">>> Installing $pip_package..."
-            run_pip_install_realtime "$py" "$pip_package" "" || true
+            run_pip_install_realtime "$py" "$pip_package" "$force_flag" || true
         fi
         return 0
     fi

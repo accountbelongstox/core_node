@@ -256,13 +256,17 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
     });
 
     // AppQyV1 Books document pipeline (dashboard upload -> parse -> ingest).
-    // Same trust posture as media/ingest: local, no auth. PHP parses uploaded
-    // documents, computes stats, and on demand ingests sentences/words into the
-    // shared library via the v2 MediaIngestService path.
+    // upload + ingest are user MUTATIONS gated by dashboard.auth (loopback debug
+    // bypass OR Sanctum bearer) so same-machine dev stays tokenless while remote
+    // callers must log in; list + supported-formats stay open (read-only). PHP
+    // parses uploaded documents, computes stats, and on demand ingests
+    // sentences/words into the shared library via the v2 MediaIngestService path.
     Route::prefix('app_qy_v1/books')->group(function () {
-        Route::post('upload', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'upload']);
+        Route::middleware('dashboard.auth')->group(function () {
+            Route::post('upload', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'upload']);
+            Route::post('ingest', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'ingest']);
+        });
         Route::post('list', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'list']);
-        Route::post('ingest', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'ingest']);
         Route::get('supported-formats', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'supportedFormats']);
     });
 });
@@ -280,6 +284,16 @@ Route::prefix('config')->group(function () {
         Route::put('server', [SystemConfigController::class, 'updateConfig']);
         Route::get('environment', [SystemConfigController::class, 'getEnvironment']);
     });
+});
+
+// Developer AI-tool history (Claude/Codex/Gemini/Cursor) — read-only, localhost only.
+use App\Http\Controllers\DevHistoryController;
+
+Route::prefix('dev-history')->middleware('local.only')->group(function () {
+    Route::get('index', [DevHistoryController::class, 'index']);
+    Route::get('prompts', [DevHistoryController::class, 'prompts']);
+    Route::get('sessions/{id}', [DevHistoryController::class, 'session']);
+    Route::post('refresh', [DevHistoryController::class, 'refresh']);
 });
 
 // Server Manager Routes (localhost only)

@@ -1,7 +1,7 @@
 # Movie/TV Poster Pipeline — laravel_main slice
 
 Local PHP slice of the movie/TV poster pipeline. Canonical cross-stack contract:
-[`development-guides/MOVIE_POSTER_PIPELINE.md`](../../../development-guides/MOVIE_POSTER_PIPELINE.md).
+[`MOVIE_POSTER_PIPELINE.md`](MOVIE_POSTER_PIPELINE.md).
 
 laravel_main is the **store** (receives poster bytes from pycore at ingest time)
 AND a **secondary PHP fetcher** (on-demand backfill when a media row has no

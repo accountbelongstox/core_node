@@ -296,6 +296,10 @@ WINDOWS_ONLY_PACKAGES = {
 # max CUDA (NVIDIA CUDA compatibility): 550 -> 12.4, 560 -> 12.6, 570 -> 12.8, 580 -> 13.0.
 # This env var, when set, overrides the auto-detection entirely.
 PYTORCH_CUDA_INDEX_URL = os.environ.get("PYTORCH_CUDA_INDEX_URL", "").strip()
+# KEEP IN SYNC with the shell SSOT scripts/shells/linux/common/base_libs/torch_cuda_index.sh
+# (its cv-threshold ladder, lines ~23-29). This Python copy is consulted ONLY when that .sh is
+# unreachable (e.g. Windows: no bash) — there it is authoritative — so an edit to one ladder
+# MUST be mirrored here, or Windows and Linux would resolve different wheels.
 _PYTORCH_CUDA_WHEELS = (  # (cuda_major, cuda_minor, wheel_tag), highest first
     (13, 0, "cu130"), (12, 8, "cu128"), (12, 6, "cu126"),
     (12, 4, "cu124"), (12, 1, "cu121"), (11, 8, "cu118"),
@@ -314,6 +318,29 @@ PYTORCH_CPU_INDEX_URL = "https://download.pytorch.org/whl/cpu"
 # lazy-install on demand via their getters if a desktop feature is actually invoked.
 # Override: PYCORE_FORCE_GUI=1 installs them anyway; PYCORE_HEADLESS=1 forces skip.
 GUI_ONLY_IMPORTS = {"PySide6", "PyQt5", "labelme", "labelImg"}
+
+# Packages whose top-level is importable even when the real compiled modules are absent,
+# so `find_spec(top_level)` is a false positive. On Debian/Kali PySide6 is split into
+# per-module apt packages: the base `libpyside6-py3` ships PySide6/__init__.py (so
+# `import PySide6` succeeds) while QtCore/QtWebEngine* live in separate packages that may
+# be missing. Probe a representative submodule the app actually needs so an incomplete
+# install is detected and the full PyPI wheel (Essentials + Addons) is (re)installed.
+_INSTALL_PROBE_SUBMODULE = {
+    "PySide6": "PySide6.QtWebEngineWidgets",  # Addons; the wheel install also brings QtCore
+}
+
+
+def _module_install_ok(import_name: Optional[str]) -> bool:
+    """True if `import_name` is genuinely importable. For split packages it probes a real
+    submodule (see _INSTALL_PROBE_SUBMODULE) instead of the empty top-level stub. Any
+    find_spec error (e.g. ABI-broken .so) counts as not installed."""
+    if not import_name:
+        return False
+    probe = _INSTALL_PROBE_SUBMODULE.get(import_name, import_name)
+    try:
+        return importlib.util.find_spec(probe) is not None
+    except Exception:
+        return False
 
 
 def _is_headless_linux() -> bool:
@@ -640,13 +667,24 @@ def _ensure_torch_cuda_build_first():
     current_platform = platform.system()
     cuda_index_url = _resolve_pytorch_cuda_index_url()
     ColorPrint.blue("[INFO] PyTorch CUDA wheel index (driver-matched): " + cuda_index_url)
+    # We only reach here when torch is missing OR present-but-cuda-unavailable (CPU-only build
+    # OR a CUDA build too new for the driver, e.g. cu130 on a 12.4 driver). When REPLACING an
+    # existing build, uninstall the importable torch stack FIRST and always --force-reinstall:
+    # otherwise --ignore-installed merely drops the driver-matched wheel BESIDE the stale one,
+    # the stale build keeps shadowing it, torch.cuda.is_available() stays False, and this
+    # reinstall fires again on every launch (the ~5GB re-download loop). --ignore-installed is
+    # still passed for the mpmath<1.4-no-RECORD case (Debian/Kali ship mpmath 1.4.x without a
+    # RECORD file, which aborts a plain reinstall of torch's deps).
+    if torch is not None:
+        for _pkg in ("torch", "torchvision", "torchaudio"):
+            _run_pip_uninstall(_pkg)
     pip_cmd = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio",
                "--index-url", cuda_index_url]
     if current_platform != "Windows":
         pip_cmd.extend(["--break-system-packages", "--ignore-installed"])
     else:
         pip_cmd.append("--no-user")
-    if torch is not None and getattr(torch.version, "cuda", None) is None:
+    if torch is not None:
         pip_cmd.append("--force-reinstall")
     run_pip_install_with_realtime_output(pip_cmd, "torch (CUDA)")
     importlib.invalidate_caches()
@@ -888,7 +926,7 @@ def check_and_install_dependencies():
             if pkg == package_name:
                 import_name_to_check = imp
                 break
-        if import_name_to_check and importlib.util.find_spec(import_name_to_check) is None:
+        if import_name_to_check and not _module_install_ok(import_name_to_check):
             needs_installation = True
             break
     
@@ -916,13 +954,9 @@ def check_and_install_dependencies():
                 import_name_to_check = imp
                 break
 
-        # Safely check if module can be imported (handle exceptions)
-        try:
-            module_spec = importlib.util.find_spec(import_name_to_check)
-            is_installed = module_spec is not None
-        except Exception as e:
-            ColorPrint.yellow(f"[WARNING] Error checking '{import_name_to_check}': {e}")
-            is_installed = False
+        # Probe importability; for split packages (PySide6) this checks a real submodule
+        # so an incomplete top-level stub is not mistaken for a working install.
+        is_installed = _module_install_ok(import_name_to_check)
 
         if not is_installed:
             missing_packages.add(package_name)
@@ -937,8 +971,7 @@ def check_and_install_dependencies():
             # Verify installation by checking if module can be imported (not by return code)
             importlib.invalidate_caches()
             try:
-                module_spec = importlib.util.find_spec(import_name_to_check)
-                if module_spec is None:
+                if not _module_install_ok(import_name_to_check):
                     ColorPrint.yellow(f"[WARNING] Package {package_name} installed but import '{import_name_to_check}' still not available")
                     ColorPrint.yellow("[WARNING] This may require a Python restart or the package may need different import name")
                     failed_packages.append((package_name, import_name_to_check))

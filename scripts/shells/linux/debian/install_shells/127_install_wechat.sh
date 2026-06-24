@@ -14,554 +14,575 @@
 #==============================================================================
 # WeChat for Linux Installation Script
 #==============================================================================
-# This script installs WeChat for Linux via AppImage
-# - Only installs on desktop systems (skips on servers)
-# - Downloads from official source or uses Downloads directory
-# - Creates desktop icons, launchers, and symlinks
-# - Supports re-running to fix/repair installation
+# Installs the OFFICIAL Tencent "WeChat for Linux" client from
+# https://linux.weixin.qq.com/ via the official .deb package.
+#
+# Why .deb (not AppImage):
+#   The official .deb declares a single dependency
+#   (fonts-noto-cjk | google-noto-cjk-fonts) and BUNDLES its Electron/Chromium
+#   runtime under /opt/wechat, so `apt install ./file.deb` resolves cleanly on
+#   Debian, Ubuntu AND Kali. It needs NO libfuse2 (which Kali/Debian 13 renamed
+#   libfuse2t64) and has NO t64 transition concern for the package itself, unlike
+#   the AppImage path. The package registers /usr/bin/wechat and its own desktop
+#   entry via postinst.
+#
+# Supported: Debian, Ubuntu, Kali (any Debian-family) on x86_64/arm64/LoongArch.
+#   - Desktop systems only (skips on headless servers).
+#   - Uses an existing .deb from Downloads, else auto-downloads, else prompts.
+#   - Idempotent / re-runnable: prompts to update or keep an existing install.
+#   - Pulls WeChat's UNDECLARED runtime libraries (best-effort, t64-aware) so it
+#     also launches on lean/minimal desktops, and applies the --no-sandbox
+#     workaround when the kernel restricts unprivileged user namespaces.
 #==============================================================================
 
+# Script identification and path setup
+SCRIPT_INDEX="127"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-SCRIPT_INDEX="127"
 
-# Source common files
+# Source common libraries (common_functions transitively sources gvar_common)
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/get_real_user.sh"
-source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 
-# Declare variables
+# Initialize global variables (no-op compatibility shim)
+init_global_vars
+
+# Ensure sudo (works both as root and as a normal user)
+if command -v sudo >/dev/null 2>&1; then
+    USE_SUDO="sudo"
+else
+    USE_SUDO=""
+fi
+
+# Declare variables --------------------------------------------------------
 APP_NAME="WeChat"
-EXEC_NAME="wechat"
-DOWNLOAD_URL="https://dldir1v6.qq.com/weixin/Universal/Linux/WeChatLinux_x86_64.AppImage"
-APPIMAGE_DIR=$(map_web_path "compile_dir" "applications/appimages")
-INSTALL_DIR="$APPIMAGE_DIR/$EXEC_NAME"
-APPIMAGE_FILE="$INSTALL_DIR/${EXEC_NAME}.AppImage"
-EXTRACTED_DIR="$INSTALL_DIR/extracted"
-APPRUN_PATH="$EXTRACTED_DIR/squashfs-root/AppRun"
-USER_BIN_DIR="$REAL_USER_HOME/.local/bin"
-USER_SYMLINK="$USER_BIN_DIR/$EXEC_NAME"
-USER_APPLICATIONS_DIR="$REAL_USER_HOME/.local/share/applications"
-DESKTOP_FILE="$USER_APPLICATIONS_DIR/${EXEC_NAME}.desktop"
+PKG_NAME="wechat"                 # dpkg package name (from .deb control)
+EXEC_NAME="wechat"                # binary symlinked to /usr/bin by the .deb
+DESKTOP_FILE="/usr/share/applications/wechat.desktop"   # entry shipped by the .deb
+OFFICIAL_PAGE="https://linux.weixin.qq.com/"
+DOWNLOAD_BASE="https://dldir1v6.qq.com/weixin/Universal/Linux"
+DEB_GLOB="WeChatLinux_*.deb"      # Downloads-dir search glob (case-insensitive)
+MIN_DEB_SIZE=50000000            # 50MB sanity floor (real .deb is 180-210MB)
+MANUAL_WAIT_MAX=600              # seconds to wait for a manual download (0=skip)
+WECHAT_ARCH=""                    # x86_64 | arm64 | LoongArch (resolved in main)
+DEB_URL=""                        # official .deb URL (resolved in main)
+RESOLVED_DEB=""                   # path to the .deb to install (set by obtain_*)
+
+# WeChat's UNDECLARED runtime libraries. The .deb declares only the CJK font but
+# dynamically links these system libs; full desktops already have them, lean/
+# minimal ones may not. Each entry lists candidate package names in preference
+# order (t64 name first for Debian13/Kali/Ubuntu24.04, then the pre-t64 name for
+# Debian12/Ubuntu22.04); the first one with an install candidate is used.
+WECHAT_RUNTIME_LIB_GROUPS=(
+    "libnss3" "libnspr4"
+    "libcups2t64 libcups2"
+    "libasound2t64 libasound2"
+    "libpulse0"
+    "libatk1.0-0t64 libatk1.0-0"
+    "libatk-bridge2.0-0t64 libatk-bridge2.0-0"
+    "libatspi2.0-0t64 libatspi2.0-0"
+    "libgtk-3-0t64 libgtk-3-0"
+    "libgbm1" "libdrm2"
+    "libxtst6" "libxcomposite1" "libxdamage1" "libxfixes3" "libxrandr2" "libxrender1"
+    "libxkbcommon0" "libxkbcommon-x11-0"
+    "libxcb-icccm4" "libxcb-image0" "libxcb-keysyms1" "libxcb-render-util0"
+    "libxcb-randr0" "libxcb-shape0" "libxcb-sync1" "libxcb-xfixes0" "libxcb-xkb1"
+    "libgssapi-krb5-2" "libpango-1.0-0" "libcairo2" "libfontconfig1" "libdbus-1-3"
+)
+
+# Install/cache directories (a copy of the .deb is kept here for reuse)
+APPLICATIONS_DIR=$(map_web_path "compile_dir" "applications")
+WECHAT_INSTALL_DIR="$APPLICATIONS_DIR/wechat"
+WECHAT_DEB_DIR="$WECHAT_INSTALL_DIR/deb"
+LEGACY_APPIMAGE_DIR="$APPLICATIONS_DIR/appimages/wechat"   # from the old AppImage installer
 
 # Version tracking
 APP_VERSIONS_DIR="$GLOBAL_VAR_DIR/app_versions"
 VERSION_FILE="$APP_VERSIONS_DIR/wechat.version"
 
-# Real user detection
+# Real user detection (for download location / ownership)
 REAL_USER=$(get_real_user)
 REAL_USER_HOME=$(get_real_user_home)
+REAL_USER_DOWNLOADS=$(get_real_user_downloads)
 REAL_USER_GROUP=$(id -gn "$REAL_USER" 2>/dev/null || echo "$REAL_USER")
 
-# Desktop entry configuration
-DESKTOP_NAME="WeChat"
-DESKTOP_COMMENT="WeChat for Linux"
-DESKTOP_CATEGORIES="Network;InstantMessaging;"
-STARTUP_WM_CLASS="WeChat"
-
-echo "=========================================="
-echo "[$SCRIPT_INDEX] WeChat Installation"
-echo "=========================================="
-echo ""
-
-# Check if desktop environment exists
-if [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
-    print_info_from_common_functions "Non-desktop system detected - skipping WeChat installation"
-    print_info_from_common_functions "WeChat is designed for desktop systems with GUI"
+# Map the running CPU architecture to the official WeChat .deb arch token.
+# Tencent ships x86_64 (amd64), arm64 (aarch64) and LoongArch (.deb only).
+resolve_wechat_arch() {
+    local apt_arch machine
+    apt_arch=$(dpkg --print-architecture 2>/dev/null || echo "")
+    machine=$(uname -m 2>/dev/null || echo "")
+    case "$apt_arch" in
+        amd64)               echo "x86_64";    return 0 ;;
+        arm64)               echo "arm64";     return 0 ;;
+        loong64|loongarch64) echo "LoongArch"; return 0 ;;
+    esac
+    case "$machine" in
+        x86_64|amd64)        echo "x86_64";    return 0 ;;
+        aarch64|arm64)       echo "arm64";     return 0 ;;
+        loongarch64|loong64) echo "LoongArch"; return 0 ;;
+    esac
     echo ""
-    print_success_from_common_functions "Skipping installation automatically"
-    exit 0
-fi
+    return 1
+}
 
-print_info_from_common_functions "Desktop system detected - proceeding with WeChat installation"
-echo ""
+# True when a package is installed (status "install ok installed")
+pkg_is_installed() {
+    dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed"
+}
 
-# Function to get installed version
+# True when a package has an installation candidate in the configured repos
+pkg_has_candidate() {
+    apt-cache policy "$1" 2>/dev/null | grep -q 'Candidate: [^(]'
+}
+
+# Version recorded in a .deb file's control (echo only)
+dpkg_deb_version() {
+    dpkg-deb -f "$1" Version 2>/dev/null
+}
+
+# Version of the currently installed wechat package (echo only)
+get_dpkg_installed_version() {
+    dpkg-query -W -f='${Version}' "$PKG_NAME" 2>/dev/null
+}
+
+# Version recorded by a previous run of this script (echo only)
 get_installed_version() {
     if [ -f "$VERSION_FILE" ]; then
-        cat "$VERSION_FILE" 2>/dev/null
+        grep '^VERSION=' "$VERSION_FILE" 2>/dev/null | cut -d= -f2
     fi
 }
 
-# Function to get version from filename
-# Example: "WeChatLinux_x86_64.AppImage" -> "WeChatLinux_x86_64"
-get_version_from_file() {
-    local filename="$1"
-    local basename_file=$(basename "$filename")
-    local version_string="${basename_file%.*}"
-
-    if [ -n "$version_string" ]; then
-        echo "$version_string"
-        return 0
-    fi
-    return 1
+# True when WeChat is actually installed. Authoritative on dpkg status only:
+# a bare PATH hit can be a stale ~/.local/bin/wechat from the old AppImage
+# installer, which must NOT count as installed (else it suppresses the .deb).
+is_wechat_installed() {
+    pkg_is_installed "$PKG_NAME"
 }
 
-# Function to save installed version
-save_installed_version() {
+# Save installation metadata for idempotency/upgrade decisions
+save_installation_info() {
     local version="$1"
-    mkdir -p "$APP_VERSIONS_DIR"
-    echo "$version" > "$VERSION_FILE"
-    print_info_from_common_functions "Version saved: $version"
+    local pkgfile="$2"
+    $USE_SUDO mkdir -p "$APP_VERSIONS_DIR"
+    cat <<EOF | $USE_SUDO tee "$VERSION_FILE" >/dev/null
+DATE=$(date '+%Y-%m-%d %H:%M:%S')
+VERSION=$version
+ARCH=$WECHAT_ARCH
+PACKAGE=$(basename "$pkgfile")
+URL=$DEB_URL
+EOF
 }
 
-# Function to check if WeChat is installed
-check_wechat_installed() {
-    # Check if AppImage or AppRun exists and is executable
-    if [ -f "$APPIMAGE_FILE" ] && [ -x "$APPIMAGE_FILE" ]; then
-        print_info_from_common_functions "WeChat is already installed"
+# Open a URL in the real user's session (xdg-open as root usually fails).
+open_url_for_user() {
+    local url="$1"
+    command -v xdg-open >/dev/null 2>&1 || return 0
+    if [ "$(id -u)" -eq 0 ] && [ "$REAL_USER" != "root" ] && command -v sudo >/dev/null 2>&1; then
+        sudo -u "$REAL_USER" DISPLAY="${DISPLAY:-:0}" xdg-open "$url" >/dev/null 2>&1 &
+    else
+        xdg-open "$url" >/dev/null 2>&1 &
+    fi
+}
+
+# Install the download tooling and the only declared runtime dependency.
+# WeChat's ONLY apt dependency is the CJK font (fonts-noto-cjk |
+# google-noto-cjk-fonts); apt resolves it during the .deb install, but install it
+# up front so Chinese glyphs render even if the alternative is selected. No
+# library list is hardcoded here (ensure_runtime_libs handles the undeclared ones
+# defensively) - a single static list would fail wholesale on the t64 rename.
+install_dependencies() {
+    print_step_from_common_functions "Ensuring download tools and CJK fonts..."
+    $USE_SUDO apt-get update -qq 2>/dev/null || $USE_SUDO apt-get update || true
+
+    local tool
+    for tool in wget curl ca-certificates; do
+        command -v "$tool" >/dev/null 2>&1 && continue
+        $USE_SUDO apt-get install -y "$tool" || true
+    done
+
+    # Satisfied if EITHER alternative of the declared font dependency is present.
+    if ! pkg_is_installed fonts-noto-cjk && ! pkg_is_installed google-noto-cjk-fonts; then
+        $USE_SUDO apt-get install -y fonts-noto-cjk || true
+    fi
+}
+
+# Best-effort install of WeChat's undeclared runtime libraries (see the
+# WECHAT_RUNTIME_LIB_GROUPS comment). Failure-tolerant: a missing candidate is
+# skipped and never aborts the install.
+ensure_runtime_libs() {
+    print_step_from_common_functions "Ensuring WeChat runtime libraries (best-effort, t64-aware)..."
+    local group cand chosen p
+    local to_install=()
+    for group in "${WECHAT_RUNTIME_LIB_GROUPS[@]}"; do
+        chosen=""
+        for cand in $group; do
+            if pkg_is_installed "$cand"; then
+                chosen=""
+                break
+            fi
+            if pkg_has_candidate "$cand"; then
+                chosen="$cand"
+                break
+            fi
+        done
+        [ -n "$chosen" ] && to_install+=("$chosen")
+    done
+
+    if [ "${#to_install[@]}" -eq 0 ]; then
+        print_info_from_common_functions "Runtime libraries already satisfied"
         return 0
     fi
-    if [ -f "$APPRUN_PATH" ] && [ -x "$APPRUN_PATH" ]; then
-        print_info_from_common_functions "WeChat is already installed"
+
+    print_info_from_common_functions "Installing ${#to_install[@]} runtime libraries: ${to_install[*]}"
+    if ! $USE_SUDO apt-get install -y --no-install-recommends "${to_install[@]}"; then
+        print_warning_from_common_functions "Batch install failed - retrying each library individually"
+        for p in "${to_install[@]}"; do
+            $USE_SUDO apt-get install -y --no-install-recommends "$p" || true
+        done
+    fi
+}
+
+# Resolve the .deb to install into RESOLVED_DEB. Order: existing file in any
+# Downloads dir -> automatic download -> interactive manual download.
+# NOTE: this function is NOT command-substituted (callers read RESOLVED_DEB), so
+# it is free to use print_* helpers.
+obtain_wechat_deb() {
+    print_step_from_common_functions "Locating WeChat .deb package..."
+
+    # Use an existing download ONLY if it passes the integrity check. A stale
+    # 0-byte/partial file from a previously interrupted run would otherwise be
+    # re-discovered every run and block installation forever, so discard it and
+    # fall through to a fresh download.
+    local found
+    found=$(find_file_in_downloads_from_common_functions "$DEB_GLOB" "newest")
+    if [ -n "$found" ] && [ -f "$found" ]; then
+        if check_deb_integrity "$found"; then
+            print_success_from_common_functions "Found in Downloads: $(basename "$found")"
+            RESOLVED_DEB="$found"
+            return 0
+        fi
+        print_warning_from_common_functions "Discarding unusable .deb in Downloads: $found"
+        rm -f "$found" 2>/dev/null || $USE_SUDO rm -f "$found" 2>/dev/null || true
+    fi
+
+    # Resolve a download directory: the real user's Downloads (create it if
+    # missing), else any existing Downloads dir, else /tmp.
+    local dl_dir="$REAL_USER_DOWNLOADS"
+    if [ -z "$dl_dir" ] || [ ! -d "$dl_dir" ]; then
+        if [ -n "$REAL_USER_HOME" ] && [ -d "$REAL_USER_HOME" ]; then
+            dl_dir="$REAL_USER_HOME/Downloads"
+            if [ "$(id -u)" -eq 0 ] && [ "$REAL_USER" != "root" ] && command -v sudo >/dev/null 2>&1; then
+                sudo -u "$REAL_USER" mkdir -p "$dl_dir" 2>/dev/null || mkdir -p "$dl_dir" 2>/dev/null || true
+            else
+                mkdir -p "$dl_dir" 2>/dev/null || true
+            fi
+        fi
+    fi
+    [ -d "$dl_dir" ] || dl_dir=$(find_all_downloads_dirs_from_common_functions 2>/dev/null | head -1)
+    [ -n "$dl_dir" ] && [ -d "$dl_dir" ] || dl_dir="/tmp"
+    local target="$dl_dir/WeChatLinux_${WECHAT_ARCH}.deb"
+
+    print_step_from_common_functions "Downloading official WeChat .deb ($WECHAT_ARCH)..."
+    print_info_from_common_functions "From: $DEB_URL"
+    print_info_from_common_functions "To:   $target"
+
+    # -c lets wget resume if the CDN drops a long download (server supports Range).
+    local dl_ok=false
+    if [ "$(id -u)" -eq 0 ] && [ "$REAL_USER" != "root" ] && [ "$dl_dir" != "/tmp" ] && command -v sudo >/dev/null 2>&1; then
+        # Running as root: download as the real user so the file is user-owned.
+        sudo -u "$REAL_USER" wget -c --tries=3 --timeout=120 --progress=bar:force -O "$target" "$DEB_URL" && dl_ok=true
+    else
+        # Non-root (or /tmp, or sudo missing): download directly.
+        wget -c --tries=3 --timeout=120 --progress=bar:force -O "$target" "$DEB_URL" && dl_ok=true
+        # Edge case (root without sudo): a root-written file in a user dir would
+        # be undeletable by the user and re-discovered next run - hand it back.
+        if [ "$dl_ok" = true ] && [ "$(id -u)" -eq 0 ] && [ "$REAL_USER" != "root" ] && [ "$dl_dir" != "/tmp" ]; then
+            chown "$REAL_USER:$REAL_USER_GROUP" "$target" 2>/dev/null || true
+        fi
+    fi
+
+    # Accept only a plausibly-complete file; otherwise drop the junk so it is not
+    # re-discovered on the next run, then fall through to the manual path.
+    if [ "$dl_ok" = true ] && [ -s "$target" ] \
+        && [ "$(stat -c%s "$target" 2>/dev/null || echo 0)" -ge "$MIN_DEB_SIZE" ]; then
+        print_success_from_common_functions "Downloaded: $(basename "$target")"
+        RESOLVED_DEB="$target"
         return 0
     fi
+    print_warning_from_common_functions "Download failed or produced an incomplete file"
+    rm -f "$target" 2>/dev/null || $USE_SUDO rm -f "$target" 2>/dev/null || true
+
+    # Manual fallback (interactive only). Poll Downloads directly via the
+    # capture-safe finder so progress stays visible (do NOT command-substitute the
+    # interactive prompt helper - it writes its UI to stdout).
+    if [ ! -t 0 ] || [ "$MANUAL_WAIT_MAX" -le 0 ]; then
+        print_error_from_common_functions "Automatic download failed and no interactive manual download is possible"
+        return 1
+    fi
+    print_warning_from_common_functions "Falling back to manual download"
+    print_info_from_common_functions "Opening official page: $OFFICIAL_PAGE"
+    open_url_for_user "$OFFICIAL_PAGE"
+    print_info_from_common_functions "Waiting up to ${MANUAL_WAIT_MAX}s for $DEB_GLOB in any Downloads folder (Ctrl-C to abort)..."
+
+    local waited=0 manual=""
+    while [ "$waited" -lt "$MANUAL_WAIT_MAX" ]; do
+        manual=$(find_file_in_downloads_from_common_functions "$DEB_GLOB" "newest")
+        if [ -n "$manual" ] && [ -f "$manual" ]; then
+            print_success_from_common_functions "Detected manual download: $(basename "$manual")"
+            RESOLVED_DEB="$manual"
+            return 0
+        fi
+        sleep 3
+        waited=$((waited + 3))
+        if [ $((waited % 30)) -eq 0 ]; then
+            print_info_from_common_functions "Still waiting... (${waited}s)"
+        fi
+    done
+
+    print_error_from_common_functions "Timed out waiting for a manual WeChat .deb download"
     return 1
 }
 
-# Function to fix directory permissions for real user
-fix_directory_permissions() {
-    local target_dir="$1"
+# Validate a .deb before installing (size floor, dpkg-deb parse, package name).
+check_deb_integrity() {
+    local deb="$1"
+    local size pkg
 
-    if [ ! -d "$target_dir" ]; then
-        return 0
+    if [ ! -f "$deb" ]; then
+        print_error_from_common_functions ".deb file not found: $deb"
+        return 1
     fi
 
-    print_step_from_common_functions "Fixing permissions for: $target_dir"
-    print_info_from_common_functions "Setting owner to: $REAL_USER:$REAL_USER_GROUP"
-
-    # Change ownership to real user
-    $USE_SUDO chown -R "$REAL_USER:$REAL_USER_GROUP" "$target_dir" 2>/dev/null || {
-        print_warning_from_common_functions "Failed to change ownership, continuing..."
-    }
-
-    # Set permissions: 755 for directories, 644 for files
-    $USE_SUDO find "$target_dir" -type d -exec chmod 755 {} \; 2>/dev/null || true
-    $USE_SUDO find "$target_dir" -type f -exec chmod 644 {} \; 2>/dev/null || true
-
-    # Make AppImage and scripts executable
-    if [ -f "$APPIMAGE_FILE" ]; then
-        $USE_SUDO chmod 755 "$APPIMAGE_FILE"
+    size=$(stat -c%s "$deb" 2>/dev/null || echo 0)
+    if [ "${size:-0}" -lt "$MIN_DEB_SIZE" ]; then
+        print_warning_from_common_functions ".deb too small ($size bytes) - likely a partial download"
+        return 1
     fi
 
-    if [ -f "$APPRUN_PATH" ]; then
-        $USE_SUDO chmod 755 "$APPRUN_PATH"
+    if ! dpkg-deb --info "$deb" >/dev/null 2>&1; then
+        print_warning_from_common_functions ".deb is corrupted (dpkg-deb check failed)"
+        return 1
     fi
 
-    print_success_from_common_functions "Permissions fixed"
+    pkg=$(dpkg-deb -f "$deb" Package 2>/dev/null)
+    if [ -n "$pkg" ] && [ "$pkg" != "$PKG_NAME" ]; then
+        print_warning_from_common_functions "Unexpected package name '$pkg' (expected '$PKG_NAME')"
+        return 1
+    fi
+
+    print_success_from_common_functions ".deb integrity check passed ($(numfmt --to=iec "$size" 2>/dev/null || echo "$size bytes"))"
+    return 0
 }
 
-# Function to install libfuse2 (required for AppImage)
-install_libfuse2() {
-    if ! dpkg -l | grep -q "^ii.*libfuse2"; then
-        print_step_from_common_functions "Installing libfuse2 (required for AppImage)..."
-        $USE_SUDO apt-get update -qq
-        $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            -o Dpkg::Options::="--force-confdef" \
-            -o Dpkg::Options::="--force-confold" \
-            libfuse2 || print_warning_from_common_functions "Failed to install libfuse2"
-    fi
-}
-
-# Function to download WeChat AppImage
-download_wechat_appimage() {
-    print_step_from_common_functions "Downloading WeChat AppImage..."
-
-    # Try to find in Downloads directory first
-    local downloads_file=$(find_file_in_downloads_from_common_functions "WeChatLinux*.AppImage" "newest")
-
-    if [[ -n "$downloads_file" ]] && [[ -f "$downloads_file" ]]; then
-        print_success_from_common_functions "Found WeChat AppImage in Downloads: $downloads_file"
-        $USE_SUDO cp "$downloads_file" "$APPIMAGE_FILE"
-        return 0
-    fi
-
-    # Try automatic download
-    print_info_from_common_functions "Attempting to download from: $DOWNLOAD_URL"
-    if $USE_SUDO wget --progress=bar:force -O "$APPIMAGE_FILE" "$DOWNLOAD_URL" 2>&1; then
-        print_success_from_common_functions "WeChat AppImage downloaded successfully"
-        return 0
-    else
-        print_warning_from_common_functions "Automatic download failed"
-
-        # Prompt user to download manually
-        print_info_from_common_functions "Please download WeChat manually"
-
-        local manual_file=$(prompt_and_wait_for_download_from_common_functions \
-            "$DOWNLOAD_URL" \
-            "WeChatLinux*.AppImage" \
-            0)
-
-        if [[ -z "$manual_file" ]]; then
-            print_error_from_common_functions "Failed to obtain WeChat AppImage"
-            return 1
-        fi
-
-        $USE_SUDO cp "$manual_file" "$APPIMAGE_FILE"
-        print_success_from_common_functions "WeChat AppImage obtained from Downloads"
-        return 0
-    fi
-}
-
-# Function to extract AppImage
-extract_appimage() {
-    print_step_from_common_functions "Extracting WeChat AppImage..."
-
-    $USE_SUDO mkdir -p "$EXTRACTED_DIR"
-
-    # Idempotency: remove any prior extraction so --appimage-extract does not
-    # merge a new WeChat version into a stale squashfs-root from a previous run.
-    $USE_SUDO rm -rf "$EXTRACTED_DIR/squashfs-root"
-
-    cd "$EXTRACTED_DIR" || return 1
-
-    if $USE_SUDO "$APPIMAGE_FILE" --appimage-extract >/dev/null 2>&1; then
-        print_success_from_common_functions "AppImage extracted successfully"
-        cd - >/dev/null
-        return 0
-    else
-        print_warning_from_common_functions "AppImage extraction failed, will use AppImage directly"
-        cd - >/dev/null
-        APPRUN_PATH="$APPIMAGE_FILE"
-        return 0
-    fi
-}
-
-# Function to fix chrome-sandbox permissions (critical for Electron apps)
-fix_chrome_sandbox_permissions() {
-    if [ ! -d "$EXTRACTED_DIR/squashfs-root" ]; then
-        return 0
-    fi
-
-    print_step_from_common_functions "Fixing chrome-sandbox permissions..."
-
-    local chrome_sandbox_paths=(
-        "$EXTRACTED_DIR/squashfs-root/chrome-sandbox"
-        "$EXTRACTED_DIR/squashfs-root/usr/lib/chrome-sandbox"
-    )
-
-    # Find chrome-sandbox in opt directories
-    for sandbox_pattern in "$EXTRACTED_DIR/squashfs-root/opt/"*"/chrome-sandbox"; do
-        if [ -f "$sandbox_pattern" ]; then
-            chrome_sandbox_paths+=("$sandbox_pattern")
-        fi
+# Remove artifacts left by the previous AppImage-based version of this installer
+# so a stale ~/.local/bin/wechat symlink does not shadow the .deb's /usr/bin/wechat.
+# Scoped to symlinks that clearly point into our old AppImage tree (uses plain
+# readlink on the immediate target so unrelated dangling links are NOT touched).
+cleanup_legacy_appimage_install() {
+    local home_dir symlink tgt
+    local homes=()
+    [ -n "$REAL_USER_HOME" ] && homes+=("$REAL_USER_HOME")
+    for home_dir in /home/* /root; do
+        [ -d "$home_dir" ] || continue
+        case " ${homes[*]} " in *" $home_dir "*) ;; *) homes+=("$home_dir") ;; esac
     done
 
-    local fixed_count=0
-    for sandbox_path in "${chrome_sandbox_paths[@]}"; do
-        if [ -f "$sandbox_path" ]; then
-            print_info_from_common_functions "Fixing: $sandbox_path"
-            $USE_SUDO chown root:root "$sandbox_path" 2>/dev/null || true
-            $USE_SUDO chmod 4755 "$sandbox_path" 2>/dev/null || true
-            ((fixed_count++))
-        fi
+    for home_dir in "${homes[@]}"; do
+        symlink="$home_dir/.local/bin/wechat"
+        [ -L "$symlink" ] || continue
+        tgt=$(readlink "$symlink" 2>/dev/null || echo "")
+        case "$tgt" in
+            "$LEGACY_APPIMAGE_DIR"/*|"$APPLICATIONS_DIR"/appimages/*)
+                print_step_from_common_functions "Removing stale legacy symlink: $symlink"
+                rm -f "$symlink" 2>/dev/null || $USE_SUDO rm -f "$symlink" 2>/dev/null || true
+                ;;
+        esac
     done
 
-    if [ $fixed_count -gt 0 ]; then
-        print_success_from_common_functions "Fixed $fixed_count chrome-sandbox file(s)"
+    if [ -d "$LEGACY_APPIMAGE_DIR" ]; then
+        print_step_from_common_functions "Removing legacy AppImage tree: $LEGACY_APPIMAGE_DIR"
+        $USE_SUDO rm -rf "$LEGACY_APPIMAGE_DIR" 2>/dev/null || true
     fi
 }
 
-# Function to create user-level symlink (optional, for terminal access)
-create_user_symlink() {
-    print_step_from_common_functions "Creating user-level symlink..."
+# Install the local .deb. Install through apt so the package's Depends
+# (fonts-noto-cjk | google-noto-cjk-fonts) resolve automatically across
+# Debian/Ubuntu/Kali; fall back to dpkg + `apt-get install -f` on failure.
+install_deb_package() {
+    local deb="$1"
+    local name installed
 
-    # Ensure REAL_USER_HOME is set
-    if [ -z "$REAL_USER_HOME" ] || [ ! -d "$REAL_USER_HOME" ]; then
-        print_warning_from_common_functions "Real user home not found, skipping user symlink"
+    $USE_SUDO mkdir -p "$WECHAT_DEB_DIR"
+    name=$(basename "$deb")
+    installed="$WECHAT_DEB_DIR/$name"
+
+    if [ "$deb" != "$installed" ]; then
+        print_step_from_common_functions "Copying .deb to $WECHAT_DEB_DIR"
+        $USE_SUDO cp -f "$deb" "$installed"
+    fi
+
+    print_step_from_common_functions "Installing $name (apt resolves dependencies)..."
+    if $USE_SUDO apt-get install -y "$installed"; then
+        print_success_from_common_functions "WeChat installed via apt"
         return 0
     fi
 
-    # Create user bin directory if it doesn't exist
-    if [ ! -d "$USER_BIN_DIR" ]; then
-        mkdir -p "$USER_BIN_DIR" 2>/dev/null || {
-            print_warning_from_common_functions "Failed to create $USER_BIN_DIR, skipping user symlink"
-            return 0
-        }
-        # Set ownership to real user
-        chown "$REAL_USER:$REAL_USER_GROUP" "$USER_BIN_DIR" 2>/dev/null || true
-    fi
-
-    # Determine target executable
-    local exec_target=""
-    if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
-        exec_target="$APPRUN_PATH"
-    else
-        exec_target="$APPIMAGE_FILE"
-    fi
-
-    # Create symlink
-    ln -sf "$exec_target" "$USER_SYMLINK" 2>/dev/null || {
-        print_warning_from_common_functions "Failed to create user symlink, but installation can continue"
+    print_warning_from_common_functions "apt install failed - retrying with dpkg + dependency fix"
+    $USE_SUDO dpkg -i "$installed" || true
+    $USE_SUDO apt-get install -f -y || true
+    if $USE_SUDO dpkg -i "$installed"; then
+        print_success_from_common_functions "WeChat installed via dpkg after dependency fix"
         return 0
-    }
+    fi
 
-    # Set ownership to real user
-    chown -h "$REAL_USER:$REAL_USER_GROUP" "$USER_SYMLINK" 2>/dev/null || true
-
-    print_success_from_common_functions "User symlink created: $USER_SYMLINK"
-    print_info_from_common_functions "You can run 'wechat' from terminal (after adding ~/.local/bin to PATH)"
+    print_error_from_common_functions "Failed to install $name"
+    return 1
 }
 
-# Function to find icon
-find_icon() {
-    local icon_path="$EXEC_NAME"
+# WeChat embeds a Chromium-based runtime whose sandbox needs unprivileged user
+# namespaces. Debian 13 / Kali / Ubuntu 24.04 restrict these by default, so the
+# app fails to start. When a restriction is detected, add --no-sandbox to the
+# .deb-provided desktop entry (idempotent; left enabled on permissive kernels).
+ensure_sandbox_launch_compat() {
+    local restricted=0 v
 
-    if [ -d "$EXTRACTED_DIR/squashfs-root" ]; then
-        # Try to find icon in multiple common locations
-        local found_icon=$(find "$EXTRACTED_DIR/squashfs-root" \
-            \( -name "${EXEC_NAME}.png" -o -name "${EXEC_NAME}.svg" -o -name "icon.png" -o -name "wechat.png" -o -name "*.png" \) \
-            -type f 2>/dev/null | head -1)
+    v=$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo "")
+    [ "$v" = "1" ] && restricted=1
+    v=$(cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || echo "")
+    [ "$v" = "0" ] && restricted=1
+    v=$(cat /proc/sys/user/max_user_namespaces 2>/dev/null || echo "")
+    [ -n "$v" ] && [ "$v" = "0" ] && restricted=1
 
-        if [ -n "$found_icon" ]; then
-            icon_path="$found_icon"
-            print_info_from_common_functions "Using icon: $icon_path"
-        fi
+    if [ "$restricted" != "1" ]; then
+        print_info_from_common_functions "Kernel permits the Chromium sandbox - leaving it enabled"
+        return 0
+    fi
+    [ -f "$DESKTOP_FILE" ] || return 0
+    if grep -q -- '--no-sandbox' "$DESKTOP_FILE"; then
+        print_info_from_common_functions "Sandbox workaround already present in wechat.desktop"
+        return 0
     fi
 
-    echo "$icon_path"
+    print_step_from_common_functions "Restricted user namespaces detected - adding --no-sandbox to wechat.desktop"
+    $USE_SUDO sed -i -E '/^Exec=\/usr\/bin\/wechat/ { /--no-sandbox/! s#^Exec=/usr/bin/wechat#Exec=/usr/bin/wechat --no-sandbox# }' "$DESKTOP_FILE"
 }
 
-# Function to clean up old desktop entries (both root and non-root directories)
-cleanup_old_desktop_entries() {
-    print_step_from_common_functions "Cleaning up old WeChat desktop entries..."
-
-    local desktop_files_removed=0
-    local search_paths=(
-        "/usr/share/applications"
-        "/usr/local/share/applications"
-    )
-
-    # Add user directories (both current user and real user)
-    if [ -n "$REAL_USER_HOME" ] && [ -d "$REAL_USER_HOME" ]; then
-        search_paths+=("$REAL_USER_HOME/.local/share/applications")
-    fi
-
-    if [ -n "$HOME" ] && [ "$HOME" != "$REAL_USER_HOME" ]; then
-        search_paths+=("$HOME/.local/share/applications")
-    fi
-
-    # Add root's home directory
-    if [ -d "/root/.local/share/applications" ]; then
-        search_paths+=("/root/.local/share/applications")
-    fi
-
-    # Find and remove all WeChat desktop files
-    for search_path in "${search_paths[@]}"; do
-        if [ ! -d "$search_path" ]; then
-            continue
-        fi
-
-        # Find all wechat desktop files (including core_node_ prefixed ones)
-        local desktop_files=()
-        while IFS= read -r -d '' desktop_file; do
-            desktop_files+=("$desktop_file")
-        done < <(find "$search_path" -maxdepth 1 \( -name "*wechat*.desktop" -o -name "*WeChat*.desktop" \) -type f -print0 2>/dev/null)
-
-        # Remove each desktop file
-        for desktop_file in "${desktop_files[@]}"; do
-            print_info_from_common_functions "Removing old desktop entry: $desktop_file"
-            if [ -w "$desktop_file" ]; then
-                rm -f "$desktop_file" 2>/dev/null && ((desktop_files_removed++))
-            else
-                $USE_SUDO rm -f "$desktop_file" 2>/dev/null && ((desktop_files_removed++))
-            fi
-        done
-    done
-
-    if [ $desktop_files_removed -gt 0 ]; then
-        print_success_from_common_functions "Removed $desktop_files_removed old desktop entry/entries"
-    else
-        print_info_from_common_functions "No old desktop entries found"
-    fi
-
-    # Update desktop database
+# Refresh the desktop database so the .deb-provided menu entry shows up.
+update_desktop_db() {
     if command -v update-desktop-database >/dev/null 2>&1; then
-        for search_path in "${search_paths[@]}"; do
-            if [ -d "$search_path" ]; then
-                if [ -w "$search_path" ]; then
-                    update-desktop-database "$search_path" 2>/dev/null || true
-                else
-                    $USE_SUDO update-desktop-database "$search_path" 2>/dev/null || true
-                fi
-            fi
-        done
-        print_info_from_common_functions "Desktop database updated"
+        $USE_SUDO update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
     fi
 }
 
-# Function to create desktop entry
-create_desktop_entry() {
-    # Clean up old desktop entries first
-    cleanup_old_desktop_entries
-
-    print_step_from_common_functions "Creating desktop entry via desktop_shortcut_manager..."
-
-    local icon_path=$(find_icon)
-
-    # Determine exec target
-    local exec_target=""
-    if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
-        exec_target="$APPRUN_PATH"
-    else
-        exec_target="$APPIMAGE_FILE"
+# Decide whether to (re)install. Returns 0 to proceed, 1 to keep existing.
+prompt_update_or_skip() {
+    if ! is_wechat_installed; then
+        return 0
     fi
 
-    # Write a single system-wide menu entry (/usr/share/applications -> all users,
-    # all desktop environments) plus an executable+trusted icon on every desktop.
-    create_desktop_shortcut_from_desktop_shortcut_manager \
-        --id "$EXEC_NAME" \
-        --name "$DESKTOP_NAME" \
-        --exec "$exec_target" \
-        --icon "$icon_path" \
-        --comment "$DESKTOP_COMMENT" \
-        --generic "$DESKTOP_NAME" \
-        --categories "$DESKTOP_CATEGORIES" \
-        --keywords "wechat;weixin;chat;messaging;" \
-        --startup-wmclass "$STARTUP_WM_CLASS" \
-        --extra "StartupNotify=true" \
-        --desktop all
+    local cur
+    cur=$(get_dpkg_installed_version)
+    [ -z "$cur" ] && cur=$(get_installed_version)
+    print_info_from_common_functions "WeChat is already installed${cur:+ (version $cur)}"
 
-    print_success_from_common_functions "Desktop entry created via desktop_shortcut_manager"
-}
-
-# Function to repair installation (fix icons, links, etc.)
-repair_installation() {
-    print_step_from_common_functions "Repairing WeChat installation..."
-
-    # Recreate user symlink if missing or broken
-    if [ ! -L "$USER_SYMLINK" ] || [ ! -e "$USER_SYMLINK" ]; then
-        create_user_symlink
+    if [ ! -t 0 ]; then
+        print_info_from_common_functions "Non-interactive shell - keeping existing installation"
+        return 1
     fi
 
-    # Recreate/update desktop entry
-    create_desktop_entry
-
-    # Fix permissions
-    fix_chrome_sandbox_permissions
-
-    print_success_from_common_functions "Installation repaired successfully"
+    local response
+    echo -n "Update / reinstall WeChat? [Y/n]: "
+    read -r response
+    case "$response" in
+        [nN] | [nN][oO])
+            print_info_from_common_functions "Keeping existing installation"
+            return 1
+            ;;
+        *)
+            print_info_from_common_functions "Proceeding with update/reinstall..."
+            return 0
+            ;;
+    esac
 }
 
 # Main installation logic
 main() {
-    print_step_from_common_functions "Starting WeChat installation process..."
-    echo ""
+    print_header_from_common_functions "[$SCRIPT_INDEX] $APP_NAME for Linux Installation"
 
-    print_info_from_common_functions "Real user detected: $REAL_USER"
-    print_info_from_common_functions "Real user home: $REAL_USER_HOME"
-    echo ""
-
-    # Check if already installed and get version
-    local is_installed=false
-    local installed_version=""
-
-    if check_wechat_installed; then
-        is_installed=true
-        installed_version=$(get_installed_version)
-
-        if [ -n "$installed_version" ]; then
-            print_info_from_common_functions "WeChat is already installed"
-            print_info_from_common_functions "Installed version: $installed_version"
-        else
-            print_info_from_common_functions "WeChat is already installed (version unknown)"
-        fi
-
-        # Ask user if they want to update
-        echo ""
-        print_step_from_common_functions "Do you want to update/repair WeChat installation? (Y/n)"
-        read -r -p "Update? [Y/n]: " response
-        response=${response:-Y}
-
-        if [[ ! "$response" =~ ^[Yy]$ ]]; then
-            print_info_from_common_functions "Skipping update/repair"
-
-            # Still fix permissions
-            print_step_from_common_functions "Fixing permissions for existing installation..."
-            fix_directory_permissions "$INSTALL_DIR"
-
-            echo ""
-            print_success_from_common_functions "WeChat installation verified"
-            exit 0
-        fi
-
-        print_info_from_common_functions "Proceeding with update/repair..."
-        echo ""
+    # WeChat is a GUI app - skip on headless servers.
+    if [ "$HAS_DESKTOP_ENVIRONMENT" != "true" ]; then
+        print_info_from_common_functions "No desktop environment detected - skipping $APP_NAME (GUI application)"
+        exit 0
     fi
 
-    # Install dependencies
-    install_libfuse2
+    # Resolve architecture -> official .deb URL.
+    WECHAT_ARCH=$(resolve_wechat_arch)
+    if [ -z "$WECHAT_ARCH" ]; then
+        print_error_from_common_functions "Unsupported CPU architecture: $(uname -m)"
+        print_error_from_common_functions "Official WeChat .deb supports x86_64, arm64 and LoongArch only"
+        exit 1
+    fi
+    DEB_URL="$DOWNLOAD_BASE/WeChatLinux_${WECHAT_ARCH}.deb"
 
-    # Create directory structure
-    $USE_SUDO mkdir -p "$INSTALL_DIR"
-    $USE_SUDO mkdir -p "$EXTRACTED_DIR"
+    print_info_from_common_functions "Distro:     ${OS_NAME:-$OS_ID} ${OS_VERSION_ID}"
+    print_info_from_common_functions "Arch:       $WECHAT_ARCH"
+    print_info_from_common_functions "Package:    $DEB_URL"
+    print_info_from_common_functions "Real user:  $REAL_USER ($REAL_USER_HOME)"
 
-    # Download or use existing AppImage
-    if [ ! -f "$APPIMAGE_FILE" ] || [ ! -s "$APPIMAGE_FILE" ]; then
-        if ! download_wechat_appimage; then
-            print_error_from_common_functions "Failed to download WeChat AppImage"
-            exit 1
-        fi
-    else
-        print_info_from_common_functions "Using existing AppImage: $APPIMAGE_FILE"
+    if ! prompt_update_or_skip; then
+        exit 0
     fi
 
-    # Make executable
-    $USE_SUDO chmod +x "$APPIMAGE_FILE"
+    install_dependencies
 
-    # Extract AppImage
-    extract_appimage
-
-    # Fix permissions
-    fix_chrome_sandbox_permissions
-
-    # Create user-level symlink (optional)
-    create_user_symlink
-
-    # Create desktop entry
-    create_desktop_entry
-
-    # Fix all permissions for real user
-    print_step_from_common_functions "Fixing final permissions..."
-    fix_directory_permissions "$INSTALL_DIR"
-
-    # Save installed version
-    local new_version=$(get_version_from_file "$APPIMAGE_FILE")
-    if [ -n "$new_version" ]; then
-        save_installed_version "$new_version"
-    else
-        # Fallback: use timestamp as version
-        save_installed_version "$(date +%Y%m%d-%H%M%S)"
+    if ! obtain_wechat_deb; then
+        print_error_from_common_functions "Could not obtain the WeChat .deb package"
+        exit 1
     fi
+
+    if ! check_deb_integrity "$RESOLVED_DEB"; then
+        print_error_from_common_functions ".deb integrity check failed: $RESOLVED_DEB"
+        exit 1
+    fi
+
+    if ! install_deb_package "$RESOLVED_DEB"; then
+        exit 1
+    fi
+
+    # The .deb is in place: now retire the old AppImage-based install (only after
+    # success, so a failed install never leaves the user with nothing).
+    cleanup_legacy_appimage_install
+
+    # Pull the undeclared runtime libraries and apply the sandbox workaround.
+    ensure_runtime_libs
+    ensure_sandbox_launch_compat
+    update_desktop_db
+
+    if ! is_wechat_installed; then
+        print_error_from_common_functions "Install finished but '$EXEC_NAME' is not registered with dpkg"
+        exit 1
+    fi
+
+    # Record the installed version.
+    local ver
+    ver=$(dpkg_deb_version "$RESOLVED_DEB")
+    [ -z "$ver" ] && ver=$(get_dpkg_installed_version)
+    save_installation_info "${ver:-unknown}" "$RESOLVED_DEB"
 
     echo ""
     print_success_from_common_functions "=========================================="
-    print_success_from_common_functions "WeChat Installation Completed Successfully"
+    print_success_from_common_functions "$APP_NAME Installation Completed"
     print_success_from_common_functions "=========================================="
+    print_info_from_common_functions "  Version:  ${ver:-unknown}"
+    print_info_from_common_functions "  Arch:     $WECHAT_ARCH"
+    print_info_from_common_functions "  Binary:   $(command -v "$EXEC_NAME" 2>/dev/null || echo /usr/bin/$EXEC_NAME)"
+    print_info_from_common_functions "  Package:  $WECHAT_DEB_DIR/$(basename "$RESOLVED_DEB")"
     echo ""
-    print_info_from_common_functions "Installation Details:"
-    print_info_from_common_functions "  AppImage: $APPIMAGE_FILE"
-    if [ -f "$APPRUN_PATH" ] && [ "$APPRUN_PATH" != "$APPIMAGE_FILE" ]; then
-        print_info_from_common_functions "  AppRun: $APPRUN_PATH"
-    fi
-    if [ -L "$USER_SYMLINK" ]; then
-        print_info_from_common_functions "  User symlink: $USER_SYMLINK"
-    fi
-    print_info_from_common_functions "  Desktop entry: $DESKTOP_FILE"
-    print_info_from_common_functions "  Owner: $REAL_USER:$REAL_USER_GROUP (non-root)"
-    if [ -n "$new_version" ]; then
-        print_info_from_common_functions "  Version: $new_version"
-    fi
-    echo ""
-    print_info_from_common_functions "You can now launch WeChat from:"
-    print_info_from_common_functions "  - Application menu"
-    if [ -L "$USER_SYMLINK" ]; then
-        print_info_from_common_functions "  - Terminal: wechat (if ~/.local/bin is in PATH)"
-    fi
+    print_info_from_common_functions "Launch $APP_NAME from the application menu or run: $EXEC_NAME"
     echo ""
 }
 
-# Run main function
-main
+main "$@"

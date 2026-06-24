@@ -25,6 +25,8 @@ export enum ViewType {
   /** AI Management — laravel_main's unified AI gateway (provider grid, live
    *  rate/quota meters, gateway records, chat test). */
   AI_MANAGEMENT = 'ai_management',
+  /** AI Dev History — extracted Claude/Codex/Gemini/Cursor prompts & sessions. */
+  DEV_HISTORY = 'dev_history',
   INVITE_CODE_MANAGER = 'invite_codes',
   /** Database Viewer was merged into DATABASE_MANAGER (Tables tab); the old
    *  #/db-viewer slug deep-links there via core/routing/viewRoute.ts. */
@@ -51,7 +53,7 @@ export interface FileNode {
   path?: string;
   /** Raw directory flag carried through from the browse payload. */
   is_directory?: boolean;
-  fileType?: 'video' | 'audio' | 'image' | 'code' | 'text' | 'pdf' | 'markdown' | 'doc' | 'unknown';
+  fileType?: 'video' | 'audio' | 'image' | 'code' | 'text' | 'pdf' | 'epub' | 'markdown' | 'doc' | 'unknown';
   size?: string | number;
   date?: string;
   children?: FileNode[];

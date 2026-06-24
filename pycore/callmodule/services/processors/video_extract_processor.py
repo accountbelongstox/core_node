@@ -35,7 +35,7 @@ from typing import Any, Callable, Dict, List, Optional
 from pycore import ColorPrint
 # Movie/TV poster fetch (TMDB -> OMDB). Best-effort per video: parse title+year
 # from the original filename, fetch a poster, save it into the output dir.
-# Canonical: development-guides/MOVIE_POSTER_PIPELINE.md. This module only imports
+# Canonical: poly_apps/laravel_main/docs/MOVIE_POSTER_PIPELINE.md. This module only imports
 # pyfoundations + the translator (no cycle back into this processor).
 from pycore.pyutils.external_apis.movie_poster_client import (
     find_poster,

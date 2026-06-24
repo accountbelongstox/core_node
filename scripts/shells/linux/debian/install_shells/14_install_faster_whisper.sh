@@ -176,7 +176,10 @@ if has_cuda && py_has_module nvidia.cublas && py_has_module nvidia.cudnn && [[ "
     echo "[OK] GPU runtime libs (cublas/cudnn) already present; skipping."
 elif has_cuda; then
     echo "[..] NVIDIA GPU detected -> pip install nvidia-cublas-cu12 nvidia-cudnn-cu12==9.* ..."
-    # Install the CUDA/nvidia wheels INTO the shared venv (no PEP668 escape flags).
+    # Install the CUDA/nvidia wheels INTO the shared venv (no PEP668 escape flags). CTranslate2
+    # (faster-whisper's backend) needs cuDNN 9.x. This branch only runs when cudnn is ABSENT
+    # (the gate above), so a cuDNN already pulled in by torch is REUSED, not replaced — the
+    # ==9.* major pin just avoids grabbing an incompatible cuDNN on a clean GPU host.
     GPU_ARGS=('nvidia-cublas-cu12' 'nvidia-cudnn-cu12==9.*')
     echo "[run] $PYTHON -m pip install ${GPU_ARGS[*]}"
     if ! vpip "$PYTHON" -m pip install "${GPU_ARGS[@]}"; then

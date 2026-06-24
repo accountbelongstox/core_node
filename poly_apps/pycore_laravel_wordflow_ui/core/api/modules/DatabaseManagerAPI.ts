@@ -1,4 +1,5 @@
 import { BaseAPI } from '../base/BaseAPI';
+import { getDefaultBaseURL } from '../../../config/constants';
 
 /**
  * DatabaseManagerAPI
@@ -391,8 +392,21 @@ export interface AuthDebugStatus {
 }
 
 export class AuthDebugAPI extends BaseAPI {
-  /** GET /debug-status (no auth) — loopback debug-bypass probe. */
+  /**
+   * GET /debug-status (no auth) — loopback debug-bypass probe.
+   *
+   * The bypass is purely about SAME-MACHINE access, so this probe must hit the
+   * page-origin host on the API port (getDefaultBaseURL), NOT the shared base
+   * URL. The shared base URL can be repointed to a LAN IP / remote endpoint by
+   * ApiManager's background health failover; if the probe followed it, Laravel
+   * would see a non-loopback client and report debug_mode:false even though the
+   * user is genuinely local — the root cause of "auto-login fails in dev". By
+   * pinning to getDefaultBaseURL() the probe is failover-proof: opened on
+   * 127.0.0.1 -> probes 127.0.0.1:9000 -> loopback -> bypass; opened on a LAN
+   * IP -> probes that host -> remote -> login required (correct).
+   */
   async getDebugStatus(): Promise<AuthDebugStatus | null> {
+    this.baseURL = getDefaultBaseURL();
     const res = await this.get<AuthDebugStatus>('debug-status', undefined, false, 0, false);
     if (!res.success || !res.data) return null;
     return res.data as AuthDebugStatus;

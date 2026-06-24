@@ -1,108 +1,48 @@
 #!/bin/bash
-# Install Pycore HTTP Module Caller Service
+# Install the Pycore Module Caller service.
+#
+# CONVERGENCE: this previously created a SECOND systemd unit ("pycore-module-caller",
+# User=root, ExecStart=`python pycore/pycore_module_caller.py` directly) that competed with
+# the canonical "pycore" unit from common/pycore_service.sh for port 59000 AND ran the worker
+# with a different user + Python env (no PYTHONUSERBASE/PIP policy, no prepare step) — so
+# which torch the worker imported and where packages installed depended on which installer
+# was used. There must be ONE service definition, so this now DELEGATES to
+# common/pycore_service.sh (unit: "pycore", ExecStart=`pyservice.sh run --no-ui --no-install`,
+# real desktop user) and removes the legacy "pycore-module-caller" unit if present.
 
 set -e
 
+# --- Variable declarations (rule 5) -------------------------------------- #
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+PYCORE_SERVICE_HELPER="$PARENT_DIR_LEVEL_2/common/pycore_service.sh"
+LEGACY_UNIT="pycore-module-caller"
+SUDO=""
 
-source "$PARENT_DIR_LEVEL_2/common/debian_service_manager.sh"
-source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
-
-SERVICE_NAME="pycore-module-caller"
-SERVICE_DESCRIPTION="Pycore Module Caller FastAPI Service"
-SERVICE_PORT=59000
-# The RPC entrypoint lives under the pycore package (run from repo root with
-# PYTHONPATH=root, i.e. `python pycore/pycore_module_caller.py`). There is NO copy at
-# the repo root, so the previous "${ROOT}/pycore_module_caller.py" path failed the
-# existence check below and the service was never installed (-> nothing on :59000).
-SERVICE_SCRIPT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pycore/pycore_module_caller.py"
-SERVICE_WORKING_DIR="$CORE_NODE_ROOT_FROM_SCRIPTS"
-SERVICE_USER="root"
-# IMPORTANT: Use /usr/local/bin/python (venv) instead of /usr/bin/python3 (system)
-# This ensures the service runs with venv Python that has all required packages
-SERVICE_EXEC="PYTHONPATH=${CORE_NODE_ROOT_FROM_SCRIPTS} /usr/local/bin/python $SERVICE_SCRIPT"
-
-echo "Installing $SERVICE_DESCRIPTION..."
-echo "  Port: $SERVICE_PORT"
-echo "  Script: $SERVICE_SCRIPT"
-echo "  Service File: /etc/systemd/system/$SERVICE_NAME.service"
-echo ""
-# Only prompt on a real terminal; the install workflow runs unattended (Enter=Yes).
-if [ -t 0 ]; then
-    read -p "Continue installation? [Y/n]: " -r
-    REPLY=${REPLY:-Y}
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Installation cancelled"
-        exit 0
-    fi
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
 fi
 
-echo ""
-echo "=== Service File Content ==="
-cat <<EOF
+echo "Installing the Pycore Module Caller service (canonical 'pycore' unit on port 59000)..."
 
-[Unit]
-Description=$SERVICE_DESCRIPTION
-After=network.target
+# Retire the legacy duplicate unit so two services don't fight over :59000 with divergent
+# user/env. Safe no-op when it was never installed.
+if command -v systemctl >/dev/null 2>&1 \
+   && systemctl list-unit-files 2>/dev/null | grep -q "^${LEGACY_UNIT}\.service"; then
+    echo "[150] Removing legacy duplicate unit '${LEGACY_UNIT}' ..."
+    $SUDO systemctl stop "$LEGACY_UNIT" 2>/dev/null || true
+    $SUDO systemctl disable "$LEGACY_UNIT" 2>/dev/null || true
+    $SUDO rm -f "/etc/systemd/system/${LEGACY_UNIT}.service" 2>/dev/null || true
+    $SUDO systemctl daemon-reload 2>/dev/null || true
+fi
 
-[Service]
-Type=simple
-User=root
-WorkingDirectory=$SERVICE_WORKING_DIR
-ExecStart=$SERVICE_EXEC
-Restart=always
-RestartSec=10s
-StandardOutput=journal
-StandardError=journal
-
-Environment="PYTHONPATH=$SERVICE_WORKING_DIR"
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-[Install]
-WantedBy=multi-user.target
-
-EOF
-echo "============================"
-echo ""
-
-if [ ! -f "$SERVICE_SCRIPT" ]; then
-    echo "Error: Service script not found at $SERVICE_SCRIPT"
+if [ ! -f "$PYCORE_SERVICE_HELPER" ]; then
+    echo "Error: canonical service helper not found at $PYCORE_SERVICE_HELPER" >&2
     exit 1
 fi
 
-create_systemd_service \
-    "$SERVICE_NAME" \
-    "$SERVICE_DESCRIPTION" \
-    "$SERVICE_EXEC" \
-    "$SERVICE_WORKING_DIR" \
-    "$SERVICE_USER"
+# Delegate to the single source of truth for the pycore systemd unit.
+bash "$PYCORE_SERVICE_HELPER" install
 
-systemctl daemon-reload
-systemctl is-enabled --quiet "$SERVICE_NAME.service" 2>/dev/null || systemctl enable "$SERVICE_NAME.service"
-systemctl restart "$SERVICE_NAME.service"
-
-sleep 3
-
-# Check service status
-if systemctl is-active --quiet "$SERVICE_NAME.service"; then
-    echo "�?Pycore FastAPI service started successfully"
-    echo "  Service: $SERVICE_NAME"
-    echo "  Port: $SERVICE_PORT"
-    echo "  Health: http://127.0.0.1:$SERVICE_PORT/health"
-    echo "  API Docs: http://127.0.0.1:$SERVICE_PORT/docs"
-
-    # Test health endpoint
-    if curl -s "http://127.0.0.1:$SERVICE_PORT/health" > /dev/null 2>&1; then
-        echo "�?Health check passed"
-    else
-        echo "�?Health check failed"
-    fi
-else
-    echo "�?Failed to start Pycore FastAPI service"
-    systemctl status "$SERVICE_NAME.service" --no-pager
-    exit 1
-fi
-
-echo "Installation complete!"
+echo "Installation complete (unit: pycore, port 59000)."

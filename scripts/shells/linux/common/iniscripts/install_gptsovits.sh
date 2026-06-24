@@ -50,6 +50,10 @@ resolve_python() {
     return 1
 }
 . "$SCRIPT_DIR/../base_libs/lib_gpu.sh"   # provides gpu_present() (canonical: CUDADetector)
+# Driver-matched CUDA wheel index (single source of truth) so the GPU torch install never
+# grabs the default "latest" wheel (e.g. cu130) that a 12.4 driver can't run.
+. "$SCRIPT_DIR/../base_libs/torch_cuda_index.sh"
+command -v torch_cuda_index_url >/dev/null 2>&1 || torch_cuda_index_url() { printf '%s' "https://download.pytorch.org/whl/cu124"; }
 # Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
 PIPLOCK_LIB="$SCRIPT_DIR/../base_libs/pip_lock.sh"
 [ -f "$PIPLOCK_LIB" ] && . "$PIPLOCK_LIB"
@@ -74,8 +78,9 @@ if [[ -f "$TARGET_DIR/api_v2.py" && -f "$SENTINEL" && "$FORCE" -eq 0 ]]; then
     exit 0
 fi
 # OPT-IN: a fresh install clones the repo and pip-installs its requirements.txt, which
-# pins an OLD transformers and would downgrade the shared venv (5.x, used by the LLM
-# stack). So install ONLY when explicitly requested (--full / GPTSOVITS_INSTALL=1).
+# pins an OLD transformers and would downgrade the shared venv (4.46.3 via
+# LLM_TRANSFORMERS_SPEC, used by the LLM stack). So install ONLY when explicitly
+# requested (--full / GPTSOVITS_INSTALL=1).
 if [[ "$DO_FULL" -eq 0 ]]; then
     echo "[install_gptsovits] [i] opt-in only -> NOT installing. Pass --full or GPTSOVITS_INSTALL=1 to install (clones repo + pins an old transformers). Skipping."
     exit 0
@@ -107,8 +112,9 @@ if [[ -f "$DEPS_SENTINEL" && "$FORCE" -eq 0 ]]; then
     echo "[install_gptsovits] [OK] dependencies already installed (.deps_done) -> skipping pip."
 else
     if gpu_present; then
-        echo "[install_gptsovits] [..] ensuring torch (CUDA build) ..."
-        pip_i torch torchaudio || true
+        _gsv_torch_idx="$(torch_cuda_index_url)"
+        echo "[install_gptsovits] [..] ensuring torch (driver-matched CUDA build: $_gsv_torch_idx) ..."
+        pip_i torch torchaudio --index-url "$_gsv_torch_idx" || true
     else
         echo "[install_gptsovits] [..] ensuring torch (CPU build) ..."
         vpip "$PYTHON" -m pip install --break-system-packages --index-url https://download.pytorch.org/whl/cpu torch torchaudio 2>/dev/null \

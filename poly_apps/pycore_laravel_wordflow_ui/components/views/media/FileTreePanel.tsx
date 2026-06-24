@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom';
 import BentoCard from '../../BentoCard';
 import { FileNode, Language } from '../../../types';
 import { api } from '../../../core/api';
+import { useUser } from '../../../hooks/useUser';
+import { isDebugAuthBypass } from '../../../config/auth';
 import { smartSortFiles } from '../../../utils/mediaUtils';
 import { UploadItem, classifyUploadType } from './uploadProgress';
 import UploadProgressCard from './UploadProgressCard';
@@ -10,7 +12,7 @@ import {
     Folder, FolderOpen, FileVideo, File, ChevronRight, ChevronDown,
     RefreshCw, Film, UploadCloud, FolderPlus, Music,
     Image as ImageIcon, Code2, AlertCircle, X, FileText, Loader2,
-    Pencil, Trash2, Download, FileType
+    Pencil, Trash2, Download, FileType, BookOpen, Lock
 } from "lucide-react";
 
 const FileTreeItem: React.FC<{
@@ -105,6 +107,8 @@ const FileTreeItem: React.FC<{
             <FileText size={16} className="text-sky-400" />
         ) : node.fileType === 'pdf' ? (
             <FileText size={16} className="text-red-400" />
+        ) : node.fileType === 'epub' ? (
+            <BookOpen size={16} className="text-orange-400" />
         ) : node.fileType === 'doc' ? (
             <FileType size={16} className="text-blue-400" />
         ) : (
@@ -378,16 +382,23 @@ const DeleteConfirmModal: React.FC<{
 };
 
 // NO || or ?? allowed inside this component — explicit branching only.
-const detectFileType = (fileName: string): 'video' | 'audio' | 'image' | 'code' | 'text' | 'pdf' | 'markdown' | 'doc' => {
+const detectFileType = (fileName: string): 'video' | 'audio' | 'image' | 'code' | 'text' | 'pdf' | 'epub' | 'markdown' | 'doc' => {
     const parts = fileName.split('.');
     const ext = parts[parts.length - 1].toLowerCase();
     if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'm3u8'].includes(ext)) return 'video';
-    if (['mp3', 'wav', 'flac', 'aac', 'm4a'].includes(ext)) return 'audio';
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
+    if (['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'opus'].includes(ext)) return 'audio';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'avif'].includes(ext)) return 'image';
     if (['pdf'].includes(ext)) return 'pdf';
+    if (['epub'].includes(ext)) return 'epub';
     if (['md', 'markdown'].includes(ext)) return 'markdown';
     if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return 'doc';
-    if (['js', 'ts', 'jsx', 'tsx', 'py', 'php', 'java', 'cpp', 'c', 'go', 'rs'].includes(ext)) return 'code';
+    if ([
+        'js', 'mjs', 'cjs', 'ts', 'jsx', 'tsx', 'py', 'php', 'java',
+        'c', 'h', 'cpp', 'cc', 'cxx', 'hpp', 'go', 'rs', 'rb', 'kt',
+        'swift', 'cs', 'dart', 'lua', 'scala', 'sql', 'vue',
+        'html', 'htm', 'xml', 'css', 'scss', 'sass', 'less',
+        'json', 'yml', 'yaml', 'toml', 'ini', 'sh', 'bash', 'zsh'
+    ].includes(ext)) return 'code';
     return 'text';
 };
 
@@ -447,6 +458,56 @@ const filterTree = (nodes: FileNode[], term: string): FileNode[] => {
     return out;
 };
 
+// Collect the ids of every open folder so the open/closed shape survives a
+// backend refetch (which otherwise rebuilds the tree fully collapsed).
+const collectOpenIds = (nodes: FileNode[], acc: Set<string>): void => {
+    for (const n of nodes) {
+        if (n.type === 'folder' && n.isOpen === true) {
+            acc.add(n.id);
+        }
+        if (n.children) {
+            collectOpenIds(n.children, acc);
+        }
+    }
+};
+
+// Re-apply a captured open-folder set onto a freshly built tree.
+const applyOpenState = (nodes: FileNode[], openIds: Set<string>): FileNode[] => {
+    return nodes.map((n) => {
+        const kids = n.children ? applyOpenState(n.children, openIds) : n.children;
+        if (n.type === 'folder') {
+            return { ...n, isOpen: openIds.has(n.id), children: kids };
+        }
+        return { ...n, children: kids };
+    });
+};
+
+// Force a set of folder ids open (used to reveal an upload target chain).
+const openByIds = (nodes: FileNode[], ids: Set<string>): FileNode[] => {
+    return nodes.map((n) => {
+        const kids = n.children ? openByIds(n.children, ids) : n.children;
+        if (n.type === 'folder' && ids.has(n.id)) {
+            return { ...n, isOpen: true, children: kids };
+        }
+        return { ...n, children: kids };
+    });
+};
+
+// Every ancestor path id of a target relative path ("a/b/c" -> a, a/b, a/b/c).
+const buildAncestorSet = (targetPath: string): Set<string> => {
+    const set = new Set<string>();
+    if (targetPath.length === 0) {
+        return set;
+    }
+    const segs = targetPath.split('/');
+    let cur = '';
+    for (const s of segs) {
+        cur = cur.length > 0 ? `${cur}/${s}` : s;
+        set.add(cur);
+    }
+    return set;
+};
+
 interface FileTreePanelProps {
   search: string;
   activeFileId: string | null;
@@ -454,9 +515,28 @@ interface FileTreePanelProps {
   onPlaylist: (p: FileNode[]) => void;
   lang?: Language;
   reloadSignal: number;
+  /** Opens the global login modal when a mutation is attempted unauthenticated. */
+  onRequireLogin?: () => void;
 }
 
-const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onSelectFile, onPlaylist, lang = 'en', reloadSignal }) => {
+const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onSelectFile, onPlaylist, lang = 'en', reloadSignal, onRequireLogin }) => {
+  // Viewing is always open; mutations (upload / new folder / rename / delete)
+  // require login. The loopback debug bypass counts as authenticated locally,
+  // matching the backend dashboard.auth gate on the static-resources writes.
+  const { isLoggedIn } = useUser();
+  const authed = isLoggedIn === true ? true : isDebugAuthBypass();
+
+  // Returns true when a mutation may proceed; otherwise opens the login modal.
+  const ensureAuthed = (): boolean => {
+    if (authed === true) {
+      return true;
+    }
+    if (onRequireLogin) {
+      onRequireLogin();
+    }
+    return false;
+  };
+
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -471,7 +551,10 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [batchPct, setBatchPct] = useState(0);
 
-  const loadFileTree = async () => {
+  // Returns the freshly built tree (or null on error) so callers can reveal a
+  // specific path after a mutation. Open folders are preserved across the
+  // refetch (the backend now returns nested children for the whole tree).
+  const loadFileTree = async (): Promise<FileNode[] | null> => {
     setLoading(true);
     setError(null);
 
@@ -498,7 +581,14 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
       };
 
       const nodesWithId = addIdToNodes(items);
-      setFileTree(nodesWithId);
+
+      // Preserve the previously open folders so a refresh / post-mutation
+      // reload does not collapse the tree the user was browsing.
+      setFileTree((prev) => {
+        const openIds = new Set<string>();
+        collectOpenIds(prev, openIds);
+        return applyOpenState(nodesWithId, openIds);
+      });
 
       // Auto-select the first file when there is no valid active selection.
       // After a delete the previously-active id may no longer exist in the tree,
@@ -510,11 +600,14 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
           onSelectFile(firstFile);
         }
       }
-    } else {
-      setError(response.error);
+
+      setLoading(false);
+      return nodesWithId;
     }
 
+    setError(response.error);
     setLoading(false);
+    return null;
   };
 
   // Friendly label for the current upload/new-folder target.
@@ -576,6 +669,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   // preserving folder structure via File.webkitRelativePath -> relativePaths.
   // Wires per-file upload progress into an UploadProgressCard.
   const handleUpload = async (files: FileList) => {
+     if (!ensureAuthed()) return;
      const fileArr = Array.from(files);
      if (fileArr.length === 0) return;
      const targetPath = selectedDir ? selectedDir : '';
@@ -613,16 +707,37 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
          setBatchPct(Math.round(((i + pct / 100) / total) * 100));
        });
 
-       if (response.success) {
+       // A 2xx response can still save nothing (skipped/invalid file), so a row
+       // only counts as done when the backend reports a saved file.
+       let savedCount = 0;
+       if (response.data && typeof response.data.uploaded_count === 'number') {
+         savedCount = response.data.uploaded_count;
+       }
+       const saved = response.success === true ? savedCount >= 1 : false;
+       if (saved) {
          setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'done', pct: 100 } : it));
        } else {
          failures = failures + 1;
-         setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'failed', error: response.error } : it));
+         const failMsg = response.success === true ? 'No file was saved by the server.' : response.error;
+         setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'failed', error: failMsg } : it));
        }
        setBatchPct(Math.round(((i + 1) / total) * 100));
      }
 
-     await loadFileTree();
+     // Reload, then reveal the uploaded files: expand the target directory chain
+     // and select the first file under it so the new upload is visible at once.
+     const tree = await loadFileTree();
+     if (tree && targetPath.length > 0) {
+       const ancestors = buildAncestorSet(targetPath);
+       setFileTree(prev => openByIds(prev, ancestors));
+       const targetNode = findNodeById(tree, targetPath);
+       if (targetNode && targetNode.children) {
+         const firstFile = findFirstFile(targetNode.children);
+         if (firstFile) {
+           onSelectFile(firstFile);
+         }
+       }
+     }
      if (failures > 0) {
        setError(`${failures} of ${total} file(s) failed to upload.`);
      }
@@ -630,6 +745,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
 
   // NO try-catch allowed.
   const handleCreateFolder = async (name: string) => {
+     if (!ensureAuthed()) return;
      const parentPath = selectedDir ? selectedDir : '';
      const response = await api.mcpV1.createStaticResourceDir(parentPath, name);
      if (response.success) {
@@ -641,6 +757,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
 
   // NO try-catch allowed.
   const handleRename = async (node: FileNode, newName: string) => {
+     if (!ensureAuthed()) return;
      const response = await api.mcpV1.renameStaticResource(node.id, newName);
      if (response.success) {
        await loadFileTree();
@@ -656,6 +773,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
 
   // Opening the delete modal also fetches an impact preview. NO try-catch.
   const openDeleteModal = async (node: FileNode) => {
+     if (!ensureAuthed()) return;
      setDeleteTarget(node);
      setDeletePreview(null);
      setDeletePreviewLoading(true);
@@ -673,6 +791,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
   // NO try-catch allowed. After delete + reload, loadFileTree auto-selects a live
   // first file when the active id is gone — clearing the stale selection upward.
   const handleConfirmDelete = async () => {
+     if (!ensureAuthed()) return;
      if (!deleteTarget) return;
      const target = deleteTarget;
      const response = await api.mcpV1.deleteStaticResource(target.id);
@@ -715,19 +834,19 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
             <span className="font-mono truncate">{targetDirLabel}</span>
           </span>
           <button
-            onClick={() => setIsUploadOpen(true)}
+            onClick={() => { if (!ensureAuthed()) return; setIsUploadOpen(true); }}
             className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 text-sm rounded-lg transition-colors border border-white/10"
-            title="Upload files or a folder"
+            title={authed ? 'Upload files or a folder' : 'Login required to upload'}
           >
-            <UploadCloud size={16} />
-            Upload
+            {authed ? <UploadCloud size={16} /> : <Lock size={16} />}
+            {authed ? 'Upload' : 'Login to upload'}
           </button>
           <button
-            onClick={() => setIsNewFolderOpen(true)}
+            onClick={() => { if (!ensureAuthed()) return; setIsNewFolderOpen(true); }}
             className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors"
-            title="Create folder in target"
+            title={authed ? 'Create folder in target' : 'Login required'}
           >
-            <FolderPlus size={16} />
+            {authed ? <FolderPlus size={16} /> : <Lock size={16} />}
             New Folder
           </button>
         </div>

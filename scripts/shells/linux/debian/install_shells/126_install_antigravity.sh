@@ -38,6 +38,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
+source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
 
 # Initialize globals (detect desktop, sudo, etc.)
 init_global_vars
@@ -521,6 +522,18 @@ create_desktop_entry() {
     local app_description="Antigravity Client"
     local app_wm_class="antigravity"
     local app_userdata_dir=""  # No specific userdata dir needed
+
+    # Resource limit: create a machine-relative cgroup-v2 wrapper for Antigravity
+    # and launch THROUGH it. Root mode (pkexec) -> --system scope (a --user scope
+    # would not govern the root-re-execed Electron app); normal mode -> --user. The
+    # wrapper is passed to --create-app as the binary; desktop_entry_manager's
+    # extract_original_binary leaves it untouched (no DEM marker) -> no recursion.
+    local arl_root_flag=""
+    [[ "$USE_ROOT_MODE" == "true" ]] && arl_root_flag="--root"
+    if apply_app_resource_limit --id antigravity --exec "$exec_path" $arl_root_flag \
+        && [[ -x /usr/local/bin/antigravity-rlimit ]]; then
+        app_binary="/usr/local/bin/antigravity-rlimit"
+    fi
 
     if ! "$desktop_manager_script" --create-app \
         "$app_name" \

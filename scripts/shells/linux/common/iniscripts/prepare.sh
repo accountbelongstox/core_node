@@ -36,49 +36,26 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# --- Shared install base vs project venv ------------------------------------- #
-# A venv is self-contained: pip installs land INSIDE it, so the shared user-base /
-# PIP_USER model below does NOT apply — and PIP_USER even ERRORS when UPGRADING a package
-# already in the venv ("Will not install to the user site ... lacks sys.path precedence").
-# So detect a venv first and, for it, install straight into the venv (no user-base, no
-# PEP 668 escape). Only a NON-venv (system) python uses the all-users shared base:
-# without it each user installs into their own ~/.local and the service (possibly a
-# different user) can't see those packages. Default /opt/_core_node/pyuserbase (a SYSTEM
-# path, NOT under the repo), created 1777 (sticky + world-writable) so any user can install;
-# umask 000 makes the files world-writable. Override via PYCORE_PYUSERBASE.
-PY_IS_VENV=0
-if "$PYTHON" -c 'import sys; sys.exit(0 if sys.prefix != getattr(sys,"base_prefix",sys.prefix) else 1)' >/dev/null 2>&1; then
-    PY_IS_VENV=1
+# --- Shared install base vs project venv (single source of truth) ------------ #
+# Where pip installs land is decided ONCE by pycore_export_python_env_from_common in
+# common/venv_python_common.sh — the SAME helper pyservice.sh (and the systemd service)
+# call — so the worker imports the very packages these installers write:
+#   - a VENV interpreter targets itself (PIP_USER=0, NO PYTHONUSERBASE; a venv is
+#     self-contained and PIP_USER=1 even ERRORS when UPGRADING a venv-resident package);
+#   - a NON-venv system python uses the all-users shared base /opt/_core_node/pyuserbase
+#     (PIP_USER=1, PIP_BREAK_SYSTEM_PACKAGES=1) so a different-user service still sees it.
+SHARED_BASE_MSG=""
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/../venv_python_common.sh" 2>/dev/null || true
+if type pycore_export_python_env_from_common >/dev/null 2>&1; then
+    pycore_export_python_env_from_common "$PYTHON"
 fi
-
-if [[ "$PY_IS_VENV" -eq 1 ]]; then
-    # Force --no-user (PIP_USER=0) so pip ALWAYS targets the venv, never the user site.
-    # Without this, pip either obeys an inherited PIP_USER=1 OR auto-"Defaults to user
-    # installation because normal site-packages is not writeable" — and then refuses with
-    # "will not install to the user site ... lacks sys.path precedence" when upgrading a
-    # package already in the venv (e.g. edge-tts). PIP_USER=0 == --no-user fixes both.
-    export PIP_USER=0
+if [[ "${PIP_USER:-}" == "0" ]]; then
     SHARED_BASE_MSG="[i] Installing into the project venv ($("$PYTHON" -c 'import sys; print(sys.prefix)' 2>/dev/null)); --no-user (PIP_USER=0)."
+elif [[ -n "${PYTHONUSERBASE:-}" ]]; then
+    SHARED_BASE_MSG="[i] Shared Python base (all users): $PYTHONUSERBASE (PIP_USER=1)"
 elif [[ "$(uname -s)" == "Linux" ]]; then
-    : "${PYCORE_PYUSERBASE:=/opt/_core_node/pyuserbase}"
-    umask 0000
-    mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
-    if [[ ! -w "$PYCORE_PYUSERBASE" ]] && command -v sudo >/dev/null 2>&1; then
-        sudo -n mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
-        sudo -n chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
-    fi
-    if [[ -w "$PYCORE_PYUSERBASE" ]]; then
-        chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
-        export PYCORE_PYUSERBASE
-        export PYTHONUSERBASE="$PYCORE_PYUSERBASE"
-        export PIP_USER=1                    # pip installs target PYTHONUSERBASE (user site)
-        export PIP_BREAK_SYSTEM_PACKAGES=1   # bypass PEP 668 (e.g. Ubuntu 24.04 externally-managed)
-        SHARED_BASE_MSG="[i] Shared Python base (all users): $PYTHONUSERBASE (PIP_USER=1)"
-    else
-        SHARED_BASE_MSG="[!] Shared base $PYCORE_PYUSERBASE not writable — run once as root to create it 1777. Falling back to per-user installs."
-    fi
-else
-    SHARED_BASE_MSG=""
+    SHARED_BASE_MSG="[!] Shared base ${PYCORE_PYUSERBASE:-/opt/_core_node/pyuserbase} not writable — run once as root to create it 1777. Falling back to per-user installs."
 fi
 
 # Wire the ONE shared, all-users cache location so every pip / model download below

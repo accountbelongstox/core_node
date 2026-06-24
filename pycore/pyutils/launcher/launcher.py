@@ -190,40 +190,46 @@ class WindowLauncher:
         else:
             return 0
     
-    def launch_windows(self, delay=0.2):
+    def launch_windows(self, delay=0.2, limit=None):
         """
         Launch windows in grid layout (Windows Terminal and Ubuntu terminals)
-        
+
         Args:
             delay: Delay between window launches in seconds
-        
+            limit: When set, launch only the first ``limit`` cells of the grid
+                (row-major). Used to "top up" a partially-filled grid -- open just
+                the missing terminals to reach the target count. None = full grid.
+
         Returns:
             list: List of created batch file paths
         """
         # Get screen dimensions
         screen_x, screen_y, screen_width, screen_height = self.screen_manager.get_screen_dimensions()
-        
-        # Calculate total windows
-        total_windows = self.grid_columns * self.grid_rows
-        
-        # Calculate Ubuntu count (at least 2, 4 if 16 windows)
-        ubuntu_count = self.calculate_ubuntu_count(total_windows)
-        
-        # Calculate window layout (all windows, including Ubuntu positions)
+
+        # Calculate window layout (all cells, including Ubuntu positions)
         windows = self.calculate_window_layout(screen_x, screen_y, screen_width, screen_height)
-        
+
         # Prepare windows config for launcher
         windows_config = [(x, y, term_cols, term_rows) for x, y, term_cols, term_rows, _, _ in windows]
-        
+
+        # Top-up cap: launch only the first `limit` cells (the deficit), so a grid
+        # that already has some terminals open is completed rather than duplicated.
+        if limit is not None and limit >= 0:
+            windows_config = windows_config[:limit]
+
+        # Counts follow the (possibly capped) config, not the full grid.
+        total_windows = len(windows_config)
+        ubuntu_count = self.calculate_ubuntu_count(total_windows)
+
         # Launch Windows Terminal and Ubuntu windows
         bat_files = self.wt_launcher.launch_windows(windows_config, delay, ubuntu_count)
-        
+
         wt_count = total_windows - ubuntu_count
         print(f"\nAll {total_windows} terminal windows launched:")
         print(f"  - {wt_count} Windows Terminal windows")
         if ubuntu_count > 0:
             print(f"  - {ubuntu_count} Ubuntu terminals")
-        
+
         return bat_files
     
     def launch_editors(self, app_name, delay=0.2, file_paths=None):

@@ -8,6 +8,7 @@ import ApiTester from './components/views/ApiTester';
 import VocabularyLearning from './components/views/VocabularyLearning';
 import AITools from './components/views/AITools';
 import AiManagement from './components/views/AiManagement';
+import DevHistory from './components/views/DevHistory';
 import MCPManager from './components/views/MCPManager';
 import TaskCenter from './components/views/TaskCenter';
 import ServerManager from './components/views/ServerManager';
@@ -135,10 +136,18 @@ const AppContent: React.FC = () => {
           console.log('[Auth] Loopback debug bypass enabled:', status.reason, status.client_ip);
           // Force a re-render so already-mounted AuthGuards re-read the flag.
           setDebugProbed(true);
+          // Dismiss any login modal an AuthGuard opened before the (async) probe
+          // resolved: a protected view can mount and call onLoginRequest() in the
+          // same tick as startup, latching showLoginModal=true. Once the bypass is
+          // known to be active the modal must go away, otherwise it stays stuck
+          // over already-unlocked content.
+          setShowLoginModal(false);
+          setLoginModalFromProtectedView(false);
         }
       })
       .catch(() => {
-        /* open endpoint best-effort; ignore failures (auth stays required) */
+        /* open endpoint best-effort; bypass stays off so auth remains required */
+        console.warn('[Auth] debug-status probe failed; loopback bypass disabled');
       });
     return () => {
       cancelled = true;
@@ -212,7 +221,15 @@ const AppContent: React.FC = () => {
       // (#/movies-books) tabs. Both legacy ViewTypes resolve here.
       case ViewType.MEDIA_BROWSER:
       case ViewType.MOVIES_BOOKS:
-        return <MediaHub lang={lang} />;
+        return (
+          <MediaHub
+            lang={lang}
+            onRequireLogin={() => {
+              setLoginModalFromProtectedView(false);
+              setShowLoginModal(true);
+            }}
+          />
+        );
       case ViewType.CODE_BROWSER:
         return <CodeBrowser />;
       case ViewType.TOOLS:
@@ -225,6 +242,8 @@ const AppContent: React.FC = () => {
         return <AITools />;
       case ViewType.AI_MANAGEMENT:
         return <AiManagement />;
+      case ViewType.DEV_HISTORY:
+        return <DevHistory lang={lang} />;
       case ViewType.MCP_MANAGER:
         return <MCPManager lang={lang} />;
       case ViewType.TASK_CENTER:
@@ -262,6 +281,7 @@ const AppContent: React.FC = () => {
       case ViewType.VOCABULARY: return t('header.titles.vocabulary');
       case ViewType.AI_TOOLS: return t('header.titles.ai_tools');
       case ViewType.AI_MANAGEMENT: return t('header.titles.ai_management');
+      case ViewType.DEV_HISTORY: return t('header.titles.dev_history');
       case ViewType.MCP_MANAGER: return t('header.titles.mcp');
       case ViewType.TASK_CENTER:
       case ViewType.OCTANE_TASKS:

@@ -32,7 +32,7 @@ const getInitialSegment = (): Segment => {
   return 'movies';
 };
 
-const MediaHub: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
+const MediaHub: React.FC<{ lang?: Language; onRequireLogin?: () => void }> = ({ lang = 'en', onRequireLogin }) => {
   const { t } = useTranslation();
 
   const [segment, setSegment] = useState<Segment>(getInitialSegment);
@@ -113,6 +113,7 @@ const MediaHub: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
             onPlaylist={setPlaylist}
             lang={lang}
             reloadSignal={reloadSignal}
+            onRequireLogin={onRequireLogin}
           />
         </div>
 

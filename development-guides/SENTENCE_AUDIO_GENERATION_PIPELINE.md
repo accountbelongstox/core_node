@@ -13,11 +13,11 @@ wordflow** frontends.
 > `app_qy_v1_sentences` table is **removed (clean cut)** — dropped at the schema level, code
 > removed, NOT created at `sys:init`; there is no compatibility layer. All `language` values
 > are **codes only** (`en`/`zh`/`ja`...), never full names. The canonical sentence/schema
-> contract is [`development-guides/BOOKS_FEATURE_SPECIFICATION.md`](./BOOKS_FEATURE_SPECIFICATION.md)
+> contract is [`poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md`](../poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md)
 > (see §3 schema, §6 audio). Where this doc and that one disagree on the schema, **that one wins**.
 
 Related canonical docs:
-[`development-guides/BOOKS_FEATURE_SPECIFICATION.md`](./BOOKS_FEATURE_SPECIFICATION.md)
+[`poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md`](../poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/docs/BOOKS_FEATURE_SPECIFICATION.md)
 (per-language sentence schema + §6 audio),
 [pycore/docs/pipelines/MEDIA_SYNC_PIPELINE.md](../pycore/docs/pipelines/MEDIA_SYNC_PIPELINE.md)
 (media → sentence ingest), and the laravel↔pycore assist lease protocol.

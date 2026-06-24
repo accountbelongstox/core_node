@@ -42,6 +42,9 @@ MOUNT_LOG_PREFIX="[2]"
 # Default mount base directory
 DEFAULT_MOUNT_BASE="/mnt"
 
+# PID of the background sudo keepalive loop (empty when not started / as root)
+SUDO_KEEPALIVE_PID=""
+
 # =============================================================================
 # Logging Functions
 # =============================================================================
@@ -73,6 +76,33 @@ read_default() {
         read -r reply < /dev/tty || reply=""
     fi
     printf '%s' "${reply:-$default}"
+}
+
+# =============================================================================
+# Sudo Session Keepalive
+# =============================================================================
+
+# Prime the sudo credential cache once and keep it warm for the whole run. Every
+# privileged op here goes through `$USE_SUDO` (= sudo) including `sudo -u <user>`
+# drops; sudo's timestamp lapses (~15 min, per-tty) so otherwise a later command
+# re-prompts mid-run. No-op when already root or when there is no terminal to
+# prompt on. The refresher is a child of this script and is reaped on exit.
+start_sudo_keepalive() {
+    [ "$(id -u)" -eq 0 ] && return 0            # root: nothing to authenticate
+    [ -n "$USE_SUDO" ] || return 0              # no sudo binary: nothing to do
+    [ -t 0 ] || [ -r /dev/tty ] || return 0     # no terminal: cannot prompt
+    log "Caching sudo credentials once for the whole base setup..."
+    sudo -v || { warning "sudo authentication failed; per-command prompts may still appear."; return 0; }
+    ( while kill -0 "$$" 2>/dev/null; do sudo -n true 2>/dev/null || exit 0; sleep 50; done ) &
+    SUDO_KEEPALIVE_PID=$!
+    trap 'stop_sudo_keepalive' EXIT INT TERM
+    return 0
+}
+
+# Stop the background refresher (idempotent).
+stop_sudo_keepalive() {
+    [ -n "$SUDO_KEEPALIVE_PID" ] && kill "$SUDO_KEEPALIVE_PID" 2>/dev/null
+    SUDO_KEEPALIVE_PID=""
 }
 
 # =============================================================================
@@ -1651,6 +1681,10 @@ main() {
     # bare `-u` (command not found) -- which would silently skip all per-user
     # desktop config on a root install that started without sudo.
     command -v sudo >/dev/null 2>&1 && USE_SUDO="sudo"
+
+    # Authenticate sudo once up front and keep the ticket warm, so the many later
+    # `sudo`/`sudo -u` calls don't each re-prompt when running as a non-root user.
+    start_sudo_keepalive
 
     # Step 0b: system update + initialization (merged from former 12_update.sh).
     # Run with `set +e` so a failing apt/git/repo step never aborts the base setup.
