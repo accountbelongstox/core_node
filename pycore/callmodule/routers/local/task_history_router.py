@@ -70,11 +70,17 @@ def _to_record(seq: int, task: Dict[str, Any]) -> Dict[str, Any]:
     detail.update(input_data)
     detail.update(result or {})
 
+    # Cross-end attribution: the recorder may tag a task with the producing
+    # worker/end (e.g. assist cover/tts/poster -> worker='assist'); fall back to
+    # the pycore-local defaults so existing records are unchanged.
+    worker = str(input_data.get("_worker") or "pycore-local")
+    end = str(input_data.get("_end") or "pycore")
+
     return {
         "ts": _iso(task.get("updated_at") or task.get("created_at")),
         "seq": seq,
-        "end": "pycore",
-        "worker": "pycore-local",
+        "end": end,
+        "worker": worker,
         "task_type": task.get("task_type") or "unknown",
         "task_id": task.get("task_id") or "",
         "source_api": "local",

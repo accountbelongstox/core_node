@@ -78,6 +78,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyfoundations.system_paths import get_user_data_store
+from pycore.pyutils.common import result_cache
 from pycore.pyutils.security.machine_id import get_machine_id
 from pycore.pyutils.tts import tts_orchestrator
 from pycore.pyutils.external_apis.movie_poster_client import find_poster, parse_title_year
@@ -95,9 +96,31 @@ ASSIST_API_PREFIX = "/api/app_qy_v1/assist"
 POLL_INTERVAL_MIN, POLL_INTERVAL_MAX = 5, 600
 BATCH_LIMIT_MIN, BATCH_LIMIT_MAX = 1, 10
 
+# Per-capability assist toggles — the SINGLE control plane the Queue Center
+# exposes. Each key gates a real lane/claim (see translation_worker_service
+# _*_enabled gates + AssistWorker.CLAIMABLE_TYPES):
+#   translation    word translation (translation_worker heartbeat)
+#   ai_translate   AI translation (remote_fast ai_translate capability)
+#   cover          AI vocabulary cover image (assist-queue claim)
+#   poster         movie/TV poster lookup (assist-queue claim + remote_poster lane)
+#   image          word media image (remote_fast image capability)
+#   tts            word voice / TTS (remote_audio lane + assist-queue tts claim)
+#   sentence_audio sentence voice (remote_sentence_audio lane) — INDEPENDENT of tts
+#   subtitle       subtitle search (remote_subtitle lane)
+#   stt            speech -> text (remote_stt lane; Laravel lane added separately)
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "enabled": False,
-    "capabilities": {"cover": True, "tts": True, "translation": True, "poster": True},
+    "capabilities": {
+        "translation": True,
+        "ai_translate": True,
+        "cover": True,
+        "poster": True,
+        "image": True,
+        "tts": True,
+        "sentence_audio": True,
+        "subtitle": True,
+        "stt": True,
+    },
     "poll_interval_s": 30,
     "batch_limit": 3,
 }
@@ -180,10 +203,24 @@ def translation_worker_enabled_on_start(legacy_default: bool) -> bool:
     - Section present: the assist toggle rules —
       ``enabled AND capabilities.translation``.
     """
+    return assist_capability_enabled("translation", legacy_default)
+
+
+def assist_capability_enabled(capability: str, legacy_default: bool = True) -> bool:
+    """
+    Generic per-capability assist gate (the control plane every worker lane
+    consults). Mirrors translation_worker_enabled_on_start for ALL capabilities:
+
+    - Section ABSENT (assist never configured): return ``legacy_default`` so the
+      lane keeps its pre-assist behaviour (a hard env-knob default).
+    - Section PRESENT: the assist toggle rules — the lane is live only while the
+      master ``enabled`` is on AND its capability flag is on (missing key => on,
+      so a newly-added capability defaults to advertised).
+    """
     if not assist_settings_exist():
         return bool(legacy_default)
     settings = load_assist_settings()
-    return bool(settings["enabled"] and settings["capabilities"].get("translation", True))
+    return bool(settings["enabled"] and settings["capabilities"].get(capability, True))
 
 
 # ============================================================
@@ -349,6 +386,10 @@ class AssistWorker:
         # App-layer injections (see configure()).
         self._endpoint_resolver: Optional[Callable[[], Optional[Dict[str, Any]]]] = None
         self._image_generator: Optional[Callable[..., Dict[str, Any]]] = None
+        # Optional history recorder (app layer wires the pyctl TaskManager in;
+        # pyctl.assist must not import pyctl.desktop). Records one finished unit
+        # per assist item so the Queue Center shows per-capability history.
+        self._task_recorder: Optional[Callable[..., None]] = None
 
         self.claimer = _build_claimer()
 
@@ -378,6 +419,7 @@ class AssistWorker:
         self,
         endpoint_resolver: Optional[Callable[[], Optional[Dict[str, Any]]]] = None,
         image_generator: Optional[Callable[..., Dict[str, Any]]] = None,
+        task_recorder: Optional[Callable[..., None]] = None,
     ) -> None:
         """
         Inject app-layer collaborators (idempotent).
@@ -386,11 +428,29 @@ class AssistWorker:
             SELECTED laravel endpoint (callmodule wires LaravelEndpointManager).
         image_generator: pyctl.ai.generate_image-compatible callable returning
             { success, provider, model, image_base64, mime, latency_ms, error }.
+        task_recorder: (capability, title, ok, detail, error) -> None — records
+            one finished assist unit to the pyctl TaskManager (app layer wires it;
+            pyctl.assist must not import pyctl.desktop).
         """
         if endpoint_resolver is not None:
             self._endpoint_resolver = endpoint_resolver
         if image_generator is not None:
             self._image_generator = image_generator
+        if task_recorder is not None:
+            self._task_recorder = task_recorder
+
+    def _record_history(self, capability: str, title: str, ok: bool,
+                        detail: Optional[Dict[str, Any]] = None,
+                        error: Optional[str] = None) -> None:
+        """Record one finished assist unit (best-effort; never breaks a cycle)."""
+        recorder = self._task_recorder
+        if recorder is None:
+            return
+        try:
+            recorder(capability=capability, title=str(title or ""), ok=bool(ok),
+                     detail=detail or {}, error=error)
+        except Exception as e:  # noqa: BLE001 — history is best-effort
+            ColorPrint.yellow(f"[AssistWorker] history record failed: {e}")
 
     def resolve_endpoint(self) -> Optional[Dict[str, Any]]:
         """
@@ -707,18 +767,42 @@ class AssistWorker:
                           result)
             return
         prompt = (payload.get("prompt") or "").strip()
+        name = (payload.get("name") or "").strip()
         if not prompt:
-            name = (payload.get("name") or "").strip()
             if not name:
                 self._release(base, "cover", item_id, "empty cover prompt", result)
+                self._record_history("cover", name or "cover", False, error="empty cover prompt")
                 return
             prompt = f"Book cover illustration for '{name}'"
-        out = self._image_generator(
-            prompt=prompt,
-            size=_size_to_aspect(payload.get("size")),
-            source="assist-cover",
-        )
+        size = _size_to_aspect(payload.get("size"))
+        title = name or prompt[:60]
+
+        # CACHE: an identical cover (prompt + size) is reused instead of re-paying
+        # for AI image generation — the "same task -> use cache" goal.
+        cached = result_cache.get_bytes("cover", prompt, size or "")
+        if cached is not None:
+            data, meta = cached
+            self._submit(base, {
+                "type": "cover", "id": item_id,
+                "image_base64": base64.b64encode(data).decode("ascii"),
+                "mime": meta.get("mime") or "image/png", "claimer": self.claimer,
+                "provider": (meta.get("provider") or "cache"), "model": meta.get("model") or "",
+                "latency_ms": 0,
+            }, result)
+            ColorPrint.green(f"[AssistWorker] cover#{item_id} cache hit ({title})")
+            self._record_history("cover", title, True, {"cached": True, "provider": meta.get("provider")})
+            return
+
+        out = self._image_generator(prompt=prompt, size=size, source="assist-cover")
         if out.get("success") and out.get("image_base64"):
+            # Store the raw bytes so the next identical claim is a cache hit.
+            try:
+                result_cache.set_bytes(
+                    "cover", base64.b64decode(out["image_base64"]), prompt, size or "",
+                    meta={"mime": out.get("mime") or "image/png",
+                          "provider": out.get("provider") or "", "model": out.get("model") or ""})
+            except Exception:  # noqa: BLE001 — caching is best-effort
+                pass
             self._submit(base, {
                 "type": "cover",
                 "id": item_id,
@@ -730,9 +814,12 @@ class AssistWorker:
                 "model": out.get("model") or "",
                 "latency_ms": int(out["latency_ms"]) if out.get("latency_ms") is not None else None,
             }, result)
+            self._record_history("cover", title, True,
+                                 {"provider": out.get("provider"), "model": out.get("model")})
         else:
             self._release(base, "cover", item_id,
                           out.get("error") or "image generation failed", result)
+            self._record_history("cover", title, False, error=out.get("error") or "image generation failed")
 
     def _handle_tts(self, base: str, item: Dict[str, Any], result: Dict[str, Any]) -> None:
         """tts item: payload {text, language, voice_type, speed,
@@ -751,9 +838,28 @@ class AssistWorker:
         text = (payload.get("text") or "").strip()
         if not text:
             self._release(base, "tts", item_id, "empty tts text", result)
+            self._record_history("tts", "", False, error="empty tts text")
             return
         language = (payload.get("language") or "en").strip() or "en"
         rate = _speed_to_rate(payload.get("speed"))
+        title = text[:60]
+
+        # CACHE: identical audio (text + language + rate) is reused instead of
+        # re-synthesizing — the "same task -> use cache" goal. The key folds in
+        # voice/speed (rate), which the legacy TTS DB cache omitted.
+        cached = result_cache.get_bytes("tts", text, language, rate or "")
+        if cached is not None:
+            data, meta = cached
+            self._submit(base, {
+                "type": "tts", "id": item_id,
+                "audio_base64": base64.b64encode(data).decode("ascii"),
+                "mime": "audio/mpeg", "voice": meta.get("engine") or "cache",
+                "engine": meta.get("engine") or "cache", "latency_ms": 0,
+                "claimer": self.claimer,
+            }, result)
+            ColorPrint.green(f"[AssistWorker] tts#{item_id} cache hit ({title})")
+            self._record_history("tts", title, True, {"cached": True, "engine": meta.get("engine")})
+            return
 
         fd, tmp_path = tempfile.mkstemp(prefix="assist_tts_", suffix=".mp3")
         os.close(fd)
@@ -763,6 +869,8 @@ class AssistWorker:
             if not synth.get("success"):
                 self._release(base, "tts", item_id,
                               synth.get("error") or "tts synthesis failed", result)
+                self._record_history("tts", title, False,
+                                     error=synth.get("error") or "tts synthesis failed")
                 return
             engine = synth.get("engine") or "unknown"
             audio = tmp.read_bytes() if tmp.exists() else b""
@@ -771,7 +879,15 @@ class AssistWorker:
                     base, "tts", item_id,
                     f"engine '{engine}' produced non-mp3 audio "
                     f"({len(audio)} bytes) — not submitting invalid bytes", result)
+                self._record_history("tts", title, False,
+                                     error=f"engine '{engine}' produced non-mp3 audio")
                 return
+            # Store for reuse before submitting.
+            try:
+                result_cache.set_bytes("tts", audio, text, language, rate or "",
+                                       meta={"engine": engine, "language": language})
+            except Exception:  # noqa: BLE001 — caching is best-effort
+                pass
             self._submit(base, {
                 "type": "tts",
                 "id": item_id,
@@ -784,6 +900,7 @@ class AssistWorker:
                 "latency_ms": int(synth["latency_ms"]) if synth.get("latency_ms") is not None else None,
                 "claimer": self.claimer,
             }, result)
+            self._record_history("tts", title, True, {"engine": engine, "language": language})
         finally:
             try:
                 tmp.unlink()
@@ -831,8 +948,33 @@ class AssistWorker:
             if year is None and parsed_year is not None:
                 year = parsed_year
 
+        hist_title = f"{query_title}{f' ({year})' if year else ''}"
+
+        # CACHE: a poster for the same title+year is reused instead of re-querying
+        # TMDB/OMDB (and re-downloading the image).
+        cached = result_cache.get_bytes("poster", query_title, year or "")
+        if cached is not None:
+            data, meta = cached
+            self._submit(base, {
+                "type": "poster", "media_type": media_type, "id": item_id,
+                "image_base64": base64.b64encode(data).decode("ascii"),
+                "mime": meta.get("mime") or "image/jpeg", "claimer": self.claimer,
+                "provider": (meta.get("provider") or "cache"),
+                "source_id": meta.get("source_id") or "",
+            }, result)
+            ColorPrint.green(f"[AssistWorker] poster#{item_id} cache hit ({hist_title})")
+            self._record_history("poster", hist_title, True, {"cached": True, "media_type": media_type})
+            return
+
         hit = find_poster(query_title, year=year)
         if hit and hit.get("image_base64"):
+            try:
+                result_cache.set_bytes(
+                    "poster", base64.b64decode(hit["image_base64"]), query_title, year or "",
+                    meta={"mime": hit.get("mime") or "image/jpeg",
+                          "provider": hit.get("provider") or "", "source_id": hit.get("source_id") or ""})
+            except Exception:  # noqa: BLE001 — caching is best-effort
+                pass
             self._submit(base, {
                 "type": "poster",
                 "media_type": media_type,
@@ -844,10 +986,14 @@ class AssistWorker:
                 "provider": hit.get("provider") or "",
                 "source_id": hit.get("source_id") or "",
             }, result)
+            self._record_history("poster", hist_title, True,
+                                 {"provider": hit.get("provider"), "media_type": media_type})
         else:
             self._release(base, "poster", item_id,
                           "poster not found (TMDB/OMDB)", result,
                           extra={"media_type": media_type})
+            self._record_history("poster", hist_title, False,
+                                 {"media_type": media_type}, error="poster not found (TMDB/OMDB)")
 
     # -------------------- circuit breaker --------------------
 

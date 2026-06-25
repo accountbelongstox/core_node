@@ -28,9 +28,34 @@ from pycore.pyctl.assist import (
     get_assist_worker,
     load_assist_settings,
 )
+from pycore.pyctl.desktop.task_manager import get_task_manager
 from pycore.callmodule.services.sync.laravel_endpoint_manager import (
     get_laravel_endpoint_manager,
 )
+
+
+def _record_assist_task(capability: str, title: str, ok: bool,
+                        detail: Optional[Dict[str, Any]] = None,
+                        error: Optional[str] = None) -> None:
+    """App-layer history recorder injected into the AssistWorker.
+
+    Writes one finished unit to the pyctl TaskManager tagged ``_worker='assist'``
+    and ``task_type=assist_<capability>`` so the Queue Center's Recent tab and the
+    assist strip's per-capability history (getRecentTasks worker='assist') show
+    cover/tts/poster work. pyctl.assist cannot import pyctl.desktop (sibling rule),
+    so the worker calls this injected callable instead."""
+    try:
+        manager = get_task_manager()
+        input_data: Dict[str, Any] = {"title": title, "_worker": "assist", "capability": capability}
+        if isinstance(detail, dict):
+            input_data.update({k: v for k, v in detail.items() if k != "title"})
+        task_id = manager.create_task(task_type=f"assist_{capability}", input_data=input_data)
+        if ok:
+            manager.complete_task(task_id, {"ok": True, **(detail or {})})
+        else:
+            manager.fail_task(task_id, error or "failed")
+    except Exception as e:  # noqa: BLE001 — history is best-effort
+        ColorPrint.yellow(f"[AssistWiring] assist task record failed: {e}")
 
 
 def resolve_selected_endpoint() -> Optional[Dict[str, Any]]:
@@ -63,6 +88,7 @@ def ensure_assist_worker_wired() -> AssistWorker:
     worker.configure(
         endpoint_resolver=resolve_selected_endpoint,
         image_generator=generate_image,
+        task_recorder=_record_assist_task,
     )
     return worker
 

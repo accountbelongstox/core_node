@@ -79,6 +79,7 @@ export const pcZh: PcTranslationDict = {
     history: {
       title: '使用历史',
       subtitle: '所有记录的统一信息流 — AI 图像、图片搜索、字幕搜索与翻译。',
+      usageTitle: 'AI 使用情况（全部调用）',
       all: '全部',
       empty: '暂无使用记录。',
       unreachable: 'pycore 不可达 —— 无法加载历史记录。',
@@ -401,6 +402,21 @@ export const pcZh: PcTranslationDict = {
         tts: '文字转语音',
         image: '图像生成',
         translation: '翻译',
+      },
+    },
+    // 协助 Laravel 状态条 — 每项能力的开关。
+    assist: {
+      capabilities: '能力开关',
+      cap: {
+        translation: '协助处理翻译',
+        ai_translate: '生成AI翻译',
+        cover: '生成封面图',
+        poster: '生成海报',
+        image: '生成配图',
+        tts: '生成语音',
+        sentence_audio: '生成句子语音',
+        subtitle: '字幕搜索',
+        stt: '语音转文字',
       },
     },
     recent: {

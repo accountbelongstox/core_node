@@ -52,14 +52,21 @@ _LARAVEL_STATUS_TIMEOUT = 2.0
 
 
 class CapabilitiesPatch(BaseModel):
-    # Each capability is optional — omitted keys keep their stored value.
-    cover: Optional[bool] = None
-    tts: Optional[bool] = None
-    # poster claims movie/TV poster lookups (TMDB -> OMDB) for book/subtitle items.
-    poster: Optional[bool] = None
-    # translation gates the EXISTING TranslationWorkerService (no duplicate
-    # claiming here — see assist_worker.py's module docstring).
+    # Each capability is optional — omitted keys keep their stored value. These
+    # are the per-capability assist toggles the Queue Center exposes; each gates a
+    # real lane/claim (see assist_worker.DEFAULT_SETTINGS + the worker _*_enabled
+    # gates). translation/audio(tts)/sentence_audio/subtitle/poster/image/
+    # ai_translate gate the TranslationWorkerService lanes; cover/tts/poster are
+    # also the AssistWorker claim types.
     translation: Optional[bool] = None
+    ai_translate: Optional[bool] = None
+    cover: Optional[bool] = None
+    poster: Optional[bool] = None
+    image: Optional[bool] = None
+    tts: Optional[bool] = None
+    sentence_audio: Optional[bool] = None
+    subtitle: Optional[bool] = None
+    stt: Optional[bool] = None
 
 
 class ConfigRequest(BaseModel):

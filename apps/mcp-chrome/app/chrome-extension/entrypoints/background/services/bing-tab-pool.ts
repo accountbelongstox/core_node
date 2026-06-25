@@ -186,6 +186,27 @@ export class BingTabPool {
     return created.id;
   }
 
+  /**
+   * Close ALL tracked pool tabs and forget them (deep reset). The next ensure()/
+   * resize()/replace() opens brand-new tabs. Only the pool's OWN tracked tabs are
+   * closed — never the user's other tabs. Used by the long-term all-tabs-dead
+   * recovery (the closest thing an extension can do to a "browser restart").
+   */
+  async closeAll(): Promise<void> {
+    const ids = this.tabIds;
+    this.tabIds = [];
+    for (const id of ids) {
+      try {
+        await chrome.tabs.remove(id);
+      } catch {
+        // already gone
+      }
+    }
+    if (ids.length > 0) {
+      logger.info(LOG, `Closed all ${ids.length} pool tab(s) (deep reset)`);
+    }
+  }
+
   /** The subset of tracked ids whose tabs still exist, in order. */
   private async aliveIds(): Promise<number[]> {
     const out: number[] = [];

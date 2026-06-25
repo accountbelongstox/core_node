@@ -72,6 +72,7 @@ class TaskCenterController extends Controller
         GlobalTask::CAPABILITY_SENTENCE_AUDIO => ['chrome'],
         GlobalTask::CAPABILITY_SUBTITLE => ['pycore'],
         GlobalTask::CAPABILITY_POSTER => ['pycore'],
+        GlobalTask::CAPABILITY_STT => ['pycore'],
     ];
 
     protected $taskManager;

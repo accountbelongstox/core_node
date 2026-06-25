@@ -27,6 +27,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common import result_cache
 from pycore.pyctl.ai import generate_text
 
 

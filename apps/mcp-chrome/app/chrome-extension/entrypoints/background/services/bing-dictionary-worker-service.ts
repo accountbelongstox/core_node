@@ -84,6 +84,15 @@ const ANTISCRAPE_COOLDOWN_MS = 60_000;
 // something the probe can't clear.
 const OUTAGE_PAUSE_MS = 30_000;
 const OUTAGE_MAX_PROBES = 10;
+// Long-term all-tabs-dead recovery: after OUTAGE_MAX_PROBES failed 30s probes
+// (~5 min of Bing being unreachable on fresh tabs), escalate to a DEEP RESET
+// (close ALL pool tabs) + a longer 5-min backoff, then KEEP probing indefinitely
+// — the closest an extension can do to "restart the browser and continue" (a
+// Chrome extension cannot restart the browser process; chrome.runtime.reload
+// would only reload the extension AND wipe the session-stored run-intent, so it
+// would NOT auto-continue). When Bing recovers, the next probe succeeds and the
+// crawl resumes directly.
+const LONG_OUTAGE_PAUSE_MS = 300_000;
 
 // Human-paced jitter between consecutive word lookups so the worker NEVER hits
 // Bing at a fixed cadence (the user's "必须有一个随机时间，不要一直不停的按时间刷新").
@@ -154,9 +163,13 @@ class BingDictionaryWorkerService {
   private inOutage = false;
   private outageProbeFails = 0;
   private probing = false;
-  // Serializes per-word tab activation so concurrent slots don't fight over the
-  // single active tab (the tab being typed into is the one foregrounded).
-  private activateChain: Promise<unknown> = Promise.resolve();
+  // Single-foreground mutex: serializes the ENTIRE human-input critical section
+  // (activate + confirm-active + type + click-search + that word's lookup) so
+  // exactly ONE slot drives the foreground tab at a time. This is what kills the
+  // flicker / mid-type tab-switch / two-tabs-same-word — previously only the
+  // activate step was serialized while the typing raced. Media capture + the
+  // inter-word delay run OUTSIDE the lock (parallel).
+  private foregroundChain: Promise<unknown> = Promise.resolve();
   // Whether the heal handler has been wired to the shared TabController.
   private healHandlerWired = false;
 
@@ -320,6 +333,21 @@ class BingDictionaryWorkerService {
   /** The unified pause gate: anti-scrape cooldown OR shared human-interference. */
   private isWorkerPaused(): boolean {
     return Date.now() < this.cooldownUntil || tabController.isPaused();
+  }
+
+  /**
+   * Run fn while holding the single-foreground lock (only one slot's
+   * activate+type+lookup at a time). The chain advances on settle (success OR
+   * failure), so a throwing fn never deadlocks the next caller; the rejection is
+   * propagated to THIS caller (runSlot's try/catch handles it).
+   */
+  private runForeground<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.foregroundChain.then(fn, fn);
+    this.foregroundChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   }
 
   /**
@@ -656,23 +684,33 @@ class BingDictionaryWorkerService {
         // fall through to the normal pull this tick
       } else {
         this.outageProbeFails++;
-        if (this.outageProbeFails >= OUTAGE_MAX_PROBES) {
-          this.inOutage = false;
-          this.outageProbeFails = 0;
+        if (this.outageProbeFails === OUTAGE_MAX_PROBES) {
+          // Long-term all-tabs-dead: the closest an extension can do to a
+          // "browser restart" — DEEP RESET (close ALL pool tabs so the next probe
+          // opens brand-new ones) + a long 5-min backoff. We do NOT give up and do
+          // NOT chrome.runtime.reload (that only reloads the extension and wipes
+          // the run-intent). We keep probing on the long interval; when Bing
+          // recovers the next probe succeeds and the crawl continues directly.
+          await this.pool.closeAll();
+          this.syncManagedTabs();
           logger.warn(
             LOG,
-            `Bing outage probe exceeded ${OUTAGE_MAX_PROBES} attempts — exiting outage mode; ` +
-              `resuming normal handling (per-word non-dict/anti-scrape logic takes over)`,
+            `Bing unreachable after ${OUTAGE_MAX_PROBES} fresh-tab probes — deep reset ` +
+              `(closed all pool tabs; a Chrome extension cannot restart the browser). ` +
+              `Backing off ${LONG_OUTAGE_PAUSE_MS / 60000}min and continuing to probe.`,
           );
-          // fall through to pull
-        } else {
-          this.outageUntil = Date.now() + OUTAGE_PAUSE_MS;
-          logger.warn(
-            LOG,
-            `Bing still in outage on fresh-tab probe (${this.outageProbeFails}/${OUTAGE_MAX_PROBES}) — re-pausing 30s`,
-          );
-          return;
         }
+        // Keep probing indefinitely: 30s while under the cap, then the long
+        // interval after the deep reset (never exit outage — that would just pull
+        // a batch straight back into the outage).
+        const interval =
+          this.outageProbeFails >= OUTAGE_MAX_PROBES ? LONG_OUTAGE_PAUSE_MS : OUTAGE_PAUSE_MS;
+        this.outageUntil = Date.now() + interval;
+        logger.warn(
+          LOG,
+          `Bing still in outage on fresh-tab probe (#${this.outageProbeFails}) — re-pausing ${interval / 1000}s`,
+        );
+        return;
       }
     }
 
@@ -911,21 +949,25 @@ class BingDictionaryWorkerService {
           this.stats.currentWord = w.word;
           this.setSlotWord(slot, tabId, w.word);
 
-          // Per-word tab activation (default ON): bring THIS slot's tab to the
-          // front, CONFIRM it's active, then type into it (tabController.activate
-          // awaits the tab going active). Serialized via activateChain so parallel
-          // slots don't fight over the single active tab. Each activation is
-          // recorded by TabController so it is never mis-counted as a human switch.
-          // Gated on !isPaused so we never foreground while yielding to the user.
-          if (activatePerWord && !tabController.isPaused()) {
-            await (this.activateChain = this.activateChain
-              .catch(() => undefined)
-              .then(() => tabController.activate(tabId)));
-          }
+          // ONE word's human input is a single foreground-locked unit: bring the
+          // tab to front (default ON) + CONFIRM active + type + click-search +
+          // that word's lookup, all under runForeground so NO other slot can
+          // steal the foreground mid-typing (fixes flicker / mid-type-switch /
+          // two-tabs-same-word). Activation is skipped while paused (yield to the
+          // user) and recorded by TabController so it's never read as a human
+          // switch. The lock is RELEASED before media capture + the random gap.
+          const doLookup = async () => {
+            if (activatePerWord && !tabController.isPaused()) {
+              await tabController.activate(tabId);
+            }
+            return this.lookupHealing(tabId, w.word);
+          };
 
           try {
             // Heal a dead/discarded tab transparently and keep the fresh id.
-            let looked = await this.lookupHealing(tabId, w.word);
+            let looked = activatePerWord
+              ? await this.runForeground(doLookup)
+              : await doLookup();
             tabId = looked.tabId;
             this.setSlotWord(slot, tabId, w.word);
             let data = looked.data;
@@ -933,7 +975,8 @@ class BingDictionaryWorkerService {
 
             // Region/redirect ('non-dict') pages are often transient — retry the
             // word a few times before giving up, so a momentary redirect doesn't
-            // get mistaken for a persistent region-redirect failure.
+            // get mistaken for a persistent region-redirect failure. Each retry
+            // re-acquires the foreground lock (it re-types the word).
             let attempt = 1;
             while (
               classification.kind === 'error' &&
@@ -943,7 +986,7 @@ class BingDictionaryWorkerService {
               attempt < NONDICT_ATTEMPTS
             ) {
               attempt++;
-              looked = await this.lookupHealing(tabId, w.word);
+              looked = activatePerWord ? await this.runForeground(doLookup) : await doLookup();
               tabId = looked.tabId;
               data = looked.data;
               classification = classify(data);

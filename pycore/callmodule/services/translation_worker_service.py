@@ -499,37 +499,45 @@ class TranslationWorkerService:
         return Config
 
     def _ai_translate_enabled(self) -> bool:
-        """True when the ai_translate capability should be advertised (hard knob)."""
+        """ai_translate capability: hard knob AND the assist ai_translate toggle."""
         try:
-            return bool(getattr(self._cfg(), "AI_TRANSLATE_ENABLED", True))
+            if not bool(getattr(self._cfg(), "AI_TRANSLATE_ENABLED", True)):
+                return False
+        except Exception:
+            pass
+        try:
+            from pycore.pyctl.assist import assist_capability_enabled
+            return assist_capability_enabled("ai_translate", True)
         except Exception:
             return True
 
     def _audio_enabled(self) -> bool:
-        """True when this worker should advertise + process the audio (TTS) lane.
-
-        Layered: the assist master toggle (enabled) AND capabilities.tts. While the
-        assist_laravel section is absent the legacy default (advertise) applies.
-        """
+        """Audio (word TTS) lane: the assist 'tts' capability (master enabled AND
+        capabilities.tts). While the assist_laravel section is absent the legacy
+        default (advertise) applies."""
         try:
-            from pycore.pyctl.assist import assist_settings_exist, load_assist_settings
-            if not assist_settings_exist():
-                return True
-            settings = load_assist_settings()
-            return bool(settings.get("enabled") and
-                        (settings.get("capabilities") or {}).get("tts", True))
+            from pycore.pyctl.assist import assist_capability_enabled
+            return assist_capability_enabled("tts", True)
         except Exception:
             return True
 
     def _subtitle_enabled(self) -> bool:
-        """True when the dedicated subtitle lane should be advertised (hard knob)."""
+        """Subtitle lane: hard knob AND the assist subtitle toggle."""
         try:
-            return bool(getattr(self._cfg(), "SUBTITLE_SEARCH_WORKER_ENABLED", True))
+            if not bool(getattr(self._cfg(), "SUBTITLE_SEARCH_WORKER_ENABLED", True)):
+                return False
+        except Exception:
+            pass
+        try:
+            from pycore.pyctl.assist import assist_capability_enabled
+            return assist_capability_enabled("subtitle", True)
         except Exception:
             return True
 
     def _poster_enabled(self) -> bool:
-        """Hard knob AND the live media_sync.fetch_poster user-data toggle."""
+        """Poster lane: hard knob AND the live media_sync.fetch_poster toggle AND the
+        assist poster toggle — unified so the Queue Center poster switch is
+        authoritative (was decoupled from the assist-queue poster claim)."""
         try:
             if not bool(getattr(self._cfg(), "POSTER_WORKER_ENABLED", True)):
                 return False
@@ -538,39 +546,46 @@ class TranslationWorkerService:
         try:
             from pycore.pyfoundations.system_paths import get_user_data_store
             section = get_user_data_store().get_section("media_sync") or {}
-            if "fetch_poster" in section:
-                return bool(section.get("fetch_poster"))
+            if "fetch_poster" in section and not bool(section.get("fetch_poster")):
+                return False
         except Exception:
             pass
-        return True
+        try:
+            from pycore.pyctl.assist import assist_capability_enabled
+            return assist_capability_enabled("poster", True)
+        except Exception:
+            return True
 
     def _sentence_audio_enabled(self) -> bool:
-        """Hard knob AND the live assist sentence_audio feature toggle."""
+        """Sentence-audio lane: hard knob AND the assist sentence_audio toggle —
+        now INDEPENDENT of the word-tts toggle (was a phantom alias of caps.tts)."""
         try:
             if not bool(getattr(self._cfg(), "SENTENCE_AUDIO_WORKER_ENABLED", True)):
                 return False
         except Exception:
             pass
         try:
-            from pycore.pyctl.assist import assist_settings_exist, load_assist_settings
-            if not assist_settings_exist():
-                return True
-            caps = (load_assist_settings().get("capabilities") or {})
-            # sentence_audio rides the assist tts capability (no separate flag yet).
-            return bool(caps.get("sentence_audio", caps.get("tts", True)))
+            from pycore.pyctl.assist import assist_capability_enabled
+            return assist_capability_enabled("sentence_audio", True)
         except Exception:
             return True
 
     def _image_enabled(self) -> bool:
-        """True when this worker should advertise + process the 'image' capability.
+        """'image' capability (word media): hard knob AND the assist image toggle.
 
-        HARD knob only (WORD_IMAGE_WORKER_ENABLED). Backed by the unified AI gateway
-        (pyctl.ai.generate_image). NOT a fake capability: if no image provider is
-        configured at runtime, generate_image returns success=False and the handler
-        reports the task 'failed' so Laravel re-routes/re-pends it — never stranded.
+        Backed by the unified AI gateway (pyctl.ai.generate_image). NOT a fake
+        capability: if no image provider is configured at runtime, generate_image
+        returns success=False and the handler reports the task 'failed' so Laravel
+        re-routes/re-pends it — never stranded.
         """
         try:
-            return bool(getattr(self._cfg(), "WORD_IMAGE_WORKER_ENABLED", True))
+            if not bool(getattr(self._cfg(), "WORD_IMAGE_WORKER_ENABLED", True)):
+                return False
+        except Exception:
+            pass
+        try:
+            from pycore.pyctl.assist import assist_capability_enabled
+            return assist_capability_enabled("image", True)
         except Exception:
             return True
 

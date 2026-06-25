@@ -77,6 +77,7 @@ export const pcEn = {
     history: {
       title: 'Usage History',
       subtitle: 'One feed of every record — AI images, image searches, subtitle searches and translations.',
+      usageTitle: 'AI Usage (all calls)',
       all: 'All',
       empty: 'No usage records yet.',
       unreachable: 'pycore unreachable — history could not be loaded.',
@@ -407,6 +408,21 @@ export const pcEn = {
         tts: 'Text-to-Speech',
         image: 'Image generation',
         translation: 'Translation',
+      },
+    },
+    // Assist Laravel strip — per-capability ON/OFF switches.
+    assist: {
+      capabilities: 'Capabilities',
+      cap: {
+        translation: 'Assist Translation',
+        ai_translate: 'AI Translation',
+        cover: 'Cover Image',
+        poster: 'Movie/TV Poster',
+        image: 'Word Image',
+        tts: 'Voice (TTS)',
+        sentence_audio: 'Sentence Voice',
+        subtitle: 'Subtitle Search',
+        stt: 'Speech → Text',
       },
     },
     // Recent Tasks tab — unified cross-end task history (pycore + chrome).

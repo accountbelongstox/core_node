@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 import { pycoreApi, loadQueueCache } from '../../../core/api-libs/pycore';
 import type {
-  AssistStatus, TtsStatus,
+  AssistStatus, AssistCapabilities, TtsStatus,
   PcQueueOverview, PcQueueCategory, PcQueueWorker, PcQueueHandler,
   PcCapabilitySettings, PcCapabilityBlock, PcCapabilityKey,
   PcTaskRecord, PcTaskRecentStats,
@@ -67,6 +67,14 @@ const isTab = (v: string | null): v is QcTab =>
 
 const CAP_KEYS: PcCapabilityKey[] = ['stt', 'tts', 'image', 'translation'];
 
+// Per-capability assist toggles surfaced in the assist strip (each is an
+// independent ON/OFF switch on top of the master `enabled`). Order = display.
+type AssistCapKey = keyof AssistCapabilities;
+const ASSIST_CAP_KEYS: AssistCapKey[] = [
+  'translation', 'ai_translate', 'cover', 'poster', 'image',
+  'tts', 'sentence_audio', 'subtitle', 'stt',
+];
+
 interface PanelMeta { count: number | null; loading: boolean; }
 
 /** Loose 404/error bodies must not render as a status — shape-guard it. */
@@ -96,12 +104,15 @@ const lastTaskSummary = (rec: PcTaskRecord): string => {
 // Assist Laravel status strip (compact; full config lives in PcSettingsPage).
 // --------------------------------------------------------------------------
 const PcAssistStrip: React.FC = () => {
+  const { t } = useTranslation('pc');
   const [status, setStatus] = useState<AssistStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [cycling, setCycling] = useState(false);
   const [cycleMsg, setCycleMsg] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
+  // A per-capability toggle is in flight; disables the whole grid until done.
+  const [capBusy, setCapBusy] = useState(false);
   // The single most recent assist task (compact one-line summary). Degrades
   // silently to null when the recent-task endpoint is unavailable.
   const [lastTask, setLastTask] = useState<PcTaskRecord | null>(null);
@@ -157,17 +168,13 @@ const PcAssistStrip: React.FC = () => {
   }, [cycling, fetchStatus]);
 
   // Auto-On: the master enable toggle. When on, the worker polls Laravel every
-  // ~30s and assists (cover/tts/poster) without manual cycles. Also force the
-  // poster capability on so enabling here immediately starts draining posters.
+  // ~30s and assists (per the per-capability switches) without manual cycles.
   const toggleEnabled = useCallback(async () => {
     if (toggling || !status) return;
     setToggling(true);
     setCycleMsg(null);
-    const next = !status.enabled;
     try {
-      const r = await pycoreApi.setAssistConfig(
-        next ? { enabled: true, capabilities: { poster: true } } : { enabled: false },
-      );
+      const r = await pycoreApi.setAssistConfig({ enabled: !status.enabled });
       if (!mounted.current) return;
       if ((r as any)?.success === false) {
         setCycleMsg(`Toggle failed: ${(r as any)?.error || (r as any)?.detail || 'unavailable'}`);
@@ -179,6 +186,26 @@ const PcAssistStrip: React.FC = () => {
       if (mounted.current) setToggling(false);
     }
   }, [toggling, status, fetchStatus]);
+
+  // Flip a single assist capability ON/OFF (independent of the master enable).
+  const toggleCap = useCallback(async (cap: AssistCapKey) => {
+    if (capBusy || !status) return;
+    setCapBusy(true);
+    setCycleMsg(null);
+    const next = !status.capabilities?.[cap];
+    try {
+      const r = await pycoreApi.setAssistConfig({ capabilities: { [cap]: next } });
+      if (!mounted.current) return;
+      if ((r as any)?.success === false) {
+        setCycleMsg(`Toggle failed: ${(r as any)?.error || (r as any)?.detail || 'unavailable'}`);
+      }
+      await fetchStatus();
+    } catch (e: any) {
+      if (mounted.current) setCycleMsg(`Toggle failed: ${e?.message || 'pycore unreachable'}`);
+    } finally {
+      if (mounted.current) setCapBusy(false);
+    }
+  }, [capBusy, status, fetchStatus]);
 
   // Unavailable (endpoint missing / pycore offline): one muted line, never a
   // broken strip — the queue tabs below stay fully usable.
@@ -284,6 +311,28 @@ const PcAssistStrip: React.FC = () => {
         {status.last_cycle_at && (
           <span title="Last assist cycle">last cycle {new Date(status.last_cycle_at).toLocaleTimeString()}</span>
         )}
+      </div>
+
+      <div className="pt-0.5">
+        <div className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+          {t('queueCenter.assist.capabilities')}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+          {ASSIST_CAP_KEYS.map((cap) => {
+            const on = !!status.capabilities?.[cap];
+            return (
+              <button key={cap} onClick={() => toggleCap(cap)} disabled={capBusy}
+                title={t(`queueCenter.assist.cap.${cap}` as const)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition disabled:opacity-50 ${
+                  on
+                    ? 'bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25'
+                    : 'pc-glass text-slate-500 hover:bg-emerald-500/10'}`}>
+                {on ? <Check className="w-3.5 h-3.5 shrink-0" /> : <Power className="w-3.5 h-3.5 shrink-0" />}
+                <span className="truncate">{t(`queueCenter.assist.cap.${cap}` as const)}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {lastTask && (

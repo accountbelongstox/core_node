@@ -23,6 +23,7 @@ import type {
   ImageHistoryEntry, ImageSearchHistoryEntry, SubtitleSearchHistoryEntry,
   TranslateHistoryEntry,
 } from '../../../core/api-libs/pycore';
+import AiUsagePanel from '../../../components/ai-tools/AiUsagePanel';
 
 type HistKind = 'aiImage' | 'imageSearch' | 'subtitleSearch' | 'translate';
 
@@ -167,6 +168,14 @@ const PcAiHistoryView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }
 
   return (
     <div className="space-y-4">
+      {/* Global AI usage (shared cross-runtime store: text / vision / probe). The
+          getAiUsage client already wraps the raw {success,stats,entries} into the
+          {success,data,error} envelope AiUsagePanel reads, so it mounts unchanged. */}
+      <AiUsagePanel
+        title={t('ai.history.usageTitle')}
+        fetchUsage={(limit) => pycoreApi.getAiUsage(limit)}
+      />
+
       {/* header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

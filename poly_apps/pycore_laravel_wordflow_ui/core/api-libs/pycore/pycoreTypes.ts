@@ -1109,6 +1109,16 @@ export interface AssistCapabilities {
   cover: boolean;
   tts: boolean;
   translation: boolean;
+  /** AI-translation generation (distinct from draining the translation queue). */
+  ai_translate?: boolean;
+  /** Word-image generation. */
+  image?: boolean;
+  /** Sentence-level voice synthesis. */
+  sentence_audio?: boolean;
+  /** Subtitle search. */
+  subtitle?: boolean;
+  /** Speech-to-text. */
+  stt?: boolean;
   /** Movie/TV poster fetch (TMDB/OMDB) for Books/Subtitles media. Optional —
    *  older backends omit it; treated as off until the field is present. */
   poster?: boolean;

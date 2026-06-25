@@ -16,38 +16,25 @@ import { TRANSLATIONS } from '../../constants';
 import { mediaUrl } from '../../config/constants';
 import {
   Languages,
-  ArrowLeftRight,
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Volume2,
-  Copy,
   RefreshCw,
-  X,
   BookOpen,
   CheckCircle,
-  CircleAlert,
   ListChecks,
-  Trash2,
-  Eye,
-  Search,
-  BarChart3,
-  Sliders
+  Search
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 import { extractArrayFromResponse } from '../../utils/arrayUtils';
 import { useAppState } from '../../contexts/AppStateContext';
 import { usePersistentTask } from '../../core/tasks/usePersistentTask';
 import VocabularyWordListModal from '../vocabulary/VocabularyWordListModal';
-import BooksPanel from '../vocabulary/BooksPanel';
-import VocabularyCoverManagerMenu from '../vocabulary/VocabularyCoverManagerMenu';
 import WordsManagerPanel from '../vocabulary/WordsManagerPanel';
 import VocabularyLibraryDetail from '../vocabulary/VocabularyLibraryDetail';
-import VocabTtsEnginesStrip from '../vocabulary/VocabTtsEnginesStrip';
-import VocabPosterStrip from '../vocabulary/VocabPosterStrip';
 import TtsLogsDock from '../vocabulary/TtsLogsDock';
-import { CollapsibleSection } from '../vocabulary/CollapsibleSection';
+import TtsQueueTab from '../vocabulary/tabs/TtsQueueTab';
+import TranslateInputPanel from '../vocabulary/tabs/TranslateInputPanel';
+import TtsPlayerPanel from '../vocabulary/tabs/TtsPlayerPanel';
+import StatisticsTab from '../vocabulary/tabs/StatisticsTab';
+import LibrariesTab from '../vocabulary/tabs/LibrariesTab';
 import PaginatedListModal, { type PaginatedListColumn, type PaginatedListFetcher } from '../vocabulary/PaginatedListModal';
 import { buildDictionaryColumns } from '../vocabulary/words/dictionaryColumns';
 import WordDetail from '../vocabulary/words/WordDetail';
@@ -1097,586 +1084,52 @@ const VocabularyLearning: React.FC = () => {
 
       {/* ===================== TTS QUEUE TAB ===================== */}
       {activeTab === 'queue' && (
-      <>
-      {/* TTS Engines status strip (pycore — polled, degrades gracefully) */}
-      <VocabTtsEnginesStrip />
-
-      {/* TTS Queue Management Section */}
-      <div className={`${commonClasses.card} p-4 mb-4`}>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <h3 className="font-semibold text-lg">TTS Queue Management</h3>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="auto-refresh"
-                checked={autoRefreshQueue}
-                onChange={(e) => setAutoRefreshQueue(e.target.checked)}
-                className="rounded border-slate-300 dark:border-slate-600"
-              />
-              <label htmlFor="auto-refresh" className="text-xs text-slate-600 dark:text-slate-400">
-                Auto-refresh (5s)
-              </label>
-            </div>
-          </div>
-          <button
-            onClick={loadQueueStats}
-            disabled={loadingQueueStats}
-            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-          >
-            <RefreshCw className={`w-3 h-3 ${loadingQueueStats ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
-
-        {queueStats ? (
-          <div className="space-y-4">
-            {/* Status Statistics */}
-            <div>
-              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Status Statistics</h4>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <button
-                  type="button"
-                  onClick={() => openTtsQueueDrill('Pending', { status: 'pending' })}
-                  className="text-left bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-                >
-                  <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
-                    {queueStats.by_status?.pending || 0}
-                    <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-400">Pending</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openTtsQueueDrill('Processing', { status: 'processing' })}
-                  className="text-left bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-                >
-                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-400 flex items-center gap-1">
-                    {queueStats.by_status?.processing || 0}
-                    <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-400">Processing</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openTtsQueueDrill('Completed', { status: 'completed' })}
-                  className="text-left bg-green-50 dark:bg-green-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-                >
-                  <div className="text-2xl font-bold text-green-700 dark:text-green-400 flex items-center gap-1">
-                    {queueStats.by_status?.completed || 0}
-                    <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-400">Completed</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openTtsQueueDrill('Failed', { status: 'failed' })}
-                  className="text-left bg-red-50 dark:bg-red-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-                >
-                  <div className="text-2xl font-bold text-red-700 dark:text-red-400 flex items-center gap-1">
-                    {queueStats.by_status?.failed || 0}
-                    <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-400">Failed</div>
-                </button>
-                <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">
-                    {queueStats.total || 0}
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-400">Total</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Type Statistics */}
-            {queueStats.by_type && (
-              <div>
-                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Type Statistics</h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <button
-                    type="button"
-                    onClick={() => openTtsQueueDrill('Word', { type: 'word' })}
-                    className="text-left bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-                  >
-                    <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
-                      {queueStats.by_type.word || 0}
-                      <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-                    </div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">Word</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openTtsQueueDrill('Sentence', { type: 'sentence' })}
-                    className="text-left bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-                  >
-                    <div className="text-2xl font-bold text-purple-700 dark:text-purple-400 flex items-center gap-1">
-                      {queueStats.by_type.sentence || 0}
-                      <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-                    </div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">Sentence</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openTtsQueueDrill('Article', { type: 'article' })}
-                    className="text-left bg-pink-50 dark:bg-pink-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-                  >
-                    <div className="text-2xl font-bold text-pink-700 dark:text-pink-400 flex items-center gap-1">
-                      {queueStats.by_type.article || 0}
-                      <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-                    </div>
-                    <div className="text-xs text-slate-600 dark:text-slate-400">Article</div>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Additional Stats - Always show if data exists */}
-            <div>
-              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Additional Information</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-cyan-700 dark:text-cyan-400">
-                    {queueStats.current_concurrent ?? 0}
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-400">Current Concurrent</div>
-                </div>
-                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
-                    {queueStats.total_success ?? queueStats.by_status?.completed ?? 0}
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-400">Total Success</div>
-                </div>
-                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-orange-700 dark:text-orange-400">
-                    {queueStats.total_retries ?? 0}
-                  </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-400">Total Retries</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Logs — moved to the floating bottom-left dock (<TtsLogsDock/>) */}
-            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
-              <p className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                <ListChecks className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
-                {t.logs_moved_hint}
-              </p>
-              <button
-                type="button"
-                onClick={() => setLogsDockOpen(true)}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline flex-shrink-0"
-              >
-                {t.open_logs_dock}
-              </button>
-            </div>
-          </div>
-        ) : loadingQueueStats ? (
-          <LoadingBlock />
-        ) : (
-          <EmptyState message="No queue statistics available" />
-        )}
-      </div>
-      </>
+        <TtsQueueTab
+          queueStats={queueStats}
+          loadingQueueStats={loadingQueueStats}
+          autoRefreshQueue={autoRefreshQueue}
+          setAutoRefreshQueue={setAutoRefreshQueue}
+          loadQueueStats={loadQueueStats}
+          openTtsQueueDrill={openTtsQueueDrill}
+          setLogsDockOpen={setLogsDockOpen}
+          t={t}
+        />
       )}
 
       {/* ===================== STATISTICS TAB ===================== */}
       {activeTab === 'statistics' && (
-      <>
-      {/* Collapsible language-filter side panel (secondary settings) */}
-      <CollapsibleSection
-        title="Filters"
-        icon={<Sliders className="w-4 h-4 text-indigo-500" />}
-        open={statsFilterOpen}
-        onToggle={() => setStatsFilterOpen((v) => !v)}
-        className="mb-4"
-      >
-        <div className="flex items-center gap-2 flex-wrap">
-          <label className="text-xs text-slate-500 dark:text-slate-400">Language</label>
-          <select
-            value={statsLanguageFilter}
-            onChange={(e) => setStatsLanguageFilter(e.target.value)}
-            className={`${commonClasses.input} text-sm`}
-          >
-            <option value="all">All languages</option>
-            <option value="english">English</option>
-            <option value="chinese">Chinese</option>
-            <option value="japanese">Japanese</option>
-            <option value="korean">Korean</option>
-            <option value="french">French</option>
-            <option value="german">German</option>
-            <option value="spanish">Spanish</option>
-          </select>
-          <button
-            onClick={() => loadStatistics(statsLanguageFilter)}
-            disabled={loadingStatistics}
-            className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-          >
-            <RefreshCw className={`w-3 h-3 ${loadingStatistics ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
-      </CollapsibleSection>
-
-      {/* Statistics Section */}
-      {(statistics || loadingStatistics) ? (
-        <div className={`${commonClasses.card} p-4 mb-4`}>
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h3 className="font-semibold text-lg">Vocabulary Statistics</h3>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => loadStatistics(statsLanguageFilter)}
-                disabled={loadingStatistics}
-                className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-              >
-                <RefreshCw className={`w-3 h-3 ${loadingStatistics ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-            </div>
-          </div>
-
-          {loadingStatistics && !statistics ? (
-            <LoadingBlock size="lg" className="py-12" />
-          ) : statistics ? (
-            <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4">
-              <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400">
-                {statistics.summary?.total_languages || 0}
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">Languages Supported</div>
-            </div>
-            <button
-              type="button"
-              onClick={openLibrariesDrill}
-              className="text-left bg-green-50 dark:bg-green-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-            >
-              <div className="text-2xl font-bold text-green-700 dark:text-green-400 flex items-center gap-1">
-                {(statistics.summary?.total_libraries || 0).toLocaleString()}
-                <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">Total Libraries</div>
-            </button>
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-              <button
-                type="button"
-                className="w-full text-left"
-                onClick={() => {
-                  const lang = statsLanguageFilter === 'all' ? 'english' : statsLanguageFilter;
-                  setWordModalLanguage(lang);
-                  setWordModalOpen(true);
-                }}
-              >
-                <div className="text-2xl font-bold text-blue-700 dark:text-blue-400 underline decoration-dotted">
-                  {(statistics.summary?.total_words || 0).toLocaleString()}
-                </div>
-                <div className="text-xs text-slate-600 dark:text-slate-400">Total Words</div>
-              </button>
-            </div>
-            <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-              <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
-                {statistics.summary?.tts_percentage || 0}%
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">TTS Coverage</div>
-            </div>
-          </div>
-
-          {/* Dictionary-level totals: distinct words, translation coverage, validity */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <button
-              type="button"
-              onClick={() => openDictionaryDrill('Dictionary Words', 'all')}
-              className="text-left bg-slate-50 dark:bg-slate-800/40 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-            >
-              <div className="text-2xl font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                {(statistics.summary?.total_dictionary_words || 0).toLocaleString()}
-                <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">Dictionary Words</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => openDictionaryDrill('With Translation', 'with_translation')}
-              className="text-left bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-            >
-              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                {(statistics.summary?.total_with_translation || 0).toLocaleString()}
-                <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">With Translation</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => openDictionaryDrill('Without Translation', 'without_translation')}
-              className="text-left bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-            >
-              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                {(statistics.summary?.total_without_translation || 0).toLocaleString()}
-                <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">Without Translation</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => openDictionaryDrill('Invalid Words', 'invalid')}
-              className="text-left bg-rose-50 dark:bg-rose-900/20 rounded-lg p-4 cursor-pointer hover:ring-2 hover:ring-indigo-400/40 transition group"
-            >
-              <div className="text-2xl font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1">
-                {(statistics.summary?.total_invalid_words || 0).toLocaleString()}
-                <Eye className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50" />
-              </div>
-              <div className="text-xs text-slate-600 dark:text-slate-400">
-                Invalid Words
-                {statistics.summary?.total_validity_checked != null && (
-                  <span className="ml-1 text-slate-400">
-                    ({(statistics.summary?.total_validity_checked || 0).toLocaleString()} checked)
-                  </span>
-                )}
-              </div>
-            </button>
-          </div>
-
-          {/* Language Breakdown - total table */}
-          <div className="space-y-2">
-            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Language Breakdown</h4>
-            {statistics.languages && statistics.languages.length > 0 ? (
-              <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-lg">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
-                      <th className="text-left py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Language</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Words</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Translated</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">No Translation</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Valid</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Invalid</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Libraries</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">TTS</th>
-                      <th className="text-right py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">Translation %</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {statistics.languages.map((lang: any, idx: number) => {
-                      const words = (lang.dictionary_words ?? 0) > 0 ? lang.dictionary_words : (lang.total_words || 0);
-                      return (
-                      <tr
-                        key={idx}
-                        onClick={() => openLanguageRowDrill(lang.language)}
-                        className="border-b border-slate-100 dark:border-slate-700/50 last:border-0 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition"
-                      >
-                        <td className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200">
-                          <span className="inline-flex items-center gap-1 underline decoration-dotted">
-                            {lang.language}
-                            <Eye className="w-3 h-3 opacity-40" />
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 text-right text-slate-700 dark:text-slate-300 font-medium">{(words || 0).toLocaleString()}</td>
-                        <td className="py-2 px-3 text-right text-emerald-600 dark:text-emerald-400">{(lang.with_translation || 0).toLocaleString()}</td>
-                        <td className="py-2 px-3 text-right text-amber-600 dark:text-amber-400">{(lang.without_translation || 0).toLocaleString()}</td>
-                        <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">{(lang.valid_words ?? words ?? 0).toLocaleString()}</td>
-                        <td className="py-2 px-3 text-right text-rose-600 dark:text-rose-400">{(lang.invalid_words || 0).toLocaleString()}</td>
-                        <td className="py-2 px-3 text-right text-slate-500 dark:text-slate-500">{(lang.libraries_count || 0).toLocaleString()}</td>
-                        <td className="py-2 px-3 text-right text-green-600 dark:text-green-400">{lang.tts_percentage ?? 0}%</td>
-                        <td className="py-2 px-3 text-right text-purple-600 dark:text-purple-400">{lang.review_percentage ?? 0}%</td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400 py-2">No language data for the selected filter.</p>
-            )}
-          </div>
-            </>
-          ) : null}
-        </div>
-      ) : (
-        <div className={`${commonClasses.card} p-8 mb-4`}>
-          <EmptyState icon={BarChart3} message="No statistics available yet." />
-        </div>
-      )}
-      </>
+        <StatisticsTab
+          statistics={statistics}
+          loadingStatistics={loadingStatistics}
+          statsLanguageFilter={statsLanguageFilter}
+          setStatsLanguageFilter={setStatsLanguageFilter}
+          statsFilterOpen={statsFilterOpen}
+          setStatsFilterOpen={setStatsFilterOpen}
+          loadStatistics={loadStatistics}
+          openLibrariesDrill={openLibrariesDrill}
+          openDictionaryDrill={openDictionaryDrill}
+          openLanguageRowDrill={openLanguageRowDrill}
+          setWordModalLanguage={setWordModalLanguage}
+          setWordModalOpen={setWordModalOpen}
+        />
       )}
 
       {/* ===================== LIBRARIES TAB ===================== */}
       {activeTab === 'libraries' && (
-      <>
-      {/* Collapsible language-filter side panel (secondary settings) */}
-      <CollapsibleSection
-        title="Filters"
-        icon={<Sliders className="w-4 h-4 text-indigo-500" />}
-        open={librariesFilterOpen}
-        onToggle={() => setLibrariesFilterOpen((v) => !v)}
-        className="mb-4"
-      >
-        <div className="flex items-center gap-2 flex-wrap">
-          <label className="text-xs text-slate-500 dark:text-slate-400">Language</label>
-          <select
-            value={selectedLanguage}
-            onChange={(e) => setSelectedLanguage(e.target.value)}
-            className={`${commonClasses.input} text-sm`}
-          >
-            <option value="english">English</option>
-            <option value="chinese">Chinese</option>
-            <option value="japanese">Japanese</option>
-            <option value="korean">Korean</option>
-            <option value="french">French</option>
-            <option value="german">German</option>
-            <option value="spanish">Spanish</option>
-          </select>
-          <button
-            onClick={loadLibraries}
-            disabled={loadingLibraries}
-            className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
-          >
-            <RefreshCw className={`w-4 h-4 ${loadingLibraries ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
-      </CollapsibleSection>
-
-      {/* Books / Add source — collapsible upload + analyze + ingest panel */}
-      <BooksPanel />
-
-      {/* Movie / TV poster pipeline status — mirrors the cover-status UI:
-          provider key badges + per-type (books / subtitles) poster counts. */}
-      <VocabPosterStrip />
-
-      {/* Vocabulary Libraries Section */}
-      <div className={`${commonClasses.card} p-4 mb-4`}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold flex items-center gap-2">
-            <BookOpen className="w-5 h-5" />
-            Vocabulary Libraries
-            <span className="text-xs font-normal text-slate-400 capitalize">· {selectedLanguage}</span>
-          </h3>
-          <div className="flex items-center gap-3">
-            <VocabularyCoverManagerMenu onChanged={loadLibraries} />
-            <button
-              onClick={() => setLibrariesFilterOpen((v) => !v)}
-              className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              Filters
-            </button>
-          </div>
-        </div>
-
-        {loadingLibraries ? (
-          <LoadingBlock />
-        ) : libraries.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {libraries.map((library: any) => (
-              <div
-                key={library.id}
-                className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => loadLibraryWords(library)}
-              >
-                {library.image_url && (
-                  <div className="w-full h-32 mb-3 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
-                    <img
-                      src={mediaUrl(library.image_url)}
-                      alt={library.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-                {/* Failed cover: show WHY (error_message + attempts) and a per-
-                    library Retry that re-queues it for pycore (pull-only). */}
-                {library.cover?.status === 'failed' && (
-                  <div
-                    className="mb-3 px-2.5 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-start gap-1.5 text-xs text-red-700 dark:text-red-300">
-                      <CircleAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span
-                        className="flex-1 line-clamp-2 break-words"
-                        title={library.cover.error_message || 'Cover generation failed.'}
-                      >
-                        {library.cover.error_message || 'Cover generation failed.'}
-                        {typeof library.cover.attempts === 'number' && library.cover.attempts > 0 && (
-                          <span className="text-red-500/80 dark:text-red-400/80">
-                            {' '}({library.cover.attempts} attempt{library.cover.attempts === 1 ? '' : 's'})
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRetryCover(library);
-                      }}
-                      disabled={retryingCovers.has(library.id)}
-                      className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${retryingCovers.has(library.id) ? 'animate-spin' : ''}`} />
-                      Retry cover
-                    </button>
-                  </div>
-                )}
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <h4 className="font-semibold text-sm">{library.name}</h4>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLibraryToDelete(library);
-                    }}
-                    className="flex-shrink-0 p-1 rounded text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    title={t.delete_library}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                {library.description && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 line-clamp-2">
-                    {library.description}
-                  </p>
-                )}
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-600 dark:text-slate-400">
-                    {library.word_count || 0} words
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {library.difficulty && (
-                      <span className={`px-2 py-0.5 rounded text-xs ${
-                        library.difficulty === 'beginner'
-                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                          : library.difficulty === 'intermediate'
-                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
-                      }`}>
-                        {library.difficulty}
-                      </span>
-                    )}
-                    {library.is_recommended && (
-                      <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
-                        Recommended
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {library.category && (
-                  <div className="mt-2">
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                      Category: {library.category}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <EmptyState icon={BookOpen} message={`No libraries available for ${selectedLanguage}`} />
-        )}
-      </div>
-      </>
+        <LibrariesTab
+          libraries={libraries}
+          loadingLibraries={loadingLibraries}
+          selectedLanguage={selectedLanguage}
+          setSelectedLanguage={setSelectedLanguage}
+          librariesFilterOpen={librariesFilterOpen}
+          setLibrariesFilterOpen={setLibrariesFilterOpen}
+          loadLibraries={loadLibraries}
+          loadLibraryWords={loadLibraryWords}
+          handleRetryCover={handleRetryCover}
+          retryingCovers={retryingCovers}
+          setLibraryToDelete={setLibraryToDelete}
+          t={t}
+        />
       )}
 
       {/* ===================== WORDS TAB ===================== */}
@@ -1694,246 +1147,41 @@ const VocabularyLearning: React.FC = () => {
       {/* Main Content - Three Panel Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-[28rem]">
         {/* Left Panel - Translation */}
-        <div className={`${commonClasses.card} p-4 flex flex-col overflow-hidden`}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Translation</h3>
-            <button
-              onClick={swapLanguages}
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-              title="Swap languages"
-            >
-              <ArrowLeftRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Language Selectors — collapsible secondary settings */}
-          <CollapsibleSection
-            title={
-              <span className="text-xs">
-                Languages: <span className="font-semibold uppercase">{sourceLanguage}</span> → <span className="font-semibold uppercase">{targetLanguage}</span>
-              </span>
-            }
-            icon={<Sliders className="w-3.5 h-3.5 text-indigo-500" />}
-            open={translateSettingsOpen}
-            onToggle={() => setTranslateSettingsOpen((v) => !v)}
-            className="mb-4 flex-shrink-0"
-          >
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                value={sourceLanguage}
-                onChange={(e) => setSourceLanguage(e.target.value)}
-                className={`${commonClasses.input} text-sm`}
-              >
-                {Array.isArray(languages) && languages.map(lang => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.native_name} ({lang.name})
-                  </option>
-                ))}
-              </select>
-              <select
-                value={targetLanguage}
-                onChange={(e) => setTargetLanguage(e.target.value)}
-                className={`${commonClasses.input} text-sm`}
-              >
-                {Array.isArray(languages) && languages.map(lang => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.native_name} ({lang.name})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </CollapsibleSection>
-
-          {/* Input Text Area */}
-          <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder={t.input_placeholder}
-            rows={6}
-            className={`${commonClasses.input} flex-1 mb-4 resize-none`}
-          />
-
-          {/* Action Buttons */}
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={handleTranslate}
-              disabled={translation.loading || !inputText.trim()}
-              className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex-1 flex items-center justify-center gap-2`}
-            >
-              {translation.loading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Languages className="w-4 h-4" />
-              )}
-              {t.translate}
-            </button>
-            <button
-              onClick={handleDetectAndTranslate}
-              disabled={translation.loading || !inputText.trim()}
-              className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
-            >
-              {t.auto_detect}
-            </button>
-            <button
-              onClick={() => {
-                setInputText('');
-                setTranslation({ data: null, loading: false, error: null, status: 'idle' });
-              }}
-              className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
-            >
-              <X className="w-4 h-4" />
-              {t.clear}
-            </button>
-          </div>
-
-          {/* Translation Result */}
-          {translation.error && (
-            <AlertBox variant="error" className="mb-4">{translation.error}</AlertBox>
-          )}
-
-          {translation.data && (
-            <div className="flex-1 overflow-auto">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-sm">Translation</h4>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => copy(translation.data!.translated_text)}
-                    className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
-                    title="Copy"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={handleGenerateTTS}
-                    disabled={tts.loading}
-                    className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
-                    title="Generate TTS"
-                  >
-                    {tts.loading ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Volume2 className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg mb-2">
-                <p className="text-slate-900 dark:text-slate-100">{translation.data.translated_text}</p>
-              </div>
-              {translation.data.phonetic && (
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
-                  /{translation.data.phonetic}/
-                </p>
-              )}
-              {translation.data.alternatives && translation.data.alternatives.length > 0 && (
-                <div className="mb-2">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Alternatives:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {translation.data.alternatives.map((alt, idx) => (
-                      <span
-                        key={idx}
-                        onClick={() => {
-                          setTranslation(prev => ({
-                            ...prev,
-                            data: { ...prev.data!, translated_text: alt }
-                          }));
-                        }}
-                        className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600"
-                      >
-                        {alt}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {translation.data.confidence && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Confidence: {(translation.data.confidence * 100).toFixed(0)}%
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+        <TranslateInputPanel
+          translation={translation}
+          tts={tts}
+          languages={languages}
+          sourceLanguage={sourceLanguage}
+          setSourceLanguage={setSourceLanguage}
+          targetLanguage={targetLanguage}
+          setTargetLanguage={setTargetLanguage}
+          inputText={inputText}
+          setInputText={setInputText}
+          translateSettingsOpen={translateSettingsOpen}
+          setTranslateSettingsOpen={setTranslateSettingsOpen}
+          swapLanguages={swapLanguages}
+          handleTranslate={handleTranslate}
+          handleDetectAndTranslate={handleDetectAndTranslate}
+          handleGenerateTTS={handleGenerateTTS}
+          copy={copy}
+          setTranslation={setTranslation}
+          t={t}
+        />
 
         {/* Center Panel - TTS Player */}
-        <div className={`${commonClasses.card} p-4 flex flex-col overflow-hidden`}>
-          <h3 className="font-semibold mb-4">Audio Player</h3>
-
-          {tts.data ? (
-            <>
-              {/* Audio Element */}
-              <audio
-                ref={audioRef}
-                onTimeUpdate={handleTimeUpdate}
-                onEnded={() => setIsPlaying(false)}
-                onLoadedMetadata={() => {
-                  if (audioRef.current) {
-                    setDuration(audioRef.current.duration);
-                  }
-                }}
-                className="hidden"
-              />
-
-              {/* Progress Bar */}
-              <div className="mb-4">
-                <input
-                  type="range"
-                  min="0"
-                  max={duration || 0}
-                  value={currentTime}
-                  onChange={handleSeek}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  <span>{formatTime(currentTime)}</span>
-                  <span>{formatTime(duration)}</span>
-                </div>
-              </div>
-
-              {/* Playback Controls */}
-              <div className="flex items-center justify-center gap-4 mb-4">
-                <button
-                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
-                  disabled
-                >
-                  <SkipBack className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={handlePlayPause}
-                  className="p-3 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white"
-                >
-                  {isPlaying ? (
-                    <Pause className="w-6 h-6" />
-                  ) : (
-                    <Play className="w-6 h-6" />
-                  )}
-                </button>
-                <button
-                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
-                  disabled
-                >
-                  <SkipForward className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Audio Info */}
-              <div className="text-sm text-slate-500 dark:text-slate-400">
-                <p>Duration: {tts.data.duration}s</p>
-                <p>Format: {tts.data.format.toUpperCase()}</p>
-                {tts.data.cache_hit && (
-                  <p className="text-emerald-600 dark:text-emerald-400">✓ Cached</p>
-                )}
-              </div>
-            </>
-          ) : (
-            <EmptyState
-              icon={Volume2}
-              title="No audio generated"
-              message="Translate text and click TTS button"
-              className="flex-1"
-            />
-          )}
-        </div>
+        <TtsPlayerPanel
+          audioRef={audioRef}
+          tts={tts}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          handlePlayPause={handlePlayPause}
+          handleTimeUpdate={handleTimeUpdate}
+          handleSeek={handleSeek}
+          formatTime={formatTime}
+          setIsPlaying={setIsPlaying}
+          setDuration={setDuration}
+        />
 
         {/* Right Panel - Learning Tasks */}
         <div className={`${commonClasses.card} p-4 flex flex-col overflow-hidden`}>

@@ -95,6 +95,8 @@ class GlobalTask extends Model
     const EXECUTION_REMOTE_SUBTITLE = 'remote_subtitle';
     const EXECUTION_REMOTE_POSTER = 'remote_poster';
     const EXECUTION_REMOTE_SENTENCE_AUDIO = 'remote_sentence_audio';
+    // Pycore-only speech-to-text (STT) transcription lane.
+    const EXECUTION_REMOTE_STT = 'remote_stt';
 
     // Shared interactive fast lane. BOTH pycore and chrome-mcp register for this
     // single lane; the existing atomic pull (lockForUpdate + assignTo) already
@@ -122,6 +124,7 @@ class GlobalTask extends Model
         self::EXECUTION_REMOTE_SUBTITLE,
         self::EXECUTION_REMOTE_POSTER,
         self::EXECUTION_REMOTE_SENTENCE_AUDIO,
+        self::EXECUTION_REMOTE_STT,
     ];
 
     // Priority tiers (single integer `priority` column, ordered DESC on pull).
@@ -142,6 +145,7 @@ class GlobalTask extends Model
     const CAPABILITY_AI_TRANSLATE = 'ai_translate';
     const CAPABILITY_SUBTITLE = 'subtitle';      // pycore-only subtitle retrieval
     const CAPABILITY_POSTER = 'poster';          // pycore-only movie poster (DISTINCT from 'image' = word art)
+    const CAPABILITY_STT = 'stt';                // pycore-only speech-to-text transcription
 
     const CAPABILITIES = [
         self::CAPABILITY_AUDIO,
@@ -151,6 +155,7 @@ class GlobalTask extends Model
         self::CAPABILITY_AI_TRANSLATE,
         self::CAPABILITY_SUBTITLE,
         self::CAPABILITY_POSTER,
+        self::CAPABILITY_STT,
     ];
 
     /**
