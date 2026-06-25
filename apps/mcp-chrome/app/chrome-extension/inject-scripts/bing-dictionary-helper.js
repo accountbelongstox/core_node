@@ -64,6 +64,20 @@
   }
 
   /**
+   * Detect Bing's SOFT OUTAGE page — a normal 200 that loads fine but says Bing
+   * is unavailable: "It's not you, it's us" / "Bing isn't available right now,
+   * but everything should be back to normal very soon." Apostrophe-tolerant
+   * (straight ' and curly ’). Caller MUST gate this on a NON-dict page so a real
+   * dictionary entry whose example sentence happens to contain the phrase is
+   * never mis-flagged.
+   */
+  function detectOutage() {
+    const area = document.querySelector('#content, .lf_area, #smt, .b_content') || document.body;
+    const text = norm(area && area.textContent).slice(0, 4000);
+    return /It['’]s not you, it['’]s us|Bing isn['’]t available right now/i.test(text);
+  }
+
+  /**
    * Wait until the dictionary page has rendered one of its DEFINITIVE states —
    * a real entry (`.hd_div strong` / `.qdef`), a confirmed no-entry
    * (`.no_results`), or the machine-translation fallback (`.lf_area .smt_hw`) —
@@ -169,6 +183,10 @@
       // True on a machine-translation-only page (.lf_area .smt_hw, no .qdef) —
       // no real Bing dictionary entry; the worker marks it invalid too.
       computerTranslate: false,
+      // True on Bing's SOFT OUTAGE page ("It's not you, it's us" / "Bing isn't
+      // available right now"). A GLOBAL transient — the worker pauses 30s and
+      // probes for recovery; words are NEVER invalidated by an outage.
+      outage: false,
       error: null,
     };
 
@@ -178,6 +196,18 @@
       const wordElement = document.querySelector('.hd_div strong');
       if (wordElement) {
         result.word = wordElement.textContent.trim();
+      }
+
+      // Bing SOFT OUTAGE: a non-dict page that says Bing is unavailable. Gated on
+      // a NON-dict page so a real entry mentioning the phrase can't false-positive.
+      // success=false + outage=true + pageType='non-dict' => classify maps it to a
+      // transient 'error' (never 'invalid'); the worker enters 30s outage mode.
+      if (result.pageType !== 'dict' && detectOutage()) {
+        result.outage = true;
+        result.hasContent = false;
+        result.error = 'Bing outage / service unavailable';
+        result.success = false;
+        return result;
       }
 
       // A "No results found for <word>" page is a definitive dictionary no-entry

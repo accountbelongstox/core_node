@@ -13,18 +13,18 @@
 
 import { WorkerApiClient, Task, ProcessorType } from '../api/WorkerApiClient';
 import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-dictionary';
-import { mediaCache } from '@/utils/media-cache';
 import { logger } from '@/utils/logger';
-import { BingTabPool, MAX_BING_TABS } from './bing-tab-pool';
+import { BingTabPool, MAX_BING_TABS, isRecoverableTabError } from './bing-tab-pool';
 import { CHROME_FAST_CAPABILITIES } from './task-center/SimpleWorkerBase';
 import { tabController } from './tab-controller';
 import {
   classify,
   buildEntry,
-  formatExplanation,
+  normalizeWords,
   type NormalizedWord,
   type ResultEntry,
 } from './bing-result';
+import { runScrapeTest, type ScrapeTestResult } from './bing-worker-ops';
 
 // Subsystem tag for the global logger.
 const LOG = 'Bing Worker';
@@ -76,6 +76,14 @@ const NONDICT_ATTEMPTS = 3;
 // of dead tabs. Tuned conservative: a few transient misses won't trip it.
 const ANTISCRAPE_ABORT_THRESHOLD = 6;
 const ANTISCRAPE_COOLDOWN_MS = 60_000;
+
+// Bing SOFT OUTAGE ("It's not you, it's us" / "Bing isn't available right now")
+// or a whole batch dying: a GLOBAL transient, distinct from anti-scrape. Pause ALL
+// work for 30s, then probe ONE fresh tab until Bing is reachable again; NEVER
+// invalidate words. A bounded probe cap stops an indefinite stall if Bing serves
+// something the probe can't clear.
+const OUTAGE_PAUSE_MS = 30_000;
+const OUTAGE_MAX_PROBES = 10;
 
 // Human-paced jitter between consecutive word lookups so the worker NEVER hits
 // Bing at a fixed cadence (the user's "必须有一个随机时间，不要一直不停的按时间刷新").
@@ -139,6 +147,13 @@ class BingDictionaryWorkerService {
   private poolDiscarded = false;
   // Epoch ms until which polling is paused after sustained Bing anti-scrape.
   private cooldownUntil = 0;
+  // Bing soft-outage state: inOutage gates the poll loop into probe-mode;
+  // outageUntil spaces probes 30s apart; outageProbeFails bounds the retries;
+  // probing guards against a re-entrant probe from an overlapping poll tick.
+  private outageUntil = 0;
+  private inOutage = false;
+  private outageProbeFails = 0;
+  private probing = false;
   // Serializes per-word tab activation so concurrent slots don't fight over the
   // single active tab (the tab being typed into is the one foregrounded).
   private activateChain: Promise<unknown> = Promise.resolve();
@@ -217,6 +232,10 @@ class BingDictionaryWorkerService {
     // Begin the idle-discard countdown from Start so unused pool tabs are freed.
     this.lastActivityAt = Date.now();
     this.poolDiscarded = false;
+    // Defensive: never start wedged in a stale outage / cooldown.
+    this.inOutage = false;
+    this.outageUntil = 0;
+    this.outageProbeFails = 0;
 
     // Persist intent + arm the watchdog so the worker survives SW termination
     // and browser restarts.
@@ -247,6 +266,10 @@ class BingDictionaryWorkerService {
 
     this.taskCache.clear();
     this.taskQueue = [];
+    // Clear outage state so a later Start never resumes wedged in a stale outage.
+    this.inOutage = false;
+    this.outageUntil = 0;
+    this.outageProbeFails = 0;
 
     // Tabs are intentionally left open so the user keeps their Bing context.
     this.isRunning = false;
@@ -297,6 +320,30 @@ class BingDictionaryWorkerService {
   /** The unified pause gate: anti-scrape cooldown OR shared human-interference. */
   private isWorkerPaused(): boolean {
     return Date.now() < this.cooldownUntil || tabController.isPaused();
+  }
+
+  /**
+   * Single-tab Bing reachability probe for soft-outage recovery. Collapses the
+   * pool to ONE tab, opens a BRAND-NEW bing.com/dict tab (pool.replace is
+   * close-first — never a reload of the original tab/URL, and BING_DICT_URL is
+   * parameter-free), and reports reachable = transport ok AND the page is NOT the
+   * outage page. A benign region redirect (non-outage, non-dict) counts as
+   * reachable so outage mode EXITS (the normal non-dict retry handles it) instead
+   * of livelocking. Best-effort: any throw = not reachable.
+   */
+  private async probeOneFreshTab(): Promise<boolean> {
+    try {
+      await this.pool.resize(1, false); // collapse to exactly one (closes extras)
+      const baseId = this.pool.ids[0];
+      if (baseId === undefined) return false;
+      const fresh = await this.pool.replace(baseId); // brand-new bing.com/dict tab
+      this.syncManagedTabs();
+      if (!(await this.pool.probeReachable(fresh))) return false;
+      const data = await bingDictionaryTool.lookupInTab(fresh, 'hello');
+      return !!data && data.outage !== true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -583,6 +630,50 @@ class BingDictionaryWorkerService {
       return;
     }
 
+    // Bing soft-outage recovery: while in outage, don't pull tasks — wait out the
+    // 30s window, then probe ONE fresh tab. Reachable -> clear outage + fall
+    // through to pull this tick; still down -> re-pause 30s (bounded so a
+    // persistent unclearable state can't wedge the worker forever).
+    if (this.inOutage) {
+      if (Date.now() < this.outageUntil) {
+        this.maybeDiscardIdleTabs();
+        return;
+      }
+      if (this.probing) return;
+      this.probing = true;
+      let reachable = false;
+      try {
+        reachable = await this.probeOneFreshTab();
+      } finally {
+        this.probing = false;
+      }
+      if (reachable) {
+        this.inOutage = false;
+        this.outageProbeFails = 0;
+        logger.info(LOG, 'Bing outage cleared — fresh-tab probe reached Bing; resuming');
+        // fall through to the normal pull this tick
+      } else {
+        this.outageProbeFails++;
+        if (this.outageProbeFails >= OUTAGE_MAX_PROBES) {
+          this.inOutage = false;
+          this.outageProbeFails = 0;
+          logger.warn(
+            LOG,
+            `Bing outage probe exceeded ${OUTAGE_MAX_PROBES} attempts — exiting outage mode; ` +
+              `resuming normal handling (per-word non-dict/anti-scrape logic takes over)`,
+          );
+          // fall through to pull
+        } else {
+          this.outageUntil = Date.now() + OUTAGE_PAUSE_MS;
+          logger.warn(
+            LOG,
+            `Bing still in outage on fresh-tab probe (${this.outageProbeFails}/${OUTAGE_MAX_PROBES}) — re-pausing 30s`,
+          );
+          return;
+        }
+      }
+    }
+
     try {
       this.stats.lastRun = Date.now();
 
@@ -755,7 +846,7 @@ class BingDictionaryWorkerService {
         (task.payload.content
           ? [{ word: task.payload.content, md5: (task.payload as any).md5 }]
           : []);
-      const words = this.normalizeWords(rawWords as any);
+      const words = normalizeWords(rawWords);
       if (words.length === 0) {
         throw new Error('No words in task payload');
       }
@@ -797,11 +888,16 @@ class BingDictionaryWorkerService {
       // crosses the threshold so we back off instead of spawning more tabs.
       let antiScrapeHits = 0;
       let aborted = false;
+      // Bing soft-outage detection (a global transient, distinct from anti-scrape):
+      // any outage page stops the batch fast WITHOUT arming the 60s anti-scrape
+      // cooldown — the after-batch trigger enters 30s outage-probe mode instead.
+      let outageHits = 0;
+      let outageDetected = false;
 
       const runSlot = async (initialTabId: number, slot: number): Promise<void> => {
         let tabId = initialTabId;
         while (true) {
-          if (aborted) break;
+          if (aborted || outageDetected) break;
           const i = nextIndex++;
           if (i >= total) break;
           const w = words[i];
@@ -835,6 +931,7 @@ class BingDictionaryWorkerService {
               classification.kind === 'error' &&
               !!data &&
               data.pageType === 'non-dict' &&
+              !data.outage && // an outage page won't clear by retrying — don't
               attempt < NONDICT_ATTEMPTS
             ) {
               attempt++;
@@ -850,7 +947,7 @@ class BingDictionaryWorkerService {
               LOG,
               `"${w.word}" -> ${classification.kind.toUpperCase()} (${classification.reason}) ` +
                 `[pageType=${data?.pageType ?? '?'} noEntry=${data?.noEntry ?? '?'} ` +
-                `hasContent=${data?.hasContent ?? '?'} attempts=${attempt}]`,
+                `outage=${data?.outage ?? '?'} hasContent=${data?.hasContent ?? '?'} attempts=${attempt}]`,
             );
 
             if (classification.kind === 'translated') {
@@ -870,16 +967,25 @@ class BingDictionaryWorkerService {
               );
             } else {
               this.stats.failed++;
-              // Persistent non-dict after retries: a region/redirect failure. Hold
-              // it aside — it is only promoted to invalid if the batch was
-              // otherwise healthy (outage guard below).
-              if (data && data.pageType === 'non-dict') {
+              if (data && data.outage) {
+                // Bing soft-outage page — a GLOBAL transient. Flag it (never add to
+                // nonDictWords, so it can NEVER be promoted to region-redirect
+                // invalid, even in a mixed batch) and stop the batch fast.
+                outageHits++;
+                outageDetected = true;
+                logger.warn(LOG, `"${w.word}" hit Bing OUTAGE page — entering outage mode`);
+              } else if (data && data.pageType === 'non-dict') {
+                // Persistent non-dict after retries: a region/redirect failure. Hold
+                // it aside — only promoted to invalid if the batch was otherwise
+                // healthy (outage guard below).
                 nonDictWords.push(w);
               }
-              logger.warn(
-                LOG,
-                `"${w.word}" FAILED transiently (${classification.reason}) — will retry/re-pend, NOT marked invalid`,
-              );
+              if (!data || !data.outage) {
+                logger.warn(
+                  LOG,
+                  `"${w.word}" FAILED transiently (${classification.reason}) — will retry/re-pend, NOT marked invalid`,
+                );
+              }
             }
             // A non-throwing lookup means the page responded — Bing is not
             // blocking us, so clear the anti-scrape streak.
@@ -891,7 +997,7 @@ class BingDictionaryWorkerService {
             // an anti-scrape block. Count consecutive ones and abort the batch
             // once Bing is clearly rate-limiting, so we cool down rather than
             // open a heap of error tabs.
-            if (this.isDeadTabError(error)) {
+            if (isRecoverableTabError(error)) {
               antiScrapeHits++;
               if (antiScrapeHits >= ANTISCRAPE_ABORT_THRESHOLD) {
                 aborted = true;
@@ -915,8 +1021,8 @@ class BingDictionaryWorkerService {
 
           // Human-paced random gap before this slot grabs the next word, so the
           // worker never hammers Bing at a fixed cadence. Skipped when aborting
-          // (anti-scrape cooldown) or when no words remain for this slot.
-          if (!aborted && nextIndex < total) {
+          // (anti-scrape / outage) or when no words remain for this slot.
+          if (!aborted && !outageDetected && nextIndex < total) {
             const gap = LOOKUP_DELAY_BASE_MS + Math.floor(Math.random() * LOOKUP_DELAY_JITTER_MS);
             await new Promise((resolve) => setTimeout(resolve, gap));
           }
@@ -937,6 +1043,47 @@ class BingDictionaryWorkerService {
           `Bing anti-scrape detected (${antiScrapeHits} consecutive blocks) — aborted batch, ` +
             `cooling down ${ANTISCRAPE_COOLDOWN_MS / 1000}s before polling again`,
         );
+      }
+
+      // Bing SOFT OUTAGE (or a whole batch dying): a GLOBAL transient. Pause ALL
+      // work 30s and enter probe-mode (one fresh tab until reachable). NOTHING is
+      // invalidated — region_redirect_words is forced []. Whatever was scraped
+      // BEFORE the outage is still saved (partial completed); the rest re-enqueue.
+      if (outageHits > 0 || (aborted && translations.length === 0 && invalidWords.length === 0)) {
+        this.inOutage = true;
+        this.outageUntil = Date.now() + OUTAGE_PAUSE_MS;
+        this.outageProbeFails = 0;
+        const hadOutput = translations.length > 0 || invalidWords.length > 0;
+        logger.warn(
+          LOG,
+          `Bing SOFT OUTAGE / all-tabs-dead (outageHits=${outageHits}) — pausing all work ` +
+            `${OUTAGE_PAUSE_MS / 1000}s then probing one fresh tab; task ${task.task_id} ` +
+            `${hadOutput ? 'partial-saved' : 're-pended'}; NOTHING invalidated by outage`,
+        );
+        if (hadOutput) {
+          await this.workerClient.submitResult({
+            task_id: task.task_id,
+            worker_id: workerId,
+            status: 'completed',
+            progress: 100,
+            result: {
+              target_language: targetLanguage,
+              provider: 'bing',
+              translations,
+              invalid_words: invalidWords,
+              region_redirect_words: [],
+            },
+          });
+        } else {
+          await this.workerClient.submitResult({
+            task_id: task.task_id,
+            worker_id: workerId,
+            status: 'failed',
+            error: 'Bing outage / service unavailable',
+          });
+        }
+        this.taskCache.delete(task.task_id);
+        return;
       }
 
       // Outage guard: only treat persistent non-dict words as region-redirect
@@ -1050,7 +1197,7 @@ class BingDictionaryWorkerService {
       const data = await bingDictionaryTool.lookupInTab(tabId, word, includeMedia);
       return { data, tabId };
     } catch (error) {
-      if (!this.isDeadTabError(error)) throw error;
+      if (!isRecoverableTabError(error)) throw error;
       logger.warn(LOG, `Tab ${tabId} vanished, replacing and retrying "${word}"`);
       const fresh = await this.pool.replace(tabId);
       this.stats.activeTabs = this.pool.size;
@@ -1063,203 +1210,22 @@ class BingDictionaryWorkerService {
   }
 
   /**
-   * A tab the pool was driving no longer exists — Chrome throws
-   * "No tab with id: N" (and the inject path wraps it as a content-script
-   * injection failure). These are recoverable by replacing the tab.
+   * Ad-hoc Bing scrape test (popup) — delegates to the shared runScrapeTest in
+   * bing-worker-ops, injecting this worker's pool + lookup-healing + live-stat
+   * setters. Behavior is identical to the former inline implementation.
    */
-  private isDeadTabError(error: unknown): boolean {
-    const msg = error instanceof Error ? error.message : String(error);
-    // Also treat a lost content-script channel ("Could not establish connection /
-    // Receiving end does not exist" — the tab navigated/reloaded so the injected
-    // helper is gone) as recoverable: heal by replacing the tab + retrying the
-    // word, rather than counting it as a translation failure.
-    // Also treat a Chrome net-error / anti-scrape page (Bing closes the
-    // connection -> "can't reach this page" / ERR_CONNECTION_CLOSED) as
-    // recoverable: such a tab is unscriptable, so injection throws "Cannot
-    // access" / "showing error page" — heal it by replacing the tab + retrying.
-    return /No tab with id|Failed to inject content script|No frame with id|Frame with id|Could not establish connection|Receiving end does not exist|message channel closed|message port closed|cannot access|showing error page|chrome-error|ERR_[A-Z_]+/i.test(
-      msg,
-    );
-  }
-
-  /** Payload words may be plain strings or {word, md5, ...} objects. */
-  private normalizeWords(raw: Task['payload']['words']): NormalizedWord[] {
-    if (!Array.isArray(raw)) return [];
-    const out: NormalizedWord[] = [];
-    for (const item of raw as any[]) {
-      if (typeof item === 'string') {
-        const word = item.trim();
-        if (word) out.push({ word });
-      } else if (item && typeof item.word === 'string') {
-        const word = item.word.trim();
-        if (word) out.push({ word, md5: item.md5 });
-      }
-    }
-    return out;
-  }
-
-  /**
-   * Ad-hoc Bing scrape test driven from the popup. Scrapes the given word(s)
-   * live across the configured parallel tab pool WITHOUT pulling from or posting
-   * to the backend, and returns a compact per-word result for display. Lets the
-   * user validate the Bing extraction + parallelism before assisting for real.
-   */
-  async testScrape(
-    rawWords: string[],
-    tabCount?: number,
-  ): Promise<
-    Array<{
-      word: string;
-      ok: boolean;
-      invalid?: boolean;
-      translation?: string;
-      phonetic?: string;
-      usPhonetic?: string;
-      ukPhonetic?: string;
-      definitions?: Array<{ partOfSpeech: string; definition: string }>;
-      detailedDefinitions?: Array<{ cn: string; en: string }>;
-      examples?: Array<{ en: string; cn: string }>;
-      synonyms?: Array<{ type: string; words: string }>;
-      webDefinitions?: Array<{ type: string; content: string }>;
-      images?: number;
-      audio?: boolean;
-      audioUrl?: string;
-      usAudioUrl?: string;
-      ukAudioUrl?: string;
-      imageUrls?: string[];
-      // Debug: what was captured in-page as binary and cached (the cache "paths"
-      // are the original remote URLs, which double as the cache keys).
-      media?: Array<{ url: string; kind: 'image' | 'audio'; mime: string | null; bytes: number; cached: boolean }>;
-      error?: string;
-    }>
-  > {
-    const words = this.normalizeWords(rawWords as any);
-    if (words.length === 0) return [];
-
-    // Parallelism only helps with many words. Never open more tabs than there
-    // are words to test — a single-word test must use exactly ONE tab, not the
-    // configured max. (The configured tabCount only caps the upper bound.)
-    const want = Math.min(words.length, tabCount ?? this.config?.tabCount ?? 3);
-    const tabIds = await this.pool.ensure(want, true);
-    this.stats.activeTabs = this.pool.size;
-    const results: Array<any> = [];
-    let nextIndex = 0;
-
-    const runSlot = async (initialTabId: number): Promise<void> => {
-      let tabId = initialTabId;
-      while (true) {
-        const i = nextIndex++;
-        if (i >= words.length) break;
-        const w = words[i];
-        this.stats.currentWord = w.word;
-        try {
-          // Extraction returns URLs only; the binaries are fetched in-page by the
-          // injected BingMediaFetcher class library (includeMedia=false here).
-          // Heal a dead/discarded tab transparently and keep the fresh id.
-          const looked = await this.lookupHealing(tabId, w.word, false);
-          tabId = looked.tabId;
-          const data = looked.data;
-          const classification = classify(data).kind;
-          if (classification === 'translated' && data) {
-            const formatted = formatExplanation(data);
-
-            // Identify the US/UK pronunciation tracks (Bing labels UK 'en-GB').
-            const phonetics = data.phonetics || [];
-            const usP = phonetics.find((p: any) => p.lang && p.lang.includes('US'));
-            const ukP = phonetics.find(
-              (p: any) => p.lang && (p.lang.includes('GB') || p.lang.includes('UK')),
-            );
-            const usAudioRemote = (usP && usP.audioUrl) || undefined;
-            const ukAudioRemote = (ukP && ukP.audioUrl) || undefined;
-            const imageRemote = (data.sampleImages || [])
-              .map((s: any) => s.url)
-              .filter(Boolean)
-              .slice(0, 6);
-
-            // Persistent local cache: load it, then ONLY fetch what we don't
-            // already have stored locally (a word looked up before is served
-            // from chrome.storage.local without re-downloading). Binaries are
-            // captured IN the page as raw bytes; we NEVER request the remote
-            // *.bing.net / mediamp3 URL directly (it isn't accessible from here).
-            await mediaCache.init();
-            const allMedia = [...imageRemote, usAudioRemote, ukAudioRemote].filter(
-              (u): u is string => typeof u === 'string' && u.length > 0,
-            );
-            const toFetch = allMedia.filter((u) => !mediaCache.has(u));
-            const captured = toFetch.length
-              ? await bingDictionaryTool.fetchMediaInTab(tabId, toFetch)
-              : [];
-            for (const m of captured) {
-              if (m.ok && m.bytes && m.bytes.length) {
-                mediaCache.put(m.url, m.bytes, m.mime || undefined);
-              }
-            }
-
-            // Debug: report every media URL with its local-cache status + size
-            // (the URL is the cache key; the bytes live in chrome.storage.local).
-            const debugMedia = allMedia.map((u) => {
-              const e = mediaCache.get(u);
-              return {
-                url: u,
-                kind: (u === usAudioRemote || u === ukAudioRemote ? 'audio' : 'image') as
-                  | 'audio'
-                  | 'image',
-                mime: e ? e.mime : null,
-                bytes: e ? e.len : 0,
-                cached: !!e,
-              };
-            });
-
-            // Build data URLs from the cached BYTES (no remote re-request, no
-            // remote-URL fallback — a missed capture simply yields nothing).
-            const fromCache = (u?: string) => (u ? mediaCache.toDataUrl(u) || undefined : undefined);
-            const imageUrls = imageRemote
-              .map((u: string) => fromCache(u))
-              .filter((u): u is string => !!u)
-              .slice(0, 6);
-            const usAudioUrl = fromCache(usAudioRemote);
-            const ukAudioUrl = fromCache(ukAudioRemote);
-            const audioUrl = usAudioUrl || ukAudioUrl;
-
-            results.push({
-              word: w.word,
-              ok: true,
-              translation: formatted.text,
-              phonetic:
-                formatted.phonetic || formatted.us_phonetic || formatted.uk_phonetic || '',
-              usPhonetic: formatted.us_phonetic,
-              ukPhonetic: formatted.uk_phonetic,
-              definitions: data.translations,
-              detailedDefinitions: data.detailedDefinitions,
-              examples: data.examples,
-              synonyms: data.synonyms,
-              webDefinitions: data.advancedTranslations,
-              images: imageUrls.length,
-              audio: !!(usAudioUrl || ukAudioUrl),
-              audioUrl,
-              usAudioUrl,
-              ukAudioUrl,
-              imageUrls,
-              media: debugMedia,
-            });
-          } else if (classification === 'invalid') {
-            results.push({ word: w.word, ok: false, invalid: true, error: 'No Bing entry' });
-          } else {
-            results.push({ word: w.word, ok: false, error: 'Lookup failed (transient)' });
-          }
-        } catch (error: any) {
-          results.push({ word: w.word, ok: false, error: error?.message || 'Error' });
-        }
-      }
-    };
-
-    await Promise.all(tabIds.map((tabId) => runSlot(tabId)));
-    this.stats.currentWord = null;
-
-    // Preserve the user's input order.
-    const order = new Map(words.map((w, i) => [w.word, i]));
-    results.sort((a, b) => (order.get(a.word) ?? 0) - (order.get(b.word) ?? 0));
-    return results;
+  async testScrape(rawWords: string[], tabCount?: number): Promise<ScrapeTestResult[]> {
+    return runScrapeTest(rawWords, tabCount, {
+      pool: this.pool,
+      defaultTabCount: this.config?.tabCount ?? 3,
+      lookup: (tabId, word, includeMedia) => this.lookupHealing(tabId, word, includeMedia),
+      setActiveTabs: (n) => {
+        this.stats.activeTabs = n;
+      },
+      setCurrentWord: (w) => {
+        this.stats.currentWord = w;
+      },
+    });
   }
 
   /**

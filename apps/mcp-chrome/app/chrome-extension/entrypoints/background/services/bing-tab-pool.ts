@@ -20,6 +20,21 @@ import { logger } from '@/utils/logger';
 /** Hard ceiling on parallel Bing tabs (also enforced by the config sanitizer). */
 export const MAX_BING_TABS = 8;
 
+/**
+ * A tab error that is RECOVERABLE by replacing the tab + retrying: the tab
+ * vanished ("No tab with id"), the injected content script's channel is gone
+ * (navigation/reload), OR the tab is on an unscriptable Chrome net-error /
+ * anti-scrape page ("cannot access" / "showing error page" / chrome-error /
+ * ERR_*). One shared predicate — used by the pool's health probe AND the worker's
+ * lookup healing, so the two can never diverge.
+ */
+export function isRecoverableTabError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /No tab with id|Failed to inject content script|No frame with id|Frame with id|Could not establish connection|Receiving end does not exist|message channel closed|message port closed|cannot access|showing error page|chrome-error|ERR_[A-Z_]+/i.test(
+    msg,
+  );
+}
+
 // Subsystem tag for the global logger.
 const LOG = 'Bing TabPool';
 
@@ -296,6 +311,15 @@ export class BingTabPool {
       logger.info(LOG, `Healed ${healed} unreachable Bing tab(s)`);
     }
     return healed;
+  }
+
+  /**
+   * Transport-level reachability of one tab id (no navigation/replace of its
+   * own). 'ok' from probe() = the tab is scriptable and not on a chrome net-error
+   * page. Used by the outage probe AFTER the caller has produced a fresh tab.
+   */
+  async probeReachable(id: number): Promise<boolean> {
+    return (await this.probe(id)) === 'ok';
   }
 
   /**

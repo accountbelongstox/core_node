@@ -52,6 +52,26 @@ export interface Classification {
 
 export const NO_RESULT_ERROR = 'No results found for this word';
 
+/**
+ * Normalize a worker task's payload words (plain strings OR {word, md5, ...}
+ * objects) into trimmed NormalizedWord[]. Shared by the Bing worker, its scrape
+ * test, and the web-AI translate worker (one copy, not three).
+ */
+export function normalizeWords(raw: unknown): NormalizedWord[] {
+  if (!Array.isArray(raw)) return [];
+  const out: NormalizedWord[] = [];
+  for (const item of raw as any[]) {
+    if (typeof item === 'string') {
+      const word = item.trim();
+      if (word) out.push({ word });
+    } else if (item && typeof item.word === 'string') {
+      const word = item.word.trim();
+      if (word) out.push({ word, md5: item.md5 });
+    }
+  }
+  return out;
+}
+
 /** Cap on sample images shipped per word — keeps the result payload lean. */
 export const MAX_IMAGES_PER_WORD = 3;
 
@@ -67,6 +87,13 @@ export const MAX_IMAGES_PER_WORD = 3;
 export function classify(data: BingDictionaryResult | null): Classification {
   if (!data) {
     return { kind: 'error', reason: 'no data returned from page' };
+  }
+
+  // FIRST check: Bing's soft outage page is a GLOBAL transient, never a per-word
+  // verdict — return 'error' before any 'invalid' branch (all of which require
+  // success===true) so an outage can NEVER invalidate a word.
+  if (data.outage) {
+    return { kind: 'error', reason: 'Bing outage / service unavailable page' };
   }
 
   const hasContent =

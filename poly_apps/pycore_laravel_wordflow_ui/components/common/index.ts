@@ -28,3 +28,5 @@ export { StatusBadge, StatusDot, statusTone } from './StatusBadge';
 export type { StatusTone } from './StatusBadge';
 export { FileDropzone } from './FileDropzone';
 export { Field } from './Field';
+export { StatCard, StatGrid } from './StatCard';
+export type { StatCardProps, StatGridProps, StatCardTone } from './StatCard';

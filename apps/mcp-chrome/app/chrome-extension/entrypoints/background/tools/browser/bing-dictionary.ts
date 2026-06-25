@@ -67,6 +67,10 @@ export interface BingDictionaryResult {
   // entry). Bing has no genuine dictionary record — treated as invalid (the
   // reference scraper deletes such words), not a transient failure.
   computerTranslate?: boolean;
+  // True on Bing's SOFT OUTAGE page ("It's not you, it's us" / "Bing isn't
+  // available right now"). A GLOBAL transient — the worker pauses 30s + probes;
+  // words are NEVER invalidated by an outage.
+  outage?: boolean;
   error: string | null;
   url?: string;
   tabId?: number;
