@@ -22,6 +22,9 @@ import {
 const CHATGPT_URL = 'https://chatgpt.com/';
 const CHATGPT_HOST = 'chatgpt.com';
 const HELPER = 'inject-scripts/chatgpt-web-helper.js';
+// Shared human-sim library, co-injected FIRST so the helper can use self.__WebOps
+// (humanClick / waitFor / fetchBytes) for human-like send + audio capture.
+const WEB_OPS = 'inject-scripts/web-ops.js';
 
 class ChatGptWebTool extends BaseBrowserToolExecutor {
   name = 'chrome_chatgpt';
@@ -42,7 +45,7 @@ class ChatGptWebTool extends BaseBrowserToolExecutor {
     try {
       const { tabId: resolvedTabId } = await findOrCreateProviderTab(CHATGPT_HOST, CHATGPT_URL, tabId);
       await waitForTabComplete(resolvedTabId);
-      await this.injectContentScript(resolvedTabId, [HELPER]);
+      await this.injectContentScript(resolvedTabId, [WEB_OPS, HELPER]);
 
       const submitted = await this.sendMessageToTab(resolvedTabId, {
         action: 'chatgptSubmitPrompt',

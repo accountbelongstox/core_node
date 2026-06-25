@@ -25,6 +25,12 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const q = (sel) => document.querySelector(sel);
 
+  // Shared human-sim library (co-injected first) when present + responsive.
+  function getWebOps() {
+    const W = self.__WebOps;
+    return W && typeof W._ping === 'function' && W._ping() === 'pong' ? W : null;
+  }
+
   function findPromptInput() {
     return (
       q('#prompt-textarea[contenteditable="true"]') ||
@@ -125,21 +131,40 @@
     if (btns.length === 0) {
       return { ok: false, error: 'Read-aloud button not found' };
     }
-    btns[btns.length - 1].click();
+    const W = getWebOps();
+    const btn = btns[btns.length - 1];
+    // Human-like click on Read-aloud via the shared lib (fallback: native click).
+    if (W) await W.humanClick(btn);
+    else btn.click();
 
-    const start = Date.now();
-    let src = '';
-    while (Date.now() - start < timeoutMs) {
-      await sleep(500);
+    const findSrc = () => {
       const audios = Array.from(document.querySelectorAll('audio'));
       const a = audios.find((x) => typeof x.src === 'string' && x.src.length > 0);
-      if (a) {
-        src = a.src;
-        break;
+      return a ? a.src : null;
+    };
+
+    let src = '';
+    if (W) {
+      src = (await W.waitFor(findSrc, { timeout: timeoutMs, interval: 500 })) || '';
+    } else {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        await sleep(500);
+        const s = findSrc();
+        if (s) {
+          src = s;
+          break;
+        }
       }
     }
     if (!src) {
       return { ok: false, error: 'No audio source appeared (TTS may stream via MSE)' };
+    }
+    // Capture the audio bytes in-page via the shared fetch pipeline (fallback: fetch).
+    if (W) {
+      const r = await W.fetchBytes(src);
+      if (r.ok) return { ok: true, mime: r.mime || 'audio/mpeg', bytes: r.bytes };
+      return { ok: false, error: r.error || 'audio fetch failed' };
     }
     try {
       const resp = await fetch(src, { cache: 'no-store' });

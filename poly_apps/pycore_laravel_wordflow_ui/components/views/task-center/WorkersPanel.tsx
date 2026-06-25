@@ -156,20 +156,17 @@ const WorkersPanel: React.FC<WorkersPanelProps> = ({
 
   if (error && !snapshot) {
     return (
-      <div className={`${commonClasses.card} p-6 flex items-center justify-center`}>
-        <div className="text-center">
-          <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600 dark:text-red-400 mb-2 font-semibold">{t.load_failed}</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{error}</p>
-          <button
-            onClick={loadSnapshot}
-            className={`${commonClasses.button} ${commonClasses.buttonPrimary} inline-flex items-center gap-2`}
-          >
-            <RefreshCw className="w-4 h-4" />
-            {t.retry}
-          </button>
-        </div>
-      </div>
+      <AlertBox variant="error" className="flex-col items-stretch text-center">
+        <p className="font-semibold">{t.load_failed}</p>
+        <p className="text-xs opacity-80 mt-1">{error}</p>
+        <button
+          onClick={loadSnapshot}
+          className={`${commonClasses.button} ${commonClasses.buttonPrimary} inline-flex items-center gap-2 mx-auto mt-3`}
+        >
+          <RefreshCw className="w-4 h-4" />
+          {t.retry}
+        </button>
+      </AlertBox>
     );
   }
 

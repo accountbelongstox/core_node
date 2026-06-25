@@ -1080,7 +1080,7 @@ check_and_install_python_packages_from_dependency_map() {
 
     # Headless Linux (no desktop): skip GUI-only Qt packages (PySide6 ~629M) — pointless
     # without a display, and they lazy-install on demand. Force install with FORCE_GUI=1.
-    local gui_only_imports="PySide6"
+    local gui_only_imports="PySide6 PyQt5 labelme labelImg"
     local skip_gui=0
     if [[ "${FORCE_GUI:-0}" != "1" && "${HAS_DESKTOP_ENVIRONMENT:-false}" != "true" ]]; then
         skip_gui=1
@@ -1189,12 +1189,53 @@ check_and_install_python_packages_from_dependency_map() {
 
         # Phonetic transcription
         "eng_to_ipa|eng-to-ipa|"
+
+        # --- Aligned with third_party.py DEPENDENCY_MAP (these were previously installed only
+        # --- at worker startup by third_party.py; install them here so that fallback rarely fires.
+        # --- Version constraints intentionally left empty (cheap idempotent skip-if-present; a
+        # --- constraint would force-reinstall every run). torch is excluded on purpose (handled
+        # --- by tcg_ensure_torch_build above).
+        # HTTP stack (requests/httpx pull these transitively; third_party pins them explicitly)
+        "urllib3|urllib3|"
+        "idna|idna|"
+        "chardet|chardet|"
+        "certifi|certifi|"
+        # Messaging / RPC framework
+        "zmq|pyzmq|"
+        "msgpack|msgpack|"
+        "werkzeug|Werkzeug|"
+        # Scientific / ML support libs
+        "h5py|h5py|"
+        "absl|absl-py|"
+        "google.protobuf|protobuf|"
+        "grpc|grpcio|"
+        "six|six|"
+        "typing_extensions|typing_extensions|"
+        # Plotting
+        "matplotlib|matplotlib|"
+        # Model hub + Tesseract OCR binding
+        "huggingface_hub|huggingface_hub|"
+        "pytesseract|pytesseract|"
+        # LLM API client
+        "openai|openai|"
+        # Cryptography (secret manager / pyfoundations)
+        "cryptography|cryptography|"
+        # GUI tooling (gui-only: skipped on headless hosts, see gui_only_imports)
+        "PyQt5|PyQt5|"
+        "labelme|labelme|"
+        "labelImg|labelImg|"
     )
 
     # Optional packages - check but don't force install
     local optional_packages=(
         "edge_tts|edge-tts|"
         "whisper|openai-whisper|"
+        # Aligned with third_party.py OPTIONAL_PACKAGES (document parsing also installs the
+        # ebook/rtf/lxml set; listed here too so 13 alone is a complete superset).
+        "watchdog|watchdog|"
+        "ebooklib|ebooklib|"
+        "striprtf|striprtf|"
+        "lxml|lxml|"
     )
 
     # Process required packages

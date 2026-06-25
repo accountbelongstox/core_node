@@ -12,11 +12,12 @@
  * config/diagnostic-shaped (it probes AI keys server-side), not cheap
  * high-churn queue rows like the rest of the Task Center.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Language } from '../../../types';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import { api } from '../../../core/api';
+import { useApiResource } from '../../../hooks';
 import type { CoverStatusData, CoverQueueStats } from '../../../core/api/modules/AppQyV1';
 import { useToast, ConfirmModal } from '../../admin';
 import { logInfo, logError } from '../../../core/logstore/logStore';
@@ -70,37 +71,19 @@ const CoverStatusCard: React.FC<CoverStatusCardProps> = ({ lang }) => {
   const tc = TRANSLATIONS[lang].taskCenter.covers;
   const toast = useToast();
 
-  const [status, setStatus] = useState<CoverStatusData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [failuresOpen, setFailuresOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await api.appQyV1.getCoverStatus();
-      if (response.success && response.data) {
-        setStatus(response.data);
-        setError(null);
-      } else {
-        setError(response.error || tc.load_failed);
-        logError('covers', `Cover status load failed: ${response.error || 'unknown error'}`);
-      }
-    } catch (err: any) {
-      setError(err?.message || tc.load_failed);
-      logError('covers', `Cover status load failed: ${err?.message || err}`);
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Auto-load once on tab mount; afterwards manual refresh only (no polling).
-  useEffect(() => {
-    load();
-  }, [load]);
+  const {
+    data: status,
+    loading,
+    error,
+    refresh: load,
+  } = useApiResource<CoverStatusData>(() => api.appQyV1.getCoverStatus(), {
+    onError: (msg) => logError('covers', `Cover status load failed: ${msg}`),
+  });
 
   const doRetry = async () => {
     setRetrying(true);

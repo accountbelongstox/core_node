@@ -22,6 +22,12 @@
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  // Shared human-sim library (co-injected first) when present + responsive.
+  function getWebOps() {
+    const W = self.__WebOps;
+    return W && typeof W._ping === 'function' && W._ping() === 'pong' ? W : null;
+  }
+
   function deepQueryAll(selectors, root) {
     const sels = Array.isArray(selectors) ? selectors : [selectors];
     const out = [];
@@ -176,21 +182,39 @@
     if (!listenBtn) {
       return { ok: false, error: 'Listen button not found' };
     }
-    listenBtn.click();
+    const W = getWebOps();
+    // Human-like click on Listen via the shared lib (fallback: native click).
+    if (W) await W.humanClick(listenBtn);
+    else listenBtn.click();
 
-    const start = Date.now();
-    let src = '';
-    while (Date.now() - start < timeoutMs) {
-      await sleep(500);
+    const findSrc = () => {
       const audios = deepQueryAll('audio');
       const a = audios.find((x) => typeof x.src === 'string' && x.src.length > 0);
-      if (a) {
-        src = a.src;
-        break;
+      return a ? a.src : null;
+    };
+
+    let src = '';
+    if (W) {
+      src = (await W.waitFor(findSrc, { timeout: timeoutMs, interval: 500 })) || '';
+    } else {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        await sleep(500);
+        const s = findSrc();
+        if (s) {
+          src = s;
+          break;
+        }
       }
     }
     if (!src) {
       return { ok: false, error: 'No audio source appeared' };
+    }
+    // Capture the audio bytes in-page via the shared fetch pipeline (fallback: fetch).
+    if (W) {
+      const r = await W.fetchBytes(src);
+      if (r.ok) return { ok: true, mime: r.mime || 'audio/mpeg', bytes: r.bytes };
+      return { ok: false, error: r.error || 'audio fetch failed' };
     }
     try {
       const resp = await fetch(src, { cache: 'no-store' });

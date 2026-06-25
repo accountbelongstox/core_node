@@ -5,6 +5,7 @@ import { api } from '@/core/api';
 import { DataTable, Modal, StatsCard, StatsGrid, type DataTableColumn } from '@/components/admin';
 import { useToast } from '@/components/admin';
 import { useTranslation } from '@/core/i18n';
+import { StatusBadge, AlertBox, Field } from '@/components/common';
 import {
   Lock,
   Plus,
@@ -163,21 +164,13 @@ export function SSLManager() {
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   }
 
-  function getStatusColor(status: string): string {
+  // Map cert status to a semantic StatusBadge tone (valid/expiring/expired/unknown).
+  function certTone(status: string) {
     switch (status) {
-      case 'valid': return 'text-green-600';
-      case 'expiring': return 'text-yellow-600';
-      case 'expired': return 'text-red-600';
-      default: return 'text-gray-600';
-    }
-  }
-
-  function getStatusIcon(status: string) {
-    switch (status) {
-      case 'valid': return <CheckCircle className="w-4 h-4" />;
-      case 'expiring': return <Clock className="w-4 h-4" />;
-      case 'expired': return <AlertTriangle className="w-4 h-4" />;
-      default: return <Shield className="w-4 h-4" />;
+      case 'valid': return 'success' as const;
+      case 'expiring': return 'warning' as const;
+      case 'expired': return 'error' as const;
+      default: return 'idle' as const;
     }
   }
 
@@ -215,21 +208,14 @@ export function SSLManager() {
       key: 'status',
       title: 'Status',
       width: '120px',
-      render: (value) => (
-        <span className={`flex items-center gap-1 ${getStatusColor(value)}`}>
-          {getStatusIcon(value)}
-          {value}
-        </span>
-      )
+      render: (value) => <StatusBadge status={value} tone={certTone(value)} />
     },
     {
       key: 'auto_renew',
       title: 'Auto Renew',
       width: '100px',
       render: (value) => (
-        <span className={value ? 'text-green-600' : 'text-gray-400'}>
-          {value ? 'Yes' : 'No'}
-        </span>
+        <StatusBadge status={value ? 'Yes' : 'No'} tone={value ? 'success' : 'idle'} withDot={false} />
       )
     }
   ];
@@ -275,22 +261,19 @@ export function SSLManager() {
 
       {/* Certbot Warning */}
       {!certbotInstalled && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h3 className="font-semibold text-yellow-900">Certbot Not Installed</h3>
-            <p className="text-sm text-yellow-800 mt-1">
-              Certbot is required to generate and manage SSL certificates. Install it to continue.
-            </p>
-            <button
-              onClick={handleInstallCertbot}
-              disabled={processing}
-              className="mt-3 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50"
-            >
-              {processing ? 'Installing...' : 'Install Certbot'}
-            </button>
-          </div>
-        </div>
+        <AlertBox variant="warning">
+          <h3 className="font-semibold">Certbot Not Installed</h3>
+          <p className="mt-1">
+            Certbot is required to generate and manage SSL certificates. Install it to continue.
+          </p>
+          <button
+            onClick={handleInstallCertbot}
+            disabled={processing}
+            className="mt-3 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50"
+          >
+            {processing ? 'Installing...' : 'Install Certbot'}
+          </button>
+        </AlertBox>
       )}
 
       {/* Stats Grid */}
@@ -380,10 +363,7 @@ export function SSLManager() {
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Domain *
-            </label>
+          <Field label="Domain" required hint="Domain name (wildcard certificates supported with DNS challenge)">
             <input
               type="text"
               value={formData.domain}
@@ -391,15 +371,9 @@ export function SSLManager() {
               placeholder="example.com or *.example.com"
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Domain name (wildcard certificates supported with DNS challenge)
-            </p>
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              DNS Provider *
-            </label>
+          <Field label="DNS Provider" required hint="DNS provider for DNS-01 challenge (supports wildcard certificates)">
             <select
               value={formData.provider}
               onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
@@ -409,10 +383,7 @@ export function SSLManager() {
               <option value="cloudflare">Cloudflare</option>
               <option value="aliyun">Aliyun DNS</option>
             </select>
-            <p className="text-xs text-gray-500 mt-1">
-              DNS provider for DNS-01 challenge (supports wildcard certificates)
-            </p>
-          </div>
+          </Field>
 
           <div className="flex items-center gap-2">
             <input
@@ -430,20 +401,20 @@ export function SSLManager() {
             Test certificate generation without affecting rate limits
           </p>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-            <p className="text-sm text-yellow-900">
+          <AlertBox variant="warning">
+            <p>
               <strong>Important:</strong> DNS provider API credentials must be configured on the server first.
             </p>
-            <p className="text-xs text-yellow-800 mt-1">
+            <p className="text-xs mt-1">
               Configure via GlobalSecretReader: DNSPOD_EMAILS and DNS_DNSPOD_API_TOKENS
             </p>
-          </div>
+          </AlertBox>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-blue-900">
+          <AlertBox variant="info">
+            <p>
               <strong>Note:</strong> DNS challenge method is used. Make sure your DNS provider API is properly configured before generating certificates.
             </p>
-          </div>
+          </AlertBox>
         </div>
       </Modal>
     </div>

@@ -15,6 +15,7 @@ import {
   type TaskFilter,
 } from '@/utils/deepseek-task-queue';
 import { getDeepSeekPollingService } from '../../deepseek-polling-service';
+import { tabController } from '../../services/tab-controller';
 
 const DEEPSEEK_URL = 'https://chat.deepseek.com/';
 
@@ -103,12 +104,14 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
       const existingTabs = await chrome.tabs.query({ url: DEEPSEEK_URL + '*' });
 
       if (existingTabs.length > 0 && existingTabs[0].id) {
-        // Reuse existing tab
+        // Reuse existing tab — activate via TabController so this programmatic
+        // switch is recorded and never mis-counted as human tab activity.
         tab = existingTabs[0];
-        await chrome.tabs.update(tab.id, { active: true });
+        await tabController.activate(tab.id);
       } else {
-        // Create new tab
+        // Create new tab (active) and record the activation we just caused.
         tab = await chrome.tabs.create({ url: DEEPSEEK_URL, active: true });
+        tabController.recordActivation(tab.id ?? -1);
       }
 
       if (!tab.id) {

@@ -69,7 +69,8 @@ import {
   ListChecks
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
-import { LoadingBlock, AlertBox } from '../common';
+import { LoadingBlock, AlertBox, StatusBadge, Field } from '../common';
+import { useClipboard } from '../../hooks';
 import NginxSiteModal from '../server-manager/NginxSiteModal';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
@@ -210,6 +211,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const t = TRANSLATIONS[lang].server;
   const messages = t.messages || {};
   const toast = useToast();
+  const { copy } = useClipboard();
   const nginxNotInstalled = nginxStatus.data ? !nginxStatus.data.installed : false;
 
   // Scroll nginx log viewer to the bottom (newest lines) whenever new data arrives
@@ -654,13 +656,9 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     }
   };
 
-  const handleCopyInstallHint = async (hint: string) => {
-    try {
-      await navigator.clipboard.writeText(hint);
-      toast.success(t.nginx.copied);
-    } catch {
-      toast.error(messages.operation_failed || 'Operation failed');
-    }
+  const handleCopyInstallHint = (hint: string) => {
+    // useClipboard surfaces its own success/failure toasts (incl. execCommand fallback).
+    void copy(hint, t.nginx.copied);
   };
 
   // Load SSL Certificates
@@ -1893,15 +1891,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                             className="flex items-center justify-between gap-3 p-2.5 bg-slate-50 dark:bg-slate-800 rounded"
                           >
                             <div className="flex items-center gap-2 min-w-0">
-                              <span
-                                className={`px-2 py-0.5 text-xs rounded font-medium shrink-0 ${
-                                  backup.type === 'delete'
-                                    ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                }`}
-                              >
-                                {backup.type === 'delete' ? t.nginx.backup_type_delete : t.nginx.backup_type_update}
-                              </span>
+                              <StatusBadge
+                                className="shrink-0"
+                                status={backup.type === 'delete' ? t.nginx.backup_type_delete : t.nginx.backup_type_update}
+                                tone={backup.type === 'delete' ? 'error' : 'info'}
+                                withDot={false}
+                              />
                               <span className="text-sm font-medium shrink-0">{backup.site}</span>
                               <span className="text-xs font-mono text-slate-500 dark:text-slate-400 truncate" title={backup.file}>
                                 {backup.file}
@@ -1976,13 +1971,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                       <div className="flex items-center gap-3">
                         {getStatusIcon(cert.status)}
                         <h3 className="font-semibold text-lg">{cert.domain}</h3>
-                        <span className={`px-2 py-1 text-xs rounded ${
-                          cert.status === 'ok' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                          cert.status === 'warning' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
-                          'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                        }`}>
-                          {cert.status}
-                        </span>
+                        <StatusBadge
+                          status={cert.status}
+                          tone={cert.status === 'ok' ? 'success' : cert.status === 'warning' ? 'warning' : 'error'}
+                          withDot={false}
+                        />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
@@ -2126,13 +2119,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                           <span className="text-sm font-medium">{service.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            service.status === 'running' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                            service.status === 'stopped' ? 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300' :
-                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          }`}>
-                            {service.status}
-                          </span>
+                          <StatusBadge
+                            status={service.status}
+                            tone={service.status === 'running' ? 'success' : service.status === 'stopped' ? 'idle' : 'error'}
+                            withDot={false}
+                          />
                           {service.enabled !== undefined && (
                             <span className={`text-xs px-2 py-1 rounded ${
                               service.enabled
@@ -2278,17 +2269,15 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
               </button>
             </div>
             <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">{t.ssl.domain}</label>
+              <Field label={t.ssl.domain} htmlFor="cert-domain">
                 <input
                   type="text"
                   id="cert-domain"
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                   placeholder="example.com"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Provider (Optional)</label>
+              </Field>
+              <Field label="Provider (Optional)" htmlFor="cert-provider">
                 <select
                   id="cert-provider"
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
@@ -2297,7 +2286,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
                   <option value="dnspod">DNSPod</option>
                   <option value="cloudflare">Cloudflare</option>
                 </select>
-              </div>
+              </Field>
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -2888,14 +2877,14 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                     <div className="mt-2 space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-slate-600 dark:text-slate-400">Service:</span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          app.service_status.status === 'running' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                          app.service_status.status === 'stopped' ? 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300' :
-                          app.service_status.status === 'failed' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
-                          'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                        }`}>
-                          {app.service_status.installed ? app.service_status.status : 'Not Installed'}
-                        </span>
+                        <StatusBadge
+                          status={app.service_status.installed ? app.service_status.status : 'Not Installed'}
+                          tone={
+                            app.service_status.status === 'running' ? 'success' :
+                            app.service_status.status === 'failed' ? 'error' : 'idle'
+                          }
+                          withDot={false}
+                        />
                       </div>
                       {app.service_status.installed && (
                         <>
@@ -2919,13 +2908,11 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-slate-600 dark:text-slate-400">Nginx Proxy:</span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          app.nginx_proxy.enabled ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
-                          app.nginx_proxy.configured ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
-                          'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
-                        }`}>
-                          {app.nginx_proxy.enabled ? 'Enabled' : app.nginx_proxy.configured ? 'Configured' : 'Not Configured'}
-                        </span>
+                        <StatusBadge
+                          status={app.nginx_proxy.enabled ? 'Enabled' : app.nginx_proxy.configured ? 'Configured' : 'Not Configured'}
+                          tone={app.nginx_proxy.enabled ? 'info' : app.nginx_proxy.configured ? 'warning' : 'idle'}
+                          withDot={false}
+                        />
                       </div>
                       {app.nginx_proxy.domains && app.nginx_proxy.domains.length > 0 && (
                         <div className="text-xs text-slate-500 dark:text-slate-400">
@@ -2957,13 +2944,15 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
           <div className="space-y-2 text-sm">
             <div>
               <span className="text-slate-500">Overall Status:</span>
-              <span className={`ml-2 px-2 py-1 rounded text-xs ${
-                appStatus.data.overall_status === 'running' ? 'bg-green-100 text-green-700' :
-                appStatus.data.overall_status === 'stopped' ? 'bg-slate-100 text-slate-700' :
-                'bg-red-100 text-red-700'
-              }`}>
-                {appStatus.data.overall_status}
-              </span>
+              <StatusBadge
+                className="ml-2"
+                status={appStatus.data.overall_status}
+                tone={
+                  appStatus.data.overall_status === 'running' ? 'success' :
+                  appStatus.data.overall_status === 'stopped' ? 'idle' : 'error'
+                }
+                withDot={false}
+              />
             </div>
             {appStatus.data.service_status && (
               <div>

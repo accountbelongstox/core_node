@@ -21,7 +21,6 @@ MCP_PROVIDER_SCRIPTS_DIR="$(dirname "$MCP_PROVIDER_DIR")"
 MCP_PROJECT_ROOT="$(dirname "$MCP_PROVIDER_SCRIPTS_DIR")"
 MCP_SECRET_KEYS_DIR="${MCP_PROJECT_ROOT}/.secret_keys"
 MCP_SECRET_RAW_DIR="${MCP_SECRET_KEYS_DIR}/.secret_ignore"
-MCP_PYMAIN_PATH="${MCP_PROJECT_ROOT}/pymain.py"
 
 # MCP config arrays (indexed by position)
 MCP_CONFIGS_COUNT=0
@@ -119,24 +118,6 @@ load_all_mcp_configs() {
             "" \
             ""
     fi
-
-    # Unified MCP Server (stdio)
-    local python_exe="python3"
-    if command -v python3 >/dev/null 2>&1; then
-        python_exe="$(command -v python3)"
-    elif command -v python >/dev/null 2>&1; then
-        python_exe="$(command -v python)"
-    fi
-    _mcp_add_config \
-        "unified" \
-        "stdio" \
-        "$python_exe" \
-        "${MCP_PYMAIN_PATH}|app=mcp" \
-        "" \
-        "" \
-        "" \
-        "MCP_ALLOW_ALL_PATHS" \
-        "true"
 
     # Chrome MCP Server (HTTP) - only for desktop environments
     _mcp_add_config \

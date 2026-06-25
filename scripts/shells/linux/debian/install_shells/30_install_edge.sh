@@ -25,6 +25,7 @@ source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
 INSTALL_EDGE=$(get_var "INSTALL_EDGE")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 EDGE_DOWNLOAD_URL="https://go.microsoft.com/fwlink?linkid=2149051&brand=M102"
+EDGE_GPU_FLAGS=""  # GPU hardware-acceleration flags baked into the launch wrapper
 
 echo "[$SCRIPT_INDEX] Microsoft Edge Installation Script"
 echo "[$SCRIPT_INDEX] INSTALL_EDGE: $INSTALL_EDGE, INSTALL_MODE: $INSTALL_MODE"
@@ -201,6 +202,10 @@ if check_edge_version; then
                 echo "[$SCRIPT_INDEX] Created symlink: /usr/local/bin/microsoft-edge -> $edge_path"
             fi
 
+            # GPU hardware acceleration: same safe flags as Chrome (Edge is Chromium),
+            # baked into the wrapper via --pre to stop software-rendering lag.
+            EDGE_GPU_FLAGS="$(resolve_browser_gpu_flags)"
+
             # Resource limit: cap the whole Edge process tree in one cgroup-v2 user
             # scope and repoint the .deb-owned menu entry (id=microsoft-edge) at the
             # wrapper. Edge is intentionally PINNED to MemoryMax=500M (override) while
@@ -208,6 +213,7 @@ if check_edge_version; then
             # and the shared 10%*nproc CPU quota still come from app_resource_limit.sh.
             APP_MEM_CAP_MB=500 apply_app_resource_limit \
                 --id microsoft-edge --exec "$edge_path" \
+                --pre "$EDGE_GPU_FLAGS" \
                 --desktop all --field "%U"
         fi
     fi
@@ -222,11 +228,15 @@ else
         set_var "EDGE_VERSION" "$(microsoft-edge --version 2>/dev/null || echo 'unknown')"
         echo "[$SCRIPT_INDEX] Edge installation info stored in global variables"
 
+        # GPU hardware acceleration: same safe flags as Chrome (Edge is Chromium).
+        EDGE_GPU_FLAGS="$(resolve_browser_gpu_flags)"
+
         # Resource limit + repoint the .deb-owned menu entry after a fresh install
         # (id=microsoft-edge). Edge PINNED to 500M (override) vs the 1G default; shared
         # 20% ceiling + 10% CPU; idempotent; never double-wraps.
         APP_MEM_CAP_MB=500 apply_app_resource_limit \
             --id microsoft-edge --exec "$edge_path" \
+            --pre "$EDGE_GPU_FLAGS" \
             --desktop all --field "%U"
     fi
 fi

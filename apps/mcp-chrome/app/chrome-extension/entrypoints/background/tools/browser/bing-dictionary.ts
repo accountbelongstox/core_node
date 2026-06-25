@@ -3,6 +3,14 @@ import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { logger } from '@/utils/logger';
+// The single, parameter-free dictionary URL (no ?mkt / ?q=). Aliased as
+// BING_DICT_HOME: we load it once per tab then drive the search box via WebOps.
+import { BING_DICT_URL as BING_DICT_HOME } from '../../services/bing-tab-pool';
+
+// Shared human-simulation library, co-injected FIRST so the Bing helper can use
+// self.__WebOps (humanType/submitForm/waitFor) to operate the page like a human.
+const WEB_OPS_SCRIPT = 'inject-scripts/web-ops.js';
+const BING_HELPER_SCRIPT = 'inject-scripts/bing-dictionary-helper.js';
 
 const LOG = 'Bing Dictionary';
 
@@ -55,14 +63,15 @@ export interface BingDictionaryResult {
   // True on a CONFIRMED Bing "No results found for <word>" page — a definitive
   // no-entry; the word is invalid (becomes a placeholder), never a transient.
   noEntry?: boolean;
+  // True on a machine-translation-only page (.lf_area .smt_hw, no real .qdef
+  // entry). Bing has no genuine dictionary record — treated as invalid (the
+  // reference scraper deletes such words), not a transient failure.
+  computerTranslate?: boolean;
   error: string | null;
   url?: string;
   tabId?: number;
 }
 
-// 必应词典 home. We load this once per tab then drive its search box, instead of
-// hitting /dict/search?q= directly (which can region-redirect to web search).
-const BING_DICT_HOME = 'https://cn.bing.com/dict';
 
 class BingDictionaryTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.BING_DICTIONARY;
@@ -204,7 +213,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     tabId: number,
     word: string,
   ): Promise<{ found: boolean; error?: string } | undefined> {
-    await this.injectContentScript(tabId, ['inject-scripts/bing-dictionary-helper.js']);
+    await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
     await new Promise((resolve) => setTimeout(resolve, 250));
     return this.sendMessageToTab(tabId, { action: 'bingDictionarySearch', word: word.trim() });
   }
@@ -218,7 +227,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     bingDictUrl: string,
     includeMedia = false,
   ): Promise<BingDictionaryResult> {
-    await this.injectContentScript(tabId, ['inject-scripts/bing-dictionary-helper.js']);
+    await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
 
     // Give the freshly-injected content script a moment to register its listener.
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -247,7 +256,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     } catch (err) {
       const m = err instanceof Error ? err.message : String(err);
       if (/Could not establish connection|Receiving end does not exist/i.test(m)) {
-        await this.injectContentScript(tabId, ['inject-scripts/bing-dictionary-helper.js']);
+        await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
         await new Promise((resolve) => setTimeout(resolve, 400));
         translationData = await chrome.tabs.sendMessage(tabId, msg);
       } else {

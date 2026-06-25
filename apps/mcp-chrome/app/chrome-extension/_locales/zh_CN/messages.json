@@ -644,6 +644,7 @@
   "bingAssistParallelTabs": { "message": "并行 Bing 标签页：" },
   "bingAssistTargetLang": { "message": "目标语言：" },
   "bingAssistStopToChange": { "message": "停止服务后才能修改设置。" },
+  "bingAssistSettingsLive": { "message": "设置实时生效，无需停止服务。" },
   "bingAssistScrapeLabel": { "message": "Bing 抓取测试（空格/逗号分隔）：" },
   "bingAssistScrape": { "message": "抓取" },
   "bingAssistTranslatingLabel": { "message": "正在翻译：" },

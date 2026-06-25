@@ -51,6 +51,45 @@
     return /No results found for\b/i.test(text);
   }
 
+  /**
+   * Detect a "computer translation only" page (Bing's machine-translation
+   * fallback, `.lf_area .smt_hw`) that has NO real dictionary entry (`.qdef`).
+   * The reference scraper treats this exactly like a no-entry — the word has no
+   * genuine Bing dictionary record (only an auto-translation), so it must be
+   * marked invalid rather than re-queued forever. `.smt_hw` only appears when
+   * there is no real entry, so requiring the absence of `.qdef` is just a guard.
+   */
+  function detectComputerTranslate() {
+    return !!document.querySelector('.lf_area .smt_hw') && !document.querySelector('.qdef');
+  }
+
+  /**
+   * Wait until the dictionary page has rendered one of its DEFINITIVE states —
+   * a real entry (`.hd_div strong` / `.qdef`), a confirmed no-entry
+   * (`.no_results`), or the machine-translation fallback (`.lf_area .smt_hw`) —
+   * before extracting. Mirrors the reference scraper's translate_type() poll:
+   * extracting too early (mid-render) is what made slow pages look like an empty
+   * non-dict result and get wrongly retried. Resolves true once a state is seen,
+   * false on timeout (extraction then proceeds best-effort).
+   */
+  function waitForResult(maxMs) {
+    const probe = () =>
+      document.querySelector('.hd_div strong, .qdef, .no_results, .lf_area .smt_hw');
+    const W = getWebOps();
+    if (W) {
+      return W.waitFor(probe, { timeout: maxMs, interval: 150 }).then((v) => !!v);
+    }
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const check = () => {
+        if (probe()) return resolve(true);
+        if (Date.now() - start >= maxMs) return resolve(false);
+        setTimeout(check, 150);
+      };
+      check();
+    });
+  }
+
   function setNativeValue(el, value) {
     const proto =
       el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
@@ -71,14 +110,32 @@
     el.dispatchEvent(new KeyboardEvent('keyup', opts));
   }
 
-  /** Fill the search box with the word and submit it like a human would. */
-  function doSearch(word) {
+  /** The shared human-sim library when present + responsive, else null. */
+  function getWebOps() {
+    const W = self.__WebOps;
+    return W && typeof W._ping === 'function' && W._ping() === 'pong' ? W : null;
+  }
+
+  /**
+   * Fill the search box with the word and submit it like a human would. Prefers
+   * the shared WebOps lib (char-by-char humanType + humanClick on the search
+   * button); falls back to the inline instant-set + click when WebOps is absent.
+   */
+  async function doSearch(word) {
     const input = findSearchInput();
     if (!input) {
       return { found: false, error: 'Bing search box not found on this page' };
     }
-    setNativeValue(input, word);
     const btn = findSearchButton();
+    const W = getWebOps();
+    if (W) {
+      await W.humanType(input, word, { clear: true });
+      if (btn) await W.humanClick(btn);
+      else W.submitForm(input);
+      return { found: true, navigating: true };
+    }
+    // Inline fallback (WebOps not injected): instant set + click.
+    setNativeValue(input, word);
     if (btn) {
       btn.click();
     } else if (input.form) {
@@ -109,6 +166,9 @@
       // True only on a CONFIRMED Bing "No results found for <word>" page — a
       // definitive no-entry the worker should mark invalid (placeholder word).
       noEntry: false,
+      // True on a machine-translation-only page (.lf_area .smt_hw, no .qdef) —
+      // no real Bing dictionary entry; the worker marks it invalid too.
+      computerTranslate: false,
       error: null,
     };
 
@@ -128,7 +188,26 @@
         result.pageType = 'dict';
         result.noEntry = true;
         result.hasContent = false;
-        result.error = 'No results found for this word';
+        // NOT an error: a confirmed no-entry is a VALID, definitive answer
+        // (the word is invalid). Keep `error` null so it is never mistaken for a
+        // transport/extraction failure — `noEntry`/`noEntryReason` carry the
+        // meaning, and the worker's classify() maps noEntry -> invalid.
+        result.noEntryReason = 'No results found for this word';
+        result.error = null;
+        result.success = true;
+        return result;
+      }
+
+      // A machine-translation-only page (.lf_area .smt_hw with no real .qdef
+      // entry) means Bing has no genuine dictionary record — only an auto
+      // translation. The reference scraper deletes such words; we report it as a
+      // definitive no-entry (invalid) so it is not re-queued forever.
+      if (detectComputerTranslate()) {
+        result.pageType = 'dict';
+        result.computerTranslate = true;
+        result.hasContent = false;
+        result.noEntryReason = 'Computer-translation only (no Bing dictionary entry)';
+        result.error = null;
         result.success = true;
         return result;
       }
@@ -378,20 +457,51 @@
     return result;
   }
 
+  if (self.__bingDictionaryHelperListenerAdded) {
+    // Already registered in this page (re-injection guard) — don't add a second
+    // onMessage listener, which would make every message get TWO sendResponse
+    // calls ("message port closed before a response was received").
+    return;
+  }
+  self.__bingDictionaryHelperListenerAdded = true;
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'bingDictionarySearch') {
-      try {
-        sendResponse(doSearch(message.word || ''));
-      } catch (error) {
-        sendResponse({ found: false, error: String(error && error.message) });
+    // Liveness probe. base-browser.injectContentScript sends `${toolName}_ping`
+    // (300ms timeout) BEFORE every injection; a 'pong' tells it the script is
+    // already loaded so it SKIPS re-injecting (avoids latency + a window where
+    // messaging the not-yet-ready script throws "Could not establish
+    // connection"). The Bing tool injects TWO files under one tool name, so pong
+    // ONLY when this file is the injection target (or when no files are given,
+    // for single-file callers).
+    if (message && typeof message.action === 'string' && message.action.endsWith('_ping')) {
+      const files = message.files;
+      if (
+        !Array.isArray(files) ||
+        files.some((f) => typeof f === 'string' && f.includes('bing-dictionary-helper'))
+      ) {
+        sendResponse({ status: 'pong' });
+        return true;
       }
+      return; // probe is for the other co-injected file — let it answer.
+    }
+    if (message.action === 'bingDictionarySearch') {
+      (async () => {
+        try {
+          sendResponse(await doSearch(message.word || ''));
+        } catch (error) {
+          sendResponse({ found: false, error: String(error && error.message) });
+        }
+      })();
       return true;
     }
     if (message.action === 'bingDictionaryFetchTranslation') {
-      // Async: parse the DOM, then (only when asked) fetch image/audio binaries
-      // in-page as base64 so the extension can cache + display them directly.
+      // Async: wait for a definitive render state, parse the DOM, then (only when
+      // asked) fetch image/audio binaries in-page as base64.
       (async () => {
         try {
+          // Don't extract a half-rendered page: wait for a real entry / no-entry
+          // / machine-translation state first (mirrors the reference scraper).
+          await waitForResult(typeof message.waitMs === 'number' ? message.waitMs : 8000);
           const data = extractBingDictionaryData();
           if (message.includeBinaries) {
             await enrichWithBinaries(data);

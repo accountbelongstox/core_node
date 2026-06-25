@@ -108,6 +108,24 @@ export interface TaskResult {
   error?: string;
 }
 
+/**
+ * Backend reception summary returned by POST /api/worker/tasks/result (the
+ * $outcome surfaced by TaskManagerService::submitResult). Lets a worker log
+ * exactly what the server stored. All fields optional — only the
+ * word-translation write-back reports the granular saved/invalid/audio/images
+ * breakdown; other task types return just status/stored_count/failed_count.
+ */
+export interface WorkerSubmitOutcome {
+  status: string;
+  stored_count: number;
+  failed_count: number;
+  synced_to_dict?: boolean;
+  saved?: number;
+  invalid?: number;
+  audio_saved?: number;
+  images_saved?: number;
+}
+
 export interface WorkerInfo {
   worker_id: string;
   worker_name: string;
@@ -233,7 +251,7 @@ export class WorkerApiClient extends BaseApiClient {
   /**
    * Submit task result
    */
-  async submitResult(result: TaskResult): Promise<ApiResponse<null>> {
+  async submitResult(result: TaskResult): Promise<ApiResponse<WorkerSubmitOutcome | null>> {
     // Ensure worker_id is set
     if (!result.worker_id && this.workerId) {
       result.worker_id = this.workerId;
@@ -243,7 +261,7 @@ export class WorkerApiClient extends BaseApiClient {
       throw new Error('Worker ID not set in result. Call register() first or provide worker_id');
     }
 
-    return this.post<null>('/api/worker/tasks/result', result);
+    return this.post<WorkerSubmitOutcome | null>('/api/worker/tasks/result', result);
   }
 
   /**

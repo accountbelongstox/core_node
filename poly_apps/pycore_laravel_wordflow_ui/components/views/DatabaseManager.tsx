@@ -15,7 +15,9 @@ import {
 import { commonClasses } from '../../styles/theme';
 import { Modal } from '../admin/Modal';
 import { useToast } from '../admin';
-import { LoadingBlock, InlineSpinner, AlertBox, EmptyState } from '../common';
+import { LoadingBlock, InlineSpinner, AlertBox, EmptyState, StatusBadge, Field, CopyButton } from '../common';
+import type { StatusTone } from '../common';
+import { useApiResource } from '../../hooks';
 import {
   DatabaseZap,
   RefreshCw,
@@ -30,8 +32,6 @@ import {
   Server,
   Layers,
   KeyRound,
-  Copy,
-  Check,
   ShieldAlert,
   Search,
   ArrowUp,
@@ -76,16 +76,17 @@ function backupMechanism(driver: string): string {
   }
 }
 
-function driverBadgeClass(driver: string): string {
+/** Semantic tone for a driver name (driver words don't auto-map, so override). */
+function driverTone(driver: string): StatusTone {
   switch (driver) {
     case 'pgsql':
-      return commonClasses.badgeInfo;
+      return 'info';
     case 'mysql':
-      return commonClasses.badgeWarning;
+      return 'warning';
     case 'sqlite':
-      return commonClasses.badgeSuccess;
+      return 'success';
     default:
-      return commonClasses.badgeInfo;
+      return 'info';
   }
 }
 
@@ -261,20 +262,10 @@ const StatRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, v
 // Former standalone Status tab, condensed to one card row rendered above the
 // table browser (Status + Tables are now ONE tab).
 const StatusStrip: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
-  const [status, setStatus] = useState<DbStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    api.databaseManager
-      .getStatus(connection.key)
-      .then((s) => setStatus(s))
-      .finally(() => setLoading(false));
-  }, [connection.key]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data: status, loading, refresh: load } = useApiResource<DbStatus>(
+    () => api.databaseManager.getStatus(connection.key),
+    { deps: [connection.key] }
+  );
 
   const item = (label: string, value: React.ReactNode) => (
     <div className="flex items-center gap-1.5 text-sm whitespace-nowrap">
@@ -288,9 +279,7 @@ const StatusStrip: React.FC<{ connection: DbConnectionInfo }> = ({ connection })
       <div className="flex items-center gap-2 min-w-0">
         <Server className="w-4 h-4 text-indigo-500 flex-shrink-0" />
         <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{connection.name}</span>
-        <span className={`${commonClasses.badge} ${driverBadgeClass(connection.driver)}`}>
-          {connection.driver}
-        </span>
+        <StatusBadge status={connection.driver} tone={driverTone(connection.driver)} withDot={false} />
       </div>
       {loading ? (
         <span className="flex items-center gap-2 text-slate-400 text-sm">
@@ -302,13 +291,11 @@ const StatusStrip: React.FC<{ connection: DbConnectionInfo }> = ({ connection })
       ) : (
         <>
           {item('DB', status.database)}
-          <span
-            className={`${commonClasses.badge} ${
-              status.reachable ? commonClasses.badgeSuccess : commonClasses.badgeError
-            }`}
-          >
-            {status.reachable ? 'reachable' : 'unreachable'}
-          </span>
+          <StatusBadge
+            status={status.reachable ? 'reachable' : 'unreachable'}
+            tone={status.reachable ? 'success' : 'error'}
+            withDot={false}
+          />
           {item('Size', status.size_human)}
           {item('Tables', status.table_count)}
           {status.server_version && item('Server', status.server_version)}
@@ -582,13 +569,12 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                   >
                     {t.name}
                   </span>
-                  <span
-                    className={`${commonClasses.badge} flex-shrink-0 ${
-                      t.is_app_table ? commonClasses.badgeInfo : commonClasses.badgeSuccess
-                    }`}
-                  >
-                    {t.is_app_table ? 'app' : 'main'}
-                  </span>
+                  <StatusBadge
+                    status={t.is_app_table ? 'app' : 'main'}
+                    tone={t.is_app_table ? 'info' : 'success'}
+                    withDot={false}
+                    className="flex-shrink-0"
+                  />
                 </div>
                 <div className="flex items-center justify-between gap-2 text-xs text-slate-400 mt-0.5">
                   <span>{fmtRows(t.rows)} rows</span>
@@ -754,8 +740,6 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
 // ────────────────────────────── Import/Export tab ──────────────────────────────
 const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
   const toast = useToast();
-  const [tables, setTables] = useState<DbTableInfo[]>([]);
-  const [loading, setLoading] = useState(true);
   const [table, setTable] = useState('');
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
   const [importFormat, setImportFormat] = useState<ExportFormat>('csv');
@@ -764,16 +748,16 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
   const [busy, setBusy] = useState(false);
   const [confirmImport, setConfirmImport] = useState(false);
 
-  useEffect(() => {
-    setLoading(true);
-    api.databaseManager
-      .getTables(connection.key)
-      .then((list) => {
-        setTables(list);
-        setTable((prev) => (prev && list.some((t) => t.name === prev) ? prev : list[0]?.name ?? ''));
-      })
-      .finally(() => setLoading(false));
-  }, [connection.key]);
+  const { data: tables, loading } = useApiResource<DbTableInfo[]>(
+    () => api.databaseManager.getTables(connection.key),
+    {
+      deps: [connection.key],
+      initialData: [],
+      onSuccess: (list) =>
+        setTable((prev) => (prev && list.some((t) => t.name === prev) ? prev : list[0]?.name ?? ''))
+    }
+  );
+  const tableList = tables ?? [];
 
   const handleExport = async () => {
     if (!table) return;
@@ -831,22 +815,20 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
           <Download className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
           <h3 className="font-semibold text-slate-800 dark:text-slate-200">Export table</h3>
         </div>
-        <div>
-          <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Table</label>
+        <Field label="Table">
           <select
             value={table}
             onChange={(e) => setTable(e.target.value)}
             className={`${commonClasses.select} w-full`}
           >
-            {tables.map((t) => (
+            {tableList.map((t) => (
               <option key={t.name} value={t.name}>
                 {t.name}
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Format</label>
+        </Field>
+        <Field label="Format">
           <select
             value={exportFormat}
             onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
@@ -855,7 +837,7 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
             <option value="csv">CSV</option>
             <option value="json">JSON</option>
           </select>
-        </div>
+        </Field>
         <button
           type="button"
           onClick={handleExport}
@@ -873,23 +855,21 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
           <Upload className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
           <h3 className="font-semibold text-slate-800 dark:text-slate-200">Import file</h3>
         </div>
-        <div>
-          <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Table</label>
+        <Field label="Table">
           <select
             value={table}
             onChange={(e) => setTable(e.target.value)}
             className={`${commonClasses.select} w-full`}
           >
-            {tables.map((t) => (
+            {tableList.map((t) => (
               <option key={t.name} value={t.name}>
                 {t.name}
               </option>
             ))}
           </select>
-        </div>
+        </Field>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Format</label>
+          <Field label="Format">
             <select
               value={importFormat}
               onChange={(e) => setImportFormat(e.target.value as ExportFormat)}
@@ -898,9 +878,8 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
               <option value="csv">CSV</option>
               <option value="json">JSON</option>
             </select>
-          </div>
-          <div>
-            <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Mode</label>
+          </Field>
+          <Field label="Mode">
             <select
               value={importMode}
               onChange={(e) => setImportMode(e.target.value as ImportMode)}
@@ -909,17 +888,16 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
               <option value="append">Append</option>
               <option value="replace">Replace</option>
             </select>
-          </div>
+          </Field>
         </div>
-        <div>
-          <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">File</label>
+        <Field label="File">
           <input
             type="file"
             accept={importFormat === 'csv' ? '.csv' : '.json'}
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className={`${commonClasses.input} w-full`}
           />
-        </div>
+        </Field>
         <button
           type="button"
           onClick={() => setConfirmImport(true)}
@@ -977,23 +955,15 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
 // ─────────────────────────────── Backup tab ───────────────────────────────
 const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
   const toast = useToast();
-  const [backups, setBackups] = useState<DbBackup[]>([]);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<DbBackup | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DbBackup | null>(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    api.databaseManager
-      .getBackups(connection.key)
-      .then((list) => setBackups(list))
-      .finally(() => setLoading(false));
-  }, [connection.key]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data: backupsData, loading, refresh: load } = useApiResource<DbBackup[]>(
+    () => api.databaseManager.getBackups(connection.key),
+    { deps: [connection.key], initialData: [] }
+  );
+  const backups = backupsData ?? [];
 
   const handleCreate = async () => {
     setBusy(true);
@@ -1078,9 +1048,11 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Mechanism for <strong>{connection.name}</strong>:{' '}
-          <span className={`${commonClasses.badge} ${driverBadgeClass(connection.driver)}`}>
-            {backupMechanism(connection.driver)}
-          </span>
+          <StatusBadge
+            status={backupMechanism(connection.driver)}
+            tone={driverTone(connection.driver)}
+            withDot={false}
+          />
         </p>
         <div className="flex items-center gap-2">
           <button
@@ -1134,9 +1106,7 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                     {b.file}
                   </td>
                   <td className="px-3 py-2">
-                    <span className={`${commonClasses.badge} ${driverBadgeClass(b.driver)}`}>
-                      {b.driver}
-                    </span>
+                    <StatusBadge status={b.driver} tone={driverTone(b.driver)} withDot={false} />
                   </td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{b.connection}</td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
@@ -1248,45 +1218,8 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
 
 // ─────────────────────────────── Credentials tab ───────────────────────────────
 
-/** Small copy-to-clipboard button that flips to a check for a moment. */
-const CopyButton: React.FC<{ value: string }> = ({ value }) => {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // Clipboard API can be unavailable on insecure origins — fall back.
-      const ta = document.createElement('textarea');
-      ta.value = value;
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand('copy');
-      } catch {
-        /* ignore */
-      }
-      document.body.removeChild(ta);
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  };
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
-      title="Copy to clipboard"
-    >
-      {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-      {copied ? 'Copied' : 'Copy'}
-    </button>
-  );
-};
-
 const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
   const toast = useToast();
-  const [info, setInfo] = useState<DbCredentialInfo | null>(null);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   // Change-password modal state. changeTarget = which account (defaults to
@@ -1314,17 +1247,10 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
   // Drop-account confirm.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    api.databaseManager
-      .getCredentials(connection.key)
-      .then((c) => setInfo(c))
-      .finally(() => setLoading(false));
-  }, [connection.key]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data: info, loading, refresh: load } = useApiResource<DbCredentialInfo>(
+    () => api.databaseManager.getCredentials(connection.key),
+    { deps: [connection.key] }
+  );
 
   const supported = !!info?.supports_password;
 
@@ -1467,9 +1393,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
         <div className="flex items-center gap-2 mb-3">
           <KeyRound className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
           <h3 className="font-semibold text-slate-800 dark:text-slate-200">Credentials</h3>
-          <span className={`${commonClasses.badge} ${driverBadgeClass(info.driver)} ml-1`}>
-            {info.driver}
-          </span>
+          <StatusBadge status={info.driver} tone={driverTone(info.driver)} withDot={false} className="ml-1" />
         </div>
         <StatRow label="Connection" value={info.connection} />
         <StatRow label="Superuser" value={info.superuser ?? '—'} />
@@ -1489,7 +1413,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
-                <CopyButton value={info.password} />
+                <CopyButton text={info.password} label="Copy" variant="outline" />
               </span>
             }
           />
@@ -1497,13 +1421,11 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
         <StatRow
           label="Password auth"
           value={
-            <span
-              className={`${commonClasses.badge} ${
-                supported ? commonClasses.badgeSuccess : commonClasses.badgeWarning
-              }`}
-            >
-              {supported ? 'supported' : 'not applicable'}
-            </span>
+            <StatusBadge
+              status={supported ? 'supported' : 'not applicable'}
+              tone={supported ? 'success' : 'warning'}
+              withDot={false}
+            />
           }
         />
         {info.secret_key && <StatRow label="Secret key" value={info.secret_key} />}
@@ -1627,9 +1549,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
                         <td className="px-3 py-2 font-mono text-[13px] text-slate-700 dark:text-slate-300">
                           {u.name}
                           {isConfigured && (
-                            <span className={`${commonClasses.badge} ${commonClasses.badgeInfo} ml-2`}>
-                              laravel
-                            </span>
+                            <StatusBadge status="laravel" tone="info" withDot={false} className="ml-2" />
                           )}
                         </td>
                         {info.driver !== 'pgsql' && (
@@ -1637,16 +1557,12 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
                         )}
                         <td className="px-3 py-2">
                           <span className="flex items-center gap-1.5">
-                            {u.super && (
-                              <span className={`${commonClasses.badge} ${commonClasses.badgeWarning}`}>super</span>
-                            )}
-                            <span
-                              className={`${commonClasses.badge} ${
-                                u.can_login ? commonClasses.badgeSuccess : commonClasses.badgeError
-                              }`}
-                            >
-                              {u.can_login ? 'login' : 'no-login'}
-                            </span>
+                            {u.super && <StatusBadge status="super" tone="warning" withDot={false} />}
+                            <StatusBadge
+                              status={u.can_login ? 'login' : 'no-login'}
+                              tone={u.can_login ? 'success' : 'error'}
+                              withDot={false}
+                            />
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -1722,8 +1638,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               ? ' This also re-syncs Laravel’s config.'
               : ' This account is not the one Laravel connects as — its credential store is untouched.'}
           </p>
-          <div>
-            <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">New password</label>
+          <Field label="New password">
             <input
               type="password"
               value={newPassword}
@@ -1731,11 +1646,11 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               autoComplete="new-password"
               className={`${commonClasses.input} w-full`}
             />
-          </div>
-          <div>
-            <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">
-              Confirm password
-            </label>
+          </Field>
+          <Field
+            label="Confirm password"
+            error={confirmPassword.length > 0 && !passwordsMatch ? 'Passwords do not match.' : undefined}
+          >
             <input
               type="password"
               value={confirmPassword}
@@ -1743,10 +1658,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               autoComplete="new-password"
               className={`${commonClasses.input} w-full`}
             />
-          </div>
-          {confirmPassword.length > 0 && !passwordsMatch && (
-            <p className="text-sm text-red-600 dark:text-red-400">Passwords do not match.</p>
-          )}
+          </Field>
         </div>
       </Modal>
 
@@ -1813,7 +1725,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
             <code className="flex-1 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-sm break-all select-all">
               {generated}
             </code>
-            {generated && <CopyButton value={generated} />}
+            {generated && <CopyButton text={generated} label="Copy" variant="outline" />}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {generatedSynced
@@ -1859,8 +1771,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               <strong>{connection.database}</strong>.</>
             )}
           </p>
-          <div>
-            <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Username</label>
+          <Field label="Username">
             <input
               type="text"
               value={addUsername}
@@ -1868,18 +1779,15 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               placeholder="letters, digits, _ or -"
               className={`${commonClasses.input} w-full font-mono`}
             />
-          </div>
-          <div>
-            <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">
-              Password <span className="text-slate-400">(leave empty to auto-generate a strong one)</span>
-            </label>
+          </Field>
+          <Field label="Password" hint="Leave empty to auto-generate a strong one.">
             <input
               type="password"
               value={addPassword}
               onChange={(e) => setAddPassword(e.target.value)}
               className={`${commonClasses.input} w-full`}
             />
-          </div>
+          </Field>
         </div>
       </Modal>
 
@@ -1909,7 +1817,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
             </p>
             <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-sm break-all">
               <span className="flex-1 select-all">{createdAccount.password}</span>
-              <CopyButton value={createdAccount.password} />
+              <CopyButton text={createdAccount.password} label="Copy" variant="outline" />
             </div>
           </div>
         )}
@@ -1961,32 +1869,24 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
-  const [connections, setConnections] = useState<DbConnectionInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [tab, setTab] = useState<TabKey>('tables');
 
-  const loadConnections = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    api.databaseManager
-      .getConnections()
-      .then((list) => {
-        setConnections(list);
-        setSelectedKey((prev) => {
-          if (prev && list.some((c) => c.key === prev)) return prev;
-          const main = list.find((c) => c.is_main);
-          return main?.key ?? list[0]?.key ?? '';
-        });
+  const {
+    data: connectionsData,
+    loading,
+    error,
+    refresh: loadConnections
+  } = useApiResource<DbConnectionInfo[]>(() => api.databaseManager.getConnections(), {
+    initialData: [],
+    onSuccess: (list) =>
+      setSelectedKey((prev) => {
+        if (prev && list.some((c) => c.key === prev)) return prev;
+        const main = list.find((c) => c.is_main);
+        return main?.key ?? list[0]?.key ?? '';
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load connections'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    loadConnections();
-  }, [loadConnections]);
+  });
+  const connections = connectionsData ?? [];
 
   const selected = useMemo(
     () => connections.find((c) => c.key === selectedKey) ?? null,

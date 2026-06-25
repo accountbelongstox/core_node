@@ -5,6 +5,7 @@ import { api } from '@/core/api';
 import { StatsCard, StatsGrid, DataTable, type DataTableColumn } from '@/components/admin';
 import { useToast } from '@/components/admin';
 import { useTranslation } from '@/core/i18n';
+import { StatusBadge } from '@/components/common';
 import {
   Cpu,
   HardDrive,
@@ -163,13 +164,11 @@ export function SystemInfoDashboard() {
       title: 'Status',
       width: '120px',
       render: (value) => (
-        <span className={`px-2 py-1 rounded text-xs ${
-          value === 'active' ? 'bg-green-100 text-green-800' :
-          value === 'inactive' ? 'bg-gray-100 text-gray-800' :
-          'bg-red-100 text-red-800'
-        }`}>
-          {value}
-        </span>
+        <StatusBadge
+          status={value}
+          tone={value === 'active' ? 'success' : value === 'inactive' ? 'idle' : 'error'}
+          withDot={false}
+        />
       )
     },
     {

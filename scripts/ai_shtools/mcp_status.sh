@@ -117,6 +117,5 @@ mcp_show_planned() {
     else
         echo "  [1] context7 (http)  SKIPPED (CONTEXT7_API_KEY_1 missing)"
     fi
-    echo "  [2] unified  (stdio) command=$py  args=[$MCP_PYMAIN app=mcp]  env MCP_ALLOW_ALL_PATHS=true"
-    echo "  [3] chrome   (http)  url=http://127.0.0.1:12306/mcp"
+    echo "  [2] chrome   (http)  url=http://127.0.0.1:12306/mcp"
 }

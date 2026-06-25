@@ -37,6 +37,9 @@ AUTO_UPGRADES_CONFIG="/etc/apt/apt.conf.d/20auto-upgrades"
 UNATTENDED_CONFIG="/etc/apt/apt.conf.d/50unattended-upgrades"
 UPDATES_AVAILABLE="/var/lib/update-notifier/updates-available"
 OS_ID=""
+ZRAM_PERCENT="50"        # zram device size = this % of total RAM (compressed -> more)
+ZRAM_PRIORITY="100"      # swap priority (above any disk swap)
+ZRAM_CONFIG="/etc/default/zramswap"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
@@ -200,14 +203,73 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
+# Step 4: zram compressed-RAM swap (memory headroom)
+# -----------------------------------------------------------------------------
+# These boxes often run with little/no swap; under the per-app cgroup caps a heavy
+# browser then hard-reclaims/OOMs (freezes) instead of paging out cold pages. zram
+# is a fast compressed swap in RAM so reclaim has somewhere to go. Debian-family +
+# systemd only; idempotent. Tunables ZRAM_PERCENT / ZRAM_PRIORITY (top of file).
+configure_zram_swap() {
+    local desired
+    echo "[$SCRIPT_INDEX] === zram compressed-RAM swap ==="
+
+    if [ ! -s /etc/os-release ]; then
+        echo "[$SCRIPT_INDEX]   Cannot detect OS; skipping zram."
+        return 0
+    fi
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    if [ "$ID" != "ubuntu" ] && [ "$ID" != "debian" ] && [ "$ID" != "kali" ] && [[ " ${ID_LIKE:-} " != *" debian "* ]]; then
+        echo "[$SCRIPT_INDEX]   Non-Debian-family OS ($ID); skipping zram."
+        return 0
+    fi
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX]   systemd not present; skipping zram."
+        return 0
+    fi
+
+    # Install zram-tools if its service is not available yet.
+    if ! systemctl list-unit-files 2>/dev/null | grep -q '^zramswap\.service' \
+       && ! dpkg -s zram-tools >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX]   Installing zram-tools..."
+        DEBIAN_FRONTEND=noninteractive $USE_SUDO apt-get install -y zram-tools >/dev/null 2>&1 || {
+            echo "[$SCRIPT_INDEX]   [WARN] could not install zram-tools; skipping zram."
+            return 0
+        }
+    fi
+
+    # Desired config: zstd, % of RAM, priority above disk swap. Idempotent write.
+    desired="$(printf 'ALGO=zstd\nPERCENT=%s\nPRIORITY=%s\n' "$ZRAM_PERCENT" "$ZRAM_PRIORITY")"
+    if [ ! -f "$ZRAM_CONFIG" ] || [ "$(cat "$ZRAM_CONFIG" 2>/dev/null)" != "$desired" ]; then
+        printf '%s' "$desired" | $USE_SUDO tee "$ZRAM_CONFIG" >/dev/null
+        echo "[$SCRIPT_INDEX]   Wrote $ZRAM_CONFIG (zstd, ${ZRAM_PERCENT}% RAM, priority ${ZRAM_PRIORITY})."
+    else
+        echo "[$SCRIPT_INDEX]   $ZRAM_CONFIG already set; skipping write."
+    fi
+
+    # Enable + (re)start so the device reflects the config.
+    $USE_SUDO systemctl enable zramswap.service >/dev/null 2>&1 || true
+    $USE_SUDO systemctl restart zramswap.service >/dev/null 2>&1 \
+        || $USE_SUDO systemctl start zramswap.service >/dev/null 2>&1 || true
+
+    if swapon --show=NAME --noheadings 2>/dev/null | grep -q '/dev/zram'; then
+        echo "[$SCRIPT_INDEX]   [OK] zram active: $(swapon --show=NAME,SIZE,PRIO --noheadings 2>/dev/null | grep zram | tr -s ' ' | tr '\n' ' ')"
+    else
+        echo "[$SCRIPT_INDEX]   [WARN] zram device not active (check 'systemctl status zramswap')."
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
-echo "[$SCRIPT_INDEX] Running system maintenance (mirrors / journal / auto-updates)..."
+echo "[$SCRIPT_INDEX] Running system maintenance (mirrors / journal / auto-updates / zram)..."
 echo ""
 configure_mirrors
 echo ""
 configure_journal_cleanup
 echo ""
 disable_auto_updates
+echo ""
+configure_zram_swap
 echo ""
 echo "[$SCRIPT_INDEX] System maintenance completed."

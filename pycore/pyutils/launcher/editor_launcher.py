@@ -6,11 +6,21 @@ Handles launching Chrome/VSCode/Cursor windows
 
 from pycore.pyutils.launcher.script_generator import ScriptGenerator
 from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
+import sys
 import time
+import shutil
+import subprocess
 
 
 class EditorLauncher:
     """Launch editor applications (Chrome, VSCode, Cursor) windows"""
+
+    # Linux PATH binaries per app (Debian/Ubuntu/Kali). First found on PATH wins.
+    _LINUX_BINARIES = {
+        'chrome': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
+        'vscode': ['code', 'code-insiders'],
+        'cursor': ['cursor'],
+    }
     
     def __init__(self, script_generator=None, executor=None):
         """
@@ -64,6 +74,9 @@ class EditorLauncher:
     
     def _launch_editor(self, app_name, windows_config, delay):
         """Internal method to launch editor windows"""
+        if sys.platform != 'win32':
+            return self._launch_editor_linux(app_name, windows_config, delay)
+
         bat_files = []
         
         for i, config in enumerate(windows_config, 1):
@@ -87,6 +100,36 @@ class EditorLauncher:
             print(f"Launching {app_name} window {i}...")
             self.executor.execute_bat_file(bat_path, independent=True)
             time.sleep(delay)
-        
+
         return bat_files
+
+    def _launch_editor_linux(self, app_name, windows_config, delay):
+        """Launch editor windows on Linux via the PATH binary (no .bat / explorer).
+
+        Debian/Ubuntu/Kali ship code/cursor/chrome on PATH; we open one --new-window
+        per grid cell (window positioning is left to the WM, same as the terminal grid).
+        """
+        binary = None
+        for name in self._LINUX_BINARIES.get(app_name, [app_name]):
+            binary = shutil.which(name)
+            if binary:
+                break
+        if not binary:
+            print(f"  {app_name}: no binary found on PATH (Linux) -- skipping")
+            return []
+
+        launched = []
+        for i, config in enumerate(windows_config, 1):
+            file_path = config[4] if len(config) >= 5 else None
+            argv = [binary, '--new-window']
+            if file_path:
+                argv.append(str(file_path))
+            print(f"Launching {app_name} window {i} ({binary})...")
+            try:
+                subprocess.Popen(argv, start_new_session=True, close_fds=True)
+            except Exception as e:
+                print(f"  Failed to launch {app_name}: {e}")
+            launched.append(binary)
+            time.sleep(delay)
+        return launched
 

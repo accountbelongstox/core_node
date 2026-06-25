@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Languages, Play } from 'lucide-react';
 import { Language } from '../../../types';
 import { api } from '../../../core/api';
+import { useApiResource } from '../../../hooks';
 import type { DevHistoryAssistTask } from '../../../core/api/modules/DevHistoryAPI';
 
 interface Props {
@@ -23,36 +24,29 @@ const STATUS_COLOR: Record<string, string> = {
  * Translation Assist Distribution — non-English dev-history prompts dispatched
  * to pycore for English translation (3 variants + audio). Reads /api/dev-history/assist.
  */
+interface AssistDistData {
+  summary: Record<string, number>;
+  recent: DevHistoryAssistTask[];
+}
+
 const AssistDistributionPanel: React.FC<Props> = ({ autoRefresh, refreshIntervalSec, refreshToken }) => {
-  const [summary, setSummary] = useState<Record<string, number>>({});
-  const [recent, setRecent] = useState<DevHistoryAssistTask[]>([]);
-  const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const res = await api.devHistory.getAssist();
-    if (res.success && res.data) {
-      setSummary(res.data.summary || {});
-      setRecent(res.data.recent || []);
+  const { data, loading, refresh } = useApiResource<AssistDistData>(
+    () => api.devHistory.getAssist(),
+    {
+      pollMs: autoRefresh ? Math.max(3, refreshIntervalSec) * 1000 : undefined,
+      deps: [refreshToken, autoRefresh, refreshIntervalSec],
     }
-    setLoading(false);
-  }, []);
+  );
 
-  useEffect(() => {
-    load();
-  }, [load, refreshToken]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const h = setInterval(load, Math.max(3, refreshIntervalSec) * 1000);
-    return () => clearInterval(h);
-  }, [autoRefresh, refreshIntervalSec, load]);
+  const summary = data?.summary || {};
+  const recent = data?.recent || [];
 
   const scan = async () => {
     setScanning(true);
     await api.devHistory.assistScan();
-    await load();
+    await refresh();
     setScanning(false);
   };
 

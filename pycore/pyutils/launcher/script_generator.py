@@ -19,9 +19,10 @@ class ScriptGenerator:
             temp_dir: Temporary directory for scripts. If None, uses default location.
         """
         if temp_dir is None:
-            username = os.getenv('USERNAME') or os.getenv('USER')
-            temp_dir = Path(f'C:\\Users\\{username}\\.core_node\\launch_multiple')
-        
+            # Cross-platform home dir (C:\Users\<user> on Windows, ~/ elsewhere);
+            # avoids creating a literal "C:\\Users\\..." dir under cwd on Linux.
+            temp_dir = Path.home() / '.core_node' / 'launch_multiple'
+
         self.temp_dir = Path(temp_dir)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
     

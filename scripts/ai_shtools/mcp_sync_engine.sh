@@ -23,7 +23,6 @@ MCP_ENGINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MCP_CORE_NODE_DIR="$(cd "$MCP_ENGINE_DIR/../.." && pwd)"
 MCP_JSON_HELPER="$MCP_CORE_NODE_DIR/scripts/ai_ps1tools/_json_sync_helper.py"
 MCP_SECRET_RAW_DIR="$MCP_CORE_NODE_DIR/.secret_keys/.secret_ignore"
-MCP_PYMAIN="$MCP_CORE_NODE_DIR/pymain.py"
 MCP_CODEX_CONFIG="$HOME/.codex/config.toml"
 MCP_CHROME_START_SH="$MCP_CORE_NODE_DIR/apps/mcp-chrome/scripts/start.sh"
 MCP_CONTEXT7_SH="$MCP_CORE_NODE_DIR/ncore/mcp_server/auto-context7-mcp/auto_fix_context7.sh"
@@ -69,12 +68,10 @@ mcp_build_entries() {
         echo "[WARNING] CONTEXT7_API_KEY_1 not found in $MCP_SECRET_RAW_DIR (context7 skipped)" >&2
     fi
     tmp="$(mktemp "${TMPDIR:-/tmp}/mcp_entries.XXXXXX.json")"
-    MCP_CTX_KEY="$key" MCP_PY_EXE="$py" MCP_PYMAIN_PATH="$MCP_PYMAIN" "$py" - "$tmp" <<'PYEOF'
+    MCP_CTX_KEY="$key" "$py" - "$tmp" <<'PYEOF'
 import json, os, sys
 out_path = sys.argv[1]
 key = os.environ.get("MCP_CTX_KEY", "")
-py = os.environ["MCP_PY_EXE"]
-pymain = os.environ["MCP_PYMAIN_PATH"]
 entries = []
 if key:
     entries.append({
@@ -82,11 +79,6 @@ if key:
         "url": "https://mcp.context7.com/mcp",
         "headers": {"CONTEXT7_API_KEY": key, "Accept": "application/json, text/event-stream"},
     })
-entries.append({
-    "name": "unified", "transport": "stdio",
-    "command": py, "args": [pymain, "app=mcp"],
-    "env": {"MCP_ALLOW_ALL_PATHS": "true"},
-})
 entries.append({"name": "chrome", "transport": "http", "url": "http://127.0.0.1:12306/mcp"})
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(entries, f)
@@ -169,13 +161,10 @@ mcp_sync_codex() {
         mcp_codex_write_http "context7" "https://mcp.context7.com/mcp" "$key"
     fi
     mcp_codex_write_http "chrome" "http://127.0.0.1:12306/mcp" ""
+    # 'unified' (stdio) is retired: purge any stale entry and never re-register it.
+    mcp_codex_remove_section "unified"
     if command -v codex >/dev/null 2>&1; then
-        echo "[CLEAN] codex mcp remove unified"
         codex mcp remove unified 2>/dev/null || true
-        echo "[CMD] codex mcp add unified --env MCP_ALLOW_ALL_PATHS=true -- $py $MCP_PYMAIN app=mcp"
-        codex mcp add unified --env MCP_ALLOW_ALL_PATHS=true -- "$py" "$MCP_PYMAIN" app=mcp || true
-    else
-        echo "[WARNING] codex CLI not found; stdio 'unified' not registered (http written to config.toml)"
     fi
     echo ""
 }

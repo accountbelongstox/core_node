@@ -317,3 +317,77 @@ WRAPEOF
     fi
     return 0
 }
+
+# ---------------------------------------------------------------------------
+# resolve_browser_gpu_flags: echo SAFE Chromium GPU hardware-acceleration flags for THIS
+# machine (Chrome/Edge/Chromium), to be passed to apply_app_resource_limit via --pre.
+# Stops the software-rendering lag where the Linux GPU blocklist forces SwiftShader
+# (CPU-bound compositing). Logs to stderr; prints the space-joined flag string to stdout.
+# SAFE-by-default (Chromium GPU/VA-API docs, adversarially reviewed):
+#   base: --ignore-gpu-blocklist --enable-gpu-rasterization --use-gl=angle --use-angle=gl
+#         --ozone-platform-hint=auto   (NO --enable-zero-copy: NVIDIA GPU-process
+#         crash-loop/screen-blank; NO ANGLE-Vulkan: NVIDIA black windows).
+#   VA-API decode/encode ONLY when a Mesa backend driver .so is present (AMD/Intel, out
+#   of the box). NVIDIA VA-API stays OFF (Chrome unsupported there -> masks CPU decode).
+# Vendor detection is sudo-safe (sysfs/lspci, no DISPLAY) and prefers the PRIMARY display
+# GPU, so an offload NVIDIA never masks a working AMD/Intel VA-API stack on hybrid laptops.
+# Env: BROWSER_GPU_FLAGS preset -> echoed verbatim; BROWSER_DISABLE_GPU=1 -> empty;
+#      BROWSER_ENABLE_ZEROCOPY=1 -> add --enable-zero-copy.
+resolve_browser_gpu_flags() {
+    local vendor primary nv_bound any card v bound have_libva have_drv pat d flags line
+    vendor=""; primary=""; nv_bound=""; any=""; have_libva=0; have_drv=0; pat=""; flags=""
+
+    if [ "${BROWSER_DISABLE_GPU:-0}" = "1" ]; then printf '%s' ""; return 0; fi
+    if [ -n "${BROWSER_GPU_FLAGS:-}" ]; then printf '%s' "$BROWSER_GPU_FLAGS"; return 0; fi
+
+    # Vendor = the GPU that drives the display. Walk DRM cards; first BOUND AMD/Intel wins;
+    # fall back to a bound NVIDIA only if it is the sole GPU, then nvidia-smi / lspci.
+    for card in /sys/class/drm/card[0-9]*; do
+        [ -r "$card/device/vendor" ] || continue   # skip connector pseudo-dirs (cardN-DP-1 ...)
+        v=$(cat "$card/device/vendor" 2>/dev/null); bound=""
+        [ -L "$card/device/driver" ] && bound=1
+        case "$v" in
+            0x10de) any="nvidia"; [ -n "$bound" ] && nv_bound="nvidia" ;;
+            0x1002) any="amd";    [ -n "$bound" ] && [ -z "$primary" ] && primary="amd" ;;
+            0x8086) any="intel";  [ -n "$bound" ] && [ -z "$primary" ] && primary="intel" ;;
+        esac
+    done
+    if   [ -n "$primary" ];  then vendor="$primary"
+    elif [ -n "$nv_bound" ]; then vendor="nvidia"
+    elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then vendor="nvidia"
+    elif command -v lspci >/dev/null 2>&1; then
+        line=$(lspci -nnk 2>/dev/null | grep -iE 'VGA|3D|Display' | head -n1)
+        case "$line" in
+            *1002:*|*AMD*|*ATI*) vendor="amd" ;;
+            *8086:*|*Intel*)     vendor="intel" ;;
+            *10de:*|*NVIDIA*)    vendor="nvidia" ;;
+            *)                   vendor="${any:-unknown}" ;;
+        esac
+    else vendor="${any:-unknown}"; fi
+
+    # VA-API gate: libva-drm + a vendor-matching Mesa backend driver .so (never vainfo).
+    if command -v ldconfig >/dev/null 2>&1 && ldconfig -p 2>/dev/null | grep -q 'libva-drm\.so'; then
+        have_libva=1
+    else
+        for d in /usr/lib/x86_64-linux-gnu /usr/lib/aarch64-linux-gnu /usr/lib64 /usr/lib; do
+            [ -e "$d/libva-drm.so.2" ] && { have_libva=1; break; }
+        done
+    fi
+    case "$vendor" in
+        amd)   pat='radeonsi_drv_video\.so|r600_drv_video\.so' ;;
+        intel) pat='iHD_drv_video\.so|i965_drv_video\.so' ;;
+        *)     pat='' ;;   # nvidia / unknown -> no VA-API
+    esac
+    if [ -n "$pat" ]; then
+        for d in /usr/lib/x86_64-linux-gnu/dri /usr/lib/dri /usr/lib64/dri /usr/lib/aarch64-linux-gnu/dri; do
+            [ -d "$d" ] || continue
+            if ls "$d" 2>/dev/null | grep -qE "$pat"; then have_drv=1; break; fi
+        done
+    fi
+
+    flags="--ignore-gpu-blocklist --enable-gpu-rasterization --use-gl=angle --use-angle=gl --ozone-platform-hint=auto"
+    [ "${BROWSER_ENABLE_ZEROCOPY:-0}" = "1" ] && flags="$flags --enable-zero-copy"
+    [ "$have_libva" = "1" ] && [ "$have_drv" = "1" ] && flags="$flags --enable-features=AcceleratedVideoDecodeLinuxGL,AcceleratedVideoEncoder"
+    echo "[arl] browser GPU flags (vendor=$vendor vaapi=$have_drv): $flags" >&2
+    printf '%s' "$flags"
+}

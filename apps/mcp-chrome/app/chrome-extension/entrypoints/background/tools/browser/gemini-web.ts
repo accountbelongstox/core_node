@@ -21,6 +21,9 @@ import {
 const GEMINI_URL = 'https://gemini.google.com/app';
 const GEMINI_HOST = 'gemini.google.com';
 const HELPER = 'inject-scripts/gemini-web-helper.js';
+// Shared human-sim library, co-injected FIRST so the helper can use self.__WebOps
+// (humanClick / waitFor / queryDeep / fetchBytes) for human-like send + audio.
+const WEB_OPS = 'inject-scripts/web-ops.js';
 
 class GeminiWebTool extends BaseBrowserToolExecutor {
   name = 'chrome_gemini';
@@ -41,7 +44,7 @@ class GeminiWebTool extends BaseBrowserToolExecutor {
     try {
       const { tabId: resolvedTabId } = await findOrCreateProviderTab(GEMINI_HOST, GEMINI_URL, tabId);
       await waitForTabComplete(resolvedTabId);
-      await this.injectContentScript(resolvedTabId, [HELPER]);
+      await this.injectContentScript(resolvedTabId, [WEB_OPS, HELPER]);
 
       const submitted = await this.sendMessageToTab(resolvedTabId, {
         action: 'geminiSubmitPrompt',

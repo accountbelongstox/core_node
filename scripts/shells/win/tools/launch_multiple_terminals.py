@@ -62,7 +62,7 @@ CHAR_HEIGHT = MEASURED_ROWS_HEIGHT_PX / MEASURED_ROWS       # pixels per row = 4
 
 # Temp directory for batch files
 USERNAME = os.getenv('USERNAME') or os.getenv('USER')
-TEMP_DIR = Path(f'C:\\Users\\{USERNAME}\\.core_node\\launch_multiple')
+TEMP_DIR = Path.home() / '.core_node' / 'launch_multiple'
 
 def get_screen_dimensions():
     """Get virtual desktop dimensions (entire OS desktop across all monitors)"""
@@ -142,8 +142,7 @@ def get_screen_dimensions():
 
 def get_cache_path():
     """Get cache file path"""
-    username = os.getenv('USERNAME') or os.getenv('USER')
-    cache_dir = Path(f'C:\\Users\\{username}\\.core_node\\launch_multiple')
+    cache_dir = Path.home() / '.core_node' / 'launch_multiple'
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / 'char_size_cache.json'
 
@@ -203,8 +202,7 @@ def measure_char_size_from_test_window():
     test_pos_y = 100
     
     # Create test bat file
-    username = os.getenv('USERNAME') or os.getenv('USER')
-    temp_dir = Path(f'C:\\Users\\{username}\\.core_node\\launch_multiple')
+    temp_dir = Path.home() / '.core_node' / 'launch_multiple'
     temp_dir.mkdir(parents=True, exist_ok=True)
     
     test_bat = temp_dir / 'test_window.bat'

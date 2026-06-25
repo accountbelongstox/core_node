@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, AlertTriangle } from 'lucide-react';
+import { X, Save } from 'lucide-react';
 import { NginxSite, NginxSiteCreateRequest, NginxPortCheck, Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
 import { commonClasses } from '../../styles/theme';
 import { api } from '../../core/api';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
+import { AlertBox, Field } from '../common';
 
 interface NginxSiteModalProps {
   isOpen: boolean;
@@ -217,20 +218,20 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {!isEdit && portWarnings.length > 0 && (
-            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 space-y-1">
-              {portWarnings.map(warning => (
-                <p key={warning.port} className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                  {t.port_in_use
-                    .replace('{port}', String(warning.port))
-                    .replace('{holder}', warning.holder || '?')}
-                </p>
-              ))}
-            </div>
+            <AlertBox variant="warning">
+              <div className="space-y-1">
+                {portWarnings.map(warning => (
+                  <p key={warning.port}>
+                    {t.port_in_use
+                      .replace('{port}', String(warning.port))
+                      .replace('{holder}', warning.holder || '?')}
+                  </p>
+                ))}
+              </div>
+            </AlertBox>
           )}
 
-          <div>
-            <label className="block text-sm font-medium mb-2">{t.site_name}</label>
+          <Field label={t.site_name} hint="Config file name (no spaces or special characters)">
             <input
               type="text"
               required
@@ -240,11 +241,9 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
               className={commonClasses.input}
               placeholder="example_com"
             />
-            <p className="text-xs text-slate-500 mt-1">Config file name (no spaces or special characters)</p>
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">{t.domain}</label>
+          <Field label={t.domain}>
             <input
               type="text"
               required
@@ -253,10 +252,9 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
               className={commonClasses.input}
               placeholder="example.com"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">{t.site_type}</label>
+          <Field label={t.site_type}>
             <select
               value={formData.site_type}
               onChange={(e) => handleSiteTypeChange(e.target.value as NginxSiteCreateRequest['site_type'])}
@@ -266,11 +264,10 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
               <option value="laravel">Laravel (Swoole/Octane)</option>
               <option value="proxy">Reverse Proxy (PolyApp)</option>
             </select>
-          </div>
+          </Field>
 
           {formData.site_type === 'proxy' && (
-            <div>
-              <label className="block text-sm font-medium mb-2">Select PolyApp</label>
+            <Field label="Select PolyApp" hint="Port is automatically assigned. Web directory is from app path.">
               <select
                 value={selectedPolyApp}
                 onChange={(e) => handlePolyAppChange(e.target.value)}
@@ -289,14 +286,17 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
               {!loadingApps && polyApps.length === 0 && (
                 <p className="text-xs text-orange-500 mt-1">No PolyApps found. Deploy apps first.</p>
               )}
-              <p className="text-xs text-slate-500 mt-1">
-                Port is automatically assigned. Web directory is from app path.
-              </p>
-            </div>
+            </Field>
           )}
 
-          <div>
-            <label className="block text-sm font-medium mb-2">{t.www_dir}</label>
+          <Field
+            label={t.www_dir}
+            hint={
+              formData.site_type === 'static' ? 'Path where static files are located' :
+              formData.site_type === 'laravel' ? 'Laravel application root directory (mapped via PathMapper)' :
+              'Automatically set from selected PolyApp path'
+            }
+          >
             <input
               type="text"
               required
@@ -310,17 +310,14 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
               }
               readOnly={formData.site_type === 'proxy'}
             />
-            <p className="text-xs text-slate-500 mt-1">
-              {formData.site_type === 'static' && 'Path where static files are located'}
-              {formData.site_type === 'laravel' && 'Laravel application root directory (mapped via PathMapper)'}
-              {formData.site_type === 'proxy' && 'Automatically set from selected PolyApp path'}
-            </p>
-          </div>
+          </Field>
 
           {formData.site_type !== 'proxy' && (
             <>
-              <div>
-                <label className="block text-sm font-medium mb-2">{t.php_mode}</label>
+              <Field
+                label={t.php_mode}
+                hint={formData.site_type === 'laravel' ? 'Laravel uses Swoole via Octane (fixed)' : undefined}
+              >
                 <select
                   value={formData.config?.php_mode || 'none'}
                   onChange={(e) => handleConfigChange('php_mode', e.target.value)}
@@ -331,14 +328,10 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
                   {formData.site_type === 'static' && <option value="php-fpm">PHP-FPM</option>}
                   {formData.site_type === 'laravel' && <option value="swoole">Swoole (Laravel Octane)</option>}
                 </select>
-                {formData.site_type === 'laravel' && (
-                  <p className="text-xs text-slate-500 mt-1">Laravel uses Swoole via Octane (fixed)</p>
-                )}
-              </div>
+              </Field>
 
               {formData.config?.php_mode !== 'none' && formData.config?.php_mode !== 'swoole' && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">PHP Version</label>
+                <Field label="PHP Version">
                   <select
                     value={formData.config?.php_version || '8.2'}
                     onChange={(e) => handleConfigChange('php_version', e.target.value)}
@@ -350,14 +343,16 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
                     <option value="8.2">PHP 8.2</option>
                     <option value="8.3">PHP 8.3</option>
                   </select>
-                </div>
+                </Field>
               )}
             </>
           )}
 
           {formData.site_type === 'proxy' && formData.config?.proxy_target && (
-            <div>
-              <label className="block text-sm font-medium mb-2">Proxy Target</label>
+            <Field
+              label="Proxy Target"
+              hint={`Automatically set to http://localhost:${(selectedPolyApp && polyApps.find(a => a.name === selectedPolyApp)?.port) || ''}`}
+            >
               <input
                 type="text"
                 value={formData.config?.proxy_target || ''}
@@ -365,10 +360,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
                 className={`${commonClasses.input} bg-slate-100 dark:bg-slate-700 cursor-not-allowed`}
                 placeholder="http://localhost:3000"
               />
-              <p className="text-xs text-slate-500 mt-1">
-                Automatically set to http://localhost:{selectedPolyApp && polyApps.find(a => a.name === selectedPolyApp)?.port}
-              </p>
-            </div>
+            </Field>
           )}
 
           <div className="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
@@ -399,8 +391,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
                 </div>
 
                 {formData.auto_ssl && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2">DNS Provider (for wildcard certs)</label>
+                  <Field label="DNS Provider (for wildcard certs)" hint="DNS providers allow wildcard certificates. Requires API credentials configured on server.">
                     <select
                       value={formData.dns_provider || 'none'}
                       onChange={(e) => handleChange('dns_provider', e.target.value)}
@@ -410,10 +401,7 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
                       <option value="dnspod">DNSPod (Tencent Cloud)</option>
                       <option value="cloudflare">Cloudflare</option>
                     </select>
-                    <p className="text-xs text-slate-500 mt-1">
-                      DNS providers allow wildcard certificates. Requires API credentials configured on server.
-                    </p>
-                  </div>
+                  </Field>
                 )}
               </>
             )}

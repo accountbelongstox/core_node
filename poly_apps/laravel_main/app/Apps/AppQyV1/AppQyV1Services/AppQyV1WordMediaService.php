@@ -87,13 +87,22 @@ class AppQyV1WordMediaService
         $translations = $this->extractTranslations($row);
         $hasTranslation = $this->hasTranslationFor($row, $targetLang);
 
-        $needsMedia = !$hasImage || !$hasAudio || !$hasTranslation;
+        // image_status='none' = Bing was checked and has NO sample images for this
+        // word (terminal verdict) — never re-queue it; 'completed' = it already has
+        // them. missing-image applies ONLY to already-translated words (the
+        // "缺图片是在有翻译的前提下" premise). Audio stays purely has_audio-derived
+        // (pycore TTS can synthesize even when Bing has none), so we DON'T gate
+        // audio on any "none" marker.
+        $imageSettled = $this->imageSettled($row);
+        $needsImage = $hasTranslation && !$hasImage && !$imageSettled;
+
+        $needsMedia = $needsImage || !$hasAudio || !$hasTranslation;
 
         if ($needsMedia) {
             // Enqueue the per-resource queues (idempotent; bump to front on query).
             $position = $bumpFront ? 'beginning' : 'end';
 
-            if (!$hasImage) {
+            if ($needsImage) {
                 $this->imageQueue->add($word, $langCode, $position);
             }
             if (!$hasAudio) {
@@ -102,7 +111,7 @@ class AppQyV1WordMediaService
 
             // Two-lane assist tasks: chrome (word_media) covers image/translation
             // gaps; pycore (word_audio) covers the audio gap.
-            $needsChrome = !$hasImage || !$hasTranslation;
+            $needsChrome = !$hasTranslation || $needsImage;
             $this->ensureWordMediaTask(
                 $word,
                 $md5,
@@ -165,11 +174,16 @@ class AppQyV1WordMediaService
             $hasAudio = $row ? ($this->resolveAudioUrl($row) !== null) : false;
             $hasTranslation = $this->hasTranslationFor($row, $targetLanguage);
 
-            if ($hasImage && $hasAudio && $hasTranslation) {
-                return; // Fully resolved — nothing to prioritize.
+            // Honor the terminal image verdict + translated-only premise (see
+            // resolve()); audio stays has_audio-derived (no "none" gate).
+            $imageSettled = $this->imageSettled($row);
+            $needsImage = $hasTranslation && !$hasImage && !$imageSettled;
+
+            if (!$needsImage && $hasAudio && $hasTranslation) {
+                return; // Nothing left to prioritize (image settled or present).
             }
 
-            if (!$hasImage) {
+            if ($needsImage) {
                 $this->imageQueue->add($word, $langCode, 'beginning');
             }
             if (!$hasAudio) {
@@ -178,7 +192,7 @@ class AppQyV1WordMediaService
 
             // Two-lane assist tasks: chrome (word_media) for image/translation,
             // pycore (word_audio) for audio. Bump BOTH to front on a new query.
-            $needsChrome = !$hasImage || !$hasTranslation;
+            $needsChrome = !$hasTranslation || $needsImage;
             $this->ensureWordMediaTask(
                 $word,
                 $md5,
@@ -432,6 +446,22 @@ class AppQyV1WordMediaService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Whether a row's IMAGE state is terminal — it already has images
+     * (image_status='completed') or Bing was checked and has none for this word
+     * (image_status='none'). Such words must never be re-queued for images. Reads
+     * the column defensively so a host whose image_status migration has not run
+     * yet (null) is simply "not settled" (falls back to the file-first check).
+     */
+    private function imageSettled(?AppQyV1LangDictionaryModel $row): bool
+    {
+        if (!$row) {
+            return false;
+        }
+        $status = $row->image_status ?? null;
+        return $status === 'completed' || $status === 'none';
     }
 
     /**

@@ -991,10 +991,18 @@ class AppQyV1AssistService
     {
         $task = $this->globalTaskStatusCounts('word_media');
         $byLanguage = $this->dictionaryByLanguage(static function ($query) {
+            // Outstanding = no image stored yet AND not a terminal verdict. A word
+            // with image_status='none' (Bing checked, has none) or 'completed' is
+            // NOT outstanding even when image_files is empty. Two ANDed nested
+            // closures (a top-level orWhere would wrongly re-include 'none' rows).
             $query->where(function ($q) {
-                $q->where('image_status', 'pending')
-                    ->orWhereNull('image_status')
-                    ->orWhereNull('image_files');
+                $q->whereNull('image_files')
+                    ->orWhere('image_files', '')
+                    ->orWhere('image_files', '[]')
+                    ->orWhere('image_files', '{}');
+            })->where(function ($q) {
+                $q->whereNull('image_status')
+                    ->orWhereNotIn('image_status', ['completed', 'none']);
             });
         });
 

@@ -78,7 +78,8 @@ class AppQyV1WordTranslationWriteback
      * @param array  $translations        List of per-word result entries (see above)
      * @param array  $invalidWords        Words with no online dictionary entry
      * @param array  $regionRedirectWords Words stuck on a region/redirect page
-     * @return array  ['processed' => int, 'failed' => int, 'invalidated' => int]
+     * @return array  ['processed' => int, 'failed' => int, 'invalidated' => int,
+     *                'audio_saved' => int, 'images_saved' => int]
      */
     public static function apply(
         string $taskId,
@@ -133,6 +134,13 @@ class AppQyV1WordTranslationWriteback
         // self-filler path calls apply() with no surrounding transaction at all).
         $connName = AppQyV1LangDictionaryModel::forLanguage($langCode)->getConnectionName();
 
+        // Probe the optional image_status column ONCE (not per row) so the
+        // "checked, none available" marker degrades to a no-op on hosts whose
+        // image_status migration has not run yet.
+        $dictTable = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel()->getTable();
+        $hasImageStatusColumn = \Illuminate\Support\Facades\Schema::connection($connName)
+            ->hasColumn($dictTable, 'image_status');
+
         DB::connection($connName)->transaction(function () use (
             $translations,
             $md5ByWord,
@@ -140,6 +148,7 @@ class AppQyV1WordTranslationWriteback
             $targetCode,
             $provider,
             $taskId,
+            $hasImageStatusColumn,
             &$processed,
             &$failed,
             &$broadcastQueue,
@@ -168,6 +177,13 @@ class AppQyV1WordTranslationWriteback
                 // string or { base64, mime? }. No image-URL fetch anywhere.
                 $imageBase64 = self::normalizeImageBase64($item);
                 $hasImages = !empty($imageBase64);
+
+                // Worker's authoritative "Bing has NO sample images for this word"
+                // signal (only when EXPLICITLY false — absent = legacy worker =
+                // unknown, never mark). Used to set the terminal image_status='none'
+                // so the word is never re-queued for images.
+                $imagesNone = array_key_exists('images_available', $item)
+                    && $item['images_available'] === false;
 
                 // Audio is BASE64-ONLY: the Bing pronunciation URL is not openable
                 // server-side (it requires the live page referrer/session), so the
@@ -279,6 +295,20 @@ class AppQyV1WordTranslationWriteback
                             'content' => $entry->content,
                             'images' => $imageBase64,
                         ];
+                    }
+
+                    // Terminal "checked, none available": the worker confirmed Bing
+                    // has no sample images for this (translated) word and none are
+                    // stored — mark image_status='none' so the enqueue side never
+                    // re-queues it for images. Skip when we're storing images this
+                    // pass, when the row already has images, or already 'completed'.
+                    if ($imagesNone && !$hasImages && empty($entry->image_files)
+                        && $hasImageStatusColumn && $entry->image_status !== 'completed') {
+                        $entry->image_status = 'none';
+                        $entry->image_completed_at = now();
+                        $entry->image_locked_at = null;
+                        $entry->image_locked_by = null;
+                        $dirty = true;
                     }
 
                     if ($dirty) {
@@ -434,6 +464,8 @@ class AppQyV1WordTranslationWriteback
             'processed' => $processed,
             'failed' => $failed,
             'invalidated' => $invalidated,
+            'audio_saved' => $audioSaved,
+            'images_saved' => $imagesSaved,
         ]);
 
         // Signal that this task's batch is fully written back (Phase-C
@@ -449,6 +481,8 @@ class AppQyV1WordTranslationWriteback
             'processed' => $processed,
             'failed' => $failed,
             'invalidated' => $invalidated,
+            'audio_saved' => $audioSaved,
+            'images_saved' => $imagesSaved,
         ];
     }
 
@@ -559,14 +593,14 @@ class AppQyV1WordTranslationWriteback
         }
 
         if (empty($relativePaths)) {
-            return;
+            return 0;
         }
 
         // Re-check fill-missing right before the write (a concurrent path may have
         // filled images between the read above and now).
         $entry->refresh();
         if (!empty($entry->image_files)) {
-            return;
+            return 0;
         }
         $entry->image_files = $relativePaths;
         $entry->image_provider = 'bing';
@@ -590,6 +624,8 @@ class AppQyV1WordTranslationWriteback
             'md5' => $md5,
             'count' => count($relativePaths),
         ]);
+
+        return count($relativePaths);
     }
 
     /**

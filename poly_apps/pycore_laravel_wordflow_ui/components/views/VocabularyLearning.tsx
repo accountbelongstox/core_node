@@ -61,7 +61,7 @@ import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 import { ConfirmModal, useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
-import { LoadingBlock, InlineSpinner, EmptyState, AlertBox } from '../common';
+import { LoadingBlock, InlineSpinner, EmptyState, AlertBox, StatusBadge } from '../common';
 import { useClipboard } from '../../hooks';
 
 /** Status → text colour for the collapsed-pill latest-entry one-liner. */
@@ -495,14 +495,16 @@ const TtsLogsDock: React.FC<TtsLogsDockProps> = ({
                             {log.language || '-'}
                           </td>
                           <td className="px-3 py-2">
-                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                              log.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                              log.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
-                              log.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
-                              'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                            }`}>
-                              {log.status || '-'}
-                            </span>
+                            <StatusBadge
+                              status={log.status || '-'}
+                              withDot={false}
+                              tone={
+                                log.status === 'completed' ? 'success' :
+                                log.status === 'failed' ? 'error' :
+                                log.status === 'processing' ? 'running' :
+                                'warning'
+                              }
+                            />
                           </td>
                           <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                             {log.priority ? log.priority.toLocaleString() : '-'}
@@ -1704,7 +1706,7 @@ const VocabularyLearning: React.FC = () => {
           : (img && typeof img === 'object' ? (img.url || img.path || img.src || null) : null);
       return raw ? mediaUrl(raw) : null;
     };
-    const Field = ({ label, value }: { label: string; value: React.ReactNode }) =>
+    const MetaField = ({ label, value }: { label: string; value: React.ReactNode }) =>
       value == null || value === '' ? null : (
         <div className="flex gap-2 text-[11px]">
           <span className="text-slate-500 dark:text-slate-400 min-w-[5.5rem] flex-shrink-0">{label}</span>
@@ -1775,23 +1777,23 @@ const VocabularyLearning: React.FC = () => {
         </div>
         {/* Right: metadata */}
         <div className="space-y-1.5">
-          <Field label="Valid" value={r.is_valid ? 'Yes' : 'No'} />
-          <Field label="Validity note" value={r.validity_note} />
-          <Field label="Validity src" value={r.validity_source} />
-          <Field label="Checked at" value={r.validity_checked_at} />
-          <Field label="Translation" value={r.translation_provider} />
-          <Field label="TTS provider" value={r.tts_provider} />
-          <Field label="Image" value={r.image_provider} />
-          <Field label="TTS status" value={r.tts_status} />
-          <Field label="TTS attempts" value={typeof r.tts_attempts === 'number' ? String(r.tts_attempts) : null} />
-          <Field
+          <MetaField label="Valid" value={r.is_valid ? 'Yes' : 'No'} />
+          <MetaField label="Validity note" value={r.validity_note} />
+          <MetaField label="Validity src" value={r.validity_source} />
+          <MetaField label="Checked at" value={r.validity_checked_at} />
+          <MetaField label="Translation" value={r.translation_provider} />
+          <MetaField label="TTS provider" value={r.tts_provider} />
+          <MetaField label="Image" value={r.image_provider} />
+          <MetaField label="TTS status" value={r.tts_status} />
+          <MetaField label="TTS attempts" value={typeof r.tts_attempts === 'number' ? String(r.tts_attempts) : null} />
+          <MetaField
             label="TTS error"
             value={r.tts_error ? <span className="text-rose-600 dark:text-rose-400">{r.tts_error}</span> : null}
           />
-          <Field label="Queries" value={typeof r.query_count === 'number' ? nf(r.query_count) : null} />
-          <Field label="Last modified" value={r.last_modified} />
-          <Field label="Last query" value={r.last_query_time} />
-          <Field label="MD5" value={r.md5 ? <span className="font-mono">{r.md5}</span> : null} />
+          <MetaField label="Queries" value={typeof r.query_count === 'number' ? nf(r.query_count) : null} />
+          <MetaField label="Last modified" value={r.last_modified} />
+          <MetaField label="Last query" value={r.last_query_time} />
+          <MetaField label="MD5" value={r.md5 ? <span className="font-mono">{r.md5}</span> : null} />
         </div>
       </div>
       {/* Example sentences (lazy-loaded on expand) */}
@@ -1914,13 +1916,7 @@ const VocabularyLearning: React.FC = () => {
       header: 'Valid',
       className: 'text-center',
       render: (r) => (
-        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-          r.is_valid
-            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
-            : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400'
-        }`}>
-          {r.is_valid ? 'Yes' : 'No'}
-        </span>
+        <StatusBadge status={r.is_valid ? 'Yes' : 'No'} tone={r.is_valid ? 'success' : 'error'} withDot={false} />
       ),
     },
     { key: 'query_count', header: 'Queries', className: 'text-right tabular-nums', render: (r) => nf(r.query_count) },
@@ -3034,13 +3030,7 @@ const VocabularyLearning: React.FC = () => {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium">{task.title}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          task.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                          task.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                          'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
-                        }`}>
-                          {task.status}
-                        </span>
+                        <StatusBadge status={task.status} withDot={false} />
                       </div>
                       {task.description && (
                         <p className="text-xs text-slate-500 mb-1">{task.description}</p>

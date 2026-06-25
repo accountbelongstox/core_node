@@ -67,8 +67,14 @@ class ShortcutManager:
         Returns:
             Path: Dev environment directory path
         """
-        win_version = ShortcutManager.get_windows_version()
-        dev_path = Path(f'D:\\.dev_{win_version}\\.winenvs')
+        # Windows places shortcut .bat files under D:\.dev_<winver>\.winenvs;
+        # off-Windows fall back to a home dir so we don't create a literal
+        # "D:\\..." folder in the cwd (Linux treats backslashes as filename chars).
+        if platform.system() == 'Windows':
+            win_version = ShortcutManager.get_windows_version()
+            dev_path = Path(f'D:\\.dev_{win_version}\\.winenvs')
+        else:
+            dev_path = Path.home() / '.core_node' / '.winenvs'
         dev_path.mkdir(parents=True, exist_ok=True)
         return dev_path
 

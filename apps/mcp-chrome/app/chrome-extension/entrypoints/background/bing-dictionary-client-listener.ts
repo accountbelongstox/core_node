@@ -66,6 +66,25 @@ async function handleBingDictionaryMessage(
         break;
       }
 
+      case 'update_config': {
+        // Real-time settings: apply a config change to the (possibly running)
+        // worker without stopping it. Intervals re-arm, the tab pool resizes, and
+        // batch size / languages take effect on the next cycle.
+        if (!message.config) {
+          sendResponse({ success: false, error: 'Config is required to update settings' });
+          return;
+        }
+        await bingDictionaryWorkerService.updateConfig(message.config as WorkerConfig);
+        const status = bingDictionaryWorkerService.getStatus();
+        sendResponse({
+          success: true,
+          message: 'Config applied',
+          isRunning: status.isRunning,
+          stats: status.stats,
+        });
+        break;
+      }
+
       case 'test_scrape': {
         const words = Array.isArray(message.words) ? message.words : [];
         const tabCount = (message.config as WorkerConfig | undefined)?.tabCount;

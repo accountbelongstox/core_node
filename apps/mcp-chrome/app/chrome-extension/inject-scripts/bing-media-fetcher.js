@@ -126,6 +126,23 @@
   if (!self.__bingMediaFetcherListenerAdded) {
     self.__bingMediaFetcherListenerAdded = true;
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      // Liveness probe: base-browser.injectContentScript sends `${toolName}_ping`
+      // before every injection. Answering 'pong' lets it SKIP re-injecting this
+      // library. It shares the Bing dictionary tool name with the dictionary
+      // helper, so pong ONLY when THIS file is the injection target (the probe
+      // carries the file list) — otherwise the helper's probe would be answered
+      // here and the helper would never get injected (and vice versa).
+      if (message && typeof message.action === 'string' && message.action.endsWith('_ping')) {
+        const files = message.files;
+        if (
+          !Array.isArray(files) ||
+          files.some((f) => typeof f === 'string' && f.includes('bing-media-fetcher'))
+        ) {
+          sendResponse({ status: 'pong' });
+          return true;
+        }
+        return; // probe is for the dictionary helper — let it answer.
+      }
       if (!message || message.action !== ACTION) return; // not ours
       (async () => {
         try {

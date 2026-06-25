@@ -5,6 +5,7 @@ import { api } from '@/core/api';
 import { DataTable, Modal, ConfirmModal, type DataTableColumn } from '@/components/admin';
 import { useToast } from '@/components/admin';
 import { useTranslation } from '@/core/i18n';
+import { StatusBadge, Field } from '@/components/common';
 import {
   Network,
   Plus,
@@ -13,8 +14,6 @@ import {
   Power,
   PowerOff,
   RefreshCw,
-  CheckCircle,
-  XCircle,
   FileCode
 } from 'lucide-react';
 
@@ -261,10 +260,7 @@ export function NginxManager() {
       title: 'Status',
       width: '120px',
       render: (value) => (
-        <span className={`flex items-center gap-1 ${value ? 'text-green-600' : 'text-gray-400'}`}>
-          {value ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-          {value ? 'Enabled' : 'Disabled'}
-        </span>
+        <StatusBadge status={value ? 'Enabled' : 'Disabled'} tone={value ? 'success' : 'idle'} />
       )
     },
     {
@@ -273,9 +269,7 @@ export function NginxManager() {
       width: '80px',
       // Backend reports SSL as `ssl_enabled` (from parseNginxConfig).
       render: (value) => (
-        <span className={value ? 'text-green-600' : 'text-gray-400'}>
-          {value ? 'Yes' : 'No'}
-        </span>
+        <StatusBadge status={value ? 'Yes' : 'No'} tone={value ? 'success' : 'idle'} withDot={false} />
       )
     },
     {
@@ -421,10 +415,7 @@ export function NginxManager() {
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Site Name *
-            </label>
+          <Field label="Site Name" required>
             <input
               type="text"
               value={formData.name}
@@ -432,12 +423,9 @@ export function NginxManager() {
               placeholder="my-site"
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Domain *
-            </label>
+          <Field label="Domain" required>
             <input
               type="text"
               value={formData.domain}
@@ -445,12 +433,9 @@ export function NginxManager() {
               placeholder="example.com"
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Document Root *
-            </label>
+          <Field label="Document Root" required>
             <input
               type="text"
               value={formData.root}
@@ -458,19 +443,16 @@ export function NginxManager() {
               placeholder="/var/www/html"
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Port
-            </label>
+          <Field label="Port">
             <input
               type="number"
               value={formData.port}
               onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) })}
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </div>
+          </Field>
 
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2">
@@ -530,29 +512,23 @@ export function NginxManager() {
       >
         {/* Same form fields as Create Modal */}
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Domain *
-            </label>
+          <Field label="Domain" required>
             <input
               type="text"
               value={formData.domain}
               onChange={(e) => setFormData({ ...formData, domain: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Document Root *
-            </label>
+          <Field label="Document Root" required>
             <input
               type="text"
               value={formData.root}
               onChange={(e) => setFormData({ ...formData, root: e.target.value })}
               className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </div>
+          </Field>
 
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2">

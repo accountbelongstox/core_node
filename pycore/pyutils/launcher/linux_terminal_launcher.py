@@ -43,9 +43,11 @@ class LinuxTerminalLauncher:
     """Launch a positioned grid of native Linux terminals (X11 / Wayland)."""
 
     # Geometry-capable X11 emulators, in preference order. Used only by the
-    # separate-window X11 path. qterminal is intentionally absent -- it has no
-    # geometry flag, so it cannot self-position individual windows.
-    X11_EMULATORS = ("xfce4-terminal", "gnome-terminal", "konsole", "xterm")
+    # separate-window X11 path. qterminal is absent (no geometry flag); gnome-terminal
+    # is ALSO absent because it dropped --geometry in 3.36 (Ubuntu 20.04+, Debian 12,
+    # Kali-with-GNOME) -- keeping it here would silently no-op the geometry path.
+    # gnome-terminal still works via FALLBACK_EMULATORS + the wmctrl/xdotool positioner.
+    X11_EMULATORS = ("xfce4-terminal", "konsole", "xterm")
 
     # Broad emulator list for the fallback paths (tmux-attach window and the
     # unpositioned last resort), where no geometry is needed -- so qterminal is
@@ -93,7 +95,12 @@ class LinuxTerminalLauncher:
             print("No windows to launch.")
             return []
 
-        is_wayland = os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+        # WAYLAND_DISPLAY is set by every Wayland compositor and is the canonical
+        # signal; XDG_SESSION_TYPE is absent/wrong when a compositor starts outside a
+        # display manager (e.g. sway from a VT, mutter-wayland) -- without this a
+        # Wayland session is misread as X11 and wmctrl/xdotool fail silently.
+        is_wayland = (os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+                      or bool(os.environ.get("WAYLAND_DISPLAY")))
         positioner = self._find_positioner()              # wmctrl > xdotool > None
         geom_emu = self._find_x11_emulator()              # geometry-capable, no qterminal
         any_emu = self._find_fallback_emulator_or_none()  # broad list incl. qterminal

@@ -20,7 +20,7 @@ consistency across all tools.
 
 Supported MCP Servers:
 - Context7: Context-aware code completion (HTTP transport)
-- MCPUnifiedServer: Unified MCP server (stdio transport)
+- Chrome: Chrome MCP server (HTTP transport)
 """
 
 import importlib.util
@@ -108,33 +108,6 @@ class MCPConfigProvider:
         )
 
     @staticmethod
-    def get_unified_server_config() -> MCPConfig:
-        """
-        Get MCPUnifiedServer configuration (stdio transport with relative path)
-
-        Reference: _prompt/mcpUbuntoDesktopTemplate.json
-        Command: python3 /www/programing/core_node/pymain.py app=mcp
-
-        Returns:
-            MCPConfig with relative path configuration
-        """
-        import sys
-
-        # Use current Python interpreter path
-        python_executable = sys.executable
-
-        # Use relative path for pymain.py (will be resolved to absolute by claude_sync_mcp_servers.py)
-        pymain_relative = "pymain.py"
-
-        return MCPConfig(
-            name="unified",
-            transport_type="stdio",
-            command=python_executable,
-            args=[pymain_relative, "app=mcp"],
-            env={"MCP_ALLOW_ALL_PATHS": "true"}
-        )
-
-    @staticmethod
     def get_chrome_mcp_config() -> MCPConfig:
         """
         Get Chrome MCP Server configuration (HTTP transport)
@@ -172,10 +145,6 @@ class MCPConfigProvider:
         if context7_config:
             configs.append(context7_config)
 
-        # MCPUnifiedServer (stdio transport)
-        unified_config = cls.get_unified_server_config()
-        configs.append(unified_config)
-
         # Chrome MCP Server (HTTP transport)
         chrome_config = cls.get_chrome_mcp_config()
         configs.append(chrome_config)
@@ -203,15 +172,15 @@ class MCPConfigProvider:
         # Can be extended in the future for tool-specific configurations
         filters = {
             'claude': {
-                'include': ['context7', 'unified', 'chrome'],
+                'include': ['context7', 'chrome'],
                 'exclude': []
             },
             'codex': {
-                'include': ['context7', 'unified', 'chrome'],
+                'include': ['context7', 'chrome'],
                 'exclude': []
             },
             'droid': {
-                'include': ['context7', 'unified', 'chrome'],
+                'include': ['context7', 'chrome'],
                 'exclude': []
             }
         }

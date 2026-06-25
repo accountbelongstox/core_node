@@ -13,6 +13,8 @@
  * structured-clone bridge intact across executeScript results in all cases.
  */
 
+import { tabController } from '../../services/tab-controller';
+
 const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:9000';
 
 /** Which web AI the translate worker drives. User-configurable via settings. */
@@ -86,7 +88,11 @@ export async function findOrCreateProviderTab(
   if (typeof explicitTabId === 'number') {
     try {
       const t = await chrome.tabs.get(explicitTabId);
-      if (t && t.id) return { tabId: t.id, created: false };
+      if (t && t.id) {
+        // Foreground the reused tab via TabController (records the self-switch).
+        await tabController.activate(t.id);
+        return { tabId: t.id, created: false };
+      }
     } catch {
       // fall through to discovery
     }
@@ -94,12 +100,15 @@ export async function findOrCreateProviderTab(
   const all = await chrome.tabs.query({});
   const match = all.find((t) => typeof t.url === 'string' && t.url.includes(urlIncludes) && typeof t.id === 'number');
   if (match && match.id) {
+    await tabController.activate(match.id);
     return { tabId: match.id, created: false };
   }
   const created = await chrome.tabs.create({ url: createUrl, active: true });
   if (!created.id) {
     throw new Error(`Failed to open ${createUrl}`);
   }
+  // Created active — record the activation so it isn't read as human tab activity.
+  tabController.recordActivation(created.id);
   return { tabId: created.id, created: true };
 }
 

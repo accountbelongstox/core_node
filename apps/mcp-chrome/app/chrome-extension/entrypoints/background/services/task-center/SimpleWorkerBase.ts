@@ -26,6 +26,7 @@ import {
   TaskResult,
 } from '../../api/WorkerApiClient';
 import { logger } from '@/utils/logger';
+import { tabController } from '../tab-controller';
 
 /**
  * Capabilities the Chrome-side fast workers may advertise on the fast lane.
@@ -349,6 +350,12 @@ export abstract class SimpleWorkerBase {
    */
   protected async cycle(wait: number): Promise<void> {
     if (!this.workerClient || !this.config) return;
+
+    // Yield to the user: if a human is actively switching tabs (TabController),
+    // skip pulling/driving a page this cycle. Transient — auto-resumes when the
+    // interference pause clears. (Interactive, user-invoked tool calls are NOT
+    // gated — only these background worker cycles.)
+    if (tabController.isPaused()) return;
 
     this.stats.lastRun = Date.now();
 

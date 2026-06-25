@@ -644,6 +644,7 @@
   "bingAssistParallelTabs": { "message": "Parallel Bing Tabs:" },
   "bingAssistTargetLang": { "message": "Target Language:" },
   "bingAssistStopToChange": { "message": "Stop the service to change settings." },
+  "bingAssistSettingsLive": { "message": "Settings apply live — no need to stop the service." },
   "bingAssistScrapeLabel": { "message": "Bing scrape test (space/comma separated):" },
   "bingAssistScrape": { "message": "Scrape" },
   "bingAssistTranslatingLabel": { "message": "Translating:" },

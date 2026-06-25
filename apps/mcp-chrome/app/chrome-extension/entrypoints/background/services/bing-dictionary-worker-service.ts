@@ -17,6 +17,14 @@ import { mediaCache } from '@/utils/media-cache';
 import { logger } from '@/utils/logger';
 import { BingTabPool, MAX_BING_TABS } from './bing-tab-pool';
 import { CHROME_FAST_CAPABILITIES } from './task-center/SimpleWorkerBase';
+import { tabController } from './tab-controller';
+import {
+  classify,
+  buildEntry,
+  formatExplanation,
+  type NormalizedWord,
+  type ResultEntry,
+} from './bing-result';
 
 // Subsystem tag for the global logger.
 const LOG = 'Bing Worker';
@@ -56,29 +64,26 @@ export interface WorkerStats {
   tabActivity: Array<{ tabId: number; word: string | null }>;
 }
 
-interface NormalizedWord {
-  word: string;
-  md5?: string;
-}
-
-interface ResultEntry {
-  word: string;
-  md5?: string;
-  translation: string;
-  phonetic?: string;
-  us_phonetic?: string;
-  uk_phonetic?: string;
-  image_urls?: string[];
-  audio_base64?: string;
-  audio_mime?: string;
-  provider: string;
-}
-
-const NO_RESULT_ERROR = 'No results found for this word';
 // How many times to re-attempt a word that lands on a non-dict (region/redirect)
 // page before treating it as a persistent region-redirect failure. The helper
 // already reloads the dict home once per attempt, so this is attempts-of-attempts.
 const NONDICT_ATTEMPTS = 3;
+
+// Anti-scrape backoff: when Bing starts serving net-error / "can't reach this
+// page" responses (dead-tab errors that survive one heal), opening more tabs only
+// makes it worse. After this many consecutive blocked words we ABORT the batch
+// and enter a cooldown so Bing's rate-limit relaxes — instead of churning a heap
+// of dead tabs. Tuned conservative: a few transient misses won't trip it.
+const ANTISCRAPE_ABORT_THRESHOLD = 6;
+const ANTISCRAPE_COOLDOWN_MS = 60_000;
+
+// Human-paced jitter between consecutive word lookups so the worker NEVER hits
+// Bing at a fixed cadence (the user's "必须有一个随机时间，不要一直不停的按时间刷新").
+// 1.5s–4.0s, mirroring scheduleFastRepoll's BASE + random*JITTER idiom. This
+// spaces individual lookups; the batch-level ANTISCRAPE_COOLDOWN_MS handles
+// sustained blocks.
+const LOOKUP_DELAY_BASE_MS = 1500;
+const LOOKUP_DELAY_JITTER_MS = 2500;
 
 // MV3 service workers are terminated after ~30s idle and lose all globals +
 // setInterval timers (https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle).
@@ -132,6 +137,13 @@ class BingDictionaryWorkerService {
   private lastActivityAt = 0;
   private processing = false;
   private poolDiscarded = false;
+  // Epoch ms until which polling is paused after sustained Bing anti-scrape.
+  private cooldownUntil = 0;
+  // Serializes per-word tab activation so concurrent slots don't fight over the
+  // single active tab (the tab being typed into is the one foregrounded).
+  private activateChain: Promise<unknown> = Promise.resolve();
+  // Whether the heal handler has been wired to the shared TabController.
+  private healHandlerWired = false;
 
   // Task cache to prevent duplicate processing.
   private taskCache = new Set<string>();
@@ -169,18 +181,7 @@ class BingDictionaryWorkerService {
       throw new Error('API URL is required');
     }
 
-    this.config = {
-      // Normalize: trim + strip trailing slashes so base + '/api/...' never
-      // produces a double slash.
-      apiUrl: config.apiUrl.trim().replace(/\/+$/, ''),
-      workerName: config.workerName || 'MCP Chrome Bing Translation Worker',
-      pollInterval: config.pollInterval ?? 5,
-      heartbeatInterval: config.heartbeatInterval ?? 60,
-      batchSize: config.batchSize ?? 5,
-      tabCount: Math.max(1, Math.min(MAX_BING_TABS, config.tabCount ?? 3)),
-      sourceLanguage: config.sourceLanguage || 'en',
-      targetLanguage: config.targetLanguage || 'zh',
-    };
+    this.config = this.normalizeConfig(config);
 
     logger.info(LOG, 'Starting service', this.config);
 
@@ -199,9 +200,14 @@ class BingDictionaryWorkerService {
     // Start (surface=true) — the one place we reveal Bing to the user. On silent
     // recovery (surface=false) tabs are created lazily by processTask, in the
     // background, never stealing focus.
+    // Wire the shared TabController: heal a plugin tab the user closes, and let
+    // it know which tabs we own (so only ours are auto-healed, never the user's).
+    this.wireTabController();
+
     if (surface) {
       await this.pool.ensure(this.config.tabCount, true);
       this.stats.activeTabs = this.pool.size;
+      this.syncManagedTabs();
     }
 
     this.startHeartbeat();
@@ -256,8 +262,149 @@ class BingDictionaryWorkerService {
     // not auto-restart a service the user explicitly stopped.
     this.persistRuntime(false).catch(() => undefined);
     this.clearWatchdog().catch(() => undefined);
+    // Stop owning any tabs for self-recovery (they're left open for the user).
+    tabController.clearManagedTabs();
 
     logger.info(LOG, 'Service stopped');
+  }
+
+  /** Report the current pool tab ids to the shared TabController (self-recovery). */
+  private syncManagedTabs(): void {
+    tabController.registerManagedTabs(this.pool.ids);
+  }
+
+  /**
+   * Register (once) the heal handler the TabController invokes when the USER
+   * closes a plugin pool tab while no lookup is touching it. Reuses the pool's
+   * close-first/bounded replace (never opens a heap), then re-syncs the managed
+   * set to the fresh id. No-op while stopped (a closed tab is simply forgotten).
+   */
+  private wireTabController(): void {
+    if (this.healHandlerWired) return;
+    this.healHandlerWired = true;
+    tabController.setHealHandler((closedId) => {
+      if (!this.isRunning) return;
+      this.pool
+        .replace(closedId)
+        .then(() => {
+          this.stats.activeTabs = this.pool.size;
+          this.syncManagedTabs();
+        })
+        .catch(() => undefined);
+    });
+  }
+
+  /** The unified pause gate: anti-scrape cooldown OR shared human-interference. */
+  private isWorkerPaused(): boolean {
+    return Date.now() < this.cooldownUntil || tabController.isPaused();
+  }
+
+  /**
+   * Opt-in (default OFF) for per-word tab activation. Activating the pool tab per
+   * word fully simulates a human BUT steals focus, so it is gated behind the
+   * `bingActivatePerWord` setting — the long-standing default is background tabs.
+   */
+  private async readActivateFlag(): Promise<boolean> {
+    try {
+      const r = await chrome.storage.local.get('bingActivatePerWord');
+      return r.bingActivatePerWord === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Normalize a raw config (from the popup, the persisted runtime, or a live
+   * update) into the fully-defaulted internal shape, optionally layering it over
+   * an existing config so a partial update keeps prior values. Sanitizes ranges
+   * and accepts the popup's `fetchInterval` as an alias for `pollInterval` (the
+   * popup field is named fetchInterval — historically the worker read only
+   * pollInterval and silently ignored the UI's poll interval).
+   */
+  private normalizeConfig(raw: WorkerConfig, base?: Required<WorkerConfig>): Required<WorkerConfig> {
+    const clamp = (n: number, lo: number, hi: number, fallback: number) =>
+      Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n))) : fallback;
+    const pollRaw = raw.pollInterval ?? (raw as any).fetchInterval ?? base?.pollInterval ?? 5;
+    return {
+      // Trim + strip trailing slashes so base + '/api/...' never double-slashes.
+      apiUrl: (raw.apiUrl ?? base?.apiUrl ?? '').trim().replace(/\/+$/, ''),
+      workerName: raw.workerName ?? base?.workerName ?? 'MCP Chrome Bing Translation Worker',
+      pollInterval: clamp(Number(pollRaw), 1, 3600, 5),
+      heartbeatInterval: clamp(Number(raw.heartbeatInterval ?? base?.heartbeatInterval ?? 60), 5, 3600, 60),
+      batchSize: clamp(Number(raw.batchSize ?? base?.batchSize ?? 5), 1, 50, 5),
+      tabCount: clamp(Number(raw.tabCount ?? base?.tabCount ?? 3), 1, MAX_BING_TABS, 3),
+      sourceLanguage: (raw.sourceLanguage ?? base?.sourceLanguage ?? 'en').trim().toLowerCase() || 'en',
+      targetLanguage: (raw.targetLanguage ?? base?.targetLanguage ?? 'zh').trim().toLowerCase() || 'zh',
+    };
+  }
+
+  /**
+   * Apply a config change WITHOUT stopping the service (real-time settings):
+   *   - poll / heartbeat intervals are re-armed when they change;
+   *   - the Bing tab pool is grown/shrunk when tabCount changes (only while not
+   *     mid-task, so a resize never closes a tab a slot is using);
+   *   - batchSize, source/target language are read live each poll/task, so they
+   *     take effect on the next cycle with no extra work;
+   *   - an apiUrl change re-points + re-registers the worker.
+   * When the service is not running this just stores the config for the next
+   * start(). Safe to call repeatedly.
+   */
+  async updateConfig(patch: WorkerConfig): Promise<void> {
+    const prev = this.config;
+    const next = this.normalizeConfig(patch, prev ?? undefined);
+    this.config = next;
+
+    if (!this.isRunning) {
+      logger.info(LOG, 'Config stored (service idle; applies on next start)');
+      return;
+    }
+
+    // Re-point + re-register if the endpoint changed (best-effort).
+    if (next.apiUrl && (!prev || prev.apiUrl !== next.apiUrl)) {
+      logger.info(LOG, `Endpoint changed live -> ${next.apiUrl}, re-registering`);
+      this.workerClient = new WorkerApiClient(next.apiUrl);
+      try {
+        await this.registerWorker();
+      } catch (error) {
+        logger.error(LOG, 'Re-register after endpoint change failed', error);
+      }
+    }
+
+    // Re-arm the poll loop on a new interval (no immediate extra poll).
+    if (!prev || prev.pollInterval !== next.pollInterval) {
+      if (this.pollIntervalId) clearInterval(this.pollIntervalId);
+      this.pollIntervalId = setInterval(() => {
+        this.pollAndProcessTasks().catch((e) => logger.warn(LOG, 'Poll error', e));
+      }, next.pollInterval * 1000);
+      logger.info(LOG, `Poll interval -> ${next.pollInterval}s (live)`);
+    }
+
+    // Re-arm the heartbeat on a new interval.
+    if (!prev || prev.heartbeatInterval !== next.heartbeatInterval) {
+      if (this.heartbeatIntervalId) clearInterval(this.heartbeatIntervalId);
+      this.heartbeatIntervalId = setInterval(
+        () => this.heartbeatOnce(),
+        next.heartbeatInterval * 1000,
+      );
+      logger.info(LOG, `Heartbeat interval -> ${next.heartbeatInterval}s (live)`);
+    }
+
+    // Resize the parallel Bing tab pool. Only when idle: shrinking mid-task could
+    // close a tab a slot is actively driving. A change requested mid-task is not
+    // lost — it is the new ceiling and the next task's pool.ensure() honors it.
+    if ((!prev || prev.tabCount !== next.tabCount) && !this.processing) {
+      try {
+        await this.pool.resize(next.tabCount, false);
+        this.stats.activeTabs = this.pool.size;
+        this.syncManagedTabs();
+        logger.info(LOG, `Tab pool resized -> ${next.tabCount} (live)`);
+      } catch (error) {
+        logger.warn(LOG, 'Live tab-pool resize failed', error);
+      }
+    }
+
+    await this.persistRuntime(true);
+    logger.info(LOG, 'Config applied live', next);
   }
 
   /**
@@ -394,21 +541,24 @@ class BingDictionaryWorkerService {
     }
   }
 
+  private async heartbeatOnce(): Promise<void> {
+    if (!this.workerClient) return;
+    try {
+      await this.workerClient.heartbeat();
+      this.stats.isOnline = true;
+    } catch (error) {
+      logger.error(LOG, 'Heartbeat failed', error);
+      this.stats.isOnline = false;
+    }
+  }
+
   private startHeartbeat(): void {
     if (!this.workerClient || !this.config) return;
-
-    const sendHeartbeat = async () => {
-      try {
-        await this.workerClient!.heartbeat();
-        this.stats.isOnline = true;
-      } catch (error) {
-        logger.error(LOG, 'Heartbeat failed', error);
-        this.stats.isOnline = false;
-      }
-    };
-
-    sendHeartbeat();
-    this.heartbeatIntervalId = setInterval(sendHeartbeat, this.config.heartbeatInterval * 1000);
+    this.heartbeatOnce();
+    this.heartbeatIntervalId = setInterval(
+      () => this.heartbeatOnce(),
+      this.config.heartbeatInterval * 1000,
+    );
   }
 
   private startPolling(): void {
@@ -424,6 +574,14 @@ class BingDictionaryWorkerService {
 
   private async pollAndProcessTasks(): Promise<void> {
     if (!this.workerClient || !this.config) return;
+
+    // Unified pause: anti-scrape cooldown OR a human actively switching tabs
+    // (TabController). Either way we stop pulling + creating tabs and let the
+    // idle-discard run; both clocks self-clear so the next tick resumes.
+    if (this.isWorkerPaused()) {
+      this.maybeDiscardIdleTabs();
+      return;
+    }
 
     try {
       this.stats.lastRun = Date.now();
@@ -602,11 +760,22 @@ class BingDictionaryWorkerService {
         throw new Error('No words in task payload');
       }
 
+      // Per-word tab activation is opt-in (default OFF) — see readActivateFlag.
+      const activatePerWord = await this.readActivateFlag();
+
+      // Proactively clean Bing's anti-scrape / unreachable tabs BEFORE crawling
+      // so a dead "can't reach this page" tab is never driven (it's closed and
+      // replaced 1-for-1, capped at tabCount, touching only our own pool tabs).
+      await this.pool.healUnreachable(this.config.tabCount);
+
       // Reuse the existing pool without stealing focus (surface=false). Open no
       // more tabs than there are words — a small task must not spin up the full
       // pool (keeps Chrome light); the configured tabCount is only the ceiling.
       const tabIds = await this.pool.ensure(Math.min(this.config.tabCount, words.length), false);
       this.stats.activeTabs = this.pool.size;
+      // Re-report the live pool ids so TabController heals exactly these (and the
+      // healUnreachable above may have swapped some ids).
+      this.syncManagedTabs();
       // Seed per-tab activity (one slot per tab) so the popup can show which
       // word each parallel tab is translating right now.
       this.stats.tabActivity = tabIds.map((id) => ({ tabId: id, word: null }));
@@ -623,15 +792,32 @@ class BingDictionaryWorkerService {
       let done = 0;
       let lastReported = 0;
       const total = words.length;
+      // Anti-scrape detection shared across slots: count consecutive blocked
+      // words (dead-tab errors that survived healing); abort the batch once it
+      // crosses the threshold so we back off instead of spawning more tabs.
+      let antiScrapeHits = 0;
+      let aborted = false;
 
       const runSlot = async (initialTabId: number, slot: number): Promise<void> => {
         let tabId = initialTabId;
         while (true) {
+          if (aborted) break;
           const i = nextIndex++;
           if (i >= total) break;
           const w = words[i];
           this.stats.currentWord = w.word;
           this.setSlotWord(slot, tabId, w.word);
+
+          // Per-word tab activation (opt-in): bring THIS slot's tab to the front
+          // before typing into it. Serialized via activateChain so concurrent
+          // slots don't fight over the single active tab — the foregrounded tab
+          // is the one being typed into right now. Each activation is recorded by
+          // TabController so it is never mis-counted as a human tab switch.
+          if (activatePerWord) {
+            await (this.activateChain = this.activateChain
+              .catch(() => undefined)
+              .then(() => tabController.activate(tabId)));
+          }
 
           try {
             // Heal a dead/discarded tab transparently and keep the fresh id.
@@ -639,7 +825,7 @@ class BingDictionaryWorkerService {
             tabId = looked.tabId;
             this.setSlotWord(slot, tabId, w.word);
             let data = looked.data;
-            let classification = this.classify(data);
+            let classification = classify(data);
 
             // Region/redirect ('non-dict') pages are often transient — retry the
             // word a few times before giving up, so a momentary redirect doesn't
@@ -655,7 +841,7 @@ class BingDictionaryWorkerService {
               looked = await this.lookupHealing(tabId, w.word);
               tabId = looked.tabId;
               data = looked.data;
-              classification = this.classify(data);
+              classification = classify(data);
             }
 
             // Detailed per-word trace for the DEBUG center: shows exactly why a
@@ -668,12 +854,12 @@ class BingDictionaryWorkerService {
             );
 
             if (classification.kind === 'translated') {
-              const entry = await this.buildEntry(w, data);
+              const entry = await buildEntry(w, data, tabId);
               translations.push(entry);
               this.stats.translated++;
               logger.info(
                 LOG,
-                `"${w.word}" VALID: images=${entry.image_urls?.length ?? 0} audio=${entry.audio_base64 ? 'yes' : 'no'} phonetic=${entry.phonetic ?? entry.us_phonetic ?? entry.uk_phonetic ?? '-'}`,
+                `"${w.word}" VALID: images=${entry.image_base64?.length ?? 0} audio=${entry.audio_base64 ? 'yes' : 'no'} phonetic=${entry.phonetic ?? entry.us_phonetic ?? entry.uk_phonetic ?? '-'}`,
               );
             } else if (classification.kind === 'invalid') {
               invalidWords.push(w);
@@ -695,9 +881,22 @@ class BingDictionaryWorkerService {
                 `"${w.word}" FAILED transiently (${classification.reason}) — will retry/re-pend, NOT marked invalid`,
               );
             }
+            // A non-throwing lookup means the page responded — Bing is not
+            // blocking us, so clear the anti-scrape streak.
+            antiScrapeHits = 0;
           } catch (error) {
             logger.error(LOG, `Failed to translate ${w.word}`, error);
             this.stats.failed++;
+            // A dead-tab / "showing error page" failure that survived healing is
+            // an anti-scrape block. Count consecutive ones and abort the batch
+            // once Bing is clearly rate-limiting, so we cool down rather than
+            // open a heap of error tabs.
+            if (this.isDeadTabError(error)) {
+              antiScrapeHits++;
+              if (antiScrapeHits >= ANTISCRAPE_ABORT_THRESHOLD) {
+                aborted = true;
+              }
+            }
           }
 
           done++;
@@ -713,12 +912,32 @@ class BingDictionaryWorkerService {
               })
               .catch(() => undefined);
           }
+
+          // Human-paced random gap before this slot grabs the next word, so the
+          // worker never hammers Bing at a fixed cadence. Skipped when aborting
+          // (anti-scrape cooldown) or when no words remain for this slot.
+          if (!aborted && nextIndex < total) {
+            const gap = LOOKUP_DELAY_BASE_MS + Math.floor(Math.random() * LOOKUP_DELAY_JITTER_MS);
+            await new Promise((resolve) => setTimeout(resolve, gap));
+          }
         }
         // Slot drained — mark it idle.
         this.setSlotWord(slot, tabId, null);
       };
 
       await Promise.all(tabIds.map((tabId, slot) => runSlot(tabId, slot)));
+
+      // Sustained anti-scrape: enter a cooldown so the next polls back off (no tab
+      // churn) until Bing relaxes. Whatever WAS scraped is still submitted below;
+      // the unprocessed words stay needing-translation and re-enqueue later.
+      if (aborted) {
+        this.cooldownUntil = Date.now() + ANTISCRAPE_COOLDOWN_MS;
+        logger.warn(
+          LOG,
+          `Bing anti-scrape detected (${antiScrapeHits} consecutive blocks) — aborted batch, ` +
+            `cooling down ${ANTISCRAPE_COOLDOWN_MS / 1000}s before polling again`,
+        );
+      }
 
       // Outage guard: only treat persistent non-dict words as region-redirect
       // invalid when the batch was OTHERWISE healthy (at least one word resolved
@@ -747,7 +966,15 @@ class BingDictionaryWorkerService {
         return;
       }
 
-      await this.workerClient.submitResult({
+      const audioCount = translations.filter((t) => !!t.audio_base64).length;
+      const imageCount = translations.reduce((n, t) => n + (t.image_base64?.length ?? 0), 0);
+      logger.info(
+        LOG,
+        `Submitting ${task.task_id}: ${translations.length} translated (audio=${audioCount}, images=${imageCount}), ` +
+          `${invalidWords.length} invalid, ${regionRedirectWords.length} region-redirect`,
+      );
+
+      const submitResp = await this.workerClient.submitResult({
         task_id: task.task_id,
         worker_id: workerId,
         status: 'completed',
@@ -762,6 +989,13 @@ class BingDictionaryWorkerService {
           region_redirect_words: regionRedirectWords,
         },
       });
+
+      // Backend reception: log exactly what the server stored so the DEBUG center
+      // shows the round-trip result (saved/invalid/audio_saved/images_saved).
+      logger.info(
+        LOG,
+        `Backend reception ${task.task_id}: ok=${submitResp?.success} ${JSON.stringify(submitResp?.data ?? null)}`,
+      );
 
       this.taskCache.delete(task.task_id);
       logger.info(
@@ -820,6 +1054,9 @@ class BingDictionaryWorkerService {
       logger.warn(LOG, `Tab ${tabId} vanished, replacing and retrying "${word}"`);
       const fresh = await this.pool.replace(tabId);
       this.stats.activeTabs = this.pool.size;
+      // The pool id set changed — keep TabController's managed set in step so a
+      // real user-close of the NEW tab is still healed (and the dead id forgotten).
+      this.syncManagedTabs();
       const data = await bingDictionaryTool.lookupInTab(fresh, word, includeMedia);
       return { data, tabId: fresh };
     }
@@ -836,199 +1073,13 @@ class BingDictionaryWorkerService {
     // Receiving end does not exist" — the tab navigated/reloaded so the injected
     // helper is gone) as recoverable: heal by replacing the tab + retrying the
     // word, rather than counting it as a translation failure.
-    return /No tab with id|Failed to inject content script|No frame with id|Frame with id|Could not establish connection|Receiving end does not exist/i.test(
+    // Also treat a Chrome net-error / anti-scrape page (Bing closes the
+    // connection -> "can't reach this page" / ERR_CONNECTION_CLOSED) as
+    // recoverable: such a tab is unscriptable, so injection throws "Cannot
+    // access" / "showing error page" — heal it by replacing the tab + retrying.
+    return /No tab with id|Failed to inject content script|No frame with id|Frame with id|Could not establish connection|Receiving end does not exist|message channel closed|message port closed|cannot access|showing error page|chrome-error|ERR_[A-Z_]+/i.test(
       msg,
     );
-  }
-
-  /**
-   * Decide what a single Bing lookup result means for the backend, with a
-   * human-readable reason for the DEBUG-center trace.
-   *
-   * invalid  = a definitive "Bing has no entry for this word" — reported to
-   *            Laravel via invalid_words[] (is_valid=false), NEVER a failure.
-   * error    = a transient miss (region redirect / web fallback / load fail) —
-   *            re-pended and retried; must NOT invalidate the word.
-   */
-  private classify(
-    data: BingDictionaryResult | null,
-  ): { kind: 'translated' | 'invalid' | 'error'; reason: string } {
-    if (!data) {
-      return { kind: 'error', reason: 'no data returned from page' };
-    }
-
-    const hasContent =
-      data.hasContent === true ||
-      (data.hasContent === undefined &&
-        ((data.translations?.length ?? 0) > 0 ||
-          (data.phonetics?.length ?? 0) > 0 ||
-          (data.sampleImages?.length ?? 0) > 0));
-
-    if (data.success && hasContent) {
-      return { kind: 'translated', reason: 'dictionary content found' };
-    }
-
-    // A CONFIRMED "No results found for <word>" page (keyword: "No results") is a
-    // definitive no-entry — the word is invalid regardless of the dict-page
-    // heuristic. The backend marks it is_valid=false and keeps it as a
-    // placeholder so it is never re-queued.
-    if (data.success && data.noEntry) {
-      return { kind: 'invalid', reason: 'confirmed Bing "No results" page' };
-    }
-
-    // SAFETY: otherwise only a CONFIRMED dictionary page with no entry means the
-    // word is genuinely invalid. A non-dict page (region redirect, web-search
-    // fallback, load failure) must NOT invalidate the word — otherwise a regional
-    // Bing outage would mass-flag the whole queue. Those are transient.
-    const isDictPage = data.pageType === undefined || data.pageType === 'dict';
-    if (isDictPage && data.success && (data.error === NO_RESULT_ERROR || !hasContent)) {
-      return { kind: 'invalid', reason: 'dictionary page with no entry' };
-    }
-
-    const reason =
-      data.pageType === 'non-dict'
-        ? `non-dict/region-redirect page${data.error ? ` (${data.error})` : ''}`
-        : data.error || 'no usable result';
-    return { kind: 'error', reason };
-  }
-
-  /** Build the rich result entry (incl. downloaded audio) for one word. */
-  private async buildEntry(w: NormalizedWord, data: BingDictionaryResult): Promise<ResultEntry> {
-    const formatted = this.formatExplanation(data);
-
-    const entry: ResultEntry = {
-      word: w.word,
-      translation: formatted.text,
-      provider: 'bing',
-    };
-    if (w.md5) entry.md5 = w.md5;
-    if (formatted.phonetic) entry.phonetic = formatted.phonetic;
-    if (formatted.us_phonetic) entry.us_phonetic = formatted.us_phonetic;
-    if (formatted.uk_phonetic) entry.uk_phonetic = formatted.uk_phonetic;
-
-    const images = (data.sampleImages || [])
-      .map((s) => s.url)
-      .filter((u): u is string => typeof u === 'string' && u !== '')
-      .slice(0, 6);
-    if (images.length > 0) {
-      entry.image_urls = images;
-    }
-
-    const audioUrl = this.pickAudioUrl(data);
-    if (audioUrl) {
-      const audioBase64 = await this.downloadAudioBase64(audioUrl);
-      if (audioBase64) {
-        entry.audio_base64 = audioBase64;
-        entry.audio_mime = 'audio/mpeg';
-      }
-    }
-
-    return entry;
-  }
-
-  /** Prefer the US pronunciation, else the first phonetic/voice URL available. */
-  private pickAudioUrl(data: BingDictionaryResult): string | null {
-    const phonetics = data.phonetics || [];
-    // Prefer the in-page base64 capture (data URL) so playback never re-requests
-    // the remote mp3 (which can fail from the popup context).
-    const us = phonetics.find(
-      (p) => (p.audioDataUrl || p.audioUrl) && p.lang && p.lang.includes('US'),
-    );
-    if (us) return us.audioDataUrl || us.audioUrl;
-
-    const any = phonetics.find((p) => p.audioDataUrl || p.audioUrl);
-    if (any) return any.audioDataUrl || any.audioUrl;
-
-    return data.voiceUrls && data.voiceUrls.length > 0 ? data.voiceUrls[0] : null;
-  }
-
-  private async downloadAudioBase64(url: string): Promise<string | null> {
-    try {
-      const resp = await fetch(url);
-      if (!resp.ok) return null;
-      const buf = await resp.arrayBuffer();
-      if (!buf || buf.byteLength < 100) return null;
-      return this.arrayBufferToBase64(buf);
-    } catch (error) {
-      logger.warn(LOG, 'Audio download failed', { url, error: String(error) });
-      return null;
-    }
-  }
-
-  private arrayBufferToBase64(buffer: ArrayBuffer): string {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
-    }
-    return btoa(binary);
-  }
-
-  private formatExplanation(data: BingDictionaryResult): {
-    text: string;
-    phonetic?: string;
-    us_phonetic?: string;
-    uk_phonetic?: string;
-  } {
-    const parts: string[] = [];
-    // Short definitions (part of speech + gloss).
-    if (data.translations && data.translations.length > 0) {
-      data.translations.forEach((trans) => {
-        const pos = trans.partOfSpeech ? `${trans.partOfSpeech}. ` : '';
-        parts.push(`${pos}${trans.definition}`.trim());
-      });
-    }
-    // Detailed Collins/Oxford definitions (Chinese gloss + English explanation).
-    if (data.detailedDefinitions && data.detailedDefinitions.length > 0) {
-      data.detailedDefinitions.forEach((d, i) => {
-        const en = d.en ? ` — ${d.en}` : '';
-        const line = `${i + 1}. ${d.cn}${en}`.trim();
-        if (line) parts.push(line);
-      });
-    }
-    // Web definitions (.df_div advanced blocks); the type label comes from the page.
-    if (data.advancedTranslations && data.advancedTranslations.length > 0) {
-      data.advancedTranslations.forEach((a) => {
-        if (a.content) parts.push(`[${a.type}] ${a.content}`.trim());
-      });
-    }
-    // Synonyms / antonyms.
-    if (data.synonyms && data.synonyms.length > 0) {
-      data.synonyms.forEach((s) => {
-        if (s.words) parts.push(`[${s.type}] ${s.words}`.trim());
-      });
-    }
-    // Example sentences (English + Chinese).
-    if (data.examples && data.examples.length > 0) {
-      data.examples.forEach((ex) => {
-        parts.push(`• ${ex.en}${ex.cn ? '  ' + ex.cn : ''}`.trim());
-      });
-    }
-
-    let phonetic = '';
-    let usPhonetic = '';
-    let ukPhonetic = '';
-    if (data.phonetics && data.phonetics.length > 0) {
-      data.phonetics.forEach((p) => {
-        const lang = p.lang || '';
-        if (lang.includes('US')) {
-          usPhonetic = p.text;
-        } else if (lang.includes('GB') || lang.includes('UK')) {
-          // The helper labels UK pronunciation as 'en-GB' (not 'UK').
-          ukPhonetic = p.text;
-        } else if (!phonetic) {
-          phonetic = p.text;
-        }
-      });
-    }
-
-    return {
-      text: parts.join('\n'),
-      phonetic: phonetic || usPhonetic || ukPhonetic || undefined,
-      us_phonetic: usPhonetic || undefined,
-      uk_phonetic: ukPhonetic || undefined,
-    };
   }
 
   /** Payload words may be plain strings or {word, md5, ...} objects. */
@@ -1108,9 +1159,9 @@ class BingDictionaryWorkerService {
           const looked = await this.lookupHealing(tabId, w.word, false);
           tabId = looked.tabId;
           const data = looked.data;
-          const classification = this.classify(data).kind;
+          const classification = classify(data).kind;
           if (classification === 'translated' && data) {
-            const formatted = this.formatExplanation(data);
+            const formatted = formatExplanation(data);
 
             // Identify the US/UK pronunciation tracks (Bing labels UK 'en-GB').
             const phonetics = data.phonetics || [];

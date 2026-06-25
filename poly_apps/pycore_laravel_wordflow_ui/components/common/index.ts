@@ -27,3 +27,4 @@ export type { AlertVariant } from './AlertBox';
 export { StatusBadge, StatusDot, statusTone } from './StatusBadge';
 export type { StatusTone } from './StatusBadge';
 export { FileDropzone } from './FileDropzone';
+export { Field } from './Field';

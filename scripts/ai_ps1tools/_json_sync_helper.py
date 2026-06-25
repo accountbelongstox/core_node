@@ -39,6 +39,12 @@ def top_level_key(target):
 # Targets whose server entries require an explicit "type" discriminator.
 TYPE_TARGETS = ("claude", "droid", "vscode")
 
+# Servers this system used to manage but no longer installs. They are actively
+# removed from a tool's config on every sync so a stale entry cannot linger (this
+# helper otherwise preserves keys it does not manage). Only these exact names are
+# pruned; user-added servers are never touched.
+DEPRECATED_SERVERS = ("unified",)
+
 
 def build_server_cfg(entry, target):
     transport = entry.get("transport", "stdio")
@@ -121,6 +127,11 @@ def main():
 
         print("[{}] {} ({})".format(count, name, transport))
         print("    Config: {}".format(json.dumps(settings[root_key][name])))
+
+    for dead in DEPRECATED_SERVERS:
+        if dead in settings[root_key]:
+            del settings[root_key][dead]
+            print("[REMOVED] {} (deprecated, no longer installed)".format(dead))
 
     print()
     with open(config_path, "w", encoding="utf-8") as f:

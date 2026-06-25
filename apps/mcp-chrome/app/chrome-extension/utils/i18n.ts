@@ -172,6 +172,7 @@ const fallbackMessages: Record<string, string> = {
   bingAssistParallelTabs: 'Parallel Bing Tabs:',
   bingAssistTargetLang: 'Target Language:',
   bingAssistStopToChange: 'Stop the service to change settings.',
+  bingAssistSettingsLive: 'Settings apply live — no need to stop the service.',
   bingAssistScrapeLabel: 'Bing scrape test (space/comma separated):',
   bingAssistScrape: 'Scrape',
   bingAssistTranslatingLabel: 'Translating:',

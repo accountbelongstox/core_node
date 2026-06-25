@@ -18,7 +18,7 @@ import { api } from '../../../core/api';
 import type { AssistRequestCreateItem } from '../../../core/api/modules/ServerManagerAPI';
 import { XCircle, HandHelping, Zap } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
-import { AlertBox, InlineSpinner } from '../../common';
+import { AlertBox, Field, InlineSpinner } from '../../common';
 import Portal from '../../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
 
@@ -176,10 +176,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
             <div className="space-y-5">
               {/* Record selection */}
               <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
-                    Record type
-                  </label>
+                <Field label="Record type">
                   <select
                     value={recordType}
                     onChange={(e) => setRecordType(e.target.value)}
@@ -192,11 +189,8 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                       </option>
                     ))}
                   </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
-                    Source key
-                  </label>
+                </Field>
+                <Field label="Source key" className="col-span-2">
                   <input
                     type="text"
                     value={sourceKey}
@@ -205,7 +199,7 @@ const AssistRequestModal: React.FC<AssistRequestModalProps> = ({ record, onClose
                     placeholder="sha1 source key"
                     className={`${commonClasses.input} text-sm w-full font-mono disabled:opacity-60`}
                   />
-                </div>
+                </Field>
               </div>
 
               {/* Assist items */}

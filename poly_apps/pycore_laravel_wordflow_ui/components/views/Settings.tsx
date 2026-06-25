@@ -5,7 +5,7 @@ import { Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
 import { Settings as SettingsIcon, Save, RotateCcw, CheckCircle, AlertCircle, Globe, Key, Shield, User, Server, Database, Code, Info, Mail, HardDrive, Clock, Lock, Bell, Palette, Languages, Upload, Eye, EyeOff, Trash2, Download, Plus, RefreshCw, Moon, Sun } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
-import { InlineSpinner, LoadingBlock, AlertBox } from '../common';
+import { InlineSpinner, LoadingBlock, AlertBox, Field } from '../common';
 import { useUser } from '../../hooks/useUser';
 import { useUserRole } from '../../hooks/useUserRole';
 import { api } from '../../core/api';
@@ -601,10 +601,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
 
               <div className="space-y-4">
                 {/* Base URL */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                    {t.base_url}
-                  </label>
+                <Field label={t.base_url} hint={`Current origin: ${getOriginUrl()}`}>
                   <input
                     type="text"
                     value={baseUrl}
@@ -612,16 +609,10 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     placeholder="http://43.163.112.77:9000"
                     className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Current origin: {getOriginUrl()}
-                  </p>
-                </div>
+                </Field>
 
                 {/* Port */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                    API Port
-                  </label>
+                <Field label="API Port">
                   <input
                     type="number"
                     value={port}
@@ -631,13 +622,10 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     max="65535"
                     className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
-                </div>
+                </Field>
 
                 {/* API Key */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                    {t.api_key} <span className="text-slate-400">(Optional)</span>
-                  </label>
+                <Field label={<>{t.api_key} <span className="text-slate-400">(Optional)</span></>}>
                   <div className="relative">
                     <input
                       type="password"
@@ -648,7 +636,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     />
                     <Key className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   </div>
-                </div>
+                </Field>
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
@@ -832,10 +820,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                         Application Settings
                       </h3>
                       <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium mb-1 text-slate-600 dark:text-slate-400">
-                            App Name
-                          </label>
+                        <Field label="App Name">
                           <input
                             type="text"
                             value={serverConfigForm.app?.name || serverConfig.app.name}
@@ -846,11 +831,8 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                             disabled={!isSuperAdmin}
                             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1 text-slate-600 dark:text-slate-400">
-                            Timezone
-                          </label>
+                        </Field>
+                        <Field label="Timezone">
                           <input
                             type="text"
                             value={serverConfigForm.app?.timezone || serverConfig.app.timezone}
@@ -861,11 +843,8 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                             disabled={!isSuperAdmin}
                             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1 text-slate-600 dark:text-slate-400">
-                            Locale
-                          </label>
+                        </Field>
+                        <Field label="Locale">
                           <input
                             type="text"
                             value={serverConfigForm.app?.locale || serverConfig.app.locale}
@@ -876,11 +855,8 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                             disabled={!isSuperAdmin}
                             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-1 text-slate-600 dark:text-slate-400">
-                            App URL
-                          </label>
+                        </Field>
+                        <Field label="App URL">
                           <input
                             type="url"
                             value={serverConfigForm.app?.url || serverConfig.app.url}
@@ -891,7 +867,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                             disabled={!isSuperAdmin}
                             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           />
-                        </div>
+                        </Field>
                       </div>
                     </div>
 
@@ -1188,73 +1164,54 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
 
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                          Username
-                        </label>
+                      <Field label="Username" hint="Username cannot be changed">
                         <input
                           type="text"
                           value={userProfile.username || ''}
                           disabled
                           className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                         />
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Username cannot be changed</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                          Email
-                        </label>
+                      </Field>
+                      <Field label="Email">
                         <input
                           type="email"
                           value={userProfile.email || ''}
                           disabled
                           className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                         />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                          Nickname
-                        </label>
+                      </Field>
+                      <Field label="Nickname">
                         <input
                           type="text"
                           value={userProfileForm.nickname || ''}
                           onChange={(e) => setUserProfileForm({ ...userProfileForm, nickname: e.target.value })}
                           className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                         />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                          Full Name
-                        </label>
+                      </Field>
+                      <Field label="Full Name">
                         <input
                           type="text"
                           value={userProfileForm.name || ''}
                           onChange={(e) => setUserProfileForm({ ...userProfileForm, name: e.target.value })}
                           className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                         />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                          Bio
-                        </label>
+                      </Field>
+                      <Field label="Bio" className="col-span-2">
                         <textarea
                           value={userProfileForm.bio || ''}
                           onChange={(e) => setUserProfileForm({ ...userProfileForm, bio: e.target.value })}
                           rows={3}
                           className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                         />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                          Location
-                        </label>
+                      </Field>
+                      <Field label="Location">
                         <input
                           type="text"
                           value={userProfileForm.location || ''}
                           onChange={(e) => setUserProfileForm({ ...userProfileForm, location: e.target.value })}
                           className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                         />
-                      </div>
+                      </Field>
                     </div>
                   </div>
                 </div>
@@ -1268,10 +1225,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     </h2>
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                            Theme
-                          </label>
+                        <Field label="Theme">
                           <select
                             value={userPrefsForm.theme || 'dark'}
                             onChange={(e) => setUserPrefsForm({ ...userPrefsForm, theme: e.target.value })}
@@ -1280,18 +1234,15 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                             <option value="light">Light</option>
                             <option value="dark">Dark</option>
                           </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300">
-                            Language
-                          </label>
+                        </Field>
+                        <Field label="Language">
                           <input
                             type="text"
                             value={userPrefsForm.language || 'en'}
                             onChange={(e) => setUserPrefsForm({ ...userPrefsForm, language: e.target.value })}
                             className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                           />
-                        </div>
+                        </Field>
                       </div>
                     </div>
                   </div>
@@ -1311,10 +1262,10 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Language */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Languages className="w-4 h-4" /> Language
-                  </label>
+                <Field
+                  label={<span className="flex items-center gap-1.5"><Languages className="w-4 h-4" /> Language</span>}
+                  hint="Applies across the dashboard UI."
+                >
                   <select
                     value={lang}
                     onChange={(e) => setLang(e.target.value as Language)}
@@ -1323,14 +1274,13 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     <option value="en">English</option>
                     <option value="zh">中文 (Chinese)</option>
                   </select>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Applies across the dashboard UI.</p>
-                </div>
+                </Field>
 
                 {/* Theme */}
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />} Theme
-                  </label>
+                <Field
+                  label={<span className="flex items-center gap-1.5">{theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />} Theme</span>}
+                  hint="Light or dark color scheme."
+                >
                   <select
                     value={theme}
                     onChange={(e) => setTheme(e.target.value as 'light' | 'dark')}
@@ -1339,8 +1289,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     <option value="light">Light</option>
                     <option value="dark">Dark</option>
                   </select>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Light or dark color scheme.</p>
-                </div>
+                </Field>
               </div>
             </div>
 

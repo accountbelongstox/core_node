@@ -5,13 +5,27 @@ Finds application executables in common installation directories
 """
 
 import os
+import sys
 import json
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
 class AppFinder:
     """Find application executables"""
+
+    # Linux PATH binaries per app key (Debian/Ubuntu/Kali). The APP_DEFINITIONS
+    # below are all Windows paths/exe names, so on Linux we resolve via PATH.
+    _LINUX_BINARIES = {
+        'cursor': ['cursor'],
+        'devin': ['windsurf', 'devin'],
+        'edge': ['microsoft-edge', 'microsoft-edge-stable'],
+        'vscode': ['code', 'code-insiders'],
+        'wechat': ['wechat', 'weixin'],
+        'qq': ['qq', 'linuxqq'],
+        'notepad++': [],  # no Linux equivalent
+    }
     
     # Chrome-related constants (shared between chrome and chrome_beta)
     CHROME_EXE_NAMES = ['chrome.exe', 'GoogleChrome.exe']
@@ -118,8 +132,10 @@ class AppFinder:
             cache_path: Path to cache file
         """
         if cache_path is None:
-            username = os.getenv('USERNAME') or os.getenv('USER')
-            cache_dir = Path(f'C:\\Users\\{username}\\.core_node\\launch_multiple')
+            # Cross-platform: Path.home() is C:\Users\<user> on Windows and
+            # ~/ on Linux/macOS. The previous hardcoded "C:\\Users\\..." string
+            # was created as a LITERAL backslash-named dir under cwd on Linux.
+            cache_dir = Path.home() / '.core_node' / 'launch_multiple'
             cache_dir.mkdir(parents=True, exist_ok=True)
             cache_path = cache_dir / 'app_cache.json'
         
@@ -168,7 +184,19 @@ class AppFinder:
             cached_path = Path(self.cache[cache_key])
             if cached_path.exists():
                 return str(cached_path)
-        
+
+        # Linux/macOS: APP_DEFINITIONS hold Windows paths/exe names that never
+        # exist here, so resolve the platform binary on PATH instead. Chrome falls
+        # through to find_chrome_by_version() below (also Linux-guarded).
+        if sys.platform != 'win32' and app_name not in ('chrome', 'chrome_beta'):
+            for binary in self._LINUX_BINARIES.get(app_name, []):
+                resolved = shutil.which(binary)
+                if resolved:
+                    self.cache[cache_key] = resolved
+                    self.save_cache()
+                    return resolved
+            return None
+
         # Get app definition
         app_def = self.APP_DEFINITIONS.get(app_name)
         if not app_def:
@@ -217,7 +245,26 @@ class AppFinder:
             Dictionary of version -> path mappings
         """
         all_versions = {}
-        
+
+        # Linux/macOS: resolve Chrome/Chromium on PATH (the Windows scan paths below
+        # never exist here). Cache per version so find_chrome_by_version() reuses it.
+        if sys.platform != 'win32':
+            chrome_linux = {
+                'stable': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
+                'beta': ['google-chrome-beta', 'google-chrome-unstable'],
+            }
+            found = {}
+            for ver, names in chrome_linux.items():
+                for n in names:
+                    resolved = shutil.which(n)
+                    if resolved:
+                        found[ver] = resolved
+                        self.cache[f'chrome_{ver}'] = resolved
+                        break
+            if found:
+                self.save_cache()
+            return found
+
         # Check cache for version-specific paths
         if not force_refresh:
             cached_versions = {}

@@ -24,7 +24,6 @@ $script:MCP_PROVIDER_SCRIPTS_DIR = Split-Path $script:MCP_PROVIDER_DIR -Parent
 $script:MCP_PROJECT_ROOT = Split-Path $script:MCP_PROVIDER_SCRIPTS_DIR -Parent
 $script:MCP_SECRET_KEYS_DIR = Join-Path $script:MCP_PROJECT_ROOT ".secret_keys"
 $script:MCP_SECRET_RAW_DIR = Join-Path $script:MCP_SECRET_KEYS_DIR ".secret_ignore"
-$script:MCP_PYMAIN_PATH = Join-Path $script:MCP_PROJECT_ROOT "pymain.py"
 #endregion
 
 #region Secret Manager
@@ -94,18 +93,6 @@ function Get-Context7Config {
         })
 }
 
-function Get-UnifiedServerConfig {
-    $pythonExe = "python"
-    if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
-        $pythonExe = $Global:PYTHON_EXE_PATH
-    }
-    $pymainAbsolute = $script:MCP_PYMAIN_PATH
-    return (New-MCPConfig -Name "unified" -TransportType "stdio" `
-        -Command $pythonExe `
-        -CmdArgs @($pymainAbsolute, "app=mcp") `
-        -Env @{ "MCP_ALLOW_ALL_PATHS" = "true" })
-}
-
 function Get-ChromeMCPConfig {
     return (New-MCPConfig -Name "chrome" -TransportType "http" `
         -Url "http://127.0.0.1:12306/mcp")
@@ -123,9 +110,6 @@ function Get-AllMCPConfigs {
     if ($context7Config) {
         $configs += $context7Config
     }
-
-    $unifiedConfig = Get-UnifiedServerConfig
-    $configs += $unifiedConfig
 
     $chromeConfig = Get-ChromeMCPConfig
     $configs += $chromeConfig

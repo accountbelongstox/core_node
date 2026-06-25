@@ -25,7 +25,11 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
     // check if script is already injected
     try {
       const response = await Promise.race([
-        chrome.tabs.sendMessage(tabId, { action: `${this.name}_ping` }),
+        // Include the files being injected so a tool that injects MORE THAN ONE
+        // content script under a single tool name (e.g. the Bing dictionary tool:
+        // bing-dictionary-helper + bing-media-fetcher) can answer the probe only
+        // for ITS OWN file. Single-file helpers ignore the extra field.
+        chrome.tabs.sendMessage(tabId, { action: `${this.name}_ping`, files }),
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error(`${this.name} Ping action to tab ${tabId} timed out`)),

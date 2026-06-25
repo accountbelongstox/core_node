@@ -214,6 +214,29 @@ export function useBingDictionaryClient() {
       connectionStatus.value = { state: 'idle', message: '' };
     }
     await saveClientConfig();
+    // Real-time settings: when the worker is running, push the change so it takes
+    // effect live (no stop/restart). Debounced so dragging a number input doesn't
+    // spam the worker / thrash the poll interval + tab pool.
+    pushLiveConfig();
+  };
+
+  // Debounced live-apply of the current config to a running worker.
+  let liveApplyTimer: ReturnType<typeof setTimeout> | null = null;
+  const pushLiveConfig = () => {
+    if (liveApplyTimer) clearTimeout(liveApplyTimer);
+    liveApplyTimer = setTimeout(async () => {
+      liveApplyTimer = null;
+      if (!clientService.value.isRunning) return;
+      try {
+        await chrome.runtime.sendMessage({
+          type: 'bing_dictionary_worker_service',
+          action: 'update_config',
+          config: clientConfig.value,
+        });
+      } catch (err) {
+        logger.warn(LOG, 'Live config apply failed', err);
+      }
+    }, 400);
   };
 
   // Ping the endpoint configured in Settings so the user gets reachability feedback.

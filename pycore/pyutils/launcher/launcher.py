@@ -286,19 +286,63 @@ def get_windows_version():
 
 
 def get_dev_env_path():
-    """Get dev environment path based on Windows version"""
-    win_version = get_windows_version()
-    dev_path = Path(f'D:\\.dev_{win_version}\\.winenvs')
+    """Get dev environment path. On Windows this is D:\\.dev_<winver>\\.winenvs
+    (where the launcher .bat shortcut lives). On non-Windows there is no such
+    drive, so use a hidden dir under the user home — otherwise the literal
+    "D:\\.dev_...\\.winenvs" string is created as a folder in the cwd."""
+    if platform.system() == 'Windows':
+        win_version = get_windows_version()
+        dev_path = Path(f'D:\\.dev_{win_version}\\.winenvs')
+    else:
+        dev_path = Path.home() / '.core_node' / '.winenvs'
     dev_path.mkdir(parents=True, exist_ok=True)
     return dev_path
 
 
 def ensure_desktop_shortcut():
-    """Ensure desktop shortcut exists, create or replace if needed"""
+    """Ensure the "Window Launcher" desktop entry exists (create or replace).
+
+    Windows: a .bat plus a .lnk via DesktopIconGenerator. Linux (Debian/Ubuntu/Kali):
+    a freedesktop .desktop file in ~/.local/share/applications. macOS/other: no-op.
+    The previous version ran the Windows path on every OS, so on Linux it wrote a
+    useless .bat and then swallowed a RuntimeError (win32com absent) — leaving no
+    desktop entry at all."""
+    launcher_py_path = Path(__file__).resolve()
+    launcher_dir = launcher_py_path.parent
+
+    if platform.system() == 'Linux':
+        import subprocess
+        apps_dir = Path.home() / '.local' / 'share' / 'applications'
+        apps_dir.mkdir(parents=True, exist_ok=True)
+        icon_png = launcher_dir / 'icon.png'
+        icon_field = str(icon_png) if icon_png.exists() else 'utilities-terminal'
+        entry = (
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            "Name=Window Launcher\n"
+            f'Exec="{sys.executable}" "{launcher_py_path}"\n'
+            f"Icon={icon_field}\n"
+            "Terminal=false\n"
+            "Categories=Utility;\n"
+            "Comment=Launch Window Launcher - Multiple Terminal Windows\n"
+        )
+        dest = apps_dir / 'window-launcher.desktop'
+        try:
+            dest.write_text(entry, encoding='utf-8')
+            os.chmod(dest, 0o755)
+            subprocess.run(['update-desktop-database', str(apps_dir)], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f"Created/updated .desktop entry: {dest}")
+        except Exception as e:
+            print(f"Warning: Failed to create .desktop entry: {e}")
+        return
+
+    if platform.system() != 'Windows':
+        return  # macOS / other: no desktop-shortcut integration
+
     icon_generator = DesktopIconGenerator()
     shortcut_name = "Window Launcher"
-    launcher_py_path = Path(__file__).resolve()
-    
+
     # Create bat file in dev environment directory
     dev_env_path = get_dev_env_path()
     bat_path = dev_env_path / 'launch.bat'
@@ -344,6 +388,8 @@ def ensure_desktop_shortcut():
 # Use file lock to ensure warning is shown only once (even across multiple imports)
 def show_admin_permission_warning():
     """Show warning about administrator permission for shortcut (only once) - using file lock"""
+    if platform.system() != 'Windows':
+        return  # Windows-only "Run as administrator" guidance; irrelevant on Linux/macOS
     # Use a lock file to ensure only one process shows the warning
     lock_file = Path(tempfile.gettempdir()) / 'window_launcher_admin_warning_shown.lock'
     
@@ -775,19 +821,17 @@ def main():
                     app_path_obj = Path(app_path)
                     
                     if app_path_obj.exists():
-                        # Always create bat file and launch via explorer executor
-                        # This ensures application is launched independently from Python
-                        temp_bat = script_generator.get_temp_dir() / f'launch_{app_name}.bat'
-                        
-                        # Create bat file with start command
-                        bat_content = f'@echo off\r\nstart "" "{app_path}"\r\n'
-                        
-                        with open(temp_bat, 'w', encoding='utf-8', newline='\r\n') as f:
-                            f.write(bat_content)
-                        
-                        # Execute via explorer executor using start method (not as child process)
+                        # Windows: write a launch .bat (legacy/diagnostic) first.
+                        # Linux: skip it (an unrunnable, stray .bat artifact) and just
+                        # launch the binary independently.
+                        if platform.system() == 'Windows':
+                            temp_bat = script_generator.get_temp_dir() / f'launch_{app_name}.bat'
+                            bat_content = f'@echo off\r\nstart "" "{app_path}"\r\n'
+                            with open(temp_bat, 'w', encoding='utf-8', newline='\r\n') as f:
+                                f.write(bat_content)
+                        # Launch independently (explorer on Windows; exec/xdg-open on Linux).
                         executor.execute_file(app_path, independent=True)
-                        print(f"  Created and launched: {temp_bat}")
+                        print(f"  Launched: {app_path}")
                     else:
                         print(f"  Error: Application path does not exist: {app_path}")
                 except Exception as e:

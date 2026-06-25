@@ -33,6 +33,7 @@ CHROME_VERSION=""
 CHROME_DESKTOP_FILE=""
 CHROME_SHORTCUT_CREATED=false
 SYS_ARCH=""
+CHROME_GPU_FLAGS=""  # GPU hardware-acceleration flags baked into the launch wrapper
 
 # Run all apt/dpkg steps unattended so an idempotent/headless re-run never blocks
 # on a debconf or conffile prompt.
@@ -276,6 +277,16 @@ install_chrome_direct() {
     return 1
 }
 
+# Resolve Chrome GPU hardware-acceleration flags into CHROME_GPU_FLAGS by delegating to the
+# shared resolver in app_resource_limit.sh (single source of truth; Edge uses it too).
+# Baked into the launch wrapper via --pre so Chrome stops software-rendering -- the cause
+# of high CPU / lag on Linux where the GPU is blocklisted by default. SAFE-by-default
+# (ANGLE-GL + ignore-blocklist + GPU raster; AMD/Intel VA-API only; NO zero-copy/Vulkan).
+# Env: BROWSER_DISABLE_GPU=1 -> none; preset BROWSER_GPU_FLAGS -> verbatim.
+compute_chrome_gpu_flags() {
+    CHROME_GPU_FLAGS="$(resolve_browser_gpu_flags)"
+}
+
 # Function to create desktop shortcut
 create_desktop_shortcut() {
     if [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
@@ -309,13 +320,18 @@ create_desktop_shortcut() {
     CHROME_SHORTCUT_CREATED=true
     echo "[$SCRIPT_INDEX] Desktop shortcut created successfully"
 
+    # GPU hardware acceleration: resolve safe flags for this machine (stops the
+    # software-rendering lag) and bake them into the wrapper via --pre.
+    compute_chrome_gpu_flags
+
     # Resource limit: cap the whole Chrome process tree in one cgroup-v2 user scope
     # and repoint the menu/desktop Exec (id=google-chrome) at the wrapper. Chrome is
     # PINNED to MemoryMax=2G (override) -- more headroom than the 1G default -- while the
     # shared 20% ceiling and 10%*nproc CPU still come from app_resource_limit.sh.
-    # Idempotent (never double-wraps).
+    # --pre injects the GPU flags ahead of the .desktop field codes. Idempotent.
     APP_MEM_CAP_MB=2048 apply_app_resource_limit \
         --id google-chrome --exec "$CHROME_BIN_PATH" \
+        --pre "$CHROME_GPU_FLAGS" \
         --desktop all --field "%U"
 }
 

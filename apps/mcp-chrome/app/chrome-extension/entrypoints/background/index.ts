@@ -9,6 +9,7 @@ import { setupAudioStatusListener } from './tools/audio';
 import { getDeepSeekPollingService } from './deepseek-polling-service';
 import { initBingDictionaryClientListener } from './bing-dictionary-client-listener';
 import { initBingWorkerLifecycle } from './services/bing-dictionary-worker-service';
+import { initTabController } from './services/tab-controller';
 import { initAiWebClientListener } from './ai-web-client-listener';
 import { initNotebookLMListener } from './notebooklm-listener';
 import { initGeminiImageListener } from './gemini-image-listener';
@@ -76,6 +77,12 @@ export default defineBackground(() => {
   initBingDictionaryClientListener();
   // ChatGPT/Gemini web-assist: ad-hoc test + one-click prompt_translation worker.
   initAiWebClientListener();
+  // Shared tab-activation + human-interference-pause + tab self-recovery
+  // coordinator. Registered BEFORE the Bing worker resumes so its listeners +
+  // heal-handler slot exist when a resumed worker reports its managed tabs. Only
+  // registers listeners + an empty pause clock here — never starts a worker, so
+  // the manual-re-enable-on-cold-open invariant is preserved.
+  initTabController();
   // MV3-resilient assist: resurrect the Bing translation worker after the
   // service worker (or browser) restarts, via chrome.alarms + startup hooks.
   initBingWorkerLifecycle();
