@@ -101,6 +101,19 @@ def translate_chunk(
     if not lines:
         return [], meta
     prompt = _build_prompt(lines, src, dest)
+
+    # CACHE: an identical AI-translate request (same lines + src + dest) reuses the
+    # prior answer instead of re-paying a (rate-limited / quota'd) AI provider —
+    # the "same task -> use cache" goal. Keyed by the full prompt, so any change to
+    # the lines or prompt shape is a fresh key.
+    cached = result_cache.get_json("ai_translate", src or "", dest or "", prompt)
+    if isinstance(cached, list) and len(cached) == len(lines):
+        meta["provider"] = meta.get("provider") or "cache"
+        meta["model"] = meta.get("model") or "cache"
+        meta["success"] = True
+        meta["cached"] = True
+        return [str(x) for x in cached], meta
+
     res = generate_text(prompt=prompt, source=source) or {}
     # Surface provenance regardless of success so the worker can label the result.
     meta["provider"] = res.get("provider") or meta.get("provider")
@@ -112,7 +125,11 @@ def translate_chunk(
             f"(provider={meta.get('provider')!r}, error={res.get('error')!r})"
         )
         return [""] * len(lines), meta
-    return _parse_answer(res.get("text") or "", lines), meta
+    translations = _parse_answer(res.get("text") or "", lines)
+    # Store only a well-formed, full-length answer (never cache a partial/empty one).
+    if len(translations) == len(lines) and any(t.strip() for t in translations):
+        result_cache.set_json("ai_translate", translations, src or "", dest or "", prompt)
+    return translations, meta
 
 
 def translate_lines(
