@@ -42,7 +42,7 @@ from pycore.pyutils.tts.tts_orchestrator import (
     get_edge_cooldown_seconds,
     set_edge_cooldown_seconds,
 )
-from pycore.pyctl.ai import gateway_status, available_providers
+from pycore.pyctl.ai.ai_keys import PROVIDERS, is_configured
 
 router = fastapi.APIRouter(prefix="/api/local/capabilities", tags=["Local Processing - Capabilities"])
 
@@ -116,24 +116,24 @@ def _tts_options() -> Dict[str, Any]:
 
 
 def _image_available() -> Dict[str, bool]:
-    """{provider: available} for every image-capable AI provider (live gateway probe)."""
-    try:
-        status = gateway_status() or {}
-    except Exception:  # noqa: BLE001
-        return {}
+    """{provider: configured} for every image-capable AI provider. Uses the
+    CHEAP configured-key check (local disk), never a network probe — this
+    endpoint must stay fast (it feeds a status drawer, not a live test)."""
     out: Dict[str, bool] = {}
-    for prov in status.get("providers") or []:
-        if prov.get("image"):
-            name = prov.get("name")
-            if name:
-                out[name] = bool(prov.get("available"))
+    for name, meta in PROVIDERS.items():
+        if meta.get("image"):
+            try:
+                out[name] = bool(is_configured(name))
+            except Exception:  # noqa: BLE001
+                out[name] = False
     return out
 
 
 def _translation_available() -> Dict[str, bool]:
-    """Translation engines: google is always local; 'ai' rides any live provider."""
+    """Translation engines: google is always local; 'ai' rides any configured
+    provider (cheap key check, no network probe)."""
     try:
-        ai_ready = bool(available_providers())
+        ai_ready = any(is_configured(name) for name in PROVIDERS)
     except Exception:  # noqa: BLE001
         ai_ready = False
     return {"google": True, "ai": ai_ready}
