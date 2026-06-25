@@ -6,6 +6,8 @@ import { logger } from '@/utils/logger';
 // The single, parameter-free dictionary URL (no ?mkt / ?q=). Aliased as
 // BING_DICT_HOME: we load it once per tab then drive the search box via WebOps.
 import { BING_DICT_URL as BING_DICT_HOME } from '../../services/bing-tab-pool';
+// tab-controller is a LEAF (imports only chrome + logger) — no import cycle.
+import { tabController } from '../../services/tab-controller';
 
 // Shared human-simulation library, co-injected FIRST so the Bing helper can use
 // self.__WebOps (humanType/submitForm/waitFor) to operate the page like a human.
@@ -219,6 +221,17 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
   ): Promise<{ found: boolean; error?: string } | undefined> {
     await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
     await new Promise((resolve) => setTimeout(resolve, 250));
+    // Re-confirm the tab is foreground right before typing — a concurrent slot
+    // may have stolen focus between the worker's activate and here. Skip while a
+    // pause is active (yielding to the user). Best-effort; never blocks a search.
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab && tab.active !== true && !tabController.isPaused()) {
+        await tabController.activate(tabId);
+      }
+    } catch {
+      // tab gone — the lookup's healing replaces it.
+    }
     return this.sendMessageToTab(tabId, { action: 'bingDictionarySearch', word: word.trim() });
   }
 

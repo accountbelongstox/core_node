@@ -109,6 +109,28 @@ class TabController {
         // window focus is best-effort
       }
     }
+    // CONFIRM the tab is actually active before returning, so the caller never
+    // types into a not-yet-foreground tab. Bounded poll (~5x80ms = 400ms, well
+    // under SELF_ACTIVATION_TTL_MS so re-issues stay recognized as ours). Gate
+    // only on tab.active — window.focused can be denied by the OS, so it is
+    // best-effort and never blocks. A vanished tab exits silently (caller heals).
+    for (let i = 0; i < 5; i++) {
+      let active = false;
+      try {
+        const t = await chrome.tabs.get(tabId);
+        active = !!t && t.active === true;
+      } catch {
+        return; // tab gone
+      }
+      if (active) return;
+      this.recordSelfActivation(tabId);
+      try {
+        await chrome.tabs.update(tabId, { active: true });
+      } catch {
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 80));
+    }
   }
 
   /** The unified pause gate (human-interference; anti-scrape lives on the worker). */
