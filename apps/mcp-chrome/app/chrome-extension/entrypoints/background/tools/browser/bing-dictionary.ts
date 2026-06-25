@@ -277,6 +277,17 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
   }
 
   /**
+   * Public full-load barrier: wait until the tab is idle (not loading/spinning)
+   * before the caller advances. ALWAYS delegates to waitForTabComplete — which
+   * includes the 600ms delayed-status probe that guards the "stale complete from
+   * the previous page" race — so a single immediate status==='complete' read is
+   * never trusted. Bounded by waitForTabComplete's 15s hard timeout.
+   */
+  async waitForTabIdle(tabId: number): Promise<void> {
+    await this.waitForTabComplete(tabId);
+  }
+
+  /**
    * Resolve once the tab finishes loading. Prefers the chrome.tabs "complete"
    * status event over a fixed sleep, with a hard timeout fallback so a hung
    * navigation can never wedge the worker.

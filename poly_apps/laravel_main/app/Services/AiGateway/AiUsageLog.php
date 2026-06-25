@@ -30,7 +30,10 @@ class AiUsageLog
     /** Newest-last ring buffer cap (matches pycore _MAX_ENTRIES). */
     private const MAX_ENTRIES = 400;
 
-    private const KINDS = ['text', 'vision', 'probe'];
+    // Every AI/capability call kind the unified usage log accepts (parity with
+    // pycore ai_usage_log._KINDS). image/tts/stt are folded in so the global
+    // usage history + per-provider rollup reflect EVERY AI call.
+    private const KINDS = ['text', 'vision', 'probe', 'image', 'tts', 'stt'];
 
     /** Absolute path of the shared .data/.ai_state dir (same dir pycore writes). */
     public static function stateDir(): string

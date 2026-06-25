@@ -69,8 +69,18 @@ class PycoreMasterClient extends MasterApiClient {
 }
 export const pycoreMasterClient = new PycoreMasterClient({ defaultCeilingMs: 0 });
 
+/**
+ * Dead-socket ceiling for status GET reads (ms). POST writes keep the forever
+ * default (0) because some legitimately run long (AI image generation, TTS
+ * synth). A status GET must NEVER hang forever — without this a single stalled
+ * read (e.g. pycore restarting, or a first-touch worker init that blocks on
+ * DNS) sticks every panel on "Loading…" with no recovery. On abort the caller's
+ * catch shows its error fallback + Refresh instead of an eternal spinner.
+ */
+const GET_CEILING_MS = 25_000;
+
 async function getJSON<T>(url: string): Promise<T> {
-  const r = await pycoreMasterClient.request(url);
+  const r = await pycoreMasterClient.request(url, { ceilingMs: GET_CEILING_MS });
   return (await r.json()) as T;
 }
 async function postJSON<T>(url: string, body: unknown = {}): Promise<T> {

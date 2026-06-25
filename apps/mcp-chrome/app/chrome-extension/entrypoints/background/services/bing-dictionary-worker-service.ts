@@ -347,16 +347,18 @@ class BingDictionaryWorkerService {
   }
 
   /**
-   * Opt-in (default OFF) for per-word tab activation. Activating the pool tab per
-   * word fully simulates a human BUT steals focus, so it is gated behind the
-   * `bingActivatePerWord` setting — the long-standing default is background tabs.
+   * Per-word tab activation: DEFAULT ON (so the user sees each word's tab brought
+   * to the front + typed into, fully simulating a human). Safe because the
+   * TabController interference-pause yields the browser back the moment the USER
+   * switches tabs, and runSlot breaks out of the batch while paused. A user who
+   * wants the old silent background-crawl sets bingActivatePerWord=false.
    */
   private async readActivateFlag(): Promise<boolean> {
     try {
       const r = await chrome.storage.local.get('bingActivatePerWord');
-      return r.bingActivatePerWord === true;
+      return r.bingActivatePerWord !== false;
     } catch {
-      return false;
+      return true;
     }
   }
 
@@ -898,18 +900,24 @@ class BingDictionaryWorkerService {
         let tabId = initialTabId;
         while (true) {
           if (aborted || outageDetected) break;
+          // Yield to the user MID-BATCH: if a human is switching tabs (or any
+          // pause is in effect), stop this batch's per-word foregrounding
+          // immediately — don't keep yanking OS focus until the next poll tick.
+          // This is the safety that makes default-on activation acceptable.
+          if (this.isWorkerPaused()) break;
           const i = nextIndex++;
           if (i >= total) break;
           const w = words[i];
           this.stats.currentWord = w.word;
           this.setSlotWord(slot, tabId, w.word);
 
-          // Per-word tab activation (opt-in): bring THIS slot's tab to the front
-          // before typing into it. Serialized via activateChain so concurrent
-          // slots don't fight over the single active tab — the foregrounded tab
-          // is the one being typed into right now. Each activation is recorded by
-          // TabController so it is never mis-counted as a human tab switch.
-          if (activatePerWord) {
+          // Per-word tab activation (default ON): bring THIS slot's tab to the
+          // front, CONFIRM it's active, then type into it (tabController.activate
+          // awaits the tab going active). Serialized via activateChain so parallel
+          // slots don't fight over the single active tab. Each activation is
+          // recorded by TabController so it is never mis-counted as a human switch.
+          // Gated on !isPaused so we never foreground while yielding to the user.
+          if (activatePerWord && !tabController.isPaused()) {
             await (this.activateChain = this.activateChain
               .catch(() => undefined)
               .then(() => tabController.activate(tabId)));
@@ -940,6 +948,12 @@ class BingDictionaryWorkerService {
               data = looked.data;
               classification = classify(data);
             }
+
+            // Full-load barrier for EVERY word (valid / invalid / error): never
+            // advance to the next word while this tab is still loading/spinning.
+            // (Defensive against a late async redirect after extract returned;
+            // the lookup itself already waited for its own navigation.)
+            await bingDictionaryTool.waitForTabIdle(tabId);
 
             // Detailed per-word trace for the DEBUG center: shows exactly why a
             // word resolved the way it did (so INVALID vs FAILED is visible).

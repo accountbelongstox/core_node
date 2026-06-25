@@ -75,6 +75,16 @@ final class AiTextLog
             }
             $line = implode('  ', $parts) . "\n";
 
+            // Per-call CLI visibility: also print the line to the process console
+            // (Octane/queue worker stderr), mirroring pycore's ColorPrint so an
+            // operator sees every AI call live, not only in the flat file.
+            $console = '[AI] ' . rtrim($line);
+            if (defined('STDERR')) {
+                @fwrite(STDERR, $console . "\n");
+            } else {
+                @error_log($console);
+            }
+
             $path = self::path();
             $dir = dirname($path);
             if (!is_dir($dir)) {
