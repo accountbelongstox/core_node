@@ -1,7 +1,5 @@
 import React, { useEffect } from 'react';
 import { Play, RefreshCw, Volume2, Languages, CheckCircle } from 'lucide-react';
-import { mediaUrl } from '../../../config/constants';
-import { InlineSpinner } from '../../common';
 
 /**
  * Presentational per-word detail cluster extracted from VocabularyLearning.
@@ -133,7 +131,7 @@ const WordDetail: React.FC<WordDetailProps> = ({
         <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Example sentences</div>
         {!state || state.loading ? (
           <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
-            <InlineSpinner size={14} />
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
             Loading sentences...
           </div>
         ) : state.error ? (
@@ -257,15 +255,11 @@ const WordDetail: React.FC<WordDetailProps> = ({
   const translations: string[] = Array.isArray(r.translations) ? r.translations : [];
   const images: any[] = Array.isArray(r.image_files) ? r.image_files : [];
   const imageUrl = (img: any): string | null => {
-    // Rebase relative backend paths onto the API origin (:9000); external
-    // absolute URLs (e.g. Bing word images) pass through mediaUrl unchanged.
-    const raw =
-      typeof img === 'string'
-        ? img
-        : (img && typeof img === 'object' ? (img.url || img.path || img.src || null) : null);
-    return raw ? mediaUrl(raw) : null;
+    if (typeof img === 'string') return img;
+    if (img && typeof img === 'object') return img.url || img.path || img.src || null;
+    return null;
   };
-  const MetaField = ({ label, value }: { label: string; value: React.ReactNode }) =>
+  const Field = ({ label, value }: { label: string; value: React.ReactNode }) =>
     value == null || value === '' ? null : (
       <div className="flex gap-2 text-[11px]">
         <span className="text-slate-500 dark:text-slate-400 min-w-[5.5rem] flex-shrink-0">{label}</span>
@@ -311,7 +305,7 @@ const WordDetail: React.FC<WordDetailProps> = ({
             >
               <Volume2 className="w-3.5 h-3.5" /> Play audio
             </button>
-            <audio controls src={mediaUrl(r.audio_url)} className="h-8 max-w-[14rem]" />
+            <audio controls src={r.audio_url} className="h-8 max-w-[14rem]" />
           </div>
         )}
         {r.word_details != null && (
@@ -336,23 +330,23 @@ const WordDetail: React.FC<WordDetailProps> = ({
       </div>
       {/* Right: metadata */}
       <div className="space-y-1.5">
-        <MetaField label="Valid" value={r.is_valid ? 'Yes' : 'No'} />
-        <MetaField label="Validity note" value={r.validity_note} />
-        <MetaField label="Validity src" value={r.validity_source} />
-        <MetaField label="Checked at" value={r.validity_checked_at} />
-        <MetaField label="Translation" value={r.translation_provider} />
-        <MetaField label="TTS provider" value={r.tts_provider} />
-        <MetaField label="Image" value={r.image_provider} />
-        <MetaField label="TTS status" value={r.tts_status} />
-        <MetaField label="TTS attempts" value={typeof r.tts_attempts === 'number' ? String(r.tts_attempts) : null} />
-        <MetaField
+        <Field label="Valid" value={r.is_valid ? 'Yes' : 'No'} />
+        <Field label="Validity note" value={r.validity_note} />
+        <Field label="Validity src" value={r.validity_source} />
+        <Field label="Checked at" value={r.validity_checked_at} />
+        <Field label="Translation" value={r.translation_provider} />
+        <Field label="TTS provider" value={r.tts_provider} />
+        <Field label="Image" value={r.image_provider} />
+        <Field label="TTS status" value={r.tts_status} />
+        <Field label="TTS attempts" value={typeof r.tts_attempts === 'number' ? String(r.tts_attempts) : null} />
+        <Field
           label="TTS error"
           value={r.tts_error ? <span className="text-rose-600 dark:text-rose-400">{r.tts_error}</span> : null}
         />
-        <MetaField label="Queries" value={typeof r.query_count === 'number' ? nf(r.query_count) : null} />
-        <MetaField label="Last modified" value={r.last_modified} />
-        <MetaField label="Last query" value={r.last_query_time} />
-        <MetaField label="MD5" value={r.md5 ? <span className="font-mono">{r.md5}</span> : null} />
+        <Field label="Queries" value={typeof r.query_count === 'number' ? nf(r.query_count) : null} />
+        <Field label="Last modified" value={r.last_modified} />
+        <Field label="Last query" value={r.last_query_time} />
+        <Field label="MD5" value={r.md5 ? <span className="font-mono">{r.md5}</span> : null} />
       </div>
     </div>
     {/* Example sentences (lazy-loaded on expand) */}

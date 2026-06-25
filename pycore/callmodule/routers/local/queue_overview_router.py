@@ -30,15 +30,18 @@ truth) so the two task-center surfaces never drift. This router does NO network
 I/O itself — everything comes from in-process singletons.
 """
 
+import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import fastapi
 
+from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.callmodule.services import (
     get_queue_monitor_service,
     get_translation_worker_service,
 )
+from pycore.callmodule.services.assist_wiring import ensure_assist_worker_wired
 from pycore.callmodule.callmodule_config import Config
 from .task_center_router import (
     _CATEGORY_CATALOG,
@@ -50,6 +53,72 @@ router = fastapi.APIRouter(
     prefix="/api/local/queue",
     tags=["Local Processing - Queue Overview"],
 )
+
+# Live Laravel assist/overview merge — the per-lane counts for EVERY assist /
+# secondary category (sentence_audio, word_audio, cover, poster, …) live in
+# Laravel's GET /api/app_qy_v1/assist/overview, not in the pycore snapshot. We
+# fetch it on the overview request path but TTL-cache the result so rapid polls
+# don't storm Laravel, and fall back to the LAST good snapshot (then to the
+# catalog zeros) so the card grid is never blind even when a single fetch fails.
+_ASSIST_OVERVIEW_PATH = "/api/app_qy_v1/assist/overview"
+_ASSIST_OVERVIEW_TTL = 4.0       # seconds a cached snapshot serves rapid polls
+_ASSIST_OVERVIEW_TIMEOUT = 3.0   # short — a slow Laravel must not stall the card grid
+_assist_overview_cache: Dict[str, Any] = {"ts": 0.0, "data": None}
+
+
+def _assist_overview_base() -> Optional[str]:
+    """Base URL of the SELECTED Laravel endpoint (same source assist_router uses)."""
+    try:
+        endpoint = ensure_assist_worker_wired().resolve_endpoint()
+    except Exception:  # noqa: BLE001 — resolver must never break the overview
+        return None
+    if endpoint and endpoint.get("base_url"):
+        return str(endpoint["base_url"]).rstrip("/")
+    return None
+
+
+def _fetch_assist_overview() -> Optional[Dict[str, Any]]:
+    """TTL-cached GET of Laravel's assist/overview (real per-lane counts).
+
+    Returns the freshest snapshot available: a cache hit within the TTL, else a
+    live fetch (short timeout), else the LAST good snapshot (even if stale) so a
+    transient Laravel hiccup never blanks the overview. None only when nothing
+    has ever been fetched and the current fetch failed.
+    """
+    now = time.monotonic()
+    cached = _assist_overview_cache.get("data")
+    if cached is not None and (now - _assist_overview_cache["ts"]) < _ASSIST_OVERVIEW_TTL:
+        return cached
+    base = _assist_overview_base()
+    if not base:
+        return cached
+    try:
+        requests = get_third_package_requests()
+        resp = requests.get(f"{base}{_ASSIST_OVERVIEW_PATH}", timeout=_ASSIST_OVERVIEW_TIMEOUT)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict) and data.get("success") and data.get("categories"):
+                _assist_overview_cache["data"] = data
+                _assist_overview_cache["ts"] = now
+                return data
+    except Exception:  # noqa: BLE001 — best-effort; fall back to the last good snapshot
+        pass
+    return cached
+
+
+def _merge_workers(laravel: List[Dict[str, Any]], local: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Laravel's registry (chrome + pycore workers) first, then any local worker
+    not already present by id — so the overview shows EVERY end that assists."""
+    out: List[Dict[str, Any]] = []
+    seen = set()
+    for w in (laravel or []) + (local or []):
+        wid = w.get("id")
+        if wid and wid in seen:
+            continue
+        if wid:
+            seen.add(wid)
+        out.append(w)
+    return out
 
 
 def _monitor():
@@ -162,19 +231,37 @@ def _engines() -> Dict[str, Any]:
 async def get_queue_overview():
     """
     Return the unified queue overview (PcQueueOverview). One poll for the whole
-    Overview tab: every catalog category as a card (zeros when empty), the
-    worker registry, pycore-local engines, and the fast-lane signals block.
-    Reads only in-process singletons — no network I/O on the request path.
+    Overview tab: every assist/secondary category as a card with LIVE counts
+    (merged from Laravel's assist/overview, TTL-cached), the worker registry
+    (Laravel's chrome+pycore workers merged with the local one), pycore-local
+    engines, and the fast-lane signals block. The Laravel fetch is short-timeout
+    + cached so the card grid is never blind and never hangs.
     """
     snapshot = _monitor().get_snapshot(refresh=False)
     summary = snapshot.get("summary", {}) or {}
 
+    assist = _fetch_assist_overview()
+    laravel_categories = (assist or {}).get("categories") or []
+
+    if laravel_categories:
+        # Laravel's rich, real per-lane counts are authoritative for the assist /
+        # secondary lanes — use them directly and merge in the worker registry.
+        categories = laravel_categories
+        workers = _merge_workers((assist or {}).get("workers") or [], _workers())
+        laravel_reachable = True
+    else:
+        # No live Laravel snapshot: degrade to the catalog (zeros) + the cached
+        # translation summary so the grid still renders every canonical lane.
+        categories = _categories(summary)
+        workers = _workers()
+        laravel_reachable = snapshot.get("laravel_reachable", False)
+
     return {
         "success": True,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "laravel_reachable": snapshot.get("laravel_reachable", False),
-        "categories": _categories(summary),
-        "workers": _workers(),
+        "laravel_reachable": laravel_reachable,
+        "categories": categories,
+        "workers": workers,
         "engines": _engines(),
         "fast_lane": _fast_lane_block(),
     }
