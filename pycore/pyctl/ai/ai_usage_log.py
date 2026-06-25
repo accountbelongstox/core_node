@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root
+from pycore.pyctl.ai.ai_text_log import log_ai_call
 
 RUNTIME = "pycore"
 
@@ -49,7 +50,10 @@ _LEGACY_DIR = APP_DATA_DIR / "ai_state"
 
 # Newest-last ring buffer cap.
 _MAX_ENTRIES = 400
-_KINDS = ("text", "vision", "probe")
+# Every AI/capability call kind the unified usage log accepts. text/vision/probe
+# flow through the AI gateway; image/tts/stt are folded in so the global usage
+# history + per-provider rollup reflect EVERY AI call, not just chat/vision.
+_KINDS = ("text", "vision", "probe", "image", "tts", "stt")
 
 _lock = threading.Lock()
 
@@ -164,6 +168,14 @@ def record_usage(
         prov["last_model"] = entry["model"]
         doc["stats"] = stats
         _save(doc)
+    # Mirror to the shared flat operator log AND print one CLI line (the
+    # per-call visibility that was missing). Outside the lock — the file write
+    # and console print must never hold the usage-log lock.
+    log_ai_call(
+        kind, provider, model=entry["model"], source=source,
+        success=bool(success), latency_ms=latency_ms, error=error,
+        runtime=runtime or RUNTIME,
+    )
 
 
 def usage_log(limit: int = 100, kind: Optional[str] = None) -> Dict[str, Any]:

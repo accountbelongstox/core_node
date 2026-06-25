@@ -421,11 +421,13 @@ def _record(kind: str, source: str, result: Dict[str, Any]) -> None:
     # OUTSIDE the lock: _save_stats() re-acquires _lock (non-reentrant) — calling
     # it inside the block above self-deadlocks (hung every generate_* call).
     _save_stats()
-    # Mirror vision calls into the shared cross-runtime usage log (text is logged
-    # in chat_once; image generations live in ai_image_history). Outside _lock so
-    # the file write never holds the gateway lock.
-    if kind == "vision":
-        record_usage("vision", result.get("provider", ""), result.get("model", ""),
+    # Mirror vision + image calls into the shared cross-runtime usage log so the
+    # global usage history / per-provider rollup counts them and the CLI prints a
+    # line (text is already logged per-attempt in chat_once; image ALSO keeps its
+    # bytes in ai_image_history). Outside _lock so the file write/print never
+    # holds the gateway lock.
+    if kind in ("vision", "image"):
+        record_usage(kind, result.get("provider", ""), result.get("model", ""),
                      bool(result.get("success")), result.get("latency_ms"), source,
                      result.get("error"))
 
