@@ -12,6 +12,7 @@ import { webAiTranslateProcessor } from './processors/WebAiTranslateProcessor';
 import { chatGptProcessor } from './processors/ChatGPTProcessor';
 import { geminiProcessor } from './processors/GeminiProcessor';
 import { promptTranslateWebProcessor } from './processors/PromptTranslateWebProcessor';
+import { wordValidityWebProcessor } from './processors/WordValidityWebProcessor';
 
 /**
  * Initialize and register all task processors
@@ -43,6 +44,11 @@ export function initializeProcessors(): void {
   // chrome fulfiller of the cross-stack `prompt_translation` pipeline — drives
   // the preferred web provider (settings) and returns {english,cleaned,variants}.
   taskCenter.registerProcessor(promptTranslateWebProcessor, false);
+
+  // Register Word-Validity Web Processor (DISABLED by default, opt-in): drives a
+  // web LLM (Gemini/DeepSeek/ChatGPT) to classify untranslated+unchecked words
+  // valid/invalid on the dedicated remote_validity lane, so translation skips junk.
+  taskCenter.registerProcessor(wordValidityWebProcessor, false);
 
   console.log('[TaskCenter] Processors initialized');
 }

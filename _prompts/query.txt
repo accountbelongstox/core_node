@@ -1,3 +1,7 @@
+claude --resume cac8aa20-a7e0-4822-85ab-111a3f3b0175
+claude --resume d2766e0f-9cab-4fcd-b350-c873d4163202
+
+
 当出现以下或BING不能连接时，使用 
 It's not you, it's us
 Bing isn't available right now, but everything should be back to normal very soon.

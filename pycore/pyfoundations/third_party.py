@@ -244,6 +244,11 @@ OPTIONAL_PACKAGES = {
     # Faster/robuster HTML/XML parser for BeautifulSoup (Books ingest) - optional;
     # bs4 falls back to the stdlib "html.parser" when lxml is absent.
     "lxml": "lxml",
+    # For WordNet English definitions/synonyms in the offline dictionary
+    # (pyutils/translator/dictionary) - optional; the dictionary works on ECDICT
+    # alone. The WordNet *corpus* is fetched separately by install_dictionaries.sh
+    # (nltk.download), this only ensures the nltk package.
+    "nltk": "nltk",
 }
 
 # Windows-only optional: WinRT OCR (Windows.Media.Ocr). Multiple pip packages required; loaded via get_third_package_windows_ocr().

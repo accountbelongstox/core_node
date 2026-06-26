@@ -6,7 +6,6 @@ import {
   TTSGenerateResponse,
   LanguageInfo,
   AsyncState,
-  Language,
   VocabularyTask,
   VocabularyWord
 } from '../../types';
@@ -14,57 +13,32 @@ import {
 import { api } from '../../core/api';
 import { TRANSLATIONS } from '../../constants';
 import { mediaUrl } from '../../config/constants';
-import {
-  Languages,
-  BookOpen,
-  ListChecks,
-  Search
-} from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 import { extractArrayFromResponse } from '../../utils/arrayUtils';
 import { useAppState } from '../../contexts/AppStateContext';
 import { usePersistentTask } from '../../core/tasks/usePersistentTask';
-import VocabularyWordListModal from '../vocabulary/VocabularyWordListModal';
 import WordsManagerPanel from '../vocabulary/WordsManagerPanel';
-import VocabularyLibraryDetail from '../vocabulary/VocabularyLibraryDetail';
-import TtsLogsDock from '../vocabulary/TtsLogsDock';
+import VocabGlobalOverlays from '../vocabulary/VocabGlobalOverlays';
 import TtsQueueTab from '../vocabulary/tabs/TtsQueueTab';
 import TranslateInputPanel from '../vocabulary/tabs/TranslateInputPanel';
+import TranslationHistoryBar from '../vocabulary/tabs/TranslationHistoryBar';
 import TtsPlayerPanel from '../vocabulary/tabs/TtsPlayerPanel';
 import LearningTasksPanel from '../vocabulary/tabs/LearningTasksPanel';
 import StatisticsTab from '../vocabulary/tabs/StatisticsTab';
 import LibrariesTab from '../vocabulary/tabs/LibrariesTab';
-import PaginatedListModal, { type PaginatedListColumn, type PaginatedListFetcher } from '../vocabulary/PaginatedListModal';
+import { type PaginatedListColumn, type PaginatedListFetcher } from '../vocabulary/PaginatedListModal';
 import { buildDictionaryColumns } from '../vocabulary/words/dictionaryColumns';
 import WordDetail from '../vocabulary/words/WordDetail';
-import InlineWordsList from '../vocabulary/words/InlineWordsList';
 import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../types';
-import Portal from '../shared/Portal';
-import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
-import { ConfirmModal, useToast } from '../admin';
+import { useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
-import { InlineSpinner } from '../common';
 import { useClipboard } from '../../hooks';
-
-/** Cross-fade/slide preset for swapping the active sub-tab panel. */
-const SUBTAB_MOTION = {
-  initial: { opacity: 0, y: 8 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 },
-  transition: { duration: 0.18, ease: 'easeOut' as const },
-};
-
-/** Sub-tab keys for the page. Active tab persists in localStorage. */
-type VocabTab = 'translate' | 'words' | 'libraries' | 'statistics' | 'queue';
-const VOCAB_TAB_KEY = 'vocab_active_tab';
-const VOCAB_TABS: { key: VocabTab; label: string; Icon: React.FC<any> }[] = [
-  { key: 'translate', label: 'Translate', Icon: Languages },
-  { key: 'words', label: 'Words', Icon: Search },
-  { key: 'libraries', label: 'Libraries', Icon: BookOpen },
-  // 'statistics' merged into the Words tab (WordsManagerPanel shows the strip);
-  // the tab is retired but the type/legacy block stay for back-compat.
-  { key: 'queue', label: 'TTS Queue', Icon: ListChecks },
-];
+import VocabSubTabBar, {
+  SUBTAB_MOTION,
+  VOCAB_TAB_KEY,
+  VOCAB_TABS,
+  type VocabTab,
+} from '../vocabulary/VocabSubTabBar';
 
 const VocabularyLearning: React.FC = () => {
   const { lang } = useAppState();
@@ -85,7 +59,6 @@ const VocabularyLearning: React.FC = () => {
 
   // Collapsible secondary-settings disclosures (per tab).
   const [translateSettingsOpen, setTranslateSettingsOpen] = useState(true);
-  const [wordsSearchOpen, setWordsSearchOpen] = useState(true);
   const [statsFilterOpen, setStatsFilterOpen] = useState(false);
   const [librariesFilterOpen, setLibrariesFilterOpen] = useState(false);
 
@@ -170,18 +143,6 @@ const VocabularyLearning: React.FC = () => {
     wide?: boolean;
     reloadKey: string;
   } | null>(null);
-
-  // ----- "Words" tab: inline dictionary search + filter + lazy detail -----
-  const [wordsLanguage, setWordsLanguage] = useState<string>('english');
-  const [wordsFilter, setWordsFilter] = useState<
-    'all' | 'with_translation' | 'without_translation' | 'invalid' | 'with_audio' | 'without_audio'
-  >('all');
-  // When filter=invalid, optionally narrow to one cause (validity_source):
-  // 'region-redirect' (Bing region/redirect) or 'bing-assist' (confirmed no entry).
-  const [wordsValiditySource, setWordsValiditySource] = useState<string>('');
-  const [wordsQuery, setWordsQuery] = useState<string>('');
-  // Applied search term (committed on submit) — drives the drill-down reloadKey.
-  const [wordsQueryApplied, setWordsQueryApplied] = useState<string>('');
 
   // Per-row lazy example-sentence cache: word-content → load state + rows.
   const [sentenceCache, setSentenceCache] = useState<
@@ -1018,31 +979,6 @@ const VocabularyLearning: React.FC = () => {
   /** Shared column set for dictionary-word lists (drill modal + Words tab). */
   const dictionaryColumns = (): PaginatedListColumn[] => buildDictionaryColumns({ playWordAudio, nf });
 
-  /**
-   * Back-compat helper: render the extracted InlineWordsList leaf list, wiring
-   * the container-owned props (shared columns + renderWordDetail factory +
-   * validity-source setter) through. The "Words" tab currently mounts
-   * <WordsManagerPanel> instead, so this is preserved for the legacy path.
-   */
-  const renderInlineWordsList = (props: {
-    language: string;
-    filter: string;
-    validitySource?: string;
-    q: string;
-    reloadKey: string | number;
-  }): React.ReactNode => (
-    <InlineWordsList
-      language={props.language}
-      filter={props.filter}
-      validitySource={props.validitySource}
-      q={props.q}
-      reloadKey={props.reloadKey}
-      columns={dictionaryColumns()}
-      renderWordDetail={renderWordDetail}
-      setWordsValiditySource={setWordsValiditySource}
-    />
-  );
-
   return (
     <div className="h-full flex flex-col p-6 overflow-hidden">
       {/* Header */}
@@ -1052,29 +988,7 @@ const VocabularyLearning: React.FC = () => {
       </div>
 
       {/* Sub-tab bar — only the active tab's content mounts. Persisted in localStorage. */}
-      <div className="flex flex-wrap gap-1 mb-4 border-b border-slate-200 dark:border-slate-700">
-        {VOCAB_TABS.map(({ key, label, Icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => switchTab(key)}
-            className={`relative px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors ${
-              activeTab === key
-                ? 'text-indigo-600 dark:text-indigo-400'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}
-          >
-            <Icon className="w-4 h-4" /> {label}
-            {activeTab === key && (
-              <motion.span
-                layoutId="vocab-subtab"
-                className="absolute left-0 right-0 -bottom-px h-0.5 bg-indigo-500"
-                transition={{ type: 'spring', stiffness: 500, damping: 38 }}
-              />
-            )}
-          </button>
-        ))}
-      </div>
+      <VocabSubTabBar activeTab={activeTab} switchTab={switchTab} />
 
       {/* Animated active-tab content (scrollable region). */}
       <div className="flex-1 overflow-auto">
@@ -1195,45 +1109,14 @@ const VocabularyLearning: React.FC = () => {
       </div>
 
       {/* History Bar (translate tab) */}
-      {history.length > 0 && (
-        <div className={`mt-4 ${commonClasses.card} overflow-hidden`}>
-          <div
-            className="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
-            onClick={() => setHistoryCollapsed(!historyCollapsed)}
-          >
-            <h4 className="font-semibold text-sm">{t.history} ({history.length})</h4>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setHistory([]);
-              }}
-              className="text-xs text-slate-500 hover:text-red-500"
-            >
-              Clear
-            </button>
-          </div>
-          {!historyCollapsed && (
-            <div className="max-h-32 overflow-y-auto p-3 space-y-2">
-              {history.map((item, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => loadHistoryItem(item)}
-                  className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer text-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-600 dark:text-slate-400">{item.original_text}</span>
-                    <span className="text-slate-400">→</span>
-                    <span className="text-slate-800 dark:text-slate-200">{item.translated_text}</span>
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    {item.source_language} → {item.target_language}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <TranslationHistoryBar
+        history={history}
+        historyCollapsed={historyCollapsed}
+        setHistoryCollapsed={setHistoryCollapsed}
+        setHistory={setHistory}
+        loadHistoryItem={loadHistoryItem}
+        t={t}
+      />
       </>
       )}
 
@@ -1242,78 +1125,34 @@ const VocabularyLearning: React.FC = () => {
       </div>
 
       {/* ===================== GLOBAL MODALS / DOCKS (outside tabs) ===================== */}
-
-      {/* Word List Modal – requests paginated words by language when opened */}
-      <VocabularyWordListModal
-        open={wordModalOpen}
-        onClose={() => setWordModalOpen(false)}
-        language={wordModalLanguage}
-        fetchWords={loadWordModal}
-        initialPage={wordModalCache[wordModalLanguage]?.page ?? 1}
-        initialPerPage={wordModalCache[wordModalLanguage]?.perPage ?? 100}
-        onPageChange={(lang, page, perPage) => {
-          setWordModalCache((prev) => ({ ...prev, [lang]: { page, perPage } }));
-        }}
-      />
-
-      {/* Library Words Modal — upgraded detail view (dashboard + virtualized
-          list + per-row expand + fullscreen). The detail component owns its own
-          fetching/paging/stats; it can go full-viewport (Esc restores/closes). */}
-      {libraryWordsModalOpen && activeLibrary && (
-        <Portal>
-          <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}>
-            <VocabularyLibraryDetail
-              library={activeLibrary}
-              onClose={() => setLibraryWordsModalOpen(false)}
-              playWordAudio={playWordAudio}
-              renderWordDetail={renderWordDetail}
-              pageCacheKey={getLibraryPageCacheKey(selectedLanguage || 'default', activeLibrary.id)}
-            />
-          </div>
-        </Portal>
-      )}
-
-      {/* Floating Recent-Logs dock (bottom-left; the global log dock owns bottom-right).
-          Rendered unconditionally so the pill badges stay live while collapsed. */}
-      <TtsLogsDock
-        open={logsDockOpen}
-        onToggle={() => setLogsDockOpen((v) => !v)}
+      <VocabGlobalOverlays
+        wordModalOpen={wordModalOpen}
+        setWordModalOpen={setWordModalOpen}
+        wordModalLanguage={wordModalLanguage}
+        wordModalCache={wordModalCache}
+        setWordModalCache={setWordModalCache}
+        loadWordModal={loadWordModal}
+        libraryWordsModalOpen={libraryWordsModalOpen}
+        activeLibrary={activeLibrary}
+        setLibraryWordsModalOpen={setLibraryWordsModalOpen}
+        selectedLanguage={selectedLanguage}
+        getLibraryPageCacheKey={getLibraryPageCacheKey}
+        playWordAudio={playWordAudio}
+        renderWordDetail={renderWordDetail}
+        logsDockOpen={logsDockOpen}
+        setLogsDockOpen={setLogsDockOpen}
         queueStats={queueStats}
-        loading={loadingQueueStats}
-        autoRefresh={autoRefreshQueue}
-        onAutoRefreshChange={setAutoRefreshQueue}
-        onRefresh={loadQueueStats}
+        loadingQueueStats={loadingQueueStats}
+        autoRefreshQueue={autoRefreshQueue}
+        setAutoRefreshQueue={setAutoRefreshQueue}
+        loadQueueStats={loadQueueStats}
+        statDrill={statDrill}
+        setStatDrill={setStatDrill}
+        libraryToDelete={libraryToDelete}
+        setLibraryToDelete={setLibraryToDelete}
+        deletingLibrary={deletingLibrary}
+        handleDeleteLibrary={handleDeleteLibrary}
         t={t}
-      />
-
-      {/* Clickable-stat drill-down (TTS queue / dictionary words / libraries / language) */}
-      {statDrill && (
-        <PaginatedListModal
-          open={!!statDrill}
-          onClose={() => setStatDrill(null)}
-          title={statDrill.title}
-          subtitle={statDrill.subtitle}
-          fetchPage={statDrill.fetchPage}
-          columns={statDrill.columns}
-          renderDetail={statDrill.renderDetail}
-          wide={statDrill.wide}
-          reloadKey={statDrill.reloadKey}
-        />
-      )}
-
-      {/* Library deletion confirm */}
-      <ConfirmModal
-        isOpen={!!libraryToDelete}
-        onClose={() => {
-          if (!deletingLibrary) setLibraryToDelete(null);
-        }}
-        onConfirm={handleDeleteLibrary}
-        title={t.delete_library}
-        message={t.delete_library_confirm.replace('{name}', libraryToDelete?.name || `#${libraryToDelete?.id ?? ''}`)}
-        confirmText={t.delete_library}
-        cancelText={t.cancel}
-        variant="danger"
-        loading={deletingLibrary}
       />
     </div>
   );

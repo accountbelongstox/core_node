@@ -24,7 +24,11 @@ export type ProcessorType =
   // GlobalTask::EXECUTION_TYPES vocabulary exactly.
   | 'remote_subtitle'
   | 'remote_poster'
-  | 'remote_sentence_audio';
+  | 'remote_sentence_audio'
+  // Dedicated chrome web-LLM invalid-word detection lane (word_validity tasks).
+  // Own lane so it never co-mingles with word_translation/prompt_translation on
+  // remote_translation (pull assigns by execution_type with no task_type filter).
+  | 'remote_validity';
 
 /**
  * Capability vocabulary — mirrors Laravel GlobalTask::CAPABILITIES. A worker

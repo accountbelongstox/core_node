@@ -20,6 +20,7 @@ import { tabController } from './tab-controller';
 import {
   classify,
   buildEntry,
+  buildRefetchEntry,
   normalizeWords,
   type NormalizedWord,
   type ResultEntry,
@@ -333,6 +334,80 @@ class BingDictionaryWorkerService {
   /** The unified pause gate: anti-scrape cooldown OR shared human-interference. */
   private isWorkerPaused(): boolean {
     return Date.now() < this.cooldownUntil || tabController.isPaused();
+  }
+
+  /**
+   * Bulk media RE-FETCH (mode='refetch'): for words whose static media files went
+   * missing but whose full Bing URLs were persisted, re-download the bytes IN-PAGE
+   * from those stored URLs — NO Bing search / NO re-translate. One background
+   * bing.com/dict tab supplies the referrer/cookies the in-page fetch needs. The
+   * result carries ONLY image_base64/audio_base64 (translation empty), so the
+   * writeback fills media without touching translations.
+   */
+  private async handleRefetch(task: Task, workerId: string): Promise<void> {
+    if (!this.workerClient || !this.config) return;
+    const raw = Array.isArray(task.payload.words) ? (task.payload.words as any[]) : [];
+    const targetLanguage = task.payload.target_language || this.config.targetLanguage;
+
+    const tabIds = await this.pool.ensure(1, false);
+    this.stats.activeTabs = this.pool.size;
+    this.syncManagedTabs();
+    const tabId = tabIds[0];
+    if (tabId === undefined) {
+      await this.workerClient.submitResult({
+        task_id: task.task_id,
+        worker_id: workerId,
+        status: 'failed',
+        error: 'refetch: no tab available',
+      });
+      this.taskCache.delete(task.task_id);
+      return;
+    }
+    // The in-page fetch needs the bing.com origin — wait for the tab to settle.
+    await bingDictionaryTool.waitForTabIdle(tabId);
+
+    const translations: ResultEntry[] = [];
+    for (const item of raw) {
+      if (!this.isRunning) break;
+      const word = item && typeof item.word === 'string' ? item.word : null;
+      if (!word) continue;
+      const imageUrls = Array.isArray(item.image_urls)
+        ? item.image_urls.filter((u: unknown): u is string => typeof u === 'string' && u !== '')
+        : [];
+      const audioUrl = typeof item.audio_url === 'string' && item.audio_url !== '' ? item.audio_url : null;
+      if (imageUrls.length === 0 && !audioUrl) continue;
+      this.stats.currentWord = word;
+      const entry = await buildRefetchEntry(word, item.md5, imageUrls, audioUrl, tabId);
+      if (entry.image_base64 || entry.audio_base64) translations.push(entry);
+      // Human-paced gap so the re-fetch isn't a tight fixed-cadence burst.
+      await new Promise((resolve) =>
+        setTimeout(resolve, LOOKUP_DELAY_BASE_MS + Math.floor(Math.random() * LOOKUP_DELAY_JITTER_MS)),
+      );
+    }
+    this.stats.currentWord = null;
+
+    if (translations.length > 0) {
+      const resp = await this.workerClient.submitResult({
+        task_id: task.task_id,
+        worker_id: workerId,
+        status: 'completed',
+        progress: 100,
+        result: { target_language: targetLanguage, provider: 'bing', translations },
+      });
+      logger.info(
+        LOG,
+        `Refetch ${task.task_id}: re-fetched media for ${translations.length} word(s) (no re-translate); ` +
+          `backend ok=${resp?.success}`,
+      );
+    } else {
+      await this.workerClient.submitResult({
+        task_id: task.task_id,
+        worker_id: workerId,
+        status: 'failed',
+        error: 'refetch produced no media bytes',
+      });
+    }
+    this.taskCache.delete(task.task_id);
   }
 
   /**
@@ -889,6 +964,14 @@ class BingDictionaryWorkerService {
       const words = normalizeWords(rawWords);
       if (words.length === 0) {
         throw new Error('No words in task payload');
+      }
+
+      // Bulk RE-FETCH fast path: re-download missing media from the STORED full
+      // Bing URLs in-page — NO Bing search, NO re-translate. Each raw payload word
+      // carries its own image_urls/audio_url.
+      if ((task.payload as any).mode === 'refetch') {
+        await this.handleRefetch(task, workerId);
+        return;
       }
 
       // Per-word tab activation is opt-in (default OFF) — see readActivateFlag.

@@ -85,19 +85,24 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
             }
 
             $limit = self::WORDS_PER_TASK * (self::MAX_TASKS_PER_LANGUAGE - $pendingCount);
-            $words = $this->translatedWordsMissingImages($langCode, $limit);
-            if (empty($words)) {
-                continue;
-            }
+            // $refetch collects file-gone words that HAVE stored full URLs — those
+            // are re-fetched from the URL (fast, no re-translate); $words is the
+            // re-scrape list (never-fetched + file-gone WITHOUT stored URLs).
+            $refetch = [];
+            $words = $this->translatedWordsMissingImages($langCode, $limit, $refetch);
 
             foreach (array_chunk($words, self::WORDS_PER_TASK) as $chunk) {
-                $this->createTask($langCode, $chunk);
+                $this->createTask($langCode, $chunk, false);
+                $totalCreated++;
+            }
+            foreach (array_chunk($refetch, self::WORDS_PER_TASK) as $chunk) {
+                $this->createTask($langCode, $chunk, true);
                 $totalCreated++;
             }
         }
 
         if ($totalCreated > 0) {
-            $this->logInfo('Background word_media (missing-image) tasks enqueued', [
+            $this->logInfo('Background word_media tasks enqueued (scrape + url-refetch)', [
                 'total_tasks' => $totalCreated,
             ]);
         }
@@ -107,7 +112,7 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
      * Translated, valid words that still lack an image and are NOT terminal
      * (image_status NULL or not in ['completed','none']). Returns [{word,md5}].
      */
-    private function translatedWordsMissingImages(string $langCode, int $limit): array
+    private function translatedWordsMissingImages(string $langCode, int $limit, array &$refetch): array
     {
         $hasStatus = $this->hasImageStatusColumn($langCode);
         $out = [];
@@ -155,7 +160,7 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
                 ->limit($limit)
                 ->get();
             foreach ($candidates as $row) {
-                if (count($out) >= $limit) {
+                if (count($out) + count($refetch) >= $limit) {
                     break;
                 }
                 // Intact file on disk -> not missing, leave it.
@@ -166,6 +171,9 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
                 if (!is_string($word) || $word === '') {
                     continue;
                 }
+                // Revert to never-checked so the writeback's fill-missing re-stores
+                // (both the re-fetch and the re-scrape paths need a clean slate).
+                $stored = is_array($row->bing_resource_urls) ? $row->bing_resource_urls : null;
                 $row->image_files = null;
                 $row->image_status = null;
                 $row->image_completed_at = null;
@@ -174,7 +182,22 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
                 } catch (\Throwable $e) {
                     continue;
                 }
-                $out[] = ['word' => $word, 'md5' => $row->md5 ?? md5($word)];
+                $md5 = $row->md5 ?? md5($word);
+                $imageUrls = ($stored && is_array($stored['images'] ?? null)) ? array_values($stored['images']) : [];
+                $audioUrl = ($stored && is_string($stored['audio'] ?? null)) ? $stored['audio'] : null;
+                if (!empty($imageUrls) || $audioUrl !== null) {
+                    // FAST PATH: stored full URLs exist -> re-fetch the bytes in-page,
+                    // no Bing search / no re-translate.
+                    $refetch[] = [
+                        'word' => $word,
+                        'md5' => $md5,
+                        'image_urls' => $imageUrls,
+                        'audio_url' => $audioUrl,
+                    ];
+                } else {
+                    // No stored URLs -> fall back to a fresh re-scrape.
+                    $out[] = ['word' => $word, 'md5' => $md5];
+                }
             }
         }
 
@@ -206,7 +229,7 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
             ->count();
     }
 
-    private function createTask(string $langCode, array $words): void
+    private function createTask(string $langCode, array $words, bool $refetch): void
     {
         $timeoutSeconds = 60 + (count($words) * 3);
         if ($timeoutSeconds > 600) {
@@ -219,11 +242,21 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
             'target_language' => self::TARGET_LANGUAGE,
             'word_count' => count($words),
         ];
+        // mode='refetch' makes the chrome worker re-download media from the
+        // per-word image_urls/audio_url already in $words — no Bing search.
+        if ($refetch) {
+            $payload['mode'] = 'refetch';
+        }
 
+        // EXECUTION_REMOTE_TRANSLATION, NOT remote_client: the chrome Bing worker
+        // registers processor_types ['remote_translation','remote_fast'] only, so a
+        // remote_client task would strand unclaimed. capability defaults to null
+        // (the worker's caps are ['translate'] — an 'image' capability would also
+        // strand). task_type stays 'word_media' (handled + routed by task_type).
         $this->taskManager->createTask(
             'AppQyV1',
             'word_media',
-            GlobalTask::EXECUTION_REMOTE_CLIENT,
+            GlobalTask::EXECUTION_REMOTE_TRANSLATION,
             $payload,
             $timeoutSeconds,
             self::PRIORITY_LOW,

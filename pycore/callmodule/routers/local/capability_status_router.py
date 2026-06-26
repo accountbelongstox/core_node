@@ -43,6 +43,7 @@ from pycore.pyutils.tts.tts_orchestrator import (
     set_edge_cooldown_seconds,
 )
 from pycore.pyctl.ai.ai_keys import PROVIDERS, is_configured
+from pycore.pyutils.translator.dictionary import get_dictionary_service
 
 router = fastapi.APIRouter(prefix="/api/local/capabilities", tags=["Local Processing - Capabilities"])
 
@@ -130,13 +131,21 @@ def _image_available() -> Dict[str, bool]:
 
 
 def _translation_available() -> Dict[str, bool]:
-    """Translation engines: google is always local; 'ai' rides any configured
-    provider (cheap key check, no network probe)."""
+    """Translation engines in default order (offline/free first): ecdict + wordnet
+    (offline dictionary, available once the data is installed), google (always
+    local), ai (any configured provider). Cheap checks only — no network probe."""
     try:
         ai_ready = any(is_configured(name) for name in PROVIDERS)
     except Exception:  # noqa: BLE001
         ai_ready = False
-    return {"google": True, "ai": ai_ready}
+    out = {"ecdict": False, "wordnet": False, "google": True, "ai": ai_ready}
+    try:
+        st = get_dictionary_service().status()
+        out["ecdict"] = bool((st.get("ecdict") or {}).get("available"))
+        out["wordnet"] = bool((st.get("wordnet") or {}).get("available"))
+    except Exception:  # noqa: BLE001
+        pass
+    return out
 
 
 def _capability_blocks() -> Dict[str, Dict[str, Any]]:

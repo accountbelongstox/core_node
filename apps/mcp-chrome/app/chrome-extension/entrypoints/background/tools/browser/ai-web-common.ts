@@ -17,12 +17,29 @@ import { tabController } from '../../services/tab-controller';
 
 const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:9000';
 
-/** Which web AI the translate worker drives. User-configurable via settings. */
-export type AiWebProvider = 'chatgpt' | 'gemini';
+/**
+ * Which web AI a worker drives. User-configurable via settings.
+ *
+ * chatgpt/gemini have full page-driver tools today; deepseek is driven by the
+ * web-AI translate path (deepseekSendPromptTool). zai is a recognized option
+ * (validity lane) but has NO page-driver tool yet — callers must guard it and
+ * fall back (see the validity worker), so a stored 'zai' never throws.
+ */
+export type AiWebProvider = 'chatgpt' | 'gemini' | 'deepseek' | 'zai';
 const PROVIDER_STORAGE_KEY = 'aiWebProvider';
 const DEFAULT_PROVIDER: AiWebProvider = 'chatgpt';
 
-/** Read the preferred web-driving provider from settings (default: chatgpt). */
+// Separate per-lane key for the invalid-word detection worker: it defaults to
+// Gemini (per the feature spec) and accepts the full provider vocabulary,
+// without disturbing the prompt-translate / web-AI lanes that read the key above.
+const VALIDITY_PROVIDER_STORAGE_KEY = 'aiValidityProvider';
+const DEFAULT_VALIDITY_PROVIDER: AiWebProvider = 'gemini';
+
+/**
+ * Read the preferred web-driving provider for the translate/prompt lanes
+ * (default: chatgpt). Intentionally only honors chatgpt/gemini — those lanes
+ * have no deepseek/zai page-driver, so an out-of-range value falls back.
+ */
 export async function getPreferredProvider(): Promise<AiWebProvider> {
   try {
     const stored = await chrome.storage.local.get([PROVIDER_STORAGE_KEY]);
@@ -39,6 +56,23 @@ export async function getPreferredProvider(): Promise<AiWebProvider> {
 /** Persist the preferred web-driving provider (used by the settings UI). */
 export async function setPreferredProvider(provider: AiWebProvider): Promise<void> {
   await chrome.storage.local.set({ [PROVIDER_STORAGE_KEY]: provider });
+}
+
+/**
+ * Read the provider for the invalid-word detection (word_validity) lane.
+ * Default Gemini; accepts the full vocabulary (chatgpt/gemini/deepseek/zai).
+ */
+export async function getValidityProvider(): Promise<AiWebProvider> {
+  try {
+    const stored = await chrome.storage.local.get([VALIDITY_PROVIDER_STORAGE_KEY]);
+    const v = stored[VALIDITY_PROVIDER_STORAGE_KEY];
+    if (v === 'chatgpt' || v === 'gemini' || v === 'deepseek' || v === 'zai') {
+      return v;
+    }
+  } catch {
+    // storage unavailable; use default.
+  }
+  return DEFAULT_VALIDITY_PROVIDER;
 }
 
 /** Resolve the Laravel backend base URL: explicit override -> stored value -> localhost. */

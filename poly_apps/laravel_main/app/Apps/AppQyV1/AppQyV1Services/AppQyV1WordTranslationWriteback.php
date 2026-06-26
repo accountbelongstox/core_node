@@ -140,6 +140,10 @@ class AppQyV1WordTranslationWriteback
         $dictTable = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel()->getTable();
         $hasImageStatusColumn = \Illuminate\Support\Facades\Schema::connection($connName)
             ->hasColumn($dictTable, 'image_status');
+        // Probe the optional bing_resource_urls column ONCE so persisting the full
+        // Bing URLs degrades to a no-op on hosts whose migration has not run yet.
+        $hasBingUrlsColumn = \Illuminate\Support\Facades\Schema::connection($connName)
+            ->hasColumn($dictTable, 'bing_resource_urls');
 
         DB::connection($connName)->transaction(function () use (
             $translations,
@@ -149,6 +153,7 @@ class AppQyV1WordTranslationWriteback
             $provider,
             $taskId,
             $hasImageStatusColumn,
+            $hasBingUrlsColumn,
             &$processed,
             &$failed,
             &$broadcastQueue,
@@ -197,6 +202,25 @@ class AppQyV1WordTranslationWriteback
                 // nothing attached is a no-op, not a translation.
                 if ($word === null || $word === '' ||
                     (!$hasTranslation && !$hasPhonetic && !$hasImages && !$hasAudio)) {
+                    $failed++;
+                    continue;
+                }
+
+                // Word-correctness guard: if the worker reported the Bing PAGE
+                // headword and it does NOT match the requested word (normalized for
+                // case/whitespace/URL-escapes/NBSP), the plugin input got confused
+                // (typed into the wrong tab / a redirect rendered a different entry).
+                // SKIP it as $failed — NEVER save under this word's md5 and NEVER
+                // invalidate — so the empty-store gate re-pends the task for a clean
+                // retry instead of contaminating the row with another word's data.
+                $pageWord = $item['page_word'] ?? null;
+                if (is_string($pageWord) && $pageWord !== ''
+                    && self::normalizeForCompare($pageWord) !== self::normalizeForCompare((string) $word)) {
+                    Log::warning('[AppQyV1WordTranslationWriteback] page-word mismatch — skipping (input confusion)', [
+                        'task_id' => $taskId,
+                        'requested' => $word,
+                        'page_word' => $pageWord,
+                    ]);
                     $failed++;
                     continue;
                 }
@@ -309,6 +333,16 @@ class AppQyV1WordTranslationWriteback
                         $entry->image_locked_at = null;
                         $entry->image_locked_by = null;
                         $dirty = true;
+                    }
+
+                    // Persist the full remote Bing URLs (fill-missing) so missing
+                    // media can be re-fetched in-page later WITHOUT a re-translate.
+                    if ($hasBingUrlsColumn && empty($entry->bing_resource_urls)) {
+                        $bingUrls = self::extractBingResourceUrls($item);
+                        if ($bingUrls !== null) {
+                            $entry->bing_resource_urls = $bingUrls;
+                            $dirty = true;
+                        }
                     }
 
                     if ($dirty) {
@@ -484,6 +518,57 @@ class AppQyV1WordTranslationWriteback
             'audio_saved' => $audioSaved,
             'images_saved' => $imagesSaved,
         ];
+    }
+
+    /**
+     * Normalize a word for the page-headword EQUALITY compare (NOT for the md5
+     * key — the row is still keyed by the raw requested word). Handles the
+     * transcoding differences between what was typed and what Bing renders:
+     * percent-decoding, NBSP, collapsed/trimmed whitespace, surrounding
+     * quotes/periods, and case. Internal apostrophes (don't) are preserved.
+     */
+    private static function normalizeForCompare(string $s): string
+    {
+        $v = $s;
+        if (strpos($v, '%') !== false) {
+            $decoded = rawurldecode($v);
+            if (is_string($decoded) && $decoded !== '') {
+                $v = $decoded;
+            }
+        }
+        $v = str_replace("\xC2\xA0", ' ', $v); // NBSP -> space
+        $collapsed = preg_replace('/\s+/u', ' ', $v);
+        $v = is_string($collapsed) ? $collapsed : $v;
+        // Strip surrounding whitespace + straight/curly double-quotes + periods.
+        $stripped = preg_replace('/^[\s".\x{2018}\x{2019}\x{201C}\x{201D}]+|[\s".\x{2018}\x{2019}\x{201C}\x{201D}]+$/u', '', $v);
+        $v = is_string($stripped) ? $stripped : trim($v);
+        return mb_strtolower($v, 'UTF-8');
+    }
+
+    /**
+     * Build the bing_resource_urls JSON from a worker entry's image_urls/audio_url
+     * (the full remote *.bing.net / dict/mediamp3 URLs). Returns null when neither
+     * is present (so the fill-missing write is skipped).
+     *
+     * @return array{images: array<int,string>, audio: ?string}|null
+     */
+    private static function extractBingResourceUrls(array $item): ?array
+    {
+        $images = [];
+        if (isset($item['image_urls']) && is_array($item['image_urls'])) {
+            foreach ($item['image_urls'] as $u) {
+                if (is_string($u) && $u !== '') {
+                    $images[] = $u;
+                }
+            }
+        }
+        $audio = (isset($item['audio_url']) && is_string($item['audio_url']) && $item['audio_url'] !== '')
+            ? $item['audio_url']
+            : null;
+        if (empty($images) && $audio === null) {
+            return null;
+        }
+        return ['images' => $images, 'audio' => $audio];
     }
 
     /**

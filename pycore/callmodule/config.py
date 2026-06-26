@@ -83,6 +83,7 @@ from pycore.callmodule.routers.local import (
     task_history_router,
     assist_router,
     poster_router,
+    dictionary_router,
 )
 
 # Import upload layer routers (NEW)
@@ -704,6 +705,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 task_history_router,     # Recent-task cross-end log + clear (/api/local/tasks/recent, /clear)
                 assist_router,           # Assist-Laravel worker control (/api/local/assist): status/config/cycle for cover+tts generation
                 poster_router,           # Movie/TV poster status+config+test (/api/local/poster): TMDB/OMDB key status + fetch toggle + lookup preview
+                dictionary_router,       # Offline ECDICT+WordNet word dictionary (/api/local/dictionary): lookup + status
 
                 # === Upload Layer Routers ===
                 upload_router,           # Upload task management and server config

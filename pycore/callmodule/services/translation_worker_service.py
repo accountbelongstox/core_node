@@ -95,6 +95,7 @@ from pycore.pyfoundations.third_party import get_third_package_requests
 # gracefully themselves: google_translator guards googletrans with its own
 # top-level try (GOOGLETRANS_AVAILABLE), task_manager is stdlib-only.
 from pycore.pyutils.translator.google_translator import GoogleTranslator
+from pycore.pyutils.translator.dictionary import get_dictionary_service
 from pycore.pyctl.desktop.task_manager import get_task_manager
 
 
@@ -1057,29 +1058,51 @@ class TranslationWorkerService:
         Translate ``words`` -> ``target_language`` (source auto-detected) and return
         the contract's translations list: [ {word, translation}, ... ].
 
-        Uses pycore's existing async GoogleTranslator (translate_batch, with the
-        translator's own on-disk caching). Runs the async work inside a fresh event
-        loop because this executes on a TaskManager background thread (no running
-        loop there). Provider selection happens here — Google is the default; the
-        BingSeleniumTranslator scaffold above is where Bing would be slotted in.
+        Engine chain (free/offline first, network last):
+          1. ECDICT offline dictionary — instant, free, authoritative for known
+             English words to Chinese/English (get_dictionary_service().translate).
+          2. GoogleTranslator (async, on-disk cached) for the misses + every
+             non-zh/en target. Runs in a private event loop (this executes on a
+             TaskManager background thread with no running loop).
         """
         if not words:
             return []
 
-        async def _run() -> List[Dict[str, str]]:
-            async with GoogleTranslator() as translator:
-                results = await translator.translate_batch(
-                    words, src="auto", dest=target_language, use_cache=True
-                )
-            pairs: List[Dict[str, str]] = []
-            for original, res in zip(words, results):
-                # translate_batch returns TranslationResult objects (with .error on failure).
-                translated = getattr(res, "translated_text", "") or ""
-                pairs.append({"word": original, "translation": translated})
+        # 1) Offline dictionary pass — fill what ECDICT knows, queue the rest.
+        dict_svc = get_dictionary_service()
+        use_dict = dict_svc.available()
+        pairs: List[Dict[str, str]] = [{"word": w, "translation": ""} for w in words]
+        miss_idx: List[int] = []
+        for i, word in enumerate(words):
+            hit = dict_svc.translate(word, target_language) if use_dict else None
+            if hit:
+                pairs[i]["translation"] = hit
+            else:
+                miss_idx.append(i)
+
+        if not miss_idx:
+            ColorPrint.blue(f"[TranslationWorker] {len(words)} word(s) -> {target_language} "
+                            f"via ECDICT (offline, 0 google calls)")
             return pairs
 
+        # 2) Google for the dictionary misses only.
+        misses = [words[i] for i in miss_idx]
+
+        async def _run() -> List[str]:
+            async with GoogleTranslator() as translator:
+                results = await translator.translate_batch(
+                    misses, src="auto", dest=target_language, use_cache=True
+                )
+            return [getattr(res, "translated_text", "") or "" for res in results]
+
         # We're on a background worker thread -> safe to spin a private event loop.
-        return asyncio.run(_run())
+        google_out = asyncio.run(_run())
+        for idx, translated in zip(miss_idx, google_out):
+            pairs[idx]["translation"] = translated
+        if use_dict:
+            ColorPrint.blue(f"[TranslationWorker] {len(words)} word(s) -> {target_language} "
+                            f"({len(words) - len(misses)} ECDICT / {len(misses)} google)")
+        return pairs
 
     # -------------------- task processing --------------------
 

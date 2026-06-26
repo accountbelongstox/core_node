@@ -1585,6 +1585,42 @@ export interface PcCapabilitySaveResponse extends Partial<PcCapabilityBlock> {
   error?: string;
 }
 
+// --- Offline dictionary (ECDICT + WordNet) --------------------------------- #
+/** GET /api/local/dictionary/status — which offline dicts are installed. */
+export interface DictionaryStatus {
+  success: boolean;
+  ecdict: { available: boolean; db_path: string; entries: number };
+  wordnet: { available: boolean };
+  error?: string;
+}
+
+/** GET /api/local/dictionary/lookup?word=&target= — a rich offline word entry. */
+export interface DictionaryEntry {
+  success: boolean;
+  found: boolean;
+  word: string;
+  /** Full ECDICT Chinese translation (newline senses collapsed to '; '). */
+  translation: string;
+  /** English definition (ECDICT, else WordNet gloss). */
+  definition: string;
+  phonetic: string;
+  pos: string;
+  /** Exam tags: zk gk cet4 cet6 ky toefl ielts gre. */
+  tags: string[];
+  collins: number;
+  oxford: boolean;
+  bnc: number;
+  frq: number;
+  exchange: string;
+  wordnet_definition: string;
+  synonyms: string[];
+  source: string;
+  target: string;
+  /** Single-language answer for the requested target ('zh'|'en'); null on miss. */
+  target_translation: string | null;
+  error?: string;
+}
+
 // --- Recent tasks (cross-end task history: pycore + chrome) ---------------- #
 // GET /api/local/tasks/recent — a unified, newest-first log of finished task
 // units across both ends (pycore workers + the chrome MCP host). Each record is

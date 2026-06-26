@@ -18,6 +18,7 @@ use App\Services\TaskProcessors\SubtitleSearchTaskProcessor;
 use App\Services\TaskProcessors\PosterTaskProcessor;
 use App\Services\TaskProcessors\SentenceAudioTaskProcessor;
 use App\Services\TaskProcessors\PromptTranslationTaskProcessor;
+use App\Services\TaskProcessors\WordValidityTaskProcessor;
 
 class TaskManagerService
 {
@@ -118,6 +119,11 @@ class TaskManagerService
 
             // Dev-history assist: non-English prompt -> English (3 variants + audio).
             $this->processorRegistry->register(new PromptTranslationTaskProcessor($this));
+
+            // Batch invalid-word detection: a web LLM classifies untranslated +
+            // unchecked words valid/invalid; this marks is_valid in bulk so the
+            // translation enqueue skips the junk (remote_validity lane).
+            $this->processorRegistry->register(new WordValidityTaskProcessor($this));
 
             // Future processors can be registered here:
             // $this->processorRegistry->register(new ImageTaskProcessor($this));
@@ -1326,6 +1332,20 @@ class TaskManagerService
                 $hasEnglish = trim((string) ($inner['english'] ?? ($result['english'] ?? ''))) !== '';
                 if (!$hasEnglish) {
                     return 'Prompt translation result carried no english text';
+                }
+                return null;
+
+            case 'word_validity':
+                // A validity-detection completion must carry at least one verdict
+                // (an all-invalid or all-valid batch is still a real result). The
+                // empty_store gate downgrades to failed if nothing actually stored.
+                $hasAny = !empty($inner['valid_words'])
+                    || !empty($result['valid_words'])
+                    || !empty($inner['invalid_words'])
+                    || !empty($result['invalid_words']);
+
+                if (!$hasAny) {
+                    return 'Word-validity result carried no valid_words or invalid_words';
                 }
                 return null;
 

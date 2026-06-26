@@ -40,38 +40,27 @@ import {
   Server,
   RefreshCw,
   Plus,
-  Power,
-  PowerOff,
-  Trash2,
-  Eye,
   CheckCircle,
   AlertTriangle,
   XCircle,
   FileText,
-  Play,
   Settings,
   Folder,
   File,
   Download,
   Terminal,
   Rocket,
-  Clock,
-  Square,
-  RotateCw,
-  ScrollText,
-  ChevronDown,
-  ChevronUp,
   Copy,
-  Activity,
-  Archive,
-  FileCode,
-  Save,
-  ListChecks
+  Save
 } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
-import { LoadingBlock, AlertBox, StatusBadge, Field } from '../common';
+import { LoadingBlock, AlertBox, StatusBadge } from '../common';
 import { useClipboard } from '../../hooks';
 import NginxSiteModal from '../server-manager/NginxSiteModal';
+import GenerateCertModal from '../server-manager/modals/GenerateCertModal';
+import NginxPanel from '../server-manager/panels/NginxPanel';
+import SslPanel from '../server-manager/panels/SslPanel';
+import SystemPanel from '../server-manager/panels/SystemPanel';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 
@@ -1245,971 +1234,78 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'nginx' && (
-          <div className="space-y-4">
-            {/* Nginx Status Card */}
-            <div className={`${commonClasses.card} p-4`}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Server className="w-4 h-4 text-indigo-500" />
-                  {t.nginx.status}
-                </h3>
-                <div className="flex items-center gap-2">
-                  {nginxStatus.data?.installed && (
-                    <button
-                      onClick={openMainConfig}
-                      className="px-2 py-1.5 text-xs font-mono flex items-center gap-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400"
-                      title={t.nginx.main_config}
-                    >
-                      <FileCode className="w-4 h-4" />
-                      {t.nginx.main_config}
-                    </button>
-                  )}
-                  <button
-                    onClick={loadNginxStatus}
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                    title={t.nginx.refresh_status}
-                  >
-                    <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${nginxStatus.loading ? 'animate-spin' : ''}`} />
-                  </button>
-                </div>
-              </div>
-
-              {nginxStatus.loading && !nginxStatus.data && (
-                <LoadingBlock size="sm" />
-              )}
-
-              {nginxStatus.error && (
-                <AlertBox variant="error">{nginxStatus.error}</AlertBox>
-              )}
-
-              {nginxStatus.data && (
-                <div className="space-y-3">
-                  {/* Badges Row */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`px-2 py-1 text-xs rounded font-medium flex items-center gap-1 ${
-                      nginxStatus.data.installed
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                    }`}>
-                      {nginxStatus.data.installed ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                      {nginxStatus.data.installed ? t.nginx.installed : t.nginx.not_installed}
-                    </span>
-                    {nginxStatus.data.version && (
-                      <span className="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
-                        {t.nginx.version}: {nginxStatus.data.version}
-                      </span>
-                    )}
-                    {nginxStatus.data.installed && (
-                      <span className={`px-2 py-1 text-xs rounded font-medium ${
-                        nginxStatus.data.running
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                      }`}>
-                        {nginxStatus.data.running
-                          ? `${t.nginx.running} · ${nginxStatus.data.process_count} ${t.nginx.processes}`
-                          : t.nginx.stopped}
-                      </span>
-                    )}
-                    {nginxStatus.data.config_test && (
-                      <button
-                        onClick={() => setShowConfigTestOutput(prev => !prev)}
-                        title={nginxStatus.data.config_test.output}
-                        className={`px-2 py-1 text-xs rounded font-medium flex items-center gap-1 ${
-                          nginxStatus.data.config_test.valid
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        }`}
-                      >
-                        {t.nginx.config_test}: {nginxStatus.data.config_test.valid ? t.nginx.valid : t.nginx.invalid}
-                        {showConfigTestOutput ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                      </button>
-                    )}
-                    <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                      {t.nginx.sites_count}: {nginxStatus.data.sites.total} / {t.nginx.enabled} {nginxStatus.data.sites.enabled} / {t.nginx.disabled} {nginxStatus.data.sites.disabled}
-                    </span>
-                    {nginxStatus.data.service_manager && (
-                      <span className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 font-mono">
-                        {t.nginx.service_manager}: {nginxStatus.data.service_manager}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Config Test Output (expandable) */}
-                  {showConfigTestOutput && nginxStatus.data.config_test && (
-                    <pre className="text-xs font-mono bg-slate-50 dark:bg-slate-900 p-3 rounded border border-slate-200 dark:border-slate-700 overflow-x-auto max-h-40 overflow-y-auto whitespace-pre-wrap">
-                      {nginxStatus.data.config_test.output}
-                    </pre>
-                  )}
-
-                  {/* Not Installed Callout */}
-                  {!nginxStatus.data.installed && (
-                    <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                        <span className="font-semibold text-amber-900 dark:text-amber-100">{t.nginx.install_hint_title}</span>
-                      </div>
-                      <div className="flex items-center gap-3 mb-3">
-                        <button
-                          onClick={handleInstallNginx}
-                          disabled={installBusy}
-                          className={`px-4 py-2 ${installBusy ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-lg text-sm font-medium flex items-center gap-2`}
-                        >
-                          {installBusy ? (
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Download className="w-4 h-4" />
-                          )}
-                          {t.nginx.install}
-                        </button>
-                        {installBusy && (
-                          <span className="text-xs text-amber-700 dark:text-amber-300">{t.nginx.installing}</span>
-                        )}
-                      </div>
-                      {nginxStatus.data.install_hint && (
-                        <div className="flex items-center gap-2">
-                          <code className="flex-1 text-xs font-mono bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 px-3 py-2 rounded overflow-x-auto">
-                            {nginxStatus.data.install_hint}
-                          </code>
-                          <button
-                            onClick={() => handleCopyInstallHint(nginxStatus.data!.install_hint!)}
-                            className="p-2 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded"
-                            title={t.nginx.copy}
-                          >
-                            <Copy className="w-4 h-4 text-amber-700 dark:text-amber-300" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Runtime Metrics (stub_status + process totals) */}
-                  {nginxStatus.data.installed && nginxStatus.data.running && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {nginxMetrics.data?.stub_status ? (
-                        <>
-                          <span className="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-mono">
-                            {t.nginx.metrics_active}: {nginxMetrics.data.stub_status.active_connections}
-                          </span>
-                          <span className="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-mono">
-                            {t.nginx.metrics_requests}: {nginxMetrics.data.stub_status.requests}
-                          </span>
-                          <span className="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-mono">
-                            {t.nginx.metrics_memory}: {((nginxMetrics.data.totals?.memory_kb ?? 0) / 1024).toFixed(1)} MB
-                          </span>
-                          <span className="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-mono">
-                            {t.nginx.metrics_cpu}: {(nginxMetrics.data.totals?.cpu_percent ?? 0).toFixed(1)}%
-                          </span>
-                        </>
-                      ) : nginxMetrics.data && !nginxMetrics.data.stub_status ? (
-                        <span
-                          className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1 cursor-help"
-                          title={nginxMetrics.data.hint || t.nginx.metrics_unavailable}
-                        >
-                          <Activity className="w-3.5 h-3.5" />
-                        </span>
-                      ) : null}
-                      <button
-                        onClick={loadNginxMetrics}
-                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                        title={t.nginx.refresh}
-                      >
-                        <Activity className={`w-3.5 h-3.5 text-slate-500 dark:text-slate-400 ${nginxMetrics.loading ? 'animate-pulse' : ''}`} />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Service Action Buttons */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    {([
-                      { action: 'start' as NginxServiceAction, label: t.nginx.start, icon: Play, color: 'bg-green-600 hover:bg-green-700', disabledColor: 'bg-green-400' },
-                      { action: 'stop' as NginxServiceAction, label: t.nginx.stop, icon: Square, color: 'bg-red-600 hover:bg-red-700', disabledColor: 'bg-red-400' },
-                      { action: 'restart' as NginxServiceAction, label: t.nginx.restart, icon: RotateCw, color: 'bg-yellow-600 hover:bg-yellow-700', disabledColor: 'bg-yellow-400' },
-                      { action: 'reload' as NginxServiceAction, label: t.nginx.reload, icon: RefreshCw, color: 'bg-indigo-600 hover:bg-indigo-700', disabledColor: 'bg-indigo-400' }
-                    ]).map(({ action, label, icon: Icon, color, disabledColor }) => {
-                      const disabled = nginxNotInstalled || serviceBusy !== null;
-                      return (
-                        <button
-                          key={action}
-                          onClick={() => handleNginxService(action)}
-                          disabled={disabled}
-                          className={`px-3 py-1.5 ${disabled ? `${disabledColor} cursor-not-allowed opacity-60` : color} text-white rounded-lg text-sm font-medium flex items-center gap-2`}
-                        >
-                          <Icon className={`w-4 h-4 ${serviceBusy === action ? 'animate-spin' : ''}`} />
-                          {label}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => {
-                        setShowNginxLogs(prev => {
-                          const next = !prev;
-                          if (next && !nginxLogs.data && !nginxLogs.loading) loadNginxLogs();
-                          return next;
-                        });
-                      }}
-                      className="px-3 py-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-sm font-medium flex items-center gap-2"
-                    >
-                      <ScrollText className="w-4 h-4" />
-                      {t.nginx.logs}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {nginxNotInstalled ? (
-              /* When nginx is not installed the sites area shows install guidance */
-              <div className={`${commonClasses.card} p-12 text-center`}>
-                <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-amber-500" />
-                <p className="text-slate-500 dark:text-slate-400">{t.nginx.install_guidance}</p>
-              </div>
-            ) : (
-              <>
-                {nginxSites.loading && (
-                  <LoadingBlock />
-                )}
-                {nginxSites.error && (
-                  <AlertBox variant="error">{nginxSites.error}</AlertBox>
-                )}
-                {nginxSites.data && nginxSites.data.length > 0 && (
-                  <>
-                    {/* Sites list header with batch-mode toggle + action bar */}
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="font-semibold flex items-center gap-2">
-                        <Network className="w-4 h-4 text-indigo-500" />
-                        {t.nginx.sites}
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {batchMode && (
-                          <>
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
-                              {t.nginx.batch_selected.replace('{n}', String(selectedSiteNames.length))}
-                            </span>
-                            <button
-                              onClick={() => handleBatchAction('enable')}
-                              disabled={selectedSiteNames.length === 0 || batchBusy !== null}
-                              className={`px-3 py-1.5 text-sm font-medium text-white rounded-lg flex items-center gap-1 ${
-                                selectedSiteNames.length === 0 || batchBusy !== null
-                                  ? 'bg-green-400 cursor-not-allowed opacity-60'
-                                  : 'bg-green-600 hover:bg-green-700'
-                              }`}
-                            >
-                              <Power className={`w-3.5 h-3.5 ${batchBusy === 'enable' ? 'animate-pulse' : ''}`} />
-                              {t.nginx.batch_enable}
-                            </button>
-                            <button
-                              onClick={() => handleBatchAction('disable')}
-                              disabled={selectedSiteNames.length === 0 || batchBusy !== null}
-                              className={`px-3 py-1.5 text-sm font-medium text-white rounded-lg flex items-center gap-1 ${
-                                selectedSiteNames.length === 0 || batchBusy !== null
-                                  ? 'bg-slate-400 cursor-not-allowed opacity-60'
-                                  : 'bg-slate-600 hover:bg-slate-700'
-                              }`}
-                            >
-                              <PowerOff className={`w-3.5 h-3.5 ${batchBusy === 'disable' ? 'animate-pulse' : ''}`} />
-                              {t.nginx.batch_disable}
-                            </button>
-                            <button
-                              onClick={() => handleBatchAction('test')}
-                              disabled={selectedSiteNames.length === 0 || batchBusy !== null}
-                              className={`px-3 py-1.5 text-sm font-medium text-white rounded-lg flex items-center gap-1 ${
-                                selectedSiteNames.length === 0 || batchBusy !== null
-                                  ? 'bg-yellow-400 cursor-not-allowed opacity-60'
-                                  : 'bg-yellow-600 hover:bg-yellow-700'
-                              }`}
-                            >
-                              <CheckCircle className={`w-3.5 h-3.5 ${batchBusy === 'test' ? 'animate-pulse' : ''}`} />
-                              {t.nginx.batch_test}
-                            </button>
-                          </>
-                        )}
-                        <button
-                          onClick={() => {
-                            setBatchMode(prev => {
-                              if (prev) setSelectedSiteNames([]);
-                              return !prev;
-                            });
-                          }}
-                          className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1 ${
-                            batchMode
-                              ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
-                          }`}
-                        >
-                          <ListChecks className="w-4 h-4" />
-                          {t.nginx.batch}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4">
-                      {nginxSites.data.map(site => {
-                        const cert = site.cert_expiry;
-                        const certClass = cert
-                          ? cert.days_left <= 7
-                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                            : cert.days_left <= 30
-                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                              : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : '';
-                        const certLabel = cert
-                          ? cert.days_left < 0
-                            ? t.nginx.cert_expired
-                            : t.nginx.cert_expires_in.replace('{days}', String(cert.days_left))
-                          : '';
-                        return (
-                          <div key={site.site_name} className={`${commonClasses.card} p-4`}>
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-3 min-w-0">
-                                {batchMode && (
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedSiteNames.includes(site.site_name)}
-                                    onChange={() => toggleSiteSelected(site.site_name)}
-                                    className="w-4 h-4"
-                                  />
-                                )}
-                                <div className={`w-3 h-3 rounded-full shrink-0 ${site.enabled ? 'bg-green-500' : 'bg-slate-300'}`} />
-                                <h3 className="font-semibold text-lg truncate">{site.domain}</h3>
-                                <span className="px-2 py-1 text-xs rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                                  {site.site_type}
-                                </span>
-                                {site.config_type && (
-                                  <span className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                                    {site.config_type}
-                                  </span>
-                                )}
-                                {Array.isArray(site.listen_ports) && site.listen_ports.length > 0 && (
-                                  <span
-                                    className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-mono"
-                                    title={t.nginx.ports}
-                                  >
-                                    {site.listen_ports.map(p => `:${p}`).join(' ')}
-                                  </span>
-                                )}
-                                {cert && (
-                                  <span
-                                    className={`px-2 py-1 text-xs rounded font-medium ${certClass}`}
-                                    title={cert.expires_at}
-                                  >
-                                    SSL · {certLabel}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {site.ssl_enabled && (
-                                  <button
-                                    onClick={() => handleRenewSiteCert(site)}
-                                    disabled={renewingCert !== null}
-                                    className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded"
-                                    title={t.nginx.renew_cert}
-                                  >
-                                    <Shield className={`w-4 h-4 text-emerald-600 dark:text-emerald-400 ${renewingCert === site.site_name ? 'animate-pulse' : ''}`} />
-                                  </button>
-                                )}
-                                {site.enabled ? (
-                                  <button
-                                    onClick={() => handleDisableSite(site.site_name)}
-                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
-                                    title={t.nginx.disable}
-                                  >
-                                    <PowerOff className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => handleEnableSite(site.site_name)}
-                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
-                                    title={t.nginx.enable}
-                                  >
-                                    <Power className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleEditSite(site)}
-                                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
-                                  title={t.nginx.update}
-                                >
-                                  <Settings className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                                </button>
-                                <button
-                                  onClick={() => handleViewConfig(site.site_name)}
-                                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
-                                  title={t.nginx.view_config}
-                                >
-                                  <Eye className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteSite(site.site_name)}
-                                  className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                                  title={t.nginx.delete}
-                                >
-                                  <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
-                                </button>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                              <div>
-                                <span className="text-slate-500 dark:text-slate-400">{t.nginx.www_dir}:</span>
-                                <p className="font-mono text-xs mt-1">{site.www_dir}</p>
-                              </div>
-                              <div>
-                                <span className="text-slate-500 dark:text-slate-400">{t.nginx.php_mode}:</span>
-                                <p className="mt-1">{site.php_mode}</p>
-                              </div>
-                              {site.swoole_port && (
-                                <div>
-                                  <span className="text-slate-500 dark:text-slate-400">{t.nginx.swoole_port}:</span>
-                                  <p className="mt-1">{site.swoole_port}</p>
-                                </div>
-                              )}
-                              <div>
-                                <span className="text-slate-500 dark:text-slate-400">SSL:</span>
-                                <p className="mt-1">{site.ssl_enabled ? t.nginx.enabled : t.nginx.disabled}</p>
-                              </div>
-                              {Array.isArray(site.server_names) && site.server_names.length > 0 && (
-                                <div className="col-span-2">
-                                  <span className="text-slate-500 dark:text-slate-400">{t.nginx.domain}:</span>
-                                  <p className="font-mono text-xs mt-1 truncate" title={site.server_names.join(' ')}>
-                                    {site.server_names.join(' ')}
-                                  </p>
-                                </div>
-                              )}
-                              {site.modified_human && (
-                                <div>
-                                  <span className="text-slate-500 dark:text-slate-400">{t.nginx.modified}:</span>
-                                  <p className="text-xs mt-1 flex items-center gap-1">
-                                    <Clock className="w-3 h-3 text-slate-400" />
-                                    {site.modified_human}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-                {nginxSites.data && nginxSites.data.length === 0 && !nginxSites.loading && (
-                  <div className={`${commonClasses.card} p-12 text-center`}>
-                    <Network className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-                    <p className="text-slate-500 dark:text-slate-400">{t.nginx.no_sites}</p>
-                    <button
-                      onClick={() => setShowCreateSite(true)}
-                      className="mt-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium inline-flex items-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      {t.nginx.create}
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Nginx Logs (collapsible) */}
-            <div className={commonClasses.card}>
-              <button
-                onClick={() => {
-                  setShowNginxLogs(prev => {
-                    const next = !prev;
-                    if (next && !nginxLogs.data && !nginxLogs.loading) loadNginxLogs();
-                    return next;
-                  });
-                }}
-                className="w-full flex items-center justify-between p-4"
-              >
-                <span className="font-semibold flex items-center gap-2">
-                  <ScrollText className="w-4 h-4 text-indigo-500" />
-                  {t.nginx.logs}
-                </span>
-                {showNginxLogs ? (
-                  <ChevronUp className="w-4 h-4 text-slate-500" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-slate-500" />
-                )}
-              </button>
-
-              {showNginxLogs && (
-                <div className="px-4 pb-4 space-y-3">
-                  {/* Controls */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600">
-                      {(['access', 'error'] as const).map(type => (
-                        <button
-                          key={type}
-                          onClick={() => {
-                            setNginxLogType(type);
-                            loadNginxLogs(type, nginxLogLines);
-                          }}
-                          className={`px-3 py-1.5 text-sm font-medium ${
-                            nginxLogType === type
-                              ? 'bg-indigo-600 text-white'
-                              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-                          }`}
-                        >
-                          {type === 'access' ? t.nginx.access_log : t.nginx.error_log}
-                        </button>
-                      ))}
-                    </div>
-                    <label className="text-sm text-slate-500 dark:text-slate-400">{t.nginx.lines}</label>
-                    <select
-                      value={nginxLogLines}
-                      onChange={(e) => {
-                        const lines = parseInt(e.target.value, 10);
-                        setNginxLogLines(lines);
-                        loadNginxLogs(nginxLogType, lines);
-                      }}
-                      className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                    >
-                      {[100, 200, 500, 1000].map(n => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      value={nginxLogFilterInput}
-                      onChange={(e) => setNginxLogFilterInput(e.target.value)}
-                      placeholder={t.nginx.filter_placeholder}
-                      className="px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white w-44"
-                    />
-                    <button
-                      onClick={() => setNginxLogFollow(prev => !prev)}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-lg flex items-center gap-1 ${
-                        nginxLogFollow
-                          ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
-                      }`}
-                      title={t.nginx.auto_follow}
-                    >
-                      <Play className={`w-3.5 h-3.5 ${nginxLogFollow ? 'animate-pulse' : ''}`} />
-                      {t.nginx.auto_follow}
-                    </button>
-                    <button
-                      onClick={() => loadNginxLogs()}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                      title={t.nginx.refresh}
-                    >
-                      <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${nginxLogs.loading ? 'animate-spin' : ''}`} />
-                    </button>
-                  </div>
-
-                  {nginxLogs.loading && !nginxLogs.data && (
-                    <LoadingBlock size="sm" />
-                  )}
-
-                  {nginxLogs.error && (
-                    <AlertBox variant="error">{nginxLogs.error}</AlertBox>
-                  )}
-
-                  {nginxLogs.data && !nginxLogs.data.exists && (
-                    <div className="p-6 text-center bg-slate-50 dark:bg-slate-800 rounded">
-                      <FileText className="w-8 h-8 mx-auto mb-2 text-slate-400" />
-                      <p className="text-sm text-slate-500 dark:text-slate-400">{t.nginx.no_log_file}</p>
-                      <p className="text-xs font-mono text-slate-400 mt-1">{nginxLogs.data.file}</p>
-                    </div>
-                  )}
-
-                  {nginxLogs.data && nginxLogs.data.exists && (
-                    <>
-                      <pre
-                        ref={nginxLogPreRef}
-                        className="text-xs font-mono bg-slate-900 text-slate-200 p-3 rounded h-64 overflow-y-auto overflow-x-auto whitespace-pre-wrap"
-                      >
-                        {nginxLogs.data.lines.length > 0 ? nginxLogs.data.lines.join('\n') : '(empty)'}
-                      </pre>
-                      <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
-                        <span className="font-mono">{nginxLogs.data.file}</span>
-                        <span>
-                          {nginxLogs.data.filter && nginxLogs.data.scanned_lines !== undefined && (
-                            <span className="mr-2">{t.nginx.scanned_lines.replace('{n}', String(nginxLogs.data.scanned_lines))}</span>
-                          )}
-                          {(nginxLogs.data.size_bytes / 1024).toFixed(1)} KB
-                        </span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Nginx Config Backups (collapsible) */}
-            {!nginxNotInstalled && (
-              <div className={commonClasses.card}>
-                <button
-                  onClick={() => {
-                    setShowNginxBackups(prev => {
-                      const next = !prev;
-                      if (next && !nginxBackups.loading) loadNginxBackups();
-                      return next;
-                    });
-                  }}
-                  className="w-full flex items-center justify-between p-4"
-                >
-                  <span className="font-semibold flex items-center gap-2">
-                    <Archive className="w-4 h-4 text-indigo-500" />
-                    {t.nginx.backups}
-                  </span>
-                  {showNginxBackups ? (
-                    <ChevronUp className="w-4 h-4 text-slate-500" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-500" />
-                  )}
-                </button>
-
-                {showNginxBackups && (
-                  <div className="px-4 pb-4 space-y-3">
-                    <div className="flex justify-end">
-                      <button
-                        onClick={loadNginxBackups}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                        title={t.nginx.refresh}
-                      >
-                        <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${nginxBackups.loading ? 'animate-spin' : ''}`} />
-                      </button>
-                    </div>
-
-                    {nginxBackups.loading && (!nginxBackups.data || nginxBackups.data.length === 0) && (
-                      <LoadingBlock size="sm" />
-                    )}
-
-                    {nginxBackups.error && (
-                      <AlertBox variant="error">{nginxBackups.error}</AlertBox>
-                    )}
-
-                    {!nginxBackups.loading && !nginxBackups.error && nginxBackups.data && nginxBackups.data.length === 0 && (
-                      <div className="p-6 text-center bg-slate-50 dark:bg-slate-800 rounded">
-                        <Archive className="w-8 h-8 mx-auto mb-2 text-slate-400" />
-                        <p className="text-sm text-slate-500 dark:text-slate-400">{t.nginx.backups_empty}</p>
-                      </div>
-                    )}
-
-                    {nginxBackups.data && nginxBackups.data.length > 0 && (
-                      <div className="space-y-2 max-h-72 overflow-y-auto">
-                        {nginxBackups.data.map(backup => (
-                          <div
-                            key={backup.file}
-                            className="flex items-center justify-between gap-3 p-2.5 bg-slate-50 dark:bg-slate-800 rounded"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <StatusBadge
-                                className="shrink-0"
-                                status={backup.type === 'delete' ? t.nginx.backup_type_delete : t.nginx.backup_type_update}
-                                tone={backup.type === 'delete' ? 'error' : 'info'}
-                                withDot={false}
-                              />
-                              <span className="text-sm font-medium shrink-0">{backup.site}</span>
-                              <span className="text-xs font-mono text-slate-500 dark:text-slate-400 truncate" title={backup.file}>
-                                {backup.file}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 shrink-0 text-xs text-slate-500 dark:text-slate-400">
-                              <span>{(backup.size_bytes / 1024).toFixed(1)} KB</span>
-                              <span>{backup.created_at}</span>
-                              <button
-                                onClick={() => handleRestoreBackup(backup)}
-                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium flex items-center gap-1"
-                              >
-                                <RotateCw className="w-3 h-3" />
-                                {t.nginx.backup_restore}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <NginxPanel
+            lang={lang}
+            nginxStatus={nginxStatus}
+            nginxMetrics={nginxMetrics}
+            nginxSites={nginxSites}
+            nginxNotInstalled={nginxNotInstalled}
+            installBusy={installBusy}
+            serviceBusy={serviceBusy}
+            showConfigTestOutput={showConfigTestOutput}
+            setShowConfigTestOutput={setShowConfigTestOutput}
+            batchMode={batchMode}
+            setBatchMode={setBatchMode}
+            selectedSiteNames={selectedSiteNames}
+            setSelectedSiteNames={setSelectedSiteNames}
+            batchBusy={batchBusy}
+            renewingCert={renewingCert}
+            showNginxLogs={showNginxLogs}
+            setShowNginxLogs={setShowNginxLogs}
+            nginxLogType={nginxLogType}
+            setNginxLogType={setNginxLogType}
+            nginxLogLines={nginxLogLines}
+            setNginxLogLines={setNginxLogLines}
+            nginxLogFollow={nginxLogFollow}
+            setNginxLogFollow={setNginxLogFollow}
+            nginxLogFilterInput={nginxLogFilterInput}
+            setNginxLogFilterInput={setNginxLogFilterInput}
+            nginxLogs={nginxLogs}
+            nginxLogPreRef={nginxLogPreRef}
+            showNginxBackups={showNginxBackups}
+            setShowNginxBackups={setShowNginxBackups}
+            nginxBackups={nginxBackups}
+            onOpenMainConfig={openMainConfig}
+            onLoadNginxStatus={loadNginxStatus}
+            onLoadNginxMetrics={loadNginxMetrics}
+            onInstallNginx={handleInstallNginx}
+            onCopyInstallHint={handleCopyInstallHint}
+            onNginxService={handleNginxService}
+            onLoadNginxLogs={loadNginxLogs}
+            onLoadNginxBackups={loadNginxBackups}
+            onRestoreBackup={handleRestoreBackup}
+            onBatchAction={handleBatchAction}
+            onToggleSiteSelected={toggleSiteSelected}
+            onShowCreateSite={() => setShowCreateSite(true)}
+            onRenewSiteCert={handleRenewSiteCert}
+            onEnableSite={handleEnableSite}
+            onDisableSite={handleDisableSite}
+            onEditSite={handleEditSite}
+            onViewConfig={handleViewConfig}
+            onDeleteSite={handleDeleteSite}
+          />
         )}
 
         {activeTab === 'ssl' && (
-          <div className="space-y-4">
-            {/* Certbot Status */}
-            {certbotStatus.data && (
-              <div className={`${commonClasses.card} p-4 ${certbotStatus.data.installed ? 'bg-green-50 dark:bg-green-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {certbotStatus.data.installed ? (
-                      <CheckCircle className="w-5 h-5 text-green-500" />
-                    ) : (
-                      <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                    )}
-                    <div>
-                      <p className="font-semibold">Certbot Status</p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">
-                        {certbotStatus.data.installed 
-                          ? `Installed${certbotStatus.data.version ? ` (v${certbotStatus.data.version})` : ''}`
-                          : 'Not Installed'}
-                      </p>
-                    </div>
-                  </div>
-                  {!certbotStatus.data.installed && (
-                    <button
-                      onClick={handleInstallCertbot}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
-                    >
-                      {t.ssl.certbot_install}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {sslCertificates.loading && (
-              <LoadingBlock />
-            )}
-            {sslCertificates.error && (
-              <AlertBox variant="error">{sslCertificates.error}</AlertBox>
-            )}
-            {sslCertificates.data && sslCertificates.data.length > 0 && (
-              <div className="grid grid-cols-1 gap-4">
-                {sslCertificates.data.map(cert => (
-                  <div key={cert.domain} className={`${commonClasses.card} p-4`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        {getStatusIcon(cert.status)}
-                        <h3 className="font-semibold text-lg">{cert.domain}</h3>
-                        <StatusBadge
-                          status={cert.status}
-                          tone={cert.status === 'ok' ? 'success' : cert.status === 'warning' ? 'warning' : 'error'}
-                          withDot={false}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <span className="text-slate-500 dark:text-slate-400">{t.ssl.expiry_date}:</span>
-                        <p className="mt-1">{cert.expiry_date}</p>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 dark:text-slate-400">{t.ssl.days_until_expiry}:</span>
-                        <p className="mt-1">{cert.days_until_expiry} days</p>
-                      </div>
-                      {cert.certificate_path && (
-                        <div>
-                          <span className="text-slate-500 dark:text-slate-400">Certificate Path:</span>
-                          <p className="font-mono text-xs mt-1">{cert.certificate_path}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {sslCertificates.data && sslCertificates.data.length === 0 && (
-              <div className={`${commonClasses.card} p-12 text-center`}>
-                <Shield className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-                <p className="text-slate-500 dark:text-slate-400">No SSL certificates found</p>
-                <button
-                  onClick={() => setShowGenerateCert(true)}
-                  className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
-                >
-                  {t.ssl.generate}
-                </button>
-              </div>
-            )}
-          </div>
+          <SslPanel
+            lang={lang}
+            certbotStatus={certbotStatus}
+            sslCertificates={sslCertificates}
+            onInstallCertbot={handleInstallCertbot}
+            onShowGenerateCert={() => setShowGenerateCert(true)}
+            getStatusIcon={getStatusIcon}
+          />
         )}
 
         {activeTab === 'system' && (
-          <div className="space-y-4">
-            {systemInfo.loading && (
-              <LoadingBlock />
-            )}
-            {systemInfo.error && (
-              <AlertBox variant="error">{systemInfo.error}</AlertBox>
-            )}
-            {systemInfo.data && systemInfo.data.cpu && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className={`${commonClasses.card} p-4`}>
-                  <h3 className="font-semibold mb-3">{t.system.cpu}</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-slate-500 dark:text-slate-400">Usage</span>
-                      <span className="text-sm font-mono">{systemInfo.data.cpu?.usage || 0}%</span>
-                    </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                      <div
-                        className="bg-indigo-500 h-2 rounded-full transition-all"
-                        style={{ width: `${systemInfo.data.cpu?.usage || 0}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-                {systemInfo.data.memory && (
-                  <div className={`${commonClasses.card} p-4`}>
-                    <h3 className="font-semibold mb-3">{t.system.memory}</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-500 dark:text-slate-400">Usage</span>
-                        <span className="text-sm font-mono">{systemInfo.data.memory?.percentage || 0}%</span>
-                      </div>
-                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                        <div
-                          className="bg-indigo-500 h-2 rounded-full transition-all"
-                          style={{ width: `${systemInfo.data.memory?.percentage || 0}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {systemInfo.data.disk && (
-                  <div className={`${commonClasses.card} p-4`}>
-                    <h3 className="font-semibold mb-3">{t.system.disk}</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-slate-500 dark:text-slate-400">Usage</span>
-                        <span className="text-sm font-mono">{systemInfo.data.disk?.percentage || 0}%</span>
-                      </div>
-                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                        <div
-                          className="bg-indigo-500 h-2 rounded-full transition-all"
-                          style={{ width: `${systemInfo.data.disk?.percentage || 0}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Services Summary */}
-            {servicesSummary && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className={`${commonClasses.card} p-4 bg-blue-50 dark:bg-blue-900/20`}>
-                  <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">System Services</h4>
-                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    {servicesSummary.system_running} / {servicesSummary.system_total}
-                  </div>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Running</p>
-                </div>
-                <div className={`${commonClasses.card} p-4 bg-purple-50 dark:bg-purple-900/20`}>
-                  <h4 className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-2">Octane Services</h4>
-                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                    {servicesSummary.octane_running} / {servicesSummary.octane_total}
-                  </div>
-                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Running</p>
-                </div>
-                <div className={`${commonClasses.card} p-4 bg-green-50 dark:bg-green-900/20`}>
-                  <h4 className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">Application Services</h4>
-                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    {servicesSummary.apps_running} / {servicesSummary.apps_total}
-                  </div>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">Running</p>
-                </div>
-              </div>
-            )}
-
-            {/* System Services */}
-            {systemServices.data && systemServices.data.length > 0 && (
-              <div className={`${commonClasses.card} p-4`}>
-                <h3 className="font-semibold mb-3">{t.system.services} ({systemServices.data.length})</h3>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {systemServices.data.map((service, idx) => (
-                    <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${
-                            service.status === 'running' ? 'bg-green-500' :
-                            service.status === 'stopped' ? 'bg-slate-400' :
-                            'bg-red-500'
-                          }`} />
-                          <span className="text-sm font-medium">{service.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <StatusBadge
-                            status={service.status}
-                            tone={service.status === 'running' ? 'success' : service.status === 'stopped' ? 'idle' : 'error'}
-                            withDot={false}
-                          />
-                          {service.enabled !== undefined && (
-                            <span className={`text-xs px-2 py-1 rounded ${
-                              service.enabled
-                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-                            }`}>
-                              {service.enabled ? 'Auto-start: ON' : 'Auto-start: OFF'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {service.status_output && (
-                        <details className="mt-2">
-                          <summary className="text-xs text-slate-600 dark:text-slate-400 cursor-pointer hover:text-slate-800 dark:hover:text-slate-200">
-                            View detailed status
-                          </summary>
-                          <pre className="mt-2 text-xs bg-slate-900 text-green-400 p-3 rounded overflow-x-auto max-h-64 overflow-y-auto">
-                            {service.status_output}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* System Storage */}
-            {systemStorage.data && systemStorage.data.length > 0 && (
-              <div className={`${commonClasses.card} p-4`}>
-                <h3 className="font-semibold mb-3">{t.system.storage}</h3>
-                <div className="space-y-2">
-                  {systemStorage.data.map((storage, idx) => (
-                    <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800 rounded">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-sm">{storage.filesystem}</span>
-                        <span className="text-xs text-slate-500">{storage.use_percent}</span>
-                      </div>
-                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-1">
-                        <div
-                          className="bg-indigo-500 h-2 rounded-full transition-all"
-                          style={{ width: storage.use_percent }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-slate-500">
-                        <span>{storage.used} / {storage.size}</span>
-                        <span>{storage.available} available</span>
-                      </div>
-                      <p className="text-xs text-slate-400 mt-1">Mounted on: {storage.mounted_on}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* System Processes */}
-            {systemProcesses.data && systemProcesses.data.length > 0 && (
-              <div className={`${commonClasses.card} p-4`}>
-                <h3 className="font-semibold mb-3">{t.system.processes}</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 dark:border-slate-700">
-                        <th className="text-left p-2">PID</th>
-                        <th className="text-left p-2">User</th>
-                        <th className="text-right p-2">CPU %</th>
-                        <th className="text-right p-2">Memory %</th>
-                        <th className="text-left p-2">Command</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {systemProcesses.data.slice(0, 20).map((process, idx) => (
-                        <tr key={idx} className="border-b border-slate-100 dark:border-slate-800">
-                          <td className="p-2 font-mono text-xs">{process.pid}</td>
-                          <td className="p-2">{process.user}</td>
-                          <td className="p-2 text-right">{process.cpu}%</td>
-                          <td className="p-2 text-right">{process.memory}%</td>
-                          <td className="p-2 font-mono text-xs truncate max-w-xs">{process.command}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
+          <SystemPanel
+            lang={lang}
+            systemInfo={systemInfo}
+            servicesSummary={servicesSummary}
+            systemServices={systemServices}
+            systemStorage={systemStorage}
+            systemProcesses={systemProcesses}
+          />
         )}
 
         {activeTab === 'files' && (
@@ -2255,72 +1351,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       </div>
 
       {/* Generate Certificate Modal */}
-      {showGenerateCert && (
-        <Portal>
-        <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}>
-          <div className="relative bg-white dark:bg-slate-800 rounded-lg max-w-md w-full">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-              <h3 className="font-semibold text-lg">{t.ssl.generate}</h3>
-              <button
-                onClick={() => setShowGenerateCert(false)}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-              >
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 space-y-4">
-              <Field label={t.ssl.domain} htmlFor="cert-domain">
-                <input
-                  type="text"
-                  id="cert-domain"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                  placeholder="example.com"
-                />
-              </Field>
-              <Field label="Provider (Optional)" htmlFor="cert-provider">
-                <select
-                  id="cert-provider"
-                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                >
-                  <option value="">Auto</option>
-                  <option value="dnspod">DNSPod</option>
-                  <option value="cloudflare">Cloudflare</option>
-                </select>
-              </Field>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="cert-staging"
-                  className="w-4 h-4"
-                />
-                <label htmlFor="cert-staging" className="text-sm">Use Staging Environment</label>
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button
-                  onClick={() => setShowGenerateCert(false)}
-                  className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    const domain = (document.getElementById('cert-domain') as HTMLInputElement)?.value;
-                    const provider = (document.getElementById('cert-provider') as HTMLSelectElement)?.value;
-                    const staging = (document.getElementById('cert-staging') as HTMLInputElement)?.checked;
-                    if (domain) {
-                      handleGenerateCertificate(domain, provider || undefined, staging);
-                    }
-                  }}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
-                >
-                  Generate
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        </Portal>
-      )}
+      <GenerateCertModal
+        isOpen={showGenerateCert}
+        lang={lang}
+        onClose={() => setShowGenerateCert(false)}
+        onGenerate={(domain, provider, staging) => handleGenerateCertificate(domain, provider, staging)}
+      />
 
       {/* Site Config Modal (editable) */}
       {selectedSite && (

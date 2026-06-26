@@ -64,6 +64,9 @@ class AppQyV1LangDictionaryModel extends Model
         'image_attempts',
         'image_requested_at',
         'image_completed_at',
+        // Full remote Bing resource URLs { images:[...], audio:'...' } for in-page
+        // re-fetch of missing media without a re-translate.
+        'bing_resource_urls',
     ];
 
     protected $casts = [
@@ -71,6 +74,7 @@ class AppQyV1LangDictionaryModel extends Model
         'tts_files' => 'json',
         'image_files' => 'json',
         'word_details' => 'json',
+        'bing_resource_urls' => 'json',
         'has_translation' => 'boolean',
         'has_audio' => 'boolean',
         'is_exist_local' => 'boolean',

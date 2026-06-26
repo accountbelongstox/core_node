@@ -1145,7 +1145,7 @@ const CAP_DEFAULT_PRIORITY: Record<PcCapabilityKey, string[]> = {
   stt: ['whisper', 'ai', 'vosk'],
   tts: ['edge', 'sherpa', 'melotts', 'gptsovits', 'azure'],
   image: ['zhipuai', 'dashscope', 'pollinations'],
-  translation: ['google', 'ai'],
+  translation: ['ecdict', 'wordnet', 'google', 'ai'],
 };
 
 const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {

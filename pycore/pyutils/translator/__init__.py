@@ -186,6 +186,11 @@ from pycore.pyutils.translator.phonetic import (
     batch_to_ipa,
 )
 
+from pycore.pyutils.translator.dictionary import (
+    DictionaryService,
+    get_dictionary_service,
+)
+
 __all__ = [
     # Translation
     'GoogleTranslator',
@@ -208,4 +213,7 @@ __all__ = [
     'text_to_ipa',
     'word_to_ipa',
     'batch_to_ipa',
+    # Offline dictionary (ECDICT + WordNet)
+    'DictionaryService',
+    'get_dictionary_service',
 ]

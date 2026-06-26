@@ -38,6 +38,7 @@ import type {
   PcQueueOverview, PcCapabilitySettings, PcCapabilityKey,
   PcCapabilitySaveResponse, PcCapabilityOptions,
   PcTaskRecentResponse, PcTaskClearResponse,
+  DictionaryStatus, DictionaryEntry,
 } from './pycoreTypes';
 
 import { MasterApiClient } from '../base';
@@ -846,6 +847,15 @@ export const pycoreApi = {
     postJSON<PcCapabilitySaveResponse>('/pyapi/api/local/capabilities/settings', {
       capability, ...patch,
     }),
+
+  // --- Offline dictionary (ECDICT + WordNet) ------------------------------ #
+  // Free, offline word translation served alongside Google/AI. status reports
+  // whether the data is installed (run iniscripts/install_dictionaries.sh).
+  getDictionaryStatus: () =>
+    getJSON<DictionaryStatus>('/pyapi/api/local/dictionary/status'),
+  getDictionaryLookup: (word: string, target = 'zh') =>
+    getJSON<DictionaryEntry>(
+      `/pyapi/api/local/dictionary/lookup?word=${encodeURIComponent(word)}&target=${encodeURIComponent(target)}`),
 
   // --- auto-start on boot (native OS startup entry) ----------------------- #
   getAutostart: () => getJSON<AutostartStatus>('/pyapi/api/manage/control/autostart'),

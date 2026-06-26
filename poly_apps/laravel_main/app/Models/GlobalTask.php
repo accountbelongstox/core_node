@@ -88,6 +88,14 @@ class GlobalTask extends Model
     // (and each other's) and starve them until timeout. Each gets its own lane.
     const EXECUTION_REMOTE_NOTEBOOKLM = 'remote_notebooklm';
     const EXECUTION_REMOTE_GEMINI = 'remote_gemini';
+    // Dedicated chrome web-LLM "is this a real word?" validity-detection lane. A
+    // batch of untranslated+unchecked words is classified valid/invalid by a web
+    // LLM (Gemini/DeepSeek/ChatGPT) so the translation enqueue skips the junk.
+    // MUST be its own lane (not remote_translation): pull assigns by
+    // execution_type with no task_type filter, so co-mingling word_validity with
+    // word_translation/prompt_translation would let each worker fail-release the
+    // other's tasks (retry_count++ -> permanent failure within max_retries).
+    const EXECUTION_REMOTE_VALIDITY = 'remote_validity';
 
     // Dedicated pycore-only retrieval/generation lanes. Kept OFF remote_fast so
     // they never starve the interactive fast lane; claimed via the normal
@@ -120,6 +128,7 @@ class GlobalTask extends Model
         self::EXECUTION_REMOTE_AUDIO,
         self::EXECUTION_REMOTE_NOTEBOOKLM,
         self::EXECUTION_REMOTE_GEMINI,
+        self::EXECUTION_REMOTE_VALIDITY,
         self::EXECUTION_REMOTE_FAST,
         self::EXECUTION_REMOTE_SUBTITLE,
         self::EXECUTION_REMOTE_POSTER,

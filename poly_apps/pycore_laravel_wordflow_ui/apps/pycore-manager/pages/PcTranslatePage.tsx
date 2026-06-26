@@ -28,6 +28,7 @@ import { pycoreApi } from '../../../core/api-libs/pycore';
 import type {
   TranslateStatus, TranslateResponse, TranslateAiResponse,
 } from '../../../core/api-libs/pycore';
+import PcDictionaryPanel from '../components/PcDictionaryPanel';
 
 // i18n labels (single source; the pages use literals, not a `t` object).
 const L = {
@@ -161,6 +162,9 @@ export default function PcTranslatePage() {
 
   return (
     <div className="p-6 md:p-8 space-y-5">
+      {/* Offline ECDICT + WordNet word dictionary (served alongside Google/AI). */}
+      <PcDictionaryPanel />
+
       {/* header + status */}
       <section className="pc-glass p-6">
         <div className="mb-5 flex items-start justify-between gap-3">
