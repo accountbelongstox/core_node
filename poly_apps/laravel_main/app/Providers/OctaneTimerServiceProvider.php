@@ -4,28 +4,30 @@ namespace App\Providers;
 
 use App\Services\OctaneTimerService;
 use App\Services\TimerTasks\OctaneTimerTaskInterface;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Log;
 use Laravel\Octane\Facades\Octane;
 
 /**
- * OctaneTimerServiceProvider - Laravel Schedule Single Heartbeat Center
+ * OctaneTimerServiceProvider - single shared heartbeat, two possible tick sources
  *
- * This provider registers a single Octane tick that runs Laravel Schedule every second.
- * This allows sub-minute tasks (everySecond, everyFiveSeconds, etc.) to work in Octane.
+ * Registers the SAME auto-discovered TimerTasks/* set on every runtime, then
+ * hooks exactly ONE tick source to drive them (never both, so there is never
+ * a duplicate driver):
+ *   - Octane-Swoole active (`octane:start`)            -> Octane::tick() (1s).
+ *   - Everywhere else (composer dev/dev:win, node-free
+ *     fallback, Windows -- Octane's HTTP server cannot
+ *     run there)                                        -> Laravel Schedule
+ *     ->everySecond(), consumed by `php artisan schedule:work`.
+ * Both paths call the same OctaneTimerService::tick(), so task behavior is
+ * identical across Linux/WSL and Windows; only the outer heartbeat differs.
  *
  * To add a new timer task:
  * 1. Create a class in app/Services/TimerTasks/
  * 2. Implement OctaneTimerTaskInterface (or extend OctaneTimerTaskAbstract)
  * 3. Define getName(), getInterval(), and exec() methods
- * 4. Task will be auto-discovered in routes/console.php and registered to Laravel Schedule
- *
- * This follows the Common Timer Design Specification:
- * - Single heartbeat center (1-second Octane tick)
- * - Standard Laravel Schedule (official Laravel pattern)
- * - Auto-discovery pattern (extensible via TimerTasks directory)
- * - Resource efficient (one timer loop drives all tasks)
- * - Fully compatible with Laravel ecosystem
+ * 4. Task is auto-discovered here and driven by whichever tick source is active
  */
 class OctaneTimerServiceProvider extends ServiceProvider
 {
@@ -75,20 +77,23 @@ class OctaneTimerServiceProvider extends ServiceProvider
             'octaneEnv' => $octaneEnv,
         ]);
 
-        // Only run on Octane-Swoole, NOT on FPM
-        if (!$isOctane) {
-            Log::info('OctaneTimerServiceProvider: Octane runtime not detected or not using Swoole, skipping timer tasks');
-            return;
-        }
-
-        // Auto-discover and register all timer tasks
+        // Auto-discover and register the SAME timer tasks regardless of runtime
+        // (cheap, in-memory only -- no I/O). This also runs on processes that
+        // never tick (e.g. a request under `artisan serve`), which is what keeps
+        // OctaneTimerService::getRegisteredTasks()/getStatus() reporting the real
+        // task list from any process, not just the one actually driving the tick.
         $this->autoDiscoverAndRegisterTasks();
 
-        // Hook into Octane tick event (single timer instance)
-        $this->hookOctaneTick();
+        // Hook exactly ONE tick source (never both -> never a duplicate driver).
+        if ($isOctane) {
+            $this->hookOctaneTick();
+        } else {
+            $this->hookScheduleTick();
+        }
 
-        Log::info('OctaneTimerServiceProvider: Bootstrapped on Octane-Swoole', [
-            'server' => $this->getServerType(),
+        Log::info('OctaneTimerServiceProvider: Bootstrapped', [
+            'tickSource' => $isOctane ? 'octane-tick' : 'laravel-schedule',
+            'server' => $serverType,
             'tasks' => OctaneTimerService::getRegisteredTasks()
         ]);
     }
@@ -177,7 +182,7 @@ class OctaneTimerServiceProvider extends ServiceProvider
     }
 
     /**
-     * Hook into Octane tick event
+     * Hook into Octane tick event (Linux/WSL, when Octane-Swoole is the active server)
      */
     protected function hookOctaneTick(): void
     {
@@ -194,7 +199,32 @@ class OctaneTimerServiceProvider extends ServiceProvider
             })->seconds(1)->immediate();
 
         } catch (\Throwable $e) {
-            Log::error('OctaneTimerServiceProvider: Failed to register tick', [
+            Log::error('OctaneTimerServiceProvider: Failed to register Octane tick', [
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Hook into a Laravel Schedule ->everySecond() tick, consumed by
+     * `php artisan schedule:work`. This is the tick source whenever Octane-Swoole
+     * is not the active server (composer dev / dev:win, node-free fallback,
+     * Windows -- Octane's HTTP server cannot run there). Pure userland PHP, no
+     * Swoole/pcntl dependency, so it runs identically on Linux and Windows.
+     */
+    protected function hookScheduleTick(): void
+    {
+        try {
+            $schedule = $this->app->make(Schedule::class);
+            $schedule->call(function () {
+                if (!OctaneTimerService::isRunning()) {
+                    OctaneTimerService::start();
+                }
+                OctaneTimerService::tick();
+            })->everySecond()->name('shared-timer-tick');
+
+        } catch (\Throwable $e) {
+            Log::error('OctaneTimerServiceProvider: Failed to register Schedule tick', [
                 'error' => $e->getMessage()
             ]);
         }

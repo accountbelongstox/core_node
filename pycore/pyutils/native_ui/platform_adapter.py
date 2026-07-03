@@ -304,48 +304,56 @@ class PlatformAdapter:
         Returns:
             Space-separated Chromium flags string
         """
+        # All --enable-features values must be collapsed into ONE flag (Chromium
+        # honors only the last --enable-features), else WebCodecs is silently dropped.
+        enabled_features = []
         flags = []
 
-        # Common flags
         if enable_webcodecs:
-            flags.append("--enable-features=WebCodecs")
+            enabled_features.append("WebCodecs")
 
         if enable_hardware_acceleration:
+            # Safe, cross-platform acceleration baseline. Deliberately NO
+            # --enable-hardware-overlays / --enable-native-gpu-memory-buffers /
+            # --ignore-gpu-blocklist / --enable-webgl2-compute-context (removed from
+            # Chromium): those force the fragile Windows DirectComposition overlay
+            # path that crashes hybrid laptop GPUs (IDCompositionDevice4 failure).
             flags.extend([
                 "--enable-gpu",
                 "--enable-gpu-rasterization",
-                "--enable-accelerated-video-decode",
                 "--enable-accelerated-2d-canvas",
                 "--enable-webgl",
-                "--enable-webgl2-compute-context",
-                "--ignore-gpu-blocklist",
-                "--ignore-gpu-blacklist",
-                "--enable-hardware-overlays",
-                "--enable-zero-copy",
-                "--enable-native-gpu-memory-buffers"
             ])
 
-        # Linux-specific flags
-        if self.is_linux:
-            if enable_hardware_acceleration:
-                flags.extend([
-                    "--enable-features=AcceleratedVideoDecodeLinuxGL,VaapiVideoDecodeLinuxGL,VaapiVideoEncoder",
-                    "--disable-features=UseChromeOSDirectVideoDecoder"
+            if self.is_linux:
+                enabled_features.extend([
+                    "AcceleratedVideoDecodeLinuxGL",
+                    "VaapiVideoDecodeLinuxGL",
+                    "VaapiVideoEncoder",
                 ])
-
-            # Disable sandbox if running as root
-            if self.needs_sandbox_disable():
-                flags.append("--no-sandbox")
-                flags.append("--disable-gpu-sandbox")
-                ColorPrint.yellow("[PlatformAdapter] Added --no-sandbox flag (running as root)")
-
-        # Windows-specific flags
-        elif self.is_windows:
-            if enable_hardware_acceleration:
                 flags.extend([
-                    "--enable-features=D3D11VideoDecoder",
-                    "--enable-direct-composition"
+                    "--enable-accelerated-video-decode",
+                    "--enable-native-gpu-memory-buffers",  # Linux-scoped (GBM)
+                    "--enable-zero-copy",
+                    "--ignore-gpu-blocklist",
+                    "--disable-features=UseChromeOSDirectVideoDecoder",
                 ])
+                # Disable sandbox only if running as root
+                if self.needs_sandbox_disable():
+                    flags.append("--no-sandbox")
+                    flags.append("--disable-gpu-sandbox")
+                    ColorPrint.yellow("[PlatformAdapter] Added --no-sandbox flag (running as root)")
+            elif self.is_windows:
+                # Default ANGLE->D3D11 + DirectComposition already gives WebGL2 +
+                # D3D11 video; add only the safe HW-video feature + zero-copy.
+                enabled_features.append("D3D11VideoDecoder")
+                flags.append("--enable-zero-copy")
+            elif self.is_macos:
+                flags.append("--enable-zero-copy")
+
+        # Single, de-duplicated --enable-features flag
+        if enabled_features:
+            flags.insert(0, "--enable-features=" + ",".join(dict.fromkeys(enabled_features)))
 
         # Remote debugging
         if enable_remote_debugging:

@@ -91,11 +91,18 @@ SELF="${SCRIPT_DIR}/start.sh"
 SERVICE_EXEC_CMD=""
 ARG=""
 
+# Optional: also bring the nexus-dash UI up as its own background service when this
+# service is registered (idempotent; the UI script owns its own systemd registration).
+INCLUDE_UI="${INCLUDE_UI:-}"
+UI_START="${POLY_APPS_DIR}/pycore_laravel_wordflow_ui/scripts/start.sh"
+
 # Parse service-related arguments (the orchestrator passes these so it never re-prompts).
 for ARG in "$@"; do
     case "$ARG" in
         --service) AS_SERVICE="yes" ;;
         --no-service) AS_SERVICE="no" ;;
+        --with-ui) INCLUDE_UI="yes" ;;
+        --no-ui) INCLUDE_UI="no" ;;
     esac
 done
 
@@ -274,6 +281,29 @@ ensure_port_free() {
     return 0
 }
 
+# schedule:work (the `timer` companion process that drives TimerTasks/* whenever
+# Octane's tick is not the active driver) binds NO port, so ensure_port_free()
+# above -- which only detects port listeners -- can never catch a stale instance
+# left over from a previous run. Without this, every restart would leave the old
+# schedule:work still ticking alongside the new one: two processes both calling
+# OctaneTimerService::tick(), the exact duplicate-driver situation the single-
+# tick-source design (OctaneTimerServiceProvider) exists to prevent. Idempotent:
+# a no-op when none are running. Mirrors start.ps1's equivalent cleanup.
+ensure_schedule_work_stopped() {
+    local pids="" pid=""
+    if command -v pgrep >/dev/null 2>&1; then
+        pids=$(pgrep -f 'artisan schedule:work' 2>/dev/null)
+    else
+        pids=$(ps -eo pid,args 2>/dev/null | grep 'artisan schedule:work' | grep -v grep | awk '{print $1}')
+    fi
+    [ -z "$pids" ] && return 0
+    for pid in $pids; do
+        echo "  Stopping stale schedule:work PID ${pid}"
+        kill "$pid" 2>/dev/null || ${USE_SUDO:-} kill "$pid" 2>/dev/null || true
+    done
+    sleep 1
+}
+
 # DEFAULT YES prompt on the controlling TTY; no TTY -> yes.
 ask_default_yes() {
     local msg="$1" reply=""
@@ -282,6 +312,16 @@ ask_default_yes() {
         read -r reply < /dev/tty || reply=""
     fi
     case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+}
+
+# DEFAULT NO prompt on the controlling TTY; no TTY -> no.
+ask_default_no() {
+    local msg="$1" reply=""
+    if [ -t 0 ] && [ -r /dev/tty ]; then
+        printf '%s [y/N] ' "$msg" > /dev/tty
+        read -r reply < /dev/tty || reply=""
+    fi
+    case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 
 # Echo a systemd memory limit "<n>M" = min(total RAM / 4, cap_mb), floored at 128M.
@@ -474,6 +514,16 @@ else
     fi
 fi
 
+# --- PostgreSQL cross-environment sync adapter ---
+# Detects when Windows PG data (on /mnt/d) is newer than local Linux cluster and
+# syncs via pg_dumpall (Windows .exe in WSL) → psql restore. Fully idempotent;
+# skips silently when no Windows disk is found or when Linux data is current.
+_PG_SYNC_ADAPTER="${REPO_ROOT}/pycore/pyfoundations/pg_sync_adapter.py"
+if command -v python3 >/dev/null 2>&1 && [ -f "$_PG_SYNC_ADAPTER" ]; then
+    python3 "$_PG_SYNC_ADAPTER" --startup || true
+fi
+unset _PG_SYNC_ADAPTER
+
 # --- Database: PostgreSQL (forced on Linux), localhost-only, one DB per app ---
 # On Linux this project runs on PostgreSQL (config/database.php defaults
 # POLY_DB_DRIVER=pgsql for PHP_OS_FAMILY===Linux). The CANONICAL installer and
@@ -603,12 +653,14 @@ echo "Running migrations..."
 # Queue jobs table is created by migration 0001_01_01_000001_create_queue_tables.php
 # The migrate command above handles it; no separate check needed
 
-# --- Ensure Swoole (Octane is the single task-system driver on Linux/WSL) ---
-# The sub-minute task system (TTS / covers / translation / global tasks) is driven
-# ONLY by the Laravel Octane (Swoole) timer. Without Swoole, Octane cannot run and
-# none of those tasks are processed. Install it (idempotent; builds from source for
-# PHP 8.5 and applies the Octane 6.x compat patch) before sys:init so the compat
-# fixer in sys:init sees Swoole present.
+# --- Ensure Swoole (Octane is the PREFERRED task-system tick source on Linux/WSL) ---
+# The sub-minute task system (TTS / covers / translation / global tasks) prefers the
+# Laravel Octane (Swoole) tick when Octane's HTTP server is running. When Swoole is
+# unavailable, OctaneTimerServiceProvider auto-falls-back to a Laravel
+# Schedule->everySecond() tick consumed by `schedule:work` (same TimerTasks/* code,
+# see the runtime-selection block below) -- so install it (idempotent; builds from
+# source for PHP 8.5 and applies the Octane 6.x compat patch) before sys:init for the
+# best-performing path, not as a hard requirement for the task system to run at all.
 if "$PHP_BIN" -m 2>/dev/null | grep -qi '^swoole$'; then
     OCTANE_AVAILABLE=1
     echo "Swoole extension present -> Octane runtime available."
@@ -774,6 +826,10 @@ fi
 echo "Ensuring port ${PORT} is free..."
 ensure_port_free "$PORT" "$PHP_BIN" || echo "  Continuing; the runtime may fail to bind if the port is truly occupied."
 
+# schedule:work binds no port -- ensure_port_free above cannot see it, so it gets
+# its own idempotent cleanup (see the function's doc comment for why this matters).
+ensure_schedule_work_stopped
+
 # --- Optional background service registration (AFTER the full prerequisite setup) ---
 # All prerequisites (php/composer/pg/migrate/swoole/node/sys:init/...) are done by
 # this point. Only now do we ask whether to install a background systemd unit. When
@@ -819,6 +875,26 @@ if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
             echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_NAME"
             echo "  Boot:    systemctl is-enabled $LARAVEL_SERVICE_NAME"
             echo "  Logs:    journalctl -u $LARAVEL_SERVICE_NAME -f"
+
+            # --- Optional: also bring the nexus-dash UI up as its own background service ---
+            # The UI script owns its own systemd registration (--service --no-backend so it
+            # never tries to launch a second laravel_main); safe to call idempotently.
+            if [ -z "$INCLUDE_UI" ]; then
+                if [ -f "$UI_START" ] && ask_default_no "Also add the pycore_laravel_wordflow_ui dashboard to a background service?"; then
+                    INCLUDE_UI="yes"
+                else
+                    INCLUDE_UI="no"
+                fi
+            fi
+            if [ "$INCLUDE_UI" = "yes" ]; then
+                if [ -f "$UI_START" ]; then
+                    echo "Bringing up pycore_laravel_wordflow_ui dashboard as a background service (idempotent)..."
+                    bash "$UI_START" --no-backend --service || echo "  Warning: UI dashboard service registration failed (continuing)."
+                else
+                    echo "  Warning: UI start script not found: $UI_START (skipping)."
+                fi
+            fi
+
             exit 0
         else
             echo "Service registration failed; continuing in the foreground."
@@ -827,17 +903,18 @@ if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
 fi
 
 # --- Start runtime ---
-# PRIMARY (Linux/WSL): Laravel Octane on Swoole. Octane is the SINGLE driver for the
-# sub-minute task system (OctaneTimerServiceProvider -> OctaneTimerService); per
-# development-guides/COMMON_TIMER_DESIGN_SPECIFICATION.md there is exactly one timer
-# instance and no Laravel-Scheduler/queue duplicate. octane:start binds 0.0.0.0:PORT
+# PRIMARY (Linux/WSL): Laravel Octane on Swoole. octane:start binds 0.0.0.0:PORT
 # (matches the advertised LAN URL). --watch (hot reload) needs chokidar, which needs
-# node; only enable it when npx is available.
+# node; only enable it when npx is available. OctaneTimerServiceProvider drives the
+# sub-minute task system (TimerTasks/*) via the Octane tick in this mode.
 #
-# FALLBACK (Swoole unavailable, e.g. install failed): the legacy node 'composer
-# dev:win' (serve + queue:listen) or a node-free serve + queue:listen. In fallback
-# mode the Octane timer does NOT run, so TTS/cover/translation/global tasks are NOT
-# processed -- this is a degraded backend-only mode. queue:listen uses --timeout=0 so
+# FALLBACK (Swoole unavailable, e.g. install failed -- or Windows via start.ps1): the
+# node 'composer dev:win' (serve + queue:listen + reverb + schedule:work) or, if node
+# is unavailable too, a node-free serve + queue:listen + schedule:work. In every mode
+# OctaneTimerServiceProvider detects the missing Octane tick and drives the SAME
+# TimerTasks/* through a Laravel Schedule->everySecond() tick consumed by
+# `schedule:work` instead -- the task system runs in every mode, just through a
+# different (single, never duplicated) tick source. queue:listen uses --timeout=0 so
 # a long job cannot crash the listener (see CodeMart off-queue migration).
 if [ -n "$OCTANE_AVAILABLE" ]; then
     # `octane:start --watch` requires BOTH node and the chokidar package
@@ -888,12 +965,13 @@ if [ -n "$OCTANE_AVAILABLE" ]; then
     echo "Starting headless API runtime (Octane swoole -> server 0.0.0.0:${PORT}, single timer driver)"
     "$PHP_BIN" artisan octane:start --server=swoole --host=0.0.0.0 --port="$PORT" $WATCH_FLAG
 elif [ -n "$NPX_BIN" ]; then
-    echo "WARNING: Swoole unavailable -> Octane timer tasks DISABLED."
-    echo "Starting degraded fallback (composer dev:win -> server 0.0.0.0:${PORT} + queue)"
+    echo "WARNING: Swoole unavailable -> Octane HTTP server disabled, using node-based fallback."
+    echo "Starting fallback (composer dev:win -> server 0.0.0.0:${PORT} + queue + timer)"
     $COMPOSER_CMD dev:win
 else
-    echo "WARNING: Swoole unavailable and no node -> Octane timer tasks DISABLED."
-    echo "node-free fallback: php artisan serve + queue:listen"
+    echo "WARNING: Swoole unavailable and no node -> using node-free fallback."
+    echo "node-free fallback: php artisan serve + queue:listen + schedule:work (sub-minute timer tasks still run via Laravel Schedule)"
     "$PHP_BIN" artisan queue:listen --tries=1 --timeout=0 &
+    "$PHP_BIN" artisan schedule:work &
     "$PHP_BIN" artisan serve --host=0.0.0.0 --port="$PORT"
 fi

@@ -68,5 +68,12 @@ return [
         'connection' => 'pddtoolv1',
         'current_version' => 'v1',
     ],
+
+    'dingduoduov1' => [
+        'name' => 'DingDuoDuoV1',
+        'table_prefix' => 'ding_duo_duo_v1',
+        'connection' => 'dingduoduov1',
+        'current_version' => 'v1',
+    ],
 ];
 

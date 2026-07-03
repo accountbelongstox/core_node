@@ -67,7 +67,18 @@
       "Bash(chmod +x:*)",
       "Bash(./scripts/claude_tools/extract_claude_history.sh)",
       "Bash(./scripts/claude_tools/extract_claude_history.sh --all-projects --out /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/a3c83991-adfc-4595-8858-c5706ab9fd64/scratchpad/hist-all)",
-      "Bash(./scripts/claude_tools/extract_claude_history.sh --thinking --full-tools --out /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/a3c83991-adfc-4595-8858-c5706ab9fd64/scratchpad/hist-think)"
+      "Bash(./scripts/claude_tools/extract_claude_history.sh --thinking --full-tools --out /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/a3c83991-adfc-4595-8858-c5706ab9fd64/scratchpad/hist-think)",
+      "Bash(cmd.exe /c \"where claude\")",
+      "Bash(cmd.exe /c \"where /R C:\\\\Users\\\\mpc claude.exe\")",
+      "PowerShell(Get-Command *)",
+      "PowerShell(& claude --settings $j --version 2>&1)",
+      "PowerShell(& claude --settings $j2 --version 2>&1)",
+      "PowerShell(\"=== Broken npm bin \\(only .old files, real claude.exe deleted by interrupted self-update\\) ===\")",
+      "PowerShell(\"`n=== TEST A: raw JSON arg \\(what claudeteam.ps1 does now\\) ===\")",
+      "PowerShell($j = '{\"ultracode\":true}')",
+      "PowerShell(\"`n=== TEST B: backslash-escaped quotes \\(PS5.1 fix\\) ===\")",
+      "PowerShell($j2 = '{\\\\\"ultracode\\\\\":true}')",
+      "PowerShell(Remove-Item *)"
     ]
   }
 }

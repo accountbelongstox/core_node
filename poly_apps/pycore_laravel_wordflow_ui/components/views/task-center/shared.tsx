@@ -20,6 +20,7 @@ import {
   Captions,
   ImagePlus,
   Cpu,
+  MessageCircle,
 } from 'lucide-react';
 import { Language } from '../../../types';
 import { TRANSLATIONS } from '../../../constants';
@@ -151,6 +152,11 @@ export const TASK_TYPE_META: Record<string, TaskTypeMeta> = {
     badge: 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400',
     icon: ImagePlus,
   },
+  gemini_chat: {
+    label: 'Gemini Chat',
+    badge: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400',
+    icon: MessageCircle,
+  },
   notebooklm: {
     label: 'NotebookLM',
     badge: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
@@ -173,7 +179,7 @@ export const TASK_TYPE_META: Record<string, TaskTypeMeta> = {
   },
 };
 
-/** The 8 canonical task types in catalog order (for filter chip sets). */
+/** The canonical task types in catalog order (for filter chip sets). */
 export const TASK_TYPE_KEYS = Object.keys(TASK_TYPE_META);
 
 const TASK_TYPE_FALLBACK_ICON: LucideIcon = Cpu;

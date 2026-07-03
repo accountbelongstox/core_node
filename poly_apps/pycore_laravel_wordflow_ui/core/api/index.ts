@@ -12,6 +12,7 @@ import { BooksAPI } from './modules/BooksAPI';
 import { CodeBrowserAPI } from './modules/CodeBrowserAPI';
 import { AiStatusAPI } from './modules/AiStatusAPI';
 import { AiManagementAPI } from './modules/AiManagementAPI';
+import { WordAudioAPI } from './modules/WordAudioAPI';
 import { DevHistoryAPI } from './modules/DevHistoryAPI';
 import { DailySentenceAPI } from './modules/DailySentenceAPI';
 import { PddAdminAPI } from './modules/PddAdminAPI';
@@ -48,6 +49,7 @@ class APIService {
   public codeBrowser: CodeBrowserAPI;
   public aiStatus: AiStatusAPI;
   public aiManagement: AiManagementAPI;
+  public wordAudio: WordAudioAPI;
   public devHistory: DevHistoryAPI;
   public dailySentences: DailySentenceAPI;
   public pddAdmin: PddAdminAPI;
@@ -153,6 +155,14 @@ class APIService {
       timeout: API_CONFIG.timeout
     });
 
+    // Word Audio — real-pronunciation lookup (free_dictionary_api + forvo) with
+    // a TTS last-resort fallback, on the laravel-manager "Word Audio" page.
+    this.wordAudio = new WordAudioAPI({
+      baseURL: API_CONFIG.baseURL,
+      prefix: '/api/local/word-audio',
+      timeout: API_CONFIG.timeout
+    });
+
     // AI Dev History — read-only Claude/Codex/Gemini/Cursor history (localhost).
     this.devHistory = new DevHistoryAPI({
       baseURL: API_CONFIG.baseURL,
@@ -203,6 +213,7 @@ class APIService {
     this.codeBrowser.setHeader('Authorization', bearerToken);
     this.aiStatus.setHeader('Authorization', bearerToken);
     this.aiManagement.setHeader('Authorization', bearerToken);
+    this.wordAudio.setHeader('Authorization', bearerToken);
     this.pddAdmin.setHeader('Authorization', bearerToken);
   }
 
@@ -223,6 +234,7 @@ class APIService {
     this.codeBrowser.removeHeader('Authorization');
     this.aiStatus.removeHeader('Authorization');
     this.aiManagement.removeHeader('Authorization');
+    this.wordAudio.removeHeader('Authorization');
     this.pddAdmin.removeHeader('Authorization');
   }
 
@@ -243,6 +255,7 @@ class APIService {
     this.codeBrowser.setHeader(key, value);
     this.aiStatus.setHeader(key, value);
     this.aiManagement.setHeader(key, value);
+    this.wordAudio.setHeader(key, value);
     this.pddAdmin.setHeader(key, value);
   }
 

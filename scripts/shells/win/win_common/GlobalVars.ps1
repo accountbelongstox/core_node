@@ -674,6 +674,18 @@ $Global:SEVENZIP_EXE_PATH = Join-Path $Global:SEVENZIP_INSTALL_DIR "7z.exe"
 $Global:SEVENZIP_TMP_NAME = "7z2408-x64.exe"
 $Global:SEVENZIP_TMP_PATH = Join-Path $Global:SEVENZIP_TEMP_DIR $Global:SEVENZIP_TMP_NAME
 
+# Global Security Tools (Sysinternals Suite) Variables
+# Portable forensic/behavior-analysis toolkit (Process Monitor "procmon",
+# Autoruns "au", Process Explorer, Sigcheck, TCPView, Handle, ListDLLs, Sysmon,
+# PsExec, Strings, AccessChk...). Used to attribute rogue processes that tamper
+# with non-default Chrome installs. Installed under LANG_COMPILER_DIR and linked
+# into .winenvs so the tools and helper scripts are globally available.
+$Global:SECURITY_TOOLS_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "Sysinternals"
+$Global:SECURITY_TOOLS_DOWNLOAD_URL = "https://download.sysinternals.com/files/SysinternalsSuite.zip"
+$Global:SECURITY_TOOLS_ZIP_NAME = "SysinternalsSuite.zip"
+$Global:SECURITY_TOOLS_ZIP_PATH = Join-Path $Global:DOWNLOADS_DIR $Global:SECURITY_TOOLS_ZIP_NAME
+$Global:SECURITY_TOOLS_SENTINEL_EXE = Join-Path $Global:SECURITY_TOOLS_INSTALL_DIR "Procmon.exe"
+
 # Global UVX Variables
 $Global:UVX_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "uvx"
 $Global:UVX_EXECUTABLE = "uvx.exe"

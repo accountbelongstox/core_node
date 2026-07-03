@@ -45,11 +45,15 @@ use Illuminate\Validation\Rule;
  *                      to) — prompt-only is a LANE TEST, not a real fill.
  *   - word_media    -> remote_client (chrome). payload { words:[{word,md5}],
  *                      language, target_language? }.
+ *   - gemini_chat   -> remote_gemini_text (chrome, dedicated lane). payload
+ *                      { question|source_text, title? }. Text-only Gemini
+ *                      completion — sibling of gemini_image, kept off its lane
+ *                      because gemini_image's contract is image-only.
  *
- * NOTE: notebooklm / gemini_image get their OWN execution_types (not
- * remote_client) because the chrome side runs a separate worker per processor
- * type and pull assigns by execution_type with an atomic claim — sharing
- * remote_client would let the NotebookLM/Gemini workers claim word_media tasks
+ * NOTE: notebooklm / gemini_image / gemini_chat get their OWN execution_types
+ * (not remote_client) because the chrome side runs a separate worker per
+ * processor type and pull assigns by execution_type with an atomic claim —
+ * sharing a lane would let one feature's worker claim another's tasks
  * (and each other's) and starve them until timeout.
  *   - word_audio    -> remote_audio (pycore).
  *   - word_translation -> remote_translation (pycore/self-filler).
@@ -65,6 +69,7 @@ class AppQyV1TaskEnqueueController extends Controller
     private const TASK_TYPE_EXECUTION = [
         'notebooklm' => GlobalTask::EXECUTION_REMOTE_NOTEBOOKLM,
         'gemini_image' => GlobalTask::EXECUTION_REMOTE_GEMINI,
+        'gemini_chat' => GlobalTask::EXECUTION_REMOTE_GEMINI_TEXT,
         'word_media' => GlobalTask::EXECUTION_REMOTE_CLIENT,
         'word_audio' => GlobalTask::EXECUTION_REMOTE_AUDIO,
         'word_translation' => GlobalTask::EXECUTION_REMOTE_TRANSLATION,
@@ -208,6 +213,15 @@ class AppQyV1TaskEnqueueController extends Controller
                 || (isset($payload['source_text']) && is_string($payload['source_text']) && $payload['source_text'] !== '');
             if (!$hasQuestion) {
                 return 'notebooklm payload requires a non-empty question or source_text';
+            }
+            return null;
+        }
+
+        if ($taskType === 'gemini_chat') {
+            $hasQuestion = (isset($payload['question']) && is_string($payload['question']) && $payload['question'] !== '')
+                || (isset($payload['source_text']) && is_string($payload['source_text']) && $payload['source_text'] !== '');
+            if (!$hasQuestion) {
+                return 'gemini_chat payload requires a non-empty question or source_text';
             }
             return null;
         }

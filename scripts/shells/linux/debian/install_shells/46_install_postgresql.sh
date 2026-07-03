@@ -49,7 +49,7 @@ APP_DATABASES="$(
             | sort -u | tr '\n' ' '
     fi
 )"
-[ -z "${APP_DATABASES// /}" ] && APP_DATABASES="core_node_main app_qy_v1_database awy_v0_database vipclub_v1_database server_manager_v1_database achat_v1_database code_mart_v1_database mcp_v1_database it_tools_v1_database bank_v1_database pdd_tool_v1_database"
+[ -z "${APP_DATABASES// /}" ] && APP_DATABASES="core_node_main app_qy_v1_database awy_v0_database vipclub_v1_database server_manager_v1_database achat_v1_database code_mart_v1_database mcp_v1_database it_tools_v1_database bank_v1_database pdd_tool_v1_database ding_duo_duo_v1_database"
 
 # Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

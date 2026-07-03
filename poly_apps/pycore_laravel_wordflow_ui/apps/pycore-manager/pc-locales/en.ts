@@ -62,6 +62,7 @@ export const pcEn = {
       translate: 'Translate',
       imageSearch: 'Image Search',
       subtitleSearch: 'Subtitle Search',
+      wordAudio: 'Word Audio',
       history: 'History',
     },
     tabHint: {
@@ -71,6 +72,7 @@ export const pcEn = {
       translate: 'Google vs AI translation, side by side',
       imageSearch: 'SerpApi Google Images vs an AI render of the same query',
       subtitleSearch: 'Search & download movie / TV subtitles via OpenSubtitles',
+      wordAudio: 'Real word pronunciation from Free Dictionary, Cambridge & Forvo, with a TTS fallback',
       history: 'Every usage record — AI images, image & subtitle searches, translations',
     },
     // Unified usage-history tab.

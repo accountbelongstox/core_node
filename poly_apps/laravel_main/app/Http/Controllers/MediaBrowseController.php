@@ -317,6 +317,62 @@ class MediaBrowseController extends Controller
     }
 
     /**
+     * GET /api/app_qy_v1/media/documents/{id}
+     * Detail: uploaded-document meta + ordered sentences, for the reader.
+     *
+     * Owner-scoped (needs a bearer token). A document's sentences live in the
+     * SAME shared source_sentences store as books, keyed by source_key
+     * `doc_{id}` (written by AppQyV1VocabularyDocumentController::extractSentences).
+     * They exist only AFTER the document was sentence-extracted; before that the
+     * paginator is simply empty (the FE shows a "no readable content" prompt).
+     * Per-sentence audio depends on the shared content_id-keyed TTS enrichment.
+     */
+    public function documentDetail(Request $request, string $id): JsonResponse
+    {
+        if (!ctype_digit($id)) {
+            return $this->error('Invalid document id', 404);
+        }
+
+        $validated = $request->validate([
+            'grain' => 'nullable|string|in:cue,sentence,all',
+            'per_page' => 'nullable|integer|min:1|max:2000',
+            'page' => 'nullable|integer|min:1',
+        ]);
+
+        // Documents belong to a user — require auth and ownership.
+        $user = auth('sanctum')->user();
+        if (!$user) {
+            return $this->error('Authentication required', 401);
+        }
+
+        $document = AppQyV1UploadedDocumentModel::where('id', (int) $id)
+            ->where('user_id', $user->id)
+            ->first();
+        if (!$document) {
+            return $this->error('Document not found', 404);
+        }
+
+        $library = $document->library;
+        $grain = $validated['grain'] ?? 'sentence';
+        $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 500;
+        // Documents are chapterless — always the full flat sentence list.
+        $sentences = $this->buildSentencesPaginator('doc_' . (int) $id, $grain, $perPage, null);
+
+        return $this->success([
+            'source' => [
+                'id' => $document->id,
+                'source_key' => 'doc_' . $document->id,
+                'title' => $document->original_name,
+                'language' => $document->language,
+                'word_count' => $library ? (int) $library->total_words : 0,
+                'created_at' => $document->created_at,
+            ],
+            'chapter_index' => null,
+            'sentences' => $sentences,
+        ]);
+    }
+
+    /**
      * GET /api/app_qy_v1/media/clip/{source_key}/{name}
      * Serve a media file from the source's segments dir.
      */

@@ -13,6 +13,10 @@ import { initTabController } from './services/tab-controller';
 import { initAiWebClientListener } from './ai-web-client-listener';
 import { initNotebookLMListener } from './notebooklm-listener';
 import { initGeminiImageListener } from './gemini-image-listener';
+import { initGeminiTextListener } from './gemini-text-listener';
+import { initChatGptTextListener } from './chatgpt-text-listener';
+import { initGrokTextListener } from './grok-text-listener';
+import { initCopilotTextListener } from './copilot-text-listener';
 import { initApiHealthListener } from './api-health-listener';
 import { taskCenter } from './services/task-center/TaskCenter';
 import { initializeProcessors } from './services/task-center/init-processors';
@@ -90,6 +94,12 @@ export default defineBackground(() => {
   initNotebookLMListener();
   // Gemini image-generation bridge for the popup "Generate image" button.
   initGeminiImageListener();
+  // Article Study Guide test panel job bridges — one per web-chat provider,
+  // all sharing the same start/status job contract (web-chat-job-base.ts).
+  initGeminiTextListener();
+  initChatGptTextListener();
+  initGrokTextListener();
+  initCopilotTextListener();
   // Real, CORS-bypassing API health checks on the popup's behalf.
   initApiHealthListener();
 

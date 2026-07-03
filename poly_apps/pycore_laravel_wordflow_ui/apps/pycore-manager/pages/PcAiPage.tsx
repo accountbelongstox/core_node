@@ -9,6 +9,7 @@
  *   - Translate      (PcTranslatePage)    — Google vs AI side-by-side translate.
  *   - Image Search   (PcImageSearchPage)  — SerpApi images vs AI render.
  *   - Subtitle Search(PcSubtitleSearchPage)— OpenSubtitles search + download.
+ *   - Word Audio     (PcWordAudioPage)    — real word pronunciation + TTS fallback.
  *   - History        (PcAiHistoryView)    — one feed of ALL usage records.
  *
  * The active sub-tab is reflected in the URL (?tab=…) so the legacy routes
@@ -24,7 +25,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Sparkles, Activity, ImagePlay, KeyRound, MessageSquare, RefreshCcw,
-  Languages, ScanSearch, Captions, History,
+  Languages, ScanSearch, Captions, Volume2, History,
   type LucideIcon,
 } from 'lucide-react';
 import { useShell } from '../../../shell/ShellContext';
@@ -35,13 +36,14 @@ import PcAiHistoryView from '../components/PcAiHistoryView';
 import PcTranslatePage from './PcTranslatePage';
 import PcImageSearchPage from './PcImageSearchPage';
 import PcSubtitleSearchPage from './PcSubtitleSearchPage';
+import PcWordAudioPage from './PcWordAudioPage';
 import { SUBTAB_MOTION } from '../components/PcAiShared';
 
-type AiTab = 'capability' | 'studio' | 'keys' | 'translate' | 'imageSearch' | 'subtitleSearch' | 'history';
+type AiTab = 'capability' | 'studio' | 'keys' | 'translate' | 'imageSearch' | 'subtitleSearch' | 'wordAudio' | 'history';
 
 const TAB_KEY = 'pc_ai_tab';
 
-const ALL_TABS: AiTab[] = ['capability', 'studio', 'keys', 'translate', 'imageSearch', 'subtitleSearch', 'history'];
+const ALL_TABS: AiTab[] = ['capability', 'studio', 'keys', 'translate', 'imageSearch', 'subtitleSearch', 'wordAudio', 'history'];
 
 const isTab = (v: string | null): v is AiTab =>
   v != null && (ALL_TABS as string[]).includes(v);
@@ -55,6 +57,7 @@ const TABS: TabDef[] = [
   { key: 'translate', labelKey: 'ai.tabs.translate', hintKey: 'ai.tabHint.translate', Icon: Languages },
   { key: 'imageSearch', labelKey: 'ai.tabs.imageSearch', hintKey: 'ai.tabHint.imageSearch', Icon: ScanSearch },
   { key: 'subtitleSearch', labelKey: 'ai.tabs.subtitleSearch', hintKey: 'ai.tabHint.subtitleSearch', Icon: Captions },
+  { key: 'wordAudio', labelKey: 'ai.tabs.wordAudio', hintKey: 'ai.tabHint.wordAudio', Icon: Volume2 },
   { key: 'history', labelKey: 'ai.tabs.history', hintKey: 'ai.tabHint.history', Icon: History },
 ];
 
@@ -87,7 +90,7 @@ const PcAiPage: React.FC = () => {
 
   // Per-tab refresh signal — bumping it tells the active sub-view to reload.
   const [refreshTick, setRefreshTick] = useState<Record<AiTab, number>>({
-    capability: 0, studio: 0, keys: 0, translate: 0, imageSearch: 0, subtitleSearch: 0, history: 0,
+    capability: 0, studio: 0, keys: 0, translate: 0, imageSearch: 0, subtitleSearch: 0, wordAudio: 0, history: 0,
   });
   const refreshActive = useCallback(() => {
     setRefreshTick((prev) => ({ ...prev, [tab]: prev[tab] + 1 }));
@@ -127,7 +130,7 @@ const PcAiPage: React.FC = () => {
           </div>
         </div>
 
-        {/* sub-tab bar (7 tabs — scrolls horizontally on narrow screens) */}
+        {/* sub-tab bar (8 tabs — scrolls horizontally on narrow screens) */}
         <div className="flex rounded-xl pc-glass overflow-x-auto max-w-full self-start no-scrollbar">
           {TABS.map(({ key, labelKey, Icon }) => (
             <button
@@ -161,6 +164,7 @@ const PcAiPage: React.FC = () => {
           {tab === 'translate' && <div className="-m-6 md:-m-8"><PcTranslatePage /></div>}
           {tab === 'imageSearch' && <div className="-m-6 md:-m-8"><PcImageSearchPage /></div>}
           {tab === 'subtitleSearch' && <div className="-m-6 md:-m-8"><PcSubtitleSearchPage /></div>}
+          {tab === 'wordAudio' && <div className="-m-6 md:-m-8"><PcWordAudioPage /></div>}
           {tab === 'history' && <PcAiHistoryView refreshSignal={refreshTick.history} />}
         </motion.div>
       </AnimatePresence>

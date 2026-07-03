@@ -3,11 +3,7 @@ description: "GameAISDK: imports at top (platform-specific allowed after guard);
 globs: pyapps/GameAISDK/**
 alwaysApply: false
 ---
-
 # GameAISDK rule
-
-(Applies only to pyapps/GameAISDK.)
-
 1. **Imports.** All imports at file top. Exception: platform-specific modules after a clear guard (e.g. `if sys.platform == 'win32':` then import win32driver). Resolve circular imports by structure (split module, DI, shared layer); no lazy import in except/catch.
 2. **No import in except.** Do not add or move imports inside try/except. Optional third-party at module level only: `try: import x\n except ImportError: x = None`.
 3. **Meaningful catch.** Use try/except only where needed (file I/O, network, subprocess, decode). Catch concrete types (IOError, OSError, ValueError, etc.); avoid bare except or catch-all that hides bugs. In the handler: log and re-raise or return a clear result; no empty or no-op handlers.

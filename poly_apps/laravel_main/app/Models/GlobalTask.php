@@ -88,6 +88,11 @@ class GlobalTask extends Model
     // (and each other's) and starve them until timeout. Each gets its own lane.
     const EXECUTION_REMOTE_NOTEBOOKLM = 'remote_notebooklm';
     const EXECUTION_REMOTE_GEMINI = 'remote_gemini';
+    // Text-only Gemini completion lane (gemini_chat task_type), separate from
+    // EXECUTION_REMOTE_GEMINI (gemini_image) for the same reason: pull assigns
+    // by execution_type with an atomic claim, so a shared lane would let one
+    // feature's worker claim and starve the other's tasks.
+    const EXECUTION_REMOTE_GEMINI_TEXT = 'remote_gemini_text';
     // Dedicated chrome web-LLM "is this a real word?" validity-detection lane. A
     // batch of untranslated+unchecked words is classified valid/invalid by a web
     // LLM (Gemini/DeepSeek/ChatGPT) so the translation enqueue skips the junk.
@@ -128,6 +133,7 @@ class GlobalTask extends Model
         self::EXECUTION_REMOTE_AUDIO,
         self::EXECUTION_REMOTE_NOTEBOOKLM,
         self::EXECUTION_REMOTE_GEMINI,
+        self::EXECUTION_REMOTE_GEMINI_TEXT,
         self::EXECUTION_REMOTE_VALIDITY,
         self::EXECUTION_REMOTE_FAST,
         self::EXECUTION_REMOTE_SUBTITLE,

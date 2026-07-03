@@ -3,9 +3,7 @@ description: "pycore_laravel_wordflow_ui (React/TS frontend) AI working rules. F
 globs: poly_apps/pycore_laravel_wordflow_ui/**/*.{ts,tsx,js,jsx,css,ps1,sh}
 alwaysApply: false
 ---
-
 # pycore_laravel_wordflow_ui frontend — AI working rules
-
 1. **When the code is written, STOP — do NOT compile, run, test, start the dev server, or verify in any way. Delivering the written code is the entire task.** Never create, execute, or modify test code.
 2. Write all code in English only.
 3. **No hardcoded UI language.** Every user-facing string (labels, buttons, placeholders, toasts, titles, dialog text) MUST be resolved through the i18n layer — `t('key')` / `translate(lang, 'key')` (wordnew: `trans('key')` via `WfNewLocales.translate`; wordflow: `WfLanguageCenter.translate`; shell: `useTranslation().t`). Do NOT embed literal display text in components, and never branch on language (e.g. `lang === 'zh'`) for copy. Add the key to EVERY supported locale (en/zh/ja/ko …) in the dedicated locale resource file — that resource file is the only place non-English (CJK) text may appear. Dynamic values use `{name}` placeholders, not string concatenation.

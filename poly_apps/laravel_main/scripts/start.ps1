@@ -7,42 +7,49 @@
 # VIOLATION IS PROHIBITED.
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Windows PowerShell port of scripts/start.sh (Unix: use scripts/start.sh).
-# Full lifecycle: ensure composer deps -> ensure Laravel runtime dirs / .env / APP_KEY
-# -> ensure pdo_pgsql -> ensure PostgreSQL (service/winget) -> credentials via the
-# CoreNodeSecrets global-var store -> create per-app databases (PostgreSQL-only;
-# config/database.php is code-only and ignores .env entirely)
-# -> route:clear -> route:list -> migrate -> sys:init -> detect IPs -> start dev.
-# - Windows: no pcntl -> always composer dev:win; IPs via Get-NetIPAddress.
-# - PRIORITY: REUSE the WSL PostgreSQL when one is reachable. With WSL2 default NAT
-#   networking, Linux services are reachable from Windows via localhost
-#   (learn.microsoft.com/windows/wsl/networking: "you can access it from a Windows
-#   app ... using localhost"; .wslconfig localhostForwarding). Verified locally:
-#   such forwarded connections arrive on the Linux side FROM 127.0.0.1, so the
-#   pg_hba loopback scram rule written by 46_install_postgresql.sh admits them.
-#   The WSL-side credential is harvested via wsl.exe into the Windows store so
-#   both stores hold the same value. A SECOND Windows server is only installed
-#   (winget -> EDB installer) when port 5432 is closed AND no WSL is available.
-# - PostgreSQL parity with start.sh: the password is GENERATED here and stored in the
-#   global-var store read by App\Support\CoreNodeSecrets (one file per key, value +
-#   trailing newline) -- NEVER written into .env. On Windows PHP the default store
-#   '/var/_core_node' resolves against the current drive, so this script pins it to
-#   '<LaravelDrive>\var\_core_node' and EXPORTS CORE_NODE_DATA_DIR for all children.
-# - If PostgreSQL cannot be made ready, the script falls back to the per-app SQLite
-#   files (degraded mode) and prints ACTION REQUIRED guidance.
-# - Linux: see start.sh (auto-installs php/composer/node, node-free fallback).
+# Fully-native Windows port of scripts/start.sh (Unix: use scripts/start.sh).
+# 1:1 lifecycle with start.sh, written natively (no WSL orchestration):
+#   ensure php/composer -> Laravel runtime dirs / .env / APP_KEY -> ensure pdo_pgsql
+#   -> ensure PostgreSQL (shared PostgresqlManager: idempotent, native cluster on D:,
+#      REUSES an already-serving :5432 server e.g. a WSL one) -> route:clear ->
+#      route:list -> migrate --force -> sys:init -> detect IPs -> composer dev:win.
+# PostgreSQL parity: password lives in the CoreNodeSecrets global-var store
+#   (<DataDrive>\var\_core_node\global_var\POSTGRES_PASSWORD + laravel_db mirror),
+#   NEVER in .env; config/database.php is code-only PostgreSQL at 127.0.0.1:5432.
+# Runtime: Laravel Octane's HTTP server cannot run on native Windows (octane:start
+#   needs the pcntl SIGINT constant) -> use composer dev:win (serve+queue+reverb+
+#   timer). The sub-minute timer task system (app/Services/TimerTasks/*, same code
+#   as Linux/WSL) still runs here: OctaneTimerServiceProvider auto-falls-back from
+#   the missing Octane(Swoole) tick to a Laravel Schedule->everySecond() tick,
+#   driven by the `timer` lane (`php artisan schedule:work`) composer dev:win starts.
+# DB sharing: when Windows and Linux/WSL run on the same machine, whichever starts
+#   first owns :5432; the other REUSES it (Ensure-Postgresql probes the port first),
+#   so there is one live server at a time -- the only safe shared model (a native
+#   Windows NTFS cluster and a Linux ext4 cluster cannot share one data dir).
+# Background service (idempotent, via NSSM -- see win_common/NssmServiceManager.ps1):
+#   needs NO parameters, mirroring start.sh. Asked ONLY after the full prerequisite
+#   setup below succeeds (env var AS_SERVICE=yes|no pre-answers it, same name/values as
+#   start.sh, for non-interactive callers -- no prompt either way). env var
+#   LARAVEL_SERVICE_RUN=1 marks the NSSM-launched invocation itself (set via NSSM
+#   AppEnvironmentExtra, never a script argument): it skips the prompt and runs
+#   straight through to composer dev:win in the foreground (that IS the service body),
+#   exactly mirroring LARAVEL_SERVICE_RUN in start.sh. env var INCLUDE_UI=yes|no
+#   pre-answers the extra "also register the nexus-dash UI as a service" step.
 
+# --- Variables (declared at the beginning of the file) ---
 $OriginalDirectory = Get-Location
 $ScriptDir = $PSScriptRoot
 $LaravelDir = Split-Path -Parent $ScriptDir
+$PolyAppsDir = Split-Path -Parent $LaravelDir
+$RepoRootDir = Split-Path -Parent $PolyAppsDir
 $VendorDir = Join-Path $LaravelDir "vendor"
 $VendorAutoload = Join-Path $VendorDir "autoload.php"
 $EnvPath = Join-Path $LaravelDir ".env"
 $EnvExamplePath = Join-Path $LaravelDir ".env.example"
 $Port = 9000
-# Companion Windows-side WSL helper (same scripts dir): sets the netsh portproxy +
-# firewall so other Tailscale/LAN devices can reach the WSL backend on :Port.
-$PortForwardScript = Join-Path $ScriptDir "wsl_port_forward.ps1"
+$PgManagerScript = Join-Path $RepoRootDir "scripts\shells\win\win_common\PostgresqlManager.ps1"
+$PhpIniConfigScript = Join-Path $RepoRootDir "scripts\shells\win\1_phpconfig\configure_php_ini.php"
+$PhpIniDepsFixScript = Join-Path $RepoRootDir "scripts\shells\win\1_phpconfig\fix_php_ini_deps.php"
 $IPList = @()
 $phpCmd = $null
 $composerCmd = $null
@@ -53,68 +60,44 @@ $migrateExit = 0
 $runtimeRel = $null
 $runtimeFull = $null
 $envContent = $null
-# PostgreSQL chain state (Windows parity with scripts/start.sh PG link).
-$LaravelDriveRoot = [System.IO.Path]::GetPathRoot($LaravelDir)
-$CoreNodeDataDir = $null
-$GlobalVarDir = $null
-$PgPasswordFile = $null
-$PgPassword = $null
-$PgPasswordChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-$PgPasswordBytes = $null
-$PgRng = $null
-$PgHost = "127.0.0.1"
-$PgPort = 5432
-$PgUser = "postgres"
-$PgService = $null
-$PgPortOpen = $false
-$PgAuthOk = $false
-$PdoPgsqlPresent = $false
-# Canonical dd.cmd-chain php.ini configurator (Windows counterpart of start.sh's
-# 47_ensure_php_pgsql.sh): scripts/shells/win/1_phpconfig/configure_php_ini.php.
-$RepoRootDir = Split-Path -Parent (Split-Path -Parent $LaravelDir)
-$PhpIniConfigScript = Join-Path $RepoRootDir "scripts\shells\win\1_phpconfig\configure_php_ini.php"
-$PhpExeForConfig = $null
-$phpModulesRetry = $null
-$PsqlExe = $null
-$WingetCmd = $null
-$WingetPgIds = @("PostgreSQL.PostgreSQL.17", "PostgreSQL.PostgreSQL.16")
-$WingetPgId = $null
-$wingetOut = $null
-$PgWaitIndex = 0
-# Per-app PostgreSQL databases (same list as start.sh APP_DB_NAMES; mirrors
-# config/database.php $polyConnection(..., pgDatabase) targets).
-$AppDbNames = @(
-    "core_node_main",
-    "app_qy_v1_database",
-    "awy_v0_database",
-    "vipclub_v1_database",
-    "server_manager_v1_database",
-    "achat_v1_database",
-    "code_mart_v1_database",
-    "mcp_v1_database",
-    "it_tools_v1_database",
-    "bank_v1_database"
-)
-$dbName = $null
-$pgQueryOut = $null
-$phpModulesOut = $null
-$phpIniPath = $null
-$phpExtDir = $null
 $envDriverChanged = $false
 $envDriverLines = $null
-# WSL PostgreSQL reuse state (priority path; see header).
-$WslExe = $null
-$WslPgMode = $false
-$wslOut = $null
-$WslStorePasswordPath = "/var/_core_node/global_var/POSTGRES_PASSWORD"
-$PgPasswordFromWsl = $null
-# WSL-first orchestration state (start.ps1 is the single Windows entry point: it
-# prefers launching the WSL backend over the degraded native-Windows runtime).
-$BackendMode = $null
-$WslDistros = @()
-$WslDefaultDistro = $null
-$WslStartShPath = $null
-$IsAdminPs = $false
+$PdoPgsqlPresent = $false
+$PhpExeForConfig = $null
+$phpModulesOut = $null
+$phpModulesRetry = $null
+$phpIniPath = $null
+$phpExtDir = $null
+$pgReady = $false
+$ip = $null
+$stopPids = @()
+$stopPid = $null
+$prevPhpProcs = $null
+$portConns = $null
+$portWaited = 0
+$testListener = $null
+$PgWinExportSql = $null
+$PgWinExportStale = $false
+$PgWinExportBinDir = $null
+$PgWinExportTmp = $null
+# Background service registration (NSSM-backed; see win_common/NssmServiceManager.ps1).
+$NssmServiceManagerScript = Join-Path $RepoRootDir "scripts\shells\win\win_common\NssmServiceManager.ps1"
+$LaravelServiceName = "ncore-laravel-main"
+$LaravelServiceDisplayName = "Laravel Main (core_node)"
+$LaravelServiceDesc = "laravel_main backend (native Windows: serve+queue+reverb)"
+$SelfScript = Join-Path $ScriptDir "start.ps1"
+$LogDir = Join-Path $RepoRootDir ".data\logs"
+$UiStartPs1 = Join-Path $PolyAppsDir "pycore_laravel_wordflow_ui\scripts\start.ps1"
+$AsServiceEnv = $env:AS_SERVICE
+$IncludeUiEnv = $env:INCLUDE_UI
+$IsServiceRun = ($env:LARAVEL_SERVICE_RUN -eq "1")
+$AsServiceChoice = $false
+$IncludeUiChoice = $false
+$NssmPath = $null
+$PwshServiceExe = $null
+$ServiceArgs = $null
+$ServiceRegistered = $false
+$npxCmd = $null
 # Laravel runtime directories that MUST exist and be writable. Git does not track
 # empty dirs, so a fresh checkout/restore can miss these -> package:discover fails
 # with "bootstrap/cache directory must be present and writable".
@@ -129,134 +112,12 @@ $LaravelRuntimeDirs = @(
     "storage\app\private"
 )
 
-# --- Functions (PostgreSQL chain helpers) ---
+# Shared native PostgreSQL manager (single source of truth with the DevInstaller
+# Step33_InstallPostgreSQL.ps1). Provides Ensure-Postgresql + Test-PgPortOpen.
+. $PgManagerScript
 
-# Fast TCP probe (PowerShell 5.1-safe; Test-NetConnection is too slow for a boot path).
-function Test-PgTcpPort {
-    param([string]$TargetHost, [int]$TargetPort, [int]$TimeoutMs)
-    $tcpClient = New-Object System.Net.Sockets.TcpClient
-    try {
-        $tcpAsync = $tcpClient.BeginConnect($TargetHost, $TargetPort, $null, $null)
-        if (-not $tcpAsync.AsyncWaitHandle.WaitOne($TimeoutMs, $false)) {
-            return $false
-        }
-        $tcpClient.EndConnect($tcpAsync)
-        return $true
-    } catch {
-        return $false
-    } finally {
-        $tcpClient.Close()
-    }
-}
-
-# Resolve psql.exe: PATH first, then the standard EDB/winget install roots
-# (%ProgramFiles%\PostgreSQL\<major>\bin), newest major version first.
-function Resolve-PsqlPath {
-    $psqlCmdInfo = Get-Command psql -ErrorAction SilentlyContinue
-    if ($psqlCmdInfo) {
-        return $psqlCmdInfo.Source
-    }
-    $pgRoots = @()
-    if ($env:ProgramFiles) {
-        $pgRoots += (Join-Path $env:ProgramFiles "PostgreSQL")
-    }
-    if (${env:ProgramFiles(x86)}) {
-        $pgRoots += (Join-Path ${env:ProgramFiles(x86)} "PostgreSQL")
-    }
-    foreach ($pgRoot in $pgRoots) {
-        if (Test-Path -LiteralPath $pgRoot) {
-            $pgVersionDirs = Get-ChildItem -LiteralPath $pgRoot -Directory -ErrorAction SilentlyContinue |
-                Sort-Object { $verNum = 0; [void][int]::TryParse($_.Name, [ref]$verNum); $verNum } -Descending
-            foreach ($pgVersionDir in $pgVersionDirs) {
-                $psqlCandidate = Join-Path $pgVersionDir.FullName "bin\psql.exe"
-                if (Test-Path -LiteralPath $psqlCandidate) {
-                    return $psqlCandidate
-                }
-            }
-        }
-    }
-    return $null
-}
-
-# Run a single SQL command against the local server as the postgres superuser.
-# Caller sets $env:PGPASSWORD beforehand; check $LASTEXITCODE after the call.
-function Invoke-PgSql {
-    param([string]$PsqlPath, [string]$Sql)
-    return (& $PsqlPath -h $PgHost -p $PgPort -U $PgUser -d postgres -tAc $Sql 2>&1)
-}
-
-# Resolve wsl.exe (PATH, then the canonical System32 location).
-function Resolve-WslExe {
-    $wslCmdInfo = Get-Command wsl.exe -ErrorAction SilentlyContinue
-    if ($wslCmdInfo) {
-        return $wslCmdInfo.Source
-    }
-    $wslCandidate = Join-Path $env:SystemRoot "System32\wsl.exe"
-    if (Test-Path -LiteralPath $wslCandidate) {
-        return $wslCandidate
-    }
-    return $null
-}
-
-# Run a single SQL command on the WSL PostgreSQL via the local Unix socket as the
-# postgres OS user (peer auth, no password) -- the same admin path start.sh /
-# 46_install_postgresql.sh use (run_as_postgres psql). Check $LASTEXITCODE after.
-function Invoke-WslPgSqlPeer {
-    param([string]$Sql)
-    return (& $WslExe -u postgres -e psql -tAc $Sql 2>&1)
-}
-
-# Validate a password against the WSL PostgreSQL over TCP loopback (scram). This
-# exercises the EXACT pg_hba rule that Windows-forwarded connections hit: verified
-# on this setup, WSL2 NAT localhost forwarding delivers them to the Linux side
-# with source address 127.0.0.1. Passwords are [A-Za-z0-9] by construction (both
-# generators), so single-quote embedding into sh -c is safe.
-function Test-WslPgScram {
-    param([string]$Password)
-    return (& $WslExe -e sh -c ("PGPASSWORD='{0}' psql -h 127.0.0.1 -p {1} -U {2} -d postgres -tAc 'SELECT 1'" -f $Password, $PgPort, $PgUser) 2>&1)
-}
-
-# List registered WSL distros (trimmed, empty entries dropped). WSL_UTF8=1 makes
-# recent wsl.exe emit UTF-8; the \0/\r strip keeps older UTF-16 output usable too.
-function Get-WslInstalledDistros {
-    param([string]$WslPath)
-    $prevUtf8 = $env:WSL_UTF8
-    $env:WSL_UTF8 = "1"
-    $raw = $null
-    try {
-        $raw = & $WslPath -l -q 2>$null
-    } catch {
-        $raw = $null
-    } finally {
-        $env:WSL_UTF8 = $prevUtf8
-    }
-    if (-not $raw) { return @() }
-    # Drop empties and Docker Desktop's system distros (they cannot run the backend).
-    # `wsl -l -q` lists the DEFAULT distro first, so [0] downstream is the default.
-    return @($raw |
-        ForEach-Object { ($_ -replace "[\0\r]", "").Trim() } |
-        Where-Object { ($_ -ne "") -and ($_ -notmatch '^docker-desktop') })
-}
-
-# Convert an absolute Windows drive path to its WSL /mnt/<drive>/... form so a
-# Windows-side script path can be handed to bash inside WSL.
-function Convert-WinPathToWsl {
-    param([string]$WinPath)
-    $full = [System.IO.Path]::GetFullPath($WinPath)
-    $drive = $full.Substring(0, 1).ToLower()
-    $rest = ($full.Substring(2)) -replace '\\', '/'
-    return "/mnt/$drive$rest"
-}
-
-# Idempotent y/N prompt defaulting to NO. LARAVEL_ASSUME_YES=1 pre-confirms; a
-# non-interactive session (no console) answers NO so nothing ever blocks.
-function Read-PsYesNoDefaultNo {
-    param([string]$Message)
-    if ($env:LARAVEL_ASSUME_YES -eq '1') { return $true }
-    if (-not [Environment]::UserInteractive) { return $false }
-    $reply = Read-Host "$Message [y/N]"
-    return ($reply -match '^[Yy]')
-}
+# Shared NSSM service registration helper (idempotent install-or-update + restart).
+. $NssmServiceManagerScript
 
 Write-Host "Initial directory (invocation): $($OriginalDirectory.Path)" -ForegroundColor DarkGray
 Write-Host "Working directory (Laravel root): $LaravelDir" -ForegroundColor DarkGray
@@ -265,90 +126,21 @@ Write-Host ""
 try {
     Set-Location -Path $LaravelDir
 
-    # ========================================================================
-    # WSL-first orchestration (single Windows entry point).
-    # ------------------------------------------------------------------------
-    # The PRIMARY runtime is Laravel Octane on Swoole, which has NO Windows build
-    # and runs only on Linux/WSL (scripts/start.sh is that runtime; the native
-    # path below is a degraded, Swoole-less fallback). So when WSL is available we
-    # ORCHESTRATE it from here -- everything the Windows host can invoke directly is
-    # invoked directly:
-    #   1. (host-runnable) Tailscale/LAN port-forward Windows:Port -> WSL:Port, so
-    #      OTHER Tailscale/LAN devices can reach the WSL backend (needs admin -> UAC).
-    #      Under WSL2 NAT, octane:start binds the WSL VM's 0.0.0.0, not the host, so
-    #      without this only the host's own localhost can reach it.
-    #   2. (host-runnable) launch start.sh INSIDE WSL in the foreground.
-    # If WSL is NOT installed we PROMPT (idempotent) to install it, otherwise we fall
-    # through to the native-Windows runtime below. Opt out of WSL with:
-    #   $env:LARAVEL_BACKEND_MODE = 'native'   (force native)  | 'wsl' (force WSL)
-    $BackendMode = $env:LARAVEL_BACKEND_MODE
-    $WslExe = Resolve-WslExe
-    if ($WslExe) {
-        $WslDistros = Get-WslInstalledDistros $WslExe
-    }
-    if ($BackendMode -ne 'native') {
-        if ($WslExe -and ($WslDistros.Count -gt 0)) {
-            $WslDefaultDistro = $WslDistros[0]
-            Write-Host ""
-            Write-Host "WSL detected (distro: $WslDefaultDistro) -> orchestrating the WSL backend (Octane/Swoole)." -ForegroundColor Cyan
-
-            # 1. Tailscale/LAN port-forward (host-runnable; netsh + firewall need admin).
-            if (Test-Path -LiteralPath $PortForwardScript) {
-                Write-Host "Setting Windows->WSL port-forward for :$Port (Tailscale/LAN reachability)..." -ForegroundColor Yellow
-                $IsAdminPs = (New-Object Security.Principal.WindowsPrincipal(
-                    [Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole(
-                    [Security.Principal.WindowsBuiltInRole]::Administrator)
-                if ($IsAdminPs) {
-                    & $PortForwardScript -Port $Port
-                } else {
-                    Write-Host "  (a UAC prompt will appear -- the port-forward needs Administrator for netsh/firewall)" -ForegroundColor DarkGray
-                    Start-Process -FilePath "powershell.exe" -Verb RunAs -Wait -ArgumentList @(
-                        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$PortForwardScript`"", "-Port", "$Port"
-                    )
-                }
-            } else {
-                Write-Host "  Note: $PortForwardScript missing -> skipping port-forward (external access may not work)." -ForegroundColor Yellow
-            }
-
-            # 2. Launch start.sh inside WSL (foreground). start.sh derives all its own
-            #    paths from its location, so only its WSL path is needed. --no-service
-            #    keeps it foreground/non-prompting (this orchestrator owns lifecycle).
-            $WslStartShPath = Convert-WinPathToWsl (Join-Path $ScriptDir "start.sh")
-            Write-Host "Launching backend in WSL: $WslDefaultDistro -> $WslStartShPath" -ForegroundColor Cyan
-            Write-Host "Press Ctrl+C to stop." -ForegroundColor DarkGray
-            Write-Host ""
-            & $WslExe -d $WslDefaultDistro -- env PORT=$Port bash $WslStartShPath --no-service
-            exit $LASTEXITCODE
-        } else {
-            # WSL feature/distro absent -> idempotent prompt, then fall back to native.
-            Write-Host ""
-            if (-not $WslExe) {
-                Write-Host "WSL is not installed on this host (wsl.exe not found)." -ForegroundColor Yellow
-            } else {
-                Write-Host "WSL is installed but no distro is registered." -ForegroundColor Yellow
-            }
-            Write-Host "The PRIMARY runtime (Octane/Swoole) needs WSL. Install it once (a reboot is required):" -ForegroundColor Yellow
-            Write-Host "    wsl --install -d Ubuntu" -ForegroundColor Cyan
-            if (Read-PsYesNoDefaultNo "Run 'wsl --install -d Ubuntu' now? (a reboot will be required)") {
-                wsl --install -d Ubuntu
-                Write-Host "WSL install started. Reboot, finish the Ubuntu first-run setup, then re-run start.ps1." -ForegroundColor Green
-                exit 0
-            }
-            Write-Host "Continuing with the DEGRADED native-Windows runtime (Swoole-less; no Octane timer tasks)." -ForegroundColor Yellow
-            Write-Host ""
-        }
-    }
-    # (Reached only when LARAVEL_BACKEND_MODE='native', or WSL is unavailable and the
-    #  user declined to install it -> the existing native-Windows flow runs below.)
-
+    # --- Toolchain: php + composer (idempotent auto-install via the canonical DevInstaller step) ---
     $phpCmd = Get-Command php -ErrorAction SilentlyContinue
     $composerCmd = Get-Command composer -ErrorAction SilentlyContinue
+    if ((-not $phpCmd) -or (-not $composerCmd)) {
+        Write-Host "PHP/Composer not found -> invoking canonical installer (idempotent): Step12_InstallPHP.ps1" -ForegroundColor Yellow
+        Invoke-DevInstallerStep -RepoRootDir $RepoRootDir -StepScriptName "Step12_InstallPHP.ps1" | Out-Null
+        $phpCmd = Get-Command php -ErrorAction SilentlyContinue
+        $composerCmd = Get-Command composer -ErrorAction SilentlyContinue
+    }
     if (-not $phpCmd) {
-        Write-Host "PHP not found in PATH. On Windows run Installer Menu -> Run DevInstaller (Step12_InstallPHP.ps1)." -ForegroundColor Red
+        Write-Host "PHP still not found after Step12_InstallPHP.ps1. Run it manually via the Installer Menu." -ForegroundColor Red
         exit 1
     }
     if (-not $composerCmd) {
-        Write-Host "Composer not found in PATH. Run DevInstaller first (PhpPostInstallProcessor installs Composer)." -ForegroundColor Red
+        Write-Host "Composer still not found after Step12_InstallPHP.ps1. Run it manually via the Installer Menu." -ForegroundColor Red
         exit 1
     }
 
@@ -367,7 +159,7 @@ try {
         Copy-Item -LiteralPath $EnvExamplePath -Destination $EnvPath
     }
 
-    # Ensure vendor dependencies are installed before running any artisan command.
+    # Ensure vendor dependencies before any artisan command.
     if ((-not (Test-Path -LiteralPath $VendorDir)) -or (-not (Test-Path -LiteralPath $VendorAutoload))) {
         Write-Host "vendor/ not found. Running composer install..." -ForegroundColor Yellow
         composer install
@@ -390,335 +182,77 @@ try {
         }
     }
 
-    # --- PHP pdo_pgsql extension check (the app uses PostgreSQL on Windows too) ---
-    # Without pdo_pgsql every PG connection dies at migrate with "could not find
-    # driver", so a missing extension forces the SQLite fallback below.
-    $phpModulesOut = php -m 2>&1
+    # --- Idempotent php.ini dependency fix (runs every startup, fast) ---
+    # Comments out extensions that are auto-loaded as runtime deps of another extension
+    # (e.g. pgsql auto-loaded by pdo_pgsql). Prevents "already loaded" warnings on every
+    # PHP subprocess spawn. Must run before any php/artisan invocation.
+    if (Test-Path -LiteralPath $PhpIniDepsFixScript) {
+        php $PhpIniDepsFixScript | Out-Null
+    }
+
+    # --- PHP pdo_pgsql extension check (PostgreSQL-only app) ---
+    # Without pdo_pgsql every PG connection dies at migrate with "could not find driver".
+    $phpModulesOut = php -m
     if (($phpModulesOut | Out-String) -match '(?im)^\s*pdo_pgsql\s*$') {
         $PdoPgsqlPresent = $true
         Write-Host "PHP pdo_pgsql extension present." -ForegroundColor Green
     } else {
-        # Canonical auto-fix first (dd.cmd chain): configure_php_ini.php enables the
-        # required extension set (now including pdo_pgsql + pgsql) idempotently --
-        # same role as 47_ensure_php_pgsql.sh invoked by start.sh on Linux.
+        # Canonical auto-fix (dd.cmd chain): configure_php_ini.php enables the required
+        # extensions idempotently -- same role as 47_ensure_php_pgsql.sh on Linux.
         if (Test-Path -LiteralPath $PhpIniConfigScript) {
             $PhpExeForConfig = (Get-Command php -ErrorAction SilentlyContinue).Source
             if ($PhpExeForConfig) {
-                Write-Host "PHP pdo_pgsql missing. Invoking canonical configurator (dd.cmd chain):" -ForegroundColor Yellow
-                Write-Host "  $PhpIniConfigScript" -ForegroundColor Yellow
+                Write-Host "PHP pdo_pgsql missing. Invoking canonical configurator: $PhpIniConfigScript" -ForegroundColor Yellow
                 php $PhpIniConfigScript $PhpExeForConfig 2>&1 | Out-Null
-                $phpModulesRetry = php -m 2>&1
+                $phpModulesRetry = php -m
                 if (($phpModulesRetry | Out-String) -match '(?im)^\s*pdo_pgsql\s*$') {
                     $PdoPgsqlPresent = $true
-                    Write-Host "pdo_pgsql enabled by configure_php_ini.php -> PostgreSQL driver available." -ForegroundColor Green
+                    Write-Host "pdo_pgsql enabled by configure_php_ini.php." -ForegroundColor Green
                 }
             }
         }
     }
     if (-not $PdoPgsqlPresent) {
-        $phpIniPath = (php -r "echo php_ini_loaded_file();" 2>&1 | Out-String).Trim()
-        $phpExtDir = (php -r "echo ini_get('extension_dir');" 2>&1 | Out-String).Trim()
+        $phpIniPath = (php -r "echo php_ini_loaded_file();" | Out-String).Trim()
+        $phpExtDir = (php -r "echo ini_get('extension_dir');" | Out-String).Trim()
         Write-Host "  *** ACTION REQUIRED: PHP pdo_pgsql extension missing -> PostgreSQL cannot be used." -ForegroundColor Red
-        Write-Host "  *** Fix (official Windows PHP ships the DLLs; only the ini lines are missing):" -ForegroundColor Red
         if ($phpIniPath) {
             Write-Host "  ***   1. Open: $phpIniPath" -ForegroundColor Red
         } else {
-            Write-Host "  ***   1. No php.ini is loaded: copy php.ini-development to php.ini next to php.exe, then open it." -ForegroundColor Red
+            Write-Host "  ***   1. No php.ini loaded: copy php.ini-development to php.ini next to php.exe, then open it." -ForegroundColor Red
         }
-        Write-Host "  ***   2. Add (or uncomment) these two lines: extension=pdo_pgsql and extension=pgsql" -ForegroundColor Red
+        Write-Host "  ***   2. Add (or uncomment): extension=pdo_pgsql  (pgsql loads automatically as its dependency)" -ForegroundColor Red
         if ($phpExtDir) {
             Write-Host "  ***   3. Confirm php_pdo_pgsql.dll and php_pgsql.dll exist in: $phpExtDir" -ForegroundColor Red
-        } else {
-            Write-Host "  ***   3. Confirm php_pdo_pgsql.dll and php_pgsql.dll exist in the PHP ext directory." -ForegroundColor Red
         }
         Write-Host "  ***   4. Verify with: php -m | findstr pdo_pgsql -- then re-run start.ps1." -ForegroundColor Red
     }
 
-    # --- Credentials: CoreNodeSecrets-compatible global-var store ---
-    # App\Support\CoreNodeSecrets::dir() = getenv('CORE_NODE_DATA_DIR') else
-    # '/var/_core_node' (+ '/global_var/<KEY>', one file per key, value + trailing
-    # newline). On Windows PHP a rootless '/var/...' resolves against the CURRENT
-    # DRIVE, so pin the store deterministically to '<LaravelDrive>\var\_core_node'
-    # and EXPORT CORE_NODE_DATA_DIR so every php/artisan/composer child process
-    # reads the exact same store. The password is NEVER written into .env.
-    if ($env:CORE_NODE_DATA_DIR) {
-        $CoreNodeDataDir = $env:CORE_NODE_DATA_DIR
-    } else {
-        $CoreNodeDataDir = Join-Path $LaravelDriveRoot "var\_core_node"
-        $env:CORE_NODE_DATA_DIR = $CoreNodeDataDir
-    }
-    $GlobalVarDir = Join-Path $CoreNodeDataDir "global_var"
-    $PgPasswordFile = Join-Path $GlobalVarDir "POSTGRES_PASSWORD"
-    if (-not (Test-Path -LiteralPath $GlobalVarDir)) {
-        New-Item -ItemType Directory -Force -Path $GlobalVarDir | Out-Null
-    }
-    if (Test-Path -LiteralPath $PgPasswordFile) {
-        $PgPassword = Get-Content -LiteralPath $PgPasswordFile -Raw -ErrorAction SilentlyContinue
-        if ($PgPassword) {
-            $PgPassword = $PgPassword.Trim()
-        }
-    }
-    # --- Database: PostgreSQL (Windows parity with start.sh), localhost-only ---
-    Write-Host "Ensuring PostgreSQL (localhost-only, per-app databases)..." -ForegroundColor Yellow
-    $PgService = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue | Select-Object -First 1
-    $PsqlExe = Resolve-PsqlPath
-    $WslExe = Resolve-WslExe
-    $PgPortOpen = Test-PgTcpPort -TargetHost $PgHost -TargetPort $PgPort -TimeoutMs 1500
-
-    # Installed-but-stopped native Windows service: start it and wait briefly.
-    # (EDB installer convention names the service postgresql-x64-<major>; the
-    # postgresql* wildcard covers it without pinning the major version.)
-    if ((-not $PgPortOpen) -and $PgService -and ($PgService.Status -ne "Running")) {
-        Write-Host "  PostgreSQL service '$($PgService.Name)' found stopped; starting..." -ForegroundColor Yellow
-        try {
-            Start-Service -Name $PgService.Name -ErrorAction Stop
-        } catch {
-            Write-Host "  Warning: failed to start service '$($PgService.Name)': $($_.Exception.Message)" -ForegroundColor Yellow
-        }
-        for ($PgWaitIndex = 0; $PgWaitIndex -lt 15; $PgWaitIndex++) {
-            $PgPortOpen = Test-PgTcpPort -TargetHost $PgHost -TargetPort $PgPort -TimeoutMs 1000
-            if ($PgPortOpen) {
-                break
-            }
-            Start-Sleep -Seconds 1
-        }
-        # ServiceController status is a snapshot; re-query so the mode decision
-        # below sees the post-start state.
-        $PgService = Get-Service -Name $PgService.Name -ErrorAction SilentlyContinue
+    # --- Credentials store: pin + EXPORT CORE_NODE_DATA_DIR so every php/artisan
+    # child reads the same CoreNodeSecrets store the manager writes to. On Windows a
+    # rootless '/var/...' resolves against the current drive, so pin it explicitly.
+    # Anchor to the PG data drive (same as the manager + all path mappers), NOT the
+    # repo drive, so a standalone Step33 run and start.ps1 always agree on the store.
+    if (-not $env:CORE_NODE_DATA_DIR) {
+        $env:CORE_NODE_DATA_DIR = Join-Path ([System.IO.Path]::GetPathRoot($Global:PG_DATA_ROOT)) "var\_core_node"
     }
 
-    # Port still closed but WSL exists: the canonical PostgreSQL likely lives
-    # INSIDE WSL (start.sh -> 46_install_postgresql.sh chain). Try to start it
-    # there (WSL-safe sysv service, no systemd needed) instead of installing a
-    # SECOND Windows server.
-    if ((-not $PgPortOpen) -and $WslExe) {
-        Write-Host "  Port $PgPort closed; trying to start PostgreSQL inside WSL (canonical Linux chain)..." -ForegroundColor Yellow
-        $wslOut = & $WslExe -u root -e service postgresql start 2>&1
-        for ($PgWaitIndex = 0; $PgWaitIndex -lt 15; $PgWaitIndex++) {
-            $PgPortOpen = Test-PgTcpPort -TargetHost $PgHost -TargetPort $PgPort -TimeoutMs 1000
-            if ($PgPortOpen) {
-                break
-            }
-            Start-Sleep -Seconds 1
-        }
-        if (-not $PgPortOpen) {
-            Write-Host "  WSL PostgreSQL did not come up; run 'bash scripts/start.sh' inside WSL once to install/configure it." -ForegroundColor Yellow
-        }
-    }
+    # --- PostgreSQL: native cluster on D:, idempotent, reuse an already-serving :5432.
+    Write-Host "Ensuring PostgreSQL (native Windows, idempotent, :5432 reuse)..." -ForegroundColor Yellow
+    Write-Host "  Invoking shared PG manager (same idempotent engine as Step33_InstallPostgreSQL.ps1):" -ForegroundColor DarkGray
+    Write-Host "    $PgManagerScript" -ForegroundColor DarkGray
+    $pgReady = Ensure-Postgresql
 
-    # Determine the serving mode for an open port: a RUNNING native Windows
-    # service owns it; otherwise probe the WSL server (peer-auth psql over the
-    # Unix socket). WSL2 default NAT networking forwards Windows localhost to
-    # Linux services (learn.microsoft.com/windows/wsl/networking), and those
-    # forwarded connections reach the Linux side from 127.0.0.1, matching the
-    # 46_install_postgresql.sh pg_hba loopback scram rule.
-    if ($PgPortOpen) {
-        if ($PgService -and ($PgService.Status -eq "Running")) {
-            $WslPgMode = $false
-        } elseif ($WslExe) {
-            $wslOut = Invoke-WslPgSqlPeer -Sql "SELECT 1"
-            if (($LASTEXITCODE -eq 0) -and (($wslOut | Out-String) -match "1")) {
-                $WslPgMode = $true
-                Write-Host "  Port $PgPort is served by the WSL PostgreSQL (NAT localhost forwarding) -> reusing it (no second Windows server)." -ForegroundColor Green
-            }
-        }
-    }
-
-    # Credentials: when WSL is present and the Windows store is empty, HARVEST the
-    # WSL-side value (canonical generator: 46_install_postgresql.sh) so both
-    # stores hold the SAME password. Generate only for a Windows-native server
-    # (same semantics: 24 random [A-Za-z0-9], persisted value + LF, no BOM --
-    # CoreNodeSecrets trims whitespace only).
-    if ((-not $PgPassword) -and $WslExe) {
-        $PgPasswordFromWsl = (& $WslExe -e cat $WslStorePasswordPath 2>&1 | Out-String).Trim()
-        if (($LASTEXITCODE -eq 0) -and $PgPasswordFromWsl) {
-            $PgPassword = $PgPasswordFromWsl
-            [System.IO.File]::WriteAllText($PgPasswordFile, "$PgPassword`n")
-            Write-Host "  Harvested POSTGRES_PASSWORD from the WSL store into the Windows store: $PgPasswordFile" -ForegroundColor Green
-        }
-    }
-    if (-not $PgPassword) {
-        if ($WslPgMode) {
-            Write-Host "  *** ACTION REQUIRED: WSL PostgreSQL is running but no credential exists in either store." -ForegroundColor Red
-            Write-Host "  *** Run 'bash scripts/start.sh' inside WSL once (46_install_postgresql.sh generates the" -ForegroundColor Red
-            Write-Host "  *** password and applies ALTER USER), then re-run start.ps1." -ForegroundColor Red
-        } else {
-            $PgRng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-            $PgPasswordBytes = New-Object byte[] 24
-            $PgRng.GetBytes($PgPasswordBytes)
-            $PgPassword = -join ($PgPasswordBytes | ForEach-Object { $PgPasswordChars[$_ % $PgPasswordChars.Length] })
-            [System.IO.File]::WriteAllText($PgPasswordFile, "$PgPassword`n")
-            Write-Host "  Generated POSTGRES_PASSWORD into global-var store: $PgPasswordFile" -ForegroundColor Yellow
-        }
-    }
-
-    # Not installed anywhere (port closed, no native service/psql, no WSL). The
-    # Windows DevInstaller chain (scripts\shells\win\install_powershells\
-    # Step*.ps1) has NO PostgreSQL step, so install via winget (best-effort).
-    # winget docs: --override is "a string that will be passed directly to the
-    # installer" and REPLACES the manifest's silent switches ('--mode unattended
-    # --unattendedmodeui none'), so those are repeated here together with the EDB
-    # unattended credential/port options (--superpassword/--serverport). The
-    # PostgreSQL.PostgreSQL.<major> winget package wraps the EDB community
-    # installer (get.enterprisedb.com/postgresql/...-windows-x64.exe).
-    if ((-not $PgPortOpen) -and (-not $PgService) -and (-not $PsqlExe) -and (-not $WslExe)) {
-        $WingetCmd = Get-Command winget -ErrorAction SilentlyContinue
-        if ($WingetCmd) {
-            foreach ($WingetPgId in $WingetPgIds) {
-                Write-Host "  Installing PostgreSQL via winget: $WingetPgId (best-effort, unattended)..." -ForegroundColor Yellow
-                $wingetOut = & $WingetCmd.Source install --id $WingetPgId -e --silent --accept-package-agreements --accept-source-agreements --override "--mode unattended --unattendedmodeui none --superpassword $PgPassword --serverport $PgPort" 2>&1
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "  winget install $WingetPgId completed." -ForegroundColor Green
-                    break
-                }
-                Write-Host "  winget install $WingetPgId failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
-            }
-        } else {
-            Write-Host "  winget not available -> cannot auto-install PostgreSQL." -ForegroundColor Yellow
-        }
-        $PgService = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue | Select-Object -First 1
-        $PsqlExe = Resolve-PsqlPath
-        if ($PgService -and ($PgService.Status -ne "Running")) {
-            try {
-                Start-Service -Name $PgService.Name -ErrorAction Stop
-            } catch {
-                Write-Host "  Warning: failed to start service '$($PgService.Name)': $($_.Exception.Message)" -ForegroundColor Yellow
-            }
-        }
-        for ($PgWaitIndex = 0; $PgWaitIndex -lt 30; $PgWaitIndex++) {
-            $PgPortOpen = Test-PgTcpPort -TargetHost $PgHost -TargetPort $PgPort -TimeoutMs 1000
-            if ($PgPortOpen) {
-                break
-            }
-            Start-Sleep -Seconds 1
-        }
-        if (-not $PgPortOpen) {
-            Write-Host "  *** ACTION REQUIRED: PostgreSQL could not be installed/started automatically." -ForegroundColor Red
-            Write-Host "  *** Install it manually (e.g. 'winget install PostgreSQL.PostgreSQL.17' or the EDB" -ForegroundColor Red
-            Write-Host "  *** installer). If the installer asks for a superuser password, either use the value" -ForegroundColor Red
-            Write-Host "  *** stored in: $PgPasswordFile" -ForegroundColor Red
-            Write-Host "  *** or overwrite that file with the password you chose (single line), then re-run start.ps1." -ForegroundColor Red
-        }
-    }
-
-    # Verify credentials and ensure the per-app databases (idempotent).
-    if ($PgPortOpen -and $WslPgMode) {
-        # WSL reuse path: validate over TCP loopback scram (the exact pg_hba rule
-        # Windows-forwarded connections hit), admin via peer-auth psql inside WSL
-        # (no Windows psql.exe required).
-        if ($PgPassword) {
-            $pgQueryOut = Test-WslPgScram -Password $PgPassword
-            if (($LASTEXITCODE -eq 0) -and (($pgQueryOut | Out-String) -match "1")) {
-                $PgAuthOk = $true
-            }
-        }
-        if (-not $PgAuthOk) {
-            # The Windows store may be stale: re-harvest from WSL and retry once.
-            $PgPasswordFromWsl = (& $WslExe -e cat $WslStorePasswordPath 2>&1 | Out-String).Trim()
-            if (($LASTEXITCODE -eq 0) -and $PgPasswordFromWsl -and ($PgPasswordFromWsl -ne $PgPassword)) {
-                $pgQueryOut = Test-WslPgScram -Password $PgPasswordFromWsl
-                if (($LASTEXITCODE -eq 0) -and (($pgQueryOut | Out-String) -match "1")) {
-                    $PgPassword = $PgPasswordFromWsl
-                    [System.IO.File]::WriteAllText($PgPasswordFile, "$PgPassword`n")
-                    $PgAuthOk = $true
-                    Write-Host "  Windows store was stale -> re-synced POSTGRES_PASSWORD from the WSL store." -ForegroundColor Yellow
-                }
-            }
-        }
-        if ($PgAuthOk) {
-            Write-Host "  WSL PostgreSQL accepts loopback scram auth with the stored credential (stores in sync)." -ForegroundColor Green
-            # Per-app databases are normally created by start.sh inside WSL;
-            # verify existence and fill any missing one.
-            foreach ($dbName in $AppDbNames) {
-                $pgQueryOut = Invoke-WslPgSqlPeer -Sql "SELECT 1 FROM pg_database WHERE datname='$dbName'"
-                if (-not (($pgQueryOut | Out-String) -match "1")) {
-                    Write-Host "  Creating database (via WSL): $dbName" -ForegroundColor Yellow
-                    $pgQueryOut = Invoke-WslPgSqlPeer -Sql "CREATE DATABASE $dbName"
-                    if ($LASTEXITCODE -ne 0) {
-                        Write-Host "    Warning: failed to create $dbName" -ForegroundColor Yellow
-                    }
-                }
-            }
-            Write-Host "  Per-app PostgreSQL databases ensured (WSL server)." -ForegroundColor Green
-        } else {
-            Write-Host "  *** ACTION REQUIRED: the WSL PostgreSQL rejected loopback password auth." -ForegroundColor Red
-            Write-Host "  *** Run 'bash scripts/start.sh' inside WSL once (46_install_postgresql.sh re-applies" -ForegroundColor Red
-            Write-Host "  *** ALTER USER from the WSL store), then re-run start.ps1." -ForegroundColor Red
-        }
-    } elseif ($PgPortOpen) {
-        if (-not $PsqlExe) {
-            Write-Host "  *** ACTION REQUIRED: PostgreSQL is listening on port $PgPort but psql.exe was not found" -ForegroundColor Red
-            Write-Host "  *** (PATH and %ProgramFiles%\PostgreSQL\<ver>\bin probed) -> per-app databases cannot" -ForegroundColor Red
-            Write-Host "  *** be ensured. Add the PostgreSQL bin directory to PATH and re-run start.ps1." -ForegroundColor Red
-        } else {
-            $env:PGPASSWORD = $PgPassword
-            $pgQueryOut = Invoke-PgSql -PsqlPath $PsqlExe -Sql "SELECT 1"
-            if (($LASTEXITCODE -eq 0) -and (($pgQueryOut | Out-String) -match "1")) {
-                $PgAuthOk = $true
-                Write-Host "  PostgreSQL reachable; stored credentials accepted." -ForegroundColor Green
-            } else {
-                # EDB dev-guide: a plain 'winget install PostgreSQL.PostgreSQL.<n>'
-                # (manifest silent switches only, no --superpassword) leaves the
-                # default superuser password 'postgres'. Probe it and self-heal by
-                # rotating to the stored value (ALTER USER -- the same semantics
-                # 46_install_postgresql.sh applies on Linux).
-                $env:PGPASSWORD = "postgres"
-                $pgQueryOut = Invoke-PgSql -PsqlPath $PsqlExe -Sql "SELECT 1"
-                if (($LASTEXITCODE -eq 0) -and (($pgQueryOut | Out-String) -match "1")) {
-                    $pgQueryOut = Invoke-PgSql -PsqlPath $PsqlExe -Sql "ALTER USER postgres WITH PASSWORD '$PgPassword'"
-                    if ($LASTEXITCODE -eq 0) {
-                        $env:PGPASSWORD = $PgPassword
-                        $pgQueryOut = Invoke-PgSql -PsqlPath $PsqlExe -Sql "SELECT 1"
-                        if (($LASTEXITCODE -eq 0) -and (($pgQueryOut | Out-String) -match "1")) {
-                            $PgAuthOk = $true
-                            Write-Host "  Default 'postgres' password detected -> rotated to the stored value (ALTER USER)." -ForegroundColor Yellow
-                        }
-                    }
-                }
-            }
-            if (-not $PgAuthOk) {
-                Write-Host "  *** ACTION REQUIRED: PostgreSQL is running but rejected the stored password." -ForegroundColor Red
-                Write-Host "  *** The store file read by Laravel (App\Support\CoreNodeSecrets) is:" -ForegroundColor Red
-                Write-Host "  ***   $PgPasswordFile" -ForegroundColor Red
-                Write-Host "  *** Option 1: overwrite that file with the server's actual postgres password (single line)." -ForegroundColor Red
-                Write-Host "  *** Option 2: change the server password to the stored value:" -ForegroundColor Red
-                Write-Host "  ***   psql -h $PgHost -U $PgUser -c `"ALTER USER postgres WITH PASSWORD '<stored value>';`"" -ForegroundColor Red
-                Write-Host "  *** Then re-run start.ps1." -ForegroundColor Red
-            }
-            if ($PgAuthOk) {
-                foreach ($dbName in $AppDbNames) {
-                    $pgQueryOut = Invoke-PgSql -PsqlPath $PsqlExe -Sql "SELECT 1 FROM pg_database WHERE datname='$dbName'"
-                    if (-not (($pgQueryOut | Out-String) -match "1")) {
-                        Write-Host "  Creating database: $dbName" -ForegroundColor Yellow
-                        $pgQueryOut = Invoke-PgSql -PsqlPath $PsqlExe -Sql "CREATE DATABASE $dbName"
-                        if ($LASTEXITCODE -ne 0) {
-                            Write-Host "    Warning: failed to create $dbName" -ForegroundColor Yellow
-                        }
-                    }
-                }
-                Write-Host "  Per-app PostgreSQL databases ensured." -ForegroundColor Green
-            }
-            Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
-        }
-    }
-
-    # --- PostgreSQL-only enforcement (no fallback database exists) ---
-    # config/database.php hardcodes pgsql for every active connection and reads
-    # NOTHING from .env (driver/host/port/user/database are code literals; the
-    # password comes from the CoreNodeSecrets store). There is no SQLite
-    # connection to fall back to: if PostgreSQL is not ready the app cannot
-    # serve, so say it loudly instead of pretending a degraded mode exists.
-    if ($PgAuthOk -and $PdoPgsqlPresent) {
-        Write-Host "PostgreSQL ready (pdo_pgsql + authenticated localhost server)." -ForegroundColor Green
+    if ($pgReady -and $PdoPgsqlPresent) {
+        Write-Host "PostgreSQL ready (pdo_pgsql + server on $($Global:PG_HOST):$($Global:PG_PORT))." -ForegroundColor Green
     } else {
         Write-Host "  *** ACTION REQUIRED: PostgreSQL is NOT ready and this app is PostgreSQL-only." -ForegroundColor Red
         Write-Host "  *** There is no SQLite fallback; migrations and every request will fail." -ForegroundColor Red
         Write-Host "  *** Fix the ACTION REQUIRED items above, then re-run start.ps1." -ForegroundColor Red
     }
-    # Neutralize stale DB lines in .env idempotently (same approach as start.sh
-    # on Linux). The active connections ignore .env by design, but leftover
-    # POLY_DB_DRIVER / DB_* lines mislead readers and used to repoint the
-    # runtime in older revisions -- comment them out so .env stays inert.
+
+    # Neutralize stale DB lines in .env idempotently (same as start.sh). Active
+    # connections ignore .env by design; commenting keeps it inert and non-misleading.
     if (Test-Path -LiteralPath $EnvPath) {
         $envDriverChanged = $false
         $envDriverLines = @(Get-Content -LiteralPath $EnvPath | ForEach-Object {
@@ -736,6 +270,38 @@ try {
         }
     }
 
+    # --- Export Windows PG dump for Linux-native systems that cannot run .exe ---
+    # WSL can pg_dumpall.exe directly; native Linux (e.g. dual-boot) reads this file.
+    # Export only when: PG is ready AND (dump missing OR dump older than 24 h).
+    # Runs pg_dumpall --clean so pg_sync_adapter.py can restore idempotently.
+    if ($pgReady) {
+        $PgWinExportSql = Join-Path $Global:PG_DATA_ROOT "pg_win_export.sql"
+        $PgWinExportStale = $true
+        if (Test-Path -LiteralPath $PgWinExportSql) {
+            $PgWinExportAge = ((Get-Date) - (Get-Item -LiteralPath $PgWinExportSql).LastWriteTime).TotalHours
+            if ($PgWinExportAge -lt 24) { $PgWinExportStale = $false }
+        }
+        if ($PgWinExportStale) {
+            $PgWinExportBinDir = Resolve-PgBinDir
+            if ($PgWinExportBinDir) {
+                $PgWinExportTmp = Join-Path $Global:PG_DATA_ROOT "pg_win_export.sql.tmp"
+                Write-Host "  Exporting Windows PG dump for Linux cross-env sync -> $PgWinExportSql" -ForegroundColor DarkGray
+                $env:PGPASSWORD = Get-PgPassword
+                & (Join-Path $PgWinExportBinDir "pg_dumpall.exe") `
+                    -h $Global:PG_HOST -p $Global:PG_PORT -U $Global:PG_USER `
+                    --clean --if-exists -f $PgWinExportTmp 2>&1 | Out-Null
+                $env:PGPASSWORD = $null
+                if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $PgWinExportTmp)) {
+                    Move-Item -LiteralPath $PgWinExportTmp -Destination $PgWinExportSql -Force
+                    Write-Host "  Windows PG export complete: $PgWinExportSql" -ForegroundColor DarkGray
+                } else {
+                    Write-Host "  Warning: Windows PG export failed (pg_dumpall exit $LASTEXITCODE). Continuing." -ForegroundColor Yellow
+                    if (Test-Path -LiteralPath $PgWinExportTmp) { Remove-Item -LiteralPath $PgWinExportTmp -Force }
+                }
+            }
+        }
+    }
+
     Write-Host "Clearing route cache..." -ForegroundColor Yellow
     php artisan route:clear 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
@@ -743,23 +309,23 @@ try {
     }
 
     Write-Host "Listing routes..." -ForegroundColor Yellow
-    $routeOut = php artisan route:list 2>&1
+    $routeOut = php artisan route:list
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  Warning: route:list failed (e.g. app error or redeclare). Fix app code then run 'php artisan route:list'. Continuing." -ForegroundColor Yellow
+        Write-Host "  Warning: route:list failed. Fix app code then run 'php artisan route:list'. Continuing." -ForegroundColor Yellow
     } else {
         $routeOut
     }
 
     Write-Host "Running migrations..." -ForegroundColor Yellow
-    $migrateOut = php artisan migrate --force 2>&1
+    $migrateOut = php artisan migrate --force
     $migrateExit = $LASTEXITCODE
     $migrateOut
     if ($migrateExit -ne 0) {
-        Write-Host "  Warning: migrate had errors (PostgreSQL unreachable or schema issue). Fix DB/migrations then run 'php artisan migrate'. Continuing." -ForegroundColor Yellow
+        Write-Host "  Warning: migrate had errors (PostgreSQL unreachable or schema issue). Continuing." -ForegroundColor Yellow
     }
 
     Write-Host "Initializing system (php artisan sys:init)..." -ForegroundColor Yellow
-    php artisan sys:init 2>&1
+    php artisan sys:init
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  Warning: sys:init had issues (continuing)." -ForegroundColor Yellow
     }
@@ -785,18 +351,192 @@ try {
         Write-Host "  http://localhost:$Port (fallback)" -ForegroundColor Cyan
     }
 
-    Write-Host "Starting Laravel development environment with hot reload..." -ForegroundColor Green
-    Write-Host "Note: Headless API mode - web.php serves API debug interface." -ForegroundColor Yellow
-    Write-Host "Press Ctrl+C to stop all services." -ForegroundColor Gray
+    # --- Idempotent: stop previous dev:win session before (re)starting ---
+    # Mirrors start.sh ensure_port_free(): kill stale app processes first, wait for
+    # port release, then fall back to netsh reserve only for Windows dynamic-range
+    # conflicts (Hyper-V/WSL2 reserving the port with no listener process).
+    Write-Host "Ensuring port $Port is free (idempotent restart)..." -ForegroundColor Yellow
+    $stopPids = @()
+
+    # (1) Kill any php.exe running artisan serve / queue:listen / reverb:start /
+    #     schedule:work. Get-CimInstance gives us the full command line to
+    #     distinguish them. schedule:work binds NO port, so step (2) below (port
+    #     based) can never catch a stale one -- this command-line match is its
+    #     ONLY cleanup path; omitting it here would leak one extra ticking
+    #     schedule:work process (a duplicate TimerTasks/* driver) per restart.
+    $prevPhpProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -eq 'php.exe' -and $_.CommandLine -and
+        ($_.CommandLine -match 'artisan\s+serve' -or
+         $_.CommandLine -match 'artisan\s+queue:listen' -or
+         $_.CommandLine -match 'artisan\s+reverb:start' -or
+         $_.CommandLine -match 'artisan\s+schedule:work')
+    }
+    if ($prevPhpProcs) {
+        $stopPids += @($prevPhpProcs | Select-Object -ExpandProperty ProcessId)
+    }
+
+    # (2) Kill processes owning port $Port (serve) or 8080 (reverb).
+    #     This also catches npx/node concurrently if it holds the socket.
+    $portConns = @(
+        (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue),
+        (Get-NetTCPConnection -LocalPort 8080  -State Listen -ErrorAction SilentlyContinue)
+    ) | Where-Object { $_ } | Select-Object -ExpandProperty OwningProcess -Unique
+    if ($portConns) { $stopPids += @($portConns) }
+
+    $stopPids = @($stopPids | Where-Object { $_ -gt 0 } | Sort-Object -Unique)
+    if ($stopPids.Count -gt 0) {
+        foreach ($stopPid in $stopPids) {
+            Stop-Process -Id $stopPid -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "  Stopped $($stopPids.Count) process(es). Waiting for port $Port to release..." -ForegroundColor Yellow
+        $portWaited = 0
+        while ($portWaited -lt 8) {
+            if (-not (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) { break }
+            Start-Sleep -Seconds 1
+            $portWaited++
+        }
+    } else {
+        Write-Host "  No previous session found on port $Port." -ForegroundColor DarkGray
+    }
+
+    # (3) If port is still not bindable despite no listener, it is in the Windows
+    #     dynamic port range (Hyper-V/WSL2). Attempt netsh excludedportrange to
+    #     reserve it for application use (removes it from the dynamic range).
+    if (-not (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) {
+        try {
+            $testListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
+            $testListener.Start()
+            $testListener.Stop()
+            $testListener = $null
+        } catch {
+            $testListener = $null
+            Write-Host "  Port $Port blocked by Windows dynamic range (Hyper-V/WSL2). Attempting netsh reserve (needs admin)..." -ForegroundColor Yellow
+            netsh int ipv4 add excludedportrange protocol=tcp startport=$Port numberofports=1 2>&1 | Out-Null
+            try {
+                $testListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
+                $testListener.Start()
+                $testListener.Stop()
+                $testListener = $null
+                Write-Host "  Port $Port reserved and available." -ForegroundColor Green
+            } catch {
+                $testListener = $null
+                Write-Host "  *** Port $Port still blocked. Run once in an admin terminal, then re-run start.ps1:" -ForegroundColor Red
+                Write-Host "  ***   netsh int ipv4 add excludedportrange protocol=tcp startport=$Port numberofports=1" -ForegroundColor Red
+                Write-Host "  ***   OR: net stop winnat; net start winnat" -ForegroundColor Red
+            }
+        }
+    }
     Write-Host ""
-    Write-Host "Windows (PHP/Laravel): Not supported on this platform:" -ForegroundColor DarkGray
-    Write-Host "  - pcntl extension -> single process only; use composer dev:win." -ForegroundColor DarkGray
-    Write-Host "  - PHP_CLI_SERVER_WORKERS ignored without --no-reload (single server)." -ForegroundColor DarkGray
-    Write-Host "  - Swoole/Octane is the task-system driver and is Linux/WSL only." -ForegroundColor DarkGray
-    Write-Host "    Windows uses composer dev:win (serve + queue) as a fallback; the" -ForegroundColor DarkGray
-    Write-Host "    Octane timer tasks (TTS/cover/translation) do NOT run on Windows." -ForegroundColor DarkGray
-    Write-Host "  - systemctl/service status (ServerManager) is Linux-oriented." -ForegroundColor DarkGray
-    Write-Host "  Ref: development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md, Run DevInstaller for PHP/Composer." -ForegroundColor DarkGray
+
+    # --- Optional background service registration (AFTER the full prerequisite setup) ---
+    # Mirrors start.sh: only once php/composer/PostgreSQL/migrate/sys:init/port-free are
+    # all done do we ask whether to install a background service. LARAVEL_SERVICE_RUN=1
+    # (set via NSSM AppEnvironmentExtra, never a script argument) marks the NSSM-launched
+    # invocation itself: it skips the prompt/registration and falls straight through to
+    # composer dev:win below, which is the actual service body.
+    if (-not $IsServiceRun) {
+        if ($AsServiceEnv -eq "no") {
+            $AsServiceChoice = $false
+        } elseif ($AsServiceEnv -eq "yes") {
+            $AsServiceChoice = $true
+        } else {
+            $AsServiceChoice = Read-YesNoDefaultYes "Prerequisites ready. Add laravel_main to a background Windows service (via NSSM)?"
+        }
+
+        if ($AsServiceChoice) {
+            $NssmPath = Ensure-Nssm -RepoRootDir $RepoRootDir
+            if (-not $NssmPath) {
+                Write-Host "  NSSM unavailable and auto-install (winget) failed -> cannot register a background service." -ForegroundColor Yellow
+                Write-Host "  Install it manually (e.g. 'winget install NSSM.NSSM' or https://nssm.cc/), then re-run start.ps1." -ForegroundColor Yellow
+                Write-Host "  Continuing in the foreground." -ForegroundColor Yellow
+            } else {
+                if (-not (Test-Path -LiteralPath $LogDir)) { New-Item -ItemType Directory -Force -Path $LogDir | Out-Null }
+                $PwshServiceExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+                if (-not $PwshServiceExe) { $PwshServiceExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source }
+                $ServiceArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$SelfScript`""
+                Write-Host "Registering Windows service $LaravelServiceName (NSSM)..." -ForegroundColor Yellow
+                $ServiceRegistered = Register-NssmService -NssmPath $NssmPath -ServiceName $LaravelServiceName `
+                    -DisplayName $LaravelServiceDisplayName -Description $LaravelServiceDesc `
+                    -ExePath $PwshServiceExe -Arguments $ServiceArgs -WorkingDirectory $LaravelDir `
+                    -EnvironmentExtra @("PORT=$Port", "LARAVEL_SERVICE_RUN=1") `
+                    -StdoutLog (Join-Path $LogDir "laravel_main.service.out.log") `
+                    -StderrLog (Join-Path $LogDir "laravel_main.service.err.log")
+
+                if ($ServiceRegistered) {
+                    Write-Host "Service $LaravelServiceName registered and (re)started." -ForegroundColor Green
+                    Write-Host "  Manage: Get-Service $LaravelServiceName ; Restart-Service $LaravelServiceName ; Stop-Service $LaravelServiceName" -ForegroundColor DarkGray
+                    Write-Host "  Logs:   $LogDir\laravel_main.service.out.log" -ForegroundColor DarkGray
+
+                    # --- Optional: also bring the nexus-dash UI up as its own background service ---
+                    # A separate process (never dot-sourced or `&`): the UI script may itself
+                    # `exit`, which would otherwise terminate this script's own process. Uses
+                    # Start-ChildScriptWithEnv (not Start-Process) so AS_SERVICE=yes is
+                    # GUARANTEED to reach the child -- Start-Process's ShellExecute path does
+                    # not reliably propagate an env var set just before the call, which
+                    # otherwise leaves the child re-asking its own Y/n prompt.
+                    if ($IncludeUiEnv -eq "no") {
+                        $IncludeUiChoice = $false
+                    } elseif ($IncludeUiEnv -eq "yes") {
+                        $IncludeUiChoice = $true
+                    } elseif (Test-Path -LiteralPath $UiStartPs1) {
+                        $IncludeUiChoice = Read-YesNoDefaultNo "Also add the pycore_laravel_wordflow_ui dashboard to a background service?"
+                    } else {
+                        $IncludeUiChoice = $false
+                    }
+                    if ($IncludeUiChoice) {
+                        if (Test-Path -LiteralPath $UiStartPs1) {
+                            Write-Host "Bringing up pycore_laravel_wordflow_ui dashboard as a background service (idempotent)..." -ForegroundColor Yellow
+                            Start-ChildScriptWithEnv -PwshExePath $PwshServiceExe -ScriptPath $UiStartPs1 -ScriptArgs @("-NoBackend") `
+                                -WorkingDirectory (Split-Path -Parent $UiStartPs1) -EnvironmentVars @{ AS_SERVICE = "yes" } -Wait
+                        } else {
+                            Write-Host "  Warning: UI start script not found: $UiStartPs1 (skipping)." -ForegroundColor Yellow
+                        }
+                    }
+
+                    exit 0
+                } else {
+                    Write-Host "Service registration failed; continuing in the foreground." -ForegroundColor Yellow
+                }
+            }
+        }
+    }
+
+    # --- Runtime: native Windows server + queue + websockets + timer ---
+    # IMPORTANT: Laravel Octane's HTTP server CANNOT run on native Windows. octane:start
+    # references the pcntl signal constants SIGINT/SIGTERM/SIGHUP (no Windows pcntl build
+    # -> "Undefined constant SIGINT"). RoadRunner/FrankenPHP do not provide Octane ticks
+    # either. So we run the proven native Windows runtime: `composer dev:win` = artisan
+    # serve + queue:listen + reverb + schedule:work (via npx concurrently). HTTP API,
+    # queued jobs, WebSockets, and the sub-minute task-system timer (TimerTasks/*, the
+    # SAME code as Linux/WSL) all run natively -- OctaneTimerServiceProvider detects the
+    # missing Octane(Swoole) tick and drives the SAME tasks through a Laravel
+    # Schedule->everySecond() tick instead, consumed by the `timer` lane
+    # (`php artisan schedule:work`) composer dev:win now starts.
+    # PHP_CLI_SERVER_WORKERS=4 in .env targets Linux (PHP's built-in-server
+    # pre-forking uses pcntl_fork, which does not exist on Windows -- same root
+    # cause as Octane/Swoole being unavailable here). Passing --no-reload would
+    # only silence ServeCommand's warning without making multi-worker actually
+    # work on Windows, so pin it to 1 here instead: one `serve` process, one
+    # port, no confusing "only creating a single server" warning. This overrides
+    # the .env value for this process tree only (Dotenv::createImmutable never
+    # overwrites an already-set OS env var) -- Linux/WSL's .env value of 4 is untouched.
+    $env:PHP_CLI_SERVER_WORKERS = "1"
+
+    # --- Ensure Node.js/npx (idempotent auto-install): composer dev:win runs everything
+    # through `npx concurrently` -- without it the runtime fails immediately.
+    $npxCmd = Get-Command npx -ErrorAction SilentlyContinue
+    if (-not $npxCmd) {
+        Write-Host "npx not found -> invoking canonical installer (idempotent): Step4_InstallNodeJS.ps1" -ForegroundColor Yellow
+        Invoke-DevInstallerStep -RepoRootDir $RepoRootDir -StepScriptName "Step4_InstallNodeJS.ps1" | Out-Null
+        $npxCmd = Get-Command npx -ErrorAction SilentlyContinue
+    }
+    if (-not $npxCmd) {
+        Write-Host "  *** npx still unavailable after Step4_InstallNodeJS.ps1 -> composer dev:win (npx concurrently) will fail." -ForegroundColor Red
+    }
+
+    Write-Host "Starting native Windows runtime: composer dev:win (serve + queue + reverb + timer)..." -ForegroundColor Green
+    Write-Host "Note: sub-minute timer tasks run via Laravel Schedule + schedule:work here (same TimerTasks/* as Linux/WSL Octane tick)." -ForegroundColor Yellow
+    Write-Host "Press Ctrl+C to stop." -ForegroundColor Gray
     Write-Host ""
 
     composer dev:win

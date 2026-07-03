@@ -3,11 +3,7 @@ description: "dot: dotcore (public class libs, pycore counterpart) + dotapps (ap
 globs: dotcore/**, dotapps/**
 alwaysApply: false
 ---
-
 # Dot rule (dotcore + dotapps)
-
-Full detail: development-guides/DOT_ARCHITECTURE.md (skill: .cursor/skills/dot/SKILL.md; mapping: dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md).
-
 - Code/comments/strings: English, ASCII only.
 - `dotcore/` = multi-app public libs only (`DotCore.<Name>`, namespace `DotCore.*`); `dotapps/<App>/` = runnable apps (assembly=folder, namespace `DotApps.<App>`). App-specific libs go under their `dotapps/<App>/`, never dotcore. No apps in dotcore, no libs in dotapps.
 - Deps flow one way: apps→libs; libs never reference apps and never cycle. Foundations: BCL only; Common: +Foundations; Utils/Infrastructure: +Common; UIInspect: optional 3rd-party.

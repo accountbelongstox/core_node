@@ -3,11 +3,7 @@ description: "/wordnew data layer: one TYPE surface, mock+real impls of WfNewApi
 globs: poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/**/*.{ts,tsx}
 alwaysApply: false
 ---
-
 # /wordnew API — mock ⇄ real, one TYPE, one switch
-
-Spec: `docs/WORDNEW_API_MOCK_PATTERN.md`; contract: `apps/wordnew/api/README.md`.
-
 - One TYPE surface: all models + `WfNewApi` live in `api/WfNewApiTypes.ts`; `WfNewTypes.ts`/`WfNewMockDb.ts` re-export, never redefine.
 - Two impls, same contract: `WfNewApiMock` (offline) and `WfNewApiHttp` (delegates to `wordflowApi`).
 - One switch: consumers `import { wfNewApi } from '../api'`; `api/index.ts` is the ONLY mock-vs-real choice. Exactly one active import + one active `export const wfNewApi` (toggle the pair together). Default=http; offline/AI-Studio=mock.

@@ -1,11 +1,9 @@
 ---
-description: "d3-check: reuse; pycore direct; share=values+common; constants in app_constants. Canonical: docs/PROJECT_STANDARDS.md."
+description: "d3-check: reuse; pycore direct; share=values+common; constants in app_constants."
 globs: pyapps/d3-check/**
 alwaysApply: false
 ---
-
 # d3-check rule
-
 - Reuse first: search d3utils/timers/controller/pycore; extend, never reimplement or duplicate constants/helpers.
 - Import `pycore.*` directly; no `providor.common_imports` wrapper. Literals → `providor.app_constants`; structured → `config`. i18n only via `providor.i18n_manager`.
 - `share/values` = data only, `share/common` = shared funcs/base; no run_/do_, no data/store/cache dirs. One-shot via `timers.timer_manager.submit_one_shot` + `one_shot_tasks.do_*`.
@@ -15,5 +13,3 @@ alwaysApply: false
 - Drop unnecessary try/except; keep only websocket/network, task threads, Tk lifecycle, queue, COM/OS, signal handlers.
 - Code/comments/logs in English; user-facing strings via i18n.
 - New standards → `.cursor/rules`, `.cursor/skills`, `AGENTS.md`; d3-check prompts → `pyapps/d3-check/.prompts/`.
-
-Full detail: docs/PROJECT_STANDARDS.md.

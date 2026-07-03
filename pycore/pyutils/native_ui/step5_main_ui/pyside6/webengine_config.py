@@ -29,9 +29,82 @@ Usage:
 
 import os
 import sys
+from pathlib import Path
 from typing import Optional, List
 
 from pycore import ColorPrint
+
+
+# ---------------------------------------------------------------------------
+# Module state / configuration (declared at file top)
+# ---------------------------------------------------------------------------
+# Guard so the pre-QApplication tier configuration runs exactly once even when
+# both the native launcher and the framework call configure_webengine_all_tiers().
+_ALL_TIERS_CONFIGURED = False
+
+# GPU rendering mode selectable via the PYCORE_WEBENGINE_GPU env var (or a
+# persisted fallback marker). 'auto' = normal accelerated path.
+_GPU_ENV_VAR = 'PYCORE_WEBENGINE_GPU'
+_SOFTWARE_GPU_MODES = ('software', 'off', 'disable', 'none')
+
+# Persisted marker: written after repeated GPU/render crashes so the NEXT launch
+# starts in software rendering without user intervention (self-healing fallback).
+_GPU_FALLBACK_MARKER = Path.home() / '.core_node' / 'webengine_gpu_fallback.flag'
+
+
+def _gpu_fallback_marker_present() -> bool:
+    """True if a prior run persisted a software-rendering fallback request."""
+    try:
+        return _GPU_FALLBACK_MARKER.is_file()
+    except Exception:
+        return False
+
+
+def mark_gpu_fallback(reason: str = "") -> bool:
+    """Persist a request to start in software rendering on the next launch.
+
+    Called after repeated GPU/render-process crashes so a machine whose driver
+    cannot support the accelerated path recovers automatically. Clear it with
+    clear_gpu_fallback() or by setting PYCORE_WEBENGINE_GPU=auto.
+    """
+    try:
+        _GPU_FALLBACK_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        _GPU_FALLBACK_MARKER.write_text(reason or "gpu_fallback", encoding='utf-8')
+        ColorPrint.yellow(f"[WebEngineConfig] Persisted GPU software-fallback marker: {_GPU_FALLBACK_MARKER}")
+        ColorPrint.yellow("[WebEngineConfig] Next launch will use software rendering. "
+                          "Set PYCORE_WEBENGINE_GPU=auto (or delete the marker) to re-enable the GPU.")
+        return True
+    except Exception as e:
+        ColorPrint.red(f"[WebEngineConfig] Failed to persist GPU fallback marker: {e}")
+        return False
+
+
+def clear_gpu_fallback() -> None:
+    """Remove the persisted software-rendering fallback marker, if any."""
+    try:
+        if _GPU_FALLBACK_MARKER.is_file():
+            _GPU_FALLBACK_MARKER.unlink()
+            ColorPrint.blue("[WebEngineConfig] Cleared GPU software-fallback marker")
+    except Exception:
+        pass
+
+
+def _resolve_gpu_mode() -> str:
+    """Resolve the desired QtWebEngine GPU mode.
+
+    Priority: PYCORE_WEBENGINE_GPU env var, then the persisted fallback marker,
+    else 'auto'. Recognized values:
+      auto         - normal accelerated path (default)
+      dcomp-off    - accelerated but disable the Windows DirectComposition path
+                     (--disable-features=DirectComposition) for flaky overlay drivers
+      angle-sw     - force ANGLE SwiftShader software GL (--use-angle=swiftshader)
+      software/off - no GPU (--disable-gpu --disable-gpu-compositing + QT_OPENGL=software)
+    """
+    mode = os.environ.get(_GPU_ENV_VAR, '').strip().lower()
+    if not mode and _gpu_fallback_marker_present():
+        ColorPrint.yellow("[WebEngineConfig] GPU fallback marker present -> forcing software rendering")
+        mode = 'software'
+    return mode or 'auto'
 
 
 def _build_chromium_flags(
@@ -40,29 +113,51 @@ def _build_chromium_flags(
     disable_gpu_sandbox: bool = True,
     enable_remote_debugging: bool = False,
     remote_debugging_port: int = 9222,
-    disable_sandbox_for_root: bool = True
+    disable_sandbox_for_root: bool = True,
+    gpu_mode: Optional[str] = None,
 ) -> List[str]:
     """
-    Build Chromium flags list based on configuration options.
+    Build PLATFORM-AWARE Chromium flags for QtWebEngine.
+
+    The flag set is tailored per OS. Linux gets VA-API / GBM video-decode flags;
+    Windows relies on the default ANGLE->D3D11 + DirectComposition path (WebGL2 and
+    D3D11 hardware video already work with no extra flags) and DELIBERATELY does NOT
+    force hardware overlays / native GPU memory buffers / ignore-gpu-blocklist /
+    disable-gpu-sandbox. Forcing those pushes the fragile DirectComposition overlay
+    path that crashes the GPU/host process on hybrid laptop GPUs (the observed
+    "QueryInterface to IDCompositionDevice4 failed" init crash).
+
+    gpu_mode ('auto' | 'dcomp-off' | 'angle-sw' | 'software') selects a robust
+    fallback when a driver cannot support the accelerated path (resolved from the
+    PYCORE_WEBENGINE_GPU env / fallback marker when None).
 
     Args:
         enable_webcodecs: Enable WebCodecs API
         enable_hardware_acceleration: Enable GPU hardware acceleration
-        disable_gpu_sandbox: Disable GPU sandbox for compatibility
+        disable_gpu_sandbox: Disable GPU sandbox (Linux only; ignored on Windows)
         enable_remote_debugging: Enable remote debugging (F12 dev tools)
         remote_debugging_port: Port for remote debugging (default: 9222)
         disable_sandbox_for_root: Auto-detect root user and add --no-sandbox if needed
+        gpu_mode: Override GPU mode; None resolves from env / fallback marker
 
     Returns:
         List of Chromium command-line flags
     """
-    enabled_features = []
-    disabled_features = []
-    flags = []
+    is_windows = sys.platform == 'win32'
+    is_macos = sys.platform == 'darwin'
+    is_linux = sys.platform.startswith('linux')
 
-    # Check if running as root (Linux/macOS only)
+    if gpu_mode is None:
+        gpu_mode = _resolve_gpu_mode()
+    software_mode = gpu_mode in _SOFTWARE_GPU_MODES
+
+    enabled_features: List[str] = []
+    disabled_features: List[str] = []
+    flags: List[str] = []
+
+    # Check if running as root (Linux/macOS only) -> needs --no-sandbox
     is_root = False
-    if sys.platform != 'win32' and disable_sandbox_for_root:
+    if not is_windows and disable_sandbox_for_root:
         try:
             is_root = os.geteuid() == 0
             if is_root:
@@ -77,49 +172,72 @@ def _build_chromium_flags(
         ColorPrint.blue(f"[WebEngineConfig] Remote debugging enabled on port {remote_debugging_port}")
         ColorPrint.blue(f"[WebEngineConfig] Access dev tools at: http://localhost:{remote_debugging_port}")
 
-    # WebCodecs support (CRITICAL for H.264 decoding)
+    # WebCodecs support (H.264 decode API) - available regardless of GPU mode
     if enable_webcodecs:
         enabled_features.append('WebCodecs')
 
-    # Hardware acceleration features
-    if enable_hardware_acceleration:
-        enabled_features.extend([
-            'AcceleratedVideoDecodeLinuxGL',
-            'VaapiVideoDecodeLinuxGL',
-            'VaapiVideoEncoder',
-        ])
-
+    if software_mode:
+        # Robust software path: no GPU at all. Qt's own GL is switched to software
+        # in Tier 0. This is the last-resort recovery for a broken GPU/driver.
+        flags.extend(['--disable-gpu', '--disable-gpu-compositing'])
+        ColorPrint.yellow(f"[WebEngineConfig] GPU acceleration DISABLED (gpu_mode={gpu_mode}) -> software rendering")
+    elif enable_hardware_acceleration:
+        # Safe, cross-platform acceleration baseline
         flags.extend([
             '--enable-gpu',
             '--enable-gpu-rasterization',
-            '--enable-accelerated-video-decode',
             '--enable-accelerated-2d-canvas',
             '--enable-webgl',
-            '--enable-webgl2-compute-context',
-            '--ignore-gpu-blocklist',
-            '--ignore-gpu-blacklist',
-            '--enable-hardware-overlays',
-            '--enable-zero-copy',
-            '--enable-native-gpu-memory-buffers',
         ])
 
-    # GPU sandbox (disable for compatibility)
-    if disable_gpu_sandbox:
-        flags.append('--disable-gpu-sandbox')
+        if is_linux:
+            # VA-API / GBM hardware video decode (Linux-scoped feature names)
+            enabled_features.extend([
+                'AcceleratedVideoDecodeLinuxGL',
+                'VaapiVideoDecodeLinuxGL',
+                'VaapiVideoEncoder',
+            ])
+            disabled_features.append('UseChromeOSDirectVideoDecoder')
+            flags.extend([
+                '--enable-accelerated-video-decode',
+                '--enable-native-gpu-memory-buffers',  # Linux-scoped (GBM)
+                '--enable-zero-copy',
+                '--ignore-gpu-blocklist',
+            ])
+        elif is_windows:
+            # ANGLE->D3D11 + DirectComposition is the Qt default and works out of
+            # the box (WebGL2 + D3D11 video). Add only the safe hardware-video
+            # feature + zero-copy. Do NOT force overlays / native GMB /
+            # ignore-blocklist / disable-gpu-sandbox -- those crash hybrid GPUs.
+            enabled_features.append('D3D11VideoDecoder')
+            flags.append('--enable-zero-copy')
+        elif is_macos:
+            flags.append('--enable-zero-copy')
 
-    # Main sandbox (disable for root user)
+    # Windows GPU-mode escape hatches (independent of the hardware-accel toggle)
+    if is_windows and not software_mode:
+        if gpu_mode == 'dcomp-off':
+            disabled_features.append('DirectComposition')
+            ColorPrint.yellow("[WebEngineConfig] DirectComposition disabled via gpu_mode=dcomp-off")
+        elif gpu_mode in ('angle-sw', 'swiftshader', 'angle-gl'):
+            flags.append('--use-angle=swiftshader')
+            ColorPrint.yellow("[WebEngineConfig] ANGLE SwiftShader (software GL) via gpu_mode")
+
+    # GPU sandbox: only disable where it is actually needed (Linux root / Linux
+    # explicit request). NEVER force-disable it on Windows -- it is a security
+    # downgrade and is not needed on the default D3D11 path.
+    if is_linux and (is_root or disable_gpu_sandbox):
+        flags.append('--disable-gpu-sandbox')
     if is_root:
         flags.append('--no-sandbox')
         ColorPrint.yellow("[WebEngineConfig] Added --no-sandbox flag (running as root)")
 
-    # Disable problematic features
-    disabled_features.append('UseChromeOSDirectVideoDecoder')
-
-    # Build final flags list
+    # Assemble --enable-features / --disable-features as single de-duplicated flags
     if enabled_features:
-        flags.insert(0, f'--enable-features={",".join(enabled_features)}')
+        flags.insert(0, f'--enable-features={",".join(dict.fromkeys(enabled_features))}')
     if disabled_features:
-        flags.insert(1 if enabled_features else 0, f'--disable-features={",".join(disabled_features)}')
+        idx = 1 if enabled_features else 0
+        flags.insert(idx, f'--disable-features={",".join(dict.fromkeys(disabled_features))}')
 
     return flags
 
@@ -147,54 +265,8 @@ def configure_webengine_tier1_env(flags: Optional[List[str]] = None) -> bool:
     """
     try:
         if flags is None:
-            # Comprehensive default flags for video streaming support
-            # Based on: https://wiki.qt.io/QtWebEngine/VideoAcceleration
-            # Based on: https://github.com/qutebrowser/qutebrowser/issues/2671
-
-            # IMPORTANT: --enable-features and --disable-features must be single flags
-            # with comma-separated values, NOT multiple flags
-            enabled_features = [
-                'WebCodecs',  # CRITICAL for H.264 decoding
-                'AcceleratedVideoDecodeLinuxGL',  # Modern video decode
-                'VaapiVideoDecodeLinuxGL',  # Linux VA-API
-                'VaapiVideoEncoder',
-            ]
-
-            disabled_features = [
-                'UseChromeOSDirectVideoDecoder',  # Allow software fallback
-            ]
-
-            flags = [
-                # Enable features (single flag with comma-separated values)
-                f'--enable-features={",".join(enabled_features)}',
-
-                # Disable features (single flag)
-                f'--disable-features={",".join(disabled_features)}',
-
-                # GPU and hardware acceleration
-                '--enable-gpu',
-                '--enable-gpu-rasterization',
-                '--enable-accelerated-video-decode',
-                '--enable-accelerated-2d-canvas',
-
-                # WebGL support
-                '--enable-webgl',
-                '--enable-webgl2-compute-context',
-
-                # Ignore GPU blocklist (force enable GPU features)
-                '--ignore-gpu-blocklist',
-                '--ignore-gpu-blacklist',  # Legacy name
-
-                # Additional video/media flags
-                '--enable-hardware-overlays',
-                '--enable-zero-copy',
-                '--enable-native-gpu-memory-buffers',
-
-                # Disable GPU sandbox for compatibility (Windows specific issue)
-                # See: https://forum.qt.io/topic/126309/enable-hardware-acceleration-in-qtwebengine
-                # WARNING: This reduces security but may be necessary for hardware acceleration
-                '--disable-gpu-sandbox',
-            ]
+            # Single source of truth: the platform-aware builder.
+            flags = _build_chromium_flags()
 
         # Join flags into single string
         flags_str = ' '.join(flags)
@@ -203,8 +275,10 @@ def configure_webengine_tier1_env(flags: Optional[List[str]] = None) -> bool:
         existing = os.environ.get('QTWEBENGINE_CHROMIUM_FLAGS', '')
         if existing:
             ColorPrint.yellow(f"[WebEngineConfig-Tier1] QTWEBENGINE_CHROMIUM_FLAGS already set: {existing}")
-            # Merge with existing flags
-            flags_str = f"{existing} {flags_str}"
+            # Merge with existing flags, de-duplicating repeated tokens (avoids the
+            # whole set doubling when configure_webengine_all_tiers is called twice).
+            merged_tokens = existing.split() + flags_str.split()
+            flags_str = ' '.join(dict.fromkeys(merged_tokens))
 
         # Set environment variable
         os.environ['QTWEBENGINE_CHROMIUM_FLAGS'] = flags_str
@@ -237,34 +311,8 @@ def configure_webengine_tier2_qputenv(flags: Optional[List[str]] = None) -> bool
     """
     try:
         if flags is None:
-            # Use same default flags as Tier 1
-            enabled_features = [
-                'WebCodecs',
-                'AcceleratedVideoDecodeLinuxGL',
-                'VaapiVideoDecodeLinuxGL',
-                'VaapiVideoEncoder',
-            ]
-
-            disabled_features = [
-                'UseChromeOSDirectVideoDecoder',
-            ]
-
-            flags = [
-                f'--enable-features={",".join(enabled_features)}',
-                f'--disable-features={",".join(disabled_features)}',
-                '--enable-gpu',
-                '--enable-gpu-rasterization',
-                '--enable-accelerated-video-decode',
-                '--enable-accelerated-2d-canvas',
-                '--enable-webgl',
-                '--enable-webgl2-compute-context',
-                '--ignore-gpu-blocklist',
-                '--ignore-gpu-blacklist',
-                '--enable-hardware-overlays',
-                '--enable-zero-copy',
-                '--enable-native-gpu-memory-buffers',
-                '--disable-gpu-sandbox',
-            ]
+            # Single source of truth: the platform-aware builder (same as Tier 1).
+            flags = _build_chromium_flags()
 
         # Join flags into single string
         flags_str = ' '.join(flags)
@@ -386,65 +434,49 @@ def configure_webengine_all_tiers(
             'note': str
         }
     """
+    global _ALL_TIERS_CONFIGURED
+    if _ALL_TIERS_CONFIGURED:
+        # Idempotent: both the native launcher and the framework call this before
+        # QApplication; run it once so the env var isn't populated twice.
+        ColorPrint.yellow("[WebEngineConfig] Tiers already configured; skipping duplicate call")
+        return {'tier1_env': True, 'tier2_qputenv': True, 'note': 'already configured (idempotent)'}
+
     ColorPrint.blue("=" * 80)
     ColorPrint.blue("[WebEngineConfig] Applying ALL configuration tiers (multi-redundant)")
     ColorPrint.blue("=" * 80)
 
-    # Tier 0: Configure OpenGL ES 3.0 / WebGL 2.0 support (MUST be before QApplication)
-    # This enables WebGL 2.0 features like gl.UNPACK_ROW_LENGTH
+    gpu_mode = _resolve_gpu_mode()
+
+    # Tier 0: pre-QApplication GL attributes.
+    # Qt 6 removed the bundled ANGLE, so QT_OPENGL=angle, Qt::AA_UseOpenGLES and a
+    # forced OpenGL ES QSurfaceFormat "no longer have any effect"
+    # (doc.qt.io/qt-6/opengl-changes-qt6.html) and only risk mismatching the real
+    # context -- we no longer set them. WebGL2 is provided by QtWebEngine's own
+    # bundled ANGLE (ANGLE->D3D11 on Windows) regardless. Only AA_ShareOpenGLContexts
+    # is still required and kept.
     try:
         from PySide6.QtCore import QCoreApplication, Qt
-        from PySide6.QtGui import QGuiApplication, QSurfaceFormat, QOpenGLContext
 
         if QCoreApplication.instance() is None:
-            # QApplication not created yet - safe to set default surface format
-            ColorPrint.blue("\n[WebEngineConfig] >>> Tier 0: OpenGL ES 3.0 / WebGL 2.0 Configuration")
+            ColorPrint.blue("\n[WebEngineConfig] >>> Tier 0: OpenGL context sharing (Qt 6)")
 
-            # CRITICAL: Set Qt::AA_ShareOpenGLContexts FIRST (MUST be before QApplication)
-            # This fixes CSS animation flickering in QWebEngineView
-            # Reference: https://doc.qt.io/qt-6/qwebenginesettings.html
-            # Reference: https://forum.qt.io/topic/132536/qwebengineview-cpu-and-gpu-usages-are-extremely-high
+            # CRITICAL and still required in Qt 6: share GL contexts for QtWebEngine.
+            # Must be set before QApplication. Fixes CSS animation flicker / high CPU.
             QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
-            ColorPrint.green(f"[WebEngineConfig-Tier0] ✓ CRITICAL: Qt::AA_ShareOpenGLContexts enabled (fixes CSS animation flickering)")
+            ColorPrint.green("[WebEngineConfig-Tier0] AA_ShareOpenGLContexts enabled (required for QtWebEngine)")
 
-            # Set QT_OPENGL environment variable to force ANGLE (Windows)
-            # This is critical for WebGL 2.0 support on Windows
-            existing_qt_opengl = os.environ.get('QT_OPENGL', '')
-            if not existing_qt_opengl:
-                os.environ['QT_OPENGL'] = 'angle'
-                ColorPrint.green(f"[WebEngineConfig-Tier0] ✓ Environment: QT_OPENGL=angle")
+            if gpu_mode in _SOFTWARE_GPU_MODES:
+                # Robust fallback: drive Qt's own rendering through the bundled Mesa
+                # llvmpipe software rasterizer so the UI comes up even on a broken GPU.
+                os.environ['QT_OPENGL'] = 'software'
+                os.environ.setdefault('QT_QUICK_BACKEND', 'software')
+                ColorPrint.yellow(f"[WebEngineConfig-Tier0] Software rendering (QT_OPENGL=software) via gpu_mode={gpu_mode}")
             else:
-                ColorPrint.blue(f"[WebEngineConfig-Tier0] QT_OPENGL already set: {existing_qt_opengl}")
-
-            # Create surface format with OpenGL ES 3.0 for WebGL 2.0 support
-            surface_format = QSurfaceFormat()
-            surface_format.setVersion(3, 0)  # OpenGL ES 3.0 (required for WebGL 2.0)
-            surface_format.setProfile(QSurfaceFormat.NoProfile)  # Use default profile for ES
-            surface_format.setRenderableType(QSurfaceFormat.OpenGLES)  # Force OpenGL ES
-
-            # Set as default BEFORE QApplication creation
-            QSurfaceFormat.setDefaultFormat(surface_format)
-
-            ColorPrint.green(f"[WebEngineConfig-Tier0] ✓ OpenGL ES 3.0 configured for WebGL 2.0 support")
-            ColorPrint.blue(f"[WebEngineConfig-Tier0] Version: 3.0 (OpenGL ES)")
-            ColorPrint.blue(f"[WebEngineConfig-Tier0] RenderableType: OpenGLES")
-            ColorPrint.blue(f"[WebEngineConfig-Tier0] This enables WebGL 2.0 API including gl.UNPACK_ROW_LENGTH")
-
-            # Enable ANGLE (required for OpenGL ES on Windows)
-            QGuiApplication.setAttribute(Qt.AA_UseOpenGLES)
-            ColorPrint.green(f"[WebEngineConfig-Tier0] ✓ ANGLE enabled (Qt::AA_UseOpenGLES)")
-
-            # Enable High DPI scaling
-            QGuiApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-            ColorPrint.green(f"[WebEngineConfig-Tier0] ✓ High DPI scaling enabled")
-
+                ColorPrint.blue(f"[WebEngineConfig-Tier0] GPU mode: {gpu_mode} (default ANGLE/D3D11 on Windows; nothing forced)")
         else:
-            ColorPrint.yellow("[WebEngineConfig-Tier0] ⚠ QApplication already created, cannot set attributes")
-            ColorPrint.yellow("[WebEngineConfig-Tier0] Qt::AA_ShareOpenGLContexts, WebGL 2.0 may not be available")
+            ColorPrint.yellow("[WebEngineConfig-Tier0] QApplication already created; skipping Tier 0 GL attributes")
     except Exception as e:
-        ColorPrint.red(f"[WebEngineConfig-Tier0] ✗ Failed to configure OpenGL ES 3.0: {e}")
-        import traceback
-        traceback.print_exc()
+        ColorPrint.red(f"[WebEngineConfig-Tier0] Failed to configure GL attributes: {e}")
 
     # Auto-generate flags if not provided
     if env_flags is None:
@@ -511,6 +543,7 @@ def configure_webengine_all_tiers(
     ColorPrint.blue(f"[WebEngineConfig] Tier 3 (settings): Pending (will be applied in webview)")
     ColorPrint.blue("=" * 80)
 
+    _ALL_TIERS_CONFIGURED = True
     return results
 
 

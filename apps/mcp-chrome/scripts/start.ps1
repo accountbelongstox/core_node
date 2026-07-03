@@ -11,6 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Chrome MCP Server Startup Script (Windows). Entry script - only responsible for calling Python and executing commands.
+# Builds all packages, registers the native host, then launches WXT watch mode for live debugging.
 
 $ErrorActionPreference = "Stop"
 
@@ -117,6 +118,11 @@ if ($shouldInstall -eq "true") {
 } else {
     Write-Host "  OK Dependencies already installed" -ForegroundColor Green
 }
+
+# Ensure Windows .cmd shims exist (pnpm previously run via bash/WSL loses them).
+$EnsureWinBinScript = Join-Path $PSScriptRoot "ensure_win_bin.ps1"
+Write-Host "  Checking Windows .cmd shims..." -ForegroundColor Cyan
+& $EnsureWinBinScript -WorkspaceRoot $ProjectRoot
 
 # Quick compile+install: never block on an interactive prompt so the flow runs
 # unattended with continuous live output. Rebuild by default; set
@@ -308,21 +314,55 @@ Write-Host "  NEXT STEPS"
 Write-Host "========================================"
 
 Write-Host ""
-Write-Host "[STEP 1] Load Extension in Chrome:"
+Write-Host "[STEP 1] Load Extension in Chrome (one-time):"
 Write-Host "  1. Open Chrome: chrome://extensions/"
-Write-Host "  2. Enable Developer mode"
-Write-Host "  3. Click Load unpacked"
-Write-Host "  4. Select folder: $extensionPath"
+Write-Host "  2. Enable Developer mode (top-right toggle)"
+Write-Host "  3. Click 'Load unpacked'"
+Write-Host "  4. Select folder: $extensionPath" -ForegroundColor Cyan
+Write-Host "  Note: keep this folder loaded — WXT dev server writes to the same path"
 
 Write-Host ""
-Write-Host "[STEP 2] Start MCP Service:"
+Write-Host "[STEP 2] Connect the MCP Service:"
 Write-Host "  1. Click the extension icon in Chrome"
 Write-Host "  2. Click Connect button"
 Write-Host "  3. Service will start on: http://127.0.0.1:12306" -ForegroundColor Green
 
 Write-Host ""
+Write-Host "[STEP 3] Dynamic Debugging (per component):"
+Write-Host ""
+Write-Host "  POPUP  (apps/chrome-extension/entrypoints/popup/):"
+Write-Host "    - Right-click the popup -> Inspect -> DevTools opens"
+Write-Host "    - After saving a file: reopen the popup (WXT HMR auto-reloads)"
+Write-Host "    - Or press Ctrl+R inside DevTools to force refresh"
+Write-Host ""
+Write-Host "  BACKGROUND SERVICE WORKER  (entrypoints/background.ts):"
+Write-Host "    - Go to chrome://extensions/ -> find the extension -> click 'Service Worker'"
+Write-Host "    - After saving a file: click the circular refresh icon on the extension card"
+Write-Host "    - WXT triggers an automatic extension reload on rebuild"
+Write-Host ""
+Write-Host "  CONTENT SCRIPTS  (entrypoints/content.ts / inject-scripts/):"
+Write-Host "    - Open the target page -> F12 -> Sources -> Content Scripts tab"
+Write-Host "    - After saving a file: refresh the target page (Ctrl+R)"
+Write-Host "    - WXT dynamically re-registers content scripts in dev mode"
+Write-Host ""
+Write-Host "  INSPECT ALL EXTENSION PAGES:"
+Write-Host "    - Open: chrome://inspect/#extensions"
+Write-Host ""
 Write-Host "========================================"
-Write-Host "  Setup completed successfully!" -ForegroundColor Green
+Write-Host "  Launching WXT dev server (watch mode)..." -ForegroundColor Yellow
+Write-Host "  File changes trigger automatic rebuilds."
+Write-Host "  Press Ctrl+C to stop."
 Write-Host "========================================"
 Write-Host ""
-Set-Location $InitialDir
+
+# Launch WXT dev server — this blocks until the user presses Ctrl+C.
+# WXT watches source files and rebuilds to the same output folder,
+# so Chrome picks up changes without reloading the extension from a new path.
+# try/finally guarantees we return to $InitialDir even when Ctrl+C aborts the pipeline.
+$ExtensionSrcDir = Join-Path (Join-Path $ProjectRoot "app") "chrome-extension"
+Set-Location $ExtensionSrcDir
+try {
+    & pnpm run dev
+} finally {
+    Set-Location $InitialDir
+}

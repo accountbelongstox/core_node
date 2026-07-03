@@ -64,6 +64,7 @@ export const pcZh: PcTranslationDict = {
       translate: '翻译',
       imageSearch: '图片搜索',
       subtitleSearch: '字幕搜索',
+      wordAudio: '单词发音',
       history: '历史记录',
     },
     tabHint: {
@@ -73,6 +74,7 @@ export const pcZh: PcTranslationDict = {
       translate: 'Google 与 AI 翻译并排对比',
       imageSearch: 'SerpApi Google 图片与同一查询的 AI 渲染对比',
       subtitleSearch: '通过 OpenSubtitles 搜索并下载电影 / 剧集字幕',
+      wordAudio: '来自 Free Dictionary、Cambridge 与 Forvo 的真实单词发音，并带 TTS 回退',
       history: '所有使用记录 — AI 图像、图片与字幕搜索、翻译',
     },
     // Unified usage-history tab.

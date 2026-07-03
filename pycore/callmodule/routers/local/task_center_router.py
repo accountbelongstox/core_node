@@ -88,6 +88,7 @@ _CATEGORY_CATALOG: List[Dict[str, str]] = [
     {"key": "poster", "label": "Poster", "handler": "pycore"},
     {"key": "gemini_image", "label": "Gemini Image", "handler": "chrome"},
     {"key": "notebooklm", "label": "NotebookLM", "handler": "chrome"},
+    {"key": "gemini_chat", "label": "Gemini Chat", "handler": "chrome"},
 ]
 
 # Per-category numeric fields the overview emits for every catalog row (zeros

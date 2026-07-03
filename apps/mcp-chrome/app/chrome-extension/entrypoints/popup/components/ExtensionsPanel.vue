@@ -80,6 +80,8 @@ import { usePersistedRef } from '@/composables/usePersistedRef';
 import BingDictionary from './extensions/BingDictionary.vue';
 import NotebookLMPanel from './extensions/NotebookLMPanel.vue';
 import GeminiImage from './extensions/GeminiImage.vue';
+import ArticleStudyGuide from './extensions/ArticleStudyGuide.vue';
+import BookStudyGenerator from './extensions/BookStudyGenerator.vue';
 
 // Extension config management. The old in-extension "Local Task Queue" (Process
 // API requests locally) was removed — it duplicated the laravel-aligned Bing
@@ -103,6 +105,8 @@ const registerAllComponents = () => {
   registerComponent('bing-dictionary', BingDictionary);
   registerComponent('notebooklm', NotebookLMPanel);
   registerComponent('gemini-image', GeminiImage);
+  registerComponent('article-study-guide', ArticleStudyGuide);
+  registerComponent('book-study-generator', BookStudyGenerator);
 };
 
 onMounted(async () => {

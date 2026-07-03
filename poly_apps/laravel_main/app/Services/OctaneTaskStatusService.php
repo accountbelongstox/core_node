@@ -215,29 +215,37 @@ class OctaneTaskStatusService
     }
 
     /**
-     * Get heartbeat status
+     * Get heartbeat status.
+     *
+     * Sourced from OctaneTimerService's own cross-process heartbeat file (the
+     * `last_alive` timestamp every tick() stamps) -- NOT a separate file, and
+     * not Octane-specific: this reflects whichever process is really ticking
+     * (Octane::tick() on Linux/WSL, or `schedule:work` on Windows/fallback),
+     * readable correctly even when THIS request is answered by a different
+     * process (e.g. `artisan serve`) than the one actually driving the timer.
      */
     private function getHeartbeatStatus(): array
     {
-        $tmpDir = \App\Providers\PathMapper::getLaravelTmpDir();
-        $heartbeatFile = $tmpDir . '/octane_timer_heartbeat.txt';
+        $status = OctaneTimerService::getStatus();
+        $lastAlive = $status['last_alive'] ?? null;
 
-        if (!file_exists($heartbeatFile)) {
+        if ($lastAlive === null) {
             return [
                 'exists' => false,
-                'message' => 'Heartbeat file not found',
+                'message' => 'No timer heartbeat recorded yet (timer never ticked)',
             ];
         }
 
-        $lastModified = filemtime($heartbeatFile);
-        $secondsAgo = time() - $lastModified;
+        $secondsAgo = time() - $lastAlive;
+        // isRunning() already applies the same staleness window this reflects.
+        $isFresh = (bool) ($status['running'] ?? false);
 
         return [
             'exists' => true,
-            'last_modified' => date('Y-m-d H:i:s', $lastModified),
+            'last_modified' => date('Y-m-d H:i:s', $lastAlive),
             'seconds_ago' => $secondsAgo,
-            'is_fresh' => $secondsAgo < 3,
-            'status' => $secondsAgo < 3 ? 'alive' : 'stale',
+            'is_fresh' => $isFresh,
+            'status' => $isFresh ? 'alive' : 'stale',
         ];
     }
 
@@ -265,9 +273,9 @@ class OctaneTaskStatusService
 
         $heartbeat = $status['heartbeat'];
         if (!$heartbeat['exists']) {
-            $issues[] = 'Heartbeat file missing';
+            $issues[] = 'No timer heartbeat recorded yet (timer never ticked)';
         } elseif ($heartbeat['status'] === 'stale') {
-            $issues[] = "Heartbeat is stale ({$heartbeat['seconds_ago']}s ago)";
+            $issues[] = "Heartbeat is stale ({$heartbeat['seconds_ago']}s ago) -- the ticking process may have crashed";
         }
 
         return [

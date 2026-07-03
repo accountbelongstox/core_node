@@ -9,6 +9,7 @@ use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Utils\AppQyV1Initializer;
 use App\Apps\McpV1\McpV1Utils\McpV1Initializer;
 use App\Apps\PddToolV1\Utils\PddToolV1Initializer;
+use App\Apps\DingDuoDuoV1\Utils\DingDuoDuoV1Initializer;
 use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyService;
 use App\Services\OctaneTaskStatusService;
@@ -259,7 +260,14 @@ class InitializeApps extends Command
                     // unattended start.sh / Octane run.
                     $shouldRunDictInit = false;
 
-                    $isInteractive = PHP_SAPI === 'cli' && defined('STDIN') && @stream_isatty(STDIN);
+                    // getenv('LARAVEL_SERVICE_RUN') is the authoritative "unattended" signal (set by
+                    // start.ps1/start.sh's NSSM/systemd service registration): stream_isatty(STDIN)
+                    // alone is not reliable here -- an NSSM-launched child on Windows can still report
+                    // an attached console handle as a TTY even with no operator present, which made
+                    // this prompt block forever (stream_select() on STDIN is also documented as
+                    // unsupported on Windows for non-socket streams, so the 15s timeout never fired).
+                    $isInteractive = PHP_SAPI === 'cli' && defined('STDIN') && @stream_isatty(STDIN)
+                        && getenv('LARAVEL_SERVICE_RUN') !== '1';
                     if ($isInteractive) {
                         $this->line("  <fg=gray>EN dictionary: {$existingCount} rows, {$translatedCount} translated</>");
                         $this->output->write("  Translations already present. Re-run Step 2 anyway? [y/N] (auto-skip in 15s): ");
@@ -625,6 +633,7 @@ class InitializeApps extends Command
         $manager->register(new AppQyV1Initializer());
         $manager->register(new McpV1Initializer());
         $manager->register(new PddToolV1Initializer());
+        $manager->register(new DingDuoDuoV1Initializer());
         $result = $manager->initializeAll(false);
         
         foreach ($result['results'] as $appName => $appResult) {

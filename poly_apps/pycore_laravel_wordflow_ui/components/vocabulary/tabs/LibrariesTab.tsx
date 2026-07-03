@@ -4,6 +4,8 @@ import { commonClasses } from '../../../styles/theme';
 import { mediaUrl } from '../../../config/constants';
 import { LoadingBlock, EmptyState } from '../../common';
 import { CollapsibleSection } from '../CollapsibleSection';
+import ExistingBooksPanel from '../ExistingBooksPanel';
+import ExistingDocumentsPanel from '../ExistingDocumentsPanel';
 import BooksPanel from '../BooksPanel';
 import VocabPosterStrip from '../VocabPosterStrip';
 import VocabularyCoverManagerMenu from '../VocabularyCoverManagerMenu';
@@ -75,6 +77,11 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
           </button>
         </div>
       </CollapsibleSection>
+
+      {/* Existing library — read-only browse of already-ingested books + the
+          signed-in user's uploaded documents (GET /media/books, /media/documents). */}
+      <ExistingBooksPanel />
+      <ExistingDocumentsPanel />
 
       {/* Books / Add source — collapsible upload + analyze + ingest panel */}
       <BooksPanel />

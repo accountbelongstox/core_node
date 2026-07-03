@@ -55,6 +55,22 @@ const EXTENSION_REGISTRY: ExtensionRegistry = {
     iconBg: 'bg-violet-100',
     status: 'active',
   },
+  'article-study-guide': {
+    id: 'article-study-guide',
+    name: 'Article Study Guide',
+    description: 'Sentence alignment, phonetics, grammar & phrases via Gemini, ChatGPT, Grok, or Copilot',
+    icon: '📖',
+    iconBg: 'bg-blue-100',
+    status: 'active',
+  },
+  'book-study-generator': {
+    id: 'book-study-generator',
+    name: 'Book Study Generator',
+    description: 'Generate multi-language comparison sentences, explanations, phrases & grammar per book/article segment',
+    icon: '📚',
+    iconBg: 'bg-emerald-100',
+    status: 'active',
+  },
 };
 
 // ============================================================

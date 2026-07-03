@@ -99,7 +99,7 @@ splatting binds positionally and will silently mis-bind `-Name value` tokens).
 .\pyservice.ps1 -NoInstall -Port 8000 -DebugMode
 
 # Run a single installer directly
-.\pycore\scripts\iniscripts\install_whisper.ps1 -Python python -Model base
+.\scripts\shells\linux\common\iniscripts\install_whisper.ps1 -Python python -Model base
 ```
 
 ```bash

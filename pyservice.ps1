@@ -5,7 +5,7 @@
 .DESCRIPTION
     `pyservice.ps1` is ONLY an entry point. It does two things, in order:
 
-        1. PREREQUISITES: runs pycore\scripts\iniscripts\prepare.ps1, which
+        1. PREREQUISITES: runs scripts\shells\linux\common\iniscripts\prepare.ps1, which
            installs the heavy third-party packages that are more convenient to
            set up from a shell (e.g. whisper) than from Python. This complements
            pycore\pyfoundations\third_party.py, which fast-detects/installs the
@@ -78,6 +78,11 @@
 .EXAMPLE
     .\pyservice.ps1 -NoUi
     Use the legacy /web/subtitle UI (no dashboard dev server).
+
+.NOTES
+    /pycore-manager/queue-center is served BY pycore (proxying laravel_main's
+    /assist/overview), never a direct web connection -- keep it and laravel_main's
+    /laravel-manager#/task-center aligned when either side's task categories change.
 #>
 
 # --------------------------------------------------------------------------- #
@@ -308,7 +313,7 @@ Write-Host ("[OK] Python : {0}" -f $py.Version) -ForegroundColor Green
 Write-Host ("       path : {0}" -f $py.Path)    -ForegroundColor DarkGray
 
 # Relative paths from this script's folder (repo root).
-$prepareRel = '.\pycore\scripts\iniscripts\prepare.ps1'
+$prepareRel = '.\scripts\shells\linux\common\iniscripts\prepare.ps1'
 $workerRel  = '.\pycore\pycore_module_caller.py'
 
 $uiProc = $null   # React UI server process (stopped in finally)

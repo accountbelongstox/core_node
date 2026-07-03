@@ -1,11 +1,9 @@
 ---
-description: "pycore: Python 3.10+; ASCII-only; imports top-of-file; no try/except in AI code; THREAD_BUS/i18n/third_party/heartbeat per spec. Canonical: development-guides/PYTHON_PYCORE.md."
+description: "pycore: Python 3.10+; ASCII-only; imports top-of-file; no try/except in AI code; THREAD_BUS/i18n/third_party/heartbeat per spec."
 globs: pycore/**
 alwaysApply: false
 ---
-
-# pycore (binding subset; canonical = development-guides/PYTHON_PYCORE.md)
-
+# pycore rule
 - Python 3.10+, ASCII-only code/output. All imports at file top (stdlib → third-party → internal); never inside functions/try. Absolute imports only.
 - No try/except in AI-written code except where spec allows (file/network, queue, Tk lifecycle); else use conditional checks / error-status return / ColorPrint.
 - Third-party only via `pycore.pyfoundations.third_party` getters (e.g. `get_third_package_torch()`), never direct `import torch`; register in third_party.py.

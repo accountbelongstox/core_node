@@ -1,17 +1,61 @@
 <template>
   <div class="utc">
-    <!-- Header + refresh -->
+    <!-- Header -->
     <div class="utc-head">
       <h3 class="utc-title">🗂️ Unified Task Center</h3>
-      <button class="utc-refresh" :disabled="loading" @click="refresh">
-        {{ loading ? '…' : '↻' }}
-      </button>
+      <div class="utc-head-right">
+        <span class="utc-total-badge" v-if="totalPending > 0">{{ totalPending }}</span>
+        <button
+          class="utc-load-btn"
+          :disabled="loadAllBusy"
+          @click="loadAll"
+          :title="loadAllMsg || 'Load all processable tasks from Laravel'"
+        >
+          <span :class="{ 'spin': loadAllBusy }">{{ loadAllBusy ? '↻' : '↓' }}</span>
+          {{ loadAllBusy ? '' : '加载任务' }}
+        </button>
+        <button class="utc-refresh" :disabled="loading" @click="refresh" title="Refresh">
+          <span :class="{ 'spin': loading }">↻</span>
+        </button>
+      </div>
+    </div>
+    <div v-if="loadAllMsg" class="utc-load-msg">{{ loadAllMsg }}</div>
+
+    <!-- Category summary cards -->
+    <div class="utc-grid">
+      <div
+        v-for="cat in SUMMARY_CATS"
+        :key="cat.type"
+        class="utc-cat"
+        :class="{ 'utc-cat--active': pendingByType[cat.type] > 0 }"
+        @click="historyTypeFilter = historyTypeFilter === cat.type ? '' : cat.type"
+        :style="{ '--cat-accent': cat.color }"
+        :title="cat.label"
+      >
+        <span class="utc-cat-icon">{{ cat.icon }}</span>
+        <div class="utc-cat-body">
+          <div class="utc-cat-name">{{ cat.zhLabel }}</div>
+          <div class="utc-cat-nums">
+            <span class="utc-num-pending" :class="{ 'utc-num--lit': (pendingByType[cat.type] || 0) > 0 }">
+              {{ pendingByType[cat.type] || 0 }}
+            </span>
+            <span class="utc-num-sep">待处理</span>
+            <span v-if="(processingByType[cat.type] || 0) > 0" class="utc-num-proc">
+              · {{ processingByType[cat.type] }} 处理中
+            </span>
+          </div>
+        </div>
+        <div
+          v-if="historyTypeFilter === cat.type"
+          class="utc-cat-sel"
+        />
+      </div>
     </div>
 
-    <!-- Sort + status filter -->
+    <!-- Controls row -->
     <div class="utc-controls">
       <label class="utc-ctl">
-        Sort
+        <span class="utc-ctl-label">Sort</span>
         <select v-model="sortKey" class="utc-select">
           <option value="created_desc">Newest</option>
           <option value="created_asc">Oldest</option>
@@ -20,7 +64,7 @@
         </select>
       </label>
       <label class="utc-ctl">
-        Status
+        <span class="utc-ctl-label">Status</span>
         <select v-model="statusFilter" class="utc-select">
           <option value="">All</option>
           <option value="live">Live</option>
@@ -28,31 +72,22 @@
           <option value="failed">Failed</option>
         </select>
       </label>
-    </div>
-
-    <!-- task_type filter chip row (persisted historyTypeFilter) -->
-    <div class="utc-chips">
       <button
-        class="utc-typechip"
-        :class="{ active: historyTypeFilter === '' }"
+        v-if="historyTypeFilter"
+        class="utc-clear-filter"
         @click="historyTypeFilter = ''"
-      >All types</button>
-      <button
-        v-for="tt in availableTypes"
-        :key="tt"
-        class="utc-typechip"
-        :class="{ active: historyTypeFilter === tt }"
-        @click="historyTypeFilter = tt"
-      >
-        <span>{{ taskIcon(tt) }}</span> {{ taskTypeLabel(tt) }}
-      </button>
+        title="Clear type filter"
+      >✕ {{ taskTypeLabel(historyTypeFilter) }}</button>
     </div>
 
-    <div v-if="error" class="utc-error">{{ error }}</div>
+    <div v-if="error" class="utc-error">⚠ {{ error }}</div>
 
-    <!-- LIVE rows -->
+    <!-- LIVE section -->
     <section v-if="liveRows.length" class="utc-group">
-      <div class="utc-grouphead">Live ({{ liveRows.length }})</div>
+      <div class="utc-grouphead">
+        <span class="utc-groupdot utc-groupdot--live" />
+        Live <span class="utc-groupcount">{{ liveRows.length }}</span>
+      </div>
       <ul class="utc-list">
         <li
           v-for="row in liveRows"
@@ -64,15 +99,15 @@
           <div class="utc-rowmain">
             <div class="utc-rowtop">
               <span class="utc-rowlabel">{{ taskTypeLabel(row.task_type, row.execution_type) }}</span>
-              <span v-if="rowIsFast(row)" class="utc-fast">⚡</span>
+              <span v-if="rowIsFast(row)" class="utc-fast" title="Fast tier">⚡</span>
             </div>
             <div class="utc-rowsub" :title="row.task_id">{{ row.task_id }}</div>
           </div>
           <div class="utc-rowright">
-            <span class="utc-cap" :class="{ ai: rowIsAi(row) }">
-              {{ capabilityLabel(row.capability) }}<span v-if="rowIsAi(row)"> ✨</span>
+            <span class="utc-cap" :class="{ 'utc-cap--ai': rowIsAi(row) }">
+              {{ capabilityLabel(row.capability) }}<span v-if="rowIsAi(row)">✨</span>
             </span>
-            <span class="utc-status" :style="{ '--dot': statusColor(row.status) }">
+            <span class="utc-status-pill" :style="statusStyle(row.status)">
               <span class="utc-statusdot" />{{ row.status }}
             </span>
           </div>
@@ -80,14 +115,17 @@
       </ul>
     </section>
 
-    <!-- HISTORY rows -->
+    <!-- HISTORY section -->
     <section v-if="historyRows.length" class="utc-group">
-      <div class="utc-grouphead">History ({{ historyRows.length }})</div>
+      <div class="utc-grouphead">
+        <span class="utc-groupdot utc-groupdot--hist" />
+        History <span class="utc-groupcount">{{ historyRows.length }}</span>
+      </div>
       <ul class="utc-list">
         <li
           v-for="row in historyRows"
           :key="row.task_id"
-          class="utc-row"
+          class="utc-row utc-row--hist"
           @click="openTask(row)"
         >
           <span class="utc-rowicon">{{ taskIcon(row.task_type, row.execution_type) }}</span>
@@ -99,10 +137,10 @@
             <div class="utc-rowsub" :title="row.task_id">{{ row.task_id }}</div>
           </div>
           <div class="utc-rowright">
-            <span class="utc-cap" :class="{ ai: rowIsAi(row) }">
-              {{ capabilityLabel(row.capability) }}<span v-if="rowIsAi(row)"> ✨</span>
+            <span class="utc-cap" :class="{ 'utc-cap--ai': rowIsAi(row) }">
+              {{ capabilityLabel(row.capability) }}<span v-if="rowIsAi(row)">✨</span>
             </span>
-            <span class="utc-status" :style="{ '--dot': statusColor(row.status) }">
+            <span class="utc-status-pill" :style="statusStyle(row.status)">
               <span class="utc-statusdot" />{{ row.status }}
             </span>
           </div>
@@ -111,10 +149,10 @@
     </section>
 
     <div v-if="!loading && !liveRows.length && !historyRows.length && !error" class="utc-empty">
-      No tasks match the current filters.
+      <span class="utc-empty-icon">✓</span>
+      No tasks match the current filters
     </div>
 
-    <!-- Drilldown modal -->
     <TaskDetailModal
       v-if="selectedTaskId"
       :task-id="selectedTaskId"
@@ -137,12 +175,6 @@ import {
   isFastTier,
 } from './task-center-meta';
 
-/**
- * One task row. The lean GET /api/task/list shape only carries
- * task_id/app_name/task_type/execution_type/status/progress/assigned_to/created_at;
- * capability / priority / is_fast_tier are filled by the per-task /detail (modal)
- * and are optional here so the list still renders without them.
- */
 interface TaskRow {
   task_id: string;
   app_name: string;
@@ -157,16 +189,35 @@ interface TaskRow {
   is_fast_tier?: boolean | null;
 }
 
+interface SummaryCat {
+  type: string;
+  icon: string;
+  label: string;
+  zhLabel: string;
+  color: string;
+}
+
+const SUMMARY_CATS: SummaryCat[] = [
+  { type: 'word_translation', icon: '🔤', label: 'Word Translation', zhLabel: '待翻译任务', color: '#818cf8' },
+  { type: 'word_audio',       icon: '🔊', label: 'Word Audio',       zhLabel: '待生成语音', color: '#2dd4bf' },
+  { type: 'word_media',       icon: '🖼️', label: 'Word Media',       zhLabel: '待生成图片', color: '#a78bfa' },
+  { type: 'gemini_image',     icon: '🎨', label: 'Gemini Image',     zhLabel: '待 AI 生图', color: '#c084fc' },
+  { type: 'gemini_chat',      icon: '🗨️', label: 'Gemini Chat',      zhLabel: '待 AI 对话', color: '#f472b6' },
+  { type: 'poster',           icon: '🎬', label: 'Poster',           zhLabel: '待生成海报', color: '#fb7185' },
+  { type: 'subtitle_search',  icon: '💬', label: 'Subtitle Search',  zhLabel: '待字幕搜索', color: '#60a5fa' },
+  { type: 'notebooklm',       icon: '📓', label: 'NotebookLM',       zhLabel: '待 NLM 处理', color: '#fbbf24' },
+  { type: 'sentence_audio',   icon: '🎧', label: 'Sentence Audio',   zhLabel: '待句子音频', color: '#34d399' },
+];
+
 const LIVE_STATUSES = new Set(['pending', 'assigned', 'processing']);
 
 const rows = ref<TaskRow[]>([]);
 const loading = ref(false);
 const error = ref('');
+const loadAllBusy = ref(false);
+const loadAllMsg = ref('');
 
-const sortKey = usePersistedRef<'created_desc' | 'created_asc' | 'priority_desc' | 'status'>(
-  'utcSort',
-  'created_desc',
-);
+const sortKey = usePersistedRef<'created_desc' | 'created_asc' | 'priority_desc' | 'status'>('utcSort', 'created_desc');
 const statusFilter = usePersistedRef<'' | 'live' | 'history' | 'failed'>('utcStatusFilter', '');
 const historyTypeFilter = usePersistedRef<string>('historyTypeFilter', '');
 
@@ -177,65 +228,79 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 const apiBase = (): string => apiManager.getCurrentBaseUrl().replace(/\/+$/, '');
 
-// task_type values present in the current data (drives the chip row).
-const availableTypes = computed(() => {
-  const set = new Set<string>();
-  for (const r of rows.value) if (r.task_type) set.add(r.task_type);
-  return [...set].sort();
+const pendingByType = computed(() => {
+  const m: Record<string, number> = {};
+  for (const r of rows.value) {
+    const s = (r.status || '').toLowerCase();
+    if (s === 'pending') m[r.task_type] = (m[r.task_type] || 0) + 1;
+  }
+  return m;
 });
+
+const processingByType = computed(() => {
+  const m: Record<string, number> = {};
+  for (const r of rows.value) {
+    const s = (r.status || '').toLowerCase();
+    if (s === 'processing' || s === 'assigned') m[r.task_type] = (m[r.task_type] || 0) + 1;
+  }
+  return m;
+});
+
+const totalPending = computed(() =>
+  rows.value.filter((r) => (r.status || '').toLowerCase() === 'pending').length,
+);
 
 const rowIsFast = (row: TaskRow): boolean =>
   isFastTier({ is_fast_tier: row.is_fast_tier, priority: row.priority, execution_type: row.execution_type });
+
 const rowIsAi = (row: TaskRow): boolean => isAiTranslate(row.capability);
 
-const statusColor = (status: string): string => {
+const statusStyle = (status: string): Record<string, string> => {
   const s = (status || '').toLowerCase();
-  if (s === 'completed' || s === 'completed_demo') return 'var(--success)';
-  if (s === 'failed' || s === 'cancelled') return 'var(--danger, #e5484d)';
-  if (s === 'timeout' || s === 'reclaimed') return 'var(--warning)';
-  if (s === 'processing' || s === 'assigned') return 'var(--accent)';
-  return 'var(--text-muted)';
+  if (s === 'completed' || s === 'completed_demo')
+    return { '--dot': '#10b981', '--pill-bg': 'rgba(16,185,129,.12)', '--pill-fg': '#10b981' };
+  if (s === 'failed' || s === 'cancelled')
+    return { '--dot': '#f43f5e', '--pill-bg': 'rgba(244,63,94,.12)', '--pill-fg': '#f43f5e' };
+  if (s === 'timeout' || s === 'reclaimed')
+    return { '--dot': '#f59e0b', '--pill-bg': 'rgba(245,158,11,.12)', '--pill-fg': '#f59e0b' };
+  if (s === 'processing')
+    return { '--dot': '#38bdf8', '--pill-bg': 'rgba(56,189,248,.12)', '--pill-fg': '#38bdf8' };
+  if (s === 'assigned')
+    return { '--dot': '#818cf8', '--pill-bg': 'rgba(129,140,248,.12)', '--pill-fg': '#818cf8' };
+  return { '--dot': 'var(--text-muted)', '--pill-bg': 'rgba(148,163,184,.1)', '--pill-fg': 'var(--text-muted)' };
 };
 
-// Shared sort + task_type filter, applied to each group.
 const sortRows = (list: TaskRow[]): TaskRow[] => {
   const arr = [...list];
   arr.sort((a, b) => {
     switch (sortKey.value) {
-      case 'created_asc':
-        return (a.created_at || '').localeCompare(b.created_at || '');
-      case 'priority_desc':
-        return (b.priority ?? 0) - (a.priority ?? 0);
-      case 'status':
-        return (a.status || '').localeCompare(b.status || '');
-      case 'created_desc':
-      default:
-        return (b.created_at || '').localeCompare(a.created_at || '');
+      case 'created_asc':   return (a.created_at || '').localeCompare(b.created_at || '');
+      case 'priority_desc': return (b.priority ?? 0) - (a.priority ?? 0);
+      case 'status':        return (a.status || '').localeCompare(b.status || '');
+      default:              return (b.created_at || '').localeCompare(a.created_at || '');
     }
   });
   return arr;
 };
 
-const passesTypeFilter = (row: TaskRow): boolean =>
+const passesFilter = (row: TaskRow): boolean =>
   !historyTypeFilter.value || row.task_type === historyTypeFilter.value;
 
-const filteredRecords = computed(() => rows.value.filter(passesTypeFilter));
+const filtered = computed(() => rows.value.filter(passesFilter));
 
 const liveRows = computed(() => {
   if (statusFilter.value === 'history' || statusFilter.value === 'failed') return [];
-  return sortRows(filteredRecords.value.filter((r) => LIVE_STATUSES.has((r.status || '').toLowerCase())));
+  return sortRows(filtered.value.filter((r) => LIVE_STATUSES.has((r.status || '').toLowerCase())));
 });
 
 const historyRows = computed(() => {
   if (statusFilter.value === 'live') return [];
-  return sortRows(
-    filteredRecords.value.filter((r) => {
-      const s = (r.status || '').toLowerCase();
-      if (LIVE_STATUSES.has(s)) return false;
-      if (statusFilter.value === 'failed') return s === 'failed' || s === 'cancelled' || s === 'timeout';
-      return true;
-    }),
-  );
+  return sortRows(filtered.value.filter((r) => {
+    const s = (r.status || '').toLowerCase();
+    if (LIVE_STATUSES.has(s)) return false;
+    if (statusFilter.value === 'failed') return s === 'failed' || s === 'cancelled' || s === 'timeout';
+    return true;
+  }));
 });
 
 const openTask = (row: TaskRow): void => {
@@ -250,10 +315,7 @@ const refresh = async (): Promise<void> => {
     const res = await fetch(`${apiBase()}/api/task/list?limit=50`, {
       headers: { 'Cache-Control': 'no-cache' },
     });
-    if (!res.ok) {
-      error.value = `Failed to load tasks (${res.status})`;
-      return;
-    }
+    if (!res.ok) { error.value = `Failed to load tasks (${res.status})`; return; }
     const json = await res.json();
     const data = json?.data ?? json;
     rows.value = Array.isArray(data?.tasks) ? (data.tasks as TaskRow[]) : [];
@@ -264,6 +326,36 @@ const refresh = async (): Promise<void> => {
   }
 };
 
+const CHROME_EXECUTION_TYPES = new Set([
+  'remote_client', 'remote_translation', 'remote_gemini',
+  'remote_notebooklm', 'remote_gemini_text', 'remote_fast',
+]);
+
+const loadAll = async (): Promise<void> => {
+  if (loadAllBusy.value) return;
+  loadAllBusy.value = true;
+  loadAllMsg.value = '';
+  error.value = '';
+  try {
+    const url = `${apiBase()}/api/task/list?limit=500&status=pending`;
+    const res = await fetch(url, { headers: { 'Cache-Control': 'no-cache' } });
+    if (!res.ok) { error.value = `Load failed (${res.status})`; return; }
+    const json = await res.json();
+    const data = json?.data ?? json;
+    const all: TaskRow[] = Array.isArray(data?.tasks) ? (data.tasks as TaskRow[]) : [];
+    const chromeHandled = all.filter((t) => CHROME_EXECUTION_TYPES.has(t.execution_type));
+    const existing = new Map(rows.value.map((r) => [r.task_id, r]));
+    for (const t of all) existing.set(t.task_id, t);
+    rows.value = [...existing.values()];
+    loadAllMsg.value = `Loaded ${all.length} pending (${chromeHandled.length} chrome-processable)`;
+    setTimeout(() => { loadAllMsg.value = ''; }, 4000);
+  } catch (e: any) {
+    error.value = e?.message || 'Load failed';
+  } finally {
+    loadAllBusy.value = false;
+  }
+};
+
 onMounted(async () => {
   await apiManager.initialize({ autoDetect: false }).catch(() => {});
   await refresh();
@@ -271,91 +363,160 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 });
 </script>
 
 <style scoped>
 .utc { display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Header ── */
 .utc-head { display: flex; align-items: center; justify-content: space-between; }
-.utc-title { font-size: 14px; font-weight: 700; color: var(--text); margin: 0; }
-.utc-refresh {
-  border: 1px solid var(--border);
+.utc-title { font-size: 13px; font-weight: 700; color: var(--text); margin: 0; }
+.utc-head-right { display: flex; align-items: center; gap: 6px; }
+.utc-total-badge {
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 999px;
+  background: rgba(56,189,248,.18); color: #38bdf8;
+}
+.utc-load-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 700;
+  border: 1px solid rgba(129,140,248,.4);
+  background: rgba(129,140,248,.12); color: #818cf8;
+  cursor: pointer; transition: background 0.12s, opacity 0.12s;
+  white-space: nowrap;
+}
+.utc-load-btn:disabled { opacity: 0.5; cursor: default; }
+.utc-load-btn:not(:disabled):hover { background: rgba(129,140,248,.22); }
+.utc-load-msg {
+  font-size: 9px; color: var(--text-muted);
+  padding: 2px 4px; border-radius: 4px;
   background: var(--surface-2);
-  color: var(--text);
-  border-radius: 8px;
-  width: 30px;
-  height: 30px;
-  cursor: pointer;
+}
+.utc-refresh {
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); border-radius: 8px;
+  width: 28px; height: 28px; cursor: pointer; font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.12s;
 }
 .utc-refresh:disabled { opacity: 0.5; cursor: default; }
-.utc-controls { display: flex; gap: 10px; }
-.utc-ctl { display: flex; flex-direction: column; gap: 2px; font-size: 10px; color: var(--text-muted); }
+.utc-refresh:not(:disabled):hover { background: var(--surface); }
+.spin { display: inline-block; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Summary grid ── */
+.utc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.utc-cat {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 9px; border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  position: relative; overflow: hidden;
+}
+.utc-cat:hover { border-color: var(--cat-accent, var(--accent)); background: var(--surface); }
+.utc-cat--active { border-color: var(--cat-accent, var(--accent)); }
+.utc-cat--active::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--cat-accent, var(--accent));
+  opacity: 0.06;
+  pointer-events: none;
+}
+.utc-cat-sel {
+  position: absolute; right: 6px; top: 6px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--cat-accent, var(--accent));
+}
+.utc-cat-icon { font-size: 18px; line-height: 1; flex-shrink: 0; }
+.utc-cat-body { flex: 1; min-width: 0; }
+.utc-cat-name { font-size: 10px; font-weight: 600; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.utc-cat-nums { display: flex; align-items: baseline; gap: 3px; flex-wrap: wrap; }
+.utc-num-pending {
+  font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums;
+  color: var(--text-muted); line-height: 1;
+}
+.utc-num-pending.utc-num--lit { color: var(--cat-accent, #38bdf8); }
+.utc-num-sep { font-size: 9px; color: var(--text-muted); }
+.utc-num-proc { font-size: 9px; color: #f59e0b; white-space: nowrap; }
+
+/* ── Controls ── */
+.utc-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.utc-ctl { display: flex; flex-direction: column; gap: 2px; }
+.utc-ctl-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .utc-select {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 3px 6px;
-  font-size: 12px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 3px 6px; font-size: 11px;
 }
-.utc-chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.utc-typechip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-muted);
-  cursor: pointer;
+.utc-clear-filter {
+  margin-top: auto; font-size: 10px; padding: 3px 8px;
+  border-radius: 999px; border: 1px solid var(--accent);
+  background: rgba(var(--accent-rgb, 99,102,241),.1);
+  color: var(--accent-fg, var(--accent)); cursor: pointer;
+  white-space: nowrap; transition: background 0.12s;
 }
-.utc-typechip.active { background: var(--accent-soft); color: var(--accent-fg, var(--accent)); border-color: var(--accent); }
-.utc-error { font-size: 12px; color: var(--warning); }
-.utc-empty { font-size: 12px; color: var(--text-muted); padding: 12px 0; text-align: center; }
-.utc-group { display: flex; flex-direction: column; gap: 6px; }
-.utc-grouphead { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.utc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.utc-clear-filter:hover { background: rgba(var(--accent-rgb, 99,102,241),.2); }
+
+/* ── Error / empty ── */
+.utc-error { font-size: 11px; color: #f59e0b; padding: 6px 8px; border-radius: 8px; background: rgba(245,158,11,.1); }
+.utc-empty { font-size: 12px; color: var(--text-muted); padding: 14px 0; text-align: center; }
+.utc-empty-icon { font-size: 16px; display: block; margin-bottom: 4px; opacity: 0.5; }
+
+/* ── Groups ── */
+.utc-group { display: flex; flex-direction: column; gap: 5px; }
+.utc-grouphead {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.utc-groupcount {
+  padding: 0 5px; border-radius: 999px;
+  background: var(--surface-2); font-size: 10px; color: var(--text-muted);
+}
+.utc-groupdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.utc-groupdot--live { background: #38bdf8; box-shadow: 0 0 6px #38bdf880; }
+.utc-groupdot--hist { background: var(--text-muted); }
+
+/* ── Task rows ── */
+.utc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .utc-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-2);
-  cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 9px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface-2); cursor: pointer;
   transition: border-color 0.12s, background 0.12s;
 }
 .utc-row:hover { border-color: var(--accent); background: var(--surface); }
-.utc-rowicon { font-size: 18px; line-height: 1; flex-shrink: 0; }
+.utc-row--hist { opacity: 0.8; }
+.utc-row--hist:hover { opacity: 1; }
+.utc-rowicon { font-size: 17px; line-height: 1; flex-shrink: 0; }
 .utc-rowmain { flex: 1; min-width: 0; }
-.utc-rowtop { display: flex; align-items: center; gap: 6px; }
-.utc-rowlabel { font-size: 12px; font-weight: 600; color: var(--text); }
-.utc-fast { font-size: 12px; }
+.utc-rowtop { display: flex; align-items: center; gap: 5px; }
+.utc-rowlabel { font-size: 11px; font-weight: 600; color: var(--text); }
+.utc-fast { font-size: 11px; }
 .utc-rowsub {
-  font-size: 10px;
-  color: var(--text-muted);
+  font-size: 9px; color: var(--text-muted);
   font-family: ui-monospace, monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-top: 1px;
 }
 .utc-rowright { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
 .utc-cap {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
+  font-size: 9px; padding: 1px 5px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
 }
-.utc-cap.ai { border-color: var(--accent); color: var(--accent); }
-.utc-status { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text); }
-.utc-statusdot { width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--text-muted)); }
+.utc-cap--ai { border-color: #818cf8; color: #818cf8; background: rgba(129,140,248,.1); }
+.utc-status-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 9px; padding: 2px 6px; border-radius: 999px;
+  background: var(--pill-bg, rgba(148,163,184,.1));
+  color: var(--pill-fg, var(--text-muted));
+  font-weight: 600; text-transform: lowercase;
+}
+.utc-statusdot { width: 5px; height: 5px; border-radius: 50%; background: var(--dot, var(--text-muted)); flex-shrink: 0; }
 </style>

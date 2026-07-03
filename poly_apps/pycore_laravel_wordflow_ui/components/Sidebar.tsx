@@ -12,6 +12,7 @@ import {
   Network,
   Sparkles,
   BrainCircuit,
+  AudioLines,
   KeyRound,
   DatabaseZap,
   Clapperboard,
@@ -35,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.VOCABULARY, icon: BookOpen, labelKey: 'vocabulary' },
   { id: ViewType.AI_TOOLS, icon: Sparkles, labelKey: 'aiTools' },
   { id: ViewType.AI_MANAGEMENT, icon: BrainCircuit, labelKey: 'aiManagement' },
+  { id: ViewType.WORD_AUDIO, icon: AudioLines, labelKey: 'wordAudio' },
   { id: ViewType.DEV_HISTORY, icon: History, labelKey: 'devHistory' },
   // MCP Manager (#/mcp) was dismantled: task-dispatch+prompts -> Task Center
   // (Dispatch tab), screenshots+placeholder -> Tools (MCP Server), voice ->

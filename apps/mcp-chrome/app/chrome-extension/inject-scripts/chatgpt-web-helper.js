@@ -9,6 +9,7 @@
  *   - chrome_chatgpt_ping            -> {status:'pong'} (base injector skips re-inject)
  *   - chatgptSubmitPrompt {prompt}   -> fill + send; {found, before, error}
  *   - chatgptCollectReply {timeoutMs, before} -> stabilized reply; {ready, answer, error}
+ *   - chatgptPeekReply {before}      -> {hasBlock, text} (instant, no wait)
  *   - chatgptCollectAudio {timeoutMs}-> read-aloud bytes; {ok, mime, bytes:number[], error}
  *
  * Selectors are redundant (data-testid / aria-label / role / contenteditable),
@@ -101,6 +102,16 @@
     return { found: true, before };
   }
 
+  /** Instant, non-blocking read — used by the job-based status poll (cross-poll stability). */
+  function peekReply(before) {
+    const blocks = assistantTurns();
+    if (blocks.length <= before) {
+      return { hasBlock: false, text: '' };
+    }
+    const el = blocks[blocks.length - 1];
+    return { hasBlock: true, text: (el.innerText || '').trim() };
+  }
+
   async function collectReply(timeoutMs, before) {
     const start = Date.now();
     let last = '';
@@ -191,6 +202,14 @@
       collectReply(Number(message.timeoutMs) || 120000, Number(message.before) || 0)
         .then((r) => sendResponse(r))
         .catch((e) => sendResponse({ ready: false, error: String(e && e.message) }));
+      return true;
+    }
+    if (message.action === 'chatgptPeekReply') {
+      try {
+        sendResponse(peekReply(Number(message.before) || 0));
+      } catch (e) {
+        sendResponse({ hasBlock: false, text: '', error: String(e && e.message) });
+      }
       return true;
     }
     if (message.action === 'chatgptCollectAudio') {

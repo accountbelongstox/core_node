@@ -78,6 +78,7 @@ This module never imports rpc_v2 / callmodule routers (no upward layer import).
 """
 
 import asyncio
+import base64
 import heapq
 import os
 import platform
@@ -97,6 +98,9 @@ from pycore.pyfoundations.third_party import get_third_package_requests
 from pycore.pyutils.translator.google_translator import GoogleTranslator
 from pycore.pyutils.translator.dictionary import get_dictionary_service
 from pycore.pyctl.desktop.task_manager import get_task_manager
+# Real (non-synthetic) pronunciation source chain, tried before TTS synthesis
+# in the word_audio lane — see _process_audio_task.
+from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
 
 
 # ============================================================
@@ -1325,11 +1329,21 @@ class TranslationWorkerService:
                 pass
 
     def _process_audio_task(self, task: Dict[str, Any]) -> None:
-        """word_audio task: synthesize MP3 via the TTS orchestrator -> {audio_base64}.
+        """word_audio task: real pronunciation source chain first, TTS fallback
+        -> {audio_base64}.
 
         Guarded by _audio_enabled(): if assist TTS is disabled on this worker the task
         is reported 'failed' (so it re-routes) and recorded locally, never silently
         dropped.
+
+        Tries word_audio_client.find_pronunciation() FIRST (Free Dictionary API ->
+        Cambridge Dictionary -> Forvo, each independently guarded / never raises).
+        On a real-source hit its audio bytes are used directly and the 'engine'
+        result field carries the source's provider name (e.g.
+        "free_dictionary_api", "cambridge_dictionary", "forvo") instead of a TTS
+        engine name. Only when every real source misses does this fall through to
+        the existing _synthesize_word_audio() -> tts_orchestrator.synthesize() path,
+        unchanged.
         """
         task_id = task.get("task_id")
         if not self._audio_enabled():
@@ -1344,15 +1358,31 @@ class TranslationWorkerService:
             self._post_result(task_id, "failed", error="word_audio task had no text")
             return
         self._post_result(task_id, "processing", progress=5, attempts=1)
+
+        real_source = None
         try:
-            audio_b64, engine = self._synthesize_word_audio(text, language)
-        except Exception as e:
-            ColorPrint.red(f"[TranslationWorker] word_audio task {task_id} failed: {e}")
-            self._post_result(task_id, "failed", error=str(e))
-            self._record_task(task, self.AUDIO_TASK_TYPE, "failed",
-                              posted_back=True, error=str(e))
-            return
-        result = {"audio_base64": audio_b64, "mime": "audio/mpeg", "engine": engine}
+            real_source = find_pronunciation(text, language)
+        except Exception as e:  # noqa: BLE001 - real-source chain must never break this lane
+            ColorPrint.yellow(
+                f"[TranslationWorker] word_audio task {task_id} real-source lookup "
+                f"skipped ({e}); falling back to TTS")
+
+        if real_source:
+            audio_b64 = base64.b64encode(real_source["audio_bytes"]).decode("ascii")
+            engine = real_source["provider"]
+            mime = real_source.get("mime") or "audio/mpeg"
+        else:
+            try:
+                audio_b64, engine = self._synthesize_word_audio(text, language)
+            except Exception as e:
+                ColorPrint.red(f"[TranslationWorker] word_audio task {task_id} failed: {e}")
+                self._post_result(task_id, "failed", error=str(e))
+                self._record_task(task, self.AUDIO_TASK_TYPE, "failed",
+                                  posted_back=True, error=str(e))
+                return
+            mime = "audio/mpeg"
+
+        result = {"audio_base64": audio_b64, "mime": mime, "engine": engine}
         self._post_result(task_id, "completed", result=result, progress=100)
         self._record_task(task, self.AUDIO_TASK_TYPE, "completed", posted_back=True)
 

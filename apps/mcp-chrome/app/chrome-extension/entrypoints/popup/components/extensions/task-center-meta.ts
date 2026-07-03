@@ -25,6 +25,7 @@ export const TASK_TYPE_META: Record<string, TaskTypeMeta> = {
   word_media: { label: 'Word Media', icon: '🖼️', badge: 'MEDIA' },
   word_audio: { label: 'Word Audio', icon: '🔊', badge: 'AUDIO' },
   gemini_image: { label: 'Gemini Image', icon: '🎨', badge: 'IMAGE' },
+  gemini_chat: { label: 'Gemini Chat', icon: '💬', badge: 'CHAT' },
   notebooklm: { label: 'NotebookLM', icon: '📓', badge: 'NOTEBOOK' },
   sentence_audio: { label: 'Sentence Audio', icon: '🎧', badge: 'SENTENCE' },
   poster: { label: 'Poster', icon: '🎬', badge: 'POSTER' },

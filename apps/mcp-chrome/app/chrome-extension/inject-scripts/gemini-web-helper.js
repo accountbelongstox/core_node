@@ -10,6 +10,7 @@
  *   - chrome_gemini_ping             -> {status:'pong'}
  *   - geminiSubmitPrompt {prompt}    -> fill + send; {found, before, error}
  *   - geminiCollectReply {timeoutMs, before} -> {ready, answer, error}
+ *   - geminiPeekReply {before}       -> {hasBlock, text} (instant, no wait)
  *   - geminiCollectAudio {timeoutMs} -> {ok, mime, bytes:number[], error}
  */
 
@@ -140,6 +141,21 @@
     return { found: true, before };
   }
 
+  /**
+   * Instant, non-blocking read of the current last-response text (no internal
+   * wait/stability loop) — used by the job-based status poll, which tracks
+   * stability ACROSS repeated calls instead of within one call, so a reply
+   * that is still streaming when polling starts isn't missed.
+   */
+  function peekReply(before) {
+    const blocks = responseBlocks();
+    if (blocks.length <= before) {
+      return { hasBlock: false, text: '' };
+    }
+    const el = blocks[blocks.length - 1];
+    return { hasBlock: true, text: (el.innerText || '').trim() };
+  }
+
   async function collectReply(timeoutMs, before) {
     const start = Date.now();
     let last = '';
@@ -241,6 +257,14 @@
       collectReply(Number(message.timeoutMs) || 120000, Number(message.before) || 0)
         .then((r) => sendResponse(r))
         .catch((e) => sendResponse({ ready: false, error: String(e && e.message) }));
+      return true;
+    }
+    if (message.action === 'geminiPeekReply') {
+      try {
+        sendResponse(peekReply(Number(message.before) || 0));
+      } catch (e) {
+        sendResponse({ hasBlock: false, text: '', error: String(e && e.message) });
+      }
       return true;
     }
     if (message.action === 'geminiCollectAudio') {

@@ -12,7 +12,7 @@
 
 # Single source of truth for the faster-whisper prerequisite (DEFAULT STT engine
 # for the pycore "Video Extraction" feature). Runs AFTER Step9_InstallPython so
-# pip is available. Also invoked directly by pycore\scripts\iniscripts\install_faster_whisper.ps1
+# pip is available. Also invoked directly by scripts\shells\linux\common\iniscripts\install_faster_whisper.ps1
 # (the pyservice prerequisite reference) to keep one copy of the logic.
 #
 # Invocation contracts:

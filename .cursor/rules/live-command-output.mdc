@@ -1,0 +1,8 @@
+---
+description: "core_node: run external/long commands live, attached to the console; no output suppression or exit-code-only checks."
+alwaysApply: true
+---
+
+# Run
+
+Run external/long commands live, attached to the console (no `Out-Null`/piped-stdin suppression, no exit-code-only checks) in ps1/sh/py alike.

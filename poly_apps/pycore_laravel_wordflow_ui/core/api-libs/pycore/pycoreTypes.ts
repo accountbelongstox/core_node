@@ -1482,6 +1482,49 @@ export interface SubtitleCacheClearResponse {
   removed: number;
 }
 
+// --- Word audio (real pronunciation lookup + TTS fallback) ----------------- #
+// GET /api/local/word-audio/status reports which real-pronunciation sources are
+// wired. pycore exposes 3 (free_dictionary_api, cambridge_dictionary, forvo);
+// laravel exposes 2 (no cambridge). The Forvo key is never leaked — only its
+// presence is reported. `tts_fallback` is always true (TTS covers a miss).
+export interface WordAudioSource {
+  /** Stable id, e.g. "free_dictionary_api" | "cambridge_dictionary" | "forvo". */
+  key: string;
+  /** Human label, e.g. "Free Dictionary API". */
+  label: string;
+  /** Usable right now (a key-gated source is false until its key is present). */
+  available: boolean;
+  /** True when this source needs an API key (only Forvo today). */
+  requires_key: boolean;
+  /** Short description / constraint hint. */
+  note: string;
+}
+export interface WordAudioStatus {
+  backend: 'pycore' | 'laravel' | string;
+  sources: WordAudioSource[];
+  /** Whether FORVO_API_KEY is configured (the key value is never returned). */
+  forvo_key_present: boolean;
+  /** Always true — TTS synthesis handles a clean miss. */
+  tts_fallback: boolean;
+}
+/**
+ * POST /api/local/word-audio/test — the REAL live fetch through the existing
+ * pronunciation client. On a hit the raw audio bytes are base64-encoded into
+ * `audio_base64` (play via new Audio('data:'+mime+';base64,'+audio_base64)).
+ * On a clean miss `success` is false, `provider` is null and `message` explains
+ * the TTS fallback would cover it.
+ */
+export interface WordAudioTestResponse {
+  success: boolean;
+  provider: 'free_dictionary_api' | 'cambridge_dictionary' | 'forvo' | string | null;
+  mime?: string;
+  audio_base64?: string;
+  source_id?: string;
+  meta?: Record<string, unknown>;
+  bytes?: number;
+  message?: string;
+}
+
 // --- Queue Center: unified overview (contract A) --------------------------- #
 // GET /api/local/queue/overview. pycore is the hub: it fans out to Laravel for
 // the per-category counts + worker registry, and merges its own local engine

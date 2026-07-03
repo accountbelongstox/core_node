@@ -16,6 +16,7 @@ from typing import Optional
 from pathlib import Path
 
 from pycore import ColorPrint
+from .webengine_config import configure_webengine_tier3_settings, mark_gpu_fallback
 
 
 class PySide6WebView(QWidget):
@@ -97,7 +98,6 @@ class PySide6WebView(QWidget):
 
         # CRITICAL: Apply Tier 3 QtWebEngine configuration for WebCodecs/WebGL support
         # This is the final redundant layer after Tier 1 (env) and Tier 2 (qputenv)
-        from .webengine_config import configure_webengine_tier3_settings
         configure_webengine_tier3_settings(settings)
 
         # Connect signals
@@ -422,8 +422,12 @@ class PySide6WebView(QWidget):
             ColorPrint.yellow("[PySide6WebView] Scheduling webview reload to recover...")
             QTimer.singleShot(1500, self.web_view.reload)
         else:
+            # Repeated render crashes usually mean the GPU/compositor path is broken
+            # on this driver. Persist a software-rendering request so the NEXT launch
+            # comes up on the safe path instead of crash-looping the GPU.
             ColorPrint.red("[PySide6WebView] Render process crashed repeatedly; "
-                           "leaving view as-is (no further auto-reload).")
+                           "persisting software-rendering fallback for next launch.")
+            mark_gpu_fallback(f"renderProcessTerminated x{self._render_crash_count}")
 
     def get_url(self) -> str:
         """Get current URL."""

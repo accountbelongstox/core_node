@@ -35,18 +35,54 @@
         <div class="nblm-answer-text">{{ answer }}</div>
       </div>
     </div>
+
+    <div class="nblm-divider" />
+
+    <div class="nblm-form">
+      <label class="nblm-label">Dialogue test — words/sentences → dialogue</label>
+      <textarea
+        v-model="dialogueInput"
+        class="nblm-textarea"
+        rows="3"
+        placeholder="Paste a few words or sentences to weave into a dialogue…"
+        :disabled="dialogueAsking"
+      ></textarea>
+      <div class="nblm-row">
+        <span class="nblm-row-hint">Built-in prompt: generates a short two-speaker dialogue using every item</span>
+        <button
+          class="nblm-button"
+          @click="onDialogueTest"
+          :disabled="dialogueAsking || !dialogueInput.trim()"
+        >
+          {{ dialogueAsking ? 'Testing…' : 'Test' }}
+        </button>
+      </div>
+
+      <div v-if="dialogueError" class="nblm-error">⚠ {{ dialogueError }}</div>
+
+      <div v-if="dialogueAnswer" class="nblm-answer">
+        <div class="nblm-answer-label">Extracted result</div>
+        <div class="nblm-answer-text">{{ dialogueAnswer }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { ref } from 'vue';
 import { getMessage as t } from '../../../../utils/i18n';
+import { buildNotebookLmDialoguePrompt } from '../../composables/promptPresets';
 
 const question = ref('');
 const notebookUrl = ref('');
 const answer = ref('');
 const error = ref('');
 const asking = ref(false);
+
+const dialogueInput = ref('');
+const dialogueAnswer = ref('');
+const dialogueError = ref('');
+const dialogueAsking = ref(false);
 
 const onAsk = async () => {
   if (!question.value.trim() || asking.value) return;
@@ -72,6 +108,33 @@ const onAsk = async () => {
     error.value = err?.message || 'NotebookLM request failed';
   } finally {
     asking.value = false;
+  }
+};
+
+const onDialogueTest = async () => {
+  if (!dialogueInput.value.trim() || dialogueAsking.value) return;
+  dialogueAsking.value = true;
+  dialogueError.value = '';
+  dialogueAnswer.value = '';
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'notebooklm_service',
+      action: 'ask',
+      question: buildNotebookLmDialoguePrompt(dialogueInput.value),
+      notebookUrl: notebookUrl.value.trim() || undefined,
+      timeoutMs: 90000,
+    });
+    if (response && response.success) {
+      const r = response.result || {};
+      dialogueAnswer.value = r.answer || '';
+      if (!dialogueAnswer.value) dialogueError.value = r.error || 'No answer returned';
+    } else {
+      dialogueError.value = (response && response.error) || 'NotebookLM request failed';
+    }
+  } catch (err: any) {
+    dialogueError.value = err?.message || 'NotebookLM request failed';
+  } finally {
+    dialogueAsking.value = false;
   }
 };
 </script>
@@ -117,6 +180,42 @@ const onAsk = async () => {
   font-size: 13px;
   background: var(--surface-2);
   color: var(--text);
+}
+
+.nblm-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 0;
+}
+
+.nblm-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--surface-2);
+  color: var(--text);
+  resize: vertical;
+  font-family: inherit;
+}
+
+.nblm-textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.nblm-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.nblm-row-hint {
+  font-size: 10px;
+  color: var(--text-faint);
+  line-height: 1.4;
+  flex: 1;
 }
 
 .nblm-input::placeholder {

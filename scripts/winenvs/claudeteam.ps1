@@ -44,6 +44,7 @@ $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
 $ultraSettingsJson = $null
+$ultraSettingsFile = $null
 $forceModel = $null
 $forceOpusChoice = $null
 $forceOpusEnabled = $false
@@ -73,9 +74,14 @@ $forceModel = 'opus[1m]'
 # Windows default: run experimental agent teams in-process.
 $teammateMode = 'in-process'
 
-# Default-enable ultracode via inline JSON settings (compact; no spaces so
-# native-argument quoting stays safe).
+# Default-enable ultracode. Pass it through a temp settings FILE rather than an
+# inline JSON string: Windows PowerShell 5.1 strips the double quotes when handing
+# a JSON literal to a native exe, so `claude --settings {"ultracode":true}` arrives
+# as `{ultracode:true}` -> "Invalid JSON provided to --settings". --settings also
+# accepts a file path (official CLI reference), which sidesteps all shell quoting.
 $ultraSettingsJson = '{"ultracode":true}'
+$ultraSettingsFile = Join-Path $env:TEMP "claudeteam_ultracode_settings.json"
+[System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
 
 # Optional: force Opus 4.8 (or newer) everywhere. Opt-in prompt, default No.
 $forceOpusChoice = Read-Host "Force model $forceModel everywhere (main + subagents + background)? [y/N]"
@@ -97,9 +103,9 @@ if ($forceOpusEnabled) {
 # --teammate-mode in-process and --dangerously-skip-permissions are Windows
 # defaults; --model is included only when Opus forcing is opted in.
 if ($forceOpusEnabled) {
-    $claudeArgs = @("--model", $forceModel, "--settings", $ultraSettingsJson, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+    $claudeArgs = @("--model", $forceModel, "--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
 } else {
-    $claudeArgs = @("--settings", $ultraSettingsJson, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+    $claudeArgs = @("--settings", $ultraSettingsFile, "--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
 }
 
 $claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
@@ -119,7 +125,7 @@ if ($forceOpusEnabled) {
     Write-Host "[INFO] Forced model: off (default N) - using the account default model" -ForegroundColor Green
 }
 Write-Host "[INFO] Teammate mode: $teammateMode (Windows default)" -ForegroundColor Green
-Write-Host "[INFO] Ultracode settings: --settings $ultraSettingsJson" -ForegroundColor Green
+Write-Host "[INFO] Ultracode settings: $ultraSettingsJson (via temp file $ultraSettingsFile)" -ForegroundColor Green
 Write-Host "[INFO] Invoking: claude $($claudeArgs -join ' ')$claudeInvokeDisplayArgs" -ForegroundColor Green
 if ($args.Count -gt 0) {
     Write-Host "[INFO] Extra arguments ($($args.Count)): $($args -join ' ')" -ForegroundColor DarkGray
@@ -135,4 +141,10 @@ $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0
 }
+
+# Remove the temp settings file (claude reads it only at startup).
+if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
+    Remove-Item $ultraSettingsFile -Force -ErrorAction SilentlyContinue
+}
+
 exit $exitCode

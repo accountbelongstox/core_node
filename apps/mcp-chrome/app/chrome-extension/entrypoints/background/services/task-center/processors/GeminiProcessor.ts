@@ -2,19 +2,19 @@
  * Gemini Web Processor
  *
  * ITaskProcessor wrapper around GeminiWorkerService, mirroring the
- * WebAiTranslateProcessor pattern. Owns the dedicated `gemini_web` lane, routed
- * by task_type (no fast-lane capability). Single chat tab => concurrency 1.
- * Registered disabled-by-default (opt-in) in init-processors.
+ * WebAiTranslateProcessor pattern. Owns the dedicated `remote_gemini_text`
+ * lane, routed by task_type (no fast-lane capability). Single chat tab =>
+ * concurrency 1. Registered disabled-by-default (opt-in) in init-processors.
  */
 import type { ITaskProcessor, ProcessorConfig, ProcessorStatus } from '../ITaskProcessor';
 import type { WorkerCapability } from '../../../api/WorkerApiClient';
 import { geminiWorkerService } from '../../gemini-worker-service';
 
 class GeminiProcessor implements ITaskProcessor {
-  readonly processorType = 'gemini_web';
+  readonly processorType = 'remote_gemini_text';
   readonly processorName = 'Gemini Web';
 
-  readonly processorTypes: string[] = ['gemini_web'];
+  readonly processorTypes: string[] = ['remote_gemini_text'];
   readonly capabilities: WorkerCapability[] = [];
   readonly concurrency = 1;
 

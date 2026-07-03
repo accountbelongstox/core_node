@@ -1,0 +1,416 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+// 订单核算 (Order reconciliation) modal.
+// Batch-add express/tracking numbers, bidirectionally compare them against the
+// tracking numbers of synced orders, see which batch each belongs to and what is
+// matched / missing / unaccounted, then one-click print a report. Batches are
+// cached in the system (chrome.storage via the bridge, or localStorage in a web
+// preview) so previous query batches can be re-opened.
+
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  X, ClipboardCheck, Plus, Trash2, Printer, RefreshCw,
+  CheckCircle2, AlertTriangle, PackageSearch, Loader2,
+} from 'lucide-react';
+import type { Order } from '@/lib/types';
+import {
+  reconcile, parseTrackingInput, buildReportHtml,
+  type ReconcileBatch,
+} from '@/lib/reconcile';
+import {
+  inExtension, getAllOrders, listBatches, saveBatch, removeBatch,
+} from '@/lib/dashboardBridge';
+
+const LOCAL_KEY = 'dd_reconcile_batches_local';
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  lang: 'zh' | 'en';
+  fallbackOrders: Order[];
+}
+
+// Local persistence used only in a plain web preview (no extension storage).
+function loadLocalBatches(): ReconcileBatch[] {
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+function saveLocalBatches(list: ReconcileBatch[]): void {
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(list));
+  } catch {
+    // ignore
+  }
+}
+
+export const ReconciliationModal: React.FC<Props> = ({ open, onClose, lang, fallbackOrders }) => {
+  const zh = lang === 'zh';
+  const [batches, setBatches] = useState<ReconcileBatch[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [name, setName] = useState('');
+  const [text, setText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'matched' | 'missing' | 'extra'>('missing');
+
+  const ext = inExtension();
+
+  // Load cached batches + the order set to reconcile against, whenever opened.
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    setLoading(true);
+    (async () => {
+      try {
+        const [b, o] = await Promise.all([
+          ext ? listBatches().catch(() => loadLocalBatches()) : Promise.resolve(loadLocalBatches()),
+          ext ? getAllOrders().catch(() => fallbackOrders) : Promise.resolve(fallbackOrders),
+        ]);
+        if (!alive) return;
+        setBatches(b);
+        setOrders(o && o.length ? o : fallbackOrders);
+        setSelectedIds(b.map((x) => x.id));
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [open, ext, fallbackOrders]);
+
+  const parsed = useMemo(() => parseTrackingInput(text), [text]);
+
+  const selectedBatches = useMemo(
+    () => batches.filter((b) => selectedIds.includes(b.id)),
+    [batches, selectedIds],
+  );
+
+  const result = useMemo(
+    () => reconcile(selectedBatches, orders),
+    [selectedBatches, orders],
+  );
+
+  if (!open) return null;
+
+  const persist = async (next: ReconcileBatch[]) => {
+    setBatches(next);
+    if (ext) {
+      // bridge ops return the authoritative list; we already optimistically set
+    } else {
+      saveLocalBatches(next);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (parsed.length === 0) return;
+    const batch: ReconcileBatch = {
+      id: `b_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: name.trim() || `${zh ? '批次' : 'Batch'} ${new Date().toLocaleString(zh ? 'zh-CN' : 'en-US')}`,
+      trackingNumbers: parsed,
+      createdAt: Date.now(),
+    };
+    let next = [batch, ...batches];
+    if (ext) {
+      try {
+        next = await saveBatch(batch);
+      } catch {
+        // fall back to optimistic local
+      }
+    } else {
+      saveLocalBatches(next);
+    }
+    setBatches(next);
+    setSelectedIds((ids) => [...ids, batch.id]);
+    setName('');
+    setText('');
+  };
+
+  const handleRemove = async (id: string) => {
+    let next = batches.filter((b) => b.id !== id);
+    if (ext) {
+      try {
+        next = await removeBatch(id);
+      } catch {
+        // optimistic local
+      }
+    } else {
+      saveLocalBatches(next);
+    }
+    setBatches(next);
+    setSelectedIds((ids) => ids.filter((x) => x !== id));
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+  };
+
+  const handlePrint = () => {
+    const html = buildReportHtml(result, selectedBatches, lang);
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      return;
+    }
+    // Popup blocked: open via a Blob URL instead.
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
+  const rows =
+    activeTab === 'matched' ? result.matched : activeTab === 'missing' ? result.missing : result.extra;
+
+  const card = (n: number, label: string, tone: 'blue' | 'emerald' | 'rose' | 'slate') => {
+    const tones = {
+      blue: 'text-blue-600 dark:text-blue-400',
+      emerald: 'text-emerald-600 dark:text-emerald-400',
+      rose: 'text-rose-600 dark:text-rose-400',
+      slate: 'text-slate-700 dark:text-slate-200',
+    };
+    return (
+      <div className="bg-white/70 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-center">
+        <div className={`text-xl font-extrabold font-mono ${tones[tone]}`}>{n}</div>
+        <div className="text-[10px] text-slate-500 dark:text-slate-400">{label}</div>
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white/95 dark:bg-slate-900/95 border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-black/5 dark:border-white/10">
+          <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
+            <ClipboardCheck className="w-5 h-5 text-blue-500" />
+            {zh ? '订单核算 · 快递单号双向核对' : 'Order Reconciliation · Tracking Audit'}
+          </h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePrint}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              {zh ? '一键打印报表' : 'Print Report'}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-slate-500 cursor-pointer"
+            >
+              <X className="w-4.5 h-4.5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Left: add batch + cached batches */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="bg-white/60 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl p-4 space-y-2.5">
+              <div className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                {zh ? '批量添加快递单号' : 'Batch add tracking numbers'}
+              </div>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={zh ? '批次名称（可选）' : 'Batch name (optional)'}
+                className="w-full text-xs bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={6}
+                placeholder={zh ? '粘贴快递单号，支持换行 / 空格 / 逗号 / 分号分隔' : 'Paste tracking numbers (newline / space / comma / ; separated)'}
+                className="w-full text-xs font-mono bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {zh ? `已解析 ${parsed.length} 个去重单号` : `${parsed.length} unique numbers`}
+                </span>
+                <button
+                  onClick={handleAdd}
+                  disabled={parsed.length === 0}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {zh ? '保存批次' : 'Save batch'}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white/60 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                  {zh ? '已缓存批次' : 'Cached batches'} ({batches.length})
+                </span>
+                {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />}
+              </div>
+              {batches.length === 0 ? (
+                <div className="text-[11px] text-slate-400 italic py-3 text-center">
+                  {zh ? '暂无批次，请在上方添加。' : 'No batches yet.'}
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-56 overflow-auto">
+                  {batches.map((b) => (
+                    <label
+                      key={b.id}
+                      className="flex items-center gap-2 p-2 rounded-lg bg-white/70 dark:bg-white/5 border border-black/5 dark:border-white/5 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(b.id)}
+                        onChange={() => toggleSelect(b.id)}
+                        className="w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{b.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          {b.trackingNumbers.length} {zh ? '个单号' : 'nums'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleRemove(b.id);
+                        }}
+                        className="p-1 text-slate-400 hover:text-rose-500 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right: result */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {card(result.totals.batchNumbers, zh ? '批次单号' : 'Batch', 'slate')}
+              {card(result.totals.orderNumbers, zh ? '订单单号' : 'Orders', 'blue')}
+              {card(result.totals.matched, zh ? '命中' : 'Matched', 'emerald')}
+              {card(result.totals.missing, zh ? '缺失' : 'Missing', 'rose')}
+              {card(result.totals.extra, zh ? '多余' : 'Extra', 'slate')}
+            </div>
+
+            {result.batchSummaries.length > 0 && (
+              <div className="bg-white/60 dark:bg-black/20 border border-black/10 dark:border-white/10 rounded-xl p-3">
+                <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1.5">
+                  {zh ? '各批次命中情况' : 'Per-batch'}
+                </div>
+                <div className="space-y-1">
+                  {result.batchSummaries.map((s) => (
+                    <div key={s.batchId} className="flex items-center justify-between text-[11px]">
+                      <span className="truncate text-slate-600 dark:text-slate-300">{s.batchName}</span>
+                      <span className="font-mono shrink-0 ml-2">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">{s.matched}</span>
+                        <span className="text-slate-400"> / {s.total}</span>
+                        {s.missing > 0 && <span className="text-rose-500 font-bold"> · 缺{s.missing}</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tabs */}
+            <div className="flex items-center gap-1.5">
+              {([
+                { k: 'matched', label: zh ? '命中' : 'Matched', n: result.totals.matched, icon: CheckCircle2, tone: 'emerald' },
+                { k: 'missing', label: zh ? '批次缺失' : 'Missing', n: result.totals.missing, icon: AlertTriangle, tone: 'rose' },
+                { k: 'extra', label: zh ? '订单多余' : 'Unaccounted', n: result.totals.extra, icon: PackageSearch, tone: 'slate' },
+              ] as const).map((tab) => {
+                const Icon = tab.icon;
+                const active = activeTab === tab.k;
+                return (
+                  <button
+                    key={tab.k}
+                    onClick={() => setActiveTab(tab.k)}
+                    className={`flex-1 px-2 py-1.5 rounded-lg text-[11px] font-bold border flex items-center justify-center gap-1 cursor-pointer transition-all ${
+                      active
+                        ? 'bg-blue-500/10 border-blue-500/40 text-blue-600 dark:text-blue-300'
+                        : 'bg-white/60 dark:bg-white/5 border-black/10 dark:border-white/10 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {tab.label} ({tab.n})
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="border border-black/10 dark:border-white/10 rounded-xl overflow-hidden">
+              <div className="max-h-72 overflow-auto">
+                <table className="w-full text-[11px]">
+                  <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                    <tr>
+                      <th className="text-left px-2.5 py-1.5 font-bold">{zh ? '快递单号' : 'Tracking'}</th>
+                      {activeTab === 'missing' ? (
+                        <th className="text-left px-2.5 py-1.5 font-bold">{zh ? '所属批次' : 'Batches'}</th>
+                      ) : (
+                        <>
+                          <th className="text-left px-2.5 py-1.5 font-bold">{zh ? '订单号' : 'Order'}</th>
+                          <th className="text-left px-2.5 py-1.5 font-bold">{zh ? '账号' : 'Account'}</th>
+                          <th className="text-left px-2.5 py-1.5 font-bold">{zh ? '状态' : 'Status'}</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="text-center text-slate-400 italic py-6">
+                          {zh ? '无数据' : 'No data'}
+                        </td>
+                      </tr>
+                    ) : (
+                      rows.map((r) => (
+                        <tr key={r.key} className="border-t border-black/5 dark:border-white/5">
+                          <td className="px-2.5 py-1.5 font-mono">{r.tracking}</td>
+                          {activeTab === 'missing' ? (
+                            <td className="px-2.5 py-1.5 text-slate-500">
+                              {r.batchIds
+                                .map((id) => batches.find((b) => b.id === id)?.name || id)
+                                .join(' / ')}
+                            </td>
+                          ) : (
+                            <>
+                              <td className="px-2.5 py-1.5 font-mono text-slate-500">{r.order?.id}</td>
+                              <td className="px-2.5 py-1.5">{r.order?.accountName}</td>
+                              <td className="px-2.5 py-1.5">{r.order?.status}</td>
+                            </>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+              <RefreshCw className="w-3 h-3" />
+              {zh
+                ? '核对对象为系统中已同步的全部订单快递单号。'
+                : 'Compared against tracking numbers of all synced orders.'}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

@@ -166,6 +166,50 @@ priority to the front. Tasks are deduped per type (a word already owned by a
 pending task of that type is only bumped, never duplicated). Created/bumped by
 `AppQyV1WordMediaService::ensureWordMediaTask(..., $needsChrome, $needsAudio)`.
 
+### 4.1b Real pronunciation source chain (pre-fetch before TTS)
+
+Before either lane's TTS fallback runs, a missing `word_audio` is first tried
+against a chain of REAL (non-synthetic) pronunciation sources — a
+native-speaker / dictionary recording is strictly preferred over TTS
+synthesis, which is now the LAST resort rather than the only path:
+
+- **pycore** (`pycore/pyutils/external_apis/word_audio_client.py`,
+  `find_pronunciation(word, lang)`): **Free Dictionary API -> Cambridge
+  Dictionary -> Forvo**, in that order. Called synchronously at the top of the
+  `word_audio` / `remote_audio` worker's `_process_audio_task`
+  (`translation_worker_service.py`) — a source hit sets the result's `engine`
+  to the source's provider name (`free_dictionary_api` | `cambridge_dictionary`
+  | `forvo`) instead of a TTS engine name; only a full miss falls through to
+  the existing `_synthesize_word_audio()` -> `tts_orchestrator` path,
+  unchanged.
+- **Laravel** (`app/Services/WordAudio/WordAudioClient.php`,
+  `findPronunciation($word, $langCode)`): **Free Dictionary API -> Forvo
+  only** — deliberately NO Cambridge Dictionary source. Cambridge has no
+  public REST API; producing its audio needs fetching + HTML-parsing the
+  dictionary page, a technique reserved for pycore only so the PHP client
+  stays a clean REST-API-only chain. Wired synchronously into
+  `AppQyV1WordMediaService::resolve()`'s `!$hasAudio` branch via the private
+  `fetchRealPronunciation()` helper: on a hit the bytes are persisted
+  immediately through the existing
+  `AppQyV1DictionaryTTSCoordinator::storeWordAudioBytes` (fill-missing,
+  MP3-magic-validated), so the SAME response already reflects
+  `audio_status:'ready'`; only a miss falls through to the existing
+  `enqueueTts()` + `word_audio` global-task path, unchanged.
+
+The two provider label strings that exist on both sides
+(`free_dictionary_api`, `forvo`) are shared verbatim, so pycore and Laravel
+record identical `translation_provider` / `engine` values for the same
+source. Forvo is the OFFICIAL PAID API (`apifree.forvo.com`) on both sides,
+gated behind a `FORVO_API_KEY` secret (`get_secret_key_indexed` /
+`AiSecretLoader::getIndexed`) — silently skipped with zero network calls when
+the key is absent, with a 401/403 circuit breaker latch on both sides.
+
+Deliberately excluded on BOTH sides, everywhere: **YouGlish** (video-embed
+widget, no downloadable/cacheable audio file, ToS forbids scraping it) and any
+**Forvo scraping / anti-bot-bypass** path for Forvo's free web tier (that tier
+is protected by anti-scraping checks and must not be circumvented — Forvo is
+used ONLY through its official paid API, never scraped).
+
 ### 4.2 Payload + result shape (identical for both lanes)
 
 - Task payload:
@@ -246,6 +290,7 @@ Created:
 - `app/Apps/AppQyV1/AppQyV1Services/AppQyV1WordMediaService.php`
 - `app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1WordQurey/AppQyV1WordMediaController.php`
 - `app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1AITools/AppQyV1WordImageQueueController.php`
+- `app/Services/WordAudio/WordAudioClient.php` (real pronunciation source chain; see §4.1b)
 - `app/Apps/AppQyV1/docs/AppQyV1_WORD_MEDIA_PIPELINE.md` (this doc)
 
 Modified:

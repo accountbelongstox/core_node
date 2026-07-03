@@ -17,6 +17,7 @@ class AppKeys
     const CODEMARTV1 = 'codemartv1';
     const ITTOOLSV1 = 'ittoolsv1';
     const PDDTOOLV1 = 'pddtoolv1';
+    const DINGDUODUOV1 = 'dingduoduov1';
 
     /**
      * Get all app keys
@@ -33,6 +34,7 @@ class AppKeys
             self::CODEMARTV1,
             self::ITTOOLSV1,
             self::PDDTOOLV1,
+            self::DINGDUODUOV1,
         ];
     }
 

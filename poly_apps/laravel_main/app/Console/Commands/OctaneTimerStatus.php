@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Services\OctaneTimerService;
 use App\Helpers\PycoreCaller;
-use App\Providers\PathMapper;
 
 /**
  * OctaneTimerStatus - Check Octane timer status
@@ -89,47 +88,27 @@ class OctaneTimerStatus extends Command
             $this->table($headers, $rows);
         }
 
-        // Display test timer heartbeat
+        // Display heartbeat. Sourced from OctaneTimerService's own
+        // cross-process heartbeat (last_alive) -- the SAME signal
+        // OctaneTaskStatusService::getHeartbeatStatus() and the
+        // octane/timer/test/heartbeat route use, so this can never disagree
+        // with the timer status printed above. (Per-task last-run is already
+        // in the "Registered Tasks" table above -- no separate section needed.)
         $this->newLine();
-        $this->info('=== Test Timer Heartbeat ===');
-        $tmpDir = PathMapper::getLaravelTmpDir();
-        $heartbeatFile = $tmpDir . '/octane_timer_heartbeat.txt';
+        $this->info('=== Heartbeat ===');
+        $lastAlive = $status['last_alive'] ?? null;
 
-        if (file_exists($heartbeatFile)) {
-            $content = file_get_contents($heartbeatFile);
-            $lastModified = filemtime($heartbeatFile);
-            $secondsAgo = time() - $lastModified;
+        if ($lastAlive === null) {
+            $this->warn('✗ No heartbeat recorded yet (timer never ticked)');
+        } else {
+            $secondsAgo = time() - $lastAlive;
+            $this->line('Last tick: ' . date('Y-m-d H:i:s', $lastAlive));
 
-            $this->line($content);
-
-            if ($secondsAgo < 3) {
-                $this->info("✓ Heartbeat file is FRESH (updated {$secondsAgo}s ago)");
+            if ($status['running']) {
+                $this->info("✓ Heartbeat is FRESH ({$secondsAgo}s ago)");
             } else {
-                $this->warn("⚠ Heartbeat file is STALE (updated {$secondsAgo}s ago)");
+                $this->warn("⚠ Heartbeat is STALE ({$secondsAgo}s ago)");
             }
-        } else {
-            $this->warn("✗ Heartbeat file NOT found at: {$heartbeatFile}");
-        }
-
-        // Display test timer date files
-        $this->newLine();
-        $this->info('=== Test Timer Date Files ===');
-        $dateFiles = glob($tmpDir . '/timer_date_*.txt');
-
-        if (!empty($dateFiles)) {
-            usort($dateFiles, function($a, $b) {
-                return filemtime($b) - filemtime($a);
-            });
-
-            $recentFiles = array_slice($dateFiles, 0, 5);
-            $this->info("Total date files: " . count($dateFiles) . " (showing 5 most recent)");
-
-            foreach ($recentFiles as $file) {
-                $secondsAgo = time() - filemtime($file);
-                $this->line("  - " . basename($file) . " ({$secondsAgo}s ago)");
-            }
-        } else {
-            $this->warn("✗ No date files found");
         }
 
         // Display Pycore diagnostics

@@ -13,7 +13,7 @@
 # Single source of truth for the edge-tts prerequisite (DEFAULT text-to-speech
 # engine for the pycore voice-subtitle pipeline). Runs AFTER Step9_InstallPython
 # so pip is available. Also invoked directly by
-# pycore\scripts\iniscripts\install_edge_tts.ps1 (the pyservice prerequisite
+# scripts\shells\linux\common\iniscripts\install_edge_tts.ps1 (the pyservice prerequisite
 # reference) to keep one copy of the logic.
 #
 # LATEST VERSION (>= 7.2.4): the NoAudioReceived bug (issue #443) was a 7.2.3

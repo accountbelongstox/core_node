@@ -14,6 +14,7 @@ use App\Services\TaskProcessors\DictionaryTaskProcessor;
 use App\Services\TaskProcessors\WordTranslationTaskProcessor;
 use App\Services\TaskProcessors\NotebookLmTaskProcessor;
 use App\Services\TaskProcessors\WordGeminiImageTaskProcessor;
+use App\Services\TaskProcessors\GeminiTextTaskProcessor;
 use App\Services\TaskProcessors\SubtitleSearchTaskProcessor;
 use App\Services\TaskProcessors\PosterTaskProcessor;
 use App\Services\TaskProcessors\SentenceAudioTaskProcessor;
@@ -106,8 +107,11 @@ class TaskManagerService
             // Task Center v3 task types (chrome remote_client lane):
             //   - notebooklm   -> answer text record.
             //   - gemini_image -> alternative word/cover image generator.
+            //   - gemini_chat  -> text-only Gemini completion, answer text record
+            //                     (mirrors notebooklm, no dictionary-row attachment).
             $this->processorRegistry->register(new NotebookLmTaskProcessor($this));
             $this->processorRegistry->register(new WordGeminiImageTaskProcessor($this));
+            $this->processorRegistry->register(new GeminiTextTaskProcessor($this));
 
             // Unified task system extension (dedicated pycore-only lanes):
             //   - subtitle_search -> validate/normalize subtitle hits (remote_subtitle).

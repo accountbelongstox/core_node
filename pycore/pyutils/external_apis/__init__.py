@@ -14,9 +14,13 @@ from pycore.pyutils.external_apis.movie_poster_client import (
     find_poster,
     save_poster_file,
 )
+from pycore.pyutils.external_apis.word_audio_client import (
+    find_pronunciation,
+)
 
 __all__ = [
     "parse_title_year",
     "find_poster",
     "save_poster_file",
+    "find_pronunciation",
 ]

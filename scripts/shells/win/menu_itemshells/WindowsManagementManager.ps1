@@ -24,6 +24,11 @@ $script:SHELLS_DIR = Split-Path (Split-Path $script:PS_CURRENT_DIR -Parent) -Par
 $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "install_powershells"
 $script:TOOLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "tools"
 $script:ANDROID_LAUNCHER = Join-Path $script:TOOLS_DIR "AndroidEmulatorLauncher.ps1"
+$script:SCRIPTS_ROOT_DIR = Split-Path $script:SHELLS_DIR -Parent
+$script:CHROME_REPAIR_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\fix-chrome-compat-shim.ps1"
+$script:CHROME_REPAIR_SCRIPT_FALLBACK = Join-Path $env:USERPROFILE ".core_node\scripts\chromefix\fix-chrome-compat-shim.ps1"
+$script:AW_REMOVE_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\remove-aw-manager.ps1"
+$script:AW_REMOVE_SCRIPT_FALLBACK = Join-Path $env:USERPROFILE ".core_node\scripts\chromefix\remove-aw-manager.ps1"
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
@@ -193,6 +198,46 @@ function Show-WindowsManagementSubMenu {
                     & powershell -NoProfile -ExecutionPolicy Bypass -File $wslMenuScript
                 } else {
                     Write-ColorMessage -Message "WSLUbuntuManager.ps1 not found: $wslMenuScript" -Type "Error"
+                }
+                Write-Host ""
+                Read-Host "Press Enter to continue"
+            }
+        },
+        @{
+            Text = "Repair Chrome Crash (Compat Shim / 0xC0000409)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Clear-Host
+                $repairScript = $script:CHROME_REPAIR_SCRIPT
+                if (-not (Test-Path $repairScript)) { $repairScript = $script:CHROME_REPAIR_SCRIPT_FALLBACK }
+                if (Test-Path $repairScript) {
+                    Write-ColorMessage -Message "Repairing Chrome STATUS_STACK_BUFFER_OVERRUN (removing stale compat shim)..." -Type "Info"
+                    Write-Host ""
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $repairScript -Apply
+                } else {
+                    Write-ColorMessage -Message "Chrome repair script not found: $repairScript" -Type "Error"
+                }
+                Write-Host ""
+                Read-Host "Press Enter to continue"
+            }
+        },
+        @{
+            Text = "Remove AW Manager / Quark PUP (root cause)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Clear-Host
+                $removeScript = $script:AW_REMOVE_SCRIPT
+                if (-not (Test-Path $removeScript)) { $removeScript = $script:AW_REMOVE_SCRIPT_FALLBACK }
+                if (Test-Path $removeScript) {
+                    Write-ColorMessage -Message "Removing AW Manager / Quark PUP (idempotent)..." -Type "Info"
+                    Write-Host ""
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $removeScript -Apply
+                } else {
+                    Write-ColorMessage -Message "PUP removal script not found: $removeScript" -Type "Error"
                 }
                 Write-Host ""
                 Read-Host "Press Enter to continue"

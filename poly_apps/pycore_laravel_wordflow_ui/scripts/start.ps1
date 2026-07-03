@@ -11,9 +11,15 @@
 # counterpart of start.sh. Needs NO parameters. Idempotently resolves pnpm
 # (PATH -> corepack), installs dependencies (skips when already present), launches
 # the laravel_main backend in its own window, then serves the dashboard dev server
-# in the foreground. Windows is differentiated: it never registers a system service.
+# in the foreground -- unless a background NSSM service is requested (see below).
 # Run from repo: .\poly_apps\pycore_laravel_wordflow_ui\scripts\start.ps1
 #   Force reinstall: -ForceInstall     Skip backend: -NoBackend
+#   Background service (idempotent, via NSSM): needs NO parameter -- env var
+#   AS_SERVICE=yes|no pre-answers the prompt (same name/values as start.sh) for
+#   non-interactive callers. Env var NEXUS_DASH_SERVICE_RUN=1 (set via NSSM
+#   AppEnvironmentExtra, never a script argument) marks the NSSM-launched invocation
+#   itself: it skips the prompt/registration and the interactive browser-open, and
+#   serves in the foreground (that IS the service body).
 
 param(
     [Parameter(Mandatory = $false)]
@@ -42,6 +48,23 @@ $stalePids = @()
 $stalePid = $null
 $stillListening = $null
 $blockerPid = $null
+# Background service registration (NSSM-backed; see win_common/NssmServiceManager.ps1).
+$NssmServiceManagerScript = Join-Path $RepoRoot "scripts\shells\win\win_common\NssmServiceManager.ps1"
+$UiServiceName = "ncore-nexus-dash"
+$UiServiceDisplayName = "Nexus Dash (core_node)"
+$UiServiceDesc = "Nexus Dash frontend (pycore_laravel_wordflow_ui)"
+$SelfScript = Join-Path $ScriptDir "start.ps1"
+$LogDir = Join-Path $RepoRoot ".data\logs"
+$AsServiceEnv = $env:AS_SERVICE
+$IsServiceRun = ($env:NEXUS_DASH_SERVICE_RUN -eq "1")
+$AsServiceChoice = $false
+$NssmPath = $null
+$PwshServiceExe = $null
+$ServiceArgs = $null
+$ServiceRegistered = $false
+
+# Shared NSSM service registration helper (idempotent install-or-update + restart).
+. $NssmServiceManagerScript
 
 function Write-Info { param([string]$Message) Write-Host "[nexus-dash] $Message" -ForegroundColor Cyan }
 function Write-Success { param([string]$Message) Write-Host "[nexus-dash] $Message" -ForegroundColor Green }
@@ -86,10 +109,14 @@ function Test-DashboardDevServerHealthy {
 Write-Info "Original directory: $OriginalDir"
 Write-Info "Working directory:  $AppRoot"
 
-# --- 1) Toolchain: resolve pnpm (node must already be installed on Windows) ---
+# --- 1) Toolchain: node (idempotent auto-install via the canonical DevInstaller step) + pnpm ---
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    Write-Info "node not found -> invoking canonical installer (idempotent): Step4_InstallNodeJS.ps1"
+    Invoke-DevInstallerStep -RepoRootDir $RepoRoot -StepScriptName "Step4_InstallNodeJS.ps1" | Out-Null
+}
 if (-not (Resolve-Pnpm)) {
     if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-        Write-Err "node not found on PATH. Install Node.js (e.g. winget install OpenJS.NodeJS.LTS), then re-run."
+        Write-Err "node still not found after Step4_InstallNodeJS.ps1. Run it manually via the Installer Menu."
     } else {
         Write-Err "pnpm not found on PATH. Install: npm i -g pnpm  or  corepack enable && corepack prepare pnpm@latest --activate"
     }
@@ -149,22 +176,98 @@ try {
             Write-Success "Dependencies updated in place."
         } else {
             Write-Warn "Kept existing node_modules (pnpm wanted a from-scratch reinstall -- likely a pnpm major-version change)."
-            Write-Warn "If the dev toolchain is broken below, re-run with -ForceInstall to recreate it."
+        }
+
+        # Self-heal: if the in-place update left the toolchain broken (e.g. a stale/
+        # corrupted node_modules\vite entry from an interrupted pnpm major-version
+        # switch), fall back to the SAME from-scratch reinstall -ForceInstall uses.
+        # Nobody is present to pass -ForceInstall for an NSSM-launched service body --
+        # leaving vite missing here means `pnpm exec vite` fails immediately on every
+        # (re)start, and NSSM's AppRestartDelay just retries the same broken tree
+        # forever (an endless crash-restart loop instead of a one-time repair).
+        if (-not (Test-ViteReady -Root $AppRoot)) {
+            Write-Warn "Dev toolchain (vite) still not present -> reinstalling dependencies from scratch..."
+            '' | pnpm install --config.confirm-modules-purge=false
+            if ($LASTEXITCODE -eq 0) { $FreshInstall = $true }
         }
     }
 
     if (-not (Test-ViteReady -Root $AppRoot)) {
-        if ($FreshInstall) {
-            Write-Err "pnpm install finished but vite is still missing. Remove node_modules + pnpm-lock.yaml, then re-run with -ForceInstall."
-            Pop-Location
-            Set-Location -LiteralPath $OriginalDir
-            exit 1
-        }
-        Write-Warn "Dev toolchain (vite) not present; keeping node_modules as requested. Run with -ForceInstall to recreate it from scratch."
+        Write-Err "pnpm install finished but vite is still missing. Remove node_modules + pnpm-lock.yaml, then re-run with -ForceInstall."
+        Pop-Location
+        Set-Location -LiteralPath $OriginalDir
+        exit 1
     }
     Write-Success "Dependencies ready."
 } finally {
     Pop-Location
+}
+
+# --- 2b) Optional background service registration (parity with start.sh's AS_SERVICE
+# prompt). NEXUS_DASH_SERVICE_RUN=1 (set via NSSM AppEnvironmentExtra, never a script
+# argument) marks the NSSM-launched invocation itself: it skips this block entirely and
+# falls through to the foreground dev server below, which is the service body. When
+# registration succeeds and -NoBackend was not passed, laravel_main is brought up as
+# its OWN separate background service too (a visible new window, used by step 3 below,
+# cannot run under a service session).
+if (-not $IsServiceRun) {
+    if ($AsServiceEnv -eq "no") {
+        $AsServiceChoice = $false
+    } elseif ($AsServiceEnv -eq "yes") {
+        $AsServiceChoice = $true
+    } else {
+        $AsServiceChoice = Read-YesNoDefaultNo "Add the nexus-dash dashboard to a background Windows service (via NSSM)?"
+    }
+
+    if ($AsServiceChoice) {
+        $NssmPath = Ensure-Nssm -RepoRootDir $RepoRoot
+        if (-not $NssmPath) {
+            Write-Warn "NSSM unavailable and auto-install (winget) failed -> cannot register a background service."
+            Write-Warn "Install it manually (e.g. 'winget install NSSM.NSSM' or https://nssm.cc/), then re-run start.ps1."
+            Write-Warn "Continuing in the foreground."
+        } else {
+            if (-not (Test-Path -LiteralPath $LogDir)) { New-Item -ItemType Directory -Force -Path $LogDir | Out-Null }
+            $PwshServiceExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+            if (-not $PwshServiceExe) { $PwshServiceExe = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source }
+            $ServiceArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$SelfScript`" -NoBackend"
+            Write-Info "Registering Windows service $UiServiceName (NSSM)..."
+            $ServiceRegistered = Register-NssmService -NssmPath $NssmPath -ServiceName $UiServiceName `
+                -DisplayName $UiServiceDisplayName -Description $UiServiceDesc `
+                -ExePath $PwshServiceExe -Arguments $ServiceArgs -WorkingDirectory $AppRoot `
+                -EnvironmentExtra @("NEXUS_DASH_SERVICE_RUN=1") `
+                -StdoutLog (Join-Path $LogDir "nexus_dash.service.out.log") `
+                -StderrLog (Join-Path $LogDir "nexus_dash.service.err.log")
+
+            if ($ServiceRegistered) {
+                Write-Success "Service $UiServiceName registered and (re)started."
+                Write-Info "  Manage: Get-Service $UiServiceName ; Restart-Service $UiServiceName ; Stop-Service $UiServiceName"
+                Write-Info "  Logs:   $LogDir\nexus_dash.service.out.log"
+
+                if (-not $NoBackend) {
+                    if ((-not $PwshExe) -or (-not (Test-Path -LiteralPath $LaravelStart))) {
+                        Write-Warn "laravel_main start.ps1 not found/usable; skipping backend service registration."
+                    } else {
+                        # Non-blocking (mirrors start.sh's nohup): laravel_main's own prerequisite
+                        # setup (migrate/sys:init/...) can take a while and registers its own
+                        # separate NSSM service, so it must not block this script's own startup.
+                        # AS_SERVICE=yes pre-answers laravel_main's own prompt (env var, not an
+                        # argument -- laravel_main's start.ps1 needs no parameters either).
+                        # Start-ChildScriptWithEnv (not Start-Process) GUARANTEES the env var
+                        # reaches the child -- Start-Process's ShellExecute path does not
+                        # reliably propagate one set just before the call.
+                        Write-Info "Bringing up laravel_main backend as its own background service (idempotent)..."
+                        Start-ChildScriptWithEnv -PwshExePath $PwshExe.Source -ScriptPath $LaravelStart `
+                            -WorkingDirectory $LaravelScriptsDir -EnvironmentVars @{ AS_SERVICE = "yes" } -Hidden
+                    }
+                }
+
+                Set-Location -LiteralPath $OriginalDir
+                exit 0
+            } else {
+                Write-Warn "Service registration failed; continuing in the foreground."
+            }
+        }
+    }
 }
 
 # --- 3) Backend: launch laravel_main in its own window (parity with start.sh) ---
@@ -190,7 +293,7 @@ $DevUrl = "http://localhost:$DevPort"
 # breaks /themes/index.css - do not reuse it.
 if (Test-DashboardDevServerHealthy -Port $DevPort) {
     Write-Success "Dashboard already running on $DevUrl - skipping launch."
-    Start-Process $DevUrl
+    if (-not $IsServiceRun) { Start-Process $DevUrl }
     Set-Location -LiteralPath $OriginalDir
     exit 0
 }
@@ -214,13 +317,16 @@ if ($stillListening) {
     exit 1
 }
 
-$OpenUrlJob = Start-Job -ScriptBlock {
-    param($Url, $DelaySeconds)
-    Start-Sleep -Seconds $DelaySeconds
-    Start-Process $Url
-} -ArgumentList $DevUrl, 4
-
-Write-Info "Starting dev server (pnpm exec vite --port $DevPort --strictPort). Browser will open: $DevUrl"
+if (-not $IsServiceRun) {
+    $OpenUrlJob = Start-Job -ScriptBlock {
+        param($Url, $DelaySeconds)
+        Start-Sleep -Seconds $DelaySeconds
+        Start-Process $Url
+    } -ArgumentList $DevUrl, 4
+    Write-Info "Starting dev server (pnpm exec vite --port $DevPort --strictPort). Browser will open: $DevUrl"
+} else {
+    Write-Info "Starting dev server (pnpm exec vite --port $DevPort --strictPort) as service body."
+}
 $ExitCode = 0
 Push-Location -LiteralPath $AppRoot
 try {
@@ -228,8 +334,10 @@ try {
     $ExitCode = $LASTEXITCODE
 } finally {
     Pop-Location
-    $null = Wait-Job $OpenUrlJob -ErrorAction SilentlyContinue
-    $null = Remove-Job $OpenUrlJob -Force -ErrorAction SilentlyContinue
+    if ($OpenUrlJob) {
+        $null = Wait-Job $OpenUrlJob -ErrorAction SilentlyContinue
+        $null = Remove-Job $OpenUrlJob -Force -ErrorAction SilentlyContinue
+    }
     Set-Location -LiteralPath $OriginalDir
     Write-Info "Restored to original directory: $OriginalDir"
     exit $ExitCode

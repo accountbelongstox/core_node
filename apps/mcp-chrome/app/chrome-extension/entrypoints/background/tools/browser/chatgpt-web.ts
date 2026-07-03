@@ -8,8 +8,8 @@
  * page) and uploads the binary to the Laravel backend.
  */
 import { createErrorResponse, ToolResult } from '@/common/tool-handler';
-import { BaseBrowserToolExecutor } from '../base-browser';
 import { logger } from '@/utils/logger';
+import { WebChatJobToolBase, type WebChatJobConfig } from './web-chat-job-base';
 import {
   resolveBackendBase,
   waitForTabComplete,
@@ -26,8 +26,18 @@ const HELPER = 'inject-scripts/chatgpt-web-helper.js';
 // (humanClick / waitFor / fetchBytes) for human-like send + audio capture.
 const WEB_OPS = 'inject-scripts/web-ops.js';
 
-class ChatGptWebTool extends BaseBrowserToolExecutor {
+class ChatGptWebTool extends WebChatJobToolBase {
   name = 'chrome_chatgpt';
+
+  protected jobConfig: WebChatJobConfig = {
+    providerLabel: 'ChatGPT Web',
+    providerHost: CHATGPT_HOST,
+    providerUrl: CHATGPT_URL,
+    helperFiles: [WEB_OPS, HELPER],
+    submitAction: 'chatgptSubmitPrompt',
+    peekAction: 'chatgptPeekReply',
+    jobsStorageKey: 'chatgpt_text_jobs',
+  };
 
   async execute(args: {
     prompt: string;

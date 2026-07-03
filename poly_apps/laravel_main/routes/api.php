@@ -53,6 +53,9 @@ require_once __DIR__ . '/api_ocr.php';
 // Local AI Gateway Routes (unified multi-provider AI; keys + rate shared with pycore)
 require_once __DIR__ . '/api/ai_local.php';
 
+// Local Word Audio Routes (real pronunciation chain: free_dictionary_api + forvo)
+require_once __DIR__ . '/api/word_audio_local.php';
+
 // McpV1 Routes
 require_once __DIR__ . '/McpV1Router/api.php';
 
@@ -190,9 +193,16 @@ require_once __DIR__ . '/AppQyV1Router/AppQyV1Vocabulary.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Learning.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1AITools.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Assist.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1StudyGen.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1PersonDict.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Social.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1MediaContent.php';
+
+// DingDuoDuoV1 (订多多) extension backend - no-super-code member/license surface
+require_once __DIR__ . '/DingDuoDuoV1Router/DingDuoDuoV1License.php';
+require_once __DIR__ . '/DingDuoDuoV1Router/DingDuoDuoV1Member.php';
+require_once __DIR__ . '/DingDuoDuoV1Router/DingDuoDuoV1Recharge.php';
+require_once __DIR__ . '/DingDuoDuoV1Router/DingDuoDuoV1Admin.php';
 
 // PddToolV1 (订多多) admin console routes (/api/pdd/admin/*)
 require_once __DIR__ . '/PddToolV1Router/PddToolV1Admin.php';
@@ -250,6 +260,9 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         Route::get('books', [\App\Http\Controllers\MediaBrowseController::class, 'books']);
         // User-scoped uploaded documents (optional auth; empty when unauthenticated).
         Route::get('documents', [\App\Http\Controllers\MediaBrowseController::class, 'documents']);
+        // Reader detail for one uploaded document (owner-scoped; sentences from the
+        // shared `doc_{id}` source-sentence store, empty until sentence-extracted).
+        Route::get('documents/{id}', [\App\Http\Controllers\MediaBrowseController::class, 'documentDetail']);
         Route::get('subtitles/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'subtitleDetail']);
         // Books v3.1: ordered chapter list (book -> chapter -> verses navigation).
         Route::get('books/{source_key}/chapters', [\App\Http\Controllers\MediaBrowseController::class, 'bookChapters']);

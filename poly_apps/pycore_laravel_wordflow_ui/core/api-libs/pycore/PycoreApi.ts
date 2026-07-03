@@ -34,6 +34,7 @@ import type {
   SubtitleSearchHistoryDeleteResponse, SubtitleSearchHistoryClearResponse,
   SubtitleProvidersResponse, SubtitleProviderProbe,
   SubtitleCacheStats, SubtitleCacheClearResponse,
+  WordAudioStatus, WordAudioTestResponse,
   TranslateHistoryResponse, TranslateHistoryDeleteResponse, TranslateHistoryClearResponse,
   PcQueueOverview, PcCapabilitySettings, PcCapabilityKey,
   PcCapabilitySaveResponse, PcCapabilityOptions,
@@ -815,6 +816,18 @@ export const pycoreApi = {
     deleteJSON<SubtitleSearchHistoryDeleteResponse>(`/pyapi/api/local/subtitle-search/history/${encodeURIComponent(id)}`),
   clearSubtitleSearchHistory: () =>
     postJSON<SubtitleSearchHistoryClearResponse>('/pyapi/api/local/subtitle-search/history/clear', {}),
+
+  // --- Word audio (real pronunciation lookup + TTS fallback) -------------- #
+  // status: which real-pronunciation sources are wired (pycore reports 3:
+  // free_dictionary_api / cambridge_dictionary / forvo — the last key-gated),
+  // whether the Forvo key is present (never the value), and that TTS covers a
+  // miss. test: a REAL live fetch through the existing client; on a hit the raw
+  // audio bytes come back base64-encoded (play as a data: URI), on a clean miss
+  // {success:false, provider:null, message}.
+  getWordAudioStatus: () =>
+    getJSON<WordAudioStatus>('/pyapi/api/local/word-audio/status'),
+  testWordAudio: (word: string, lang = 'en') =>
+    postJSON<WordAudioTestResponse>('/pyapi/api/local/word-audio/test', { word, lang }),
 
   // --- translate history (Google / AI translate usage records) ------------ #
   getTranslateHistory: (limit = 50) =>

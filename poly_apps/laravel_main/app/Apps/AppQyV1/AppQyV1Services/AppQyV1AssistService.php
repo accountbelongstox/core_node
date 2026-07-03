@@ -1088,6 +1088,27 @@ class AppQyV1AssistService
     }
 
     /**
+     * gemini_chat (chrome Task Center lane, remote_gemini_text) global_tasks
+     * counts — text-only Gemini completion, the sibling of gemini_image. Same
+     * pure global-task shape as notebooklm (no dictionary by-language dimension).
+     *
+     * @return array{pending:int,processing:int,leased:int,total:int,
+     *               sample:array<int,array<string,mixed>>}
+     */
+    public function geminiChatCounts(): array
+    {
+        $task = $this->globalTaskStatusCounts('gemini_chat');
+
+        return [
+            'pending' => $task['pending'],
+            'processing' => $task['processing'],
+            'leased' => $task['processing'],
+            'total' => $task['total'],
+            'sample' => $this->wordTaskSample('gemini_chat'),
+        ];
+    }
+
+    /**
      * Grouped status counts for one AppQyV1 global_tasks task_type. One grouped
      * query; pending/processing/total in the shared assist-status shape.
      *
@@ -1446,6 +1467,7 @@ class AppQyV1AssistService
             $bookLang = $this->assistRequestGroupCounts('book', 'add_language');
             $notebookLm = $this->notebookLmCounts();
             $geminiImage = $this->geminiImageCounts();
+            $geminiChat = $this->geminiChatCounts();
 
             $categories = [
                 [
@@ -1555,6 +1577,16 @@ class AppQyV1AssistService
                     'leased' => $geminiImage['leased'],
                     'total' => $geminiImage['total'],
                     'sample' => $geminiImage['sample'],
+                ],
+                [
+                    'key' => 'gemini_chat',
+                    'label' => 'Gemini Chat',
+                    'handler' => 'chrome',
+                    'pending' => $geminiChat['pending'],
+                    'processing' => $geminiChat['processing'],
+                    'leased' => $geminiChat['leased'],
+                    'total' => $geminiChat['total'],
+                    'sample' => $geminiChat['sample'],
                 ],
             ];
 

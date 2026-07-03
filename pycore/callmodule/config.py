@@ -84,6 +84,7 @@ from pycore.callmodule.routers.local import (
     assist_router,
     poster_router,
     dictionary_router,
+    word_audio_router,
 )
 
 # Import upload layer routers (NEW)
@@ -706,6 +707,7 @@ def build_launcher_config(host='0.0.0.0', port=59000, debug=False):
                 assist_router,           # Assist-Laravel worker control (/api/local/assist): status/config/cycle for cover+tts generation
                 poster_router,           # Movie/TV poster status+config+test (/api/local/poster): TMDB/OMDB key status + fetch toggle + lookup preview
                 dictionary_router,       # Offline ECDICT+WordNet word dictionary (/api/local/dictionary): lookup + status
+                word_audio_router,       # Real word pronunciation chain status+test (/api/local/word-audio): free-dict/cambridge/forvo + base64 audio
 
                 # === Upload Layer Routers ===
                 upload_router,           # Upload task management and server config

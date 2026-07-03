@@ -7,6 +7,7 @@ import ApiTester from './components/views/ApiTester';
 import VocabularyLearning from './components/views/VocabularyLearning';
 import AITools from './components/views/AITools';
 import AiManagement from './components/views/AiManagement';
+import WordAudioCapability from './components/views/WordAudioCapability';
 import DevHistory from './components/views/DevHistory';
 import TaskCenter from './components/views/TaskCenter';
 import ServerManager from './components/views/ServerManager';
@@ -240,6 +241,8 @@ const AppContent: React.FC = () => {
         return <AITools />;
       case ViewType.AI_MANAGEMENT:
         return <AiManagement />;
+      case ViewType.WORD_AUDIO:
+        return <WordAudioCapability />;
       case ViewType.DEV_HISTORY:
         return <DevHistory lang={lang} />;
       // MCP Manager was dismantled; its features moved into Tools / Task Center
@@ -281,6 +284,7 @@ const AppContent: React.FC = () => {
       case ViewType.VOCABULARY: return t('header.titles.vocabulary');
       case ViewType.AI_TOOLS: return t('header.titles.ai_tools');
       case ViewType.AI_MANAGEMENT: return t('header.titles.ai_management');
+      case ViewType.WORD_AUDIO: return t('header.titles.word_audio');
       case ViewType.DEV_HISTORY: return t('header.titles.dev_history');
       case ViewType.MCP_MANAGER: return t('header.titles.tools');
       case ViewType.TASK_CENTER:

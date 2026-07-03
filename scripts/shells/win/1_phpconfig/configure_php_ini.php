@@ -73,11 +73,16 @@ $extensions = [
     'bz2',
     'yaml',
     'tokenizer',
-    // PostgreSQL driver pair: the poly per-app databases run on PostgreSQL
-    // (config/database.php $polyConnection); Windows reaches the WSL server
-    // via NAT localhost forwarding, so the Windows PHP needs these too.
-    'pdo_pgsql',
-    'pgsql'
+    // pdo_pgsql loads pgsql as a dependency at runtime; enabling both causes
+    // "Module pgsql already loaded" warnings on every PHP subprocess spawn.
+    'pdo_pgsql'
+];
+
+// Extensions that are auto-loaded as runtime dependencies of other extensions in $extensions.
+// If both the dep and its parent are explicitly in php.ini, PHP logs "already loaded" on every
+// process spawn. disableExtension() comments out these lines to prevent that.
+$dependencyExtensions = [
+    'pgsql' => 'pdo_pgsql', // pdo_pgsql internally loads pgsql; listing both triggers the warning
 ];
 
 // ANSI color codes for better output
@@ -334,6 +339,23 @@ function enableExtension($iniContent, $name) {
     
     return implode("\n", $resultLines);
 }
+function disableExtension($iniContent, $name) {
+    // Comment out any active extension line for $name.
+    // Matches: extension=php_pgsql.dll, extension=pgsql.dll, extension=pgsql (all forms).
+    // Already-commented lines (starting with ;) are left untouched (idempotent).
+    $pattern = '/^\s*extension\s*=\s*(?:php_)?' . preg_quote($name, '/') . '(?:\.dll)?\s*$/im';
+    $lines = explode("\n", $iniContent);
+    $resultLines = [];
+    foreach ($lines as $line) {
+        if (preg_match($pattern, $line)) {
+            $resultLines[] = '; [auto-dep, disabled by configure_php_ini.php] ' . ltrim($line);
+        } else {
+            $resultLines[] = $line;
+        }
+    }
+    return implode("\n", $resultLines);
+}
+
 function downloadSwooleDll($extDir) {
     global $phpDir;
     
@@ -573,6 +595,21 @@ foreach ($extensions as $ext) {
         }
     } catch (Exception $e) {
         printStatus("Failed to verify extension $ext: " . $e->getMessage(), 'warning');
+    }
+}
+
+// Comment out extensions that are auto-loaded as runtime dependencies (prevents "already loaded" warnings)
+printSection("Disabling Auto-Loaded Dependency Extensions");
+foreach ($dependencyExtensions as $dep => $parent) {
+    if (!in_array($parent, $extensions)) {
+        continue;
+    }
+    $beforeLen = strlen($iniContent);
+    $iniContent = disableExtension($iniContent, $dep);
+    if (strlen($iniContent) !== $beforeLen) {
+        printStatus("Disabled: $dep (auto-dep of $parent — explicit line would cause duplicate-load warning)", 'warning');
+    } else {
+        printStatus("OK: $dep not explicitly loaded (clean)", 'success');
     }
 }
 

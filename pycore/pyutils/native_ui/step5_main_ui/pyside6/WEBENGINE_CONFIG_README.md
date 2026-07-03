@@ -25,17 +25,26 @@
 os.environ['QTWEBENGINE_CHROMIUM_FLAGS'] = '--enable-features=WebCodecs --enable-gpu ...'
 ```
 
-**启用的 Chromium Flags**：
-- `--enable-features=WebCodecs` - 启用 WebCodecs API（H.264 解码关键）
-- `--enable-gpu` - 启用 GPU 加速
-- `--enable-gpu-rasterization` - GPU 光栅化
-- `--enable-accelerated-video-decode` - 硬件视频解码
-- `--enable-accelerated-2d-canvas` - 2D Canvas 加速
-- `--enable-webgl` - WebGL 支持
-- `--enable-webgl2-compute-context` - WebGL2 支持
-- `--ignore-gpu-blocklist` - 忽略 GPU 黑名单（强制启用 GPU）
-- `--enable-hardware-overlays` - 硬件覆盖层
-- `--enable-zero-copy` - 零拷贝优化
+**平台感知的 Chromium Flags**（由 `_build_chromium_flags()` 按操作系统生成，单一来源）：
+
+- `--enable-features=WebCodecs` - WebCodecs API（H.264 解码，全平台）
+- `--enable-gpu` / `--enable-gpu-rasterization` / `--enable-accelerated-2d-canvas` / `--enable-webgl` - 安全的跨平台 GPU 加速基线
+- **Windows**：仅额外加 `D3D11VideoDecoder`（D3D11 硬件视频）+ `--enable-zero-copy`。默认走 ANGLE→D3D11 + DirectComposition，**绝不强制** `--enable-hardware-overlays` / `--enable-native-gpu-memory-buffers` / `--ignore-gpu-blocklist` / `--disable-gpu-sandbox`——强制这些会在混合显卡笔记本上触发 DirectComposition 覆盖层路径导致 GPU/进程初始化崩溃（`QueryInterface to IDCompositionDevice4 failed`）。
+- **Linux**：`AcceleratedVideoDecodeLinuxGL,VaapiVideoDecodeLinuxGL,VaapiVideoEncoder` + `--enable-native-gpu-memory-buffers`（GBM）+ `--ignore-gpu-blocklist`；仅 root 时加 `--no-sandbox --disable-gpu-sandbox`。
+- 已移除的死/有害 flag：`--enable-webgl2-compute-context`（Chromium 已删除）、`--ignore-gpu-blacklist`（弃用别名）。
+
+> Qt 6 已移除内置 ANGLE，`QT_OPENGL=angle`、`Qt::AA_UseOpenGLES` 与强制 OpenGL ES `QSurfaceFormat` 均**已无效**（doc.qt.io/qt-6/opengl-changes-qt6.html），Tier 0 不再设置它们，仅保留必需的 `AA_ShareOpenGLContexts`；WebGL2 由 QtWebEngine 自带 ANGLE 提供。
+
+#### GPU 回退开关：`PYCORE_WEBENGINE_GPU`
+
+当某台机器显卡/驱动无法支持加速路径时，用环境变量强制回退（QApplication 之前读取）：
+
+- `auto`（默认）- 正常加速
+- `dcomp-off` - 保留 GPU 但关闭 DirectComposition（`--disable-features=DirectComposition`）
+- `angle-sw` - 强制 ANGLE SwiftShader 软件 GL（`--use-angle=swiftshader`）
+- `software` / `off` - 完全关闭 GPU（`--disable-gpu --disable-gpu-compositing` + `QT_OPENGL=software`）
+
+连续多次渲染进程崩溃后会自动写入回退标记 `~/.core_node/webengine_gpu_fallback.flag`，下次启动自动软件渲染；删除该文件或设 `PYCORE_WEBENGINE_GPU=auto` 可恢复。
 
 ### Tier 2: Qt qputenv() API
 

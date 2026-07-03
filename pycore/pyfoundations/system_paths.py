@@ -628,6 +628,9 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             'wwwroot': base_d / 'www' / 'wwwroot',
             'pycore_db': base_d / 'www' / 'wwwroot' / 'pycore_db',
             'laravel_db': base_d / 'www' / 'wwwroot' / 'laravel_db',
+            # PostgreSQL data root on the shared D: data disk (native Windows PG).
+            # Mirrors gvar_common.sh + PathMapper.php "postgresql".
+            'postgresql': base_d / 'www' / 'wwwroot' / 'postgresql',
             'compile_dir': base_d / f'_{win_suffix}',
             # Native ext4 loop-mount target for the PostgreSQL D-drive image (a
             # WSL-only concept; kept here for parity. Not used on Windows).
@@ -665,6 +668,9 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
             'wwwroot': www_base / 'wwwroot',
             'pycore_db': www_base / 'wwwroot' / 'pycore_db',
             'laravel_db': www_base / 'wwwroot' / 'laravel_db',
+            # PostgreSQL data root on the shared web/data disk (native Linux
+            # server). On WSL the cluster uses the ext4 image at pg_mount instead.
+            'postgresql': www_base / 'wwwroot' / 'postgresql',
             'compile_dir': dev_base / f'_{distro_suffix}',
             # Native ext4 loop-mount target for the PostgreSQL D-drive image (WSL
             # persistence). MUST stay on the native Linux fs (NOT drvfs): pg needs a

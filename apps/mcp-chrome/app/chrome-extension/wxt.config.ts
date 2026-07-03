@@ -20,7 +20,7 @@ export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
   // Disable automatic .env loading since we use config.js
   env: {},
-  runner: {
+  webExt: {
     // 方案1: 禁用自动启动（推荐）
     disabled: true,
 

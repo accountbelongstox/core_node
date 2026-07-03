@@ -13,7 +13,7 @@
 # Single source of truth for the OFFLINE TTS fallback engines used by the pycore
 # voice-subtitle pipeline (fallbacks for when Edge TTS is 403'd / region-blocked).
 # Runs AFTER Step9_InstallPython. Also invoked by
-# pycore\scripts\iniscripts\install_tts_offline.ps1 (the pyservice prerequisite).
+# scripts\shells\linux\common\iniscripts\install_tts_offline.ps1 (the pyservice prerequisite).
 #
 # Engines:
 #   - Sherpa-ONNX (DEFAULT): pure-pip `sherpa-onnx`, no system deps, plus a

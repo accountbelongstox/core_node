@@ -3,7 +3,7 @@
     Prerequisite-install orchestrator for the Pycore service (Windows).
 
 .DESCRIPTION
-    This directory (pycore\scripts\iniscripts) holds the shell-managed
+    This directory (scripts\shells\linux\common\iniscripts) holds the shell-managed
     prerequisite installers that run BEFORE pycore_module_caller.py launches.
     Their job is to set up the heavy / awkward third-party packages that are
     more convenient to install from a shell than from Python's import-time

@@ -1222,6 +1222,13 @@ map_web_path() {
         "laravel_db")
             mapped_path="$base_path/wwwroot/laravel_db"
             ;;
+        "postgresql")
+            # PostgreSQL data root on the shared web/data disk (native Windows +
+            # native Linux server). On WSL the cluster instead uses an ext4 loop
+            # image (laravel_db/postgresql/pgdata.ext4) at pg_mount, since drvfs
+            # cannot host a postgres-owned, mode-0700 data dir.
+            mapped_path="$base_path/wwwroot/postgresql"
+            ;;
         "nginxconfig")
             mapped_path="$base_path/nginxconfig"
             ;;

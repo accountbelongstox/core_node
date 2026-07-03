@@ -25,6 +25,7 @@ class AppQyV1Initializer implements AppInitializerInterface
         'create_indexes' => 'Create database indexes',
         'seed_initial_data' => 'Seed initial data if needed',
         'seed_books' => 'Seed initial book list (shipped corpus)',
+        'seed_ai_prompts' => 'Seed AI prompt library defaults',
     ];
     
     public function __construct()
@@ -282,6 +283,16 @@ class AppQyV1Initializer implements AppInitializerInterface
             }
         }
 
+        if ($step === 'seed_ai_prompts') {
+            // Re-verify the code-owned prompt rows actually exist (not just that
+            // the step ran once) so a reset/empty DB forces a re-seed.
+            try {
+                return \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1AiPromptDefaults::isSeeded();
+            } catch (\Throwable $e) {
+                return true;
+            }
+        }
+
         return true;
     }
 
@@ -308,6 +319,9 @@ class AppQyV1Initializer implements AppInitializerInterface
 
             case 'seed_books':
                 return $this->seedBooks();
+
+            case 'seed_ai_prompts':
+                return $this->seedAiPrompts();
 
             default:
                 return [
@@ -557,6 +571,28 @@ class AppQyV1Initializer implements AppInitializerInterface
             return [
                 'status' => 'warning',
                 'message' => 'Book seeding failed: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Idempotently upsert the code-owned AI prompt library defaults
+     * (translate_bilingual_analysis, notebooklm_dialogue). Never touches
+     * operator-created (source='database') prompt rows.
+     */
+    private function seedAiPrompts(): array
+    {
+        try {
+            $result = \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1AiPromptDefaults::seed();
+            return [
+                'status' => 'success',
+                'message' => sprintf('Seeded %d AI prompt default(s)', $result['seeded']),
+                'prompt_keys' => $result['prompt_keys'],
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'warning',
+                'message' => 'AI prompt seeding failed: ' . $e->getMessage(),
             ];
         }
     }

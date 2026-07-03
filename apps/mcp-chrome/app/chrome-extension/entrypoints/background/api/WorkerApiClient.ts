@@ -28,7 +28,15 @@ export type ProcessorType =
   // Dedicated chrome web-LLM invalid-word detection lane (word_validity tasks).
   // Own lane so it never co-mingles with word_translation/prompt_translation on
   // remote_translation (pull assigns by execution_type with no task_type filter).
-  | 'remote_validity';
+  | 'remote_validity'
+  // Dedicated Task Center v3 lanes (own execution_type each — pull assigns by
+  // execution_type with an atomic claim, so a shared lane would let one
+  // feature's worker claim and starve another's tasks):
+  //   remote_notebooklm -> notebooklm task_type, remote_gemini -> gemini_image,
+  //   remote_gemini_text -> gemini_chat (text-only completion).
+  | 'remote_notebooklm'
+  | 'remote_gemini'
+  | 'remote_gemini_text';
 
 /**
  * Capability vocabulary — mirrors Laravel GlobalTask::CAPABILITIES. A worker

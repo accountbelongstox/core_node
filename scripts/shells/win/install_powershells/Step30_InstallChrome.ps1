@@ -20,6 +20,14 @@ $STEP_NUMBER = 30
 
 # Chrome Application ID
 $CHROME_ID = "Google.Chrome"
+
+# Post-install Chrome compatibility-shim repair script (idempotent) and fallback path
+$scriptsRootDir = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent
+$chromeCompatRepairScript = Join-Path $scriptsRootDir "chromefix\fix-chrome-compat-shim.ps1"
+$chromeCompatRepairFallback = Join-Path $env:USERPROFILE ".core_node\scripts\chromefix\fix-chrome-compat-shim.ps1"
+$awRemoveScript = Join-Path $scriptsRootDir "chromefix\remove-aw-manager.ps1"
+$awRemoveFallback = Join-Path $env:USERPROFILE ".core_node\scripts\chromefix\remove-aw-manager.ps1"
+
 function Step30_InstallChrome {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing Chrome..." -Type "Info"
 
@@ -185,5 +193,26 @@ function Step30_InstallChromeBeta {
     }
 }
 
+# Post-install: idempotently remove any stale Chrome compatibility shim that triggers
+# STATUS_STACK_BUFFER_OVERRUN (0xC0000409). A clean system is a no-op (skipped).
+function Step30_RepairChromeCompatShim {
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Post-install: removing AW Manager / Quark PUP and checking Chrome compatibility shim..." -Type "Info"
+    # Idempotently remove the root-cause PUP first (no-op on a clean machine)
+    $removeScript = $awRemoveScript
+    if (-not (Test-Path $removeScript)) { $removeScript = $awRemoveFallback }
+    if (Test-Path $removeScript) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $removeScript -Apply -Quiet
+    }
+    $repairScript = $chromeCompatRepairScript
+    if (-not (Test-Path $repairScript)) { $repairScript = $chromeCompatRepairFallback }
+    if (Test-Path $repairScript) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $repairScript -Apply -Quiet
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Chrome compatibility shim check completed" -Type "Success"
+    } else {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Compat-shim repair script not found (skipped): $repairScript" -Type "Warning"
+    }
+}
+
 Step30_InstallChrome
 Step30_InstallChromeBeta
+Step30_RepairChromeCompatShim

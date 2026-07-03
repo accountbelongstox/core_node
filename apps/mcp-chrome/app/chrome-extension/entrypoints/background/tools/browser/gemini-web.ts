@@ -5,10 +5,14 @@
  * tab, injects gemini-web-helper.js, and drives it over the ping/submit/collect
  * protocol. Optionally captures the "Listen" audio bytes and uploads the binary
  * to the Laravel backend.
+ *
+ * The `start`/`status` async job pair (used by the popup's Article Study Guide
+ * test) is inherited from WebChatJobToolBase — identical across every web-chat
+ * provider, only `jobConfig` + the content-script helper differ.
  */
 import { createErrorResponse, ToolResult } from '@/common/tool-handler';
-import { BaseBrowserToolExecutor } from '../base-browser';
 import { logger } from '@/utils/logger';
+import { WebChatJobToolBase, type WebChatJobConfig } from './web-chat-job-base';
 import {
   resolveBackendBase,
   waitForTabComplete,
@@ -25,8 +29,18 @@ const HELPER = 'inject-scripts/gemini-web-helper.js';
 // (humanClick / waitFor / queryDeep / fetchBytes) for human-like send + audio.
 const WEB_OPS = 'inject-scripts/web-ops.js';
 
-class GeminiWebTool extends BaseBrowserToolExecutor {
+class GeminiWebTool extends WebChatJobToolBase {
   name = 'chrome_gemini';
+
+  protected jobConfig: WebChatJobConfig = {
+    providerLabel: 'Gemini Web',
+    providerHost: GEMINI_HOST,
+    providerUrl: GEMINI_URL,
+    helperFiles: [WEB_OPS, HELPER],
+    submitAction: 'geminiSubmitPrompt',
+    peekAction: 'geminiPeekReply',
+    jobsStorageKey: 'gemini_text_jobs',
+  };
 
   async execute(args: {
     prompt: string;

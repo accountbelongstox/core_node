@@ -1,11 +1,14 @@
 /**
  * Gemini Web Worker Service
  *
- * A SimpleWorkerBase subclass that fulfils `gemini_chat` tasks by driving the
- * live gemini.google.com tab via the chrome_gemini tool: it sends the task's
- * prompt, returns the reply text, and (when requested) captures + uploads the
- * reply audio. Routed by task_type (capability=null). Fail-soft, single tab
- * (concurrency 1), registered DISABLED by default (opt-in).
+ * A SimpleWorkerBase subclass that fulfils `gemini_chat` tasks (dedicated
+ * `remote_gemini_text` lane — the text-only sibling of `gemini_image`'s
+ * `remote_gemini`) by driving the live gemini.google.com tab via the
+ * chrome_gemini tool: it sends the task's prompt, returns the reply text, and
+ * (when requested) captures + uploads the reply audio. Routed by task_type
+ * (capability=null). Fail-soft, single tab (concurrency 1), registered
+ * DISABLED by default (opt-in) — driving an authenticated Gemini session
+ * needs explicit user consent, like the ChatGPT/NotebookLM web-chat workers.
  */
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
@@ -28,7 +31,7 @@ class GeminiWorkerService extends SimpleWorkerBase {
   }
 
   protected get baseProcessorTypes(): ProcessorType[] {
-    return ['gemini_web'] as unknown as ProcessorType[];
+    return ['remote_gemini_text'];
   }
 
   protected get workerLabel(): string {
@@ -41,9 +44,22 @@ class GeminiWorkerService extends SimpleWorkerBase {
 
   protected async executeTask(task: Task): Promise<void> {
     const payload = (task.payload as any) || {};
-    const prompt = typeof payload.prompt === 'string' ? payload.prompt : '';
+    // Laravel sends {question, title} (AppQyV1AiPromptFanoutTask.php's fan-out
+    // payload / AppQyV1TaskEnqueueController's manual-enqueue validation both
+    // key on question|source_text) -- NOT `prompt`. Also accept `prompt` for
+    // any older/manual caller that used this worker's original field name.
+    const prompt =
+      typeof payload.question === 'string' && payload.question.trim()
+        ? payload.question
+        : typeof payload.source_text === 'string' && payload.source_text.trim()
+          ? payload.source_text
+          : typeof payload.prompt === 'string'
+            ? payload.prompt
+            : '';
     if (!prompt.trim()) {
-      await this.submitResult(task.task_id, 'failed', undefined, { error: 'no prompt in payload' });
+      await this.submitResult(task.task_id, 'failed', undefined, {
+        error: 'no question/source_text/prompt in payload',
+      });
       return;
     }
 

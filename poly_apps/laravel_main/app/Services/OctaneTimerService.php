@@ -6,13 +6,28 @@ use Illuminate\Support\Facades\Log;
 use Laravel\Octane\Facades\Octane;
 
 /**
- * OctaneTimerService - Common timer task system for Laravel Octane
+ * OctaneTimerService - Shared timer task system, used on EVERY runtime
  *
- * Provides a common timer that runs every 1 second (configurable).
- * Services can register tasks to be executed on each tick.
+ * Provides a common timer that runs every 1 second (configurable). Services
+ * register tasks once (app/Services/TimerTasks/*) and this same class drives
+ * them regardless of which process ticks it:
+ *   - Under Octane-Swoole: OctaneTimerServiceProvider hooks Octane::tick(),
+ *     state lives in Swoole Tables (cross-worker, shared by every HTTP worker
+ *     in that one server process tree).
+ *   - Everywhere else (composer dev/dev:win, node-free fallback, Windows):
+ *     OctaneTimerServiceProvider hooks a Laravel Schedule ->everySecond() tick
+ *     consumed by `php artisan schedule:work`, state lives in the in-process
+ *     fallback array below (fast, no I/O — correct within that ONE process).
  *
- * Uses Swoole Tables for cross-worker state synchronization.
- * All workers share the same timer state and task statistics.
+ * Neither of those two tiers is visible to a DIFFERENT OS process, though —
+ * e.g. a Task Center status request answered by `artisan serve` under Windows
+ * is a fresh process every time, never the one running `schedule:work`. A
+ * third tier (a small JSON file under the Laravel tmp dir) mirrors state
+ * across processes for exactly this case: any process CAN read what the
+ * REAL ticking process last wrote, cross-platform, no cache driver needed.
+ *
+ * Callers never need to know which backend is active — stateGet/stateSet pick
+ * the right tier automatically per call.
  *
  * Usage:
  *   OctaneTimerService::register('lan_scanner', function() { ... }, 10);
@@ -32,6 +47,107 @@ class OctaneTimerService
     protected static int $timerInterval = 1;
 
     /**
+     * In-process fallback store, keyed by "table:key". Used whenever the
+     * Swoole table isn't available (i.e. not running under Octane-Swoole).
+     */
+    protected static array $fallbackStore = [];
+
+    /**
+     * Read state: Swoole table, then the in-process store (both process-local
+     * or worker-local), then the cross-process heartbeat file — the only tier
+     * a DIFFERENT process than the one ticking can actually see.
+     */
+    protected static function stateGet(string $table, string $key): ?array
+    {
+        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
+            try {
+                $value = Octane::table($table)->get($key);
+                if ($value !== null && $value !== false) {
+                    return $value;
+                }
+            } catch (\Throwable $e) {
+                // Not running under Octane-Swoole -- fall through to the store below.
+            }
+        }
+
+        $local = self::$fallbackStore["{$table}:{$key}"] ?? null;
+        if ($local !== null) {
+            return $local;
+        }
+
+        return self::readHeartbeatFile()["{$table}:{$key}"] ?? null;
+    }
+
+    /**
+     * Write state to the in-process store, the Swoole table (when available),
+     * AND the cross-process heartbeat file — so a read from ANY process, on
+     * ANY backend, sees what the actually-ticking process last wrote.
+     */
+    protected static function stateSet(string $table, string $key, array $value): void
+    {
+        self::$fallbackStore["{$table}:{$key}"] = $value;
+
+        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
+            try {
+                Octane::table($table)->set($key, $value);
+            } catch (\Throwable $e) {
+                // Not running under Octane-Swoole -- the store above already holds it.
+            }
+        }
+
+        self::writeHeartbeatFile($table, $key, $value);
+    }
+
+    /** Cross-process state file path (Laravel tmp dir — cross-platform). */
+    protected static function heartbeatFilePath(): string
+    {
+        return rtrim(\App\Providers\PathMapper::getLaravelTmpDir(), '/\\') . '/octane_timer_heartbeat.json';
+    }
+
+    /**
+     * Best-effort cross-process read. Never throws -- a missing/corrupt file
+     * just means no cross-process state is available yet (fresh install, or
+     * the ticking process hasn't written anything since boot).
+     */
+    protected static function readHeartbeatFile(): array
+    {
+        $path = self::heartbeatFilePath();
+        if (!is_file($path)) {
+            return [];
+        }
+
+        $raw = @file_get_contents($path);
+        if ($raw === false) {
+            return [];
+        }
+
+        $data = json_decode($raw, true);
+        return is_array($data) ? $data : [];
+    }
+
+    /**
+     * Best-effort cross-process write. Never throws -- this is a diagnostics
+     * mirror, it must never be able to break a tick.
+     */
+    protected static function writeHeartbeatFile(string $table, string $key, array $value): void
+    {
+        try {
+            $path = self::heartbeatFilePath();
+            $dir = dirname($path);
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+
+            $all = self::readHeartbeatFile();
+            $all["{$table}:{$key}"] = $value;
+            $all['updated_at'] = time();
+            @file_put_contents($path, json_encode($all), LOCK_EX);
+        } catch (\Throwable $e) {
+            // Best-effort -- diagnostics must never break the tick.
+        }
+    }
+
+    /**
      * Register a task
      *
      * @param string $name Task name (unique identifier)
@@ -46,21 +162,14 @@ class OctaneTimerService
             'interval' => $interval,
         ];
 
-        // Initialize task stats in Swoole Table
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-            try {
-                Octane::table('timer_tasks')->set($name, [
-                    'name' => $name,
-                    'interval' => $interval,
-                    'last_run' => 0,
-                    'run_count' => 0,
-                    'error_count' => 0,
-                    'last_duration' => 0.0,
-                ]);
-            } catch (\Throwable $e) {
-                // Fallback if table not available
-            }
-        }
+        self::stateSet('timer_tasks', $name, [
+            'name' => $name,
+            'interval' => $interval,
+            'last_run' => 0,
+            'run_count' => 0,
+            'error_count' => 0,
+            'last_duration' => 0.0,
+        ]);
 
         Log::info("OctaneTimerService: Task registered", [
             'task' => $name,
@@ -94,19 +203,11 @@ class OctaneTimerService
             return;
         }
 
-        // Set state in Swoole Table
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-            try {
-                Octane::table('timer_state')->set('main', [
-                    'running' => 1,
-                    'start_time' => time(),
-                    'total_ticks' => 0,
-                ]);
-            } catch (\Throwable $e) {
-                // Fallback to static if table not available
-                Log::warning('OctaneTimerService: Swoole Table not available, using static state');
-            }
-        }
+        self::stateSet('timer_state', 'main', [
+            'running' => 1,
+            'start_time' => time(),
+            'total_ticks' => 0,
+        ]);
 
         Log::info('OctaneTimerService: Timer started', [
             'interval' => self::$timerInterval,
@@ -121,17 +222,11 @@ class OctaneTimerService
      */
     public static function stop(): void
     {
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-            try {
-                Octane::table('timer_state')->set('main', [
-                    'running' => 0,
-                    'start_time' => 0,
-                    'total_ticks' => 0,
-                ]);
-            } catch (\Throwable $e) {
-                // Fallback
-            }
-        }
+        self::stateSet('timer_state', 'main', [
+            'running' => 0,
+            'start_time' => 0,
+            'total_ticks' => 0,
+        ]);
 
         Log::info('OctaneTimerService: Timer stopped', [
             'total_ticks' => self::getTotalTicks(),
@@ -157,20 +252,17 @@ class OctaneTimerService
             return;
         }
 
-        // Increment tick counter in Swoole Table
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-            try {
-                $state = Octane::table('timer_state')->get('main');
-                if ($state) {
-                    Octane::table('timer_state')->set('main', [
-                        'running' => $state['running'],
-                        'start_time' => $state['start_time'],
-                        'total_ticks' => $state['total_ticks'] + 1,
-                    ]);
-                }
-            } catch (\Throwable $e) {
-                // Fallback
-            }
+        // Increment tick counter and stamp liveness (isRunning() uses
+        // last_alive to distinguish "genuinely ticking" from "a crashed
+        // process's last state write is still sitting on disk").
+        $state = self::stateGet('timer_state', 'main');
+        if ($state) {
+            self::stateSet('timer_state', 'main', [
+                'running' => $state['running'],
+                'start_time' => $state['start_time'],
+                'total_ticks' => $state['total_ticks'] + 1,
+                'last_alive' => time(),
+            ]);
         }
 
         // Execute all tasks - each task's interceptor will decide if it should run
@@ -195,16 +287,7 @@ class OctaneTimerService
     {
         $now = time();
 
-        // Get task stats from Swoole Table
-        $taskStats = null;
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-            try {
-                $taskStats = Octane::table('timer_tasks')->get($name);
-            } catch (\Throwable $e) {
-                // Fallback
-            }
-        }
-
+        $taskStats = self::stateGet('timer_tasks', $name);
         if (!$taskStats) {
             return;
         }
@@ -222,21 +305,14 @@ class OctaneTimerService
             call_user_func($task['callback']);
             $duration = microtime(true) - $startTime;
 
-            // Update task stats in Swoole Table
-            if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-                try {
-                    Octane::table('timer_tasks')->set($name, [
-                        'name' => $name,
-                        'interval' => $taskStats['interval'],
-                        'last_run' => $now,
-                        'run_count' => $taskStats['run_count'] + 1,
-                        'error_count' => $taskStats['error_count'],
-                        'last_duration' => $duration,
-                    ]);
-                } catch (\Throwable $e) {
-                    // Fallback
-                }
-            }
+            self::stateSet('timer_tasks', $name, [
+                'name' => $name,
+                'interval' => $taskStats['interval'],
+                'last_run' => $now,
+                'run_count' => $taskStats['run_count'] + 1,
+                'error_count' => $taskStats['error_count'],
+                'last_duration' => $duration,
+            ]);
 
             Log::debug("OctaneTimerService: Task executed", [
                 'task' => $name,
@@ -245,21 +321,14 @@ class OctaneTimerService
             ]);
 
         } catch (\Throwable $e) {
-            // Update error count in Swoole Table
-            if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-                try {
-                    Octane::table('timer_tasks')->set($name, [
-                        'name' => $name,
-                        'interval' => $taskStats['interval'],
-                        'last_run' => $taskStats['last_run'],
-                        'run_count' => $taskStats['run_count'],
-                        'error_count' => $taskStats['error_count'] + 1,
-                        'last_duration' => $taskStats['last_duration'],
-                    ]);
-                } catch (\Throwable $e2) {
-                    // Fallback
-                }
-            }
+            self::stateSet('timer_tasks', $name, [
+                'name' => $name,
+                'interval' => $taskStats['interval'],
+                'last_run' => $taskStats['last_run'],
+                'run_count' => $taskStats['run_count'],
+                'error_count' => $taskStats['error_count'] + 1,
+                'last_duration' => $taskStats['last_duration'],
+            ]);
 
             Log::error("OctaneTimerService: Task execution failed", [
                 'task' => $name,
@@ -282,8 +351,23 @@ class OctaneTimerService
             'total_ticks' => self::getTotalTicks(),
             'uptime' => self::getUptime(),
             'start_time' => self::getStartTime(),
+            // Last tick timestamp, readable cross-process (heartbeat file tier)
+            // -- this is the real "is the process that owns the tick loop still
+            // alive" signal; isRunning() already folds its staleness into the
+            // 'running' field above.
+            'last_alive' => self::getLastAlive(),
             'tasks' => self::getTaskStats(),
         ];
+    }
+
+    /**
+     * @return int|null Unix timestamp of the last tick(), or null if the
+     *                   timer has never ticked (fresh install / never started).
+     */
+    protected static function getLastAlive(): ?int
+    {
+        $state = self::stateGet('timer_state', 'main');
+        return $state['last_alive'] ?? null;
     }
 
     /**
@@ -296,14 +380,7 @@ class OctaneTimerService
         $stats = [];
 
         foreach (array_keys(self::$tasks) as $name) {
-            $taskData = null;
-            if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-                try {
-                    $taskData = Octane::table('timer_tasks')->get($name);
-                } catch (\Throwable $e) {
-                    // Fallback
-                }
-            }
+            $taskData = self::stateGet('timer_tasks', $name);
 
             if ($taskData) {
                 $stats[$name] = [
@@ -337,39 +414,25 @@ class OctaneTimerService
     }
 
     /**
-     * Get start time from Swoole Table
+     * Get start time
      *
      * @return int|null Start time timestamp
      */
     protected static function getStartTime(): ?int
     {
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-            try {
-                $state = Octane::table('timer_state')->get('main');
-                return $state ? $state['start_time'] : null;
-            } catch (\Throwable $e) {
-                return null;
-            }
-        }
-        return null;
+        $state = self::stateGet('timer_state', 'main');
+        return $state ? $state['start_time'] : null;
     }
 
     /**
-     * Get total ticks from Swoole Table
+     * Get total ticks
      *
      * @return int Total ticks
      */
     protected static function getTotalTicks(): int
     {
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-            try {
-                $state = Octane::table('timer_state')->get('main');
-                return $state ? $state['total_ticks'] : 0;
-            } catch (\Throwable $e) {
-                return 0;
-            }
-        }
-        return 0;
+        $state = self::stateGet('timer_state', 'main');
+        return $state ? $state['total_ticks'] : 0;
     }
 
     /**
@@ -383,22 +446,31 @@ class OctaneTimerService
         self::$timerInterval = $seconds;
     }
 
+    /** Heartbeat older than this (seconds) means the ticking process died without calling stop(). */
+    private const STALE_AFTER_SECONDS = 5;
+
     /**
-     * Check if timer is running
+     * Check if timer is running. A `last_alive` stamp older than
+     * STALE_AFTER_SECONDS is treated as not-running -- otherwise a process
+     * that crashed (kill -9, OOM) mid-tick would report "running" forever
+     * from its last state write, cross-process, since nothing ever calls
+     * stop() to clear it.
      *
      * @return bool
      */
     public static function isRunning(): bool
     {
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-            try {
-                $state = Octane::table('timer_state')->get('main');
-                return $state ? ($state['running'] === 1) : false;
-            } catch (\Throwable $e) {
-                return false;
-            }
+        $state = self::stateGet('timer_state', 'main');
+        if (!$state || ($state['running'] ?? 0) !== 1) {
+            return false;
         }
-        return false;
+
+        $lastAlive = $state['last_alive'] ?? null;
+        if ($lastAlive !== null && (time() - $lastAlive) > self::STALE_AFTER_SECONDS) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -429,31 +501,23 @@ class OctaneTimerService
      */
     public static function resetStats(): void
     {
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
-            try {
-                // Reset timer state
-                Octane::table('timer_state')->set('main', [
-                    'running' => 1,
-                    'start_time' => time(),
-                    'total_ticks' => 0,
-                ]);
+        self::stateSet('timer_state', 'main', [
+            'running' => 1,
+            'start_time' => time(),
+            'total_ticks' => 0,
+        ]);
 
-                // Reset all task stats
-                foreach (array_keys(self::$tasks) as $name) {
-                    $taskData = Octane::table('timer_tasks')->get($name);
-                    if ($taskData) {
-                        Octane::table('timer_tasks')->set($name, [
-                            'name' => $name,
-                            'interval' => $taskData['interval'],
-                            'last_run' => 0,
-                            'run_count' => 0,
-                            'error_count' => 0,
-                            'last_duration' => 0.0,
-                        ]);
-                    }
-                }
-            } catch (\Throwable $e) {
-                // Fallback
+        foreach (array_keys(self::$tasks) as $name) {
+            $taskData = self::stateGet('timer_tasks', $name);
+            if ($taskData) {
+                self::stateSet('timer_tasks', $name, [
+                    'name' => $name,
+                    'interval' => $taskData['interval'],
+                    'last_run' => 0,
+                    'run_count' => 0,
+                    'error_count' => 0,
+                    'last_duration' => 0.0,
+                ]);
             }
         }
 

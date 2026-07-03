@@ -11,6 +11,8 @@ import { googleNewsProcessor } from './processors/GoogleNewsProcessor';
 import { webAiTranslateProcessor } from './processors/WebAiTranslateProcessor';
 import { chatGptProcessor } from './processors/ChatGPTProcessor';
 import { geminiProcessor } from './processors/GeminiProcessor';
+import { notebookLmProcessor } from './processors/NotebookLmProcessor';
+import { geminiImageProcessor } from './processors/GeminiImageProcessor';
 import { promptTranslateWebProcessor } from './processors/PromptTranslateWebProcessor';
 import { wordValidityWebProcessor } from './processors/WordValidityWebProcessor';
 
@@ -39,6 +41,14 @@ export function initializeProcessors(): void {
   // drive the live browser tab to send a prompt and capture text + audio.
   taskCenter.registerProcessor(chatGptProcessor, false);
   taskCenter.registerProcessor(geminiProcessor, false);
+
+  // Register NotebookLM / Gemini-Image processors (DISABLED by default,
+  // opt-in): Task Center v3 lanes (remote_notebooklm / remote_gemini). They
+  // drive the live notebooklm.google.com / gemini.google.com tab and are the
+  // autonomous consumers for tasks the AppQyV1AiPromptFanoutTask timer (and
+  // the manual /task/enqueue endpoint) creates on those lanes.
+  taskCenter.registerProcessor(notebookLmProcessor, false);
+  taskCenter.registerProcessor(geminiImageProcessor, false);
 
   // Register Prompt-Translate Web Processor (DISABLED by default, opt-in): the
   // chrome fulfiller of the cross-stack `prompt_translation` pipeline — drives

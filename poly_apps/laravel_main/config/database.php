@@ -111,6 +111,8 @@ return [
 
         'pddtoolv1' => $polyConnection('pdd_tool_v1_database'),
 
+        'dingduoduov1' => $polyConnection('ding_duo_duo_v1_database'),
+
         // NOTE: the mysql / mariadb / sqlsrv entries below are unused Laravel
         // framework stubs kept only for structural completeness. This application
         // never instantiates them (it runs exclusively on the PostgreSQL

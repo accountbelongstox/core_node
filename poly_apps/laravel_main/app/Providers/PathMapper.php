@@ -84,6 +84,10 @@ class PathMapper
             'npm_global' => $compileDir . $separator . 'npm-global',
             'laravel_data_dir' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db',
             'app_external_data' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'external_data',
+            // PostgreSQL data root on the shared web/data disk (native Windows +
+            // native Linux server). Mirrors gvar_common.sh + system_paths.py
+            // "postgresql". On WSL the cluster uses the ext4 image at pg_mount.
+            'postgresql' => $basePath . $separator . 'wwwroot' . $separator . 'postgresql',
             'nginx' => $isWindows ? 'nginx.exe' : self::findActualPath('/etc/nginx'),
             'php' => $isWindows ? 'php.exe' : self::findActualPath('/etc/php'),
             'logs' => $isWindows ? ($basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'logs') : self::findLaravelLogPath($basePath),

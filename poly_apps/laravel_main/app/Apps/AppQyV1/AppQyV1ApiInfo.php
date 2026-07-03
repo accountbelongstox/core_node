@@ -554,6 +554,56 @@ class AppQyV1ApiInfo
                 "auth_required" => false
             ],
 
+            // Book Study-Content Generation pipeline (mcp-chrome worker surface, 60-minute lease)
+            [
+                "path" => "/api/app_qy_v1/study-gen/sources",
+                "method" => "GET",
+                "feature" => "Study-Gen Sources",
+                "description" => "List books/articles with study-content generation progress (cached marker + live segment count)",
+                "auth_required" => false,
+                "parameters" => ["type", "page", "per_page", "q"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/study-gen/claim",
+                "method" => "POST",
+                "feature" => "Study-Gen Claim",
+                "description" => "Plan a source on demand and lease up to 3 claimable ~500-char segments (60-minute lease)",
+                "auth_required" => false,
+                "parameters" => ["claimer", "source_type", "source_key", "segment_index", "limit", "languages", "target_chars"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/study-gen/submit",
+                "method" => "POST",
+                "feature" => "Study-Gen Submit",
+                "description" => "Submit generated sentences/explanations/phrases/grammar points for a claimed segment (idempotent, done-gated)",
+                "auth_required" => false,
+                "parameters" => ["source_type", "source_key", "segment_index", "claimer", "provider", "languages", "slots", "phrases", "grammar_points"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/study-gen/release",
+                "method" => "POST",
+                "feature" => "Study-Gen Release",
+                "description" => "Release leased segments back to the queue (failed with error, else pending); done rows never demoted",
+                "auth_required" => false,
+                "parameters" => ["source_type", "source_key", "segment_indexes", "claimer", "error"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/study-gen/status",
+                "method" => "GET",
+                "feature" => "Study-Gen Status",
+                "description" => "Per-source segment snapshot: totals + per-segment status/languages_done/provider/attempts",
+                "auth_required" => false,
+                "parameters" => ["source_type", "source_key"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/study-gen/segment-content",
+                "method" => "GET",
+                "feature" => "Study-Gen Segment Content",
+                "description" => "Retrieval hook: a passage's phrases + grammar points by segment_index or covering seq",
+                "auth_required" => false,
+                "parameters" => ["source_type", "source_key", "segment_index", "seq"]
+            ],
+
             // Cover pipeline dashboard endpoints
             [
                 "path" => "/api/app_qy_v1/ai_tools/cover-status",

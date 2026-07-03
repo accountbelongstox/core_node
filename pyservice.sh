@@ -15,6 +15,10 @@
 # Both the prerequisite script and the worker are invoked through paths RELATIVE
 # to this script, so the repo can live anywhere.
 #
+# NOTE: /pycore-manager/queue-center is served BY pycore (proxying laravel_main's
+# /assist/overview), never a direct web connection -- keep it and laravel_main's
+# /laravel-manager#/task-center aligned when either side's task categories change.
+#
 # Usage:
 #   ./pyservice.sh                       # install prereqs, then launch 0.0.0.0:59000
 #   ./pyservice.sh --no-install          # skip prereqs, just launch

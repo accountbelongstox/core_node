@@ -3,13 +3,10 @@ description: "dot-ui: .NET UI (WPF/MAUI/Blazor/Avalonia) Presentation layer in d
 globs: dotapps/**
 alwaysApply: false
 ---
-
 # Dot UI rule (Presentation layer, .NET UI apps)
-
-Full detail: development-guides/DOT_ARCHITECTURE.md. Base rule: .cursor/rules/dot.mdc.
-
+Base rule: .cursor/rules/dot.mdc.
 - Clean Architecture; Presentation (Views/ViewModels) holds NO business logic. Domain→Application→Infrastructure→Presentation.
 - Structure: Assets/ (Fonts, Images, Styles), Components/, Pages|Views/ (by feature), ViewModels/ (with Base/), Services/ (Navigation, Dialog), Converters/.
 - Naming: Views `[Feature]Page|Window|View`; `[Feature]ViewModel`; `I[Name]Service`; `[Action]Command`; async `[Method]Async`. Root namespace `DotApps.<AppName>`.
 - Design: Fluent 2 — Mica/Acrylic, shadows/strokes, motion, Segoe UI Variable, Light/Dark.
-- On UI/Presentation/Fluent 2 conflicts, DOT_ARCHITECTURE.md + this rule win. Don't duplicate base dot rules here.
+- On UI/Presentation/Fluent 2 conflicts, this rule wins. Don't duplicate base dot rules here.
