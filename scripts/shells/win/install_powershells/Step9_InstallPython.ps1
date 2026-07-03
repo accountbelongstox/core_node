@@ -35,7 +35,11 @@ $PythonFlagFile = $Global:PYTHON_FLAG_FILE
 $CommonPythonPackages = @(
     "requests",
     "urllib3",
-    "setuptools",
+    # setuptools<81: v81 removed the bundled `pkg_resources`, which legacy packages still
+    # import at load time (librosa 0.9.1 via MeloTTS: `from pkg_resources import
+    # resource_filename`). <81 (resolves to 80.10.2) also satisfies torch (needs <82) and
+    # faradaysec (needs <81). Do NOT drop the bound: an unbounded --upgrade walks it to 82.
+    "setuptools<81",
     "wheel",
     "pip-tools"
 )

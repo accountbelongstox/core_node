@@ -43,6 +43,8 @@ resolve_python() {
 py_has_module() { "$PYTHON" -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('$1') else 1)" >/dev/null 2>&1; }
 
 . "$(dirname "${BASH_SOURCE[0]}")/../base_libs/lib_gpu.sh"   # gpu_present() (canonical: CUDADetector)
+# setuptools>=81 removed pkg_resources, which librosa 0.9.1 (a MeloTTS dep) imports.
+. "$(dirname "${BASH_SOURCE[0]}")/../base_libs/setuptools_guard.sh"   # ensure_pkg_resources()
 # Driver-matched CUDA wheel index (single source of truth) so the GPU torch install never
 # grabs the default "latest" wheel (e.g. cu130) that a 12.4 driver can't run.
 . "$(dirname "${BASH_SOURCE[0]}")/../base_libs/torch_cuda_index.sh"
@@ -135,6 +137,9 @@ fi
 # Idempotent: skip the warmup entirely on a steady-state re-run (melo already present and
 # not forced) — models otherwise download lazily on first synth anyway.
 if [[ "$NEED_WARM" -eq 1 ]]; then
+# `from melo.api import TTS` imports librosa -> pkg_resources; restore it if a
+# setuptools>=81 in the shared venv has removed pkg_resources, else the warm-up aborts.
+ensure_pkg_resources "$PYTHON"
 echo "[install_melotts] [..] pre-downloading models [$LANGS] on $DEVICE (first-use cache) ..."
 "$PYTHON" - "$LANGS" "$DEVICE" <<'PY' || echo "[install_melotts] [!] pre-download incomplete (models still download lazily on first synth)."
 import sys

@@ -34,14 +34,18 @@ export interface ResolvedCell {
 
 /**
  * Resolve one sentence's text + audio for a chosen language.
- * Prefers the per-language correspondence map (v3); falls back to the flat
- * primary-language fields for legacy/non-v3 rows (where a present `audio`
- * string is treated as playable).
+ *
+ * When the sentence carries a v3 correspondence map, the CHOSEN language's cell
+ * is authoritative: if that language key is absent the verse is 留空 (empty text,
+ * no audio) — we must NOT fall back to a different language's text/audio. The
+ * flat primary-language fields are used only for legacy/non-v3 rows (no map) or
+ * when no language is selected (single-language source).
  */
 export function resolveCell(s: ReaderSentence, lang?: string): ResolvedCell {
-  if (s.languages && lang && s.languages[lang]) {
+  if (s.languages && lang) {
     const c = s.languages[lang];
-    return { text: c.text, audioBare: c.audio, hasAudio: !!c.has_audio && !!c.audio };
+    if (c) return { text: c.text, audioBare: c.audio, hasAudio: !!c.has_audio && !!c.audio };
+    return { text: null, audioBare: null, hasAudio: false };   // selected language absent → 留空
   }
   return { text: s.text, audioBare: s.audio ?? null, hasAudio: !!s.audio };
 }
@@ -50,6 +54,13 @@ export function resolveCell(s: ReaderSentence, lang?: string): ResolvedCell {
 export function sentenceLangs(s: ReaderSentence): string[] {
   if (s.languages) return Object.keys(s.languages);
   return s.language ? [s.language] : [];
+}
+
+/** Union of every language across a batch of sentences (map keys, else flat lang). */
+export function collectLangs(items: ReaderSentence[]): string[] {
+  const set = new Set<string>();
+  for (const s of items) for (const l of sentenceLangs(s)) if (l) set.add(l);
+  return Array.from(set);
 }
 
 /** Chapter title: prefer the chosen language, then any non-empty title, then a default. */

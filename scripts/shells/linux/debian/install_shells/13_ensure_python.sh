@@ -696,7 +696,7 @@ create_python_venv_and_replace_system() {
             upgrade_pip_official "$VENV_PIP3" "$VENV_PYTHON3"
 
             print_step_from_common_functions "Installing essential packages in venv..."
-            install_python_packages_official "$VENV_PIP3" "$VENV_PYTHON3" setuptools wheel
+            install_python_packages_official "$VENV_PIP3" "$VENV_PYTHON3" "setuptools<81" wheel
         fi
     else
         print_info_from_common_functions "Virtual environment already exists and is up-to-date: $VENV_DIR"
@@ -711,7 +711,7 @@ create_python_venv_and_replace_system() {
     print_step_from_common_functions "Ensuring pip and essential packages are up-to-date in venv..."
     if [ -f "$VENV_PIP3" ]; then
         upgrade_pip_official "$VENV_PIP3" "$VENV_PYTHON3"
-        install_python_packages_official "$VENV_PIP3" "$VENV_PYTHON3" setuptools wheel
+        install_python_packages_official "$VENV_PIP3" "$VENV_PYTHON3" "setuptools<81" wheel
     fi
 
     # Verify venv executables exist
@@ -858,10 +858,10 @@ setup_production_python_venv() {
             print_step_from_common_functions "Installing essential packages in venv..."
             if [ -f "$python_venv_dir/bin/pip3" ]; then
                 upgrade_pip_official "$python_venv_dir/bin/pip3" "$python_venv_dir/bin/python3"
-                install_python_packages_official "$python_venv_dir/bin/pip3" "$python_venv_dir/bin/python3" setuptools wheel
+                install_python_packages_official "$python_venv_dir/bin/pip3" "$python_venv_dir/bin/python3" "setuptools<81" wheel
             elif [ -f "$python_venv_dir/bin/pip" ]; then
                 upgrade_pip_official "$python_venv_dir/bin/pip" "$python_venv_dir/bin/python3"
-                install_python_packages_official "$python_venv_dir/bin/pip" "$python_venv_dir/bin/python3" setuptools wheel
+                install_python_packages_official "$python_venv_dir/bin/pip" "$python_venv_dir/bin/python3" "setuptools<81" wheel
             else
                 print_warning_from_common_functions "pip not available in venv, skipping package installation"
             fi
@@ -882,10 +882,10 @@ setup_production_python_venv() {
     print_step_from_common_functions "Ensuring pip and packages are up-to-date in production venv..."
     if [ -f "$venv_pip3" ]; then
         upgrade_pip_official "$venv_pip3" "$venv_python3"
-        install_python_packages_official "$venv_pip3" "$venv_python3" setuptools wheel
+        install_python_packages_official "$venv_pip3" "$venv_python3" "setuptools<81" wheel
     elif [ -f "$venv_pip" ]; then
         upgrade_pip_official "$venv_pip" "$venv_python3"
-        install_python_packages_official "$venv_pip" "$venv_python3" setuptools wheel
+        install_python_packages_official "$venv_pip" "$venv_python3" "setuptools<81" wheel
     fi
 
     local pip_binary=""

@@ -85,7 +85,8 @@ Hosted in the shared `Modal size="full"` (Portal + ESC + backdrop, 90vh).
 - **Language select** (when the source carries >1 language): picks the
   reading/audio language; text + audio icon follow it live.
 - **Per-sentence row**: ref/seq · text · audio icon (top-right). Playing row is
-  amber-highlighted; its icon shows `Pause`.
+  amber-highlighted; its icon is `Pause` while playing, `Play` while paused
+  (click to resume), `Volume2` otherwise, `VolumeX` when the verse has no audio.
 - **Pager**: `{total} sentences · Page X of Y` + Prev/Next (shown when >1 page).
 - **Read / Stop**: top-right; starts continuous playback from the first
   playable sentence / stops.
@@ -99,20 +100,41 @@ keeps reading until the user pauses/stops:
 2. On `ended`, advance to the next sentence in the loaded list that has audio in
    that language (skipping missing-audio verses).
 3. At the **end of the page**: if more pages exist, load the next page (the view
-   pages forward) and continue from its first playable sentence.
+   pages forward) and continue from its first playable sentence. A **fully
+   audio-less page/chapter is skipped forward**, not stopped on.
 4. In Chapters mode, at the **end of a chapter**: auto-advance to the next
    chapter and continue.
-5. Stop when there is nothing left, or when the user clicks Stop / the playing
-   sentence's Pause / switches mode/chapter/page / closes the reader.
+5. Stop when there is nothing playable left anywhere, or when the user clicks
+   Stop / switches mode/chapter/page / changes language / closes the reader.
+6. **Pause/resume**: clicking the playing sentence's icon pauses (keeps position
+   + highlight); clicking again resumes from the same spot.
 
-Implementation notes (`MediaReaderModal`):
+Implementation notes (`MediaReaderModal`) — the single playback engine is
+`playForward(list, fromIndex)`: it plays the first audio sentence after
+`fromIndex`, and when the list is exhausted pages/chapters forward (skipping
+audio-less pages) until audio runs out or the user stops (`fromIndex = -1` reads
+from the start).
 - One reused `HTMLAudioElement` (`audioRef`); `playAt(list, index)` sets
-  `audio.onended = () => advanceRef.current(list, index)`.
+  `audio.onended = audio.onerror = () => playForwardRef.current(list, index)`
+  (and `play().catch` skips forward too, so a missing/404 file is skipped
+  silently — no error toast).
 - All moving state (`readLang`, `mode`, `page`, `lastPage`, `activeChapter`,
-  `chapters`) is mirrored into refs so the stable playback callbacks and the
-  `onended` handler always see the latest values across page/chapter loads.
-- `playingRef` gates continuation so a pause during an async page load aborts
-  the auto-advance (`if (items && playingRef.current) …`).
+  `chapters`) is mirrored into refs so the stable callbacks + `onended` always
+  see the latest values across page/chapter loads.
+- `playingRef` gates every continuation; `pausedRef` distinguishes pause from
+  stop.
+- **`loadSeqRef`** is a monotonic token: `load()` captures `myTurn` at start and
+  no-ops on resolve if superseded; Stop / navigation / a manual sentence pick /
+  close all bump it, so a Stop or manual pick during an async page/chapter turn
+  can never flip the view or override the user (`requirePlaying` also discards a
+  continuation whose user already stopped).
+- A **continuation load failure** keeps the current page visible (never blanks
+  the reader) and stops playback with a toast; only a user-initiated load shows
+  the empty/error state.
+- The currently-playing row is auto-scrolled into view (`data-skey` +
+  `scrollIntoView`) so continuous reading stays on screen.
+- On close/unmount `releaseAudio()` aborts any in-flight media download and drops
+  the element's handlers.
 
 ## 6. Files
 

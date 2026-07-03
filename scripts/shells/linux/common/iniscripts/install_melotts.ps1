@@ -66,6 +66,8 @@ function Test-PyModule {
 
 # GPU detection comes from the ONE shared helper (canonical: CUDADetector).
 . (Join-Path $PSScriptRoot '..\base_libs\lib_gpu.ps1')   # provides Test-CudaPresent
+# setuptools>=81 removed pkg_resources, which librosa 0.9.1 (a MeloTTS dep) imports.
+. (Join-Path $PSScriptRoot '..\base_libs\setuptools_guard.ps1')   # provides Ensure-PkgResources
 
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host " $SCRIPT_INDEX MeloTTS (free offline zh/en TTS)" -ForegroundColor Cyan
@@ -114,6 +116,9 @@ if (-not $melodPresent -or $Force) {
 }
 
 # --- Pre-download the language models (CUDA: full set; CPU: EN/ZH) ------- #
+# `from melo.api import TTS` imports librosa -> pkg_resources; restore it if a
+# setuptools>=81 in the shared env has removed pkg_resources, else the warm-up aborts.
+Ensure-PkgResources -Py $resolvedPython | Out-Null
 Write-Host ("$SCRIPT_INDEX [..] pre-downloading models [{0}] on {1} (first-use cache) ..." -f $langs, $device) -ForegroundColor Yellow
 $warmScript = Join-Path $env:TEMP 'melotts_warm.py'
 @'

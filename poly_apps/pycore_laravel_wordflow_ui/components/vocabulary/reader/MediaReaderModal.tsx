@@ -10,7 +10,7 @@ import { commonClasses } from '../../../styles/theme';
 import { Modal } from '../../common';
 import { LoadingBlock, EmptyState } from '../../common';
 import { useToast } from '../../admin';
-import { readerAudioUrl, resolveCell, sentenceKey, sentenceLangs, chapterTitle } from './mediaReader';
+import { readerAudioUrl, resolveCell, sentenceKey, collectLangs, chapterTitle } from './mediaReader';
 
 /**
  * MediaReaderModal — full-screen reader for an ingested book OR uploaded
@@ -59,18 +59,23 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [playingKey, setPlayingKey] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
 
   // --- live refs (read synchronously by the stable playback callbacks) ---
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playingRef = useRef(false);
+  const pausedRef = useRef(false);
   const readLangRef = useRef('');
   const modeRef = useRef<ReaderMode>('sentences');
   const pageRef = useRef(1);
   const lastPageRef = useRef(1);
   const activeChapterRef = useRef<number | null>(null);
   const chaptersRef = useRef<ReaderChapter[]>([]);
-  const advanceRef = useRef<(list: ReaderSentence[], index: number) => void>(() => {});
-  const continueRef = useRef<(list: ReaderSentence[]) => void>(() => {});
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Monotonic token: every user navigation / load bumps it so a stale in-flight
+  // continuation load resolves into a no-op (never overwrites newer view/intent).
+  const loadSeqRef = useRef(0);
+  const playForwardRef = useRef<(list: ReaderSentence[], fromIndex: number) => void>(() => {});
   readLangRef.current = readLang;
   modeRef.current = mode;
   pageRef.current = page;
@@ -83,17 +88,42 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
     return audioRef.current;
   };
 
-  const stopPlayback = useCallback(() => {
+  /** Fully release the audio element: abort any in-flight download + drop handlers. */
+  const releaseAudio = useCallback(() => {
+    loadSeqRef.current += 1;
+    const a = audioRef.current;
+    if (a) {
+      try { a.pause(); } catch { /* ignore */ }
+      a.onended = null;
+      a.onerror = null;
+      try { a.removeAttribute('src'); a.load(); } catch { /* ignore */ }
+    }
     playingRef.current = false;
+    pausedRef.current = false;
+    setPlayingKey(null);
+    setPaused(false);
+  }, []);
+
+  /** Stop continuous playback (pause audio, drop the playing highlight, cancel pending loads). */
+  const stopPlayback = useCallback(() => {
+    loadSeqRef.current += 1;               // cancel any pending auto-advance page/chapter load
+    playingRef.current = false;
+    pausedRef.current = false;
     if (audioRef.current) { try { audioRef.current.pause(); } catch { /* ignore */ } }
     setPlayingKey(null);
+    setPaused(false);
   }, []);
 
   // --- data loading (one loader; per_page depends on chapter vs sentence mode) ---
+  //  keepOnError    : a continuation (auto page/chapter turn) — on failure keep the
+  //                   current page visible + toast, never blank the reader.
+  //  requirePlaying : a continuation — if the user stopped mid-load, discard the
+  //                   result (don't flip the visible page/chapter after a Stop).
   const load = useCallback(
-    async (opts: { page: number; chapterIndex: number | null }): Promise<ReaderSentence[] | null> => {
+    async (opts: { page: number; chapterIndex: number | null; keepOnError?: boolean; requirePlaying?: boolean }): Promise<ReaderSentence[] | null> => {
+      const myTurn = (loadSeqRef.current += 1);
       setLoading(true);
-      setError(null);
+      if (!opts.keepOnError) setError(null);
       const params: ReaderDetailParams = {
         page: opts.page,
         per_page: opts.chapterIndex != null ? CHAPTER_PER_PAGE : SENTENCE_PER_PAGE,
@@ -103,6 +133,8 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
         const res = kind === 'book'
           ? await api.mediaQuery.getBookDetail(sourceKey as string, params)
           : await api.mediaQuery.getDocumentDetail(documentId as string | number, params);
+        if (loadSeqRef.current !== myTurn) return null;                // superseded by a newer nav/stop
+        if (opts.requirePlaying && !playingRef.current) return null;   // user stopped during the load
         if (!res.success || !res.data) throw new Error(res.error || 'Failed to load content');
         const s = res.data.sentences;
         const items = Array.isArray(s?.items) ? s.items : [];
@@ -110,16 +142,24 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
         setPage(s?.current_page ?? opts.page);
         setLastPage(s?.last_page ?? 1);
         setTotal(s?.total ?? 0);
+        setError(null);
         return items;
       } catch (e: any) {
-        setSentences([]);
-        setError(e?.message || 'Failed to load content');
+        if (loadSeqRef.current !== myTurn) return null;                // stale failure — stay quiet
+        if (opts.keepOnError) {
+          // continuation failed — keep the current page visible, but end playback cleanly
+          toast.error('Could not load the next page — playback stopped');
+          stopPlayback();
+        } else {
+          setSentences([]);
+          setError(e?.message || 'Failed to load content');
+        }
         return null;
       } finally {
-        setLoading(false);
+        if (loadSeqRef.current === myTurn) setLoading(false);
       }
     },
-    [kind, sourceKey, documentId]
+    [kind, sourceKey, documentId, toast, stopPlayback]
   );
 
   // --- playback (stable callbacks; all moving state read from refs) ---
@@ -128,37 +168,34 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
     if (!s) { stopPlayback(); return; }
     const cell = resolveCell(s, readLangRef.current);
     const url = cell.hasAudio ? readerAudioUrl(cell.audioBare) : undefined;
-    if (!url) { advanceRef.current(list, index); return; }  // skip un-playable
+    if (!url) { playForwardRef.current(list, index); return; }   // skip un-playable, keep reading
     const audio = ensureAudio();
     try { audio.pause(); } catch { /* ignore */ }
     audio.src = url;
-    audio.onended = () => advanceRef.current(list, index);
-    audio.onerror = () => advanceRef.current(list, index);   // skip a broken file
+    audio.onended = () => playForwardRef.current(list, index);
+    audio.onerror = () => playForwardRef.current(list, index);   // skip a broken/404 file silently
+    pausedRef.current = false;
+    setPaused(false);
     setPlayingKey(sentenceKey(s));
-    audio.play().catch(() => { toast.error('Could not play audio'); });
-  }, [stopPlayback, toast]);
+    audio.play().catch(() => { playForwardRef.current(list, index); });  // autoplay/decode reject → skip on
+  }, [stopPlayback]);
 
-  const playFromStart = useCallback((list: ReaderSentence[]) => {
-    for (let i = 0; i < list.length; i += 1) {
-      const c = resolveCell(list[i], readLangRef.current);
-      if (c.hasAudio && c.audioBare) { playAt(list, i); return; }
-    }
-    stopPlayback();
-  }, [playAt, stopPlayback]);
-  continueRef.current = playFromStart;
-
-  const advance = useCallback((list: ReaderSentence[], index: number) => {
+  /**
+   * Continuous reader: play the first sentence WITH audio at index > fromIndex in
+   * `list`; when the list is exhausted, page/chapter FORWARD (skipping fully
+   * audio-less pages/chapters) and keep going — until audio runs out or the user
+   * stops. `fromIndex = -1` reads from the start of the list.
+   */
+  const playForward = useCallback((list: ReaderSentence[], fromIndex: number) => {
     if (!playingRef.current) return;
-    for (let i = index + 1; i < list.length; i += 1) {
-      const c = resolveCell(list[i], readLangRef.current);
-      if (c.hasAudio && c.audioBare) { playAt(list, i); return; }
+    for (let i = fromIndex + 1; i < list.length; i += 1) {
+      if (resolveCell(list[i], readLangRef.current).hasAudio) { playAt(list, i); return; }
     }
-    // Exhausted the current page — keep reading into the next page / chapter.
+    // Exhausted this page — advance into the next page, then the next chapter.
     if (pageRef.current < lastPageRef.current) {
       const ch = modeRef.current === 'chapters' ? activeChapterRef.current : null;
-      load({ page: pageRef.current + 1, chapterIndex: ch }).then((items) => {
-        if (items && playingRef.current) continueRef.current(items);
-      });
+      load({ page: pageRef.current + 1, chapterIndex: ch, keepOnError: true, requirePlaying: true })
+        .then((items) => { if (items && playingRef.current) playForwardRef.current(items, -1); });
       return;
     }
     if (modeRef.current === 'chapters') {
@@ -166,32 +203,54 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
       const pos = chs.findIndex((c) => c.chapter_index === activeChapterRef.current);
       const next = pos >= 0 ? chs[pos + 1] : undefined;
       if (next) {
-        setActiveChapter(next.chapter_index);
-        load({ page: 1, chapterIndex: next.chapter_index }).then((items) => {
-          if (items && playingRef.current) continueRef.current(items);
-        });
+        load({ page: 1, chapterIndex: next.chapter_index, keepOnError: true, requirePlaying: true })
+          .then((items) => {
+            if (items && playingRef.current) { setActiveChapter(next.chapter_index); playForwardRef.current(items, -1); }
+          });
         return;
       }
     }
-    stopPlayback();
+    stopPlayback();   // nothing playable left anywhere
   }, [playAt, load, stopPlayback]);
-  advanceRef.current = advance;
+  playForwardRef.current = playForward;
 
-  /** Click a sentence's audio icon: toggle pause if it's the one playing, else read from here. */
+  /** Click a sentence's audio icon: pause/resume the current one, else read from here. */
   const onSentenceAudio = (index: number) => {
     const s = sentences[index];
     if (!s) return;
     const cell = resolveCell(s, readLang);
     if (!cell.hasAudio) { toast.error('No audio available for this sentence'); return; }
-    if (playingKey === sentenceKey(s) && playingRef.current) { stopPlayback(); return; }
+    if (playingKey === sentenceKey(s)) {
+      const audio = audioRef.current;
+      if (pausedRef.current) {                       // resume from the paused position
+        pausedRef.current = false; setPaused(false);
+        audio?.play().catch(() => { playForwardRef.current(sentences, index); });
+      } else {                                       // pause, keep position + highlight
+        pausedRef.current = true; setPaused(true);
+        try { audio?.pause(); } catch { /* ignore */ }
+      }
+      return;
+    }
+    loadSeqRef.current += 1;                          // a manual pick supersedes any pending auto-advance
     playingRef.current = true;
     playAt(sentences, index);
   };
 
   const toggleReadAll = () => {
     if (playingRef.current) { stopPlayback(); return; }
+    const anyHere = sentences.some((s) => resolveCell(s, readLang).hasAudio);
+    const chPos = chapters.findIndex((c) => c.chapter_index === activeChapter);
+    const canCross = page < lastPage || (mode === 'chapters' && chPos >= 0 && chPos < chapters.length - 1);
+    if (!anyHere && !canCross) { toast.error('No audio available to read yet'); return; }
     playingRef.current = true;
-    playFromStart(sentences);
+    pausedRef.current = false; setPaused(false);
+    playForward(sentences, -1);
+  };
+
+  /** Change reading/audio language — stop playback (positions/keys differ per language). */
+  const changeReadLang = (l: string) => {
+    if (playingRef.current) stopPlayback();
+    setReadLang(l);
   };
 
   // --- open / source change: init chapters + first page ---
@@ -231,7 +290,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
         setMode('sentences');
         const items = await load({ page: 1, chapterIndex: null });
         if (cancelled) return;
-        const dl = items && items[0] ? sentenceLangs(items[0]) : [];
+        const dl = items ? collectLangs(items) : [];
         setLangs(dl);
         setReadLang(pickDefaultLang(dl));
       }
@@ -241,11 +300,18 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, kind, sourceKey, documentId]);
 
-  // Stop audio when the modal closes / unmounts.
+  // Release audio (abort download + drop handlers) when the modal closes / unmounts.
   useEffect(() => {
-    if (!open) stopPlayback();
-    return () => stopPlayback();
-  }, [open, stopPlayback]);
+    if (!open) releaseAudio();
+    return () => releaseAudio();
+  }, [open, releaseAudio]);
+
+  // Keep the currently-playing sentence in view during continuous reading.
+  useEffect(() => {
+    if (!playingKey || !scrollRef.current) return;
+    const el = scrollRef.current.querySelector(`[data-skey="${playingKey}"]`);
+    if (el) (el as HTMLElement).scrollIntoView({ block: 'nearest' });
+  }, [playingKey, sentences]);
 
   // --- mode + chapter + page controls ---
   const switchMode = (next: ReaderMode) => {
@@ -314,7 +380,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
           {showLangSelect && (
             <select
               value={readLang}
-              onChange={(e) => setReadLang(e.target.value)}
+              onChange={(e) => changeReadLang(e.target.value)}
               className={`${commonClasses.input} text-sm py-1.5`}
               title="Reading / audio language"
             >
@@ -374,7 +440,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
 
           {/* Sentence list */}
           <div className="flex-1 min-h-0 flex flex-col">
-            <div className="flex-1 overflow-y-auto py-3 pl-1 pr-2">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto py-3 pl-1 pr-2">
               {loading && sentences.length === 0 ? (
                 <LoadingBlock />
               ) : error ? (
@@ -386,13 +452,15 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
                   {sentences.map((s, index) => {
                     const cell = resolveCell(s, readLang);
                     const key = sentenceKey(s);
-                    const isPlaying = playingKey === key;
+                    const isCurrent = playingKey === key;
+                    const isActivePlay = isCurrent && !paused;
                     const label = s.ref || String(s.seq + 1);
                     return (
                       <div
                         key={key}
+                        data-skey={key}
                         className={`rounded-lg border px-3 py-2 flex items-start gap-3 transition-colors ${
-                          isPlaying
+                          isCurrent
                             ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/20'
                             : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700'
                         }`}
@@ -400,7 +468,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
                         <span className="text-[11px] font-mono text-slate-400 w-10 flex-shrink-0 text-right pt-0.5">
                           {label}
                         </span>
-                        <p className={`flex-1 text-sm leading-relaxed break-words ${isPlaying ? 'text-amber-800 dark:text-amber-200' : 'text-slate-700 dark:text-slate-200'}`}>
+                        <p className={`flex-1 text-sm leading-relaxed break-words ${isCurrent ? 'text-amber-800 dark:text-amber-200' : 'text-slate-700 dark:text-slate-200'}`}>
                           {cell.text || <span className="italic text-slate-400">— (no text)</span>}
                         </p>
                         <button
@@ -409,13 +477,17 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
                           className={`flex-shrink-0 p-1.5 rounded-md transition-colors ${
                             !cell.hasAudio
                               ? 'text-slate-300 dark:text-slate-600 hover:text-slate-400'
-                              : isPlaying
+                              : isCurrent
                               ? 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40'
                               : 'text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
                           }`}
-                          title={cell.hasAudio ? (isPlaying ? 'Pause' : 'Play from here') : 'No audio available'}
+                          title={!cell.hasAudio ? 'No audio available' : isCurrent ? (paused ? 'Resume' : 'Pause') : 'Play from here'}
                         >
-                          {!cell.hasAudio ? <VolumeX className="w-4 h-4" /> : isPlaying ? <Pause className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                          {!cell.hasAudio
+                            ? <VolumeX className="w-4 h-4" />
+                            : isActivePlay ? <Pause className="w-4 h-4" />
+                            : isCurrent ? <Play className="w-4 h-4" />
+                            : <Volume2 className="w-4 h-4" />}
                         </button>
                       </div>
                     );
