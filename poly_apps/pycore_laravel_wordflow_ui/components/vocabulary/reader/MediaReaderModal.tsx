@@ -75,7 +75,14 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
   // Monotonic token: every user navigation / load bumps it so a stale in-flight
   // continuation load resolves into a no-op (never overwrites newer view/intent).
   const loadSeqRef = useRef(0);
-  const playForwardRef = useRef<(list: ReaderSentence[], fromIndex: number) => void>(() => {});
+  // Count of in-flight load()s — `loading` is (count > 0). Decoupled from
+  // loadSeqRef so a superseded/aborted load still clears its own loading share.
+  const loadCountRef = useRef(0);
+  // Per-play token: incremented on every playAt so a stale media handler
+  // (onerror + play().catch double-fire, or a pause/replace AbortError) can't
+  // trigger a spurious advance.
+  const playTokenRef = useRef(0);
+  const playForwardRef = useRef<(list: ReaderSentence[], fromIndex: number, pos: PlayPos) => void>(() => {});
   readLangRef.current = readLang;
   modeRef.current = mode;
   pageRef.current = page;

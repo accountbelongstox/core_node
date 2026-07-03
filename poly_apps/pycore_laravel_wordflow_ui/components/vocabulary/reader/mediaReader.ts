@@ -63,6 +63,24 @@ export function collectLangs(items: ReaderSentence[]): string[] {
   return Array.from(set);
 }
 
+/**
+ * Pick the best default reading language: the one (from `langs`) with the most
+ * non-empty text across `items`. Guards against a seeded-but-empty language
+ * being langs[0] (which — with resolveCell's no-fallback rule — would render the
+ * whole source blank). Falls back to langs[0] when nothing is populated.
+ */
+export function bestLang(items: ReaderSentence[], langs: string[]): string {
+  if (langs.length <= 1) return langs[0] || '';
+  let best = langs[0];
+  let bestCount = -1;
+  for (const l of langs) {
+    let n = 0;
+    for (const s of items) if (resolveCell(s, l).text) n += 1;
+    if (n > bestCount) { bestCount = n; best = l; }
+  }
+  return best;
+}
+
 /** Chapter title: prefer the chosen language, then any non-empty title, then a default. */
 export function chapterTitle(titles: Record<string, string | null> | undefined, lang: string, chapterIndex: number): string {
   if (titles) {
