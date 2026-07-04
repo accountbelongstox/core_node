@@ -35,7 +35,10 @@ program
   .description('Register Native Messaging host')
   .option('-f, --force', 'Force re-registration')
   .option('-s, --system', 'Use system-level installation (requires administrator/sudo privileges)')
-  .option('-b, --browser <browser>', 'Register for specific browser (chrome, chromium, or all)')
+  .option(
+    '-b, --browser <browser>',
+    'Register for specific browser (chrome, chromium, firefox, or all)',
+  )
   .option('-d, --detect', 'Auto-detect installed browsers')
   .action(async (options) => {
     try {
@@ -47,14 +50,14 @@ program
 
       if (options.browser) {
         if (options.browser.toLowerCase() === 'all') {
-          targetBrowsers = [BrowserType.CHROME, BrowserType.CHROMIUM];
+          targetBrowsers = [BrowserType.CHROME, BrowserType.CHROMIUM, BrowserType.FIREFOX];
           console.log(colorText('Registering for all supported browsers...', 'blue'));
         } else {
           const browserType = parseBrowserType(options.browser);
           if (!browserType) {
             console.error(
               colorText(
-                `Invalid browser: ${options.browser}. Use 'chrome', 'chromium', or 'all'`,
+                `Invalid browser: ${options.browser}. Use 'chrome', 'chromium', 'firefox', or 'all'`,
                 'red',
               ),
             );
@@ -95,14 +98,14 @@ program
 
       // If --system option is specified or running with root/administrator privileges
       if (options.system || hasElevatedPermissions) {
-        // TODO: Update registerWithElevatedPermissions to support multiple browsers
-        await registerWithElevatedPermissions();
+        // Chrome-family flow stays the default; Firefox is included when explicitly targeted
+        await registerWithElevatedPermissions(targetBrowsers);
         console.log(
           colorText('System-level Native Messaging host registered successfully!', 'green'),
         );
         console.log(
           colorText(
-            'You can now use connectNative in Chrome extension to connect to this service.',
+            'You can now use connectNative in the browser extension to connect to this service.',
             'blue',
           ),
         );
@@ -115,7 +118,7 @@ program
           console.log(colorText('Native Messaging host registered successfully!', 'green'));
           console.log(
             colorText(
-              'You can now use connectNative in Chrome extension to connect to this service.',
+              'You can now use connectNative in the browser extension to connect to this service.',
               'blue',
             ),
           );

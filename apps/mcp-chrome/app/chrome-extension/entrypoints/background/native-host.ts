@@ -417,3 +417,14 @@ export const initNativeHostListener = () => {
     }
   });
 };
+
+/**
+ * Expose the current native messaging port for modules that need a direct
+ * request/response exchange with the native host (e.g. the Firefox file
+ * upload path: runtime.sendMessage is never delivered back to the sending
+ * background context on Firefox, so the forward_to_native relay above cannot
+ * be used from background code there). Returns null when not connected.
+ */
+export function getNativePort(): chrome.runtime.Port | null {
+  return nativePort;
+}

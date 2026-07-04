@@ -112,6 +112,10 @@ const DEBUGGER_PROTOCOL_VERSION = '1.3';
 const MAX_RESPONSE_BODY_SIZE_BYTES = 1 * 1024 * 1024; // 1MB
 const DEFAULT_MAX_CAPTURE_TIME_MS = 3 * 60 * 1000; // 3 minutes
 const DEFAULT_INACTIVITY_TIMEOUT_MS = 60 * 1000; // 1 minute
+const FIREFOX_UNSUPPORTED_MESSAGE =
+  'This tool relies on the Chrome debugger (CDP) API, which does not exist on Firefox. ' +
+  'Use chrome_network_capture_start / chrome_network_capture_stop (or chrome_network_capture) instead: ' +
+  'on Firefox they capture response bodies via webRequest stream filters.';
 
 /**
  * Network capture start tool - uses Chrome Debugger API to start capturing network requests
@@ -133,6 +137,9 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
       return NetworkDebuggerStartTool.instance;
     }
     NetworkDebuggerStartTool.instance = this;
+
+    // chrome.debugger does not exist on Firefox; execute() reports the alternative tool there.
+    if (import.meta.env.FIREFOX) return;
 
     chrome.debugger.onEvent.addListener(this.handleDebuggerEvent.bind(this));
     chrome.debugger.onDetach.addListener(this.handleDebuggerDetach.bind(this));
@@ -924,6 +931,10 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
   }
 
   async execute(args: NetworkDebuggerStartToolParams): Promise<ToolResult> {
+    if (import.meta.env.FIREFOX) {
+      return createErrorResponse(FIREFOX_UNSUPPORTED_MESSAGE);
+    }
+
     const {
       url: targetUrl,
       maxCaptureTime = DEFAULT_MAX_CAPTURE_TIME_MS,
@@ -1031,6 +1042,10 @@ class NetworkDebuggerStopTool extends BaseBrowserToolExecutor {
   }
 
   async execute(): Promise<ToolResult> {
+    if (import.meta.env.FIREFOX) {
+      return createErrorResponse(FIREFOX_UNSUPPORTED_MESSAGE);
+    }
+
     console.log(`NetworkDebuggerStopTool: Executing command.`);
 
     const startTool = NetworkDebuggerStartTool.instance;

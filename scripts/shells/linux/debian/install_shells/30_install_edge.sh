@@ -21,11 +21,24 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
+source "$PARENT_DIR_LEVEL_2/common/memory_governance.sh"
 
 INSTALL_EDGE=$(get_var "INSTALL_EDGE")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
 EDGE_DOWNLOAD_URL="https://go.microsoft.com/fwlink?linkid=2149051&brand=M102"
 EDGE_GPU_FLAGS=""  # GPU hardware-acceleration flags baked into the launch wrapper
+# Browser cgroup recipe, identical to Chrome (35): the browser is the PRIMARY
+# app. The old 500M hard pin was below Edge's process baseline (dead on arrival).
+# MemoryMax=min(62% RAM, 16G); MemoryHigh=73% of Max; CPUQuota=nproc*100% (inert,
+# slice CPUWeight handles contention). Wrapper collapses High onto Max when swap=0.
+BROWSER_MEM_PCT="62"
+BROWSER_MEM_CAP_MB="16384"
+BROWSER_HIGH_PCT="73"
+BROWSER_CPU_PCT="100"
+# Sleeping Tabs managed policy: documented by Microsoft for Windows/macOS only,
+# best-effort on Linux (harmless if inert).
+EDGE_POLICY_DIR="/etc/opt/edge/policies/managed"
+EDGE_POLICY_FILE="$EDGE_POLICY_DIR/corenode_memory.json"
 
 echo "[$SCRIPT_INDEX] Microsoft Edge Installation Script"
 echo "[$SCRIPT_INDEX] INSTALL_EDGE: $INSTALL_EDGE, INSTALL_MODE: $INSTALL_MODE"
@@ -44,8 +57,9 @@ if [ "$INSTALL_EDGE" = "false" ]; then
         echo "[$SCRIPT_INDEX] Edge is not installed"
     fi
 
-    # Clean up any remaining Edge-related files
+    # Clean up any remaining Edge-related files (incl. the managed memory policy)
     $USE_SUDO rm -f "/usr/local/bin/microsoft-edge" 2>/dev/null || true
+    $USE_SUDO rm -f "$EDGE_POLICY_FILE" 2>/dev/null || true
 
     # Clear stored variables
     set_var "EDGE_BIN" ""
@@ -75,6 +89,23 @@ check_edge_version() {
         return 0
     fi
     return 1
+}
+
+# Sleeping Tabs via managed policy (best-effort on Linux; see note at top).
+# Side effect: edge://settings shows "Managed by your organization".
+configure_edge_memory_policy() {
+    local desired
+    desired='{
+  "SleepingTabsEnabled": true,
+  "SleepingTabsTimeout": 900
+}'
+    $USE_SUDO mkdir -p "$EDGE_POLICY_DIR" 2>/dev/null || true
+    if [ ! -f "$EDGE_POLICY_FILE" ] || [ "$(cat "$EDGE_POLICY_FILE" 2>/dev/null)" != "$desired" ]; then
+        printf '%s' "$desired" | $USE_SUDO tee "$EDGE_POLICY_FILE" >/dev/null
+        echo "[$SCRIPT_INDEX] Wrote Sleeping Tabs policy: $EDGE_POLICY_FILE (Edge will show 'Managed by your organization')"
+    else
+        echo "[$SCRIPT_INDEX] Sleeping Tabs policy already set: $EDGE_POLICY_FILE"
+    fi
 }
 
 # Install Edge if not present
@@ -183,6 +214,23 @@ echo "[$SCRIPT_INDEX] Checking Microsoft Edge installation..."
 # Kill hanging processes if any
 kill_edge_processes
 
+# Memory governance prerequisites (shared with Chrome/35): zram so the memory
+# caps reclaim gracefully instead of thrashing, systemd-oomd as PSI backstop.
+# Runs BEFORE the install/verify branch so idempotent re-runs get it too.
+if ! ensure_zram_swap; then
+    echo "[$SCRIPT_INDEX] [WARN] NO ACTIVE SWAP: memory caps without swap cause reclaim thrash (browser freezes at the cap);"
+    echo "[$SCRIPT_INDEX] [WARN] the launch wrapper falls back to hard-OOM-only mode until swap/zram is enabled."
+fi
+ensure_systemd_oomd
+configure_edge_memory_policy
+
+# Edge ships NO AppArmor profile (unlike Chrome): on kernels that restrict
+# unprivileged user namespaces its sandbox cannot start.
+if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = "1" ]; then
+    echo "[$SCRIPT_INDEX] [WARN] Kernel restricts unprivileged user namespaces and Edge ships no AppArmor profile;"
+    echo "[$SCRIPT_INDEX] [WARN] Edge may crash at startup. Provide an AppArmor profile for /opt/microsoft/msedge/msedge or launch with --no-sandbox."
+fi
+
 # Check if Edge is installed
 if check_edge_version; then
     echo "[$SCRIPT_INDEX] Edge browser is already installed"
@@ -196,9 +244,12 @@ if check_edge_version; then
             set_var "EDGE_VERSION" "$(microsoft-edge --version 2>/dev/null || echo 'unknown')"
             echo "[$SCRIPT_INDEX] Edge binary path stored in global variables: $edge_path"
             
-            # Create symlink in /usr/local/bin if it doesn't exist
-            if [ ! -L "/usr/local/bin/microsoft-edge" ]; then
-                $USE_SUDO ln -sf "$edge_path" "/usr/local/bin/microsoft-edge"
+            # Create/repair symlink in /usr/local/bin. [ ! -e ] is false for a
+            # working file/link but true for a DANGLING link, so this also repairs
+            # stale links. Self-link guard: `which microsoft-edge` may return this
+            # very path, and linking it onto itself would create a loop.
+            if [ "$edge_path" != "/usr/local/bin/microsoft-edge" ] && [ ! -e "/usr/local/bin/microsoft-edge" ]; then
+                $USE_SUDO ln -sfn "$edge_path" "/usr/local/bin/microsoft-edge"
                 echo "[$SCRIPT_INDEX] Created symlink: /usr/local/bin/microsoft-edge -> $edge_path"
             fi
 
@@ -208,10 +259,11 @@ if check_edge_version; then
 
             # Resource limit: cap the whole Edge process tree in one cgroup-v2 user
             # scope and repoint the .deb-owned menu entry (id=microsoft-edge) at the
-            # wrapper. Edge is intentionally PINNED to MemoryMax=500M (override) while
-            # the other apps use the 1G library default; the 20% proportional ceiling
-            # and the shared 10%*nproc CPU quota still come from app_resource_limit.sh.
-            APP_MEM_CAP_MB=500 apply_app_resource_limit \
+            # wrapper, using the browser recipe (BROWSER_* at top of file). Env-pct
+            # overrides stay machine-relative; never use --mem/--high/--cpu here.
+            APP_MEM_PCT="$BROWSER_MEM_PCT" APP_MEM_CAP_MB="$BROWSER_MEM_CAP_MB" \
+            APP_HIGH_PCT="$BROWSER_HIGH_PCT" APP_CPU_PCT="$BROWSER_CPU_PCT" \
+            apply_app_resource_limit \
                 --id microsoft-edge --exec "$edge_path" \
                 --pre "$EDGE_GPU_FLAGS" \
                 --desktop all --field "%U"
@@ -232,9 +284,11 @@ else
         EDGE_GPU_FLAGS="$(resolve_browser_gpu_flags)"
 
         # Resource limit + repoint the .deb-owned menu entry after a fresh install
-        # (id=microsoft-edge). Edge PINNED to 500M (override) vs the 1G default; shared
-        # 20% ceiling + 10% CPU; idempotent; never double-wraps.
-        APP_MEM_CAP_MB=500 apply_app_resource_limit \
+        # (id=microsoft-edge), using the same browser recipe (BROWSER_* at top of
+        # file); idempotent; never double-wraps.
+        APP_MEM_PCT="$BROWSER_MEM_PCT" APP_MEM_CAP_MB="$BROWSER_MEM_CAP_MB" \
+        APP_HIGH_PCT="$BROWSER_HIGH_PCT" APP_CPU_PCT="$BROWSER_CPU_PCT" \
+        apply_app_resource_limit \
             --id microsoft-edge --exec "$edge_path" \
             --pre "$EDGE_GPU_FLAGS" \
             --desktop all --field "%U"
@@ -246,6 +300,13 @@ echo "[$SCRIPT_INDEX] ==============================="
 echo "[$SCRIPT_INDEX] Edge Browser Status:"
 echo "[$SCRIPT_INDEX] ==============================="
 check_edge_version
+echo "[$SCRIPT_INDEX] Swap (required for usable memory caps): $(swapon --show=NAME,SIZE --noheadings 2>/dev/null | tr '\n' ' ')"
+# Kali/Debian-derivatives: Microsoft lists no per-distro support matrix for the
+# Linux .deb; Edge runs as on Debian. Lag/memory behavior is governed by the
+# resource wrapper + swap above, NOT by the distro.
+if grep -q '^ID=kali' /etc/os-release 2>/dev/null; then
+    echo "[$SCRIPT_INDEX] Note: Kali is not in Microsoft's documented targets; Edge runs as on Debian (unsupported-but-compatible)."
+fi
 
 # Check running processes
 edge_processes=$(ps aux | grep -i "microsoft-edge" | grep -v grep | wc -l | tr -d '\n')

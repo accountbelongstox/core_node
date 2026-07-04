@@ -4,8 +4,8 @@ import { Cpu, Library, GraduationCap, Users, Settings } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 
 interface WfNewBottomDockProps {
-  activeTab: 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman' | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth';
-  setActiveTab: (tab: 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman' | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth') => void;
+  activeTab: 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman' | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'admin';
+  setActiveTab: (tab: 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman' | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'admin') => void;
   trans: (key: string) => string;
   activeTheme: ElementTheme;
   dark?: boolean;
@@ -28,7 +28,7 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
   ] as const;
 
   // Render a secondary bar that guides users back to active suites if we are deep in a tool
-  const isDeepTab = ['walkman', 'subtitles', 'stats', 'bilingual', 'labs', 'profile', 'auth'].includes(activeTab);
+  const isDeepTab = ['walkman', 'subtitles', 'stats', 'bilingual', 'labs', 'profile', 'auth', 'admin'].includes(activeTab);
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-xl pointer-events-none flex flex-col items-center gap-2">

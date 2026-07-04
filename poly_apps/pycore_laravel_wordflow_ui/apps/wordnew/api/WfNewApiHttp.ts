@@ -38,6 +38,7 @@ import type {
   WfNewBookChapters, WfNewBookChapter, WfNewBookVersesPage, WfNewBookVerse, WfNewBookVerseLang,
   WfNewSubtitleDetail, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewDictWord, WfNewWordPage,
   WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordMedia,
+  WfNewWordAccent, WfNewWordAudioVariant,
 } from './WfNewApiTypes';
 import { wfNewEndpoints } from './WfNewEndpoints';
 import { WfNewApiPaths } from './WfNewApiPaths';
@@ -1354,12 +1355,28 @@ export const wfNewApiHttp: WfNewApi = {
     };
   },
 
-  async getWordMedia(language: string, word: string): Promise<WfNewWordMedia> {
-    const res = await getJSON<any>(WfNewApiPaths.wordMedia(language, word));
+  async getWordMedia(
+    language: string,
+    word: string,
+    opts: { accent?: WfNewWordAccent } = {},
+  ): Promise<WfNewWordMedia> {
+    const res = await getJSON<any>(WfNewApiPaths.wordMedia(language, word, opts.accent));
     const t = res?.translations;
     const translations: string[] = Array.isArray(t)
       ? t.filter((x: any) => typeof x === 'string')
       : (typeof t === 'string' && t ? [t] : []);
+    // Accent additions (contract C1) — all optional so pre-accent backends still map.
+    const isAccent = (v: any): v is WfNewWordAccent | 'unknown' =>
+      v === 'us' || v === 'uk' || v === 'unknown';
+    const audioVariants: WfNewWordAudioVariant[] = Array.isArray(res?.audio_variants)
+      ? res.audio_variants
+          .filter((v: any) => v && isAccent(v.accent))
+          .map((v: any): WfNewWordAudioVariant => ({
+            accent: v.accent,
+            url: absUrl(v.url) ?? null,
+            status: v.status === 'ready' ? 'ready' : 'pending',
+          }))
+      : [];
     return {
       word: res?.word ?? word,
       md5: res?.md5 ?? '',
@@ -1368,6 +1385,9 @@ export const wfNewApiHttp: WfNewApi = {
       audioUrl: absUrl(res?.audio_url) ?? null,
       imageStatus: res?.image_status === 'ready' ? 'ready' : 'pending',
       audioStatus: res?.audio_status === 'ready' ? 'ready' : 'pending',
+      audioAccent: isAccent(res?.audio_accent) ? res.audio_accent : null,
+      accentFallback: !!res?.accent_fallback,
+      audioVariants,
       translations,
       explanation: res?.explanation ?? undefined,
       phonetic: res?.phonetic ?? undefined,

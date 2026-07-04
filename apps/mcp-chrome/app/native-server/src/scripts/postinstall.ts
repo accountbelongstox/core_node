@@ -157,7 +157,9 @@ async function ensureWindowsFilePermissions(): Promise<void> {
 
 async function tryRegisterNativeHost(): Promise<void> {
   try {
-    console.log(colorText('Attempting to register Chrome Native Messaging host...', 'blue'));
+    console.log(
+      colorText('Attempting to register Native Messaging host for detected browsers...', 'blue'),
+    );
 
     // Always ensure execution permissions, regardless of installation type
     await ensureExecutionPermissions();
@@ -247,7 +249,7 @@ function printManualInstructions(): void {
   console.log(
     '\n' +
       colorText(
-        'Ensure Chrome extension is installed and refresh the extension to connect to local service.',
+        'Ensure the browser extension (Chrome/Chromium/Firefox) is installed and refresh the extension to connect to local service.',
         'blue',
       ),
   );

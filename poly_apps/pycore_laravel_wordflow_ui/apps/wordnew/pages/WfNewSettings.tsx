@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Check, RefreshCw, Star, Languages, Flame, GraduationCap, Compass,
   ChevronDown, Sliders, ToggleLeft, VolumeX, Library, BookmarkCheck, ArrowRight, Sun, Moon, Play,
-  Database, Trash2, Sparkles,
+  Database, Trash2, Sparkles, ShieldCheck,
 } from 'lucide-react';
 import { ElementTheme, UserStats } from '../WfNewTypes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
@@ -42,6 +42,10 @@ interface WfNewSettingsProps {
   onOpenLabs: () => void;
   /** Navigate to the dedicated About page. */
   onOpenAbout: () => void;
+  /** Open the super-admin console (loopback local-management mode). */
+  onOpenAdmin: () => void;
+  /** True only when the backend granted the loopback debug bypass. */
+  isSuperAdmin: boolean;
   /** Account-bound settings (languages) are hidden when logged out. */
   isLoggedIn: boolean;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
@@ -68,6 +72,8 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
   onOpenPlaybackSettings,
   onOpenLabs,
   onOpenAbout,
+  onOpenAdmin,
+  isSuperAdmin,
   isLoggedIn,
   trans
 }) => {
@@ -707,6 +713,33 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
       </div>
 
       <WfNewCacheManager open={cacheManagerOpen} onClose={() => setCacheManagerOpen(false)} trans={trans} />
+
+      {/* Super-admin console entry — visible ONLY when the backend granted the
+          loopback debug bypass (page opened from the backend's own machine). */}
+      {isSuperAdmin && (
+        <div className={`rounded-3xl ${activeTheme.cardClass} shadow-sm overflow-hidden border border-amber-500/20`}>
+          <button
+            onClick={onOpenAdmin}
+            className="w-full flex items-center gap-3 px-5 py-4 hover:bg-amber-500/[0.06] transition-colors cursor-pointer"
+          >
+            <span className="p-1.5 rounded-xl bg-amber-500/15 border border-amber-500/20 shrink-0">
+              <ShieldCheck className="w-5 h-5 text-amber-400" />
+            </span>
+            <span className="flex-1 min-w-0 text-left">
+              <span className="block text-sm font-extrabold tracking-tight text-indigo-950 dark:text-white">
+                {trans('admin.entryTitle')}
+              </span>
+              <span className="block text-[10px] font-mono text-zinc-500 truncate">
+                {trans('admin.entryDesc')}
+              </span>
+            </span>
+            <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/25 rounded px-1.5 py-0.5">
+              {trans('admin.badge')}
+            </span>
+            <ArrowRight className="w-4 h-4 text-zinc-400" />
+          </button>
+        </div>
+      )}
 
       {/* About — a settings item whose ICON is the brand LOGO; tapping it
           NAVIGATES to the dedicated About page (rich multilingual description). */}

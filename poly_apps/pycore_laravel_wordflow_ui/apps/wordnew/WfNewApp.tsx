@@ -5,14 +5,14 @@ import {
   Search, Volume2, Star, Settings, Check, RefreshCw, Layers, 
   CheckCircle, Play, Pause, SkipForward, ArrowRight,
   Languages, Moon, Sun, Heart, Send, Info, Trash2, ArrowLeft, RotateCw,
-  BarChart2, LogIn
+  BarChart2, LogIn, ShieldCheck
 } from 'lucide-react';
 
 import { useShell } from '../../shell/ShellContext';
 // Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
 // (swap one import line there). All data shapes come from the same TYPE surface.
-import { wfNewApi, wfNewEndpoints, wfNewEndpointStore, WFNEW_API_HEALTH_EVENT, startSocialSse, stopSocialSse, subscribeSocial } from './api';
-import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind, WfNewHomeContent, WfNewStatistics, WfNewLanguage } from './api';
+import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WFNEW_API_HEALTH_EVENT, startSocialSse, stopSocialSse, subscribeSocial } from './api';
+import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind, WfNewHomeContent, WfNewStatistics, WfNewLanguage, WfNewSuperAdminStatus } from './api';
 // Unified local cache (CapDatabase: native SQLite / web IndexedDB). Lets the home
 // hub paint INSTANTLY from cache, then refresh from the API, and lets a re-opened
 // word group skip re-fetching the whole list. Never throws — a miss falls back to
@@ -55,6 +55,7 @@ import { WfNewLearningModel } from './pages/WfNewLearningModel';
 import { WfNewReviewSettings } from './pages/WfNewReviewSettings';
 import { WfNewPlaybackSettings } from './pages/WfNewPlaybackSettings';
 import { WfNewAbout } from './pages/WfNewAbout';
+import { WfNewAdminPage } from './pages/WfNewAdminPage';
 import { WfNewAvatarView } from './components/WfNewAvatarView';
 import { WfNewHomeDashboard } from './components/WfNewHomeDashboard';
 import { WfNewOnboarding } from './pages/WfNewOnboarding';
@@ -66,7 +67,7 @@ type WfTab =
   | 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman'
   | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'languages'
   | 'learning-model' | 'review-settings' | 'playback' | 'book-reader' | 'content-list' | 'library' | 'about'
-  | 'daily-reading';
+  | 'daily-reading' | 'admin';
 
 /**
  * Per-tab header (big title + optional subtitle) shown in the global nav beside
@@ -92,6 +93,7 @@ function wfNewPageHeader(
     case 'languages': return { title: trans('lang.title'), subtitle: trans('lang.sub') };
     case 'settings': return { title: trans('settings.title'), subtitle: trans('settings.sub') };
     case 'about': return { title: trans('about.title'), subtitle: trans('about.sub') };
+    case 'admin': return { title: trans('hdr.admin'), subtitle: trans('hdr.adminSub') };
     case 'daily-reading': return { title: 'Daily Reading', subtitle: 'AI-translated short sentences' };
     case 'social': return { title: trans('bc.social') };
     case 'auth': return { title: trans('bc.auth') };
@@ -185,7 +187,7 @@ export const WfNewApp: React.FC = () => {
       'home', 'shelf', 'practice', 'labs', 'settings', 'walkman', 'subtitles',
       'stats', 'bilingual', 'social', 'profile', 'auth', 'languages',
       'learning-model', 'review-settings', 'playback', 'book-reader', 'content-list', 'about',
-      'daily-reading',
+      'daily-reading', 'admin',
     ];
     // Deep-link to a vocabulary library: #/library/<id>?page=N&view=dash|table
     if (fromHash.startsWith('library/')) {
@@ -281,6 +283,32 @@ export const WfNewApp: React.FC = () => {
       return copy;
     });
   };
+
+  // ---- Super-admin (loopback local-management) mode -------------------------
+  // The BACKEND decides from the connecting client IP (same debug bypass
+  // laravel-manager uses): opened via 127.0.0.1/localhost → login-free super
+  // permission. One probe on mount, pinned to the page-origin backend (never
+  // the failover pool). Null = probe in flight; disabled stays silent.
+  const [superAdmin, setSuperAdmin] = useState<WfNewSuperAdminStatus | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void wfNewAdminApi.probeStatus().then((status) => {
+      if (cancelled) return;
+      setSuperAdmin(status);
+      if (status.enabled) {
+        // Announce once per browser session — the persistent header badge is
+        // the always-on hint; a toast every reload would be noise.
+        try {
+          if (!sessionStorage.getItem('wfnew_super_toast')) {
+            sessionStorage.setItem('wfnew_super_toast', '1');
+            wfNewNotify.push(translate(shellLang, 'admin.enabledToast'), 'star');
+          }
+        } catch { /* best-effort */ }
+      }
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Onboarding startup sequence state
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
@@ -1237,6 +1265,27 @@ export const WfNewApp: React.FC = () => {
               addToast={addToast}
               onOpenSocial={() => setActiveTab('social')}
             />
+          )}
+
+          {/* Super-admin badge (only when the backend granted the loopback
+              bypass) — the always-visible UI hint that this session holds
+              login-free management permission; opens the admin console. */}
+          {superAdmin?.enabled && (
+            <button
+              onClick={() => setActiveTab('admin')}
+              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-full border transition-all text-xs cursor-pointer ${
+                activeTab === 'admin'
+                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                  : 'bg-amber-500/10 border-amber-500/25 text-amber-400 hover:bg-amber-500/20'
+              }`}
+              title={trans('admin.badgeTip', { ip: superAdmin.clientIp || '127.0.0.1' })}
+              aria-label={trans('admin.badge')}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span className="hidden sm:inline font-mono font-bold text-[10px] tracking-tight uppercase">
+                {trans('admin.badge')}
+              </span>
+            </button>
           )}
 
           {/* Individual Profile Console / Login bubble */}
@@ -2256,6 +2305,8 @@ export const WfNewApp: React.FC = () => {
               onOpenPlaybackSettings={() => setActiveTab('playback')}
               onOpenLabs={() => setActiveTab('labs')}
               onOpenAbout={() => setActiveTab('about')}
+              onOpenAdmin={() => setActiveTab('admin')}
+              isSuperAdmin={!!superAdmin?.enabled}
               isLoggedIn={currentUser.isLoggedIn}
               trans={trans}
             />
@@ -2271,6 +2322,30 @@ export const WfNewApp: React.FC = () => {
               className="space-y-6"
             >
               <WfNewAbout activeTheme={activeTheme} trans={trans} />
+            </motion.div>
+          )}
+
+          {/* ====== SUPER-ADMIN CONSOLE (loopback local-management mode) ====== */}
+          {activeTab === 'admin' && (
+            <motion.div
+              key="admin"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="space-y-6"
+            >
+              <WfNewAdminPage
+                activeTheme={activeTheme}
+                trans={trans}
+                addToast={addToast}
+                superAdmin={superAdmin}
+                onOpenLibrary={(id, title, language) => {
+                  // Reuse the existing dedicated word-browser page for drilling
+                  // into a library (same surface home cards open).
+                  setLibraryRoute({ id, page: 1, view: 'dash', title, language });
+                  setActiveTab('library');
+                }}
+              />
             </motion.div>
           )}
 

@@ -1,6 +1,7 @@
 import { createErrorResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { handleDialogFirefox } from './dialog-firefox';
 
 interface HandleDialogParams {
   action: 'accept' | 'dismiss';
@@ -31,6 +32,12 @@ class HandleDialogTool extends BaseBrowserToolExecutor {
 
       if (!targetTab?.id) return createErrorResponse('No active tab found');
       const finalTabId = targetTab.id;
+
+      if (import.meta.env.FIREFOX) {
+        // Firefox has no chrome.debugger/CDP: arm a MAIN-world auto-responder
+        // for future dialogs instead of answering a currently open one.
+        return await handleDialogFirefox(finalTabId, action, promptText);
+      }
 
       // Attach debugger
       try {

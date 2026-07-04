@@ -1,6 +1,12 @@
-claude --resume cac8aa20-a7e0-4822-85ab-111a3f3b0175
-claude --resume d2766e0f-9cab-4fcd-b350-c873d4163202
-
+Kali
+claudeteam --resume 22ba17a5-3025-43e7-8085-80d6ff8ff056
+```
+先继续之前的任务，同时poly_apps/pycore_laravel_wordflow_ui/apps/wordnew/WfNewApp.tsx 你是否知道项目规则，大于800行的文件 都需要拆为小组件，同时拆小组件时需要 先扫描项目 中的相似组件，如果能升级复用优先升级复用，按这个规则查看规则是否写在项目 中，先按各类AI的官方 文档 的要求更新规范，注意只能在规范中添加一行，替换性更新。之后按这个规范将wordnew的所有大于800的文件 处理，如果你发现某个文件 其他AI在修改，在代码中注脚让其他AI工作。
+```
+claudeteam --resume ee0a85ae-00be-40b2-a6db-ae7a70fc0b59
+claudeteam --resume 54b8093b-a684-4811-b4b6-acfd0d65eabb
+claudeteam --resume 1cd3802e-0439-4629-a945-0da827d104fb
+claudeteam --resume 50bf18aa-9219-4046-a8e4-03f0dbcb534d
 
 当出现以下或BING不能连接时，使用 
 It's not you, it's us

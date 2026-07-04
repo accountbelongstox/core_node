@@ -425,13 +425,20 @@ class MediaBrowseController extends Controller
 
         $query->orderBy('grain')->orderBy('seq');
 
-        $paginator = $query->paginate($perPage)->through(function (SourceSentence $link) {
+        $paginator = $query->paginate($perPage);
+
+        // Books v3.1: batch-load every per-language sentence row referenced by this
+        // page in ONE query per language (previously an N+1 — one query per language
+        // per slot, i.e. O(rows x languages) round-trips for a 500-verse chapter).
+        $preload = $this->preloadLangRows($paginator->getCollection());
+
+        $paginator->through(function (SourceSentence $link) use ($preload) {
             // Books v3.1: resolve the slot's primary-language sentence from the
             // per-language store via lang_content_ids; the full per-language map
             // is exposed under `languages`. The legacy shared `sentence` relation
             // was removed, so a slot with no v3 correspondence resolves to the
             // per-language row (or null) — never the dropped shared table.
-            $v3 = $this->resolveSlotPrimary($link);
+            $v3 = $this->resolveSlotPrimary($link, $preload);
             $sentence = $v3 !== null
                 ? $v3['row']
                 : $link->langSentence($link->primary_language ?: 'en');
@@ -481,9 +488,10 @@ class MediaBrowseController extends Controller
      * the primary-language row (for the flat fields) plus the full per-language
      * map. Returns null when the slot has no v3 correspondence (legacy path).
      *
+     * @param array<string,array<string,LangSentence>> $preload  [lang][content_id] => row (see preloadLangRows)
      * @return array{row:?LangSentence,languages:array<string,mixed>}|null
      */
-    private function resolveSlotPrimary(SourceSentence $link): ?array
+    private function resolveSlotPrimary(SourceSentence $link, array $preload = []): ?array
     {
         $map = $link->lang_content_ids;
         if (!is_array($map) || count($map) === 0) {
@@ -497,7 +505,7 @@ class MediaBrowseController extends Controller
         foreach ($map as $lang => $contentId) {
             $row = null;
             if (!empty($contentId)) {
-                $row = LangSentence::onLang((string) $lang)->where('content_id', (string) $contentId)->first();
+                $row = $preload[(string) $lang][(string) $contentId] ?? null;
             }
 
             $languages[$lang] = [
@@ -516,6 +524,45 @@ class MediaBrowseController extends Controller
         }
 
         return ['row' => $primaryRow, 'languages' => $languages];
+    }
+
+    /**
+     * Batch-load the per-language sentence rows a page of slots references, one
+     * query per language table (keyed by content_id) — the lookup resolveSlotPrimary
+     * reads from instead of firing a query per (slot, language).
+     *
+     * @param  \Illuminate\Support\Collection<int,SourceSentence>  $links
+     * @return array<string,array<string,LangSentence>>  [lang][content_id] => row
+     */
+    private function preloadLangRows($links): array
+    {
+        // Collect the referenced content_ids per language across the whole page.
+        $idsByLang = [];
+        foreach ($links as $link) {
+            $map = $link->lang_content_ids;
+            if (!is_array($map)) {
+                continue;
+            }
+            foreach ($map as $lang => $contentId) {
+                if (!empty($contentId)) {
+                    $idsByLang[(string) $lang][] = (string) $contentId;
+                }
+            }
+        }
+
+        $out = [];
+        foreach ($idsByLang as $lang => $ids) {
+            $rows = LangSentence::onLang((string) $lang)
+                ->whereIn('content_id', array_values(array_unique($ids)))
+                ->get();
+            $byId = [];
+            foreach ($rows as $row) {
+                $byId[(string) $row->content_id] = $row;
+            }
+            $out[(string) $lang] = $byId;
+        }
+
+        return $out;
     }
 
     /**

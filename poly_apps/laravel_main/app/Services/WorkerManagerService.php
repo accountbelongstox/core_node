@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Worker;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class WorkerManagerService
@@ -122,13 +123,22 @@ class WorkerManagerService
      */
     public function getWorkerStats(): array
     {
-        return [
-            'total' => Worker::count(),
-            'online' => Worker::where('status', Worker::STATUS_ONLINE)->count(),
-            'busy' => Worker::where('status', Worker::STATUS_BUSY)->count(),
-            'offline' => Worker::where('status', Worker::STATUS_OFFLINE)->count(),
-            'total_completed' => Worker::sum('completed_tasks'),
-            'total_failed' => Worker::sum('failed_tasks'),
-        ];
+        // On the Task Center overview poll (~5s) this fired 6 separate aggregates
+        // over the workers table every hit. Memoize briefly so the shell poll
+        // shares one snapshot (worker counts change slowly); the short TTL bounds
+        // staleness and this matters on the single-worker php -S runtime where
+        // every round-trip serializes.
+        // File store (not the configured `database` default, whose `cache` table
+        // is not provisioned by any migration); persists across php -S requests.
+        return Cache::store('file')->remember('workers:stats', 3, static function (): array {
+            return [
+                'total' => Worker::count(),
+                'online' => Worker::where('status', Worker::STATUS_ONLINE)->count(),
+                'busy' => Worker::where('status', Worker::STATUS_BUSY)->count(),
+                'offline' => Worker::where('status', Worker::STATUS_OFFLINE)->count(),
+                'total_completed' => Worker::sum('completed_tasks'),
+                'total_failed' => Worker::sum('failed_tasks'),
+            ];
+        });
     }
 }

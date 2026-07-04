@@ -498,6 +498,19 @@ export class SemanticSimilarityEngineProxy {
   }
 
   /**
+   * Route a message to the offscreen engine host.
+   * Chrome: chrome.runtime.sendMessage to the offscreen document.
+   * Firefox: dispatch to the inline background-page host (no offscreen API).
+   */
+  private async _dispatchToOffscreenHost(message: any): Promise<any> {
+    if (import.meta.env.FIREFOX) {
+      const { dispatchInlineSimilarityMessage } = await import('./inline-similarity-host');
+      return dispatchInlineSimilarityMessage(message);
+    }
+    return chrome.runtime.sendMessage(message);
+  }
+
+  /**
    * Check engine status in offscreen
    */
   private async checkOffscreenEngineStatus(): Promise<{
@@ -505,7 +518,7 @@ export class SemanticSimilarityEngineProxy {
     currentConfig: any;
   }> {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await this._dispatchToOffscreenHost({
         target: 'offscreen',
         type: OFFSCREEN_MESSAGE_TYPES.SIMILARITY_ENGINE_STATUS,
       });
@@ -545,7 +558,7 @@ export class SemanticSimilarityEngineProxy {
         );
 
         // Reinitialize engine
-        const response = await chrome.runtime.sendMessage({
+        const response = await this._dispatchToOffscreenHost({
           target: 'offscreen',
           type: OFFSCREEN_MESSAGE_TYPES.SIMILARITY_ENGINE_INIT,
           config: this.config,
@@ -578,7 +591,7 @@ export class SemanticSimilarityEngineProxy {
           message.type,
         );
 
-        const response = await chrome.runtime.sendMessage(message);
+        const response = await this._dispatchToOffscreenHost(message);
 
         if (!response) {
           throw new Error('No response received from offscreen document');
@@ -592,7 +605,7 @@ export class SemanticSimilarityEngineProxy {
           await this.ensureOffscreenEngineInitialized();
 
           // Resend original message
-          const retryResponse = await chrome.runtime.sendMessage(message);
+          const retryResponse = await this._dispatchToOffscreenHost(message);
           if (retryResponse && retryResponse.success) {
             return retryResponse;
           }
@@ -615,7 +628,7 @@ export class SemanticSimilarityEngineProxy {
             await this.ensureOffscreenEngineInitialized();
 
             // Resend original message
-            const retryResponse = await chrome.runtime.sendMessage(message);
+            const retryResponse = await this._dispatchToOffscreenHost(message);
             if (retryResponse && retryResponse.success) {
               return retryResponse;
             }
@@ -1125,6 +1138,10 @@ export class SemanticSimilarityEngine {
         console.log(
           'SemanticSimilarityEngine: Running in offscreen document, using direct Worker mode to prevent recursion',
         );
+      } else if (import.meta.env.FIREFOX) {
+        // Firefox has no offscreen API; the background event page has DOM and
+        // Worker support, so always run in direct Worker mode there.
+        this.useOffscreen = false;
       } else {
         this.useOffscreen = this.config.forceOffscreen || !workerSupported;
       }
@@ -1222,6 +1239,10 @@ export class SemanticSimilarityEngine {
         console.log(
           'SemanticSimilarityEngine: Running in offscreen document, using direct Worker mode to prevent recursion',
         );
+      } else if (import.meta.env.FIREFOX) {
+        // Firefox has no offscreen API; the background event page has DOM and
+        // Worker support, so always run in direct Worker mode there.
+        this.useOffscreen = false;
       } else {
         this.useOffscreen = this.config.forceOffscreen || !workerSupported;
       }

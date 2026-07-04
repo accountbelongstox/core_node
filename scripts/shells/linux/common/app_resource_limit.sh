@@ -50,7 +50,16 @@
 #      MemoryHigh/MemoryMax (% of total RAM, re-applied via `systemctl
 #      set-property --runtime`), so several heavy apps launched together cannot
 #      collectively exhaust RAM -- per-app caps alone do NOT bound the sum.
-#      Tunables (env): APP_AGG_MEM_PCT (85), APP_AGG_HIGH_PCT (72), APP_SLICE.
+#      Tunables (env): APP_AGG_MEM_PCT (78), APP_AGG_HIGH_PCT (65), APP_SLICE.
+#      The slice also gets CPUWeight=80 (mild contention-time deprioritization;
+#      quotas stay per-app) and, when systemd-oomd is active, ManagedOOM* so a
+#      bloated scope is PSI-killed instead of freezing the whole box.
+#      NO-SWAP GATE: with zero swap, breaching MemoryHigh cannot page anon
+#      memory out; the cgroup thrashes on its own file/code pages (refault
+#      storm: measured PSI full ~75%). The wrapper therefore collapses
+#      MemoryHigh onto MemoryMax at launch when no swap is active -- a single
+#      renderer OOM beats a tree-wide stall. Pair with memory_governance.sh
+#      (ensure_zram_swap) so the soft tier actually works.
 #      Scope: the slice lives in the CALLING systemd manager, so user-session
 #      apps (--user) share one budget and root-mode apps (--system) share a
 #      SEPARATE one -- the cap bounds same-manager apps (the heavy browsers/chat
@@ -90,8 +99,10 @@ ARL_MIN_MEM_MB="${APP_MIN_MEM_MB:-256}"      # floor so a tiny box still launche
 # NOT bound the sum -- critical on low-RAM / no-swap boxes). Slice limits are % of
 # TOTAL RAM and are (re)applied at each launch (idempotent). Env-overridable.
 ARL_SLICE_NAME="${APP_SLICE:-corenode-apps.slice}"
-ARL_AGG_MEM_PCT="${APP_AGG_MEM_PCT:-85}"     # slice MemoryMax  = this % of total RAM
-ARL_AGG_HIGH_PCT="${APP_AGG_HIGH_PCT:-72}"   # slice MemoryHigh = this % of total RAM
+# 78/65 (not higher): the zram pool is kernel memory charged to NO cgroup, so the
+# slice cap must leave physical headroom for it (~50% RAM zram @ zstd ~3:1).
+ARL_AGG_MEM_PCT="${APP_AGG_MEM_PCT:-78}"     # slice MemoryMax  = this % of total RAM
+ARL_AGG_HIGH_PCT="${APP_AGG_HIGH_PCT:-65}"   # slice MemoryHigh = this % of total RAM
 
 # Privilege prefix: honor a caller-set USE_SUDO (gvar_common); else derive it.
 _arl_sudo() {
@@ -254,6 +265,13 @@ ARL_CPU_QUOTA="\${ARL_FIXED_CPU:-}"; [ -n "\$ARL_CPU_QUOTA" ] || ARL_CPU_QUOTA="
 _arl_mib() { case "\$1" in *[Gg]) echo \$(( \${1%[Gg]} * 1024 ));; *[Mm]) echo "\${1%[Mm]}";; *[Kk]) echo \$(( \${1%[Kk]} / 1024 ));; *[0-9]) echo \$(( \$1 / 1048576 ));; *) echo 0;; esac; }
 ARL_MAX_MIB="\$(_arl_mib "\$ARL_MEM_MAX")"
 if [ "\$ARL_MAX_MIB" -gt 0 ] 2>/dev/null && [ "\$(_arl_mib "\$ARL_MEM_HIGH")" -gt "\$ARL_MAX_MIB" ] 2>/dev/null; then ARL_MEM_HIGH="\$ARL_MEM_MAX"; fi
+# No-swap gate: with zero swap MemoryHigh cannot page anon memory out and the
+# cgroup thrashes on its own file/code pages (refault storm) -- collapse BOTH
+# soft tiers (per-app here, aggregate slice below) onto their hard caps so an
+# OOM kill beats a tree- or slice-wide stall.
+ARL_NO_SWAP=0
+[ "\$(awk '/^SwapTotal:/{print \$2}' /proc/meminfo 2>/dev/null)" = "0" ] && ARL_NO_SWAP=1
+[ "\$ARL_NO_SWAP" = "1" ] && ARL_MEM_HIGH="\$ARL_MEM_MAX"
 # AGGREGATE cap: every wrapper-launched app shares ONE slice so their combined
 # memory cannot exhaust the box (per-app caps do NOT bound the sum -- critical on
 # low-RAM / no-swap machines). NOTE: the slice lives in the CALLING manager, so
@@ -268,6 +286,8 @@ ARL_AGG_MAX="\${APP_AGG_MEM_MAX:-\${ARL_AGG_MM}M}"
 ARL_AGG_HIGH="\${APP_AGG_MEM_HIGH:-\${ARL_AGG_MH}M}"
 ARL_AGG_MAX_MIB="\$(_arl_mib "\$ARL_AGG_MAX")"
 if [ "\$ARL_AGG_MAX_MIB" -gt 0 ] 2>/dev/null && [ "\$(_arl_mib "\$ARL_AGG_HIGH")" -gt "\$ARL_AGG_MAX_MIB" ] 2>/dev/null; then ARL_AGG_HIGH="\$ARL_AGG_MAX"; fi
+# Same no-swap collapse for the slice soft tier (see gate above).
+[ "\$ARL_NO_SWAP" = "1" ] && ARL_AGG_HIGH="\$ARL_AGG_MAX"
 # Capability gate: the shared slice + MemoryHigh + hierarchical per-slice memory
 # enforcement are cgroup-v2 features. On a v1/hybrid hierarchy (e.g. Ubuntu 20.04
 # default) they are silently ignored, so there we keep only the per-app MemoryMax
@@ -283,7 +303,12 @@ arl_mgr_ok() {
 if command -v systemd-run >/dev/null 2>&1 && arl_mgr_ok \\
    && systemd-run $scope_flag --scope --collect --quiet true >/dev/null 2>&1; then
     if [ "\$ARL_CG2" = "1" ]; then
-        command -v systemctl >/dev/null 2>&1 && systemctl $scope_flag set-property --runtime "\$ARL_SLICE" "MemoryHigh=\$ARL_AGG_HIGH" "MemoryMax=\$ARL_AGG_MAX" >/dev/null 2>&1 || true
+        ARL_SLICE_PROPS="MemoryHigh=\$ARL_AGG_HIGH MemoryMax=\$ARL_AGG_MAX CPUWeight=80"
+        # PSI backstop: when systemd-oomd runs, the fattest scope in the slice is
+        # killed under sustained memory pressure instead of the box freezing.
+        systemctl is-active --quiet systemd-oomd.service 2>/dev/null \\
+            && ARL_SLICE_PROPS="\$ARL_SLICE_PROPS ManagedOOMMemoryPressure=kill ManagedOOMMemoryPressureLimit=50%"
+        command -v systemctl >/dev/null 2>&1 && systemctl $scope_flag set-property --runtime "\$ARL_SLICE" \$ARL_SLICE_PROPS >/dev/null 2>&1 || true
         exec systemd-run $scope_flag --scope --collect --quiet --slice="\$ARL_SLICE" \\
             -p "MemoryMax=\$ARL_MEM_MAX" -p "MemoryHigh=\$ARL_MEM_HIGH" -p "CPUQuota=\$ARL_CPU_QUOTA" \\
             --setenv=ARL_SCOPE_ACTIVE=1 \\

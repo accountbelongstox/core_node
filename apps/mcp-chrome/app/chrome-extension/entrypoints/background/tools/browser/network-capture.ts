@@ -28,6 +28,19 @@ class NetworkCaptureTool extends BaseBrowserToolExecutor {
     try {
       // Delegate to appropriate tool based on needResponseBody
       if (needResponseBody) {
+        if (import.meta.env.FIREFOX) {
+          // Firefox has no debugger (CDP) API; the webRequest-based capture
+          // includes response bodies there via StreamFilter.
+          if (action === 'start') {
+            return await networkCaptureStartTool.execute({
+              tabId,
+              maxCaptureTime: args.maxCaptureTime,
+              inactivityTimeout: args.inactivityTimeout,
+              includeStatic: args.includeStatic,
+            });
+          }
+          return await networkCaptureStopTool.execute({ tabId });
+        }
         // Use debugger-based capture for response body
         if (action === 'start') {
           return await networkDebuggerStartTool.execute({

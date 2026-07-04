@@ -326,6 +326,18 @@ export interface WfNewLibraryWordsPage {
 
 // ---- Word media on-demand (GET /word/{lang}/{word}/media) ------------------
 
+/** Wire/storage accent value (contract D1). UI accents map: en-US/en-CA → 'us',
+ *  en-GB/en-AU → 'uk'. Legacy files without an accent tag report 'unknown'. */
+export type WfNewWordAccent = 'us' | 'uk';
+
+/** One accent-specific audio rendition of a word (wire `audio_variants[]`). */
+export interface WfNewWordAudioVariant {
+  accent: WfNewWordAccent | 'unknown';
+  /** Absolute audio URL, or null while this accent is still pending. */
+  url: string | null;
+  status: 'ready' | 'pending';
+}
+
 /**
  * On-demand media + dictionary detail for ONE word, from the file-first resolve
  * endpoint GET /api/app_qy_v1/word/{lang}/{word}/media. Calling this both READS
@@ -336,6 +348,10 @@ export interface WfNewLibraryWordsPage {
  *   - When a file is missing the backend ENQUEUES the work + bumps its priority
  *     and reports the corresponding status as 'pending'. So a UI can poll this a
  *     few times until status flips to 'ready' and the url appears.
+ *   - With `?accent=us|uk`: when only ANOTHER accent's file exists the backend
+ *     serves it (`accentFallback` true) and keeps a preferred-accent task
+ *     pending — the UI plays the fallback but may keep polling for the
+ *     preferred rendition (see `audioVariants`).
  */
 export interface WfNewWordMedia {
   word: string;
@@ -348,6 +364,14 @@ export interface WfNewWordMedia {
   audioUrl: string | null;
   imageStatus: 'ready' | 'pending';
   audioStatus: 'ready' | 'pending';
+  /** Accent of `audioUrl` ('unknown' = legacy untagged file); null/absent when
+   *  no audio yet or the backend predates the accent contract. */
+  audioAccent?: WfNewWordAccent | 'unknown' | null;
+  /** True when `audioUrl` is NOT the requested accent (another accent served
+   *  while the preferred one is still being generated). */
+  accentFallback?: boolean;
+  /** Per-accent renditions (wire `audio_variants`); empty on older backends. */
+  audioVariants?: WfNewWordAudioVariant[];
   /** Translation strings (may be empty). */
   translations: string[];
   explanation?: string;
@@ -1103,7 +1127,12 @@ export interface WfNewApi {
    * Resolve (and, file-first, ENQUEUE+prioritize) a word's image/audio + dictionary
    * detail (GET /word/{lang}/{word}/media). Simply calling this triggers backend
    * generation for any missing file; poll it until imageStatus/audioStatus flip to
-   * 'ready' and the urls appear.
+   * 'ready' and the urls appear. Optional `opts.accent` requests a specific
+   * accent rendition ('us' | 'uk', contract D1/C1).
    */
-  getWordMedia(language: string, word: string): Promise<WfNewWordMedia>;
+  getWordMedia(
+    language: string,
+    word: string,
+    opts?: { accent?: WfNewWordAccent },
+  ): Promise<WfNewWordMedia>;
 }

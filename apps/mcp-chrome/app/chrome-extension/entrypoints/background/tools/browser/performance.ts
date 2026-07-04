@@ -1,6 +1,10 @@
 import { createErrorResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
+import {
+  collectReducedPerformanceSummary,
+  traceSubcommandUnsupportedOnFirefox,
+} from './performance-firefox';
 
 type OwnerTag = 'performance';
 
@@ -122,6 +126,10 @@ class PerformanceStartTraceTool extends BaseBrowserToolExecutor {
   async execute(args: StartTraceParams): Promise<ToolResult> {
     const { reload = false, autoStop = false, durationMs = 5000, tabId } = args || {};
 
+    if (import.meta.env.FIREFOX) {
+      return traceSubcommandUnsupportedOnFirefox(this.name);
+    }
+
     try {
       let targetTab: chrome.tabs.Tab | undefined;
       if (tabId) {
@@ -233,6 +241,11 @@ class PerformanceStopTraceTool extends BaseBrowserToolExecutor {
 
   async execute(args: StopTraceParams): Promise<ToolResult> {
     const { saveToDownloads = true, filenamePrefix, tabId } = args || {};
+
+    if (import.meta.env.FIREFOX) {
+      return traceSubcommandUnsupportedOnFirefox(this.name);
+    }
+
     try {
       let targetTab: chrome.tabs.Tab | undefined;
       if (tabId) {
@@ -330,6 +343,12 @@ class PerformanceAnalyzeInsightTool extends BaseBrowserToolExecutor {
 
   async execute(args: AnalyzeInsightParams & { timeoutMs?: number }): Promise<ToolResult> {
     const { insightName, tabId } = args || {};
+
+    if (import.meta.env.FIREFOX) {
+      // Reduced mode: live Performance Timeline snapshot instead of CDP trace analysis.
+      return collectReducedPerformanceSummary(tabId, insightName);
+    }
+
     try {
       let targetTab: chrome.tabs.Tab | undefined;
       if (tabId) {

@@ -78,7 +78,12 @@
       "PowerShell($j = '{\"ultracode\":true}')",
       "PowerShell(\"`n=== TEST B: backslash-escaped quotes \\(PS5.1 fix\\) ===\")",
       "PowerShell($j2 = '{\\\\\"ultracode\\\\\":true}')",
-      "PowerShell(Remove-Item *)"
+      "PowerShell(Remove-Item *)",
+      "Bash(ps aux *)",
+      "Bash(systemctl --user list-units --type=scope)",
+      "Bash(systemctl list-units *)",
+      "Bash(swapon --show)",
+      "Bash(lspci)"
     ]
   }
 }

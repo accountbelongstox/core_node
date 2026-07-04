@@ -1,6 +1,7 @@
 import { createErrorResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { captureConsoleMessagesFirefox } from './console-firefox';
 
 const DEBUGGER_PROTOCOL_VERSION = '1.3';
 const DEFAULT_MAX_MESSAGES = 100;
@@ -175,6 +176,12 @@ class ConsoleTool extends BaseBrowserToolExecutor {
       types: string[];
     },
   ): Promise<ConsoleResult> {
+    if (import.meta.env.FIREFOX) {
+      // Firefox has no chrome.debugger/CDP: capture via a MAIN-world console
+      // wrapper relayed to the background (same result shape as the CDP path).
+      return captureConsoleMessagesFirefox(tabId, options);
+    }
+
     const { includeExceptions, maxMessages, types } = options;
     const startTime = Date.now();
     const messages: ConsoleMessage[] = [];

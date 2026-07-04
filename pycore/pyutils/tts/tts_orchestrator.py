@@ -4,16 +4,26 @@ TTS orchestrator — ONE entry that picks the highest-priority AVAILABLE local
 TTS engine and synthesizes text to MP3.
 
 Priority (highest first), per project decision:
-    1. edge      — Microsoft Edge TTS (online; serialized process-wide).
-    2. sherpa    — Sherpa-ONNX Kokoro offline (CPU, never fails when installed).
-    3. melotts   — MeloTTS (torch GPU->CPU auto; zh/en mixed).
-    4. gptsovits — Local GPT-SoVITS api server (voice clone; opt-in).
-    5. azure     — Azure Speech cloud (free F0 ~0.5M chars/mo) — API fallback, used
-                   ONLY when every LOCAL engine above is unavailable/failed.
+    1. edge           — Microsoft Edge TTS (online; serialized process-wide).
+    2. streamelements — StreamElements speech endpoint (online, keyless;
+                        us->Joanna / uk->Amy, English only).
+    3. sherpa         — Sherpa-ONNX Kokoro offline (CPU, never fails when installed).
+    4. melotts        — MeloTTS (torch GPU->CPU auto; zh/en mixed).
+    5. gptsovits      — Local GPT-SoVITS api server (voice clone; opt-in).
+    6. gtts_web       — Google Translate web TTS (online, keyless; ~200 char cap,
+                        accent not selectable).
+    7. azure          — Azure Speech cloud (free F0 ~0.5M chars/mo) — API fallback,
+                        used when every engine above is unavailable/failed.
 
 The cloud engine being last enforces the "local-first; API only if local can't"
 rule automatically (synthesize() falls through engines in order). Add more free
 cloud SDKs (google/polly) the same way and append them here.
+
+Accent: synthesize(accent="us"|"uk") threads the requested English accent to
+the engines that can honor it (edge picks an en-US/en-GB voice, streamelements
+picks Joanna/Amy); other engines still run unchanged, and the result's
+``accent`` key reports the accent ACTUALLY produced ("us"|"uk"|"unknown") so
+callers can tag accent_fallback.
 
 Override order with env ``TTS_ENGINE_PRIORITY`` (e.g. ``edge->sherpa->melotts``).
 """
@@ -26,9 +36,17 @@ from typing import Any, Callable, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.edge_tts.config import TTSConfig
 from pycore.pyutils.edge_tts.edge_tts_client import get_edge_tts_client
-from . import azure_engine, gptsovits_engine, melotts_engine, sherpa_engine
+from . import (
+    azure_engine,
+    gptsovits_engine,
+    gtts_web_engine,
+    melotts_engine,
+    sherpa_engine,
+    streamelements_engine,
+)
 
-_DEFAULT_PRIORITY = ("edge", "sherpa", "melotts", "gptsovits", "azure")
+_DEFAULT_PRIORITY = (
+    "edge", "streamelements", "sherpa", "melotts", "gptsovits", "gtts_web", "azure")
 _LOCALE_BY_LANG = {
     "en": "en-US",
     "zh": "zh-CN",
@@ -39,11 +57,15 @@ _LOCALE_BY_LANG = {
 }
 _ENGINE_NOTES = {
     "edge": "Microsoft Edge TTS (online; serialized)",
+    "streamelements": "StreamElements speech endpoint (online, keyless; en only, us/uk voices)",
     "sherpa": "Sherpa-ONNX Kokoro offline (CPU)",
     "melotts": "MeloTTS offline (torch GPU->CPU auto)",
     "gptsovits": "GPT-SoVITS local api server (voice clone)",
+    "gtts_web": "Google Translate web TTS (online, keyless; ~200 char cap)",
     "azure": "Azure Speech cloud (free F0; API fallback)",
 }
+# Engines that can honor a requested English accent (us/uk voice selection).
+_ACCENT_AWARE_ENGINES = ("edge", "streamelements")
 
 
 def _priority() -> tuple[str, ...]:
@@ -97,8 +119,37 @@ def set_edge_cooldown_seconds(seconds: Any) -> float:
     return _EDGE_COOLDOWN_S
 
 
-def _edge_voice(lang: Optional[str]) -> str:
+def _normalize_accent(accent: Optional[str]) -> Optional[str]:
+    """Normalize an accent hint to the wire values "us"|"uk"; anything else -> None."""
+    value = (accent or "").strip().lower()
+    return value if value in ("us", "uk") else None
+
+
+def _is_english_lang(lang: Optional[str]) -> bool:
+    return (lang or "en").strip().lower().startswith("en")
+
+
+def _engine_actual_accent(engine: str, lang: Optional[str], accent: Optional[str]) -> str:
+    """Accent an engine ACTUALLY produces for this request ("us"|"uk"|"unknown").
+
+    Accent-aware engines honor the request (default US voice); azure_engine
+    hardcodes en-US-JennyNeural for English; every other engine (and any
+    non-English language) has no accent guarantee.
+    """
+    if not _is_english_lang(lang):
+        return "unknown"
+    if engine in _ACCENT_AWARE_ENGINES:
+        return "uk" if accent == "uk" else "us"
+    if engine == "azure":
+        return "us"
+    return "unknown"
+
+
+def _edge_voice(lang: Optional[str], accent: Optional[str] = None) -> str:
     locale = _LOCALE_BY_LANG.get((lang or "en").lower(), "en-US")
+    # Accent "uk" on an English locale -> British voice (en-GB-SoniaNeural).
+    if accent == "uk" and locale.startswith("en-"):
+        locale = "en-GB"
     voice = TTSConfig.get_voice(locale, "female")
     if not voice:
         # Unmapped locale -> get_voice returns "" and edge-tts would fail with no
@@ -128,12 +179,16 @@ def _rate_to_speed(rate: Optional[str]) -> float:
 def engine_available(name: str) -> bool:
     if name == "edge":
         return get_edge_tts_client().initialize()
+    if name == "streamelements":
+        return streamelements_engine.available()
     if name == "sherpa":
         return sherpa_engine.available()
     if name == "melotts":
         return melotts_engine.available()
     if name == "gptsovits":
         return gptsovits_engine.available()
+    if name == "gtts_web":
+        return gtts_web_engine.available()
     if name == "azure":
         return azure_engine.available()
     return False
@@ -183,11 +238,12 @@ def tts_status() -> Dict[str, Any]:
     }
 
 
-def _synth_edge(text: str, lang: Optional[str], output_path: Path, rate: Optional[str]) -> bool:
+def _synth_edge(text: str, lang: Optional[str], output_path: Path, rate: Optional[str],
+                accent: Optional[str] = None) -> bool:
     client = get_edge_tts_client()
     if not client.initialize():
         return False
-    voice = _edge_voice(lang)
+    voice = _edge_voice(lang, accent)
     return client.synthesize(text, voice, output_path, rate=rate)
 
 
@@ -213,12 +269,16 @@ def _synth_azure(text: str, lang: Optional[str], output_path: Path, rate: Option
     return azure_engine.synthesize(text, lang or "en", output_path, rate=rate)
 
 
+# Uniform arity (text, lang, path, rate, accent); accent-blind engines ignore it.
 _SYNTHESIZERS: Dict[str, Callable[..., bool]] = {
     "edge": _synth_edge,
-    "sherpa": lambda t, l, p, r: _synth_offline("sherpa", t, l, p, r),
-    "melotts": lambda t, l, p, r: _synth_offline("melotts", t, l, p, r),
-    "gptsovits": lambda t, l, p, r: _synth_offline("gptsovits", t, l, p, r),
-    "azure": _synth_azure,
+    "streamelements": lambda t, l, p, r, a=None: streamelements_engine.synthesize(
+        t, l or "en", p, accent=a),
+    "sherpa": lambda t, l, p, r, a=None: _synth_offline("sherpa", t, l, p, r),
+    "melotts": lambda t, l, p, r, a=None: _synth_offline("melotts", t, l, p, r),
+    "gptsovits": lambda t, l, p, r, a=None: _synth_offline("gptsovits", t, l, p, r),
+    "gtts_web": lambda t, l, p, r, a=None: gtts_web_engine.synthesize(t, l or "en", p),
+    "azure": lambda t, l, p, r, a=None: _synth_azure(t, l, p, r),
 }
 
 
@@ -227,19 +287,27 @@ def synthesize(
     language: Optional[str],
     output_path: Path,
     rate: Optional[str] = None,
+    accent: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Synthesize ``text`` to ``output_path`` (.mp3) using the best available engine.
 
+    ``accent`` ("us"|"uk"|None) is honored by the accent-aware engines
+    (edge/streamelements); other engines still run — the returned ``accent``
+    is the accent ACTUALLY produced ("us"|"uk"|"unknown"; None on failure) so
+    callers can tag accent_fallback.
+
     Returns:
-        { success, engine, error, tried: [names] }
+        { success, engine, accent, error, tried: [names] }
     """
     cleaned = (text or "").strip()
     if not cleaned:
-        return {"success": False, "engine": None, "error": "empty text", "tried": []}
+        return {"success": False, "engine": None, "accent": None,
+                "error": "empty text", "tried": []}
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    want_accent = _normalize_accent(accent)
 
     tried: List[str] = []
     last_error: Optional[str] = None
@@ -256,7 +324,7 @@ def synthesize(
             continue
         tried.append(name)
         try:
-            ok = synth(cleaned, language, output_path, rate)
+            ok = synth(cleaned, language, output_path, rate, want_accent)
         except Exception as e:  # noqa: BLE001 — fall through to next engine
             last_error = f"{name}: {e}"
             ColorPrint.yellow(f"[tts] {name} failed ({e}); trying next engine")
@@ -264,7 +332,9 @@ def synthesize(
                 _set_edge_cooldown()
             continue
         if ok and output_path.exists() and output_path.stat().st_size > 0:
-            return {"success": True, "engine": name, "error": None, "tried": tried}
+            return {"success": True, "engine": name,
+                    "accent": _engine_actual_accent(name, language, want_accent),
+                    "error": None, "tried": tried}
         last_error = f"{name}: synthesis failed"
         ColorPrint.gray(f"[tts] {name} returned no audio; trying next engine")
         if name == "edge":
@@ -273,6 +343,7 @@ def synthesize(
     return {
         "success": False,
         "engine": None,
+        "accent": None,
         "error": last_error or ("No TTS engine available" if not tried else "All TTS engines failed"),
         "tried": tried,
     }
@@ -284,6 +355,7 @@ def synthesize_engine(
     language: Optional[str],
     output_path: Path,
     rate: Optional[str] = None,
+    accent: Optional[str] = None,
 ) -> bool:
     """Synthesize with ONE named engine (no fallback). For the UI per-engine test.
     Returns True only when the engine actually produced non-empty audio."""
@@ -293,7 +365,7 @@ def synthesize_engine(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        ok = synth((text or "").strip(), language, output_path, rate)
+        ok = synth((text or "").strip(), language, output_path, rate, _normalize_accent(accent))
     except Exception as e:  # noqa: BLE001
         ColorPrint.yellow(f"[tts] {engine} test failed ({e})")
         return False
@@ -301,10 +373,11 @@ def synthesize_engine(
 
 
 def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
-             language: str = "en", rate: Optional[str] = None) -> Dict[str, Any]:
+             language: str = "en", rate: Optional[str] = None,
+             accent: Optional[str] = None) -> Dict[str, Any]:
     """Live synth test for ONE engine (or the best available). Returns
-    {success, engine, latency_ms, bytes, error}. Skips the edge cooldown so the
-    user's explicit test always runs the engine they asked for."""
+    {success, engine, latency_ms, bytes, accent, error}. Skips the edge cooldown
+    so the user's explicit test always runs the engine they asked for."""
     name = engine or best_engine()
     if not name:
         return {"success": False, "engine": None, "latency_ms": 0, "bytes": 0, "error": "no TTS engine available"}
@@ -312,8 +385,9 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
         return {"success": False, "engine": name, "latency_ms": 0, "bytes": 0, "error": f"{name} unavailable"}
     out = Path(os.environ.get("TEMP") or "/tmp") / "pycore_tts_test" / f"{name}.mp3"
     sample = (text or "").strip() or "This is a pycore text to speech test."
+    want_accent = _normalize_accent(accent)
     t0 = time.monotonic()
-    ok = synthesize_engine(name, sample, language, out, rate)
+    ok = synthesize_engine(name, sample, language, out, rate, accent=want_accent)
     latency = round((time.monotonic() - t0) * 1000)
     size = out.stat().st_size if (ok and out.exists()) else 0
     return {
@@ -325,6 +399,8 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
         "path": str(out) if (ok and size > 0) else None,
         "text": sample,
         "language": language,
+        # Accent ACTUALLY produced by this engine ("us"|"uk"|"unknown"; None on failure).
+        "accent": _engine_actual_accent(name, language, want_accent) if ok else None,
         "error": None if ok else f"{name} produced no audio",
     }
 

@@ -8,15 +8,64 @@ const configPath = resolve(__dirname, 'config.cjs');
 const config = require(configPath);
 const CHROME_EXTENSION_KEY = config.CHROME_EXTENSION_KEY;
 
+// Detect the target browser from the wxt CLI args (this file is plain TS run by
+// the wxt CLI, so process.argv is the only reliable pre-config signal). Used to
+// pick the output dir template: external scripts depend on .output/build_extension
+// staying the Chrome output, so Firefox builds go to .output/build_extension_firefox.
+const CLI_ARGS = process.argv;
+const IS_FIREFOX_TARGET = CLI_ARGS.some(
+  (arg, i) =>
+    ((arg === '-b' || arg === '--browser') && CLI_ARGS[i + 1] === 'firefox') ||
+    arg === '-b=firefox' ||
+    arg === '--browser=firefox',
+);
+
+// Chrome permission list (unchanged historical set).
+const CHROME_PERMISSIONS = [
+  'nativeMessaging',
+  'tabs',
+  'activeTab',
+  'scripting',
+  'downloads',
+  'webRequest',
+  'debugger',
+  'history',
+  'bookmarks',
+  'offscreen',
+  'tabCapture',
+  'storage',
+  'alarms',
+  'tabGroups',
+];
+
+// Firefox permission list: Chrome list minus APIs Firefox does not implement
+// (debugger, offscreen, tabCapture, tabGroups) plus the blocking webRequest and
+// StreamFilter (filterResponseData) permissions that replace CDP network capture.
+const FIREFOX_PERMISSIONS = [
+  'nativeMessaging',
+  'tabs',
+  'activeTab',
+  'scripting',
+  'downloads',
+  'webRequest',
+  'webRequestBlocking',
+  'webRequestFilterResponse',
+  'history',
+  'bookmarks',
+  'storage',
+  'alarms',
+];
+
 // Build in current directory: .output/chrome-mv3 (WXT default, no custom outDir)
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
-  // Output the built extension to <mcp-chrome>/.output/build_extension.
-  // outDir is the base dir; the static outDirTemplate replaces the default
+  // Output the built extension to <mcp-chrome>/.output/build_extension (Chrome)
+  // or <mcp-chrome>/.output/build_extension_firefox (Firefox). outDir is the
+  // base dir; the static outDirTemplate replaces the default
   // "{{browser}}-mv{{manifestVersion}}" (chrome-mv3) so there is no extra suffix.
   outDir: resolve(__dirname, '../../.output'),
-  outDirTemplate: 'build_extension',
+  outDirTemplate: IS_FIREFOX_TARGET ? 'build_extension_firefox' : 'build_extension',
   modules: ['@wxt-dev/module-vue'],
   // Disable automatic .env loading since we use config.js
   env: {},
@@ -34,67 +83,87 @@ export default defineConfig({
     //   '--remote-debugging-port=9222',
     // ],
   },
-  manifest: {
-    // Use environment variable for the key, fallback to undefined if not set
-    key: CHROME_EXTENSION_KEY,
-    default_locale: 'en',
-    name: '__MSG_extensionName__',
-    description: '__MSG_extensionDescription__',
-    // https://developer.chrome.com/docs/extensions/reference/manifest/icons
-    // https://developer.chrome.com/docs/extensions/reference/api/action#manifest
-    icons: {
-      16: 'icon/16.png',
-      32: 'icon/32.png',
-      48: 'icon/48.png',
-      96: 'icon/96.png',
-      128: 'icon/128.png',
-    },
-    action: {
-      // Localized via _locales/<code>/messages.json — never hardcode here.
-      // (Without this, newer WXT injects a placeholder "Default Popup Title".)
-      default_title: '__MSG_extensionName__',
-      default_icon: {
+  manifest: ({ browser }) => {
+    // Shared manifest keys, identical on Chrome and Firefox.
+    const shared = {
+      default_locale: 'en',
+      name: '__MSG_extensionName__',
+      description: '__MSG_extensionDescription__',
+      // https://developer.chrome.com/docs/extensions/reference/manifest/icons
+      // https://developer.chrome.com/docs/extensions/reference/api/action#manifest
+      icons: {
         16: 'icon/16.png',
         32: 'icon/32.png',
         48: 'icon/48.png',
+        96: 'icon/96.png',
+        128: 'icon/128.png',
       },
-    },
-    permissions: [
-      'nativeMessaging',
-      'tabs',
-      'activeTab',
-      'scripting',
-      'downloads',
-      'webRequest',
-      'debugger',
-      'history',
-      'bookmarks',
-      'offscreen',
-      'tabCapture',
-      'storage',
-      'alarms',
-      'tabGroups',
-    ],
-    host_permissions: ['<all_urls>'],
-    web_accessible_resources: [
-      {
-        resources: [
-          '/models/*', // Allow access to public/models/ files
-          '/workers/*', // Allow access to workers
-          '/offscreen/audio-recorder.html', // Audio recording offscreen document
+      action: {
+        // Localized via _locales/<code>/messages.json — never hardcode here.
+        // (Without this, newer WXT injects a placeholder "Default Popup Title".)
+        default_title: '__MSG_extensionName__',
+        default_icon: {
+          16: 'icon/16.png',
+          32: 'icon/32.png',
+          48: 'icon/48.png',
+        },
+      },
+      host_permissions: ['<all_urls>'],
+      content_security_policy: {
+        extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
+      },
+    };
+
+    if (browser === 'firefox') {
+      // Firefox: no Chrome key, gecko id required for native messaging
+      // (allowed_extensions in the host manifest must match this id).
+      // COOP/COEP omitted: those manifest keys are Chrome-only; wasm runs
+      // single-threaded on Firefox. No offscreen documents on Firefox, so
+      // audio-recorder.html is not web-accessible there.
+      return {
+        ...shared,
+        browser_specific_settings: {
+          gecko: {
+            id: 'mcp-chrome@core-node',
+            strict_min_version: '128.0',
+          },
+        },
+        permissions: FIREFOX_PERMISSIONS,
+        web_accessible_resources: [
+          {
+            resources: [
+              '/models/*', // Allow access to public/models/ files
+              '/workers/*', // Allow access to workers
+            ],
+            matches: ['<all_urls>'],
+          },
         ],
-        matches: ['<all_urls>'],
+      };
+    }
+
+    // Chrome: unchanged historical manifest.
+    return {
+      // Use environment variable for the key, fallback to undefined if not set
+      key: CHROME_EXTENSION_KEY,
+      ...shared,
+      permissions: CHROME_PERMISSIONS,
+      web_accessible_resources: [
+        {
+          resources: [
+            '/models/*', // Allow access to public/models/ files
+            '/workers/*', // Allow access to workers
+            '/offscreen/audio-recorder.html', // Audio recording offscreen document
+          ],
+          matches: ['<all_urls>'],
+        },
+      ],
+      cross_origin_embedder_policy: {
+        value: 'require-corp',
       },
-    ],
-    cross_origin_embedder_policy: {
-      value: 'require-corp',
-    },
-    cross_origin_opener_policy: {
-      value: 'same-origin',
-    },
-    content_security_policy: {
-      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
-    },
+      cross_origin_opener_policy: {
+        value: 'same-origin',
+      },
+    };
   },
   vite: (env) => ({
     plugins: [

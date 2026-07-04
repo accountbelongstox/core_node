@@ -21,6 +21,7 @@ source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
+source "$PARENT_DIR_LEVEL_2/common/memory_governance.sh"
 
 # Declare variables
 INSTALL_CHROME=$(get_var "INSTALL_CHROME")
@@ -34,6 +35,19 @@ CHROME_DESKTOP_FILE=""
 CHROME_SHORTCUT_CREATED=false
 SYS_ARCH=""
 CHROME_GPU_FLAGS=""  # GPU hardware-acceleration flags baked into the launch wrapper
+# Browser cgroup recipe: the browser is the PRIMARY app, not a 1G-capped helper.
+# MemoryMax=min(62% RAM, 16G); MemoryHigh=73% of Max (~45% RAM reclaim runway,
+# graceful only with zram -- the wrapper collapses High onto Max when swap=0);
+# CPUQuota=nproc*100% (inert; contention is handled by the slice CPUWeight).
+# Old recipe (2G hard + 10% CPU + no swap) measured PSI full ~75% = unusable.
+BROWSER_MEM_PCT="62"
+BROWSER_MEM_CAP_MB="16384"
+BROWSER_HIGH_PCT="73"
+BROWSER_CPU_PCT="100"
+# Memory Saver managed policy (tab discarding under pressure; flags for this are
+# obsolete rollout switches, policy JSON is the stable mechanism).
+CHROME_POLICY_DIR="/etc/opt/chrome/policies/managed"
+CHROME_POLICY_FILE="$CHROME_POLICY_DIR/corenode_memory.json"
 
 # Run all apt/dpkg steps unattended so an idempotent/headless re-run never blocks
 # on a debconf or conffile prompt.
@@ -325,30 +339,59 @@ create_desktop_shortcut() {
     compute_chrome_gpu_flags
 
     # Resource limit: cap the whole Chrome process tree in one cgroup-v2 user scope
-    # and repoint the menu/desktop Exec (id=google-chrome) at the wrapper. Chrome is
-    # PINNED to MemoryMax=2G (override) -- more headroom than the 1G default -- while the
-    # shared 20% ceiling and 10%*nproc CPU still come from app_resource_limit.sh.
+    # and repoint the menu/desktop Exec (id=google-chrome) at the wrapper, using the
+    # browser recipe (BROWSER_* at top of file). Env-pct overrides stay machine-
+    # relative (recomputed at every launch); never use --mem/--high/--cpu here, they
+    # would freeze this machine's absolute numbers into the wrapper.
     # --pre injects the GPU flags ahead of the .desktop field codes. Idempotent.
-    APP_MEM_CAP_MB=2048 apply_app_resource_limit \
+    APP_MEM_PCT="$BROWSER_MEM_PCT" APP_MEM_CAP_MB="$BROWSER_MEM_CAP_MB" \
+    APP_HIGH_PCT="$BROWSER_HIGH_PCT" APP_CPU_PCT="$BROWSER_CPU_PCT" \
+    apply_app_resource_limit \
         --id google-chrome --exec "$CHROME_BIN_PATH" \
         --pre "$CHROME_GPU_FLAGS" \
         --desktop all --field "%U"
 }
 
-# Function to create symlink in /usr/local/bin
+# Function to create/repair the symlink in /usr/local/bin. A pre-existing link
+# is replaced whenever its target differs from the real Chrome binary -- this
+# covers DANGLING links too (e.g. a stale link to a since-removed /usr/bin/chromium,
+# which `[ ! -L ]` alone would never repair).
 create_system_symlink() {
+    local symlink_path="/usr/local/bin/google-chrome"
+    local current_target=""
+
     if [ -z "$CHROME_BIN_PATH" ] || [ ! -f "$CHROME_BIN_PATH" ]; then
         echo "[$SCRIPT_INDEX] Chrome binary not found, cannot create symlink"
         return 1
     fi
-    
-    local symlink_path="/usr/local/bin/google-chrome"
-    
-    if [ ! -L "$symlink_path" ]; then
-        $USE_SUDO ln -sf "$CHROME_BIN_PATH" "$symlink_path"
-        echo "[$SCRIPT_INDEX] Created system symlink: $symlink_path -> $CHROME_BIN_PATH"
+
+    if [ -L "$symlink_path" ]; then
+        current_target="$(readlink "$symlink_path" 2>/dev/null)"
+    fi
+    if [ "$current_target" = "$CHROME_BIN_PATH" ]; then
+        echo "[$SCRIPT_INDEX] System symlink already correct: $symlink_path"
     else
-        echo "[$SCRIPT_INDEX] System symlink already exists: $symlink_path"
+        $USE_SUDO ln -sfn "$CHROME_BIN_PATH" "$symlink_path"
+        echo "[$SCRIPT_INDEX] System symlink set: $symlink_path -> $CHROME_BIN_PATH (was: ${current_target:-absent})"
+    fi
+}
+
+# Memory Saver via managed policy: Chrome discards background tabs under SYSTEM
+# memory pressure (it does not see its cgroup cap, so this complements -- not
+# replaces -- the scope limits). Side effect: chrome://settings shows
+# "Managed by your organization". Idempotent content-compare write.
+configure_chrome_memory_policy() {
+    local desired
+    desired='{
+  "HighEfficiencyModeEnabled": true,
+  "MemorySaverModeSavings": 2
+}'
+    $USE_SUDO mkdir -p "$CHROME_POLICY_DIR" 2>/dev/null || true
+    if [ ! -f "$CHROME_POLICY_FILE" ] || [ "$(cat "$CHROME_POLICY_FILE" 2>/dev/null)" != "$desired" ]; then
+        printf '%s' "$desired" | $USE_SUDO tee "$CHROME_POLICY_FILE" >/dev/null
+        echo "[$SCRIPT_INDEX] Wrote Memory Saver policy: $CHROME_POLICY_FILE (Chrome will show 'Managed by your organization')"
+    else
+        echo "[$SCRIPT_INDEX] Memory Saver policy already set: $CHROME_POLICY_FILE"
     fi
 }
 
@@ -415,8 +458,10 @@ if [ "$INSTALL_CHROME" = "false" ]; then
     # Chrome, so a Chromium-only box must still be cleaned here.
     remove_chromium
     
-    # Clean up any remaining Chrome-related files
+    # Clean up any remaining Chrome-related files (incl. the managed memory
+    # policy, or an unmanaged reinstall would still show "Managed by your organization")
     $USE_SUDO rm -f "/usr/local/bin/google-chrome" 2>/dev/null || true
+    $USE_SUDO rm -f "$CHROME_POLICY_FILE" 2>/dev/null || true
     remove_desktop_shortcut_from_desktop_shortcut_manager --id google-chrome --menu --desktop all
     
     # Clear stored variables
@@ -444,6 +489,17 @@ get_chrome_install_directory
 
 # Kill hanging processes if any
 kill_chrome_processes
+
+# Memory governance prerequisites: the browser caps are only usable when reclaim
+# has a swap destination (zram); without swap the launch wrapper degrades to
+# hard-OOM-only mode (MemoryHigh=MemoryMax). systemd-oomd adds the PSI backstop
+# that kills a bloated browser scope instead of freezing the whole box.
+if ! ensure_zram_swap; then
+    echo "[$SCRIPT_INDEX] [WARN] NO ACTIVE SWAP: memory caps without swap cause reclaim thrash (browser freezes at the cap);"
+    echo "[$SCRIPT_INDEX] [WARN] the launch wrapper falls back to hard-OOM-only mode until swap/zram is enabled."
+fi
+ensure_systemd_oomd
+configure_chrome_memory_policy
 
 # Check if Chrome is already installed
 if check_chrome_installation; then
@@ -536,6 +592,13 @@ if check_chrome_installation; then
     echo "[$SCRIPT_INDEX] Chrome is installed and working"
     echo "[$SCRIPT_INDEX] Binary path: $CHROME_BIN_PATH"
     echo "[$SCRIPT_INDEX] Version: $CHROME_VERSION"
+    echo "[$SCRIPT_INDEX] Swap (required for usable memory caps): $(swapon --show=NAME,SIZE --noheadings 2>/dev/null | tr '\n' ' ')"
+    # Kali is a Debian derivative outside Google's supported-distro list: Chrome
+    # works normally there; lag/memory behavior is governed by the resource
+    # wrapper + swap above, NOT by the distro.
+    if grep -q '^ID=kali' /etc/os-release 2>/dev/null; then
+        echo "[$SCRIPT_INDEX] Note: Kali is not in Google's official support list (Debian 10+/Ubuntu 18.04+); Chrome runs as on Debian."
+    fi
 else
     echo "[$SCRIPT_INDEX] Chrome installation failed"
 fi

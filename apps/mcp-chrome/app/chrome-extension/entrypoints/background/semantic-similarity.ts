@@ -16,6 +16,19 @@ interface ModelConfig {
 let currentBackgroundModelConfig: ModelConfig | null = null;
 
 /**
+ * Send an engine message to the offscreen host.
+ * Chrome: routed to the offscreen document via runtime messaging.
+ * Firefox: handled inline in the background event page (no offscreen API).
+ */
+async function sendToOffscreenHost(message: any): Promise<any> {
+  if (import.meta.env.FIREFOX) {
+    const { dispatchInlineSimilarityMessage } = await import('@/utils/inline-similarity-host');
+    return dispatchInlineSimilarityMessage(message);
+  }
+  return chrome.runtime.sendMessage(message);
+}
+
+/**
  * Initialize semantic engine only if model cache exists
  * This is called during plugin startup to avoid downloading models unnecessarily
  */
@@ -59,7 +72,7 @@ export async function initializeDefaultSemanticEngine(): Promise<void> {
 
     await OffscreenManager.getInstance().ensureOffscreenDocument();
 
-    const response = await chrome.runtime.sendMessage({
+    const response = await sendToOffscreenHost({
       target: 'offscreen',
       type: OFFSCREEN_MESSAGE_TYPES.SIMILARITY_ENGINE_INIT,
       config: {
@@ -162,7 +175,7 @@ export async function handleModelSwitch(
       return { success: false, error: errorMessage };
     }
 
-    const response = await chrome.runtime.sendMessage({
+    const response = await sendToOffscreenHost({
       target: 'offscreen',
       type: OFFSCREEN_MESSAGE_TYPES.SIMILARITY_ENGINE_INIT,
       config: {

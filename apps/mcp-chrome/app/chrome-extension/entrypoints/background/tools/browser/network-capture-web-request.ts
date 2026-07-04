@@ -2,6 +2,7 @@ import { createErrorResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { LIMITS, NETWORK_FILTERS } from '@/common/constants';
+import { firefoxNetworkBodyCapture } from './network-capture-body-firefox';
 
 // Static resource file extensions
 const STATIC_RESOURCE_EXTENSIONS = [
@@ -67,6 +68,7 @@ interface NetworkRequestInfo {
   responseSize?: number;
   responseType?: string;
   responseBody?: string;
+  base64Encoded?: boolean; // For responseBody (Firefox StreamFilter capture)
   errorText?: string;
   specificRequestHeaders?: Record<string, string>;
   specificResponseHeaders?: Record<string, string>;
@@ -341,6 +343,9 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
     this.captureData.delete(tabId);
     this.requestCounters.delete(tabId);
 
+    // On Firefox, release StreamFilter body capture resources
+    if (import.meta.env.FIREFOX) firefoxNetworkBodyCapture.endSession(tabId);
+
     console.log(`NetworkCaptureV2: Cleaned up all resources for tab ${tabId}`);
   }
 
@@ -592,6 +597,9 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
       // Initialize request counter
       this.requestCounters.set(tabId, 0);
 
+      // On Firefox, buffer response bodies via StreamFilter for this session
+      if (import.meta.env.FIREFOX) firefoxNetworkBodyCapture.startSession(tabId, includeStatic);
+
       // Set up listeners
       this.setupListeners();
 
@@ -642,6 +650,9 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
     try {
       // Record end time
       captureInfo.endTime = Date.now();
+
+      // On Firefox, merge buffered response bodies before result processing
+      if (import.meta.env.FIREFOX) firefoxNetworkBodyCapture.attachBodies(tabId, captureInfo.requests);
 
       // Extract common request and response headers
       const requestsArray = Object.values(captureInfo.requests);

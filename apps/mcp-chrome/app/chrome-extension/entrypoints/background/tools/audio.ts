@@ -1,6 +1,11 @@
 // Audio Recording Tool Handlers
 // Manages audio recording via offscreen documents and tab capture
 
+// Firefox provides neither chrome.tabCapture nor offscreen documents, so the
+// whole audio capture feature is unavailable there
+export const FIREFOX_AUDIO_UNSUPPORTED_ERROR =
+  'Audio recording is not supported on Firefox: chrome.tabCapture and offscreen documents are unavailable.';
+
 interface AudioConfig {
   tabId?: number;
   includeMicrophone?: boolean;
@@ -65,6 +70,10 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
   data?: any;
 }> {
   try {
+    if (import.meta.env.FIREFOX) {
+      return { success: false, error: FIREFOX_AUDIO_UNSUPPORTED_ERROR };
+    }
+
     console.log('[Audio Tools] Starting audio recording with params:', params);
 
     // Check if already recording
@@ -210,6 +219,10 @@ export async function handleAudioStop(params?: {
   data?: any;
 }> {
   try {
+    if (import.meta.env.FIREFOX) {
+      return { success: false, error: FIREFOX_AUDIO_UNSUPPORTED_ERROR };
+    }
+
     console.log('[Audio Tools] Stopping audio recording');
 
     if (!currentRecordingStatus.isRecording) {
@@ -416,6 +429,11 @@ export function setupAudioStatusListener() {
  * Cleanup offscreen document on extension shutdown
  */
 export async function cleanupAudioResources() {
+  if (import.meta.env.FIREFOX) {
+    // No offscreen documents exist on Firefox; nothing to clean up
+    return;
+  }
+
   try {
     const hasOffscreen = await chrome.offscreen.hasDocument();
     if (hasOffscreen) {

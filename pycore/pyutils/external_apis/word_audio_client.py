@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Word pronunciation audio client (Free Dictionary API + Cambridge Dictionary + Forvo).
+Word pronunciation audio client (Free Dictionary API + Wikimedia Commons +
+Cambridge Dictionary + Forvo).
 
 Real (non-synthetic) pronunciation source chain for the "word_audio" assist lane.
 When a word's static pronunciation audio is missing, the caller (translation
@@ -12,14 +13,25 @@ returns None.
 Approved sources, tried in priority order (see find_pronunciation):
   1. Free Dictionary API (https://api.dictionaryapi.dev) — free, keyless,
      official public API. English only.
-  2. Cambridge Dictionary — plain HTTP GET of the public dictionary page +
+  2. Wikimedia Commons — community native-speaker recordings under the stable
+     naming scheme ``File:En-us-<word>.ogg`` / ``File:En-uk-<word>.ogg``,
+     resolved to the real upload URL via the official commons API. English
+     only; the accent is exact by construction.
+  3. Cambridge Dictionary — plain HTTP GET of the public dictionary page +
      HTML parse of the official ``<audio><source>`` pronunciation mp3 URL
      (normal browser User-Agent, nothing more evasive). English only.
-  3. Forvo — OFFICIAL PAID API ONLY (https://apifree.forvo.com), gated behind a
+  4. Forvo — OFFICIAL PAID API ONLY (https://apifree.forvo.com), gated behind a
      FORVO_API_KEY secret. Multi-language. If no key is configured, Forvo is
      silently skipped with NO network call — there is intentionally no
      scraping / anti-bot-bypass fallback for Forvo's free web tier; that tier
      is protected by anti-scraping checks and must not be circumvented.
+
+Accent handling (find_pronunciation ``accent`` = "us"|"uk"|None): when an
+accent is requested the chain runs TWO passes — pass 1 accepts ONLY the
+preferred accent across every source, pass 2 accepts any accent — so a
+matching-accent recording from a lower-priority source beats a wrong-accent
+one from a higher-priority source. Every result carries the accent ACTUALLY
+obtained ("us"|"uk"|"unknown") as top-level ``accent`` and ``meta.region``.
 
 Explicitly EXCLUDED by design (do not add): YouGlish (video-embed widget, no
 downloadable audio file, ToS forbids downloading — no compliant way to produce
@@ -62,6 +74,11 @@ _HTTP_TIMEOUT: Tuple[int, int] = (8, 25)
 
 FREE_DICTIONARY_API_BASE = "https://api.dictionaryapi.dev/api/v2/entries/en"
 
+# Official MediaWiki API for Wikimedia Commons (file-title -> upload URL).
+WIKIMEDIA_COMMONS_API = "https://commons.wikimedia.org/w/api.php"
+# Wikimedia API etiquette asks for a descriptive User-Agent.
+WIKIMEDIA_USER_AGENT = "core_node-word-audio/1.0 (local pronunciation cache)"
+
 CAMBRIDGE_ORIGIN = "https://dictionary.cambridge.org"
 CAMBRIDGE_DICTIONARY_BASE = CAMBRIDGE_ORIGIN + "/dictionary/english"
 # A normal browser User-Agent — this is a plain HTTP GET + HTML parse of a
@@ -93,13 +110,25 @@ def _is_english(lang: str) -> bool:
     return bool(codes) and codes[0] == "en"
 
 
+def _normalize_accent(accent: Optional[str]) -> Optional[str]:
+    """Normalize an accent hint to the wire values "us"|"uk"; anything else -> None."""
+    value = (accent or "").strip().lower()
+    return value if value in ("us", "uk") else None
+
+
 # --------------------------------------------------------------------------- #
 # audio download                                                              #
 # --------------------------------------------------------------------------- #
 def _download_audio_bytes(
-    url: str, headers: Optional[Dict[str, str]] = None
+    url: str,
+    headers: Optional[Dict[str, str]] = None,
+    fallback_mime: str = "audio/mpeg",
 ) -> Tuple[bytes, str]:
-    """Download an audio URL -> (raw_bytes, mime). ``(b"", "")`` on any failure."""
+    """Download an audio URL -> (raw_bytes, mime). ``(b"", "")`` on any failure.
+
+    ``fallback_mime`` replaces a missing / non-audio Content-Type (e.g.
+    upload.wikimedia.org serves .ogg files as ``application/ogg``).
+    """
     if not url:
         return b"", ""
     try:
@@ -107,9 +136,9 @@ def _download_audio_bytes(
         resp = requests.get(url, headers=headers or {}, timeout=_HTTP_TIMEOUT)
         if resp.status_code != 200 or not resp.content:
             return b"", ""
-        mime = (resp.headers.get("Content-Type") or "audio/mpeg").split(";")[0].strip()
+        mime = (resp.headers.get("Content-Type") or fallback_mime).split(";")[0].strip()
         if not mime.startswith("audio/"):
-            mime = "audio/mpeg"
+            mime = fallback_mime
         return resp.content, mime
     except Exception as exc:  # noqa: BLE001 - best-effort
         ColorPrint.yellow(f"[WordAudio] Audio download failed ({exc})")
@@ -119,13 +148,31 @@ def _download_audio_bytes(
 # --------------------------------------------------------------------------- #
 # 1. Free Dictionary API                                                      #
 # --------------------------------------------------------------------------- #
-def _free_dictionary_api(word: str, lang: str) -> Optional[Dict[str, Any]]:
-    """Query api.dictionaryapi.dev and download the first usable pronunciation.
+def _fd_url_accent(url: str) -> str:
+    """Accent encoded in a Free Dictionary audio URL ("us"|"uk"|"" untagged).
+
+    Their pronunciation files end in ``-us.mp3`` / ``-uk.mp3`` (e.g.
+    ``.../media/pronunciations/en/hello-us.mp3``); anything else is untagged.
+    """
+    low = (url or "").lower()
+    if low.endswith("-us.mp3"):
+        return "us"
+    if low.endswith("-uk.mp3"):
+        return "uk"
+    return ""
+
+
+def _free_dictionary_api(
+    word: str, lang: str, accent: Optional[str] = None, strict: bool = False
+) -> Optional[Dict[str, Any]]:
+    """Query api.dictionaryapi.dev and download the best usable pronunciation.
 
     English only. Verified live response shape (2026-07-03):
     ``[ { "word", "phonetics":[ {"text","audio","sourceUrl","license"}, ... ],
     "meanings":[...] }, ... ]`` — some ``phonetics`` entries have an empty
-    ``"audio"``; the first non-empty one is used.
+    ``"audio"``. A candidate whose URL matches the preferred ``accent``
+    (``-us.mp3``/``-uk.mp3`` suffix) wins; otherwise the first non-empty one is
+    used, unless ``strict`` (preferred-accent-only pass) which returns None.
     """
     if not _is_english(lang):
         return None
@@ -140,21 +187,24 @@ def _free_dictionary_api(word: str, lang: str) -> Optional[Dict[str, Any]]:
         ColorPrint.yellow(f"[WordAudio] Free Dictionary API lookup failed ({exc})")
         return None
 
-    audio_url = ""
-    phonetic_text = ""
+    candidates: List[Tuple[str, str]] = []  # (audio_url, phonetic_text)
     for entry in entries if isinstance(entries, list) else []:
         for phon in (entry.get("phonetics") or []) if isinstance(entry, dict) else []:
             candidate = (phon.get("audio") or "").strip()
             if candidate:
-                audio_url = candidate
-                phonetic_text = phon.get("text") or ""
-                break
-        if audio_url:
-            break
-    if not audio_url:
+                if candidate.startswith("//"):
+                    candidate = "https:" + candidate
+                candidates.append((candidate, phon.get("text") or ""))
+    picked = next(
+        ((u, t) for u, t in candidates if accent and _fd_url_accent(u) == accent), None)
+    if picked is None:
+        if strict:
+            return None
+        picked = candidates[0] if candidates else None
+    if picked is None:
         return None
-    if audio_url.startswith("//"):
-        audio_url = "https:" + audio_url
+    audio_url, phonetic_text = picked
+    actual_accent = _fd_url_accent(audio_url) or "unknown"
 
     audio_bytes, mime = _download_audio_bytes(audio_url)
     if not audio_bytes:
@@ -163,20 +213,109 @@ def _free_dictionary_api(word: str, lang: str) -> Optional[Dict[str, Any]]:
         "provider": "free_dictionary_api",
         "mime": mime,
         "audio_bytes": audio_bytes,
+        "accent": actual_accent,
         "source_id": f"free_dictionary_api:en:{word.lower()}",
         "meta": {
             "word": word,
             "language": "en",
             "audio_url": audio_url,
             "phonetic_text": phonetic_text,
+            "region": actual_accent,
         },
     }
 
 
 # --------------------------------------------------------------------------- #
-# 2. Cambridge Dictionary                                                     #
+# 2. Wikimedia Commons                                                        #
 # --------------------------------------------------------------------------- #
-def _cambridge_dictionary(word: str, lang: str) -> Optional[Dict[str, Any]]:
+def _wikimedia_file_url(title: str) -> str:
+    """Resolve a Commons file title to its direct upload URL via the official
+    API (``action=query&prop=imageinfo``). "" when the file does not exist.
+
+    A missing title yields a page with no ``imageinfo`` (pageid -1 + "missing")
+    — treated as a clean miss, no error logged.
+    """
+    try:
+        requests = get_third_package_requests()
+        resp = requests.get(
+            WIKIMEDIA_COMMONS_API,
+            params={
+                "action": "query",
+                "titles": title,
+                "prop": "imageinfo",
+                "iiprop": "url",
+                "format": "json",
+            },
+            headers={"User-Agent": WIKIMEDIA_USER_AGENT},
+            timeout=_HTTP_TIMEOUT,
+        )
+        if resp.status_code != 200:
+            return ""
+        pages = ((resp.json() or {}).get("query") or {}).get("pages") or {}
+    except Exception as exc:  # noqa: BLE001 - best-effort
+        ColorPrint.yellow(f"[WordAudio] Wikimedia Commons lookup failed ({exc})")
+        return ""
+    for page in pages.values() if isinstance(pages, dict) else []:
+        infos = (page.get("imageinfo") or []) if isinstance(page, dict) else []
+        if infos and isinstance(infos[0], dict) and (infos[0].get("url") or "").strip():
+            return infos[0]["url"]
+    return ""
+
+
+def _wikimedia_commons(
+    word: str, lang: str, accent: Optional[str] = None, strict: bool = False
+) -> Optional[Dict[str, Any]]:
+    """Community native-speaker recordings on Wikimedia Commons.
+
+    English only. Commons hosts pronunciation files under the stable naming
+    scheme ``File:En-us-<word>.ogg`` / ``File:En-uk-<word>.ogg`` — the accent
+    is exact by construction. The preferred accent is tried first; ``strict``
+    (preferred-accent-only pass) limits the lookup to it.
+    """
+    if not _is_english(lang):
+        return None
+    slug = (word or "").strip().lower().replace(" ", "_")
+    if not slug:
+        return None
+    if accent:
+        order = [accent] if strict else [accent, ("uk" if accent == "us" else "us")]
+    else:
+        order = ["us", "uk"]
+    for acc in order:
+        title = f"File:En-{acc}-{slug}.ogg"
+        file_url = _wikimedia_file_url(title)
+        if not file_url:
+            continue
+        audio_bytes, mime = _download_audio_bytes(
+            file_url,
+            headers={"User-Agent": WIKIMEDIA_USER_AGENT},
+            fallback_mime="audio/ogg",
+        )
+        if not audio_bytes:
+            continue
+        return {
+            "provider": "wikimedia_commons",
+            "mime": mime,
+            "audio_bytes": audio_bytes,
+            "accent": acc,
+            "source_id": f"wikimedia_commons:en-{acc}:{slug}",
+            "meta": {
+                "word": word,
+                "language": "en",
+                "audio_url": file_url,
+                "file_title": title,
+                "region": acc,
+            },
+        }
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# 3. Cambridge Dictionary                                                     #
+# --------------------------------------------------------------------------- #
+def _cambridge_dictionary(
+    word: str, lang: str, accent: Optional[str] = None, strict: bool = False
+) -> Optional[Dict[str, Any]]:
     """Fetch the public Cambridge Dictionary page and extract the official
     pronunciation ``<audio><source>`` mp3 URL, then download it.
 
@@ -184,10 +323,12 @@ def _cambridge_dictionary(word: str, lang: str) -> Optional[Dict[str, Any]]:
     lives in ``<span class="uk dpron-i">`` / ``<span class="us dpron-i">``,
     containing a hidden ``<audio>`` with
     ``<source type="audio/mpeg" src="/media/english/...mp3"/>`` (relative URL,
-    resolved against CAMBRIDGE_ORIGIN). UK is preferred, then US, then
-    whichever pronunciation block appears first on the page. A missing word
-    redirects (302) or renders a page with no ``dpron-i`` element — either way
-    this returns None.
+    resolved against CAMBRIDGE_ORIGIN). The REQUESTED region span is preferred
+    (legacy order without an accent stays UK-first), then the other region,
+    then whichever pronunciation block appears first on the page — unless
+    ``strict`` (preferred-accent-only pass) which stops at the requested
+    region. A missing word redirects (302) or renders a page with no
+    ``dpron-i`` element — either way this returns None.
     """
     if not _is_english(lang):
         return None
@@ -207,11 +348,21 @@ def _cambridge_dictionary(word: str, lang: str) -> Optional[Dict[str, Any]]:
     try:
         BeautifulSoup = get_third_package_BeautifulSoup()
         soup = BeautifulSoup(html, "html.parser")
-        pron_span = (
-            soup.select_one("span.uk.dpron-i")
-            or soup.select_one("span.us.dpron-i")
-            or soup.select_one("span.dpron-i")
-        )
+        # Requested region first; the generic dpron-i fallback only applies in
+        # the any-accent pass (strict keeps the preferred-accent guarantee).
+        if accent == "us":
+            selectors = ["span.us.dpron-i", "span.uk.dpron-i"]
+        else:
+            selectors = ["span.uk.dpron-i", "span.us.dpron-i"]
+        if strict and accent:
+            selectors = selectors[:1]
+        else:
+            selectors.append("span.dpron-i")
+        pron_span = None
+        for selector in selectors:
+            pron_span = soup.select_one(selector)
+            if pron_span:
+                break
         if not pron_span:
             return None
         source_tag = (
@@ -223,7 +374,7 @@ def _cambridge_dictionary(word: str, lang: str) -> Optional[Dict[str, Any]]:
             return None
         mp3_url = urljoin(CAMBRIDGE_ORIGIN, src)
         classes = pron_span.get("class") or []
-        region = "uk" if "uk" in classes else ("us" if "us" in classes else "")
+        region = "uk" if "uk" in classes else ("us" if "us" in classes else "unknown")
     except Exception as exc:  # noqa: BLE001 - best-effort
         ColorPrint.yellow(f"[WordAudio] Cambridge Dictionary HTML parse failed ({exc})")
         return None
@@ -236,6 +387,7 @@ def _cambridge_dictionary(word: str, lang: str) -> Optional[Dict[str, Any]]:
         "provider": "cambridge_dictionary",
         "mime": mime,
         "audio_bytes": audio_bytes,
+        "accent": region,
         "source_id": f"cambridge_dictionary:en:{word.lower()}",
         "meta": {
             "word": word,
@@ -248,7 +400,7 @@ def _cambridge_dictionary(word: str, lang: str) -> Optional[Dict[str, Any]]:
 
 
 # --------------------------------------------------------------------------- #
-# 3. Forvo (official paid API only)                                           #
+# 4. Forvo (official paid API only)                                           #
 # --------------------------------------------------------------------------- #
 # Forvo answers HTTP 401/403 for an invalid/expired key. That never recovers
 # within a run, yet a batch may look up many words — a single auth failure
@@ -268,7 +420,9 @@ def _forvo_vote_score(item: Dict[str, Any]) -> int:
         return 0
 
 
-def _forvo(word: str, lang: str) -> Optional[Dict[str, Any]]:
+def _forvo(
+    word: str, lang: str, accent: Optional[str] = None, strict: bool = False
+) -> Optional[Dict[str, Any]]:
     """Query Forvo's official paid API (word-pronunciations) and download the
     highest-rated pronunciation.
 
@@ -283,8 +437,14 @@ def _forvo(word: str, lang: str) -> Optional[Dict[str, Any]]:
     ``order=rate-desc`` asks Forvo to rank by vote/quality server-side; the
     highest-scoring candidate with a usable ``pathmp3`` is picked client-side
     as a defensive re-check.
+
+    Forvo items carry a speaker country, not a guaranteed us/uk accent, so
+    ``strict`` (preferred-accent-only pass) skips Forvo entirely and the
+    result accent is always "unknown".
     """
     global _forvo_disabled_reason
+    if strict:
+        return None
     if _forvo_disabled_reason is not None:
         return None
 
@@ -334,6 +494,7 @@ def _forvo(word: str, lang: str) -> Optional[Dict[str, Any]]:
         "provider": "forvo",
         "mime": mime,
         "audio_bytes": audio_bytes,
+        "accent": "unknown",
         "source_id": f"forvo:{best.get('id') or word.lower()}",
         "meta": {
             "word": word,
@@ -350,13 +511,31 @@ def _forvo(word: str, lang: str) -> Optional[Dict[str, Any]]:
 # --------------------------------------------------------------------------- #
 # find_pronunciation                                                          #
 # --------------------------------------------------------------------------- #
-def find_pronunciation(word: str, lang: str) -> Optional[Dict[str, Any]]:
+# Source chain in priority order; every source shares the same never-raise
+# signature (word, lang, accent, strict).
+_SOURCE_CHAIN = (
+    _free_dictionary_api,
+    _wikimedia_commons,
+    _cambridge_dictionary,
+    _forvo,
+)
+
+
+def find_pronunciation(
+    word: str, lang: str, accent: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """Find a REAL (non-synthetic) pronunciation for ``word`` in ``lang``.
 
-    Tries, in order: Free Dictionary API -> Cambridge Dictionary -> Forvo.
-    Stops at the first success. Returns
-    ``{provider, mime, audio_bytes, source_id, meta}`` or None when no source
-    produced usable audio (caller should fall back to TTS synthesis).
+    Tries, in order: Free Dictionary API -> Wikimedia Commons -> Cambridge
+    Dictionary -> Forvo. ``accent`` ("us"|"uk"|None) selects the preferred
+    accent; when set the chain runs TWO passes — pass 1 accepts ONLY the
+    preferred accent across every source, pass 2 accepts any accent — so a
+    matching-accent recording from a lower-priority source beats a
+    wrong-accent one from a higher-priority source. Stops at the first
+    success. Returns ``{provider, mime, audio_bytes, accent, source_id, meta}``
+    — top-level ``accent`` (and ``meta.region``) is the accent ACTUALLY
+    obtained ("us"|"uk"|"unknown") — or None when no source produced usable
+    audio (caller should fall back to TTS synthesis).
 
     NEVER raises — any failure logs via ColorPrint and returns None.
     """
@@ -365,27 +544,17 @@ def find_pronunciation(word: str, lang: str) -> Optional[Dict[str, Any]]:
         if not clean_word:
             return None
         language = (lang or "en").strip().lower() or "en"
+        preferred = _normalize_accent(accent)
 
-        result = _free_dictionary_api(clean_word, language)
-        if result:
-            ColorPrint.green(
-                f"[WordAudio] Free Dictionary API pronunciation for '{clean_word}' "
-                f"-> {result['source_id']}")
-            return result
-
-        result = _cambridge_dictionary(clean_word, language)
-        if result:
-            ColorPrint.green(
-                f"[WordAudio] Cambridge Dictionary pronunciation for '{clean_word}' "
-                f"-> {result['source_id']}")
-            return result
-
-        result = _forvo(clean_word, language)
-        if result:
-            ColorPrint.green(
-                f"[WordAudio] Forvo pronunciation for '{clean_word}' "
-                f"-> {result['source_id']}")
-            return result
+        for strict in ((True, False) if preferred else (False,)):
+            for source in _SOURCE_CHAIN:
+                result = source(clean_word, language, preferred, strict)
+                if result:
+                    ColorPrint.green(
+                        f"[WordAudio] {result['provider']} pronunciation for "
+                        f"'{clean_word}' (accent={result.get('accent') or 'unknown'}) "
+                        f"-> {result['source_id']}")
+                    return result
 
         ColorPrint.blue(
             f"[WordAudio] No real pronunciation source found for '{clean_word}' "

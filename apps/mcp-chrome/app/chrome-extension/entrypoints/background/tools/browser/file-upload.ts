@@ -1,6 +1,9 @@
 import { createErrorResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { prepareFirefoxUploadFile } from './file-upload-firefox';
+
+const FILE_UPLOAD_HELPER_SCRIPT = 'inject-scripts/file-upload-helper.js';
 
 interface FileUploadToolParams {
   selector: string; // CSS selector for the file input element
@@ -46,6 +49,12 @@ class FileUploadTool extends BaseBrowserToolExecutor {
       return createErrorResponse(
         'One of filePath, fileUrl, or base64Data must be provided',
       );
+    }
+
+    // Firefox has no chrome.debugger/CDP: materialize the file bytes in the
+    // background and set input.files from a content script instead.
+    if (import.meta.env.FIREFOX) {
+      return this.executeFirefox(args);
     }
 
     let tabId: number | undefined;
@@ -244,6 +253,64 @@ class FileUploadTool extends BaseBrowserToolExecutor {
    */
   private cleanupDebugger(tabId: number): void {
     this.activeDebuggers.delete(tabId);
+  }
+
+  /**
+   * Firefox implementation: no CDP available. The file bytes are obtained in
+   * the background context (native host chunked read for local paths, fetch
+   * for URLs, direct decode for base64) and handed to an ISOLATED-world
+   * content script that builds File objects via DataTransfer and assigns them
+   * to the target input element, then dispatches input/change events.
+   */
+  private async executeFirefox(args: FileUploadToolParams): Promise<ToolResult> {
+    const { selector, filePath, fileUrl, base64Data, fileName } = args;
+
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tabs[0]?.id) {
+        return createErrorResponse('No active tab found');
+      }
+      const tabId = tabs[0].id;
+
+      const file = await prepareFirefoxUploadFile({ filePath, fileUrl, base64Data, fileName });
+
+      await this.injectContentScript(tabId, [FILE_UPLOAD_HELPER_SCRIPT]);
+
+      const result = await this.sendMessageToTab(tabId, {
+        action: 'setFileInputFiles',
+        selector: selector,
+        files: [
+          {
+            name: file.name,
+            type: file.type,
+            lastModified: Date.now(),
+            bytes: file.bytes,
+          },
+        ],
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: 'File(s) uploaded successfully',
+              files: [file.name],
+              selector: selector,
+              fileCount: result?.fileCount ?? 1,
+              size: file.size,
+            }),
+          },
+        ],
+        isError: false,
+      };
+    } catch (error) {
+      console.error('Error in Firefox file upload operation:', error);
+      return createErrorResponse(
+        `Error uploading file: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**

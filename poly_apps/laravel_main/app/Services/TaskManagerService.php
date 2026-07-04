@@ -36,6 +36,21 @@ class TaskManagerService
     private const TRANSACTION_ATTEMPTS = 3;
 
     /**
+     * Short-TTL cache for the hot, unbounded status tally (getTaskStats). The
+     * overview shell poll and /api/task/stats both hit it every ~5s; a 3s TTL
+     * collapses that to at most one full-table GROUP BY per interval regardless
+     * of how many pollers/tabs are open, which is load-bearing on the
+     * single-worker php -S runtime.
+     */
+    private const STATS_CACHE_KEY = 'globaltasks:status_counts';
+    private const STATS_CACHE_TTL_SECONDS = 3;
+    // Use the FILE store, not the configured default: CACHE_STORE=database here
+    // but no migration provisions the `cache` table, so the database store may
+    // not exist. The file store is always available and persists across the
+    // sequential php -S requests (unlike the per-bootstrap `array` store).
+    private const STATS_CACHE_STORE = 'file';
+
+    /**
      * Shared audio in-flight lock (contract item 5). A word+language pair is
      * claimed before BOTH the word_audio/remote_audio global-task write-back AND
      * the tts/worker/claim dictionary-column path, so Path A (global tasks) and
@@ -1223,28 +1238,49 @@ class TaskManagerService
      */
     public function getTaskStats(): array
     {
-        // ONE grouped query instead of seven full-table counts; the response
-        // covers the complete status vocabulary (incl. cancelled) so every
-        // consumer (dashboard, pycore monitor) sees the same set.
-        $grouped = GlobalTask::query()
-            ->groupBy('status')
-            ->selectRaw('status, count(*) as total')
-            ->pluck('total', 'status');
+        // This is an unbounded full-table GROUP BY (no WHERE) over global_tasks,
+        // which grows without bound as completed/failed/cancelled rows pile up.
+        // It is polled hot: the Task Center shell (/api/task-center/overview) and
+        // /api/task/stats both call it every ~5s. On the single-worker php -S
+        // runtime one such scan serializes ahead of EVERY other request (even the
+        // DB-free /api/health), so it is memoized for a few seconds — concurrent
+        // pollers then share ONE scan and read a cheap single-row cache entry
+        // instead. Invalidated implicitly by the short TTL (see STATS_CACHE_KEY /
+        // forgetTaskStatsCache() for explicit busting on state transitions).
+        return Cache::store(self::STATS_CACHE_STORE)->remember(self::STATS_CACHE_KEY, self::STATS_CACHE_TTL_SECONDS, static function (): array {
+            // ONE grouped query instead of seven full-table counts; the response
+            // covers the complete status vocabulary (incl. cancelled) so every
+            // consumer (dashboard, pycore monitor) sees the same set.
+            $grouped = GlobalTask::query()
+                ->groupBy('status')
+                ->selectRaw('status, count(*) as total')
+                ->pluck('total', 'status');
 
-        $count = static function (string $status) use ($grouped): int {
-            return (int) ($grouped[$status] ?? 0);
-        };
+            $count = static function (string $status) use ($grouped): int {
+                return (int) ($grouped[$status] ?? 0);
+            };
 
-        return [
-            'total' => (int) $grouped->sum(),
-            'pending' => $count(GlobalTask::STATUS_PENDING),
-            'assigned' => $count(GlobalTask::STATUS_ASSIGNED),
-            'processing' => $count(GlobalTask::STATUS_PROCESSING),
-            'completed' => $count(GlobalTask::STATUS_COMPLETED),
-            'completed_demo' => $count(GlobalTask::STATUS_COMPLETED_DEMO),
-            'failed' => $count(GlobalTask::STATUS_FAILED),
-            'cancelled' => $count(GlobalTask::STATUS_CANCELLED),
-        ];
+            return [
+                'total' => (int) $grouped->sum(),
+                'pending' => $count(GlobalTask::STATUS_PENDING),
+                'assigned' => $count(GlobalTask::STATUS_ASSIGNED),
+                'processing' => $count(GlobalTask::STATUS_PROCESSING),
+                'completed' => $count(GlobalTask::STATUS_COMPLETED),
+                'completed_demo' => $count(GlobalTask::STATUS_COMPLETED_DEMO),
+                'failed' => $count(GlobalTask::STATUS_FAILED),
+                'cancelled' => $count(GlobalTask::STATUS_CANCELLED),
+            ];
+        });
+    }
+
+    /**
+     * Drop the cached task-status tally so the next getTaskStats() recomputes.
+     * Cheap to call on task create / cancel / bump when fresher counts matter;
+     * the short TTL already bounds staleness, so this is optional.
+     */
+    public function forgetTaskStatsCache(): void
+    {
+        Cache::store(self::STATS_CACHE_STORE)->forget(self::STATS_CACHE_KEY);
     }
 
     /**

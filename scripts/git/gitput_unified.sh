@@ -1825,22 +1825,7 @@ invoke_git_operations() {
     # Ensure we're on the target branch (main)
     ensure_target_branch
     
-    # STEP 1: Pre-commit to save current state before asking user input
-    # This prevents losing local changes if pull overwrites them
-    write_color_text "Pre-committing current changes to protect local work..." "Cyan"
-    write_color_text "Executing: git add ." "DarkGray"
-    git add .
-
-    local pre_commit_message="[AUTO] Pre-commit before user input - $(date '+%Y-%m-%d %H:%M:%S')"
-    write_color_text "Executing: git commit -m '$pre_commit_message' --allow-empty" "DarkGray"
-    if git diff --cached --quiet; then
-        write_color_text "No changes to pre-commit" "DarkGray"
-    else
-        git commit -m "$pre_commit_message"
-        write_color_text "Pre-commit completed successfully" "Green"
-    fi
-
-    # STEP 2: Validate win_common files (only once per session)
+    # Validate win_common files (only once per session)
     if [ "$FILE_VALIDATION_COMPLETED" = false ]; then
         test_win_common_files
         FILE_VALIDATION_COMPLETED=true
@@ -1848,16 +1833,24 @@ invoke_git_operations() {
         write_color_text "INFO: File validation already completed in this session." "DarkGray"
     fi
 
-    # STEP 3: Get final commit message from user
+    # Get the commit message from the user (auto-defaults after an idle timeout).
     local commit_message=$(get_commit_message)
 
-    # STEP 4: Stage any new changes and create final commit
-    write_color_text "Staging all changes for final commit..." "Cyan"
+    # Stage anything that changed while the prompt was open, then create the
+    # single commit for this push. One push cycle produces exactly one commit
+    # (no separate "[AUTO] Pre-commit" commit).
+    write_color_text "Staging all changes for commit..." "Cyan"
     write_color_text "Executing: git add ." "DarkGray"
     git add .
-    write_color_text "Committing changes with message: $commit_message" "Cyan"
-    write_color_text "Executing: git commit -m '$commit_message'" "DarkGray"
-    git commit -m "$commit_message"
+
+    # Only commit when something is actually staged; a clean tree is not an error.
+    if git diff --cached --quiet; then
+        write_color_text "Nothing new to commit; working tree already clean." "DarkGray"
+    else
+        write_color_text "Committing changes with message: $commit_message" "Cyan"
+        write_color_text "Executing: git commit -m '$commit_message'" "DarkGray"
+        git commit -m "$commit_message"
+    fi
 
     # Ensure local is fully committed before any pull/push (force or normal)
     if [ -n "$(git status --porcelain)" ]; then

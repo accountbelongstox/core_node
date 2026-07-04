@@ -1,7 +1,8 @@
 """
 TTS utility package.
 
-  - synthesize    : multi-engine orchestrator (edge -> sherpa -> melotts -> gptsovits).
+  - synthesize    : multi-engine orchestrator (edge -> streamelements -> sherpa
+                    -> melotts -> gptsovits -> gtts_web -> azure).
   - tts_status    : engine-availability snapshot for the UI.
   - tts_orchestrator : module exposing ``synthesize`` for legacy callers.
 """

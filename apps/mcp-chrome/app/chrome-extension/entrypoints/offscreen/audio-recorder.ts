@@ -1,6 +1,10 @@
 // Offscreen Audio Recorder
 // Handles audio capture, mixing, streaming, and silence detection
 
+// MUST stay the first import: aliases chrome -> browser on Firefox before any
+// other module top-level code touches chrome.* (no-op, tree-shaken on Chrome).
+import '@/utils/browser-shim';
+
 let recorder: MediaRecorder | null = null;
 let audioData: Blob[] = [];
 let activeStreams: MediaStream[] = [];

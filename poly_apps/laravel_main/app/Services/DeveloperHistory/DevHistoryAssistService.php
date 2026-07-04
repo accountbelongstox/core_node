@@ -5,6 +5,7 @@ namespace App\Services\DeveloperHistory;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Utils\LanguageDetector;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -97,35 +98,48 @@ class DevHistoryAssistService
         return $enqueued;
     }
 
-    /** Summary of assist tasks for the task-center Assist Distribution panel. */
+    /**
+     * Summary of assist tasks for the task-center Assist Distribution panel.
+     *
+     * task_type is filtered here; the (task_type, status) index makes this an
+     * index-only aggregate. It is polled ~5s while the panel is open, so the
+     * result is cached briefly — a diagnostic count tolerates a few seconds of
+     * staleness and this keeps the poll off a repeated scan.
+     */
     public function summary(): array
     {
-        $byStatus = GlobalTask::query()
-            ->where('task_type', 'prompt_translation')
-            ->selectRaw('status, COUNT(*) as c')
-            ->groupBy('status')
-            ->pluck('c', 'status')
-            ->toArray();
+        // File store (the configured `database` default has no provisioned
+        // `cache` table); persists across the single-worker php -S requests.
+        return Cache::store('file')->remember('devhistory:assist:summary', 5, static function (): array {
+            $byStatus = GlobalTask::query()
+                ->where('task_type', 'prompt_translation')
+                ->selectRaw('status, COUNT(*) as c')
+                ->groupBy('status')
+                ->pluck('c', 'status')
+                ->toArray();
 
-        return [
-            'pending' => (int) ($byStatus['pending'] ?? 0),
-            'assigned' => (int) ($byStatus['assigned'] ?? 0),
-            'processing' => (int) ($byStatus['processing'] ?? 0),
-            'completed' => (int) ($byStatus['completed'] ?? 0),
-            'failed' => (int) ($byStatus['failed'] ?? 0),
-            'total' => array_sum(array_map('intval', $byStatus)),
-        ];
+            return [
+                'pending' => (int) ($byStatus['pending'] ?? 0),
+                'assigned' => (int) ($byStatus['assigned'] ?? 0),
+                'processing' => (int) ($byStatus['processing'] ?? 0),
+                'completed' => (int) ($byStatus['completed'] ?? 0),
+                'failed' => (int) ($byStatus['failed'] ?? 0),
+                'total' => array_sum(array_map('intval', $byStatus)),
+            ];
+        });
     }
 
     /** Recent assist tasks (newest first) for the panel list. */
     public function recent(int $limit = 50): array
     {
-        return GlobalTask::query()
-            ->where('task_type', 'prompt_translation')
-            ->orderByDesc('id')
-            ->limit(max(1, min(200, $limit)))
-            ->get(['task_id', 'status', 'payload', 'priority', 'retry_count', 'created_at', 'updated_at'])
-            ->map(function (GlobalTask $t) {
+        $limit = max(1, min(200, $limit));
+        return Cache::store('file')->remember('devhistory:assist:recent:' . $limit, 5, static function () use ($limit): array {
+            return GlobalTask::query()
+                ->where('task_type', 'prompt_translation')
+                ->orderByDesc('id')
+                ->limit($limit)
+                ->get(['task_id', 'status', 'payload', 'priority', 'retry_count', 'created_at', 'updated_at'])
+                ->map(function (GlobalTask $t) {
                 $payload = is_array($t->payload) ? $t->payload : [];
                 return [
                     'task_id' => $t->task_id,
@@ -138,5 +152,6 @@ class DevHistoryAssistService
                 ];
             })
             ->all();
+        });
     }
 }

@@ -129,9 +129,12 @@ export const WfNewApiPaths = {
   // ---- Word media on-demand (AppQyV1 — file-first resolve + enqueue, PUBLIC) ----
   /** Resolve a word's media + dictionary detail by (lang, word). File-first:
    *  returns current image_url/audio_url + image_status/audio_status, and
-   *  ENQUEUES+prioritizes generation for whatever is still 'pending'. */
-  wordMedia: (lang: string, word: string): string =>
-    p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/media`),
+   *  ENQUEUES+prioritizes generation for whatever is still 'pending'.
+   *  Optional `?accent=us|uk` requests a specific accent rendition; the response
+   *  then adds audio_accent / accent_fallback / audio_variants[]. */
+  wordMedia: (lang: string, word: string, accent?: string): string =>
+    p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/media${
+      accent ? `?accent=${encodeURIComponent(accent)}` : ''}`),
 
   // ---- Dictionary words (AppQyV1Vocabulary.php — paginated, PUBLIC) ----
   /** Paginated dictionary words with audio + translation for the word-stats sidebar.
@@ -271,3 +274,95 @@ export const WfNewApiPaths = {
  * center holds every path, but kept separate from the AppQyV1 group.
  */
 export const WFNEW_HEALTH_PATH = '/api/health';
+
+/**
+ * Loopback debug-status probe (dashboard surface, NOT app_qy_v1). The backend
+ * decides super-admin mode from the CLIENT IP (DebugAuthService) — same open
+ * endpoint laravel-manager probes for its login-free loopback mode.
+ */
+export const WFNEW_ADMIN_DEBUG_STATUS_PATH = '/api/dashboard/auth/debug-status';
+
+/**
+ * SUPER-ADMIN management paths — used ONLY by WfNewAdminApi against the pinned
+ * page-origin base (never through wfNewEndpoints failover; see the WfNewAdminApi
+ * header for why). Kept in this file so the endpoint catalog stays complete.
+ * Verified against laravel_main routes/AppQyV1Router/{AppQyV1Vocabulary,
+ * AppQyV1AITools,AppQyV1Learning,AppQyV1Assist}.php.
+ */
+export const WfNewAdminPaths = {
+  // ---- dictionary word management (AppQyV1Vocabulary.php — PUBLIC) ----
+  /** Paginated dictionary rows: ?language=&filter=&q=&sort=&order=&start=&limit=. */
+  dictionaryWords: (opts: {
+    language: string; filter?: string; q?: string;
+    sort?: string; order?: 'asc' | 'desc'; start?: number; limit?: number;
+  }): string => {
+    const params = new URLSearchParams();
+    params.set('language', opts.language);
+    if (opts.filter && opts.filter !== 'all') params.set('filter', opts.filter);
+    if (opts.q) params.set('q', opts.q);
+    if (opts.sort) params.set('sort', opts.sort);
+    if (opts.order) params.set('order', opts.order);
+    params.set('start', String(opts.start ?? 0));
+    params.set('limit', String(opts.limit ?? 50));
+    return p(`/dictionary/words?${params.toString()}`);
+  },
+  /** Create a word (POST {language, content, ...editable}). */
+  dictionaryWordCreate: p('/dictionary/words'),
+  /** Update a word (PUT {language, ...editable}). */
+  dictionaryWord: (md5: string): string => p(`/dictionary/words/${encodeURIComponent(md5)}`),
+  /** Delete a word (DELETE ?language=). */
+  dictionaryWordDelete: (md5: string, language: string): string =>
+    p(`/dictionary/words/${encodeURIComponent(md5)}?language=${encodeURIComponent(language)}`),
+  /** Batch actions (POST {language, md5s[], action: delete|mark_valid|mark_invalid|requeue_tts}). */
+  dictionaryWordsBatch: p('/dictionary/words/batch'),
+  /** Example sentences containing a word (GET). */
+  dictionarySentences: (word: string, language: string, limit = 10): string =>
+    p(`/dictionary/sentences?word=${encodeURIComponent(word)}&language=${encodeURIComponent(language)}&limit=${limit}`),
+
+  // ---- statistics / overview (PUBLIC) ----
+  /** Per-language words/translated/audio/invalid aggregate. */
+  languageBreakdown: p('/vocabulary/language-breakdown'),
+  /** Library-catalog statistics: summary + per-language rows. */
+  vocabularyStatistics: (language?: string): string =>
+    p(`/vocabulary/statistics${language ? `?language=${encodeURIComponent(language)}` : ''}`),
+
+  // ---- vocabulary libraries management (reads PUBLIC; delete sanctum) ----
+  /** Library catalog page (management view — richer opts than vocabularyLibraries). */
+  adminLibraries: (opts: { language?: string; page?: number; perPage?: number; search?: string } = {}): string => {
+    const params = new URLSearchParams();
+    if (opts.language) params.set('language', opts.language);
+    params.set('page', String(opts.page ?? 1));
+    params.set('per_page', String(opts.perPage ?? 24));
+    if (opts.search) params.set('search', opts.search);
+    return p(`/vocabulary/libraries?${params.toString()}`);
+  },
+  /** Delete a user-created library (DELETE, auth:sanctum). */
+  learningLibrary: (libraryId: number | string): string =>
+    p(`/learning/libraries/${encodeURIComponent(String(libraryId))}`),
+  /** Reset failed/pending AI covers (POST {ids[]} | {all:true}, PUBLIC). */
+  coverRetry: p('/assist/cover/retry'),
+
+  // ---- queues (PUBLIC) ----
+  /** Unified TTS queue statistics snapshot. */
+  ttsQueueStats: p('/ai_tools/tts/queue/stats'),
+  /** Paginated TTS queue items: ?status=&type=&start=&limit=. */
+  ttsQueueItems: (opts: { status?: string; type?: string; start?: number; limit?: number } = {}): string => {
+    const params = new URLSearchParams();
+    if (opts.status) params.set('status', opts.status);
+    if (opts.type) params.set('type', opts.type);
+    params.set('start', String(opts.start ?? 0));
+    params.set('limit', String(opts.limit ?? 50));
+    return p(`/tts/queue/items?${params.toString()}`);
+  },
+  /** Translation-queue control plane (PUBLIC — pycore monitor surface). */
+  translationQueueList: p('/ai_tools/translation/queue/list'),
+  translationPendingWords: p('/ai_tools/translation/queue/pending-words'),
+  translationEnqueuePending: p('/ai_tools/translation/queue/enqueue-pending'),
+  /** Re-queue specific words (POST, custom.authenticate — needs session). */
+  translationBatchAdd: p('/ai_tools/translation/queue/batch/add'),
+
+  // ---- translate / TTS tools (translate + generate are auth:sanctum) ----
+  translationLanguages: p('/ai_tools/translation/languages'),
+  translationTranslate: p('/ai_tools/translation/translate'),
+  ttsGenerate: p('/ai_tools/tts/generate'),
+} as const;

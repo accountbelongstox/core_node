@@ -122,15 +122,50 @@ from the start).
   `chapters`) is mirrored into refs so the stable callbacks + `onended` always
   see the latest values across page/chapter loads.
 - `playingRef` gates every continuation; `pausedRef` distinguishes pause from
-  stop.
+  stop (both `playForward` and each continuation `.then` bail on `pausedRef`).
+- The paging position (`PlayPos = {page, lastPage, chapterIndex}`) is threaded
+  **explicitly** through `playForward(list, fromIndex, pos)` / `playAt(list,
+  index, pos)` / the continuation `.then(r => … r.pos)`, so crossing a page or
+  chapter never reads a `pageRef`/`activeChapterRef` React has not committed yet
+  (which previously re-fetched audio-less pages twice).
 - **`loadSeqRef`** is a monotonic token: `load()` captures `myTurn` at start and
   no-ops on resolve if superseded; Stop / navigation / a manual sentence pick /
   close all bump it, so a Stop or manual pick during an async page/chapter turn
   can never flip the view or override the user (`requirePlaying` also discards a
-  continuation whose user already stopped).
+  continuation whose user already stopped or paused mid-load).
+- **`loadCountRef`** drives `loading` (= in-flight count > 0), decremented in
+  `finally` regardless of supersession, so a cancelled load never leaves the
+  pager stuck disabled.
+- **`playTokenRef`** is bumped per `playAt`; `onended`/`onerror`/`play().catch`
+  share one `skipForward()` that advances only if the token still matches and we
+  are playing and not paused — so a 404's `onerror`+`play()`-reject don't
+  double-advance, and a pause/replace `AbortError` isn't mistaken for a dead file.
+- **`emptyCrossRef`** bounds the audio hunt: it counts consecutive audio-less
+  page/chapter crossings and stops after `MAX_EMPTY_CROSS` so a no-TTS source
+  doesn't crawl the whole book. It resets **only when audio actually starts** (the
+  `playing` event) — never merely because a URL exists — so a source whose
+  `has_audio` cells all 404 is still bounded (it would otherwise reset every
+  attempt). A fresh user intent (Read / manual pick / resume-in-gap) also resets it.
+- Default reading language = `bestLang(items, langs)`, ranked by cells that have
+  **both** text and audio, then most text (a reader needs text — never default to
+  an audio-only track that renders blank), then most audio. The language list is
+  derived per-render from the CURRENT page (`collectLangs(sentences)`), so the
+  `<select>` only offers content-bearing languages present on the visible page.
+- **Reading-language validity**: `load()` re-picks `readLang` on user navigation
+  when the current language is empty on the loaded page; continuation loads keep
+  it fixed (no mid-playback switch). A `!playing`-gated effect is the safety net —
+  after playback stops on a page lacking `readLang`, it restores a content-bearing
+  language so the body never stays blank.
 - A **continuation load failure** keeps the current page visible (never blanks
-  the reader) and stops playback with a toast; only a user-initiated load shows
-  the empty/error state.
+  the reader); if the user had paused it preserves the pause (resume re-attempts
+  the crossing), otherwise it stops playback with a toast. Only a user-initiated
+  load shows the empty/error state.
+- The **loading state spans the whole open sequence** (including the chapters
+  fetch that precedes the first `load()`), so a slow backend shows a spinner
+  rather than a transient "no readable content" empty.
+- **Mode toggle keeps the chapter position**: switching to Sentences no longer
+  clears `activeChapter`, so returning to Chapters restores the last-read chapter
+  instead of resetting to the first.
 - The currently-playing row is auto-scrolled into view (`data-skey` +
   `scrollIntoView`) so continuous reading stays on screen.
 - On close/unmount `releaseAudio()` aborts any in-flight media download and drops
@@ -142,7 +177,7 @@ FE (`poly_apps/pycore_laravel_wordflow_ui`):
 - `core/api/modules/MediaQueryAPI.ts` — `getBookDetail`, `getBookChapters`,
   `getDocumentDetail` + `ReaderSentence` / `ReaderChapter` / `ReaderDetail` types.
 - `components/vocabulary/reader/mediaReader.ts` — `readerAudioUrl`,
-  `resolveCell`, `sentenceKey`, `sentenceLangs`, `chapterTitle`.
+  `resolveCell`, `sentenceKey`, `collectLangs`, `bestLang`, `chapterTitle`.
 - `components/vocabulary/reader/MediaReaderModal.tsx` — the reader.
 - `components/vocabulary/ExistingBooksPanel.tsx` / `ExistingDocumentsPanel.tsx`
   — open the reader on click.

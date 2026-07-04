@@ -4,6 +4,12 @@ import * as os from 'os';
 import * as crypto from 'crypto';
 import fetch from 'node-fetch';
 
+// Limits for the extension-driven chunked file read (Firefox upload path).
+// Native messaging caps host -> extension messages at 1 MB, so raw chunks are
+// clamped well below that to leave room for base64 expansion and JSON framing.
+const MAX_READ_FILE_BYTES = 50 * 1024 * 1024;
+const MAX_READ_CHUNK_BYTES = 512 * 1024;
+
 /**
  * File handler for managing file uploads through the native messaging host
  */
@@ -22,7 +28,7 @@ export class FileHandler {
    * Handle file preparation request from the extension
    */
   async handleFileRequest(request: any): Promise<any> {
-    const { action, fileUrl, base64Data, fileName, filePath } = request;
+    const { action, fileUrl, base64Data, fileName, filePath, offset, length } = request;
 
     try {
       switch (action) {
@@ -38,6 +44,9 @@ export class FileHandler {
 
         case 'cleanupFile':
           return await this.cleanupFile(filePath);
+
+        case 'readFileChunk':
+          return await this.readFileChunk(filePath, offset, length);
 
         default:
           return {
@@ -143,6 +152,60 @@ export class FileHandler {
     } catch (error) {
       throw new Error(`Failed to verify file: ${error}`);
     }
+  }
+
+  /**
+   * Read a slice of a local file as base64 (Firefox upload path: the
+   * extension pulls the file in chunks that fit the native messaging limit).
+   */
+  private async readFileChunk(filePath: string, offset?: number, length?: number): Promise<any> {
+    if (!filePath || typeof filePath !== 'string') {
+      throw new Error('filePath is required for readFileChunk');
+    }
+
+    const resolvedPath = path.resolve(filePath);
+    if (!fs.existsSync(resolvedPath)) {
+      throw new Error(`File does not exist: ${resolvedPath}`);
+    }
+
+    const stats = fs.statSync(resolvedPath);
+    if (!stats.isFile()) {
+      throw new Error(`Path is not a file: ${resolvedPath}`);
+    }
+    fs.accessSync(resolvedPath, fs.constants.R_OK);
+
+    if (stats.size > MAX_READ_FILE_BYTES) {
+      throw new Error(
+        `File is too large: ${stats.size} bytes (limit ${MAX_READ_FILE_BYTES} bytes / 50 MB)`,
+      );
+    }
+
+    const start = Math.max(0, Math.floor(Number(offset) || 0));
+    const requested = Math.floor(Number(length) || MAX_READ_CHUNK_BYTES);
+    const chunkLength = Math.min(Math.max(1, requested), MAX_READ_CHUNK_BYTES);
+    const available = Math.max(0, stats.size - start);
+    const buffer = Buffer.alloc(Math.min(chunkLength, available));
+
+    let bytesRead = 0;
+    if (buffer.length > 0) {
+      const fd = fs.openSync(resolvedPath, 'r');
+      try {
+        bytesRead = fs.readSync(fd, buffer, 0, buffer.length, start);
+      } finally {
+        fs.closeSync(fd);
+      }
+    }
+
+    return {
+      success: true,
+      filePath: resolvedPath,
+      fileName: path.basename(resolvedPath),
+      size: stats.size,
+      offset: start,
+      bytesRead: bytesRead,
+      eof: start + bytesRead >= stats.size,
+      base64Data: buffer.subarray(0, bytesRead).toString('base64'),
+    };
   }
 
   /**

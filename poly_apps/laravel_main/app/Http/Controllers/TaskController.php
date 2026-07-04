@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GlobalTask;
 use App\Models\GlobalTaskEvent;
 use App\Services\TaskManagerService;
+use App\Support\ServerRuntime;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\StreamedEvent;
@@ -304,6 +305,12 @@ class TaskController extends Controller
     private const STREAM_POLL_INTERVAL_MS = 800;
     private const STREAM_BATCH_LIMIT = 200;
     private const STREAM_HEARTBEAT_SECONDS = 15;
+    // On the single-worker php -S runtime the SSE generator occupies the ONE
+    // worker for its whole lifetime, starving all other requests. Cap the
+    // lifetime hard there so the worker is released every few seconds; the
+    // client reconnects by cursor (done=false), turning the stream into a
+    // near-short-poll that lets other requests interleave. No effect on Octane.
+    private const STREAM_SINGLE_WORKER_LIFETIME_SECONDS = 3;
 
     /**
      * Live per-task detail stream (SSE) for the drilldown modal.
@@ -341,6 +348,13 @@ class TaskController extends Controller
         $maxLifetime = $maxExec > 0
             ? max(5, min(self::STREAM_MAX_LIFETIME_SECONDS, $maxExec - 5))
             : self::STREAM_MAX_LIFETIME_SECONDS;
+
+        // Single-worker php -S: hard-cap the hold so the sole worker is freed
+        // frequently and other requests are not starved (client reconnects by
+        // cursor). Overrides the Octane-oriented budget above on this runtime.
+        if (ServerRuntime::isSingleWorker()) {
+            $maxLifetime = self::STREAM_SINGLE_WORKER_LIFETIME_SECONDS;
+        }
 
         $initial = $this->taskDetailData($task);
         $terminal = [
@@ -461,8 +475,29 @@ class TaskController extends Controller
             $offset = $request->input('offset');
         }
 
-        $total = $query->count();
-        $tasks = $query->orderBy('created_at', 'desc')
+        // Total: on the hot 5s poll, avoid a second full-table count(*) by reading
+        // it from the short-TTL cached status tally for the common filters (none,
+        // or status-only — the only filters the Task Center FE sends). Fall back
+        // to an exact count only for the rarer app_name/execution_type filters.
+        if ($request->has('app_name') || $request->has('execution_type')) {
+            $total = $query->count();
+        } else {
+            $stats = $this->taskManager->getTaskStats();
+            $total = $request->has('status')
+                ? (int) ($stats[$request->status] ?? 0)
+                : (int) ($stats['total'] ?? 0);
+        }
+
+        // Explicit projection: the response below uses only these scalar columns,
+        // so never SELECT * — which would de-TOAST the heavy payload/steps/result
+        // JSON columns for up to `limit` rows on every poll. ORDER BY created_at
+        // DESC is backed by the (status, created_at) / (created_at) indexes.
+        $tasks = $query->select([
+                'task_id', 'app_name', 'task_type', 'execution_type', 'status',
+                'progress', 'assigned_to', 'created_at', 'capability', 'priority',
+                'is_fast_tier',
+            ])
+            ->orderBy('created_at', 'desc')
             ->skip($offset)
             ->take($limit)
             ->get();

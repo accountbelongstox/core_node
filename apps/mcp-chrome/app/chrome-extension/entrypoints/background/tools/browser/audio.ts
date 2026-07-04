@@ -6,6 +6,7 @@ import {
   handleAudioStop,
   handleAudioStatus,
   handleAudioDuration,
+  FIREFOX_AUDIO_UNSUPPORTED_ERROR,
 } from '../audio';
 
 /**
@@ -15,6 +16,10 @@ class AudioStartTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.AUDIO_START;
 
   async execute(args: any): Promise<ToolResult> {
+    if (import.meta.env.FIREFOX) {
+      return createErrorResponse(FIREFOX_AUDIO_UNSUPPORTED_ERROR);
+    }
+
     try {
       const result = await handleAudioStart(args);
 
@@ -45,6 +50,10 @@ class AudioStopTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.AUDIO_STOP;
 
   async execute(args: any): Promise<ToolResult> {
+    if (import.meta.env.FIREFOX) {
+      return createErrorResponse(FIREFOX_AUDIO_UNSUPPORTED_ERROR);
+    }
+
     try {
       const result = await handleAudioStop(args);
 
@@ -75,6 +84,10 @@ class AudioStatusTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.AUDIO_STATUS;
 
   async execute(_args: any): Promise<ToolResult> {
+    if (import.meta.env.FIREFOX) {
+      return createErrorResponse(FIREFOX_AUDIO_UNSUPPORTED_ERROR);
+    }
+
     try {
       const result = await handleAudioStatus();
 
@@ -105,6 +118,10 @@ class AudioDurationTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.AUDIO_DURATION;
 
   async execute(_args: any): Promise<ToolResult> {
+    if (import.meta.env.FIREFOX) {
+      return createErrorResponse(FIREFOX_AUDIO_UNSUPPORTED_ERROR);
+    }
+
     try {
       const result = await handleAudioDuration();
 

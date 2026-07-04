@@ -48,8 +48,9 @@
       </div>
 
       <!-- Quick Actions -->
+      <p v-if="isFirefox" class="text-[9px] text-amber-400">{{ firefoxUnsupportedMessage }}</p>
       <div class="flex gap-1.5">
-        <button @click="startRecording" :disabled="recordingInfo.isRecording || selectedTabId === null"
+        <button @click="startRecording" :disabled="isFirefox || recordingInfo.isRecording || selectedTabId === null"
           class="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           {{ getMessage('startRecordingButton') }}
         </button>
@@ -156,7 +157,7 @@
       <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-2.5">
         <div class="flex items-center justify-between">
           <label class="flex items-center gap-1.5 text-[10px] text-slate-300 cursor-pointer">
-            <input type="checkbox" v-model="backgroundStreaming.enabled" @change="toggleBackgroundStreaming" class="w-3 h-3 rounded border-slate-600 bg-slate-800" />
+            <input type="checkbox" v-model="backgroundStreaming.enabled" :disabled="isFirefox" @change="toggleBackgroundStreaming" class="w-3 h-3 rounded border-slate-600 bg-slate-800" />
             {{ getMessage('enableBackgroundStreamingLabel') }}
           </label>
           <span v-if="backgroundStreaming.enabled" class="text-[8px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
@@ -200,6 +201,13 @@ interface RecordingInfo {
 interface BackgroundStreaming {
   enabled: boolean;
 }
+
+// Firefox has no chrome.tabCapture / chrome.offscreen APIs, so the whole tab
+// audio recording pipeline is Chrome-only; compile-time constant, tree-shaken
+// out of Chrome builds.
+const isFirefox = import.meta.env.FIREFOX;
+const firefoxUnsupportedMessage =
+  'Audio recording is not available on Firefox: it requires the Chrome-only tabCapture and offscreen APIs.';
 
 const collapsed = ref(false);
 const sessionMetadataText = ref('');
@@ -361,6 +369,11 @@ const loadConfig = async () => {
 
 const startRecording = async () => {
   try {
+    if (isFirefox) {
+      alert(firefoxUnsupportedMessage);
+      return;
+    }
+
     const metadataValid = updateSessionMetadata(true);
     if (!metadataValid) {
       return;
@@ -414,6 +427,12 @@ const stopRecording = async () => {
 
 const toggleBackgroundStreaming = async () => {
   try {
+    if (isFirefox) {
+      backgroundStreaming.value.enabled = false;
+      alert(firefoxUnsupportedMessage);
+      return;
+    }
+
     if (backgroundStreaming.value.enabled && !updateSessionMetadata(true)) {
       backgroundStreaming.value.enabled = false;
       return;

@@ -2,6 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Offscreen documents are Chrome-only; skip this entrypoint on Firefox builds -->
+    <meta name="manifest.exclude" content="['firefox']" />
   </head>
   <body>
     <script type="module" src="./main.ts"></script>

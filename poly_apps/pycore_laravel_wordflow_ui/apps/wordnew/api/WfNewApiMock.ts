@@ -23,7 +23,7 @@ import type {
   WfNewContentGroup, WfNewHomeContent, WfNewStatistics,
   WfNewBookChapters, WfNewBookChapter, WfNewBookVersesPage, WfNewBookVerse,
   WfNewSubtitleDetail, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewDictWord, WfNewWordPage,
-  WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordMedia,
+  WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordMedia, WfNewWordAccent,
 } from './WfNewApiTypes';
 import { WFNEW_BUILTIN_LANGUAGES, WFNEW_BUILTIN_PRESET_AVATARS } from './WfNewApiDefaults';
 import {
@@ -1160,21 +1160,31 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
-  async getWordMedia(language: string, word: string): Promise<WfNewWordMedia> {
+  async getWordMedia(
+    language: string,
+    word: string,
+    opts: { accent?: WfNewWordAccent } = {},
+  ): Promise<WfNewWordMedia> {
     const key = `${language}/${word}`;
     const n = (MOCK_WORD_MEDIA_CALLS.get(key) ?? 0) + 1;
     MOCK_WORD_MEDIA_CALLS.set(key, n);
     // First call = freshly enqueued (pending); subsequent polls report ready.
     const ready = n > 1;
     const enc = encodeURIComponent(word);
+    // Echo the requested accent (contract C1); mock never accent-falls-back.
+    const accent: WfNewWordAccent = opts.accent === 'uk' ? 'uk' : 'us';
+    const audioUrl = ready ? `https://example.test/mock-audio/${accent}/${enc}.mp3` : null;
     return delay({
       word,
       md5: mockMd5(key),
       language,
       imageUrl: ready ? `https://picsum.photos/seed/${enc}/200` : null,
-      audioUrl: ready ? `https://example.test/mock-audio/${enc}.mp3` : null,
+      audioUrl,
       imageStatus: ready ? 'ready' : 'pending',
       audioStatus: ready ? 'ready' : 'pending',
+      audioAccent: ready ? accent : null,
+      accentFallback: false,
+      audioVariants: [{ accent, url: audioUrl, status: ready ? 'ready' : 'pending' }],
       translations: [`释义 ${word}`],
       explanation: `Mock explanation for ${word}.`,
       phonetic: undefined,

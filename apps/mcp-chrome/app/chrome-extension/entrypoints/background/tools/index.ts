@@ -1,5 +1,6 @@
 import { createErrorResponse } from '@/common/tool-handler';
 import { ERROR_MESSAGES } from '@/common/constants';
+import { FIREFOX_UNSUPPORTED_TOOLS, FIREFOX_UNSUPPORTED_TOOL_REASONS } from 'chrome-mcp-shared';
 import * as browserTools from './browser';
 
 const tools = { ...browserTools };
@@ -17,6 +18,12 @@ export interface ToolCallParam {
  * Handle tool execution
  */
 export const handleCallTool = async (param: ToolCallParam) => {
+  if (import.meta.env.FIREFOX && FIREFOX_UNSUPPORTED_TOOLS.has(param.name)) {
+    return createErrorResponse(
+      `Tool ${param.name} is not supported on Firefox. ${FIREFOX_UNSUPPORTED_TOOL_REASONS[param.name]}.`,
+    );
+  }
+
   const tool = toolsMap.get(param.name);
   if (!tool) {
     return createErrorResponse(`Tool ${param.name} not found`);

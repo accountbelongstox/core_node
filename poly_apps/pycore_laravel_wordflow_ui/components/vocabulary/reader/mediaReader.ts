@@ -50,33 +50,55 @@ export function resolveCell(s: ReaderSentence, lang?: string): ResolvedCell {
   return { text: s.text, audioBare: s.audio ?? null, hasAudio: !!s.audio };
 }
 
-/** The set of languages a sentence carries text/audio for (map keys, else its flat lang). */
-export function sentenceLangs(s: ReaderSentence): string[] {
-  if (s.languages) return Object.keys(s.languages);
-  return s.language ? [s.language] : [];
-}
-
-/** Union of every language across a batch of sentences (map keys, else flat lang). */
+/**
+ * The v3 correspondence languages that actually carry CONTENT (text or audio)
+ * across a batch of sentences. A language key whose cells are empty on every
+ * verse is excluded — offering it would let the user blank the reader
+ * (resolveCell has no cross-language fallback). Flat (non-v3) rows contribute no
+ * selectable language: resolveCell ignores the lang argument for them, so a
+ * language <select> would be a no-op.
+ */
 export function collectLangs(items: ReaderSentence[]): string[] {
   const set = new Set<string>();
-  for (const s of items) for (const l of sentenceLangs(s)) if (l) set.add(l);
+  for (const s of items) {
+    if (!s.languages) continue;
+    for (const [l, c] of Object.entries(s.languages)) {
+      if (l && c && (c.text || c.audio)) set.add(l);
+    }
+  }
   return Array.from(set);
 }
 
 /**
- * Pick the best default reading language: the one (from `langs`) with the most
- * non-empty text across `items`. Guards against a seeded-but-empty language
- * being langs[0] (which — with resolveCell's no-fallback rule — would render the
- * whole source blank). Falls back to langs[0] when nothing is populated.
+ * Pick the best default reading language across `items`, ranked by:
+ *   1. cells that have BOTH text and audio (ideal: readable AND playable),
+ *   2. then most non-empty text (a reader needs text above all — never default to
+ *      an audio-only track that renders blank),
+ *   3. then most audio (so "Read" isn't dead-on-arrival when text is a tie).
+ * Guards against a seeded-but-empty language blanking the source. Falls back to
+ * langs[0] when nothing is populated.
  */
 export function bestLang(items: ReaderSentence[], langs: string[]): string {
   if (langs.length <= 1) return langs[0] || '';
   let best = langs[0];
-  let bestCount = -1;
+  let bestBoth = -1;
+  let bestText = -1;
+  let bestAudio = -1;
   for (const l of langs) {
-    let n = 0;
-    for (const s of items) if (resolveCell(s, l).text) n += 1;
-    if (n > bestCount) { bestCount = n; best = l; }
+    let both = 0;
+    let t = 0;
+    let a = 0;
+    for (const s of items) {
+      const c = resolveCell(s, l);
+      if (c.text) t += 1;
+      if (c.hasAudio) a += 1;
+      if (c.text && c.hasAudio) both += 1;
+    }
+    if (both > bestBoth
+      || (both === bestBoth && t > bestText)
+      || (both === bestBoth && t === bestText && a > bestAudio)) {
+      bestBoth = both; bestText = t; bestAudio = a; best = l;
+    }
   }
   return best;
 }

@@ -1014,32 +1014,25 @@ function Invoke-GitOperations {
             Write-Host "INFO: File validation already completed in this session." -ForegroundColor Gray
         }
 
-        # STEP 1: Pre-commit to save current state before asking user input
-        Write-ColorText "Pre-committing current changes to protect local work..." -ForegroundColor Cyan
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        $preCommitMessage = "[AUTO] Pre-commit before user input - $timestamp"
-
-        # Check if there are changes to pre-commit
-        $stagedChanges = git diff --cached --quiet
-        if ($LASTEXITCODE -ne 0) {
-            Write-ColorText "Executing: git commit -m `"$preCommitMessage`"" -ForegroundColor DarkGray
-            git commit -m $preCommitMessage
-            Write-ColorText "Pre-commit completed successfully" -ForegroundColor Green
-        } else {
-            Write-ColorText "No changes to pre-commit" -ForegroundColor DarkGray
-        }
-
-        # STEP 2: Get final commit message from user
+        # Get the commit message from the user (auto-defaults after an idle timeout).
         $commitMessage = Get-CommitMessage
 
-        # STEP 3: Stage any new changes and create final commit
+        # Stage anything that changed while the prompt was open, then create the
+        # single commit for this push. One push cycle produces exactly one commit
+        # (no separate "[AUTO] Pre-commit" commit).
         Write-ColorText "Staging any new changes..." -ForegroundColor Cyan
         Write-ColorText "Executing: git add ." -ForegroundColor DarkGray
         git add .
 
-        Write-ColorText "Committing changes with message: $commitMessage" -ForegroundColor Cyan
-        Write-ColorText "Executing: git commit -m `"$commitMessage`"" -ForegroundColor DarkGray
-        git commit -m $commitMessage
+        # Only commit when something is actually staged; a clean tree is not an error.
+        git diff --cached --quiet
+        if ($LASTEXITCODE -ne 0) {
+            Write-ColorText "Committing changes with message: $commitMessage" -ForegroundColor Cyan
+            Write-ColorText "Executing: git commit -m `"$commitMessage`"" -ForegroundColor DarkGray
+            git commit -m $commitMessage
+        } else {
+            Write-ColorText "Nothing new to commit; working tree already clean." -ForegroundColor DarkGray
+        }
 
         # Ensure local is fully committed before any pull/push (force or normal)
         $statusOutput = git status --porcelain

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Services\WorkerManagerService;
+use App\Support\ServerRuntime;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
@@ -146,7 +147,14 @@ class WorkerController extends Controller
         // lock) until a task appears or the wait budget elapses, so a worker idling
         // on an empty queue is woken promptly the instant a high-priority task is
         // created. wait=0 restores the legacy immediate-return behavior.
-        if ($wait === 0) {
+        //
+        // EXCEPTION: on the single-worker php -S runtime there is no request
+        // concurrency, so a parked long-poll would occupy the ONE worker for its
+        // whole wait budget and starve every other request (overview poll, list
+        // fan-out, even /api/health). Force the immediate-return path there; idle
+        // workers instead pace themselves off the pending_urgent/pending_fast
+        // hints returned below. Long-poll stays enabled on Octane/fpm.
+        if ($wait === 0 || ServerRuntime::isSingleWorker()) {
             $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit);
         } else {
             $tasks = $this->taskManager->pullAndAssignTasksLongPoll($workerId, $limit, $wait);

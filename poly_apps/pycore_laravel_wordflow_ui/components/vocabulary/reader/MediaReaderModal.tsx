@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen, FileText, List as ListIcon, Rows, Volume2, VolumeX, Pause,
   Play, Square, ChevronLeft, ChevronRight, X as CloseIcon,
@@ -10,7 +10,7 @@ import { commonClasses } from '../../../styles/theme';
 import { Modal } from '../../common';
 import { LoadingBlock, EmptyState } from '../../common';
 import { useToast } from '../../admin';
-import { readerAudioUrl, resolveCell, sentenceKey, collectLangs, chapterTitle } from './mediaReader';
+import { readerAudioUrl, resolveCell, sentenceKey, collectLangs, bestLang, chapterTitle } from './mediaReader';
 
 /**
  * MediaReaderModal — full-screen reader for an ingested book OR uploaded
@@ -35,20 +35,29 @@ interface MediaReaderModalProps {
 
 type ReaderMode = 'chapters' | 'sentences';
 
+/** The paging position a continuation must cross from — carried explicitly so it
+ * never depends on refs that React has not yet committed after an auto page/chapter turn. */
+interface PlayPos {
+  page: number;
+  lastPage: number;
+  chapterIndex: number | null;
+}
+
 const SENTENCE_PER_PAGE = 50;   // multi-page sentence mode
 const CHAPTER_PER_PAGE = 500;   // a chapter is a natural unit (rarely paged)
+// During continuous playback, cross at most this many consecutive audio-less
+// pages/chapters before giving up — so a no-TTS source doesn't crawl the whole
+// book flipping pages when the user presses Read.
+const MAX_EMPTY_CROSS = 3;
 
 const langName = (code: string): string =>
   WF_SUPPORTED_LANGUAGES.find((l) => l.code === code)?.name || code.toUpperCase();
-
-const pickDefaultLang = (langs: string[]): string => (langs.length ? langs[0] : '');
 
 const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind, sourceKey, documentId, title }) => {
   const toast = useToast();
 
   const [mode, setMode] = useState<ReaderMode>('sentences');
   const [chapters, setChapters] = useState<ReaderChapter[]>([]);
-  const [langs, setLangs] = useState<string[]>([]);
   const [readLang, setReadLang] = useState<string>('');
   const [activeChapter, setActiveChapter] = useState<number | null>(null);
 
@@ -60,6 +69,10 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
   const [error, setError] = useState<string | null>(null);
   const [playingKey, setPlayingKey] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
+  // `playing` reflects playingRef for the toolbar Read/Stop button — it stays
+  // true even while continuous playback crosses an audio-less page (when no
+  // sentence key is set yet), so the button always agrees with the action.
+  const [playing, setPlaying] = useState(false);
 
   // --- live refs (read synchronously by the stable playback callbacks) ---
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -82,6 +95,9 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
   // (onerror + play().catch double-fire, or a pause/replace AbortError) can't
   // trigger a spurious advance.
   const playTokenRef = useRef(0);
+  // Count of consecutive audio-less page/chapter crossings during one playback
+  // run; reset whenever a sentence actually plays. Bounds the audio hunt.
+  const emptyCrossRef = useRef(0);
   const playForwardRef = useRef<(list: ReaderSentence[], fromIndex: number, pos: PlayPos) => void>(() => {});
   readLangRef.current = readLang;
   modeRef.current = mode;
@@ -98,27 +114,33 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
   /** Fully release the audio element: abort any in-flight download + drop handlers. */
   const releaseAudio = useCallback(() => {
     loadSeqRef.current += 1;
+    playTokenRef.current += 1;
     const a = audioRef.current;
     if (a) {
       try { a.pause(); } catch { /* ignore */ }
       a.onended = null;
       a.onerror = null;
+      a.onplaying = null;
       try { a.removeAttribute('src'); a.load(); } catch { /* ignore */ }
     }
     playingRef.current = false;
     pausedRef.current = false;
     setPlayingKey(null);
     setPaused(false);
+    setPlaying(false);
   }, []);
 
   /** Stop continuous playback (pause audio, drop the playing highlight, cancel pending loads). */
   const stopPlayback = useCallback(() => {
     loadSeqRef.current += 1;               // cancel any pending auto-advance page/chapter load
+    playTokenRef.current += 1;             // invalidate any pending media-handler advance
     playingRef.current = false;
     pausedRef.current = false;
-    if (audioRef.current) { try { audioRef.current.pause(); } catch { /* ignore */ } }
+    const a = audioRef.current;
+    if (a) { try { a.pause(); } catch { /* ignore */ } a.onended = null; a.onerror = null; a.onplaying = null; }
     setPlayingKey(null);
     setPaused(false);
+    setPlaying(false);
   }, []);
 
   // --- data loading (one loader; per_page depends on chapter vs sentence mode) ---
@@ -127,8 +149,9 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
   //  requirePlaying : a continuation — if the user stopped mid-load, discard the
   //                   result (don't flip the visible page/chapter after a Stop).
   const load = useCallback(
-    async (opts: { page: number; chapterIndex: number | null; keepOnError?: boolean; requirePlaying?: boolean }): Promise<ReaderSentence[] | null> => {
+    async (opts: { page: number; chapterIndex: number | null; keepOnError?: boolean; requirePlaying?: boolean }): Promise<{ items: ReaderSentence[]; pos: PlayPos } | null> => {
       const myTurn = (loadSeqRef.current += 1);
+      loadCountRef.current += 1;
       setLoading(true);
       if (!opts.keepOnError) setError(null);
       const params: ReaderDetailParams = {
@@ -140,86 +163,132 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
         const res = kind === 'book'
           ? await api.mediaQuery.getBookDetail(sourceKey as string, params)
           : await api.mediaQuery.getDocumentDetail(documentId as string | number, params);
-        if (loadSeqRef.current !== myTurn) return null;                // superseded by a newer nav/stop
-        if (opts.requirePlaying && !playingRef.current) return null;   // user stopped during the load
+        if (loadSeqRef.current !== myTurn) return null;                          // superseded by a newer nav/stop
+        if (opts.requirePlaying && (!playingRef.current || pausedRef.current)) return null;  // user stopped/paused mid-load
         if (!res.success || !res.data) throw new Error(res.error || 'Failed to load content');
         const s = res.data.sentences;
         const items = Array.isArray(s?.items) ? s.items : [];
+        const resolvedPage = s?.current_page ?? opts.page;
+        const resolvedLast = s?.last_page ?? 1;
         setSentences(items);
-        setPage(s?.current_page ?? opts.page);
-        setLastPage(s?.last_page ?? 1);
+        setPage(resolvedPage);
+        setLastPage(resolvedLast);
         setTotal(s?.total ?? 0);
         setError(null);
-        return items;
+        // On a user-initiated load, ensure the reading language actually has
+        // content on THIS page/chapter — otherwise the whole view would blank
+        // (resolveCell has no cross-language fallback). Continuation loads keep
+        // the language fixed (they must not switch language mid-playback).
+        if (!opts.keepOnError) {
+          const cl = collectLangs(items);
+          if (cl.length && !cl.includes(readLangRef.current)) setReadLang(bestLang(items, cl));
+        }
+        // pos.page uses the REQUESTED page (not the backend-echoed current_page) so
+        // the continuation always advances monotonically and can never re-request
+        // the same page forever if a paginator normalizes/clamps current_page.
+        return { items, pos: { page: opts.page, lastPage: resolvedLast, chapterIndex: opts.chapterIndex } };
       } catch (e: any) {
         if (loadSeqRef.current !== myTurn) return null;                // stale failure — stay quiet
         if (opts.keepOnError) {
-          // continuation failed — keep the current page visible, but end playback cleanly
-          toast.error('Could not load the next page — playback stopped');
-          stopPlayback();
+          // continuation failed — keep the current page visible. If the user has
+          // paused, preserve the pause (resuming re-attempts the crossing) and say
+          // so; otherwise end playback cleanly. Never converts a pause into a stop.
+          if (pausedRef.current) {
+            toast.error('Could not load the next page — resume to retry');
+          } else {
+            toast.error('Could not load the next page — playback stopped');
+            stopPlayback();
+          }
         } else {
           setSentences([]);
+          setLastPage(1);              // hide the now-meaningless pager under the error
+          setTotal(0);
           setError(e?.message || 'Failed to load content');
         }
         return null;
       } finally {
-        if (loadSeqRef.current === myTurn) setLoading(false);
+        loadCountRef.current = Math.max(0, loadCountRef.current - 1);
+        setLoading(loadCountRef.current > 0);
       }
     },
     [kind, sourceKey, documentId, toast, stopPlayback]
   );
 
-  // --- playback (stable callbacks; all moving state read from refs) ---
-  const playAt = useCallback((list: ReaderSentence[], index: number) => {
+  // --- playback (stable callbacks; moving state via refs, paging pos passed explicitly) ---
+  const playAt = useCallback((list: ReaderSentence[], index: number, pos: PlayPos) => {
     const s = list[index];
     if (!s) { stopPlayback(); return; }
     const cell = resolveCell(s, readLangRef.current);
     const url = cell.hasAudio ? readerAudioUrl(cell.audioBare) : undefined;
-    if (!url) { playForwardRef.current(list, index); return; }   // skip un-playable, keep reading
+    if (!url) { playForwardRef.current(list, index, pos); return; }   // skip un-playable, keep reading
     const audio = ensureAudio();
+    const myToken = (playTokenRef.current += 1);
+    // Advance only if THIS play is still the active one and we're not paused —
+    // stops a pause/replace AbortError being mistaken for a broken file. Consuming
+    // the token (single-shot) also dedupes onended/onerror/play().catch all firing
+    // for the same play (e.g. a 404 fires both onerror and play()-reject), which
+    // would otherwise launch two continuation loads at a page boundary.
+    const skipForward = () => {
+      if (playTokenRef.current !== myToken) return;
+      if (!playingRef.current || pausedRef.current) return;   // don't consume; may still resume
+      playTokenRef.current += 1;
+      playForwardRef.current(list, index, pos);
+    };
     try { audio.pause(); } catch { /* ignore */ }
     audio.src = url;
-    audio.onended = () => playForwardRef.current(list, index);
-    audio.onerror = () => playForwardRef.current(list, index);   // skip a broken/404 file silently
+    // Reset the audio-less hunt bound only when audio ACTUALLY starts (the browser
+    // fires `playing`), NOT merely because a URL exists — otherwise a source whose
+    // has_audio cells all 404 would reset the counter on every attempt and crawl the
+    // whole book (the counter would never reach MAX_EMPTY_CROSS).
+    audio.onplaying = () => { emptyCrossRef.current = 0; };
+    audio.onended = skipForward;
+    audio.onerror = skipForward;
     pausedRef.current = false;
     setPaused(false);
     setPlayingKey(sentenceKey(s));
-    audio.play().catch(() => { playForwardRef.current(list, index); });  // autoplay/decode reject → skip on
+    audio.play().catch(skipForward);
   }, [stopPlayback]);
 
   /**
    * Continuous reader: play the first sentence WITH audio at index > fromIndex in
-   * `list`; when the list is exhausted, page/chapter FORWARD (skipping fully
-   * audio-less pages/chapters) and keep going — until audio runs out or the user
-   * stops. `fromIndex = -1` reads from the start of the list.
+   * `list`; when the list is exhausted, page/chapter FORWARD from the EXPLICIT
+   * `pos` (skipping fully audio-less pages/chapters) until audio runs out or the
+   * user stops/pauses. `fromIndex = -1` reads from the start of the list.
    */
-  const playForward = useCallback((list: ReaderSentence[], fromIndex: number) => {
-    if (!playingRef.current) return;
+  const playForward = useCallback((list: ReaderSentence[], fromIndex: number, pos: PlayPos) => {
+    if (!playingRef.current || pausedRef.current) return;
     for (let i = fromIndex + 1; i < list.length; i += 1) {
-      if (resolveCell(list[i], readLangRef.current).hasAudio) { playAt(list, i); return; }
+      if (resolveCell(list[i], readLangRef.current).hasAudio) { playAt(list, i, pos); return; }
     }
+    // No audio on this page — bound the hunt so a no-TTS source doesn't crawl the
+    // whole book flipping pages/chapters looking for audio that isn't there.
+    emptyCrossRef.current += 1;
+    if (emptyCrossRef.current > MAX_EMPTY_CROSS) { toast.error('No more audio to read'); stopPlayback(); return; }
     // Exhausted this page — advance into the next page, then the next chapter.
-    if (pageRef.current < lastPageRef.current) {
-      const ch = modeRef.current === 'chapters' ? activeChapterRef.current : null;
-      load({ page: pageRef.current + 1, chapterIndex: ch, keepOnError: true, requirePlaying: true })
-        .then((items) => { if (items && playingRef.current) playForwardRef.current(items, -1); });
+    // `pos` is authoritative (refs may not be committed yet after a prior turn).
+    if (pos.page < pos.lastPage) {
+      load({ page: pos.page + 1, chapterIndex: pos.chapterIndex, keepOnError: true, requirePlaying: true })
+        .then((r) => { if (r && playingRef.current && !pausedRef.current) playForwardRef.current(r.items, -1, r.pos); });
       return;
     }
-    if (modeRef.current === 'chapters') {
+    if (pos.chapterIndex != null) {
       const chs = chaptersRef.current;
-      const pos = chs.findIndex((c) => c.chapter_index === activeChapterRef.current);
-      const next = pos >= 0 ? chs[pos + 1] : undefined;
+      const at = chs.findIndex((c) => c.chapter_index === pos.chapterIndex);
+      const next = at >= 0 ? chs[at + 1] : undefined;
       if (next) {
         load({ page: 1, chapterIndex: next.chapter_index, keepOnError: true, requirePlaying: true })
-          .then((items) => {
-            if (items && playingRef.current) { setActiveChapter(next.chapter_index); playForwardRef.current(items, -1); }
+          .then((r) => {
+            if (r && playingRef.current && !pausedRef.current) { setActiveChapter(next.chapter_index); playForwardRef.current(r.items, -1, r.pos); }
           });
         return;
       }
     }
     stopPlayback();   // nothing playable left anywhere
-  }, [playAt, load, stopPlayback]);
+  }, [playAt, load, stopPlayback, toast]);
   playForwardRef.current = playForward;
+
+  /** The paging position the currently-visible list occupies (built from committed state). */
+  const currentPos = (): PlayPos => ({ page, lastPage, chapterIndex: mode === 'chapters' ? activeChapter : null });
 
   /** Click a sentence's audio icon: pause/resume the current one, else read from here. */
   const onSentenceAudio = (index: number) => {
@@ -229,9 +298,14 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
     if (!cell.hasAudio) { toast.error('No audio available for this sentence'); return; }
     if (playingKey === sentenceKey(s)) {
       const audio = audioRef.current;
-      if (pausedRef.current) {                       // resume from the paused position
+      if (pausedRef.current) {                       // resume
         pausedRef.current = false; setPaused(false);
-        audio?.play().catch(() => { playForwardRef.current(sentences, index); });
+        if (audio && !audio.ended && audio.currentSrc) {
+          audio.play().catch(() => { /* transient resume failure — user can retry */ });
+        } else {
+          emptyCrossRef.current = 0;                      // fresh user intent → reset the hunt bound
+          playForward(sentences, index, currentPos());   // paused in a page-turn gap → continue forward
+        }
       } else {                                       // pause, keep position + highlight
         pausedRef.current = true; setPaused(true);
         try { audio?.pause(); } catch { /* ignore */ }
@@ -239,19 +313,24 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
       return;
     }
     loadSeqRef.current += 1;                          // a manual pick supersedes any pending auto-advance
+    emptyCrossRef.current = 0;                        // fresh user intent → reset the hunt bound
     playingRef.current = true;
-    playAt(sentences, index);
+    pausedRef.current = false; setPaused(false); setPlaying(true);
+    playAt(sentences, index, currentPos());
   };
 
   const toggleReadAll = () => {
     if (playingRef.current) { stopPlayback(); return; }
+    // Read starts only where there is audio ON THIS page — otherwise it would
+    // crawl forward hunting (bad for a no-TTS source). Continuous playback still
+    // crosses into later pages/chapters once started.
     const anyHere = sentences.some((s) => resolveCell(s, readLang).hasAudio);
-    const chPos = chapters.findIndex((c) => c.chapter_index === activeChapter);
-    const canCross = page < lastPage || (mode === 'chapters' && chPos >= 0 && chPos < chapters.length - 1);
-    if (!anyHere && !canCross) { toast.error('No audio available to read yet'); return; }
+    if (!anyHere) { toast.error('No audio available to read yet'); return; }
+    loadSeqRef.current += 1;                          // supersede any in-flight navigation load
+    emptyCrossRef.current = 0;
     playingRef.current = true;
-    pausedRef.current = false; setPaused(false);
-    playForward(sentences, -1);
+    pausedRef.current = false; setPaused(false); setPlaying(true);
+    playForward(sentences, -1, currentPos());
   };
 
   /** Change reading/audio language — stop playback (positions/keys differ per language). */
@@ -261,6 +340,9 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
   };
 
   // --- open / source change: init chapters + first page ---
+  // The reading language is chosen and kept valid by load() itself (it switches
+  // to a content-bearing language whenever the current one is empty on the loaded
+  // page), so this effect only wires up chapters + the first page.
   useEffect(() => {
     if (!open) return;
     stopPlayback();
@@ -268,23 +350,26 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
     setSentences([]);
     setChapters([]);
     setActiveChapter(null);
+    setReadLang('');
+    // Show the loading state across the WHOLE open sequence — including the
+    // chapters fetch that precedes the first load() — so a slow backend renders a
+    // spinner, not a transient "no readable content" empty. load()'s finally
+    // (loadCountRef-driven) clears it once the first page resolves.
+    const willLoad = (kind === 'book' && !!sourceKey) || (kind === 'document' && documentId != null);
+    if (willLoad) setLoading(true);
     let cancelled = false;
 
     (async () => {
       if (kind === 'book' && sourceKey) {
         let chs: ReaderChapter[] = [];
-        let ls: string[] = [];
         try {
           const chRes = await api.mediaQuery.getBookChapters(sourceKey);
           if (chRes.success && chRes.data) {
             chs = Array.isArray(chRes.data.chapters) ? chRes.data.chapters : [];
-            ls = Array.isArray(chRes.data.languages) ? chRes.data.languages : [];
           }
         } catch { /* chapterless / offline — fall through to flat sentences */ }
         if (cancelled) return;
         setChapters(chs);
-        setLangs(ls);
-        setReadLang(pickDefaultLang(ls));
         if (chs.length > 0) {
           setMode('chapters');
           setActiveChapter(chs[0].chapter_index);
@@ -295,11 +380,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
         }
       } else if (kind === 'document' && documentId != null) {
         setMode('sentences');
-        const items = await load({ page: 1, chapterIndex: null });
-        if (cancelled) return;
-        const dl = items ? collectLangs(items) : [];
-        setLangs(dl);
-        setReadLang(pickDefaultLang(dl));
+        await load({ page: 1, chapterIndex: null });
       }
     })();
 
@@ -320,6 +401,19 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
     if (el) (el as HTMLElement).scrollIntoView({ block: 'nearest' });
   }, [playingKey, sentences]);
 
+  // Safety net for the reading language: when NOT playing, ensure readLang has
+  // content on the visible page. load() already revalidates on user navigation,
+  // but a continuous-playback continuation keeps readLang fixed and can stop on a
+  // page where that language is empty (all verses blank) — this restores a
+  // content-bearing language once playback ends. Gated on !playing so it never
+  // switches language out from under an active read.
+  useEffect(() => {
+    if (playing || sentences.length === 0) return;
+    const cl = collectLangs(sentences);
+    if (cl.length && !cl.includes(readLang)) setReadLang(bestLang(sentences, cl));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sentences, playing]);
+
   // --- mode + chapter + page controls ---
   const switchMode = (next: ReaderMode) => {
     if (next === mode) return;
@@ -330,7 +424,8 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
       setActiveChapter(ch);
       void load({ page: 1, chapterIndex: ch });
     } else {
-      setActiveChapter(null);
+      // Keep activeChapter so returning to Chapters mode restores the last chapter
+      // (currentPos/goToPage already scope to null while mode==='sentences').
       void load({ page: 1, chapterIndex: null });
     }
   };
@@ -348,7 +443,11 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
   };
 
   const hasChapters = kind === 'book' && chapters.length > 0;
-  const showLangSelect = langs.length > 1;
+  // Offer only the languages present ON THE CURRENT PAGE, so a pick can never
+  // blank the view (resolveCell has no cross-language fallback); load() switches
+  // readLang to one of these whenever a navigation lands on a page without it.
+  const pageLangs = useMemo(() => collectLangs(sentences), [sentences]);
+  const showLangSelect = pageLangs.length > 1;
   const Icon = kind === 'book' ? BookOpen : FileText;
   const emptyMsg = kind === 'document'
     ? 'No readable content yet — extract sentences for this document first.'
@@ -391,7 +490,7 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
               className={`${commonClasses.input} text-sm py-1.5`}
               title="Reading / audio language"
             >
-              {langs.map((l) => (
+              {pageLangs.map((l) => (
                 <option key={l} value={l}>{langName(l)}</option>
               ))}
             </select>
@@ -399,14 +498,15 @@ const MediaReaderModal: React.FC<MediaReaderModalProps> = ({ open, onClose, kind
 
           <div className="flex-1" />
 
-          {/* Read-all / stop */}
+          {/* Read-all / stop — driven by `playing` (not playingKey) so it stays a
+              working Stop even while playback crosses an audio-less page. */}
           <button
             type="button"
             onClick={toggleReadAll}
-            disabled={sentences.length === 0}
-            className={`${commonClasses.button} ${playingKey ? 'bg-rose-600 hover:bg-rose-700 text-white' : commonClasses.buttonPrimary} flex items-center gap-1.5 px-3 py-1.5 disabled:opacity-50`}
+            disabled={!playing && sentences.length === 0}
+            className={`${commonClasses.button} ${playing ? 'bg-rose-600 hover:bg-rose-700 text-white' : commonClasses.buttonPrimary} flex items-center gap-1.5 px-3 py-1.5 disabled:opacity-50`}
           >
-            {playingKey ? <><Square className="w-4 h-4" /> Stop</> : <><Play className="w-4 h-4" /> Read</>}
+            {playing ? <><Square className="w-4 h-4" /> Stop</> : <><Play className="w-4 h-4" /> Read</>}
           </button>
 
           <button

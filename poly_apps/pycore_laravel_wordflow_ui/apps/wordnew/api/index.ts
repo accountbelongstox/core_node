@@ -29,7 +29,23 @@ export * from './WfNewApiTypes';
 // Endpoint list center — the single source of truth for every backend path the
 // app calls (verified against laravel_main routes/AppQyV1Router/*). The http
 // impl routes through it; import it anywhere a raw path would otherwise be typed.
-export { WfNewApiPaths, WFNEW_API_BASE, WFNEW_HEALTH_PATH } from './WfNewApiPaths';
+export {
+  WfNewApiPaths, WfNewAdminPaths, WFNEW_API_BASE, WFNEW_HEALTH_PATH,
+  WFNEW_ADMIN_DEBUG_STATUS_PATH,
+} from './WfNewApiPaths';
+
+// Super-admin gateway (loopback local-management mode) — separate from the
+// http/mock pair on purpose: pinned page-origin base, only alive when the
+// backend grants the loopback debug bypass. See WfNewAdminApi header.
+export { wfNewAdminApi } from './WfNewAdminApi';
+export type {
+  WfNewSuperAdminStatus, WfNewAdminWordRow, WfNewAdminWordsPage,
+  WfNewAdminWordFilter, WfNewAdminWordSort, WfNewAdminWordEditable,
+  WfNewAdminBatchAction, WfNewAdminLangRow, WfNewAdminSentence,
+  WfNewAdminLibraryRow, WfNewAdminLibrariesPage, WfNewAdminStatistics,
+  WfNewAdminTtsQueueStats, WfNewAdminQueueItem, WfNewAdminQueueItemsPage,
+  WfNewAdminTransTask, WfNewAdminTranslateResult, WfNewAdminLangOption,
+} from './WfNewAdminApi';
 
 // Backend endpoint management (default list, health probe, STORED-FIRST
 // auto-select + offline retry). Used by the Settings → API Server panel and the
