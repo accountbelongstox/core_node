@@ -56,6 +56,8 @@ import { WfNewReviewSettings } from './pages/WfNewReviewSettings';
 import { WfNewPlaybackSettings } from './pages/WfNewPlaybackSettings';
 import { WfNewAbout } from './pages/WfNewAbout';
 import { WfNewAdminPage } from './pages/WfNewAdminPage';
+import { WfNewWordDetailModal } from './components/WfNewWordDetailModal';
+import { WfNewLabsTab } from './components/WfNewLabsTab';
 import { WfNewAvatarView } from './components/WfNewAvatarView';
 import { WfNewHomeDashboard } from './components/WfNewHomeDashboard';
 import { WfNewOnboarding } from './pages/WfNewOnboarding';
@@ -110,6 +112,13 @@ function wfNewPageHeader(
 
 export const WfNewApp: React.FC = () => {
   const { lang: shellLang, setLang: setShellLang, dark, toggleDark } = useShell();
+
+  // MODULAR-SPLIT-TODO: state+effects below (≈117-1145) + inline home/practice/shelf
+  // tab bodies still keep this shell > 800 lines. Follow-up: lift the state block into
+  // useWfNewAppState() (return every name the JSX reads; destructure identically so the
+  // `return (…)` block stays untouched) and extract those 3 tab bodies into
+  // WfNewHomeTab / WfNewPracticeTab / WfNewShelfTab. Labs + word-detail modal already
+  // extracted. Verify each step with `vite build`.
 
   // Selected atmospheric theme state (persisted via the shared settings store)
   const [activeThemeId, setActiveThemeId] = useState<string>(() => wfNewSettings.get('themeId'));
@@ -2160,125 +2169,28 @@ export const WfNewApp: React.FC = () => {
             </motion.div>
           )}
 
-          {/* ====== AI COGNITIVE LAB ====== */}
+          {/* ====== AI COGNITIVE LAB (body extracted to WfNewLabsTab) ====== */}
           {activeTab === 'labs' && (
-            <motion.div
-              key="labs"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-6 max-w-3xl mx-auto"
-            >
-              <div className="text-center py-2">
-                <h2 className="text-2xl font-black">{trans('lab.title')}</h2>
-                <p className="text-zinc-500 text-xs font-mono">{trans('lab.sub')}</p>
-              </div>
-
-              {/* Entry to the daily short-sentence reading (pycore-assisted translations). */}
-              <button
-                onClick={() => setActiveTab('daily-reading')}
-                className={`w-full p-4 rounded-2xl text-left flex items-center justify-between ${activeTheme.cardClass} hover:scale-[1.01] transition-transform`}
-              >
-                <span className="flex items-center gap-2 text-sm font-bold">
-                  <BookOpen className="w-4 h-4 text-indigo-400" /> Daily Reading
-                </span>
-                <span className="text-xs text-zinc-500 font-mono">AI-translated short sentences →</span>
-              </button>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                {/* Forge Form */}
-                <div className={`md:col-span-2 p-6 rounded-3xl ${activeTheme.cardClass} space-y-4`}>
-                  <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-indigo-400">
-                    {trans('lab.addWord')}
-                  </h3>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordText')}</label>
-                      <input
-                        type="text"
-                        placeholder={trans('lab.phWord')}
-                        value={newWordText}
-                        onChange={(e) => setNewWordText(e.target.value)}
-                        className={`w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordTransl')}</label>
-                      <input
-                        type="text"
-                        placeholder={trans('lab.phTransl')}
-                        value={newWordTransl}
-                        onChange={(e) => setNewWordTransl(e.target.value)}
-                        className={`w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordPhon')}</label>
-                    <input
-                      type="text"
-                      placeholder={trans('lab.phPhon')}
-                      value={newWordPhon}
-                      onChange={(e) => setNewWordPhon(e.target.value)}
-                      className={`w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`}
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordDef')}</label>
-                    <textarea
-                      rows={3}
-                      placeholder={trans('lab.phDef')}
-                      value={newWordDef}
-                      onChange={(e) => setNewWordDef(e.target.value)}
-                      className={`w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none resize-none ${activeTheme.inputClass}`}
-                    />
-                  </div>
-
-                  <button
-                    onClick={handleForgeCustomWord}
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3.5 rounded-2xl text-xs font-mono font-bold uppercase tracking-wider"
-                  >
-                    {trans('lab.btn')}
-                  </button>
-                </div>
-
-                {/* Forged lists */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold font-mono uppercase tracking-widest text-zinc-500">Live Active Injectors</h4>
-                  
-                  <div className="space-y-2 max-h-[380px] overflow-y-auto no-scrollbar">
-                    {courseWords.filter(w => w.id.startsWith('custom')).map(word => (
-                      <div key={word.id} className="p-3.5 rounded-xl bg-white/5 border border-white/5 flex justify-between items-center">
-                        <div className="min-w-0 pr-2">
-                          <p className="text-xs font-bold text-indigo-400">{word.text}</p>
-                          <p className="text-[10px] text-zinc-500 truncate mt-1">{word.translation}</p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setCourseWords(prev => prev.filter(w => w.id !== word.id));
-                            addToast(trans('toast.wipedForge'), 'warning');
-                          }}
-                          className="p-1.5 bg-white/5 rounded-lg text-rose-400 hover:bg-rose-500/10"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-
-                    {courseWords.filter(w => w.id.startsWith('custom')).length === 0 && (
-                      <div className="text-center py-12 text-xs font-mono text-zinc-600">
-                        No forged words in current live catalog. Add one to see it here!
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-              </div>
+            <motion.div key="labs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <WfNewLabsTab
+                activeTheme={activeTheme}
+                trans={trans}
+                courseWords={courseWords}
+                newWordText={newWordText}
+                setNewWordText={setNewWordText}
+                newWordTransl={newWordTransl}
+                setNewWordTransl={setNewWordTransl}
+                newWordPhon={newWordPhon}
+                setNewWordPhon={setNewWordPhon}
+                newWordDef={newWordDef}
+                setNewWordDef={setNewWordDef}
+                onForge={handleForgeCustomWord}
+                onRemoveCustom={(id) => {
+                  setCourseWords((prev) => prev.filter((w) => w.id !== id));
+                  addToast(trans('toast.wipedForge'), 'warning');
+                }}
+                onOpenDailyReading={() => setActiveTab('daily-reading')}
+              />
             </motion.div>
           )}
 
@@ -2597,77 +2509,15 @@ export const WfNewApp: React.FC = () => {
         dark={dark}
       />
 
-      {/* Detailed Word modal popup */}
-      <AnimatePresence>
-        {selectedWordDetail && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedWordDetail(null)}
-              className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className={`w-full max-w-md p-6 rounded-3xl border border-white/10 shadow-2xl relative z-10 space-y-4 ${
-                activeTheme.id === 'nordic' 
-                  ? 'bg-white text-slate-800' 
-                  : 'bg-slate-900 text-white'
-              }`}
-            >
-              <div className="flex justify-between items-start">
-                <span className="text-[9px] font-mono uppercase bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded font-bold">Lexicon index</span>
-                <button
-                  onClick={() => handleToggleFavorite(selectedWordDetail)}
-                  className="p-1 rounded hover:bg-white/10"
-                >
-                  <Star className={`w-4 h-4 ${favorites.some(f => f.id === selectedWordDetail.id) ? 'fill-amber-400 text-amber-400' : 'text-zinc-400'}`} />
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex items-center gap-2.5">
-                  <h3 className="text-3xl font-black text-indigo-300">{selectedWordDetail.text}</h3>
-                  <button
-                    onClick={() => playPhoneticSpeech(selectedWordDetail)}
-                    className="p-2 bg-white/5 rounded-full hover:bg-white/10"
-                  >
-                    <Volume2 className="w-4 h-4 text-zinc-300" />
-                  </button>
-                </div>
-                <p className="text-xs font-mono text-zinc-500">{selectedWordDetail.phonetic}</p>
-              </div>
-
-              <p className="text-sm font-bold text-zinc-300 border-t border-b border-white/5 py-3">{selectedWordDetail.translation}</p>
-
-              {selectedWordDetail.definition && (
-                <div className="space-y-1">
-                  <span className="text-[10px] font-mono text-zinc-500 uppercase block">En Definition</span>
-                  <p className="text-xs text-zinc-400 leading-relaxed font-sans">{selectedWordDetail.definition}</p>
-                </div>
-              )}
-
-              {selectedWordDetail.example && (
-                <div className="space-y-1 pt-1.5">
-                  <span className="text-[10px] font-mono text-zinc-500 uppercase block">Practical Example</span>
-                  <p className="text-xs font-mono italic text-zinc-400 leading-relaxed">&ldquo;{selectedWordDetail.example}&rdquo;</p>
-                </div>
-              )}
-
-              <button
-                onClick={() => setSelectedWordDetail(null)}
-                className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-xs font-mono text-zinc-400 rounded-xl mt-2"
-              >
-                Close details
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Detailed Word modal popup (extracted to WfNewWordDetailModal) */}
+      <WfNewWordDetailModal
+        word={selectedWordDetail}
+        activeTheme={activeTheme}
+        isFavorite={!!selectedWordDetail && favorites.some((f) => f.id === selectedWordDetail.id)}
+        onClose={() => setSelectedWordDetail(null)}
+        onToggleFavorite={handleToggleFavorite}
+        onPlay={playPhoneticSpeech}
+      />
 
       {/* Floating Bottom Navigator dock */}
       <WfNewBottomDock
