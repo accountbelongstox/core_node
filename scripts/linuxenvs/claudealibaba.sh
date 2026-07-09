@@ -12,16 +12,28 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
-# Claude AI (Volcano Ark / Doubao) Launch Script - v4
+# Claude AI (Alibaba Cloud Model Studio / Qwen) Launch Script - v4
 # =============================================================================
-# Synopsis: Launches Claude Code via Volcano Ark (Doubao) coding endpoint with
-#     the model forced to glm-5.2 everywhere, and experimental agent teams +
-#     ultracode force-enabled (like claudeteam).
+# Synopsis: Launches Claude Code via Alibaba Cloud Model Studio (Bailian /
+#     DashScope) Anthropic-compatible endpoint with a Qwen model forced into
+#     every slot, and experimental agent teams + ultracode force-enabled
+#     (like claudeteam).
 # Notes:
-#     - API key is read from .secret_keys/.secret_ignore/ARK_API_KEY_1, written
-#       by the Special Software Environment Variables Manager (dd.sh / dd.cmd).
-#     - Volcano Ark /api/coding is the Anthropic-compatible endpoint and serves
-#       glm-5.2 (model is glm-5.2, NOT doubao).
+#     - API key is read from .secret_keys/.secret_ignore/DASHSCOPE_API_KEY_1,
+#       written by the Special Software Environment Variables Manager (dd.sh /
+#       dd.cmd). The same standard Model Studio API Key works for the
+#       Pay-as-you-go Anthropic endpoint (default).
+#     - Anthropic-compatible endpoint base URL is read from
+#       DASHSCOPE_ANTHROPIC_BASE_URL_1 (default:
+#       https://dashscope.aliyuncs.com/apps/anthropic, the Pay-as-you-go
+#       endpoint). Switch billing plan by changing base URL + model + key:
+#         * Pay-as-you-go: https://dashscope.aliyuncs.com/apps/anthropic
+#             model qwen3.6-plus (standard Model Studio API Key)
+#         * Coding Plan:   https://coding.dashscope.aliyuncs.com/apps/anthropic
+#             model qwen3.7-plus (dedicated Coding Plan API Key)
+#         * Token Plan:    https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic
+#             model qwen3.6-plus (dedicated Token Plan API Key)
+#       Source: https://help.aliyun.com/en/model-studio/claude-code
 #     - team + ultracode are always on; --dangerously-skip-permissions is added
 #       for non-root only (root is refused that flag by Claude Code).
 # =============================================================================
@@ -29,13 +41,14 @@
 set -e
 
 # Variable declarations (declared at the beginning of the file)
-VOLC_BASE_URL=""
-VOLC_API_KEY=""
-VOLC_MODEL="glm-5.2"
+ALI_BASE_URL=""
+ALI_API_KEY=""
+ALI_MODEL="qwen3.6-plus"
 ultra_settings_json='{"ultracode":true}'
 claude_args=()
-ARK_API_KEY=""
-ARK_BASE_URL=""
+DASHSCOPE_API_KEY=""
+DASHSCOPE_ANTHROPIC_BASE_URL=""
+DASHSCOPE_ANTHROPIC_MODEL=""
 masked_key=""
 secret_dir=""
 scriptSource=""
@@ -52,7 +65,7 @@ export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS="1"
 
 echo ""
 echo "============================================================"
-echo "Claude AI (Volcano Ark / Doubao) - v4 [glm-5.2 + team + ultracode]"
+echo "Claude AI (Alibaba Model Studio / Qwen) - v4 [qwen + team + ultracode]"
 echo "============================================================"
 echo ""
 
@@ -94,26 +107,33 @@ read_secret_file() {
     echo "$value"
 }
 
-# Load API key
-ARK_API_KEY=$(read_secret_file "$secret_dir/ARK_API_KEY_1")
+# Load API key (standard Model Studio API Key; works for Pay-as-you-go).
+DASHSCOPE_API_KEY=$(read_secret_file "$secret_dir/DASHSCOPE_API_KEY_1")
 
-# Load base URL with fallback to default
-ARK_BASE_URL=$(read_secret_file "$secret_dir/ARK_BASE_URL_1")
-if [ -z "$ARK_BASE_URL" ]; then
-    ARK_BASE_URL="https://ark.cn-beijing.volces.com/api/coding"
+# Load Anthropic-compatible base URL with fallback to the Pay-as-you-go default.
+DASHSCOPE_ANTHROPIC_BASE_URL=$(read_secret_file "$secret_dir/DASHSCOPE_ANTHROPIC_BASE_URL_1")
+if [ -z "$DASHSCOPE_ANTHROPIC_BASE_URL" ]; then
+    DASHSCOPE_ANTHROPIC_BASE_URL="https://dashscope.aliyuncs.com/apps/anthropic"
 fi
+
+# Load Qwen model with fallback to qwen3.6-plus (Pay-as-you-go default).
+DASHSCOPE_ANTHROPIC_MODEL=$(read_secret_file "$secret_dir/DASHSCOPE_ANTHROPIC_MODEL_1")
+if [ -z "$DASHSCOPE_ANTHROPIC_MODEL" ]; then
+    DASHSCOPE_ANTHROPIC_MODEL="$ALI_MODEL"
+fi
+ALI_MODEL="$DASHSCOPE_ANTHROPIC_MODEL"
 
 # Set the Claude Code environment variables
-export ANTHROPIC_BASE_URL="$ARK_BASE_URL"
-if [ -n "$ARK_API_KEY" ]; then
-    export ANTHROPIC_AUTH_TOKEN="$ARK_API_KEY"
+export ANTHROPIC_BASE_URL="$DASHSCOPE_ANTHROPIC_BASE_URL"
+if [ -n "$DASHSCOPE_API_KEY" ]; then
+    export ANTHROPIC_AUTH_TOKEN="$DASHSCOPE_API_KEY"
 fi
-export ANTHROPIC_MODEL="$VOLC_MODEL"
+export ANTHROPIC_MODEL="$ALI_MODEL"
 # Force the model into every slot so agent-teams / subagents / background tasks
-# also run through the gateway (it only serves glm-5.2).
-export CLAUDE_CODE_SUBAGENT_MODEL="$VOLC_MODEL"
-export ANTHROPIC_DEFAULT_HAIKU_MODEL="$VOLC_MODEL"
-export ANTHROPIC_DEFAULT_SONNET_MODEL="$VOLC_MODEL"
+# also run through the Model Studio Anthropic gateway.
+export CLAUDE_CODE_SUBAGENT_MODEL="$ALI_MODEL"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="$ALI_MODEL"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="$ALI_MODEL"
 
 # Configuration summary
 echo "API Endpoint: $ANTHROPIC_BASE_URL"
@@ -121,23 +141,24 @@ echo "Model: $ANTHROPIC_MODEL (forced: main + subagents + background)"
 echo "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (force-enabled)"
 echo "Ultracode: --settings $ultra_settings_json (force-enabled)"
 
-if [ -z "$ARK_API_KEY" ]; then
+if [ -z "$DASHSCOPE_API_KEY" ]; then
     echo ""
-    echo "[ERROR] Volcano Ark API Key not found!"
+    echo "[ERROR] Alibaba DashScope API Key not found!"
     echo ""
     echo "Please set up your credentials using dd.sh:"
     echo "  1. Run sudo $projectRootPath/dd.sh"
     echo "  2. Navigate to: Special Software Environment Variables"
-    echo "  3. Select: Volcano Ark (Doubao)"
-    echo "  4. Set your ARK_API_KEY"
+    echo "  3. Select: Alibaba DashScope (Qwen)"
+    echo "  4. Set your DASHSCOPE_API_KEY (and optionally DASHSCOPE_ANTHROPIC_BASE_URL"
+    echo "     + DASHSCOPE_ANTHROPIC_MODEL to switch to Coding Plan / Token Plan)"
     echo ""
     echo "Alternatively, create the secret file manually:"
-    echo "  $secret_dir/ARK_API_KEY_1"
+    echo "  $secret_dir/DASHSCOPE_API_KEY_1"
     echo ""
     read -p "Press Enter to exit..."
     exit 1
 else
-    echo "API Key: $ARK_API_KEY (loaded)"
+    echo "API Key: $DASHSCOPE_API_KEY (loaded)"
 fi
 echo "============================================================"
 echo ""
@@ -151,7 +172,7 @@ fi
 
 # Launch tool
 echo "============================================================"
-echo "Press Enter to start Claude AI (Volcano Ark) [glm-5.2 + team + ultracode]..."
+echo "Press Enter to start Claude AI (Alibaba Model Studio) [qwen + team + ultracode]..."
 echo "============================================================"
 read -p "Press Enter to continue..."
 

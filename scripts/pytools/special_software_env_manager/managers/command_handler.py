@@ -239,6 +239,26 @@ class CommandHandler:
             secret_manager_available=True
         )
 
+        # Auto-rewrite ALL scripts of this type when UseV4Launcher is set.
+        # Every add/replace triggers a full regeneration so all numbered
+        # scripts stay in sync with the v4 template (team + ultracode).
+        if config.get('UseV4Launcher', False):
+            print()
+            ColorMessage.write("Regenerating ALL launcher scripts for this config type (v4)...", 'info')
+            total = self.script_manager.regenerate_all_v4_launchers_for_config(
+                config_name, config
+            )
+            if total > 0:
+                ColorMessage.write(
+                    f"[OK] Regenerated {total} v4 launcher script set(s) for {config_name}.",
+                    'success'
+                )
+            else:
+                ColorMessage.write(
+                    "No secret file sets found; only the current script was generated.",
+                    'warning'
+                )
+
         print()
         input("Press Enter to continue...")
 

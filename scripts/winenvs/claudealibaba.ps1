@@ -12,25 +12,32 @@
 
 <#
 .SYNOPSIS
-    Claude AI (Volcano Ark / Doubao) Launch Script - v4
+    Claude AI (Alibaba Cloud Model Studio / Qwen) Launch Script - v4
 
 .DESCRIPTION
-    Launches Claude Code via Volcano Ark (Doubao) coding endpoint with the model
-    forced to glm-5.2 everywhere, and experimental agent teams + ultracode
-    force-enabled (like claudeteam).
-    API key is read from .secret_keys/.secret_ignore/ARK_API_KEY_1 (written by
-    the Special Software Environment Variables Manager, dd.sh / dd.cmd).
-    Volcano Ark /api/coding is the Anthropic-compatible endpoint and serves
-    glm-5.2 (model is glm-5.2, NOT doubao).
+    Launches Claude Code via Alibaba Cloud Model Studio (Bailian / DashScope)
+    Anthropic-compatible endpoint with a Qwen model forced into every slot, and
+    experimental agent teams + ultracode force-enabled (like claudeteam).
+    API key is read from .secret_keys/.secret_ignore/DASHSCOPE_API_KEY_1 (written
+    by the Special Software Environment Variables Manager, dd.sh / dd.cmd). The
+    same standard Model Studio API Key works for the Pay-as-you-go Anthropic
+    endpoint (default).
+    Anthropic base URL is read from DASHSCOPE_ANTHROPIC_BASE_URL_1 (default:
+    https://dashscope.aliyuncs.com/apps/anthropic). Switch billing plan by
+    changing base URL + model + key:
+      * Pay-as-you-go: https://dashscope.aliyuncs.com/apps/anthropic (qwen3.6-plus)
+      * Coding Plan:   https://coding.dashscope.aliyuncs.com/apps/anthropic (qwen3.7-plus)
+      * Token Plan:    https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic (qwen3.6-plus)
+    Source: https://help.aliyun.com/en/model-studio/claude-code
 #>
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # Variable declarations
-$volcBaseUrl = ""
-$volcApiKey = ""
-$volcModel = "glm-5.2"
+$aliBaseUrl = ""
+$aliApiKey = ""
+$aliModel = "qwen3.6-plus"
 $ultraSettingsJson = $null
 $ultraSettingsFile = $null
 $claudeArgs = $null
@@ -43,6 +50,8 @@ $scriptsDirPath = $null
 $projectRootPath = $null
 $secretDir = $null
 $maskedKey = $null
+$dashscopeAnthropicBaseUrl = $null
+$dashscopeAnthropicModel = $null
 
 # Ensure DISABLE_AUTOUPDATER is set for Claude Code
 $env:DISABLE_AUTOUPDATER = "1"
@@ -59,12 +68,12 @@ $teammateMode = 'in-process'
 # {"ultracode":true}` arrives as `{ultracode:true}` -> invalid JSON. --settings
 # also accepts a file path, which sidesteps all shell quoting).
 $ultraSettingsJson = '{"ultracode":true}'
-$ultraSettingsFile = Join-Path $env:TEMP "claudevolc_ultracode_settings.json"
+$ultraSettingsFile = Join-Path $env:TEMP "claudealibaba_ultracode_settings.json"
 [System.IO.File]::WriteAllText($ultraSettingsFile, $ultraSettingsJson)
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Claude AI (Volcano Ark / Doubao) - v4 [glm-5.2 + team + ultracode]" -ForegroundColor Yellow
+Write-Host "Claude AI (Alibaba Model Studio / Qwen) - v4 [qwen + team + ultracode]" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -113,26 +122,33 @@ function Read-SecretFile {
     return $value
 }
 
-# Load API key
-$volcApiKey = Read-SecretFile (Join-Path $secretDir "ARK_API_KEY_1")
+# Load API key (standard Model Studio API Key; works for Pay-as-you-go).
+$aliApiKey = Read-SecretFile (Join-Path $secretDir "DASHSCOPE_API_KEY_1")
 
-# Load base URL with fallback to default
-$volcBaseUrl = Read-SecretFile (Join-Path $secretDir "ARK_BASE_URL_1")
-if (-not $volcBaseUrl) {
-    $volcBaseUrl = "https://ark.cn-beijing.volces.com/api/coding"
+# Load Anthropic-compatible base URL with fallback to the Pay-as-you-go default.
+$dashscopeAnthropicBaseUrl = Read-SecretFile (Join-Path $secretDir "DASHSCOPE_ANTHROPIC_BASE_URL_1")
+if (-not $dashscopeAnthropicBaseUrl) {
+    $dashscopeAnthropicBaseUrl = "https://dashscope.aliyuncs.com/apps/anthropic"
 }
+
+# Load Qwen model with fallback to qwen3.6-plus (Pay-as-you-go default).
+$dashscopeAnthropicModel = Read-SecretFile (Join-Path $secretDir "DASHSCOPE_ANTHROPIC_MODEL_1")
+if (-not $dashscopeAnthropicModel) {
+    $dashscopeAnthropicModel = $aliModel
+}
+$aliModel = $dashscopeAnthropicModel
 
 # Set the Claude Code environment variables
-$env:ANTHROPIC_BASE_URL = $volcBaseUrl
-if ($volcApiKey) {
-    $env:ANTHROPIC_AUTH_TOKEN = $volcApiKey
+$env:ANTHROPIC_BASE_URL = $dashscopeAnthropicBaseUrl
+if ($aliApiKey) {
+    $env:ANTHROPIC_AUTH_TOKEN = $aliApiKey
 }
-$env:ANTHROPIC_MODEL = $volcModel
+$env:ANTHROPIC_MODEL = $aliModel
 # Force the model into every slot so agent-teams / subagents / background tasks
-# also run through the gateway (it only serves glm-5.2).
-$env:CLAUDE_CODE_SUBAGENT_MODEL = $volcModel
-$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $volcModel
-$env:ANTHROPIC_DEFAULT_SONNET_MODEL = $volcModel
+# also run through the Model Studio Anthropic gateway.
+$env:CLAUDE_CODE_SUBAGENT_MODEL = $aliModel
+$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $aliModel
+$env:ANTHROPIC_DEFAULT_SONNET_MODEL = $aliModel
 
 # Configuration summary
 Write-Host "API Endpoint: $env:ANTHROPIC_BASE_URL" -ForegroundColor White
@@ -140,18 +156,19 @@ Write-Host "Model: $env:ANTHROPIC_MODEL (forced: main + subagents + background)"
 Write-Host "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (force-enabled)" -ForegroundColor White
 Write-Host "Ultracode: --settings $ultraSettingsJson (via temp file $ultraSettingsFile)" -ForegroundColor White
 
-if (-not $volcApiKey) {
+if (-not $aliApiKey) {
     Write-Host ""
-    Write-Host "[ERROR] Volcano Ark API Key not found!" -ForegroundColor Red
+    Write-Host "[ERROR] Alibaba DashScope API Key not found!" -ForegroundColor Red
     Write-Host ""
     Write-Host "Please set up your credentials using dd.sh:" -ForegroundColor Yellow
     Write-Host "  1. Run sudo $projectRootPath/dd.sh" -ForegroundColor Gray
     Write-Host "  2. Navigate to: Special Software Environment Variables" -ForegroundColor Gray
-    Write-Host "  3. Select: Volcano Ark (Doubao)" -ForegroundColor Gray
-    Write-Host "  4. Set your ARK_API_KEY" -ForegroundColor Gray
+    Write-Host "  3. Select: Alibaba DashScope (Qwen)" -ForegroundColor Gray
+    Write-Host "  4. Set your DASHSCOPE_API_KEY (and optionally DASHSCOPE_ANTHROPIC_BASE_URL" -ForegroundColor Gray
+    Write-Host "     + DASHSCOPE_ANTHROPIC_MODEL to switch to Coding Plan / Token Plan)" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Alternatively, create the secret file manually:" -ForegroundColor Yellow
-    Write-Host "  $secretDir\ARK_API_KEY_1" -ForegroundColor Gray
+    Write-Host "  $secretDir\DASHSCOPE_API_KEY_1" -ForegroundColor Gray
     Write-Host ""
     $null = Read-Host "Press Enter to exit"
     if ((-not [string]::IsNullOrWhiteSpace($ultraSettingsFile)) -and (Test-Path $ultraSettingsFile)) {
@@ -160,7 +177,7 @@ if (-not $volcApiKey) {
     exit 1
 }
 else {
-    Write-Host "API Key: $volcApiKey (loaded)" -ForegroundColor White
+    Write-Host "API Key: $aliApiKey (loaded)" -ForegroundColor White
 }
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
@@ -171,7 +188,7 @@ $claudeArgs = @("--settings", $ultraSettingsFile, "--teammate-mode", $teammateMo
 
 # Launch tool
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Press Enter to start Claude AI (Volcano Ark) [glm-5.2 + team + ultracode]..." -ForegroundColor Yellow
+Write-Host "Press Enter to start Claude AI (Alibaba Model Studio) [qwen + team + ultracode]..." -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 $null = Read-Host "Press Enter to continue"
 

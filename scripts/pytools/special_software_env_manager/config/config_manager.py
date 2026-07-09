@@ -23,6 +23,7 @@ class ConfigManager:
                 'CommandPrefix': 'claude',
                 'WindowsCommand': 'claude',
                 'LinuxCommand': 'claude',
+                'UseV4Launcher': True,
                 'Variables': [
                     {
                         'Name': 'ANTHROPIC_BASE_URL',
@@ -629,6 +630,24 @@ class ConfigManager:
                         'DisplayName': 'DashScope Base URL',
                         'Description': 'DashScope OpenAI-compatible Base URL (default: https://dashscope.aliyuncs.com/compatible-mode/v1)',
                         'InputType': 'Url',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'DASHSCOPE_ANTHROPIC_BASE_URL',
+                        'DisplayName': 'DashScope Anthropic Base URL',
+                        'Description': 'Anthropic-compatible Base URL for Claude Code (claudealibaba). '
+                        'default: https://dashscope.aliyuncs.com/apps/anthropic (Pay-as-you-go). '
+                        'Coding Plan: https://coding.dashscope.aliyuncs.com/apps/anthropic ; '
+                        'Token Plan: https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic',
+                        'InputType': 'Url',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'DASHSCOPE_ANTHROPIC_MODEL',
+                        'DisplayName': 'DashScope Anthropic Model',
+                        'Description': 'Qwen model forced into every Claude Code slot (claudealibaba). '
+                        'default: qwen3.6-plus (Pay-as-you-go). Coding Plan: qwen3.7-plus',
+                        'InputType': 'Token',
                         'Required': False
                     }
                 ],
