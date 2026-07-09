@@ -2713,6 +2713,7 @@ if (window.__WEB_FETCHER_HELPER_INITIALIZED__) {
           error: `Failed to get HTML content: ${error.message}`,
         });
       }
+      return false; // Synchronous response already sent
     }
 
     // Get text content
@@ -2787,12 +2788,12 @@ if (window.__WEB_FETCHER_HELPER_INITIALIZED__) {
         });
       }
 
-      return true; // Async response
+      return false; // Synchronous response already sent
     }
 
     // Interactive elements feature has been removed
 
-    return true; // Async response
+    return false; // Not our message, or synchronous response already sent
   });
 
   /**

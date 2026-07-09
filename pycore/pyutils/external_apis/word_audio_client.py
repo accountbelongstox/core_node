@@ -228,6 +228,17 @@ def _free_dictionary_api(
 # --------------------------------------------------------------------------- #
 # 2. Wikimedia Commons                                                        #
 # --------------------------------------------------------------------------- #
+# commons.wikimedia.org can be slow/flaky; a single read timeout would
+# otherwise stall the pronunciation chain once per accent pass per word. Latch
+# a process-wide disable on the first timeout (mirrors _forvo_disabled_reason
+# / movie_poster_client._omdb_disabled_reason) and short-circuit every later
+# Wikimedia lookup. The tighter per-source timeout bounds the one wait paid
+# before the latch fires.
+_wikimedia_disabled_reason: Optional[str] = None
+_wikimedia_lock = threading.Lock()
+_WIKIMEDIA_TIMEOUT: Tuple[int, int] = (5, 8)
+
+
 def _wikimedia_file_url(title: str) -> str:
     """Resolve a Commons file title to its direct upload URL via the official
     API (``action=query&prop=imageinfo``). "" when the file does not exist.
@@ -235,8 +246,11 @@ def _wikimedia_file_url(title: str) -> str:
     A missing title yields a page with no ``imageinfo`` (pageid -1 + "missing")
     — treated as a clean miss, no error logged.
     """
+    global _wikimedia_disabled_reason
+    if _wikimedia_disabled_reason is not None:
+        return ""
+    requests = get_third_package_requests()
     try:
-        requests = get_third_package_requests()
         resp = requests.get(
             WIKIMEDIA_COMMONS_API,
             params={
@@ -247,11 +261,19 @@ def _wikimedia_file_url(title: str) -> str:
                 "format": "json",
             },
             headers={"User-Agent": WIKIMEDIA_USER_AGENT},
-            timeout=_HTTP_TIMEOUT,
+            timeout=_WIKIMEDIA_TIMEOUT,
         )
         if resp.status_code != 200:
             return ""
         pages = ((resp.json() or {}).get("query") or {}).get("pages") or {}
+    except requests.exceptions.Timeout as exc:
+        with _wikimedia_lock:
+            if _wikimedia_disabled_reason is None:
+                _wikimedia_disabled_reason = f"timeout: {exc}"
+        ColorPrint.yellow(
+            f"[WordAudio] Wikimedia Commons timed out ({exc}); disabling Wikimedia "
+            "for this run - falling back to Cambridge/Forvo/TTS")
+        return ""
     except Exception as exc:  # noqa: BLE001 - best-effort
         ColorPrint.yellow(f"[WordAudio] Wikimedia Commons lookup failed ({exc})")
         return ""
@@ -272,6 +294,8 @@ def _wikimedia_commons(
     is exact by construction. The preferred accent is tried first; ``strict``
     (preferred-accent-only pass) limits the lookup to it.
     """
+    if _wikimedia_disabled_reason is not None:
+        return None
     if not _is_english(lang):
         return None
     slug = (word or "").strip().lower().replace(" ", "_")

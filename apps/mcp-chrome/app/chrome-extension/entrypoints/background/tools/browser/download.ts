@@ -101,7 +101,19 @@ async function waitForDownload(opts: {
             const item = arr && arr[0];
             if (!item) return;
             if (!matches(item)) return;
-            if (waitForComplete && item.state === 'complete') fulfill(item);
+            if (waitForComplete && item.state === 'complete') {
+              fulfill(item);
+            } else if (item.state === 'interrupted') {
+              // Server drop / user cancel / network error: fail immediately
+              // instead of leaving the promise pending until the timeout.
+              onError(
+                new Error(
+                  `Download interrupted${
+                    (item as any).error ? `: ${(item as any).error}` : ''
+                  }`,
+                ),
+              );
+            }
           })
           .catch(() => {});
       } catch {}
@@ -109,12 +121,32 @@ async function waitForDownload(opts: {
     chrome.downloads.onCreated.addListener(onCreated);
     chrome.downloads.onChanged.addListener(onChanged);
     timer = setTimeout(() => onError(new Error('Download wait timed out')), timeoutMs);
-    // Try to find an already-running matching download
+    // Try to find an already-running or recently-completed matching download.
+    // Search without a state filter so completed downloads are also found;
+    // otherwise a download that finished before the listeners were registered
+    // would never surface and the tool would time out. Scope to downloads
+    // started within the timeout window (with a generous buffer) so stale
+    // historical matches are not returned.
+    const startedAfter = new Date(Date.now() - timeoutMs * 2).toISOString();
     chrome.downloads
-      .search({ state: waitForComplete ? 'in_progress' : undefined })
+      .search({ startedAfter, orderBy: ['-startTime'] })
       .then((arr) => {
         const hit = (arr || []).find((d) => matches(d));
-        if (hit && !waitForComplete) fulfill(hit);
+        if (!hit) return;
+        if (!waitForComplete) {
+          fulfill(hit);
+        } else if (hit.state === 'complete') {
+          fulfill(hit);
+        } else if (hit.state === 'interrupted') {
+          onError(
+            new Error(
+              `Download interrupted${
+                (hit as any).error ? `: ${(hit as any).error}` : ''
+              }`,
+            ),
+          );
+        }
+        // in_progress + waitForComplete: let onChanged handle completion
       })
       .catch(() => {});
   });

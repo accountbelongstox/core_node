@@ -34,6 +34,7 @@ class NetworkCaptureTool extends BaseBrowserToolExecutor {
           if (action === 'start') {
             return await networkCaptureStartTool.execute({
               tabId,
+              url: args.url,
               maxCaptureTime: args.maxCaptureTime,
               inactivityTimeout: args.inactivityTimeout,
               includeStatic: args.includeStatic,
@@ -45,6 +46,7 @@ class NetworkCaptureTool extends BaseBrowserToolExecutor {
         if (action === 'start') {
           return await networkDebuggerStartTool.execute({
             tabId,
+            url: args.url,
             maxCaptureTime: args.maxCaptureTime,
             inactivityTimeout: args.inactivityTimeout,
             includeStatic: args.includeStatic,
@@ -57,6 +59,7 @@ class NetworkCaptureTool extends BaseBrowserToolExecutor {
         if (action === 'start') {
           return await networkCaptureStartTool.execute({
             tabId,
+            url: args.url,
             maxCaptureTime: args.maxCaptureTime,
             inactivityTimeout: args.inactivityTimeout,
             includeStatic: args.includeStatic,

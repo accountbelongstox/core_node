@@ -79,6 +79,11 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
 
+  // Last time a fetch ran (persistent poll OR manual/tick refresh). Used to skip
+  // the parent-tick immediate fetch when a persistent poll just ran, so the two
+  // don't double-fetch the same endpoint.
+  const lastFetchAt = useRef(0);
+
   // Continuous-poll view: the snapshot + poll loop live in the global provider
   // above the router (survive navigation; reload re-polls).
   const queue = usePersistentTask<QueueSnapshot>('pycore.translation-queue', {
@@ -86,6 +91,7 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
     poll: () => pycoreApi.queueTranslation(false)
       .then((r: any) => {
         if (mounted.current) setLoading(false);
+        lastFetchAt.current = Date.now();
         return {
           items: Array.isArray(r?.items) ? r.items : [],
           summary: r?.summary ?? EMPTY_SUMMARY,
@@ -109,15 +115,19 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
   const wsConnected = snap?.wsConnected ?? null;
   const error = snap?.error ?? null;
 
-  // Start the continuous poll on first mount.
+  // Start the continuous poll on first mount. Stop it on unmount so the
+  // persistent session does NOT poll forever app-wide after the user leaves
+  // this tab (polling with no consumer is pure waste).
   useEffect(() => {
     if (!queue.running) queue.begin();
+    return () => { queue.end(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Manual / post-action refresh = one immediate fetch pushed into the session.
   const fetchQueue = useCallback(async (refresh: boolean) => {
     if (refresh) setRefreshing(true); else if (queue.data === null) setLoading(true);
+    lastFetchAt.current = Date.now();
     const r = await pycoreApi.queueTranslation(refresh).catch((e: any) => ({ __err: e?.message || 'pycore unreachable' } as any));
     if (!mounted.current) return;
     if (r && r.__err) {
@@ -136,11 +146,15 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta
   }, [queue]);
 
   // Parent-driven refresh (manual button or the shared auto-refresh interval).
+  // Skip when the persistent poll fetched within the last interval - the two
+  // would otherwise hit the same endpoint back-to-back on every tick.
   const lastTick = useRef(refreshTick);
   useEffect(() => {
     if (refreshTick !== lastTick.current) {
       lastTick.current = refreshTick;
-      fetchQueue(true);
+      if (Date.now() - lastFetchAt.current >= REFRESH_MS) {
+        fetchQueue(true);
+      }
     }
   }, [refreshTick, fetchQueue]);
 

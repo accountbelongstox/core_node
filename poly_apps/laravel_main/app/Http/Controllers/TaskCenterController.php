@@ -64,16 +64,8 @@ class TaskCenterController extends Controller
      * claimant a client cannot actually fulfill (the dead 'image'-on-chrome
      * bug B17).
      */
-    private const CAPABILITY_CLAIMANTS = [
-        GlobalTask::CAPABILITY_TRANSLATE => ['pycore', 'chrome'],
-        GlobalTask::CAPABILITY_AI_TRANSLATE => ['pycore', 'chrome'],
-        GlobalTask::CAPABILITY_AUDIO => ['pycore'],
-        GlobalTask::CAPABILITY_IMAGE => ['pycore'],
-        GlobalTask::CAPABILITY_SENTENCE_AUDIO => ['chrome'],
-        GlobalTask::CAPABILITY_SUBTITLE => ['pycore'],
-        GlobalTask::CAPABILITY_POSTER => ['pycore'],
-        GlobalTask::CAPABILITY_STT => ['pycore'],
-    ];
+    // Both maps are canonical on GlobalTask — this controller reads them from
+    // there so the Queue Center and the pycore-manager overview never contradict.
 
     protected $taskManager;
     protected $workerManager;
@@ -197,21 +189,55 @@ class TaskCenterController extends Controller
             $tally[$cap][$fastKey][$row->status] = (int) $row->total;
         }
 
-        $lane = static function (array $tally, string $cap, string $fastKey): array {
+        // Online-worker coverage: for each capability, is there ANY online
+        // worker that can actually claim its tasks? Answered per-lane so the UI
+        // can show exactly WHY a category is stuck:
+        //   fast_lane:   worker has remote_fast in processor_types AND the cap
+        //                in capabilities (the capability-match narrowing).
+        //   single_lane: worker has the dedicated execution_type (from
+        //                CAPABILITY_SINGLE_LANE) in processor_types. Capabilities
+        //                with no dedicated lane (image, ai_translate) are
+        //                always false for single_lane - they ride fast only.
+        //   NULL-cap:    any online worker at all.
+        $onlineWorkers = Worker::online()->get();
+        $onlineFastCaps = [];   // set of capabilities any online fast worker advertises
+        $onlineSingleExec = []; // set of execution_types any online worker registers
+        $anyOnline = $onlineWorkers->isNotEmpty();
+        foreach ($onlineWorkers as $w) {
+            $pt = is_array($w->processor_types) ? $w->processor_types : [];
+            $caps = $w->capabilityList();
+            if (in_array(GlobalTask::EXECUTION_REMOTE_FAST, $pt, true)) {
+                foreach ($caps as $c) {
+                    $onlineFastCaps[$c] = true;
+                }
+            }
+            foreach ($pt as $exec) {
+                $onlineSingleExec[$exec] = true;
+            }
+        }
+
+        $lane = static function (array $tally, string $cap, string $fastKey, bool $hasOnline): array {
             $bucket = $tally[$cap][$fastKey] ?? [];
             return [
                 'pending' => (int) ($bucket[GlobalTask::STATUS_PENDING] ?? 0),
                 'processing' => (int) ($bucket[GlobalTask::STATUS_PROCESSING] ?? 0),
+                // True when at least one online worker can claim this category's
+                // tasks on this lane. False with pending>0 = stuck: no worker
+                // registers the lane/capability - the UI can show the cause.
+                'has_online_worker' => $hasOnline,
             ];
         };
 
         $categories = [];
         foreach (GlobalTask::CAPABILITIES as $cap) {
+            $fastHasOnline = isset($onlineFastCaps[$cap]);
+            $singleExec = GlobalTask::CAPABILITY_SINGLE_LANE[$cap] ?? null;
+            $singleHasOnline = $singleExec !== null && isset($onlineSingleExec[$singleExec]);
             $categories[] = [
                 'capability' => $cap,
-                'claimants' => self::CAPABILITY_CLAIMANTS[$cap] ?? [],
-                'fast_lane' => $lane($tally, $cap, 'fast'),
-                'single_lane' => $lane($tally, $cap, 'single'),
+                'claimants' => GlobalTask::CAPABILITY_CLAIMANTS[$cap] ?? [],
+                'fast_lane' => $lane($tally, $cap, 'fast', $fastHasOnline),
+                'single_lane' => $lane($tally, $cap, 'single', $singleHasOnline),
             ];
         }
 
@@ -220,8 +246,8 @@ class TaskCenterController extends Controller
         $categories[] = [
             'capability' => null,
             'claimants' => ['pycore', 'chrome'],
-            'fast_lane' => $lane($tally, '_null', 'fast'),
-            'single_lane' => $lane($tally, '_null', 'single'),
+            'fast_lane' => $lane($tally, '_null', 'fast', $anyOnline),
+            'single_lane' => $lane($tally, '_null', 'single', $anyOnline),
         ];
 
         return $categories;

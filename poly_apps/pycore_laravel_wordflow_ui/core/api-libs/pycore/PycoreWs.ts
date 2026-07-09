@@ -90,6 +90,9 @@ let reconnectAttempts = 0;
 // setPycoreActive(). See shellTypes.END_USES_PYCORE.
 let suspended = false;
 
+/** Synchronous check for PycoreSse to avoid async-import race on route switch. */
+export function isPycoreSuspended(): boolean { return suspended; }
+
 const RECONNECT_MS = 3000;
 const CALL_TIMEOUT_MS = 30000;
 

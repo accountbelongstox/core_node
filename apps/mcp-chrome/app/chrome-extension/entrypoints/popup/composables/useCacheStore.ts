@@ -163,8 +163,24 @@ export async function writeJson(
     const dir = await getNamespaceDir(ns);
     const fileHandle = await dir.getFileHandle(keyToFileName(key), { create: true });
     const writable = await fileHandle.createWritable();
-    await writable.write(JSON.stringify(value));
-    await writable.close();
+    // Always release the OPFS write lock: close() commits on success, abort()
+    // discards partial bytes + releases the lock if write/close threw. Without
+    // this, a throw from write() left the stream open, hanging later writes to
+    // the same key and leaving a partial file on disk.
+    let committed = false;
+    try {
+      await writable.write(JSON.stringify(value));
+      await writable.close();
+      committed = true;
+    } finally {
+      if (!committed) {
+        try {
+          await writable.abort();
+        } catch {
+          // Best-effort lock release; nothing else we can do.
+        }
+      }
+    }
     return true;
   } catch (error) {
     console.warn(`[useCacheStore] writeJson(${ns}/${key}) failed:`, error);

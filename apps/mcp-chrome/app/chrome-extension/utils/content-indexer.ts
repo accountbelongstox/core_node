@@ -26,7 +26,13 @@ export class ContentIndexer {
   private isInitialized = false;
   private isInitializing = false;
   private initPromise: Promise<void> | null = null;
-  private indexedPages = new Set<string>();
+  // Map pageKey -> set of tabIds that indexed it, so removeTabIndex can drop
+  // a pageKey only when no remaining tab references it (two tabs can index the
+  // same URL). Replaces a plain Set that could never be cleaned up because the
+  // old code checked pageKey.includes(`tab_${tabId}_`) but pageKey is built
+  // from url+title and never contains a tab id.
+  private indexedPageTabs = new Map<string, Set<number>>();
+  private tabListenersRegistered = false;
   private readonly options: Required<IndexingOptions>;
 
   constructor(options?: IndexingOptions) {
@@ -148,8 +154,13 @@ export class ContentIndexer {
       }
 
       const pageKey = `${tab.url}_${tab.title}`;
-      if (this.options.skipDuplicates && this.indexedPages.has(pageKey)) {
-        console.log(`ContentIndexer: Skipping tab ${tabId} - already indexed`);
+      // Only skip when THIS specific tab has already indexed the page.
+      // Previously the check was `indexedPageTabs.has(pageKey)` which
+      // matched ANY tab — if tab 1 indexed a page and tab 2 opened the
+      // same URL, tab 2 was skipped. When tab 1 closed its vectors were
+      // deleted and tab 2's content became permanently unsearchable.
+      if (this.options.skipDuplicates && this.indexedPageTabs.get(pageKey)?.has(tabId)) {
+        console.log(`ContentIndexer: Skipping tab ${tabId} - already indexed by this tab`);
         return;
       }
 
@@ -187,7 +198,7 @@ export class ContentIndexer {
         }
       }
 
-      this.indexedPages.add(pageKey);
+      this.indexedPageTabs.set(pageKey, (this.indexedPageTabs.get(pageKey) ?? new Set()).add(tabId));
 
       console.log(
         `ContentIndexer: Successfully indexed ${chunksToIndex.length} chunks for tab ${tabId}`,
@@ -261,9 +272,11 @@ export class ContentIndexer {
     try {
       await this.vectorDatabase.removeTabDocuments(tabId);
 
-      for (const pageKey of this.indexedPages) {
-        if (pageKey.includes(`tab_${tabId}_`)) {
-          this.indexedPages.delete(pageKey);
+      // Remove pageKeys that this tab indexed; drop a pageKey only when no
+      // other tab still references it (two tabs can index the same URL).
+      for (const [pageKey, tabs] of this.indexedPageTabs) {
+        if (tabs.delete(tabId) && tabs.size === 0) {
+          this.indexedPageTabs.delete(pageKey);
         }
       }
 
@@ -321,7 +334,7 @@ export class ContentIndexer {
 
     await this.performCompleteDataCleanupForModelSwitch();
 
-    this.indexedPages.clear();
+    this.indexedPageTabs.clear();
     console.log('ContentIndexer: Cleared indexed pages cache');
 
     try {
@@ -474,7 +487,7 @@ export class ContentIndexer {
 
     return {
       ...vectorStats,
-      indexedPages: this.indexedPages.size,
+      indexedPages: this.indexedPageTabs.size,
       isInitialized: this.isInitialized,
       semanticEngineReady: this.isSemanticEngineReady(),
       semanticEngineInitializing: this.isSemanticEngineInitializing(),
@@ -491,13 +504,20 @@ export class ContentIndexer {
 
     try {
       await this.vectorDatabase.clear();
-      this.indexedPages.clear();
+      this.indexedPageTabs.clear();
       console.log('ContentIndexer: All indexes cleared');
     } catch (error) {
       console.error('ContentIndexer: Failed to clear indexes:', error);
     }
   }
   private setupTabEventListeners(): void {
+    // Register listeners only once across the singleton's lifetime.
+    // reinitialize() calls initialize() -> _doInitialize() -> this method
+    // again; without this guard each model switch stacks duplicate listeners
+    // that fire indexTabContent N times per tab 'complete' event.
+    if (this.tabListenersRegistered) return;
+    this.tabListenersRegistered = true;
+
     chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       if (this.options.autoIndex && changeInfo.status === 'complete' && tab.url) {
         setTimeout(() => {

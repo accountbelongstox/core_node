@@ -113,6 +113,19 @@ export class Server {
             .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
             .send({ error: ERROR_MESSAGES.SERVER_NOT_RUNNING });
         }
+        // Fast-fail when the extension stdio link is dead. Tool calls already
+        // guard with isExtensionConnected() (register-tools.ts); the HTTP bridge
+        // must too, otherwise a request after the Service Worker went idle hits
+        // sendRequestToExtensionAndWait -> sendMessage -> stdout.write on the
+        // broken pipe and either hangs the full timeout or crashes the orphaned
+        // host. 503 Service Unavailable signals a transient, retryable failure.
+        if (!this.nativeHost.isExtensionConnected()) {
+          return reply.status(503).send({
+            status: 'error',
+            message:
+              'Browser extension is not connected (Service Worker disconnected). Please retry.',
+          });
+        }
 
         try {
           // wait from extension message

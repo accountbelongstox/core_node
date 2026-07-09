@@ -106,13 +106,15 @@ if (window.__KEYBOARD_HELPER_INITIALIZED__) {
 
     // For single characters or other unmapped keys
     if (mainKeyPart.length === 1) {
-      const charCode = mainKeyPart.charCodeAt(0);
       // If Shift is active and it's a letter, use the uppercase version for 'key'
       // This mimics more closely how keyboards behave.
       let keyChar = mainKeyPart;
       if (modifiers.shiftKey && mainKeyPart.match(/^[a-z]$/i)) {
         keyChar = mainKeyPart.toUpperCase();
       }
+      // Derive keyCode/charCode from the shift-aware character so legacy
+      // keyCode-based handlers see the right code (e.g. 65 for Shift+A, not 97).
+      const charCode = keyChar.charCodeAt(0);
 
       return {
         key: keyChar,
@@ -258,14 +260,23 @@ if (window.__KEYBOARD_HELPER_INITIALIZED__) {
     if (request.action === 'simulateKeyboard') {
       let targetEl = null;
       if (request.selector) {
-        targetEl = document.querySelector(request.selector);
+        try {
+          targetEl = document.querySelector(request.selector);
+        } catch (queryError) {
+          sendResponse({
+            success: false,
+            error: `Invalid selector "${request.selector}": ${queryError.message}`,
+            results: [],
+          });
+          return false; // Synchronous response already sent
+        }
         if (!targetEl) {
           sendResponse({
             success: false,
             error: `Element with selector "${request.selector}" not found`,
             results: [],
           });
-          return true; // Keep channel open for async response
+          return false; // Synchronous response already sent
         }
       }
 

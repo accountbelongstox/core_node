@@ -71,6 +71,9 @@ $SCRIPT_STEP100_INSTALL_DEEPSEEK_OCR = "Step100_InstallDeepSeekOCR.ps1"
 $SCRIPT_STEP101_INSTALL_QWEN25 = "Step101_InstallQwen25.ps1"
 $SCRIPT_STEP102_INSTALL_NLLB200 = "Step102_InstallNLLB200.ps1"
 $SCRIPT_STEP103_INSTALL_NSSM = "Step103_InstallNSSM.ps1"
+$SCRIPT_STEP104_INSTALL_QWEN_CODE = "Step104_InstallQwenCode.ps1"
+$SCRIPT_STEP105_INSTALL_ARK_CLI = "Step105_InstallArkCli.ps1"
+$SCRIPT_STEP106_INSTALL_ZHIPU_CLI = "Step106_InstallZhipuCli.ps1"
 
 # Installer scripts mapping with key:val structure
 # Key: Script identifier, Val: Actual script filename variable
@@ -113,6 +116,9 @@ $InstallerScriptsMap = @{
     "InstallQwen25" = $SCRIPT_STEP101_INSTALL_QWEN25
     "InstallNLLB200" = $SCRIPT_STEP102_INSTALL_NLLB200
     "InstallNSSM" = $SCRIPT_STEP103_INSTALL_NSSM
+    "InstallQwenCode" = $SCRIPT_STEP104_INSTALL_QWEN_CODE
+    "InstallArkCli" = $SCRIPT_STEP105_INSTALL_ARK_CLI
+    "InstallZhipuCli" = $SCRIPT_STEP106_INSTALL_ZHIPU_CLI
 }
 
 # Legacy array for backward compatibility - using variables
@@ -158,7 +164,10 @@ $InstallerScripts = @(
     $SCRIPT_STEP100_INSTALL_DEEPSEEK_OCR,
     $SCRIPT_STEP101_INSTALL_QWEN25,
     $SCRIPT_STEP102_INSTALL_NLLB200,
-    $SCRIPT_STEP103_INSTALL_NSSM
+    $SCRIPT_STEP103_INSTALL_NSSM,
+    $SCRIPT_STEP104_INSTALL_QWEN_CODE,
+    $SCRIPT_STEP105_INSTALL_ARK_CLI,
+    $SCRIPT_STEP106_INSTALL_ZHIPU_CLI
 )
 
 # Function to get script filename by key

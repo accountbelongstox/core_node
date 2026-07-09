@@ -6,6 +6,7 @@
 import { ref, onUnmounted } from 'vue';
 import { apiManager } from '@/services/ApiManager';
 import { logger } from '@/utils/logger';
+import { formatTimestamp } from '@/utils/time-helpers';
 import { readJson, writeJson } from './useCacheStore';
 
 const LOG = 'Bing Client';
@@ -222,8 +223,16 @@ export function useBingDictionaryClient() {
 
   // Debounced live-apply of the current config to a running worker.
   let liveApplyTimer: ReturnType<typeof setTimeout> | null = null;
+  // Centralized clear so both the re-debounce path and unmount teardown release
+  // the pending timer (mirrors stopStatsPolling for the stats interval).
+  const cancelLiveApply = () => {
+    if (liveApplyTimer) {
+      clearTimeout(liveApplyTimer);
+      liveApplyTimer = null;
+    }
+  };
   const pushLiveConfig = () => {
-    if (liveApplyTimer) clearTimeout(liveApplyTimer);
+    cancelLiveApply();
     liveApplyTimer = setTimeout(async () => {
       liveApplyTimer = null;
       if (!clientService.value.isRunning) return;
@@ -427,26 +436,6 @@ export function useBingDictionaryClient() {
     }
   };
 
-  const formatTimestamp = (timestamp: number | null): string => {
-    if (!timestamp) return 'Never';
-
-    const now = Date.now();
-    const diff = now - timestamp;
-
-    if (diff < 60000) {
-      return 'Just now';
-    } else if (diff < 3600000) {
-      const minutes = Math.floor(diff / 60000);
-      return `${minutes}m ago`;
-    } else if (diff < 86400000) {
-      const hours = Math.floor(diff / 3600000);
-      return `${hours}h ago`;
-    } else {
-      const days = Math.floor(diff / 86400000);
-      return `${days}d ago`;
-    }
-  };
-
   const initialize = async () => {
     const result = await chrome.storage.local.get('bing_dictionary_client_mode');
     if (result.bing_dictionary_client_mode) {
@@ -461,6 +450,9 @@ export function useBingDictionaryClient() {
 
   onUnmounted(() => {
     stopStatsPolling();
+    // Cancel any pending debounced live-config push so it can't fire after the
+    // panel is gone and message a background service from a dead component.
+    cancelLiveApply();
   });
 
   return {

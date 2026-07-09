@@ -12,6 +12,7 @@ import { TOOL_NAMES } from 'chrome-mcp-shared';
 interface JavaScriptToolParams {
   code: string;
   tabId?: number;
+  windowId?: number;
   timeoutMs?: number;
 }
 
@@ -19,19 +20,21 @@ class JavaScriptTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.JAVASCRIPT;
 
   async execute(args: JavaScriptToolParams): Promise<ToolResult> {
-    const { code, tabId, timeoutMs = 15000 } = args || {};
+    const { code, tabId, windowId, timeoutMs = 15000 } = args || {};
 
     if (!code || typeof code !== 'string' || code.trim().length === 0) {
       return createErrorResponse('Parameter [code] is required');
     }
 
     try {
-      let targetTab: chrome.tabs.Tab | undefined;
-      if (tabId) {
+      // Use base class tab resolution for consistency with other tools
+      let targetTab: chrome.tabs.Tab | null;
+      if (typeof tabId === 'number') {
         targetTab = await this.tryGetTab(tabId);
+      } else if (typeof windowId === 'number') {
+        targetTab = await this.getActiveTabOrThrowInWindow(windowId);
       } else {
-        const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        targetTab = activeTab;
+        targetTab = await this.resolveTargetTab();
       }
 
       if (!targetTab?.id) {
@@ -41,6 +44,7 @@ class JavaScriptTool extends BaseBrowserToolExecutor {
       const finalTabId = targetTab.id;
 
       // Execute script with timeout
+      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
       const executePromise = chrome.scripting.executeScript({
         target: { tabId: finalTabId },
         world: 'ISOLATED',
@@ -72,11 +76,23 @@ class JavaScriptTool extends BaseBrowserToolExecutor {
         args: [code],
       });
 
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Execution timed out after ${timeoutMs}ms`)), timeoutMs),
-      );
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(
+          () => reject(new Error(`Execution timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+      });
 
-      const results = await Promise.race([executePromise, timeoutPromise]);
+      let results: Array<{ result?: any }> | undefined;
+      try {
+        results = await Promise.race([executePromise, timeoutPromise]);
+      } finally {
+        // Clear the timer regardless of which promise won to prevent leaks
+        if (timeoutHandle !== null) {
+          clearTimeout(timeoutHandle);
+          timeoutHandle = null;
+        }
+      }
       const firstFrame = results?.[0];
       const result = (firstFrame as { result?: any })?.result;
 

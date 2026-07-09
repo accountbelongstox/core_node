@@ -15,6 +15,7 @@ from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 
 IS_WINDOWS = platform.system() == 'Windows'
+IS_LINUX = platform.system() == 'Linux'
 
 # Signal prefix for tray language switching; one event per language code is
 # emitted as f"{TRAY_SET_LANGUAGE_SIGNAL}.{code}" (handlers registered in
@@ -67,6 +68,18 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
         visible = THREAD_BUS.get_signal('voice_subtitle_ui.window_visible', False)
         return "[X]" if visible else "[ ]"
 
+    # State getter for the Linux system-service toggle: reflects whether the
+    # `pycore` system unit is enabled (start on boot). Lazy import keeps this
+    # menu-structure module free of subprocess deps at import time.
+    def get_service_toggle_state():
+        try:
+            if not IS_LINUX:
+                return "[ ]"
+            from pycore.callmodule.platform import system_service_manager as ssm
+            return "[X]" if ssm.pycore_service_enabled() else "[ ]"
+        except Exception:
+            return "[ ]"
+
     # Define menu items. Every text is an i18n key; get_display_text() translates
     # it per the current language at render time (the Win32 backend rebuilds the
     # menu on each right-click, so language switches apply live).
@@ -106,6 +119,23 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
             action_signal="tray_action_toggle_voice_subtitle",
             state_getter=get_voice_subtitle_state
         ),
+    ])
+
+    # Linux only: toggle installing pycore (+ the dashboard UI) as systemd system
+    # services so they start on boot. ON installs BOTH units; OFF removes ONLY the
+    # pycore unit and leaves the UI unit running (with a printed removal command).
+    # The auto-start-on-boot toggle itself lives in the pycore-manager UI
+    # (Settings -> Startup) backed by /api/manage/control/autostart.
+    if IS_LINUX:
+        menu_items.append(
+            TrayMenuItem(
+                text=I18nKeys.TRAY_MENU_SERVICE_TOGGLE,
+                action_signal="tray_action_toggle_service",
+                state_getter=get_service_toggle_state,
+            )
+        )
+
+    menu_items.extend([
         # Auto-start on boot now lives in the pycore-manager UI (Settings ->
         # Startup), not the tray. The GET/POST /api/manage/control/autostart API
         # backs that toggle.

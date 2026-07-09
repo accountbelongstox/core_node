@@ -70,14 +70,21 @@ export abstract class BaseApiClient {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-        const response = await fetch(url, {
-          method,
-          headers: requestHeaders,
-          body: body ? JSON.stringify(body) : undefined,
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
+        let response: Response;
+        try {
+          response = await fetch(url, {
+            method,
+            headers: requestHeaders,
+            body: body ? JSON.stringify(body) : undefined,
+            signal: controller.signal,
+          });
+        } finally {
+          // Clear the abort timer on every path - a fetch rejection (network
+          // error / AbortError) skips the success-path clearTimeout and would
+          // otherwise leave a dangling timer per failed attempt. Mirrors the
+          // finally block in api-health-listener.ts.
+          clearTimeout(timeoutId);
+        }
 
         const data = await response.json().catch(() => null);
 

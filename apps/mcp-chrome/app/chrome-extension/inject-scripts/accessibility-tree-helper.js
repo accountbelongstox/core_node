@@ -38,6 +38,19 @@
     return ref;
   }
 
+  // byRef is a strong Map (only byEl is a WeakMap), so detached elements would
+  // be pinned for the page-session lifetime. Sweep disconnected entries on each
+  // tree generation so long-lived SPAs that re-render frequently do not
+  // accumulate detached Element leaks.
+  function sweepDetachedRefs() {
+    for (const [ref, el] of registry.byRef) {
+      if (!el.isConnected) {
+        registry.byRef.delete(ref);
+        registry.byEl.delete(el);
+      }
+    }
+  }
+
   // --- Element classification ---
   const INTERACTIVE_SELECTOR = [
     'a[href]',
@@ -225,6 +238,7 @@
   }
 
   function handleGenerate(request) {
+    sweepDetachedRefs();
     const started = performance.now();
     const interactiveOnly = request.filter === 'interactive';
     const maxDepth = Number.isInteger(request.depth) ? request.depth : undefined;

@@ -28,7 +28,19 @@ const SCREENSHOT_CONSTANTS = {
   readonly SCRIPT_INIT_DELAY: number;
 };
 
-SCREENSHOT_CONSTANTS["CAPTURE_STITCH_DELAY_MS"] = Math.max(1000 / chrome.tabs.MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND - SCREENSHOT_CONSTANTS.SCROLL_DELAY_MS, SCREENSHOT_CONSTANTS.CAPTURE_STITCH_DELAY_MS)
+// MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND is Chromium-only; on Firefox the
+// browser-shim aliases chrome to browser, where it is undefined. Guard the
+// computation so 1000/undefined (= NaN) does not poison Math.max and silently
+// drop the stitch throttle to 0; keep the default 50ms floor otherwise.
+{
+  const captureRate = (chrome.tabs as any).MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND;
+  if (typeof captureRate === 'number' && captureRate > 0) {
+    SCREENSHOT_CONSTANTS["CAPTURE_STITCH_DELAY_MS"] = Math.max(
+      1000 / captureRate - SCREENSHOT_CONSTANTS.SCROLL_DELAY_MS,
+      SCREENSHOT_CONSTANTS.CAPTURE_STITCH_DELAY_MS,
+    );
+  }
+}
 
 interface ScreenshotToolParams {
   name: string;
@@ -359,38 +371,45 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
     this.logInfo('Stitching image...');
     const finalCanvas = await stitchImages(capturedParts, totalWidthPx, totalHeightPx);
 
-    // If user specified width but not height (or vice versa for full page), resize maintaining aspect ratio
-    let outputCanvas = finalCanvas;
-    if (options.width && !options.height) {
-      const targetWidthPx = options.width * dpr;
-      const aspectRatio = finalCanvas.height / finalCanvas.width;
-      const targetHeightPx = targetWidthPx * aspectRatio;
-      outputCanvas = new OffscreenCanvas(targetWidthPx, targetHeightPx);
-      const ctx = outputCanvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(finalCanvas, 0, 0, targetWidthPx, targetHeightPx);
-      }
-    } else if (options.height && !options.width) {
-      const targetHeightPx = options.height * dpr;
-      const aspectRatio = finalCanvas.width / finalCanvas.height;
-      const targetWidthPx = targetHeightPx * aspectRatio;
-      outputCanvas = new OffscreenCanvas(targetWidthPx, targetHeightPx);
-      const ctx = outputCanvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(finalCanvas, 0, 0, targetWidthPx, targetHeightPx);
-      }
-    } else if (options.width && options.height) {
-      // Both specified, direct resize
-      const targetWidthPx = options.width * dpr;
-      const targetHeightPx = options.height * dpr;
-      outputCanvas = new OffscreenCanvas(targetWidthPx, targetHeightPx);
-      const ctx = outputCanvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(finalCanvas, 0, 0, targetWidthPx, targetHeightPx);
-      }
-    }
+    // If user specified dimensions, resize the stitched canvas
+    const outputCanvas = this._resizeCanvas(finalCanvas, options, dpr);
 
     return canvasToDataURL(outputCanvas);
+  }
+
+  /**
+   * Resize a canvas to the requested dimensions, preserving aspect ratio when
+   * only one axis is specified. Returns the original canvas unchanged when no
+   * target dimensions are given.
+   */
+  private _resizeCanvas(
+    source: OffscreenCanvas,
+    options: ScreenshotToolParams,
+    dpr: number,
+  ): OffscreenCanvas {
+    const { width, height } = options;
+    if (!width && !height) return source;
+
+    let targetWidthPx: number;
+    let targetHeightPx: number;
+
+    if (width && height) {
+      targetWidthPx = width * dpr;
+      targetHeightPx = height * dpr;
+    } else if (width) {
+      targetWidthPx = width * dpr;
+      targetHeightPx = targetWidthPx * (source.height / source.width);
+    } else {
+      targetHeightPx = height! * dpr;
+      targetWidthPx = targetHeightPx * (source.width / source.height);
+    }
+
+    const out = new OffscreenCanvas(targetWidthPx, targetHeightPx);
+    const ctx = out.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(source, 0, 0, targetWidthPx, targetHeightPx);
+    }
+    return out;
   }
 }
 

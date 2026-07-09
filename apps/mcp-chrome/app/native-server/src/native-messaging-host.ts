@@ -142,6 +142,20 @@ export class NativeMessagingHost {
       log('ERROR', 'stdin error occurred', { error: err });
       // Don't call cleanup() automatically - only STOP message should shutdown
     });
+
+    // The extension's stdout pipe can break (EPIPE / ERR_STREAM_WRITE_AFTER_END)
+    // once the Service Worker goes idle and the stdio link tears down. Without a
+    // listener Node treats the unhandled stream 'error' event as fatal and
+    // crashes the orphaned host mid-port-handover. Swallow broken-pipe errors
+    // (the message was undeliverable anyway) and log anything unexpected.
+    stdout.on('error', (err: NodeJS.ErrnoException) => {
+      const code = err?.code;
+      if (code === 'EPIPE' || code === 'ERR_STREAM_WRITE_AFTER_END') {
+        log('WARN', 'stdout write to extension failed (link down)', { code });
+      } else {
+        log('ERROR', 'stdout error', { error: err?.message });
+      }
+    });
   }
 
   private async handleMessage(message: any): Promise<void> {
@@ -254,6 +268,24 @@ export class NativeMessagingHost {
     timeoutMs: number = TIMEOUTS.DEFAULT_REQUEST_TIMEOUT,
   ): Promise<any> {
     return new Promise((resolve, reject) => {
+      // Fast-fail when the extension stdio link is dead. Writing the request to
+      // the broken stdout would silently go nowhere and hang for the full
+      // timeout (or crash the orphaned host via EPIPE). Centralizing this guard
+      // here protects EVERY caller - tool calls and the /ask-extension HTTP
+      // bridge alike - so a new call path can never reintroduce the hang/crash.
+      // It also closes the race between a caller's pre-check and the actual
+      // send. Callers that need a specific error shape (e.g. the HTTP route's
+      // 503) still pre-check; tool calls let their catch block turn this
+      // rejection into an MCP error result.
+      if (!this.extensionConnected) {
+        reject(
+          new Error(
+            'Extension link is not connected (Service Worker disconnected). Please retry.',
+          ),
+        );
+        return;
+      }
+
       const requestId = uuidv4(); // Generate unique request ID
 
       const timeoutId = setTimeout(() => {

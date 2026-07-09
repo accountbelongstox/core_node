@@ -38,6 +38,11 @@ let currentRecordingStatus: AudioStatus = {
   chunkCount: 0,
 };
 
+// Wall-clock time the current recording started, captured in the background so
+// handleAudioStop can recompute an accurate final duration. The offscreen's
+// periodic 1s status tick floors duration and is up to ~1s stale by stop time.
+let recordingStartTime: number | null = null;
+
 // Track background streaming state
 let backgroundStreamingEnabled = false;
 
@@ -183,6 +188,7 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
       currentRecordingStatus.isRecording = true;
       currentRecordingStatus.duration = 0;
       currentRecordingStatus.chunkCount = 0;
+      recordingStartTime = Date.now();
 
       return {
         success: true,
@@ -206,6 +212,35 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
       error: error.message || 'Unknown error starting recording',
     };
   }
+}
+
+/**
+ * Wait briefly for the offscreen's final recording-status update after a stop.
+ * The offscreen's stopRecording responds before the final MediaRecorder
+ * ondataavailable (which carries the last chunk) fires, so the periodic status
+ * tick is stale by up to 1s and may miss the final chunk. The first post-stop
+ * status update carries isRecording=false and the final chunkCount; resolve on
+ * it, falling back to the last known status after timeoutMs.
+ */
+function waitForFinalRecordingStatus(timeoutMs: number): Promise<AudioStatus> {
+  return new Promise((resolve) => {
+    const baselineChunks = currentRecordingStatus.chunkCount;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const handler = (message: any) => {
+      if (message?.type !== 'audio_recording_status_update') return;
+      const status = message.status as AudioStatus;
+      if (!status.isRecording || status.chunkCount > baselineChunks) {
+        if (timer) clearTimeout(timer);
+        chrome.runtime.onMessage.removeListener(handler);
+        resolve(status);
+      }
+    };
+    chrome.runtime.onMessage.addListener(handler);
+    timer = setTimeout(() => {
+      chrome.runtime.onMessage.removeListener(handler);
+      resolve({ ...currentRecordingStatus });
+    }, timeoutMs);
+  });
 }
 
 /**
@@ -238,16 +273,26 @@ export async function handleAudioStop(params?: {
     });
 
     if (response && response.success !== false) {
-      const finalStatus = { ...currentRecordingStatus };
+      // The offscreen's stopRecording responds before the final MediaRecorder
+      // ondataavailable fires, so the periodic status tick backing
+      // currentRecordingStatus is stale by up to 1s and may miss the final
+      // chunk. Wait briefly for the offscreen's final status update before
+      // snapshotting chunkCount, and recompute duration from the start time.
+      const finalStatus = await waitForFinalRecordingStatus(1500);
+      const finalDuration =
+        recordingStartTime !== null
+          ? Math.floor((Date.now() - recordingStartTime) / 1000)
+          : finalStatus.duration;
       currentRecordingStatus.isRecording = false;
       currentRecordingStatus.duration = 0;
       currentRecordingStatus.chunkCount = 0;
+      recordingStartTime = null;
 
       return {
         success: true,
         data: {
           stopped: true,
-          finalDuration: finalStatus.duration,
+          finalDuration,
           totalChunks: finalStatus.chunkCount,
         },
       };
@@ -384,6 +429,21 @@ export function updateRecordingStatus(status: AudioStatus) {
 }
 
 /**
+ * Run an async handler and forward the resolved value (or error) to
+ * sendResponse, keeping the Chrome message channel open via the `true`
+ * return value the caller must propagate.
+ */
+function respondAsync(
+  sendResponse: (response?: any) => void,
+  promise: Promise<any>,
+): true {
+  promise
+    .then((result) => sendResponse(result))
+    .catch((error) => sendResponse({ success: false, error: error.message }));
+  return true;
+}
+
+/**
  * Setup audio recording status listener and popup message handlers
  */
 export function setupAudioStatusListener() {
@@ -396,31 +456,19 @@ export function setupAudioStatusListener() {
 
     // Handle messages from popup
     if (message.type === 'audio_start_recording') {
-      handleAudioStart(message.config)
-        .then((result) => sendResponse(result))
-        .catch((error) => sendResponse({ success: false, error: error.message }));
-      return true; // Keep channel open for async response
+      return respondAsync(sendResponse, handleAudioStart(message.config));
     }
 
     if (message.type === 'audio_stop_recording') {
-      handleAudioStop()
-        .then((result) => sendResponse(result))
-        .catch((error) => sendResponse({ success: false, error: error.message }));
-      return true;
+      return respondAsync(sendResponse, handleAudioStop());
     }
 
     if (message.type === 'audio_toggle_background_streaming') {
-      handleBackgroundStreamingToggle(message)
-        .then((result) => sendResponse(result))
-        .catch((error) => sendResponse({ success: false, error: error.message }));
-      return true;
+      return respondAsync(sendResponse, handleBackgroundStreamingToggle(message));
     }
 
     if (message.type === 'audio_get_recording_status') {
-      handleAudioStatus()
-        .then((result) => sendResponse(result))
-        .catch((error) => sendResponse({ success: false, error: error.message }));
-      return true;
+      return respondAsync(sendResponse, handleAudioStatus());
     }
   });
 }

@@ -40,6 +40,13 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
     private const RETAIN_FAILED_DAYS = 30;
     private const PURGE_BATCH_LIMIT = 500;
 
+    // A pending task that has NEVER been assigned (no worker ever claimed it)
+    // older than this is expired: its lane has no online worker that can serve
+    // it, so leaving it pending forever only pollutes the queue and the Queue
+    // Center "stuck" count. Mark it failed with a clear reason so the producer/
+    // UI can see WHY it died (e.g. "no worker for lane remote_client").
+    private const STALE_PENDING_NEVER_ASSIGNED_DAYS = 7;
+
     // Worker rows whose heartbeat is this old are deleted (they re-register on
     // their next start — registration is updateOrCreate by worker_id, so
     // deleting a dead row loses nothing but stale counters).
@@ -62,17 +69,19 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
         $released = $this->taskManager->releaseTimedOutTasks();
         $cleaned = $this->taskManager->cleanOfflineWorkers();
         $retagged = $this->retagLegacyDictionaryTasks();
+        $expired = $this->expireStalePendingTasks();
         $purged = $this->purgeExpiredTerminalTasks();
         $workersPurged = $this->purgeStaleWorkers();
         // Anti-starvation: nudge long-waiting background tasks up so the FAST
         // interactive tier cannot indefinitely starve them (capped below FAST).
         $aged = app(\App\Services\PriorityAgeService::class)->ageTasksPriority();
 
-        if ($released > 0 || $cleaned > 0 || $retagged > 0 || $purged > 0 || $workersPurged > 0 || $aged > 0) {
+        if ($released > 0 || $cleaned > 0 || $retagged > 0 || $expired > 0 || $purged > 0 || $workersPurged > 0 || $aged > 0) {
             $this->logInfo('Maintenance cycle', [
                 'tasks_released' => $released,
                 'workers_marked_offline' => $cleaned,
                 'legacy_tasks_retagged' => $retagged,
+                'stale_pending_expired' => $expired,
                 'terminal_tasks_purged' => $purged,
                 'stale_workers_purged' => $workersPurged,
                 'tasks_aged' => $aged,
@@ -164,5 +173,49 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
             ->where('execution_type', GlobalTask::EXECUTION_REMOTE_TRANSLATION)
             ->where('status', GlobalTask::STATUS_PENDING)
             ->update(['execution_type' => GlobalTask::EXECUTION_REMOTE_CLIENT]);
+    }
+
+    /**
+     * Expire pending tasks that have NEVER been claimed (assigned_to IS NULL)
+     * and are older than STALE_PENDING_NEVER_ASSIGNED_DAYS. A never-assigned
+     * pending task this old means NO online worker registers a processor_type
+     * that can serve its execution_type (e.g. remote_client dictionary tasks
+     * with no browser worker, or a remote_fast image task with no image-capable
+     * worker). Leaving it pending forever only pollutes the queue; failing it
+     * with a clear reason makes the "stuck" cause self-diagnosing. Bounded per
+     * tick like the terminal purge. A task that WAS assigned then released keeps
+     * its assigned_at, so it is NOT expired here (releaseTimedOutTasks owns it).
+     */
+    private function expireStalePendingTasks(): int
+    {
+        $cutoff = now()->subDays(self::STALE_PENDING_NEVER_ASSIGNED_DAYS);
+
+        // Fetch id + execution_type together (no per-row subquery in the loop).
+        $rows = GlobalTask::query()
+            ->where('status', GlobalTask::STATUS_PENDING)
+            ->whereNull('assigned_to')
+            ->whereNull('assigned_at')
+            ->where('created_at', '<', $cutoff)
+            ->limit(self::PURGE_BATCH_LIMIT)
+            ->get(['id', 'execution_type']);
+
+        if ($rows->isEmpty()) {
+            return 0;
+        }
+
+        // Fail each with a lane-specific reason so the "stuck" cause is visible.
+        $expired = 0;
+        foreach ($rows as $task) {
+            $updated = GlobalTask::where('id', $task->id)
+                ->where('status', GlobalTask::STATUS_PENDING)
+                ->update([
+                    'status' => GlobalTask::STATUS_FAILED,
+                    'error' => 'expired: no worker registered for lane ' . $task->execution_type,
+                    'updated_at' => now(),
+                ]);
+            $expired += (int) $updated;
+        }
+
+        return $expired;
     }
 }

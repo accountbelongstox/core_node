@@ -197,11 +197,26 @@ class TaskManager:
             self.tasks[task_id] = task
             self.task_history.append(task_id)
 
-            # Keep only max_history tasks
+            # Keep only max_history tasks, but NEVER evict a non-terminal task
+            # (PENDING/PROCESSING): its worker thread re-resolves by task_id
+            # later, so evicting it here would drop the dispatch ("Task not
+            # found"). Rotate non-terminal candidates to the back and evict the
+            # first terminal one; if all are non-terminal, skip eviction this
+            # round (the dict grows to the real queue depth, bounded by the
+            # concurrency limit).
             if len(self.task_history) > self.max_history:
-                oldest_id = self.task_history.pop(0)
-                if oldest_id in self.tasks:
-                    del self.tasks[oldest_id]
+                _terminal = (TaskStatus.COMPLETED.value, TaskStatus.FAILED.value)
+                for _ in range(len(self.task_history)):
+                    oldest_id = self.task_history[0]
+                    oldest_task = self.tasks.get(oldest_id)
+                    if oldest_task and oldest_task.status not in _terminal:
+                        self.task_history.pop(0)
+                        self.task_history.append(oldest_id)
+                        continue
+                    self.task_history.pop(0)
+                    if oldest_id in self.tasks:
+                        del self.tasks[oldest_id]
+                    break
 
         ColorPrint.blue(f"[TaskManager] Created task: {task_id} ({task_type})")
         return task_id
@@ -266,12 +281,20 @@ class TaskManager:
             task_id: Task ID
             executor: Function (sync or async) that executes the task and returns result
         """
+        # Capture the Task reference BEFORE starting the worker thread. A burst
+        # can evict this task_id from self.tasks (bounded LRU, max_history=100)
+        # while the thread is queued on the concurrency semaphore; re-looking-up
+        # by ID after the blocking acquire would return None and silently drop
+        # the dispatch ("Task not found"). Hold the live reference instead.
+        task_obj = self.get_task(task_id)
+        _ttype = task_obj.task_type if task_obj else "?"
+
         def _run():
             # Block HERE (in the worker thread, not the caller) until a concurrency
             # slot frees, so a burst of tasks can't run dozens of AI calls at once.
             self._task_slots.acquire()
             try:
-                task = self.get_task(task_id)
+                task = task_obj or self.get_task(task_id)
                 if not task:
                     ColorPrint.red(f"[TaskManager] Task not found: {task_id}")
                     return
@@ -310,8 +333,6 @@ class TaskManager:
         # Daemon thread (killed cleanly on process exit) gated by the concurrency
         # semaphore: excess tasks block inside _run until a slot frees, so no more
         # than max_workers AI calls run at once and a 429ing provider isn't hammered.
-        _t = self.get_task(task_id)
-        _ttype = _t.task_type if _t else "?"
         thread = threading.Thread(target=_run, daemon=True, name=f"Task-{task_id}")
         thread.start()
         ColorPrint.cyan(

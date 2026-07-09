@@ -1469,11 +1469,32 @@ class AppQyV1AssistService
             $geminiImage = $this->geminiImageCounts();
             $geminiChat = $this->geminiChatCounts();
 
+            // Primary-handler lookup keyed by this overview's category keys.
+            // Capability-backed keys read from the canonical GlobalTask map;
+            // non-capability keys (subtitle_lang/book_lang = AI translations,
+            // cover = AssistWorker cover, notebooklm/gemini_* = chrome) keep
+            // their historical labels. The Task Center and this overview now
+            // share a single source of truth for capability routing.
+            $handlerForKey = static function (string $key, string $fallback): string {
+                $keyToCap = [
+                    'word_translation' => \App\Models\GlobalTask::CAPABILITY_TRANSLATE,
+                    'word_image' => \App\Models\GlobalTask::CAPABILITY_IMAGE,
+                    'word_audio' => \App\Models\GlobalTask::CAPABILITY_AUDIO,
+                    'sentence_audio' => \App\Models\GlobalTask::CAPABILITY_SENTENCE_AUDIO,
+                    'poster' => \App\Models\GlobalTask::CAPABILITY_POSTER,
+                ];
+                $cap = $keyToCap[$key] ?? null;
+                if ($cap !== null) {
+                    return \App\Models\GlobalTask::CAPABILITY_PRIMARY_HANDLER[$cap] ?? $fallback;
+                }
+                return $fallback;
+            };
+
             $categories = [
                 [
                     'key' => 'word_translation',
                     'label' => 'Word Translation',
-                    'handler' => 'chrome',
+                    'handler' => $handlerForKey('word_translation', 'pycore'),
                     'pending' => $wordTranslation['pending'],
                     'processing' => $wordTranslation['processing'],
                     'leased' => $wordTranslation['leased'],
@@ -1484,7 +1505,7 @@ class AppQyV1AssistService
                 [
                     'key' => 'word_image',
                     'label' => 'Word Image',
-                    'handler' => 'chrome',
+                    'handler' => $handlerForKey('word_image', 'pycore'),
                     'pending' => $wordImage['pending'],
                     'processing' => $wordImage['processing'],
                     'leased' => $wordImage['leased'],
@@ -1495,7 +1516,7 @@ class AppQyV1AssistService
                 [
                     'key' => 'word_audio',
                     'label' => 'Word Audio',
-                    'handler' => 'pycore',
+                    'handler' => $handlerForKey('word_audio', 'pycore'),
                     'pending' => $wordAudio['pending'],
                     'processing' => $wordAudio['processing'],
                     'leased' => $wordAudio['leased'],
@@ -1506,7 +1527,7 @@ class AppQyV1AssistService
                 [
                     'key' => 'sentence_audio',
                     'label' => 'Sentence Audio',
-                    'handler' => 'pycore',
+                    'handler' => $handlerForKey('sentence_audio', 'pycore'),
                     'pending' => $sentence['pending'],
                     'processing' => $sentence['processing'],
                     'leased' => $sentence['leased'],
@@ -1551,7 +1572,7 @@ class AppQyV1AssistService
                 [
                     'key' => 'poster',
                     'label' => 'Media Poster',
-                    'handler' => 'ai',
+                    'handler' => $handlerForKey('poster', 'pycore'),
                     'pending' => (int) ($poster['pending'] ?? 0),
                     'processing' => 0,
                     'leased' => (int) ($poster['leased'] ?? 0),

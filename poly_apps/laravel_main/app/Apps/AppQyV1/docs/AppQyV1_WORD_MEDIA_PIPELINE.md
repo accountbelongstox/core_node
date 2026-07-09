@@ -7,6 +7,13 @@ implement their ends against it. Do NOT rename routes / columns / payload keys.
 
 This document reflects the REAL Laravel implementation (file paths below).
 
+> **Realtime + accent enhancement:** the visible-page auto-request loop,
+> repeat-request priority escalation (+5/cap 500), accent-aware generation +
+> fallback chain, and no-key provider integration are owned by
+> `development-guides/cross-docs/WORD_AUDIO_REALTIME_PRIORITY_PIPELINE.md`
+> (canonical for those behaviors; this doc's routes/columns/payload keys are
+> unchanged). See §5 (prioritization) and §4.1b (source chain) deltas there.
+
 ---
 
 ## 1. Paths (unified static tree, so `laravel_db` copies cleanly)

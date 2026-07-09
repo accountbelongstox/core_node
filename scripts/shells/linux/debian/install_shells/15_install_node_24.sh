@@ -178,6 +178,37 @@ detect_and_fix_previous_issues() {
     return 0
 }
 
+# Idempotent: ensure the Node.js install directory is writable by ALL users (chmod 777)
+# so ordinary (non-root) users can run `npm install -g` / `pnpm add -g` without sudo.
+# Runs EVERY time this script executes -- including when Node is already installed
+# (case 0) -- per the /opt node dir ordinary-user write requirement. The node subtree
+# (NODE_INSTALL_DIR = $COMPILE_DIR/node, e.g. /opt/_<sys>_<ver>/node) is root:root 755
+# after install_node, which blocks non-root global installs; this re-asserts 777 each run.
+# SAFE_PATH guard prevents touching system dirs.
+fix_node_install_dir_permissions_all_users() {
+    echo "Ensuring Node.js install directory is writable by all users (chmod 777)..."
+
+    local _safe_node_dir=false
+    if [ -n "$NODE_INSTALL_DIR" ] && [[ "$NODE_INSTALL_DIR" == /* ]]; then
+        case "$NODE_INSTALL_DIR" in
+            /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
+            *) _safe_node_dir=true ;;
+        esac
+    fi
+    if [ "$_safe_node_dir" != true ]; then
+        echo "[SKIP] Refusing chmod on system or invalid path: $NODE_INSTALL_DIR"
+        return 0
+    fi
+
+    if [ -d "$NODE_INSTALL_DIR" ]; then
+        $USE_SUDO chmod -R 777 "$NODE_INSTALL_DIR" 2>/dev/null || chmod -R 777 "$NODE_INSTALL_DIR" 2>/dev/null || true
+        echo "[OK] chmod -R 777 applied to: $NODE_INSTALL_DIR"
+    else
+        echo "[SKIP] Node install dir does not exist yet: $NODE_INSTALL_DIR"
+    fi
+    return 0
+}
+
 # Function to configure pnpm mirror and global settings
 configure_npm_settings() {
     echo "Configuring npm settings..."
@@ -697,6 +728,10 @@ if ! setup_environment; then
     echo "Failed to setup environment"
     exit 1
 fi
+
+# Always re-assert 777 on the node install dir (idempotent, every run) so ordinary
+# users can run npm/pnpm global installs without sudo. Covers the already-installed path.
+fix_node_install_dir_permissions_all_users
 
 echo ""
 verify_and_fix_all_configs

@@ -212,17 +212,56 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     }
   }
 
+  /**
+   * Inject the Bing helper scripts (WebOps + Bing helper) and send a message to
+   * the page via chrome.tabs.sendMessage DIRECTLY - not the base sendMessageToTab,
+   * which THROWS whenever a response carries an `error` field. Both the search
+   * and the extract responses legitimately include `error` as part of their
+   * structured payload (e.g. {found:false, error:'Bing search box not found...'}
+   * when the box is missing, or a confirmed "No results" no-entry page that also
+   * sets noEntry=true/success=true). Throwing such a response would either make
+   * lookupInTab's reload-home-and-retry block dead code (search) or mis-count an
+   * INVALID word as a FAILURE and bypass classify() (extract). So the resolved
+   * response is RETURNED as-is. Only a genuine TRANSPORT rejection (content
+   * script not present: "Could not establish connection / Receiving end does not
+   * exist") is a real error - on that we re-inject once and retry; if it still
+   * fails we throw so the worker's tab-healing (isRecoverableTabError) can
+   * replace the tab.
+   */
+  private async sendToHelper(
+    tabId: number,
+    message: Record<string, unknown>,
+    settleMs = 300,
+  ): Promise<any> {
+    await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
+    // Give the freshly-injected content script a moment to register its listener.
+    await new Promise((resolve) => setTimeout(resolve, settleMs));
+    try {
+      return await chrome.tabs.sendMessage(tabId, message);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      if (/Could not establish connection|Receiving end does not exist/i.test(m)) {
+        await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return await chrome.tabs.sendMessage(tabId, message);
+      }
+      throw err;
+    }
+  }
+
   /** Inject the helper and trigger an on-page search (fill box + click). */
   private async searchInTab(
     tabId: number,
     word: string,
   ): Promise<{ found: boolean; error?: string } | undefined> {
-    await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    // NOTE: no re-confirm-active here — the worker holds the single-foreground
+    // NOTE: no re-confirm-active here - the worker holds the single-foreground
     // lock across activate+type, so the tab stays foreground for the whole input.
     // (A re-activate here previously caused a focus ping-pong between slots.)
-    return this.sendMessageToTab(tabId, { action: 'bingDictionarySearch', word: word.trim() });
+    return this.sendToHelper(
+      tabId,
+      { action: 'bingDictionarySearch', word: word.trim() },
+      250,
+    );
   }
 
   /**
@@ -234,51 +273,22 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     bingDictUrl: string,
     includeMedia = false,
   ): Promise<BingDictionaryResult> {
-    await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
-
-    // Give the freshly-injected content script a moment to register its listener.
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    const msg = {
-      action: TOOL_MESSAGE_TYPES.BING_DICTIONARY_FETCH_TRANSLATION,
-      // Only the test/display path needs in-page base64 capture of images+audio;
-      // bulk processing skips it to stay fast (audio is fetched separately).
-      includeBinaries: includeMedia,
-    };
-
-    // IMPORTANT: use chrome.tabs.sendMessage DIRECTLY here, not the base
-    // sendMessageToTab — the base THROWS whenever the response carries an
-    // `error` field, but for the extract result `error` is a LEGITIMATE part of
-    // the structured payload (e.g. a confirmed "No results found" no-entry page
-    // also sets noEntry=true/success=true). Throwing it would mis-count an
-    // INVALID word as a FAILURE and bypass classify(). So we RETURN the resolved
-    // result as-is (classify() then maps noEntry -> invalid -> invalid_words[]).
-    // Only a genuine TRANSPORT rejection (content script not present:
-    // "Could not establish connection / Receiving end does not exist") is a real
-    // error — on that we re-inject once and retry; if it still fails we throw so
-    // the worker's tab-healing (isDeadTabError) can replace the tab.
-    let translationData: BingDictionaryResult;
-    try {
-      translationData = await chrome.tabs.sendMessage(tabId, msg);
-    } catch (err) {
-      const m = err instanceof Error ? err.message : String(err);
-      if (/Could not establish connection|Receiving end does not exist/i.test(m)) {
-        await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
-        await new Promise((resolve) => setTimeout(resolve, 400));
-        translationData = await chrome.tabs.sendMessage(tabId, msg);
-      } else {
-        throw err;
-      }
-    }
-
+    // Only the test/display path needs in-page base64 capture of images+audio;
+    // bulk processing skips it to stay fast (audio is fetched separately).
+    const translationData: BingDictionaryResult = await this.sendToHelper(
+      tabId,
+      {
+        action: TOOL_MESSAGE_TYPES.BING_DICTIONARY_FETCH_TRANSLATION,
+        includeBinaries: includeMedia,
+      },
+      300,
+    );
     if (translationData) {
       translationData.url = bingDictUrl;
       translationData.tabId = tabId;
     }
-
     return translationData;
   }
-
   /**
    * Public full-load barrier: wait until the tab is idle (not loading/spinning)
    * before the caller advances. ALWAYS delegates to waitForTabComplete — which

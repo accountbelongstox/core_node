@@ -287,9 +287,23 @@ export class BingTabPool {
    * 1-for-1 close+reopen any that are showing a Chrome error page. The live tab
    * count never exceeds `target` (surplus is closed, not replaced). A 'gone' tab
    * is simply dropped — the worker's ensure()/replace() recreates it on demand.
-   * Returns the number healed.
+   * Serialized on the same chain as replace() so a concurrent heal (from the
+   * TabController heal handler) and a slot's replace never both create tabs and
+   * temporarily overshoot the pool ceiling.
    */
   async healUnreachable(target: number): Promise<number> {
+    const run = this.replaceChain.then(
+      () => this.healUnreachableInner(target),
+      () => this.healUnreachableInner(target),
+    );
+    this.replaceChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async healUnreachableInner(target: number): Promise<number> {
     const t = Math.max(1, Math.min(MAX_BING_TABS, Math.round(target) || 1));
     const next: number[] = [];
     let healed = 0;

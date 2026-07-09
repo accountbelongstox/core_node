@@ -12,6 +12,7 @@ let websockets: Map<string, WebSocket> = new Map();
 let audioContext: AudioContext | null = null;
 let analyserNode: AnalyserNode | null = null;
 let silenceDetectionInterval: ReturnType<typeof setInterval> | null = null;
+let maxDurationTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Recording configuration
 let recordingConfig: {
@@ -44,29 +45,55 @@ let recordingState = {
   isSilent: false,
 };
 
+// Normalize any caught value into an error message string.
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// Drive an async onMessage handler to completion under the sync-listener
+// contract: resolves with {success:true} and rejects with {success:false,error}.
+// Centralizing this pattern prevents the async-listener bug (an `async` listener
+// returns a Promise, not the boolean Chrome needs to keep the channel open, so
+// sendResponse always hits a closed port) from recurring. Mirrors the sibling
+// pattern in main.ts / storage-manager.ts / api-health-listener.ts.
+function respondAsync(
+  work: Promise<unknown>,
+  sendResponse: (response: any) => void,
+): void {
+  work
+    .then(() => sendResponse({ success: true }))
+    .catch((error) => sendResponse({ success: false, error: toErrorMessage(error) }));
+}
+
 // Message listener
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+// Synchronous listener returning true and driving async work via .then/.catch,
+// matching the sibling offscreen/background listeners (main.ts, storage-manager.ts).
+// An async listener returns a Promise, not the boolean Chrome needs to keep the
+// channel open, so sendResponse would always hit a closed port.
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log('[Audio Offscreen] Received message:', message.type);
 
-  switch (message.type) {
-    case 'audio_start_recording':
-      await startRecording(message.streamId, message.config);
-      sendResponse({ success: true });
-      break;
+  try {
+    switch (message.type) {
+      case 'audio_start_recording':
+        respondAsync(startRecording(message.streamId, message.config), sendResponse);
+        break;
 
-    case 'audio_stop_recording':
-      await stopRecording();
-      sendResponse({ success: true });
-      break;
+      case 'audio_stop_recording':
+        respondAsync(stopRecording(), sendResponse);
+        break;
 
-    case 'audio_update_config':
-      recordingConfig = message.config;
-      sendResponse({ success: true });
-      break;
+      case 'audio_update_config':
+        recordingConfig = message.config;
+        sendResponse({ success: true });
+        break;
 
-    default:
-      console.warn('[Audio Offscreen] Unknown message type:', message.type);
-      sendResponse({ success: false, error: 'Unknown message type' });
+      default:
+        console.warn('[Audio Offscreen] Unknown message type:', message.type);
+        sendResponse({ success: false, error: 'Unknown message type' });
+    }
+  } catch (error) {
+    sendResponse({ success: false, error: toErrorMessage(error) });
   }
 
   return true; // Keep message channel open for async response
@@ -210,7 +237,11 @@ async function startRecording(streamId: string, config: typeof recordingConfig) 
     // Set max duration timeout if configured
     if (recordingConfig?.recordingSettings.maxDuration &&
         recordingConfig.recordingSettings.maxDuration > 0) {
-      setTimeout(() => {
+      // Clear any orphaned timer from a prior recording so it can never fire
+      // during this one and stop it prematurely.
+      stopMaxDurationTimer();
+      maxDurationTimer = setTimeout(() => {
+        maxDurationTimer = null;
         if (recordingState.isRecording) {
           console.log('[Audio Offscreen] Max duration reached, stopping recording');
           stopRecording();
@@ -240,6 +271,7 @@ async function stopRecording() {
   recorder.stop();
   stopSilenceDetection();
   stopDurationTimer();
+  stopMaxDurationTimer();
 }
 
 async function streamChunk(chunk: Blob) {
@@ -300,7 +332,12 @@ async function connectWebSockets() {
 
       ws.onclose = () => {
         console.log(`[Audio Offscreen] WebSocket closed: ${server.name}`);
-        websockets.delete(server.id);
+        // Only evict if this is still the active socket for the server. A stale
+        // close from a replaced or cleaned-up socket must not evict the new one
+        // that a subsequent recording already registered under the same id.
+        if (websockets.get(server.id) === ws) {
+          websockets.delete(server.id);
+        }
       };
 
       websockets.set(server.id, ws);
@@ -440,6 +477,13 @@ function stopDurationTimer() {
   }
 }
 
+function stopMaxDurationTimer() {
+  if (maxDurationTimer) {
+    clearTimeout(maxDurationTimer);
+    maxDurationTimer = null;
+  }
+}
+
 function notifyRecordingStatus() {
   chrome.runtime.sendMessage({
     type: 'audio_recording_status_update',
@@ -486,6 +530,7 @@ async function cleanup() {
   // Stop timers
   stopSilenceDetection();
   stopDurationTimer();
+  stopMaxDurationTimer();
 
   // Clear data
   audioData = [];

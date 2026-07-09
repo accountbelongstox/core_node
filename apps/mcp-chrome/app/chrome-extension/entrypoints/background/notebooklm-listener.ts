@@ -4,6 +4,9 @@
  */
 
 import { notebookLmTool } from './tools/browser/notebooklm';
+import { logger } from '@/utils/logger';
+
+const LOG = 'NotebookLM Listener';
 
 export function initNotebookLMListener() {
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -30,6 +33,7 @@ export function initNotebookLMListener() {
           sendResponse({ success: false, error: `Unknown action: ${message.action}` });
         }
       } catch (error: any) {
+        logger.error(LOG, 'request failed', error);
         sendResponse({ success: false, error: error?.message || 'NotebookLM error' });
       }
     })();
@@ -37,5 +41,5 @@ export function initNotebookLMListener() {
     return true; // async response
   });
 
-  console.log('[NotebookLM Listener] Initialized');
+  logger.info(LOG, 'Initialized');
 }

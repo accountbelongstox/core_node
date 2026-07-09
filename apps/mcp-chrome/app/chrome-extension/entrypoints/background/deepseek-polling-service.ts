@@ -15,8 +15,11 @@ const DEEPSEEK_SELECTORS = {
   // Send button
   SEND_BUTTON: 'button[type="submit"], button[aria-label*="Send"]',
 
-  // Stop generating button (indicates response is being generated, supports Chinese and English)
-  STOP_BUTTON: 'button:has-text("停止"), button:has-text("Stop"), button[aria-label*="Stop"]',
+  // Stop generating button (indicates response is being generated, supports Chinese and English).
+  // Only the valid CSS clause is kept; :has-text() is a Playwright-only pseudo-selector that is
+  // invalid in native querySelector (throws SyntaxError, fails the whole selector list), so text
+  // matching for "Stop"/"停止" is done in JS (see checkTaskStatus).
+  STOP_BUTTON: 'button[aria-label*="Stop"]',
 
   // Response container
   RESPONSE: '.ds-markdown, [class*="markdown"], [class*="message-content"]',
@@ -40,6 +43,10 @@ interface PollingState {
   retries: number;
   lastCheck: number;
   currentBackoff: number;
+  // True once the stop/generating button has been observed at least once.
+  // Prevents the very first poll(s) from declaring "complete" on a stale
+  // response that was already on screen before the new prompt was submitted.
+  sawGenerating: boolean;
 }
 
 /**
@@ -48,14 +55,33 @@ interface PollingState {
  */
 export class DeepSeekPollingService {
   private pollingStates: Map<string, PollingState> = new Map();
+  // Tasks awaiting a free polling slot; drained by promoteNextQueuedTask() when
+  // stopPolling() frees a slot. Rebuilt from persisted PENDING/GENERATING tasks on
+  // every initialize(), so it does not need separate persistence.
+  private overflowQueue: string[] = [];
   private taskQueueManager = getTaskQueueManager();
-  private maxConcurrentPolling = 5;
   private initialized = false;
+  // Guard against concurrent initialize() calls: the first caller creates a
+  // promise that subsequent callers await, so they all see the same result
+  // instead of racing through the async body and double-starting polling.
+  private initPromise: Promise<void> | null = null;
 
   /**
    * Initialize the polling service
    */
   async initialize(): Promise<void> {
+    if (this.initialized) return;
+    if (this.initPromise) return this.initPromise;
+
+    this.initPromise = this._doInitialize();
+    try {
+      await this.initPromise;
+    } finally {
+      this.initPromise = null;
+    }
+  }
+
+  private async _doInitialize(): Promise<void> {
     if (this.initialized) return;
 
     // Initialize task queue manager
@@ -93,10 +119,17 @@ export class DeepSeekPollingService {
       return;
     }
 
-    // Check concurrent polling limit
-    if (this.pollingStates.size >= this.maxConcurrentPolling) {
-      console.warn(`Max concurrent polling limit reached (${this.maxConcurrentPolling}), queueing task ${taskId}`);
-      // TODO: Implement queuing for polling
+    const maxConcurrent = this.taskQueueManager.getConfig().maxConcurrentPolling;
+
+    // Check concurrent polling limit; queue overflow tasks instead of dropping them.
+    // Previously this logged "queueing" but returned without queuing, leaving tasks
+    // PENDING forever with no self-healing. The overflow queue is drained by
+    // promoteNextQueuedTask() whenever stopPolling() frees a slot.
+    if (this.pollingStates.size >= maxConcurrent) {
+      if (!this.overflowQueue.includes(taskId)) {
+        this.overflowQueue.push(taskId);
+        console.log(`Max concurrent polling limit reached (${maxConcurrent}), queued task ${taskId} (queue depth: ${this.overflowQueue.length})`);
+      }
       return;
     }
 
@@ -105,6 +138,7 @@ export class DeepSeekPollingService {
       retries: 0,
       lastCheck: Date.now(),
       currentBackoff: 1000, // Start with 1 second
+      sawGenerating: false,
     };
 
     this.pollingStates.set(taskId, state);
@@ -117,14 +151,34 @@ export class DeepSeekPollingService {
    */
   stopPolling(taskId: string): void {
     const state = this.pollingStates.get(taskId);
-    if (!state) return;
-
-    if (state.intervalId) {
-      clearTimeout(state.intervalId);
+    if (state) {
+      if (state.intervalId) {
+        clearTimeout(state.intervalId);
+      }
+      this.pollingStates.delete(taskId);
+      console.log(`Stopped polling task ${taskId}`);
+    } else {
+      // Task may be sitting in the overflow queue; remove it so it is not
+      // promoted after it has already reached a final state.
+      this.overflowQueue = this.overflowQueue.filter((id) => id !== taskId);
     }
 
-    this.pollingStates.delete(taskId);
-    console.log(`Stopped polling task ${taskId}`);
+    // A slot freed up (or the task was dequeued); promote the next queued task.
+    this.promoteNextQueuedTask();
+  }
+
+  /**
+   * Promote queued tasks into free polling slots
+   */
+  private promoteNextQueuedTask(): void {
+    if (this.overflowQueue.length === 0) return;
+    const maxConcurrent = this.taskQueueManager.getConfig().maxConcurrentPolling;
+    while (this.pollingStates.size < maxConcurrent && this.overflowQueue.length > 0) {
+      const nextTaskId = this.overflowQueue.shift()!;
+      // startPolling re-checks the limit; since we just verified size < maxConcurrent
+      // synchronously it will start the task rather than re-queue it.
+      this.startPolling(nextTaskId);
+    }
   }
 
   /**
@@ -191,11 +245,20 @@ export class DeepSeekPollingService {
       // Check task status
       const status = await this.checkTaskStatus(task);
 
-      if (status.isCompleted) {
+      // Track whether we have observed the generating state at least once.
+      // A "completed" signal before we ever see generating means the page
+      // still shows a previous response — ignore it and keep polling.
+      if (status.isGenerating) {
+        state.sawGenerating = true;
+      }
+
+      if (status.isCompleted && state.sawGenerating) {
         await this.handleCompletion(taskId, status.result!);
       } else if (status.isError) {
         await this.handleError(taskId, status.error || 'Unknown error');
-      } else if (status.isGenerating) {
+      } else if (status.isGenerating || status.isCompleted) {
+        // isCompleted without sawGenerating: treat as still pending (stale
+        // response from a prior conversation turn).
         // Update status to generating if not already
         if (task.status !== TaskStatus.GENERATING) {
           await this.taskQueueManager.updateTask(taskId, {
@@ -212,8 +275,20 @@ export class DeepSeekPollingService {
       state.lastCheck = Date.now();
     } catch (error) {
       console.error(`Error polling task ${taskId}:`, error);
-      // Continue polling on error
-      this.scheduleNextPoll(taskId);
+      const msg = error instanceof Error ? error.message : String(error);
+      // Tab-gone errors are permanent: fail immediately instead of burning
+      // every remaining retry on a tab that will never come back.
+      if (/no such tab|tab.*closed|cannot.*tab|invalid tab/i.test(msg)) {
+        try {
+          await this.handleError(taskId, msg);
+        } catch (handleErr) {
+          console.error(`handleError also failed for ${taskId}:`, handleErr);
+          this.pollingStates.delete(taskId);
+        }
+      } else {
+        // Transient error — continue polling
+        this.scheduleNextPoll(taskId);
+      }
     }
   }
 
@@ -236,8 +311,17 @@ export class DeepSeekPollingService {
       const results = await chrome.scripting.executeScript({
         target: { tabId: task.tabId },
         func: () => {
-          // Check for stop button (indicates generating)
-          const stopButton = document.querySelector('button[aria-label*="Stop"], button:has-text("Stop"), button:has-text("停止")');
+          // Stop button indicates generating. :has-text() is a Playwright-only pseudo-selector
+          // that is invalid in native querySelector (it throws SyntaxError and fails the whole
+          // non-forgiving selector list), so query the valid CSS clause and fall back to in-JS
+          // text matching for "Stop"/"停止".
+          let stopButton = document.querySelector('button[aria-label*="Stop"]');
+          if (!stopButton) {
+            stopButton =
+              Array.from(document.querySelectorAll('button')).find(
+                (b) => /Stop|停止/.test(b.textContent || '')
+              ) || null;
+          }
           const isGenerating = stopButton !== null && !stopButton.hasAttribute('disabled');
 
           // Check for error

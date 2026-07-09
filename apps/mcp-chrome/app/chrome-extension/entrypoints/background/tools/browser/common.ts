@@ -269,10 +269,25 @@ class CloseTabsTool extends BaseBrowserToolExecutor {
       // If URL is provided, close all tabs matching that URL
       if (urlPattern) {
         console.log(`Searching for tabs with URL: ${url}`);
-        if (!urlPattern.endsWith('/')) {
-          urlPattern += '/*';
+        // Build Chrome match patterns matching the origin/path prefix so tabs at
+        // any sub-path are closed (e.g. "https://example.com" matches both
+        // "https://example.com" exactly AND "https://example.com/*" for sub-paths).
+        // Drop a trailing slash before appending the wildcard. Keep a caller-provided
+        // wildcard intact.
+        if (urlPattern.endsWith('/')) {
+          urlPattern = urlPattern.slice(0, -1);
         }
-        const tabs = await chrome.tabs.query({ url });
+        // Query both the exact URL and the wildcard pattern so that both the
+        // bare URL and its sub-paths are matched. Chrome match patterns with /*
+        // do NOT match the bare URL without a trailing path segment.
+        const queryPatterns: string[] = [];
+        if (!urlPattern.endsWith('*')) {
+          queryPatterns.push(urlPattern, urlPattern + '/*');
+        } else {
+          queryPatterns.push(urlPattern);
+        }
+        // chrome.tabs.query accepts an array of match patterns (OR semantics)
+        const tabs = await chrome.tabs.query({ url: queryPatterns });
 
         if (!tabs || tabs.length === 0) {
           console.log(`No tabs found with URL: ${url}`);

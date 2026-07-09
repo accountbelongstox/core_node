@@ -1,56 +1,27 @@
 import { createErrorResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
-import { LIMITS, NETWORK_FILTERS } from '@/common/constants';
+import { LIMITS } from '@/common/constants';
 import { firefoxNetworkBodyCapture } from './network-capture-body-firefox';
-
-// Static resource file extensions
-const STATIC_RESOURCE_EXTENSIONS = [
-  '.jpg',
-  '.jpeg',
-  '.png',
-  '.gif',
-  '.svg',
-  '.webp',
-  '.ico',
-  '.bmp', // Images
-  '.css',
-  '.scss',
-  '.less', // Styles
-  '.js',
-  '.jsx',
-  '.ts',
-  '.tsx', // Scripts
-  '.woff',
-  '.woff2',
-  '.ttf',
-  '.eot',
-  '.otf', // Fonts
-  '.mp3',
-  '.mp4',
-  '.avi',
-  '.mov',
-  '.wmv',
-  '.flv',
-  '.ogg',
-  '.wav', // Media
-  '.pdf',
-  '.doc',
-  '.docx',
-  '.xls',
-  '.xlsx',
-  '.ppt',
-  '.pptx', // Documents
-];
-
-// Ad and analytics domain list
-const AD_ANALYTICS_DOMAINS = NETWORK_FILTERS.EXCLUDED_DOMAINS;
+import {
+  STATIC_RESOURCE_EXTENSIONS,
+  AD_ANALYTICS_DOMAINS,
+  STATIC_MIME_TYPES_TO_FILTER,
+  API_MIME_TYPES,
+  StopReason,
+  shouldFilterRequestByUrl,
+  shouldFilterRequestByExtension,
+  shouldFilterByMimeType as sharedShouldFilterByMimeType,
+  analyzeCommonHeaders,
+  filterOutCommonHeaders,
+} from './network-capture-utils';
 
 interface NetworkCaptureStartToolParams {
   url?: string; // URL to navigate to or focus. If not provided, uses active tab.
   maxCaptureTime?: number; // Maximum capture time (milliseconds)
   inactivityTimeout?: number; // Inactivity timeout (milliseconds)
   includeStatic?: boolean; // Whether to include static resources
+  tabId?: number; // Specific tab to capture; bypasses URL query / active-tab lookup.
 }
 
 interface NetworkRequestInfo {
@@ -101,39 +72,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
   private requestCounters: Map<number, number> = new Map(); // tabId -> count of captured requests
   public static MAX_REQUESTS_PER_CAPTURE = LIMITS.MAX_NETWORK_REQUESTS; // Maximum capture request count
   private listeners: { [key: string]: (details: any) => void } = {};
-
-  // Static resource MIME types list (for filtering)
-  private static STATIC_MIME_TYPES_TO_FILTER = [
-    'image/', // All image types
-    'font/', // All font types
-    'audio/', // All audio types
-    'video/', // All video types
-    'text/css',
-    'text/javascript',
-    'application/javascript',
-    'application/x-javascript',
-    'application/pdf',
-    'application/zip',
-    'application/octet-stream', // Usually for downloads or generic binary data
-  ];
-
-  // API response MIME types list (these types are usually not filtered)
-  private static API_MIME_TYPES = [
-    'application/json',
-    'application/xml',
-    'text/xml',
-    'application/x-www-form-urlencoded',
-    'application/graphql',
-    'application/grpc',
-    'application/protobuf',
-    'application/x-protobuf',
-    'application/x-json',
-    'application/ld+json',
-    'application/problem+json',
-    'application/problem+xml',
-    'application/soap+xml',
-    'application/vnd.api+json',
-  ];
+  private listenersRegistered = false; // Guards against duplicate webRequest listener registration
 
   constructor() {
     super();
@@ -146,6 +85,11 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
     chrome.tabs.onRemoved.addListener(this.handleTabRemoved.bind(this));
     // Listen for tab creation events
     chrome.tabs.onCreated.addListener(this.handleTabCreated.bind(this));
+
+    // Register webRequest listeners once for the lifetime of the service worker;
+    // handlers short-circuit via captureData when no tab is being captured, so
+    // they must not be added/removed per capture cycle (which leaks listeners).
+    this.setupListeners();
   }
 
   /**
@@ -203,65 +147,17 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
   }
 
   /**
-   * Determine whether a request should be filtered (based on URL)
+   * Determine whether a request should be filtered (based on URL and extension)
    */
   private shouldFilterRequest(url: string, includeStatic: boolean): boolean {
-    try {
-      const urlObj = new URL(url);
-
-      // Check if it's an ad or analytics domain
-      if (AD_ANALYTICS_DOMAINS.some((domain) => urlObj.hostname.includes(domain))) {
-        console.log(`NetworkCaptureV2: Filtering ad/analytics domain: ${urlObj.hostname}`);
-        return true;
-      }
-
-      // If not including static resources, check extensions
-      if (!includeStatic) {
-        const path = urlObj.pathname.toLowerCase();
-        if (STATIC_RESOURCE_EXTENSIONS.some((ext) => path.endsWith(ext))) {
-          console.log(`NetworkCaptureV2: Filtering static resource by extension: ${path}`);
-          return true;
-        }
-      }
-
-      return false;
-    } catch (e) {
-      console.error('NetworkCaptureV2: Error filtering URL:', e);
-      return false;
-    }
+    return shouldFilterRequestByUrl(url) || shouldFilterRequestByExtension(url, includeStatic);
   }
 
   /**
    * Filter based on MIME type
    */
   private shouldFilterByMimeType(mimeType: string, includeStatic: boolean): boolean {
-    if (!mimeType) return false;
-
-    // Always keep API response types
-    if (NetworkCaptureStartTool.API_MIME_TYPES.some((type) => mimeType.startsWith(type))) {
-      return false;
-    }
-
-    // If not including static resources, filter out static resource MIME types
-    if (!includeStatic) {
-      // Filter static resource MIME types
-      if (
-        NetworkCaptureStartTool.STATIC_MIME_TYPES_TO_FILTER.some((type) =>
-          mimeType.startsWith(type),
-        )
-      ) {
-        console.log(`NetworkCaptureV2: Filtering static resource by MIME type: ${mimeType}`);
-        return true;
-      }
-
-      // Filter all MIME types starting with text/ (except those already in API_MIME_TYPES)
-      if (mimeType.startsWith('text/')) {
-        console.log(`NetworkCaptureV2: Filtering text response: ${mimeType}`);
-        return true;
-      }
-    }
-
-    return false;
+    return sharedShouldFilterByMimeType(mimeType, includeStatic);
   }
 
   /**
@@ -304,7 +200,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
       this.stopCaptureByInactivity(tabId);
     } else {
       // If inactivity time hasn't been reached yet, continue checking
-      const remainingTime = captureInfo.inactivityTimeout - inactiveTime;
+      const remainingTime = Math.max(0, captureInfo.inactivityTimeout - inactiveTime);
       this.inactivityTimers.set(
         tabId,
         setTimeout(() => this.checkInactivity(tabId), remainingTime),
@@ -320,7 +216,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
     if (!captureInfo) return;
 
     console.log(`NetworkCaptureV2: Stopping capture due to inactivity for tab ${tabId}`);
-    await this.stopCapture(tabId);
+    await this.stopCapture(tabId, 'inactivity_timeout');
   }
 
   /**
@@ -353,6 +249,10 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
    * Set up request listeners
    */
   private setupListeners(): void {
+    // Listeners are registered once (constructor); ignore any later call so we
+    // never orphan function references that chrome.webRequest can no longer remove.
+    if (this.listenersRegistered) return;
+
     // Before request is sent
     this.listeners.onBeforeRequest = (details: chrome.webRequest.WebRequestBodyDetails) => {
       const captureInfo = this.captureData.get(details.tabId);
@@ -371,10 +271,13 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
         return;
       }
 
-      this.requestCounters.set(details.tabId, currentCount + 1);
       this.updateLastActivityTime(details.tabId);
 
+      // Only count and store genuinely new requests; redirects reuse the requestId
+      // and would otherwise inflate the counter and trip the limit early.
       if (!captureInfo.requests[details.requestId]) {
+        this.requestCounters.set(details.tabId, currentCount + 1);
+
         captureInfo.requests[details.requestId] = {
           requestId: details.requestId,
           url: details.url,
@@ -501,45 +404,8 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
     chrome.webRequest.onErrorOccurred.addListener(this.listeners.onErrorOccurred, {
       urls: ['<all_urls>'],
     });
-  }
 
-  /**
-   * Remove all request listeners
-   * Only remove listeners when all tab captures have stopped
-   */
-  private removeListeners(): void {
-    // Don't remove listeners if there are still tabs being captured
-    if (this.captureData.size > 0) {
-      console.log(
-        `NetworkCaptureV2: Still capturing on ${this.captureData.size} tabs, not removing listeners.`,
-      );
-      return;
-    }
-
-    console.log(`NetworkCaptureV2: No more active captures, removing all listeners.`);
-
-    if (this.listeners.onBeforeRequest) {
-      chrome.webRequest.onBeforeRequest.removeListener(this.listeners.onBeforeRequest);
-    }
-
-    if (this.listeners.onSendHeaders) {
-      chrome.webRequest.onSendHeaders.removeListener(this.listeners.onSendHeaders);
-    }
-
-    if (this.listeners.onHeadersReceived) {
-      chrome.webRequest.onHeadersReceived.removeListener(this.listeners.onHeadersReceived);
-    }
-
-    if (this.listeners.onCompleted) {
-      chrome.webRequest.onCompleted.removeListener(this.listeners.onCompleted);
-    }
-
-    if (this.listeners.onErrorOccurred) {
-      chrome.webRequest.onErrorOccurred.removeListener(this.listeners.onErrorOccurred);
-    }
-
-    // Clear listener object
-    this.listeners = {};
+    this.listenersRegistered = true;
   }
 
   /**
@@ -547,7 +413,21 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
    */
   private processRequestBody(requestBody: chrome.webRequest.WebRequestBody): string | undefined {
     if (requestBody.raw && requestBody.raw.length > 0) {
-      return '[Binary data]';
+      // Chrome delivers JSON/text POST bodies as raw byte arrays. Decode as UTF-8
+      // (fatal mode) so real text/JSON bodies are captured; fall back to
+      // '[Binary data]' only when the bytes are not valid UTF-8.
+      try {
+        const decoder = new TextDecoder('utf-8', { fatal: true });
+        const parts: string[] = [];
+        for (const entry of requestBody.raw) {
+          if (entry && entry.bytes) {
+            parts.push(decoder.decode(entry.bytes));
+          }
+        }
+        return parts.join('');
+      } catch (e) {
+        return '[Binary data]';
+      }
     } else if (requestBody.formData) {
       return JSON.stringify(requestBody.formData);
     }
@@ -600,9 +480,6 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
       // On Firefox, buffer response bodies via StreamFilter for this session
       if (import.meta.env.FIREFOX) firefoxNetworkBodyCapture.startSession(tabId, includeStatic);
 
-      // Set up listeners
-      this.setupListeners();
-
       // Update last activity time
       this.updateLastActivityTime(tabId);
 
@@ -618,7 +495,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
             console.log(
               `NetworkCaptureV2: Max capture time (${maxCaptureTime}ms) reached for tab ${tabId}.`,
             );
-            await this.stopCapture(tabId);
+            await this.stopCapture(tabId, 'max_capture_time');
           }, maxCaptureTime),
         );
       }
@@ -637,9 +514,11 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
   /**
    * Stop capture
    * @param tabId Tab ID
+   * @param stopReason Explicit cause of the stop, surfaced as `stoppedBy` in the result
    */
   public async stopCapture(
     tabId: number,
+    stopReason: StopReason = 'user_request',
   ): Promise<{ success: boolean; message?: string; data?: any }> {
     const captureInfo = this.captureData.get(tabId);
     if (!captureInfo) {
@@ -656,15 +535,15 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
 
       // Extract common request and response headers
       const requestsArray = Object.values(captureInfo.requests);
-      const commonRequestHeaders = this.analyzeCommonHeaders(requestsArray, 'requestHeaders');
-      const commonResponseHeaders = this.analyzeCommonHeaders(requestsArray, 'responseHeaders');
+      const commonRequestHeaders = analyzeCommonHeaders(requestsArray, 'requestHeaders');
+      const commonResponseHeaders = analyzeCommonHeaders(requestsArray, 'responseHeaders');
 
       // Process request data, remove common headers
       const processedRequests = requestsArray.map((req) => {
         const finalReq: NetworkRequestInfo = { ...req };
 
         if (finalReq.requestHeaders) {
-          finalReq.specificRequestHeaders = this.filterOutCommonHeaders(
+          finalReq.specificRequestHeaders = filterOutCommonHeaders(
             finalReq.requestHeaders,
             commonRequestHeaders,
           );
@@ -674,7 +553,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
         }
 
         if (finalReq.responseHeaders) {
-          finalReq.specificResponseHeaders = this.filterOutCommonHeaders(
+          finalReq.specificResponseHeaders = filterOutCommonHeaders(
             finalReq.responseHeaders,
             commonResponseHeaders,
           );
@@ -688,9 +567,6 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
 
       // Sort by time
       processedRequests.sort((a, b) => (a.requestTime || 0) - (b.requestTime || 0));
-
-      // Remove listeners
-      this.removeListeners();
 
       // Prepare result data
       const resultData = {
@@ -709,6 +585,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
         requestCount: processedRequests.length,
         totalRequestsReceived: this.requestCounters.get(tabId) || 0,
         requestLimitReached: captureInfo.limitReached || false,
+        stoppedBy: stopReason,
         tabUrl: captureInfo.tabUrl,
         tabTitle: captureInfo.tabTitle,
       };
@@ -718,6 +595,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
 
       return {
         success: true,
+        message: `Capture stopped. ${resultData.requestCount} requests.`,
         data: resultData,
       };
     } catch (error: any) {
@@ -733,71 +611,13 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
     }
   }
 
-  /**
-   * Analyze common request or response headers
-   */
-  private analyzeCommonHeaders(
-    requests: NetworkRequestInfo[],
-    headerType: 'requestHeaders' | 'responseHeaders',
-  ): Record<string, string> {
-    if (!requests || requests.length === 0) return {};
-
-    // Find headers that are included in all requests
-    const commonHeaders: Record<string, string> = {};
-    const firstRequestWithHeaders = requests.find(
-      (req) => req[headerType] && Object.keys(req[headerType] || {}).length > 0,
-    );
-
-    if (!firstRequestWithHeaders || !firstRequestWithHeaders[headerType]) {
-      return {};
-    }
-
-    // Get all headers from the first request
-    const headers = firstRequestWithHeaders[headerType] as Record<string, string>;
-    const headerNames = Object.keys(headers);
-
-    // Check if each header exists in all requests with the same value
-    for (const name of headerNames) {
-      const value = headers[name];
-      const isCommon = requests.every((req) => {
-        const reqHeaders = req[headerType] as Record<string, string>;
-        return reqHeaders && reqHeaders[name] === value;
-      });
-
-      if (isCommon) {
-        commonHeaders[name] = value;
-      }
-    }
-
-    return commonHeaders;
-  }
-
-  /**
-   * Filter out common headers
-   */
-  private filterOutCommonHeaders(
-    headers: Record<string, string>,
-    commonHeaders: Record<string, string>,
-  ): Record<string, string> {
-    if (!headers || typeof headers !== 'object') return {};
-
-    const specificHeaders: Record<string, string> = {};
-    // Use Object.keys to avoid ESLint no-prototype-builtins warning
-    Object.keys(headers).forEach((name) => {
-      if (!(name in commonHeaders) || headers[name] !== commonHeaders[name]) {
-        specificHeaders[name] = headers[name];
-      }
-    });
-
-    return specificHeaders;
-  }
-
   async execute(args: NetworkCaptureStartToolParams): Promise<ToolResult> {
     const {
       url: targetUrl,
       maxCaptureTime = 3 * 60 * 1000, // Default 3 minutes
       inactivityTimeout = 60 * 1000, // Default 1 minute of inactivity before auto-stop
       includeStatic = false, // Default: don't include static resources
+      tabId: explicitTabId,
     } = args;
 
     console.log(`NetworkCaptureStartTool: Executing with args:`, args);
@@ -806,7 +626,10 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
       // Get current tab or create new tab
       let tabToOperateOn: chrome.tabs.Tab;
 
-      if (targetUrl) {
+      if (explicitTabId != null) {
+        // Direct tabId: skip URL query / active-tab lookup entirely.
+        tabToOperateOn = await chrome.tabs.get(explicitTabId);
+      } else if (targetUrl) {
         // Find tabs matching the URL
         const matchingTabs = await chrome.tabs.query({ url: targetUrl });
 
@@ -890,8 +713,9 @@ class NetworkCaptureStopTool extends BaseBrowserToolExecutor {
     NetworkCaptureStopTool.instance = this;
   }
 
-  async execute(): Promise<ToolResult> {
-    console.log(`NetworkCaptureStopTool: Executing`);
+  async execute(args?: { tabId?: number }): Promise<ToolResult> {
+    const explicitTabId = args?.tabId;
+    console.log(`NetworkCaptureStopTool: Executing. tabId=${explicitTabId}`);
 
     try {
       const startTool = NetworkCaptureStartTool.instance;
@@ -910,31 +734,44 @@ class NetworkCaptureStopTool extends BaseBrowserToolExecutor {
         return createErrorResponse('No active network captures found in any tab.');
       }
 
-      // Get current active tab
-      const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      const activeTabId = activeTabs[0]?.id;
-
       // Determine the primary tab to stop
       let primaryTabId: number;
 
-      if (activeTabId && startTool.captureData.has(activeTabId)) {
-        // If current active tab is capturing, prioritize stopping it
-        primaryTabId = activeTabId;
+      if (explicitTabId != null && startTool.captureData.has(explicitTabId)) {
+        // Explicit tabId from the unified tool takes highest priority
+        primaryTabId = explicitTabId;
         console.log(
-          `NetworkCaptureStopTool: Active tab ${activeTabId} is capturing, will stop it first.`,
+          `NetworkCaptureStopTool: Explicit tabId ${explicitTabId} is capturing, stopping it.`,
         );
-      } else if (ongoingCaptures.length === 1) {
-        // If only one tab is capturing, stop it
-        primaryTabId = ongoingCaptures[0];
-        console.log(
-          `NetworkCaptureStopTool: Only one tab ${primaryTabId} is capturing, stopping it.`,
+      } else if (explicitTabId != null) {
+        // Explicit tabId provided but not currently capturing
+        return createErrorResponse(
+          `No active network capture found for tab ${explicitTabId}. Active captures: ${ongoingCaptures.join(', ')}`,
         );
       } else {
-        // If multiple tabs are capturing but current active tab is not among them, stop the first one
-        primaryTabId = ongoingCaptures[0];
-        console.log(
-          `NetworkCaptureStopTool: Multiple tabs capturing, active tab not among them. Stopping tab ${primaryTabId} first.`,
-        );
+        // No explicit tabId: fall back to active tab or first capture
+        const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const activeTabId = activeTabs[0]?.id;
+
+        if (activeTabId && startTool.captureData.has(activeTabId)) {
+          // If current active tab is capturing, prioritize stopping it
+          primaryTabId = activeTabId;
+          console.log(
+            `NetworkCaptureStopTool: Active tab ${activeTabId} is capturing, will stop it first.`,
+          );
+        } else if (ongoingCaptures.length === 1) {
+          // If only one tab is capturing, stop it
+          primaryTabId = ongoingCaptures[0];
+          console.log(
+            `NetworkCaptureStopTool: Only one tab ${primaryTabId} is capturing, stopping it.`,
+          );
+        } else {
+          // If multiple tabs are capturing but current active tab is not among them, stop the first one
+          primaryTabId = ongoingCaptures[0];
+          console.log(
+            `NetworkCaptureStopTool: Multiple tabs capturing, active tab not among them. Stopping tab ${primaryTabId} first.`,
+          );
+        }
       }
 
       const stopResult = await startTool.stopCapture(primaryTabId);
@@ -980,6 +817,7 @@ class NetworkCaptureStopTool extends BaseBrowserToolExecutor {
               settingsUsed: stopResult.data?.settingsUsed || {},
               totalRequestsReceived: stopResult.data?.totalRequestsReceived || 0,
               requestLimitReached: stopResult.data?.requestLimitReached || false,
+              stoppedBy: stopResult.data?.stoppedBy || 'user_request',
               remainingCaptures: Array.from(startTool.captureData.keys()),
             }),
           },

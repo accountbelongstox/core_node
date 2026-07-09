@@ -49,6 +49,7 @@ export type WorkerCapability =
   | 'translate'
   | 'sentence_audio'
   | 'ai_translate'
+  | 'puter_translate'
   | 'subtitle'
   | 'poster';
 

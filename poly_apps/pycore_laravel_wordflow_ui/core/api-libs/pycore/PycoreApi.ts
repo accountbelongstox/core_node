@@ -81,15 +81,27 @@ export const pycoreMasterClient = new PycoreMasterClient({ defaultCeilingMs: 0 }
  */
 const GET_CEILING_MS = 25_000;
 
+/**
+ * Default dead-socket ceiling for POST writes (ms). POSTs used to inherit
+ * defaultCeilingMs:0 (wait forever), so a hung socket on a control POST (assist
+ * config/cycle, clear recent, capability settings save, queue priority/stack)
+ * left its button disabled indefinitely. 120s is generous for any control write
+ * while still recovering from a dead socket. Genuinely long operations (AI image
+ * generation/chat, TTS/STT synth test, video-extract passthrough) pass an
+ * explicit ceilingMs of 0 to keep waiting forever.
+ */
+const POST_CEILING_MS = 120_000;
+
 async function getJSON<T>(url: string): Promise<T> {
   const r = await pycoreMasterClient.request(url, { ceilingMs: GET_CEILING_MS });
   return (await r.json()) as T;
 }
-async function postJSON<T>(url: string, body: unknown = {}): Promise<T> {
+async function postJSON<T>(url: string, body: unknown = {}, ceilingMs: number = POST_CEILING_MS): Promise<T> {
   const r = await pycoreMasterClient.request(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    ceilingMs,
   });
   return (await r.json()) as T;
 }
@@ -339,7 +351,11 @@ export const pycoreApi = {
 
   // --- generic pycore passthrough (video-extract/code-sync/tasks) --------- #
   pyGet: <T = any>(path: string) => getJSON<T>('/pyapi' + path),
-  pyPost: <T = any>(path: string, body: unknown = {}) => postJSON<T>('/pyapi' + path, body),
+  // Generic passthrough used by video-extract/code-sync/tasks. Those operations
+  // (media sync, extraction) can run for many minutes, so this keeps the forever
+  // ceiling (0) - callers that want a bounded POST use the named methods instead.
+  pyPost: <T = any>(path: string, body: unknown = {}, ceilingMs: number = 0) =>
+    postJSON<T>('/pyapi' + path, body, ceilingMs),
 
   ping: () => getJSON<{ success?: boolean; status?: string }>('/pyapi/ping'),
 
@@ -566,7 +582,7 @@ export const pycoreApi = {
 
   // --- AI chat confirm (explicit provider) --------------------------------- #
   aiChat: (provider: string, messages: AiChatMessage[], model?: string) =>
-    postJSON<AiChatResponse>('/pyapi/api/local/ai/chat', { provider, messages, model }),
+    postJSON<AiChatResponse>('/pyapi/api/local/ai/chat', { provider, messages, model }, 0),
 
   // --- AI auto (unified gateway: smart dispatch + fallback) ---------------- #
   // One round trip; the backend picks the provider by tier/quota/cooldown and
@@ -574,7 +590,7 @@ export const pycoreApi = {
   // gateway records.
   aiAuto: (messages: AiChatMessage[], source?: string, model?: string) =>
     postJSON<AiChatResponse>('/pyapi/api/local/ai/chat',
-      { provider: 'auto', messages, model, source }),
+      { provider: 'auto', messages, model, source }, 0),
 
   // --- AI gateway status (tiers, quotas, cooldowns, task records) ---------- #
   getAiGateway: () => getJSON<AiGatewayStatus>('/pyapi/api/local/ai/gateway'),
@@ -622,13 +638,13 @@ export const pycoreApi = {
   // base64 bytes + mime, AND saves the result into the SHARED cross-runtime
   // history store. `source` labels the task in the records.
   generateImage: (req: { prompt: string; size?: string; model?: string; provider?: string; source?: string }) =>
-    postJSON<AiImageResponse>('/pyapi/api/local/ai/image', req),
+    postJSON<AiImageResponse>('/pyapi/api/local/ai/image', req, 0),
 
   // One-click "Test this provider": force a single image provider, ignoring the
   // cooldown/rate window. Returns the same AiImageResponse shape (base64 + mime
   // + latency) so the caller can show the image + latency in a popup.
   testImageProvider: (req: { provider: string; prompt?: string; size?: string; model?: string }) =>
-    postJSON<AiImageResponse>('/pyapi/api/local/ai/image/test', req),
+    postJSON<AiImageResponse>('/pyapi/api/local/ai/image/test', req, 0),
 
   // --- AI image history (SHARED store — pycore + laravel entries) ---------- #
   // Metadata only (newest-first); fetch bytes via imageHistoryFileUrl(id).
@@ -673,13 +689,13 @@ export const pycoreApi = {
 
   // --- TTS live per-engine synth test (actually runs the engine) ----------- #
   testTts: (req: { engine?: string; text?: string; language?: string; rate?: string }) =>
-    postJSON<TtsTestResponse>('/pyapi/api/local/tts/test', req),
+    postJSON<TtsTestResponse>('/pyapi/api/local/tts/test', req, 0),
 
   // --- STT engine availability + live recognition test --------------------- #
   // faster-whisper -> whisper -> vosk -> azure (Azure exposes a free-F0 quota).
   getSttStatus: () => getJSON<SttStatus>('/pyapi/api/local/stt/status'),
   testStt: (req: { engine?: string; language?: string }) =>
-    postJSON<SttTestResponse>('/pyapi/api/local/stt/test', req),
+    postJSON<SttTestResponse>('/pyapi/api/local/stt/test', req, 0),
 
   // --- Capabilities: CUDA/compute + free-library availability -------------- #
   getCapabilities: () => getJSON<CapabilityStatus>('/pyapi/api/local/capabilities/status'),

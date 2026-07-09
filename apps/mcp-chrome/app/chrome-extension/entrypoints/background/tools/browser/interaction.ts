@@ -14,6 +14,7 @@ interface ClickToolParams {
   coordinates?: Coordinates; // Coordinates to click at (x, y relative to viewport)
   waitForNavigation?: boolean; // Whether to wait for navigation to complete after click
   timeout?: number; // Timeout in milliseconds for waiting for the element or navigation
+  tabId?: number; // Optional: target a specific tab instead of the active tab of the current window
 }
 
 /**
@@ -31,6 +32,7 @@ class ClickTool extends BaseBrowserToolExecutor {
       coordinates,
       waitForNavigation = false,
       timeout = TIMEOUTS.DEFAULT_WAIT * 5,
+      tabId,
     } = args;
 
     console.log(`Starting click operation with options:`, args);
@@ -42,15 +44,10 @@ class ClickTool extends BaseBrowserToolExecutor {
     }
 
     try {
-      // Get current tab
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tabs[0]) {
+      // Resolve target tab (explicit tabId wins; otherwise the active tab)
+      const tab = await this.resolveTargetTab(tabId);
+      if (!tab?.id) {
         return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND);
-      }
-
-      const tab = tabs[0];
-      if (!tab.id) {
-        return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND + ': Active tab has no ID');
       }
 
       await this.injectContentScript(tab.id, ['inject-scripts/click-helper.js']);
@@ -93,6 +90,7 @@ export const clickTool = new ClickTool();
 interface FillToolParams {
   selector: string;
   value: string;
+  tabId?: number; // Optional: target a specific tab instead of the active tab of the current window
 }
 
 /**
@@ -105,7 +103,7 @@ class FillTool extends BaseBrowserToolExecutor {
    * Execute fill operation
    */
   async execute(args: FillToolParams): Promise<ToolResult> {
-    const { selector, value } = args;
+    const { selector, value, tabId } = args;
 
     console.log(`Starting fill operation with options:`, args);
 
@@ -118,15 +116,10 @@ class FillTool extends BaseBrowserToolExecutor {
     }
 
     try {
-      // Get current tab
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tabs[0]) {
+      // Resolve target tab (explicit tabId wins; otherwise the active tab)
+      const tab = await this.resolveTargetTab(tabId);
+      if (!tab?.id) {
         return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND);
-      }
-
-      const tab = tabs[0];
-      if (!tab.id) {
-        return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND + ': Active tab has no ID');
       }
 
       await this.injectContentScript(tab.id, ['inject-scripts/fill-helper.js']);

@@ -303,6 +303,7 @@ class ElementPickerTool extends BaseBrowserToolExecutor {
       }
 
       chrome.runtime.onMessage.removeListener(onRuntimeMessage);
+      chrome.tabs.onRemoved.removeListener(onTabRemoved);
 
       // Cleanup: stop picker in all frames and hide UI
       await Promise.allSettled([
@@ -462,6 +463,14 @@ class ElementPickerTool extends BaseBrowserToolExecutor {
       return;
     };
 
+    // Finish promptly if the target tab is closed mid-session. Without this the
+    // picker would hang until the full timeout (its onMessage events never arrive
+    // because the content/UI scripts are destroyed with the tab).
+    const onTabRemoved = (removedTabId: number): void => {
+      if (removedTabId !== tabId) return;
+      void finish({ success: false, cancelled: true });
+    };
+
     try {
       // Step 1: Ensure UI content script is ready (ping + inject fallback)
       const ensureUiReady = async (): Promise<boolean> => {
@@ -549,6 +558,9 @@ class ElementPickerTool extends BaseBrowserToolExecutor {
 
       // Register message listener
       chrome.runtime.onMessage.addListener(onRuntimeMessage);
+      // Register tab-close listener so closing the target tab ends the session
+      // immediately instead of waiting for the full timeout.
+      chrome.tabs.onRemoved.addListener(onTabRemoved);
 
       // Create result promise
       const resultPromise = new Promise<ElementPickerResult>((resolve) => {

@@ -43,6 +43,7 @@
       "rpc_server": "RPC v2 Server: {port}",
       "singleton_port": "Singleton Port: {port}",
       "autostart": "Auto-Start on Boot",
+      "service_toggle": "Run as System Service",
       "language": "Language"
     }
   },

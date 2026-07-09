@@ -326,8 +326,14 @@ class AppIndicatorSystemTray:
         def handle_update_menu(event_data):
             items = event_data.get('menu_items')
             if items is not None:
+                # THREAD_BUS payload is backend-aware: TrayMenuItem objects
+                # (native pystray) OR dicts (PySide6 Qt). This backend needs
+                # AppIndicatorMenuItem, so adapt via the shared builder (same
+                # one the direct startup callers use). Raw items lack
+                # .separator/.callback and crash _add_menu_item.
+                from .appindicator_thread import build_appindicator_menu_items
                 ColorPrint.blue("[AppIndicatorSystemTray] Received menu update via THREAD_BUS")
-                self.update_menu(items)
+                self.update_menu(build_appindicator_menu_items(items))
 
         THREAD_BUS.register_event_handler('tray.request_stop', handle_stop_request, priority=10)
         THREAD_BUS.register_event_handler('tray.update_menu', handle_update_menu, priority=10)

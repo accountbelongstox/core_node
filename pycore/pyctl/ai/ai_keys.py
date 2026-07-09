@@ -189,13 +189,13 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
             "glm-4v-flash",
         ),
         "limits": "Free tier RPM limits; no public quota API (cooldown on 429). "
-                  "Image: cogview-3-flash is FREE (concurrency-capped; 429 on burst)",
+                  "Image: cogview-3 is FREE (concurrency-capped; 429 on burst)",
         "tier": "free",
         "vision": True,
         "image": True,
-        # CogView-3-Flash is the free text-to-image model (returns an image URL,
+        # CogView-3 is the free text-to-image model (returns an image URL,
         # POST /api/paas/v4/images/generations on open.bigmodel.cn).
-        "image_model": "cogview-3-flash",
+        "image_model": "cogview-3",
     },
     "deepseek": {
         "key_base": "DEEPSEEK_API_KEY",

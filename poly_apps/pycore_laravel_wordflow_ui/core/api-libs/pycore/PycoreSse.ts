@@ -24,7 +24,7 @@
  * Usage: connectPycoreSse();  (PycoreWs.connectPycoreWs() calls this for you.)
  */
 
-import { getClientId, dispatchEvent, setSseEventsActive } from './PycoreWs';
+import { getClientId, dispatchEvent, setSseEventsActive, isPycoreSuspended } from './PycoreWs';
 import { pycoreSseUrlOverride } from './pycoreTarget';
 
 // Envelope event names that carry only a cursor (never a channel payload).
@@ -86,7 +86,7 @@ function parseData(ev: MessageEvent): any {
 }
 
 function scheduleReconnect() {
-  if (suspended) return;            // route inactive — do not reconnect
+  if (suspended || isPycoreSuspended()) return;  // route inactive — do not reconnect (sync WS check avoids async-import race)
   if (reconnectTimer) return;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
@@ -103,7 +103,7 @@ function closeSource() {
 }
 
 function openSource() {
-  if (suspended) return;            // route inactive — do not open
+  if (suspended || isPycoreSuspended()) return;  // route inactive — do not open (sync WS check avoids async-import race)
   // Never stack streams.
   if (source && (source.readyState === EventSource.OPEN || source.readyState === EventSource.CONNECTING)) return;
   if (typeof EventSource === 'undefined') {

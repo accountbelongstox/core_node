@@ -176,8 +176,9 @@ async function readFileViaNativeHost(filePath: string, fileName?: string): Promi
     if (part.length === 0) {
       throw new Error('Native host returned an empty file chunk before end of file');
     }
-    bytes!.set(part.subarray(0, Math.min(part.length, total - received)), received);
-    received += part.length;
+    const writeLen = Math.min(part.length, total - received);
+    bytes!.set(part.subarray(0, writeLen), received);
+    received += writeLen;
     if (chunk.eof) break;
   }
 
@@ -238,7 +239,11 @@ function decodeBase64File(base64Data: string, fileName?: string): FirefoxUploadF
   let mimeType = '';
   let content = base64Data;
 
-  const dataUrlMatch = /^data:([^;,]*);base64,/.exec(base64Data);
+  // Tolerate parameters between the MIME type and ';base64,' (e.g.
+  // data:text/plain;charset=utf-8;base64,...) to match the native host's
+  // /^data:.*?;base64,/ stripping. Group 1 captures the MIME type (up to the
+  // first ';' or ','), which never contains parameters.
+  const dataUrlMatch = /^data:([^;,]*).*?;base64,/.exec(base64Data);
   if (dataUrlMatch) {
     mimeType = dataUrlMatch[1] || '';
     content = base64Data.slice(dataUrlMatch[0].length);

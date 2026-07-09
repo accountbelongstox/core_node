@@ -6,6 +6,7 @@ Registers THREAD_BUS event handlers for tray actions.
 This module only registers event handlers, does not start any threads.
 """
 
+import os
 import webbrowser
 
 from pycore import ColorPrint, THREAD_BUS, get_user_data_store
@@ -52,9 +53,29 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
             ColorPrint.red(f"[Tray] Failed to start pystray fallback: {e}")
 
     def handle_tray_open(event_data):
-        """Open web interface in browser"""
+        """Open the web interface in browser.
+
+        Opens the pycore-manager dashboard frontend (served by the unified shell
+        on the UI port, default 13054), NOT the RPC backend homepage on the rpc
+        port. The frontend URL is resolved in priority order:
+          1. PYCORE_UI_URL env (exported by pyservice.sh/.ps1 after launching the
+             UI dev server -> http://localhost:<UI_PORT>/pycore-manager)
+          2. http://localhost:<PYCORE_UI_PORT|13054>/pycore-manager
+        The RPC backend on `port` keeps running unaffected; it is only the
+        last-resort target when no UI is configured (headless / legacy runs).
+        """
         ColorPrint.blue("[Tray] Opening web interface...")
-        webbrowser.open(f"http://localhost:{port}/")
+        ui_url = os.environ.get('PYCORE_UI_URL')
+        if not ui_url:
+            ui_port = os.environ.get('PYCORE_UI_PORT') or '13054'
+            ui_url = f"http://localhost:{ui_port}/pycore-manager"
+        try:
+            webbrowser.open(ui_url)
+        except Exception as e:
+            # Last resort: fall back to the RPC backend homepage so the tray
+            # action never silently no-ops when the frontend is unreachable.
+            ColorPrint.yellow(f"[Tray] Failed to open UI ({ui_url}): {e}; falling back to RPC port {port}")
+            webbrowser.open(f"http://localhost:{port}/")
 
     def handle_tray_restart(event_data):
         """
@@ -90,6 +111,51 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
         ColorPrint.blue("[Tray] Toggling voice subtitle window...")
         THREAD_BUS.trigger_event('voice_subtitle_ui.toggle', {})
         ColorPrint.green("[Tray] Voice subtitle window toggle event sent")
+
+    def handle_tray_toggle_service(event_data):
+        """Toggle pycore (+ UI) as systemd system services (Linux only).
+
+        ON  -> install BOTH the `pycore` and `ncore-nexus-dash` units (start on
+               boot). OFF -> remove ONLY the `pycore` unit; the UI unit is left
+               running and its removal command is printed. The long install/
+               uninstall runs in a background daemon thread so the tick/tray
+        thread is never blocked. The menu is re-pushed afterwards so the
+        [X]/[ ] state refreshes live.
+        """
+        import threading as _threading
+
+        def _apply():
+            try:
+                from pycore.callmodule.platform import system_service_manager as ssm
+                if not ssm.is_supported():
+                    ColorPrint.yellow("[Tray] systemd not available; service toggle is a no-op.")
+                    return
+                if ssm.pycore_service_enabled():
+                    result = ssm.disable_pycore_only()
+                    ColorPrint.green(
+                        f"[Tray] Service disabled: pycore enabled={result.get('enabled')}. "
+                        f"UI left running={result.get('ui_left_running')}"
+                    )
+                    cmd = result.get('ui_remove_command') or ''
+                    if cmd:
+                        # Print the exact removal command for the UI unit, per spec.
+                        ColorPrint.yellow(f"[Tray] To remove the UI unit too, run:\n    {cmd}")
+                else:
+                    result = ssm.enable_both()
+                    ColorPrint.green(
+                        f"[Tray] Service enabled: pycore={result['pycore'].get('enabled')} "
+                        f"ui={result['ui'].get('enabled')}"
+                    )
+            except Exception as e:
+                ColorPrint.red(f"[Tray] Service toggle failed: {e}")
+            finally:
+                # Re-push the menu so the toggle's [X]/[ ] state refreshes.
+                try:
+                    update_tray_menu_with_singleton(launcher, port=port, singleton_port=singleton_port)
+                except Exception as e:
+                    ColorPrint.yellow(f"[Tray] Menu re-push after service toggle failed: {e}")
+
+        _threading.Thread(target=_apply, name='TrayServiceToggle', daemon=True).start()
 
     def handle_language_changed(event_data):
         """
@@ -132,6 +198,8 @@ def register_event_handlers(launcher: ServiceLauncher, port: int, singleton_port
     THREAD_BUS.register_event_handler('tray_action_restart', handle_tray_restart)
     THREAD_BUS.register_event_handler('tray_action_exit', handle_tray_exit)
     THREAD_BUS.register_event_handler('tray_action_toggle_voice_subtitle', handle_tray_toggle_voice_subtitle)
+    # Linux system-service toggle (install both units / remove pycore only).
+    THREAD_BUS.register_event_handler('tray_action_toggle_service', handle_tray_toggle_service)
     # Fallback: only fires when the PySide6 backend is selected but no system tray exists
     THREAD_BUS.register_event_handler('tray.native_unavailable', handle_native_tray_unavailable)
     # Language switch (UI settings / bus): persist + rebuild tray texts

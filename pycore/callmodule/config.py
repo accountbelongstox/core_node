@@ -810,8 +810,10 @@ def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
         port: RPC v2 server port
         singleton_port: Singleton port
     """
-    if not IS_WINDOWS:
-        return
+    # All tray backends (Win32, AppIndicator, pystray, PySide6 Qt) listen for
+    # 'tray.update_menu' and rebuild live - including on Linux - so this re-push
+    # refreshes the service-toggle [X]/[ ] state after a toggle and re-translates
+    # the menu after a language change on every platform.
 
     # Backend-aware payload: the pystray tray consumes TrayMenuItem objects, while
     # the PySide6 Qt tray consumes canonical dicts. Both listen to 'tray.update_menu'

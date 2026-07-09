@@ -93,7 +93,7 @@ if (window.__CLICK_HELPER_INITIALIZED__) {
           clickMethod: 'selector',
         };
 
-        // First sroll so that the element is in view, then check visibility.
+        // First scroll so that the element is in view, then check visibility.
         element.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
         await new Promise((resolve) => setTimeout(resolve, 100));
         elementInfo.isVisible = isElementVisible(element);
@@ -112,13 +112,15 @@ if (window.__CLICK_HELPER_INITIALIZED__) {
       let navigationPromise;
       if (waitForNavigation) {
         navigationPromise = new Promise((resolve) => {
+          let timer;
           const beforeUnloadListener = () => {
+            clearTimeout(timer);
             window.removeEventListener('beforeunload', beforeUnloadListener);
             resolve(true);
           };
           window.addEventListener('beforeunload', beforeUnloadListener);
 
-          setTimeout(() => {
+          timer = setTimeout(() => {
             window.removeEventListener('beforeunload', beforeUnloadListener);
             resolve(false);
           }, timeout);
@@ -182,7 +184,7 @@ if (window.__CLICK_HELPER_INITIALIZED__) {
     if (!element) return false;
 
     const style = window.getComputedStyle(element);
-    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+    if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) {
       return false;
     }
 

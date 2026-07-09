@@ -39,6 +39,24 @@ function clearReconnectTimer(): void {
   }
 }
 
+/**
+ * Resolve the Chrome native-messaging manifest path for the diagnostic shown on
+ * a forbidden/disconnect error. MV3 service workers have no Node `process`
+ * global, so referencing process.platform / process.env throws a ReferenceError;
+ * the OS is detected from navigator.platform (Win32/MacIntel/Linux*) instead,
+ * and the user home is rendered as a shell/env placeholder.
+ */
+function getNativeManifestPath(): string {
+  const platform = (typeof navigator !== 'undefined' && navigator.platform) || '';
+  if (/^Win/i.test(platform)) {
+    return '%USERPROFILE%\\AppData\\Roaming\\Google\\Chrome\\NativeMessagingHosts\\com.chromemcp.nativehost.json';
+  }
+  if (/^Mac/i.test(platform)) {
+    return '~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.chromemcp.nativehost.json';
+  }
+  return '~/.config/google-chrome/NativeMessagingHosts/com.chromemcp.nativehost.json';
+}
+
 function scheduleReconnect(port: number): void {
   if (userDisconnected) return;
   if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -236,41 +254,43 @@ export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT, force
     });
 
     nativePort.onDisconnect.addListener(async () => {
-      const errorMsg = chrome.runtime.lastError?.message || 'Unknown error';
-      console.error(ERROR_MESSAGES.NATIVE_DISCONNECTED, errorMsg);
-      
-      // Check if it's a permission/forbidden error
-      const isForbiddenError = errorMsg.includes('forbidden') || 
-                               errorMsg.includes('Access to the specified native messaging host is forbidden');
-      
-      if (isForbiddenError) {
-        const currentExtensionId = chrome.runtime.id;
-        console.error('Native messaging host access forbidden. This usually means:');
-        console.error('1. The extension ID in the native host manifest does not match the current extension ID');
-        console.error('2. Current extension ID:', currentExtensionId);
-        console.error('3. Solution: Re-run the build script to automatically update the native host manifest');
-        console.error('   Command: .\\scripts\\start.ps1');
-        console.error('4. Or manually update the manifest file:');
-        const manifestPath = process.platform === 'win32'
-          ? `${process.env.USERPROFILE}\\AppData\\Roaming\\Google\\Chrome\\NativeMessagingHosts\\com.chromemcp.nativehost.json`
-          : process.platform === 'darwin'
-          ? `${process.env.HOME}/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.chromemcp.nativehost.json`
-          : `${process.env.HOME}/.config/google-chrome/NativeMessagingHosts/com.chromemcp.nativehost.json`;
-        console.error(`   Location: ${manifestPath}`);
-        console.error(`   Update "allowed_origins" to: ["chrome-extension://${currentExtensionId}/"]`);
-      }
-      
-      nativePort = null;
+      // A throw in the diagnostic below (or any future code) must never strand
+      // nativePort pointing at the disconnected port. The finally block always
+      // releases the dead port, broadcasts, and re-arms reconnect - keeping
+      // PING_NATIVE honest and letting the watchdog recover.
+      let isForbiddenError = false;
+      try {
+        const errorMsg = chrome.runtime.lastError?.message || 'Unknown error';
+        console.error(ERROR_MESSAGES.NATIVE_DISCONNECTED, errorMsg);
 
-      // Update connection status but keep server status if it was running
-      // The server process might still be alive even if the connection dropped
-      broadcastServerStatusChange(currentServerStatus);
+        // Check if it's a permission/forbidden error
+        isForbiddenError = errorMsg.includes('forbidden') ||
+                         errorMsg.includes('Access to the specified native messaging host is forbidden');
 
-      // Auto-reconnect with exponential backoff unless this was a forbidden
-      // (mis-registered ID) error — those never recover by retrying — or a
-      // user-initiated disconnect. The alarm watchdog backstops the SW dying.
-      if (!isForbiddenError && !userDisconnected) {
-        scheduleReconnect(lastKnownPort);
+        if (isForbiddenError) {
+          const currentExtensionId = chrome.runtime.id;
+          console.error('Native messaging host access forbidden. This usually means:');
+          console.error('1. The extension ID in the native host manifest does not match the current extension ID');
+          console.error('2. Current extension ID:', currentExtensionId);
+          console.error('3. Solution: Re-run the build script to automatically update the native host manifest');
+          console.error('   Command: .\\scripts\\start.ps1');
+          console.error('4. Or manually update the manifest file:');
+          console.error(`   Location: ${getNativeManifestPath()}`);
+          console.error(`   Update "allowed_origins" to: ["chrome-extension://${currentExtensionId}/"]`);
+        }
+      } finally {
+        nativePort = null;
+
+        // Update connection status but keep server status if it was running
+        // The server process might still be alive even if the connection dropped
+        broadcastServerStatusChange(currentServerStatus);
+
+        // Auto-reconnect with exponential backoff unless this was a forbidden
+        // (mis-registered ID) error — those never recover by retrying — or a
+        // user-initiated disconnect. The alarm watchdog backstops the SW dying.
+        if (!isForbiddenError && !userDisconnected) {
+          scheduleReconnect(lastKnownPort);
+        }
       }
     });
 

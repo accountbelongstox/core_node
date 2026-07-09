@@ -26,6 +26,16 @@ import {
   type ResultEntry,
 } from './bing-result';
 import { runScrapeTest, type ScrapeTestResult } from './bing-worker-ops';
+import {
+  initBingWorkerLifecycle as _initLifecycle,
+  RUNTIME_STORAGE_KEY,
+  WATCHDOG_ALARM,
+  WATCHDOG_PERIOD_MINUTES,
+} from './bing-worker-lifecycle';
+
+// Re-export so existing importers (background/index.ts) keep working.
+export const initBingWorkerLifecycle = () =>
+  _initLifecycle(() => bingDictionaryWorkerService.resume());
 
 // Subsystem tag for the global logger.
 const LOG = 'Bing Worker';
@@ -114,10 +124,8 @@ const LOOKUP_DELAY_JITTER_MS = 2500;
 // is the fix for "Bing dict tabs keep opening when I'm not doing anything":
 // crawling is strictly user-initiated each browser session, and silent
 // recovery (focus=false) never steals focus.
-const RUNTIME_STORAGE_KEY = 'bing_worker_runtime';
-const WATCHDOG_ALARM = 'bing-translation-worker-watchdog';
-// 1 min: above the 30s production floor, frequent enough to recover quickly.
-const WATCHDOG_PERIOD_MINUTES = 1;
+// (RUNTIME_STORAGE_KEY, WATCHDOG_ALARM, WATCHDOG_PERIOD_MINUTES imported from
+// bing-worker-lifecycle.ts)
 
 // Fast re-poll cadence (B3): when a pull reports pending_fast>0 we fire an
 // immediate jittered+coalesced wait=0 re-poll instead of waiting for the next
@@ -131,6 +139,17 @@ const FAST_REPOLL_JITTER_MS = 300;
 // several bing.com renderers resident and lagging Chrome. Re-loaded on demand by
 // the next lookup's navigation.
 const IDLE_DISCARD_MS = 60_000;
+
+// Task types this worker can handle. A Bing dictionary tab can ONLY do word
+// lookups; any other task_type (e.g. image generation) is released as 'failed'
+// so the dispatcher re-pends it for a capable worker. Module-level so it is
+// created once, not on every processTask call.
+const HANDLED_TASK_TYPES = new Set([
+  'word_translation',
+  'word_media',
+  'bing_dictionary',
+  'dictionary_translation',
+]);
 
 interface PersistedRuntime {
   running: boolean;
@@ -164,6 +183,14 @@ class BingDictionaryWorkerService {
   private inOutage = false;
   private outageProbeFails = 0;
   private probing = false;
+  // Re-entrancy guard for pollAndProcessTasks: setInterval does not await an
+  // async poll, so without this a slow batch (a 5-word/3-tab crawl takes 20s+)
+  // overlaps the next interval tick (and any fast-repoll burst), racing two
+  // concurrent runs on the shared tab pool - each pulling tasks and calling
+  // unserialized pool.ensure/healUnreachable that clobber this.tabIds and leak
+  // orphaned bing.com/dict tabs. A re-entrant tick is dropped on the floor; the
+  // in-flight poll drains the work and the next tick picks up anything new.
+  private polling = false;
   // Single-foreground mutex: serializes the ENTIRE human-input critical section
   // (activate + confirm-active + type + click-search + that word's lookup) so
   // exactly ONE slot drives the foreground tab at a time. This is what kills the
@@ -725,6 +752,21 @@ class BingDictionaryWorkerService {
   }
 
   private async pollAndProcessTasks(): Promise<void> {
+    // Re-entrancy guard (see `this.polling`): setInterval fires the async poll
+    // without awaiting it, and the fast-repoll burst feeds in here too, so a
+    // slow batch would otherwise overlap the next tick and race two concurrent
+    // runs on the shared tab pool. Drop a re-entrant tick on the floor; the
+    // in-flight poll drains the work and the next tick picks up anything new.
+    if (this.polling) return;
+    this.polling = true;
+    try {
+      await this.pollAndProcessTasksInner();
+    } finally {
+      this.polling = false;
+    }
+  }
+
+  private async pollAndProcessTasksInner(): Promise<void> {
     if (!this.workerClient || !this.config) return;
 
     // Unified pause: anti-scrape cooldown OR a human actively switching tabs
@@ -915,12 +957,6 @@ class BingDictionaryWorkerService {
     // do NOT mis-scrape it as a dictionary lookup. Submit 'failed' to cleanly
     // release it (release-by-failure, mirroring SimpleWorkerBase.dispatchOne)
     // so it re-pends and reaches a worker that can actually handle it.
-    const HANDLED_TASK_TYPES = new Set([
-      'word_translation',
-      'word_media',
-      'bing_dictionary',
-      'dictionary_translation',
-    ]);
     if (task.capability === 'image' || !HANDLED_TASK_TYPES.has(task.task_type)) {
       const reason = `unhandled task_type/capability: task_type=${task.task_type} capability=${task.capability ?? 'none'}`;
       logger.warn(LOG, `Releasing task ${task.task_id} — ${reason}`);
@@ -1462,41 +1498,5 @@ class BingDictionaryWorkerService {
 // Singleton instance
 export const bingDictionaryWorkerService = new BingDictionaryWorkerService();
 
-/**
- * Register the MV3 lifecycle hooks that keep the translation assist alive
- * ACROSS service-worker termination WITHIN a browser session.
- *
- * Per the official service-worker lifecycle guidance, event listeners must be
- * registered synchronously at the top level of the SW so they are present when
- * the worker is revived. This wires:
- *   - chrome.alarms.onAlarm  -> watchdog resurrection (also wakes a terminated SW)
- *   - chrome.runtime.onStartup / onInstalled -> recover if a session was active
- * plus an immediate resume() for SWs revived by any other event.
- *
- * resume() reads the run intent from session storage (wiped on browser close),
- * so none of these hooks auto-start crawling or open Bing tabs after a fresh
- * browser launch — only an explicit user Start does that.
- */
-export function initBingWorkerLifecycle(): void {
-  // Load any persisted global logs so the background buffer continues across
-  // service-worker restarts (best-effort; logging never blocks startup).
-  logger.init().catch(() => undefined);
-
-  chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === WATCHDOG_ALARM) {
-      bingDictionaryWorkerService.resume().catch(() => undefined);
-    }
-  });
-
-  chrome.runtime.onStartup.addListener(() => {
-    bingDictionaryWorkerService.resume().catch(() => undefined);
-  });
-
-  chrome.runtime.onInstalled.addListener(() => {
-    bingDictionaryWorkerService.resume().catch(() => undefined);
-  });
-
-  // The SW may have just been revived by an unrelated event; re-establish the
-  // worker immediately if the user had it assisting.
-  bingDictionaryWorkerService.resume().catch(() => undefined);
-}
+// initBingWorkerLifecycle is re-exported at the top of this file (bound to the
+// singleton's resume() method) from bing-worker-lifecycle.ts.

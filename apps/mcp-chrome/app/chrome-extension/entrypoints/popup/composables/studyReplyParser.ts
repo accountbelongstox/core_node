@@ -62,8 +62,12 @@ const PHRASES_HEADER_RE = /^\s*SHORT\s+PHRASES\s*\(\s*([A-Za-z]{2,3})\s*\)\s*$/i
 const GRAMMAR_HEADER_RE = /^\s*GRAMMAR\s+POINTS\s*\(\s*([A-Za-z]{2,3})\s*\)\s*$/i;
 const BULLET_RE = /^\s*[-•*]\s+(.*)$/;
 const EXPLAIN_RE = /\|\s*EXPLAIN:/i;
-// Item separator: em/en-dash (spaces optional), spaced hyphen, or a colon.
-const ITEM_SPLIT_RE = /^(.*?)(?:\s*[—–]\s*|\s+-\s+|\s*[:：]\s*)(.*)$/;
+// Item separator: hyphen/en-dash/em-dash with a space on at least one side
+// (so intra-word dashes like "give-up" or "jack-o-lantern" are NOT split), or a
+// colon. The zero-space dash alternative is omitted to avoid corrupting dash-
+// bearing phrases; requiring a space on one side still tolerates asymmetric
+// spacing and unifies the previously separate plain-hyphen alternative.
+const ITEM_SPLIT_RE = /^(.*?)(?:\s+[—–-]\s*|\s*[—–-]\s+|\s*[:：]\s*)(.*)$/;
 
 type SectionKind = 'phrase' | 'grammar';
 

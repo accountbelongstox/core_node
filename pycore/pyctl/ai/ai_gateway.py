@@ -972,13 +972,13 @@ def _generate_image_with_openrouter(
 def _generate_image_with_zhipuai(
     prompt: str, size: Optional[str], model: Optional[str], out: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Zhipu BigModel image backup — cogview-3-flash is FREE. Sync POST to
+    """Zhipu BigModel image backup — cogview-3 is FREE. Sync POST to
     /api/paas/v4/images/generations; the response carries an image URL."""
     key = image_first_secret("zhipuai")
     if not key:
         out["error"] = "No API key configured"
         return out
-    use_model = model or image_model("zhipuai") or "cogview-3-flash"
+    use_model = model or image_model("zhipuai") or "cogview-3"
     out["model"] = use_model
     requests = get_third_package_requests()
     resp = requests.post(
@@ -1573,7 +1573,7 @@ _IMAGE_DISPATCH = {
 }
 
 # generate_image() preference: genuinely-FREE image backends first (gemini flash
-# image, zhipu cogview-3-flash, dashscope wanx free-trial, baidu iRAG, iFlytek
+# image, zhipu cogview-3, dashscope wanx free-trial, baidu iRAG, iFlytek
 # Spark), then metered/paid ones. Lower rank = tried first; unknown sort last.
 # Genuinely-FREE image backends FIRST. Google has NO free image model as of 2026:
 # gemini-2.5-flash-image / Imagen 4 are PAID-only and the old free

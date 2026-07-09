@@ -209,6 +209,38 @@ case "${1:-}" in
         print_usage; exit 0 ;;
 esac
 
+# --- self-elevation (Linux) --------------------------------------------- #
+# Service subcommands (install/start/stop/...) need root to write systemd
+# units under /etc/systemd/system. The foreground `run` needs root for its
+# prerequisite installers (apt); BUT the systemd unit's own ExecStart
+# (`run --no-ui --no-install`) runs as the real desktop user under User= and
+# must NOT re-elevate, so `run` is elevated only when NOT already launched by
+# systemd (INVOCATION_ID unset). `config`/`codesync`/`help` are user-context
+# operations and are intentionally never elevated. Re-exec ONCE under sudo at
+# the very top so EVERY subsequent command inherits root, preserving the
+# original args plus the GUI/session env the tray (AppIndicator/pystray) and
+# the worker need (DISPLAY/WAYLAND/XDG_RUNTIME_DIR/DBUS/HOME).
+_pyservice_maybe_elevate() {
+    [ "$(id -u)" -eq 0 ] && return 0
+    [ "$(uname)" = "Linux" ] || return 0
+    command -v sudo >/dev/null 2>&1 || return 0
+    case "$CMD" in
+        install|start|stop|restart|status|uninstall) ;;
+        run) [ -z "${INVOCATION_ID:-}" ] || return 0 ;;
+        *) return 0 ;;
+    esac
+    local env_args=() v
+    for v in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS \
+             HOME PYTHONUSERBASE PYCORE_UI_URL PYCORE_UI_PORT PYCORE_API_BASE \
+             LARAVEL_WORKER_API_URL PORT; do
+        [ -n "${!v:-}" ] && env_args+=("$v=${!v}")
+    done
+    env_args+=("SUDO_USER=${SUDO_USER:-$(whoami)}")
+    echo "[i] Elevating to root (sudo) so all subsequent steps run privileged ..."
+    exec sudo env "${env_args[@]}" bash "$0" "$@"
+}
+_pyservice_maybe_elevate
+
 # codesync -> STANDALONE, stdlib-only Code Sync. Dispatched HERE, before the
 # prerequisite-install step and without importing the pycore package.
 #   * no subcommand          -> offer to add Code Sync to the systemd service
@@ -396,6 +428,18 @@ elif [[ ! -f "$UI_DIR/package.json" ]]; then
 elif ! command -v pnpm >/dev/null 2>&1; then
     echo "[i] pnpm not on PATH; using legacy /web/subtitle UI."
 else
+    # Service-aware UI startup: if the dashboard UI systemd unit
+    # (ncore-nexus-dash) is active, it OWNS port $UI_PORT - reuse it and do NOT
+    # start/kill a local vite (a kill here would race the unit's Restart=always).
+    # This keeps pycore's UI startup consistent with the UI's own start.sh
+    # service logic: when the UI is already a running service, pycore just points
+    # its webview at it instead of launching a second server.
+    UI_SERVICE_ACTIVE=0
+    if systemctl is-active --quiet ncore-nexus-dash 2>/dev/null; then
+        UI_SERVICE_ACTIVE=1
+        echo "[OK] UI systemd service 'ncore-nexus-dash' is active; reusing http://localhost:$UI_PORT/pycore-manager (not starting a local vite)"
+        export PYCORE_UI_URL="http://localhost:$UI_PORT/pycore-manager"
+    fi
     # Free the UI port from a foreign Docker publisher first (host vite servers
     # are processes, not containers -> no-op; the reuse/kill logic below handles those).
     stop_docker_publisher "$UI_PORT" || true
@@ -426,6 +470,9 @@ else
             fi
         fi
     fi
+    # When the UI systemd service is active, force reuse so the kill/start branch
+    # below never runs (it would kill the service's vite and race systemd).
+    [[ "$UI_SERVICE_ACTIVE" -eq 1 ]] && UI_REUSE=1
     if [[ "$UI_REUSE" -eq 1 ]]; then
         echo "[OK] Reusing dashboard dev server already on http://localhost:$UI_PORT (not restarting it)"
         # UI_PID stays empty: we don't own this server, cleanup_ui must not kill it.

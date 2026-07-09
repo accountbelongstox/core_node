@@ -13,6 +13,7 @@ import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { notebookLmTool } from '../tools/browser/notebooklm';
 import { logger } from '@/utils/logger';
+import { parseWebChatToolResult } from './web-chat-worker-common';
 
 const LOG = 'NotebookLM';
 
@@ -70,30 +71,15 @@ class NotebookLmWorkerService extends SimpleWorkerBase {
       return;
     }
 
-    if (toolResult?.isError) {
-      const errText = toolResult?.content?.[0]?.text;
-      await this.submitResult(task.task_id, 'failed', undefined, {
-        error: typeof errText === 'string' ? errText : 'notebooklm tool error',
-      });
-      return;
-    }
-
-    let parsed: any = {};
-    try {
-      parsed = JSON.parse(toolResult?.content?.[0]?.text || '{}');
-    } catch {
-      parsed = {};
-    }
-    if (!parsed.success || !parsed.answer) {
-      await this.submitResult(task.task_id, 'failed', undefined, {
-        error: parsed?.error || 'notebooklm produced no answer',
-      });
+    const result = parseWebChatToolResult(toolResult, LOG);
+    if (!result.success) {
+      await this.submitResult(task.task_id, 'failed', undefined, { error: result.error });
       return;
     }
 
     await this.submitResult(task.task_id, 'completed', {
-      answer: parsed.answer,
-      notebook_url: parsed.url || notebookUrl || null,
+      answer: result.answer,
+      notebook_url: result.raw?.url || notebookUrl || null,
       provider: 'notebooklm',
     });
     logger.info(LOG, `Task ${task.task_id} completed`);

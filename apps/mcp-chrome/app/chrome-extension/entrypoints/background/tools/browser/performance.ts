@@ -37,6 +37,7 @@ interface TraceSessionState {
   listener: DebuggeeEvent;
   stopResolver?: (value: { completed: boolean }) => void;
   stopPromise?: Promise<{ completed: boolean }>;
+  autoStopTimer?: ReturnType<typeof setTimeout>;
 }
 
 const sessions = new Map<number, TraceSessionState>();
@@ -117,6 +118,53 @@ function getOrCreateStopPromise(session: TraceSessionState): Promise<{ completed
   return session.stopPromise;
 }
 
+const STOP_TRACE_TIMEOUT_MS = 15000;
+
+/**
+ * Race session.stopPromise (resolved by the Tracing.tracingComplete CDP event)
+ * against a timeout so stop_trace cannot hang forever if the event never
+ * arrives (tab crash, navigation to a chrome:// page, stalled buffer flush).
+ */
+function raceStopPromiseWithTimeout(
+  session: TraceSessionState,
+): Promise<{ completed: boolean; timedOut?: boolean }> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<{ completed: boolean; timedOut?: boolean }>((resolve) => {
+    timeoutHandle = setTimeout(
+      () => resolve({ completed: false, timedOut: true }),
+      STOP_TRACE_TIMEOUT_MS,
+    );
+  });
+  return Promise.race([session.stopPromise!, timeoutPromise]).finally(() => {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  });
+}
+
+/**
+ * Release every resource a trace session holds: the autoStop timer, the
+ * onEvent listener, the session map entry, and the debugger attachment. Used
+ * on both the success and error paths of start/stop so a throwing CDP command
+ * can never leak the listener, session, or debugger (which would otherwise
+ * hang a later stop_trace or block all future starts).
+ */
+async function teardownSession(tabId: number, state: TraceSessionState): Promise<void> {
+  if (state.autoStopTimer) {
+    clearTimeout(state.autoStopTimer);
+    state.autoStopTimer = undefined;
+  }
+  try {
+    chrome.debugger.onEvent.removeListener(state.listener);
+  } catch {
+    // ignore
+  }
+  sessions.delete(tabId);
+  try {
+    await chrome.debugger.detach({ tabId });
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Start performance trace
  */
@@ -146,10 +194,14 @@ class PerformanceStartTraceTool extends BaseBrowserToolExecutor {
       const finalTabId = targetTab.id;
       const existed = sessions.get(finalTabId);
       if (existed?.recording) {
-        return {
-          content: [{ type: 'text', text: 'Error: a performance trace is already running.' }],
-          isError: false,
-        };
+        return createErrorResponse('a performance trace is already running');
+      }
+      // A prior auto-stopped trace that was never explicitly stopped leaves a
+      // stale session (recording=false) with its onEvent listener still
+      // registered and its debugger still attached. Tear it down before
+      // creating a new session so the old listener does not leak.
+      if (existed) {
+        await teardownSession(finalTabId, existed);
       }
 
       try {
@@ -182,35 +234,49 @@ class PerformanceStartTraceTool extends BaseBrowserToolExecutor {
       chrome.debugger.onEvent.addListener(state.listener);
       sessions.set(finalTabId, state);
 
-      // Start tracing with categories
-      const cats = tracingCategories().join(',');
-      await chrome.debugger.sendCommand({ tabId: finalTabId }, 'Tracing.start', {
-        categories: cats,
-        options: 'record-as-much-as-possible',
-        transferMode: 'ReportEvents',
-      });
+      // Start tracing with categories. If Tracing.start (or any subsequent
+      // setup) throws, tear down the session we just registered so the
+      // listener, session map entry, autoStop timer, and debugger attachment
+      // do not leak - a leak here would hang a later stop_trace on stopPromise
+      // (tracingComplete never fires) and block all future starts.
+      try {
+        const cats = tracingCategories().join(',');
+        await chrome.debugger.sendCommand({ tabId: finalTabId }, 'Tracing.start', {
+          categories: cats,
+          options: 'record-as-much-as-possible',
+          transferMode: 'ReportEvents',
+        });
 
-      if (reload) {
-        try {
-          await chrome.debugger.sendCommand({ tabId: finalTabId }, 'Page.reload', {
-            ignoreCache: true,
-          });
-        } catch {
-          // best effort
+        if (reload) {
+          try {
+            await chrome.debugger.sendCommand({ tabId: finalTabId }, 'Page.reload', {
+              ignoreCache: true,
+            });
+          } catch {
+            // best effort
+          }
         }
-      }
 
-      if (autoStop) {
-        setTimeout(
-          async () => {
-            try {
-              await chrome.debugger.sendCommand({ tabId: finalTabId }, 'Tracing.end');
-            } catch {
-              // ignore
-            }
-          },
-          Math.max(1000, Math.min(durationMs, 60000)),
-        );
+        if (autoStop) {
+          state.autoStopTimer = setTimeout(
+            async () => {
+              // Only end if this exact session is still the active recording
+              // session for the tab; an orphaned timer from a prior (manually
+              // stopped) trace must never end a newer trace on the same tab.
+              const current = sessions.get(finalTabId);
+              if (current !== state || !current.recording) return;
+              try {
+                await chrome.debugger.sendCommand({ tabId: finalTabId }, 'Tracing.end');
+              } catch {
+                // ignore
+              }
+            },
+            Math.max(1000, Math.min(durationMs, 60000)),
+          );
+        }
+      } catch (startError) {
+        await teardownSession(finalTabId, state);
+        throw startError;
       }
 
       return {
@@ -267,26 +333,27 @@ class PerformanceStopTraceTool extends BaseBrowserToolExecutor {
         };
       }
 
-      let stopResult: { completed: boolean } = { completed: false };
-      if (session.recording) {
-        await chrome.debugger.sendCommand({ tabId: finalTabId }, 'Tracing.end');
-        await getOrCreateStopPromise(session);
-        stopResult = await session.stopPromise!;
-      } else {
-        stopResult = { completed: true };
-      }
-
-      const metrics = await enablePerformanceMetrics(finalTabId);
-
+      let stopResult: { completed: boolean; timedOut?: boolean } = { completed: false };
+      let metrics: Record<string, number> = {};
       try {
-        chrome.debugger.onEvent.removeListener(session.listener);
-      } catch {
-        // ignore
-      }
-      try {
-        await chrome.debugger.detach({ tabId: finalTabId });
-      } catch {
-        // ignore
+        if (session.recording) {
+          await chrome.debugger.sendCommand({ tabId: finalTabId }, 'Tracing.end');
+          // Race the tracingComplete event against a timeout so stop_trace
+          // cannot block forever if the event is never delivered. Do NOT
+          // await the bare promise first — that would hang indefinitely when
+          // the event never arrives and prevent the timeout from firing.
+          getOrCreateStopPromise(session);
+          stopResult = await raceStopPromiseWithTimeout(session);
+        } else {
+          stopResult = { completed: true };
+        }
+
+        metrics = await enablePerformanceMetrics(finalTabId);
+      } finally {
+        // Always release the listener, session, autoStop timer, and debugger
+        // attachment - even if Tracing.end or the metrics call threw - so a
+        // failure cannot leak resources or block a later start/stop.
+        await teardownSession(finalTabId, session);
       }
 
       const endedAt = Date.now();
@@ -307,15 +374,15 @@ class PerformanceStopTraceTool extends BaseBrowserToolExecutor {
         metrics,
       });
 
-      sessions.delete(finalTabId);
-
       return {
         content: [
           {
             type: 'text',
             text: JSON.stringify({
               success: true,
-              message: 'The performance trace has been stopped.',
+              message: stopResult?.timedOut
+                ? 'The performance trace was stopped after the tracingComplete event timed out; the trace may be incomplete.'
+                : 'The performance trace has been stopped.',
               eventCount: session.events.length,
               saved,
               metrics,
@@ -324,6 +391,7 @@ class PerformanceStopTraceTool extends BaseBrowserToolExecutor {
               durationMs: endedAt - session.startedAt,
               url: session.pageUrl || '',
               tracingCompleted: stopResult?.completed === true,
+              timedOut: stopResult?.timedOut === true,
             }),
           },
         ],

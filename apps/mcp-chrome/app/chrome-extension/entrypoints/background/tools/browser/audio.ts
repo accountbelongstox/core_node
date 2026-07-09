@@ -99,7 +99,8 @@ class AudioStatusTool extends BaseBrowserToolExecutor {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(result.data),
+            // handleAudioStatus returns the payload under .status, not .data
+            text: JSON.stringify(result.status),
           },
         ],
         isError: false,

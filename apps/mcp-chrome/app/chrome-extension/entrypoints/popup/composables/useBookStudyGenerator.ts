@@ -26,6 +26,7 @@ import { ref, computed, watch } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { apiManager } from '@/services/ApiManager';
 import { logger } from '@/utils/logger';
+import { sendWithWake } from '@/utils/sendWithWake';
 import {
   PROVIDER_MESSAGE_TYPE,
   PROVIDER_LABELS,
@@ -164,16 +165,6 @@ export function useBookStudyGenerator() {
   const sendTo = (jobProvider: StudyProvider, msg: Record<string, any>) =>
     chrome.runtime.sendMessage({ type: PROVIDER_MESSAGE_TYPE[jobProvider], ...msg });
 
-  // `start` is a one-shot message; a cold MV3 service worker can drop the first
-  // message before its listeners finish re-registering (resolves to undefined).
-  // One short-delay retry is the standard mitigation (same as useArticleStudyGuide).
-  const sendStartWithWake = async (jobProvider: StudyProvider, msg: Record<string, any>) => {
-    const first = await sendTo(jobProvider, msg);
-    if (first !== undefined) return first;
-    logger.warn(LOG, `${PROVIDER_LABELS[jobProvider]}: no response to 'start' (service worker likely cold) — retrying once`);
-    await new Promise((r) => setTimeout(r, 400));
-    return sendTo(jobProvider, msg);
-  };
 
   // ── Source listing ────────────────────────────────────────────────────────
   const loadSources = async (targetPage = 1): Promise<void> => {
@@ -532,7 +523,10 @@ export function useBookStudyGenerator() {
     const jobProvider = provider.value;
     let startResp: any;
     try {
-      startResp = await sendStartWithWake(jobProvider, { action: 'start', prompt, timeoutMs: START_TIMEOUT_MS });
+      startResp = await sendWithWake(
+        () => sendTo(jobProvider, { action: 'start', prompt, timeoutMs: START_TIMEOUT_MS }),
+        PROVIDER_LABELS[jobProvider],
+      );
     } catch (e: any) {
       const msg = `Failed to start ${PROVIDER_LABELS[jobProvider]}: ${e?.message || 'unknown error'}`;
       error.value = msg;

@@ -19,6 +19,7 @@ import type {
   WfNewLiveStatus,
   WfNewLiveMsg,
 } from './WfNewApiTypes';
+import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind } from './WfNewApiTypes';
 
 /** Resolve a backend-relative media/cover path to an absolute URL on the current endpoint. */
 export function absUrl(u?: string): string | undefined {
@@ -167,5 +168,144 @@ export function toLiveMsg(raw: any, i = 0): WfNewLiveMsg {
     user: toActor(raw?.user ?? {}),
     body: raw?.body ?? '',
     created_at: raw?.created_at ?? new Date().toISOString(),
+  };
+}
+
+// --- mappers --------------------------------------------------------------- #
+
+/** Normalize a backend word record into the shared Word shape. */
+export function toWord(raw: any, i = 0): Word {
+  return {
+    id: String(raw?.id ?? raw?.word_id ?? raw?.word ?? `w-${i}`),
+    text: raw?.text ?? raw?.word ?? '',
+    phonetic: raw?.phonetic ?? raw?.phonetics ?? '',
+    translation: raw?.translation ?? raw?.meaning ?? raw?.definition_zh ?? '',
+    definition: raw?.definition ?? undefined,
+    example: raw?.example ?? raw?.example_sentence ?? undefined,
+    exampleTranslation: raw?.exampleTranslation ?? raw?.example_translation ?? undefined,
+    masteryLevel: typeof raw?.masteryLevel === 'number' ? raw.masteryLevel
+      : typeof raw?.mastery_level === 'number' ? raw.mastery_level : undefined,
+    wordType: raw?.wordType ?? raw?.word_type ?? raw?.pos ?? undefined,
+    tags: Array.isArray(raw?.tags) ? raw.tags : undefined,
+    audioUrl: raw?.audioUrl ?? raw?.audio_url ?? undefined,
+  };
+}
+
+/** Normalize a backend group record into the shared WordGroup shape. */
+export function toGroup(raw: any, i = 0): WordGroup {
+  return {
+    id: String(raw?.id ?? raw?.gid ?? `g-${i}`),
+    name: raw?.name ?? raw?.gname ?? 'Untitled',
+    count: Number(raw?.count ?? raw?.total_words ?? 0) || 0,
+    progress: Number(raw?.progress ?? 0) || 0,
+    type: raw?.type ?? undefined,
+    language: raw?.language ?? 'en',
+    description: raw?.description ?? undefined,
+  };
+}
+
+/** Decorative carousel applied to live groups so the bento grid still varies. */
+export const BENTO_DECOR: Array<Pick<BentoGroup,
+  'gridSpan' | 'bgGradient' | 'bgGradientDark' | 'decorColor' | 'decorativeSvg'>> = [
+  { gridSpan: 'md:col-span-2 md:row-span-2 h-[340px]', bgGradient: 'from-purple-100/70 via-indigo-50/50 to-indigo-100/70', bgGradientDark: 'from-violet-950/20 via-slate-900/40 to-indigo-950/20', decorColor: 'text-indigo-400 dark:text-purple-400', decorativeSvg: 'nebula' },
+  { gridSpan: 'md:col-span-1 md:row-span-1 h-[160px]', bgGradient: 'from-emerald-50/70 to-teal-100/70', bgGradientDark: 'from-emerald-950/15 to-slate-900/40', decorColor: 'text-teal-400 dark:text-emerald-400', decorativeSvg: 'matrix' },
+  { gridSpan: 'md:col-span-1 md:row-span-2 h-[345px]', bgGradient: 'from-rose-100/70 via-pink-50/50 to-orange-100/70', bgGradientDark: 'from-rose-950/15 via-slate-900/40 to-amber-950/15', decorColor: 'text-rose-400 dark:text-orange-400', decorativeSvg: 'stars' },
+  { gridSpan: 'md:col-span-2 md:row-span-1 h-[160px]', bgGradient: 'from-blue-50/70 to-indigo-100/70', bgGradientDark: 'from-blue-950/15 to-slate-900/40', decorColor: 'text-blue-400 dark:text-sky-400', decorativeSvg: 'waves' },
+  { gridSpan: 'md:col-span-1 md:row-span-1 h-[160px]', bgGradient: 'from-amber-50/70 to-orange-100/70', bgGradientDark: 'from-orange-950/15 to-slate-900/40', decorColor: 'text-yellow-500 dark:text-amber-400', decorativeSvg: 'rings' },
+  { gridSpan: 'md:col-span-1 md:row-span-1 h-[160px]', bgGradient: 'from-violet-50/70 to-fuchsia-100/70', bgGradientDark: 'from-fuchsia-950/15 to-slate-900/40', decorColor: 'text-fuchsia-400', decorativeSvg: 'bars' },
+];
+
+export function decorate(g: WordGroup, i: number): BentoGroup {
+  const d = BENTO_DECOR[i % BENTO_DECOR.length];
+  return { ...g, badge: g.type ? `★ ${g.type}` : '★ Pack', statsLabel: 'Synaptic Link Active', ...d };
+}
+
+/** Unwrap the various list shapes the backend returns. */
+export function asArray(res: any, ...keys: string[]): any[] {
+  if (Array.isArray(res)) return res;
+  for (const k of keys) if (Array.isArray(res?.[k])) return res[k];
+  return [];
+}
+
+export let contentFallbackLogged = false;
+export function logContentFallback(): void {
+  if (!contentFallbackLogged) {
+    contentFallbackLogged = true;
+    console.info('[WfNewApiHttp] search / subtitles / bilingual / analytics have no backend endpoint yet — using local content.');
+  }
+}
+
+// --- home content-group mappers -------------------------------------------- #
+// Normalize the THREE distinct backend list shapes (word groups / media sources /
+// vocabulary libraries) into the single WfNewContentGroup the home widget renders.
+
+/** Resolve a possibly-relative backend cover path to an absolute URL (host = current endpoint). */
+export function toAbsoluteUrl(url?: string | null): string | undefined {
+  if (!url || typeof url !== 'string') return undefined;
+  if (/^(https?:|data:)/i.test(url)) return url;          // already absolute
+  const base = wfNewEndpoints.getCurrentBaseUrl();          // e.g. http://host:9000
+  if (!base) return url;
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
+/** query_all_groups row → WfNewContentGroup (kind 'word'; carries the group cover when present). */
+export function wordRowToContentGroup(raw: any, i = 0): WfNewContentGroup {
+  return {
+    id: String(raw?.gid ?? raw?.id ?? `word-${i}`),
+    kind: 'word',
+    title: raw?.gname ?? raw?.name ?? 'Untitled',
+    count: Number(raw?.total_words ?? raw?.count ?? 0) || 0,
+    countUnit: 'words',
+    language: raw?.language ?? 'en',
+    imageUrl: toAbsoluteUrl(raw?.cover_url ?? raw?.thumbnail_url),
+    category: raw?.cover_category ?? raw?.type ?? undefined,
+    description: raw?.description ?? undefined,
+  };
+}
+
+/** /media/{books|subtitles} row → WfNewContentGroup. `count` follows the kind. */
+export function mediaRowToContentGroup(raw: any, kind: 'book' | 'subtitle', i = 0): WfNewContentGroup {
+  const count = kind === 'subtitle'
+    ? Number(raw?.subtitle_count ?? raw?.sentence_count ?? 0) || 0
+    : Number(raw?.sentence_count ?? 0) || 0;
+  return {
+    id: String(raw?.id ?? raw?.source_key ?? `${kind}-${i}`),
+    kind,
+    title: raw?.title ?? raw?.original_name ?? raw?.ascii_name ?? 'Untitled',
+    count,
+    countUnit: kind === 'subtitle' ? 'subtitles' : 'sentences',
+    language: raw?.language ?? undefined,
+    imageUrl: toAbsoluteUrl(raw?.image_url),
+    sourceKey: raw?.source_key ? String(raw.source_key) : undefined,
+    description: undefined,
+  };
+}
+
+/** /vocabulary/libraries row → WfNewContentGroup (kind 'library' — a public word library). */
+export function libraryRowToContentGroup(raw: any, i = 0): WfNewContentGroup {
+  return {
+    id: String(raw?.id ?? `lib-${i}`),
+    kind: 'library',
+    title: raw?.name ?? 'Untitled',
+    count: Number(raw?.word_count ?? 0) || 0,
+    countUnit: 'words',
+    language: raw?.language ?? undefined,
+    imageUrl: toAbsoluteUrl(raw?.image_url),
+    category: raw?.category ?? raw?.difficulty ?? undefined,
+    description: raw?.description ?? undefined,
+  };
+}
+
+/** /media/documents row → WfNewContentGroup (kind 'document' — the user's own upload). */
+export function documentRowToContentGroup(raw: any, i = 0): WfNewContentGroup {
+  return {
+    id: String(raw?.id ?? `doc-${i}`),
+    kind: 'document',
+    title: raw?.title ?? raw?.original_name ?? 'Untitled',
+    count: Number(raw?.word_count ?? 0) || 0,
+    countUnit: 'words',
+    language: raw?.language ?? undefined,
+    category: undefined,
+    description: undefined,
   };
 }

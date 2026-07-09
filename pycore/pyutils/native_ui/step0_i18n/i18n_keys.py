@@ -57,6 +57,7 @@ class I18nKeys:
     TRAY_MENU_RPC_SERVER = "tray.menu.rpc_server"          # "...: {port}"
     TRAY_MENU_SINGLETON_PORT = "tray.menu.singleton_port"  # "...: {port}"
     TRAY_MENU_AUTOSTART = "tray.menu.autostart"
+    TRAY_MENU_SERVICE_TOGGLE = "tray.menu.service_toggle"
     TRAY_MENU_LANGUAGE = "tray.menu.language"
     
     # Loading keys

@@ -132,19 +132,30 @@
    * @returns {string} The accessible name.
    */
   function getAccessibleName(el) {
+    // Mirror accessibility-tree-helper.js: aria-labelledby may reference a
+    // whitespace-separated list of ids; resolve and concatenate each.
     const labelledby = el.getAttribute('aria-labelledby');
     if (labelledby) {
-      const labelElement = document.getElementById(labelledby);
-      if (labelElement) return labelElement.textContent?.trim() || '';
+      const parts = labelledby
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent?.trim() || '')
+        .filter(Boolean);
+      if (parts.length) return parts.join(' ');
     }
     const ariaLabel = el.getAttribute('aria-label');
     if (ariaLabel) return ariaLabel.trim();
     if (el.id) {
-      const label = document.querySelector(`label[for="${el.id}"]`);
+      // CSS.escape guards against ids containing quotes/backslashes, which would
+      // otherwise make the selector invalid and abort the whole query.
+      const label = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
       if (label) return label.textContent?.trim() || '';
     }
     const parentLabel = el.closest('label');
-    if (parentLabel) return parentLabel.textContent?.trim() || '';
+    if (parentLabel && parentLabel.contains(el)) {
+      const t = parentLabel.textContent?.trim();
+      if (t) return t;
+    }
+    if (el.tagName === 'IMG') return el.getAttribute('alt') || '';
     return (
       el.getAttribute('placeholder') ||
       el.getAttribute('value') ||
@@ -244,6 +255,25 @@
   }
 
   /**
+   * Build an XPath 1.0 string literal that safely embeds text containing single
+   * quotes (e.g. "don't"). XPath 1.0 has no escape syntax, so a quoted literal
+   * with an apostrophe is invalid and makes document.evaluate throw; split on
+   * the quote and rejoin via concat().
+   * @param {string} text - Already-transformed text to embed.
+   * @returns {string} A valid XPath string literal.
+   */
+  function xpathStringLiteral(text) {
+    if (!text.includes("'")) return `'${text}'`;
+    const parts = text.split("'");
+    const pieces = [];
+    for (let i = 0; i < parts.length; i++) {
+      if (i > 0) pieces.push("\"'\""); // the literal single quote
+      if (parts[i]) pieces.push(`'${parts[i]}'`);
+    }
+    return `concat(${pieces.join(', ')})`;
+  }
+
+  /**
    * [ORCHESTRATOR] The main entry point that implements the 3-layer fallback logic.
    * @param {object} options - The main search options.
    * @returns {ElementInfo[]}
@@ -263,7 +293,7 @@
 
     // --- Layer 2: Find text, then find its interactive ancestor ---
     const lowerCaseText = textQuery.toLowerCase();
-    const xPath = `//text()[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${lowerCaseText}')]`;
+    const xPath = `//text()[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), ${xpathStringLiteral(lowerCaseText)})]`;
     const textNodes = document.evaluate(
       xPath,
       document,
@@ -343,7 +373,7 @@
         console.error('Error in getInteractiveElements:', error);
         sendResponse({ success: false, error: error.message });
       }
-      return true; // Async response
+      return false; // Synchronous response already sent
     } else if (request.action === 'chrome_get_interactive_elements_ping') {
       sendResponse({ status: 'pong' });
       return false;

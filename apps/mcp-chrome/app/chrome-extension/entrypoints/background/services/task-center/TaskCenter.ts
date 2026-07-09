@@ -31,7 +31,7 @@ export interface TaskCenterStats {
   };
 }
 
-export type TaskCenterEventType = 'start' | 'stop' | 'processor_registered' | 'processor_started' | 'processor_stopped';
+export type TaskCenterEventType = 'start' | 'stop' | 'processor_registered' | 'processor_started' | 'processor_stopped' | 'processor_failed';
 
 export interface TaskCenterEvent {
   type: TaskCenterEventType;
@@ -181,7 +181,10 @@ class TaskCenterService {
     this.config = config;
     console.log('[TaskCenter] 🚀 Activating Task Center...');
 
-    const startPromises: Promise<void>[] = [];
+    // Track each start() promise alongside its processorType so allSettled
+    // results can be correlated. Event emission is folded into the result
+    // inspection below (no separate unhandled .then() derived promise).
+    const startEntries: { processorType: string; promise: Promise<void> }[] = [];
 
     for (const [processorType, entry] of this.registry.entries()) {
       if (!entry.enabled) {
@@ -193,23 +196,54 @@ class TaskCenterService {
 
       try {
         console.log(`[TaskCenter] ▶️  Activating processor: ${processorType}`);
-        const startPromise = entry.processor.start(processorConfig);
-        startPromises.push(startPromise);
-
-        // Emit event after start
-        startPromise.then(() => {
-          this.emitEvent({
-            type: 'processor_started',
-            processorType,
-            timestamp: Date.now(),
-          });
-        });
+        const promise = entry.processor.start(processorConfig);
+        startEntries.push({ processorType, promise });
       } catch (error: any) {
+        // Synchronous throw (defensive - start() is async so rejections land in
+        // allSettled below, but guard anyway).
         console.error(`[TaskCenter] ❌ Failed to activate processor ${processorType}:`, error);
+        this.emitEvent({
+          type: 'processor_failed',
+          processorType,
+          timestamp: Date.now(),
+        });
       }
     }
 
-    await Promise.allSettled(startPromises);
+    const results = await Promise.allSettled(startEntries.map((e) => e.promise));
+    let startedCount = 0;
+    const failedProcessors: string[] = [];
+    results.forEach((result, i) => {
+      const { processorType } = startEntries[i];
+      if (result.status === 'fulfilled') {
+        startedCount++;
+        this.emitEvent({
+          type: 'processor_started',
+          processorType,
+          timestamp: Date.now(),
+        });
+      } else {
+        console.error(
+          `[TaskCenter] ❌ Processor ${processorType} failed to start:`,
+          result.reason,
+        );
+        failedProcessors.push(processorType);
+        this.emitEvent({
+          type: 'processor_failed',
+          processorType,
+          timestamp: Date.now(),
+        });
+      }
+    });
+
+    // Only mark the center running if at least one processor actually started.
+    // If all failed, keep isRunning false so the user can retry without Stop,
+    // and throw so the listener surfaces the failure.
+    if (startedCount === 0) {
+      throw new Error(
+        `No processors started successfully. Failed: ${failedProcessors.join(', ') || 'none attempted'}`,
+      );
+    }
 
     this.isRunning = true;
     this.emitEvent({

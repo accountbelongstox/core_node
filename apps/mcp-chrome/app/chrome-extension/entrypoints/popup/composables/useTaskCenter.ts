@@ -6,6 +6,8 @@
 
 import { ref, onUnmounted } from 'vue';
 import { apiManager } from '@/services/ApiManager';
+import { logger } from '@/utils/logger';
+import { formatTimestamp } from '@/utils/time-helpers';
 
 // ==================== Live task drilldown (detail / events / SSE stream) ====================
 // laravel_main control-plane SSE route (no-auth), tailed straight from the popup
@@ -263,12 +265,14 @@ export function useTaskCenter() {
     }
   };
 
+  const LOG = 'Task Center';
+
   const saveConfig = async () => {
     try {
       await chrome.storage.local.set({ task_center_config: config.value });
-      console.log('[Task Center] Config saved');
+      logger.debug(LOG, 'Config saved');
     } catch (err) {
-      console.error('[Task Center] Failed to save config:', err);
+      logger.error(LOG, 'Failed to save config', err);
     }
   };
 
@@ -279,7 +283,7 @@ export function useTaskCenter() {
         config.value = { ...config.value, ...result.task_center_config };
       }
     } catch (err) {
-      console.error('[Task Center] Failed to load config:', err);
+      logger.error(LOG, 'Failed to load config', err);
     }
   };
 
@@ -296,13 +300,13 @@ export function useTaskCenter() {
 
       if (response && response.success) {
         state.value.isRunning = true;
-        console.log('[Task Center] Started successfully');
+        logger.info(LOG, 'Started successfully');
       } else {
-        console.error('[Task Center] Failed to start:', response?.error);
+        logger.error(LOG, 'Failed to start', response?.error);
         error.value = response?.error || 'Failed to start Task Center';
       }
     } catch (err: any) {
-      console.error('[Task Center] Start error:', err);
+      logger.error(LOG, 'Start error', err);
       error.value = err.message || 'Failed to start Task Center';
     }
   };
@@ -316,13 +320,13 @@ export function useTaskCenter() {
 
       if (response && response.success) {
         state.value.isRunning = false;
-        console.log('[Task Center] Stopped successfully');
+        logger.info(LOG, 'Stopped successfully');
       } else {
-        console.error('[Task Center] Failed to stop:', response?.error);
+        logger.error(LOG, 'Failed to stop', response?.error);
         error.value = response?.error || 'Failed to stop Task Center';
       }
     } catch (err: any) {
-      console.error('[Task Center] Stop error:', err);
+      logger.error(LOG, 'Stop error', err);
       error.value = err.message || 'Failed to stop Task Center';
     }
   };
@@ -339,7 +343,7 @@ export function useTaskCenter() {
         state.value.stats = response.stats;
       }
     } catch (err) {
-      console.error('[Task Center] Failed to load state:', err);
+      logger.error(LOG, 'Failed to load state', err);
     }
   };
 
@@ -355,26 +359,6 @@ export function useTaskCenter() {
     if (statsPollingInterval) {
       clearInterval(statsPollingInterval);
       statsPollingInterval = null;
-    }
-  };
-
-  const formatTimestamp = (timestamp: number | null): string => {
-    if (!timestamp) return 'Never';
-
-    const now = Date.now();
-    const diff = now - timestamp;
-
-    if (diff < 60000) {
-      return 'Just now';
-    } else if (diff < 3600000) {
-      const minutes = Math.floor(diff / 60000);
-      return `${minutes}m ago`;
-    } else if (diff < 86400000) {
-      const hours = Math.floor(diff / 3600000);
-      return `${hours}h ago`;
-    } else {
-      const days = Math.floor(diff / 86400000);
-      return `${days}d ago`;
     }
   };
 

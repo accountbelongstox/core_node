@@ -75,11 +75,17 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
 
   useEffect(() => () => { mounted.current = false; }, []);
 
+  // Last time a fetch ran (persistent poll OR manual/tick refresh). Used to skip
+  // the parent-tick immediate fetch when a persistent poll just ran, so the two
+  // don't double-fetch the same endpoint.
+  const lastFetchAt = useRef(0);
+
   const queue = usePersistentTask<TaskRow[]>('pycore.task-queue', {
     intervalMs: REFRESH_MS,
     poll: () => pycoreApi.pyGet<any>('/voice-subtitle/tasks?limit=50')
       .then((r: any) => {
         if (mounted.current) { setUnreachable(false); setError(null); setLoading(false); }
+        lastFetchAt.current = Date.now();
         return Array.isArray(r?.tasks) ? r.tasks : Array.isArray(r) ? r : [];
       })
       .catch((e: any) => {
@@ -91,14 +97,19 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
   const tasks: TaskRow[] = queue.data ?? [];
 
   // Start the continuous poll on first mount (idempotent if already running).
+  // Stop it on unmount so the persistent session does NOT poll forever app-wide
+  // after the user leaves this tab (the session is kept alive across navigation
+  // by design, but polling with no consumer is pure waste).
   useEffect(() => {
     if (!queue.running) queue.begin();
+    return () => { queue.end(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Manual refresh = one immediate poll pushed into the shared session.
   const refresh = useCallback(() => {
     setLoading(true);
+    lastFetchAt.current = Date.now();
     pycoreApi.pyGet<any>('/voice-subtitle/tasks?limit=50')
       .then((r: any) => {
         if (!mounted.current) return;
@@ -113,11 +124,15 @@ const PcTaskQueuePanel: React.FC<PanelProps> = ({ refreshTick = 0, onMeta }) => 
   }, [queue]);
 
   // Parent-driven refresh (manual button or the shared auto-refresh interval).
+  // Skip when the persistent poll fetched within the last interval - the two
+  // would otherwise hit the same endpoint back-to-back on every tick.
   const lastTick = useRef(refreshTick);
   useEffect(() => {
     if (refreshTick !== lastTick.current) {
       lastTick.current = refreshTick;
-      refresh();
+      if (Date.now() - lastFetchAt.current >= REFRESH_MS) {
+        refresh();
+      }
     }
   }, [refreshTick, refresh]);
 

@@ -44,9 +44,11 @@ class MediaCache {
           }
         }
       }
-      // Keep the most-recent up to the cap; oldest persisted overflow is dropped.
-      entries.sort((a, b) => (b[1].ts || 0) - (a[1].ts || 0));
-      entries.slice(0, MAX_ENTRIES).forEach(([url, e]) => this.store.set(url, e));
+      // Keep the most-recent up to the cap (drop oldest overflow) and insert
+      // oldest-first so Map iteration order matches the LRU invariant
+      // maintained by get()/put() (first key = least-recently-used victim).
+      entries.sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
+      entries.slice(-MAX_ENTRIES).forEach(([url, e]) => this.store.set(url, e));
     } catch (error) {
       console.debug('[media-cache] init failed:', error);
     }

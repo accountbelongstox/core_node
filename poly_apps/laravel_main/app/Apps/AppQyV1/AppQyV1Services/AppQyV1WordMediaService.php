@@ -47,6 +47,17 @@ class AppQyV1WordMediaService
     /** Default word_media global_tasks.priority for a backfill enqueue. */
     const TASK_PRIORITY_DEFAULT = 30;
 
+    /** Per-repeat escalation step for a word_media/word_audio task that is
+     *  already at the front and gets requested again (visible-page re-request).
+     *  Lets repeated/visible requests outrank one-shot page bumps (target #2)
+     *  without unbounded growth. */
+    const TASK_PRIORITY_REPEAT_STEP = 5;
+
+    /** Ceiling for the repeat-escalation ladder. Stays under the hard 1000 cap
+     *  in bumpTaskPriority; pending_urgent (count of priority >= 100) semantics
+     *  are unchanged since every escalated task is already >= FRONT. */
+    const TASK_PRIORITY_REPEAT_CAP = 500;
+
     /** Max words bundled into one word_media global task. */
     const MAX_WORDS_PER_TASK = 40;
 
@@ -73,7 +84,7 @@ class AppQyV1WordMediaService
      *     image_status, audio_status, translations:[], explanation,
      *     phonetic, us_phonetic, uk_phonetic }
      */
-    public function resolve(string $word, string $language, ?string $targetLang = null, bool $bumpFront = true): array
+    public function resolve(string $word, string $language, ?string $targetLang = null, bool $bumpFront = true, ?string $accent = null): array
     {
         $langCode = AppQyV1DictionaryService::getLanguageCode($language);
         $md5 = md5($word);
@@ -135,7 +146,8 @@ class AppQyV1WordMediaService
                 $targetLang,
                 $bumpFront,
                 $needsChrome,
-                !$hasAudio
+                !$hasAudio,
+                $accent
             );
 
             // Re-read the row (a queue add may have just created it) so the
@@ -307,7 +319,8 @@ class AppQyV1WordMediaService
         ?string $targetLanguage,
         bool $bumpFront,
         bool $needsChrome = true,
-        bool $needsAudio = true
+        bool $needsAudio = true,
+        ?string $accent = null
     ): void {
         if ($needsChrome) {
             $this->ensureWordTask(
@@ -317,7 +330,8 @@ class AppQyV1WordMediaService
                 $md5,
                 $langCode,
                 $targetLanguage,
-                $bumpFront
+                $bumpFront,
+                $accent
             );
         }
 
@@ -329,7 +343,8 @@ class AppQyV1WordMediaService
                 $md5,
                 $langCode,
                 $targetLanguage,
-                $bumpFront
+                $bumpFront,
+                $accent
             );
         }
     }
@@ -348,11 +363,21 @@ class AppQyV1WordMediaService
         string $md5,
         string $langCode,
         ?string $targetLanguage,
-        bool $bumpFront
+        bool $bumpFront,
+        ?string $accent = null
     ): void {
         $targetCode = null;
         if (is_string($targetLanguage) && trim($targetLanguage) !== '') {
             $targetCode = AppQyV1DictionaryService::getLanguageCode($targetLanguage);
+        }
+        // Normalize the preferred English accent to the wire values "us"|"uk";
+        // anything else (or unset) = no accent preference (pycore picks default).
+        $accentCode = null;
+        if (is_string($accent)) {
+            $a = strtolower(trim($accent));
+            if ($a === 'us' || $a === 'uk') {
+                $accentCode = $a;
+            }
         }
 
         // Find an existing pending task of THIS type that already owns this word.
@@ -381,11 +406,24 @@ class AppQyV1WordMediaService
 
         if ($ownerTaskId !== null) {
             if ($bumpFront) {
+                // Repeat-request escalation (target #2): a fresh bump jumps to
+                // FRONT (100); a REPEAT request on a task already at/above FRONT
+                // escalates +STEP up to REPEAT_CAP so visible/re-requested words
+                // outrank one-shot page bumps. The CASE handles both in one
+                // update; pending_urgent (priority >= 100) is unaffected.
                 GlobalTask::query()
                     ->where('task_id', $ownerTaskId)
                     ->where('status', GlobalTask::STATUS_PENDING)
-                    ->where('priority', '<', self::TASK_PRIORITY_FRONT)
-                    ->update(['priority' => self::TASK_PRIORITY_FRONT]);
+                    ->update([
+                        'priority' => \DB::raw(
+                            'CASE '
+                            . 'WHEN priority < ' . (int) self::TASK_PRIORITY_FRONT . ' '
+                            . 'THEN ' . (int) self::TASK_PRIORITY_FRONT . ' '
+                            . 'ELSE LEAST(priority + ' . (int) self::TASK_PRIORITY_REPEAT_STEP . ', '
+                            . (int) self::TASK_PRIORITY_REPEAT_CAP . ') '
+                            . 'END'
+                        ),
+                    ]);
             }
             return;
         }
@@ -403,6 +441,13 @@ class AppQyV1WordMediaService
         ];
         if ($targetCode !== null) {
             $payload['target_language'] = $targetCode;
+        }
+        // Preferred English accent ("us"|"uk") for the word_audio lane: pycore
+        // threads it into find_pronunciation()/synthesize() so the generated
+        // audio matches the user's voiceAccent setting (target #4). Stamped
+        // additively; the word_media/chrome lane ignores the field.
+        if ($accentCode !== null) {
+            $payload['accent'] = $accentCode;
         }
 
         // IMAGE lane: NO worker drains the raw remote_client execution_type, so a

@@ -103,6 +103,24 @@ interface FirefoxStreamFilter {
   close(): void;
 }
 
+/** Disconnect a StreamFilter, swallowing errors from already-closed filters. */
+function safeDisconnect(filter: FirefoxStreamFilter): void {
+  try {
+    filter.disconnect();
+  } catch {
+    // Already disconnected or errored.
+  }
+}
+
+/** Close a StreamFilter, swallowing errors from already-closed filters. */
+function safeClose(filter: FirefoxStreamFilter): void {
+  try {
+    filter.close();
+  } catch {
+    // Already closed or disconnected.
+  }
+}
+
 interface BodyRecord {
   filter: FirefoxStreamFilter;
   chunks: Uint8Array[];
@@ -199,7 +217,12 @@ function handleBeforeRequest(details: chrome.webRequest.WebRequestBodyDetails): 
     truncated: false,
     complete: false,
   };
-  // A redirect reuses the requestId; the fresh record replaces the old one.
+  // A redirect reuses the requestId; disconnect the old filter (if any) so it
+  // does not stay alive after being replaced, then store the fresh record.
+  const existingRecord = records.get(details.requestId);
+  if (existingRecord && !existingRecord.complete) {
+    safeDisconnect(existingRecord.filter);
+  }
   records.set(details.requestId, record);
 
   filter.ondata = (event: { data: ArrayBuffer }) => {
@@ -211,11 +234,7 @@ function handleBeforeRequest(details: chrome.webRequest.WebRequestBodyDetails): 
     }
     if (record.discarded || record.truncated) {
       record.complete = true;
-      try {
-        filter.disconnect();
-      } catch {
-        // Already disconnected.
-      }
+      safeDisconnect(filter);
       return;
     }
     const view = new Uint8Array(event.data);
@@ -229,21 +248,13 @@ function handleBeforeRequest(details: chrome.webRequest.WebRequestBodyDetails): 
       record.truncated = true;
       record.complete = true;
       // Body cap reached: let the rest of the response flow natively.
-      try {
-        filter.disconnect();
-      } catch {
-        // Already disconnected.
-      }
+      safeDisconnect(filter);
     }
   };
 
   filter.onstop = () => {
     record.complete = true;
-    try {
-      filter.close();
-    } catch {
-      // Already closed/disconnected.
-    }
+    safeClose(filter);
   };
 
   filter.onerror = () => {
@@ -336,11 +347,7 @@ function endSession(tabId: number): void {
   if (records) {
     records.forEach((record) => {
       if (!record.complete) {
-        try {
-          record.filter.disconnect();
-        } catch {
-          // Filter already finished or errored.
-        }
+        safeDisconnect(record.filter);
       }
     });
     bodyRecords.delete(tabId);

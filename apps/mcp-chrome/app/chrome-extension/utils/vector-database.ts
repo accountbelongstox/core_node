@@ -38,12 +38,45 @@ let globalHnswlib: any = null;
 let globalHnswlibInitPromise: Promise<any> | null = null;
 let globalHnswlibInitialized = false;
 
-let syncInProgress = false;
-let pendingSyncPromise: Promise<void> | null = null;
+// Serializes concurrent syncFileSystem calls into a chain so that no sync
+// (especially a 'write') is silently dropped when another is in flight.
+let syncChain: Promise<void> = Promise.resolve();
 
 const DB_NAME = 'VectorDatabaseStorage';
 const DB_VERSION = 1;
 const STORE_NAME = 'documentMappings';
+
+/**
+ * Sync the Emscripten filesystem to persistent IndexedDB with a timeout guard.
+ * Shared by the instance-level _runSync and the module-level cleanup
+ * functions (resetGlobalVectorDatabase / clearAllVectorData) which previously
+ * each inlined an identical Promise+setTimeout wrapper.
+ */
+async function syncFileSystemWithTimeout(
+  isRead: boolean,
+  timeoutMs: number = 5000,
+  contextLabel: string = 'cleanup',
+): Promise<void> {
+  if (!globalHnswlib) return;
+  return new Promise<void>((resolve) => {
+    const timeout = setTimeout(() => {
+      console.warn(`VectorDatabase: Filesystem sync (${contextLabel}) timeout`);
+      resolve(); // Don't block the cleanup process
+    }, timeoutMs);
+
+    try {
+      globalHnswlib.EmscriptenFileSystemManager.syncFS(isRead, () => {
+        clearTimeout(timeout);
+        console.log(`VectorDatabase: Filesystem sync (${contextLabel}) completed`);
+        resolve();
+      });
+    } catch (error) {
+      clearTimeout(timeout);
+      console.warn(`VectorDatabase: Failed to sync filesystem (${contextLabel}):`, error);
+      resolve();
+    }
+  });
+}
 
 /**
  * IndexedDB helper functions
@@ -394,60 +427,13 @@ export class VectorDatabase {
         `VectorDatabase: Adding document with label ${label}, embedding dimension: ${embedding.length}`,
       );
 
-      // Add vector to index
-      // According to hnswlib-wasm-static emscripten binding requirements, need to create VectorFloat type
-      console.log(`VectorDatabase: 🔧 DEBUGGING - About to call addPoint with:`, {
-        embeddingType: typeof cleanEmbedding,
-        isFloat32Array: cleanEmbedding instanceof Float32Array,
-        length: cleanEmbedding.length,
-        firstFewValues: Array.from(cleanEmbedding.slice(0, 3)),
-        label: label,
-        replaceDeleted: false,
-      });
+      // Add vector to hnswlib index via the shared vector-preparation helper
+      // (VectorFloat → JS array → Float32Array → spread fallback).
+      await this.invokeHnswWithVector(cleanEmbedding, (vec) =>
+        this.index.addPoint(vec, label, false),
+      );
 
-      // Method 1: Try using VectorFloat constructor (if available)
-      let vectorToAdd;
-      try {
-        // Check if VectorFloat constructor exists
-        if (globalHnswlib && globalHnswlib.VectorFloat) {
-          console.log('VectorDatabase: Using VectorFloat constructor');
-          vectorToAdd = new globalHnswlib.VectorFloat();
-          // Add elements to VectorFloat one by one
-          for (let i = 0; i < cleanEmbedding.length; i++) {
-            vectorToAdd.push_back(cleanEmbedding[i]);
-          }
-        } else {
-          // Method 2: Use plain JS array (fallback)
-          console.log('VectorDatabase: Using plain JS array as fallback');
-          vectorToAdd = Array.from(cleanEmbedding);
-        }
-
-        // Call addPoint with constructed vector
-        this.index.addPoint(vectorToAdd, label, false);
-
-        // Clean up VectorFloat object (if manually created)
-        if (vectorToAdd && typeof vectorToAdd.delete === 'function') {
-          vectorToAdd.delete();
-        }
-      } catch (vectorError) {
-        console.error(
-          'VectorDatabase: VectorFloat approach failed, trying alternatives:',
-          vectorError,
-        );
-
-        // Method 3: Try passing Float32Array directly
-        try {
-          console.log('VectorDatabase: Trying Float32Array directly');
-          this.index.addPoint(cleanEmbedding, label, false);
-        } catch (float32Error) {
-          console.error('VectorDatabase: Float32Array approach failed:', float32Error);
-
-          // Method 4: Last resort - use spread operator
-          console.log('VectorDatabase: Trying spread operator as last resort');
-          this.index.addPoint([...cleanEmbedding], label, false);
-        }
-      }
-      console.log(`VectorDatabase: ✅ Successfully added document with label ${label}`);
+      console.log(`VectorDatabase: Added document with label ${label}`);
 
       // Store document mapping
       this.documents.set(label, document);
@@ -537,49 +523,11 @@ export class VectorDatabase {
         );
       }
 
-      // Process query vector according to hnswlib-wasm-static emscripten binding requirements
-      let queryVector;
-      let searchResult;
-
-      try {
-        // Method 1: Try using VectorFloat constructor (if available)
-        if (globalHnswlib && globalHnswlib.VectorFloat) {
-          console.log('VectorDatabase: Using VectorFloat for search query');
-          queryVector = new globalHnswlib.VectorFloat();
-          // Add elements to VectorFloat one by one
-          for (let i = 0; i < queryEmbedding.length; i++) {
-            queryVector.push_back(queryEmbedding[i]);
-          }
-          searchResult = this.index.searchKnn(queryVector, topK, undefined);
-
-          // Clean up VectorFloat object
-          if (queryVector && typeof queryVector.delete === 'function') {
-            queryVector.delete();
-          }
-        } else {
-          // Method 2: Use plain JS array (fallback)
-          console.log('VectorDatabase: Using plain JS array for search query');
-          const queryArray = Array.from(queryEmbedding);
-          searchResult = this.index.searchKnn(queryArray, topK, undefined);
-        }
-      } catch (vectorError) {
-        console.error(
-          'VectorDatabase: VectorFloat search failed, trying alternatives:',
-          vectorError,
-        );
-
-        // Method 3: Try passing Float32Array directly
-        try {
-          console.log('VectorDatabase: Trying Float32Array directly for search');
-          searchResult = this.index.searchKnn(queryEmbedding, topK, undefined);
-        } catch (float32Error) {
-          console.error('VectorDatabase: Float32Array search failed:', float32Error);
-
-          // Method 4: Last resort - use spread operator
-          console.log('VectorDatabase: Trying spread operator for search as last resort');
-          searchResult = this.index.searchKnn([...queryEmbedding], topK, undefined);
-        }
-      }
+      // Search via the shared vector-preparation helper (VectorFloat → JS
+      // array → Float32Array → spread fallback), matching addDocument.
+      const searchResult = await this.invokeHnswWithVector(queryEmbedding, (vec) =>
+        this.index.searchKnn(vec, topK, undefined),
+      );
 
       const results: SearchResult[] = [];
 
@@ -676,18 +624,24 @@ export class VectorDatabase {
     }
 
     try {
-      // Remove documents from mapping (hnswlib-wasm doesn't support direct deletion, only mark as deleted)
-      for (const label of documentLabels) {
-        this.documents.delete(label);
+      // Reuse removeDocumentByLabel so vectors are markDelete'd in the HNSW
+      // index (not just the in-memory map), matching performLRUCleanup.
+      // Snapshot first since removeDocumentByLabel mutates the same Set.
+      const labelsToRemove = Array.from(documentLabels);
+      for (const label of labelsToRemove) {
+        await this.removeDocumentByLabel(label);
       }
 
-      // Clean up tab mapping
+      // Ensure the tab mapping is fully removed even if some labels were
+      // orphaned (removeDocumentByLabel skips labels missing from documents,
+      // leaving the Set non-empty and the tab mapping lingering).
       this.tabDocuments.delete(tabId);
 
-      // Save changes
+      // Persist the updated index (markDelete + writeIndex) and mappings.
+      await this.saveIndex();
       await this.saveDocumentMappings();
 
-      console.log(`VectorDatabase: Removed ${documentLabels.size} documents for tab ${tabId}`);
+      console.log(`VectorDatabase: Removed ${labelsToRemove.length} documents for tab ${tabId}`);
     } catch (error) {
       console.error('VectorDatabase: Failed to remove tab documents:', error);
       throw error;
@@ -1077,105 +1031,140 @@ export class VectorDatabase {
     return this.documents.get(label) || null;
   }
 
-  private async syncFileSystem(direction: 'read' | 'write'): Promise<void> {
+  /**
+   * Prepare a vector for hnswlib-wasm and invoke the given index operation.
+   * Consolidates the 4-method fallback (VectorFloat → JS array → Float32Array
+   * → spread) used by both addPoint and searchKnn so the two paths cannot
+   * diverge.
+   */
+  private async invokeHnswWithVector(
+    vector: Float32Array,
+    operation: (preparedVector: any) => any,
+  ): Promise<any> {
+    let prepared: any;
     try {
-      if (!globalHnswlib) {
-        return;
-      }
-
-      // If sync operation is already in progress, wait for it to complete
-      if (syncInProgress && pendingSyncPromise) {
-        console.log(`VectorDatabase: Sync already in progress, waiting...`);
-        await pendingSyncPromise;
-        return;
-      }
-
-      // Mark sync start
-      syncInProgress = true;
-
-      // Create sync Promise with timeout mechanism
-      pendingSyncPromise = new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          console.warn(`VectorDatabase: Filesystem sync (${direction}) timeout`);
-          syncInProgress = false;
-          pendingSyncPromise = null;
-          reject(new Error('Sync timeout'));
-        }, 5000); // 5 second timeout
-
-        try {
-          globalHnswlib.EmscriptenFileSystemManager.syncFS(direction === 'read', () => {
-            clearTimeout(timeout);
-            console.log(`VectorDatabase: Filesystem sync (${direction}) completed`);
-            syncInProgress = false;
-            pendingSyncPromise = null;
-            resolve();
-          });
-        } catch (error) {
-          clearTimeout(timeout);
-          console.warn(`VectorDatabase: Failed to sync filesystem (${direction}):`, error);
-          syncInProgress = false;
-          pendingSyncPromise = null;
-          reject(error);
+      if (globalHnswlib && globalHnswlib.VectorFloat) {
+        prepared = new globalHnswlib.VectorFloat();
+        for (let i = 0; i < vector.length; i++) {
+          prepared.push_back(vector[i]);
         }
-      });
+      } else {
+        prepared = Array.from(vector);
+      }
 
-      await pendingSyncPromise;
-    } catch (error) {
-      console.warn(`VectorDatabase: Failed to sync filesystem (${direction}):`, error);
-      syncInProgress = false;
-      pendingSyncPromise = null;
+      const result = operation(prepared);
+
+      // Clean up VectorFloat if we created one
+      if (prepared && typeof prepared.delete === 'function') {
+        prepared.delete();
+        prepared = null; // Prevent double-delete in finally
+      }
+
+      return result;
+    } catch (primaryError) {
+      // Clean up VectorFloat on failure
+      if (prepared && typeof prepared.delete === 'function') {
+        try { prepared.delete(); } catch { /* ignore cleanup errors */ }
+      }
+
+      // Fallback: Float32Array directly
+      try {
+        return operation(vector);
+      } catch {
+        // Last resort: spread into plain array
+        return operation([...vector]);
+      }
     }
+  }
+
+  private async syncFileSystem(direction: 'read' | 'write'): Promise<void> {
+    if (!globalHnswlib) {
+      return;
+    }
+
+    // Chain this sync after any in-flight one so concurrent requests are
+    // serialized (each runs after the previous completes) instead of dropped.
+    const run = syncChain.then(() => this._runSync(direction));
+    // Keep the chain alive even if this step rejects so a failure never
+    // blocks subsequent syncs.
+    syncChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async _runSync(direction: 'read' | 'write'): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        console.warn(`VectorDatabase: Filesystem sync (${direction}) timeout`);
+        reject(new Error('Sync timeout'));
+      }, 5000);
+
+      try {
+        globalHnswlib.EmscriptenFileSystemManager.syncFS(direction === 'read', () => {
+          clearTimeout(timeout);
+          console.log(`VectorDatabase: Filesystem sync (${direction}) completed`);
+          resolve();
+        });
+      } catch (error) {
+        clearTimeout(timeout);
+        console.warn(`VectorDatabase: Failed to sync filesystem (${direction}):`, error);
+        reject(error);
+      }
+    });
   }
 
   private async saveIndex(): Promise<void> {
     try {
       await this.index.writeIndex(this.config.indexFileName);
-      // Reduce sync frequency, only sync when necessary
-      if (this.documents.size % 10 === 0) {
-        // Sync every 10 documents
-        await this.syncFileSystem('write');
-      }
+      // Always sync to persistent IndexedDB — MV3 service workers can be
+      // killed at any time, so deferring sync risks losing every vector
+      // written since the last sync.
+      await this.syncFileSystem('write');
     } catch (error) {
       console.error('VectorDatabase: Failed to save index:', error);
     }
   }
 
   private async saveDocumentMappings(): Promise<void> {
+    // Save document mappings to IndexedDB
+    const mappingData = {
+      documents: Array.from(this.documents.entries()),
+      tabDocuments: Array.from(this.tabDocuments.entries()).map(([tabId, labels]) => [
+        tabId,
+        Array.from(labels),
+      ]),
+      nextLabel: this.nextLabel,
+    };
+
     try {
-      // Save document mappings to IndexedDB
-      const mappingData = {
-        documents: Array.from(this.documents.entries()),
-        tabDocuments: Array.from(this.tabDocuments.entries()).map(([tabId, labels]) => [
-          tabId,
-          Array.from(labels),
-        ]),
-        nextLabel: this.nextLabel,
-      };
+      // Use IndexedDB to save data, supports larger storage capacity
+      await IndexedDBHelper.saveData(this.config.indexFileName, mappingData);
+      console.log('VectorDatabase: Document mappings saved to IndexedDB');
+    } catch (idbError) {
+      console.warn(
+        'VectorDatabase: Failed to save to IndexedDB, falling back to chrome.storage:',
+        idbError,
+      );
 
+      // Fall back to chrome.storage.local
       try {
-        // Use IndexedDB to save data, supports larger storage capacity
-        await IndexedDBHelper.saveData(this.config.indexFileName, mappingData);
-        console.log('VectorDatabase: Document mappings saved to IndexedDB');
-      } catch (idbError) {
-        console.warn(
-          'VectorDatabase: Failed to save to IndexedDB, falling back to chrome.storage:',
-          idbError,
+        const storageKey = `hnswlib_document_mappings_${this.config.indexFileName}`;
+        await chrome.storage.local.set({ [storageKey]: mappingData });
+        console.log('VectorDatabase: Document mappings saved to chrome.storage.local (fallback)');
+      } catch (storageError) {
+        // Both persistence paths failed — surface the error so callers know
+        // data was NOT saved (previously swallowed, causing silent data loss
+        // and index/mapping desync on next load).
+        console.error(
+          'VectorDatabase: Failed to save to both IndexedDB and chrome.storage:',
+          storageError,
         );
-
-        // Fall back to chrome.storage.local
-        try {
-          const storageKey = `hnswlib_document_mappings_${this.config.indexFileName}`;
-          await chrome.storage.local.set({ [storageKey]: mappingData });
-          console.log('VectorDatabase: Document mappings saved to chrome.storage.local (fallback)');
-        } catch (storageError) {
-          console.error(
-            'VectorDatabase: Failed to save to both IndexedDB and chrome.storage:',
-            storageError,
-          );
-        }
+        throw new Error(
+          `Failed to persist document mappings: IndexedDB and chrome.storage both failed`,
+        );
       }
-    } catch (error) {
-      console.error('VectorDatabase: Failed to save document mappings:', error);
     }
   }
 
@@ -1389,22 +1378,7 @@ export async function resetGlobalVectorDatabase(): Promise<void> {
         }
 
         // 3. Force sync filesystem to ensure deletion takes effect
-        try {
-          await new Promise<void>((resolve) => {
-            const timeout = setTimeout(() => {
-              console.warn('VectorDatabase: Filesystem sync timeout during cleanup');
-              resolve(); // Don't block the process
-            }, 3000);
-
-            globalHnswlib.EmscriptenFileSystemManager.syncFS(false, () => {
-              clearTimeout(timeout);
-              console.log('VectorDatabase: Filesystem sync completed during cleanup');
-              resolve();
-            });
-          });
-        } catch (syncError) {
-          console.warn('VectorDatabase: Failed to sync filesystem during cleanup:', syncError);
-        }
+        await syncFileSystemWithTimeout(false, 3000, 'reset-cleanup');
       }
     } catch (hnswError) {
       console.warn('VectorDatabase: Failed to clear HNSW index files:', hnswError);
@@ -1491,25 +1465,7 @@ export async function clearAllVectorData(): Promise<void> {
         }
 
         // Force sync filesystem
-        try {
-          await new Promise<void>((resolve) => {
-            const timeout = setTimeout(() => {
-              console.warn('VectorDatabase: Filesystem sync timeout during model switch cleanup');
-              resolve();
-            }, 3000);
-
-            globalHnswlib.EmscriptenFileSystemManager.syncFS(false, () => {
-              clearTimeout(timeout);
-              console.log('VectorDatabase: Filesystem sync completed during model switch cleanup');
-              resolve();
-            });
-          });
-        } catch (syncError) {
-          console.warn(
-            'VectorDatabase: Failed to sync filesystem during model switch cleanup:',
-            syncError,
-          );
-        }
+        await syncFileSystemWithTimeout(false, 3000, 'model-switch-cleanup');
       }
 
       // 3.2 Delete entire hnswlib-index database

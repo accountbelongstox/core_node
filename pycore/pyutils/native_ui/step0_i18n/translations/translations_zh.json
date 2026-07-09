@@ -43,6 +43,7 @@
       "rpc_server": "RPC v2 服务端口: {port}",
       "singleton_port": "单实例端口: {port}",
       "autostart": "开机自启动",
+      "service_toggle": "作为系统服务运行",
       "language": "语言"
     }
   },

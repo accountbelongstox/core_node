@@ -802,7 +802,14 @@ const PcRecentTasksPanel: React.FC<{
     setLoading(true);
     onMeta({ count: null, loading: true });
     try {
-      const r = await pycoreApi.getRecentTasks({ limit: 200 });
+      // Pass the active filters server-side so the backend returns only matching
+      // records (less data per poll). The client-side `filtered` filter below
+      // stays as a fallback for the already-loaded list between fetches.
+      const r = await pycoreApi.getRecentTasks({
+        limit: 200,
+        worker: workerFilter !== 'all' ? workerFilter : undefined,
+        end: endFilter !== 'all' ? endFilter : undefined,
+      });
       if (!mounted.current) return;
       if (r && (r as any).success !== false && Array.isArray(r.records)) {
         setRecords(r.records);
@@ -821,7 +828,7 @@ const PcRecentTasksPanel: React.FC<{
     } finally {
       if (mounted.current) setLoading(false);
     }
-  }, [onMeta, t]);
+  }, [onMeta, t, workerFilter, endFilter]);
 
   useEffect(() => { fetchRecent(); }, [fetchRecent, refreshTick]);
 

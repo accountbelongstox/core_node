@@ -118,7 +118,10 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "image": True,
         "tts": True,
         "sentence_audio": True,
-        "subtitle": True,
+        # subtitle search: OFF by default - the SubtitleSearchController is absent
+        # at this baseline, so an enabled subtitle lane would claim tasks and fail
+        # them (burning retries). Enable only once the controller is restored.
+        "subtitle": False,
         "stt": True,
     },
     "poll_interval_s": 30,
@@ -370,6 +373,10 @@ class AssistWorker:
     CLAIM_TIMEOUT = 8
     SUBMIT_TIMEOUT = 60
     RELEASE_TIMEOUT = 8
+    # Bounded wait for the parallel TTS track (run_cycle). 15min is well under the
+    # 60-min claim lease; a hung TTS engine is left on the background thread so the
+    # cycle lock (and POST /cycle) is never frozen forever.
+    TTS_TRACK_TIMEOUT_S = 900
 
     def __new__(cls, *args, **kwargs):
         """Singleton — one assist worker per process."""
@@ -591,14 +598,37 @@ class AssistWorker:
             tts_thread.start()
             # Cover (+ any unsupported) items run on THIS thread, in parallel.
             self._run_track(base, cover_items + other_items, cover_result)
-            tts_thread.join()
+            # Bounded join: a hung TTS engine (unbounded sherpa/melotts local
+            # compute) used to hold _cycle_lock forever, freezing the assist loop
+            # and every POST /api/local/assist/cycle. 15min is well under the 60-min
+            # claim lease; on timeout the daemon track keeps running in the
+            # background (its submits still land; unfinished items lease-expire) and
+            # the cycle lock is released. tts_result is NOT merged when the thread
+            # is still alive (it may still be mutating that dict).
+            tts_thread.join(timeout=self.TTS_TRACK_TIMEOUT_S)
+            tts_timed_out = tts_thread.is_alive()
 
-            for sub in (cover_result, tts_result):
+            for sub in (cover_result,):
                 result["processed"] += sub["processed"]
                 result["submitted"] += sub["submitted"]
                 result["released"] += sub["released"]
                 result["errors"].extend(sub["errors"])
                 if not sub["ok"]:
+                    result["ok"] = False
+            if tts_timed_out:
+                ColorPrint.red(
+                    f"[AssistWorker] TTS track did not finish within "
+                    f"{self.TTS_TRACK_TIMEOUT_S}s; leaving it on the background "
+                    f"thread (unfinished items will lease-expire). Cycle lock released.")
+                result["ok"] = False
+                result["errors"].append(
+                    f"tts track timed out after {self.TTS_TRACK_TIMEOUT_S}s")
+            else:
+                result["processed"] += tts_result["processed"]
+                result["submitted"] += tts_result["submitted"]
+                result["released"] += tts_result["released"]
+                result["errors"].extend(tts_result["errors"])
+                if not tts_result["ok"]:
                     result["ok"] = False
         return result
 
@@ -658,7 +688,14 @@ class AssistWorker:
             result["errors"].append(msg)
             return []
         self._note_server_ok()
-        data = resp.json() or {}
+        try:
+            data = resp.json() or {}
+        except Exception as e:  # noqa: BLE001 - non-JSON 200 must not strand the batch
+            msg = f"claim returned non-JSON 200: {_short_err(e)}"
+            self._record_error(msg)
+            result["ok"] = False
+            result["errors"].append(msg)
+            return []
         items = data.get("items") or []
         if items:
             with self._state_lock:
@@ -683,6 +720,10 @@ class AssistWorker:
             result["errors"].append(msg)
             with self._state_lock:
                 self._counters["failures"] += 1
+            # Release so the item re-queues promptly instead of waiting out the
+            # 60-min lease (best-effort: if the network is down release fails too,
+            # and the lease still expires on its own).
+            self._release(base, str(item_type), item_id, msg, result)
             return False
 
         if resp.status_code in (200, 201):

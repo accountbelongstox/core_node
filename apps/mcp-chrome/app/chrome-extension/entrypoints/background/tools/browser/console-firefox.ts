@@ -107,55 +107,94 @@ function consoleCaptureInPage(marker: string, sessionId: string, methods: string
     }
   };
 
-  const originals: Record<string, any> = {};
-  const consoleObject = console as any;
-  for (const method of methods) {
-    const original = consoleObject[method];
-    if (typeof original !== 'function') continue;
-    originals[method] = original;
-    consoleObject[method] = function (...callArgs: any[]) {
-      try {
-        post('console', {
-          timestamp: Date.now(),
-          level: method,
-          text: callArgs.map(stringifyArg).join(' '),
-          url: String(location.href),
-        });
-      } catch {
-        // Never break the page's own logging.
+  // A single shared wrapper set is installed for the first capture session and
+  // fans out to every active session's sink. Concurrent captures on the same
+  // tab no longer stack wrappers, so an early-uninstalling session cannot
+  // leave dead wrappers or clobber a later session's restore: the real
+  // originals are only restored once the last session uninstalls.
+  let shared = pageWindow.__mcpFfConsoleShared;
+  if (!shared || !shared.installed) {
+    const originals: Record<string, any> = {};
+    const consoleObject = console as any;
+    const sessions: Map<string, (kind: string, data: any) => void> = new Map();
+
+    const fanOut = (kind: string, data: any): void => {
+      for (const sink of sessions.values()) {
+        try {
+          sink(kind, data);
+        } catch {
+          // A failing sink must not break the page's own logging.
+        }
       }
-      return original.apply(consoleObject, callArgs);
     };
+
+    for (const method of methods) {
+      const original = consoleObject[method];
+      if (typeof original !== 'function') continue;
+      originals[method] = original;
+      consoleObject[method] = function (...callArgs: any[]) {
+        try {
+          fanOut('console', {
+            timestamp: Date.now(),
+            level: method,
+            text: callArgs.map(stringifyArg).join(' '),
+            url: String(location.href),
+          });
+        } catch {
+          // Never break the page's own logging.
+        }
+        return original.apply(consoleObject, callArgs);
+      };
+    }
+
+    const errorHandler = (event: ErrorEvent): void => {
+      fanOut('exception', {
+        timestamp: Date.now(),
+        text: String(event.message || (event.error && event.error.message) || 'Uncaught error'),
+        url: String(event.filename || location.href),
+        lineNumber: typeof event.lineno === 'number' ? event.lineno : undefined,
+        columnNumber: typeof event.colno === 'number' ? event.colno : undefined,
+        stackTrace: event.error && event.error.stack ? String(event.error.stack) : undefined,
+      });
+    };
+    const rejectionHandler = (event: PromiseRejectionEvent): void => {
+      const reason: any = event.reason;
+      fanOut('exception', {
+        timestamp: Date.now(),
+        text:
+          'Unhandled promise rejection: ' +
+          (reason && reason.message ? String(reason.message) : stringifyArg(reason)),
+        url: String(location.href),
+        stackTrace: reason && reason.stack ? String(reason.stack) : undefined,
+      });
+    };
+    window.addEventListener('error', errorHandler);
+    window.addEventListener('unhandledrejection', rejectionHandler);
+
+    shared = {
+      installed: true,
+      sessions,
+      originals,
+      errorHandler,
+      rejectionHandler,
+    };
+    pageWindow.__mcpFfConsoleShared = shared;
   }
 
-  const errorHandler = (event: ErrorEvent): void => {
-    post('exception', {
-      timestamp: Date.now(),
-      text: String(event.message || (event.error && event.error.message) || 'Uncaught error'),
-      url: String(event.filename || location.href),
-      lineNumber: typeof event.lineno === 'number' ? event.lineno : undefined,
-      columnNumber: typeof event.colno === 'number' ? event.colno : undefined,
-      stackTrace: event.error && event.error.stack ? String(event.error.stack) : undefined,
-    });
-  };
-  const rejectionHandler = (event: PromiseRejectionEvent): void => {
-    const reason: any = event.reason;
-    post('exception', {
-      timestamp: Date.now(),
-      text:
-        'Unhandled promise rejection: ' +
-        (reason && reason.message ? String(reason.message) : stringifyArg(reason)),
-      url: String(location.href),
-      stackTrace: reason && reason.stack ? String(reason.stack) : undefined,
-    });
-  };
-  window.addEventListener('error', errorHandler);
-  window.addEventListener('unhandledrejection', rejectionHandler);
+  shared.sessions.set(sessionId, post);
 
   registry[sessionId] = () => {
-    for (const method in originals) consoleObject[method] = originals[method];
-    window.removeEventListener('error', errorHandler);
-    window.removeEventListener('unhandledrejection', rejectionHandler);
+    shared.sessions.delete(sessionId);
+    if (shared.sessions.size === 0) {
+      const consoleObject = console as any;
+      for (const method in shared.originals) consoleObject[method] = shared.originals[method];
+      if (shared.errorHandler) window.removeEventListener('error', shared.errorHandler);
+      if (shared.rejectionHandler) {
+        window.removeEventListener('unhandledrejection', shared.rejectionHandler);
+      }
+      shared.installed = false;
+      pageWindow.__mcpFfConsoleShared = null;
+    }
     delete registry[sessionId];
   };
 }

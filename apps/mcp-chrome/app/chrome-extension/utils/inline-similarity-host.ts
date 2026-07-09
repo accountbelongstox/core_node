@@ -164,8 +164,13 @@ async function handleInit(config: any): Promise<void> {
     await updateInlineModelStatus('initializing', 10);
 
     inlineEngine = new SemanticSimilarityEngine(effectiveConfig);
-    await inlineEngine.initializeWithProgress(async (progress) => {
-      await updateInlineModelStatus(progress.status, progress.progress);
+    // The progress callback signature is sync (void return) — the host fires
+    // and forgets. Wrapping updateInlineModelStatus in an async callback
+    // created dangling promises and swallowed rejections.
+    await inlineEngine.initializeWithProgress((progress) => {
+      updateInlineModelStatus(progress.status, progress.progress).catch(() => {
+        /* status update failure is non-critical */
+      });
     });
 
     inlineEngineConfig = { ...effectiveConfig };

@@ -24,6 +24,7 @@ THREAD_BUS Integration:
 
 import time
 import threading
+import concurrent.futures
 from typing import Dict, Callable, Optional, Any
 
 # Core imports
@@ -66,6 +67,13 @@ class CallbackInfo:
 
         self.last_run_tick = 0
         self.run_count = 0
+        # Idempotent-skip bookkeeping: when a callback's previous invocation is
+        # still running (in_flight), the next due tick SKIPS it instead of piling
+        # up work or spawning extra threads. skip_count tracks how many due ticks
+        # were skipped; last_error aids diagnostics.
+        self.in_flight = False
+        self.skip_count = 0
+        self.last_error: Optional[str] = None
 
     def should_run(self, current_tick: int) -> bool:
         """
@@ -127,6 +135,15 @@ class HeartbeatPusher(threading.Thread):
         # Callback registry (保留向后兼容性)
         self._callbacks: Dict[str, CallbackInfo] = {}
         self._callbacks_lock = threading.Lock()
+
+        # Bounded pool that RUNS callback bodies off the tick thread. This is the
+        # idempotent-skip mechanism: the single HeartbeatPusher thread only
+        # schedules due callbacks here; if a callback is still in_flight from a
+        # prior tick, the next due tick skips it (no extra thread, no pile-up).
+        # A small shared pool keeps thread count bounded regardless of how many
+        # callbacks are registered.
+        self._callback_executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=4, thread_name_prefix='HeartbeatCb')
 
         # Statistics
         self._total_ticks = 0
@@ -248,16 +265,44 @@ class HeartbeatPusher(threading.Thread):
         ColorPrint.blue("[Heartbeat] Stopped")
 
     def _execute_callbacks(self):
-        """Execute registered callbacks based on tick counter"""
-        with self._callbacks_lock:
-            for name, callback_info in list(self._callbacks.items()):
-                if callback_info.should_run(self._total_ticks):
-                    try:
-                        callback_info.callback()
-                        callback_info.mark_run(self._total_ticks)
+        """
+        Execute registered callbacks based on tick counter.
 
-                    except Exception as e:
-                        ColorPrint.red(f"[Heartbeat] Callback '{name}' error: {e}")
+        Idempotent-skip design: the tick thread only SNAPSHOTs the due callbacks
+        (under the lock) and schedules each on the bounded executor. If a
+        callback's previous invocation is still running (in_flight), the new due
+        tick SKIPS it - so one slow callback cannot block another, and no extra
+        thread is started for an overlapping invocation. mark_run is always
+        applied (in the worker's finally), so a raising callback still honors its
+        interval instead of re-firing every 1s tick.
+        """
+        with self._callbacks_lock:
+            due = [ci for ci in self._callbacks.values()
+                   if ci.should_run(self._total_ticks)]
+        for ci in due:
+            if ci.in_flight:
+                # Previous invocation still running -> idempotent skip.
+                ci.skip_count += 1
+                continue
+            ci.in_flight = True
+            self._callback_executor.submit(self._run_callback, ci, self._total_ticks)
+
+    def _run_callback(self, ci: 'CallbackInfo', due_tick: int):
+        """Worker that runs one callback body, then always marks it run.
+
+        Runs on the bounded executor (NOT the tick thread). mark_run is in the
+        finally so an exception cannot collapse the callback's interval to 1s
+        (the old retry-storm bug). in_flight is cleared here so the next due tick
+        may schedule it again.
+        """
+        try:
+            ci.callback()
+        except Exception as e:
+            ci.last_error = repr(e)
+            ColorPrint.red(f"[Heartbeat] Callback '{ci.name}' error: {e}")
+        finally:
+            ci.mark_run(due_tick)
+            ci.in_flight = False
 
     def _process_tasks(self):
         """Process tasks from task queue"""
@@ -311,6 +356,12 @@ class HeartbeatPusher(threading.Thread):
         """
         ColorPrint.yellow("[Heartbeat] Stopping...")
         self._stop_event.set()
+        # Stop accepting new callback work; in-flight workers finish on their own
+        # (best-effort, non-blocking: shutdown must not hang the tick thread).
+        try:
+            self._callback_executor.shutdown(wait=False)
+        except Exception:
+            pass
 
     def is_running(self) -> bool:
         """Check if pusher is running"""
@@ -328,6 +379,9 @@ class HeartbeatPusher(threading.Thread):
                     'interval': callback_info.interval,
                     'last_run_tick': callback_info.last_run_tick,
                     'run_count': callback_info.run_count,
+                    'in_flight': callback_info.in_flight,
+                    'skip_count': callback_info.skip_count,
+                    'last_error': callback_info.last_error,
                     'ticks_until_next': max(0, callback_info.interval - (self._total_ticks - callback_info.last_run_tick))
                 }
 

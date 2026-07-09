@@ -174,6 +174,59 @@ class GlobalTask extends Model
     ];
 
     /**
+     * ALL eligible claimants per capability (canonical single source of truth).
+     * Consumed by TaskCenterController (categories.claimants) and
+     * AppQyV1AssistService (overview handler labels) so the two surfaces never
+     * contradict each other (the old bug where one said 'image=chrome' and the
+     * other said 'image=pycore', both incomplete).
+     *
+     * Truth: pycore handles word_audio/image/sentence_audio/subtitle/poster/stt
+     * via its TranslationWorkerService + AssistWorker; chrome handles
+     * remote_client word_image (Bing) + remote_sentence_audio + remote_notebooklm
+     * + remote_gemini. word_translation races on BOTH.
+     */
+    const CAPABILITY_CLAIMANTS = [
+        self::CAPABILITY_TRANSLATE => ['pycore', 'chrome'],
+        self::CAPABILITY_AI_TRANSLATE => ['pycore', 'chrome'],
+        self::CAPABILITY_AUDIO => ['pycore'],
+        self::CAPABILITY_IMAGE => ['pycore', 'chrome'],
+        self::CAPABILITY_SENTENCE_AUDIO => ['pycore', 'chrome'],
+        self::CAPABILITY_SUBTITLE => ['pycore'],
+        self::CAPABILITY_POSTER => ['pycore'],
+        self::CAPABILITY_STT => ['pycore'],
+    ];
+
+    /**
+     * PRIMARY handler per capability (single string) — the canonical label for
+     * the Queue Center 'handler' column (AppQyV1AssistService::overviewSnapshot).
+     * When multiple claimants exist, this picks the one the user is most likely
+     * to see produce the result (the dedicated-lane owner).
+     */
+    const CAPABILITY_PRIMARY_HANDLER = [
+        self::CAPABILITY_TRANSLATE => 'pycore',
+        self::CAPABILITY_AI_TRANSLATE => 'pycore',
+        self::CAPABILITY_AUDIO => 'pycore',
+        self::CAPABILITY_IMAGE => 'pycore',
+        self::CAPABILITY_SENTENCE_AUDIO => 'pycore',
+        self::CAPABILITY_SUBTITLE => 'pycore',
+        self::CAPABILITY_POSTER => 'pycore',
+        self::CAPABILITY_STT => 'pycore',
+    ];
+
+    /**
+     * Dedicated (non-fast) execution_type per capability. Capabilities that ride
+     * ONLY the shared fast lane (image, ai_translate) have no entry.
+     */
+    const CAPABILITY_SINGLE_LANE = [
+        self::CAPABILITY_TRANSLATE => self::EXECUTION_REMOTE_TRANSLATION,
+        self::CAPABILITY_AUDIO => self::EXECUTION_REMOTE_AUDIO,
+        self::CAPABILITY_SUBTITLE => self::EXECUTION_REMOTE_SUBTITLE,
+        self::CAPABILITY_POSTER => self::EXECUTION_REMOTE_POSTER,
+        self::CAPABILITY_SENTENCE_AUDIO => self::EXECUTION_REMOTE_SENTENCE_AUDIO,
+        self::CAPABILITY_STT => self::EXECUTION_REMOTE_STT,
+    ];
+
+    /**
      * Whether a worker advertising $workerCapabilities is eligible to claim this
      * task on the shared fast lane. A NULL/empty task capability means ANY worker
      * may claim it (back-compat); otherwise the worker must advertise the tag.
@@ -379,7 +432,22 @@ class GlobalTask extends Model
     public function scopeTimedOut($query)
     {
         return $query->whereIn('status', [self::STATUS_ASSIGNED, self::STATUS_PROCESSING])
-            ->whereNotNull('timeout_at')
-            ->where('timeout_at', '<=', now());
+            ->where(function ($q) {
+                // Standard path: a set timeout_at that has passed.
+                $q->where(function ($q2) {
+                    $q2->whereNotNull('timeout_at')
+                        ->where('timeout_at', '<=', now());
+                })
+                // No-timeout fallback: assignTo() only sets timeout_at when
+                // timeout_seconds is truthy, so a task with timeout_seconds=0/NULL
+                // in assigned/processing used to strand forever - invisible to the
+                // reclaim timer and only recovered if its worker went offline.
+                // Reclaim such rows when they have been assigned for over an hour.
+                ->orWhere(function ($q2) {
+                    $q2->whereNull('timeout_at')
+                        ->whereNotNull('assigned_at')
+                        ->where('assigned_at', '<=', now()->subHour());
+                });
+            });
     }
 }

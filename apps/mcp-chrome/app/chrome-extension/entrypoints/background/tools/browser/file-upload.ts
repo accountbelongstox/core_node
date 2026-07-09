@@ -151,14 +151,18 @@ class FileUploadTool extends BaseBrowserToolExecutor {
         },
       );
 
-      // Trigger change event to ensure the page reacts to the file upload
+      // Trigger change event to ensure the page reacts to the file upload.
+      // Embed the selector via JSON.stringify so backslashes and other
+      // JS-string-special characters in valid CSS selectors (e.g. escaped
+      // attribute values) do not corrupt the string literal and silently make
+      // querySelector return null.
       await chrome.debugger.sendCommand(
         { tabId },
         'Runtime.evaluate',
         {
           expression: `
             (function() {
-              const element = document.querySelector('${selector.replace(/'/g, "\\'")}');
+              const element = document.querySelector(${JSON.stringify(selector)});
               if (element) {
                 const event = new Event('change', { bubbles: true });
                 element.dispatchEvent(event);
@@ -203,29 +207,59 @@ class FileUploadTool extends BaseBrowserToolExecutor {
   }
 
   /**
-   * Attach debugger to a tab
+   * Attach debugger to a tab.
+   *
+   * TargetInfo.extensionId is only populated for background_page targets, so
+   * for page (tab) targets it is always undefined and cannot be used to tell
+   * whether THIS extension attached the debugger. Instead: reuse an attachment
+   * we already own this service-worker lifetime (activeDebuggers); otherwise
+   * attempt to attach. A pre-existing attachment (a stale one left by a prior
+   * service-worker lifetime that was killed mid-upload, or an overlapping
+   * call) surfaces as "Another debugger is already attached" / "Cannot attach
+   * to the target with an attached client" - recover by detaching (which only
+   * affects this extension's own attachment) and reattaching. A genuine
+   * DevTools/third-party attachment survives the detach and rethrows.
    */
   private async attachDebugger(tabId: number): Promise<void> {
-    // Check if debugger is already attached
-    const targets = await chrome.debugger.getTargets();
-    const existingTarget = targets.find(
-      (t) => t.tabId === tabId && t.attached,
-    );
-
-    if (existingTarget) {
-      if (existingTarget.extensionId === chrome.runtime.id) {
-        // Our extension already attached
-        console.log('Debugger already attached by this extension');
-        return;
-      } else {
-        throw new Error(
-          'Debugger is already attached to this tab by another extension or DevTools',
-        );
-      }
+    // Reuse an attachment this extension already owns in the current lifetime.
+    if (this.activeDebuggers.has(tabId)) {
+      console.log(`Debugger already attached to tab ${tabId} by this extension`);
+      return;
     }
 
-    // Attach debugger
-    await chrome.debugger.attach({ tabId }, '1.3');
+    try {
+      await chrome.debugger.attach({ tabId }, '1.3');
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      const alreadyAttached =
+        msg.includes('Another debugger') ||
+        msg.includes('Cannot attach to the target with an attached client');
+      if (!alreadyAttached) {
+        throw error;
+      }
+      // A stale self-attachment (e.g. SW killed mid-upload) blocks reattach.
+      // detach only tears down this extension's own connection, then retry.
+      try {
+        await chrome.debugger.detach({ tabId });
+      } catch {
+        // detach throws if this extension never attached (e.g. DevTools owns
+        // it); fall through so the reattach error below surfaces.
+      }
+      try {
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } catch (reattachError: any) {
+        const rmsg = reattachError?.message || String(reattachError);
+        if (
+          rmsg.includes('Another debugger') ||
+          rmsg.includes('Cannot attach to the target with an attached client')
+        ) {
+          throw new Error(
+            'Debugger is already attached to this tab by another extension or DevTools',
+          );
+        }
+        throw reattachError;
+      }
+    }
     this.activeDebuggers.set(tabId, true);
     console.log(`Debugger attached to tab ${tabId}`);
   }
@@ -327,6 +361,7 @@ class FileUploadTool extends BaseBrowserToolExecutor {
       const requestId = `file-upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const timeout = setTimeout(() => {
         console.error('File preparation request timed out');
+        chrome.runtime.onMessage.removeListener(handleMessage);
         resolve(null);
       }, 30000); // 30 second timeout
 

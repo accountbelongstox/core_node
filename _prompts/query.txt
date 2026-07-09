@@ -8,6 +8,15 @@ claudeteam --resume ee0a85ae-00be-40b2-a6db-ae7a70fc0b59
 ./scripts/linuxenvs/claudevolc.sh claudeteam --resume 1cd3802e-0439-4629-a945-0da827d104fb
 ./scripts/linuxenvs/claudevolc.sh claudeteam --resume 50bf18aa-9219-4046-a8e4-03f0dbcb534d
 
+
+
+export ANTHROPIC_BASE_URL="https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic" ANTHROPIC_AUTH_TOKEN="sk-sp-D.LEXDP.n6cd.MEYCIQCyVEi9UWNC8VDuo1fAvkDxlq0A9aZabtrbvdELMsEcGgIhAP7hQq2aHDoZE5GXvBO3hiQYlKJCNcKn4ogTJnojCtlW" ANTHROPIC_MODEL="qwen3.7-max" && claudeteam --resume 22ba17a5-3025-43e7-8085-80d6ff8ff056
+export ANTHROPIC_BASE_URL="https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic" ANTHROPIC_AUTH_TOKEN="sk-sp-D.LEXDP.n6cd.MEYCIQCyVEi9UWNC8VDuo1fAvkDxlq0A9aZabtrbvdELMsEcGgIhAP7hQq2aHDoZE5GXvBO3hiQYlKJCNcKn4ogTJnojCtlW" ANTHROPIC_MODEL="qwen3.7-max" && claudeteam --resume  54b8093b-a684-4811-b4b6-acfd0d65eabb
+export ANTHROPIC_BASE_URL="https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic" ANTHROPIC_AUTH_TOKEN="sk-sp-D.LEXDP.n6cd.MEYCIQCyVEi9UWNC8VDuo1fAvkDxlq0A9aZabtrbvdELMsEcGgIhAP7hQq2aHDoZE5GXvBO3hiQYlKJCNcKn4ogTJnojCtlW" ANTHROPIC_MODEL="qwen3.7-max" && claudeteam --resume 1cd3802e-0439-4629-a945-0da827d104fb
+export ANTHROPIC_BASE_URL="https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic" ANTHROPIC_AUTH_TOKEN="sk-sp-D.LEXDP.n6cd.MEYCIQCyVEi9UWNC8VDuo1fAvkDxlq0A9aZabtrbvdELMsEcGgIhAP7hQq2aHDoZE5GXvBO3hiQYlKJCNcKn4ogTJnojCtlW" ANTHROPIC_MODEL="qwen3.7-max" && claudeteam --resume 390ed7a6-00a5-4948-aac6-05321a9628bf
+
+
+
 当出现以下或BING不能连接时，使用 
 It's not you, it's us
 Bing isn't available right now, but everything should be back to normal very soon.

@@ -254,6 +254,15 @@ class TaskManagerService
                     break;
                 }
 
+                // The shared fast lane (remote_fast) is claimed ONLY through the
+                // capability-matched block below. Claiming it here would bypass
+                // the capability filter and let e.g. a chrome worker grab a
+                // bumped word_audio/audio task, adding fail-repend latency to
+                // exactly the hottest tasks.
+                if ($processorType === GlobalTask::EXECUTION_REMOTE_FAST) {
+                    continue;
+                }
+
                 Log::info('[pullAndAssignTasksForWorker] Checking processor type', [
                     'processor_type' => $processorType,
                 ]);

@@ -13,6 +13,11 @@
 # Chrome MCP Server Startup Script (Windows). Entry script - only responsible for calling Python and executing commands.
 # Builds all packages, registers the native host, then launches WXT watch mode for live debugging.
 
+param(
+    [switch]$DevOnly,
+    [switch]$InstallShortcut
+)
+
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $PSScriptRoot

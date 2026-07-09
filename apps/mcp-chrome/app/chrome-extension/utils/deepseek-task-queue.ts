@@ -129,10 +129,14 @@ export class TaskQueueManager {
       this.config = { ...DEFAULT_CONFIG, ...storedConfig };
     }
 
+    // Mark initialized BEFORE cleanup so cleanupOldTasks()'s ensureInitialized()
+    // guard does not re-enter initialize() (previously this caused an infinite
+    // async recursion: initialize → cleanupOldTasks → ensureInitialized → initialize).
+    this.initialized = true;
+
     // Clean up old tasks
     await this.cleanupOldTasks();
 
-    this.initialized = true;
     console.log(`TaskQueueManager initialized with ${this.tasks.size} tasks`);
   }
 

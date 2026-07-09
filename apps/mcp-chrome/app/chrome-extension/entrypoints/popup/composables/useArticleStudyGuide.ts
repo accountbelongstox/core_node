@@ -18,6 +18,7 @@
 import { ref, watch } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { logger } from '@/utils/logger';
+import { sendWithWake } from '@/utils/sendWithWake';
 import {
   DEFAULT_GEMINI_TRANSLATE_LANGUAGES,
   buildGeminiArticleTranslatePrompt,
@@ -73,21 +74,6 @@ export function useArticleStudyGuide() {
   const sendTo = (jobProvider: ArticleStudyGuideProvider, msg: Record<string, any>) =>
     chrome.runtime.sendMessage({ type: PROVIDER_MESSAGE_TYPE[jobProvider], ...msg });
 
-  // `start` is a one-shot message with no built-in retry (unlike `status`,
-  // which is polled every 3s and so naturally tolerates one dropped round).
-  // A cold/idle MV3 service worker can drop the FIRST message that reaches it
-  // if it arrives before the worker finishes re-registering its listeners
-  // after waking — chrome.runtime.sendMessage then resolves to `undefined`
-  // (no listener responded), identical for every provider since they share
-  // the exact same listener factory. One short-delay retry is the standard
-  // mitigation and costs nothing on the (normal) warm-worker path.
-  const sendStartWithWake = async (jobProvider: ArticleStudyGuideProvider, msg: Record<string, any>) => {
-    const first = await sendTo(jobProvider, msg);
-    if (first !== undefined) return first;
-    logger.warn(LOG, `${PROVIDER_LABELS[jobProvider]}: no response to 'start' (service worker likely cold) — retrying once`);
-    await new Promise((r) => setTimeout(r, 400));
-    return sendTo(jobProvider, msg);
-  };
 
   const finishJob = (jobId: string) => {
     polling = false;
@@ -151,7 +137,10 @@ export function useArticleStudyGuide() {
         sourceLanguageSkipExpressions.value,
       );
       logger.info(LOG, `start (${jobProvider}): prompt built (${prompt.length} chars), sending to background`);
-      const startResp = await sendStartWithWake(jobProvider, { action: 'start', prompt, timeoutMs: START_TIMEOUT_MS });
+      const startResp = await sendWithWake(
+        () => sendTo(jobProvider, { action: 'start', prompt, timeoutMs: START_TIMEOUT_MS }),
+        PROVIDER_LABELS[jobProvider],
+      );
       const jobId = startResp?.result?.jobId;
       if (!startResp?.success || !jobId) {
         const detail =

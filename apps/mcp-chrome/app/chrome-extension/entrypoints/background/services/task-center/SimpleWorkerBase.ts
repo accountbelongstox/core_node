@@ -52,6 +52,7 @@ const ALLOWED_CAPABILITIES = new Set<WorkerCapability>([
   'translate',
   'sentence_audio',
   'ai_translate',
+  'puter_translate',
   'subtitle',
   'poster',
 ]);
@@ -94,6 +95,14 @@ export abstract class SimpleWorkerBase {
   private heartbeatId: ReturnType<typeof setInterval> | null = null;
   // Coalesce fast re-polls: at most one scheduled burst in flight.
   private fastRepollTimer: ReturnType<typeof setTimeout> | null = null;
+  // Re-entrancy guard: only one cycle() may run at a time. A fast re-poll that
+  // fires while a long-poll cycle is in flight would clobber shared dispatch
+  // state (terminalPosted/currentTaskId) and drive the single chat tab with two
+  // tasks at once, so scheduleFastRepoll defers via needsFastRepoll instead.
+  private cycleInFlight = false;
+  // Set when a fast re-poll is requested while a cycle is in flight; the next
+  // runPollLoop iteration then drains the fast tier with wait=0.
+  private needsFastRepoll = false;
   // Set true once a terminal (completed/failed) result is posted for the task
   // currently being dispatched; lets dispatchOne fail-safe a silent handler.
   private terminalPosted = false;
@@ -225,6 +234,14 @@ export abstract class SimpleWorkerBase {
       clearTimeout(this.fastRepollTimer);
       this.fastRepollTimer = null;
     }
+    // Reset loop/guard state so a subsequent start() always launches a fresh
+    // poll loop. Without this a rapid stop+start could see pollLoopActive
+    // still true (the old loop hasn't observed isRunning=false yet) and skip
+    // starting a new one, leaving the worker running with no poll.
+    this.pollLoopActive = false;
+    this.cycleInFlight = false;
+    this.needsFastRepoll = false;
+    this.terminalPosted = false;
     this.stats.isOnline = false;
     this.stats.currentTaskId = null;
     logger.info(this.workerLabel, 'Worker stopped');
@@ -330,7 +347,11 @@ export abstract class SimpleWorkerBase {
   private async runPollLoop(): Promise<void> {
     while (this.isRunning) {
       try {
-        await this.cycle(this.config?.pollWait ?? 20);
+        // If a fast re-poll was deferred while a cycle was in flight, drain the
+        // fast tier now with wait=0 instead of a long poll.
+        const wait = this.needsFastRepoll ? 0 : (this.config?.pollWait ?? 20);
+        this.needsFastRepoll = false;
+        await this.cycle(wait);
       } catch (error) {
         logger.error(this.workerLabel, 'Poll cycle error', error);
         // Brief backoff so a hard failure doesn't hot-loop.
@@ -349,36 +370,50 @@ export abstract class SimpleWorkerBase {
    * 3. Sort the claimed tasks by priority desc and dispatch each.
    */
   protected async cycle(wait: number): Promise<void> {
-    if (!this.workerClient || !this.config) return;
+    // Serialize: never run two cycles concurrently. A fast re-poll firing while
+    // a long-poll cycle is in flight would interleave two dispatchOne calls on
+    // shared terminalPosted/currentTaskId and drive the single chat tab with two
+    // tasks at once. Concurrent callers no-op; scheduleFastRepoll defers via
+    // needsFastRepoll so the fast tier is still drained promptly.
+    if (this.cycleInFlight) return;
+    this.cycleInFlight = true;
+    try {
+      if (!this.workerClient || !this.config) return;
 
-    // Yield to the user: if a human is actively switching tabs (TabController),
-    // skip pulling/driving a page this cycle. Transient — auto-resumes when the
-    // interference pause clears. (Interactive, user-invoked tool calls are NOT
-    // gated — only these background worker cycles.)
-    if (tabController.isPaused()) return;
+      // Yield to the user: if a human is actively switching tabs (TabController),
+      // skip pulling/driving a page this cycle. Transient - auto-resumes when the
+      // interference pause clears. (Interactive, user-invoked tool calls are NOT
+      // gated - only these background worker cycles.)
+      if (tabController.isPaused()) return;
 
-    this.stats.lastRun = Date.now();
+      this.stats.lastRun = Date.now();
 
-    const resp = await this.workerClient.pullTasks(undefined, {
-      limit: this.config.batchSize,
-      wait,
-    });
+      const resp = await this.workerClient.pullTasks(undefined, {
+        limit: this.config.batchSize,
+        wait,
+      });
 
-    if (!resp.success || !resp.data) {
-      return;
-    }
+      if (!resp.success || !resp.data) {
+        return;
+      }
 
-    this.noteFastSignals(resp.data.pending_urgent, resp.data.pending_fast);
+      this.noteFastSignals(resp.data.pending_urgent, resp.data.pending_fast);
 
-    const tasks = Array.isArray(resp.data.tasks) ? resp.data.tasks : [];
-    this.stats.pending = tasks.length;
-    if (tasks.length === 0) return;
+      const tasks = Array.isArray(resp.data.tasks) ? resp.data.tasks : [];
+      this.stats.pending = tasks.length;
+      if (tasks.length === 0) return;
 
-    // Highest priority first.
-    tasks.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+      // Highest priority first.
+      tasks.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 
-    for (const task of tasks) {
-      await this.dispatchOne(task);
+      for (const task of tasks) {
+        // Honor stop() between batch items so a Stop halts further dispatch
+        // promptly instead of draining the whole claimed batch.
+        if (!this.isRunning) break;
+        await this.dispatchOne(task);
+      }
+    } finally {
+      this.cycleInFlight = false;
     }
   }
 
@@ -398,12 +433,18 @@ export abstract class SimpleWorkerBase {
 
   private scheduleFastRepoll(): void {
     if (!this.isRunning) return;
-    if (this.fastRepollTimer) return; // coalesce — one burst in flight
+    // Ensure the next poll-loop iteration drains the fast tier with wait=0,
+    // even if the immediate cycle(0) below no-ops because a cycle is in flight.
+    this.needsFastRepoll = true;
+    if (this.fastRepollTimer) return; // coalesce - one burst in flight
     const jitter = Math.floor(Math.random() * FAST_REPOLL_JITTER_MS);
     this.fastRepollTimer = setTimeout(() => {
       this.fastRepollTimer = null;
       if (!this.isRunning) return;
       // wait=0: drain whatever fast-tier work matched our capabilities now.
+      // cycle()'s cycleInFlight guard prevents overlap with an in-flight cycle;
+      // needsFastRepoll (set above) guarantees the poll loop re-drains if this
+      // no-opped because a cycle was in flight.
       this.cycle(0).catch((error) =>
         logger.warn(this.workerLabel, 'Fast re-poll failed', error),
       );
@@ -421,6 +462,9 @@ export abstract class SimpleWorkerBase {
    */
   private async dispatchOne(task: Task): Promise<void> {
     if (!this.workerClient) return;
+    // Honor stop(): if the worker was stopped while this task was queued in the
+    // claimed batch, skip dispatch (the backend reclaims it on timeout).
+    if (!this.isRunning) return;
 
     if (!this.handlesTaskType(task.task_type)) {
       // CHROME-CAP-1: release-by-failure, never a silent skip.
@@ -453,7 +497,8 @@ export abstract class SimpleWorkerBase {
       } catch (submitError) {
         logger.error(this.workerLabel, 'Failed to submit error result', submitError);
       }
-      this.stats.failed++;
+      // stats.failed is incremented inside submitResult('failed') above;
+      // no separate increment here to avoid double-counting.
     } finally {
       this.stats.currentTaskId = null;
     }
@@ -470,9 +515,6 @@ export abstract class SimpleWorkerBase {
     result?: TaskResult['result'],
     extra?: { error?: string; progress?: number },
   ): Promise<void> {
-    if (status === 'completed' || status === 'failed') {
-      this.terminalPosted = true;
-    }
     if (!this.workerClient) return;
     const payload: TaskResult = {
       task_id: taskId,
@@ -482,8 +524,16 @@ export abstract class SimpleWorkerBase {
     if (result !== undefined) payload.result = result;
     if (extra?.error !== undefined) payload.error = extra.error;
     if (extra?.progress !== undefined) payload.progress = extra.progress;
-    if (status === 'completed') this.stats.translated++;
+    // Submit first, then update local state. If the API call throws the task
+    // result was never delivered — marking terminalPosted or bumping stats
+    // before the call would suppress dispatchOne's safety-net retry and
+    // inflate counters for work the server never received.
     await this.workerClient.submitResult(payload);
+    if (status === 'completed' || status === 'failed') {
+      this.terminalPosted = true;
+    }
+    if (status === 'completed') this.stats.translated++;
+    if (status === 'failed') this.stats.failed++;
   }
 
   protected delay(ms: number): Promise<void> {

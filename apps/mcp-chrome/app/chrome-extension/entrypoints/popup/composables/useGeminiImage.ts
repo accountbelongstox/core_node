@@ -5,6 +5,7 @@
  */
 import { ref } from 'vue';
 import { logger } from '@/utils/logger';
+import { sendWithWake } from '@/utils/sendWithWake';
 
 const LOG = 'Gemini Client';
 
@@ -53,12 +54,10 @@ export function useGeminiImage() {
     result.value = null;
     phase.value = 'Submitting…';
     try {
-      const startResp = await send({
-        action: 'start',
-        prompt: p,
-        openInNewTab: openInNewTab.value,
-        timeoutMs: 180000,
-      });
+      const startResp = await sendWithWake(
+        () => send({ action: 'start', prompt: p, openInNewTab: openInNewTab.value, timeoutMs: 180000 }),
+        'Gemini',
+      );
       const jobId = startResp?.result?.jobId;
       if (!startResp?.success || !jobId) {
         error.value = startResp?.result?.error || startResp?.error || 'Failed to start generation';

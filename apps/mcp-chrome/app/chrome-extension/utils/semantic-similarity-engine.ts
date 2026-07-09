@@ -111,10 +111,11 @@ export async function isDefaultModelCached(): Promise<boolean> {
     const defaultModel =
       (result[STORAGE_KEYS.SEMANTIC_MODEL] as ModelPreset) || 'multilingual-e5-small';
 
-    // Build the model URL
+    // Build the model URL — use the same filename resolver the engine uses
+    // at init time so we check for the file that was actually cached.
     const modelInfo = PREDEFINED_MODELS[defaultModel];
     const modelIdentifier = modelInfo.modelIdentifier;
-    const onnxModelFile = 'model.onnx'; // Default ONNX file name
+    const onnxModelFile = getOnnxFileNameForVersion('quantized');
 
     const modelIdParts = modelIdentifier.split('/');
     const modelNameForUrl = modelIdParts.length > 1 ? modelIdentifier : `Xenova/${modelIdentifier}`;
@@ -460,7 +461,10 @@ export class SemanticSimilarityEngineProxy {
   private _isInitialized = false;
   private config: Partial<ModelConfig>;
   private offscreenManager: OffscreenManager;
-  private _isEnsuring = false; // Flag to prevent concurrent ensureOffscreenEngineInitialized calls
+  // Shared in-flight initialization promise. Concurrent callers await the
+  // same promise so they observe the real success/failure result instead of
+  // sleeping 100ms and racing ahead against an unready engine.
+  private _ensurePromise: Promise<void> | null = null;
 
   constructor(config: Partial<ModelConfig> = {}) {
     this.config = config;
@@ -537,19 +541,17 @@ export class SemanticSimilarityEngineProxy {
   }
 
   /**
-   * Ensure engine in offscreen is initialized (with concurrency protection)
+   * Ensure engine in offscreen is initialized (serialized across concurrent callers)
    */
   private async ensureOffscreenEngineInitialized(): Promise<void> {
-    // Prevent concurrent initialization attempts
-    if (this._isEnsuring) {
-      console.log('SemanticSimilarityEngineProxy: Already ensuring initialization, waiting...');
-      // Wait a bit and check again
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return;
+    // If an initialization is already in flight, await the same promise so
+    // concurrent callers observe the real success/failure result instead of
+    // racing ahead and sending compute messages to an unready engine.
+    if (this._ensurePromise) {
+      return this._ensurePromise;
     }
 
-    try {
-      this._isEnsuring = true;
+    const run = async () => {
       const status = await this.checkOffscreenEngineStatus();
 
       if (!status.isInitialized) {
@@ -570,8 +572,13 @@ export class SemanticSimilarityEngineProxy {
 
         console.log('SemanticSimilarityEngineProxy: Engine reinitialized successfully');
       }
+    };
+
+    this._ensurePromise = run();
+    try {
+      await this._ensurePromise;
     } finally {
-      this._isEnsuring = false;
+      this._ensurePromise = null;
     }
   }
 
@@ -1754,7 +1761,9 @@ export class SemanticSimilarityEngine {
         embedding[i] /= validTokens;
       }
     }
-    return this.normalizeVector(embedding);
+    // Normalize in-place so the pool buffer is reused rather than abandoned
+    // (normalizeVector allocates a new Float32Array, leaking the pool buffer).
+    return this.normalizeVectorInPlace(embedding);
   }
 
   private _extractBatchEmbeddingsFromWorkerOutput(
@@ -1795,7 +1804,9 @@ export class SemanticSimilarityEngine {
           embedding[i] /= validTokens;
         }
       }
-      embeddings.push(this.normalizeVector(embedding));
+      // Normalize in-place so the pool buffer is reused (same fix as single
+      // extraction — avoids leaking pool buffers into the LRU cache).
+      embeddings.push(this.normalizeVectorInPlace(embedding));
     }
     return embeddings;
   }
@@ -2258,6 +2269,19 @@ export class SemanticSimilarityEngine {
     const normalized = new Float32Array(vector.length);
     for (let i = 0; i < vector.length; i++) normalized[i] = vector[i] / norm;
     return normalized;
+  }
+
+  /**
+   * Normalize a vector in-place (no allocation). Used internally when the
+   * buffer is owned by the memory pool and we want to avoid leaking it.
+   */
+  private normalizeVectorInPlace(vector: Float32Array): Float32Array {
+    let norm = 0;
+    for (let i = 0; i < vector.length; i++) norm += vector[i] * vector[i];
+    norm = Math.sqrt(norm);
+    if (norm === 0) return vector;
+    for (let i = 0; i < vector.length; i++) vector[i] = vector[i] / norm;
+    return vector;
   }
 
   public validateInput(text1: string, text2: string | 'valid_dummy'): void {

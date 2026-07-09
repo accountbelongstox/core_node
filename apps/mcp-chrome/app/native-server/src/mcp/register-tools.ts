@@ -27,22 +27,10 @@ const MAX_CALL_TIMEOUT_MS = 600000;
 
 const handleToolCall = async (name: string, args: any): Promise<CallToolResult> => {
   try {
-    // Fast-fail if the extension stdio link is dead. This process is an orphan
-    // (its Chrome Service Worker disconnected); writing the call to the broken
-    // stdout would silently go nowhere and hang for the full timeout. Surface an
-    // actionable error immediately so the MCP client retries — by then the
-    // singleton handover has moved the port to a process WITH a live link.
-    if (!nativeMessagingHostInstance.isExtensionConnected()) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: 'Error calling tool: browser extension link is not connected (Service Worker disconnected). Please retry.',
-          },
-        ],
-        isError: true,
-      };
-    }
+    // A dead extension link is fast-failed inside sendRequestToExtensionAndWait
+    // (it rejects before touching the broken stdout); the catch below turns that
+    // rejection into an MCP error result so the client retries once the
+    // singleton handover moves the port to a live-linked process.
     // Honor a tool's self-declared timeout (e.g. chrome_gemini_image: 120000,
     // chrome_notebooklm: 60000) so the bridge waits at least as long as the tool
     // itself will run, plus a 15s buffer for navigation/injection overhead.

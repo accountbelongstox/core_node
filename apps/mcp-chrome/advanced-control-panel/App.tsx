@@ -57,7 +57,7 @@ const ServerTab = ({ server, setServer }: { server: ServerState, setServer: any 
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <span className="text-[11px] text-slate-400">Listener Port</span>
-            <input type="number" value={server.port} className="w-16 bg-slate-900 border border-slate-700 rounded px-1 text-[11px] text-indigo-400 font-mono" />
+            <input type="number" value={server.port} onChange={e => setServer({ ...server, port: Number(e.target.value) || 0 })} className="w-16 bg-slate-900 border border-slate-700 rounded px-1 text-[11px] text-indigo-400 font-mono" />
           </div>
           <button className="w-full bg-slate-700 hover:bg-slate-600 text-[10px] py-1.5 rounded transition-colors flex items-center justify-center gap-2">
             <span>Copy MCP Config</span>
@@ -244,7 +244,9 @@ const AudioTab = () => {
   );
 };
 
-const SettingsTab = ({ server, setServer }: { server: ServerState, setServer: any }) => (
+const SettingsTab = ({ server, setServer }: { server: ServerState, setServer: any }) => {
+  const [apiGateway, setApiGateway] = useState('https://core-v2.internal:8080');
+  return (
   <div className="space-y-4 max-h-[280px] overflow-y-auto pr-2">
     <div className="grid grid-cols-2 gap-4">
       <div className="space-y-3">
@@ -256,7 +258,7 @@ const SettingsTab = ({ server, setServer }: { server: ServerState, setServer: an
           </div>
           <div className="space-y-1">
             <label className="text-[9px] text-slate-500">API GATEWAY</label>
-            <input type="text" value="https://core-v2.internal:8080" className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px]" />
+            <input type="text" value={apiGateway} onChange={e => setApiGateway(e.target.value)} className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[10px]" />
           </div>
         </div>
       </div>
@@ -278,7 +280,8 @@ const SettingsTab = ({ server, setServer }: { server: ServerState, setServer: an
       <button className="flex-1 py-1.5 bg-indigo-600/10 border border-indigo-600/30 text-indigo-400 text-[10px] font-bold rounded hover:bg-indigo-600/20">Backup Configuration</button>
     </div>
   </div>
-);
+  );
+};
 
 const DebugTab = () => {
   const [showJson, setShowJson] = useState(false);

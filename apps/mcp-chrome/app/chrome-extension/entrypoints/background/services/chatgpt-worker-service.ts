@@ -16,6 +16,7 @@ import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { chatgptWebTool } from '../tools/browser/chatgpt-web';
 import { logger } from '@/utils/logger';
+import { parseWebChatToolResult, extractAudioParams } from './web-chat-worker-common';
 
 const LOG = 'ChatGPT Web';
 
@@ -55,8 +56,7 @@ class ChatGptWorkerService extends SimpleWorkerBase {
       return;
     }
 
-    const withAudio = payload.with_audio === true || payload.withAudio === true;
-    const language = typeof payload.language === 'string' ? payload.language : 'en';
+    const { withAudio, language } = extractAudioParams(payload);
 
     let toolResult: any;
     try {
@@ -69,30 +69,15 @@ class ChatGptWorkerService extends SimpleWorkerBase {
       return;
     }
 
-    if (toolResult?.isError) {
-      const errText = toolResult?.content?.[0]?.text;
-      await this.submitResult(task.task_id, 'failed', undefined, {
-        error: typeof errText === 'string' ? errText : 'chatgpt tool error',
-      });
-      return;
-    }
-
-    let parsed: any = {};
-    try {
-      parsed = JSON.parse(toolResult?.content?.[0]?.text || '{}');
-    } catch {
-      parsed = {};
-    }
-    if (!parsed.success || !parsed.answer) {
-      await this.submitResult(task.task_id, 'failed', undefined, {
-        error: parsed?.error || 'chatgpt produced no answer',
-      });
+    const result = parseWebChatToolResult(toolResult, LOG);
+    if (!result.success) {
+      await this.submitResult(task.task_id, 'failed', undefined, { error: result.error });
       return;
     }
 
     await this.submitResult(task.task_id, 'completed', {
-      answer: parsed.answer,
-      audio: parsed.audio || null,
+      answer: result.answer,
+      audio: result.audio,
       provider: 'chatgpt-web',
     });
     logger.info(LOG, `Task ${task.task_id} completed`);

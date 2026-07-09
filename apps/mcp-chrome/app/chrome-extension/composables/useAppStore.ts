@@ -1,5 +1,4 @@
 /**
- * 统一应用状态管理中心
  * Centralized application state management
  */
 
@@ -7,7 +6,7 @@ import { ref, computed, watch } from 'vue';
 import type { Ref } from 'vue';
 
 // ============================================================
-// 类型定义
+// Type definitions
 // ============================================================
 
 export interface ServerStatus {
@@ -34,26 +33,17 @@ export interface TaskQueueConfig {
 }
 
 export interface AppSettings {
-  // API设置
   currentEndpoint: string;
   customEndpoint?: string;
-
-  // 任务队列设置
   taskQueue: TaskQueueConfig;
-
-  // 服务器设置
   autoConnectServer: boolean;
   serverPort: number;
-
-  // 语言设置
   language: string;
-
-  // 调试设置
   debugMode: boolean;
 }
 
 // ============================================================
-// 默认配置
+// Default configuration
 // ============================================================
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -73,7 +63,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 const STORAGE_KEY = 'appSettings';
 
 // ============================================================
-// 全局状态
+// Global state
 // ============================================================
 
 const settings: Ref<AppSettings> = ref({ ...DEFAULT_SETTINGS });
@@ -85,11 +75,26 @@ const serverStatus: Ref<ServerStatus> = ref({
 let isInitialized = false;
 
 // ============================================================
-// 状态管理 Hook
+// State management hook
 // ============================================================
 
 export function useAppStore() {
-  // 初始化
+  const saveSettings = async () => {
+    await chrome.storage.local.set({ [STORAGE_KEY]: settings.value });
+  };
+
+  // Setup the auto-save watcher. Called once from initialize() AFTER stored
+  // settings have been loaded, so the first watcher emission never overwrites
+  // persisted data with stale defaults.
+  let watcherActive = false;
+  const setupWatcher = () => {
+    if (watcherActive) return;
+    watcherActive = true;
+    watch(settings, () => {
+      saveSettings();
+    }, { deep: true });
+  };
+
   const initialize = async () => {
     if (isInitialized) return;
 
@@ -99,20 +104,14 @@ export function useAppStore() {
     }
 
     isInitialized = true;
+    // Start watching only after the stored value is loaded — avoids a race
+    // where the watcher fires on the initial default value and overwrites
+    // the persisted settings before they're restored.
+    setupWatcher();
   };
-
-  // 保存设置
-  const saveSettings = async () => {
-    await chrome.storage.local.set({ [STORAGE_KEY]: settings.value });
-  };
-
-  // 自动保存
-  watch(settings, () => {
-    saveSettings();
-  }, { deep: true });
 
   // ============================================================
-  // API设置
+  // API settings
   // ============================================================
 
   const setCurrentEndpoint = (endpointId: string) => {
@@ -124,7 +123,7 @@ export function useAppStore() {
   };
 
   // ============================================================
-  // 任务队列设置
+  // Task queue settings
   // ============================================================
 
   const enableTaskQueue = () => {
@@ -152,7 +151,7 @@ export function useAppStore() {
   };
 
   // ============================================================
-  // 服务器设置
+  // Server settings
   // ============================================================
 
   const setAutoConnectServer = (enabled: boolean) => {
@@ -172,7 +171,7 @@ export function useAppStore() {
   };
 
   // ============================================================
-  // 其他设置
+  // Other settings
   // ============================================================
 
   const setLanguage = (lang: string) => {
@@ -184,7 +183,7 @@ export function useAppStore() {
   };
 
   // ============================================================
-  // 重置
+  // Reset
   // ============================================================
 
   const resetSettings = async () => {
@@ -205,43 +204,28 @@ export function useAppStore() {
   });
 
   // ============================================================
-  // 返回
+  // Return
   // ============================================================
 
   return {
-    // 状态
     settings,
     serverStatus,
-
-    // 初始化
     initialize,
     saveSettings,
-
-    // API设置
     setCurrentEndpoint,
     setCustomEndpoint,
-
-    // 任务队列
     enableTaskQueue,
     disableTaskQueue,
     pauseTaskQueue,
     resumeTaskQueue,
     setMaxConcurrent,
     setRetryAttempts,
-
-    // 服务器
     setAutoConnectServer,
     setServerPort,
     updateServerStatus,
-
-    // 其他
     setLanguage,
     setDebugMode,
-
-    // 重置
     resetSettings,
-
-    // Computed
     isTaskQueueActive,
     canExecuteTasks,
   };

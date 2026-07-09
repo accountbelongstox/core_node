@@ -467,12 +467,22 @@ class TaskController extends Controller
 
         $limit = 20;
         if ($request->has('limit')) {
-            $limit = $request->input('limit');
+            // Validate + clamp: an unclamped limit could dump the whole table on a
+            // single request (limit=1000000). Coerce to int, floor at 1, cap at 200.
+            $limit = (int) $request->input('limit');
+            if ($limit < 1) {
+                $limit = 1;
+            } elseif ($limit > 200) {
+                $limit = 200;
+            }
         }
 
         $offset = 0;
         if ($request->has('offset')) {
-            $offset = $request->input('offset');
+            $offset = (int) $request->input('offset');
+            if ($offset < 0) {
+                $offset = 0;
+            }
         }
 
         // Total: on the hot 5s poll, avoid a second full-table count(*) by reading
@@ -585,13 +595,25 @@ class TaskController extends Controller
     }
 
     /**
-     * Reset all assigned tasks back to pending
+     * Reset assigned (and optionally processing) tasks back to pending.
      *
      * POST /api/task/reset-assigned
+     *
+     * Body: { "include_processing": bool }  — when true, also resets tasks in
+     * the `processing` status (a worker that reported intermediate progress then
+     * died leaves its task in this state; the timed-out reclaim normally catches
+     * them, but this is the manual escape hatch when timeout_at is NULL).
+     * Default: false — only resets `assigned`.
      */
-    public function resetAssigned(): JsonResponse
+    public function resetAssigned(Request $request): JsonResponse
     {
-        $updatedCount = GlobalTask::where('status', GlobalTask::STATUS_ASSIGNED)
+        $includeProcessing = (bool) $request->input('include_processing', false);
+        $statuses = [GlobalTask::STATUS_ASSIGNED];
+        if ($includeProcessing) {
+            $statuses[] = GlobalTask::STATUS_PROCESSING;
+        }
+
+        $updatedCount = GlobalTask::whereIn('status', $statuses)
             ->update([
                 'status' => GlobalTask::STATUS_PENDING,
                 'assigned_to' => null,
@@ -600,7 +622,8 @@ class TaskController extends Controller
             ]);
 
         return $this->success([
-            'reset_count' => $updatedCount
+            'reset_count' => $updatedCount,
+            'include_processing' => $includeProcessing,
         ], 'Assigned tasks reset successfully');
     }
 }

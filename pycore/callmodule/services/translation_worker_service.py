@@ -86,6 +86,7 @@ import random
 import socket
 import threading
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 # ColorPrint is the only allowed logger in pycore processors/services.
@@ -101,6 +102,10 @@ from pycore.pyctl.desktop.task_manager import get_task_manager
 # Real (non-synthetic) pronunciation source chain, tried before TTS synthesis
 # in the word_audio lane — see _process_audio_task.
 from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
+# On-disk result cache for the word_audio lane (word+lang+accent -> bytes+meta),
+# mirroring ai_batch_translate's usage so a repeat request is served from cache
+# without re-hitting the network / TTS engines.
+from pycore.pyutils.common import result_cache
 
 
 # ============================================================
@@ -197,6 +202,10 @@ class TranslationWorkerService:
     SUBTITLE_EXECUTION_TYPE = "remote_subtitle"
     POSTER_EXECUTION_TYPE = "remote_poster"
     SENTENCE_AUDIO_EXECUTION_TYPE = "remote_sentence_audio"
+    # Speech-to-text lane (remote_stt). Laravel defines EXECUTION_REMOTE_STT +
+    # CAPABILITY_STT and routes stt=>pycore; advertised only while the assist
+    # 'stt' toggle is on (off by default - see _stt_enabled).
+    STT_EXECUTION_TYPE = "remote_stt"
 
     # task_type tags carried in payloads on these lanes.
     AUDIO_TASK_TYPE = "word_audio"
@@ -204,11 +213,20 @@ class TranslationWorkerService:
     # capability='image' (NO dedicated execution_type) — claim is narrowed purely
     # by the 'image' capability, mirroring how ai_translate rides the fast lane.
     IMAGE_TASK_TYPE = "word_media"
+    # Article-level TTS (long-form text -> one MP3). Rides remote_audio like
+    # word_audio; no per-word real-pronunciation chain - text goes straight to TTS.
+    ARTICLE_AUDIO_TASK_TYPE = "article_audio"
+    # STT task_type tags accepted on the remote_stt lane.
+    STT_TASK_TYPES = ("stt", "audio_transcribe")
 
     # Base processor types always advertised (fast + legacy translation). The
     # dedicated lanes are appended live by _effective_processor_types() when their
     # Config kill-switch AND layered user-data/assist toggle are on.
     PROCESSOR_TYPES = [TRANSLATION_FAST_PROCESSOR_TYPE, TRANSLATION_PROCESSOR_TYPE]
+
+    # Default inflight TTL when a task carries no timeout_seconds: a re-offered
+    # task becomes claimable again after this long even if its executor hung.
+    INFLIGHT_DEFAULT_TTL = 300
 
     DEFAULT_PROVIDER = "google"
 
@@ -262,7 +280,13 @@ class TranslationWorkerService:
         self._prompt_ai_pause_until = 0.0
         # Guards against dispatching the same task to two background threads while
         # an earlier dispatch is still in flight.
-        self._inflight: set = set()
+        # task_id -> monotonic deadline. A hung executor (semaphore block or a
+        # stalled engine) used to leak the entry forever, so after Laravel's lease
+        # timeout re-offered the task THIS worker skipped it until restart. Now
+        # each entry carries a deadline (now + task.timeout_seconds, default
+        # INFLIGHT_DEFAULT_TTL) and expired entries are purged before the skip
+        # check, so a re-offered task can be claimed again.
+        self._inflight: Dict[str, float] = {}
         self._inflight_lock = threading.Lock()
         self._http_timeout = 8  # seconds for register/heartbeat/pull/result calls
 
@@ -527,7 +551,13 @@ class TranslationWorkerService:
             return True
 
     def _subtitle_enabled(self) -> bool:
-        """Subtitle lane: hard knob AND the assist subtitle toggle."""
+        """Subtitle lane: hard knob AND the assist subtitle toggle.
+
+        Defaults OFF (legacy_default=False): the SubtitleSearchController is absent
+        at this baseline, so advertising remote_subtitle would claim tasks and fail
+        them, burning retries. Enable explicitly (assist subtitle toggle) once the
+        controller is restored.
+        """
         try:
             if not bool(getattr(self._cfg(), "SUBTITLE_SEARCH_WORKER_ENABLED", True)):
                 return False
@@ -535,9 +565,9 @@ class TranslationWorkerService:
             pass
         try:
             from pycore.pyctl.assist import assist_capability_enabled
-            return assist_capability_enabled("subtitle", True)
+            return assist_capability_enabled("subtitle", False)
         except Exception:
-            return True
+            return False
 
     def _poster_enabled(self) -> bool:
         """Poster lane: hard knob AND the live media_sync.fetch_poster toggle AND the
@@ -594,6 +624,18 @@ class TranslationWorkerService:
         except Exception:
             return True
 
+    def _stt_enabled(self) -> bool:
+        """STT lane (remote_stt): assist 'stt' toggle. Defaults OFF so pycore only
+        advertises the lane when explicitly enabled (local whisper/vosk is heavier
+        than the other lanes). Backed by pyutils.stt.stt_orchestrator which picks
+        the best available engine (faster-whisper/whisper/vosk/azure).
+        """
+        try:
+            from pycore.pyctl.assist import assist_capability_enabled
+            return assist_capability_enabled("stt", False)
+        except Exception:
+            return False
+
     def _effective_capabilities(self) -> List[str]:
         """Capabilities advertised on register AND status: audio,translate (+ai_translate,+image)."""
         caps = ["audio", "translate"]
@@ -601,6 +643,8 @@ class TranslationWorkerService:
             caps.append("ai_translate")
         if self._image_enabled():
             caps.append("image")
+        if self._stt_enabled():
+            caps.append("stt")
         return caps
 
     def _effective_processor_types(self) -> List[str]:
@@ -619,6 +663,8 @@ class TranslationWorkerService:
             types.append(self.POSTER_EXECUTION_TYPE)
         if self._sentence_audio_enabled():
             types.append(self.SENTENCE_AUDIO_EXECUTION_TYPE)
+        if self._stt_enabled():
+            types.append(self.STT_EXECUTION_TYPE)
         # De-dup preserving order.
         seen: set = set()
         ordered: List[str] = []
@@ -953,13 +999,16 @@ class TranslationWorkerService:
         double-enqueue). Returns the number actually enqueued.
         """
         added = 0
+        now = time.monotonic()
         with self._heap_lock:
             heap = self._task_heaps.setdefault(base, [])
             for task in tasks:
                 task_id = task.get("task_id")
                 with self._inflight_lock:
-                    if task_id in self._inflight:
-                        continue
+                    self._purge_inflight_locked(now)
+                    deadline = self._inflight.get(task_id)
+                    if deadline is not None and deadline > now:
+                        continue  # still being processed
                 self._heap_seq += 1
                 # min-heap on (-priority, seq) => highest priority, then FIFO.
                 heapq.heappush(heap, (-self._task_priority(task), self._heap_seq, task))
@@ -1141,6 +1190,9 @@ class TranslationWorkerService:
             if task_type == self.AUDIO_TASK_TYPE:
                 self._process_audio_task(task)
                 return
+            if task_type == self.ARTICLE_AUDIO_TASK_TYPE:
+                self._process_article_audio_task(task)
+                return
             if task_type == self.IMAGE_TASK_TYPE:
                 self._process_image_task(task)
                 return
@@ -1155,6 +1207,9 @@ class TranslationWorkerService:
                 return
             if task_type == "prompt_translation":
                 self._process_prompt_translation_task(task)
+                return
+            if task_type in self.STT_TASK_TYPES:
+                self._process_stt_task(task)
                 return
 
             # The pull claims by execution_type, so a mis-tagged task of another
@@ -1231,7 +1286,7 @@ class TranslationWorkerService:
             self._post_result(task_id, "failed", error=str(e))
         finally:
             with self._inflight_lock:
-                self._inflight.discard(task_id)
+                self._inflight.pop(task_id, None)
 
     # -------------------- AI-translate capability (shared fast lane) --------------------
 
@@ -1300,50 +1355,153 @@ class TranslationWorkerService:
 
     # -------------------- audio (assist TTS) lane --------------------
 
-    def _synthesize_word_audio(self, text: str, language: str) -> Tuple[str, str]:
+    def _synthesize_word_audio(self, text: str, language: str,
+                               accent: Optional[str] = None) -> Tuple[str, str, str]:
         """Synthesize ``text`` -> MP3 bytes (base64) via the pyutils TTS orchestrator.
 
-        Returns (audio_base64, engine). Raises on failure (caller posts 'failed').
+        ``accent`` ("us"|"uk"|None) is threaded to the orchestrator so the
+        accent-aware engines (edge/streamelements) pick the matching voice.
+        Returns (audio_base64, engine, actual_accent) where actual_accent is the
+        accent ACTUALLY produced ("us"|"uk"|"unknown"). Raises on failure
+        (caller posts 'failed').
         """
-        import base64
         import tempfile
-        from pathlib import Path
         from pycore.pyutils.tts import tts_orchestrator
 
         fd, tmp_path = tempfile.mkstemp(prefix="worker_tts_", suffix=".mp3")
         os.close(fd)
         tmp = Path(tmp_path)
         try:
-            synth = tts_orchestrator.synthesize(text, language, tmp)
+            synth = tts_orchestrator.synthesize(text, language, tmp, accent=accent)
             if not synth.get("success"):
                 raise RuntimeError(synth.get("error") or "tts synthesis failed")
             audio = tmp.read_bytes() if tmp.exists() else b""
             if len(audio) < 100:
                 raise RuntimeError(
                     f"engine '{synth.get('engine')}' produced {len(audio)} bytes")
-            return base64.b64encode(audio).decode("ascii"), (synth.get("engine") or "unknown")
+            actual_accent = synth.get("accent") or "unknown"
+            return (base64.b64encode(audio).decode("ascii"),
+                    (synth.get("engine") or "unknown"), actual_accent)
         finally:
             try:
                 tmp.unlink()
             except OSError:
                 pass
 
+    @staticmethod
+    def _normalize_audio_accent(payload: Dict[str, Any]) -> Optional[str]:
+        """Normalize payload.accent to the wire values "us"|"uk"|None."""
+        value = str(payload.get("accent") or "").strip().lower()
+        return value if value in ("us", "uk") else None
+
+    def _audio_cache_parts(self, word: str, language: str,
+                           accent: Optional[str]) -> Tuple[str, ...]:
+        """result_cache key parts for one word's audio (word, lang, accent)."""
+        return (word.strip().lower(), (language or "en").strip().lower(), accent or "any")
+
+    def _resolve_one_word_audio(self, word: str, language: str,
+                                accent: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Resolve audio for ONE word: cache -> real-pronunciation chain -> TTS.
+
+        Returns a translations-contract item
+        ``{word, audio_base64, mime, engine, provider, accent, accent_fallback}``
+        or None when every source failed (never raises). Caches the produced
+        bytes + meta under the word_audio namespace so a repeat request is
+        served without re-hitting the network / engines.
+        """
+        cache_parts = self._audio_cache_parts(word, language, accent)
+        try:
+            cached = result_cache.get_bytes("word_audio", *cache_parts)
+        except Exception:  # noqa: BLE001 - cache must never break this lane
+            cached = None
+        if cached:
+            audio_bytes, meta = cached
+            if audio_bytes and len(audio_bytes) >= 100:
+                actual_accent = meta.get("accent") or "unknown"
+                provider = meta.get("provider") or meta.get("engine") or "unknown"
+                return {
+                    "word": word,
+                    "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
+                    "mime": meta.get("mime") or "audio/mpeg",
+                    "engine": provider,
+                    "provider": provider,
+                    "accent": actual_accent,
+                    "accent_fallback": bool(accent and actual_accent != accent),
+                }
+
+        audio_bytes = b""
+        provider = "unknown"
+        mime = "audio/mpeg"
+        actual_accent = "unknown"
+
+        real_source = None
+        try:
+            real_source = find_pronunciation(word, language, accent)
+        except Exception as e:  # noqa: BLE001 - real-source chain must never break this lane
+            ColorPrint.yellow(
+                f"[TranslationWorker] word_audio real-source lookup skipped ({e}); "
+                "falling back to TTS")
+
+        if real_source:
+            audio_bytes = real_source.get("audio_bytes") or b""
+            provider = real_source.get("provider") or "unknown"
+            mime = real_source.get("mime") or "audio/mpeg"
+            actual_accent = real_source.get("accent") or "unknown"
+        else:
+            try:
+                b64, engine, actual_accent = self._synthesize_word_audio(word, language, accent)
+                audio_bytes = base64.b64decode(b64)
+                provider = engine
+                mime = "audio/mpeg"
+            except Exception as e:  # noqa: BLE001 - TTS fallback failed
+                ColorPrint.red(
+                    f"[TranslationWorker] word_audio TTS failed for '{word}': {e}")
+                return None
+
+        if not audio_bytes or len(audio_bytes) < 100:
+            return None
+
+        try:
+            result_cache.set_bytes(
+                "word_audio", audio_bytes, *cache_parts,
+                meta={"mime": mime, "provider": provider, "engine": provider,
+                      "accent": actual_accent})
+        except Exception:  # noqa: BLE001 - cache write must never break this lane
+            pass
+
+        return {
+            "word": word,
+            "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
+            "mime": mime,
+            "engine": provider,
+            "provider": provider,
+            "accent": actual_accent,
+            "accent_fallback": bool(accent and actual_accent != accent),
+        }
+
     def _process_audio_task(self, task: Dict[str, Any]) -> None:
-        """word_audio task: real pronunciation source chain first, TTS fallback
-        -> {audio_base64}.
+        """word_audio task: per-word real pronunciation chain first, TTS fallback
+        -> translations[] contract.
 
-        Guarded by _audio_enabled(): if assist TTS is disabled on this worker the task
-        is reported 'failed' (so it re-routes) and recorded locally, never silently
-        dropped.
+        Guarded by _audio_enabled(): if assist TTS is disabled on this worker the
+        task is reported 'failed' (so it re-routes) and recorded locally, never
+        silently dropped.
 
-        Tries word_audio_client.find_pronunciation() FIRST (Free Dictionary API ->
-        Cambridge Dictionary -> Forvo, each independently guarded / never raises).
-        On a real-source hit its audio bytes are used directly and the 'engine'
-        result field carries the source's provider name (e.g.
-        "free_dictionary_api", "cambridge_dictionary", "forvo") instead of a TTS
-        engine name. Only when every real source misses does this fall through to
-        the existing _synthesize_word_audio() -> tts_orchestrator.synthesize() path,
-        unchanged.
+        Payload (additive over the legacy {text|word, language} form):
+          { words:[{word,md5}|str], language, accent?"us"|"uk" }
+        or the legacy single-word form { text|word|content, language, accent? }.
+        ``accent`` is the user's preferred English accent, threaded to the real
+        source chain and the TTS engines; when a provider cannot honor it the
+        chain still runs and the ACTUAL accent is tagged per item
+        (accent_fallback=true) so the backend can store/serve it as a fallback.
+
+        Emits the shared translations contract expected by
+        WordTranslationTaskProcessor:
+          { translations:[{word, audio_base64, mime, engine, provider,
+                           accent, accent_fallback}],
+            provider, target_language }
+        Each item carries the produced audio as base64 mp3. If EVERY word fails
+        the task is posted 'failed'.
         """
         task_id = task.get("task_id")
         if not self._audio_enabled():
@@ -1352,39 +1510,227 @@ class TranslationWorkerService:
                               posted_back=False, error="assist TTS disabled on this worker")
             return
         payload = task.get("payload") or {}
-        text = (payload.get("text") or payload.get("word") or "").strip()
         language = (payload.get("language") or "en").strip() or "en"
-        if not text:
-            self._post_result(task_id, "failed", error="word_audio task had no text")
+        accent = self._normalize_audio_accent(payload)
+
+        words = self._normalize_words(payload.get("words")) if payload.get("words") else []
+        if not words:
+            single = (payload.get("content") or payload.get("text")
+                      or payload.get("word") or "").strip()
+            if single:
+                words = [single]
+        if not words:
+            self._post_result(task_id, "failed", error="word_audio task had no words")
             return
         self._post_result(task_id, "processing", progress=5, attempts=1)
 
-        real_source = None
-        try:
-            real_source = find_pronunciation(text, language)
-        except Exception as e:  # noqa: BLE001 - real-source chain must never break this lane
-            ColorPrint.yellow(
-                f"[TranslationWorker] word_audio task {task_id} real-source lookup "
-                f"skipped ({e}); falling back to TTS")
+        translations: List[Dict[str, Any]] = []
+        for word in words:
+            item = self._resolve_one_word_audio(word, language, accent)
+            if item:
+                translations.append(item)
 
-        if real_source:
-            audio_b64 = base64.b64encode(real_source["audio_bytes"]).decode("ascii")
-            engine = real_source["provider"]
-            mime = real_source.get("mime") or "audio/mpeg"
-        else:
-            try:
-                audio_b64, engine = self._synthesize_word_audio(text, language)
-            except Exception as e:
-                ColorPrint.red(f"[TranslationWorker] word_audio task {task_id} failed: {e}")
-                self._post_result(task_id, "failed", error=str(e))
-                self._record_task(task, self.AUDIO_TASK_TYPE, "failed",
-                                  posted_back=True, error=str(e))
-                return
-            mime = "audio/mpeg"
+        if not translations:
+            self._post_result(task_id, "failed",
+                              error=f"word_audio: no audio for any of {len(words)} word(s)")
+            self._record_task(task, self.AUDIO_TASK_TYPE, "failed", posted_back=True,
+                              error="no audio produced")
+            return
 
-        result = {"audio_base64": audio_b64, "mime": mime, "engine": engine}
+        overall_provider = translations[0].get("provider") or "unknown"
+        result = {
+            "translations": translations,
+            "provider": overall_provider,
+            "target_language": language,
+        }
         self._post_result(task_id, "completed", result=result, progress=100)
         self._record_task(task, self.AUDIO_TASK_TYPE, "completed", posted_back=True)
+
+    # -------------------- article-audio lane --------------------
+
+    def _process_article_audio_task(self, task: Dict[str, Any]) -> None:
+        """article_audio task: synthesize a long-form text block into ONE MP3.
+
+        Rides remote_audio like word_audio but skips the per-word real-pronunciation
+        chain (articles are sentences/paragraphs, not dictionary words): the text
+        goes straight to the TTS orchestrator. Payload is the unified audio shape
+        {content|text, language, accent?} (Laravel producers put the text under
+        payload.content). Result: {audio_base64, mime, engine, accent}; no
+        translations[] writeback (article_audio has no dictionary row), so Laravel
+        treats it as a text-only success (stored_count=null -> not downgraded).
+
+        Disabled / empty / synthesis failure -> 'failed' (re-route), never dropped.
+        """
+        task_id = task.get("task_id")
+        if not self._audio_enabled():
+            self._post_result(task_id, "failed", error="assist TTS disabled on this worker")
+            self._record_task(task, self.ARTICLE_AUDIO_TASK_TYPE, "failed",
+                              posted_back=False, error="assist TTS disabled on this worker")
+            return
+        payload = task.get("payload") or {}
+        text = (payload.get("content") or payload.get("text") or "").strip()
+        language = (payload.get("language") or "en").strip() or "en"
+        accent = self._normalize_audio_accent(payload)
+        if not text:
+            self._post_result(task_id, "failed", error="article_audio task had no text")
+            return
+        self._post_result(task_id, "processing", progress=5, attempts=1)
+        try:
+            audio_b64, engine, actual_accent = self._synthesize_word_audio(text, language, accent=accent)
+        except Exception as e:
+            ColorPrint.red(f"[TranslationWorker] article_audio task {task_id} failed: {e}")
+            self._post_result(task_id, "failed", error=str(e))
+            self._record_task(task, self.ARTICLE_AUDIO_TASK_TYPE, "failed",
+                              posted_back=True, error=str(e))
+            return
+        result = {
+            "audio_base64": audio_b64,
+            "mime": "audio/mpeg",
+            "engine": engine,
+            "accent": actual_accent,
+        }
+        self._post_result(task_id, "completed", result=result, progress=100)
+        self._record_task(task, self.ARTICLE_AUDIO_TASK_TYPE, "completed", posted_back=True)
+
+    # -------------------- STT lane (remote_stt) --------------------
+
+    def _process_stt_task(self, task: Dict[str, Any]) -> None:
+        """STT task: transcribe an audio clip to text via pyutils.stt.stt_orchestrator.
+
+        Accepts audio as payload.file_path (local path), payload.audio_url (http(s)
+        URL downloaded to a temp file), or payload.audio_base64 (base64-decoded to a
+        temp file). Optional payload.language (BCP-47 or short code like 'en'/'zh').
+        Result: {text, language, engine}. The orchestrator picks the best available
+        engine (faster-whisper -> whisper -> vosk -> azure); vosk/azure need PCM wav
+        so a non-wav input is converted via ffmpeg when one of those is chosen.
+
+        Disabled / no audio / no engine / transcription failure -> 'failed'.
+        """
+        import tempfile
+        from pycore.pyutils.stt import stt_orchestrator
+
+        task_id = task.get("task_id")
+        if not self._stt_enabled():
+            self._post_result(task_id, "failed", error="stt disabled on this worker")
+            return
+        payload = task.get("payload") or {}
+        language = (payload.get("language") or payload.get("source_language") or None)
+        if isinstance(language, str):
+            language = language.strip() or None
+
+        tmp_path: Optional[str] = None
+        owned_file = False  # True when we created the temp file (must clean up)
+        try:
+            file_path = (payload.get("file_path") or payload.get("audio_path") or "").strip()
+            audio_url = (payload.get("audio_url") or payload.get("url") or "").strip()
+            audio_b64 = payload.get("audio_base64") or payload.get("base64")
+
+            if file_path and os.path.isfile(file_path):
+                tmp_path = file_path
+            elif audio_url:
+                try:
+                    requests = self._requests()
+                    fd, tmp_path = tempfile.mkstemp(prefix="worker_stt_", suffix=".mp3")
+                    os.close(fd)
+                    owned_file = True
+                    resp = requests.get(audio_url, timeout=60, stream=True)
+                    if resp.status_code != 200:
+                        self._post_result(task_id, "failed",
+                                          error=f"stt audio download failed: HTTP {resp.status_code}")
+                        return
+                    with open(tmp_path, "wb") as fh:
+                        for chunk in resp.iter_content(8192):
+                            if chunk:
+                                fh.write(chunk)
+                except Exception as e:
+                    self._post_result(task_id, "failed", error=f"stt audio download error: {e}")
+                    return
+            elif audio_b64:
+                try:
+                    fd, tmp_path = tempfile.mkstemp(prefix="worker_stt_", suffix=".bin")
+                    os.close(fd)
+                    owned_file = True
+                    with open(tmp_path, "wb") as fh:
+                        fh.write(base64.b64decode(audio_b64))
+                except Exception as e:
+                    self._post_result(task_id, "failed", error=f"stt base64 decode error: {e}")
+                    return
+            else:
+                self._post_result(task_id, "failed",
+                                  error="stt task had no audio (file_path|audio_url|audio_base64)")
+                return
+
+            self._post_result(task_id, "processing", progress=5, attempts=1)
+
+            engine = stt_orchestrator.best_engine()
+            if not engine:
+                self._post_result(task_id, "failed",
+                                  error="no STT engine available (install faster-whisper/whisper/vosk)")
+                return
+
+            audio_path = Path(tmp_path)
+            # vosk/azure need 16k PCM wav; convert from compressed input via ffmpeg.
+            needs_wav = engine in getattr(stt_orchestrator, "_NEEDS_WAV", set())
+            if needs_wav and audio_path.suffix.lower() != ".wav":
+                wav_path = self._stt_to_wav(audio_path)
+                if wav_path is None:
+                    # Fall back to an engine that decodes mp3 natively if possible.
+                    fallback = next(
+                        (e for e in ("faster-whisper", "whisper")
+                         if e != engine and stt_orchestrator.engine_available(e)), None)
+                    if not fallback:
+                        self._post_result(task_id, "failed",
+                                          error=f"stt engine '{engine}' needs wav and ffmpeg is unavailable")
+                        return
+                    engine = fallback
+                else:
+                    audio_path = wav_path
+
+            try:
+                text = stt_orchestrator.transcribe(engine, audio_path, language)
+            except Exception as e:
+                ColorPrint.red(f"[TranslationWorker] stt task {task_id} failed: {e}")
+                self._post_result(task_id, "failed", error=f"stt transcription error: {e}")
+                return
+
+            if not text:
+                self._post_result(task_id, "failed", error="stt produced empty transcript")
+                return
+
+            result = {"text": text, "language": language or "auto", "engine": engine}
+            self._post_result(task_id, "completed", result=result, progress=100)
+        finally:
+            if owned_file and tmp_path and os.path.isfile(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+    @staticmethod
+    def _stt_to_wav(src: Path) -> Optional[Path]:
+        """Convert any audio file to a 16kHz mono PCM wav for vosk/azure via ffmpeg.
+
+        Returns the wav path, or None when ffmpeg is unavailable / conversion fails.
+        """
+        import shutil
+        import tempfile
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            return None
+        fd, wav_path = tempfile.mkstemp(prefix="worker_stt_", suffix=".wav")
+        os.close(fd)
+        try:
+            import subprocess
+            rc = subprocess.run(
+                [ffmpeg, "-y", "-i", str(src), "-ar", "16000", "-ac", "1",
+                 "-f", "wav", str(wav_path)],
+                capture_output=True, timeout=120,
+            ).returncode
+            if rc != 0 or not os.path.isfile(wav_path) or os.path.getsize(wav_path) == 0:
+                return None
+            return Path(wav_path)
+        except Exception:
+            return None
 
     # -------------------- subtitle-search lane --------------------
 
@@ -1587,7 +1933,8 @@ class TranslationWorkerService:
             self._post_result(task_id, "failed", error="sentence audio disabled on this worker")
             return
         payload = task.get("payload") or {}
-        text = (payload.get("text") or payload.get("sentence") or "").strip()
+        text = (payload.get("text") or payload.get("sentence")
+                or payload.get("content") or "").strip()
         language = (payload.get("language") or "en").strip() or "en"
         if not text:
             self._post_result(task_id, "failed", error="sentence_audio task had no text")
@@ -1716,6 +2063,17 @@ class TranslationWorkerService:
             "sentence_audio": "remote_sentence_audio",
         }.get(task.get("task_type"), "remote_translation")
 
+    def _purge_inflight_locked(self, now: float) -> None:
+        """Drop inflight entries whose deadline has passed. Caller holds _inflight_lock.
+
+        A hung executor (semaphore block or stalled engine) would otherwise keep a
+        task_id blacklisted forever, so a re-offered task (after Laravel's lease
+        timeout) could never be re-claimed by this worker until restart.
+        """
+        expired = [tid for tid, dl in self._inflight.items() if dl <= now]
+        for tid in expired:
+            self._inflight.pop(tid, None)
+
     def _dispatch(self, task: Dict[str, Any]) -> None:
         """
         Hand a task to a background thread via the pyctl desktop TaskManager so the
@@ -1723,10 +2081,14 @@ class TranslationWorkerService:
         VideoExtractController.start()'s use of execute_task.
         """
         task_id = task.get("task_id")
+        now = time.monotonic()
         with self._inflight_lock:
-            if task_id in self._inflight:
+            self._purge_inflight_locked(now)
+            deadline = self._inflight.get(task_id)
+            if deadline is not None and deadline > now:
                 return  # already being processed
-            self._inflight.add(task_id)
+            ttl = int(task.get("timeout_seconds") or self.INFLIGHT_DEFAULT_TTL)
+            self._inflight[task_id] = now + max(ttl, self.INFLIGHT_DEFAULT_TTL)
 
         try:
             tm = get_task_manager()

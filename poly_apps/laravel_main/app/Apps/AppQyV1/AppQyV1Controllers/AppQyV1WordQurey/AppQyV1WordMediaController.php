@@ -56,7 +56,15 @@ class AppQyV1WordMediaController extends BaseController
             $targetLanguage = null;
         }
 
-        $data = (new AppQyV1WordMediaService())->resolve($word, $lang, $targetLanguage, true);
+        // Preferred English accent ("us"|"uk") from the FE voiceAccent setting
+        // (target #4): threaded into the word_audio task payload so pycore
+        // generates the requested accent. Anything else / unset = no preference.
+        $accent = $request->query('accent');
+        if (!is_string($accent) || !in_array(strtolower(trim($accent)), ['us', 'uk'], true)) {
+            $accent = null;
+        }
+
+        $data = (new AppQyV1WordMediaService())->resolve($word, $lang, $targetLanguage, true, $accent);
 
         return response()->json([
             'success' => true,

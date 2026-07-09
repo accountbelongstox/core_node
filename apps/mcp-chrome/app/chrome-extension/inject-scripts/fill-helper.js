@@ -6,6 +6,21 @@ if (window.__FILL_HELPER_INITIALIZED__) {
   // Already initialized, skip
 } else {
   window.__FILL_HELPER_INITIALIZED__ = true;
+  // React-safe native value setter: bypasses React's property override so
+  // controlled inputs register the change through their own onChange handler.
+  function nativeValueSet(el, value) {
+    const proto =
+      el.tagName === 'TEXTAREA'
+        ? window.HTMLTextAreaElement.prototype
+        : window.HTMLInputElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (descriptor && descriptor.set) {
+      descriptor.set.call(el, value);
+    } else {
+      el.value = value;
+    }
+  }
+
   /**
    * Fill an input element with the specified value
    * @param {string} selector - CSS selector for the element to fill
@@ -118,12 +133,12 @@ if (window.__FILL_HELPER_INITIALIZED__) {
       } else {
         // For input and textarea elements
 
-        // Clear the current value
-        element.value = '';
+        // Clear the current value via native setter (React-safe)
+        nativeValueSet(element, '');
         element.dispatchEvent(new Event('input', { bubbles: true }));
 
-        // Set the new value
-        element.value = value;
+        // Set the new value via native setter (React-safe)
+        nativeValueSet(element, value);
 
         // Trigger input and change events
         element.dispatchEvent(new Event('input', { bubbles: true }));
@@ -157,7 +172,7 @@ if (window.__FILL_HELPER_INITIALIZED__) {
     if (!element) return false;
 
     const style = window.getComputedStyle(element);
-    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+    if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) {
       return false;
     }
 
