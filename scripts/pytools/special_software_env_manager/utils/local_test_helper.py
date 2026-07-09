@@ -76,8 +76,7 @@ class LocalTestHelper:
         for key, value in credentials.items():
             display_name = key.replace('_', ' ').title()
             if value:
-                masked_value = '*' * min(len(value), 8) + '...' if len(value) > 3 else '***'
-                ColorMessage.write(f"{display_name:25} {masked_value:20} [SET]", 'success')
+                ColorMessage.write(f"{display_name:25} {value} [SET]", 'success')
             else:
                 ColorMessage.write(f"{display_name:25} {'[NOT SET]':20}", 'warning')
 

@@ -77,10 +77,7 @@ class EncryptedConstantsManager:
             
             if existing_value:
                 existing_values[var_name] = existing_value
-                display_value = existing_value
-                if len(display_value) > 70:
-                    display_value = display_value[:67] + "..."
-                ColorMessage.write(f"  {display_name}: {display_value}", 'info')
+                ColorMessage.write(f"  {display_name}: {existing_value}", 'info')
             else:
                 ColorMessage.write(f"  {display_name}: [Not set]", 'warning')
         
@@ -225,11 +222,7 @@ class EncryptedConstantsManager:
                 try:
                     value = safe_read_secret(secret_file).strip()
                     if value:
-                        if len(value) > 8:
-                            preview = value[:8] + "..."
-                        else:
-                            preview = "***"
-                        ColorMessage.write(f" {preview} (saved)", 'success')
+                        ColorMessage.write(f" {value} (saved)", 'success')
                         found_count += 1
                     else:
                         ColorMessage.write(" [Empty file]", 'warning')

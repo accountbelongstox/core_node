@@ -119,10 +119,7 @@ function Get-SecretValue {{
 
     if ($value) {{
         Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
-        if ($value.Length -gt 8) {{
-            $masked = $value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4)
-            Write-Host "[DEBUG] Value preview (masked): $masked" -ForegroundColor DarkGray
-        }}
+        Write-Host "[DEBUG] Value: $value" -ForegroundColor DarkGray
     }}
 
     return $value

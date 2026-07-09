@@ -140,10 +140,7 @@ class CommandHandler:
 
             if existing_value:
                 existing_values[var_name] = existing_value
-                display_value = existing_value
-                if len(display_value) > 70:
-                    display_value = display_value[:67] + "..."
-                ColorMessage.write(f"  {display_name}: {display_value}", 'info')
+                ColorMessage.write(f"  {display_name}: {existing_value}", 'info')
             else:
                 ColorMessage.write(f"  {display_name}: [Not set]", 'warning')
 

@@ -69,7 +69,7 @@ class EnvironmentVariableManager:
                 ColorMessage.write(f"{display_name}: {description}", 'info')
 
             if current_value:
-                prompt = f"{display_name} (current: ***hidden***): "
+                prompt = f"{display_name} (current: {current_value}): "
             else:
                 prompt = f"{display_name} (not set): "
 
@@ -184,11 +184,7 @@ class EnvironmentVariableManager:
 
             ColorMessage.write(f"{display_name}: ", 'info', no_newline=True)
             if value:
-                if len(value) > 70:
-                    preview = value[:67] + "..."
-                else:
-                    preview = value
-                ColorMessage.write(preview, 'success')
+                ColorMessage.write(value, 'success')
                 found_count += 1
             else:
                 ColorMessage.write("[Not set]", 'warning')
@@ -291,7 +287,7 @@ class EnvironmentVariableManager:
             print()
             ColorMessage.write("Environment variables in backup:", 'info')
             for var_name, var_value in env_vars.items():
-                ColorMessage.write(f"  {var_name}: ***hidden***", 'info')
+                ColorMessage.write(f"  {var_name}: {var_value}", 'info')
 
             print()
             ColorMessage.write("Do you want to restore these variables? (y/N): ", 'warning', no_newline=True)
