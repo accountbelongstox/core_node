@@ -577,4 +577,20 @@ if [ -f "$MCP_DEB_SVC_MGR" ] && command -v systemctl >/dev/null 2>&1; then
         fi
     fi
 fi
+
+# Print useful service management commands (if service exists)
+if systemctl cat "${MCP_SERVICE_NAME}.service" >/dev/null 2>&1; then
+    echo ""
+    echo -e "${CYAN}========================================${NC}"
+    echo -e "${YELLOW}  SERVICE COMMANDS (${MCP_SERVICE_NAME})${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    echo -e "${WHITE}  View logs:        ${CYAN}sudo journalctl -u ${MCP_SERVICE_NAME} -f${NC}"
+    echo -e "${WHITE}  Last 50 lines:    ${CYAN}sudo journalctl -u ${MCP_SERVICE_NAME} --no-pager -n 50${NC}"
+    echo -e "${WHITE}  Restart:          ${CYAN}sudo systemctl restart ${MCP_SERVICE_NAME}${NC}"
+    echo -e "${WHITE}  Stop:             ${CYAN}sudo systemctl stop ${MCP_SERVICE_NAME}${NC}"
+    echo -e "${WHITE}  Status:           ${CYAN}sudo systemctl status ${MCP_SERVICE_NAME}${NC}"
+    echo -e "${WHITE}  Disable autostart:${CYAN}sudo systemctl disable ${MCP_SERVICE_NAME}${NC}"
+    echo ""
+fi
 echo ""
