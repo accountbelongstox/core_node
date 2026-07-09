@@ -87,7 +87,7 @@ def process_prompt_translation_task(worker, task: Dict[str, Any]) -> None:
     # backend stores the bytes and serves them for the wordnew daily reading.
     if want_audio and lane_gating.sentence_audio_enabled():
         try:
-            audio_b64, engine = _h_audio.synthesize_word_audio(english, "en")
+            audio_b64, engine, _ = _h_audio.synthesize_word_audio(english, "en")
             if audio_b64:
                 result["audio_base64"] = audio_b64
                 result["audio"] = {"language": "en", "engine": engine, "mime": "audio/mpeg"}

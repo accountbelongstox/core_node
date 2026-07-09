@@ -291,7 +291,7 @@ def process_sentence_audio_task(worker, task: Dict[str, Any]) -> None:
         return
     worker._post_result(task_id, "processing", progress=5, attempts=1)
     try:
-        audio_b64, engine = synthesize_word_audio(text, language)
+        audio_b64, engine, _ = synthesize_word_audio(text, language)
     except Exception as e:
         ColorPrint.red(f"[TranslationWorker] sentence_audio task {task_id} failed: {e}")
         worker._post_result(task_id, "failed", error=str(e))

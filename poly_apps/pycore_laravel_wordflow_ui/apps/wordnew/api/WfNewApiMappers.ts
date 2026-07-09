@@ -3,6 +3,8 @@
  * limit. Each function maps a raw backend row to a normalized app type; absUrl
  * rebases a backend-relative media path onto the current endpoint base. */
 import { wfNewEndpoints } from './WfNewEndpoints';
+import { authedGetJSON } from './WfNewApiTransport';
+import { WfNewApiPaths } from './WfNewApiPaths';
 import type {
   WfNewBookVerse,
   WfNewBookVerseLang,
@@ -308,4 +310,11 @@ export function documentRowToContentGroup(raw: any, i = 0): WfNewContentGroup {
     category: undefined,
     description: undefined,
   };
+}
+
+
+/** Fetch user's word groups (auth-required, no token -> []). Moved from WfNewApiHttp. */
+export async function fetchGroups(): Promise<any[]> {
+  const res = await authedGetJSON<any>(WfNewApiPaths.queryAllGroups, null);
+  return asArray(res, 'groups').map(toGroup);
 }

@@ -113,7 +113,14 @@ PRESET_EXCLUDED_EXTENSIONS: List[str] = [
     ".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv", ".flv", ".m4v", ".mpg", ".mpeg",
 ]
 
-PRESET_EXCLUDED_PATH_SUBSTRINGS: List[str] = []
+PRESET_EXCLUDED_PATH_SUBSTRINGS: List[str] = [
+    # Laravel framework runtime (regenerated, machine-specific): cache/sessions/views/testing.
+    # Trailing slash anchors the match to the directory so paths like
+    # "storage/framework-guide" are NOT false-matched.
+    "storage/framework/",
+    # Laravel compiled config/routes/packages cache (bootstrap/cache/*.php).
+    "bootstrap/cache/",
+]
 
 PRESET_APPLY_GITIGNORE: bool = False
 

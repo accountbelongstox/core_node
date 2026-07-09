@@ -5,7 +5,7 @@
  * WfTab + wfNewPageHeader move here too (the hook computes `pageHeader`). */
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-  wfNewApi, wfNewEndpoints, wfNewEndpointStore, WFNEW_API_HEALTH_EVENT,
+  wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WFNEW_API_HEALTH_EVENT,
   startSocialSse, stopSocialSse, subscribeSocial,
 } from '../api';
 import type {

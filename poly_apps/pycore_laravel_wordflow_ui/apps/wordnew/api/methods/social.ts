@@ -8,7 +8,9 @@ import {
 } from '../WfNewApiTransport';
 import {
   absUrl, toPost, toComment, toLive, toLiveMsg, toActor, toMessage, toNotification,
+  asArray, decorate, toWord, fetchGroups, logContentFallback,
 } from '../WfNewApiMappers';
+import { unwrapEnvelope } from '../WfNewApiTransport';
 
 export const socialMethods = {
   // ---- Social (all auth-required) ----

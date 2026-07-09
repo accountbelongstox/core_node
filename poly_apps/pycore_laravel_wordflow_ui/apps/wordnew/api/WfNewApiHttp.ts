@@ -67,11 +67,6 @@ import { socialMethods } from './methods/social';
 
 // --- implementation -------------------------------------------------------- #
 
-async function fetchGroups(): Promise<WordGroup[]> {
-  // Auth-required (user's word groups) — no token -> [] without a request.
-  const res = await authedGetJSON<any>(WfNewApiPaths.queryAllGroups, null);
-  return asArray(res, 'groups').map(toGroup);
-}
 
 export const wfNewApiHttp: WfNewApi = {
   // ---- Session ----
