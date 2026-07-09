@@ -14,7 +14,7 @@
           <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
         </div>
         <div>
-          <h1 class="text-[11px] font-black tracking-tighter text-white uppercase italic leading-tight">Chrome MCP Server ✦ <span class="text-emerald-400 not-italic">[dev-reload]</span></h1>
+          <h1 class="text-[11px] font-black tracking-tighter text-white uppercase italic leading-tight">Chrome MCP Server ✦</h1>
           <p class="text-[8px] text-slate-500 font-bold uppercase tracking-widest leading-none">AI-Powered Browser Automation</p>
         </div>
       </div>

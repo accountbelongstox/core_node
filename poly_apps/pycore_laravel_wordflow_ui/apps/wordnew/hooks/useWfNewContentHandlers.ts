@@ -2,7 +2,7 @@
  * extracted from useWfNewAppState so the main hook stays under the 800-line
  * modular limit. Takes state as a deps object; returns all handler functions. */
 import { useCallback, useEffect, useMemo } from 'react';
-import { wfNewApi } from '../api';
+import { wfNewApi, wfNewEndpoints, WFNEW_API_HEALTH_EVENT } from '../api';
 import type {
   Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind,
   WfNewHomeContent, WfNewStatistics, WfNewLanguage,
@@ -11,6 +11,8 @@ import type { WfNewCachedKind } from '../cache/WfNewContentCache';
 import {
   getCachedGroups, putCachedGroups, getCachedWords, putCachedWords, dedupGroups,
 } from '../cache/WfNewContentCache';
+import { wfNewSettings } from '../WfNewSettingsStore';
+import { wfNewPageHeader, type WfTab } from './useWfNewAppState';
 
 export function useWfNewContentHandlers(deps: Record<string, any>) {
   const {

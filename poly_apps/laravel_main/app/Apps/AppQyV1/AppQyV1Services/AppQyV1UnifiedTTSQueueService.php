@@ -9,6 +9,7 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\EdgeTTS\EdgeTTSService;
+use App\Services\WordAudio\WordAudioClient;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -43,6 +44,7 @@ class AppQyV1UnifiedTTSQueueService
 {
     private $ttsService;
     private AppQyV1DictionaryTTSCoordinator $coordinator;
+    private WordAudioClient $wordAudioClient;
 
     const TYPE_WORD = 'word';
     const TYPE_SENTENCE = 'sentence';
@@ -85,6 +87,7 @@ class AppQyV1UnifiedTTSQueueService
     {
         $this->ttsService = new EdgeTTSService();
         $this->coordinator = new AppQyV1DictionaryTTSCoordinator($this->ttsService);
+        $this->wordAudioClient = new WordAudioClient();
     }
 
     /**
@@ -535,7 +538,24 @@ class AppQyV1UnifiedTTSQueueService
         if (!(bool) env('APPQYV1_DUAL_WRITE_GLOBAL', false)) {
             return;
         }
+        $this->ensureGlobalAudioTask($row, $language, $taskType, $interactive);
+    }
 
+    /**
+     * Create (idempotently) a pycore word_audio/article_audio GlobalTask linked
+     * to a canonical row, so pycore's audio lane runs the real-pronunciation API
+     * chain then its TTS fallback. Ungated variant of maybeCreateGlobalAudioTask:
+     * used by the timer's API-miss delegation path, where Laravel MUST drive the
+     * task unconditionally (Laravel drives, pycore generates). Best-effort and
+     * idempotent - skips when an active linked task already exists and never
+     * throws into the caller.
+     *
+     * @param mixed  $row      AppQyV1LangDictionaryModel (word) or article model
+     * @param string $language Language code
+     * @param string $taskType 'word_audio' | 'article_audio'
+     */
+    private function ensureGlobalAudioTask($row, string $language, string $taskType, bool $interactive = false): void
+    {
         try {
             // Skip when an active linked global task already exists for this row.
             if (!empty($row->tts_global_task_id)) {
@@ -580,7 +600,7 @@ class AppQyV1UnifiedTTSQueueService
             $row->tts_global_task_id = $task->task_id;
             $row->save();
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('[AppQyV1UnifiedTTSQueueService] dual-write global audio task failed', [
+            \Illuminate\Support\Facades\Log::warning('[AppQyV1UnifiedTTSQueueService] global audio task ensure failed', [
                 'dict_row_id' => $row->id ?? null,
                 'language' => $language,
                 'error' => $e->getMessage(),
@@ -1332,6 +1352,15 @@ class AppQyV1UnifiedTTSQueueService
         $failed = 0;
 
         // ---- WORDS: claim across languages up to the batch size ----
+        //
+        // API-first, no local binary. A claimed word is resolved through the
+        // real-pronunciation API chain (Free Dictionary API -> Forvo) - the SAME
+        // chain AppQyV1WordMediaService::fetchRealPronunciation uses on the
+        // request path. On a hit storeWordAudioBytes persists the bytes and marks
+        // the row completed. On a miss the row is NEVER synthesized via the local
+        // edge-tts binary: it is delegated to the pycore word_audio task lane
+        // (which runs the same API chain, then its TTS fallback) and the claim is
+        // released. Laravel drives the task; pycore generates.
         $claimed = $this->coordinator->claimWords(self::PROCESSOR_ID, null, $batchSize);
 
         foreach ($claimed as $task) {
@@ -1339,8 +1368,6 @@ class AppQyV1UnifiedTTSQueueService
             $startTime = microtime(true);
 
             try {
-                $result = $this->ttsService->generateAudio($task['content'], $lang, 'word');
-
                 // Re-fetch the canonical row (the claim returned raw fields only).
                 $entry = AppQyV1LangDictionaryModel::findByMd5($lang, $task['md5']);
                 if (!$entry) {
@@ -1352,39 +1379,42 @@ class AppQyV1UnifiedTTSQueueService
                     continue;
                 }
 
-                if (!empty($result['success'])) {
-                    $audioPath = $result['audio_path'] ?? null;
-                    $verifyError = $this->verifyGeneratedFile($audioPath);
+                // A worker (pycore word_audio / Bing assist) may have produced the
+                // audio between the claim and this run - nothing left to do.
+                if (!empty($entry->has_audio)) {
+                    $processed++;
+                    $succeeded++;
+                    continue;
+                }
 
-                    if ($verifyError !== null) {
-                        $this->coordinator->markWordFailed($entry, $lang, $verifyError, self::PROCESSOR_ID);
-                        $this->handleProcessingError($verifyError);
-                        if ($entry->tts_status === self::STATUS_FAILED) {
-                            $failed++;
-                        }
-                    } else {
-                        $this->coordinator->markWordCompleted($entry, $audioPath, 'edge-tts');
-                        AppQyV1LangDictionaryModel::forgetMetricsCache($lang);
-                        $succeeded++;
+                $stored = $this->tryRealPronunciation($task['content'], $lang, $task['md5']);
 
-                        $processingTimeMs = (microtime(true) - $startTime) * 1000;
-                        AppQyV1TTSQueueMetrics::recordProcessingTime(self::TYPE_WORD, $processingTimeMs);
+                if ($stored) {
+                    AppQyV1LangDictionaryModel::forgetMetricsCache($lang);
+                    $succeeded++;
 
-                        $this->handleProcessingSuccess();
+                    $processingTimeMs = (microtime(true) - $startTime) * 1000;
+                    AppQyV1TTSQueueMetrics::recordProcessingTime(self::TYPE_WORD, $processingTimeMs);
 
-                        Log::info('[UnifiedTTSQueue] Word task completed', [
-                            'task_id' => $task['task_id'],
-                            'language' => $lang,
-                            'processing_time_ms' => round($processingTimeMs, 2),
-                        ]);
-                    }
+                    $this->handleProcessingSuccess();
+
+                    Log::info('[UnifiedTTSQueue] Word task completed (real-pronunciation API)', [
+                        'task_id' => $task['task_id'],
+                        'language' => $lang,
+                        'processing_time_ms' => round($processingTimeMs, 2),
+                    ]);
                 } else {
-                    $errorMsg = $result['error'] ?? 'Unknown error';
-                    $this->coordinator->markWordFailed($entry, $lang, $errorMsg, self::PROCESSOR_ID);
-                    $this->handleProcessingError($errorMsg);
-                    if ($entry->tts_status === self::STATUS_FAILED) {
-                        $failed++;
-                    }
+                    // API miss: drive the pycore word_audio lane and release the
+                    // claim. This is a delegation, not a failure - the retry
+                    // budget is NOT consumed and tts_status returns to pending so
+                    // pycore (or a later API hit) can own the row.
+                    $this->ensureGlobalAudioTask($entry, $lang, 'word_audio', false);
+                    $this->releaseWordProcessingClaim($entry);
+
+                    Log::info('[UnifiedTTSQueue] Word API miss - delegated to pycore word_audio lane', [
+                        'task_id' => $task['task_id'],
+                        'language' => $lang,
+                    ]);
                 }
 
                 $processed++;
@@ -1654,6 +1684,66 @@ class AppQyV1UnifiedTTSQueueService
         }
 
         return null;
+    }
+
+    /**
+     * Try the REAL pronunciation API chain (Free Dictionary API -> Forvo) for a
+     * word and persist a hit via the source-agnostic coordinator. Mirrors
+     * AppQyV1WordMediaService::fetchRealPronunciation so the timer uses the SAME
+     * API-first logic as the request path (storeWordAudioBytes validates the
+     * bytes, writes the canonical path and marks the row completed). Returns
+     * true only when audio was newly stored. NEVER throws.
+     */
+    private function tryRealPronunciation(string $word, string $lang, string $md5): bool
+    {
+        try {
+            $result = $this->wordAudioClient->findPronunciation($word, $lang);
+        } catch (\Throwable $e) {
+            Log::warning('[UnifiedTTSQueue] real pronunciation lookup failed', [
+                'word' => $word,
+                'language' => $lang,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+
+        if ($result === null) {
+            return false;
+        }
+
+        try {
+            return $this->coordinator->storeWordAudioBytes(
+                $lang,
+                $md5,
+                $result['binary'],
+                $result['provider']
+            );
+        } catch (\Throwable $e) {
+            Log::warning('[UnifiedTTSQueue] failed to store real pronunciation audio', [
+                'word' => $word,
+                'language' => $lang,
+                'provider' => $result['provider'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Release a claimed WORD row back to pending WITHOUT consuming the retry
+     * budget - used after delegating an API-miss to the pycore word_audio lane,
+     * so pycore (or a later API hit) can own the row. Completed rows are never
+     * touched. This is a release, not a failure: tts_attempts is unchanged.
+     */
+    private function releaseWordProcessingClaim($entry): void
+    {
+        if (!$entry || $entry->tts_status === self::STATUS_COMPLETED) {
+            return;
+        }
+        $entry->tts_status = self::STATUS_PENDING;
+        $entry->tts_locked_at = null;
+        $entry->tts_locked_by = null;
+        $entry->save();
     }
 
     /**

@@ -71,6 +71,14 @@ const EXTENSION_REGISTRY: ExtensionRegistry = {
     iconBg: 'bg-emerald-100',
     status: 'active',
   },
+  'ai-translate-hub': {
+    id: 'ai-translate-hub',
+    name: 'AI Translate Hub',
+    description: 'Puter AI translation + Free Dictionary audio (no API key)',
+    icon: '🤖',
+    iconBg: 'bg-purple-100',
+    status: 'active',
+  },
 };
 
 // ============================================================

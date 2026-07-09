@@ -15,6 +15,7 @@ import { notebookLmProcessor } from './processors/NotebookLmProcessor';
 import { geminiImageProcessor } from './processors/GeminiImageProcessor';
 import { promptTranslateWebProcessor } from './processors/PromptTranslateWebProcessor';
 import { wordValidityWebProcessor } from './processors/WordValidityWebProcessor';
+import { puterAiTranslateProcessor } from './processors/PuterAiTranslateProcessor';
 
 /**
  * Initialize and register all task processors
@@ -59,6 +60,11 @@ export function initializeProcessors(): void {
   // web LLM (Gemini/DeepSeek/ChatGPT) to classify untranslated+unchecked words
   // valid/invalid on the dedicated remote_validity lane, so translation skips junk.
   taskCenter.registerProcessor(wordValidityWebProcessor, false);
+
+  // Register Puter AI Translate Processor (DISABLED by default, opt-in):
+  // calls Puter's OpenAI-compatible REST API for translation (no API key, no
+  // browser tab). Advertises capability 'puter_translate' on the fast lane.
+  taskCenter.registerProcessor(puterAiTranslateProcessor, false);
 
   console.log('[TaskCenter] Processors initialized');
 }

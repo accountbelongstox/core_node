@@ -1,0 +1,121 @@
+/**
+ * Puter AI Translate Worker Service
+ *
+ * SimpleWorkerBase subclass that fulfils `word_translation` tasks tagged with
+ * the `puter_translate` capability by calling Puter's OpenAI-compatible REST
+ * API (no browser tab needed, no API key). The dispatcher routes tasks here
+ * when their capability is `puter_translate`.
+ *
+ * Fail-soft: any failure (auth, network, parse, zero pairs) submits 'failed'
+ * so the task is released and re-routed. Never fakes completed-empty.
+ *
+ * Stateless API => concurrency 3 (enforced at the processor layer).
+ */
+
+import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
+import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
+import { puterAiTranslate } from './puter-ai-client';
+import { logger } from '@/utils/logger';
+
+const LOG = 'Puter Translate';
+
+interface NormalizedWord {
+  word: string;
+  md5?: string;
+}
+
+class PuterTranslateWorkerService extends SimpleWorkerBase {
+  protected get processorKey(): string {
+    return 'puter_translate';
+  }
+
+  protected get workerIdStorageKey(): string {
+    return 'puter_translate_worker_id_base';
+  }
+
+  protected get capabilities(): WorkerCapability[] {
+    return ['puter_translate'];
+  }
+
+  protected get baseProcessorTypes(): ProcessorType[] {
+    return [];
+  }
+
+  protected get workerLabel(): string {
+    return LOG;
+  }
+
+  protected handlesTaskType(taskType: string): boolean {
+    return taskType === 'word_translation';
+  }
+
+  protected async executeTask(task: Task): Promise<void> {
+    if (task.capability !== 'puter_translate') {
+      logger.warn(LOG, `Releasing non-puter_translate task ${task.task_id}`, {
+        capability: task.capability,
+      });
+      await this.submitResult(task.task_id, 'failed', undefined, {
+        error: `capability mismatch: expected puter_translate, got ${task.capability ?? 'none'}`,
+      });
+      return;
+    }
+
+    const words = this.normalizeWords((task.payload as any)?.words);
+    if (words.length === 0) {
+      await this.submitResult(task.task_id, 'failed', undefined, {
+        error: 'no words in payload',
+      });
+      return;
+    }
+
+    const targetLanguage =
+      (task.payload as any)?.target_language || (task.payload as any)?.language || 'zh';
+
+    let pairs: Array<{ word: string; translation: string }>;
+    try {
+      pairs = await puterAiTranslate(
+        words.map((w) => w.word),
+        targetLanguage,
+      );
+    } catch (error: any) {
+      logger.warn(LOG, `Puter API call failed: ${error?.message}`);
+      await this.submitResult(task.task_id, 'failed', undefined, {
+        error: error?.message || 'puter-ai call failed',
+      });
+      return;
+    }
+
+    if (pairs.length === 0) {
+      await this.submitResult(task.task_id, 'failed', undefined, {
+        error: 'puter-ai produced no parseable translations',
+      });
+      return;
+    }
+
+    await this.submitResult(task.task_id, 'completed', {
+      translations: pairs,
+      target_language: targetLanguage,
+      provider: 'puter-ai',
+    });
+    logger.info(LOG, `Task ${task.task_id} completed (${pairs.length} translations)`);
+  }
+
+  /** Payload words may be plain strings or {word, md5, ...} objects. */
+  private normalizeWords(raw: unknown): NormalizedWord[] {
+    if (!Array.isArray(raw)) return [];
+    const out: NormalizedWord[] = [];
+    for (const item of raw as any[]) {
+      if (typeof item === 'string') {
+        const word = item.trim();
+        if (word) out.push({ word });
+      } else if (item && typeof item.word === 'string') {
+        const word = item.word.trim();
+        if (word) out.push({ word, md5: item.md5 });
+      }
+    }
+    return out;
+  }
+}
+
+// Singleton instance.
+export const puterTranslateWorkerService = new PuterTranslateWorkerService();

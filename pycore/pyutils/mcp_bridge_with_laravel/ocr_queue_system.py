@@ -565,6 +565,92 @@ class OCRQueueProcessor:
             "resource_usage": self.resource_monitor.usage_stats.copy()
         }
 
+    def wait_for_task(self, task_id: str, timeout: int) -> Dict[str, Any]:
+        """Wait for single task completion (reusable polling helper)."""
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            status = self.get_task_status(task_id)
+            if status and status["status"] in ["completed", "failed"]:
+                return {
+                    "success": True,
+                    "mode": "single_file",
+                    "task_id": task_id,
+                    "result": status
+                }
+            time.sleep(1)
+
+        return {
+            "success": False,
+            "error": "Timeout waiting for task completion",
+            "task_id": task_id
+        }
+
+    def wait_for_group(self, group_id: str, timeout: int) -> Dict[str, Any]:
+        """Wait for batch group completion (reusable polling helper)."""
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            status = self.get_batch_status(group_id)
+            if status:
+                total = status["total_tasks"]
+                completed = status["completed"] + status["failed"]
+
+                if completed >= total:
+                    return {
+                        "success": True,
+                        "mode": "batch",
+                        "group_id": group_id,
+                        "result": status
+                    }
+            time.sleep(2)
+
+        return {
+            "success": False,
+            "error": "Timeout waiting for batch completion",
+            "group_id": group_id
+        }
+
+    def wait_for_batch(self, batch_info: Dict[str, Any], timeout: int) -> Dict[str, Any]:
+        """Wait for 2D batch completion (reusable polling helper)."""
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            all_completed = True
+
+            for group in batch_info["groups"]:
+                group_id = group["group_id"]
+                status = self.get_batch_status(group_id)
+
+                if status:
+                    total = status["total_tasks"]
+                    completed = status["completed"] + status["failed"]
+
+                    if completed < total:
+                        all_completed = False
+                        break
+                    else:
+                        # Update group result
+                        group["status"] = status
+
+            if all_completed:
+                return {
+                    "success": True,
+                    "mode": "2d_queue",
+                    "batch_id": batch_info["batch_id"],
+                    "groups": batch_info["groups"],
+                    "total_files": batch_info["total_files"]
+                }
+
+            time.sleep(3)
+
+        return {
+            "success": False,
+            "error": "Timeout waiting for 2D batch completion",
+            "batch_id": batch_info["batch_id"],
+            "partial_results": batch_info["groups"]
+        }
+
     def cleanup(self):
         """Cleanup resources"""
         self.stop_processing()

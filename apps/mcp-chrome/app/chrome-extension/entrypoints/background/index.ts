@@ -24,6 +24,7 @@ import { initApiHealthListener } from './api-health-listener';
 import { taskCenter } from './services/task-center/TaskCenter';
 import { initializeProcessors } from './services/task-center/init-processors';
 import { initTaskCenterListener } from './task-center-listener';
+import { initPuterTranslateListener } from './puter-translate-listener';
 
 /**
  * Background script entry point
@@ -105,6 +106,8 @@ export default defineBackground(() => {
   initCopilotTextListener();
   // Real, CORS-bypassing API health checks on the popup's behalf.
   initApiHealthListener();
+  // Puter AI translate worker bridge for the popup AI Translate Hub panel.
+  initPuterTranslateListener();
 
   // Initialize DeepSeek polling service
   getDeepSeekPollingService()

@@ -82,6 +82,7 @@ import NotebookLMPanel from './extensions/NotebookLMPanel.vue';
 import GeminiImage from './extensions/GeminiImage.vue';
 import ArticleStudyGuide from './extensions/ArticleStudyGuide.vue';
 import BookStudyGenerator from './extensions/BookStudyGenerator.vue';
+import AiTranslateHub from './extensions/AiTranslateHub.vue';
 
 // Extension config management. The old in-extension "Local Task Queue" (Process
 // API requests locally) was removed — it duplicated the laravel-aligned Bing
@@ -107,6 +108,7 @@ const registerAllComponents = () => {
   registerComponent('gemini-image', GeminiImage);
   registerComponent('article-study-guide', ArticleStudyGuide);
   registerComponent('book-study-generator', BookStudyGenerator);
+  registerComponent('ai-translate-hub', AiTranslateHub);
 };
 
 onMounted(async () => {

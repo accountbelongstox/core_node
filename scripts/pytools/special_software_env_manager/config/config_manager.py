@@ -40,6 +40,11 @@ class ConfigManager:
                         'Description': 'Anthropic API Key',
                         'Required': True
                     },
+                    {
+                        'Name': 'ANTHROPIC_MODEL',
+                        'Description': 'Default model (optional, e.g. glm-5.2, opus[1m]); empty = account default',
+                        'Required': False
+                    },
                 ],
                 'MCPSupport': {
                     'Enabled': True,

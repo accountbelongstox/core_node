@@ -38,7 +38,7 @@ export type WfTab =
  * the logo shows. Dynamic pages (content-list / library / book-reader) take their
  * title from the active route state.
  */
-function wfNewPageHeader(
+export function wfNewPageHeader(
   tab: WfTab,
   trans: (key: string, replacements?: Record<string, string | number>) => string,
   dyn: { contentListKind: WfNewContentKind | null; libraryTitle?: string; bookTitle?: string },

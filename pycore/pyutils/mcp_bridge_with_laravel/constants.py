@@ -8,6 +8,9 @@ Centralized configuration and constants for the File Processor service
 import os
 from pathlib import Path
 
+# CnOCR wheel variant depends on CUDA availability (resolved lazily-safe at import).
+from pycore.pyfoundations.pybasecommon.compute_caps import get_cnocr_pip_package
+
 class FileProcessorConstants:
     """Constants and configuration for File Processor MCP Server"""
 
@@ -46,7 +49,22 @@ class FileProcessorConstants:
         'paddlepaddle': 'paddle',
         'paddleocr': 'paddleocr'
     }
-    
+
+    # Required packages per format type (single source of truth for PackageManager).
+    # cnocr entry is GPU/CPU-dependent and resolved at class-definition time.
+    PACKAGE_MAPPING = {
+        'pdf': ['pypdf', 'pdfplumber', 'pytesseract'],
+        'xmind': ['xmindparser'],
+        'office': ['python-docx', 'openpyxl', 'python-pptx'],
+        'ocr': ['pytesseract', 'Pillow', 'requests'],
+        'xml': ['dicttoxml', 'lxml'],
+        'markdown': ['markdown', 'html2text'],
+        'conversion': ['pandoc', 'weasyprint', 'pdfkit'],
+        'html': ['beautifulsoup4', 'html2text', 'markdownify'],
+        'paddle_ocr': ['paddlepaddle', 'paddleocr'],
+        'cnocr': [get_cnocr_pip_package()]
+    }
+
     # Default configuration
     DEFAULT_CONFIG = {
         "max_file_size_mb": 50,
