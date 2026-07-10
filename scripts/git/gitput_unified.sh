@@ -1531,18 +1531,17 @@ human_kb() {
     fi
 }
 
-# Show local repository size vs remote (host API) size comparison
-show_repo_size_comparison() {
-    local target_url="$1"
-    local local_kb host owner_repo remote_kb diff_kb
-
-    # Local repository size (KiB): loose objects + packed objects (git-native, portable)
+get_local_repo_size_kb() {
+    local local_kb
     local_kb=$(git count-objects -v 2>/dev/null | awk '/^size:/{s=$2} /^size-pack:/{p=$2} END{print s+p+0}')
     [ -z "$local_kb" ] && local_kb=0
+    echo "$local_kb"
+}
 
-    # Parse host and owner/repo from the remote URL
-    host=""
-    owner_repo=""
+get_remote_repo_size_from_url() {
+    local target_url="$1"
+    local host="" owner_repo="" remote_kb="" api=""
+
     if [[ "$target_url" =~ ^git@([^:]+):(.+)$ ]]; then
         host="${BASH_REMATCH[1]}"
         owner_repo="${BASH_REMATCH[2]}"
@@ -1552,8 +1551,6 @@ show_repo_size_comparison() {
     fi
     owner_repo="${owner_repo%.git}"
 
-    # Remote repository size (KB) via host API (best-effort; public repos only)
-    remote_kb=""
     if [ -n "$owner_repo" ]; then
         case "$host" in
             github.com)
@@ -1565,21 +1562,46 @@ show_repo_size_comparison() {
         esac
     fi
 
-    write_color_text "--------------------------------" "Green"
-    write_color_text "Repository size comparison:" "Cyan"
-    write_color_text "  Local  : $(human_kb "$local_kb")" "White"
-    if [ -n "$remote_kb" ]; then
-        write_color_text "  Remote ($host): $(human_kb "$remote_kb")" "White"
-        diff_kb=$(( local_kb - remote_kb ))
-        if [ "$diff_kb" -ge 0 ]; then
-            write_color_text "  Local is larger by $(human_kb "$diff_kb")" "DarkGray"
+    echo "$host|$remote_kb"
+}
+
+show_repo_size_overview() {
+    local target target_url local_kb remote_info host remote_kb diff_kb
+
+    local_kb=$(get_local_repo_size_kb)
+
+    write_color_text "" "White"
+    write_color_text "============================================================" "Cyan"
+    write_color_text "  REPOSITORY SIZE OVERVIEW" "Cyan"
+    write_color_text "============================================================" "Cyan"
+    write_color_text "  Local (git): $(human_kb "$local_kb")" "White"
+    write_color_text "" "White"
+
+    for target in "$@"; do
+        target_url="${remote_configs[$target]}"
+        [ -z "$target_url" ] && continue
+
+        remote_info=$(get_remote_repo_size_from_url "$target_url")
+        host="${remote_info%%|*}"
+        remote_kb="${remote_info#*|}"
+        [ -z "$host" ] && host="$target"
+
+        if [ -n "$remote_kb" ]; then
+            write_color_text "  Remote [$target] ($host): $(human_kb "$remote_kb")" "White"
+            diff_kb=$(( local_kb - remote_kb ))
+            if [ "$diff_kb" -ge 0 ]; then
+                write_color_text "    Local is larger by $(human_kb "$diff_kb")" "DarkGray"
+            else
+                write_color_text "    Remote is larger by $(human_kb "$(( -diff_kb ))")" "DarkGray"
+            fi
         else
-            write_color_text "  Remote is larger by $(human_kb "$(( -diff_kb ))")" "DarkGray"
+            write_color_text "  Remote [$target] ($host): unavailable (private repo, no network, or unsupported host)" "Yellow"
         fi
-    else
-        write_color_text "  Remote ($host): unavailable (private repo, no network, or unsupported host)" "Yellow"
-    fi
-    write_color_text "--------------------------------" "Green"
+    done
+
+    write_color_text "" "White"
+    write_color_text "============================================================" "Cyan"
+    write_color_text "" "White"
 }
 
 # Function to perform git operations
@@ -1633,9 +1655,6 @@ invoke_git_operations() {
     git remote -v
     write_color_text "--------------------------------" "Green"
     write_color_text "----------------------------------------------------------------" "DarkYellow"
-
-    # Show local vs remote repository size comparison
-    show_repo_size_comparison "$target_url"
 
     # Run pre-commit encryption check (only once per session)
     if [ "$ENCRYPTION_CHECK_COMPLETED" = false ]; then
@@ -2020,6 +2039,8 @@ main() {
             fi
         fi
         write_color_text "" "White"
+
+        show_repo_size_overview "${targets[@]}"
     fi
 
     local all_success=true

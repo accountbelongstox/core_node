@@ -712,11 +712,7 @@ function Get-HumanKb {
     return "$Kb KB"
 }
 
-# Show local repository size vs remote (host API) size comparison
-function Show-RepoSizeComparison {
-    param([string]$TargetUrl)
-
-    # Local repository size (KiB): loose objects + packed objects (git-native, portable)
+function Get-LocalRepoSizeKb {
     $loose = 0
     $pack = 0
     $countOutput = git count-objects -v 2>$null
@@ -724,9 +720,12 @@ function Show-RepoSizeComparison {
         if ($line -match '^size:\s+(\d+)') { $loose = [long]$Matches[1] }
         elseif ($line -match '^size-pack:\s+(\d+)') { $pack = [long]$Matches[1] }
     }
-    $localKb = $loose + $pack
+    return $loose + $pack
+}
 
-    # Parse host and owner/repo from the remote URL
+function Get-RemoteRepoSizeFromUrl {
+    param([string]$TargetUrl)
+
     $remoteHost = ""
     $ownerRepo = ""
     if ($TargetUrl -match '^git@([^:]+):(.+)$') {
@@ -738,7 +737,6 @@ function Show-RepoSizeComparison {
     }
     if ($ownerRepo.EndsWith(".git")) { $ownerRepo = $ownerRepo.Substring(0, $ownerRepo.Length - 4) }
 
-    # Remote repository size (KB) via host API (best-effort; public repos only)
     $remoteKb = $null
     $api = $null
     if ($ownerRepo -and $remoteHost -eq "github.com") { $api = "https://api.github.com/repos/$ownerRepo" }
@@ -752,21 +750,50 @@ function Show-RepoSizeComparison {
         }
     }
 
-    Write-ColorText "--------------------------------" -ForegroundColor Green
-    Write-ColorText "Repository size comparison:" -ForegroundColor Cyan
-    Write-ColorText "  Local  : $(Get-HumanKb $localKb)" -ForegroundColor White
-    if ($null -ne $remoteKb) {
-        Write-ColorText "  Remote ($remoteHost): $(Get-HumanKb $remoteKb)" -ForegroundColor White
-        $diff = $localKb - $remoteKb
-        if ($diff -ge 0) {
-            Write-ColorText "  Local is larger by $(Get-HumanKb $diff)" -ForegroundColor DarkGray
-        } else {
-            Write-ColorText "  Remote is larger by $(Get-HumanKb (-$diff))" -ForegroundColor DarkGray
-        }
-    } else {
-        Write-ColorText "  Remote ($remoteHost): unavailable (private repo, no network, or unsupported host)" -ForegroundColor Yellow
+    return @{
+        Host = $remoteHost
+        SizeKb = $remoteKb
     }
-    Write-ColorText "--------------------------------" -ForegroundColor Green
+}
+
+function Show-RepoSizeOverview {
+    param(
+        [string[]]$Targets,
+        [hashtable]$Configs
+    )
+
+    $localKb = Get-LocalRepoSizeKb
+
+    Write-ColorText "" -ForegroundColor White
+    Write-ColorText "============================================================" -ForegroundColor Cyan
+    Write-ColorText "  REPOSITORY SIZE OVERVIEW" -ForegroundColor Cyan
+    Write-ColorText "============================================================" -ForegroundColor Cyan
+    Write-ColorText "  Local (git): $(Get-HumanKb $localKb)" -ForegroundColor White
+    Write-ColorText "" -ForegroundColor White
+
+    foreach ($target in $Targets) {
+        if (-not $Configs.ContainsKey($target)) { continue }
+        $targetUrl = $Configs[$target]
+        $remoteInfo = Get-RemoteRepoSizeFromUrl -TargetUrl $targetUrl
+        $remoteHost = $remoteInfo.Host
+        if (-not $remoteHost) { $remoteHost = $target }
+
+        if ($null -ne $remoteInfo.SizeKb) {
+            Write-ColorText "  Remote [$target] ($remoteHost): $(Get-HumanKb $remoteInfo.SizeKb)" -ForegroundColor White
+            $diff = $localKb - $remoteInfo.SizeKb
+            if ($diff -ge 0) {
+                Write-ColorText "    Local is larger by $(Get-HumanKb $diff)" -ForegroundColor DarkGray
+            } else {
+                Write-ColorText "    Remote is larger by $(Get-HumanKb (-$diff))" -ForegroundColor DarkGray
+            }
+        } else {
+            Write-ColorText "  Remote [$target] ($remoteHost): unavailable (private repo, no network, or unsupported host)" -ForegroundColor Yellow
+        }
+    }
+
+    Write-ColorText "" -ForegroundColor White
+    Write-ColorText "============================================================" -ForegroundColor Cyan
+    Write-ColorText "" -ForegroundColor White
 }
 
 # Function to perform git operations
@@ -797,9 +824,6 @@ function Invoke-GitOperations {
         git remote -v
         Write-ColorText "--------------------------------" -ForegroundColor Green
         Write-ColorText "----------------------------------------------------------------" -ForegroundColor DarkYellow
-
-        # Show local vs remote repository size comparison
-        Show-RepoSizeComparison $TargetUrl
 
         # Run pre-commit encryption check (only once per session)
         if (-not $script:EncryptionCheckCompleted) {
@@ -1184,6 +1208,8 @@ try {
             }
         }
         Write-ColorText "" -ForegroundColor White
+
+        Show-RepoSizeOverview -Targets $targets -Configs $remoteConfigs
     }
 
     $allSuccess = $true

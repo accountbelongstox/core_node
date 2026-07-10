@@ -208,13 +208,8 @@ def human_kb(kb: int) -> str:
     return f"{kb} KB"
 
 
-def show_repo_size_comparison(target_url: str) -> None:
-    """Show local repository size vs remote (host API) size comparison"""
-    import re
-    import json
-    import urllib.request
-
-    # Local repository size (KiB): loose objects + packed objects (git-native, portable)
+def get_local_repo_size_kb() -> int:
+    """Return local git repository size in KiB."""
     loose = pack = 0
     out = run_git_command("git count-objects -v", capture_output=True) or ""
     for line in out.splitlines():
@@ -222,9 +217,15 @@ def show_repo_size_comparison(target_url: str) -> None:
             loose = int(line.split(":", 1)[1].strip() or 0)
         elif line.startswith("size-pack:"):
             pack = int(line.split(":", 1)[1].strip() or 0)
-    local_kb = loose + pack
+    return loose + pack
 
-    # Parse host and owner/repo from the remote URL
+
+def get_remote_repo_size_from_url(target_url: str) -> tuple[str, int | None]:
+    """Return (host, remote_size_kb) for a remote URL via host API."""
+    import re
+    import json
+    import urllib.request
+
     host = ""
     owner_repo = ""
     m = re.match(r'^git@([^:]+):(.+)$', target_url)
@@ -235,7 +236,6 @@ def show_repo_size_comparison(target_url: str) -> None:
     if owner_repo.endswith(".git"):
         owner_repo = owner_repo[:-4]
 
-    # Remote repository size (KB) via host API (best-effort; public repos only)
     remote_kb = None
     api = None
     if owner_repo and host == "github.com":
@@ -252,19 +252,45 @@ def show_repo_size_comparison(target_url: str) -> None:
         except Exception:
             remote_kb = None
 
-    write_color_text("--------------------------------", "Green")
-    write_color_text("Repository size comparison:", "Cyan")
-    write_color_text(f"  Local  : {human_kb(local_kb)}", "White")
-    if remote_kb is not None:
-        write_color_text(f"  Remote ({host}): {human_kb(remote_kb)}", "White")
-        diff = local_kb - remote_kb
-        if diff >= 0:
-            write_color_text(f"  Local is larger by {human_kb(diff)}", "DarkGray")
+    return host, remote_kb
+
+
+def show_repo_size_overview(targets: list[str]) -> None:
+    """Show local git size and all target remote sizes before commit."""
+    local_kb = get_local_repo_size_kb()
+
+    write_color_text("", "White")
+    write_color_text("============================================================", "Cyan")
+    write_color_text("  REPOSITORY SIZE OVERVIEW", "Cyan")
+    write_color_text("============================================================", "Cyan")
+    write_color_text(f"  Local (git): {human_kb(local_kb)}", "White")
+    write_color_text("", "White")
+
+    for target in targets:
+        target_url = REMOTE_CONFIGS.get(target)
+        if not target_url:
+            continue
+
+        host, remote_kb = get_remote_repo_size_from_url(target_url)
+        if not host:
+            host = target
+
+        if remote_kb is not None:
+            write_color_text(f"  Remote [{target}] ({host}): {human_kb(remote_kb)}", "White")
+            diff = local_kb - remote_kb
+            if diff >= 0:
+                write_color_text(f"    Local is larger by {human_kb(diff)}", "DarkGray")
+            else:
+                write_color_text(f"    Remote is larger by {human_kb(-diff)}", "DarkGray")
         else:
-            write_color_text(f"  Remote is larger by {human_kb(-diff)}", "DarkGray")
-    else:
-        write_color_text(f"  Remote ({host}): unavailable (private repo, no network, or unsupported host)", "Yellow")
-    write_color_text("--------------------------------", "Green")
+            write_color_text(
+                f"  Remote [{target}] ({host}): unavailable (private repo, no network, or unsupported host)",
+                "Yellow",
+            )
+
+    write_color_text("", "White")
+    write_color_text("============================================================", "Cyan")
+    write_color_text("", "White")
 
 
 def invoke_git_operations(target_url: str, force_push_mode: bool = False) -> bool:
@@ -303,9 +329,6 @@ def invoke_git_operations(target_url: str, force_push_mode: bool = False) -> boo
         run_git_command("git remote -v")
         write_color_text("--------------------------------", "Green")
         write_color_text("----------------------------------------------------------------", "DarkYellow")
-        
-        # Show local vs remote repository size comparison
-        show_repo_size_comparison(target_url)
 
         # Run pre-commit encryption check (only once per session)
         if not encryption_check_completed:
@@ -460,6 +483,8 @@ def main():
                 write_color_text("Force push enabled for ALL targets", "Red")
             else:
                 write_color_text("Normal push mode (with pull) for ALL targets", "Green")
+
+            show_repo_size_overview(targets)
 
         all_success = True
         
