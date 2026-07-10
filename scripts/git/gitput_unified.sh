@@ -815,9 +815,9 @@ get_commit_message() {
         fi
     fi
 
-    # Get platform info for default message
+    # Default message: tool + OS + timestamp + pre-pull local-only (commit before pull).
     local platform_info=$(get_platform_info)
-    local default_message="${platform_info}-${TIMESTAMP}"
+    local default_message="[gitput_unified] ${platform_info} @ ${TIMESTAMP} | pre-pull local-only"
 
     # Ask user for input (first time only). Auto-continue with the default
     # message after COMMIT_MESSAGE_TIMEOUT_SECONDS of no typing (idle), so an

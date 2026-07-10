@@ -236,9 +236,9 @@ function Get-CommitMessage {
         return $script:CommitMessage
     }
 
-    # Get platform info for default message
+    # Default message: tool + OS + timestamp + pre-pull local-only (commit before pull).
     $platformInfo = Get-PlatformInfo
-    $defaultMessage = "$platformInfo-$timestamp"
+    $defaultMessage = "[gitput_unified] $platformInfo @ $timestamp | pre-pull local-only"
 
     # Ask user for input. Auto-continue with the default message after
     # $CommitMessageTimeoutSeconds of no typing (idle), so an unattended push
